@@ -17,7 +17,7 @@ export const CAREER_TEXT_CHAT_MODEL_IDS = [
 export type CareerTextChatModelId = (typeof CAREER_TEXT_CHAT_MODEL_IDS)[number];
 
 export const DEFAULT_CAREER_TEXT_CHAT_MODEL: CareerTextChatModelId =
-  CLAUDE_MODEL;
+  OPENROUTER_GLM_53_FLASH_MODEL;
 
 export function isCareerTextChatModelId(
   value: unknown

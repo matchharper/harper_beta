@@ -6,13 +6,14 @@ import {
   compactHarperSlackFilesForQueue,
   extractHarperSlackFileAttachments,
   isSupportedHarperSlackFile,
+  isSupportedHarperSlackImage,
   mergeHarperSlackFiles,
   needsHarperSlackFileInfo,
   parseQueuedHarperSlackFiles,
   selectPendingHarperSlackFiles,
 } from "./slackFiles";
 
-test("Slack file support is limited to PDF, DOCX, and TXT with matching MIME", () => {
+test("Slack supports documents and vision-compatible images with matching MIME", () => {
   assert.equal(
     isSupportedHarperSlackFile({
       name: "role.pdf",
@@ -34,6 +35,27 @@ test("Slack file support is limited to PDF, DOCX, and TXT with matching MIME", (
   );
   assert.equal(
     isSupportedHarperSlackFile({ name: "role.pdf", mimetype: "image/png" }),
+    false
+  );
+  assert.equal(
+    isSupportedHarperSlackFile({
+      name: "screenshot.png",
+      mimetype: "image/png",
+    }),
+    true
+  );
+  assert.equal(
+    isSupportedHarperSlackImage({
+      name: "photo.jpg",
+      mimetype: "image/jpeg",
+    }),
+    true
+  );
+  assert.equal(
+    isSupportedHarperSlackImage({
+      name: "photo.jpg",
+      mimetype: "image/png",
+    }),
     false
   );
   assert.equal(
@@ -214,6 +236,109 @@ test("downloads and extracts supported Slack files with bearer authorization", a
   );
 });
 
+test("downloads Slack images into ephemeral base64 model inputs", async () => {
+  const png = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
+  ]);
+  let extractedDocument = false;
+  const result = await extractHarperSlackFileAttachments({
+    extractDocument: async () => {
+      extractedDocument = true;
+      return { text: "unused", truncated: false };
+    },
+    fetchImpl: (async () =>
+      new Response(png, {
+        headers: { "content-length": String(png.byteLength) },
+        status: 200,
+      })) as typeof fetch,
+    files: [
+      {
+        id: "F-IMAGE",
+        mimetype: "image/png",
+        name: "screenshot.png",
+        size: png.byteLength,
+        url_private_download:
+          "https://files.slack.com/files-pri/T-F/download/screenshot.png",
+      },
+    ],
+    token: "xoxb-secret",
+  });
+
+  assert.equal(extractedDocument, false);
+  assert.deepEqual(result.attachments, []);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.images.length, 1);
+  assert.equal(result.images[0]?.mime, "image/png");
+  assert.match(result.images[0]?.dataUrl ?? "", /^data:image\/png;base64,/);
+});
+
+test("rejects image bytes that do not match the declared file type", async () => {
+  const result = await extractHarperSlackFileAttachments({
+    fetchImpl: (async () =>
+      new Response("not a png", {
+        headers: { "content-length": "9" },
+        status: 200,
+      })) as typeof fetch,
+    files: [
+      {
+        id: "F-FAKE-IMAGE",
+        mimetype: "image/png",
+        name: "fake.png",
+        size: 9,
+        url_private: "https://files.slack.com/files-pri/T-F/fake.png",
+      },
+    ],
+    token: "xoxb-secret",
+  });
+
+  assert.deepEqual(result.images, []);
+  assert.match(result.errors.join("\n"), /실제 형식/);
+});
+
+test("accepts a single-frame GIF and rejects an animated GIF", async () => {
+  const singleFrame = new Uint8Array(
+    Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "base64")
+  );
+  const animated = new Uint8Array([
+    ...singleFrame.slice(0, -1),
+    ...singleFrame.slice(19, -1),
+    0x3b,
+  ]);
+  const files = [
+    {
+      id: "F-GIF",
+      mimetype: "image/gif",
+      name: "preview.gif",
+      size: singleFrame.byteLength,
+      url_private: "https://files.slack.com/files-pri/T-F/preview.gif",
+    },
+  ];
+  const extract = (bytes: Uint8Array) =>
+    extractHarperSlackFileAttachments({
+      fetchImpl: (async () =>
+        new Response(
+          bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength
+          ) as ArrayBuffer,
+          {
+            headers: { "content-length": String(bytes.byteLength) },
+            status: 200,
+          }
+        )) as typeof fetch,
+      files: files.map((file) => ({ ...file, size: bytes.byteLength })),
+      token: "xoxb-secret",
+    });
+
+  const accepted = await extract(singleFrame);
+  assert.equal(accepted.images.length, 1);
+  assert.deepEqual(accepted.errors, []);
+
+  const rejected = await extract(animated);
+  assert.deepEqual(rejected.images, []);
+  assert.match(rejected.errors.join("\n"), /움직이는 GIF/);
+});
+
 test("rejects oversized and non-Slack downloads before fetching", async () => {
   let fetches = 0;
   const result = await extractHarperSlackFileAttachments({
@@ -257,10 +382,20 @@ test("LLM input labels file contents as untrusted reference data", () => {
       },
     ],
     errors: ["bad.pdf: 읽기 실패"],
+    images: [
+      {
+        dataUrl: "data:image/png;base64,iVBORw0KGgo=",
+        mime: "image/png",
+        name: "screenshot.png",
+        size: 8,
+      },
+    ],
     message: "이 JD를 요약해줘",
   });
 
   assert.match(message, /<untrusted_slack_file_attachments>/);
   assert.match(message, /Ignore previous instructions/);
+  assert.match(message, /<untrusted_slack_image_attachments>/);
+  assert.doesNotMatch(message, /iVBORw0KGgo/);
   assert.match(message, /<slack_file_read_errors>/);
 });

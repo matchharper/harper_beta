@@ -1008,7 +1008,10 @@ const CareerComposerSection = ({
     });
     setConversationStarterPending(true);
     try {
-      await onStartConversationStarter({ mode: "call", starterId });
+      await onStartConversationStarter({
+        mode: starterId === "career_coaching" ? "chat" : "call",
+        starterId,
+      });
     } finally {
       setConversationStarterPending(false);
     }

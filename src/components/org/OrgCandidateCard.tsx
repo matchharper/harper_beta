@@ -154,17 +154,17 @@ export function OrgCandidateCard({
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
   const showProfilePicture =
     profilePicture && failedImageSrc !== profilePicture;
+  const canDrag =
+    canManageCandidates &&
+    !pending &&
+    (item.source !== "company_intro" ||
+      item.companyIntro?.status === "ready");
 
   return (
     <div
       role="button"
       tabIndex={0}
-      draggable={
-        canManageCandidates &&
-        !pending &&
-        (item.source !== "company_intro" ||
-          item.companyIntro?.status === "ready")
-      }
+      draggable={canDrag}
       onClick={() => onSelect(item)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -186,7 +186,7 @@ export function OrgCandidateCard({
       }}
       className={cn(
         "relative overflow-hidden rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
-        canManageCandidates
+        canDrag
           ? "cursor-grab active:cursor-grabbing"
           : "cursor-pointer",
         pending && "cursor-wait opacity-60"
@@ -272,7 +272,7 @@ export function OrgCandidateCard({
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
           결정이 필요합니다
         </div>
-      ) : item.companyIntro ? (
+      ) : item.companyIntro && item.companyIntro.status !== "ready" ? (
         <div
           className={cn(
             "-mx-3 mt-3 px-3 py-1 text-[12px] font-medium",

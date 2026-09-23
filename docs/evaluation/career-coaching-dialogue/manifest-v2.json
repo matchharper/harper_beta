@@ -1,0 +1,64 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v2",
+  "createdAt": "2026-09-22",
+  "sourceRevisionAtFreeze": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00",
+  "files": {
+    "cases-v2.json": {
+      "sha256": "ba7879d7aa4b0af45ecee1ad881ab8bd864a6532ae9b2271a12948fdad9a7d5c"
+    },
+    "gold-v2.json": {
+      "sha256": "e6dbc82cffe999dac8e100ace2137d74388ded9c12a6af6aad361e368c97af8d"
+    },
+    "canonicalRunner": {
+      "path": "scripts/evalCareerCoachingLifecycle.ts",
+      "sha256AtRegistration": "a578575f56a88c73b7780586cb622286e16f916bff71fde3e7cd57277bc5861d"
+    }
+  },
+  "distribution": {
+    "caseCount": 14,
+    "language": {
+      "ko": 14
+    },
+    "caseTypes": {
+      "broad_explicit_exploration": 1,
+      "explicit_topic_selection": 4,
+      "explicit_direct_start": 1,
+      "ordinary_chat_negative": 5,
+      "suggested_natural_start": 1,
+      "active_one_off_request": 1,
+      "active_explicit_end": 1
+    },
+    "source": {
+      "synthetic": 14,
+      "production": 0
+    }
+  },
+  "promptContract": {
+    "channel": "chat",
+    "conversationMode": "default_or_active_career_coaching",
+    "locale": "ko",
+    "productionBuilderRequired": true,
+    "productionChatToolSchemaRequired": true,
+    "lifecycleStateStubbedInMemory": true
+  },
+  "review": {
+    "goldType": "human_qualitative_with_structural_lifecycle_checks",
+    "status": "frozen_before_first_model_run",
+    "reviewer": "Codex with user-provided product criteria",
+    "unblindedToModelOutput": false
+  },
+  "privacy": {
+    "containsProductionData": false,
+    "containsPii": false,
+    "rawOutputsGitignored": true,
+    "productionDatabaseAccessAllowed": false
+  },
+  "knownLimitations": [
+    "Small synthetic challenge set, not a representative production sample.",
+    "One or two fixed text turns cannot reproduce every adaptive coaching conversation.",
+    "Lifecycle RPC behavior is modeled in memory; database locking and browser behavior are out of scope.",
+    "Voice latency, interruption handling, and live audio behavior are out of scope.",
+    "Human review and repeated model runs are still required before release."
+  ]
+}

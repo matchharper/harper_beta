@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getOrgRoleQuickAction,
+  ORG_ROLE_CHAT_QUICK_ACTIONS,
   ORG_ROLE_QUICK_ACTION_IDLE_MS,
   ORG_ROLE_QUICK_ACTIONS,
+  ORG_ROLE_RUN_SEARCH_ACTION,
   shouldShowOrgRoleQuickActions,
 } from "./roleQuickActions";
 
@@ -25,6 +27,19 @@ test("role quick actions keep the exact user-facing prompts", () => {
     "Pipeline summary"
   );
   assert.equal(getOrgRoleQuickAction("unknown"), null);
+});
+
+test("role chat quick actions append an immediate current-Brief search", () => {
+  assert.deepEqual(ORG_ROLE_RUN_SEARCH_ACTION, {
+    id: "run_search",
+    label: "Run Search",
+    message: "Run a search based on the current brief",
+  });
+  assert.deepEqual(ORG_ROLE_CHAT_QUICK_ACTIONS, [
+    ...ORG_ROLE_QUICK_ACTIONS,
+    ORG_ROLE_RUN_SEARCH_ACTION,
+  ]);
+  assert.equal(getOrgRoleQuickAction("run_search"), null);
 });
 
 test("role quick actions appear only after one hour without a user message", () => {

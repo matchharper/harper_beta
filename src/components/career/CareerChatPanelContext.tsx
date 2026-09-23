@@ -27,6 +27,10 @@ import type {
   CareerPendingAction,
   CareerPendingActionReference,
 } from "@/lib/career/pendingActions";
+import type {
+  CareerCoachingActivity,
+} from "@/lib/career/careerCoachingActivitySchema";
+import type { CareerCoachingActivityUiAction } from "@/components/career/chat/CareerCoachingActivityCard";
 
 export type CareerChatPanelContextValue = {
   user: User | null;
@@ -117,6 +121,10 @@ export type CareerChatPanelContextValue = {
   onStartConversationStarter?: (args: {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
+  }) => boolean | Promise<boolean>;
+  onUpdateCareerCoachingActivity?: (args: {
+    action: CareerCoachingActivityUiAction;
+    activity: CareerCoachingActivity;
   }) => boolean | Promise<boolean>;
   onRunSessionReengagement?: () => boolean | Promise<boolean>;
   onUpdateHistoryOpportunityFeedback: (

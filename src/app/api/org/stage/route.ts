@@ -6,6 +6,15 @@ import {
   type OrgStageId,
 } from "@/lib/org/server";
 import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
+import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
+
+function actionIdentity(value: unknown) {
+  return (
+    String(value ?? "")
+      .trim()
+      .slice(0, 200) || crypto.randomUUID()
+  );
+}
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
@@ -35,6 +44,7 @@ export async function POST(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       acceptReason?: string | null;
+      agentActionId?: unknown;
       attendeeEmails?: string[];
       contactDirectly?: boolean;
       durationMinutes?: unknown;
@@ -99,8 +109,43 @@ export async function POST(req: NextRequest) {
       user,
       workspaceId: body.workspaceId ?? "",
     });
+    let agentJobId: string | null = null;
+    try {
+      const queued = await enqueueOrgAgentWebActionTurn({
+        actionContext: {
+          closureNotificationDelivered:
+            "closureNotificationDelivered" in payload
+              ? payload.closureNotificationDelivered
+              : null,
+          previousStage: body.sourceStage ?? null,
+          recommendationId: body.recommendationId ?? "",
+          roleId: payload.roleId,
+          stage: "stage" in payload ? payload.stage : payload.requestedStage,
+          status: "status" in payload ? payload.status : "completed",
+          talentId: payload.talentId,
+        },
+        actionName: "candidate_stage_changed",
+        idempotencyKey: [
+          "org-web",
+          body.workspaceId ?? "",
+          user.id,
+          "candidate-stage",
+          payload.roleId,
+          payload.talentId,
+          "stage" in payload ? payload.stage : payload.requestedStage,
+          actionIdentity(body.agentActionId),
+        ].join(":"),
+        roleId: payload.roleId,
+        user,
+        workspaceId: body.workspaceId ?? "",
+      });
+      agentJobId = queued.jobId;
+    } catch (agentError) {
+      console.error("[org/stage:agent-wake]", agentError);
+    }
     return NextResponse.json({
       ...payload,
+      agentJobId,
       meetingSchedule: null,
     });
   } catch (error) {

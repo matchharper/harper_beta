@@ -13,6 +13,7 @@ import {
 } from "@/lib/talentOnboarding/models";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import { CAREER_COACHING_ACTIVITY_MESSAGE_TYPE } from "@/lib/career/careerCoachingActivitySchema";
 
 const HIDDEN_MESSAGE_TYPES = new Set([
   TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION,
@@ -33,7 +34,7 @@ export async function fetchMessages(args: {
   const { data, error } = await admin
     .from("talent_messages")
     .select(
-      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+      "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
     )
     .eq("conversation_id", conversationId)
     .order("id", { ascending: true });
@@ -45,6 +46,43 @@ export async function fetchMessages(args: {
   return removeHiddenMessages((data ?? []) as TalentMessageRow[]);
 }
 
+export async function fetchMessagesAfterId(args: {
+  admin: TalentAdminClient;
+  afterMessageId: number;
+  conversationId: string;
+}) {
+  const pageSize = 100;
+  const messages: TalentMessageRow[] = [];
+  let cursor = args.afterMessageId;
+
+  while (true) {
+    const { data, error } = await args.admin
+      .from("talent_messages")
+      .select(
+        "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
+      )
+      .eq("conversation_id", args.conversationId)
+      .gt("id", cursor)
+      .order("id", { ascending: true })
+      .limit(pageSize);
+
+    if (error) {
+      throw new Error(
+        error.message ?? "Failed to load talent_messages after cursor"
+      );
+    }
+
+    const page = (data ?? []) as TalentMessageRow[];
+    if (page.length === 0) break;
+
+    messages.push(...removeHiddenMessages(page));
+    cursor = page[page.length - 1]?.id ?? cursor;
+    if (page.length < pageSize) break;
+  }
+
+  return messages;
+}
+
 export async function fetchOnboardingCompletionWrapupMessage(args: {
   admin: TalentAdminClient;
   conversationId: string;
@@ -53,7 +91,7 @@ export async function fetchOnboardingCompletionWrapupMessage(args: {
   const { data: existing, error: existingError } = await args.admin
     .from("talent_messages")
     .select(
-      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+      "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
     )
     .eq("conversation_id", args.conversationId)
     .eq("user_id", args.userId)
@@ -79,7 +117,7 @@ export async function fetchOnboardingCompletionNextStepsMessage(args: {
   const { data: existing, error: existingError } = await args.admin
     .from("talent_messages")
     .select(
-      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+      "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
     )
     .eq("conversation_id", args.conversationId)
     .eq("user_id", args.userId)
@@ -105,7 +143,7 @@ export async function fetchOnboardingInitialSearchStartedMessage(args: {
   const { data: existing, error: existingError } = await args.admin
     .from("talent_messages")
     .select(
-      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+      "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
     )
     .eq("conversation_id", args.conversationId)
     .eq("user_id", args.userId)
@@ -292,9 +330,10 @@ export async function fetchRecentMessages(args: {
   const { data, error } = await admin
     .from("talent_messages")
     .select(
-      "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+      "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
     )
     .eq("conversation_id", conversationId)
+    .neq("message_type", CAREER_COACHING_ACTIVITY_MESSAGE_TYPE)
     .order("id", { ascending: false })
     .limit(limit);
 
@@ -321,7 +360,7 @@ export async function fetchVisibleMessagesPage(args: {
     let query = admin
       .from("talent_messages")
       .select(
-        "id, conversation_id, user_id, role, content, message_type, thinking_logs, created_at"
+        "id, conversation_id, user_id, role, content, message_type, payload, thinking_logs, created_at"
       )
       .eq("conversation_id", conversationId)
       .not("content", "like", `${TALENT_PENDING_QUESTION_PREFIX}%`)

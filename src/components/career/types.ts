@@ -7,6 +7,7 @@ import type {
 import type { OpportunityRunMarkerRelation } from "@/lib/opportunityDiscovery/messageMarker";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import type { CareerMessageAttachment } from "@/lib/career/messageAttachments";
+import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 export {
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER_VALUES,
@@ -28,6 +29,8 @@ export type CareerCallStartRequest =
   | string
   | {
       conversationStarterId?: CareerConversationStarterId | null;
+      careerCoachingActivityMessageId?: number | null;
+      careerCoachingActivityRevision?: number | null;
       forceBeginOnboarding?: boolean;
       internalCallRequestId?: string | null;
       openingText?: string;
@@ -299,6 +302,19 @@ export type CareerInternalRecommendationProgress = {
   stopReason?: CareerInternalRecommendationStopReason | null;
 };
 
+export type CareerCompanyRequestIntroProgress = {
+  canRelayToCompany: boolean;
+  connectedAt: string | null;
+  connectionId: string;
+  latestCandidateRelayAt: string | null;
+  latestCandidateRelayStatus: "cancelled" | "failed" | "queued" | "sent" | null;
+  latestCompanyContactAt: string | null;
+  origin: "company_request_intro";
+  requestedAt: string | null;
+  status: string;
+  talentAcceptedAt: string | null;
+};
+
 export type CareerOpportunityCompanyData = {
   confidence?: number | null;
   lastFundingRoundDescription?: string | null;
@@ -373,6 +389,7 @@ export type CareerHistoryOpportunity = {
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
   companyName: string;
+  companyRequestIntroProgress?: CareerCompanyRequestIntroProgress | null;
   confirmedMeetings?: CareerOpportunityMeeting[];
   description: string | null;
   employmentTypes: string[];
@@ -452,6 +469,7 @@ export type CareerHistoryItem = {
 
 export type CareerMessage = {
   attachments?: CareerMessageAttachment[];
+  coachingActivity?: CareerCoachingActivity;
   id: string | number;
   role: MessageRole;
   content: string;
@@ -469,6 +487,7 @@ export type CareerMessage = {
 
 export type CareerMessagePayload = {
   attachments?: CareerMessageAttachment[];
+  coachingActivity?: CareerCoachingActivity;
   id: number;
   role: MessageRole;
   content: string;

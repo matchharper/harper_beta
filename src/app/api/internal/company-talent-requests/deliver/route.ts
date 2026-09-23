@@ -19,7 +19,8 @@ async function mirrorRelayToRoleConversation(args: {
   relayId?: string | null;
   request: {
     company_workspace_id: string;
-    id: string;
+    id?: string | null;
+    recommendation_id?: string | null;
     role?: { name?: string | null } | Array<{ name?: string | null }> | null;
     role_id?: string | null;
     talent_id?: string | null;
@@ -115,12 +116,14 @@ async function mirrorRelayToRoleConversation(args: {
     ? {
         candidateRelayRef: {
           relayId: args.relayId,
-          requestId: args.request.id,
+          recommendationId: String(args.request.recommendation_id ?? "").trim(),
+          ...(args.request.id ? { requestId: args.request.id } : {}),
           roleId,
           talentId: String(args.request.talent_id ?? "").trim(),
         },
         relayId: args.relayId,
-        requestId: args.request.id,
+        recommendationId: String(args.request.recommendation_id ?? "").trim(),
+        ...(args.request.id ? { requestId: args.request.id } : {}),
         source: "company_talent_relay",
       }
     : {
@@ -183,38 +186,84 @@ export async function POST(req: NextRequest) {
     };
     const requestId = String(body.requestId ?? "").trim();
     const relayId = String(body.relayId ?? "").trim();
-    if (!requestId) {
+    if (!requestId && !relayId) {
       return NextResponse.json(
-        { error: "requestId is required" },
+        { error: "requestId or relayId is required" },
         { status: 400 }
       );
     }
     const admin = getSupabaseAdmin();
-    const { data: request, error } = await (
-      admin.from("company_talent_requests" as any) as any
-    )
-      .select(
-        "id, company_workspace_id, role_id, talent_id, workflow_status, role:company_roles(name), source_message:company_messages!company_talent_requests_source_company_message_id_fkey(conversation_id, slack_thread_id), deliveries:contact_queue(payload, type)"
-      )
-      .eq("id", requestId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!request) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
-    }
+    let request: any = null;
     if (relayId) {
       const { data: relay, error: relayError } = await (
         admin.from("company_talent_relays" as any) as any
       )
         .select(
-          "id, company_talent_request_id, deliveries:contact_queue(type,status,sent_at,payload)"
+          "id, company_talent_request_id, recommendation_id, deliveries:contact_queue(type,status,sent_at,payload)"
         )
         .eq("id", relayId)
-        .eq("company_talent_request_id", requestId)
         .maybeSingle();
       if (relayError) throw relayError;
       if (!relay) {
         return NextResponse.json({ error: "Relay not found" }, { status: 404 });
+      }
+      if (
+        requestId &&
+        relay.company_talent_request_id &&
+        relay.company_talent_request_id !== requestId
+      ) {
+        return NextResponse.json(
+          { error: "Relay request does not match" },
+          { status: 409 }
+        );
+      }
+      const relayRequestId = String(
+        relay.company_talent_request_id ?? requestId ?? ""
+      ).trim();
+      if (relayRequestId) {
+        const requestResult = await (
+          admin.from("company_talent_requests" as any) as any
+        )
+          .select(
+            "id, company_workspace_id, role_id, recommendation_id, talent_id, workflow_status, role:company_roles(name), source_message:company_messages!company_talent_requests_source_company_message_id_fkey(conversation_id, slack_thread_id), deliveries:contact_queue(payload, type)"
+          )
+          .eq("id", relayRequestId)
+          .maybeSingle();
+        if (requestResult.error) throw requestResult.error;
+        request = requestResult.data;
+      } else {
+        const recommendationResult = await (
+          admin.from("talent_opportunity_recommendation" as any) as any
+        )
+          .select(
+            "id, role_id, talent_id, role:company_roles!inner(name,company_workspace_id)"
+          )
+          .eq("id", relay.recommendation_id)
+          .maybeSingle();
+        if (recommendationResult.error) throw recommendationResult.error;
+        const recommendation = recommendationResult.data;
+        const role = Array.isArray(recommendation?.role)
+          ? recommendation.role[0]
+          : recommendation?.role;
+        if (recommendation && role) {
+          request = {
+            company_workspace_id: role.company_workspace_id,
+            deliveries: [],
+            id: null,
+            recommendation_id: recommendation.id,
+            role,
+            role_id: recommendation.role_id,
+            source_message: null,
+            talent_id: recommendation.talent_id,
+            workflow_status: null,
+          };
+        }
+      }
+      if (!request) {
+        return NextResponse.json(
+          { error: "Relay relationship not found" },
+          { status: 404 }
+        );
       }
       const relayDelivery = Array.isArray(relay.deliveries)
         ? relay.deliveries.find(
@@ -292,10 +341,23 @@ export async function POST(req: NextRequest) {
       });
       console.info("[company-talent-relay] delivered", {
         relayId,
-        requestId,
+        requestId: request.id ?? null,
         slackThread: slackDestination.kind === "thread",
       });
       return NextResponse.json({ ok: true, result: finalized });
+    }
+    const requestResult = await (
+      admin.from("company_talent_requests" as any) as any
+    )
+      .select(
+        "id, company_workspace_id, role_id, recommendation_id, talent_id, workflow_status, role:company_roles(name), source_message:company_messages!company_talent_requests_source_company_message_id_fkey(conversation_id, slack_thread_id), deliveries:contact_queue(payload, type)"
+      )
+      .eq("id", requestId)
+      .maybeSingle();
+    if (requestResult.error) throw requestResult.error;
+    request = requestResult.data;
+    if (!request) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
     const deliveryQueue = Array.isArray(request.deliveries)
       ? request.deliveries.find(

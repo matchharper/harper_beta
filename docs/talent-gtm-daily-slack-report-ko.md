@@ -66,7 +66,7 @@ Root의 `방문자`, `회원가입`, `온보딩 완료`는 모두 전일과 비�
 - Jobs 이벤트 간격이 30분 미만이면 같은 세션의 출처를 이어가고, 30분 이상 떨어진 새 세션에는 이전 출처를 이어 붙이지 않는다. 방문 entry와 page event의 비동기 기록 차이는 30분 범위에서 연결한다. 가입·온보딩은 identity 로그 시점까지 기록된 같은 세션의 출처를 사용하며, 미래 Jobs 이벤트로 과거 전환의 채널을 바꾸지 않는다.
 - 이 기준은 당일·전일·전주 비교에 동일하게 적용한다. 채널 표에서는 중복 집계하지 않으며, 별도 공고별 상세 표에는 유입 채널과 관계없이 해당 공고의 활동을 계속 표시한다.
 - Instagram·콘텐츠는 `instagram`, `instantdm`, `dm`, `contentNN`, `contentsNN`을 포함한다.
-- SEO는 UTM source가 `seo`이거나 Google, Naver, Bing, Daum, DuckDuckGo, Yahoo referrer에서 새로 기록된 `seo` source다.
+- SEO는 Google, Naver, Bing, Daum, DuckDuckGo, Yahoo의 실제 검색 결과 호스트에서 들어온 referrer로 판별한다. `utm_source=seo`를 전제로 하지 않는다. `accounts.google.com`, Gmail, Google Docs 같은 OAuth·Google 서비스·앱 이동 referrer는 SEO가 아니다.
 - 그 밖의 direct, 미분류, network, email, AI assistant 등은 기타다.
 - UTM이 없는 과거 검색 유입은 사후 복구할 수 없으므로 역사적으로 `career`/기타에 남는다.
 - 일일 메시지에서는 `career`를 `직접 방문·출처 미확인`으로 표시한다. 명시된 캠페인이 기존 채널에 속하지 않으면 기타 상세에 해당 source를 표시한다.

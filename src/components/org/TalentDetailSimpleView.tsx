@@ -700,16 +700,16 @@ function CompanyIntroDecisionActions({
   return (
     <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
       <div className="text-[16px] font-medium text-neutral-primary">
-        {candidateName}님에게 먼저 제안할까요?
+        Request Intro: {candidateName}
       </div>
-      <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
-        아직 이 역할을 추천받지 않았고 관심 여부도 확인되지 않은 후보입니다.
-        만나고 싶은 이유를 적으면 Harper가 회사를 대신해 먼저 제안합니다.
-        후보자가 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다.
-      </p>
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <MuteButton disabled={pending} onClick={onPass} size="md">
-          제안하지 않기
+        <MuteButton
+          disabled={pending}
+          onClick={onPass}
+          size="md"
+          variant="critical"
+        >
+          Pass
         </MuteButton>
         <MuteButton
           disabled={pending}
@@ -717,7 +717,7 @@ function CompanyIntroDecisionActions({
           size="md"
           variant="dark"
         >
-          먼저 제안하기
+          Request Intro
         </MuteButton>
       </div>
     </section>
@@ -1513,7 +1513,7 @@ export function TalentDetailSimpleView() {
     (detail?.recommendation.stage === "pending_connection" ||
       (detail?.recommendation.stage === "company_intro" &&
         detail.companyIntro?.status === "ready")) &&
-      canManageCandidates
+    canManageCandidates
   );
 
   return createPortal(
@@ -1788,25 +1788,26 @@ export function TalentDetailSimpleView() {
                         }
                       />
                     ) : (
-                    <CandidateDecisionActions
-                      acceptDisabled={
-                        !acceptStageId || !canUseExistingCandidateActions
-                      }
-                      candidateName={title}
-                      currentStage={detail.recommendation.stage}
-                      decisionPending={decisionPending}
-                      onAcceptClick={
-                        canUseExistingCandidateActions
-                          ? () => setAcceptDialogOpen(true)
-                          : undefined
-                      }
-                      onMoveToPendingConnection={onMoveToPendingConnection}
-                      onRejectClick={
-                        canUseExistingCandidateActions
-                          ? () => setRejectDialogOpen(true)
-                          : undefined
-                      }
-                    />)
+                      <CandidateDecisionActions
+                        acceptDisabled={
+                          !acceptStageId || !canUseExistingCandidateActions
+                        }
+                        candidateName={title}
+                        currentStage={detail.recommendation.stage}
+                        decisionPending={decisionPending}
+                        onAcceptClick={
+                          canUseExistingCandidateActions
+                            ? () => setAcceptDialogOpen(true)
+                            : undefined
+                        }
+                        onMoveToPendingConnection={onMoveToPendingConnection}
+                        onRejectClick={
+                          canUseExistingCandidateActions
+                            ? () => setRejectDialogOpen(true)
+                            : undefined
+                        }
+                      />
+                    )
                   }
                   detail={detail}
                   internalOpsAccess={internalOpsAccess}

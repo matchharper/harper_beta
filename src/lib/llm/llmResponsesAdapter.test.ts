@@ -5,6 +5,7 @@ import {
   toChatCompletionFromOpenAIResponse,
   toOpenAIResponsesInput,
 } from "./responsesChatAdapter";
+import { buildLlmImageMessageContent } from "./imageInput";
 
 test("builds a stateless high-reasoning Responses request", () => {
   const request = buildOpenAIResponsesRequest({
@@ -138,4 +139,30 @@ test("converts legacy assistant tool messages when raw response items are absent
       },
     ]
   );
+});
+
+test("maps Chat Completions image parts to Responses image inputs", () => {
+  const content = buildLlmImageMessageContent("이 이미지를 읽어줘", [
+    {
+      dataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      detail: "auto",
+      mime: "image/png",
+      name: "screenshot.png",
+      size: 8,
+    },
+  ]);
+
+  assert.deepEqual(toOpenAIResponsesInput([{ content, role: "user" }]), [
+    {
+      content: [
+        { text: "이 이미지를 읽어줘", type: "input_text" },
+        {
+          detail: "auto",
+          image_url: "data:image/png;base64,iVBORw0KGgo=",
+          type: "input_image",
+        },
+      ],
+      role: "user",
+    },
+  ]);
 });

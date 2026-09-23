@@ -13,6 +13,7 @@ import {
   fetchRecentMessages,
   fetchTalentSetting,
   fetchTalentStructuredProfile,
+  type TalentConversationRow,
   TalentMessageRow,
   fetchTalentUserProfile,
   getCareerOnboardingChecklistCoverage,
@@ -137,12 +138,19 @@ import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
 import { resolveCareerTextChatModelForRequest } from "@/lib/career/textChatModelConfig";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
+import {
+  expireCurrentCareerCoachingActivity,
+  fetchCurrentCareerCoachingActivity,
+} from "@/lib/career/careerCoachingActivity";
+import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
+import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 
 export const maxDuration = 180;
 
 type Body = {
   allowedToolNames?: unknown;
   channel?: string;
+  coachingActivityAction?: unknown;
   conversationStarterId?: string;
   conversationId?: string;
   locale?: string;
@@ -155,6 +163,39 @@ type Body = {
   uploadedDocumentIds?: unknown;
   link?: string;
 };
+
+type CareerCoachingActivityActionReference = {
+  action: "start" | "end";
+  activityMessageId: number;
+  channel: "chat" | "call" | null;
+  expectedRevision: number;
+};
+
+function normalizeCareerCoachingActivityActionReference(
+  value: unknown
+): CareerCoachingActivityActionReference | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const activityMessageId = Number(record.activityMessageId);
+  const expectedRevision = Number(record.expectedRevision);
+  const action =
+    record.action === "start" || record.action === "end" ? record.action : null;
+  const channel =
+    record.channel === "chat" || record.channel === "call"
+      ? record.channel
+      : null;
+  if (
+    !action ||
+    !Number.isSafeInteger(activityMessageId) ||
+    activityMessageId < 1 ||
+    !Number.isSafeInteger(expectedRevision) ||
+    expectedRevision < 1 ||
+    (action === "start" && !channel)
+  ) {
+    return null;
+  }
+  return { action, activityMessageId, channel, expectedRevision };
+}
 
 type CompanySnapshotToolResult = {
   messages: ReturnType<typeof toTalentMessageResponse>[];
@@ -507,7 +548,9 @@ export async function POST(req: NextRequest) {
         ? stripPostgresUnsafeChars(body.message).trim()
         : "";
     const link = sanitizeSingleLineDbText(body.link, 2000);
-    const userMessageType = normalizeUserChatMessageType(body.messageType);
+    const requestedUserMessageType = normalizeUserChatMessageType(
+      body.messageType
+    );
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
     const textChatModel = resolveCareerTextChatModelForRequest(
       body.textChatModel,
@@ -525,6 +568,10 @@ export async function POST(req: NextRequest) {
     const pendingActionReference = normalizeCareerPendingActionReference(
       body.pendingAction
     );
+    const coachingActivityAction =
+      normalizeCareerCoachingActivityActionReference(
+        body.coachingActivityAction
+      );
     const uploadedDocumentIds = normalizeUploadedDocumentIds(
       body.uploadedDocumentIds
     );
@@ -546,6 +593,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (body.coachingActivityAction && !coachingActivityAction) {
+      return NextResponse.json(
+        { error: "Invalid career coaching activity action reference" },
+        { status: 400 }
+      );
+    }
     const admin = getTalentSupabaseAdmin();
     const [talentSetting, activeGmailIntegration] = await Promise.all([
       fetchTalentSetting({ admin, userId: user.id }),
@@ -562,8 +615,11 @@ export async function POST(req: NextRequest) {
       ? getCareerConversationStarter(conversationStarterId, responseLocale)
       : null;
     const skipConversationWrites = Boolean(
-      conversationStarter && message === conversationStarter.chatMessage
+      conversationStarter?.id !== "career_coaching" &&
+      conversationStarter &&
+      message === conversationStarter.chatMessage
     );
+    const userMessageType = requestedUserMessageType;
     if (conversationStarterId && !conversationStarter) {
       return NextResponse.json(
         { error: "Invalid conversationStarterId" },
@@ -607,6 +663,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const careerCoachingActivityMessageId = talentSetting?.is_onboarding_done
+      ? ((conversation as TalentConversationRow)
+          .career_coaching_activity_message_id ?? null)
+      : null;
+    const expiredCareerCoachingActivityMessage = careerCoachingActivityMessageId
+      ? await expireCurrentCareerCoachingActivity({
+          activityMessageId: careerCoachingActivityMessageId,
+          admin,
+          conversationId,
+          userId: user.id,
+        })
+      : null;
+    const careerCoachingActivity =
+      careerCoachingActivityMessageId && !expiredCareerCoachingActivityMessage
+        ? await fetchCurrentCareerCoachingActivity({
+            activityMessageId: careerCoachingActivityMessageId,
+            admin,
+            conversationId,
+            userId: user.id,
+          })
+        : null;
+
     const uploadedDocuments = await fetchTalentDocumentsByIds({
       admin,
       documentIds: uploadedDocumentIds,
@@ -632,17 +710,21 @@ export async function POST(req: NextRequest) {
     const summarizeConversationInBackground = (options?: {
       maxToMessageId?: number | null;
     }) => {
-      void maybeSummarizeTalentConversation({
-        admin,
-        conversationId,
-        maxToMessageId: options?.maxToMessageId,
-        userId: user.id,
-      }).catch((error) => {
-        console.error("[TalentChat] Failed to summarize conversation", {
-          conversationId,
-          error: error instanceof Error ? error.message : String(error),
-          userId: user.id,
-        });
+      after(async () => {
+        try {
+          await maybeSummarizeTalentConversation({
+            admin,
+            conversationId,
+            maxToMessageId: options?.maxToMessageId,
+            userId: user.id,
+          });
+        } catch (error) {
+          console.error("[TalentChat] Failed to summarize conversation", {
+            conversationId,
+            error: error instanceof Error ? error.message : String(error),
+            userId: user.id,
+          });
+        }
       });
     };
 
@@ -899,8 +981,9 @@ export async function POST(req: NextRequest) {
       recentLimit: 16,
       userId: user.id,
     });
+    const promptMessages = recentMessages;
 
-    const llmMessages = recentMessages
+    const llmMessages = promptMessages
       .filter(
         (item) =>
           item.message_type !==
@@ -1013,15 +1096,30 @@ export async function POST(req: NextRequest) {
           : undefined;
     const uploadedDocumentRuntimeInstruction =
       buildFirstTurnUploadedDocumentContext(uploadedDocuments);
+    const coachingActivityActionRuntimeInstruction = coachingActivityAction
+      ? careerCoachingActivity &&
+        coachingActivityAction.activityMessageId ===
+          careerCoachingActivity.messageId &&
+        coachingActivityAction.expectedRevision ===
+          careerCoachingActivity.revision
+        ? [
+            "The user deliberately selected an action on the currently visible career-coaching card before sending the latest message.",
+            `The exact action is ${coachingActivityAction.action}; activityMessageId=${coachingActivityAction.activityMessageId}; expectedRevision=${coachingActivityAction.expectedRevision}; channel=${coachingActivityAction.channel ?? "none"}.`,
+            "Treat the visible user message as explicit intent for this exact activity. Use manage_career_coaching_activity with the referenced identifiers. For start, supply the final topic, duration, and a compact agenda; do not mutate a different activity.",
+          ].join(" ")
+        : "The latest message carries a stale career-coaching card reference. Do not apply that action to another activity. Respond using the current activity state and let the user know briefly if the requested card action is no longer available."
+      : undefined;
     const runtimeInstruction = [
       selectedPendingActionRuntimeInstruction,
       uploadedDocumentRuntimeInstruction,
+      coachingActivityActionRuntimeInstruction,
     ]
       .filter((value): value is string => Boolean(value))
       .join("\n\n");
     const { isOnboardingActive, promptBlocks } =
       buildCareerConversationPromptPlan({
         activeInternalFitHoldQuestion,
+        careerCoachingActivity,
         channel: "chat",
         companyTalentRequestText: serializeTalentPendingRequest(
           activeCompanyTalentRequest
@@ -1039,7 +1137,12 @@ export async function POST(req: NextRequest) {
         pendingOpportunityFeedbackContext,
         postOnboardingContext,
         profile,
-        conversationMode: conversationStarter?.id ?? "default",
+        conversationMode:
+          careerCoachingActivity?.status === "active"
+            ? "career_coaching"
+            : conversationStarter?.id === "career_coaching"
+              ? "default"
+              : (conversationStarter?.id ?? "default"),
         recentActivitySummaries,
         recentRecommendedOpportunitiesText,
         runtimeInstruction: runtimeInstruction || undefined,
@@ -1078,6 +1181,11 @@ export async function POST(req: NextRequest) {
     let opportunityRecommendationsChanged = false;
     let documentsChanged = uploadedDocuments.length > 0;
     let changedOpportunityRoleId: string | null = null;
+    let careerCoachingActivityMessages: TalentMessageResponse[] =
+      expiredCareerCoachingActivityMessage
+        ? [expiredCareerCoachingActivityMessage]
+        : [];
+    let careerCoachingCallReady: CareerCoachingActivity | null = null;
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
       | ((status: RecommendJobPostingStatus) => void)
@@ -1124,6 +1232,31 @@ export async function POST(req: NextRequest) {
         ...pendingRecommendationPostingRoleIds,
         ...extractRecommendationPostingRoleIds(result),
       ]);
+    };
+    const rememberCareerCoachingActivityMessage = (result: unknown) => {
+      const resultRecord = isRecord(result) ? result : null;
+      const activityMessage = isRecord(resultRecord?.activityMessage)
+        ? (resultRecord.activityMessage as TalentMessageResponse)
+        : null;
+      if (!activityMessage || !Number.isFinite(Number(activityMessage.id))) {
+        return;
+      }
+      careerCoachingActivityMessages = [
+        ...careerCoachingActivityMessages.filter(
+          (message) => message.id !== activityMessage.id
+        ),
+        activityMessage,
+      ];
+      const uiAction = isRecord(resultRecord?.uiAction)
+        ? resultRecord.uiAction
+        : null;
+      if (
+        uiAction?.type === "open_career_coaching_call" &&
+        isRecord(uiAction.activity)
+      ) {
+        careerCoachingCallReady =
+          uiAction.activity as unknown as CareerCoachingActivity;
+      }
     };
     const ensureRecommendationPostingLinks = (content: string) =>
       ensureStandalonePostingLinksInText(
@@ -1203,6 +1336,7 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
+      rememberCareerCoachingActivityMessage(result);
       rememberRecommendationPostingRoleIds(result);
 
       if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT) {
@@ -1426,7 +1560,9 @@ export async function POST(req: NextRequest) {
                           recentSnapshot: cachedSnapshot,
                           userId: user.id,
                         });
-                      documentsChanged ||= Boolean(personalizedResult.snapshot.document);
+                      documentsChanged ||= Boolean(
+                        personalizedResult.snapshot.document
+                      );
                       const messageContent = stripPostgresUnsafeChars(
                         formatCompanySnapshotMessage({
                           preferredLocale: responseLocale,
@@ -1800,6 +1936,7 @@ export async function POST(req: NextRequest) {
               await attachPostingPreviewsToMessages({
                 admin,
                 messages: [
+                  ...careerCoachingActivityMessages,
                   withRecommendationStatusAnchor({
                     ...toResponseMessage(
                       insertedAssistantMessage as TalentMessageRow
@@ -1845,6 +1982,11 @@ export async function POST(req: NextRequest) {
             } else if (!sentFinalAssistantMessage) {
               send("assistant_message", {
                 message: assistantResponseMessages[0],
+              });
+            }
+            if (careerCoachingCallReady) {
+              send("career_coaching_call_ready", {
+                activity: careerCoachingCallReady,
               });
             }
             if (shouldApplyCompletion) {
@@ -1973,7 +2115,9 @@ export async function POST(req: NextRequest) {
                 recentSnapshot: cachedSnapshot,
                 userId: user.id,
               });
-              documentsChanged ||= Boolean(personalizedResult.snapshot.document);
+              documentsChanged ||= Boolean(
+                personalizedResult.snapshot.document
+              );
               const messageContent = stripPostgresUnsafeChars(
                 formatCompanySnapshotMessage({
                   preferredLocale: responseLocale,
@@ -2359,6 +2503,7 @@ export async function POST(req: NextRequest) {
     const assistantResponseMessages = await attachPostingPreviewsToMessages({
       admin,
       messages: [
+        ...careerCoachingActivityMessages,
         {
           ...toResponseMessage(insertedAssistantMessage as TalentMessageRow),
           thinkingLogs: finalAssistantThinkingLogs,
@@ -2404,6 +2549,7 @@ export async function POST(req: NextRequest) {
         insertedAssistantResponseMessage ??
         toResponseMessage(insertedAssistantMessage as TalentMessageRow),
       assistantMessages: assistantResponseMessages,
+      careerCoachingCallReady,
       opportunityDiscoveryQueued: Boolean(
         completedOpportunityRun ||
         recommendationReceiptRef.current?.newRunCreated

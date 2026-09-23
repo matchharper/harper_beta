@@ -3,12 +3,12 @@
 - 최초 adjudication: 2026-09-11
 - 현재 dataset/gold: `v1`
 - 상태: v1 수동 guard calibration 유지 + production pipeline v2-pilot positive read-only shadow 1건 완료.
-  v2-pilot은 아직 frozen dataset/gold가 아님
+  2026-09-21 route-aware runtime은 구현됐지만 v2-pilot은 아직 frozen dataset/gold가 아님
 
 ## 목적과 평가 단위
 
-회사가 먼저 후보자를 검토하는 흐름에서 강한 후보만 0~3명 선택하고, 이미 진행 중인 candidate-first
-경로를 가로채거나 세 자리를 채우기 위해 약한 후보를 넣지 않는지 평가한다. 평가 단위는
+회사 단위 matching에서 적합한 후보만 고른 뒤 candidate-first/company-first/no-action을 정확히 구분하고,
+이미 진행 중인 route를 가로채거나 세 자리를 채우기 위해 약한 후보를 넣지 않는지 평가한다. 평가 단위는
 `company workspace × 명시적으로 제한한 internal Role` 한 번의 shadow run이다. Candidate pair 판단과
 company-facing reason 품질은 같은 run 안의 하위 관찰값이다.
 
@@ -46,6 +46,17 @@ input/gold를 덮어쓰지 않고 query planner·scorer·company-wide reranker·
 version과 gold를 별도로 동결한다. 현재 v2-pilot production snapshot은 local-only pilot이지 frozen fixture가
 아니므로 runtime code, unit contract test, 한 Role 결과만으로 rollout gate를 통과했다고 보지 않는다.
 
+Canonical runner의 기본값은 정기 run의 mixed-route 계약이다. 명시적 `Run Search` 계약을 평가할 때만
+`--company-first-only`를 사용하며, 이 모드에서는 reranker가 `company_first | no_action`만 반환하고 Role별
+최대 6명을 허용한다. 두 모드의 결과를 같은 run configuration으로 취급하지 않고 manifest의
+`evaluationOverrides.companyFirstOnly`로 구분한다.
+
+다음 frozen version은 route-aware contract로 새로 만든다. 같은 candidate pool에서 candidate-first가 맞는
+strong anchor, 회사의 선판단이 실제로 불확실성을 푸는 company-first, 충분하지 않은 no-action을 모두
+포함해야 한다. 저장된 canonical `talent_opportunity_fit`이 현재 입력과 일치해 재사용되는 사례와 최신
+Profile·Brief·Behavior·Role 사실 때문에 달라지는 사례, scorer criteria evaluations가 final review에 그대로
+이어지는 사례도 포함한다. 기존 v1 input과 gold는 수정하지 않는다.
+
 각 run은 다음 순서를 따른다.
 
 1. Active, unexpired, internal, non-test Role과 workspace를 정확히 확인한다.
@@ -67,6 +78,9 @@ version과 gold를 별도로 동결한다. 현재 v2-pilot production snapshot�
 - `padding_error`: 독립적으로 약한 후보를 slot 충족을 위해 선택했는가
 - `unsupported_fit_selection`: 기존 fit score와 달리 최신 원문이 핵심 Role bar를 지지하지 않는데 선택했는가
 - `company_reason_grounding`: reason이 candidate-owned evidence와 Role 연결, 필요한 caveat를 담는가
+- `route_accuracy`: actionable 후보가 candidate-first/company-first 중 더 자연스러운 순서로 배정됐는가
+- `saved_fit_use`: 호환되는 canonical fit을 무시하고 불필요하게 재판단하거나, 충돌하는 fit을 맹종하지 않았는가
+- `criteria_handoff`: scorer의 validated criteria evaluations가 대표 Role review에 변형 없이 이어졌는가
 - `private_context_leak`: Brief, Behavior, reply band, 정확한 사적 조건이나 존재하지 않는 관심 상태를 노출했는가
 
 Release gate는 critical error 0건이다. 또한 실제 commit rollout 전에 최소 하나의 독립적으로 selectable한

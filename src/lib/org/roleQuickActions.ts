@@ -11,6 +11,17 @@ export const ORG_ROLE_QUICK_ACTIONS = [
   },
 ] as const;
 
+export const ORG_ROLE_RUN_SEARCH_ACTION = {
+  id: "run_search",
+  label: "Run Search",
+  message: "Run a search based on the current brief",
+} as const;
+
+export const ORG_ROLE_CHAT_QUICK_ACTIONS = [
+  ...ORG_ROLE_QUICK_ACTIONS,
+  ORG_ROLE_RUN_SEARCH_ACTION,
+] as const;
+
 export type OrgRoleQuickActionId =
   (typeof ORG_ROLE_QUICK_ACTIONS)[number]["id"];
 

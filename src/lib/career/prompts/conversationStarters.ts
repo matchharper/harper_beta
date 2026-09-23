@@ -263,9 +263,9 @@ export const CAREER_CONVERSATION_STARTER_PROMPT_COPY: Record<
   },
   career_coaching: {
     chatMessage: {
-      en: "I'd like to talk through a career decision and what to do next.",
+      en: "I'd like to have a career coaching conversation.",
       // career-i18n-skip-next-line localized alongside the English value above
-      ko: "커리어 고민과 다음 방향을 같이 이야기하고 싶어요.",
+      ko: "커리어에 관해 코칭 대화를 하고 싶어요.",
     },
     callOpeningText: {
       en: CAREER_COACHING_CALL_OPENING_TEXT_EN,
@@ -307,11 +307,7 @@ export function getCareerConversationStarter(
     id: starterId,
     chatMessage:
       "key" in copy.chatMessage
-        ? careerT(
-            locale,
-            copy.chatMessage.key,
-            copy.chatMessage.fallback
-          )
+        ? careerT(locale, copy.chatMessage.key, copy.chatMessage.fallback)
         : copy.chatMessage[promptLocale],
     callOpeningText: copy.callOpeningText[promptLocale],
     turnInstruction: copy.turnInstruction[promptLocale],

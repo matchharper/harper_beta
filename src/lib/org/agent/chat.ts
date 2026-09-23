@@ -30,6 +30,7 @@ import {
   buildOrgAgentSystemPrompt,
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
+import { buildOrgAgentBackgroundResultMessages } from "@/lib/org/agent/backgroundResultPrompt";
 import {
   serializeOrgAgentToolError,
   serializeOrgAgentToolResult,
@@ -41,6 +42,7 @@ import {
   findOrgAgentSlackUserMessage,
   insertOrgAgentMessage,
   toOrgAgentMessage,
+  type OrgAgentConversationRow,
   type OrgAgentMessageRow,
 } from "@/lib/org/agent/store";
 import {
@@ -98,6 +100,11 @@ import {
   validateOrgAgentReferenceAttachments,
 } from "@/lib/org/agent/referenceAttachments";
 import type { ChatAttachmentPayload } from "@/types/chat";
+import {
+  buildLlmImageMessageContent,
+  type LlmImageInput,
+  type LlmMessageContent,
+} from "@/lib/llm/imageInput";
 
 function scheduleOrgAgentSummary(
   args: Parameters<typeof maybeSummarizeOrgAgentConversation>[0]
@@ -128,6 +135,7 @@ export type OrgAgentChatEmitter = (
 export type OrgAgentChatResult =
   | {
       assistantMessage: OrgAgentMessage;
+      assistantMessages: OrgAgentMessage[];
       conversationId: string;
       kind: "message";
       model: OrgAgentModelId | string;
@@ -153,7 +161,7 @@ type OrgAgentLlmToolCall = {
 
 type OrgAgentLlmMessage = {
   _responses_output?: any[];
-  content: string;
+  content: LlmMessageContent;
   name?: string;
   reasoning_content?: string;
   role: "assistant" | "system" | "tool" | "user";
@@ -167,6 +175,43 @@ type OrgAgentLlmMessage = {
 const MAX_TOOL_LOOPS = 30;
 const MAX_TOTAL_TOOL_CALLS = 30;
 const TOOL_FREE_FINAL_MAX_TOKENS = 2_000;
+
+export async function generateOrgAgentBackgroundResultReply(args: {
+  companyName: string;
+  resultText: string;
+  roleId: string;
+  roleName: string;
+  surface?: "chat" | "slack";
+  userMessage: string;
+}) {
+  const resultText = normalizeText(args.resultText);
+  if (!resultText) {
+    throw new OrgHttpError(400, "background result is required");
+  }
+  const modelConfig = resolveOrgAgentModel(undefined);
+  const surface = args.surface ?? "chat";
+  const completion = await runCompletion({
+    allowTools: false,
+    maxTokens: TOOL_FREE_FINAL_MAX_TOKENS,
+    messages: buildOrgAgentBackgroundResultMessages({
+      companyName: args.companyName,
+      requestMessage: args.userMessage,
+      resultText,
+      roleId: args.roleId,
+      roleName: args.roleName,
+      systemPrompt: buildOrgAgentSystemPrompt({ surface }),
+    }),
+    model: modelConfig.model,
+    reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    surface,
+  });
+  const reply = extractAssistantText(
+    completion.response?.choices?.[0]?.message
+  ).trim();
+  if (!reply)
+    throw new Error("Company-side LLM returned an empty result reply");
+  return { model: completion.model, reply };
+}
 type OrgAgentTurnUsage = NonNullable<OrgAgentMessageMetadata["llmUsage"]>;
 
 function createTurnUsage(): OrgAgentTurnUsage {
@@ -412,6 +457,7 @@ async function runCompletion(args: {
 }
 
 async function runOrgAgentToolLoop(args: {
+  allowSilentCompletion?: boolean;
   actorId: string;
   actorLabel: string;
   admin: ReturnType<typeof getSupabaseAdmin>;
@@ -423,10 +469,16 @@ async function runOrgAgentToolLoop(args: {
   debug?: boolean;
   emit?: OrgAgentChatEmitter;
   onToolStatus?: (log: OrgAgentThinkingLog) => void;
+  onVisibleProgress?: (args: {
+    model: string;
+    text: string;
+  }) => Promise<boolean>;
+  assertCanContinue?: () => Promise<void>;
   mentions: OrgAgentMention[];
   model: OrgAgentModelId;
   readAudience: "caller" | "company_safe";
   referenceAttachments?: ChatAttachmentPayload[];
+  imageInputs?: LlmImageInput[];
   scopeKey: string;
   serviceAnswerExamplesText?: string | null;
   signal?: AbortSignal;
@@ -436,6 +488,7 @@ async function runOrgAgentToolLoop(args: {
   user: User;
   userLabel?: string | null;
   userMessage: string;
+  visibleProgressPublished?: boolean;
 }) {
   const companySideUserPrompt = buildOrgAgentUserPrompt({
     context: args.context,
@@ -453,13 +506,17 @@ async function runOrgAgentToolLoop(args: {
   const messages: OrgAgentLlmMessage[] = [
     {
       content: buildOrgAgentSystemPrompt({
+        allowSilentCompletion: args.allowSilentCompletion,
         enableSlackChoiceButtons: args.source === "slack",
         surface: args.source,
       }),
       role: "system",
     },
     {
-      content: companySideUserPrompt,
+      content: buildLlmImageMessageContent(
+        companySideUserPrompt,
+        args.imageInputs
+      ),
       role: "user",
     },
   ];
@@ -474,6 +531,7 @@ async function runOrgAgentToolLoop(args: {
   let toolBudgetReached = false;
   const usage = createTurnUsage();
   const debugCalls: LlmDebugCall[] = [];
+  let visibleProgressPublished = args.visibleProgressPublished === true;
 
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
     let completion: Awaited<ReturnType<typeof runCompletion>>;
@@ -490,6 +548,7 @@ async function runOrgAgentToolLoop(args: {
       });
     } catch (error) {
       args.signal?.throwIfAborted();
+      if (args.allowSilentCompletion) throw error;
       if (state.toolResults.length === 0 && state.updateSummaries.length === 0)
         throw error;
       console.error(
@@ -523,10 +582,29 @@ async function runOrgAgentToolLoop(args: {
         debugCalls,
         fallbackReason,
         model: activeModel,
-        reply: assistantText || buildFallbackReply(state),
+        reply:
+          assistantText ||
+          (args.allowSilentCompletion ? "" : buildFallbackReply(state)),
         state,
         usage,
       };
+    }
+
+    await args.assertCanContinue?.();
+
+    const shouldAttemptVisibleProgress = Boolean(
+      assistantText && !visibleProgressPublished && args.onVisibleProgress
+    );
+    let deliveredThisStep = false;
+    if (shouldAttemptVisibleProgress) {
+      deliveredThisStep = await args.onVisibleProgress!({
+        model: activeModel,
+        text: assistantText,
+      });
+      // A failed provider delivery does not permit repeated progress attempts
+      // for every later tool call. It only changes what the model may assume
+      // the user has already seen.
+      visibleProgressPublished = true;
     }
 
     messages.push({
@@ -544,6 +622,7 @@ async function runOrgAgentToolLoop(args: {
 
     for (const toolCall of toolCalls) {
       args.signal?.throwIfAborted();
+      await args.assertCanContinue?.();
       const toolName = toolCall.function.name;
       const toolDebugInput = args.debug
         ? summarizeOrgAgentToolInput(toolCall.function.arguments)
@@ -765,6 +844,14 @@ async function runOrgAgentToolLoop(args: {
         });
       }
     }
+    if (assistantText) {
+      messages.push({
+        content: deliveredThisStep
+          ? "The preceding assistant text was accepted by the surface adapter as the single visible progress update for this turn. Do not make the terminal response depend on the user having seen it."
+          : "The preceding assistant text was retained only as internal turn history and was not delivered to the user. Do not assume the user saw it and do not emit another progress update.",
+        role: "system",
+      });
+    }
     promoteOrgAgentToolReadVisibility(state);
     if (toolBudgetReached || totalToolCalls >= MAX_TOTAL_TOOL_CALLS) break;
   }
@@ -777,8 +864,9 @@ async function runOrgAgentToolLoop(args: {
       messages: [
         ...messages,
         {
-          content:
-            "Tool use is finished for this turn. Write the final company-facing response now and results above.",
+          content: args.allowSilentCompletion
+            ? "Tool use is finished for this turn. Write a company-facing response only if there is a useful verified result, warning, necessary question, or next step. Otherwise return no text."
+            : "Tool use is finished for this turn. Write the final company-facing response from the verified results above.",
           role: "user",
         },
       ],
@@ -789,6 +877,7 @@ async function runOrgAgentToolLoop(args: {
     });
   } catch (error) {
     args.signal?.throwIfAborted();
+    if (args.allowSilentCompletion) throw error;
     if (state.toolResults.length === 0 && state.updateSummaries.length === 0)
       throw error;
     console.error(
@@ -813,15 +902,18 @@ async function runOrgAgentToolLoop(args: {
     step: "final_response",
     usage,
   });
+  const finalText = extractAssistantText(
+    finalCompletion.response?.choices?.[0]?.message
+  );
   return {
     debugCalls,
     fallbackReason,
     model: activeModel,
-    reply: enforceOrgAgentReplyInvariants(
-      state,
-      extractAssistantText(finalCompletion.response?.choices?.[0]?.message) ||
-        buildFallbackReply(state)
-    ),
+    reply: finalText
+      ? enforceOrgAgentReplyInvariants(state, finalText)
+      : args.allowSilentCompletion
+        ? ""
+        : enforceOrgAgentReplyInvariants(state, buildFallbackReply(state)),
     state,
     usage,
   };
@@ -839,6 +931,10 @@ function buildAssistantMetadata(args: {
     ...(args.state.candidateConnectionConfirmations.length > 0 && {
       candidateConnectionConfirmations:
         args.state.candidateConnectionConfirmations,
+    }),
+    ...(args.state.companyIntroDecisionConfirmations.length > 0 && {
+      companyIntroDecisionConfirmations:
+        args.state.companyIntroDecisionConfirmations,
     }),
     ...(args.state.contactDraftRef && {
       contactDraftRef: args.state.contactDraftRef,
@@ -947,6 +1043,271 @@ async function presentStagedProposal(args: {
   };
 }
 
+export class OrgAgentWebActionSupersededError extends Error {
+  constructor() {
+    super(
+      "Company-side LLM web-action turn was superseded by a newer user message"
+    );
+    this.name = "OrgAgentWebActionSupersededError";
+  }
+}
+
+export type OrgAgentWebActionTurnResult =
+  | {
+      outcome: "completed_message";
+      progressMessageId: number | null;
+      terminalMessageId: number;
+    }
+  | {
+      outcome: "completed_silent";
+      progressMessageId: number | null;
+      terminalMessageId: null;
+    };
+
+/**
+ * Runs a company-side LLM turn for an authenticated /org product action.
+ * The web action is prompt context, not a visible synthetic chat message. Its
+ * hidden anchor supplies the same stable idempotency identity used by ordinary
+ * tool calls without changing the conversation's visible last message.
+ */
+export async function runOrgAgentWebActionTurn(args: {
+  actionContext: Record<string, unknown>;
+  actionName: string;
+  actorLabel: string;
+  anchorMessageId: number;
+  conversation: OrgAgentConversationRow;
+  jobId: string;
+  roleId: string | null;
+  user: User;
+}): Promise<OrgAgentWebActionTurnResult> {
+  const admin = getSupabaseAdmin();
+  const modelConfig = resolveOrgAgentModel(undefined);
+  const runId = args.jobId;
+  const { data: existingRows, error: existingError } = await (
+    admin.from("company_messages" as any) as any
+  )
+    .select(
+      "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
+    )
+    .eq("conversation_id", args.conversation.id)
+    .eq("role", "assistant")
+    .contains("metadata", { webActionJobId: args.jobId })
+    .order("id", { ascending: true });
+  if (existingError) throw existingError;
+  const existingMessages = ((existingRows ?? []) as OrgAgentMessageRow[]).map(
+    toOrgAgentMessage
+  );
+  const existingProgress = existingMessages.find(
+    (message) => message.metadata.agentTurn?.phase === "progress"
+  );
+  const existingTerminal = existingMessages.find(
+    (message) => message.metadata.agentTurn?.phase === "terminal"
+  );
+  let progressMessageId = existingProgress?.id ?? null;
+  if (existingTerminal) {
+    return {
+      outcome: "completed_message",
+      progressMessageId,
+      terminalMessageId: existingTerminal.id,
+    };
+  }
+
+  const assertCanContinue = async () => {
+    const { data, error } = await (admin.from("company_messages" as any) as any)
+      .select("id")
+      .eq("conversation_id", args.conversation.id)
+      .eq("message_type", "chat")
+      .eq("role", "user")
+      .gt("id", args.anchorMessageId)
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) throw new OrgAgentWebActionSupersededError();
+  };
+
+  await assertCanContinue();
+  const context = await buildOrgAgentPromptContext({
+    admin,
+    beforeMessageId: args.anchorMessageId,
+    conversation: args.conversation,
+    currentUserMessageId: args.anchorMessageId,
+    messageType: "chat",
+    readAudience: "caller",
+    scopeKey: `chat:${args.conversation.id}`,
+    slackThreadId: null,
+    user: args.user,
+  });
+  let thinkingLogs: OrgAgentThinkingLog[] = [];
+  const eventContext = JSON.stringify(args.actionContext).slice(0, 24_000);
+  const eventPrompt = [
+    "<authenticated_web_action_event>",
+    `action_name=${args.actionName}`,
+    `verified_action_context=${eventContext}`,
+    "The action above has already committed and records what succeeded at that point in time. Fresh current state and tool results are authoritative if a later action has changed it. Do not repeat the action. Decide whether any useful follow-up work or company-facing message is warranted. It is not a chat command and does not require a reply.",
+    "</authenticated_web_action_event>",
+  ].join("\n");
+
+  const llmResult = await runOrgAgentToolLoop({
+    allowSilentCompletion: true,
+    actorId: args.user.id,
+    actorLabel: args.actorLabel,
+    admin,
+    assertCanContinue,
+    context,
+    conversation: args.conversation,
+    currentUserMessageId: args.anchorMessageId,
+    mentions: [],
+    model: modelConfig.model,
+    onToolStatus: (log) => {
+      thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
+    },
+    onVisibleProgress: existingProgress
+      ? undefined
+      : async ({ model, text }) => {
+          await assertCanContinue();
+          const progressMessage = await insertOrgAgentMessage({
+            admin,
+            content: text,
+            conversation: args.conversation,
+            metadata: {
+              agentTurn: {
+                phase: "progress",
+                runId,
+                sequence: 0,
+                trigger: "web_action",
+              },
+              model,
+              source: "org_agent_web_action_progress",
+              webActionJobId: args.jobId,
+            },
+            messageType: "chat",
+            model,
+            role: "assistant",
+            roleId: args.roleId,
+            thinkingLogs,
+          });
+          const { error } = await (
+            admin.from("company_agent_web_action_jobs" as any) as any
+          )
+            .update({
+              progress_message_id: progressMessage.id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", args.jobId)
+            .eq("status", "processing");
+          if (error) throw error;
+          progressMessageId = progressMessage.id;
+          return true;
+        },
+    readAudience: "caller",
+    scopeKey: `chat:${args.conversation.id}`,
+    slackThreadId: null,
+    source: "chat",
+    user: args.user,
+    userLabel: "authenticated web action",
+    userMessage: eventPrompt,
+    visibleProgressPublished: Boolean(existingProgress),
+  });
+
+  const requiredPresentationTexts = getOrgAgentRequiredPresentationTexts(
+    llmResult.state
+  );
+  const metadata: OrgAgentMessageMetadata = {
+    ...buildAssistantMetadata(llmResult),
+    agentTurn: {
+      phase: "terminal",
+      runId,
+      sequence: progressMessageId ? 1 : 0,
+      trigger: "web_action",
+    },
+    source: "org_agent_web_action",
+    webActionJobId: args.jobId,
+  };
+  const reply = appendRequiredPresentations({
+    // Once a visible progress message exists, the turn must not disappear
+    // into a silent terminal state. This fallback is used only as a recovery
+    // boundary when the model violates that delivery contract.
+    reply:
+      llmResult.reply ||
+      (progressMessageId
+        ? llmResult.state.fallbackReply || buildFallbackReply(llmResult.state)
+        : ""),
+    requiredTexts: requiredPresentationTexts,
+  });
+
+  await assertCanContinue();
+  if (llmResult.state.stagedProposal) {
+    const presentationText = buildProposalPresentation({
+      preview: llmResult.state.stagedProposal.preview,
+      reply,
+      summary: llmResult.state.stagedProposal.summary,
+    });
+    const presented = await presentStagedProposal({
+      admin,
+      conversationId: args.conversation.id,
+      messageMetadata: metadata,
+      messageType: "chat",
+      model: llmResult.model,
+      presentationText,
+      slackThreadId: null,
+      state: llmResult.state,
+      thinkingLogs,
+      userMessageId: args.anchorMessageId,
+      workspaceId: args.conversation.company_workspace_id,
+    });
+    if (presented.kind !== "message") {
+      throw new Error("Web-action proposal was not presented in chat");
+    }
+    scheduleOrgAgentSummary({
+      admin,
+      conversation: args.conversation,
+      model: isOrgAgentModelId(llmResult.model)
+        ? llmResult.model
+        : DEFAULT_ORG_AGENT_MODEL,
+      slackThreadId: null,
+    });
+    return {
+      outcome: "completed_message",
+      progressMessageId,
+      terminalMessageId: presented.assistantMessage.id,
+    };
+  }
+
+  if (!reply) {
+    return {
+      outcome: "completed_silent",
+      progressMessageId,
+      terminalMessageId: null,
+    };
+  }
+
+  const terminalMessage = await insertOrgAgentMessage({
+    admin,
+    content: reply,
+    conversation: args.conversation,
+    metadata,
+    messageType: "chat",
+    model: llmResult.model,
+    role: "assistant",
+    roleId: args.roleId,
+    thinkingLogs,
+  });
+  scheduleOrgAgentSummary({
+    admin,
+    conversation: args.conversation,
+    model: isOrgAgentModelId(llmResult.model)
+      ? llmResult.model
+      : DEFAULT_ORG_AGENT_MODEL,
+    slackThreadId: null,
+  });
+  return {
+    outcome: "completed_message",
+    progressMessageId,
+    terminalMessageId: terminalMessage.id,
+  };
+}
+
 export async function runOrgAgentChat(args: {
   assistantMessageMetadata?: OrgAgentMessageMetadata;
   attachments?: ChatAttachmentPayload[];
@@ -955,9 +1316,11 @@ export async function runOrgAgentChat(args: {
   messageType?: string;
   messageUserId?: string | null;
   llmUserMessage?: string;
+  imageInputs?: LlmImageInput[];
   mentions?: OrgAgentMention[];
   message: string;
   model?: unknown;
+  onAssistantProgress?: (message: OrgAgentMessage) => Promise<boolean>;
   roleId?: string | null;
   slackAssistantUserId?: string | null;
   slackExecutionContext?: SlackRoleCreationExecutionContext | null;
@@ -968,6 +1331,7 @@ export async function runOrgAgentChat(args: {
   userMessageMetadata?: OrgAgentMessageMetadata;
   user: User;
   workspaceId: string;
+  turnRunId?: string;
 }): Promise<OrgAgentChatResult> {
   const referenceAttachments = validateOrgAgentReferenceAttachments(
     Array.isArray(args.attachments) && args.attachments.length > 0
@@ -976,7 +1340,7 @@ export async function runOrgAgentChat(args: {
   );
   const userMessageText =
     normalizeText(args.message) ||
-    (referenceAttachments.length > 0
+    (referenceAttachments.length > 0 || args.imageInputs?.length
       ? "첨부한 자료를 이 역할의 인재 기준에 반영해 주세요."
       : "");
   if (!userMessageText) {
@@ -1007,6 +1371,8 @@ export async function runOrgAgentChat(args: {
 
   const modelConfig = resolveOrgAgentModel(args.model);
   let thinkingLogs: OrgAgentThinkingLog[] = [];
+  const directTurnRunId = normalizeText(args.turnRunId) || crypto.randomUUID();
+  const assistantMessages: OrgAgentMessage[] = [];
   const recordThinkingLog = (log: OrgAgentThinkingLog) => {
     thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
     args.emit?.("tool_status", log);
@@ -1047,7 +1413,9 @@ export async function runOrgAgentChat(args: {
     ...args.userMessageMetadata,
     ...(referenceAttachments.length > 0
       ? {
-          attachments: referenceAttachmentMetadata(referenceAttachments),
+          attachments:
+            args.userMessageMetadata?.attachments ??
+            referenceAttachmentMetadata(referenceAttachments),
           roleCreationAttachments: referenceAttachments,
         }
       : {}),
@@ -1095,6 +1463,29 @@ export async function runOrgAgentChat(args: {
     });
   }
   args.emit?.("user_message", userMessage);
+
+  if (args.slackThreadId && args.turnRunId) {
+    const { data: priorProgress, error: priorProgressError } = await (
+      admin.from("company_messages" as any) as any
+    )
+      .select(
+        "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
+      )
+      .eq("conversation_id", conversation.id)
+      .eq("message_type", "slack")
+      .eq("role", "assistant")
+      .contains("metadata", {
+        agentTurn: { phase: "progress", runId: directTurnRunId },
+      })
+      .limit(1)
+      .maybeSingle();
+    if (priorProgressError) throw priorProgressError;
+    if (priorProgress) {
+      assistantMessages.push(
+        toOrgAgentMessage(priorProgress as OrgAgentMessageRow)
+      );
+    }
+  }
 
   try {
     recordThinkingLog(
@@ -1156,8 +1547,45 @@ export async function runOrgAgentChat(args: {
       onToolStatus: (log) => {
         thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
       },
+      onVisibleProgress:
+        args.slackThreadId && !args.onAssistantProgress
+          ? undefined
+          : async ({ model, text }) => {
+              for (const delta of chunkText(text)) {
+                args.emit?.("text_delta", { delta });
+              }
+              const progressMessage = await insertOrgAgentMessage({
+                admin,
+                content: text,
+                conversation,
+                metadata: {
+                  agentTurn: {
+                    phase: "progress",
+                    runId: directTurnRunId,
+                    sequence: 0,
+                    trigger: "direct_message",
+                  },
+                  model,
+                  source: "org_agent_progress",
+                  ...args.assistantMessageMetadata,
+                },
+                messageType: args.messageType,
+                model,
+                role: "assistant",
+                roleId,
+                slackThreadId: args.slackThreadId,
+                slackUserId: args.slackAssistantUserId,
+                thinkingLogs,
+              });
+              assistantMessages.push(progressMessage);
+              args.emit?.("assistant_message", progressMessage);
+              return args.onAssistantProgress
+                ? args.onAssistantProgress(progressMessage)
+                : true;
+            },
       readAudience: args.slackThreadId ? "company_safe" : "caller",
       referenceAttachments,
+      imageInputs: args.imageInputs,
       scopeKey: args.slackThreadId
         ? `slack:${args.slackThreadId}`
         : `chat:${conversation.id}`,
@@ -1173,6 +1601,9 @@ export async function runOrgAgentChat(args: {
           ? "Slack participant"
           : "user",
       userMessage: llmUserMessage,
+      visibleProgressPublished: assistantMessages.some(
+        (message) => message.metadata.agentTurn?.phase === "progress"
+      ),
     });
     const requiredPresentationTexts = getOrgAgentRequiredPresentationTexts(
       llmResult.state
@@ -1210,6 +1641,12 @@ export async function runOrgAgentChat(args: {
     const metadata = {
       ...buildAssistantMetadata(llmResult),
       ...args.assistantMessageMetadata,
+      agentTurn: {
+        phase: "terminal" as const,
+        runId: directTurnRunId,
+        sequence: assistantMessages.length,
+        trigger: "direct_message" as const,
+      },
     };
     const reply = appendRequiredPresentations({
       reply: llmResult.reply,
@@ -1250,6 +1687,7 @@ export async function runOrgAgentChat(args: {
         args.emit?.("text_delta", { delta });
       }
       args.emit?.("assistant_message", presented.assistantMessage);
+      assistantMessages.push(presented.assistantMessage);
       scheduleOrgAgentSummary({
         admin,
         conversation,
@@ -1260,6 +1698,7 @@ export async function runOrgAgentChat(args: {
       });
       return {
         assistantMessage: presented.assistantMessage,
+        assistantMessages,
         conversationId: conversation.id,
         kind: "message",
         model: llmResult.model,
@@ -1286,6 +1725,7 @@ export async function runOrgAgentChat(args: {
       thinkingLogs,
     });
     args.emit?.("assistant_message", assistantMessage);
+    assistantMessages.push(assistantMessage);
 
     scheduleOrgAgentSummary({
       admin,
@@ -1298,6 +1738,7 @@ export async function runOrgAgentChat(args: {
 
     return {
       assistantMessage,
+      assistantMessages,
       conversationId: conversation.id,
       kind: "message",
       model: llmResult.model,
@@ -1332,8 +1773,10 @@ export async function runOrgAgentChat(args: {
     });
     args.emit?.("error", { error: detail });
     args.emit?.("assistant_message", assistantMessage);
+    assistantMessages.push(assistantMessage);
     return {
       assistantMessage,
+      assistantMessages,
       conversationId: conversation.id,
       kind: "message",
       model: modelConfig.model,

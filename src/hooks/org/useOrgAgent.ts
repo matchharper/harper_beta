@@ -40,6 +40,11 @@ import {
 
 type OrgAgentMessagesPage = OrgAgentMessagesResponse;
 
+type OrgMatchingSearchStatusResponse = {
+  active: boolean;
+  ok: true;
+};
+
 function compareOrgAgentMessages(
   left: OrgAgentMessage,
   right: OrgAgentMessage
@@ -260,6 +265,29 @@ export function useOrgAgentMessageHistory(args: {
     latestUserMessageAt: infinite.data?.pages[0]?.latestUserMessageAt ?? null,
     messages,
   };
+}
+
+export function useOrgMatchingSearchStatus(args: {
+  enabled?: boolean;
+  roleId?: string | null;
+  workspaceId?: string | null;
+}) {
+  const roleId = args.roleId?.trim() ?? "";
+  const workspaceId = args.workspaceId?.trim() ?? "";
+  return useQuery({
+    queryKey: queryKeys.org.matchingSearchStatus(workspaceId, roleId),
+    queryFn: () => {
+      const params = new URLSearchParams({ roleId, workspaceId });
+      return fetchWithInternalAuth<OrgMatchingSearchStatusResponse>(
+        `/api/org/agent/matching-search/status?${params.toString()}`
+      );
+    },
+    enabled: (args.enabled ?? true) && Boolean(roleId) && Boolean(workspaceId),
+    refetchInterval: (query) =>
+      query.state.data?.active === true ? 4_000 : false,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
 }
 
 export function orgAgentMentionCandidatesQueryOptions(args: {
@@ -504,7 +532,13 @@ export function useOrgAgentChat(args: {
                   [parsed.data as OrgAgentMessage]
                 );
               }
-              useOrgAgentLiveChatStore.getState().finish(streamLiveChatKey);
+              // One turn may publish a progress message and later a terminal
+              // message. Commit the completed bubble while keeping the same
+              // SSE turn alive for its remaining tool work.
+              useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                assistantStatus: "pending",
+                streamingText: "",
+              });
             } else if (parsed.event === "role_created") {
               const roleId = String(
                 (parsed.data as { roleId?: unknown }).roleId ?? ""

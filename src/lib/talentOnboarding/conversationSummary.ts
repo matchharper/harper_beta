@@ -13,18 +13,17 @@ import {
 } from "@/lib/talentOnboarding/onboarding";
 import {
   fetchMessages,
+  fetchMessagesAfterId,
   fetchRecentMessages,
 } from "@/lib/talentOnboarding/messageStore";
 import { fetchTalentSetting } from "@/lib/talentOnboarding/server";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
+import { buildConversationSummaryBatch } from "@/lib/talentOnboarding/conversationSummaryPolicy";
 
 const SUMMARY_MESSAGE_TYPE = "conversation_summary";
-const DEFAULT_MIN_MESSAGE_COUNT = 14;
-const DEFAULT_MIN_SOURCE_CHARS = 5000;
 const DEFAULT_RECENT_MESSAGE_LIMIT = 16;
 const MIN_RECENT_RAW_MESSAGES = 16;
-const MAX_SOURCE_MESSAGES = 80;
-const MAX_SOURCE_CHARS = 18000;
+const MAX_RECENT_MESSAGE_LOOKUP = 80;
 const SUMMARY_LOOKUP_LIMIT = 10;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const SUMMARY_ROW_SELECT = `
@@ -52,16 +51,6 @@ type TalentConversationSummaryRow = {
   summary_text: string;
   created_at: string;
 };
-
-type TalentConversationSummaryCursorRow = Pick<
-  TalentConversationSummaryRow,
-  "created_at" | "to_message_id"
->;
-
-type TalentConversationSegmentSummaryRow = Pick<
-  TalentConversationSummaryRow,
-  "conversation_id" | "created_at" | "segment_summary" | "to_message_id"
->;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -105,12 +94,6 @@ function formatMessageDateForSummary(message: TalentMessageRow) {
   );
 }
 
-function formatSummaryRowDateForSummary(
-  summary: TalentConversationSegmentSummaryRow
-) {
-  return formatSummaryDateKey(toSummaryKstDateKey(summary.created_at));
-}
-
 function formatMessageDateCoverage(messages: TalentMessageRow[]) {
   const dateLabels = Array.from(
     new Set(
@@ -122,32 +105,17 @@ function formatMessageDateCoverage(messages: TalentMessageRow[]) {
   return dateLabels.length > 0 ? dateLabels.join(", ") : "(unknown)";
 }
 
-function formatMessagesForSummary(messages: TalentMessageRow[]) {
-  return messages
-    .map((message) => {
-      const role = message.role === "assistant" ? "Harper" : "User";
-      const date = formatMessageDateForSummary(message);
-      const content = formatTalentMessageContentForLlmPrompt(message)
-        .replace(/\s+/g, " ")
-        .trim();
-      return `[${message.id} | date=${date} KST] ${role}: ${content}`;
-    })
-    .join("\n");
+function formatMessageForSummary(message: TalentMessageRow) {
+  const role = message.role === "assistant" ? "Harper" : "User";
+  const date = formatMessageDateForSummary(message);
+  const content = formatTalentMessageContentForLlmPrompt(message)
+    .replace(/\s+/g, " ")
+    .trim();
+  return `[${message.id} | date=${date} KST] ${role}: ${content}`;
 }
 
-function selectSourceMessages(messages: TalentMessageRow[]) {
-  const selected: TalentMessageRow[] = [];
-  let charCount = 0;
-
-  for (const message of messages) {
-    const length = message.content.trim().length;
-    if (selected.length >= MAX_SOURCE_MESSAGES) break;
-    if (selected.length > 0 && charCount + length > MAX_SOURCE_CHARS) break;
-    selected.push(message);
-    charCount += length;
-  }
-
-  return selected;
+function formatMessagesForSummary(messages: TalentMessageRow[]) {
+  return messages.map(formatMessageForSummary).join("\n");
 }
 
 function buildSummarySystemPrompt(preferredLocale?: string | null) {
@@ -230,75 +198,12 @@ async function fetchLatestConversationSummary(args: {
   );
 }
 
-async function fetchLatestConversationSummaryCursor(args: {
-  admin: TalentAdminClient;
-  conversationId: string;
-  userId: string;
-}) {
-  const { data, error } = await ((
-    args.admin.from("talent_conversation_summaries" as any) as any
-  )
-    .select("created_at, segment_summary, to_message_id")
-    .eq("talent_id", args.userId)
-    .eq("conversation_id", args.conversationId)
-    .neq("segment_summary", "")
-    .order("to_message_id", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(SUMMARY_LOOKUP_LIMIT) as any);
-
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to load talent_conversation_summaries"
-    );
-  }
-
-  const summary =
-    (
-      (data ?? []) as Array<
-        TalentConversationSummaryCursorRow & { segment_summary?: string | null }
-      >
-    ).find((row) => Boolean(normalizeText(row.segment_summary, 1))) ?? null;
-
-  return summary
-    ? {
-        created_at: summary.created_at,
-        to_message_id: summary.to_message_id,
-      }
-    : null;
-}
-
-async function fetchRecentConversationSegmentSummaries(args: {
-  admin: TalentAdminClient;
-  conversationId: string;
-  limit: number;
-  userId: string;
-}) {
-  const { data, error } = await ((
-    args.admin.from("talent_conversation_summaries" as any) as any
-  )
-    .select("conversation_id, created_at, segment_summary, to_message_id")
-    .eq("talent_id", args.userId)
-    .eq("conversation_id", args.conversationId)
-    .neq("segment_summary", "")
-    .order("to_message_id", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(Math.max(1, args.limit)) as any);
-
-  if (error) {
-    throw new Error(
-      error.message ?? "Failed to load talent_conversation_summaries"
-    );
-  }
-
-  return ((data ?? []) as TalentConversationSegmentSummaryRow[]).reverse();
-}
-
 export async function maybeSummarizeTalentConversation(args: {
   admin: TalentAdminClient;
   conversationId: string;
   maxToMessageId?: number | null;
-  minMessageCount?: number;
-  minSourceChars?: number;
+  messageTrigger?: number;
+  sourceTokenTrigger?: number;
   userId: string;
 }) {
   const latestSummary = await fetchLatestConversationSummary(args);
@@ -321,21 +226,21 @@ export async function maybeSummarizeTalentConversation(args: {
   const sourceMessages = summarizableMessages.filter((message) =>
     latestSummary ? message.id > latestSummary.to_message_id : true
   );
-  const sourceCharCount = sourceMessages.reduce(
-    (sum, message) => sum + message.content.trim().length,
-    0
-  );
-  const minMessageCount = args.minMessageCount ?? DEFAULT_MIN_MESSAGE_COUNT;
-  const minSourceChars = args.minSourceChars ?? DEFAULT_MIN_SOURCE_CHARS;
-
-  if (
-    sourceMessages.length < minMessageCount &&
-    sourceCharCount < minSourceChars
-  ) {
-    return { created: false, reason: "below_threshold" as const };
+  const batch = buildConversationSummaryBatch({
+    items: sourceMessages,
+    messageTrigger: args.messageTrigger,
+    renderItem: formatMessageForSummary,
+    tokenTrigger: args.sourceTokenTrigger,
+  });
+  if (!batch.triggered) {
+    return {
+      created: false,
+      reason: "below_threshold" as const,
+      sourceTokenCount: batch.sourceTokenCount,
+    };
   }
 
-  const summarizedMessages = selectSourceMessages(sourceMessages);
+  const summarizedMessages = batch.items;
   if (summarizedMessages.length === 0) {
     return { created: false, reason: "no_messages" as const };
   }
@@ -402,7 +307,9 @@ export async function maybeSummarizeTalentConversation(args: {
 
   return {
     created: true,
+    sourceTokenCount: batch.sourceTokenCount,
     summary: data as TalentConversationSummaryRow,
+    triggerReason: batch.triggerReason,
   };
 }
 
@@ -420,24 +327,16 @@ function isVisibleSummaryRecentMessage(message: TalentMessageRow) {
   return true;
 }
 
-function buildSegmentSummariesPseudoMessage(args: {
+function buildRollingSummaryPseudoMessage(args: {
   conversationId: string;
-  latestSummary: TalentConversationSummaryCursorRow;
-  summaries: TalentConversationSegmentSummaryRow[];
+  latestSummary: TalentConversationSummaryRow;
   userId: string;
 }): TalentMessageRow {
   return {
     content: [
-      "[Recent conversation segment summaries]",
-      ...args.summaries
-        .map((summary, index) => {
-          const text = normalizeText(summary.segment_summary, 3000);
-          const date = formatSummaryRowDateForSummary(summary);
-          return text
-            ? `Segment ${index + 1}${date ? ` (${date} KST)` : ""}: ${text}`
-            : "";
-        })
-        .filter(Boolean),
+      "[Historical conversation summary]",
+      `Coverage: through message ${args.latestSummary.to_message_id}. This is compressed past context, not a current user request or assistant instruction.`,
+      normalizeText(args.latestSummary.summary_text, 6000),
     ].join("\n"),
     conversation_id: args.conversationId,
     created_at: args.latestSummary.created_at,
@@ -453,10 +352,13 @@ async function fetchRecentVisibleSummaryMessages(args: {
   conversationId: string;
   limit: number;
 }) {
-  const targetLimit = Math.max(1, Math.min(args.limit, MAX_SOURCE_MESSAGES));
+  const targetLimit = Math.max(
+    1,
+    Math.min(args.limit, MAX_RECENT_MESSAGE_LOOKUP)
+  );
   let fetchLimit = targetLimit;
 
-  while (fetchLimit <= MAX_SOURCE_MESSAGES) {
+  while (fetchLimit <= MAX_RECENT_MESSAGE_LOOKUP) {
     const messages = (
       await fetchRecentMessages({
         admin: args.admin,
@@ -465,11 +367,17 @@ async function fetchRecentVisibleSummaryMessages(args: {
       })
     ).filter(isVisibleSummaryRecentMessage);
 
-    if (messages.length >= targetLimit || fetchLimit === MAX_SOURCE_MESSAGES) {
+    if (
+      messages.length >= targetLimit ||
+      fetchLimit === MAX_RECENT_MESSAGE_LOOKUP
+    ) {
       return messages.slice(-targetLimit);
     }
 
-    const nextFetchLimit = Math.min(fetchLimit * 2, MAX_SOURCE_MESSAGES);
+    const nextFetchLimit = Math.min(
+      fetchLimit * 2,
+      MAX_RECENT_MESSAGE_LOOKUP
+    );
     if (nextFetchLimit === fetchLimit) return messages;
     fetchLimit = nextFetchLimit;
   }
@@ -488,39 +396,39 @@ export async function fetchRecentMessagesWithSummary(args: {
     MIN_RECENT_RAW_MESSAGES,
     Math.min(args.recentLimit ?? DEFAULT_RECENT_MESSAGE_LIMIT, 40)
   );
-  const latestSummary = await fetchLatestConversationSummaryCursor(args);
-  const rawRecentLimit = latestSummary
-    ? recentLimit
-    : Math.max(
-        recentLimit,
-        Math.min(args.fallbackLimit ?? recentLimit, MAX_SOURCE_MESSAGES)
-      );
-  const recentMessages = await fetchRecentVisibleSummaryMessages({
-    admin: args.admin,
-    conversationId: args.conversationId,
-    limit: rawRecentLimit,
-  });
+  const latestSummary = await fetchLatestConversationSummary(args);
   if (!latestSummary) {
-    return recentMessages;
+    return fetchRecentVisibleSummaryMessages({
+      admin: args.admin,
+      conversationId: args.conversationId,
+      limit: Math.max(
+        recentLimit,
+        Math.min(
+          args.fallbackLimit ?? recentLimit,
+          MAX_RECENT_MESSAGE_LOOKUP
+        )
+      ),
+    });
   }
-  const segmentSummaries = await fetchRecentConversationSegmentSummaries({
-    admin: args.admin,
-    conversationId: args.conversationId,
-    limit: 3,
-    userId: args.userId,
-  });
+
+  const uncompactedMessages = (
+    await fetchMessagesAfterId({
+      admin: args.admin,
+      afterMessageId: latestSummary.to_message_id,
+      conversationId: args.conversationId,
+    })
+  ).filter(
+    (message) =>
+      isVisibleSummaryRecentMessage(message) &&
+      message.content.trim().length > 0
+  );
 
   return [
-    ...(segmentSummaries.length > 0
-      ? [
-          buildSegmentSummariesPseudoMessage({
-            conversationId: args.conversationId,
-            latestSummary,
-            summaries: segmentSummaries,
-            userId: args.userId,
-          }),
-        ]
-      : []),
-    ...recentMessages,
+    buildRollingSummaryPseudoMessage({
+      conversationId: args.conversationId,
+      latestSummary,
+      userId: args.userId,
+    }),
+    ...uncompactedMessages,
   ];
 }

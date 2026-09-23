@@ -42,6 +42,29 @@ type DocumentUpsertResult = {
   document?: TalentDocumentRow | null;
 };
 
+type RejectedUploadCode =
+  | "file_too_large"
+  | "invalid_file_content"
+  | "invalid_resume_request"
+  | "missing_file"
+  | "request_inactive"
+  | "unsupported_file_type";
+
+function rejectUpload(args: {
+  code: RejectedUploadCode;
+  error: string;
+  status: number;
+}) {
+  console.warn("[TalentDocumentUpload] rejected", {
+    code: args.code,
+    status: args.status,
+  });
+  return NextResponse.json(
+    { code: args.code, error: args.error },
+    { status: args.status }
+  );
+}
+
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
@@ -61,7 +84,11 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) {
-      return NextResponse.json({ error: "file is required" }, { status: 400 });
+      return rejectUpload({
+        code: "missing_file",
+        error: "file is required",
+        status: 400,
+      });
     }
     const originalName = file.name?.trim().slice(0, 255) || "document";
     const requestedKind = String(formData.get("kind") ?? "resume").trim();
@@ -85,26 +112,29 @@ export async function POST(req: NextRequest) {
       resumeRequestToken &&
       (!requestToken || requestToken.talentId !== user.id || kind !== "resume")
     ) {
-      return NextResponse.json(
-        { error: "Invalid or expired resume request link" },
-        { status: 400 }
-      );
+      return rejectUpload({
+        code: "invalid_resume_request",
+        error: "Invalid or expired resume request link",
+        status: 400,
+      });
     }
     const uploadConfig = resolveTalentDocumentUpload({
       fileName: originalName,
       kind: isChatUpload ? "document" : kind,
     });
     if (!uploadConfig) {
-      return NextResponse.json(
-        { error: "Unsupported file type" },
-        { status: 400 }
-      );
+      return rejectUpload({
+        code: "unsupported_file_type",
+        error: "Unsupported file type",
+        status: 400,
+      });
     }
     if (fileSize > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
-      return NextResponse.json(
-        { error: "File size must not exceed 4 MB" },
-        { status: 413 }
-      );
+      return rejectUpload({
+        code: "file_too_large",
+        error: "File size must not exceed 4 MB",
+        status: 413,
+      });
     }
     const safeName = sanitizeFileName(originalName);
     const storagePath = `${user.id}/${Date.now()}_${randomUUID()}_${safeName}`;
@@ -123,10 +153,11 @@ export async function POST(req: NextRequest) {
             suppliedContentType,
           });
     if (!validFileContent) {
-      return NextResponse.json(
-        { error: "File content does not match a supported document format" },
-        { status: 400 }
-      );
+      return rejectUpload({
+        code: "invalid_file_content",
+        error: "File content does not match a supported document format",
+        status: 400,
+      });
     }
 
     admin = getTalentSupabaseAdmin();
@@ -169,10 +200,11 @@ export async function POST(req: NextRequest) {
       if (!activeRequest || !activeRequest.expects_document) {
         await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
         cleanupStoragePath = null;
-        return NextResponse.json(
-          { error: "This resume request is no longer active" },
-          { status: 409 }
-        );
+        return rejectUpload({
+          code: "request_inactive",
+          error: "This resume request is no longer active",
+          status: 409,
+        });
       }
       let conversationId = "";
       const { data: existingConversation, error: conversationError } =

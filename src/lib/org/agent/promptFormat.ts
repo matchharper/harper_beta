@@ -1471,6 +1471,106 @@ function formatCandidateRoleMoveResult(result: Record<string, any>) {
   ].join("\n");
 }
 
+function formatCompanyIntroDecisionResult(result: Record<string, any>) {
+  const availableStages = Array.isArray(result.availableProcessStages)
+    ? result.availableProcessStages
+    : [];
+  const recipients = Array.isArray(result.introRecipientEmails)
+    ? result.introRecipientEmails
+    : [];
+  const decision = String(result.decision ?? "");
+  const common = [
+    `status=${formatPromptCell(result.status, 60)}`,
+    `candidate=${formatPromptCell(result.candidateName, 160)}`,
+    `role=${formatPromptCell(result.roleName, 200)}`,
+    `decision=${formatPromptCell(decision, 30)}`,
+  ];
+  if (result.status === "details_required") {
+    return [
+      "outcome=not_completed",
+      ...common,
+      `missing_inputs=${formatPromptCell(result.missingInputs, 300)}`,
+      `proposed_intro_recipients=${formatPromptCell(recipients.join(", "), 1_000)}`,
+      "candidate_has_seen_role=false",
+      "candidate_interest_confirmed=false",
+      "candidate_request_created=false",
+      "candidate_contacted=false",
+      formatPromptSection(
+        "available_process_stages",
+        formatPromptTable(
+          ["stage_id", "label"],
+          availableStages.map((stage: any) => [stage?.id, stage?.label]),
+          [100, 160]
+        )
+      ),
+      "next_required_decision=provide_missing_company_appeal_recipients_or_first_stage",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  if (result.status === "confirmation_required") {
+    return [
+      "outcome=awaiting_confirmation",
+      ...common,
+      `company_appeal=${formatPromptCell(result.companyAppeal, 2_000)}`,
+      `intro_recipients=${formatPromptCell(recipients.join(", "), 1_000)}`,
+      `first_process_stage=${formatPromptCell(result.nextStageName, 160)}`,
+      "candidate_has_seen_role=false",
+      "candidate_interest_confirmed=false",
+      "candidate_request_created=false",
+      "candidate_contacted=false",
+      `candidate_acceptance_effect=${
+        decision === "request_intro"
+          ? "send_CC_introduction_and_move_to_confirmed_first_stage_without_another_company_approval"
+          : "not_applicable"
+      }`,
+      `pass_effect=${
+        decision === "pass"
+          ? "remove_from_company_first_proposal_without_candidate_contact"
+          : "not_applicable"
+      }`,
+      "next_required_decision=confirm_exact_company_intro_decision",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  if (result.status === "already_requested") {
+    return [
+      "outcome=unchanged",
+      ...common,
+      "candidate_request_created=true",
+      `candidate_delivery_state=${formatPromptCell(result.candidateDeliveryState, 40)}`,
+      `candidate_contacted=${Boolean(result.candidateContacted)}`,
+      "candidate_interest_confirmed=false",
+      "company_second_approval_required=false",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  if (decision === "pass") {
+    return [
+      "outcome=completed",
+      ...common,
+      "candidate_proposal_passed=true",
+      "candidate_request_created=false",
+      "candidate_contacted=false",
+      "candidate_visible_opportunity_created=false",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  return [
+    "outcome=completed",
+    ...common,
+    "candidate_request_created=true",
+    `candidate_delivery_state=${formatPromptCell(result.candidateDeliveryState, 40)}`,
+    `candidate_contacted=${Boolean(result.candidateContacted)}`,
+    `candidate_message_sent_at=${formatPromptCell(result.candidateSentAt, 100)}`,
+    "candidate_interest_confirmed=false",
+    "company_second_approval_required=false",
+    `intro_recipients_on_acceptance=${formatPromptCell(recipients.join(", "), 1_000)}`,
+    `first_process_stage_on_acceptance=${formatPromptCell(result.nextStageName, 160)}`,
+    "candidate_acceptance_effect=send_CC_introduction_and_move_to_confirmed_first_stage",
+    ...formatOptionalResponseGuidance(result),
+  ].join("\n");
+}
+
 function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
   const connectionMethod = String(result.connectionMethod ?? "");
   const decision = String(result.decision ?? "");
@@ -2029,6 +2129,22 @@ export function serializeOrgAgentToolResult(
   if (name === "list_contacts") return formatContactListResult(result);
   if (name === "read_contact") return formatContactDetailResult(result);
   if (name === "read_role") return formatRoleResult(result);
+  if (name === "request_matching_search") {
+    return [
+      `status=${formatPromptCell(result.status, 40)}`,
+      `requested_role=${formatPromptCell(result.requestedRoleName ?? result.roleName, 200)}`,
+      ...(result.unavailableReason
+        ? [
+            `unavailable_reason=${formatPromptCell(result.unavailableReason, 500)}`,
+            "result_meaning=No new search was started. Use the verified reason to respond naturally in the current conversation; mention a next step only when it is genuinely useful.",
+          ]
+        : [
+            "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating the pool can take time, and the completed outcome will be shared separately.",
+            "response_guidance=Acknowledge the result naturally in the current conversation. Keep implementation mechanics out of the company-facing reply.",
+          ]),
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
   if (name === "calibrate_role_hiring_brief") {
     return [
       `status=${formatPromptCell(result.status, 30)}`,
@@ -2090,6 +2206,9 @@ export function serializeOrgAgentToolResult(
   if (name === "contact_talent") {
     return formatCompanyTalentRequestResult(result);
   }
+  if (name === "decide_company_intro") {
+    return formatCompanyIntroDecisionResult(result);
+  }
   if (name === "decide_candidate_connection") {
     return formatCandidateConnectionDecisionResult(result);
   }
@@ -2140,11 +2259,15 @@ function orgAgentToolRecoveryInstruction(args: {
       return `${retryPrefix} For an execution failure, read the candidate's current contact history for this exact Role before retrying so no draft or delivery is duplicated. Continue other independently requested candidates when safe.`;
     case "decide_candidate_connection":
       return `${retryPrefix} For an execution failure, read the candidate's current Role position and contact or email state before another decision so no introduction or closure notice is duplicated.`;
+    case "decide_company_intro":
+      return `${retryPrefix} For an execution failure, re-read the exact candidate's current company stage before another decision so no company-first proposal or candidate delivery is duplicated. Preserve the distinction between a prepared request and verified candidate delivery.`;
     case "move_candidate_stage":
     case "move_candidate_to_role":
       return `${retryPrefix} Re-read the exact candidate and relevant Role pipeline state before another move. Preserve any successful independent work already completed.`;
     case "start_role_creation":
       return `${retryPrefix} If the failure happened during execution, do not create another Role thread until the existing in-progress Role conversations have been checked. Explain the current uncertainty without exposing implementation details.`;
+    case "request_matching_search":
+      return `${retryPrefix} Do not immediately request another search because the queue effect may already exist. Explain that the fresh-search request could not be confirmed; do not claim that matching started or that candidates were contacted.`;
     case "update_data":
     case "update_role_criteria":
     case "change_role_status":

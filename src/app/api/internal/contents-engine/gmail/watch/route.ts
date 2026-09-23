@@ -14,7 +14,9 @@ export async function GET(request: NextRequest) {
   }
   try {
     const watch = await renewGtmOutreachGmailWatch();
-    const sync = await syncGtmOutreachGmailHistory(watch.historyId);
+    const sync = await syncGtmOutreachGmailHistory(watch.historyId, {
+      recoverRecentInbox: true,
+    });
     return NextResponse.json({ ok: true, sync, watch });
   } catch (error) {
     console.error("[contents-engine/gmail/watch]", error);

@@ -1,0 +1,759 @@
+{
+  "task": "resume-company-resolution",
+  "datasetVersion": "private-random20-v2",
+  "goldVersion": "v2",
+  "reviewedAt": "2026-09-22T02:30:00.000Z",
+  "reviewType": "blind_manual_adjudication_before_glm_run",
+  "labels": [
+    {
+      "caseId": "RCR001",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3503
+    },
+    {
+      "caseId": "RCR001",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1038
+    },
+    {
+      "caseId": "RCR001",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1073
+    },
+    {
+      "caseId": "RCR001",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110663913
+    },
+    {
+      "caseId": "RCR001",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1073
+    },
+    {
+      "caseId": "RCR001",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110655889
+    },
+    {
+      "caseId": "RCR002",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 15096106
+    },
+    {
+      "caseId": "RCR002",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 759891
+    },
+    {
+      "caseId": "RCR002",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 13224470
+    },
+    {
+      "caseId": "RCR003",
+      "experienceId": "E01",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR003",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 13455
+    },
+    {
+      "caseId": "RCR003",
+      "experienceId": "E03",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR003",
+      "experienceId": "E04",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR003",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110643588
+    },
+    {
+      "caseId": "RCR004",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110743066
+    },
+    {
+      "caseId": "RCR004",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110743064
+    },
+    {
+      "caseId": "RCR004",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110743065
+    },
+    {
+      "caseId": "RCR004",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 102685428
+    },
+    {
+      "caseId": "RCR004",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110743067
+    },
+    {
+      "caseId": "RCR004",
+      "experienceId": "E06",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR005",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 71611427
+    },
+    {
+      "caseId": "RCR005",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110702878
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 16198010
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 16198010
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 16198010
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 16198010
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 16198010
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 16198010
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E07",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E08",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E09",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR006",
+      "experienceId": "E10",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR007",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 105346122
+    },
+    {
+      "caseId": "RCR007",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 68003991
+    },
+    {
+      "caseId": "RCR007",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 9246
+    },
+    {
+      "caseId": "RCR007",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 551751
+    },
+    {
+      "caseId": "RCR008",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3491373
+    },
+    {
+      "caseId": "RCR008",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110706676
+    },
+    {
+      "caseId": "RCR008",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 100011287
+    },
+    {
+      "caseId": "RCR008",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110724967
+    },
+    {
+      "caseId": "RCR008",
+      "experienceId": "E05",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR009",
+      "experienceId": "E01",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR009",
+      "experienceId": "E02",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR009",
+      "experienceId": "E03",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR009",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1586
+    },
+    {
+      "caseId": "RCR009",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 13299
+    },
+    {
+      "caseId": "RCR009",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110713038
+    },
+    {
+      "caseId": "RCR009",
+      "experienceId": "E07",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 13354074
+    },
+    {
+      "caseId": "RCR010",
+      "experienceId": "E01",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR010",
+      "experienceId": "E02",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E01",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E02",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E03",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E04",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E05",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E06",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E07",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E08",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E09",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR011",
+      "experienceId": "E10",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E01",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E02",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E03",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 14539445
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 14539445
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E06",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E07",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E08",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E09",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 15100111
+    },
+    {
+      "caseId": "RCR012",
+      "experienceId": "E10",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1400
+    },
+    {
+      "caseId": "RCR013",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1009
+    },
+    {
+      "caseId": "RCR013",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1009
+    },
+    {
+      "caseId": "RCR013",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1009
+    },
+    {
+      "caseId": "RCR013",
+      "experienceId": "E04",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR013",
+      "experienceId": "E05",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR013",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 771828
+    },
+    {
+      "caseId": "RCR014",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 18300737
+    },
+    {
+      "caseId": "RCR014",
+      "experienceId": "E02",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR014",
+      "experienceId": "E03",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR014",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1618
+    },
+    {
+      "caseId": "RCR015",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110720329
+    },
+    {
+      "caseId": "RCR015",
+      "experienceId": "E02",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 2622
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 2622
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3632032
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3632032
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E05",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3632032
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E07",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3632032
+    },
+    {
+      "caseId": "RCR016",
+      "experienceId": "E08",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E01",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E02",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E03",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 113575817
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 113575817
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E06",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E07",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR017",
+      "experienceId": "E08",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 86609201
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1271878
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1482
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1482
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1482
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 15140453
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E07",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3015
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E08",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3266958
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E09",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 15094698
+    },
+    {
+      "caseId": "RCR018",
+      "experienceId": "E10",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 3503
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E01",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 351913
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E03",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1419
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E04",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 1419
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E05",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 110763675
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E07",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 207439
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E08",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 162356
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E09",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 5349
+    },
+    {
+      "caseId": "RCR019",
+      "experienceId": "E10",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR020",
+      "experienceId": "E01",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 6411304
+    },
+    {
+      "caseId": "RCR020",
+      "experienceId": "E02",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 6411304
+    },
+    {
+      "caseId": "RCR020",
+      "experienceId": "E03",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR020",
+      "experienceId": "E04",
+      "outcome": "no_company_db_match",
+      "expectedCompanyDbId": null
+    },
+    {
+      "caseId": "RCR020",
+      "experienceId": "E05",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 157240
+    },
+    {
+      "caseId": "RCR020",
+      "experienceId": "E06",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 157240
+    },
+    {
+      "caseId": "RCR020",
+      "experienceId": "E07",
+      "outcome": "company_db_match",
+      "expectedCompanyDbId": 13434412
+    }
+  ]
+}

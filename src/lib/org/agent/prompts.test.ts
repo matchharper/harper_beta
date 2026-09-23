@@ -54,6 +54,12 @@ test("organization-agent system prompt keeps compact behavior and safety contrac
   assert.match(prompt, /Preserve canonical product labels exactly/);
   assert.match(
     prompt,
+    /reference language, not preferred company-facing wording/
+  );
+  assert.match(prompt, /Prior assistant messages establish facts, commitments/);
+  assert.match(prompt, /A tool result is evidence for the answer/);
+  assert.match(
+    prompt,
     /Do not reveal internal review or confirmation steps.*tools, models, routing, workers, queues/
   );
   assert.match(prompt, /Never conjugate the raw labels/);
@@ -85,6 +91,14 @@ test("organization-agent system prompt keeps compact behavior and safety contrac
 
   assert.match(prompt, /## Pipeline Management/);
   assert.match(prompt, /Report verified structure/);
+  assert.match(prompt, /use \`decide_company_intro\`/);
+  assert.match(prompt, /same tool again to execute it/);
+  assert.match(prompt, /has not seen the Role and has not expressed interest/);
+  assert.match(prompt, /without another company approval/);
+  assert.doesNotMatch(
+    prompt,
+    /Direct the company to that dialog on the candidate card/
+  );
 
   assert.match(prompt, /### connection_decisions/);
   assert.match(prompt, /Talent-side rejection is never reversible/);
@@ -159,6 +173,26 @@ test("organization-agent web prompt requests standard Markdown", () => {
   assert.match(prompt, /굵게: \*\*텍스트\*\*/);
   assert.match(prompt, /\[링크 이름\]\(https:\/\/example\.com\)/);
   assert.doesNotMatch(prompt, /Slack 메시지로 표시될 답변/);
+});
+
+test("turn delivery keeps tool depth independent from visible message count", () => {
+  const direct = buildOrgAgentSystemPrompt({ surface: "chat" });
+  const webAction = buildOrgAgentSystemPrompt({
+    allowSilentCompletion: true,
+    surface: "chat",
+  });
+
+  assert.match(direct, /Only the first useful non-terminal update/);
+  assert.match(direct, /regardless of how many tools are needed/);
+  assert.match(direct, /Do not narrate each tool call/);
+  assert.match(direct, /always receives a terminal response/);
+  assert.match(webAction, /A user-facing message is optional/);
+  assert.match(webAction, /Silence is a successful outcome/);
+  assert.match(webAction, /never an unverified result/);
+  assert.match(
+    webAction,
+    /Never perform or announce an action merely to avoid/
+  );
 });
 
 test("role creation entry differs between web general chat and Slack", () => {

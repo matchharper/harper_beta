@@ -311,6 +311,18 @@ function formatConversation(
         )
         .map((value) => `candidate_decision_context{${value}}`)
         .join(","),
+      (message.metadata.companyIntroDecisionConfirmations ?? [])
+        .map((confirmation) =>
+          [
+            `decision=${confirmation.decision}`,
+            `talent_id=${confirmation.talentId}`,
+            `role_id=${confirmation.roleId}`,
+            `next_stage_id=${confirmation.nextStageId ?? "not_selected"}`,
+            `intro_recipients=${confirmation.introRecipientEmails.join("|") || "not_selected"}`,
+          ].join(";")
+        )
+        .map((value) => `company_intro_decision_context{${value}}`)
+        .join(","),
       ...(message.metadata.contactDraftRefs?.length
         ? message.metadata.contactDraftRefs
         : message.metadata.contactDraftRef
@@ -324,7 +336,8 @@ function formatConversation(
         ? `candidate_contact_ref{${[
             `talent_id=${message.metadata.candidateRelayRef.talentId}`,
             `role_id=${message.metadata.candidateRelayRef.roleId}`,
-            `request_id=${message.metadata.candidateRelayRef.requestId}`,
+            `recommendation_id=${message.metadata.candidateRelayRef.recommendationId}`,
+            `request_id=${message.metadata.candidateRelayRef.requestId ?? "none"}`,
             `relay_id=${message.metadata.candidateRelayRef.relayId}`,
           ].join(";")}}`
         : "",

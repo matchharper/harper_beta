@@ -170,9 +170,9 @@ export function readCareerUtmSourceFromQuery(
   );
 }
 
-const CAREER_REFERRER_SOURCE_BY_HOST: Array<{
+const CAREER_SOCIAL_REFERRER_SOURCE_BY_DOMAIN: Array<{
   hosts: string[];
-  source: "instagram" | "linkedin" | "seo" | "threads";
+  source: "instagram" | "linkedin" | "threads";
 }> = [
   {
     hosts: ["linkedin.com", "lnkd.in", "com.linkedin.android"],
@@ -186,20 +186,32 @@ const CAREER_REFERRER_SOURCE_BY_HOST: Array<{
     hosts: ["instagram.com", "l.instagram.com"],
     source: "instagram",
   },
-  {
-    hosts: [
-      "bing.com",
-      "daum.net",
-      "duckduckgo.com",
-      "google.com",
-      "google.co.kr",
-      "naver.com",
-      "search.naver.com",
-      "yahoo.com",
-    ],
-    source: "seo",
-  },
 ];
+
+// Keep search matching host-specific. A domain-wide `*.google.com` match also
+// includes OAuth referrers such as accounts.google.com, which are navigation
+// infrastructure rather than acquisition sources.
+const CAREER_SEARCH_REFERRER_HOSTS = new Set([
+  "bing.com",
+  "www.bing.com",
+  "daum.net",
+  "www.daum.net",
+  "search.daum.net",
+  "m.search.daum.net",
+  "duckduckgo.com",
+  "www.duckduckgo.com",
+  "google.com",
+  "www.google.com",
+  "google.co.kr",
+  "www.google.co.kr",
+  "naver.com",
+  "www.naver.com",
+  "search.naver.com",
+  "m.search.naver.com",
+  "yahoo.com",
+  "www.yahoo.com",
+  "search.yahoo.com",
+]);
 
 function hostnameMatches(hostname: string, candidate: string) {
   return hostname === candidate || hostname.endsWith(`.${candidate}`);
@@ -216,7 +228,9 @@ export function readCareerSourceFromReferrer(value: unknown) {
 
   try {
     const hostname = new URL(referrer).hostname.toLowerCase();
-    for (const { hosts, source } of CAREER_REFERRER_SOURCE_BY_HOST) {
+    if (CAREER_SEARCH_REFERRER_HOSTS.has(hostname)) return "seo";
+
+    for (const { hosts, source } of CAREER_SOCIAL_REFERRER_SOURCE_BY_DOMAIN) {
       if (hosts.some((host) => hostnameMatches(hostname, host))) return source;
     }
   } catch {

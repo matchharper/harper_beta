@@ -78,7 +78,7 @@ test("candidate contact prompt uses one broad writing guide", () => {
   );
   assert.match(
     prompt,
-    /직접적인 내용 혹은 요구를 한 경우에는 그것을 최대한 따른다/
+    /직접적인 내용 혹은 요구를 한 경우에는 그것을 최대한 따르/
   );
   assert.match(prompt, /전부 필수적인 것은 아니며/);
   assert.match(prompt, /제목에는 회사명과 역할명을 정확히 언급/);
@@ -175,6 +175,26 @@ test("candidate contact copy supports an informational contact without a respons
   );
   assert.match(messages[1]?.content ?? "", /Contact kind: contact/);
   assert.match(messages[1]?.content ?? "", /Acme 팀 소개 자료 전달/);
+});
+
+test("candidate relay replies tell the writer they are queued directly rather than reviewed as drafts", () => {
+  const messages = buildCandidateContactDraftMessages({
+    candidateName: "Alex",
+    companyName: "Acme",
+    currentInstruction: "후보자에게 다음 주에 답을 주겠다고 전해 주세요.",
+    deliveryIntent: "direct_reply",
+    kind: "contact",
+    profileUrl: null,
+    recentConversation: "Harper: 후보자가 진행 상황을 물었습니다.",
+    recipientLocale: "ko",
+    requestContext: "다음 주에 진행 상황을 다시 안내할 예정이라는 회사의 답변",
+    roleName: "Backend Engineer",
+  });
+  const prompt = messages[0]?.content ?? "";
+
+  assert.match(prompt, /queue immediately/);
+  assert.match(prompt, /direct response or continuation/);
+  assert.doesNotMatch(prompt, /company will review verbatim before delivery/);
 });
 
 test("contact mode is additive and does not alter question or resume instructions", () => {

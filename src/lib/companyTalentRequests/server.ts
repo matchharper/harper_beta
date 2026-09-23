@@ -59,6 +59,7 @@ export type CompanyTalentRequestRow = {
   draft_revision: number;
   created_at: string;
   intent: "candidate_reengagement" | "ordinary";
+  in_reply_to_company_talent_relay_id?: string | null;
   response_disposition: "negative" | "other" | "positive" | null;
   resume_stage: string | null;
   talent_source_message_id?: number | null;
@@ -472,19 +473,19 @@ export async function fetchActiveCompanyTalentRequests(args: {
     .slice(0, limit);
 }
 
-export type RelayableCompanyTalentContact = {
-  answered: boolean;
+export type RelayableCompanyTalentConnection = {
   companyName: string;
-  contactKind: "contact" | "question" | "resume";
-  contactedAt: string;
+  connectionId: string;
+  establishedAt: string;
+  latestCompanyContactAt: string | null;
   latestRelayAt: string | null;
   latestRelayStatus: CompanyTalentRelayDeliveryStatus | null;
-  requestContext: string;
-  requestId: string;
+  origin: "company_contact" | "company_request_intro" | "harper_recommendation";
+  recommendationId: string;
   roleName: string;
 };
 
-export async function fetchRelayableCompanyTalentContacts(args: {
+export async function fetchRelayableCompanyTalentConnections(args: {
   admin: UntypedAdmin;
   limit?: number;
   query?: string | null;
@@ -494,23 +495,166 @@ export async function fetchRelayableCompanyTalentContacts(args: {
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(1, Math.min(Math.floor(args.limit), 30))
       : 20;
-  const { data, error } = await args.admin
-    .from("company_talent_requests")
+  const { data: recommendations, error: recommendationError } = await args.admin
+    .from("talent_opportunity_recommendation")
     .select(
-      "id, contact_kind, expects_document, request_context, created_at, updated_at, talent_source_message_id, document_id, deliveries:contact_queue!inner(sent_at, status, type), relays:company_talent_relays(id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at)), role:company_roles!inner(name,information), workspace:company_workspace!inner(company_name)"
+      "id, role_id, opportunity_type, feedback_at, created_at, role:company_roles!inner(name, information, company_workspace_id, workspace:company_workspace!inner(company_name))"
     )
     .eq("talent_id", args.talentId)
-    .eq("deliveries.type", "company_request_candidate_delivery")
-    .eq("deliveries.status", "sent")
-    .not("deliveries.sent_at", "is", null)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false, referencedTable: "relays" })
-    .limit(1, { referencedTable: "relays" })
-    .limit(Math.min(limit * 5, 150));
-  if (error) throw error;
+    .eq("feedback", "like")
+    .in("opportunity_type", ["internal_recommendation", "intro_request"])
+    .order("feedback_at", { ascending: false })
+    .limit(Math.min(limit * 8, 240));
+  if (recommendationError) throw recommendationError;
+
+  const recommendationRows = Array.isArray(recommendations)
+    ? (recommendations as any[])
+    : [];
+  const recommendationIds = recommendationRows
+    .map((row) => normalizedText(row.id, 120))
+    .filter(Boolean);
+  const roleIds = Array.from(
+    new Set(
+      recommendationRows
+        .map((row) => normalizedText(row.role_id, 120))
+        .filter(Boolean)
+    )
+  );
+  if (recommendationIds.length === 0 || roleIds.length === 0) return [];
+
+  const [tagResult, introResult, requestResult, relayResult, progressResult] =
+    await Promise.all([
+      args.admin
+        .from("talent_opportunity_tag")
+        .select("opportunity_id, tag, updated_at")
+        .eq("talent_id", args.talentId)
+        .in("opportunity_id", roleIds)
+        .order("updated_at", { ascending: false }),
+      args.admin
+        .from("company_intro_candidates")
+        .select(
+          "recommendation_id, status, requested_at, talent_decision_at, connected_at, updated_at"
+        )
+        .eq("talent_id", args.talentId)
+        .in("recommendation_id", recommendationIds)
+        .in("status", ["connecting", "connected"]),
+      args.admin
+        .from("company_talent_requests")
+        .select(
+          "id, recommendation_id, created_at, deliveries:contact_queue(sent_at,status,type)"
+        )
+        .eq("talent_id", args.talentId)
+        .in("recommendation_id", recommendationIds)
+        .order("created_at", { ascending: false }),
+      args.admin
+        .from("company_talent_relays")
+        .select(
+          "id, recommendation_id, created_at, deliveries:contact_queue(type,status,sent_at,updated_at)"
+        )
+        .in("recommendation_id", recommendationIds)
+        .order("created_at", { ascending: false }),
+      args.admin
+        .from("talent_progress")
+        .select("recommendation_id, created_at, metadata")
+        .eq("talent_id", args.talentId)
+        .eq("kind", "org_stage_change")
+        .in("recommendation_id", recommendationIds)
+        .order("created_at", { ascending: false }),
+    ]);
+  if (tagResult.error) throw tagResult.error;
+  if (introResult.error) throw introResult.error;
+  if (requestResult.error) throw requestResult.error;
+  if (relayResult.error) throw relayResult.error;
+  if (progressResult.error) throw progressResult.error;
+
+  const latestCompanyVisibleTagByRoleId = new Map<string, any>();
+  for (const row of Array.isArray(tagResult.data) ? tagResult.data : []) {
+    const roleId = normalizedText((row as any).opportunity_id, 120);
+    if (!roleId || latestCompanyVisibleTagByRoleId.has(roleId)) continue;
+    const tag = normalizedText((row as any).tag, 160);
+    if (
+      ["내부:연결대기", "내부:연결됨", "내부:최종오퍼"].includes(tag) ||
+      tag.startsWith("내부단계:")
+    ) {
+      latestCompanyVisibleTagByRoleId.set(roleId, row);
+    }
+  }
+
+  const introByRecommendationId = new Map<string, any>();
+  for (const row of Array.isArray(introResult.data) ? introResult.data : []) {
+    const recommendationId = normalizedText(
+      (row as any).recommendation_id,
+      120
+    );
+    if (recommendationId && !introByRecommendationId.has(recommendationId)) {
+      introByRecommendationId.set(recommendationId, row);
+    }
+  }
+
+  const sentRequestsByRecommendationId = new Map<string, any[]>();
+  for (const row of Array.isArray(requestResult.data)
+    ? requestResult.data
+    : []) {
+    const recommendationId = normalizedText(
+      (row as any).recommendation_id,
+      120
+    );
+    const sentDelivery = Array.isArray((row as any).deliveries)
+      ? (row as any).deliveries.find(
+          (delivery: any) =>
+            delivery?.type === "company_request_candidate_delivery" &&
+            delivery?.status === "sent" &&
+            delivery?.sent_at
+        )
+      : null;
+    if (!recommendationId || !sentDelivery) continue;
+    const rows = sentRequestsByRecommendationId.get(recommendationId) ?? [];
+    rows.push({ ...row, sentAt: sentDelivery.sent_at });
+    sentRequestsByRecommendationId.set(recommendationId, rows);
+  }
+
+  const relaysByRecommendationId = new Map<string, any[]>();
+  for (const row of Array.isArray(relayResult.data) ? relayResult.data : []) {
+    const recommendationId = normalizedText(
+      (row as any).recommendation_id,
+      120
+    );
+    if (!recommendationId) continue;
+    const rows = relaysByRecommendationId.get(recommendationId) ?? [];
+    rows.push(row);
+    relaysByRecommendationId.set(recommendationId, rows);
+  }
+
+  const companySharedAtByRecommendationId = new Map<string, string>();
+  for (const row of Array.isArray(progressResult.data)
+    ? progressResult.data
+    : []) {
+    const recommendationId = normalizedText(
+      (row as any).recommendation_id,
+      120
+    );
+    const metadata =
+      (row as any).metadata && typeof (row as any).metadata === "object"
+        ? (row as any).metadata
+        : {};
+    const stage = normalizedText(metadata.stage, 160);
+    const isCompanyVisibleStage =
+      ["pending_connection", "connected", "final_offer"].includes(stage) ||
+      stage.startsWith("custom:");
+    if (
+      recommendationId &&
+      isCompanyVisibleStage &&
+      !companySharedAtByRecommendationId.has(recommendationId)
+    ) {
+      companySharedAtByRecommendationId.set(
+        recommendationId,
+        normalizedText((row as any).created_at, 100)
+      );
+    }
+  }
 
   const query = normalizedText(args.query, 200).toLocaleLowerCase();
-  return (Array.isArray(data) ? data : [])
+  return recommendationRows
     .filter((row: any) => {
       const role = Array.isArray(row.role) ? row.role[0] : row.role;
       const information =
@@ -523,12 +667,29 @@ export async function fetchRelayableCompanyTalentContacts(args: {
           information.testTalentIds.includes(args.talentId))
       );
     })
-    .map((row: any): RelayableCompanyTalentContact => {
+    .map((row: any): RelayableCompanyTalentConnection | null => {
       const role = Array.isArray(row.role) ? row.role[0] : row.role;
-      const workspace = Array.isArray(row.workspace)
-        ? row.workspace[0]
-        : row.workspace;
-      const latestRelay = Array.isArray(row.relays) ? row.relays[0] : null;
+      const workspace = Array.isArray(role?.workspace)
+        ? role.workspace[0]
+        : role?.workspace;
+      const recommendationId = normalizedText(row.id, 120);
+      const roleId = normalizedText(row.role_id, 120);
+      const intro = introByRecommendationId.get(recommendationId) ?? null;
+      const companyVisibleTag =
+        latestCompanyVisibleTagByRoleId.get(roleId) ?? null;
+      const sentRequests =
+        sentRequestsByRecommendationId.get(recommendationId) ?? [];
+      const companySharedAt =
+        companySharedAtByRecommendationId.get(recommendationId) ?? null;
+      if (
+        !intro &&
+        !companyVisibleTag &&
+        !companySharedAt &&
+        sentRequests.length === 0
+      )
+        return null;
+      const latestRelay =
+        (relaysByRecommendationId.get(recommendationId) ?? [])[0] ?? null;
       const latestRelayDelivery = Array.isArray(latestRelay?.deliveries)
         ? [...latestRelay.deliveries]
             .filter((delivery: any) =>
@@ -543,21 +704,30 @@ export async function fetchRelayableCompanyTalentContacts(args: {
               )
             )[0]
         : null;
-      const contactKind = ["contact", "question", "resume"].includes(
-        row.contact_kind
-      )
-        ? row.contact_kind
-        : row.expects_document
-          ? "resume"
-          : "question";
+      const latestCompanyContactAt = sentRequests
+        .map((request) => normalizedText(request.sentAt, 100))
+        .filter(Boolean)
+        .sort((left, right) => right.localeCompare(left))[0];
+      const origin =
+        normalizedText(row.opportunity_type, 80) === "intro_request"
+          ? "company_request_intro"
+          : companyVisibleTag || companySharedAt
+            ? "harper_recommendation"
+            : "company_contact";
+      const establishedAt =
+        normalizedText(intro?.connected_at, 100) ||
+        normalizedText(intro?.talent_decision_at, 100) ||
+        normalizedText(companyVisibleTag?.updated_at, 100) ||
+        companySharedAt ||
+        latestCompanyContactAt ||
+        normalizedText(row.feedback_at, 100) ||
+        normalizedText(row.created_at, 100);
       return {
-        answered: Boolean(row.talent_source_message_id || row.document_id),
         companyName:
           normalizedText(workspace?.company_name, 160) || "채용 회사",
-        contactKind,
-        contactedAt:
-          normalizedText(row.deliveries?.[0]?.sent_at, 100) ||
-          normalizedText(row.created_at, 100),
+        connectionId: `recommendation:${recommendationId}`,
+        establishedAt,
+        latestCompanyContactAt: latestCompanyContactAt || null,
         latestRelayAt: latestRelay
           ? normalizedText(latestRelay.created_at, 100) || null
           : null,
@@ -566,50 +736,44 @@ export async function fetchRelayableCompanyTalentContacts(args: {
               latestRelayDelivery?.status
             )
           : null,
-        requestContext: normalizedText(row.request_context, 800),
-        requestId: normalizedText(row.id, 120),
+        origin,
+        recommendationId,
         roleName: normalizedText(role?.name, 160) || "해당 역할",
       };
     })
-    .filter((contact: RelayableCompanyTalentContact) => {
+    .filter(
+      (
+        connection: RelayableCompanyTalentConnection | null
+      ): connection is RelayableCompanyTalentConnection => Boolean(connection)
+    )
+    .filter((connection) => {
       if (!query) return true;
-      return [
-        contact.companyName,
-        contact.roleName,
-        contact.requestContext,
-      ].some((value) => value.toLocaleLowerCase().includes(query));
+      return [connection.companyName, connection.roleName].some((value) =>
+        value.toLocaleLowerCase().includes(query)
+      );
     })
     .slice(0, limit);
 }
 
-export function formatRelayableCompanyTalentContacts(
-  contacts: RelayableCompanyTalentContact[]
+export function formatRelayableCompanyTalentConnections(
+  connections: RelayableCompanyTalentConnection[]
 ) {
-  if (contacts.length === 0) {
-    return "전달 가능한 회사 연락 내역이 없습니다.";
+  if (connections.length === 0) {
+    return "Harper를 통해 상호 연결된 회사와 역할을 찾지 못했습니다.";
   }
   return [
-    `전달 가능한 회사 연락 ${contacts.length}건`,
-    ...contacts.map((contact, index) => {
-      const status = contact.answered
-        ? "이전에 답변 또는 전달함"
-        : "아직 답변하지 않음";
-      const kind =
-        contact.contactKind === "resume"
-          ? "이력서 요청"
-          : contact.contactKind === "contact"
-            ? "연락"
-            : "질문";
-      const latestRelay = contact.latestRelayStatus
-        ? `${contact.latestRelayStatus} · ${contact.latestRelayAt || "시점 미상"}`
+    `전달 가능한 상호 연결 ${connections.length}건`,
+    ...connections.map((connection, index) => {
+      const latestRelay = connection.latestRelayStatus
+        ? `${connection.latestRelayStatus} · ${connection.latestRelayAt || "시점 미상"}`
         : "없음";
       return [
-        `${index + 1}. ${contact.companyName} · ${contact.roleName}`,
-        `   연락 ID: ${contact.requestId}`,
-        `   종류/상태: ${kind} · ${status}`,
-        `   연락 시점: ${contact.contactedAt || "-"}`,
+        `${index + 1}. ${connection.companyName} · ${connection.roleName}`,
+        `   연결 ID: ${connection.connectionId}`,
+        `   연결 경로: ${connection.origin}`,
+        `   상호 연결 확인 시점: ${connection.establishedAt || "-"}`,
+        `   최근 회사→후보자 연락: ${connection.latestCompanyContactAt || "없음"}`,
         `   최근 후보자→회사 relay: ${latestRelay}`,
-        `   내용: ${normalizedText(contact.requestContext, 300) || "-"}`,
       ].join("\n");
     }),
   ].join("\n");
@@ -884,8 +1048,9 @@ async function candidateAuthoredMessage(args: {
 
 export async function createCompanyTalentRelay(args: {
   admin: UntypedAdmin;
+  connectionId?: string;
   relayContent: string;
-  requestId: string;
+  requestId?: string;
   sourceMessageId: number;
   talentId: string;
 }) {
@@ -896,31 +1061,151 @@ export async function createCompanyTalentRelay(args: {
   });
   const relayContent = normalizedRelayContent(args.relayContent, 5_000);
   if (!relayContent) throw new Error("Company relay content is empty");
-  const { data, error } = await args.admin.rpc(
-    "create_company_talent_relay_v1",
-    {
-      p_relay_content: relayContent,
-      p_request_id: args.requestId,
-      p_source_message_id: args.sourceMessageId,
-      p_talent_id: args.talentId,
-    }
-  );
+  const connectionId = normalizedText(args.connectionId, 180);
+  const recommendationId = connectionId.startsWith("recommendation:")
+    ? connectionId.slice("recommendation:".length)
+    : "";
+  if (!args.requestId && !recommendationId) {
+    throw new Error("Company connection identifier is missing");
+  }
+  const rpcName = args.requestId
+    ? "create_company_talent_relay_v1"
+    : "create_company_talent_relay_v2";
+  const rpcArgs = args.requestId
+    ? {
+        p_relay_content: relayContent,
+        p_request_id: args.requestId,
+        p_source_message_id: args.sourceMessageId,
+        p_talent_id: args.talentId,
+      }
+    : {
+        p_document_id: null,
+        p_recommendation_id: recommendationId,
+        p_relay_content: relayContent,
+        p_request_id: null,
+        p_source_message_id: args.sourceMessageId,
+        p_talent_id: args.talentId,
+      };
+  const { data, error } = await args.admin.rpc(rpcName, rpcArgs);
   if (error) throw error;
   const result = data as {
+    connectionId?: string;
     contentMismatch?: boolean;
     firstResponse?: boolean;
     id: string;
     idempotent: boolean;
-    requestId: string;
+    recommendationId?: string;
+    requestId?: string | null;
     status: string;
   };
   console.info("[company-talent-relay] accepted", {
     contentMismatch: Boolean(result.contentMismatch),
+    connectionId: result.connectionId,
     idempotent: Boolean(result.idempotent),
     relayId: result.id,
-    requestId: result.requestId,
+    requestId: result.requestId ?? null,
   });
   return result;
+}
+
+export async function fetchCompanyTalentRelayReplyTarget(args: {
+  admin: UntypedAdmin;
+  relayId: string;
+  workspaceId: string;
+}) {
+  const { data: relay, error: relayError } = await args.admin
+    .from("company_talent_relays")
+    .select("id, recommendation_id")
+    .eq("id", args.relayId)
+    .maybeSingle();
+  if (relayError) throw relayError;
+  if (!relay) return null;
+
+  const { data: recommendation, error: recommendationError } = await args.admin
+    .from("talent_opportunity_recommendation")
+    .select("id, role_id, talent_id")
+    .eq("id", relay.recommendation_id)
+    .maybeSingle();
+  if (recommendationError) throw recommendationError;
+  if (!recommendation) return null;
+
+  const [
+    { data: role, error: roleError },
+    { data: talent, error: talentError },
+  ] = await Promise.all([
+    args.admin
+      .from("company_roles")
+      .select("role_id, name, company_workspace_id, information")
+      .eq("role_id", recommendation.role_id)
+      .eq("company_workspace_id", args.workspaceId)
+      .maybeSingle(),
+    args.admin
+      .from("talent_users")
+      .select("user_id, name, email")
+      .eq("user_id", recommendation.talent_id)
+      .maybeSingle(),
+  ]);
+  if (roleError) throw roleError;
+  if (talentError) throw talentError;
+  if (!role || !talent) return null;
+
+  const information =
+    role.information && typeof role.information === "object"
+      ? role.information
+      : {};
+  if (
+    information.testOnly === true &&
+    (!Array.isArray(information.testTalentIds) ||
+      !information.testTalentIds.includes(recommendation.talent_id))
+  ) {
+    return null;
+  }
+
+  return {
+    candidateEmail: normalizedText(talent.email, 320) || null,
+    candidateName: normalizedText(talent.name, 160) || "후보자분",
+    recommendationId: normalizedText(recommendation.id, 120),
+    relayId: normalizedText(relay.id, 120),
+    roleId: normalizedText(role.role_id, 120),
+    roleName: normalizedText(role.name, 160) || "해당 역할",
+    talentId: normalizedText(talent.user_id, 120),
+  };
+}
+
+export async function sendCompanyTalentRelayReply(args: {
+  admin: UntypedAdmin;
+  body: string;
+  relayId: string;
+  requestContext: string;
+  sourceCompanyMessageId: number;
+  subject: string;
+  workspaceId: string;
+}) {
+  const requestContext = normalizedText(args.requestContext, 800);
+  const body = args.body.trim();
+  const subject = normalizedText(args.subject, 180);
+  if (!body || !subject || !requestContext) {
+    throw new Error("Company relay reply copy is empty");
+  }
+  const { data, error } = await args.admin.rpc(
+    "send_company_talent_relay_reply_v1",
+    {
+      p_body: body,
+      p_relay_id: args.relayId,
+      p_request_context: requestContext,
+      p_source_company_message_id: args.sourceCompanyMessageId,
+      p_subject: subject,
+      p_workspace_id: args.workspaceId,
+    }
+  );
+  if (error) throw error;
+  return data as {
+    idempotent: boolean;
+    relayId: string;
+    requestId: string;
+    scheduledAt: string;
+    status: "queued" | string;
+  };
 }
 
 export async function recordCompanyTalentResponse(args: {

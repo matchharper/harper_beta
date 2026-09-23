@@ -102,7 +102,23 @@ test("tool detection replaces a streamed preamble and returns only the final ans
       { type: "message_stop" },
     ]),
   ];
-  globalThis.fetch = async () => {
+  const requestToolNames: string[][] = [];
+  const requestSystemTexts: string[] = [];
+  globalThis.fetch = async (_input, init) => {
+    const requestBody = JSON.parse(String(init?.body ?? "{}")) as {
+      system?: Array<{ text?: string }>;
+      tools?: Array<{ name?: string }>;
+    };
+    requestSystemTexts.push(
+      (requestBody.system ?? [])
+        .map((block) => String(block.text ?? ""))
+        .join("\n")
+    );
+    requestToolNames.push(
+      (requestBody.tools ?? [])
+        .map((tool) => String(tool.name ?? ""))
+        .filter(Boolean)
+    );
     const response = responses.shift();
     assert.ok(response, "unexpected Anthropic request");
     return response;
@@ -138,6 +154,14 @@ test("tool detection replaces a streamed preamble and returns only the final ans
             parameters: { type: "object" },
           },
         },
+        {
+          type: "function",
+          function: {
+            name: "web_search",
+            description: "Search the web.",
+            parameters: { type: "object" },
+          },
+        },
       ],
       usageLabel: "test:career-chat-tool-preamble",
     });
@@ -146,6 +170,14 @@ test("tool detection replaces a streamed preamble and returns only the final ans
     assert.equal(visibleText, "저장했습니다.");
     assert.deepEqual(detectedTools, ["write_talent_context"]);
     assert.deepEqual(executedTools, ["write_talent_context"]);
+    assert.deepEqual(requestToolNames, [
+      ["write_talent_context", "web_search"],
+      ["write_talent_context", "web_search"],
+    ]);
+    assert.match(
+      requestSystemTexts[1] ?? "",
+      /Callable tools in this continuation: write_talent_context, web_search\./
+    );
     assert.equal(responses.length, 0);
   } finally {
     globalThis.fetch = previousFetch;

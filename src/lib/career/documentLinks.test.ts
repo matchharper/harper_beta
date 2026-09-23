@@ -7,7 +7,7 @@ import {
 
 const document = {
   id: "aaaa1111-2222-4333-8444-555555555555",
-  title: "A [B] \\ 합류 검토.md",
+  title: "A [B] \\ 리서치.md",
 };
 
 test("round-trips document titles and renders duplicate references only once", () => {

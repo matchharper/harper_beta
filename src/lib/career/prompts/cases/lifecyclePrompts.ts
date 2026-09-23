@@ -57,6 +57,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
   pendingActions?: CareerReengagementPendingAction[];
   preferredLocale?: string | null;
   previousChatAt: string | null;
+  recentReengagementHistory?: string[];
   timeZone?: string | null;
 }) {
   const outputLanguage = getCareerPromptLanguageName(args.preferredLocale);
@@ -120,14 +121,42 @@ export function buildCareerSessionStartTurnInstruction(args: {
           : []),
       ]
     : [];
+  const recentReengagementHistory = (args.recentReengagementHistory ?? [])
+    .map((message) => message.replace(/\s+/g, " ").trim().slice(0, 2000))
+    .filter(Boolean)
+    .slice(-3);
+  const reengagementHistoryLines = recentReengagementHistory.length
+    ? [
+        "최근 re-engagement history (오래된 순):",
+        ...recentReengagementHistory.map((message) => `- ${message}`),
+      ]
+    : [];
+  const proactiveSuggestionLines = [
+    "현재 맥락에 맞으면 먼저 제안할 수 있는 후보:",
+    "- 회사의 선연락을 원하면 open_to_matches 전환을 안내한다.",
+    "- 미응답 internal 추천이나 intro request가 있으면 답변을 요청한다.",
+    "- 피드백 없는 외부 추천 포지션이 있으면 피드백을 요청한다.",
+    "- 최신 이력서가 없으면 업로드를 요청한다.",
+    "- 최근 상태·니즈·맥락·선호에 변화가 있으면 알려 달라고 요청한다.",
+    "- 지금 조건으로 새로운 포지션 추천을 요청하도록 제안한다.",
+    "- 저장한 포지션이 있으면 비교하거나 지원 우선순위를 정리한다.",
+    "- 면접 준비나 커리어 의사결정이 필요하면 Harper와 함께 정리한다.",
+  ];
   return [
     "## Session re-engagement",
     `사용자가 새 메시지를 보내지 않은 상태에서 Career에 다시 접속했다. 지금까지의 대화와 제공된 맥락을 보고 Harper가 먼저 보낼 자연스러운 ${outputLanguage} 메시지를 작성한다. 필요하면 적당히 길게 작성해도 된다.`,
+    "이것은 이전 대화에 이어서 답하는 turn이 아니라, 끊겼던 대화에 사용자가 다시 들어와 Harper가 먼저 말을 거는 새로운 re-engagement turn이다. 최근 대화는 참고만 하고 마지막 메시지에 곧바로 답하거나 직전 문장을 이어 쓰지 마라.",
+    "답변은 반드시 '다시 오셨네요' 같은 짧고 자연스러운 재접속 인사나 가벼운 아이스브레이킹으로 시작한 뒤, 현재 맥락에서 가장 유용한 제안 1~2개를 자연스럽게 연결한다.",
     `- currentAccessAt: ${currentAccessAtLabel}`,
     `- previousChatAt: ${previousChatAtLabel}`,
     `시각은 사용자의 현재 접속 지역 타임존(${timeZone}) 기준 24시간제이며 내부 판단용이다. 사용자에게 날짜·시각·경과 시간을 말하거나 이전 대화를 방금 일처럼 표현하지 마라.`,
+    ...reengagementHistoryLines,
     ...pendingActionLines,
     ...pendingActionCopyLines,
+    ...proactiveSuggestionLines,
+    "위 목록은 제안 후보일 뿐 현재 상태를 뜻하지 않는다. 제공된 맥락으로 실제 해당할 때만 한 번에 가장 유용한 1~2개를 자연스럽게 제안하고, 목록 전체를 그대로 나열하지 않는다.",
+    "최근 re-engagement history를 참고해 같은 주제·제안·표현을 두 번 연속 반복하지 말고, 현재 맥락에 맞는 다른 유용한 내용을 우선한다.",
+    "pending action이 있으면 다른 제안 후보보다 먼저 다룬다. 다른 후보는 pending action이 최근에 이미 언급되었거나 없거나 함께 언급할 가치가 있을 때 사용한다.",
     `맥락에 맞는 유용한 메시지를 만들 수 없으면 정확히 ${CAREER_SESSION_START_NO_MESSAGE_MARKER}만 출력한다.`,
     "본문에서 사용자가 바로 실행할 수 있는 선택을 제안했다면 아래 raw JSON 블록에 맞는 액션을 붙인다. 실행 선택이 없으면 블록을 생략하고 일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다. 마커와 JSON은 코드 펜스 없이 출력한다.",
     CAREER_REENGAGEMENT_ACTIONS_START,

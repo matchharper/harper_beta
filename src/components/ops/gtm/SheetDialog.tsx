@@ -3,6 +3,11 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { MuteButton } from "@/components/ui/button";
 import { freshDefinition } from "@/lib/gtm/grid";
 import { gtmRequest } from "@/lib/gtm/client";
+import {
+  isHttpConflict,
+  isSheetAutoSaveBlocked,
+  type SheetAutoSaveFailure,
+} from "@/lib/gtm/sheetAutoSave";
 import type { GtmSheet, GtmSource, SheetDefinition } from "@/lib/gtm/types";
 import styles from "./GtmWorkspace.module.css";
 export default function SheetDialog({
@@ -28,6 +33,8 @@ export default function SheetDialog({
     [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [savedName, setSavedName] = useState(sheet?.name ?? "");
+  const [autoSaveFailure, setAutoSaveFailure] =
+    useState<SheetAutoSaveFailure | null>(null);
   const saveInFlight = useRef(false);
   const saveRef = useRef<
     (copy: boolean, closeAfter?: boolean) => Promise<void>
@@ -51,6 +58,8 @@ export default function SheetDialog({
           ].includes(field.key)
       )
       .slice(0, 12);
+    const attemptedName = name;
+    const expectedVersion = sheet?.row_version ?? 0;
     setPending(true);
     saveInFlight.current = true;
     setError("");
@@ -63,8 +72,16 @@ export default function SheetDialog({
       });
       onSaved(result, closeAfter);
       setSavedName(result.name);
+      if (!copy) setAutoSaveFailure(null);
       if (closeAfter) onClose();
     } catch (cause) {
+      if (!copy) {
+        setAutoSaveFailure({
+          conflict: isHttpConflict(cause),
+          expectedVersion,
+          name: attemptedName,
+        });
+      }
       setError(cause instanceof Error ? cause.message : "저장하지 못했습니다.");
     } finally {
       saveInFlight.current = false;
@@ -74,9 +91,16 @@ export default function SheetDialog({
   useEffect(() => {
     saveRef.current = save;
   });
+  const sheetId = sheet?.id;
+  const expectedVersion = sheet?.row_version ?? 0;
+  const autoSaveBlocked = isSheetAutoSaveBlocked(
+    autoSaveFailure,
+    name,
+    expectedVersion
+  );
   function close() {
     if (pending) return;
-    if (sheet && name.trim() && name !== savedName) {
+    if (sheet && name.trim() && name !== savedName && !autoSaveBlocked) {
       void saveRef.current(false, true);
       return;
     }
@@ -84,9 +108,9 @@ export default function SheetDialog({
   }
   useEffect(() => {
     if (
-      !sheet ||
+      !sheetId ||
       deleting ||
-      pending ||
+      autoSaveBlocked ||
       saveInFlight.current ||
       !name.trim() ||
       name === savedName
@@ -94,7 +118,7 @@ export default function SheetDialog({
       return;
     const timer = setTimeout(() => void saveRef.current(false, false), 600);
     return () => clearTimeout(timer);
-  }, [deleting, name, pending, savedName, sheet]);
+  }, [autoSaveBlocked, deleting, expectedVersion, name, savedName, sheetId]);
   return (
     <Dialog
       open

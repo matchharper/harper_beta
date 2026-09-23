@@ -23,6 +23,20 @@ export type OrgRoleCreationChoice = {
 
 export type OrgAgentCandidateDecision = "accept" | "decline";
 
+export type OrgAgentCompanyIntroDecision = "request_intro" | "pass";
+
+export type OrgAgentCompanyIntroDecisionConfirmation = {
+  actorId: string;
+  companyAppeal: string | null;
+  decision: OrgAgentCompanyIntroDecision;
+  introCandidateId: string;
+  introRecipientEmails: string[];
+  nextStageId: string | null;
+  roleId: string;
+  slackThreadId: string | null;
+  talentId: string;
+};
+
 export type OrgAgentCandidateConnectionMethod =
   | "intro_email"
   | "direct_contact"
@@ -130,6 +144,18 @@ export type OrgAgentMessageAction =
     };
 
 export type OrgAgentMessageMetadata = {
+  /**
+   * Server-authored delivery identity for one company-side LLM turn. This is
+   * deliberately structural: the model decides whether a progress or terminal
+   * message is useful, while the server uses this identity only for ordering
+   * and idempotent recovery.
+   */
+  agentTurn?: {
+    phase: "progress" | "terminal";
+    runId: string;
+    sequence: number;
+    trigger: "direct_message" | "web_action";
+  };
   actions?: OrgAgentMessageAction[];
   attachments?: OrgAgentMessageAttachment[];
   autoIntroToCompany?: {
@@ -141,11 +167,17 @@ export type OrgAgentMessageMetadata = {
     webToolCallCount?: number;
   };
   candidateConnectionConfirmations?: OrgAgentCandidateDecisionConfirmation[];
+  companyIntroDecisionConfirmations?: OrgAgentCompanyIntroDecisionConfirmation[];
   candidateRelayRef?: {
     relayId: string;
-    requestId: string;
+    recommendationId: string;
+    requestId?: string | null;
     roleId: string;
     talentId: string;
+  };
+  companyMatchingSearchResult?: {
+    idempotencyKey: string;
+    runId: string;
   };
   contactDraftRef?: {
     contactId: string;
@@ -200,6 +232,7 @@ export type OrgAgentMessageMetadata = {
     sourceSlackThreadId: string;
   };
   slackReplyJobId?: string;
+  webActionJobId?: string;
   source?: string | null;
   roleCreation?: {
     choices?: OrgRoleCreationChoice[];

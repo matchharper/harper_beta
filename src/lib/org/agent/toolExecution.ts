@@ -44,6 +44,7 @@ import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
+import { enqueueOrgMatchingSearch } from "@/lib/org/agent/matchingSearch";
 import {
   assertOrgAgentToolAvailable,
   OrgAgentToolInputError,
@@ -52,6 +53,8 @@ import type {
   OrgAgentCandidateConnectionMethod,
   OrgAgentCandidateDecision,
   OrgAgentCandidateDecisionConfirmation,
+  OrgAgentCompanyIntroDecision,
+  OrgAgentCompanyIntroDecisionConfirmation,
   OrgAgentMeetingScheduleConfirmation,
   OrgAgentReadAudience,
 } from "@/lib/org/agent/types";
@@ -71,7 +74,10 @@ import {
   createOrgTalentFeedItem,
   createOrgRoleReviewStages,
   deleteEmptyOrgRoleReviewStage,
+  fetchOrgTalentDetail,
   moveOrgCandidateToRole,
+  passOrgCompanyIntro,
+  requestOrgCompanyIntro,
   setOrgCandidateStage,
   updateOrgRoleCriteria,
   updateOrgRoleReviewStage,
@@ -107,8 +113,10 @@ import {
   enqueueCompanyTalentRequest,
   fetchBlockingCompanyTalentRequestForWorkspace,
   fetchCompanyTalentContact,
+  fetchCompanyTalentRelayReplyTarget,
   reviseCompanyTalentContactDraft,
   scheduleCompanyTalentContact,
+  sendCompanyTalentRelayReply,
 } from "@/lib/companyTalentRequests/server";
 import {
   generateCandidateContactDraft,
@@ -325,6 +333,14 @@ function candidateDecision(value: unknown): OrgAgentCandidateDecision {
   return decision;
 }
 
+function companyIntroDecision(value: unknown): OrgAgentCompanyIntroDecision {
+  const decision = requiredText(value, "decision", 20);
+  if (decision !== "request_intro" && decision !== "pass") {
+    throw new OrgAgentToolInputError("decision must be request_intro or pass");
+  }
+  return decision;
+}
+
 function candidateConnectionMethod(
   value: unknown
 ): OrgAgentCandidateConnectionMethod | null {
@@ -525,6 +541,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "역할 확인 완료",
       "역할을 읽지 못했습니다",
     ],
+    request_matching_search: [
+      "새 후보자 검색을 요청하는 중",
+      "새 후보자 검색 요청 완료",
+      "새 후보자 검색을 요청하지 못했습니다",
+    ],
     calibrate_role_hiring_brief: [
       "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
       "Hiring Brief 기준 정리 완료",
@@ -594,6 +615,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "인터뷰 가능 시간을 저장하는 중",
       "인터뷰 가능 시간 저장 완료",
       "인터뷰 가능 시간을 저장하지 못했습니다",
+    ],
+    decide_company_intro: [
+      "먼저 제안 결정을 확인하는 중",
+      "먼저 제안 결정 반영 완료",
+      "먼저 제안 결정을 반영하지 못했습니다",
     ],
     prepare_candidate_connection: [
       "후보자 연결 결정 정보를 확인하는 중",
@@ -857,6 +883,76 @@ async function executeReadRole(args: {
     });
   }
   return result;
+}
+
+const MATCHING_SEARCH_UNAVAILABLE_REASONS: Record<string, string> = {
+  brief_missing:
+    "이 Role에는 아직 검색에 사용할 Hiring Brief가 저장되어 있지 않아요.",
+  pending_capacity_reached:
+    "이 Role은 현재 연결 대기 인원이 설정된 상한에 도달해 새 검색을 시작하지 않았어요.",
+  ready_backlog_reached:
+    "아직 회사의 판단을 기다리는 먼저 제안 가능한 후보가 30명 있어 새 검색을 시작하지 않았어요.",
+  role_channel_unavailable:
+    "이 Role의 검색 결과를 전달할 활성 Slack 채널이 없어 새 검색을 시작하지 않았어요.",
+  role_unavailable:
+    "이 Role은 현재 채용 중인 상태가 아니어서 새 검색을 시작하지 않았어요.",
+  slack_not_connected:
+    "이 workspace에 활성 Slack 연결이 없어 새 검색을 시작하지 않았어요.",
+  test_role: "테스트 전용 Role에서는 실제 후보자 검색을 시작할 수 없어요.",
+};
+
+async function executeRequestMatchingSearch(args: {
+  admin: OrgAgentAdminClient;
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const queued = await enqueueOrgMatchingSearch({
+    admin: args.admin,
+    roleId: role.roleId,
+    userId: args.user.id,
+    workspaceId: args.workspaceId,
+  });
+  const { status } = queued;
+  args.state.preferredRoleId = role.roleId;
+
+  if (status === "not_queued") {
+    const unavailableReason =
+      MATCHING_SEARCH_UNAVAILABLE_REASONS[queued.reason ?? ""] ??
+      "현재 상태에서는 이 Role의 새 검색을 시작할 수 없어요.";
+    args.state.fallbackReply = unavailableReason;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary: `${role.name} 새 후보자 검색 시작 안 함`,
+    });
+    return {
+      requestedRoleName: role.name,
+      status,
+      unavailableReason,
+    };
+  }
+
+  args.state.fallbackReply =
+    "좋아요. 현재 Hiring Brief를 기준으로 전체 후보자를 찾고 있어요. 전체 풀을 평가해서 조금 걸리지만, 끝나는 대로 가장 적합한 분들을 공유할게요.";
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: status === "queued" ? "success" : "unchanged",
+    summary:
+      status === "already_running"
+        ? `${role.name} 새 후보자 검색 진행 중`
+        : `${role.name} 새 후보자 검색 대기`,
+  });
+  return {
+    requestedRoleName: role.name,
+    status,
+  };
 }
 
 async function executeReadConversationHistory(args: {
@@ -2779,14 +2875,134 @@ async function executeCandidateContactLifecycleItem(args: {
   ) as CandidateContactLifecycleAction;
   if (
     action !== "create_draft" &&
+    action !== "send" &&
     action !== "revise_draft" &&
     action !== "schedule" &&
     action !== "immediate" &&
     action !== "cancel"
   ) {
     throw new OrgAgentToolInputError(
-      "action must be create_draft, revise_draft, schedule, immediate, or cancel"
+      "action must be create_draft, send, revise_draft, schedule, immediate, or cancel"
     );
+  }
+
+  if (action === "send") {
+    const relayId = requiredText(args.input.relayId, "relayId", 120);
+    const messageContent = requiredText(
+      args.input.messageContent,
+      "messageContent",
+      5_000
+    );
+    const target = await fetchCompanyTalentRelayReplyTarget({
+      admin: args.admin as any,
+      relayId,
+      workspaceId: args.workspaceId,
+    });
+    if (!target) {
+      throw new OrgAgentToolInputError(
+        "현재 회사 대화에서 답장할 수 있는 후보자 전달 내역을 찾지 못했습니다."
+      );
+    }
+    args.state.preferredRoleId = target.roleId;
+    if (!target.candidateEmail) {
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "error",
+        summary: "후보자 연락 이메일 없음",
+      });
+      return {
+        candidateContactState: "not_sent",
+        candidateName: target.candidateName,
+        nextAction:
+          "Use another verified candidate contact route or wait until a reachable email is available.",
+        reason: "Harper does not have a contact email for this candidate.",
+        relayId,
+        requestedAction: "send",
+        roleName: target.roleName,
+        status: "contact_unavailable",
+      };
+    }
+
+    const candidateLanguage = await readCandidatePreferredLanguage({
+      admin: args.admin,
+      talentId: target.talentId,
+    });
+    const requestId = crypto.randomUUID();
+    let replyCopy;
+    try {
+      replyCopy = await generateCandidateContactDraft({
+        candidateName: target.candidateName,
+        companyName: text(args.state.company.companyName) || "채용 회사",
+        currentInstruction: args.userMessage ?? messageContent,
+        deliveryIntent: "direct_reply",
+        kind: "contact",
+        locale: candidateLanguage.locale,
+        profileUrl: null,
+        recentConversation: args.recentConversationContext ?? "",
+        requestContext: messageContent,
+        requestId,
+        roleName: target.roleName,
+      });
+    } catch (error) {
+      console.error("[org/agent:candidate-relay-reply-generation]", {
+        error: errorDetails(error),
+        relayId,
+      });
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "error",
+        summary: "후보자 회신 문구 작성 실패",
+      });
+      return {
+        candidateContactState: "not_sent",
+        candidateName: target.candidateName,
+        nextAction: "The company can repeat the same reply once.",
+        reason: "Candidate-facing reply copy could not be prepared.",
+        relayId,
+        requestedAction: "send",
+        roleName: target.roleName,
+        status: "reply_generation_failed",
+      };
+    }
+
+    const sent = await sendCompanyTalentRelayReply({
+      admin: args.admin as any,
+      body: replyCopy.body,
+      relayId,
+      requestContext: replyCopy.requestContext,
+      sourceCompanyMessageId: args.currentUserMessageId,
+      subject: replyCopy.subject,
+      workspaceId: args.workspaceId,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: "후보자 회신 즉시 발송 등록",
+    });
+    const candidateMessageSent = sent.status === "sent";
+    const candidateContactState = candidateMessageSent
+      ? "sent"
+      : sent.status === "queued"
+        ? "scheduled"
+        : "not_sent";
+    return {
+      candidateContactState,
+      candidateMessageSent,
+      candidateName: target.candidateName,
+      candidatePreferredLanguage: candidateLanguage.language,
+      contactId: sent.requestId,
+      idempotent: sent.idempotent,
+      relayId,
+      responseDestination: "candidate",
+      roleId: target.roleId,
+      roleName: target.roleName,
+      scheduledAt: sent.scheduledAt,
+      status: sent.status,
+      talentId: target.talentId,
+    };
   }
 
   if (action === "create_draft") {
@@ -3465,6 +3681,7 @@ function candidateContactBatchItemCompleted(
 ) {
   const status = text(result.status);
   if (action === "create_draft") return status === "draft";
+  if (action === "send") return status === "queued" || status === "sent";
   if (action === "revise_draft") return status === "draft_revised";
   if (action === "schedule") {
     return status === "queued" || status === "immediate";
@@ -3545,13 +3762,14 @@ async function executeCandidateContactLifecycle(args: {
   ) as CandidateContactLifecycleAction;
   if (
     action !== "create_draft" &&
+    action !== "send" &&
     action !== "revise_draft" &&
     action !== "schedule" &&
     action !== "immediate" &&
     action !== "cancel"
   ) {
     throw new OrgAgentToolInputError(
-      "action must be create_draft, revise_draft, schedule, immediate, or cancel"
+      "action must be create_draft, send, revise_draft, schedule, immediate, or cancel"
     );
   }
   let batchItems: unknown[];
@@ -3662,8 +3880,8 @@ async function executeCandidateContactLifecycle(args: {
             index,
             target: {
               contactId: text(input.contactId) || null,
-              roleId: text(input.roleId) || null,
-              talentId: text(input.talentId) || null,
+              roleId: text(input.roleId) || text(result.roleId) || null,
+              talentId: text(input.talentId) || text(result.talentId) || null,
             },
           },
         };
@@ -3761,12 +3979,14 @@ async function executeCandidateContactLifecycle(args: {
       : completedCount === 0
         ? "batch_incomplete"
         : "batch_partial";
-  args.state.fallbackReply =
-    incompleteCount === 0
-      ? action === "create_draft" || action === "revise_draft"
-        ? `${completedCountLabel}에게 보낼 문구를 모두 준비했어요. 아직 보내지는 않았어요. 아래 내용을 함께 확인해 주세요.`
-        : `${completedCountLabel}에 대한 요청을 모두 처리했어요.`
-      : `${requestedCountLabel} 중 ${completedCountLabel}에 대한 요청을 처리했고 ${incompleteCount}건은 완료하지 못했어요. 아래 후보자별 결과를 확인해 주세요.`;
+  if (action !== "send") {
+    args.state.fallbackReply =
+      incompleteCount === 0
+        ? action === "create_draft" || action === "revise_draft"
+          ? `${completedCountLabel}에게 보낼 문구를 모두 준비했어요. 아직 보내지는 않았어요. 아래 내용을 함께 확인해 주세요.`
+          : `${completedCountLabel}에 대한 요청을 모두 처리했어요.`
+        : `${requestedCountLabel} 중 ${completedCountLabel}에 대한 요청을 처리했고 ${incompleteCount}건은 완료하지 못했어요. 아래 후보자별 결과를 확인해 주세요.`;
+  }
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
@@ -3866,6 +4086,7 @@ function companyPipelineSourceStage(value: unknown, field: string): OrgStageId {
     stage === "accepted" ||
     stage === "archived" ||
     stage === "company_intro" ||
+    stage === "intro_requested" ||
     stage === "process_stopped"
   ) {
     return stage;
@@ -4209,7 +4430,9 @@ async function executeMoveCandidateStage(args: {
     : { closed: false, recommendationId: null };
   const position =
     activePosition ??
-    (latestPosition?.stage === "company_intro" || closedState.closed
+    (latestPosition?.stage === "company_intro" ||
+      latestPosition?.stage === "intro_requested" ||
+      closedState.closed
       ? latestPosition
       : null);
   if (!position) {
@@ -4221,9 +4444,9 @@ async function executeMoveCandidateStage(args: {
     position.stage,
     "currentStageId"
   );
-  if (currentStage === "company_intro") {
+  if (currentStage === "company_intro" || currentStage === "intro_requested") {
     throw new OrgAgentToolInputError(
-      "먼저 제안 가능한 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 먼저 제안하기에서 만나고 싶은 이유, 소개 이메일을 받을 담당자, 수락 후 첫 단계를 정해 주세요. 이미 제안을 요청했다면 카드에서 진행 상태를 확인해 주세요."
+      "먼저 제안 가능한 후보와 Intro Requested 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 먼저 제안하기에서 만나고 싶은 이유, 소개 이메일을 받을 담당자, 수락 후 첫 단계를 정해 주세요. 이미 제안을 요청했다면 Intro Requested에서 진행 상태를 확인해 주세요."
     );
   }
   const candidateName = text(talent.candidate.name) || "후보자";
@@ -4784,6 +5007,465 @@ async function readCandidateDecisionTarget(args: {
     position,
     reactivation: position.stage === "process_stopped",
     talent,
+  };
+}
+
+function stageCompanyIntroDecisionContext(args: {
+  actorId: string;
+  companyAppeal: string | null;
+  decision: OrgAgentCompanyIntroDecision;
+  introCandidateId: string;
+  introRecipientEmails: string[];
+  nextStageId: string | null;
+  roleId: string;
+  slackThreadId: string | null;
+  state: OrgAgentToolExecutionState;
+  talentId: string;
+}) {
+  const context: OrgAgentCompanyIntroDecisionConfirmation = {
+    actorId: args.actorId,
+    companyAppeal: args.companyAppeal,
+    decision: args.decision,
+    introCandidateId: args.introCandidateId,
+    introRecipientEmails: args.introRecipientEmails,
+    nextStageId: args.nextStageId,
+    roleId: args.roleId,
+    slackThreadId: args.slackThreadId,
+    talentId: args.talentId,
+  };
+  args.state.companyIntroDecisionConfirmations.push(context);
+  return context;
+}
+
+async function immediatelyPresentedCompanyIntroDecision(args: {
+  actorId: string;
+  admin: OrgAgentAdminClient;
+  companyAppeal: string | null | undefined;
+  conversationId: string;
+  currentUserMessageId: number;
+  decision: OrgAgentCompanyIntroDecision;
+  introRecipientEmails: string[] | null;
+  nextStageId: string | null | undefined;
+  roleId: string;
+  slackThreadId: string | null;
+  source: "chat" | "slack";
+  talentId: string;
+}) {
+  let query = (args.admin.from("company_messages" as any) as any)
+    .select("metadata")
+    .eq("conversation_id", args.conversationId)
+    .eq("role", "assistant")
+    .eq("status", "completed")
+    .lt("id", args.currentUserMessageId)
+    .order("id", { ascending: false })
+    .limit(1);
+  query =
+    args.source === "slack"
+      ? query
+          .eq("message_type", "slack")
+          .eq("slack_thread_id", args.slackThreadId)
+      : query.eq("message_type", "chat");
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  const confirmations = record(
+    record(data).metadata
+  ).companyIntroDecisionConfirmations;
+  if (!Array.isArray(confirmations)) return null;
+  const confirmation = confirmations
+    .map((value) => record(value))
+    .findLast((value) => {
+      if (
+        text(value.actorId) !== args.actorId ||
+        text(value.decision) !== args.decision ||
+        text(value.roleId) !== args.roleId ||
+        text(value.talentId) !== args.talentId
+      ) {
+        return false;
+      }
+      if (
+        args.companyAppeal !== undefined &&
+        (text(args.companyAppeal) || null) !==
+          (text(value.companyAppeal) || null)
+      ) {
+        return false;
+      }
+      if (
+        args.introRecipientEmails &&
+        !sameDecisionEmails(
+          value.introRecipientEmails,
+          args.introRecipientEmails
+        )
+      ) {
+        return false;
+      }
+      return (
+        args.nextStageId === undefined ||
+        (text(args.nextStageId) || null) === (text(value.nextStageId) || null)
+      );
+    });
+  if (!confirmation) return null;
+  return {
+    companyAppeal: text(confirmation.companyAppeal) || null,
+    decision: companyIntroDecision(confirmation.decision),
+    introCandidateId: text(confirmation.introCandidateId),
+    introRecipientEmails: normalizedDecisionEmails(
+      confirmation.introRecipientEmails
+    ),
+    nextStageId: text(confirmation.nextStageId) || null,
+  };
+}
+
+function companyIntroConfirmationFallback(args: {
+  candidateName: string;
+  companyAppeal: string | null;
+  decision: OrgAgentCompanyIntroDecision;
+  introRecipientEmails: string[];
+  nextStageName: string | null;
+  roleName: string;
+}) {
+  if (args.decision === "pass") {
+    return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 먼저 제안 가능한 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
+  }
+  return [
+    `${args.candidateName}님은 아직 ${args.roleName} 역할을 보지 않았고 관심 여부도 확인되지 않았어요.`,
+    `Harper가 회사의 관심 이유를 담아 먼저 제안하고, 수락하면 ${args.introRecipientEmails.join(", ")}와 소개 이메일로 바로 연결한 뒤 ${args.nextStageName ?? "선택한 첫 단계"} 단계로 옮길게요.`,
+    `후보자에게 전할 관심 이유는 “${args.companyAppeal ?? ""}”로 이해했어요. 이대로 먼저 제안할까요?`,
+  ].join("\n\n");
+}
+
+async function executeCompanyIntroDecision(args: {
+  actorId: string;
+  admin: OrgAgentAdminClient;
+  callId: string;
+  conversation: OrgAgentConversationRow;
+  currentUserMessageId: number;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  slackThreadId: string | null;
+  source: "chat" | "slack";
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const talentId = requiredText(args.input.talentId, "talentId", 100);
+  const decision = companyIntroDecision(args.input.decision);
+  args.state.preferredRoleId = role.roleId;
+  if (
+    decision === "pass" &&
+    ["companyAppeal", "introRecipientEmails", "nextStageId"].some((key) =>
+      has(args.input, key)
+    )
+  ) {
+    throw new OrgAgentToolInputError(
+      "companyAppeal, introRecipientEmails, and nextStageId can only be used with request_intro"
+    );
+  }
+
+  const detail = await fetchOrgTalentDetail({
+    roleId: role.roleId,
+    talentId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  if (detail.role.roleId !== role.roleId || !detail.companyIntro) {
+    throw new OrgAgentToolInputError(
+      "The candidate is not in this Role's company-first proposal flow"
+    );
+  }
+  const candidateName = text(detail.talent.name) || "후보자";
+  const companyIntro = detail.companyIntro;
+  if (companyIntro.status !== "ready") {
+    if (decision === "request_intro") {
+      const changeSummary = `${candidateName}님에게는 이미 먼저 제안을 요청한 상태예요.`;
+      args.state.fallbackReply = changeSummary;
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: `${candidateName} 후보자 먼저 제안 이미 요청됨`,
+      });
+      return {
+        candidateContacted: Boolean(companyIntro.candidateSentAt),
+        candidateDeliveryState: companyIntro.candidateSentAt
+          ? "sent"
+          : "preparing",
+        candidateInterestConfirmed: false,
+        candidateName,
+        candidateRequestCreated: true,
+        decision,
+        responseGuidance:
+          "Explain that the proposal was already requested and distinguish preparation from verified delivery. Do not ask for the same decision again.",
+        roleName: role.name,
+        status: "already_requested",
+      };
+    }
+    throw new OrgAgentToolInputError(
+      "This candidate can no longer be passed because the proposal was already requested"
+    );
+  }
+
+  const appealInput = nullableTextField(args.input, "companyAppeal", 2_000);
+  const suppliedRecipientEmails = has(args.input, "introRecipientEmails")
+    ? emailArray(args.input.introRecipientEmails, 10)
+    : null;
+  const suppliedNextStageId = has(args.input, "nextStageId")
+    ? text(args.input.nextStageId)
+    : undefined;
+  if (
+    suppliedNextStageId !== undefined &&
+    !customPipelineStageDbId(suppliedNextStageId)
+  ) {
+    throw new OrgAgentToolInputError(
+      "nextStageId must be an exact custom:<id> process stage from read_role"
+    );
+  }
+
+  const confirmed = await immediatelyPresentedCompanyIntroDecision({
+    actorId: args.actorId,
+    admin: args.admin,
+    companyAppeal: appealInput.present ? appealInput.value : undefined,
+    conversationId: args.conversation.id,
+    currentUserMessageId: args.currentUserMessageId,
+    decision,
+    introRecipientEmails: suppliedRecipientEmails,
+    nextStageId: suppliedNextStageId,
+    roleId: role.roleId,
+    slackThreadId: args.slackThreadId,
+    source: args.source,
+    talentId,
+  });
+
+  if (!confirmed) {
+    const processStages =
+      decision === "request_intro"
+        ? await readCompanyProcessStages({
+            admin: args.admin,
+            roleId: role.roleId,
+          })
+        : [];
+    const requestedStageDbId = customPipelineStageDbId(suppliedNextStageId);
+    const processStage = requestedStageDbId
+      ? (processStages.find((stage) => stage.id === requestedStageDbId) ?? null)
+      : null;
+    if (requestedStageDbId && !processStage) {
+      throw new OrgAgentToolInputError(
+        "The selected process stage no longer exists for this Role. Read the Role pipeline again before retrying."
+      );
+    }
+    const requesterEmail = text(args.user.email).toLowerCase();
+    const introRecipientEmails =
+      decision === "request_intro"
+        ? suppliedRecipientEmails?.length
+          ? suppliedRecipientEmails
+          : requesterEmail
+            ? [requesterEmail]
+            : []
+        : [];
+    const companyAppeal = appealInput.present ? appealInput.value : null;
+    const missingInputs =
+      decision === "request_intro"
+        ? [
+            ...(!companyAppeal ? ["company_appeal"] : []),
+            ...(!processStage ? ["next_process_stage"] : []),
+            ...(introRecipientEmails.length === 0
+              ? ["intro_recipient_emails"]
+              : []),
+          ]
+        : [];
+    if (missingInputs.length > 0) {
+      args.state.fallbackReply = [
+        `${candidateName}님에게 먼저 제안하려면 후보자에게 전할 회사의 관심 이유와, 수락한 뒤 시작할 첫 프로세스를 정해야 해요.`,
+        ...(introRecipientEmails.length > 0
+          ? [
+              `수락 시 소개 이메일은 ${introRecipientEmails.join(", ")}에게 연결하는 것으로 준비할 수 있어요.`,
+            ]
+          : ["수락 시 소개 이메일을 받을 회사 담당자 이메일도 알려 주세요."]),
+      ].join("\n\n");
+      recordResult(args.state, {
+        callId: args.callId,
+        name: args.name,
+        status: "unchanged",
+        summary: `${candidateName} 후보자 먼저 제안 정보 필요`,
+      });
+      return {
+        availableProcessStages: processStages.map((stage) => ({
+          id: `custom:${stage.id}`,
+          label: stage.label,
+        })),
+        candidateContacted: false,
+        candidateInterestConfirmed: false,
+        candidateName,
+        candidateRequestCreated: false,
+        decision,
+        introRecipientEmails,
+        missingInputs,
+        responseGuidance:
+          "Ask naturally for the missing proposal details. Make clear that the candidate has not seen the Role and has not been contacted. Mention the proposed requester email when one is available, and present available process stages by their labels without exposing internal IDs.",
+        roleName: role.name,
+        status: "details_required",
+      };
+    }
+
+    const nextStageId = processStage ? `custom:${processStage.id}` : null;
+    stageCompanyIntroDecisionContext({
+      actorId: args.actorId,
+      companyAppeal,
+      decision,
+      introCandidateId: companyIntro.id,
+      introRecipientEmails,
+      nextStageId,
+      roleId: role.roleId,
+      slackThreadId: args.slackThreadId,
+      state: args.state,
+      talentId,
+    });
+    args.state.fallbackReply = companyIntroConfirmationFallback({
+      candidateName,
+      companyAppeal,
+      decision,
+      introRecipientEmails,
+      nextStageName: processStage?.label ?? null,
+      roleName: role.name,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "unchanged",
+      summary:
+        decision === "request_intro"
+          ? `${candidateName} 후보자 먼저 제안 재확인 필요`
+          : `${candidateName} 후보자 제안하지 않기 재확인 필요`,
+    });
+    return {
+      candidateContacted: false,
+      candidateHasSeenRole: false,
+      candidateInterestConfirmed: false,
+      candidateName,
+      candidateRequestCreated: false,
+      companyAppeal,
+      decision,
+      introRecipientEmails,
+      nextStageId,
+      nextStageName: processStage?.label ?? null,
+      responseGuidance:
+        decision === "request_intro"
+          ? "Connect the latest request to the exact proposed first approach. Explain that candidate interest is not yet known, name the company recipients and first process stage, explain that acceptance triggers an immediate CC introduction without another company approval, and ask one natural explicit confirmation question."
+          : "Explain that passing creates no candidate-visible opportunity and sends no contact, then ask one natural explicit confirmation question.",
+      roleName: role.name,
+      status: "confirmation_required",
+    };
+  }
+
+  if (confirmed.introCandidateId !== companyIntro.id) {
+    throw new OrgAgentToolInputError(
+      "The confirmed company-first proposal is no longer the current candidate item"
+    );
+  }
+  if (decision === "pass") {
+    const result = await passOrgCompanyIntro({
+      introCandidateId: companyIntro.id,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    const changeSummary = `${candidateName}님에게는 이번 역할을 제안하지 않기로 반영했어요. 후보자에게는 연락하지 않았어요.`;
+    args.state.updateSummaries.push(changeSummary);
+    args.state.fallbackReply = changeSummary;
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: `${candidateName} 후보자 제안하지 않기 반영`,
+    });
+    return {
+      candidateContacted: false,
+      candidateName,
+      candidateRequestCreated: false,
+      decision,
+      responseGuidance:
+        "Confirm naturally that the company chose not to propose this Role and that the candidate was not contacted. Do not add an unrelated next step.",
+      roleName: role.name,
+      status: result.status,
+    };
+  }
+
+  const nextStageDbId = customPipelineStageDbId(confirmed.nextStageId);
+  if (
+    !confirmed.companyAppeal ||
+    !nextStageDbId ||
+    confirmed.introRecipientEmails.length === 0
+  ) {
+    throw new OrgAgentToolInputError(
+      "The immediately confirmed company-first proposal is incomplete"
+    );
+  }
+  const currentProcessStages = await readCompanyProcessStages({
+    admin: args.admin,
+    roleId: role.roleId,
+  });
+  const currentProcessStage =
+    currentProcessStages.find((stage) => stage.id === nextStageDbId) ?? null;
+  if (!currentProcessStage) {
+    throw new OrgAgentToolInputError(
+      "The confirmed first process stage no longer exists. Read the Role pipeline before trying again."
+    );
+  }
+  const result = await requestOrgCompanyIntro({
+    companyAppeal: confirmed.companyAppeal,
+    introCandidateId: companyIntro.id,
+    introRecipientEmails: confirmed.introRecipientEmails,
+    nextStageId: nextStageDbId,
+    user: args.user,
+    workspaceId: args.workspaceId,
+  });
+  let candidateSentAt: string | null = null;
+  try {
+    const refreshed = await fetchOrgTalentDetail({
+      roleId: role.roleId,
+      talentId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    candidateSentAt = refreshed.companyIntro?.candidateSentAt ?? null;
+  } catch {
+    // The request itself is authoritative. A follow-up read can become hidden
+    // if current eligibility changes immediately after the committed action.
+  }
+  const newlyRequested = result.status !== "already_requested";
+  const changeSummary = newlyRequested
+    ? `${candidateName}님에게 먼저 제안을 요청했어요. 현재 제안 전달을 준비하고 있어요.`
+    : `${candidateName}님에게는 이미 먼저 제안을 요청한 상태예요.`;
+  args.state.updateSummaries.push(changeSummary);
+  args.state.fallbackReply = [
+    changeSummary,
+    candidateSentAt
+      ? "후보자에게 제안이 전달됐고 답변을 기다리고 있어요."
+      : "아직 전달 완료로 확인된 것은 아니며, 준비가 끝나면 후보자에게 제안이 전달돼요.",
+    `후보자가 수락하면 ${confirmed.introRecipientEmails.join(", ")}와 소개 이메일로 바로 연결하고 ${currentProcessStage.label} 단계로 옮길게요.`,
+  ].join("\n\n");
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: newlyRequested ? "success" : "unchanged",
+    summary: newlyRequested
+      ? `${candidateName} 후보자 먼저 제안 요청`
+      : `${candidateName} 후보자 먼저 제안 이미 요청됨`,
+  });
+  return {
+    candidateContacted: Boolean(candidateSentAt),
+    candidateDeliveryState: candidateSentAt ? "sent" : "preparing",
+    candidateInterestConfirmed: false,
+    candidateName,
+    candidateRequestCreated: true,
+    candidateSentAt,
+    companySecondApprovalRequired: false,
+    decision,
+    introRecipientEmails: confirmed.introRecipientEmails,
+    nextStageName: currentProcessStage.label,
+    responseGuidance:
+      "State what was actually committed and distinguish proposal preparation from verified candidate delivery. Explain the automatic acceptance outcome only as the next process, not as something that already happened. Do not expose internal delivery mechanics.",
+    roleName: role.name,
+    status: result.status,
   };
 }
 
@@ -5939,6 +6621,16 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
+  } else if (args.name === "request_matching_search") {
+    return executeRequestMatchingSearch({
+      admin: args.admin,
+      callId: args.callId,
+      input,
+      name: args.name,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
   } else if (args.name === "calibrate_role_hiring_brief") {
     return executeCalibrateRoleHiringBrief({
       admin: args.admin,
@@ -6093,6 +6785,21 @@ export async function executeOrgAgentTool(args: {
       callId: args.callId,
       input,
       name: args.name,
+      source: args.source,
+      state: args.state,
+      user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "decide_company_intro") {
+    return executeCompanyIntroDecision({
+      actorId: args.actorId,
+      admin: args.admin,
+      callId: args.callId,
+      conversation: args.conversation,
+      currentUserMessageId: args.currentUserMessageId,
+      input,
+      name: args.name,
+      slackThreadId: args.slackThreadId,
       source: args.source,
       state: args.state,
       user: args.user,

@@ -1,0 +1,82 @@
+{
+  "task": "resume-company-resolution",
+  "datasetVersion": "private-random20-v2",
+  "goldVersion": "v2",
+  "sourceRevision": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00",
+  "sourceState": "dirty_worktree",
+  "sourceFingerprint": "bbe30ff13b119c58b5cdbb6f95fdae108f1d5084c2ed725c5947e0c104101472",
+  "fixture": {
+    "locator": "private/random20-v2.json",
+    "sha256": "bf9acbe47a1c2d68d793607b7a10762173abfb9ca0c45a2f3529be8fc423ac94",
+    "sampledResumes": 20,
+    "sampledExperiences": 125,
+    "privacy": "local-only; user ids and company sequences are not committed"
+  },
+  "gold": {
+    "file": "gold-v2.json",
+    "sha256": "146536a921da3ab754da61d9454952a6f96c5f8fce614750239fd4d6c693bec6",
+    "companyDbMatches": 77,
+    "noCompanyDbMatches": 48,
+    "reviewType": "blind_manual_adjudication_before_any_v2_glm_run"
+  },
+  "runConfig": {
+    "model": "z-ai/glm-5.3-flash",
+    "provider": "OpenRouter pinned to z-ai",
+    "reasoningEffort": "high",
+    "candidateLimitPerExperience": 8,
+    "candidateEvidence": [
+      "company name and location",
+      "official website",
+      "LinkedIn company identity",
+      "description",
+      "Harper workspace-linked names"
+    ],
+    "llmFlow": "all name-based matches use one multi-candidate selector followed by two parallel conservative proposal auditors; both audits must approve",
+    "externalSearch": null,
+    "timeoutMsPerCall": 25000
+  },
+  "finalRuns": [
+    "runs/20260922-random20-v2-allnames-doubleaudit-final-run1",
+    "runs/20260922-random20-v2-allnames-doubleaudit-final-run2",
+    "runs/20260922-random20-v2-allnames-doubleaudit-final-run3"
+  ],
+  "strictFrozenGoldSummary": {
+    "averagePrecision": 0.9313693839117567,
+    "averageRecall": 0.7056277056277057,
+    "averageExactAccuracy": 0.8186666666666667,
+    "averageExactIdDifferences": 4
+  },
+  "postRunRealCompanyIdentityAdjudication": {
+    "reviewType": "unblinded_manual_review_of_only_the_four_repeated_exact_id_differences",
+    "sameRealCompanyDuplicateRowsPerRun": 4,
+    "differentRealCompanyFalseLinksPerRun": 0,
+    "averagePrecision": 1,
+    "averageRecall": 0.7575757575757576,
+    "averageExactAccuracy": 0.8506666666666667,
+    "limitation": "This identity-level correction is diagnostic and is not a blind release metric. Frozen gold-v2 was not modified."
+  },
+  "performance": {
+    "averageCoverage": 0.4666666666666667,
+    "averageCostUsdPerTwentyResumes": 0.00721206,
+    "averageCostUsdPerResume": 0.000360603,
+    "totalObservedCostUsd": 0.02163618,
+    "averageResolverLatencyMsPerResume": 8897.983333333334,
+    "medianResolverLatencyMsPerResume": 8052.5,
+    "minResolverLatencyMsPerResume": 298,
+    "maxResolverLatencyMsPerResume": 21856
+  },
+  "releaseGate": {
+    "differentRealCompanyFalseLinks": {
+      "required": 0,
+      "observed": 0,
+      "passedOnThisSample": true,
+      "blind": false
+    },
+    "strictExactCompanyDbId": {
+      "required": "falseLinks=0 and precision=1",
+      "observed": "four stable same-company duplicate-row differences per run",
+      "passed": false
+    },
+    "nextRequirement": "Confirm on a fresh blind holdout and define a durable canonical-company relation if exact row identity is required."
+  }
+}

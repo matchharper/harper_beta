@@ -1,0 +1,17 @@
+{
+  "task": "company-side-background-result-writing",
+  "datasetVersion": "v1",
+  "kind": "production_derived_single_case",
+  "createdAt": "2026-09-22",
+  "locale": "ko",
+  "cases": [
+    {
+      "id": "company_requested_success_zero",
+      "inputLocator": "private/current-v1.json",
+      "trigger": "company_requested",
+      "runStatus": "succeeded",
+      "selectedCandidateCount": 0,
+      "surface": "company_chat_and_slack_same_copy"
+    }
+  ]
+}

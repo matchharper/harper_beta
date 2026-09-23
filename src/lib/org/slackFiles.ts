@@ -1,4 +1,5 @@
 import type { ChatAttachmentPayload } from "@/types/chat";
+import type { LlmImageInput } from "@/lib/llm/imageInput";
 
 export const MAX_SLACK_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_SLACK_TOTAL_FILE_BYTES = 25 * 1024 * 1024;
@@ -6,12 +7,23 @@ export const MAX_SLACK_FILES = 3;
 export const MAX_SLACK_FILE_TEXT_CHARS = 12_000;
 export const MAX_SLACK_TOTAL_FILE_TEXT_CHARS = 24_000;
 
-const SUPPORTED_MIMES_BY_EXTENSION: Record<string, readonly string[]> = {
+const DOCUMENT_MIMES_BY_EXTENSION: Record<string, readonly string[]> = {
   docx: [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ],
   pdf: ["application/pdf"],
   txt: ["text/plain"],
+};
+
+const IMAGE_MIMES_BY_EXTENSION: Record<
+  string,
+  readonly LlmImageInput["mime"][]
+> = {
+  gif: ["image/gif"],
+  jpeg: ["image/jpeg"],
+  jpg: ["image/jpeg"],
+  png: ["image/png"],
+  webp: ["image/webp"],
 };
 
 export type HarperSlackFile = {
@@ -66,10 +78,22 @@ export function isSupportedHarperSlackFile(file: HarperSlackFile) {
   const name = safeFileName(file);
   const ext = extension(name);
   const mime = normalizedMime(file.mimetype);
-  const allowedMimes = SUPPORTED_MIMES_BY_EXTENSION[ext];
+  const allowedMimes =
+    DOCUMENT_MIMES_BY_EXTENSION[ext] ?? IMAGE_MIMES_BY_EXTENSION[ext];
   if (!allowedMimes) return false;
   return (
     !mime || mime === "application/octet-stream" || allowedMimes.includes(mime)
+  );
+}
+
+export function isSupportedHarperSlackImage(file: HarperSlackFile) {
+  const allowedMimes = IMAGE_MIMES_BY_EXTENSION[extension(safeFileName(file))];
+  const mime = normalizedMime(file.mimetype);
+  return Boolean(
+    allowedMimes &&
+    (!mime ||
+      mime === "application/octet-stream" ||
+      allowedMimes.includes(mime as LlmImageInput["mime"]))
   );
 }
 
@@ -231,6 +255,123 @@ async function downloadSlackFile(args: {
   return readResponseBytes(response, MAX_SLACK_FILE_BYTES);
 }
 
+function ascii(bytes: Uint8Array, start: number, length: number) {
+  return String.fromCharCode(...bytes.slice(start, start + length));
+}
+
+function detectedImageMime(bytes: Uint8Array): LlmImageInput["mime"] | null {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    ascii(bytes, 1, 3) === "PNG" &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  ) {
+    return "image/jpeg";
+  }
+  if (
+    bytes.length >= 12 &&
+    ascii(bytes, 0, 4) === "RIFF" &&
+    ascii(bytes, 8, 4) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  if (
+    bytes.length >= 6 &&
+    (ascii(bytes, 0, 6) === "GIF87a" || ascii(bytes, 0, 6) === "GIF89a")
+  ) {
+    return "image/gif";
+  }
+  return null;
+}
+
+function skipGifSubBlocks(bytes: Uint8Array, start: number) {
+  let offset = start;
+  while (offset < bytes.length) {
+    const blockSize = bytes[offset] ?? 0;
+    offset += 1;
+    if (blockSize === 0) return offset;
+    offset += blockSize;
+    if (offset > bytes.length) return -1;
+  }
+  return -1;
+}
+
+function isSingleFrameGif(bytes: Uint8Array) {
+  if (bytes.length < 13) return false;
+  const globalColorTableSize =
+    bytes[10]! & 0x80 ? 3 * 2 ** ((bytes[10]! & 0x07) + 1) : 0;
+  let offset = 13 + globalColorTableSize;
+  let frameCount = 0;
+
+  while (offset < bytes.length) {
+    const marker = bytes[offset];
+    if (marker === 0x3b) return frameCount === 1;
+    if (marker === 0x21) {
+      if (offset + 2 >= bytes.length) return false;
+      offset = skipGifSubBlocks(bytes, offset + 2);
+      if (offset < 0) return false;
+      continue;
+    }
+    if (marker !== 0x2c || offset + 10 > bytes.length) return false;
+
+    frameCount += 1;
+    if (frameCount > 1) return false;
+    const localColorTableSize =
+      bytes[offset + 9]! & 0x80
+        ? 3 * 2 ** ((bytes[offset + 9]! & 0x07) + 1)
+        : 0;
+    offset += 10 + localColorTableSize;
+    if (offset >= bytes.length) return false;
+    offset = skipGifSubBlocks(bytes, offset + 1);
+    if (offset < 0) return false;
+  }
+  return false;
+}
+
+function imageInputFromBytes(args: {
+  bytes: Uint8Array;
+  file: HarperSlackFile;
+  name: string;
+  size: number;
+}): LlmImageInput {
+  const mime = detectedImageMime(args.bytes);
+  const allowedMimes = IMAGE_MIMES_BY_EXTENSION[extension(args.name)] ?? [];
+  if (!mime || !allowedMimes.includes(mime)) {
+    throw new Error("이미지의 실제 형식이 파일 이름과 일치하지 않습니다.");
+  }
+  const declaredMime = normalizedMime(args.file.mimetype);
+  if (
+    declaredMime &&
+    declaredMime !== "application/octet-stream" &&
+    declaredMime !== mime
+  ) {
+    throw new Error(
+      "이미지의 실제 형식이 Slack 파일 정보와 일치하지 않습니다."
+    );
+  }
+  if (mime === "image/gif" && !isSingleFrameGif(args.bytes)) {
+    throw new Error("움직이는 GIF는 읽을 수 없습니다.");
+  }
+  return {
+    dataUrl: `data:${mime};base64,${Buffer.from(args.bytes).toString("base64")}`,
+    detail: "auto",
+    mime,
+    name: args.name,
+    size: args.size,
+  };
+}
+
 export async function extractHarperSlackFileAttachments(args: {
   extractDocument?: ExtractDocument;
   fetchImpl?: typeof fetch;
@@ -239,14 +380,13 @@ export async function extractHarperSlackFileAttachments(args: {
 }): Promise<{
   attachments: ChatAttachmentPayload[];
   errors: string[];
+  images: LlmImageInput[];
 }> {
   const fetchImpl = args.fetchImpl ?? fetch;
-  const extractDocument =
-    args.extractDocument ??
-    (await import("@/lib/org/agent/roleCreationDocuments"))
-      .extractRoleCreationDocument;
+  let extractDocument = args.extractDocument;
   const attachments: ChatAttachmentPayload[] = [];
   const errors: string[] = [];
+  const images: LlmImageInput[] = [];
   const seen = new Set<string>();
   let acceptedBytes = 0;
   let extractedChars = 0;
@@ -258,10 +398,12 @@ export async function extractHarperSlackFileAttachments(args: {
     seen.add(identity);
 
     if (!isSupportedHarperSlackFile(file)) {
-      errors.push(`${name}: PDF, DOCX, TXT 파일만 읽을 수 있습니다.`);
+      errors.push(
+        `${name}: PDF, DOCX, TXT 문서나 PNG, JPG, WEBP, GIF 이미지만 읽을 수 있습니다.`
+      );
       continue;
     }
-    if (attachments.length >= MAX_SLACK_FILES) {
+    if (attachments.length + images.length >= MAX_SLACK_FILES) {
       errors.push(
         `${name}: 한 메시지에서는 파일을 최대 3개까지 읽을 수 있습니다.`
       );
@@ -287,6 +429,20 @@ export async function extractHarperSlackFileAttachments(args: {
         file,
         token: args.token,
       });
+      if (acceptedBytes + bytes.byteLength > MAX_SLACK_TOTAL_FILE_BYTES) {
+        errors.push(`${name}: 첨부 파일의 전체 크기는 25MB 이하여야 합니다.`);
+        continue;
+      }
+      if (isSupportedHarperSlackImage(file)) {
+        images.push(
+          imageInputFromBytes({ bytes, file, name, size: bytes.byteLength })
+        );
+        acceptedBytes += bytes.byteLength;
+        continue;
+      }
+      extractDocument ??= (
+        await import("@/lib/org/agent/roleCreationDocuments")
+      ).extractRoleCreationDocument;
       const remainingChars = MAX_SLACK_TOTAL_FILE_TEXT_CHARS - extractedChars;
       if (remainingChars <= 0) {
         errors.push(
@@ -300,7 +456,7 @@ export async function extractHarperSlackFileAttachments(args: {
         fileName: name,
         maxChars,
       });
-      acceptedBytes += size;
+      acceptedBytes += bytes.byteLength;
       extractedChars += extracted.text.length;
       attachments.push({
         kind: "file",
@@ -318,12 +474,13 @@ export async function extractHarperSlackFileAttachments(args: {
     }
   }
 
-  return { attachments, errors };
+  return { attachments, errors, images };
 }
 
 export function buildHarperSlackFileLlmMessage(args: {
   attachments: ChatAttachmentPayload[];
   errors?: string[];
+  images?: LlmImageInput[];
   message: string;
 }) {
   const attachmentContext = args.attachments.map((attachment, index) => ({
@@ -337,6 +494,18 @@ export function buildHarperSlackFileLlmMessage(args: {
     text(args.message),
     attachmentContext.length > 0
       ? `<untrusted_slack_file_attachments>\n${JSON.stringify(attachmentContext, null, 2)}\n</untrusted_slack_file_attachments>`
+      : "",
+    (args.images ?? []).length > 0
+      ? `<untrusted_slack_image_attachments>\n${JSON.stringify(
+          (args.images ?? []).map((image, index) => ({
+            index: index + 1,
+            mime: image.mime,
+            name: image.name,
+            size: image.size,
+          })),
+          null,
+          2
+        )}\n</untrusted_slack_image_attachments>`
       : "",
     (args.errors ?? []).length > 0
       ? `<slack_file_read_errors>\n${JSON.stringify(args.errors, null, 2)}\n</slack_file_read_errors>`

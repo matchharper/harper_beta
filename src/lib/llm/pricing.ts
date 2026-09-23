@@ -110,6 +110,12 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     outputUsdPerMtok: 4.25,
     pricingSource: "openrouter_pricing_2026_09_15",
   },
+  "xiaomi/mimo-v2.6-pro": {
+    cacheReadUsdPerMtok: 0.0036,
+    inputUsdPerMtok: 0.435,
+    outputUsdPerMtok: 0.87,
+    pricingSource: "openrouter_pricing_2026_09_22",
+  },
   "openrouter:z-ai/glm-5.3-flash": {
     cacheReadUsdPerMtok: 0.015,
     effectiveModel: "z-ai/glm-5.3-flash",

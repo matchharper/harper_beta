@@ -560,3 +560,70 @@ test("does not carry a LinkedIn visit into a later direct Jobs session or an ear
     { uniqueUsers: 0, signups: 0, onboardingCompleted: 0 }
   );
 });
+
+test("does not replace a Jobs acquisition with the Google OAuth referrer", () => {
+  const report = buildTalentGtmReportFromRows({
+    targetDate: "2026-09-15",
+    excludedEmails: [],
+    excludedUserIds: new Set(),
+    entryLogs: [
+      {
+        created_at: "2026-09-15T00:00:00Z",
+        local_id: "oauth-return",
+        type: "new_visit:official_jobs",
+      },
+    ],
+    identityLogs: [
+      {
+        created_at: "2026-09-15T00:01:00Z",
+        local_id: "oauth-return",
+        type: "login_email:oauth@example.com:official_jobs",
+      },
+      {
+        created_at: "2026-09-15T00:03:01Z",
+        local_id: "oauth-return",
+        type: "login_email:oauth@example.com:official_jobs",
+      },
+    ],
+    officialJobEvents: [
+      {
+        anonymous_id: "oauth-return",
+        created_at: "2026-09-15T00:00:01Z",
+        path: "/jobs/engineer",
+        referrer: "https://www.linkedin.com/feed/",
+      },
+      {
+        anonymous_id: "oauth-return",
+        created_at: "2026-09-15T00:03:00Z",
+        path: "/jobs/engineer",
+        referrer: "https://accounts.google.com/o/oauth2/v2/auth",
+      },
+    ],
+    utmLogs: [],
+    signupLogs: [
+      { created_at: "2026-09-15T00:02:00Z", user_id: "oauth-user" },
+    ],
+    onboardingEvents: [
+      {
+        created_at: "2026-09-15T00:10:00Z",
+        event_type: "onboarding_completed",
+        source: "chat",
+        talent_id: "oauth-user",
+      },
+    ],
+    officialJobIntentEvents: [],
+    jobEventLogs: [],
+    jobs: [],
+    talentUsers: [{ email: "oauth@example.com", user_id: "oauth-user" }],
+  });
+
+  assert.deepEqual(
+    report.channels.find((row) => row.key === "linkedin")?.current,
+    { uniqueUsers: 1, signups: 1, onboardingCompleted: 1 }
+  );
+  assert.deepEqual(report.channels.find((row) => row.key === "seo")?.current, {
+    uniqueUsers: 0,
+    signups: 0,
+    onboardingCompleted: 0,
+  });
+});

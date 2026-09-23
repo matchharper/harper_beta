@@ -46,10 +46,13 @@
 - `docs/company/company-first-talent-recommendation-codex-runbook-ko.md` is kept
   only to interpret and reproduce the historical manual `v1` shadow calibration.
   Do not use its commit procedure as a production or scheduled runner.
-- A selection run may create only the company-side `ready` artifact described
-  by those documents. It must not create a candidate-visible recommendation,
-  candidate message, email, follow-up, or normal pipeline stage; those begin
-  only after a company explicitly requests the intro.
+- A company-scoped matching run may choose `candidate_first`, `company_first`,
+  or `no_action`. A `candidate_first` decision must enqueue the existing
+  Opportunity Worker forced-internal-role delivery and reuse its normal
+  recommendation/follow-up path. A `company_first` decision may create only
+  the company-side `ready` artifact; its candidate-visible recommendation,
+  message, email, and follow-up begin only after a company explicitly requests
+  the intro. Never create both active routes for the same company and Talent.
 
 ## Company-side UX writing
 
@@ -86,6 +89,7 @@
 - Apply context minimization before prompt instructions. If the final-writing LLM must not expose an internal value, do not provide that raw value and then tell it not to mention it. Omit unnecessary implementation data entirely; when a fact is needed, transform internal IDs, enums, booleans, queue states, tool names, and provider diagnostics into the smallest user-safe semantic fact before it enters the final-generation context.
 - Keep code and prompt responsibilities separate. Code owns authorization, state transitions, verified facts, exact user-authored content, and required links. The LLM owns the surrounding explanation and conversational judgment. On successful actions, do not replace the whole LLM response with a deterministic success narrative. Deterministic text may be appended only for exact content or verified links that must not be changed. Server-authoritative failure and uncertainty boundaries may still override unsupported success claims.
 - Tool descriptions define when a tool is appropriate, required inputs, effects, and continuation rules. They must not carry final-answer templates, hidden implementation vocabulary, or wording instructions that belong to the final-writing contract. Tool results for final generation should contain user-safe facts that are sufficient to write an accurate answer, including timing and incomplete states when they materially affect the experience.
+- Whenever a tool, background job, or asynchronous run produces a result that must be communicated to a company user, pass a compact user-safe result and the relevant conversation context back through the company-side LLM. Do not turn success, zero-result, partial, skipped, or failed outcomes into deterministic prose templates, and do not instruct the model to emit an exact sentence. Code owns verified facts, authorization, idempotency, and delivery; the company-side LLM chooses the natural wording, amount of context, and format from a light outcome-oriented instruction.
 
 ## Conversational E2E quality
 

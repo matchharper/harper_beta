@@ -27,11 +27,18 @@ import type { CareerPendingActionReference } from "@/lib/career/pendingActions";
 import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
+import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 
 type SendChatArgs = {
   allowedToolNames?: readonly string[];
   files?: File[];
   channel?: "chat" | "voice";
+  coachingActivityAction?: {
+    action: "start" | "end";
+    activityMessageId: number;
+    channel?: "chat" | "call";
+    expectedRevision: number;
+  };
   conversationStarterId?: CareerConversationStarterId;
   text: string;
   link?: string;
@@ -55,6 +62,9 @@ type UseCareerChatArgs = {
   conversationId: string | null;
   sessionPending: boolean;
   fetchWithAuth: FetchWithAuth;
+  onCareerCoachingCallReady?: (
+    activity: CareerCoachingActivity
+  ) => void | Promise<void>;
   onOpportunityRunChanged?: (run: CareerOpportunityRun | null) => void;
   onOpportunityRecommendationsChanged?: (
     roleId?: string | null
@@ -230,6 +240,7 @@ export const useCareerChat = ({
   conversationId,
   sessionPending,
   fetchWithAuth,
+  onCareerCoachingCallReady,
   onOpportunityRunChanged,
   onOpportunityRecommendationsChanged,
   onTalentPreferencesRefreshed,
@@ -685,7 +696,10 @@ export const useCareerChat = ({
       if (!text && files.length === 0) return;
 
       const explicitConversationStarterId = args.conversationStarterId;
-      if (explicitConversationStarterId) {
+      if (
+        explicitConversationStarterId &&
+        explicitConversationStarterId !== "career_coaching"
+      ) {
         activeConversationStarterRef.current = {
           remainingFollowUpTurns: 6,
           starterId: explicitConversationStarterId,
@@ -760,6 +774,7 @@ export const useCareerChat = ({
           body: JSON.stringify({
             allowedToolNames: args.allowedToolNames,
             channel: args.channel ?? "chat",
+            coachingActivityAction: args.coachingActivityAction,
             conversationStarterId: activeConversationStarterId,
             conversationId,
             locale,
@@ -1052,6 +1067,17 @@ export const useCareerChat = ({
               return;
             }
 
+            if (event === "career_coaching_call_ready") {
+              const activity =
+                isRecord(data) && isRecord(data.activity)
+                  ? (data.activity as unknown as CareerCoachingActivity)
+                  : null;
+              if (activity) {
+                await onCareerCoachingCallReady?.(activity);
+              }
+              return;
+            }
+
             if (event === "recommendation_status_anchor") {
               const contentLength = toRecommendationStatusAnchor(data);
               if (contentLength === null) return;
@@ -1305,6 +1331,11 @@ export const useCareerChat = ({
             getErrorMessage(payload, tCareer(H.messageSendFailed))
           );
         }
+        if (isRecord(payload?.careerCoachingCallReady)) {
+          await onCareerCoachingCallReady?.(
+            payload.careerCoachingCallReady as unknown as CareerCoachingActivity
+          );
+        }
         if (
           payload?.historyShouldRefresh === true &&
           onOpportunityRecommendationsChanged
@@ -1373,6 +1404,7 @@ export const useCareerChat = ({
         if (
           !explicitConversationStarterId &&
           activeConversationStarterId &&
+          activeConversationStarterId !== "career_coaching" &&
           activeConversationStarterRef.current?.starterId ===
             activeConversationStarterId
         ) {
@@ -1407,6 +1439,7 @@ export const useCareerChat = ({
       syncPreferredLocale,
       user,
       onMessagesChanged,
+      onCareerCoachingCallReady,
       onOpportunityRunChanged,
       onOpportunityRecommendationsChanged,
       onOnboardingChecklistProgressRefreshed,

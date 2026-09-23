@@ -6,7 +6,7 @@ import path from "node:path";
 import {
   buildCompanySnapshotMarkdown,
   runCompanySnapshotResearch,
-  runCompanySnapshotPersonalization,
+  runCompanySnapshotReportFromCachedResearch,
 } from "@/lib/career/companySnapshot";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { getLlmChatProviderForModel } from "@/lib/llm/llm";
@@ -134,7 +134,7 @@ async function main() {
         model: string;
         stage: string;
       }> = [];
-      const personalized = await runCompanySnapshotPersonalization({
+      const privateReport = await runCompanySnapshotReportFromCachedResearch({
         companyName: evaluationCase.companyName,
         preferredLocale: "ko",
         reason: evaluationCase.reason,
@@ -148,11 +148,12 @@ async function main() {
       );
       content = {
         ...reused.content,
-        personalized,
+        ...privateReport,
         metadata: {
-          evaluation_mode: "personalization_only",
+          ...((privateReport.metadata as Record<string, unknown>) ?? {}),
+          evaluation_mode: "cached_base_research",
           reused_dossier: dossierRun,
-          costs_usd: { llm: cost, total: cost, llm_calls: calls, exa: 0 },
+          observed_llm_cost_usd: cost,
         },
       };
     } else {
@@ -183,8 +184,8 @@ async function main() {
     "",
     `- Created at: ${createdAt}`,
     `- Dataset: ${datasetVersion}`,
-    `- Research model: ${dossierRun ? "reused dossier" : CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel}`,
-    `- Personalization model: ${CAREER_LLM_CONFIG.companySnapshotPersonalization.primaryModel}`,
+    `- Writer model: ${CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel}`,
+    `- Base research: ${dossierRun ? "reused cached evidence" : "three parallel Exa searches"}`,
     "- Inputs: public company names plus synthetic reason and talent context",
     "",
     ...results.flatMap((result) => [
@@ -225,27 +226,25 @@ async function main() {
     fixtureHash: sha256(evaluatedInputRaw),
     promptFingerprint: sha256(promptSource),
     primaryModel: CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel,
-    personalization: CAREER_LLM_CONFIG.companySnapshotPersonalization,
     reusedDossier: dossierRun
       ? { run: dossierRun, sha256: sha256(dossierRaw!) }
       : null,
-    fallbackModel: CAREER_LLM_CONFIG.companySnapshotResearch.fallbackModel,
+    fallbackModel: null,
     provider: getLlmChatProviderForModel(
       CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel
     ),
     reasoning: {
-      researchDecision: "low",
-      finalSynthesis: "low when repair search is used",
-      personalization:
-        CAREER_LLM_CONFIG.companySnapshotPersonalization.reasoningEffort,
+      terraWriter: CAREER_LLM_CONFIG.companySnapshotResearch.reasoningEffort,
     },
     search: {
       provider: "exa",
-      initialType: "deep",
-      initialCalls: 1,
-      maximumRepairCalls: 3,
-      maximumResultsPerCall: 10,
-      maxAgeHours: null,
+      initialType: "auto",
+      initialCalls: 3,
+      initialResultsPerCall: 6,
+      maximumAgentCalls: 6,
+      maximumAgentResultsPerCall: 10,
+      baseMaxAgeHours: 24,
+      agentMaxAgeHours: "model-selected",
       clientTimeoutMs: null,
     },
     latencyMs: results.map((result) => ({

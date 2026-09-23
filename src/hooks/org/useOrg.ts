@@ -1,5 +1,6 @@
 import {
   type InfiniteData,
+  type QueryClient,
   queryOptions,
   useInfiniteQuery,
   useMutation,
@@ -53,6 +54,62 @@ type OrgBoardFilters = {
   roleId?: string | null;
   workspaceId?: string | null;
 };
+
+type OrgAgentWebActionStatus = {
+  done: boolean;
+  ok: true;
+  progressMessageId: number | null;
+  roleId: string | null;
+  status: string;
+  terminalMessageId: number | null;
+};
+
+async function refreshOrgAgentWebActionWhenReady(args: {
+  jobId?: string | null;
+  queryClient: QueryClient;
+  roleId?: string | null;
+  workspaceId: string;
+}) {
+  const jobId = args.jobId?.trim();
+  if (!jobId || !args.workspaceId) return;
+  let observedProgressMessageId: number | null = null;
+  let terminalStateObserved = false;
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 2_500));
+    }
+    const params = new URLSearchParams({
+      jobId,
+      workspaceId: args.workspaceId,
+    });
+    let status: OrgAgentWebActionStatus;
+    try {
+      status = await fetchWithInternalAuth<OrgAgentWebActionStatus>(
+        `/api/org/agent/web-action/status?${params.toString()}`
+      );
+    } catch {
+      continue;
+    }
+    const roleId = status.roleId ?? args.roleId ?? null;
+    const hasNewProgress =
+      status.progressMessageId !== null &&
+      status.progressMessageId !== observedProgressMessageId;
+    const hasNewTerminalState = status.done && !terminalStateObserved;
+    if (hasNewProgress || hasNewTerminalState) {
+      await args.queryClient.invalidateQueries({
+        queryKey: queryKeys.org.agentMessages({
+          mode: roleId ? "role" : "general",
+          roleId,
+          workspaceId: args.workspaceId,
+        }),
+      });
+    }
+    observedProgressMessageId =
+      status.progressMessageId ?? observedProgressMessageId;
+    terminalStateObserved = terminalStateObserved || status.done;
+    if (status.done) return;
+  }
+}
 
 export function orgBootstrapQueryOptions(args: {
   enabled?: boolean;
@@ -398,7 +455,7 @@ export function useSetOrgCandidateStage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(args),
+          body: JSON.stringify({ ...args, agentActionId: crypto.randomUUID() }),
         }
       ),
     onSuccess: (result, variables) => {
@@ -436,6 +493,12 @@ export function useSetOrgCandidateStage() {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.org.meetingSchedulesAll,
       });
+      void refreshOrgAgentWebActionWhenReady({
+        jobId: result.agentJobId,
+        queryClient,
+        roleId: variables.roleId,
+        workspaceId: variables.workspaceId,
+      });
     },
   });
 }
@@ -453,39 +516,56 @@ export function useRequestOrgCompanyIntro() {
       fetchWithInternalAuth<OrgCompanyIntroMutationResponse>(
         "/api/org/company-intro",
         {
-          body: JSON.stringify({ action: "request", ...args }),
+          body: JSON.stringify({
+            action: "request",
+            ...args,
+            agentActionId: crypto.randomUUID(),
+          }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }
       ),
-    onSuccess: () =>
-      Promise.all([
+    onSuccess: (result, variables) => {
+      void refreshOrgAgentWebActionWhenReady({
+        jobId: result.agentJobId,
+        queryClient,
+        workspaceId: variables.workspaceId,
+      });
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
-      ]),
+      ]);
+    },
   });
 }
 
 export function usePassOrgCompanyIntro() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: {
-      introCandidateId: string;
-      workspaceId: string;
-    }) =>
+    mutationFn: (args: { introCandidateId: string; workspaceId: string }) =>
       fetchWithInternalAuth<OrgCompanyIntroMutationResponse>(
         "/api/org/company-intro",
         {
-          body: JSON.stringify({ action: "pass", ...args }),
+          body: JSON.stringify({
+            action: "pass",
+            ...args,
+            agentActionId: crypto.randomUUID(),
+          }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }
       ),
-    onSuccess: () =>
-      Promise.all([
+    onSuccess: (result, variables) => {
+      void refreshOrgAgentWebActionWhenReady({
+        jobId: result.agentJobId,
+        queryClient,
+        workspaceId: variables.workspaceId,
+      });
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
-      ]),
+      ]);
+    },
   });
 }
 
@@ -558,7 +638,7 @@ export function useCreateOrgFeedItem() {
       fetchWithInternalAuth<OrgFeedCreateResponse>("/api/org/feed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(args),
+        body: JSON.stringify({ ...args, agentActionId: crypto.randomUUID() }),
       }),
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
@@ -714,16 +794,26 @@ export function useUpdateOrgRole() {
       workMode?: string | null;
       workspaceId: string;
     }) =>
-      fetchWithInternalAuth<{ ok: true }>("/api/org/role", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(args),
-      }),
-    onSuccess: () =>
-      Promise.all([
+      fetchWithInternalAuth<{ agentJobId?: string | null; ok: true }>(
+        "/api/org/role",
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...args, agentActionId: crypto.randomUUID() }),
+        }
+      ),
+    onSuccess: (result, variables) => {
+      void refreshOrgAgentWebActionWhenReady({
+        jobId: result.agentJobId,
+        queryClient,
+        roleId: variables.roleId,
+        workspaceId: variables.workspaceId,
+      });
+      return Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
-      ]),
+      ]);
+    },
   });
 }

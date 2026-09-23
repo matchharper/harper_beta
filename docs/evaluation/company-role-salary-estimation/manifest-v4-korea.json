@@ -1,0 +1,63 @@
+{
+  "task": "company-role-salary-estimation",
+  "datasetVersion": "v4-korea",
+  "createdAt": "2026-09-23T02:05:59.415004+00:00",
+  "lastEvaluatedAt": "2026-09-23T02:55:40.000000+00:00",
+  "sourceRevision": {
+    "harperWorker": "bd98dd4ff6e16a66655f9a99e409d5d24b3907e5+dirty",
+    "harperBeta": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00+dirty"
+  },
+  "fixture": {
+    "privatePath": "private/fixture-v4-korea.json",
+    "sha256": "665777b8c7f8b95cdcb4719b9d38c817030fa04334920c5c7a8108802e34f0c3",
+    "caseCount": 20,
+    "selection": "one random external Role from 20 distinct companies whose company_db.location identifies South Korea; salary availability was not a selection condition",
+    "distribution": {
+      "companyCount": 20,
+      "numericAnnualGoldCount": 0,
+      "externalJobUrlPresent": 20
+    }
+  },
+  "gold": {
+    "path": "gold-v4-korea.json",
+    "sha256": "ed9e068fb6dd296529682f6541695e3fac69fb3aeae3c0cf3bb63d9b7ad7ffec",
+    "labelSource": "optional numeric annual company_roles salary; all 20 randomly selected cases were unlabeled",
+    "reviewStatus": "frozen before v4 provider calls; no post-model labels added"
+  },
+  "promptFingerprint": "sha256:b366fbe69e276f4c8046a303c049f9bd2348d61033cf896e78fa9960f3450e1d",
+  "promptFingerprintScope": "production web schema, company-anchor prompt, URL validation, and estimate_company_role_salary_from_web implementation",
+  "canonicalRunner": "../../../../harper_worker/llm_evals/company_role_salary_estimation/korea_eval.py",
+  "runs": {
+    "blind": "runs/korea-v4-20260923T020736Z.json",
+    "unblindedStrictAverageIsNotRange": "runs/korea-v4-20260923T020922Z.json",
+    "unblindedCompanyAverageAnchorDraft": "runs/korea-v4-20260923T025331Z.json",
+    "selectedCompanyAverageAnchor": "runs/korea-v4-20260923T025540Z.json"
+  },
+  "selectedRun": {
+    "provider": "Exa Search",
+    "searchType": "deep",
+    "reasoning": "provider-managed deep search",
+    "numResults": 10,
+    "additionalQueryCount": 3,
+    "concurrency": 4,
+    "summary": {
+      "attempted": 20,
+      "succeeded": 20,
+      "foundRange": 1,
+      "estimatedRange": 19,
+      "unknown": 0,
+      "rangeCoverage": 1.0,
+      "totalCostUsd": 0.216,
+      "meanCostUsd": 0.0108,
+      "medianLatencySec": 8.399,
+      "p95LatencySec": 10.355
+    },
+    "releaseAccuracyStatus": "not measured: the frozen sample has zero numeric annual gold labels"
+  },
+  "privacy": {
+    "publicFixtureDeidentified": true,
+    "rawFixtureIgnored": true,
+    "rawFixtureMode": "0600",
+    "externalProviderData": "public exact-role and exact-company information only; no Talent, conversation, or cross-company salary data"
+  }
+}

@@ -29,6 +29,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "list_contacts",
   "read_contact",
   "read_role",
+  "request_matching_search",
   "calibrate_role_hiring_brief",
   "record_role_profile_example_feedback",
   "get_more_data",
@@ -41,6 +42,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "move_candidate_stage",
   "move_candidate_to_role",
   "manage_interview_availability",
+  "decide_company_intro",
   "prepare_candidate_connection",
   "decide_candidate_connection",
 ] as const;
@@ -90,7 +92,7 @@ export const ORG_AGENT_TOOLS = [
         properties: {
           currentCompanyStageId: {
             description:
-              "Optional exact current company stage filter. Built-in examples include pending_connection, connected, final_offer, and process_stopped. Use custom:<id> only when that exact stage ID is known.",
+              "Optional exact current company stage filter. Built-in examples include company_intro, intro_requested, pending_connection, connected, final_offer, and process_stopped. Use custom:<id> only when that exact stage ID is known.",
             maxLength: 100,
             minLength: 1,
             type: "string",
@@ -360,11 +362,33 @@ export const ORG_AGENT_TOOLS = [
           roleId: { description: "Exact role ID.", type: "string" },
           stage: {
             description:
-              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in values: company_intro=먼저 제안 가능한 후보, pending_connection=연결 대기, connected=진행 중, process_stopped=프로세스 종료. For a custom stage, use custom:<id> only when that exact ID is already available.",
+              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in values: company_intro=먼저 제안 가능한 후보, intro_requested=Intro Requested, pending_connection=연결 대기, connected=진행 중, process_stopped=프로세스 종료. For a custom stage, use custom:<id> only when that exact ID is already available.",
             maxLength: 100,
             type: "string",
           },
         },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "request_matching_search",
+      description:
+        "Queue a fresh matching search only when the company explicitly asks Harper to find new people now using a saved current Hiring Brief. Resolve the exact Role that prompted the request and supply its roleId. This is an asynchronous action, not a read of candidates already in the pipeline. The company-scoped search considers the requested Role together with the workspace's other enabled Roles so one person is not proposed twice for sibling Roles. A queued or running search is safely reused when it already covers the current Brief. The result states whether the request is queued, already running, or unavailable; no candidate has been selected or contacted merely because this tool succeeds.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          roleId: {
+            description:
+              "Exact Role ID whose saved current Hiring Brief prompted the explicit search request.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+        },
+        required: ["roleId"],
         type: "object",
       },
     },
@@ -706,8 +730,9 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     type: "function",
     function: {
       name: "contact_talent",
-      description: `Manage one to ten exact candidate-contact drafts and their delivery in one call. Use the singular fields for one candidate or items for a batch of up to ten; batch items share the top-level action and may use top-level fields as shared defaults. The result reports requested, completed, and incomplete counts plus every item's outcome. Continue any independently requested work after reading those results; never silently treat a partial batch as complete.
-Use action=create_draft on the company's initial request. It validates every exact candidate and Role, calls the candidate-copy writer with the recent conversation, current instruction, and candidate's saved locale, and saves each complete subject and body without queuing delivery. The writer chooses the email language from that evidence. The server appends every exact body.
+      description: `Manage one to ten exact candidate contacts and their delivery in one call. Use the singular fields for one candidate or items for a batch of up to ten; batch items share the top-level action and may use top-level fields as shared defaults. The result reports requested, completed, and incomplete counts plus every item's outcome. Continue any independently requested work after reading those results; never silently treat a partial batch as complete.
+Choose between create_draft and send from the conversational meaning, not keywords. Use action=create_draft when the company is initiating an official outbound request or message that should be reviewed first, including a new question, resume request, renewed-interest check, or other company-originated outreach. It validates every exact candidate and Role, calls the candidate-copy writer with the recent conversation, current instruction, and candidate's saved locale, and saves each complete subject and body without queuing delivery. The writer chooses the email language from that evidence. The server appends every exact body.
+Use action=send when the company is directly answering or continuing a candidate message that Harper just relayed in this same conversation. Copy the exact relayId from candidate_contact_ref and put the substantive company reply in messageContent. Harper writes candidate-facing copy in the candidate's saved language and queues that reply immediately without a draft-confirmation turn. The returned queued status means transport is still processing, not that the candidate received or read it; describe the result naturally from the structured facts. This action is not a shortcut for a new company question, resume request, renewed-interest check, or unrelated outreach: those use create_draft. It is valid for any verified mutual Harper connection, regardless of whether the relationship began with Request Intro or a Harper recommendation. The server verifies that the exact relay is visible in the current conversation and belongs to this workspace; never invent or reuse a relayId from another conversation.
 Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from candidate_contact_ref message context, and pass only the company's editInstruction. If the relevant presentation is no longer in recent conversation, use list_contacts and read_contact to recover the exact active draft target and revision. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Never edit a queued or sent contact.
 Use action=schedule when the current company message explicitly approves one or more drafts. When the exact targets are known, pass contactId and expectedRevision for one target or items containing those exact fields for a batch. The server schedules those exact current revisions without requiring them to appear again in a recent Harper message. For a short approval of the whole nearest displayed set where you are not copying its IDs, set presentedDrafts=true and omit contactId/items; the server resolves every exact ID and revision from that presentation. A short yes counts only when its conversational meaning clearly approves that presentation. deliveryMode=standard schedules exactly 5 minutes later at any time of day. deliveryMode=immediate is allowed only when that approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
 Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. If Harper already said the request would be sent later, today, or tomorrow, never call schedule again: a later "send now" instruction must use action=immediate. It is unavailable for an unapproved draft or a delivery that has started.
@@ -725,6 +750,7 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
               "Lifecycle action applied to the singular target or every batch item.",
             enum: [
               "create_draft",
+              "send",
               "revise_draft",
               "schedule",
               "immediate",
@@ -762,6 +788,18 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
             enum: ["contact", "question", "resume"],
             type: "string",
           },
+          messageContent: {
+            description:
+              "For send only: the substantive company reply or continuation to pass to the candidate. Preserve uncertainty, conditions, and concrete details from the company's current message.",
+            maxLength: 5000,
+            minLength: 1,
+            type: "string",
+          },
+          relayId: {
+            description:
+              "For send only: exact candidate relay ID from candidate_contact_ref in the current conversation.",
+            type: "string",
+          },
           requestContext: {
             description:
               "For create_draft with kind=question or contact: a neutral description of the exact information requested or message to pass along, in the latest user's language. May be shared across batch items. Never include stored compensation.",
@@ -786,7 +824,7 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
           },
           items: {
             description:
-              "One to ten targets for the same action. Each item's values override shared top-level defaults. For create_draft provide talentId and roleId plus kind/requestContext as needed. For other actions provide contactId and the fields required by that action.",
+              "One to ten targets for the same action. Each item's values override shared top-level defaults. For create_draft provide talentId and roleId plus kind/requestContext as needed. For send provide relayId and messageContent. For revise_draft, schedule, immediate, and cancel provide contactId and the fields required by that action.",
             items: {
               additionalProperties: false,
               properties: {
@@ -805,6 +843,12 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
                   enum: ["contact", "question", "resume"],
                   type: "string",
                 },
+                messageContent: {
+                  maxLength: 5000,
+                  minLength: 1,
+                  type: "string",
+                },
+                relayId: { type: "string" },
                 requestContext: {
                   maxLength: 800,
                   minLength: 1,
@@ -1153,6 +1197,57 @@ Call this once per exact candidate Role change and review the result before anot
             type: "array",
           },
         },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "decide_company_intro",
+      description:
+        "Handle the company's decision for one exact candidate in 먼저 제안 가능한 후보. decision=request_intro asks Harper to present this Role to a candidate whose interest is not yet known; if the candidate accepts, Harper will immediately send a CC introduction to the confirmed company recipients and move the candidate to the confirmed custom process stage without another company approval. decision=pass removes the candidate from this company-first proposal flow without creating a candidate-visible opportunity or contacting the candidate. On an initial request_intro, provide only a companyAppeal the user actually supplied, confirmed company recipient emails, and an exact custom:<id> nextStageId from read_role; do not invent or broaden the company's reason. Omitted recipient emails may use the current requester's company email when available. The first complete call records no decision and returns confirmation_required. Call this tool again for the same candidate only when the immediately previous Harper message explained the exact candidate, Role, delivery recipients, first stage, and effects, and the current message clearly authorizes that proposal or pass. On that confirmation call, planning fields may be omitted because the server reuses the exact immediately presented plan. The server verifies adjacency and actor identity; otherwise it returns confirmation_required without changing state. Use this same tool in web chat and Slack instead of sending the user to the candidate card.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          companyAppeal: {
+            description:
+              "For an initial request_intro only: the company's grounded reason for wanting to meet this candidate, preserving the user's meaning without invention. Omit on the later short confirmation so the exact presented reason is reused.",
+            maxLength: 2_000,
+            minLength: 1,
+            type: "string",
+          },
+          decision: {
+            description:
+              "request_intro asks Harper to propose the Role on the company's behalf; pass declines to propose this Role and does not contact the candidate.",
+            enum: ["request_intro", "pass"],
+            type: "string",
+          },
+          introRecipientEmails: {
+            description:
+              "For an initial request_intro only: company recipients to CC if the candidate accepts. Omit to propose the current requester's company email when available, or on the later short confirmation to reuse the exact presented recipients.",
+            items: { type: "string" },
+            maxItems: 10,
+            minItems: 1,
+            type: "array",
+          },
+          nextStageId: {
+            description:
+              "For an initial request_intro only: exact custom:<id> first process stage from read_role for use after candidate acceptance. Built-in stages are invalid. Omit on the later short confirmation to reuse the exact presented stage.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+          roleId: {
+            description: "Exact Role ID for this company-first proposal.",
+            type: "string",
+          },
+          talentId: {
+            description: "Exact Talent ID for this company-first proposal.",
+            type: "string",
+          },
+        },
+        required: ["decision", "roleId", "talentId"],
         type: "object",
       },
     },

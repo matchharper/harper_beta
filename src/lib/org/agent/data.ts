@@ -53,6 +53,7 @@ export type OrgAgentPipelineRoleCounts = {
   complete: boolean;
   ended: number;
   intro: number;
+  requested: number;
   waiting: number;
 };
 
@@ -403,7 +404,14 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
   const emptyCounts = new Map<string, OrgAgentPipelineRoleCounts>(
     roleIds.map((roleId) => [
       roleId,
-      { active: 0, complete: true, ended: 0, intro: 0, waiting: 0 },
+      {
+        active: 0,
+        complete: true,
+        ended: 0,
+        intro: 0,
+        requested: 0,
+        waiting: 0,
+      },
     ])
   );
   if (roleIds.length === 0) {
@@ -478,6 +486,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
         complete: countsComplete,
         ended: 0,
         intro: 0,
+        requested: 0,
         waiting: 0,
       },
     ])
@@ -1930,6 +1939,7 @@ export async function readOrgAgentRole(args: {
     complete: false,
     ended: 0,
     intro: 0,
+    requested: 0,
     waiting: 0,
   };
   const pipelineResult = {
@@ -2006,6 +2016,7 @@ export async function readOrgAgentRole(args: {
     })),
     stageCounts: [
       { count: bucketCounts.intro, stage: "먼저 제안 가능한 후보" },
+      { count: bucketCounts.requested, stage: "Intro Requested" },
       { count: bucketCounts.waiting, stage: "연결 대기" },
       { count: bucketCounts.active, stage: "진행 중" },
       { count: bucketCounts.ended, stage: "프로세스 종료" },

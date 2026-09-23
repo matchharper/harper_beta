@@ -18,13 +18,23 @@
 
 검색 결과의 장기적 안정성, 실제 사용자의 최종 지원 행동, 회사 내부 비공개 정보의 정확성, 모든 국가·산업의 대표 성능은 답하지 못한다. 보상·복지·근무강도·팀원 후기는 기본 조사 범위에 포함하되, 직무·직급·지역에 맞는 근거가 있어야 추정한다. 개인별 실제 오퍼와 팀 내부의 근무 조건을 보장하지 않는다. 면접 질문 목록은 별도 요청이 있을 때만 다룬다.
 
+## 2026-09-23 Terra 자율 조사·작성 계약
+
+현재 production 경로는 고정된 회사 필드나 별도 개인화 단계를 만들지 않는다. 코드가 회사의 정체·사업, 자금·성장, 팀원·채용을 포괄하는 Exa 기본 검색 3개를 병렬 실행한 뒤, 그 결과와 사용자의 질문·Profile·전체 Search Brief·관련 confirmed Memory를 한 번에 `gpt-5.6-terra`에게 전달한다. Terra는 같은 Responses tool loop 안에서 바로 완성 글을 작성하며, 작성 중 근거가 더 필요하다고 판단할 때만 `search_company_web`을 호출한다. 도구 호출 뒤에 별도의 “이제 글을 써라” 단계나 구조화 synthesis 호출은 없다.
+
+최종 output contract는 출처 링크를 포함한 하나의 Markdown 글뿐이다. 회사 설명을 먼저 읽고 Harper의 판단과 개인적 의미를 뒤에서 이해할 수 있게 하라는 방향만 주며, 제목, `##` 섹션 수, bullet, 표, 문단 수를 고정하지 않는다. 서버는 빈 출력, 등록되지 않은 출처 URL, 검색 호출·turn 상한 같은 machine contract만 검증한다. Qualitative 구성과 중요도 판단은 모델이 맡는다.
+
+공유 `company_snapshot` cache에는 기본 공개 검색 bundle과 공개 출처만 저장한다. Profile·Brief·Memory를 반영한 완성 Markdown은 공유 cache에 넣지 않고 해당 팀원의 비공개 Documents에 저장한다. 최근 cache가 있으면 Terra가 그 기본 검색 bundle을 출발점으로 같은 자율 tool loop에서 전체 글을 다시 쓴다.
+
+이 변경은 기존 `cases-v2.json` / `gold-v4.json`을 그대로 사용한다. 입력이나 gold를 바꾸지 않았으므로 dataset version은 올리지 않았고, 새 prompt·모델·도구 계약의 전체 7개 release gate는 아직 실행하지 않았다.
+
 ## 2026-09-21 커리어 판단 개선 계약
 
 현재 개선 검증은 `cases-v2.json` / `gold-v4.json` / `manifest-v4.json`을 사용한다. 기존 v1의 5개 입력은 그대로 보존하고, 합성 ML 직무 전환·장기 영업 리더십 사례 2개를 추가했다. 과거 v1/v3 결과와는 별도 버전이다. 평가 단위, canonical runner, 개인정보 경계는 아래와 같으며 `--fixture docs/evaluation/career-company-research/cases-v2.json`으로 실행한다.
 
 개선된 기준은 2~3년 후 이력서의 시장 인식, 도메인 경로 의존성, 역량 전이 가능성, 더 쉬워지거나 어려워지는 다음 직무, 내부 성장 경로, 선택지의 교환 관계를 실제 개인 방향에 맞춰 판단하는 것이다. 경력 재진술·학습 가능성·당연한 지역 일치만으로 좋은 기회라고 평가하지 않는다. 숫자는 맥락 속 문장이나 표로 표현하고 별도 블록 그래프는 생성·렌더링하지 않는다. Markdown 인용문·인라인 코드·밑줄·강조를 의미에 맞게 사용한다.
 
-gold v4도 8개 차원, 평균 13/16·사례별 11/16·critical 0의 전체 gate를 사용한다. 이번 진단은 새 2개 사례로 개선 방향을 확인하며 전체 7개 gate를 대신하지 않는다. 공개 회사 보고서와 개인화는 기존처럼 별도 호출하고, 검색에는 개인 context를 전달하지 않는다. 공개 조사는 Luna low(오류 fallback Terra), 개인화는 Terra high(오류 fallback Luna)이다. 공개 검색의 속도와 별개로 개인화 판단의 품질을 다룬다.
+gold v4도 8개 차원, 평균 13/16·사례별 11/16·critical 0의 전체 gate를 사용한다. 이 단락 아래의 실행 기록은 당시 v7 구조의 진단 이력이며, 현재 v8 runtime 계약은 위 2026-09-23 섹션을 따른다.
 
 ## 평가 단위와 frozen dataset
 
@@ -44,9 +54,9 @@ gold v4도 8개 차원, 평균 13/16·사례별 11/16·critical 0의 전체 gate
 실행기는 [`scripts/evalCareerCompanyResearch.ts`](../../../scripts/evalCareerCompanyResearch.ts)다. 다음 production 코드를 직접 import한다.
 
 - `runCompanySnapshotResearch`
-- `runCompanySnapshotPersonalization`
+- `runCompanySnapshotReportFromCachedResearch`
 - `buildCompanySnapshotMarkdown`
-- `CAREER_LLM_CONFIG.companySnapshotResearch`와 `companySnapshotPersonalization`
+- `CAREER_LLM_CONFIG.companySnapshotResearch`
 
 예시 실행:
 
@@ -59,37 +69,34 @@ node --env-file=.env.local --import tsx \
 
 회사 하나를 production 경로로 진단할 때는 `--company-name`, `--reason`, `--talent-context`를 함께 쓴다. 이 경우 runner는 `ad-hoc-v1` 입력 하나만 실행한다.
 
-`--case-id`로 frozen 사례 하나를 선택할 수 있다. `--dossier-run <기존 run 경로>`는 같은 frozen 입력인지 확인한 뒤 공개 dossier를 재사용하여 production 개인화만 실행한다. 검색 변동성을 제외한 prompt/model 비교이며 전체 조사 지연으로 해석하지 않는다. 재사용 원문의 hash와 이번 호출 비용을 별도로 남긴다.
+`--case-id`로 frozen 사례 하나를 선택할 수 있다. `--dossier-run <기존 run 경로>`는 같은 frozen 입력인지 확인한 뒤 저장된 기본 검색 bundle을 재사용하고, production Terra writer와 자율 Exa tool loop로 전체 글을 다시 작성한다. 기본 검색 변동성을 제외한 prompt/model 비교이며 전체 조사 지연으로 해석하지 않는다. 재사용 원문의 hash와 이번 호출 비용을 별도로 남긴다.
 
-runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행하고 raw structured output, 실제 렌더링된 Markdown, 지연과 재현 manifest를 지정한 `runs/` 아래에 저장한다. 디렉터리는 `0700`, 파일은 `0600`으로 만든다.
+runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행하고 raw runtime output, Terra가 작성한 Markdown, 지연과 재현 manifest를 지정한 `runs/` 아래에 저장한다. 디렉터리는 `0700`, 파일은 `0600`으로 만든다.
 
 ## 실행 조건
 
-- 공개 조사: OpenAI `gpt-5.6-luna` Responses, reasoning `low`
-- 개인화: OpenAI `gpt-5.6-terra`, reasoning `high`
-- initial search: Exa `deep` 1회, 결과 최대 10개, 10개 회사 판단 질문에 대한 구조화된 synthesis와 원문 highlight를 함께 수집
-- repair search: Luna가 초기 결과의 결정적 공백·충돌만 판단해 Exa `auto` 또는 `deep`을 0~3회 호출한다. 같은 turn의 호출은 병렬 실행하고, 각 검색은 결과 최대 10개와 필요한 만큼의 보조 query를 사용할 수 있다.
-- freshness/timeout: 고정 최근 며칠 필터와 애플리케이션 12초 timeout을 두지 않는다. 최신 사건은 query와 Exa ranking으로 찾고 오래된 설립·투자·재무 이력도 함께 보존한다.
-- synthesis: 공개 회사 보고서는 초기 조사로 충분하면 바로 반환하고, repair가 있을 때만 최종 synthesis round를 한 번 더 실행한다. 실제 개인 context가 있으면 이후 별도 개인화 호출이 최종 세 섹션을 작성한다. 공개 조사에는 reason과 개인 context를 전달하지 않는다.
-- output budget: 공개 조사 판단과 구조화 보고서는 최대 128,000 output token, 별도 개인화는 추론을 포함해 12,000 output token을 사용한다. 본문의 길이는 prompt에서 별도로 제한한다.
-- fallback: 공개 조사 Terra, 개인화 Luna; provider 오류에 대한 기존 공통 fallback 정책을 사용한다.
+- writer: OpenAI `gpt-5.6-terra` Responses, reasoning `high`, 별도 model fallback 없음
+- base search: Exa `auto` 3회를 병렬 실행한다. 정체·사업·제품, 자금·실적·최근 변화, 리더십·팀원·채용·근무 정보를 넓게 수집하며 각 검색은 최대 6개 결과와 highlight를 반환한다.
+- agent search: Terra가 글을 작성하면서 필요하다고 판단하면 Exa `auto`, `deep-lite`, `deep`, `deep-reasoning`을 합계 최대 6회 호출할 수 있다. 도메인, category, 발행일, 포함·제외 문구, 지역, content mode, subpage target을 선택할 수 있고 같은 turn의 호출은 병렬 실행한다.
+- freshness/timeout: 기본 검색 content는 24시간보다 오래된 cache를 갱신한다. agent search는 Terra가 질문 성격에 맞게 freshness와 date range를 선택한다.
+- synthesis: 조사 판단용 구조화 output과 별도 최종 synthesis가 없다. Terra가 기본 검색, 개인 맥락, tool 결과를 같은 대화에 유지하면서 최종 Markdown을 직접 반환한다.
+- output budget: 각 Terra turn은 reasoning을 포함해 최대 128,000 output token을 사용한다. 고정 문단 수나 섹션 길이는 두지 않는다.
 - output language: Korean
 - sampling: 별도 temperature 없음
 - talent context: 합성 문맥만 사용
-- provider 전송: 회사명, 합성 reason/context, 공개 웹 검색 결과
+- provider 전송: OpenAI에는 회사명, 합성 reason/context, 공개 웹 검색 결과를 전달한다. Terra가 필요하다고 판단하면 합성 개인 맥락을 포함한 query가 Exa에 전달될 수 있다.
 
 ## 프롬프트 설계 근거
 
-2026-09-18에 [OpenAI 공식 model guidance](https://developers.openai.com/api/docs/guides/latest-model)를 다시 확인했다. 이 경로는 outcome-first prompt, 최소한의 tool loop, 명시적인 stop rule, structured output, 의도적인 verbosity 설정을 권한다. 검색 계획만을 위한 별도 LLM 호출은 없애고, Exa deep의 question-specific output을 첫 조사에 사용한 뒤 같은 synthesis LLM이 공백만 판단하게 했다.
+2026-09-23에 [OpenAI 공식 GPT-5.6 model guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.6)와 [function calling guide](https://developers.openai.com/api/docs/guides/function-calling)를 확인했다. Terra는 Responses API에서 필요한 시점에 도구를 호출하고 결과를 받은 뒤 같은 작업을 계속한다. prompt는 역할·성공 기준·증거 기준·도구 권한·출력 책임을 한 번씩만 설명하고, tool description은 검색 capability에만 집중한다.
 
-새 prompt는 다음 순서의 결과를 요구한다.
+새 prompt는 다음을 가벼운 판단 기준으로 제공하되 출력 양식으로 강제하지 않는다.
 
-- 회사 단계·국가·소유구조에 맞춘 `어떤 회사인가요?` 핵심 사실 3~8개
-- 투자·실적·팀원/채용·제품/고객·소유구조·시장 진출 중 실제 회사 상태를 바꾼 사건을 날짜순으로 보여주는 `최근 어떻게 달라지고 있나요?`
-- 성장·팀원·예상 보상·일하는 방식 등 합류할 사람이 궁금해할 질문형 상세 섹션 3~6개와 각 주장을 뒷받침하는 출처. 제목과 강조점은 회사의 증거에 따라 달라진다.
-- 의미 있는 수치 변화는 날짜·단위와 함께 문장이나 작은 표로 표현한다. 별도 그래프 필드는 생성·렌더링하지 않는다.
-- 사실을 되풀이하지 않고 합류 타이밍·팀원 수준·시장 및 사업의 미래를 해석하는 Harper의 생각
-- Profile·전체 Search Brief·확인된 Memory의 명시적 사실을 회사의 구체적 기회와 연결한 `Harper의 생각`, `커리어 가치`, `Risks & Fit`. 개인 context가 없으면 일반 Harper 관점만 표시하고 나머지 개인화 섹션은 생략한다.
+- 회사의 정체와 단계에 맞게 실제 합류자가 궁금해할 신호를 고른다.
+- 객관적인 회사 설명을 먼저 이해시키고, 뒤에서 좋은 회사인지·지금 갈 시점인지·이 팀원에게 맞는지를 구분해 판단한다.
+- 성장과 변화는 날짜·단위·구체적 사건으로 체감되게 설명한다.
+- Profile·전체 Search Brief·confirmed Memory를 현재 경력, 2~3년 뒤 이력서, 역량 전이, 경로 의존성, 현실적인 다음 선택지와 연결한다.
+- Markdown은 내용을 더 잘 이해시키는 만큼만 자율적으로 사용한다. 제목이나 `##` 섹션은 필수가 아니다.
 
 면접 질문, 질문 목록, 포괄적 실사 체크리스트는 생성하지 않는다. 모든 회사에 같은 항목을 강제로 채우지 않는다. 근거가 약한 단정은 생략하되 합류 판단을 바꾸는 구체적인 미확인 사항은 표시한다. 출처 ID와 신뢰도 경고도 화면에 노출하지 않는다. 개인화는 프로필의 각 사실을 회사와 기계적으로 짝짓는 작업이 아니다. 현재 경력과 현실적인 대안에 비해 무엇이 추가되거나 약해지는지를 판단하며, 당연한 지역·언어 일치와 기존 역량 재진술은 장점으로 쓰지 않는다.
 
@@ -108,7 +115,7 @@ runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행�
 7. Harper의 관점·합류 타이밍·생각지 못한 커리어 레버리지
 8. 경로 의존성·역량 전이 가능성·현실적인 다음 선택지의 구체성·정직성
 
-배포 전 gate는 평균 13/16 이상, 모든 사례 11/16 이상, critical failure 0건을 기본으로 한다. latency는 계속 기록하되 30초 초과만으로 질적 실패 처리하지 않는다. critical failure에는 회사 오식별, 출처에 없는 핵심 수치·사실 단정, 개인 정보 외부 전송, 빈/깨진 출력, 출처 URL과 보고서 인용의 구조적 불일치, 면접 질문 또는 포괄적 체크리스트 렌더링이 포함된다.
+배포 전 gate는 평균 13/16 이상, 모든 사례 11/16 이상, critical failure 0건을 기본으로 한다. latency는 계속 기록하되 30초 초과만으로 질적 실패 처리하지 않는다. critical failure에는 회사 오식별, 출처에 없는 핵심 수치·사실 단정, 승인된 합성 평가 범위 밖의 실제 개인정보 전송, 빈/깨진 출력, 출처 URL과 보고서 인용의 구조적 불일치, 면접 질문 또는 포괄적 체크리스트 렌더링이 포함된다.
 
 ## 이전 v1 출력 계약의 진단 결과
 
@@ -186,8 +193,9 @@ runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행�
 ## 개인정보와 외부 전송
 
 - production 캡처는 Supabase REST `GET`으로 `company_snapshot.company_name`, `created_at`, `status`만 읽었다.
-- 사용자 ID, 대화, 이력, Brief, Memory, 기존 LLM 출력은 조회·저장·전송하지 않았다.
-- 외부 전송 대상은 공개 회사명, 합성 talent context, 공개 웹 검색 결과뿐이다.
+- runner는 사용자 ID, 실제 대화, 실제 이력, 실제 Brief, 실제 Memory, 기존 production LLM 출력을 조회·저장·전송하지 않는다.
+- 외부 전송 대상은 공개 회사명, frozen fixture의 합성 reason/context, 공개 웹 검색 결과뿐이다. Terra가 합성 context를 검색어에 활용하면 해당 query도 Exa에 전달될 수 있다.
+- production runtime은 사용자가 회사 판단을 위해 제공한 Profile·Brief·Memory를 Terra에 전달하며, Terra는 그 맥락이 검색 품질을 높인다고 판단할 때 Exa query에 사용할 수 있다. 완성 글과 개인 맥락은 공유 회사 cache에 저장하지 않는다.
 - API key는 artifact에 기록하지 않는다.
 - raw model output과 원문 보고서는 gitignored `runs/`에만 두고 owner-only 권한을 사용한다.
 
@@ -203,6 +211,7 @@ runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행�
 
 | 날짜 | 주요 변경 |
 | --- | --- |
+| 2026-09-23 | schema v8: 기본 Exa 검색 3개 병렬 실행 후 Profile·Brief·Memory와 함께 Terra high의 단일 자율 tool loop에서 고정 필드 없는 Markdown 전체 작성; 전체 7건 gate는 미실행 |
 | 2026-09-21 | schema v7: 미래 경력·전이 가능성·선택지 중심 판단, 개인화 Terra high, 장식 그래프 제거, 문서 본문 화면과 밑줄 지원; 합성 challenge 2건 진단 |
 | 2026-09-21 | 합류 판단 질문형 구성·세 개인화 섹션·비공개 문서 저장과 미리보기 추가; Speechify/Cognite 진단 및 로컬 브라우저 동작 확인, 전체 5건 gate는 미재평가 |
 | 2026-09-18 | 개인 context가 없으면 개인화 섹션을 생략하고, context가 있으면 Profile·전체 Search Brief·confirmed Memory의 명시적 사실과 회사 기회를 직접 연결하도록 계약·검증 보강 |

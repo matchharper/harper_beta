@@ -30,9 +30,30 @@ const opportunityConstraintMigration = readFileSync(
   ),
   "utf8"
 );
+const matchingReviewMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260921190000_matching_review_route_decisions.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
+const onDemandSearchMigration = readFileSync(
+  new URL(
+    "../../../supabase/migrations/20260921210000_on_demand_company_matching_search.sql",
+    import.meta.url
+  ),
+  "utf8"
+);
 const deliveryRoute = readFileSync(
   new URL(
     "../../app/api/internal/company-first/deliver/route.ts",
+    import.meta.url
+  ),
+  "utf8"
+);
+const resultNoticeRoute = readFileSync(
+  new URL(
+    "../../app/api/internal/company-first/result-notice/route.ts",
     import.meta.url
   ),
   "utf8"
@@ -199,6 +220,64 @@ test("keeps new selection and outbox tables service-only", () => {
   );
 });
 
+test("queues explicit company matching requests through the durable worker run table", () => {
+  assert.match(
+    onDemandSearchMigration,
+    /add column if not exists requested_role_ids uuid\[\]/
+  );
+  assert.match(
+    onDemandSearchMigration,
+    /create or replace function public\.enqueue_company_matching_search_v1/
+  );
+  assert.match(onDemandSearchMigration, /company_user_workspace/);
+  assert.match(onDemandSearchMigration, /company_matching_enqueue:/);
+  assert.match(
+    onDemandSearchMigration,
+    /trigger_reason = 'company_requested'/
+  );
+  assert.match(
+    onDemandSearchMigration,
+    /'company_matching_run_contract_v3'/
+  );
+  assert.match(
+    onDemandSearchMigration,
+    /revoke all on function public\.enqueue_company_matching_search_v1[\s\S]*from public, anon, authenticated/
+  );
+  assert.match(
+    onDemandSearchMigration,
+    /grant execute on function public\.enqueue_company_matching_search_v1[\s\S]*to service_role/
+  );
+});
+
+test("replaces the legacy matching review with compact route decisions", () => {
+  assert.match(
+    matchingReviewMigration,
+    /drop table if exists public\.talent_opportunity_matching_review/
+  );
+  for (const column of [
+    "run_id",
+    "talent_id",
+    "opportunity_id",
+    "decision",
+    "reason",
+    "criteria_evaluations",
+    "input_fingerprint",
+    "discovery_run_id",
+    "reviewed_at",
+  ]) {
+    assert.match(matchingReviewMigration, new RegExp(`\\b${column}\\b`));
+  }
+  assert.doesNotMatch(matchingReviewMigration, /decision[^;]+check/i);
+  assert.match(
+    matchingReviewMigration,
+    /revoke all on table public\.talent_opportunity_matching_review[\s\S]*from public, anon, authenticated/
+  );
+  assert.match(
+    matchingReviewMigration,
+    /grant select, insert, update, delete on table public\.talent_opportunity_matching_review[\s\S]*to service_role/
+  );
+});
+
 test("blocks ordinary company actions until the requested introduction is connected", () => {
   assert.match(
     companyTalentRequestServer,
@@ -220,6 +299,18 @@ test("Slack delivery is authenticated, state-checked, and idempotently addressed
   assert.match(deliveryRoute, /idempotencyKey: row\.idempotency_key/);
   assert.match(deliveryRoute, /channelId: channel\.slack_channel_id/);
   assert.match(deliveryRoute, /recordConversationMessage: true/);
+});
+
+test("routes every explicit search outcome through the company-side LLM", () => {
+  assert.match(resultNoticeRoute, /requireInternalWorkerSecret\(req\)/);
+  assert.match(resultNoticeRoute, /buildCompanyMatchingResultContext/);
+  assert.match(resultNoticeRoute, /generateOrgAgentBackgroundResultReply/);
+  assert.match(resultNoticeRoute, /companyMatchingSearchResult/);
+  assert.match(resultNoticeRoute, /sendHarperWorkspaceSlackMessage/);
+  assert.doesNotMatch(
+    resultNoticeRoute,
+    /message\s*=\s*["'`]탐색 결과가 없습니다/
+  );
 });
 
 test("routes Company-first acceptance through the canonical closure guard", () => {

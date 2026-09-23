@@ -1,7 +1,8 @@
 # 회사 선확인 후보자 추천 · 먼저 제안하기 구현 기획
 
-- 문서 기준: 2026-09-17
-- 상태: 구현 전 목표 설계. 이 문서는 현재 production 동작이나 구현 완료를 뜻하지 않는다.
+- 문서 기준: 2026-09-22
+- 상태: 제품 lifecycle은 local 구현되어 있고 shared matching route 결정이 추가됐다. Migration 적용과
+  production 배포 여부는 별도 확인해야 하며 이 문서만으로 production 동작을 주장하지 않는다.
 - 범위: 후보 선정, 회사 노출, `먼저 제안하기`, 후보자 전달, 응답, 연결, 철회까지의 제품·상태 계약
 
 Worker 구현 계약:
@@ -22,15 +23,12 @@ Worker 구현 계약:
 
 ## 1. 이번 기획의 결론
 
-회사 선확인 추천에는 기존 `연결 대기` 앞에 새로운 company-side built-in stage가 필요하다.
-이 문서에서는 내부 stage id를 `company_intro`, 사용자에게 보이는 칼럼명을 `먼저 제안 가능한 후보`로 둔다.
+회사 선확인 추천에는 기존 `연결 대기` 앞에 두 개의 company-side built-in stage가 필요하다.
 
-이 칼럼은 후보자의 한 가지 상태만 뜻하지 않는다. 카드 안의 substatus로 두 순간을 구분한다.
-
-| Substatus | 실제 의미 | 회사의 행동 |
-| --- | --- | --- |
-| `아직 후보자에게 제안하지 않음` | Harper가 회사에 먼저 후보자를 제안했고 후보자는 아직 Role을 보지 않음 | `먼저 제안하기`, `제안하지 않기` |
-| `후보자 답변 대기` | 회사가 연결을 미리 승인했고 Harper가 후보자에게 직접 연결 요청을 보냄 | 기다리기만 가능 |
+| 내부 stage id | 사용자에게 보이는 칼럼 | 실제 의미 | 회사의 행동 |
+| --- | --- | --- | --- |
+| `company_intro` | `먼저 제안 가능한 후보` | Harper가 회사에 먼저 후보자를 제안했고 후보자는 아직 Role을 보지 않음 | `먼저 제안하기`, `제안하지 않기` |
+| `intro_requested` | `Intro Requested` | 회사가 연결을 미리 승인했고 Harper가 후보자에게 직접 연결 요청을 준비했거나 보냄 | 기다리기만 가능 |
 
 핵심 구현 결정은 다음과 같다.
 
@@ -42,7 +40,7 @@ Worker 구현 계약:
    `opportunity_type=intro_request`로 생성한다. 이 순간부터 `/career`에서 후보자에게 보인다.
 4. `먼저 제안하기`를 누를 때 회사는 후보자가 수락한 뒤 들어갈 다음 process stage와 CC 받을
    회사 이메일을 미리 확정한다. 회사의 이 행동은 북마크가 아니라 “수락하면 연결한다”는 약속이다.
-5. `company_intro`에서는 질문, 이력서 요청, 미팅 요청, 인터뷰 전송, 직접 연락, 일반 stage 이동을
+5. `company_intro`와 `intro_requested`에서는 질문, 이력서 요청, 미팅 요청, 인터뷰 전송, 직접 연락, 일반 stage 이동을
    모두 막는다. UI만 숨기는 것이 아니라 모든 server action과 company-side LLM tool이 같은
    capability 판정을 사용한다.
 6. 후보자에게 보내는 메일은 기존 internal recommendation의 final-delivery 구성과 follow-up
@@ -53,10 +51,17 @@ Worker 구현 계약:
 8. 후보자가 탈퇴하거나 `Open to matches`가 아닌 공개 범위로 바꾸거나 회사를 차단하면
    company-side read에서 즉시 사라진다. 비동기 정리 작업이 늦더라도 다시 노출되지 않게 read-time
    guard와 durable cleanup을 함께 둔다.
-9. 한 Worker run에서 Role별 최대 3명을 선택한다. 같은 Talent는 회사 전체에서 한 번만 선택하고, 기존
-   미결정 `ready` 카드가 30명이면 새 자동 run을 시작하지 않는다. 최대값은 quota가 아니다.
-10. Python Worker scheduler가 매주 월요일 오전 9시 KST에 회사 단위 run을 enqueue한다. Query plan,
-    retrieval, scoring, 회사 전체 reranking, Slack 전달의 자세한 계약은 별도 Worker 구현 계획으로 고정한다.
+9. 정기 Worker run에서는 candidate-first와 company-first를 합쳐 Role별 최대 3명을 선택한다. `/org`나
+   Slack의 명시적 `Run Search`로 시작한 run에서는 candidate-first를 만들지 않고 company-first만 Role별
+   최대 6명 선택한다. 명시적 run은 hard 기준을 통과한 검토 가치가 있는 후보가 있으면 가능한 한 이 상한까지
+   선택하되, 명시적 충돌이나 핵심 수행 근거 부족이 있는 후보를 숫자 때문에 포함하지 않는다. 두 경우 모두
+   같은 Talent는 회사 전체에서 한 번만 선택한다.
+   기존 미결정 `ready` 카드가 30명이면 새 run을 시작하지 않는다.
+10. Python Worker scheduler가 매주 월요일 오전 9시 KST에 회사 단위 run을 enqueue한다. 회사가 `/org`나
+    Slack에서 저장된 현재 Hiring Brief로 새 검색을 명시적으로 요청해도 같은 queue에 즉시 회사 단위 run을
+    넣는다. Query plan, retrieval, scoring, 회사 전체 reranking, route persistence와 전달의 자세한 계약은
+    별도 Worker 구현 계획으로 고정한다. Reranker가 candidate-first를 선택하면 이 company-first lifecycle로
+    들어오지 않고 기존 후보자 추천 delivery를 시작한다.
 
 ## 2. 목표 경험
 
@@ -71,7 +76,9 @@ Harper가 회사에 후보자를 먼저 제안
          ├─ 다음 process stage와 CC 수신자 확정
          ├─ 후보자측 intro_request 생성
          ├─ 후보자 메일 즉시 발송
-         └─ 먼저 제안 가능한 후보 / 후보자 답변 대기
+         └─ Intro Requested
+             ├─ 제안 준비 중
+             └─ 후보자 답변 대기
              ├─ 후보자 수락
              │   ├─ 회사와 후보자를 즉시 CC 연결
              │   └─ 미리 정한 process stage로 이동
@@ -105,7 +112,8 @@ trigger다.
 
 | 위치 | 권장 용어 | 의미 |
 | --- | --- | --- |
-| Company pipeline 칼럼 | `먼저 제안 가능한 후보` | Harper가 회사에 먼저 보여준 후보와 이미 요청을 보낸 후보가 모이는 곳 |
+| Company pipeline 칼럼 | `먼저 제안 가능한 후보` | Harper가 회사에 먼저 보여줬지만 아직 제안하지 않은 후보가 모이는 곳 |
+| Company pipeline 칼럼 | `Intro Requested` | 회사가 먼저 제안을 요청했고 전달 준비 또는 후보자 답변을 기다리는 후보가 모이는 곳 |
 | 준비된 카드 상태 | `아직 후보자에게 제안하지 않음` | 후보자는 아직 기회를 받지 않음 |
 | 발송 준비 카드 상태 | `제안 준비 중` | 회사가 제안을 요청했지만 메일은 아직 발송되지 않음 |
 | 발송 후 카드 상태 | `후보자 답변 대기` | 제안 메일이 전달됐고 답을 기다리는 중 |
@@ -113,12 +121,13 @@ trigger다.
 | Secondary action | `제안하지 않기` | 이번 Role로는 후보자에게 제안하지 않음 |
 | Candidate opportunity type | `직접 연결 요청` | 회사가 먼저 관심을 보이고 연결을 요청한 기회 |
 
-Stage label과 카드 상태를 섞지 않는다. `먼저 제안 가능한 후보` 칼럼 안에서도 후보자가 아직 기회를 못 본 카드와
-이미 답변을 기다리는 카드는 badge와 설명으로 분명히 구분한다.
+Stage label과 카드 상태를 섞지 않는다. `먼저 제안 가능한 후보`에는 아직 요청하지 않은 카드만 두고,
+요청한 카드는 `Intro Requested`로 이동한다. 그 안에서 `제안 준비 중`, `후보자 답변 대기`,
+`후보자 수락 · 연결 준비 중`을 badge와 설명으로 구분한다.
 
 ### 3.2 `연결 대기`와의 불변 차이
 
-| 구분 | `먼저 제안 가능한 후보` | `연결 대기` |
+| 구분 | `먼저 제안 가능한 후보` / `Intro Requested` | `연결 대기` |
 | --- | --- | --- |
 | 먼저 긍정한 쪽 | 아직 없음 또는 회사 | 후보자 |
 | 후보자가 Role을 봤는가 | `아직 후보자에게 제안하지 않음`에서는 아니오 | 예 |
@@ -209,9 +218,9 @@ company-safe presentation snapshot을 둘 수 있다. 원본 Brief, Memory, 전�
 
 | 상태 | 의미 | Active board 노출 |
 | --- | --- | --- |
-| `ready` | 회사가 아직 결정하지 않음 | 예, `아직 후보자에게 제안하지 않음` |
-| `awaiting_talent` | 후보자에게 요청을 보냈고 답변 대기 | 예, `후보자 답변 대기` |
-| `connecting` | 후보자 수락이 확정됐고 CC 연결을 재시도 중 | 짧게 표시하거나 연결 준비 상태로 표시 |
+| `ready` | 회사가 아직 결정하지 않음 | `먼저 제안 가능한 후보` · `아직 후보자에게 제안하지 않음` |
+| `awaiting_talent` | 후보자에게 요청을 보냈고 답변 대기 | `Intro Requested` · `제안 준비 중` 또는 `후보자 답변 대기` |
+| `connecting` | 후보자 수락이 확정됐고 CC 연결을 재시도 중 | `Intro Requested` · `후보자 수락 · 연결 준비 중` |
 | `connected` | warm intro 발송과 normal stage handoff 완료 | 먼저 제안 가능한 후보 칼럼에서는 아니오 |
 | `passed` | 회사가 제안하지 않기로 결정 | 아니오 |
 | `closed` | 후보자 거절, 무응답, Role 종료, privacy 철회 등 | 아니오 |
@@ -241,11 +250,16 @@ company-safe presentation snapshot을 둘 수 있다. 원본 Brief, Memory, 전�
 
 ### 6.1 수량
 
-- 한 run에서 Role별 신규 `company_intro`는 최대 3명이다.
+- 정기 run의 두 actionable route 합산은 Role별 최대 3명이다.
+- 명시적 `Run Search` run은 `company_first | no_action`만 결정하며, Role별 신규 `company_intro`는 최대
+  6명이다. 이 run에서 candidate-first 추천은 만들지 않는다.
 - 같은 talent를 같은 회사의 여러 Role에 중복 노출하지 않는다.
-- Role별 3명은 quota가 아니며 0명도 정상이다.
-- 세 명을 채우기 위해 약한 후보를 포함하지 않는다.
-- 회사가 아직 피드백하지 않은 `ready` unique Talent가 30명이면 자동 run을 생략한다.
+- 정기 run의 상한은 quota가 아니며 0명도 정상이다. 명시적 run은 구조적 하한과 hard guard를 통과한 후보 중
+  Role에 실질적으로 맞고 회사가 검토할 가치가 있는 사람이 6명 이상이면 가장 강한 6명을, 6명보다 적으면
+  가능한 후보를 모두 선택하는 것을 목표로 한다.
+- 명시적 run도 hard conflict나 핵심 수행 근거 부족이 있는 후보를 숫자 때문에 포함하지 않는다. 반대로 더
+  이상적인 가상의 후보와 비교하거나 비핵심 정보의 불확실성만으로 빈자리를 남기지 않는다.
+- 회사가 아직 피드백하지 않은 `ready` unique Talent가 30명이면 정기·명시적 새 run을 시작하지 않는다.
 - 이번 run의 회사 전체 신규 수는 `30 - 현재 ready unique Talent 수`를 넘지 않는다.
 - `awaiting_talent`와 `connecting`은 회사 피드백이 이미 있었으므로 30명 gate에는 포함하지 않지만,
   active route와 후보자 연락 정책에는 계속 포함한다.
@@ -253,7 +267,10 @@ company-safe presentation snapshot을 둘 수 있다. 원본 Brief, Memory, 전�
 ### 6.2 기본 자격
 
 - active이고 만료되지 않은 실제 internal Role
-- `company_internal_roles.is_company_first_search=true`인 Role
+- 정기 run에서는 `company_internal_roles.is_company_first_search=true`인 Role. 회사가 특정 Role의 현재
+  Hiring Brief로 검색을 명시적으로 요청한 run에서는 그 Role을 이번 한 번의 대상에 포함하되 정기 실행
+  설정 자체를 바꾸지는 않음. 이 flag를 나중에 끄더라도 이미 만들어진 후보 카드나 진행 중인 Intro를
+  닫지는 않고, Role 종료·만료와 privacy 같은 실제 수명주기 조건만 적용함
 - active company Slack integration과 해당 Role에 전달 가능한 enabled channel이 있음
 - 현재 `연결 대기` unique Talent가 `max_pending_talents` 미만
 - `testOnly`가 아닌 Role과 일반 production Talent
@@ -262,12 +279,14 @@ company-safe presentation snapshot을 둘 수 있다. 원본 Brief, Memory, 전�
 - `get_internal_recommendation`을 명시적으로 끄지 않은 Talent
 - 후보자가 차단한 회사가 아님
 - 명시적인 hard constraint와 현재 Role 조건이 충돌하지 않음
-- exact pair 또는 실질적으로 같은 기회에 active recommendation, company request, pipeline, intro가 없음
+- 동일 Role–Talent pair에 `talent_opportunity_recommendation` 행이 없음. 같은 회사의 다른 Role 추천 이력은
+  이 조건으로 제외하지 않음
+- 기존 회사 단위 guard에 걸리는 company request, pipeline, intro가 없음
 - `candidate_requested_connection`처럼 후보자가 이미 이 기회의 진행을 요청한 active progress가 없음
 - 명시적으로 종료된 exact pair를 새 run만으로 되살리지 않음
 - 응답 가능성 `0 / LOW`가 아님
 
-Mistral, Sierra, Wonderful은 이름 비교가 아니라 확인된 exact workspace id denylist로 정기 자동 실행에서
+Mistral, Sierra, Wonderful은 이름 비교가 아니라 확인된 exact workspace id denylist로 production search에서
 제외한다. 수동 shadow 평가 여부는 별도 명시적 scope로만 정한다.
 
 `exceptional_only`는 후보자가 먼저 회사·Role을 보고 허용해야 하므로 company-first 자동 노출 대상이
@@ -284,6 +303,11 @@ recommendation row가 아직 없더라도 회사 선확인 후보로 바꾸지 �
 3. 후보자에게도 이 회사·Role을 제안할 합리적인 이유가 있는가
 4. 남은 불확실성을 회사가 먼저 판단하거나 조건을 열어 주는 편이 유용한가
 5. 지금 company-first로 두는 것이 기존 candidate-first 흐름을 지연하거나 중복시키지 않는가
+
+기존 fit은 route 자체는 아니지만 같은 Profile·Search Brief·Behavior Context·Role을 본 canonical
+평가이므로 scorer의 강한 prior로 함께 넣는다. 현재 입력과 양립하면 적극 재사용하고, 최신 사실과 충돌할
+때만 새 판단으로 바꾼다. Matching Worker는 이 과정에서 `talent_opportunity_fit`을 수정하거나 추가하지
+않는다.
 
 강한 fit 후보를 전부 제외하면 이 칼럼에는 애매한 사람만 남는다. 따라서 strong anchor도 포함할 수
 있다. 반대로 `recommend=false`, hold, 애매함만으로 자동 company-first 대상이 되지는 않는다.
@@ -306,34 +330,40 @@ Strong anchor를 company-first로 보내려면 “좋은 후보”라는 사실 
 
 ### 6.5 Candidate-first와의 동시성
 
-Company-first는 매주 월요일 오전 9시 KST에 별도 회사 단위 Worker로 실행되므로 모든 candidate-first
-추천보다 항상 먼저 실행된다고 가정하지 않는다. 대신 fit 판단값과 실제 route를 분리한다.
+Company-first는 매주 월요일 오전 9시 KST 또는 회사의 명시적 요청 뒤 별도 회사 단위 Worker로 실행되므로
+모든 candidate-first 추천보다 항상 먼저 실행된다고 가정하지 않는다. 대신 fit 판단값과 실제 route를
+분리한다.
 
 1. `talent_opportunity_fit.recommend=true`만으로 좋은 후보를 retrieval에서 제외하지 않는다.
-2. 후보자에게 실제 recommendation이 생겼거나 candidate-origin progress가 있으면 company-first에서
-   제외한다.
+2. 동일 Role에 실제 recommendation이 생겼으면 그 Role–Talent pair를 제외한다. 같은 회사의 다른 Role
+   recommendation만으로 Talent 전체를 제외하지 않는다. Candidate-origin progress 등 기존 회사 단위
+   route가 있으면 Talent를 새 shared matching route 대상에서 제외한다.
 3. Final commit 직전에 latest route를 다시 확인한다.
 4. Company-first ready와 candidate-first recommendation 생성 경로가 같은 transaction lock과 guard를
    사용해 둘 중 하나만 성공하게 한다.
-5. Company-first가 먼저 ready를 확정하면 candidate-first selector가 건너뛰고, candidate-first가 먼저
-   실제 route를 만들면 이번 company-first selected pair를 제외한다.
+5. Reranker가 candidate-first를 고르면 기존 Opportunity Worker의 forced single internal Role delivery를
+   enqueue하고, company-first를 고르면 ready를 확정한다.
+6. Company-first가 먼저 ready를 확정하면 다른 candidate-first selector가 건너뛰고, candidate-first가 먼저
+   실제 route를 만들면 이번 company-first pair를 제외한다.
 
-Rerank 뒤 route conflict가 생긴 slot을 약한 후보로 자동 보충하지 않는다. 이를 위해 별도 route enum이나
-중간 판단 테이블을 추가하지 않고, 실제 `company_intro` ledger 또는 candidate recommendation의 존재만
-durable route로 사용한다.
+Rerank 뒤 route conflict가 생긴 slot을 약한 후보로 자동 보충하지 않는다. Final rerank 판단은 compact
+`talent_opportunity_matching_review`에 `candidate_first | company_first | no_action`으로 남기지만, 이것을
+active route 원장으로 쓰지는 않는다. 실제 active route는 `company_intro` ledger 또는 candidate
+recommendation이 정본이다.
 
 ## 7. Company pipeline과 board 구현
 
 ### 7.1 새 built-in stage
 
-`OrgBuiltInStageId`에 `company_intro`를 추가하고 sort order를 `연결 대기`보다 앞에 둔다.
+`OrgBuiltInStageId`에 `company_intro`와 `intro_requested`를 추가하고 sort order를 `연결 대기`보다 앞에 둔다.
 
 ```text
-먼저 제안 가능한 후보 → 연결 대기 → 기존 진행 stage들 → 최종 제안 → 프로세스 종료
+먼저 제안 가능한 후보 → Intro Requested → 연결 대기 → 기존 진행 stage들 → 최종 제안 → 프로세스 종료
 ```
 
-단, 이 화살표는 카드가 반드시 `연결 대기`를 거친다는 뜻이 아니다. 후보자 수락 시 저장된 회사
-승인을 이미 가지고 있으므로 먼저 제안 가능한 후보에서 지정 custom stage로 바로 handoff한다.
+단, 이 배치 순서는 모든 카드가 `연결 대기`를 거친다는 뜻이 아니다. Company-first 카드는
+`먼저 제안 가능한 후보`에서 회사가 요청하면 `Intro Requested`로 이동하고, 후보자 수락 시 저장된 회사
+승인을 이미 가지고 있으므로 지정 custom stage로 바로 handoff한다.
 
 ### 7.2 Board item을 discriminator로 구분한다
 
@@ -388,8 +418,9 @@ projection을 사용한다. 화면에서 숨기기만 하고 API가 반환하는
 - Primary: `먼저 제안하기`
 - Secondary: `제안하지 않기`
 
-`awaiting_talent` 카드에는 decision 버튼을 표시하지 않고, 발송 시각과 `후보자 답변 대기`만 보여준다.
-`connecting`이면 회사가 다시 판단하는 버튼 대신 `연결 준비 중`과 실제 발송 재시도 상태를 보여준다.
+`awaiting_talent` 카드는 `Intro Requested` 칼럼에 두고 decision 버튼을 표시하지 않는다. 실제 발송 전에는
+`제안 준비 중`, 발송 뒤에는 `후보자 답변 대기`를 보여준다. `connecting`도 같은 칼럼에서 회사가 다시
+판단하는 버튼 대신 `후보자 수락 · 연결 준비 중`과 실제 발송 재시도 상태를 보여준다.
 
 다음 요소는 `company_intro` 전체에서 노출하지 않는다.
 
@@ -412,7 +443,7 @@ Drag는 stage mutation이 아니라 회사의 의도를 시작하는 shortcut으
   drop하지 못한다.
 - 종료·archive 방향으로 drag하면 `제안하지 않기` 확인으로 해석할 수 있다. `프로세스 종료` stage tag를
   쓰지는 않는다. 아직 후보자 프로세스가 시작되지 않았기 때문이다.
-- `awaiting_talent`과 `connecting` 카드는 drag할 수 없다.
+- `Intro Requested`의 `awaiting_talent`과 `connecting` 카드는 drag할 수 없다.
 
 권장 안내 의미:
 
@@ -764,7 +795,7 @@ Company-side LLM이 normal pipeline candidate와 `company_intro`를 구분할 �
 Stage 이름을 각 component와 tool에서 제각각 검사하지 않는다. server가 candidate state에서 다음
 capability를 한 번 계산하고 UI와 company-side LLM tool이 같은 결과를 사용한다.
 
-| Capability | `company_intro/ready` | `company_intro/awaiting_talent` | Normal pipeline |
+| Capability | `company_intro/ready` | `intro_requested/awaiting_talent·connecting` | Normal pipeline |
 | --- | --- | --- | --- |
 | 먼저 제안하기 | 예 | 아니오 | 아니오 |
 | 제안하지 않기 | 예 | 아니오 | 기존 상태에 따름 |
@@ -813,7 +844,7 @@ Company-side LLM은 기존 high-impact confirmation 흐름을 사용해 사용�
 - 새 후보가 생겼다는 알림은 후보 수와 회사가 해야 할 행동을 먼저 말한다.
 - 후보자가 아직 Role을 보지 않았다는 사실을 숨기지 않는다.
 - `먼저 제안하기`와 `제안하지 않기`는 web과 Slack에서 같은 의미와 같은 server command를 사용한다.
-- `먼저 제안하기` 후에는 후보자 답변 대기로 표시하고 같은 결정을 재촉하지 않는다.
+- `먼저 제안하기` 후에는 `Intro Requested`로 이동해 실제 전달 상태를 표시하고 같은 결정을 재촉하지 않는다.
 - 후보자 수락 시 warm intro가 발송되고 next stage로 이동했다는 실제 결과만 알린다.
 - 후보자 거절·무응답·요청 불가 시 그 outcome만 알리고 private reason을 추측하지 않는다.
 
@@ -826,7 +857,8 @@ web, Slack, company-side LLM의 의미를 맞춘다.
 
 한 pair에는 한 시점에 하나의 active route만 둔다.
 
-- 후보자에게 이미 internal recommendation이 전달됐으면 새 company-first 카드로 만들지 않는다.
+- 후보자에게 동일 Role의 internal recommendation 행이 이미 있으면 새 company-first 카드로 만들지 않는다.
+  같은 회사의 다른 Role recommendation 이력만으로는 이 pair를 막지 않는다.
 - company-first `ready`인 동안 candidate-first delivery가 같은 pair를 선점하지 않는다.
 - 먼저 제안하기 뒤에는 formal `intro_request`가 정본이며 기존 internal recommendation을 새로 만들지 않는다.
 - 회사 제안하지 않기와 후보자 거절은 exact pair의 명시적 terminal evidence다. 단순 새 run으로 되살리지 않는다.
@@ -859,7 +891,7 @@ web, Slack, company-side LLM의 의미를 맞춘다.
   - company intro용 redacted profile read
   - normal recommendation과 active intro의 duplicate suppression
 - `src/lib/org/pipelineStage.ts`
-  - `company_intro` label과 waiting bucket
+  - `company_intro`, `intro_requested` label과 서로 분리된 summary bucket
 - `src/components/org/OrgCandidateCard.tsx`
   - substatus와 `먼저 제안하기` / `제안하지 않기`
 - `src/components/org/OrgRoleTalentBoard.tsx`, `OrgPipeline.tsx`
@@ -969,7 +1001,7 @@ Candidate outbound는 아직 shadow/mock transport로 검증할 수 있다.
 - 새 카드에서 두 action만 보인다.
 - custom stage로 drag하면 card가 먼저 움직이지 않고 먼저 제안하기 dialog가 열린다.
 - 먼저 제안하기 버튼 경로에서도 next stage를 선택·생성해야 한다.
-- 발송 뒤 같은 칼럼에 `후보자 답변 대기`로 남는다.
+- 먼저 제안하기 직후 `Intro Requested`로 이동하고, 발송 뒤 `후보자 답변 대기`로 표시된다.
 - Company-side LLM이 후보자 관심을 잘못 확정하거나 질문·인터뷰 action을 실행하지 않는다.
 
 ### 20.4 Candidate UX
@@ -1023,18 +1055,18 @@ privacy guard가 함께 좋아져야 한다.
 
 | 질문 | 결정 |
 | --- | --- |
-| 새 stage가 필요한가 | 예. 내부 id `company_intro`, UI `먼저 제안 가능한 후보` |
+| 새 stage가 필요한가 | 예. `company_intro`=`먼저 제안 가능한 후보`, `intro_requested`=`Intro Requested` |
 | 회사 선노출 시 recommendation을 만들까 | 아니오. 전용 ledger만 생성 |
 | 언제 intro_request recommendation을 만들까 | 회사가 먼저 제안하기를 확정할 때 |
 | 이 stage에서 가능한 action | `먼저 제안하기`, `제안하지 않기`만 |
-| 먼저 제안하기 뒤 board에서 사라질까 | 아니오. 같은 칼럼에서 후보자 답변 대기로 유지 |
+| 먼저 제안하기 뒤 board에서 사라질까 | 아니오. `Intro Requested`로 이동해 전달·답변 상태를 표시 |
 | 후보자 수락 뒤 연결 대기에 둘까 | 아니오. 기존 warm intro를 실행하고 저장된 next stage로 이동 |
 | next stage는 언제 정할까 | 먼저 제안하기 전에 회사가 선택·생성 |
 | follow-up은 새로 만들까 | 기존 internal recommendation policy와 machinery를 재사용하고 copy만 origin-aware하게 함 |
 | 공개 범위가 바뀌면 | company read 즉시 숨김 + outbox/follow-up durable cleanup |
-| 최대 몇 명인가 | Role별 run 최대 3명, 회사 내 Talent 중복 금지, unresolved ready 30명 hard gate, quota 아님 |
+| 최대 몇 명인가 | 정기 run은 두 actionable route 합산 Role별 최대 3명. 명시적 `Run Search`는 company-first만 Role별 최대 6명을 목표로 하되 hard conflict·핵심 수행 근거 부족 후보는 포함하지 않음. 회사 내 Talent 중복 금지, unresolved ready 30명 hard gate |
 | candidate-first와 어느 쪽이 먼저인가 | 고정 선후관계를 가정하지 않고 shared transaction guard에서 실제 route 하나만 확정 |
-| 언제 실행하는가 | Python Worker scheduler가 매주 월요일 오전 9시 KST에 회사 단위로 enqueue |
+| 언제 실행하는가 | 매주 월요일 오전 9시 KST 정기 enqueue 또는 `/org`·Slack의 명시적 현재-Brief 검색 요청 직후 같은 회사 단위 queue에 enqueue |
 
 ### 22.2 나중에 정할 것
 
@@ -1046,7 +1078,8 @@ privacy guard가 함께 좋아져야 한다.
 
 - 회사 interaction을 늘리기 위해 fit bar를 낮추지 않는다.
 - `recommend=false`나 애매한 후보의 배출구로 만들지 않는다.
-- 정확히 세 명을 채우지 않는다.
+- 정기 run은 세 명을 억지로 채우지 않는다. 명시적 run은 가능한 후보를 여섯 명까지 적극 선택하되,
+  점수 순 자동 padding으로 hard conflict나 핵심 수행 근거 부족 후보를 포함하지 않는다.
 - 회사에 보이기만 한 후보를 candidate recommendation으로 저장하지 않는다.
 - hidden recommendation row를 만들고 모든 candidate reader가 잘 숨겨 주기를 기대하지 않는다.
 - `company_talent_requests`를 prospect lifecycle로 확장하지 않는다.

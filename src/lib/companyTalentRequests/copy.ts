@@ -77,6 +77,7 @@ async function generateJson(
 
 function validateDraft(args: {
   body: unknown;
+  deliveryIntent: "direct_reply" | "review_draft";
   profileUrl: string | null;
   reason: unknown;
   requestContext: unknown;
@@ -87,11 +88,18 @@ function validateDraft(args: {
     0,
     5_000
   );
-  const requestContext = assertSafeProfessionalQuestion(args.requestContext);
+  const requestContext =
+    args.deliveryIntent === "direct_reply"
+      ? compact(args.requestContext, 800)
+      : assertSafeProfessionalQuestion(args.requestContext);
   const reason = compact(args.reason, 600) || null;
-  if (!subject || !body) throw new Error("Candidate contact copy is empty");
-  assertSafeProfessionalQuestion(body);
-  assertCandidateResumeUploadLink(body, args.profileUrl);
+  if (!subject || !body || !requestContext) {
+    throw new Error("Candidate contact copy is empty");
+  }
+  if (args.deliveryIntent === "review_draft") {
+    assertSafeProfessionalQuestion(body);
+    assertCandidateResumeUploadLink(body, args.profileUrl);
+  }
   return { body, reason, requestContext, subject };
 }
 
@@ -99,6 +107,7 @@ export async function generateCandidateContactDraft(args: {
   candidateName: string;
   companyName: string;
   currentInstruction: string;
+  deliveryIntent?: "direct_reply" | "review_draft";
   kind: "contact" | "question" | "resume";
   locale: string | null;
   profileUrl: string | null;
@@ -107,13 +116,19 @@ export async function generateCandidateContactDraft(args: {
   requestId: string;
   roleName: string;
 }) {
-  const requestContext = assertSafeProfessionalQuestion(args.requestContext);
+  const deliveryIntent = args.deliveryIntent ?? "review_draft";
+  const requestContext =
+    deliveryIntent === "direct_reply"
+      ? compact(args.requestContext, 800)
+      : assertSafeProfessionalQuestion(args.requestContext);
+  if (!requestContext) throw new Error("Candidate contact context is empty");
   try {
     const parsed = await generateJson(
       buildCandidateContactDraftMessages({
         candidateName: args.candidateName,
         companyName: args.companyName,
         currentInstruction: args.currentInstruction,
+        deliveryIntent: args.deliveryIntent,
         kind: args.kind,
         profileUrl: args.profileUrl,
         recentConversation: args.recentConversation,
@@ -124,6 +139,7 @@ export async function generateCandidateContactDraft(args: {
     );
     return validateDraft({
       body: parsed.body,
+      deliveryIntent,
       profileUrl: args.profileUrl,
       reason: parsed.reason,
       requestContext: parsed.requestContext || requestContext,
@@ -162,6 +178,7 @@ export async function reviseCandidateContactDraft(args: {
     );
     return validateDraft({
       body: parsed.body,
+      deliveryIntent: "review_draft",
       profileUrl: args.profileUrl,
       reason: parsed.reason,
       requestContext: parsed.requestContext || args.current.requestContext,

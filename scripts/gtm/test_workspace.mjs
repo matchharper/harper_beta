@@ -186,6 +186,15 @@ try {
     await db.exec(removeTokensMigration);
     await db.exec(serviceRoleMigration);
   }
+  await db.exec(
+    fs.readFileSync(
+      path.join(
+        root,
+        "supabase/migrations/20260922061003_fix_gtm_reply_matching_recovery.sql"
+      ),
+      "utf8"
+    )
+  );
   await db.query(
     "select set_config('request.jwt.claim.role','anon',false)"
   );
@@ -895,6 +904,75 @@ try {
         )
       ).rows[0].value.some((r) => r.activity_id === received.activity_id)
     );
+    const headerlessReply = (
+      await db.query(`select public.gtm_outreach_ingest_gmail_reply(
+        'harper@matchharper.com',
+        'received-headerless-fixture',
+        'new-thread-fixture',
+        'workflow@example.test',
+        'harper@matchharper.com',
+        'RE: 직접 작성한 메일',
+        '헤더 없이 새 메일로 보낸 답장입니다.',
+        now(),
+        '<headerless@creator.test>',
+        null,
+        null
+      ) value`)
+    ).rows[0].value;
+    check(
+      headerlessReply.matched &&
+        headerlessReply.match_strategy === "sender_subject"
+    );
+    const managerReply = (
+      await db.query(`select public.gtm_outreach_ingest_gmail_reply(
+        'harper@matchharper.com',
+        'received-manager-fixture',
+        'manager-thread-fixture',
+        'manager@agency.test',
+        'harper@matchharper.com',
+        'Re: 직접 작성한 메일',
+        '담당 매니저가 대신 회신합니다.',
+        now(),
+        '<manager@agency.test>',
+        '<manual@resend.test>',
+        '<manual@resend.test>'
+      ) value`)
+    ).rows[0].value;
+    check(
+      managerReply.matched && managerReply.match_strategy === "message_identity"
+    );
+    const unrelatedReply = (
+      await db.query(`select public.gtm_outreach_ingest_gmail_reply(
+        'harper@matchharper.com',
+        'received-unrelated-fixture',
+        'unrelated-thread-fixture',
+        'stranger@example.test',
+        'harper@matchharper.com',
+        'Re: 직접 작성한 메일',
+        '연결 근거가 없는 메일입니다.',
+        now(),
+        '<unrelated@example.test>',
+        null,
+        null
+      ) value`)
+    ).rows[0].value;
+    check(!unrelatedReply.matched);
+    const wrongRecipientReply = (
+      await db.query(`select public.gtm_outreach_ingest_gmail_reply(
+        'harper@matchharper.com',
+        'received-wrong-recipient-fixture',
+        'wrong-recipient-thread-fixture',
+        'manager@agency.test',
+        'someone-else@example.test',
+        'Re: 직접 작성한 메일',
+        'Harper 메일함으로 온 메일이 아닙니다.',
+        now(),
+        '<wrong-recipient@example.test>',
+        '<manual@resend.test>',
+        '<manual@resend.test>'
+      ) value`)
+    ).rows[0].value;
+    check(!wrongRecipientReply.matched);
     await db.query(
       "insert into public.gtm_outreach_mailboxes(email) values('mailbox@example.test')"
     );
@@ -961,6 +1039,25 @@ try {
       fallbackSent.provider === "resend" &&
         fallbackSent.provider_rfc_message_id === null &&
         fallbackSent.provider_thread_id === null
+    );
+    const ambiguousHeaderlessReply = (
+      await db.query(`select public.gtm_outreach_ingest_gmail_reply(
+        'harper@matchharper.com',
+        'received-ambiguous-fixture',
+        'ambiguous-thread-fixture',
+        'workflow@example.test',
+        'harper@matchharper.com',
+        'Re: 직접 작성한 메일',
+        '같은 제목의 발송 건이 둘이라 자동 연결하면 안 됩니다.',
+        now(),
+        '<ambiguous@creator.test>',
+        null,
+        null
+      ) value`)
+    ).rows[0].value;
+    check(
+      !ambiguousHeaderlessReply.matched &&
+        ambiguousHeaderlessReply.reason === "ambiguous_subject"
     );
     await api("review_outreach", {
       source: "review",

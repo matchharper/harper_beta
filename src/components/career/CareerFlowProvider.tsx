@@ -74,6 +74,8 @@ import {
   type CareerConversationStarterMode,
 } from "@/lib/career/prompts/conversationStarters";
 import { CAREER_CHAT_ALLOWED_TOOLS_BY_ACTION } from "@/lib/career/chatToolPresets";
+import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
+import type { CareerCoachingActivityUiAction } from "./chat/CareerCoachingActivityCard";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -382,6 +384,15 @@ export const CareerFlowProvider = ({
     },
     []
   );
+  const careerCoachingCallReadyRef = useRef<
+    ((activity: CareerCoachingActivity) => Promise<void>) | null
+  >(null);
+  const handleCareerCoachingCallReady = useCallback(
+    async (activity: CareerCoachingActivity) => {
+      await careerCoachingCallReadyRef.current?.(activity);
+    },
+    []
+  );
 
   const {
     stage,
@@ -410,6 +421,7 @@ export const CareerFlowProvider = ({
     conversationId,
     sessionPending: chatSessionPending,
     fetchWithAuth,
+    onCareerCoachingCallReady: handleCareerCoachingCallReady,
     persistedMessages,
     onOpportunityRunChanged: setOpportunityRun,
     onOpportunityRecommendationsChanged:
@@ -497,10 +509,7 @@ export const CareerFlowProvider = ({
   );
 
   const prepareChatDraft = useCallback(
-    (args: {
-      opportunityMention: CareerOpportunityMention;
-      text: string;
-    }) => {
+    (args: { opportunityMention: CareerOpportunityMention; text: string }) => {
       setPreparedChatDraft({
         ...args,
         key: `history-role-action:${args.opportunityMention.roleId}:${Date.now()}`,
@@ -844,6 +853,12 @@ export const CareerFlowProvider = ({
     async (args: {
       allowedToolNames?: readonly string[];
       channel?: "chat" | "voice";
+      coachingActivityAction?: {
+        action: "start" | "end";
+        activityMessageId: number;
+        channel?: "chat" | "call";
+        expectedRevision: number;
+      };
       conversationStarterId?: CareerConversationStarterId;
       text: string;
       link?: string;
@@ -1169,6 +1184,18 @@ export const CareerFlowProvider = ({
     [clearSessionReengagementAction, handleStartCallMode]
   );
 
+  useEffect(() => {
+    careerCoachingCallReadyRef.current = async (activity) => {
+      await handleStartCallModeFromUi({
+        careerCoachingActivityMessageId: activity.messageId,
+        careerCoachingActivityRevision: activity.revision,
+      });
+    };
+    return () => {
+      careerCoachingCallReadyRef.current = null;
+    };
+  }, [handleStartCallModeFromUi]);
+
   const handleStartConversationStarter = useCallback(
     async (args: {
       mode: CareerConversationStarterMode;
@@ -1177,6 +1204,11 @@ export const CareerFlowProvider = ({
       clearSessionReengagementAction();
       const starter = getCareerConversationStarter(args.starterId, locale);
       if (!starter) return false;
+
+      if (starter.id === "career_coaching") {
+        await sendChatMessage({ text: starter.chatMessage });
+        return true;
+      }
 
       if (args.mode === "call") {
         return handleStartCallModeFromUi({
@@ -1197,6 +1229,44 @@ export const CareerFlowProvider = ({
       locale,
       sendChatMessage,
     ]
+  );
+
+  const handleUpdateCareerCoachingActivity = useCallback(
+    async (args: {
+      action: CareerCoachingActivityUiAction;
+      activity: CareerCoachingActivity;
+    }) => {
+      if (!conversationId) return false;
+      const { action, activity } = args;
+      const isEnglish = locale === "en";
+      const text =
+        action.action === "start"
+          ? isEnglish
+            ? action.channel === "call"
+              ? `I'd like to start this coaching conversation by call: “${activity.topic}”.`
+              : "I'll continue in chat."
+            : action.channel === "call"
+              ? `“${activity.topic}” 주제로 코칭 대화를 통화로 시작할게요.`
+              : "채팅으로 진행할게요."
+          : activity.status === "suggested"
+            ? isEnglish
+              ? "I'll pass on this coaching suggestion for now."
+              : "이 코칭 제안은 지금은 넘길게요."
+            : isEnglish
+              ? "I'd like to finish this coaching conversation here."
+              : "이 코칭 대화는 여기서 마칠게요.";
+      await sendChatMessage({
+        coachingActivityAction: {
+          action: action.action,
+          activityMessageId: activity.messageId,
+          ...(action.action === "start" ? { channel: action.channel } : {}),
+          expectedRevision: activity.revision,
+        },
+        text,
+      });
+      return true;
+    },
+    [conversationId, locale, sendChatMessage]
   );
 
   const handleRequestMoreOpenPositions = useCallback(async () => {
@@ -1896,6 +1966,7 @@ export const CareerFlowProvider = ({
       onPrepareChatDraft: prepareChatDraft,
       onShowSameCompanyRoles: showSameCompanyRoles,
       onStartConversationStarter: handleStartConversationStarter,
+      onUpdateCareerCoachingActivity: handleUpdateCareerCoachingActivity,
       onRunSessionReengagement: handleRunSessionReengagement,
       onUpdateHistoryOpportunityFeedback,
       onDeleteMessage: conversationId ? handleDeleteMessage : undefined,
@@ -1947,6 +2018,7 @@ export const CareerFlowProvider = ({
       handlePauseOnboarding,
       handleStartCallModeFromUi,
       handleStartConversationStarter,
+      handleUpdateCareerCoachingActivity,
       handleSubmitOnboardingInterest,
       handleUseChatOnly,
       inputMode,

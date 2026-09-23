@@ -21,12 +21,17 @@ export function canInitiateOrgCandidateContact(stage: OrgStageId) {
   return (
     !isOrgInternalStage(stage) &&
     stage !== "company_intro" &&
+    stage !== "intro_requested" &&
     stage !== "process_stopped"
   );
 }
 
 export function canCreateOrgCandidateContact(stage: OrgStageId) {
-  return !isOrgInternalStage(stage) && stage !== "company_intro";
+  return (
+    !isOrgInternalStage(stage) &&
+    stage !== "company_intro" &&
+    stage !== "intro_requested"
+  );
 }
 
 type OrgActiveCompanyPosition = {
@@ -73,6 +78,7 @@ export function canStopOrgCandidateProcess(stage: OrgStageId) {
   return (
     !isOrgInternalStage(stage) &&
     stage !== "company_intro" &&
+    stage !== "intro_requested" &&
     stage !== "process_stopped"
   );
 }

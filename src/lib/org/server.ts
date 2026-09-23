@@ -52,7 +52,10 @@ import {
   parseOrgRoleCriteria,
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
-import { normalizeOrgAgentRecommendationIdFilter } from "@/lib/org/pipelineStage";
+import {
+  getOrgCompanyIntroBoardStage,
+  normalizeOrgAgentRecommendationIdFilter,
+} from "@/lib/org/pipelineStage";
 import { chunkOrgBoardFilterValues as chunkValues } from "@/lib/org/chunking";
 import {
   ConnectionConfirmationEmailError,
@@ -320,6 +323,7 @@ export type OrgBuiltInStageId =
   | "accepted"
   | "archived"
   | "company_intro"
+  | "intro_requested"
   | "pending_connection"
   | "connected"
   | "final_offer"
@@ -435,6 +439,7 @@ export type OrgBoardResponse = {
 };
 
 export type OrgCompanyIntroMutationResponse = {
+  agentJobId?: string | null;
   deliveryRunId?: string | null;
   introCandidateId: string;
   ok: true;
@@ -729,7 +734,7 @@ export const ORG_ACCEPTED_TALENTS_PAGE_SIZE = 20;
 const MAX_ORG_ROLE_STAGE_LABEL_LENGTH = 40;
 const INTERNAL_ACCEPTED_STAGE_TAG = "내부:수락";
 const STAGE_TAG_BY_STAGE: Record<
-  Exclude<OrgBuiltInStageId, "company_intro">,
+  Exclude<OrgBuiltInStageId, "company_intro" | "intro_requested">,
   string
 > = {
   accepted: INTERNAL_ACCEPTED_STAGE_TAG,
@@ -1256,6 +1261,7 @@ function buildStageLabel(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "accepted") return "수락";
   if (stage === "archived") return "아카이브";
   if (stage === "company_intro") return "먼저 제안 가능한 후보";
+  if (stage === "intro_requested") return "Intro Requested";
   if (stage === "pending_connection") return "연결 대기";
   if (stage === "connected") return "연결됨";
   if (stage === "final_offer") return "최종 오퍼";
@@ -1282,6 +1288,7 @@ function buildStageDestinationLabel(label: string) {
 function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
   if (stage === "accepted") return -1;
   if (stage === "company_intro") return -0.5;
+  if (stage === "intro_requested") return -0.25;
   if (stage === "pending_connection") return 0;
   if (stage === "connected") return 1;
   if (stage === "final_offer") return 10_000;
@@ -2404,6 +2411,7 @@ function buildBoardStages(args: {
         ]
       : []),
     { id: "company_intro", label: "먼저 제안 가능한 후보", sortOrder: -0.5 },
+    { id: "intro_requested", label: "Intro Requested", sortOrder: -0.25 },
     { id: "pending_connection", label: "연결 대기", sortOrder: 0 },
     { id: "connected", label: "연결됨", sortOrder: 1 },
     ...args.customStages.map((row) => {
@@ -3216,7 +3224,7 @@ export async function fetchOrgBoard(args: {
         roleId: row.role_id,
         roleName: roleById.get(row.role_id)?.name ?? null,
         source: "company_intro",
-        stage: "company_intro",
+        stage: getOrgCompanyIntroBoardStage(row.status),
         stageTag: null,
         talent: {
           ...toBoardTalent(talent, { recentCompanies, recentSchools }),
@@ -3548,7 +3556,7 @@ async function assertNoPendingCompanyIntroCompanyAction(args: {
   if (data) {
     throw new OrgHttpError(
       409,
-      "먼저 제안 가능한 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 먼저 제안하기 또는 제안하지 않기를 선택하고, 제안을 요청했다면 카드에서 진행 상태를 확인해 주세요."
+      "먼저 제안 가능한 후보나 Intro Requested 후보에게 추가로 연락하려면 연결이 완료되어야 합니다. 제안 전에는 먼저 제안하기 또는 제안하지 않기를 선택하고, 제안을 요청했다면 Intro Requested에서 진행 상태를 확인해 주세요."
     );
   }
 }
@@ -3691,10 +3699,7 @@ export async function decideTalentCompanyIntro(args: {
     if (decisionReason === "already_accepted") {
       throw new OrgHttpError(409, "이미 수락되어 연결이 진행 중인 제안입니다.");
     }
-    throw new OrgHttpError(
-      409,
-      "현재는 이 회사의 제안을 처리할 수 없습니다."
-    );
+    throw new OrgHttpError(409, "현재는 이 회사의 제안을 처리할 수 없습니다.");
   }
   const introCandidateId = normalizeText(result.introCandidateId);
   const workspaceId = normalizeText(result.companyWorkspaceId);
@@ -6003,6 +6008,7 @@ export async function fetchOrgTalentDetail(args: {
   const requestedRecommendationId = normalizeNullableText(
     args.recommendationId
   );
+  const requestedRoleId = normalizeNullableText(args.roleId);
   const companyIntroId = requestedRecommendationId?.startsWith(
     COMPANY_INTRO_RECOMMENDATION_PREFIX
   )
@@ -6047,6 +6053,11 @@ export async function fetchOrgTalentDetail(args: {
       activeCompanyIntroQuery = activeCompanyIntroQuery.eq(
         "id",
         companyIntroId
+      );
+    } else if (requestedRoleId) {
+      activeCompanyIntroQuery = activeCompanyIntroQuery.eq(
+        "role_id",
+        requestedRoleId
       );
     }
     const { data, error } = await activeCompanyIntroQuery.maybeSingle();
@@ -6109,7 +6120,7 @@ export async function fetchOrgTalentDetail(args: {
       : await fetchRecommendationForDetail({
           admin,
           recommendationId: requestedRecommendationId,
-          roleId: normalizeNullableText(args.roleId),
+          roleId: requestedRoleId,
           talentId,
         });
   const [detailWorkspace, members, roleRows] = await Promise.all([
@@ -6157,7 +6168,10 @@ export async function fetchOrgTalentDetail(args: {
       }),
     ]);
   const stageInfo = companyIntro
-    ? ({ stage: "company_intro", stageTag: null } as const)
+    ? ({
+        stage: getOrgCompanyIntroBoardStage(companyIntro.status),
+        stageTag: null,
+      } as const)
     : getVisibleOrgStage({
         connectedByOrgAction: connectedRecommendationIds.has(recommendation.id),
         customStageByTagKey: new Map(

@@ -158,6 +158,7 @@ export function OrgPipeline() {
         (stage) =>
           stage.id === "pending_connection" ||
           stage.id === "company_intro" ||
+          stage.id === "intro_requested" ||
           stage.id === "connected" ||
           Boolean(stage.roleId && stage.roleId === activeRoleId)
       ),

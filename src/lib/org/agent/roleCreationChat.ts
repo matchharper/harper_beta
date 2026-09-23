@@ -63,6 +63,11 @@ import {
   lookupAnswerExamples,
 } from "@/lib/serviceAnswerExamples";
 import { OrgHttpError } from "@/lib/org/server";
+import {
+  buildLlmImageMessageContent,
+  type LlmImageInput,
+  type LlmMessageContent,
+} from "@/lib/llm/imageInput";
 
 function scheduleRoleCreationSummary(
   args: Parameters<typeof maybeSummarizeOrgAgentConversation>[0]
@@ -95,7 +100,7 @@ type LlmToolCall = {
 
 type LlmMessage = {
   _responses_output?: any[];
-  content: string;
+  content: LlmMessageContent;
   role: "assistant" | "system" | "tool" | "user";
   tool_call_id?: string;
   tool_calls?: LlmToolCall[];
@@ -405,6 +410,7 @@ export async function runOrgRoleCreationChat(args: {
   emit?: RoleCreationChatEmitter;
   mentions?: OrgAgentMention[];
   llmUserMessage?: string;
+  imageInputs?: LlmImageInput[];
   message: string;
   messageType?: string;
   messageUserId?: string | null;
@@ -423,7 +429,7 @@ export async function runOrgRoleCreationChat(args: {
   const requestedRoleId = text(args.roleId);
   const persistedMessage =
     text(args.message) ||
-    (attachments.length > 0
+    (attachments.length > 0 || args.imageInputs?.length
       ? requestedRoleId
         ? "첨부한 자료를 바탕으로 역할 정보를 수정할게요."
         : "첨부한 자료를 바탕으로 새 역할 등록을 시작할게요."
@@ -600,7 +606,10 @@ export async function runOrgRoleCreationChat(args: {
       role: "system",
     },
     {
-      content: companySideUserPrompt,
+      content: buildLlmImageMessageContent(
+        companySideUserPrompt,
+        args.imageInputs
+      ),
       role: "user",
     },
   ];

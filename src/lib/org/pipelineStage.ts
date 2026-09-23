@@ -1,14 +1,27 @@
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 
-export type OrgAgentPipelineBucket = "active" | "ended" | "intro" | "waiting";
+export type OrgAgentPipelineBucket =
+  | "active"
+  | "ended"
+  | "intro"
+  | "requested"
+  | "waiting";
 export const ORG_AGENT_RECOMMENDATION_ID_FILTER_MAX = 100;
 
 export const ORG_STAGE_DESCRIPTIONS: Record<string, string> = {
   company_intro:
-    "아직 이 역할을 추천받지 않은 후보에게 회사가 먼저 제안할 수 있습니다. 제안을 요청하면 Harper가 연락하고, 후보자가 수락하면 연결합니다. 제안을 요청한 뒤에는 진행 상태가 표시됩니다.",
+    "아직 이 역할을 추천받지 않은 후보에게 회사가 먼저 제안할 수 있습니다. 먼저 제안하기를 선택하면 Intro Requested로 이동합니다.",
+  intro_requested:
+    "회사가 먼저 제안을 요청한 후보입니다. Harper가 제안을 전달하고 후보자의 답변을 기다리며, 수락하면 미리 정한 첫 단계로 연결합니다.",
   pending_connection:
     "이미 이 역할을 추천받고 수락한 후보입니다. 회사가 연결을 수락하면 Harper가 소개 이메일로 연결해 인터뷰 등 다음 과정을 시작할 수 있습니다.",
 };
+
+export function getOrgCompanyIntroBoardStage(
+  status: "ready" | "awaiting_talent" | "connecting"
+) {
+  return status === "ready" ? "company_intro" : "intro_requested";
+}
 
 export function humanizeOrgCompanyIntroStatus(intro: {
   status: string;
@@ -28,6 +41,7 @@ const STAGE_LABELS: Record<string, string> = {
   company_intro: "먼저 제안 가능한 후보",
   connected: "연결됨",
   final_offer: "최종 오퍼 단계",
+  intro_requested: "Intro Requested",
   pending_connection: "연결 대기",
   process_stopped: "프로세스 종료",
 };
@@ -209,6 +223,7 @@ export function getOrgAgentPipelineBucket(
 ): OrgAgentPipelineBucket | null {
   const normalizedStage = normalized(stage);
   if (normalizedStage === "company_intro") return "intro";
+  if (normalizedStage === "intro_requested") return "requested";
   if (normalizedStage === "pending_connection") return "waiting";
   if (normalizedStage === "process_stopped") return "ended";
   if (
@@ -222,7 +237,7 @@ export function getOrgAgentPipelineBucket(
 
   // accepted is counted only when the caller's visibility path returned it;
   // ordinary company users never receive that internal-only stage. Archived
-  // history remains outside the three current-pipeline buckets.
+  // history remains outside the current-pipeline buckets.
   return null;
 }
 

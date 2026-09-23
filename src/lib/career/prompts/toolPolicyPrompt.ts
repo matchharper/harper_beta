@@ -28,6 +28,10 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasRecommendedOpportunitiesTool = toolNames.includes(
     "read_recommended_opportunities"
   );
+  const hasCompanyConnectionsTool = toolNames.includes(
+    "read_company_connections"
+  );
+  const hasRelayToCompanyTool = toolNames.includes("relay_to_company");
   const hasRoleContextTool = toolNames.includes("get_role_context");
   const hasInternalRolesTool = toolNames.includes("get_internal_roles");
   const hasInternalRolePriorityReviewTool = toolNames.includes(
@@ -84,7 +88,7 @@ export function buildCareerToolPolicyPrompt(args: {
     "## Tool Use Policy",
     `Available tools: ${toolNameText}`,
     hasStatusMessageTools
-      ? "When a tool schema includes `_uiStatusMessage`, include a specific English user-facing Thinking log sentence for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters."
+      ? `When a tool schema includes \`_uiStatusMessage\`, include a specific user-facing Thinking log sentence in ${outputLanguage} for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.`
       : "",
     hasStatusMessageTools
       ? "After tool use, follow the returned assistantInstruction."
@@ -133,7 +137,8 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasRecommendedOpportunitiesTool
       ? [
           "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended to this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
-          "- If the user asks what happened after accepting an internal recommendation, call `read_recommended_opportunities` and answer from the returned `progress.message` when it is present. Do not infer company-side progress from savedStage or stale internal fields.",
+          "- If the user asks what happened after accepting a Harper-first internal recommendation, call `read_recommended_opportunities` and answer from the returned `progress.message` when it is present. Do not infer company-side progress from savedStage or stale internal fields.",
+          "- When `companyRequestIntroProgress.origin=company_request_intro`, do not apply the Harper-first 7-day/21-day progress wording. Reason from the returned factual timestamps and statuses in the conversation's current context. Use natural wording rather than a fixed sentence or fixed elapsed-day threshold. If `canRelayToCompany=true` and the user is concerned or aksed about silence, you may offer to contact the company.",
           "- Pass `only_internal: true` to `read_recommended_opportunities` when the user is asking specifically about internal recommendations, accepted internal opportunities, or internal connection/review status.",
           "- Treat returned feedback=`negative` and progress.stage=`rejected` as Talent-side rejection records, not company rejections. This actor rule is specific to Talent rejection; for archived and stopped processes, follow progress.message and progress.stopReason.",
           ...(args.channel === "chat"
@@ -141,6 +146,18 @@ export function buildCareerToolPolicyPrompt(args: {
                 "- When showing a returned opportunity in chat, include a standalone `[posting](roleId)` line for each returned opportunity you mention.",
               ]
             : []),
+        ]
+      : []),
+    ...(hasCompanyConnectionsTool
+      ? [
+          "- Use `read_company_connections` when the user wants Harper to communicate with, follow up with, or ask about a company connected through Harper and the exact relationship is not already unambiguous in private context. It covers both company-first Request Intro and Harper-first recommendations that have actually reached a company-visible connection stage.",
+          "- Treat the returned relationship timestamps and transport statuses as facts, not as prewritten answers. Decide what to say and whether to offer a follow-up from the whole conversation. Do not create fixed day thresholds or canned progress language.",
+        ]
+      : []),
+    ...(hasRelayToCompanyTool
+      ? [
+          "- Use `relay_to_company` only after the user clearly authorizes Harper to pass along a message, question, clarification, or follow-up through one exact returned connectionId. Preserve uncertainty and conditions in relayContent.",
+          "- A queued relay has not yet completed transport. Do not say the company received, read, or answered it unless a later read reports that fact.",
         ]
       : []),
     ...(hasRoleContextTool
@@ -245,10 +262,10 @@ export function buildCareerToolPolicyPrompt(args: {
           "",
           "### update_talent_profile (profile writer)",
           args.isOnboardingActive
-            ? "- Purpose: update talentUser.bio/location, personal profileLinks, or rowMemos during onboarding."
-            : "- Purpose: update talentUser.bio/location, personal profileLinks, rowMemos, or recommendationBatchSize.",
+            ? "- Purpose: update talentUser.name/bio/location, personal profileLinks, or rowMemos during onboarding."
+            : "- Purpose: update talentUser.name/bio/location, personal profileLinks, rowMemos, or recommendationBatchSize.",
           args.isOnboardingActive
-            ? "- Boundary: profile summary/current base -> talentUser; row facts -> rowMemos; subscription actions -> update_setting."
+            ? "- Boundary: exact name/profile summary/current base -> talentUser; row facts -> rowMemos; subscription actions -> update_setting."
             : "- Boundary: row facts -> rowMemos; saved career context -> write_talent_context; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
           "- For recommendationBatchSize, choose a 3-10 value per schema; vague more/less adjusts by 2, maximum requests use 10, and you should not ask a follow-up just to pick the number.",
           ...(hasUpdateSettingTool
@@ -261,13 +278,14 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Do NOT call for one-off browsing, curiosity, informational searches, questions, hypotheticals, assistant summaries, duplicates, or aspirational/off-profile role mentions without explicit future intent.",
           "- After this tool returns, respond naturally in the current channel. Do not return an empty assistant message, and do not return only an onboarding marker.",
           "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
-          "1) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
-          "2) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
-          `3) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID and omit the change if the row is ambiguous or generic.`,
+          "1) talentUser.name: the user explicitly states or corrects their name; copy it exactly as written without translation or transliteration.",
+          "2) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
+          "3) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
+          `4) rowMemos: when the user's latest statement clearly maps to one specific visible experience/education/extra row, use operation=append for genuinely new detail that should follow the existing memo, or operation=update when the user corrects or asks to revise the existing memo. For update, send the complete final ${outputLanguage} memo, not only the changed fragment. Use the visible RowID and omit the change if the row is ambiguous or generic.`,
           "- Never store overly sensitive personal information in rowMemos, even if the user discloses it.",
           "- If related context must be retained, record only the generalized consequence and omit the sensitive cause and details.",
           args.isOnboardingActive
-            ? "- Use only talentUser.bio, talentUser.location, profileLinks, and rowMemos. Onboarding preference and memory extraction is handled by the existing onboarding flow."
+            ? "- Use only talentUser.name, talentUser.bio, talentUser.location, profileLinks, and rowMemos. Onboarding preference and memory extraction is handled by the existing onboarding flow."
             : "",
           `- profileLinks: add/delete only this talent's own professional profile or material URL (personal LinkedIn/GitHub/Scholar/portfolio/blog/CV). Never add company, job-posting, recruiting, company-document, or another person's URL. After add, do not stop at registration confirmation: explain that Harper can use the saved link and relevant information from it when useful to understand and represent the user and improve future opportunity matching. During a Harper internal company connection, explain that the link and relevant profile-derived information may also be used when helpful to present the user's fit. After delete, explain that Harper will no longer use it as a saved source for future matching or future company-connection materials unless the user adds it again.`,
           "- Do not write resume files or the same fact twice. Use only user-provided new information, not assistant summaries.",

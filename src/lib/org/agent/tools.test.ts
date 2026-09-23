@@ -95,6 +95,61 @@ test("candidate decisions expose LLM-judged preparation and execution tools", ()
   );
 });
 
+test("company-first intro decisions are executable from web chat and Slack", () => {
+  const tool = ORG_AGENT_TOOLS.find(
+    (item) => item.function.name === "decide_company_intro"
+  );
+  const parameters = tool?.function.parameters as any;
+
+  assert.equal(isOrgAgentToolName("decide_company_intro"), true);
+  assert.equal(
+    getEnabledOrgAgentTools().some(
+      (item) => item.function.name === "decide_company_intro"
+    ),
+    true
+  );
+  assert.equal(
+    getEnabledOrgAgentTools("slack").some(
+      (item) => item.function.name === "decide_company_intro"
+    ),
+    true
+  );
+  assert.deepEqual(parameters.required, ["decision", "roleId", "talentId"]);
+  assert.deepEqual(parameters.properties.decision.enum, [
+    "request_intro",
+    "pass",
+  ]);
+  assert.equal(parameters.properties.companyAppeal.maxLength, 2_000);
+  assert.equal(parameters.properties.introRecipientEmails.maxItems, 10);
+  assert.match(
+    parameters.properties.nextStageId.description,
+    /exact custom:<id>/
+  );
+  assert.equal("introCandidateId" in parameters.properties, false);
+  assert.equal("confirmed" in parameters.properties, false);
+  assert.match(tool?.function.description ?? "", /interest is not yet known/);
+  assert.match(
+    tool?.function.description ?? "",
+    /without another company approval/
+  );
+  assert.match(
+    tool?.function.description ?? "",
+    /first complete call records no decision and returns confirmation_required/i
+  );
+  assert.match(
+    tool?.function.description ?? "",
+    /Call this tool again.*immediately previous Harper message/i
+  );
+  assert.match(
+    tool?.function.description ?? "",
+    /same tool in web chat and Slack/i
+  );
+  assert.doesNotMatch(
+    tool?.function.description ?? "",
+    /candidate card to complete/i
+  );
+});
+
 test("company agent exposes interview scheduling tools", () => {
   const availability = ORG_AGENT_TOOLS.find(
     (tool) => tool.function.name === "manage_interview_availability"
@@ -205,6 +260,36 @@ test("company agent can append a minimal company-internal candidate note", () =>
   assert.match(
     note?.function.description ?? "",
     /does not change.*pipeline stage/
+  );
+});
+
+test("company agent can request an asynchronous current-Brief matching search", () => {
+  const search = ORG_AGENT_TOOLS.find(
+    (tool) => tool.function.name === "request_matching_search"
+  );
+  const parameters = search?.function.parameters as any;
+
+  assert.equal(isOrgAgentToolName("request_matching_search"), true);
+  assert.equal(
+    getEnabledOrgAgentTools().some(
+      (tool) => tool.function.name === "request_matching_search"
+    ),
+    true
+  );
+  assert.equal(
+    getEnabledOrgAgentTools("slack").some(
+      (tool) => tool.function.name === "request_matching_search"
+    ),
+    true
+  );
+  assert.deepEqual(parameters.required, ["roleId"]);
+  assert.deepEqual(Object.keys(parameters.properties), ["roleId"]);
+  assert.match(search?.function.description ?? "", /explicitly asks/i);
+  assert.match(search?.function.description ?? "", /asynchronous/i);
+  assert.match(search?.function.description ?? "", /company-scoped/i);
+  assert.match(
+    search?.function.description ?? "",
+    /no candidate has been selected or contacted/i
   );
 });
 
@@ -575,6 +660,8 @@ test("read_role documents built-in pipeline stage filter values", () => {
     "pipeline",
     "description",
   ]);
+  assert.match(stageDescription, /company_intro=먼저 제안 가능한 후보/);
+  assert.match(stageDescription, /intro_requested=Intro Requested/);
   assert.match(stageDescription, /pending_connection=연결 대기/);
   assert.match(stageDescription, /connected=진행 중/);
   assert.match(stageDescription, /process_stopped=프로세스 종료/);
@@ -647,6 +734,7 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   const parameters = contactTalent?.function.parameters as any;
   assert.deepEqual(parameters.properties.action.enum, [
     "create_draft",
+    "send",
     "revise_draft",
     "schedule",
     "immediate",
@@ -672,8 +760,10 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   assert.equal(parameters.properties.presentedDrafts.type, "boolean");
   assert.match(
     contactTalent?.function.description ?? "",
-    /one to ten exact candidate-contact drafts/
+    /one to ten exact candidate contacts/
   );
+  assert.equal(parameters.properties.relayId.type, "string");
+  assert.equal(parameters.properties.messageContent.type, "string");
   assert.match(
     contactTalent?.function.description ?? "",
     /presentedDrafts=true.*server resolves every exact ID and revision/

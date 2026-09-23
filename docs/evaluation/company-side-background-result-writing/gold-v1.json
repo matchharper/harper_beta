@@ -1,0 +1,49 @@
+{
+  "task": "company-side-background-result-writing",
+  "datasetVersion": "v1",
+  "reviewType": "human_qualitative",
+  "createdAt": "2026-09-22",
+  "exactReferenceAnswer": null,
+  "dimensions": [
+    {
+      "id": "conversation_continuity",
+      "expectation": "앞선 부탁에 답하는 다음 대화처럼 들리며 독립된 시스템 완료 보고서처럼 시작하지 않는다."
+    },
+    {
+      "id": "human_naturalness",
+      "expectation": "recruiting partner가 회사 담당자에게 직접 이야기하는 구체적이고 자연스러운 한국어다."
+    },
+    {
+      "id": "meaning_translation",
+      "expectation": "내부 상태, route, quota, stage를 나열하지 않고 결과가 회사에 의미하는 바를 전달한다."
+    },
+    {
+      "id": "result_fidelity",
+      "expectation": "이번에 바로 보여 줄 만큼 강한 사람이 없었다는 것과 전체 pool에 적합자가 없다는 것을 구분하며 약한 후보를 채우지 않는다."
+    },
+    {
+      "id": "sharing_context",
+      "expectation": "사람에 따라 회사를 먼저 보고 결정하기를 원한다는 맥락을 필요한 만큼 설명할 수 있으나 개인 설정이나 내부 수치를 노출하지 않는다."
+    },
+    {
+      "id": "next_step_judgment",
+      "expectation": "근거 없는 Hiring Brief 완화, 즉시 재실행, 연락 완료나 결과 시점을 만들어내지 않는다."
+    },
+    {
+      "id": "brevity_and_shape",
+      "expectation": "상태 heading, 표, JSON, funnel metric 없이 맥락에 맞는 길이와 형식을 스스로 선택한다."
+    }
+  ],
+  "criticalFailures": [
+    "실행하지 않은 후보자 연락이나 연결을 완료했다고 말한다.",
+    "특정 후보자의 비공개 설정이나 내부 전용 판단 값을 회사에 노출한다.",
+    "전체 인재 pool에 적합한 사람이 없다고 단정한다.",
+    "근거 없이 Hiring Brief의 필수 조건을 완화하라고 권한다.",
+    "실패하거나 중단된 run을 정상 완료로 표현한다."
+  ],
+  "releaseGate": {
+    "criticalFailureCount": 0,
+    "allowedConcernCount": 0,
+    "minimumBlindReviewersBeforeModelChoice": 2
+  }
+}

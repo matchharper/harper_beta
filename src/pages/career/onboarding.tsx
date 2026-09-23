@@ -53,7 +53,10 @@ import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import { trackSignUp } from "@/lib/ga";
 import { isTalentOnboardingSubmissionCommitted } from "@/lib/talentOnboarding/submissionRecovery";
-import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClient";
+import {
+  TalentDocumentUploadError,
+  uploadTalentDocument,
+} from "@/lib/talentOnboarding/documentUploadClient";
 import {
   OFFICIAL_JOBS_ONBOARDING_COMPANY_PARAM,
   OFFICIAL_JOBS_ONBOARDING_JOB_PARAM,
@@ -1981,6 +1984,43 @@ const CareerNetworkOnboardingContent = () => {
     [defaultDoneUserMessage, queryClient, sessionQueryKey, t, userId]
   );
 
+  const getResumeUploadFailureMessage = useCallback(
+    (error: unknown) => {
+      if (
+        error instanceof TalentDocumentUploadError &&
+        error.code === "file_too_large"
+      ) {
+        return t(
+          "career.resume_dropzone.file_too_large",
+          "이력서 파일은 최대 4MB까지 업로드할 수 있습니다."
+        );
+      }
+      if (
+        error instanceof TalentDocumentUploadError &&
+        error.code === "unsupported_file_type"
+      ) {
+        return t(
+          "career.resume_dropzone.unsupported_file",
+          "지원하는 이력서 파일 형식만 업로드해 주세요."
+        );
+      }
+      if (
+        error instanceof TalentDocumentUploadError &&
+        error.code === "invalid_file_content"
+      ) {
+        return t(
+          "career.onboarding.resume_upload.invalid_file_content",
+          "파일 형식과 실제 내용이 일치하지 않거나 파일이 손상되었습니다. PDF 또는 DOCX로 다시 저장한 뒤 업로드해 주세요."
+        );
+      }
+      return t(
+        "career.onboarding.onboarding.0yuh7d0",
+        "이력서 업로드에 실패했습니다."
+      );
+    },
+    [t]
+  );
+
   const submitOnboarding = useCallback(async () => {
     if (submitState === "loading") return;
     if (!conversationId) {
@@ -1997,6 +2037,7 @@ const CareerNetworkOnboardingContent = () => {
 
     logCareerEvent("click_onboarding_submit");
     setSubmitState("loading");
+    let resumeUploadFailureMessage: string | null = null;
 
     try {
       let resumeFileName: string | undefined;
@@ -2005,7 +2046,13 @@ const CareerNetworkOnboardingContent = () => {
       let resumeDocumentId: string | undefined;
 
       if (resumeFile) {
-        const uploadResult = await uploadResumeFile(resumeFile);
+        let uploadResult: Awaited<ReturnType<typeof uploadResumeFile>>;
+        try {
+          uploadResult = await uploadResumeFile(resumeFile);
+        } catch (error) {
+          resumeUploadFailureMessage = getResumeUploadFailureMessage(error);
+          throw error;
+        }
         resumeFileName = uploadResult.resumeFileName;
         resumeStoragePath = uploadResult.resumeStoragePath;
         resumeDocumentId = uploadResult.resumeDocumentId;
@@ -2125,10 +2172,12 @@ const CareerNetworkOnboardingContent = () => {
 
       console.error("[CareerOnboarding] submission failed", error);
       showToast({
-        message: t(
-          "career.onboarding.onboarding.1p04ixt",
-          "온보딩 제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
-        ),
+        message:
+          resumeUploadFailureMessage ??
+          t(
+            "career.onboarding.onboarding.1p04ixt",
+            "온보딩 제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+          ),
         variant: "error",
         duration: 5000,
       });
@@ -2139,6 +2188,7 @@ const CareerNetworkOnboardingContent = () => {
     completeOnboardingSubmission,
     fetchOnboardingSession,
     fetchWithAuth,
+    getResumeUploadFailureMessage,
     links,
     locale,
     name,

@@ -987,6 +987,84 @@ test("candidate connection decisions return a compact outcome", () => {
   );
 });
 
+test("company-first intro preparation exposes only verified decision facts", () => {
+  const missing = serializeOrgAgentToolResult("decide_company_intro", {
+    availableProcessStages: [
+      { id: "custom:stage-1", label: "1차 대화" },
+      { id: "custom:stage-2", label: "기술 인터뷰" },
+    ],
+    candidateName: "김하퍼",
+    decision: "request_intro",
+    introRecipientEmails: ["owner@company.com"],
+    missingInputs: ["company_appeal", "next_process_stage"],
+    roleName: "Founding Engineer",
+    status: "details_required",
+  });
+  const confirmation = serializeOrgAgentToolResult("decide_company_intro", {
+    candidateName: "김하퍼",
+    companyAppeal: "초기 제품을 직접 만든 경험이 지금 팀의 과제와 맞아서",
+    decision: "request_intro",
+    introRecipientEmails: ["owner@company.com", "cto@company.com"],
+    nextStageName: "1차 대화",
+    roleName: "Founding Engineer",
+    status: "confirmation_required",
+  });
+
+  assert.match(missing, /outcome=not_completed/);
+  assert.match(missing, /missing_inputs=company_appeal,next_process_stage/);
+  assert.match(missing, /proposed_intro_recipients=owner@company.com/);
+  assert.match(missing, /custom:stage-1\t1차 대화/);
+  assert.match(missing, /candidate_has_seen_role=false/);
+  assert.match(missing, /candidate_contacted=false/);
+  assert.match(confirmation, /outcome=awaiting_confirmation/);
+  assert.match(confirmation, /company_appeal=초기 제품을 직접 만든 경험/);
+  assert.match(
+    confirmation,
+    /intro_recipients=owner@company.com, cto@company.com/
+  );
+  assert.match(confirmation, /first_process_stage=1차 대화/);
+  assert.match(
+    confirmation,
+    /candidate_acceptance_effect=send_CC_introduction_and_move_to_confirmed_first_stage_without_another_company_approval/
+  );
+  assert.match(
+    confirmation,
+    /next_required_decision=confirm_exact_company_intro_decision/
+  );
+});
+
+test("company-first intro execution distinguishes preparation, delivery, and pass", () => {
+  const requested = serializeOrgAgentToolResult("decide_company_intro", {
+    candidateContacted: false,
+    candidateDeliveryState: "preparing",
+    candidateName: "김하퍼",
+    candidateSentAt: null,
+    decision: "request_intro",
+    introRecipientEmails: ["owner@company.com"],
+    nextStageName: "1차 대화",
+    roleName: "Founding Engineer",
+    status: "requested",
+  });
+  const passed = serializeOrgAgentToolResult("decide_company_intro", {
+    candidateName: "김하퍼",
+    decision: "pass",
+    roleName: "Founding Engineer",
+    status: "passed",
+  });
+
+  assert.match(requested, /outcome=completed/);
+  assert.match(requested, /candidate_request_created=true/);
+  assert.match(requested, /candidate_delivery_state=preparing/);
+  assert.match(requested, /candidate_contacted=false/);
+  assert.match(requested, /company_second_approval_required=false/);
+  assert.match(requested, /first_process_stage_on_acceptance=1차 대화/);
+  assert.doesNotMatch(requested, /candidate_interest_confirmed=true/);
+  assert.match(passed, /candidate_proposal_passed=true/);
+  assert.match(passed, /candidate_request_created=false/);
+  assert.match(passed, /candidate_contacted=false/);
+  assert.match(passed, /candidate_visible_opportunity_created=false/);
+});
+
 test("pipeline mutation results state exact effects and no candidate contact", () => {
   const structure = serializeOrgAgentToolResult("manage_role_pipeline_stages", {
     action: "update",
@@ -1737,6 +1815,29 @@ test("start_role_creation exposes verified state and the required continuation l
   assert.doesNotMatch(compact, /illustrative_response/);
   assert.doesNotMatch(compact, /private-role-id/);
   assert.doesNotMatch(compact, /harper\.example/);
+});
+
+test("matching search result gives facts without prescribing acknowledgement copy", () => {
+  const compact = serializeOrgAgentToolResult("request_matching_search", {
+    candidateContacted: false,
+    matchingCompleted: false,
+    requestedRoleName: "Founding Engineer",
+    searchScope: "requested Role plus the workspace's other eligible Roles",
+    startsAfterCurrentRun: true,
+    status: "queued",
+  });
+
+  assert.match(compact, /status=queued/);
+  assert.match(compact, /requested_role=Founding Engineer/);
+  assert.match(compact, /saved current Hiring Brief/);
+  assert.match(compact, /completed outcome will be shared separately/);
+  assert.match(compact, /naturally in the current conversation/);
+  assert.doesNotMatch(compact, /say|one brief acknowledgement only/);
+  assert.doesNotMatch(compact, /search_scope/);
+  assert.doesNotMatch(compact, /starts_after_current_search/);
+  assert.doesNotMatch(compact, /matching_completed/);
+  assert.doesNotMatch(compact, /candidate_contacted/);
+  assert.doesNotMatch(compact, /candidate-first|company-first/);
 });
 
 test("role calibration returns only compact user-facing outcome fields", () => {

@@ -134,6 +134,7 @@ export type CareerChatTurnChannel = "chat" | "voice";
 
 export type RunCareerChatTurnArgs = {
   admin: TalentAdminClient;
+  assistantMessagePayload?: TalentMessageRow["payload"];
   allowedToolNames?: readonly string[] | null;
   assistantModel?: string;
   assistantMessagePrefix?: string | null;
@@ -449,17 +450,21 @@ export async function runCareerChatTurn(
   const summarizeConversationInBackground = (options?: {
     maxToMessageId?: number | null;
   }) => {
-    void maybeSummarizeTalentConversation({
-      admin,
-      conversationId,
-      maxToMessageId: options?.maxToMessageId,
-      userId,
-    }).catch((error) => {
-      console.error("[TalentChatTurn] Failed to summarize conversation", {
-        conversationId,
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-      });
+    after(async () => {
+      try {
+        await maybeSummarizeTalentConversation({
+          admin,
+          conversationId,
+          maxToMessageId: options?.maxToMessageId,
+          userId,
+        });
+      } catch (error) {
+        console.error("[TalentChatTurn] Failed to summarize conversation", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+        });
+      }
     });
   };
   const touchConversationIfAllowed = async () => {
@@ -1369,6 +1374,9 @@ export async function runCareerChatTurn(
           role: "assistant",
           content: safeAssistantText,
           message_type: assistantMessageType,
+          ...(args.assistantMessagePayload !== undefined
+            ? { payload: args.assistantMessagePayload }
+            : {}),
           thinking_logs: thinkingLogs,
         },
         isMobile

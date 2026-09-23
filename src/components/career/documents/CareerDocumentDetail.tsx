@@ -105,17 +105,11 @@ export function CareerDocumentDetail({
             <div className="flex flex-wrap gap-2">
               <MuteButton disabled={!result} onClick={() => void copy()}>
                 <Copy className="h-4 w-4" />
-                {t(
-                  "career.profile.documents.copy_content",
-                  "문서 전체 내용 복사"
-                )}
+                {t("career.profile.documents.copy_content", "복사")}
               </MuteButton>
               <MuteButton disabled={!result} onClick={exportMarkdown}>
                 <Download className="h-4 w-4" />
-                {t(
-                  "career.profile.documents.export_markdown",
-                  "Markdown 내보내기"
-                )}
+                {t("career.profile.documents.export_markdown", "Export")}
               </MuteButton>
             </div>
           </header>

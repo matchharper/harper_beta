@@ -1,0 +1,92 @@
+{
+  "task": "resume-company-resolution",
+  "datasetVersion": "private-random20-v2",
+  "goldVersion": "v2",
+  "capturedAt": "2026-09-22T01:47:07.106Z",
+  "sourceRevision": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00",
+  "sourceState": "dirty_worktree",
+  "sourceFingerprint": "a6ad4258aebed9fc0781e17fde476f37a79ba32abcaedbe078539b1edeebee7c",
+  "fixture": {
+    "locator": "private/random20-v2.json",
+    "sha256": "bf9acbe47a1c2d68d793607b7a10762173abfb9ca0c45a2f3529be8fc423ac94",
+    "seed": "resume-company-resolution-random20-v2",
+    "eligibleResumeCount": 3793,
+    "sampledResumes": 20,
+    "sampledExperiences": 125,
+    "excludedPriorPilotUsers": 5,
+    "overlapWithPriorPilot": 0,
+    "privacy": "local-only; user ids and company sequences are not committed"
+  },
+  "gold": {
+    "file": "gold-v2.json",
+    "sha256": "146536a921da3ab754da61d9454952a6f96c5f8fce614750239fd4d6c693bec6",
+    "labeledExperiences": 125,
+    "excludedExperiences": 0,
+    "companyDbMatches": 77,
+    "noCompanyDbMatches": 48,
+    "reviewType": "blind_manual_adjudication_before_glm_run",
+    "evidence": [
+      "saved official company link",
+      "validated existing company id",
+      "company name and location",
+      "internal exact and fuzzy candidates",
+      "canonical company_db row official URLs"
+    ]
+  },
+  "inputContract": {
+    "included": [
+      "company_name",
+      "company_location",
+      "one shortlisted company_db identity"
+    ],
+    "removedBeforeResolution": [
+      "saved company_id",
+      "saved company_link",
+      "resume_text",
+      "user_id"
+    ]
+  },
+  "runConfig": {
+    "internalLookup": "Supabase REST read-only select",
+    "externalSearch": null,
+    "model": "z-ai/glm-5.3-flash",
+    "provider": "OpenRouter pinned to z-ai",
+    "reasoningEffort": "low",
+    "candidateLimitPerExperience": 1,
+    "parallelVerificationPassesPerResume": 2,
+    "acceptance": "same non-null candidate id from both passes",
+    "timeoutMsPerCall": 12000
+  },
+  "canonicalRunner": "scripts/evalResumeCompanyResolution.ts",
+  "canonicalImplementation": "src/lib/talentOnboarding/companyResolution.ts",
+  "finalRuns": [
+    "runs/20260922-random20-v2-glm-run1",
+    "runs/20260922-random20-v2-glm-run2",
+    "runs/20260922-random20-v2-glm-run3"
+  ],
+  "repeatSummary": {
+    "repeats": 3,
+    "averagePrecision": 0.8806503198294243,
+    "averageRecall": 0.7662337662337663,
+    "averageExactAccuracy": 0.8453333333333334,
+    "averageFalseLinks": 8,
+    "averageCostUsdPerTwentyResumes": 0.00145237,
+    "averageCostUsdPerResume": 0.0000726185,
+    "averageResolverLatencyMsPerResume": 2454.9,
+    "medianResolverLatencyMsPerResume": 2668,
+    "minResolverLatencyMsPerResume": 470,
+    "maxResolverLatencyMsPerResume": 4490,
+    "totalObservedCostUsd": 0.00435711
+  },
+  "releaseGate": {
+    "required": "falseLinks=0 and precision=1",
+    "passed": false,
+    "reason": "Every run produced 7-9 false links, mostly non-canonical duplicate company_db rows."
+  },
+  "knownLimitations": [
+    "Twenty resumes and 125 experiences remain a small sample.",
+    "Canonical company_db identity can be ambiguous when duplicate rows describe the same real-world company.",
+    "Two runs each had one invalid structured-output batch and failed open.",
+    "Resume extraction errors are outside this evaluation."
+  ]
+}

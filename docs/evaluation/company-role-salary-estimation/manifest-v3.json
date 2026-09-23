@@ -1,0 +1,37 @@
+{
+  "task": "company-role-salary-estimation",
+  "datasetVersion": "v3",
+  "createdAt": "2026-09-23T01:51:21.670669+00:00",
+  "sourceRevision": {
+    "harperWorker": "bd98dd4ff6e16a66655f9a99e409d5d24b3907e5+dirty",
+    "harperBeta": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00+dirty"
+  },
+  "fixture": {
+    "privatePath": "private/fixture-v3.json",
+    "sha256": "05fc6f4642a3879b81e944781e0d0e359ba32f9fabfd4419fdb92afa526751ee",
+    "caseCount": 50,
+    "selection": "Postgres TABLESAMPLE SYSTEM plus random() over clean annual external roles; one Role per company; frozen before provider calls",
+    "distribution": {
+      "currency": {"USD": 46, "GBP": 3, "CAD": 1},
+      "period": {"year": 50},
+      "companyCount": 50,
+      "externalJobUrlPresent": 50,
+      "companyWebsitePresent": 50
+    }
+  },
+  "gold": {
+    "path": "gold-v3.json",
+    "sha256": "5c62354681d6a3b9a955f7b454ef04966297df480927357fe2b532b62a574963",
+    "labelSource": "numeric salary_min/salary_max/currency/period captured before masking",
+    "reviewStatus": "frozen before v3 provider calls; no post-model relabeling"
+  },
+  "promptFingerprint": "sha256:9d7116e64001824bddd7af38f7404fe6d80e08821874cf20c70a16f068d1a45a",
+  "canonicalRunner": "../../../../harper_worker/llm_evals/company_role_salary_estimation/company_specific_eval.py",
+  "run": "runs/company-v3-20260923T015556Z.json",
+  "privacy": {
+    "publicGoldDeidentified": true,
+    "rawFixtureIgnored": true,
+    "rawFixtureMode": "0600",
+    "externalProviderData": "public exact-role and exact-company information only; no Talent, conversation, or cross-company salary data"
+  }
+}

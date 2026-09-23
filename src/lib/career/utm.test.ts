@@ -89,4 +89,22 @@ test("does not invent a channel for direct, internal, or invalid referrers", () 
     readCareerSourceFromReferrer("https://matchharper.com/career"),
     null
   );
+  assert.equal(
+    readCareerSourceFromReferrer(
+      "https://accounts.google.com/o/oauth2/v2/auth"
+    ),
+    null
+  );
+  assert.equal(
+    readCareerSourceFromReferrer("https://docs.google.com/document/d/example"),
+    null
+  );
+  assert.equal(
+    readCareerSourceFromReferrer("https://mail.google.com/mail/u/0/"),
+    null
+  );
+  assert.equal(
+    readCareerSourceFromReferrer("android-app://com.google.android.gm/"),
+    null
+  );
 });

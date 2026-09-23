@@ -22,6 +22,19 @@ test("limits profileLinks writes to the talent's own materials", () => {
   assert.match(prompt, /will no longer use it as a saved source/);
 });
 
+test("routes explicit name corrections to the profile without rewriting them", () => {
+  const prompt = buildCareerToolPolicyPrompt({
+    channel: "chat",
+    isOnboardingActive: false,
+    preferredLocale: "ko",
+    toolNames: ["update_talent_profile"],
+  });
+
+  assert.match(prompt, /talentUser\.name/);
+  assert.match(prompt, /copy it exactly as written/);
+  assert.match(prompt, /without translation or transliteration/);
+});
+
 test("keeps language setting tool policy minimal", () => {
   const prompt = buildCareerToolPolicyPrompt({
     channel: "chat",
@@ -47,6 +60,8 @@ test("chat tools produce one cohesive response after the result", () => {
   assert.match(prompt, /call it before writing user-visible explanation/);
   assert.match(prompt, /one cohesive response after the result/);
   assert.match(prompt, /entire final response consistently in Korean/);
+  assert.match(prompt, /Thinking log sentence in Korean/);
+  assert.doesNotMatch(prompt, /specific English user-facing Thinking log/);
   assert.doesNotMatch(prompt, /start with brief acknowledgement/);
 });
 

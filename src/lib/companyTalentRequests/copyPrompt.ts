@@ -38,6 +38,7 @@ export type CandidateContactPromptMessage = {
 
 type CandidateContactConversationContext = {
   currentInstruction: string;
+  deliveryIntent?: "direct_reply" | "review_draft";
   recentConversation: string;
   recipientLocale: string | null;
 };
@@ -147,6 +148,10 @@ export function buildCandidateContactDraftMessages(
     roleName: string;
   }
 ): CandidateContactPromptMessage[] {
+  const deliveryTask =
+    args.deliveryIntent === "direct_reply"
+      ? "- Write the complete candidate-facing reply that Harper will queue immediately as the company's direct response or continuation to the candidate message shown in the recent conversation. Preserve the company's substantive meaning and do not describe this as a draft awaiting company review."
+      : "- Write the complete candidate-facing email that the company will review verbatim before delivery.";
   const baseSystemPrompt = `
 ${CANDIDATE_CONTACT_SHARED_SYSTEM_PROMPT}
 
@@ -154,7 +159,7 @@ ${languageAndEvidenceRules(args)}
 
 ## Current task
 
-- Write the complete candidate-facing email that the company will review verbatim before delivery.
+${deliveryTask}
 - For a resume request without complete company-supplied copy, explain that attaching one PDF, DOCX, TXT, or MD file to this message is allowed, the uploaded file becomes the current Harper profile resume and Harper relays it for this named company's role review. Put the supplied URL in a descriptive Markdown link written naturally in the email's chosen language; never show the raw URL as visible link text.
   `.trim();
   const systemPrompt =

@@ -1,0 +1,175 @@
+{
+  "cases": [
+    {
+      "caseId": "SAL32905CD5",
+      "gold": {
+        "currency": "USD",
+        "max": 270000,
+        "min": 168750,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Boston, Massachusetts, United States",
+        "seniority": "senior",
+        "title": "Staff Wireless Software Engineer"
+      }
+    },
+    {
+      "caseId": "SALFB06D09D",
+      "gold": {
+        "currency": "USD",
+        "max": 160000,
+        "min": 140000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York City, United States",
+        "seniority": "senior",
+        "title": "Senior Product Designer"
+      }
+    },
+    {
+      "caseId": "SAL89A9F458",
+      "gold": {
+        "currency": "USD",
+        "max": 290000,
+        "min": 204000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote US",
+        "seniority": "senior",
+        "title": "Staff Software Engineer, Backend (Order Platform)"
+      }
+    },
+    {
+      "caseId": "SAL352F0149",
+      "gold": {
+        "currency": "USD",
+        "max": 204500,
+        "min": 126000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Santa Clara, CA, US",
+        "seniority": "senior",
+        "title": "Senior Staff Engineer Software - Frontend (Machine Identity Management) - hybrid"
+      }
+    },
+    {
+      "caseId": "SALF2F5B885",
+      "gold": {
+        "currency": "USD",
+        "max": 259200,
+        "min": 152800,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote, Canada; Remote, US",
+        "seniority": "director",
+        "title": "Engineering Manager, Growth"
+      }
+    },
+    {
+      "caseId": "SAL058A3F27",
+      "gold": {
+        "currency": "USD",
+        "max": 200000,
+        "min": 110000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Toronto, CA · Chicago, US · New York, US · Seattle, US · South San Francisco HQ, US",
+        "seniority": "Mid",
+        "title": "Partner Development Manager, Global Networks"
+      }
+    },
+    {
+      "caseId": "SAL726AC037",
+      "gold": {
+        "currency": "USD",
+        "max": 168000,
+        "min": 137700,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "United States",
+        "seniority": "senior",
+        "title": "Senior Clinical Specialist - Cardiology"
+      }
+    },
+    {
+      "caseId": "SALB29E600B",
+      "gold": {
+        "currency": "USD",
+        "max": 202200,
+        "min": 102100,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Redmond, WA,US, US",
+        "seniority": "mid_senior",
+        "title": "Software Engineer II"
+      }
+    },
+    {
+      "caseId": "SAL035D3920",
+      "gold": {
+        "currency": "USD",
+        "max": 210000,
+        "min": 90000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "South San Francisco, CA, United States",
+        "seniority": "mid_senior",
+        "title": "Supervisor, Manufacturing"
+      }
+    },
+    {
+      "caseId": "SALABEF9CB0",
+      "gold": {
+        "currency": "USD",
+        "max": 193050,
+        "min": 140400,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "USA - CA - Palo Alto, United States of America",
+        "seniority": "Senior",
+        "title": "Senior Software Engineer - FDE"
+      }
+    },
+    {
+      "caseId": "SALA51347B9",
+      "gold": {
+        "currency": "USD",
+        "max": 146000,
+        "min": 124000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York City, New York, United States",
+        "seniority": "Mid",
+        "title": "Platform Consultant - NYC"
+      }
+    },
+    {
+      "caseId": "SAL0A7A4CA5",
+      "gold": {
+        "currency": "USD",
+        "max": 250000,
+        "min": 180000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote - USA",
+        "seniority": "Senior",
+        "title": "Senior/Staff Network Infrastructure Engineer"
+      }
+    }
+  ],
+  "datasetVersion": "v1",
+  "labelSource": "numeric company_roles salary fields hidden from model input",
+  "task": "company-role-salary-estimation"
+}
