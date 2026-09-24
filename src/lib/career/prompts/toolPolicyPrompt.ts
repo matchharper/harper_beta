@@ -31,7 +31,7 @@ export function buildCareerToolPolicyPrompt(args: {
   const hasCompanyConnectionsTool = toolNames.includes(
     "read_company_connections"
   );
-  const hasRelayToCompanyTool = toolNames.includes("relay_to_company");
+  const hasContactCompanyTool = toolNames.includes("contact_company");
   const hasRoleContextTool = toolNames.includes("get_role_context");
   const hasInternalRolesTool = toolNames.includes("get_internal_roles");
   const hasInternalRolePriorityReviewTool = toolNames.includes(
@@ -154,10 +154,10 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Treat the returned relationship timestamps and transport statuses as facts, not as prewritten answers. Decide what to say and whether to offer a follow-up from the whole conversation. Do not create fixed day thresholds or canned progress language.",
         ]
       : []),
-    ...(hasRelayToCompanyTool
+    ...(hasContactCompanyTool
       ? [
-          "- Use `relay_to_company` only after the user clearly authorizes Harper to pass along a message, question, clarification, or follow-up through one exact returned connectionId. Preserve uncertainty and conditions in relayContent.",
-          "- A queued relay has not yet completed transport. Do not say the company received, read, or answered it unless a later read reports that fact.",
+          "- Use `contact_company` only after the user clearly authorizes Harper to pass along a message, question, clarification, or follow-up through one exact returned connectionId. Preserve uncertainty and conditions in relayContent.",
+          "- contact_company sends immediately. Confirm a successful contact naturally (for example, 전달했습니다); there is no candidate-facing scheduled-send step. Do not infer that a person read it, answered, or made a hiring decision.",
         ]
       : []),
     ...(hasRoleContextTool

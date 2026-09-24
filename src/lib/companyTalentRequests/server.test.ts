@@ -35,19 +35,22 @@ test("candidate resume context also discloses the requesting company and role", 
 
   assert.match(serialized ?? "", /company: Wonderful/);
   assert.match(serialized ?? "", /role: Forward Deployed Engineer/);
-  assert.match(serialized ?? "", /share a current resume/);
+  assert.match(serialized ?? "", /contact_company/);
 });
 
-test("renewed-interest context asks the model for a semantic disposition", () => {
-  const serialized = serializeTalentPendingRequest({
-    ...request(false),
+test("historical request categories do not change the contact contract", () => {
+  const original = request(false);
+  const legacy = {
+    ...original,
     intent: "candidate_reengagement",
     resume_stage: "pending_connection",
-  });
-
-  assert.match(serialized ?? "", /renewed-interest request/);
-  assert.match(serialized ?? "", /intended next stage: pending_connection/);
-  assert.match(serialized ?? "", /clear renewed willingness/);
-  assert.match(serialized ?? "", /newer company stage change takes precedence/);
-  assert.match(serialized ?? "", /tool's assistantInstruction/);
+  };
+  assert.equal(
+    serializeTalentPendingRequest(legacy),
+    serializeTalentPendingRequest(original)
+  );
+  assert.doesNotMatch(
+    serializeTalentPendingRequest(legacy) ?? "",
+    /positive|negative|disposition/
+  );
 });

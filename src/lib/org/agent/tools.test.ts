@@ -740,11 +740,13 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
     "immediate",
     "cancel",
   ]);
-  assert.deepEqual(parameters.properties.kind.enum, [
-    "contact",
-    "question",
-    "resume",
-  ]);
+  assert.equal(parameters.properties.kind, undefined);
+  assert.equal(parameters.properties.resumeStageId, undefined);
+  assert.equal(parameters.properties.items.items.properties.kind, undefined);
+  assert.equal(
+    parameters.properties.items.items.properties.resumeStageId,
+    undefined
+  );
   assert.equal(parameters.properties.language, undefined);
   assert.equal(
     parameters.properties.items.items.properties.language,
@@ -778,7 +780,7 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   );
   assert.match(
     parameters.properties.requestContext.description,
-    /create_draft with kind=question/
+    /For create_draft:/
   );
   assert.match(
     parameters.properties.requestContext.description,

@@ -63,7 +63,7 @@ export const USER_BUBBLE_CLASS = CHAT_USER_BUBBLE_CLASS;
 export const ASSISTANT_BUBBLE_CLASS = CHAT_ASSISTANT_BUBBLE_CLASS;
 
 export const CAREER_MESSAGE_LINK_CLASS =
-  "inline-flex max-w-full cursor-pointer items-center align-baseline rounded-sm bg-accent-100/0 px-1 py-0 leading-5 text-left text-accent-500 no-underline wrap-break-word transition-colors hover:bg-accent-100/40 hover:text-accent-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300/60";
+  "inline-flex max-w-full cursor-pointer items-center align-baseline leading-5 text-left text-action no-underline wrap-break-word transition-colors hover:underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
 
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
@@ -437,14 +437,15 @@ const CareerMessageBubble = ({
       ) : null}
       <ChatMessageBubbleFrame
         active={isAssistantSpeaking}
-        className={
+        className={cn(
+          isUser ? "max-w-[min(740px,92%)]" : "max-w-[min(740px,100%)]",
           isOpportunityFeedbackNote
             ? cn(
-                "ml-auto max-w-[820px] px-1 py-0 text-right text-neutral-soft",
+                "ml-auto px-1 py-0 text-right text-neutral-soft",
                 careerTimelineFeedbackNoteTextClassName
               )
             : undefined
-        }
+        )}
         isUser={isUser}
         startAdornment={
           isCallTranscript || isMailMessage ? (
@@ -495,6 +496,7 @@ const CareerMessageBubble = ({
               <AnimatedAssistantTypingContent content={assistantContent} />
             ) : (
               <ChatAssistantContent
+                variant="career"
                 content={assistantContent}
                 className={careerTimelineAssistantRichTextClassName}
                 linkClassName={CAREER_MESSAGE_LINK_CLASS}
@@ -504,7 +506,9 @@ const CareerMessageBubble = ({
             )}
           </>
         )}
-        {!isUser && <DocumentPreviewCards documents={documentLinks.documents} />}
+        {!isUser && (
+          <DocumentPreviewCards documents={documentLinks.documents} />
+        )}
         {!isUser && assistantChoices.length > 0 && (
           <ChatChoiceList
             choices={assistantChoices}

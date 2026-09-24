@@ -23,6 +23,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
+      name?: unknown;
       firstName?: unknown;
       lastName?: unknown;
       role?: unknown;
@@ -30,6 +31,7 @@ export async function PATCH(req: NextRequest) {
       workspaceId?: string;
     };
     const payload = await updateOrgMemberProfile({
+      name: body.name,
       firstName: body.firstName,
       lastName: body.lastName,
       role: body.role,

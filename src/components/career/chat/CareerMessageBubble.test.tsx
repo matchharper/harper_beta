@@ -52,3 +52,32 @@ test("renders completed markdown spans while an assistant message is streaming",
   assert.match(html, /<code[^>]*>코드<\/code>/);
   assert.doesNotMatch(html, /\*\*굵게\*\*|~~취소선~~/);
 });
+
+test("Career user and assistant bubbles cap at 740px and assistant Markdown uses the Career variant", () => {
+  for (const isUser of [true, false]) {
+    const html = renderToStaticMarkup(
+      <RouterContext.Provider value={router}>
+        <MessagesProvider locale="ko">
+          <CareerMessageBubble
+            isUser={isUser}
+            message={{
+              id: "width-preview",
+              role: isUser ? "user" : "assistant",
+              content:
+                "# Fieldguide\n\n[회사 소개](https://example.com/company)",
+              messageType: "chat",
+              createdAt: "2026-09-23T00:00:00.000Z",
+            }}
+          />
+        </MessagesProvider>
+      </RouterContext.Provider>
+    );
+    assert.match(html, /max-w-\[min\(740px,/);
+    assert.doesNotMatch(html, /max-w-\[min\((?:820|920)px,/);
+    if (!isUser) {
+      assert.match(html, /<h1[^>]*text-xl font-medium/);
+      assert.match(html, /data-rich-text-reference="true"/);
+      assert.match(html, /s2\/favicons/);
+    }
+  }
+});

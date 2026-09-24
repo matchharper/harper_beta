@@ -154,7 +154,7 @@ export type OrgAgentMessageMetadata = {
     phase: "progress" | "terminal";
     runId: string;
     sequence: number;
-    trigger: "direct_message" | "web_action";
+    trigger: "direct_message" | "web_action" | "candidate_contact";
   };
   actions?: OrgAgentMessageAction[];
   attachments?: OrgAgentMessageAttachment[];

@@ -145,6 +145,19 @@ export function useOrgWorkspaceController({
       if (orgId) void router.replace("/org");
       return;
     }
+    if (
+      !internalOpsAccess &&
+      currentUser &&
+      !currentUser.onboardingCompletedAt &&
+      page !== "onboarding"
+    ) {
+      const params = new URLSearchParams({
+        orgId: workspace.workspaceId,
+        next: router.asPath,
+      });
+      void router.replace(`/org/onboarding?${params}`);
+      return;
+    }
     if (!legacyEntry && orgId === workspace.workspaceId) {
       return;
     }
@@ -167,6 +180,9 @@ export function useOrgWorkspaceController({
     );
   }, [
     bootstrap,
+    currentUser,
+    internalOpsAccess,
+    page,
     lastWorkspaceId,
     legacyEntry,
     orgId,

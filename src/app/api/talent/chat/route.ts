@@ -113,6 +113,7 @@ import { getCareerConversationStarter } from "@/lib/career/prompts/conversationS
 import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
 import {
   fetchActiveCompanyTalentRequest,
+  fetchTalentCompanyContactContext,
   serializeTalentPendingRequest,
 } from "@/lib/companyTalentRequests/server";
 import { logger } from "@/utils/logger";
@@ -1012,22 +1013,13 @@ export async function POST(req: NextRequest) {
             userId: user.id,
           })
         : null);
-    const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
-      ? (selectedCompanyTalentRequest ??
-        (pendingActionReference?.kind === "company_request"
-          ? null
-          : await fetchActiveCompanyTalentRequest({
-              admin: admin as any,
-              awaitingTalentOnly: true,
-              talentId: user.id,
-            })))
+    const companyContactContext = talentSetting?.is_onboarding_done
+      ? await fetchTalentCompanyContactContext({
+          admin: admin as any,
+          talentId: user.id,
+        })
       : null;
     const toolSelection = resolveCareerChatTools({
-      activeCompanyTalentRequestMode: activeCompanyTalentRequest
-        ? activeCompanyTalentRequest.expects_document
-          ? "document"
-          : "text"
-        : null,
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       allowedToolNames,
       channel: requestChannel,
@@ -1121,9 +1113,15 @@ export async function POST(req: NextRequest) {
         activeInternalFitHoldQuestion,
         careerCoachingActivity,
         channel: "chat",
-        companyTalentRequestText: serializeTalentPendingRequest(
-          activeCompanyTalentRequest
-        ),
+        companyTalentRequestText:
+          [
+            selectedCompanyTalentRequest
+              ? serializeTalentPendingRequest(selectedCompanyTalentRequest)
+              : null,
+            companyContactContext,
+          ]
+            .filter(Boolean)
+            .join("\n\n") || null,
         onboardingChecklistCoverage,
         talentContextSection,
         currentPreferences,

@@ -95,7 +95,6 @@ import {
   createCompanyTalentRelay,
   fetchRelayableCompanyTalentConnections,
   formatRelayableCompanyTalentConnections,
-  recordCompanyTalentResponse,
 } from "@/lib/companyTalentRequests/server";
 import { buildProfileLinkReplyInstruction } from "@/lib/talentOnboarding/profileLinkReplyInstruction";
 import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
@@ -231,9 +230,8 @@ export const TALENT_TOOL_NAMES = {
   MANAGE_CAREER_COACHING_ACTIVITY: "manage_career_coaching_activity",
   RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION:
     "record_internal_fit_reevaluation_information",
-  RECORD_COMPANY_REQUEST_RESPONSE: "record_company_request_response",
   READ_COMPANY_CONNECTIONS: "read_company_connections",
-  RELAY_TO_COMPANY: "relay_to_company",
+  CONTACT_COMPANY: "contact_company",
 } as const;
 
 export type TalentToolName =
@@ -264,9 +262,8 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
   TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
   TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
-  TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
   TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
-  TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
+  TALENT_TOOL_NAMES.CONTACT_COMPANY,
 ] as const;
 
 // Edit this value to change the common final-reply guidance added to every
@@ -3232,76 +3229,6 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
-  [TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE]: {
-    name: TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
-    description:
-      "Record the user's latest message as the response to the active company request. Use only when the message substantively answers or explicitly declines the request. If the pending request is a renewed-interest check, disposition is required: judge the full meaning and use positive only for clear renewed willingness, negative for clear refusal, and other for an answer that establishes neither. For a resume request, use this only for decline or unavailability; a real upload is recorded by the upload service. For compensation, do not call until the user explicitly provides an amount, range, or wording to share, or clearly approves the wording Harper showed them.",
-    parameters: {
-      type: "object",
-      properties: {
-        disposition: {
-          type: "string",
-          enum: ["positive", "negative", "other"],
-          description:
-            "Required only for a renewed-interest request. Omit for every ordinary company question or resume request.",
-        },
-        requestId: {
-          type: "string",
-          description:
-            "Exact requestId from the pending company request block.",
-        },
-      },
-      required: ["requestId"],
-      additionalProperties: false,
-    },
-    channels: ["chat"],
-    async execute(input, context) {
-      const admin = context?.admin;
-      const userId = context?.userId;
-      const sourceMessageId = Number(context?.userMessageId);
-      if (!admin || !userId || !Number.isSafeInteger(sourceMessageId)) {
-        throw new TalentToolError(
-          "record_company_request_response requires exact user message context."
-        );
-      }
-      const requestId = optionalToolString(input.requestId);
-      if (!requestId) {
-        throw new TalentToolError("Invalid company request response.");
-      }
-      const response = await recordCompanyTalentResponse({
-        admin: admin as any,
-        disposition:
-          input.disposition === "positive" ||
-          input.disposition === "negative" ||
-          input.disposition === "other"
-            ? input.disposition
-            : null,
-        requestId,
-        sourceMessageId,
-        talentId: userId,
-      });
-      const assistantInstruction =
-        input.disposition === "positive"
-          ? response.positionActive
-            ? "Confirm gently that the Role is active in Positions and Harper has accepted the answer for delivery to the company. Do not claim completed transport, company reading, or a future response."
-            : "Confirm gently that Harper accepted the renewed-willingness answer for delivery, but kept the current Position state because the company changed it after asking. Do not claim completed transport or add a future status promise."
-          : input.disposition === "negative" || input.disposition === "other"
-            ? "Confirm gently that the Role remains closed and Harper accepted the answer for delivery to the company. Do not overstate the user's meaning, claim completed transport, or promise a future response."
-            : "Confirm gently that Harper accepted the response and is sending it to the company in polished wording. Do not repeat private request metadata, claim completed transport, or promise a future response.";
-      return {
-        assistantInstruction,
-        modelOutput: [
-          "status=queued_for_company",
-          ...(typeof response.positionActive === "boolean"
-            ? [`position_active=${response.positionActive}`]
-            : []),
-          `instruction=${assistantInstruction}`,
-        ].join("\n"),
-        ok: true,
-        skipCommonAssistantInstruction: true,
-      };
-    },
-  },
   [TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS]: {
     name: TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
     description:
@@ -3344,7 +3271,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const readableConnections =
         formatRelayableCompanyTalentConnections(connections);
       const assistantInstruction =
-        "Use the relationship facts to identify the intended company and Role and decide naturally whether to answer, set expectations, or offer to contact the company. Do not apply a fixed elapsed-day threshold or fixed response sentence. Treat queued as still processing, sent as completed transport, and failed or cancelled as not delivered; none proves that the company read or answered. Do not expose the connection ID unless disambiguation requires it.";
+        "Use these relationship facts and contact history to identify the intended company and Role. An old contact is not an obligation to answer it. If a filtered search is empty, retry without the filter before concluding there is no connection. Do not claim the company read or answered a contact. Do not expose IDs.";
       return {
         assistantInstruction,
         connections: readableConnections,
@@ -3358,10 +3285,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       };
     },
   },
-  [TALENT_TOOL_NAMES.RELAY_TO_COMPANY]: {
-    name: TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
+  [TALENT_TOOL_NAMES.CONTACT_COMPANY]: {
+    name: TALENT_TOOL_NAMES.CONTACT_COMPANY,
     description:
-      "Queue one user-authorized message to a company through a verified mutual connection. It may be a response, follow-up, clarification, question, or proactive update and does not require an earlier company question. Use the exact connectionId from current private context or read_company_connections. relayContent is the substantive information the user wants Harper to pass along, faithfully preserving qualifications, uncertainty, and refusal. If the content is unrelated to that company or Role connection, briefly mention that and let the user decide whether to continue.",
+      "Send one user-authorized message immediately to a company through a verified mutual connection. It may be a response, follow-up, clarification, question, or proactive update and does not require an earlier company question or reply identifier. Use the exact connectionId from current private context or read_company_connections. relayContent is the substantive information the user wants Harper to pass along, faithfully preserving qualifications, uncertainty, and refusal. If the intended company or Role is ambiguous, clarify before sending.",
     parameters: {
       type: "object",
       properties: {
@@ -3371,6 +3298,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           maxLength: 5000,
           description:
             "The candidate-authorized content Harper should convey to the selected company.",
+        },
+        documentId: {
+          type: "string",
+          description:
+            "Optional exact owned resume document ID explicitly approved for sharing.",
         },
         connectionId: {
           type: "string",
@@ -3396,23 +3328,21 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         !Number.isSafeInteger(sourceMessageId)
       ) {
         throw new TalentToolError(
-          "relay_to_company requires an exact mutual connection and user message."
+          "contact_company requires an exact mutual connection and user message."
         );
       }
       const relay = await createCompanyTalentRelay({
         admin: admin as any,
         connectionId,
+        documentId: optionalToolString(input.documentId) ?? undefined,
         relayContent,
         sourceMessageId,
         talentId: userId,
       });
       const contentMismatch = Boolean(relay.contentMismatch);
-      const relayQueued = relay.status === "queued";
       const assistantInstruction = contentMismatch
         ? "The same source message was already accepted earlier using its original content. State only the returned transport status; do not claim that a differently rewritten version replaced it."
-        : relayQueued
-          ? "Confirm naturally that Harper has accepted the candidate-authorized message and is sending it to the selected company. Do not say delivery completed, the company read it, or the company will answer."
-          : "State the returned transport status accurately. Preserve the user's uncertainty and limits, and do not claim that the company read or answered.";
+        : "Confirm naturally that the message was delivered. Preserve the user's uncertainty and limits. Do not claim the company read, answered, or made a hiring decision.";
       return {
         assistantInstruction,
         idempotent: relay.idempotent,

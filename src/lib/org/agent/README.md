@@ -42,7 +42,8 @@
 
 - [구현·Tool 레퍼런스](../../../../docs/org-agent-tools-reference-ko.md)
 - [Prompt·Context 설계](../../../../docs/org-agent-context-engineering-ko.md)
-- [Skill·Tool 라우팅 구현 설계](../../../../docs/company-side-llm-skill-routing-implementation-ko.md)
+- [입력 구조·프롬프트·선택적 기능 로딩 구현 계획](../../../../docs/company-side-agent-input-and-capability-refactor-plan-ko.md) — 구현 전 목표 설계
+- [과거 Skill·Tool 라우팅 설계](../../../../docs/company-side-llm-skill-routing-implementation-ko.md) — 새 계획으로 대체됨
 - [LLM 호출 지도](./LLM_CALL_TRACE_KO.md)
 - [상세 구현 계획](../../../../docs/company-side-llm-context-memory-tools-plan-ko.md)
 

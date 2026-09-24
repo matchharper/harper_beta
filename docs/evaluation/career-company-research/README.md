@@ -28,6 +28,18 @@
 
 이 변경은 기존 `cases-v2.json` / `gold-v4.json`을 그대로 사용한다. 입력이나 gold를 바꾸지 않았으므로 dataset version은 올리지 않았고, 새 prompt·모델·도구 계약의 전체 7개 release gate는 아직 실행하지 않았다.
 
+같은 날 후속 prompt는 초반 회사 설명에서 투자금·투자사와 재투자, 창업자·핵심 팀원의 실제 이력, 날짜가 있는 매출·팀 규모 변화, 큰 계약 등 눈에 들어오는 객관적 근거를 우선하도록 개선했다. 공개 자료의 한계를 일반적인 주의 문단으로 늘리지 않고, 마지막에는 실제 Brief와 맞는 점·엇갈리는 점·trade-off를 근거가 있는 이모지 항목으로 보여준다. 항목 수·제목·형식·검색 순서와 질적 출력 검증 규칙은 추가하지 않았다.
+
+빈 글·등록되지 않은 출처 URL 같은 구조 오류는 같은 agent 대화에 오류와 사용 가능한 URL을 돌려줘 기존 turn 상한 안에서 모델이 고치게 한다. URL 표기를 포함한 최종 글을 코드로 치환하지 않는다. 평가 runner는 실패한 재생성에 과거 개인화 글을 대신 표시하지 않고, 실패 artifact를 남긴 뒤 nonzero exit로 종료한다.
+
+사용자가 승인한 Cartesia 편집 예시를 `src/lib/career/prompts/companyResearchExample.ts`의 고정 문체 예시로 제공한다. 독자 이름과 재직 회사명은 비식별 처리했다. 예시의 회사 수치·URL·개인 맥락은 실제 task evidence가 아니며 source registry에도 추가하지 않는다. 중요한 주제는 heading으로 나누고 회사 설명은 평서체, 개인 경력·선호 설명은 존댓말로 쓰게 한다. 예시의 순서·제목·길이·긍정적 결론은 강제하지 않는다. 관련 직무·직급·지역의 연봉 근거가 있으면 평균 또는 공개 범위를 출처와 함께 간단히 소개하고, 없으면 주제 자체를 생략한다. 평균·채용 범위·기본급·총보상은 구분한다. 일반 Markdown 출처 링크는 회사 조사 문서와 회사 상세에서 compact reference UI로 표시하며 원문과 copy/export는 유지한다. runner의 prompt fingerprint에는 prompt 본체와 고정 예시 파일을 함께 포함한다. 이 후속 변경의 live generation과 전체 7건 gate는 아직 미실행이다.
+
+후속 로컬 검증은 관련 테스트 18건, 변경 파일 lint·targeted TypeScript, 실제 `RichText` 렌더러를 사용한 1280px/390px 브라우저 확인이다. 일반 링크와 reference opt-in의 분리, 정확한 href·새 탭 속성, 키보드 focus, 표·긴 제목·긴 URL의 화면 범위를 확인했고 브라우저 오류는 없었다. 미리보기는 비식별 예시와 합성 UI 데이터만 사용했으며 임시 페이지는 제거했다. 실제 계정 Documents 조회·저장 E2E나 새 모델 출력의 질적 평가는 아니다.
+
+## 2026-09-23 후속 단일 진단
+
+사용자가 승인한 실제 계정 단일 진단은 `runs/20260923-v8d-cartesia-authorized-final/`에 원문과 review를 보관했다. 기본 공개 검색 bundle을 재사용한 최종 작성은 101.489초·추정 $0.1661097, 자율 Exa 검색 2회·Terra 3 turn이었다. 객관적 강점의 가시성과 마지막 Brief 비교가 개선됐고, 모르는 근무 조건을 주의 항목으로 채우는 문제가 사라졌다. 초기 결과의 일반 주의 문구·필수 조건 완화는 실패로 기록했고, 중간 URL 오류 run도 보존했다. 고정 7건 gate나 대표 성능 향상으로 해석하지 않는다.
+
 ## 2026-09-21 커리어 판단 개선 계약
 
 현재 개선 검증은 `cases-v2.json` / `gold-v4.json` / `manifest-v4.json`을 사용한다. 기존 v1의 5개 입력은 그대로 보존하고, 합성 ML 직무 전환·장기 영업 리더십 사례 2개를 추가했다. 과거 v1/v3 결과와는 별도 버전이다. 평가 단위, canonical runner, 개인정보 경계는 아래와 같으며 `--fixture docs/evaluation/career-company-research/cases-v2.json`으로 실행한다.
@@ -71,7 +83,11 @@ node --env-file=.env.local --import tsx \
 
 `--case-id`로 frozen 사례 하나를 선택할 수 있다. `--dossier-run <기존 run 경로>`는 같은 frozen 입력인지 확인한 뒤 저장된 기본 검색 bundle을 재사용하고, production Terra writer와 자율 Exa tool loop로 전체 글을 다시 작성한다. 기본 검색 변동성을 제외한 prompt/model 비교이며 전체 조사 지연으로 해석하지 않는다. 재사용 원문의 hash와 이번 호출 비용을 별도로 남긴다.
 
-runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행하고 raw runtime output, Terra가 작성한 Markdown, 지연과 재현 manifest를 지정한 `runs/` 아래에 저장한다. 디렉터리는 `0700`, 파일은 `0600`으로 만든다.
+기본 frozen/ad-hoc 실행은 DB를 조회하거나 쓰지 않는다. 사용자가 특정 계정의 실제 데이터 사용을 명시적으로 요청한 단일 진단에는 `--company-name ... --talent-email ... --reason ...`를 쓸 수 있다. 이 모드는 Supabase 요청을 GET/HEAD로 제한하고 조회 RPC도 GET으로 호출하며, production과 같은 `buildCompanyResearchTalentContext`로 Profile·전체 Brief·관련 Memory를 읽는다. 추천·메시지·Documents·공유 cache의 DB 쓰기는 실행하지 않는다.
+
+실제 계정 진단은 `authorized-production-ad-hoc-v1`으로 frozen 7건과 분리한다. 입력은 해당 run의 `input.json`에 고정하고, 원문·결과는 task의 ignored `runs/` 안에만 저장한다. manifest에는 사용자 ID나 이메일 없이 승인 근거·capture 방식·provider endpoint·data collection 설정을 기록한다. OpenAI Responses는 `store: false`이며, OpenAI embedding은 Memory 검색에 필요할 때만 사용한다. Exa에는 모델이 선택한 query와 공개 자료 요청을 보낸다. 계정 단위 provider data collection/retention 설정은 runner에서 확인하지 않는다. 2026-09-23의 단일 실제 계정 실행은 사용자의 명시적 요청으로 승인되었으며 reusable frozen gold나 대표 성능 추정에 편입하지 않는다.
+
+runner는 raw runtime output, Terra가 작성한 Markdown, 지연과 재현 manifest를 지정한 `runs/` 아래에 저장한다. 디렉터리는 `0700`, 파일은 `0600`으로 만든다.
 
 ## 실행 조건
 
@@ -96,9 +112,9 @@ runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행�
 - 객관적인 회사 설명을 먼저 이해시키고, 뒤에서 좋은 회사인지·지금 갈 시점인지·이 팀원에게 맞는지를 구분해 판단한다.
 - 성장과 변화는 날짜·단위·구체적 사건으로 체감되게 설명한다.
 - Profile·전체 Search Brief·confirmed Memory를 현재 경력, 2~3년 뒤 이력서, 역량 전이, 경로 의존성, 현실적인 다음 선택지와 연결한다.
-- Markdown은 내용을 더 잘 이해시키는 만큼만 자율적으로 사용한다. 제목이나 `##` 섹션은 필수가 아니다.
+- 중요한 주제는 의미 있는 Markdown heading으로 구분하되 제목·레벨·순서·개수는 모델이 정한다. 고정 예시의 읽는 경험을 참고하고 동일한 양식을 반복하지 않는다.
 
-면접 질문, 질문 목록, 포괄적 실사 체크리스트는 생성하지 않는다. 모든 회사에 같은 항목을 강제로 채우지 않는다. 근거가 약한 단정은 생략하되 합류 판단을 바꾸는 구체적인 미확인 사항은 표시한다. 출처 ID와 신뢰도 경고도 화면에 노출하지 않는다. 개인화는 프로필의 각 사실을 회사와 기계적으로 짝짓는 작업이 아니다. 현재 경력과 현실적인 대안에 비해 무엇이 추가되거나 약해지는지를 판단하며, 당연한 지역·언어 일치와 기존 역량 재진술은 장점으로 쓰지 않는다.
+면접 질문, 질문 목록, 포괄적 실사 체크리스트는 생성하지 않는다. 모든 회사에 같은 항목을 강제로 채우지 않는다. 회사 쪽 비교 근거가 없는 주제는 생략하고, 확인된 부정적 사실은 분명하게 설명한다. 사용자가 미확인 사실을 직접 질문한 경우에만 짧게 정직하게 답한다. 출처 ID와 신뢰도 경고도 화면에 노출하지 않는다. 개인화는 프로필의 각 사실을 회사와 기계적으로 짝짓는 작업이 아니다. 현재 경력과 현실적인 대안에 비해 무엇이 추가되거나 약해지는지를 판단하며, 당연한 지역·언어 일치와 기존 역량 재진술은 장점으로 쓰지 않는다.
 
 ## human-review rubric와 release gate
 
@@ -193,7 +209,7 @@ runner는 DB를 조회하거나 쓰지 않는다. frozen case를 순차 실행�
 ## 개인정보와 외부 전송
 
 - production 캡처는 Supabase REST `GET`으로 `company_snapshot.company_name`, `created_at`, `status`만 읽었다.
-- runner는 사용자 ID, 실제 대화, 실제 이력, 실제 Brief, 실제 Memory, 기존 production LLM 출력을 조회·저장·전송하지 않는다.
+- 기본 frozen runner는 사용자 ID, 실제 대화, 실제 이력, 실제 Brief, 실제 Memory, 기존 production LLM 출력을 조회·저장·전송하지 않는다. 명시적으로 승인된 `--talent-email` 단일 진단만 위의 production-context capture 계약을 따른다.
 - 외부 전송 대상은 공개 회사명, frozen fixture의 합성 reason/context, 공개 웹 검색 결과뿐이다. Terra가 합성 context를 검색어에 활용하면 해당 query도 Exa에 전달될 수 있다.
 - production runtime은 사용자가 회사 판단을 위해 제공한 Profile·Brief·Memory를 Terra에 전달하며, Terra는 그 맥락이 검색 품질을 높인다고 판단할 때 Exa query에 사용할 수 있다. 완성 글과 개인 맥락은 공유 회사 cache에 저장하지 않는다.
 - API key는 artifact에 기록하지 않는다.

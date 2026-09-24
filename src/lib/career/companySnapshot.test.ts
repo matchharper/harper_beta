@@ -270,7 +270,13 @@ test("research prompt gives Terra one autonomous writing task with light format 
   assert.match(prompt, /For a very early startup/);
   assert.match(prompt, /For a public company or large company/);
   assert.match(prompt, /there is no required number of sections/);
-  assert.match(prompt, /Headings are optional/);
+  const { COMPANY_RESEARCH_WRITING_EXAMPLE } =
+    await import("@/lib/career/prompts/companyResearchExample");
+  assert.ok(
+    prompt.includes(
+      `<writing_example>\n${COMPANY_RESEARCH_WRITING_EXAMPLE}\n</writing_example>`
+    )
+  );
   assert.match(prompt, /two or three years/);
   assert.match(prompt, /Use only source URLs/);
   assert.match(prompt, /B2B PM 경력 5년/);

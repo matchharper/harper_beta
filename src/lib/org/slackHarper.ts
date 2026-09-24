@@ -190,7 +190,7 @@ function returnTo(value: unknown, workspaceId: string) {
     const url = new URL(text(value) || fallback, "https://harper.local");
     if (
       url.origin !== "https://harper.local" ||
-      !["/org", "/org/settings"].includes(url.pathname)
+      !["/org", "/org/settings", "/org/onboarding"].includes(url.pathname)
     )
       return fallback;
     url.searchParams.delete("slack");

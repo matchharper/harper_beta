@@ -29,7 +29,9 @@
 - `ChatLoadOlderButton`
   - cursor 기반 이전 메시지 로딩 action입니다.
 - `ChatThinkingLogPanel`
-  - 진행 중에는 펼쳐지고 완료된 메시지에서는 접을 수 있는 Thinking log입니다.
+  - tool 호출 전에는 `Thinking`, tool 실행 중에는 `Working`, 완료 후에는
+    전체 turn 소요 시간과 함께 `Worked`를 표시합니다. 진행 중에는 펼쳐지고
+    완료된 메시지에서는 접을 수 있습니다.
 
 `/career`의 기존 hook과 메시지 parsing은 그대로 유지하고 위 primitive에 기존
 class와 callback을 전달합니다. `/org`는 `useOrgAgentMessageHistory`,

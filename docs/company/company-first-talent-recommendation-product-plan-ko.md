@@ -1,6 +1,6 @@
 # 회사 선확인 후보자 추천 · 먼저 제안하기 구현 기획
 
-- 문서 기준: 2026-09-22
+- 문서 기준: 2026-09-23
 - 상태: 제품 lifecycle은 local 구현되어 있고 shared matching route 결정이 추가됐다. Migration 적용과
   production 배포 여부는 별도 확인해야 하며 이 문서만으로 production 동작을 주장하지 않는다.
 - 범위: 후보 선정, 회사 노출, `먼저 제안하기`, 후보자 전달, 응답, 연결, 철회까지의 제품·상태 계약
@@ -59,6 +59,7 @@ Worker 구현 계약:
    기존 미결정 `ready` 카드가 30명이면 새 run을 시작하지 않는다.
 10. Python Worker scheduler가 매주 월요일 오전 9시 KST에 회사 단위 run을 enqueue한다. 회사가 `/org`나
     Slack에서 저장된 현재 Hiring Brief로 새 검색을 명시적으로 요청해도 같은 queue에 즉시 회사 단위 run을
+    넣는다. 새 Role calibration이 Slack에 처음 전달된 12시간 뒤에도 같은 queue에 정기 계약의 1회 run을
     넣는다. Query plan, retrieval, scoring, 회사 전체 reranking, route persistence와 전달의 자세한 계약은
     별도 Worker 구현 계획으로 고정한다. Reranker가 candidate-first를 선택하면 이 company-first lifecycle로
     들어오지 않고 기존 후보자 추천 delivery를 시작한다.
@@ -330,9 +331,9 @@ Strong anchor를 company-first로 보내려면 “좋은 후보”라는 사실 
 
 ### 6.5 Candidate-first와의 동시성
 
-Company-first는 매주 월요일 오전 9시 KST 또는 회사의 명시적 요청 뒤 별도 회사 단위 Worker로 실행되므로
-모든 candidate-first 추천보다 항상 먼저 실행된다고 가정하지 않는다. 대신 fit 판단값과 실제 route를
-분리한다.
+Company-first는 매주 월요일 오전 9시 KST, 회사의 명시적 요청, 또는 새 Role calibration 전달 12시간 뒤의
+1회 run으로 회사 단위 Worker에서 실행되므로 모든 candidate-first 추천보다 항상 먼저 실행된다고 가정하지
+않는다. 대신 fit 판단값과 실제 route를 분리한다.
 
 1. `talent_opportunity_fit.recommend=true`만으로 좋은 후보를 retrieval에서 제외하지 않는다.
 2. 동일 Role에 실제 recommendation이 생겼으면 그 Role–Talent pair를 제외한다. 같은 회사의 다른 Role
@@ -941,6 +942,7 @@ web, Slack, company-side LLM의 의미를 맞춘다.
 ### Phase 2. Selection Worker shadow
 
 - Python scheduler의 월요일 09:00 KST company run enqueue
+- Calibration 최초 Slack `sentAt + 12h`의 regular company run enqueue
 - query planner, safe SQL retrieval, parallel scoring, company-wide reranking
 - reply confidence와 candidate-first route guard
 - frozen eval과 production read-only shadow
@@ -1066,7 +1068,7 @@ privacy guard가 함께 좋아져야 한다.
 | 공개 범위가 바뀌면 | company read 즉시 숨김 + outbox/follow-up durable cleanup |
 | 최대 몇 명인가 | 정기 run은 두 actionable route 합산 Role별 최대 3명. 명시적 `Run Search`는 company-first만 Role별 최대 6명을 목표로 하되 hard conflict·핵심 수행 근거 부족 후보는 포함하지 않음. 회사 내 Talent 중복 금지, unresolved ready 30명 hard gate |
 | candidate-first와 어느 쪽이 먼저인가 | 고정 선후관계를 가정하지 않고 shared transaction guard에서 실제 route 하나만 확정 |
-| 언제 실행하는가 | 매주 월요일 오전 9시 KST 정기 enqueue 또는 `/org`·Slack의 명시적 현재-Brief 검색 요청 직후 같은 회사 단위 queue에 enqueue |
+| 언제 실행하는가 | 매주 월요일 오전 9시 KST 정기 enqueue, `/org`·Slack의 명시적 현재-Brief 검색 요청 직후, 또는 새 Role calibration 최초 Slack `sentAt + 12h`에 같은 회사 단위 queue로 enqueue |
 
 ### 22.2 나중에 정할 것
 

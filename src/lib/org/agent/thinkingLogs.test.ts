@@ -3,8 +3,40 @@ import test from "node:test";
 import {
   compactOrgAgentThinkingLogs,
   getOrgAgentThinkingLogIcon,
+  hasOrgAgentToolWork,
   upsertOrgAgentThinkingLog,
 } from "@/lib/org/agent/thinkingLogs";
+
+test("distinguishes model preparation logs from actual tool work", () => {
+  assert.equal(
+    hasOrgAgentToolWork([
+      {
+        at: "2026-08-14T00:00:00.000Z",
+        id: "context",
+        label: "회사와 최근 추천 정보를 읽는 중",
+        status: "running",
+      },
+      {
+        at: "2026-08-14T00:00:01.000Z",
+        id: "response",
+        label: "응답 생성 중",
+        status: "running",
+      },
+    ]),
+    false
+  );
+  assert.equal(
+    hasOrgAgentToolWork([
+      {
+        at: "2026-08-14T00:00:02.000Z",
+        id: "call-1",
+        label: "역할 정보 확인 중",
+        status: "running",
+      },
+    ]),
+    true
+  );
+});
 
 test("groups tool icons by user-visible operation", () => {
   assert.equal(getOrgAgentThinkingLogIcon("web_search"), "search");

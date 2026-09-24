@@ -631,10 +631,10 @@ test("candidate contact history separates email, response, and company relay mil
   assert.match(compact, /회사 전달됨/);
   assert.match(compact, /Continued Interest/);
   assert.match(compact, /계속 관심이 있으신지/);
-  assert.match(compact, /candidate_reengagement/);
+  assert.doesNotMatch(compact, /candidate_reengagement/);
   assert.match(compact, /재진행 의사 확인/);
-  assert.match(compact, /연결 대기/);
-  assert.match(compact, /positive/);
+  assert.doesNotMatch(compact, /resume_stage/);
+  assert.doesNotMatch(compact, /positive/);
   assert.doesNotMatch(compact, /created_or_sent_kst/);
 });
 

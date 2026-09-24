@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { buildOrgHref } from "@/lib/org/routes";
-import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
+import { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
 import {
   companyTalentRequestBlocksNewContact,
   companyTalentRequestCandidateEmailWasSent,
@@ -12,7 +12,7 @@ import {
 import type { CompanyTalentRelayDeliveryStatus } from "@/lib/companyTalentRequests/status";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 
-export { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
+export { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
 export { serializeTalentPendingRequest } from "@/lib/companyTalentRequests/presentation";
 export { humanizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
 
@@ -115,13 +115,7 @@ function companyRequestStillActive(
     workflow_status: row.workflow_status,
   });
   if (awaitingTalentOnly) {
-    const awaitsCandidateResponse = row.contact_kind !== "contact";
-    return (
-      candidateEmailSent &&
-      !hasResponse &&
-      companyRequestRoleIsOpen(row) &&
-      awaitsCandidateResponse
-    );
+    return candidateEmailSent && !hasResponse && companyRequestRoleIsOpen(row);
   }
   const expiresAt = Date.parse(String(row.expires_at ?? ""));
   return candidateEmailSent
@@ -190,38 +184,31 @@ async function assertCompanyIntroRequestIsNotPending(args: {
 export async function createCompanyTalentContactDraft(args: {
   admin: UntypedAdmin;
   body: string;
-  contactKind: "contact" | "question" | "resume";
   id: string;
-  expectsDocument: boolean;
-  intent?: "candidate_reengagement" | "ordinary";
   recommendationId: string;
   requestContext: string;
-  resumeStage?: string | null;
   roleId: string;
   sourceCompanyMessageId: number;
   subject: string;
   talentId: string;
   workspaceId: string;
 }) {
-  if (args.expectsDocument !== (args.contactKind === "resume")) {
-    throw new Error("company_talent_contact_kind_document_mismatch");
-  }
   await assertCompanyIntroRequestIsNotPending(args);
-  const context = assertSafeProfessionalQuestion(args.requestContext);
+  const context = validateCompanyContactContext(args.requestContext);
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .insert({
       company_workspace_id: args.workspaceId,
-      contact_kind: args.contactKind,
+      contact_kind: "contact",
       delivery_body: args.body.trim(),
       delivery_subject: normalizedText(args.subject, 180),
       draft_revision: 1,
-      expects_document: args.expectsDocument,
+      expects_document: false,
       id: args.id,
-      intent: args.intent ?? "ordinary",
+      intent: "ordinary",
       recommendation_id: args.recommendationId,
       request_context: context,
-      resume_stage: args.resumeStage ?? null,
+      resume_stage: null,
       role_id: args.roleId,
       source_company_message_id: args.sourceCompanyMessageId,
       talent_id: args.talentId,
@@ -271,7 +258,7 @@ export async function reviseCompanyTalentContactDraft(args: {
   subject: string;
   workspaceId: string;
 }) {
-  const context = assertSafeProfessionalQuestion(args.requestContext);
+  const context = validateCompanyContactContext(args.requestContext);
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .update({
@@ -321,53 +308,6 @@ export async function scheduleCompanyTalentContact(args: {
     scheduledAt: string;
     status: "immediate" | "queued";
   };
-}
-
-export async function enqueueCompanyTalentRequest(args: {
-  admin: UntypedAdmin;
-  deliveryMode?: "standard" | "immediate";
-  expectsDocument: boolean;
-  recommendationId: string;
-  requestContext: string;
-  roleId: string;
-  sourceCompanyMessageId: number;
-  talentId: string;
-  workspaceId: string;
-}) {
-  const context = assertSafeProfessionalQuestion(args.requestContext);
-  const { data, error } = await args.admin.rpc(
-    "enqueue_company_talent_request_v1",
-    {
-      p_expects_document: args.expectsDocument,
-      p_delivery_mode: args.deliveryMode ?? "standard",
-      p_recommendation_id: args.recommendationId,
-      p_request_context: context,
-      p_role_id: args.roleId,
-      p_source_company_message_id: args.sourceCompanyMessageId,
-      p_talent_id: args.talentId,
-      p_workspace_id: args.workspaceId,
-    }
-  );
-  if (error) throw error;
-  const request = data as CompanyTalentRequestRow;
-  const { data: delivery, error: deliveryError } = await args.admin
-    .from("contact_queue")
-    .select("scheduled_at")
-    .eq("company_talent_request_id", request.id)
-    .eq("type", "company_request_candidate_delivery")
-    .maybeSingle();
-  if (deliveryError) throw deliveryError;
-  const candidateDeliveryScheduledAt = normalizedText(
-    delivery?.scheduled_at,
-    100
-  );
-  if (!candidateDeliveryScheduledAt) {
-    throw new Error("Candidate delivery schedule was not created");
-  }
-  return {
-    ...request,
-    candidateDeliveryScheduledAt,
-  } as EnqueuedCompanyTalentRequest;
 }
 
 export async function cancelCompanyTalentRequest(args: {
@@ -427,18 +367,29 @@ export async function fetchActiveCompanyTalentRequest(args: {
       "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
     )
     .eq("talent_id", args.talentId)
-    .in("workflow_status", statuses)
     .order("created_at", { ascending: false })
     .limit(args.requestId ? 1 : 30);
+  if (!args.requestId) query = query.in("workflow_status", statuses);
   if (args.requestId) query = query.eq("id", args.requestId);
   const { data, error } = await query;
   if (error) throw error;
   const rows = (
     Array.isArray(data) ? data : []
   ) as CompanyTalentRequestReadRow[];
+  const candidates =
+    args.awaitingTalentOnly && !args.requestId
+      ? await companyContactsSinceLastCandidateContact(args.admin, rows)
+      : rows;
   return (
-    rows.find((row) =>
-      companyRequestStillActive(row, args.awaitingTalentOnly === true)
+    candidates.find((row) =>
+      args.requestId
+        ? row.deliveries?.some(
+            (delivery) =>
+              delivery.type === "company_request_candidate_delivery" &&
+              delivery.status === "sent" &&
+              Boolean(delivery.sent_at)
+          )
+        : companyRequestStillActive(row, args.awaitingTalentOnly === true)
     ) ?? null
   );
 }
@@ -466,11 +417,47 @@ export async function fetchActiveCompanyTalentRequests(args: {
     .order("created_at", { ascending: false })
     .limit(Math.min(limit * 3, 90));
   if (error) throw error;
-  return ((Array.isArray(data) ? data : []) as CompanyTalentRequestReadRow[])
+  const rows = (
+    Array.isArray(data) ? data : []
+  ) as CompanyTalentRequestReadRow[];
+  const candidates = args.awaitingTalentOnly
+    ? await companyContactsSinceLastCandidateContact(args.admin, rows)
+    : rows;
+  return candidates
     .filter((row) =>
       companyRequestStillActive(row, args.awaitingTalentOnly === true)
     )
     .slice(0, limit);
+}
+
+// A reminder is a chronological inbox view, not a claim that a particular
+// question was semantically answered. No requestId or answer classifier needed.
+async function companyContactsSinceLastCandidateContact(
+  admin: UntypedAdmin,
+  contacts: CompanyTalentRequestReadRow[]
+) {
+  if (!contacts.length) return contacts;
+  const { data, error } = await admin
+    .from("company_talent_relays")
+    .select("recommendation_id,created_at")
+    .in("recommendation_id", [
+      ...new Set(contacts.map((contact) => contact.recommendation_id)),
+    ])
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return contacts.filter((contact) => {
+    const sentAt = contact.deliveries?.find(
+      (delivery) => delivery.type === "company_request_candidate_delivery"
+    )?.sent_at;
+    return (
+      !sentAt ||
+      !(data ?? []).some(
+        (relay: any) =>
+          relay.recommendation_id === contact.recommendation_id &&
+          relay.created_at >= sentAt
+      )
+    );
+  });
 }
 
 export type RelayableCompanyTalentConnection = {
@@ -483,6 +470,12 @@ export type RelayableCompanyTalentConnection = {
   origin: "company_contact" | "company_request_intro" | "harper_recommendation";
   recommendationId: string;
   roleName: string;
+  positionState: string;
+  recentContacts: Array<{
+    direction: "company_to_talent" | "talent_to_company";
+    at: string;
+    content: string;
+  }>;
 };
 
 export async function fetchRelayableCompanyTalentConnections(args: {
@@ -498,7 +491,7 @@ export async function fetchRelayableCompanyTalentConnections(args: {
   const { data: recommendations, error: recommendationError } = await args.admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, role_id, opportunity_type, feedback_at, created_at, role:company_roles!inner(name, information, company_workspace_id, workspace:company_workspace!inner(company_name))"
+      "id, role_id, saved_stage, processed_stage, opportunity_type, feedback_at, created_at, role:company_roles!inner(name, information, company_workspace_id, workspace:company_workspace!inner(company_name))"
     )
     .eq("talent_id", args.talentId)
     .eq("feedback", "like")
@@ -541,7 +534,7 @@ export async function fetchRelayableCompanyTalentConnections(args: {
       args.admin
         .from("company_talent_requests")
         .select(
-          "id, recommendation_id, created_at, deliveries:contact_queue(sent_at,status,type)"
+          "id, recommendation_id, delivery_body, created_at, deliveries:contact_queue(sent_at,status,type)"
         )
         .eq("talent_id", args.talentId)
         .in("recommendation_id", recommendationIds)
@@ -549,7 +542,7 @@ export async function fetchRelayableCompanyTalentConnections(args: {
       args.admin
         .from("company_talent_relays")
         .select(
-          "id, recommendation_id, created_at, deliveries:contact_queue(type,status,sent_at,updated_at)"
+          "id, recommendation_id, relay_content, created_at, deliveries:contact_queue(type,status,sent_at,updated_at)"
         )
         .in("recommendation_id", recommendationIds)
         .order("created_at", { ascending: false }),
@@ -739,6 +732,27 @@ export async function fetchRelayableCompanyTalentConnections(args: {
         origin,
         recommendationId,
         roleName: normalizedText(role?.name, 160) || "해당 역할",
+        positionState:
+          row.saved_stage === "closed"
+            ? "closed"
+            : normalizedText(row.processed_stage, 100),
+        recentContacts: [
+          ...sentRequests.map((contact: any) => ({
+            direction: "company_to_talent" as const,
+            at: contact.sentAt,
+            content: String(contact.delivery_body ?? "").slice(0, 1200),
+          })),
+          ...(relaysByRecommendationId.get(recommendationId) ?? []).map(
+            (contact: any) => ({
+              direction: "talent_to_company" as const,
+              at: contact.created_at,
+              content: String(contact.relay_content ?? "").slice(0, 1200),
+            })
+          ),
+        ]
+          .sort((a, b) => b.at.localeCompare(a.at))
+          .slice(0, 4)
+          .reverse(),
       };
     })
     .filter(
@@ -748,9 +762,9 @@ export async function fetchRelayableCompanyTalentConnections(args: {
     )
     .filter((connection) => {
       if (!query) return true;
-      return [connection.companyName, connection.roleName].some((value) =>
-        value.toLocaleLowerCase().includes(query)
-      );
+      const searchable =
+        `${connection.companyName} ${connection.roleName}`.toLocaleLowerCase();
+      return query.split(/\s+/).every((term) => searchable.includes(term));
     })
     .slice(0, limit);
 }
@@ -770,10 +784,15 @@ export function formatRelayableCompanyTalentConnections(
       return [
         `${index + 1}. ${connection.companyName} · ${connection.roleName}`,
         `   연결 ID: ${connection.connectionId}`,
+        `   현재 포지션 상태: ${connection.positionState}`,
         `   연결 경로: ${connection.origin}`,
         `   상호 연결 확인 시점: ${connection.establishedAt || "-"}`,
         `   최근 회사→후보자 연락: ${connection.latestCompanyContactAt || "없음"}`,
         `   최근 후보자→회사 relay: ${latestRelay}`,
+        ...connection.recentContacts.map(
+          (contact) =>
+            `   ${contact.at} ${contact.direction}: ${contact.content}`
+        ),
       ].join("\n");
     }),
   ].join("\n");
@@ -855,12 +874,7 @@ export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
     draftBody: row.delivery_body,
     draftRevision: row.draft_revision,
     draftSubject: row.delivery_subject,
-    label:
-      row.contact_kind === "contact"
-        ? "회사 연락"
-        : row.expects_document
-          ? "이력서 요청"
-          : "회사 질문 확인",
+    label: "회사 연락",
     requestId: row.id,
     roleId: row.role_id,
     roleName: normalizedText(row.role?.name, 160) || null,
@@ -983,6 +997,7 @@ export async function finalizeRequestedResumeUpload(args: {
   if (error) throw error;
   return data as {
     documentId: string;
+    relayId?: string;
     idempotent: boolean;
     messageId: number;
     requestId: string;
@@ -1049,6 +1064,7 @@ async function candidateAuthoredMessage(args: {
 export async function createCompanyTalentRelay(args: {
   admin: UntypedAdmin;
   connectionId?: string;
+  documentId?: string;
   relayContent: string;
   requestId?: string;
   sourceMessageId: number;
@@ -1062,31 +1078,39 @@ export async function createCompanyTalentRelay(args: {
   const relayContent = normalizedRelayContent(args.relayContent, 5_000);
   if (!relayContent) throw new Error("Company relay content is empty");
   const connectionId = normalizedText(args.connectionId, 180);
-  const recommendationId = connectionId.startsWith("recommendation:")
+  let recommendationId = connectionId.startsWith("recommendation:")
     ? connectionId.slice("recommendation:".length)
     : "";
   if (!args.requestId && !recommendationId) {
     throw new Error("Company connection identifier is missing");
   }
-  const rpcName = args.requestId
-    ? "create_company_talent_relay_v1"
-    : "create_company_talent_relay_v2";
-  const rpcArgs = args.requestId
-    ? {
-        p_relay_content: relayContent,
-        p_request_id: args.requestId,
-        p_source_message_id: args.sourceMessageId,
-        p_talent_id: args.talentId,
-      }
-    : {
-        p_document_id: null,
-        p_recommendation_id: recommendationId,
-        p_relay_content: relayContent,
-        p_request_id: null,
-        p_source_message_id: args.sourceMessageId,
-        p_talent_id: args.talentId,
-      };
-  const { data, error } = await args.admin.rpc(rpcName, rpcArgs);
+  if (args.requestId) {
+    const { data: contact, error } = await args.admin
+      .from("company_talent_requests")
+      .select("recommendation_id")
+      .eq("id", args.requestId)
+      .eq("talent_id", args.talentId)
+      .maybeSingle();
+    if (error) throw error;
+    if (
+      !contact ||
+      (recommendationId && contact.recommendation_id !== recommendationId)
+    ) {
+      throw new Error("Company contact does not belong to this connection");
+    }
+    recommendationId = contact.recommendation_id;
+  }
+  const { data, error } = await args.admin.rpc(
+    "create_company_talent_relay_v2",
+    {
+      p_document_id: args.documentId ?? null,
+      p_recommendation_id: recommendationId,
+      p_relay_content: relayContent,
+      p_request_id: args.requestId ?? null,
+      p_source_message_id: args.sourceMessageId,
+      p_talent_id: args.talentId,
+    }
+  );
   if (error) throw error;
   const result = data as {
     connectionId?: string;
@@ -1105,7 +1129,37 @@ export async function createCompanyTalentRelay(args: {
     relayId: result.id,
     requestId: result.requestId ?? null,
   });
-  return result;
+  const { deliverCompanyTalentRelay } = await import("./delivery");
+  await deliverCompanyTalentRelay({
+    admin: args.admin as any,
+    relayId: result.id,
+  });
+  return { ...result, status: "sent" };
+}
+
+export async function fetchTalentCompanyContactContext(args: {
+  admin: UntypedAdmin;
+  talentId: string;
+}) {
+  const connections = await fetchRelayableCompanyTalentConnections({
+    ...args,
+    limit: 10,
+  });
+  if (!connections.length) return null;
+  return [
+    "[Company connections and recent contacts — private context]",
+    "This is a contact history index, NOT an unanswered-question list. Follow the user's current message; do not assume they mean the latest company contact or a closed Role. Use read_company_connections for more detail or another connection. Never reveal IDs.",
+    "Use contact_company with the exact connectionId and only candidate-authorized content. The company agent interprets replies against earlier contacts after delivery; you do not need to match a requestId or classify an answer. Do not infer company decisions.",
+    formatRelayableCompanyTalentConnections(
+      connections.map((connection) => ({
+        ...connection,
+        recentContacts: connection.recentContacts.slice(-2).map((contact) => ({
+          ...contact,
+          content: contact.content.slice(0, 400),
+        })),
+      }))
+    ),
+  ].join("\n");
 }
 
 export async function fetchCompanyTalentRelayReplyTarget(args: {
@@ -1205,83 +1259,6 @@ export async function sendCompanyTalentRelayReply(args: {
     requestId: string;
     scheduledAt: string;
     status: "queued" | string;
-  };
-}
-
-export async function recordCompanyTalentResponse(args: {
-  admin: UntypedAdmin;
-  disposition?: "negative" | "other" | "positive" | null;
-  requestId: string;
-  sourceMessageId: number;
-  talentId: string;
-}) {
-  const request = await fetchActiveCompanyTalentRequest({
-    admin: args.admin,
-    awaitingTalentOnly: true,
-    requestId: args.requestId,
-    talentId: args.talentId,
-  });
-  if (!request) {
-    throw new Error("Active company request not found");
-  }
-  if (request.intent === "candidate_reengagement" && !args.disposition) {
-    throw new Error("candidate_reengagement_disposition_required");
-  }
-  if (request.intent !== "candidate_reengagement" && args.disposition) {
-    throw new Error("ordinary_company_request_disposition_not_allowed");
-  }
-  const evidence = await candidateAuthoredMessage({
-    admin: args.admin,
-    messageId: args.sourceMessageId,
-    talentId: args.talentId,
-  });
-  if (request.intent !== "candidate_reengagement") {
-    const relay = await createCompanyTalentRelay({
-      admin: args.admin,
-      relayContent: evidence,
-      requestId: args.requestId,
-      sourceMessageId: args.sourceMessageId,
-      talentId: args.talentId,
-    });
-    return {
-      ...request,
-      positionActive: null,
-      relayId: relay.id,
-      talent_source_message_id: args.sourceMessageId,
-      workflow_status: "relay_queued",
-    };
-  }
-  const { data, error } = await args.admin.rpc(
-    "record_company_talent_response_v2",
-    {
-      p_disposition: args.disposition ?? null,
-      p_request_id: args.requestId,
-      p_source_message_id: args.sourceMessageId,
-      p_talent_id: args.talentId,
-    }
-  );
-  if (error) throw error;
-  let positionActive: boolean | null = null;
-  if (
-    request.intent === "candidate_reengagement" &&
-    args.disposition === "positive"
-  ) {
-    const { data: recommendation, error: recommendationError } =
-      await args.admin
-        .from("talent_opportunity_recommendation")
-        .select("saved_stage")
-        .eq("id", request.recommendation_id)
-        .eq("talent_id", request.talent_id)
-        .eq("role_id", request.role_id)
-        .maybeSingle();
-    if (recommendationError) throw recommendationError;
-    positionActive =
-      normalizedText(recommendation?.saved_stage, 40).toLowerCase() ===
-      "accepted";
-  }
-  return {
-    ...(data as CompanyTalentRequestRow),
-    positionActive,
   };
 }
 

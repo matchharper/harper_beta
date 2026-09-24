@@ -16,6 +16,7 @@ import {
   ChatDateDivider,
   ChatLoadOlderButton,
   getChatMessageDateKey,
+  getChatTurnStartedAt,
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import {
@@ -312,6 +313,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
             followingMessage.thinkingLogs ?? []
           ).latestStatus?.state === "stopped";
         const isRunningRecommendationSearch = latestStatus?.state === "running";
+        const turnStartedAt = isUser
+          ? undefined
+          : getChatTurnStartedAt(messages, index);
         const recommendationSearchRun = !isUser
           ? (message.recommendationSearchRun ?? null)
           : null;
@@ -385,7 +389,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   isAssistantStreamActive ||
                   (isOnboardingCompletionWrapup && onboardingWrapupPending)
                 }
+                completedAt={message.createdAt}
                 logs={textLogs}
+                startedAt={turnStartedAt}
               />
             )}
             {!isUser &&

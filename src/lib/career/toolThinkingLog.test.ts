@@ -21,17 +21,11 @@ test("shows localized thinking logs for hidden reevaluation evidence", () => {
 
 test("shows localized thinking logs for company-request responses", () => {
   assert.equal(
-    getCareerToolStartThinkingLog(
-      "record_company_request_response",
-      "ko"
-    ),
+    getCareerToolStartThinkingLog("contact_company", "ko"),
     "회사에 전할 답변을 정리하고 있습니다."
   );
   assert.equal(
-    getCareerToolStartThinkingLog(
-      "record_company_request_response",
-      "en"
-    ),
+    getCareerToolStartThinkingLog("contact_company", "en"),
     "Preparing your response to share with the company."
   );
 });

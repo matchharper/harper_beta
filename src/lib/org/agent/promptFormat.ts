@@ -170,7 +170,9 @@ function formatTalentSearchResult(result: Record<string, any>) {
     (item: any) =>
       Array.isArray(item?.profileMatches) && item.profileMatches.length > 0
   );
-  const hasCompanyProposals = items.some((item: any) => item?.companyIntroStatus);
+  const hasCompanyProposals = items.some(
+    (item: any) => item?.companyIntroStatus
+  );
   return [
     "status=ok",
     pageLine(result),
@@ -729,13 +731,10 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "company_relay_state",
           "role",
           "request",
-          "intent",
-          "resume_stage",
           "topic",
           "candidate_email_subject",
           "candidate_email_body",
           "overall_status",
-          "response_disposition",
           "cancelable",
         ],
         requestHistory.map((item: any) => [
@@ -752,18 +751,15 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.companyRelayState,
           item?.roleName,
           item?.label,
-          item?.intent,
-          humanizeOrgStage(item?.resumeStage),
           item?.topic,
           item?.candidateEmailSubject,
           item?.candidateEmailBody,
           item?.status,
-          item?.responseDisposition,
           item?.cancelable,
         ]),
         [
           100, 40, 40, 40, 40, 100, 40, 100, 40, 40, 100, 160, 180, 800, 240,
-          100, 100, 1_600, 300, 100, 10,
+          1_600, 300, 10,
         ]
       )
     ),

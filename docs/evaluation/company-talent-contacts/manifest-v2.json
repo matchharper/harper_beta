@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "v2",
+  "casesSha256": "8dc65c352ca56d7982a32e991737a048ea251374ea34a3ebee3652109a800d01",
+  "goldSha256": "227c5aeaab2c685f02fa070443b71c83a3dd4c592a03953550762e4f5e3914c7",
+  "frozenBeforeModelCalls": true,
+  "provenance": "User-authorized synthetic five-scenario set; v1 retained. User clarified delivery wording and immediate transport. v2 explicitly names the proactive Role and adds conditional interest and partial document/timing response.",
+  "canonicalRunner": "scripts/evalUnifiedCompanyContacts.ts",
+  "captureRunner": "../harper_worker/scripts/capture_company_contact_test.py",
+  "unit": "stateful bidirectional contact scenario",
+  "modelConfiguration": "runtime defaults, exact model/provider/prompt/reasoning captured per call",
+  "releaseGate": "5/5 behavioral scenarios, zero critical failures; accepted send described as delivered is not a failure",
+  "privacy": "Owner-only ignored private/runs; production capture read-only; local mutations only",
+  "limitations": ["small challenge set", "company-to-candidate email capture adapter", "company web inbox is real local persistence, Slack not connected", "local manual consumption of real durable company jobs; no Vercel OIDC", "no vector extension; example retrieval fails open"]
+}

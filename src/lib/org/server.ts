@@ -241,6 +241,7 @@ export type OrgMember = {
   email: string | null;
   joinedAt: string;
   name: string | null;
+  onboardingCompletedAt?: string | null;
   profilePicture: string | null;
   role: string | null;
   userId: string;
@@ -1361,6 +1362,7 @@ function buildMember(
     email: user?.email ?? null,
     joinedAt: membership.created_at,
     name: user?.name ?? null,
+    onboardingCompletedAt: user?.onboarding_completed_at ?? null,
     profilePicture: user?.profile_picture ?? null,
     role: normalizeNullableText(membership.role),
     userId: membership.company_user_id,
@@ -1776,7 +1778,9 @@ async function fetchOrgMembers(
     const { data: users, error: usersError } = await (
       admin.from("company_users" as any) as any
     )
-      .select("user_id, email, name, profile_picture, role")
+      .select(
+        "user_id, email, name, profile_picture, role, onboarding_completed_at"
+      )
       .in("user_id", userIds);
 
     if (usersError) throw usersError;
@@ -2054,6 +2058,8 @@ function getOrgInviteFromEmail() {
 }
 
 export async function sendOrgWorkspaceInvitations(args: {
+  /** Server-only: invite one alternate account during the caller's onboarding. */
+  onboardingAlternateAccount?: boolean;
   emails: unknown;
   role?: unknown;
   siteUrl: string;
@@ -2082,9 +2088,11 @@ export async function sendOrgWorkspaceInvitations(args: {
   const role = rawRole as OrgMembershipRole;
 
   const admin = getSupabaseAdmin();
-  await assertOrgWorkspacePermission({
+  const inviterAuthority = await assertOrgWorkspacePermission({
     admin,
-    permission: "manage_members",
+    permission: args.onboardingAlternateAccount
+      ? "manage_integrations"
+      : "manage_members",
     user: args.user,
     workspaceId,
   });
@@ -2092,6 +2100,20 @@ export async function sendOrgWorkspaceInvitations(args: {
   if (!workspace) throw new OrgHttpError(404, "Workspace not found");
 
   const members = await fetchOrgMembers(admin, workspaceId);
+  if (args.onboardingAlternateAccount) {
+    const inviter = members.find((member) => member.userId === args.user.id);
+    if (
+      !inviter ||
+      inviter.onboardingCompletedAt ||
+      emails.length !== 1 ||
+      role !== inviterAuthority
+    ) {
+      throw new OrgHttpError(
+        403,
+        "온보딩 중인 본인의 다른 계정 하나만 같은 권한으로 초대할 수 있습니다."
+      );
+    }
+  }
   const memberEmails = new Set(
     members
       .map((member) => normalizeText(member.email).toLowerCase())
@@ -2280,6 +2302,7 @@ function normalizeOrgMemberProfileField(
 }
 
 export async function updateOrgMemberProfile(args: {
+  name?: unknown;
   firstName?: unknown;
   lastName?: unknown;
   role: unknown;
@@ -2316,13 +2339,17 @@ export async function updateOrgMemberProfile(args: {
 
   let name: string | null = null;
   if (!requestedUserId) {
-    const firstName = normalizeOrgMemberProfileField(
-      args.firstName,
-      "이름",
-      100
-    );
-    const lastName = normalizeOrgMemberProfileField(args.lastName, "성", 100);
-    name = `${firstName} ${lastName}`;
+    if (args.name !== undefined) {
+      name = normalizeOrgMemberProfileField(args.name, "이름", 200);
+    } else {
+      const firstName = normalizeOrgMemberProfileField(
+        args.firstName,
+        "이름",
+        100
+      );
+      const lastName = normalizeOrgMemberProfileField(args.lastName, "성", 100);
+      name = `${firstName} ${lastName}`;
+    }
 
     const { data: updatedUser, error: userError } = await (
       admin.from("company_users" as any) as any
@@ -4585,6 +4612,7 @@ export async function setOrgCandidateStage(args: {
   introEmails?: string[] | null;
   recommendationId: string;
   reengagementActionId?: string | null;
+  candidateConsentRelayId?: string | null;
   reengagementResolution?: CandidateReengagementResolution | null;
   roleId: string;
   scheduleInterview?: boolean;
@@ -4757,7 +4785,9 @@ export async function setOrgCandidateStage(args: {
       })
     : { closed: false, recommendationId: null };
   const reactivation =
-    closedState.closed && args.reengagementResolution === "company_confirmed";
+    closedState.closed &&
+    (args.reengagementResolution === "company_confirmed" ||
+      Boolean(args.candidateConsentRelayId));
   const processClosureNotification = closedState.closed
     ? ((
         await fetchOrgProcessClosureNotifications({
@@ -4814,7 +4844,7 @@ export async function setOrgCandidateStage(args: {
 
   if (closedState.closed) {
     const actor = reengagementActor(args.user);
-    if (!args.reengagementResolution) {
+    if (!args.reengagementResolution && !args.candidateConsentRelayId) {
       await recordCandidateReengagementRequired({
         ...actor,
         actionKey: args.reengagementActionId,
@@ -4861,6 +4891,7 @@ export async function setOrgCandidateStage(args: {
 
   if (reactivation) {
     const confirmed = await confirmCandidateReengagementByCompany({
+      candidateConsentRelayId: args.candidateConsentRelayId,
       ...reengagementActor(args.user),
       actionKey: args.reengagementActionId,
       admin,

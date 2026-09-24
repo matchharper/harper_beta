@@ -8,6 +8,7 @@
 
 | 태스크 | 평가 대상 | 정답/fixture 상태 | canonical runner 또는 원문 | 상태 |
 | --- | --- | --- | --- | --- |
+| [company-talent-contacts](company-talent-contacts/README.md) | 통합 양방향 연락·역할 선택·재진행·자발 연락과 회사 후속 실행 | frozen `cases-v1.json`·`gold-v1.json` 3건 | `scripts/evalUnifiedCompanyContacts.ts` + isolated PostgreSQL sandbox | NO-GO: 역할 이동 성공, 재개 차단·연결 조회/context·발송 표현 결함. 운영 DB 쓰기 없음 |
 | [creator-content-performance-conclusion](creator-content-performance-conclusion/README.md) | 크리에이터 콘텐츠의 플랫폼 반응·지급 예정액을 비교한 짧은 결론 | synthetic `gold-v1.json` 4건 | production prompt/normalizer를 재사용하는 `scripts/evalCreatorContentPerformanceConclusion.ts` | GLM live v1 구조 4/4·rating 4/4 통과 |
 | [creator-outreach-reply-triage](creator-outreach-reply-triage/README.md) | 크리에이터 이메일 회신의 primary type·짧은 한국어 요약·명시 URL 추출 | synthetic `gold-v2.json` 8건; v1 계약 모순 1건 adjudication | production prompt/normalizer를 재사용하는 `scripts/evalCreatorOutreachReplyTriage.ts` | GLM live v2 유형 8/8·URL 8/8 통과 |
 | [internal-fit-abc](internal-fit-abc/README.md) | 사람 × internal role의 A 직무 적합성, B 후보 만족 가능성, C 회사 인터뷰 가능성과 최종 추천 판단 | A/B/C `gold-v3.json` 13쌍; 최종 추천 `recommendation-gold-v1.json`은 positive 9·negative 4 | A/B/C runner와 production 1·2차를 재사용하는 fresh-decision recommendation runner | GLM high P/R 85.7%/66.7%, max 80.0%/44.4%; max는 3시간 45분·soft-positive 0/2이고 공통 hard-negative 오류가 남아 배포 부적합 |

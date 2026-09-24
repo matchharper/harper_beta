@@ -50,7 +50,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
       documentId: String(documentId ?? "").trim(),
       userId: user.id,
     });
-    if (!document || (document.kind !== "document" && document.kind !== "resume")) {
+    if (
+      !document ||
+      (document.kind !== "document" && document.kind !== "resume")
+    ) {
       return noStoreJson({ error: "Document not found" }, { status: 404 });
     }
 
@@ -58,6 +61,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       content: document.extracted_text ?? "",
       documentId: document.id,
       fileName: document.file_name,
+      originType: document.origin_type,
       updatedAt: document.updated_at,
     });
   } catch (error) {

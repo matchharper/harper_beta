@@ -95,10 +95,7 @@ import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunity
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 import { resolveCareerRecentConversationLocale } from "@/lib/career/recentConversationLocale";
 import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
-import {
-  fetchActiveCompanyTalentRequest,
-  serializeTalentPendingRequest,
-} from "@/lib/companyTalentRequests/server";
+import { fetchTalentCompanyContactContext } from "@/lib/companyTalentRequests/server";
 import {
   COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
   fetchRecentCompanySnapshot,
@@ -606,10 +603,9 @@ export async function runCareerChatTurn(
           userId,
         })
       : null;
-  const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
-    ? await fetchActiveCompanyTalentRequest({
+  const companyContactContext = talentSetting?.is_onboarding_done
+    ? await fetchTalentCompanyContactContext({
         admin: admin as any,
-        awaitingTalentOnly: true,
         talentId: userId,
       })
     : null;
@@ -728,11 +724,6 @@ export async function runCareerChatTurn(
   }
 
   const toolSelection = resolveCareerChatTools({
-    activeCompanyTalentRequestMode: activeCompanyTalentRequest
-      ? activeCompanyTalentRequest.expects_document
-        ? "document"
-        : "text"
-      : null,
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
@@ -783,9 +774,7 @@ export async function runCareerChatTurn(
     buildCareerConversationPromptPlan({
       activeInternalFitHoldQuestion,
       channel: "chat",
-      companyTalentRequestText: serializeTalentPendingRequest(
-        activeCompanyTalentRequest
-      ),
+      companyTalentRequestText: companyContactContext,
       talentContextSection,
       currentPreferences,
       gmailCapability,

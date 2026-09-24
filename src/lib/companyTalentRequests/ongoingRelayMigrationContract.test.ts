@@ -28,7 +28,7 @@ const companyToolExecution = readFileSync(
   "utf8"
 );
 const deliveryRoute = readFileSync(
-  "src/app/api/internal/company-talent-requests/deliver/route.ts",
+  "src/lib/companyTalentRequests/delivery.ts",
   "utf8"
 );
 const companyContext = readFileSync("src/lib/org/agent/context.ts", "utf8");
@@ -83,10 +83,10 @@ test("Career exposes one general connection reader and one relay writer", () => 
     candidateTools,
     /READ_COMPANY_CONNECTIONS: "read_company_connections"/
   );
-  assert.match(candidateTools, /RELAY_TO_COMPANY: "relay_to_company"/);
+  assert.match(candidateTools, /CONTACT_COMPANY: "contact_company"/);
   assert.match(
     careerToolSelection,
-    /CAREER_CHAT_ONBOARDING_TOOL_NAMES[\s\S]*TALENT_TOOL_NAMES\.READ_COMPANY_CONNECTIONS[\s\S]*TALENT_TOOL_NAMES\.RELAY_TO_COMPANY/
+    /CAREER_CHAT_ONBOARDING_TOOL_NAMES[\s\S]*TALENT_TOOL_NAMES\.READ_COMPANY_CONNECTIONS[\s\S]*TALENT_TOOL_NAMES\.CONTACT_COMPANY/
   );
   assert.match(
     candidateRequestServer,
@@ -96,20 +96,24 @@ test("Career exposes one general connection reader and one relay writer", () => 
   assert.doesNotMatch(candidateTools, /LIST_COMPANY_REQUESTS/);
 });
 
-test("Career reports queued transport without claiming completed delivery", () => {
-  const responseTool =
-    candidateTools.match(
-      /\[TALENT_TOOL_NAMES\.RECORD_COMPANY_REQUEST_RESPONSE\]: \{[\s\S]*?\n  \},\n  \[TALENT_TOOL_NAMES\.READ_COMPANY_CONNECTIONS\]/
-    )?.[0] ?? "";
+test("Career waits for immediate delivery without exposing requestId or a pending-send state", () => {
   const relayTool =
     candidateTools.match(
-      /\[TALENT_TOOL_NAMES\.RELAY_TO_COMPANY\]: \{[\s\S]*?\n  \},\n  \[TALENT_TOOL_NAMES\.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK\]/
+      /\[TALENT_TOOL_NAMES\.CONTACT_COMPANY\]: \{[\s\S]*?\n  \},\n  \[TALENT_TOOL_NAMES\.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK\]/
     )?.[0] ?? "";
-  assert.notEqual(responseTool, "");
   assert.notEqual(relayTool, "");
-  assert.match(responseTool, /status=queued_for_company/);
   assert.match(relayTool, /status=\$\{relay\.status\}/);
-  assert.match(relayTool, /Do not say delivery completed/);
+  assert.doesNotMatch(
+    relayTool,
+    /requestId:|relayQueued|Do not say delivery completed/
+  );
+  assert.match(candidateRequestServer, /await deliverCompanyTalentRelay/);
+  assert.match(
+    candidateRequestServer,
+    /return \{ \.\.\.result, status: "sent" \}/
+  );
+  assert.match(deliveryRoute, /store_company_talent_relay_body_v2/);
+  assert.match(deliveryRoute, /finalize_company_talent_relay_delivery_v1/);
 });
 
 test("Request Intro progress is fact-based and bypasses 7/21 fixed progress", () => {
@@ -146,13 +150,10 @@ test("contact_talent lets the model choose a verified direct relay reply", () =>
     companyToolExecution,
     /candidateMessageSent = sent\.status === "sent"[\s\S]*sent\.status === "queued"[\s\S]*"scheduled"[\s\S]*"not_sent"/
   );
-  assert.match(
-    companyTools,
-    /For send provide relayId and messageContent\./
-  );
+  assert.match(companyTools, /For send provide relayId and messageContent\./);
   assert.match(
     candidateCopy,
-    /deliveryIntent === "direct_reply"[\s\S]*compact\(args\.requestContext, 800\)[\s\S]*assertSafeProfessionalQuestion/
+    /validateCompanyContactContext\(args\.requestContext\)/
   );
   const directSendServer =
     candidateRequestServer.match(

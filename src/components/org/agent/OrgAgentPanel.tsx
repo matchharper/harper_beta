@@ -10,6 +10,7 @@ import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import {
   ChatLoadOlderButton,
   getChatMessageDateKey,
+  getChatTurnStartedAt,
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
@@ -39,6 +40,7 @@ import {
   shouldShowOrgRoleQuickActions,
 } from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
+import { hasOrgAgentToolWork } from "@/lib/org/agent/thinkingLogs";
 import {
   hasReachedOrgActiveRoleLimit,
   ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
@@ -302,6 +304,9 @@ export function OrgAgentChatSurface({
   ]);
 
   const lastHistoryMessage = history.messages.at(-1);
+  const latestUserMessageIndex = history.messages.findLastIndex(
+    (message) => message.role === "user"
+  );
   const showOptimisticDateDivider = Boolean(
     chat.optimisticUserMessage &&
     getChatMessageDateKey(chat.optimisticUserMessage.createdAt) !==
@@ -379,6 +384,14 @@ export function OrgAgentChatSurface({
                 history.messages,
                 index
               );
+              const turnStartedAt =
+                message.role === "assistant"
+                  ? getChatTurnStartedAt(history.messages, index)
+                  : undefined;
+              const workActive =
+                chat.isStreaming &&
+                index > latestUserMessageIndex &&
+                message.metadata.agentTurn?.phase === "progress";
               const authorMember = message.authorUserId
                 ? bootstrap.members.find(
                     (member) => member.userId === message.authorUserId
@@ -447,6 +460,8 @@ export function OrgAgentChatSurface({
                     readOnly={readOnly}
                     roleId={roleId}
                     showUserAttribution={purpose === "role-creation"}
+                    turnStartedAt={turnStartedAt}
+                    workActive={workActive}
                     workspaceId={workspaceId}
                   />
                 </div>
@@ -476,6 +491,7 @@ export function OrgAgentChatSurface({
           )}
           <ChatThinkingLogPanel
             active={chat.isStreaming}
+            hasToolWork={hasOrgAgentToolWork(chat.thinkingLogs)}
             logs={chat.thinkingLogs}
             typographyClassName="text-[13px] leading-[1.65]"
           />

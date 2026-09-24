@@ -236,6 +236,7 @@ export function useUpdateOrgMemberProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: {
+      name?: string;
       firstName?: string;
       lastName?: string;
       role: string;

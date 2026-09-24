@@ -707,7 +707,7 @@ function RoleDescriptionSection({
       </h3>
       <div className="h-px w-full bg-neutral-1000-a05" />
       {opportunity.description?.trim() ? (
-        <RichText content={opportunity.description} />
+        <RichText variant="career" content={opportunity.description} />
       ) : (
         <div className="text-sm leading-6">
           {t(

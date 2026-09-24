@@ -2,14 +2,17 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
 import {
+  buildCompanyResearchTalentContext,
   buildCompanySnapshotMarkdown,
   runCompanySnapshotResearch,
   runCompanySnapshotReportFromCachedResearch,
 } from "@/lib/career/companySnapshot";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { getLlmChatProviderForModel } from "@/lib/llm/llm";
+import type { Database } from "@/types/database.types";
 
 type EvaluationCase = {
   companyName: string;
@@ -45,26 +48,84 @@ async function writePrivateFile(filePath: string, content: string) {
   await chmod(filePath, 0o600);
 }
 
+async function captureAuthorizedTalentContext(args: {
+  companyName: string;
+  email: string;
+  reason: string;
+}) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase credentials are required");
+  const admin = createClient<Database>(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      fetch: async (input, init) => {
+        const method = (init?.method ?? "GET").toUpperCase();
+        if (method !== "GET" && method !== "HEAD") {
+          throw new Error("Evaluation capture permits read-only GET/HEAD requests");
+        }
+        return fetch(input, { ...init, signal: AbortSignal.timeout(50_000) });
+      },
+    },
+  });
+  // GET RPCs execute read-only. Preserve the runtime's semantic Memory reader.
+  const rpc = admin.rpc.bind(admin);
+  admin.rpc = (fn, params, options) =>
+    rpc(fn, params, { ...options, get: true });
+  const { data, error } = await admin
+    .from("talent_users")
+    .select("user_id")
+    .eq("email", args.email)
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Talent not found");
+  const context = await buildCompanyResearchTalentContext({
+    admin,
+    companyName: args.companyName,
+    reason: args.reason,
+    userId: data.user_id,
+  });
+  if (!context.trim()) throw new Error("Talent context capture returned empty");
+  return context;
+}
+
 async function main() {
   const outputDirectory = readArgument("--output-dir");
   const requestedCaseId = readArgument("--case-id");
   const adHocCompanyName = readArgument("--company-name");
   const adHocReason = readArgument("--reason") ?? "";
-  const adHocTalentContext = readArgument("--talent-context") ?? "";
+  const talentEmail = readArgument("--talent-email");
+  let adHocTalentContext = readArgument("--talent-context") ?? "";
   if (!outputDirectory) {
     throw new Error("--output-dir is required");
   }
 
   const repositoryRoot = process.cwd();
+  const absoluteOutputDirectory = path.resolve(repositoryRoot, outputDirectory);
+  let capturedAt: string | null = null;
+  if (talentEmail) {
+    if (!adHocCompanyName || adHocTalentContext || requestedCaseId) {
+      throw new Error("--talent-email requires --company-name and cannot override a frozen case or --talent-context");
+    }
+    const runsRoot = path.join(repositoryRoot, "docs/evaluation/career-company-research/runs");
+    if (!absoluteOutputDirectory.startsWith(`${runsRoot}${path.sep}`)) {
+      throw new Error("Production-context runs must be saved in the task's ignored runs directory");
+    }
+    adHocTalentContext = await captureAuthorizedTalentContext({
+      companyName: adHocCompanyName,
+      email: talentEmail,
+      reason: adHocReason,
+    });
+    capturedAt = new Date().toISOString();
+  }
   const fixturePath = path.resolve(
     repositoryRoot,
     readArgument("--fixture") ??
       "docs/evaluation/career-company-research/cases-v2.json"
   );
-  const promptSourcePath = path.join(
-    repositoryRoot,
-    "src/lib/career/companySnapshot.ts"
-  );
+  const promptSourceFiles = [
+    "src/lib/career/companySnapshot.ts",
+    "src/lib/career/prompts/companyResearchExample.ts",
+  ];
   const fixtureRaw = await readFile(fixturePath, "utf8");
   const fixture = JSON.parse(fixtureRaw) as EvaluationFixture;
   const adHocCase: EvaluationCase | null = adHocCompanyName
@@ -80,17 +141,27 @@ async function main() {
     : requestedCaseId
       ? fixture.cases.filter((item) => item.id === requestedCaseId)
       : fixture.cases;
-  const datasetVersion = adHocCase ? "ad-hoc-v1" : fixture.datasetVersion;
+  const datasetVersion = talentEmail
+    ? "authorized-production-ad-hoc-v1"
+    : adHocCase ? "ad-hoc-v1" : fixture.datasetVersion;
   const evaluatedInputRaw = adHocCase
     ? JSON.stringify({ cases: [adHocCase], datasetVersion }, null, 2)
     : fixtureRaw;
   if (evaluationCases.length === 0) {
     throw new Error(`Unknown --case-id: ${requestedCaseId}`);
   }
-  const promptSource = await readFile(promptSourcePath, "utf8");
-  const absoluteOutputDirectory = path.resolve(repositoryRoot, outputDirectory);
+  const promptSources = await Promise.all(
+    promptSourceFiles.map(async (file) => ({
+      file,
+      content: await readFile(path.join(repositoryRoot, file), "utf8"),
+    }))
+  );
   await mkdir(absoluteOutputDirectory, { recursive: true, mode: 0o700 });
   await chmod(absoluteOutputDirectory, 0o700);
+  await writePrivateFile(
+    path.join(absoluteOutputDirectory, "input.json"),
+    `${evaluatedInputRaw}\n`
+  );
 
   const dossierRun = readArgument("--dossier-run");
   const dossierRaw = dossierRun
@@ -148,6 +219,10 @@ async function main() {
       );
       content = {
         ...reused.content,
+        // A failed new generation must never display the previous private article.
+        private_markdown: "",
+        full_markdown: "",
+        personalized: undefined,
         ...privateReport,
         metadata: {
           ...((privateReport.metadata as Record<string, unknown>) ?? {}),
@@ -166,7 +241,7 @@ async function main() {
       });
     }
     const latencyMs = Date.now() - startedAt;
-    const markdown = buildCompanySnapshotMarkdown({
+    const markdown = content.error ? "" : buildCompanySnapshotMarkdown({
       companyName: evaluationCase.companyName,
       content,
       includePersonalized: true,
@@ -186,14 +261,15 @@ async function main() {
     `- Dataset: ${datasetVersion}`,
     `- Writer model: ${CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel}`,
     `- Base research: ${dossierRun ? "reused cached evidence" : "three parallel Exa searches"}`,
-    "- Inputs: public company names plus synthetic reason and talent context",
+    `- Inputs: public company names plus ${talentEmail ? "explicitly authorized production Profile/Brief/Memory" : "supplied evaluation context"}`,
     "",
     ...results.flatMap((result) => [
       `# ${result.case.id} · ${result.case.companyName}`,
       "",
       `- Wall time: ${result.latencyMs}ms`,
-      `- Synthetic reason: ${result.case.reason}`,
-      `- Synthetic talent context: ${result.case.talentContext}`,
+      ...(result.content.error ? [`- Generation error: ${result.content.error} (${result.content.reason ?? "unspecified"})`] : []),
+      `- Question: ${result.case.reason}`,
+      `- Talent context: ${result.case.talentContext}`,
       `- Cost metadata: ${JSON.stringify((result.content.metadata as any)?.costs_usd ?? null)}`,
       "",
       result.markdown,
@@ -220,11 +296,13 @@ async function main() {
         "diff",
         "--",
         "src/lib/career/companySnapshot.ts",
+        "src/lib/career/prompts/companyResearchExample.ts",
         "src/lib/career/llm.ts",
       ])
     ),
     fixtureHash: sha256(evaluatedInputRaw),
-    promptFingerprint: sha256(promptSource),
+    promptFingerprint: sha256(JSON.stringify(promptSources)),
+    promptSourceFiles,
     primaryModel: CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel,
     reusedDossier: dossierRun
       ? { run: dossierRun, sha256: sha256(dossierRaw!) }
@@ -233,6 +311,20 @@ async function main() {
     provider: getLlmChatProviderForModel(
       CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel
     ),
+    ...(talentEmail ? {
+      dataProvenance: {
+        kind: "authorized_production_context",
+        capturedAt,
+        authorization: "Explicit user request to run research_company with this account's data",
+        capture: "Read-only Supabase GET/HEAD; existing Profile + full Brief + relevant Memory builder",
+        inputArtifact: "input.json",
+        providers: [
+          { name: "OpenAI", endpoint: "https://api.openai.com/v1/responses", store: false, accountDataCollection: "not verified by this runner" },
+          { name: "OpenAI", endpoint: "https://api.openai.com/v1/embeddings", purpose: "Memory query embedding if needed", accountDataCollection: "not verified by this runner" },
+          { name: "Exa", endpoint: "https://api.exa.ai/search", contextInQueries: "model-selected, as authorized", accountDataCollection: "not verified by this runner" },
+        ],
+      },
+    } : {}),
     reasoning: {
       terraWriter: CAREER_LLM_CONFIG.companySnapshotResearch.reasoningEffort,
     },
@@ -266,6 +358,7 @@ async function main() {
       `${JSON.stringify(manifest, null, 2)}\n`
     ),
   ]);
+  if (results.some((result) => result.content.error)) process.exitCode = 1;
 }
 
 main().catch((error) => {

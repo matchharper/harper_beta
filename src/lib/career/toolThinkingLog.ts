@@ -64,7 +64,7 @@ export function getCareerToolStartThinkingLog(
         "career.chat.tool.record_internal_fit_reevaluation_information.start",
         "추가로 알려주신 정보를 반영하고 있습니다."
       );
-    case "record_company_request_response":
+    case "contact_company":
       return careerT(
         locale,
         "career.chat.tool.record_company_request_response.start",

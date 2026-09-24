@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deliverCompanyTalentRelay } from "@/lib/companyTalentRequests/delivery";
 import { createHash, randomUUID } from "node:crypto";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -92,8 +93,7 @@ export async function POST(req: NextRequest) {
     }
     const originalName = file.name?.trim().slice(0, 255) || "document";
     const requestedKind = String(formData.get("kind") ?? "resume").trim();
-    const isChatUpload =
-      String(formData.get("source") ?? "").trim() === "chat";
+    const isChatUpload = String(formData.get("source") ?? "").trim() === "chat";
     const resumeRequestToken = String(
       formData.get("resumeRequestToken") ?? ""
     ).trim();
@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
         requestId: requestToken.requestId,
         talentId: user.id,
       });
-      if (!activeRequest || !activeRequest.expects_document) {
+      if (!activeRequest) {
         await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
         cleanupStoragePath = null;
         return rejectUpload({
@@ -264,6 +264,12 @@ export async function POST(req: NextRequest) {
       } else {
         storageClaimed = true;
         cleanupStoragePath = null;
+      }
+      if (finalized.relayId) {
+        await deliverCompanyTalentRelay({
+          admin: admin as any,
+          relayId: finalized.relayId,
+        });
       }
       const { data: requestDocument, error: requestDocumentError } = await admin
         .from("talent_documents")
@@ -461,7 +467,7 @@ export async function POST(req: NextRequest) {
       resumeFileName: kind === "resume" ? document.file_name : null,
       resumeStoragePath: kind === "resume" ? document.storage_path : null,
       resumeDownloadUrl: kind === "resume" ? documentDownloadUrl : null,
-      resumeText: kind === "resume" ? document.extracted_text ?? "" : null,
+      resumeText: kind === "resume" ? (document.extracted_text ?? "") : null,
       bucket: TALENT_RESUME_BUCKET,
       document: {
         id: document.id,

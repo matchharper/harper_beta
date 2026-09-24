@@ -11,6 +11,7 @@ type DocumentContent = {
   content: string;
   documentId: string;
   fileName: string;
+  originType: string | null;
   updatedAt: string;
 };
 
@@ -134,7 +135,11 @@ export function CareerDocumentDetail({
               </MuteButton>
             </div>
           ) : result ? (
-            <RichText content={result.content} />
+            <RichText
+              variant="career"
+              content={result.content}
+              referenceLinks={result.originType === "company_research"}
+            />
           ) : (
             <div
               role="status"

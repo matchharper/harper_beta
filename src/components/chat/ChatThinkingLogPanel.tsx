@@ -26,9 +26,44 @@ export type ChatThinkingLogEntry = {
 export type ChatThinkingLogPanelProps = {
   active?: boolean;
   className?: string;
+  completedAt?: string;
+  hasToolWork?: boolean;
   logs: Array<string | ChatThinkingLogEntry>;
+  startedAt?: string;
   typographyClassName?: string;
 };
+
+export function formatChatWorkDuration(
+  startedAt?: string,
+  completedAt?: string
+) {
+  if (!startedAt || !completedAt) return null;
+  const startedTime = new Date(startedAt).getTime();
+  const completedTime = new Date(completedAt).getTime();
+  if (
+    !Number.isFinite(startedTime) ||
+    !Number.isFinite(completedTime) ||
+    completedTime < startedTime
+  ) {
+    return null;
+  }
+
+  const totalSeconds = Math.max(
+    0,
+    Math.round((completedTime - startedTime) / 1000)
+  );
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [
+    hours > 0 ? `${hours}h` : null,
+    minutes > 0 || hours > 0 ? `${minutes}m` : null,
+    `${seconds}s`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 function ThinkingLogStatusIcon({
   icon,
@@ -78,11 +113,23 @@ function ThinkingLogStatusIcon({
 export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   active = false,
   className,
+  completedAt,
+  hasToolWork = true,
   logs,
+  startedAt,
   typographyClassName,
 }: ChatThinkingLogPanelProps) {
   const [expanded, setExpanded] = useState(active);
   const isExpanded = active || expanded;
+  const duration =
+    !active && hasToolWork
+      ? formatChatWorkDuration(startedAt, completedAt)
+      : null;
+  const statusLabel = hasToolWork
+    ? active
+      ? "Working"
+      : "Worked"
+    : "Thinking";
 
   if (logs.length === 0) return null;
 
@@ -111,7 +158,10 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
         ) : (
           <ChevronRight className="h-3.5 w-3.5 text-neutral-soft" />
         )}
-        <span>Thinking</span>
+        <span>
+          {statusLabel}
+          {duration ? ` · ${duration}` : ""}
+        </span>
       </BareButton>
       {isExpanded ? (
         <div className="ml-[7px] border-l border-neutral-1000-a05 pl-4">

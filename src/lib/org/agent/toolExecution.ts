@@ -110,7 +110,6 @@ import {
   changeCompanyTalentRequest,
   createCompanyTalentContactDraft,
   createCompanyTalentResumeUploadToken,
-  enqueueCompanyTalentRequest,
   fetchBlockingCompanyTalentRequestForWorkspace,
   fetchCompanyTalentContact,
   fetchCompanyTalentRelayReplyTarget,
@@ -132,7 +131,6 @@ import {
   internalCandidatePairIsClosed,
   internalCandidateRoleIsOpen,
   recordCandidateReengagementRequired,
-  recordCandidateReengagementRequested,
 } from "@/lib/internalCandidateReengagement";
 import {
   resolveCandidateContactLifecycleAction,
@@ -452,7 +450,6 @@ function existingCompanyTalentRequestResult(args: {
   callId: string;
   candidateName: string;
   existingRequest: BlockingCompanyTalentRequest | null;
-  kind: "contact" | "question" | "resume";
   name: OrgAgentToolName;
   requestContext: string;
   roleName: string;
@@ -497,7 +494,6 @@ function existingCompanyTalentRequestResult(args: {
       ? "Make the existing request and the replacement choice clear; do not imply either was cancelled or replaced yet."
       : "Make clear that no new request was queued and the existing delivery can no longer be changed.",
     requested: {
-      kind: args.kind,
       roleName: args.roleName,
       topic: args.requestContext,
     },
@@ -2272,198 +2268,6 @@ async function executeChangeRoleStatus(args: {
   };
 }
 
-async function executeCompanyTalentRequest(args: {
-  admin: OrgAgentAdminClient;
-  callId: string;
-  currentUserMessageId: number;
-  input: Record<string, unknown>;
-  name: OrgAgentToolName;
-  slackThreadId: string | null;
-  source: "chat" | "slack";
-  state: OrgAgentToolExecutionState;
-  user: User;
-  workspaceId: string;
-}) {
-  const kindValue = requiredText(args.input.kind, "kind", 20);
-  if (kindValue !== "question" && kindValue !== "resume") {
-    throw new OrgAgentToolInputError("kind must be question or resume");
-  }
-  const kind: "question" | "resume" = kindValue;
-  const deliveryModeValue = text(args.input.deliveryMode) || "standard";
-  if (deliveryModeValue !== "standard" && deliveryModeValue !== "immediate") {
-    throw new OrgAgentToolInputError(
-      "deliveryMode must be standard or immediate"
-    );
-  }
-  const deliveryMode: "standard" | "immediate" = deliveryModeValue;
-  const role = roleOrThrow(args.state, args.input.roleId);
-  const talentId = requiredText(args.input.talentId, "talentId", 100);
-  const requestContext =
-    kind === "resume"
-      ? `${role.name} 역할 검토를 위한 최신 이력서 공유 가능 여부 확인`
-      : requiredText(args.input.requestContext, "requestContext", 800);
-  const talent = await readOrgAgentTalent({
-    admin: args.admin,
-    audience: "caller",
-    includeProfile: false,
-    roleId: role.roleId,
-    talentId,
-    user: args.user,
-    workspaceId: args.workspaceId,
-  });
-  const position = currentOrgContactableCompanyPosition(
-    talent.positions,
-    role.roleId
-  );
-  if (!position) {
-    throw new OrgAgentToolInputError(
-      "이 역할에서 회사에 공유된 후보자 연락 대상을 확인하지 못해 초안을 만들 수 없어요."
-    );
-  }
-  if (!text(talent.candidate.email)) {
-    args.state.fallbackReply =
-      "현재 Harper가 후보자분께 연락할 수 있는 이메일을 확인하지 못해 대신 문의를 보내지 못했습니다. 후보자 상세의 프로필 정보를 먼저 확인해 주시고, 가능한 다른 연락 경로가 있다면 직접 연락해 주세요.";
-    recordResult(args.state, {
-      callId: args.callId,
-      name: args.name,
-      status: "error",
-      summary: "후보자 연락 이메일 없음",
-    });
-    return {
-      status: "contact_unavailable",
-      userMessage: args.state.fallbackReply,
-    };
-  }
-
-  if (kind === "resume") {
-    const { data: documents, error: documentError } = await (
-      args.admin.from("talent_documents" as any) as any
-    )
-      .select("id, is_public")
-      .eq("talent_id", talentId)
-      .eq("kind", "resume")
-      .eq("is_primary", true)
-      .limit(1);
-    if (documentError) throw documentError;
-    const primary = documents?.[0] as
-      | { id: string; is_public: boolean }
-      | undefined;
-    if (primary?.is_public) {
-      throw new OrgAgentToolInputError(
-        "이미 후보자 프로필에서 확인할 수 있는 이력서가 있습니다. 후보자 상세의 이력서를 안내해 주세요."
-      );
-    }
-  }
-
-  const existingRequest = blockingCompanyTalentRequest(
-    talent.requestHistory as BlockingCompanyTalentRequest[],
-    role.roleId
-  );
-  if (existingRequest) {
-    return existingCompanyTalentRequestResult({
-      callId: args.callId,
-      candidateName: text(talent.candidate.name),
-      existingRequest,
-      kind,
-      name: args.name,
-      requestContext,
-      roleName: role.name,
-      state: args.state,
-    });
-  }
-
-  let request;
-  try {
-    request = await enqueueCompanyTalentRequest({
-      admin: args.admin as any,
-      deliveryMode,
-      expectsDocument: kind === "resume",
-      recommendationId: position.recommendationId,
-      requestContext,
-      roleId: role.roleId,
-      sourceCompanyMessageId: args.currentUserMessageId,
-      talentId,
-      workspaceId: args.workspaceId,
-    });
-  } catch (error) {
-    const message =
-      error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : String(error);
-    const isExistingRequestConflict =
-      message.includes("company_talent_request_already_active") ||
-      message.includes(
-        "company_talent_requests_workspace_role_talent_open_uidx"
-      ) ||
-      (message.includes("contact_queue_type_recommendation_uidx") &&
-        String(
-          error && typeof error === "object" && "code" in error
-            ? error.code
-            : ""
-        ) === "23505");
-    if (isExistingRequestConflict) {
-      const refreshedTalent = await readOrgAgentTalent({
-        admin: args.admin,
-        audience: "caller",
-        includeProfile: false,
-        roleId: role.roleId,
-        talentId,
-        user: args.user,
-        workspaceId: args.workspaceId,
-      });
-      const refreshedExistingRequest = blockingCompanyTalentRequest(
-        refreshedTalent.requestHistory as BlockingCompanyTalentRequest[],
-        role.roleId
-      );
-      const existingRequest =
-        refreshedExistingRequest ??
-        (await fetchBlockingCompanyTalentRequestForWorkspace({
-          admin: args.admin as any,
-          roleId: role.roleId,
-          talentId,
-          workspaceId: args.workspaceId,
-        }));
-      return existingCompanyTalentRequestResult({
-        callId: args.callId,
-        candidateName: text(refreshedTalent.candidate.name),
-        existingRequest,
-        kind,
-        name: args.name,
-        requestContext,
-        roleName: role.name,
-        state: args.state,
-      });
-    }
-    throw error;
-  }
-
-  args.state.fallbackReply = candidateContactScheduledReply({
-    candidateName: text(talent.candidate.name) || "후보자",
-    immediate: deliveryMode === "immediate",
-    kind,
-    scheduledAt: request.candidateDeliveryScheduledAt,
-  });
-  recordResult(args.state, {
-    callId: args.callId,
-    name: args.name,
-    status: "success",
-    summary:
-      deliveryMode === "immediate"
-        ? kind === "resume"
-          ? "후보자 이력서 요청 즉시 발송"
-          : "후보자 확인 요청 즉시 발송"
-        : kind === "resume"
-          ? "후보자 이력서 요청 예약"
-          : "후보자 확인 요청 예약",
-  });
-  return {
-    requestId: request.id,
-    scheduledAt: request.candidateDeliveryScheduledAt,
-    status: deliveryMode === "immediate" ? "immediate" : "queued",
-    userMessage: args.state.fallbackReply,
-  };
-}
-
 async function executeChangeTalentContact(args: {
   admin: OrgAgentAdminClient;
   callId: string;
@@ -2611,28 +2415,6 @@ function candidateResumeUploadUrl(args: {
     createCompanyTalentResumeUploadToken(args)
   );
   return url.toString();
-}
-
-function candidateResumeUploadUrlFromDraft(body: string) {
-  const profileUrl = (body.match(/https?:\/\/[^\s<>"')\]]+/g) ?? []).find(
-    (value) => {
-      try {
-        const url = new URL(value);
-        return (
-          url.pathname === "/career/profile" &&
-          Boolean(url.searchParams.get("resumeRequest"))
-        );
-      } catch {
-        return false;
-      }
-    }
-  );
-  if (!profileUrl) {
-    throw new OrgAgentToolInputError(
-      "이력서 요청 초안에 필수 업로드 링크가 없어 수정할 수 없습니다. 현재 요청을 취소하고 새 초안을 만들어 주세요."
-    );
-  }
-  return profileUrl;
 }
 
 async function fetchRecentlyPresentedContactDraftReferences(args: {
@@ -2936,7 +2718,6 @@ async function executeCandidateContactLifecycleItem(args: {
         companyName: text(args.state.company.companyName) || "채용 회사",
         currentInstruction: args.userMessage ?? messageContent,
         deliveryIntent: "direct_reply",
-        kind: "contact",
         locale: candidateLanguage.locale,
         profileUrl: null,
         recentConversation: args.recentConversationContext ?? "",
@@ -3006,32 +2787,14 @@ async function executeCandidateContactLifecycleItem(args: {
   }
 
   if (action === "create_draft") {
-    const kindValue = requiredText(args.input.kind, "kind", 20);
-    if (
-      kindValue !== "contact" &&
-      kindValue !== "question" &&
-      kindValue !== "resume"
-    ) {
-      throw new OrgAgentToolInputError(
-        "kind must be contact, question, or resume"
-      );
-    }
-    const kind: "contact" | "question" | "resume" = kindValue;
-    const resumeStage = text(args.input.resumeStageId)
-      ? moveableCompanyPipelineStage(args.input.resumeStageId, "resumeStageId")
-      : null;
-    if (resumeStage && kind !== "question") {
-      throw new OrgAgentToolInputError(
-        "resumeStageId is available only for a renewed-interest question"
-      );
-    }
     const role = roleOrThrow(args.state, args.input.roleId);
     args.state.preferredRoleId = role.roleId;
     const talentId = requiredText(args.input.talentId, "talentId", 100);
-    const requestContext =
-      kind === "resume"
-        ? `${role.name} 역할 검토를 위한 최신 이력서 공유 가능 여부 확인`
-        : requiredText(args.input.requestContext, "requestContext", 800);
+    const requestContext = requiredText(
+      args.input.requestContext,
+      "requestContext",
+      800
+    );
     const talent = await readOrgAgentTalent({
       admin: args.admin,
       audience: "caller",
@@ -3068,13 +2831,6 @@ async function executeCandidateContactLifecycleItem(args: {
         "이 역할에서 회사에 공유된 후보자 연락 대상을 확인하지 못해 초안을 만들 수 없어요."
       );
     }
-    if (resumeStage) {
-      if (!latestClosed.closed) {
-        throw new OrgAgentToolInputError(
-          "This candidate no longer needs renewed consent before the requested stage change. Read the current pipeline before continuing."
-        );
-      }
-    }
     if (!text(talent.candidate.email)) {
       args.state.fallbackReply =
         "현재 Harper가 후보자분께 연락할 수 있는 이메일을 확인하지 못해 초안을 만들지 못했습니다. 아직 접수되거나 발송된 내용은 없습니다.";
@@ -3094,22 +2850,6 @@ async function executeCandidateContactLifecycleItem(args: {
         roleName: role.name,
         status: "contact_unavailable",
       };
-    }
-    if (kind === "resume") {
-      const { data: documents, error } = await (
-        args.admin.from("talent_documents" as any) as any
-      )
-        .select("id, is_public")
-        .eq("talent_id", talentId)
-        .eq("kind", "resume")
-        .eq("is_primary", true)
-        .limit(1);
-      if (error) throw error;
-      if (documents?.[0]?.is_public) {
-        throw new OrgAgentToolInputError(
-          "이미 후보자 프로필에서 회사가 확인할 수 있는 이력서가 있습니다."
-        );
-      }
     }
 
     const candidateLanguage = await readCandidatePreferredLanguage({
@@ -3143,8 +2883,7 @@ async function executeCandidateContactLifecycleItem(args: {
           }
         );
         args.state.fallbackReply = candidateContactDraftFallbackReply(
-          text(talent.candidate.name),
-          kind
+          text(talent.candidate.name)
         );
         recordResult(args.state, {
           callId: args.callId,
@@ -3155,6 +2894,8 @@ async function executeCandidateContactLifecycleItem(args: {
         return {
           candidatePreferredLanguage: candidateLanguage.language,
           contactId,
+          body: String(existingRequest.draftBody),
+          subject: String(existingRequest.draftSubject),
           candidateName: text(talent.candidate.name),
           revision,
           roleName: role.name,
@@ -3165,7 +2906,6 @@ async function executeCandidateContactLifecycleItem(args: {
         callId: args.callId,
         candidateName: text(talent.candidate.name),
         existingRequest,
-        kind,
         name: args.name,
         requestContext,
         roleName: role.name,
@@ -3174,17 +2914,13 @@ async function executeCandidateContactLifecycleItem(args: {
     }
 
     const requestId = crypto.randomUUID();
-    const profileUrl =
-      kind === "resume"
-        ? candidateResumeUploadUrl({ requestId, talentId })
-        : null;
+    const profileUrl = candidateResumeUploadUrl({ requestId, talentId });
     let draftCopy;
     try {
       draftCopy = await generateCandidateContactDraft({
         candidateName: text(talent.candidate.name),
         companyName: text(args.state.company.companyName) || "채용 회사",
         currentInstruction: args.userMessage ?? requestContext,
-        kind,
         locale: candidateLanguage.locale,
         profileUrl,
         recentConversation: args.recentConversationContext ?? "",
@@ -3223,13 +2959,9 @@ async function executeCandidateContactLifecycleItem(args: {
       draft = await createCompanyTalentContactDraft({
         admin: args.admin as any,
         body: draftCopy.body,
-        contactKind: kind,
-        expectsDocument: kind === "resume",
         id: requestId,
-        intent: resumeStage ? "candidate_reengagement" : "ordinary",
         recommendationId: requestPosition.recommendationId,
         requestContext: draftCopy.requestContext,
-        resumeStage,
         roleId: role.roleId,
         sourceCompanyMessageId: args.currentUserMessageId,
         subject: draftCopy.subject,
@@ -3262,7 +2994,6 @@ async function executeCandidateContactLifecycleItem(args: {
           callId: args.callId,
           candidateName: text(talent.candidate.name),
           existingRequest: existing,
-          kind,
           name: args.name,
           requestContext,
           roleName: role.name,
@@ -3285,23 +3016,8 @@ async function executeCandidateContactLifecycleItem(args: {
       source: args.source,
     });
     args.state.fallbackReply = candidateContactDraftFallbackReply(
-      text(talent.candidate.name),
-      kind
+      text(talent.candidate.name)
     );
-    if (resumeStage) {
-      await recordCandidateReengagementRequested({
-        actorEmail: args.user.email ?? null,
-        actorUserId: args.user.id,
-        admin: args.admin,
-        recommendationId: requestPosition.recommendationId,
-        requestContext: draftCopy.requestContext,
-        requestId: contactId,
-        roleId: role.roleId,
-        stage: resumeStage,
-        status: "draft",
-        talentId,
-      });
-    }
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -3313,6 +3029,8 @@ async function executeCandidateContactLifecycleItem(args: {
       contactId,
       candidateName: text(talent.candidate.name),
       reason: writingReason,
+      body: String(draft.delivery_body),
+      subject: String(draft.delivery_subject),
       revision,
       roleName: role.name,
       status: "draft",
@@ -3354,16 +3072,10 @@ async function executeCandidateContactLifecycleItem(args: {
         "초안이 그사이 바뀌었어요. 최신 문구를 다시 확인한 뒤 수정해 주세요."
       );
     }
-    const kind =
-      contact.contact_kind === "contact"
-        ? "contact"
-        : contact.expects_document
-          ? "resume"
-          : "question";
-    const profileUrl =
-      kind === "resume"
-        ? candidateResumeUploadUrlFromDraft(String(contact.delivery_body ?? ""))
-        : null;
+    const profileUrl = candidateResumeUploadUrl({
+      requestId: contact.id,
+      talentId: contact.talent_id,
+    });
     const candidateLanguage = await readCandidatePreferredLanguage({
       admin: args.admin,
       talentId: contact.talent_id,
@@ -3378,7 +3090,6 @@ async function executeCandidateContactLifecycleItem(args: {
         },
         currentInstruction: args.userMessage ?? editInstruction,
         editInstruction,
-        kind,
         locale: candidateLanguage.locale,
         profileUrl,
         recentConversation: args.recentConversationContext ?? "",
@@ -3441,6 +3152,8 @@ async function executeCandidateContactLifecycleItem(args: {
       contactId: revised.id,
       candidateName,
       reason: revisedCopy.reason ?? null,
+      body: String(revised.delivery_body),
+      subject: String(revised.delivery_subject),
       revision: revised.draft_revision,
       roleName,
       status: "draft_revised",
@@ -3500,24 +3213,6 @@ async function executeCandidateContactLifecycleItem(args: {
         }
         throw error;
       }
-      if (text(contact.intent) === "candidate_reengagement") {
-        const resumeStage = moveableCompanyPipelineStage(
-          contact.resume_stage || "pending_connection",
-          "resumeStageId"
-        );
-        await recordCandidateReengagementRequested({
-          actorEmail: args.user.email ?? null,
-          actorUserId: args.user.id,
-          admin: args.admin,
-          recommendationId: text(contact.recommendation_id),
-          requestContext: text(contact.request_context),
-          requestId: contact.id,
-          roleId: contact.role_id,
-          stage: resumeStage,
-          status: "waiting_for_candidate_reply",
-          talentId: contact.talent_id,
-        });
-      }
       args.state.contactDraftRef = {
         contactId: contact.id,
         revision: contact.draft_revision,
@@ -3525,12 +3220,6 @@ async function executeCandidateContactLifecycleItem(args: {
       args.state.fallbackReply = candidateContactScheduledReply({
         candidateName,
         immediate: deliveryModeValue === "immediate",
-        kind:
-          contact.contact_kind === "contact"
-            ? "contact"
-            : contact.expects_document
-              ? "resume"
-              : "question",
         scheduledAt: scheduled.scheduledAt,
       });
       recordResult(args.state, {
@@ -4431,8 +4120,8 @@ async function executeMoveCandidateStage(args: {
   const position =
     activePosition ??
     (latestPosition?.stage === "company_intro" ||
-      latestPosition?.stage === "intro_requested" ||
-      closedState.closed
+    latestPosition?.stage === "intro_requested" ||
+    closedState.closed
       ? latestPosition
       : null);
   if (!position) {
@@ -4479,6 +4168,8 @@ async function executeMoveCandidateStage(args: {
     );
   }
 
+  const candidateConsentRelayId =
+    text(args.input.candidateConsentRelayId) || null;
   const reengagementResolution = text(args.input.reengagementResolution);
   if (
     reengagementResolution &&
@@ -4491,7 +4182,8 @@ async function executeMoveCandidateStage(args: {
   if (
     closedState.closed &&
     targetRequiresReengagement &&
-    reengagementResolution !== "company_confirmed"
+    reengagementResolution !== "company_confirmed" &&
+    !candidateConsentRelayId
   ) {
     await recordCandidateReengagementRequired({
       actorEmail: args.user.email ?? null,
@@ -4504,7 +4196,7 @@ async function executeMoveCandidateStage(args: {
       stage: targetStage,
       talentId,
     });
-    args.state.fallbackReply = `종료 안내가 이미 ${candidateName}님께 발송되었습니다. 다시 연결받을 생각이 있으신지 Harper가 먼저 물어본 뒤 긍정 여부를 받고 진행할까요, 아니면 회사에서 이미 직접 확인하셨으니 바로 진행할까요?`;
+    args.state.fallbackReply = `종료 안내가 이미 ${candidateName}님께 발송되었습니다. 다시 연결받을 생각이 있으신지 Harper가 먼저 의향을 확인한 뒤 답변에 따라 진행할까요, 아니면 회사에서 이미 직접 확인하셨으니 바로 진행할까요?`;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -4743,6 +4435,7 @@ async function executeMoveCandidateStage(args: {
     const stageResult = await setOrgCandidateStage({
       expectedPreviousStage: expectedCurrentStage,
       recommendationId: position.recommendationId,
+      candidateConsentRelayId,
       reengagementActionId: `company-message:${args.currentUserMessageId}`,
       reengagementResolution:
         closedState.closed &&
@@ -4752,8 +4445,7 @@ async function executeMoveCandidateStage(args: {
           : null,
       roleId: role.roleId,
       scheduleInterview,
-      skipAutomaticContact:
-        currentStage === "pending_connection" && !scheduleInterview,
+      skipAutomaticContact: !scheduleInterview,
       stage: targetStage,
       talentId,
       user: args.user,
@@ -6083,6 +5775,8 @@ async function executeCandidateConnectionDecision(args: {
           talentId,
         })
       : { closed: false, recommendationId: null };
+  const candidateConsentRelayId =
+    text(args.input.candidateConsentRelayId) || null;
   const reengagementResolution = text(args.input.reengagementResolution);
   if (
     reengagementResolution &&
@@ -6092,7 +5786,11 @@ async function executeCandidateConnectionDecision(args: {
       "reengagementResolution must be company_confirmed when supplied"
     );
   }
-  if (closedState.closed && reengagementResolution !== "company_confirmed") {
+  if (
+    closedState.closed &&
+    reengagementResolution !== "company_confirmed" &&
+    !candidateConsentRelayId
+  ) {
     const requestedStage = confirmed.processStageId
       ? (confirmed.processStageId as OrgStageId)
       : "connected";
@@ -6121,7 +5819,7 @@ async function executeCandidateConnectionDecision(args: {
       stage: requestedStage,
       talentId,
     });
-    args.state.fallbackReply = `종료 안내가 이미 ${candidateName}님께 발송되었습니다. 다시 연결받을 생각이 있으신지 Harper가 먼저 물어본 뒤 긍정 여부를 받고 진행할까요, 아니면 회사에서 이미 직접 확인하셨으니 바로 진행할까요?`;
+    args.state.fallbackReply = `${candidateName}님과 다시 진행할 의사를 확인해야 해요. Harper가 먼저 물어볼까요, 아니면 회사에서 이미 직접 확인하셨나요?`;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
@@ -6250,6 +5948,7 @@ async function executeCandidateConnectionDecision(args: {
         acceptReason: finalReason,
         expectedPreviousStage: position.stage,
         recommendationId: position.recommendationId,
+        candidateConsentRelayId,
         reengagementActionId: `company-message:${args.currentUserMessageId}`,
         reengagementResolution:
           closedState.closed && reengagementResolution === "company_confirmed"
@@ -6386,6 +6085,7 @@ async function executeCandidateConnectionDecision(args: {
     expectedPreviousStage: position.stage,
     introEmails,
     recommendationId: position.recommendationId,
+    candidateConsentRelayId,
     reengagementActionId: `company-message:${args.currentUserMessageId}`,
     reengagementResolution:
       closedState.closed && reengagementResolution === "company_confirmed"

@@ -1094,6 +1094,7 @@ export type Database = {
           result: Json;
           scheduled_slot: string;
           selection_committed_at: string | null;
+          source_calibration_id: string | null;
           source_cutoff: string | null;
           source_snapshot: Json;
           started_at: string | null;
@@ -1120,6 +1121,7 @@ export type Database = {
           result?: Json;
           scheduled_slot: string;
           selection_committed_at?: string | null;
+          source_calibration_id?: string | null;
           source_cutoff?: string | null;
           source_snapshot?: Json;
           started_at?: string | null;
@@ -1146,6 +1148,7 @@ export type Database = {
           result?: Json;
           scheduled_slot?: string;
           selection_committed_at?: string | null;
+          source_calibration_id?: string | null;
           source_cutoff?: string | null;
           source_snapshot?: Json;
           started_at?: string | null;
@@ -1160,6 +1163,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "company_workspace";
             referencedColumns: ["company_workspace_id"];
+          },
+          {
+            foreignKeyName: "company_first_search_runs_source_calibration_id_fkey";
+            columns: ["source_calibration_id"];
+            isOneToOne: false;
+            referencedRelation: "company_role_calibrations";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -2777,6 +2787,7 @@ export type Database = {
       };
       company_users: {
         Row: {
+          onboarding_completed_at: string | null;
           company: string | null;
           company_description: string | null;
           created_at: string;
@@ -2790,6 +2801,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          onboarding_completed_at?: string | null;
           company?: string | null;
           company_description?: string | null;
           created_at?: string;
@@ -2803,6 +2815,7 @@ export type Database = {
           user_id?: string;
         };
         Update: {
+          onboarding_completed_at?: string | null;
           company?: string | null;
           company_description?: string | null;
           created_at?: string;
@@ -8661,6 +8674,10 @@ export type Database = {
           p_role_id: string;
         };
         Returns: Json;
+      };
+      enqueue_post_calibration_company_matching_run_v1: {
+        Args: { p_calibration_id: string };
+        Returns: string;
       };
       activate_slack_company_agent_update_proposal_v1: {
         Args: {

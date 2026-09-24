@@ -1,3 +1,5 @@
+import { deliverCompanyContactEventMessages } from "@/lib/org/agent/contactEvent.server";
+import { assertOrgWorkspacePermission } from "@/lib/org/server";
 import { handleCallback, type MessageMetadata } from "@vercel/queue";
 import {
   OrgAgentWebActionSupersededError,
@@ -121,6 +123,14 @@ async function processMessage(raw: unknown, metadata: MessageMetadata) {
       throw authResult.error || new Error("Web-action actor account not found");
     }
     const user = authResult.data.user;
+    if (job.action_name === "candidate_contact_received") {
+      await assertOrgWorkspacePermission({
+        admin,
+        user,
+        workspaceId: job.company_workspace_id,
+        permission: "manage_candidates",
+      });
+    }
     const result = await runOrgAgentWebActionTurn({
       actionContext:
         job.action_context && typeof job.action_context === "object"
@@ -138,6 +148,15 @@ async function processMessage(raw: unknown, metadata: MessageMetadata) {
       roleId: clean(job.role_id) || null,
       user,
     });
+    if (job.action_name === "candidate_contact_received") {
+      await deliverCompanyContactEventMessages({
+        jobId: message.jobId,
+        messageIds: [result.progressMessageId, result.terminalMessageId],
+        roleId: clean(job.role_id) || null,
+        slackThreadId: clean(job.action_context?.slackThreadId) || null,
+        workspaceId: job.company_workspace_id,
+      });
+    }
     const now = new Date().toISOString();
     const { error: completeError } = await (
       admin.from("company_agent_web_action_jobs" as any) as any
@@ -163,7 +182,7 @@ async function processMessage(raw: unknown, metadata: MessageMetadata) {
       )
         .update({
           completed_at: now,
-          last_error: "superseded_by_new_user_message",
+          last_error: "superseded_by_newer_conversation_event",
           locked_at: null,
           locked_by: null,
           status: "superseded",

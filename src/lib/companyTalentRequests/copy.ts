@@ -5,9 +5,9 @@ import {
   getLlmErrorMessage,
 } from "@/lib/llm/llm";
 import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
-import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
+import { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
 import { candidateContactBodyWithoutTransportFooter } from "@/lib/companyTalentRequests/presentation";
-import { assertCandidateResumeUploadLink } from "@/lib/companyTalentRequests/copyRules";
+import { assertCandidateContactUploadLinks } from "@/lib/companyTalentRequests/copyRules";
 import {
   CANDIDATE_CONTACT_COPY_MAX_OUTPUT_TOKENS,
   CANDIDATE_CONTACT_COPY_SCHEMA,
@@ -69,7 +69,11 @@ async function generateJson(
       schema: CANDIDATE_CONTACT_COPY_SCHEMA,
     },
     validateResponse: (response) => {
-      parseJsonObject(assistantText(response));
+      const parsed = parseJsonObject(assistantText(response));
+      for (const key of ["subject", "body", "requestContext"]) {
+        if (typeof parsed[key] !== "string" || !String(parsed[key]).trim())
+          throw new Error(`Candidate contact ${key} is required`);
+      }
     },
   });
   return parseJsonObject(assistantText(response));
@@ -88,18 +92,12 @@ function validateDraft(args: {
     0,
     5_000
   );
-  const requestContext =
-    args.deliveryIntent === "direct_reply"
-      ? compact(args.requestContext, 800)
-      : assertSafeProfessionalQuestion(args.requestContext);
+  const requestContext = validateCompanyContactContext(args.requestContext);
   const reason = compact(args.reason, 600) || null;
   if (!subject || !body || !requestContext) {
     throw new Error("Candidate contact copy is empty");
   }
-  if (args.deliveryIntent === "review_draft") {
-    assertSafeProfessionalQuestion(body);
-    assertCandidateResumeUploadLink(body, args.profileUrl);
-  }
+  assertCandidateContactUploadLinks(body, args.profileUrl);
   return { body, reason, requestContext, subject };
 }
 
@@ -108,7 +106,6 @@ export async function generateCandidateContactDraft(args: {
   companyName: string;
   currentInstruction: string;
   deliveryIntent?: "direct_reply" | "review_draft";
-  kind: "contact" | "question" | "resume";
   locale: string | null;
   profileUrl: string | null;
   recentConversation: string;
@@ -117,10 +114,7 @@ export async function generateCandidateContactDraft(args: {
   roleName: string;
 }) {
   const deliveryIntent = args.deliveryIntent ?? "review_draft";
-  const requestContext =
-    deliveryIntent === "direct_reply"
-      ? compact(args.requestContext, 800)
-      : assertSafeProfessionalQuestion(args.requestContext);
+  const requestContext = validateCompanyContactContext(args.requestContext);
   if (!requestContext) throw new Error("Candidate contact context is empty");
   try {
     const parsed = await generateJson(
@@ -129,7 +123,6 @@ export async function generateCandidateContactDraft(args: {
         companyName: args.companyName,
         currentInstruction: args.currentInstruction,
         deliveryIntent: args.deliveryIntent,
-        kind: args.kind,
         profileUrl: args.profileUrl,
         recentConversation: args.recentConversation,
         recipientLocale: args.locale,
@@ -158,7 +151,6 @@ export async function reviseCandidateContactDraft(args: {
   current: CandidateContactDraftCopy;
   currentInstruction: string;
   editInstruction: string;
-  kind: "contact" | "question" | "resume";
   locale: string | null;
   profileUrl: string | null;
   recentConversation: string;
@@ -170,7 +162,6 @@ export async function reviseCandidateContactDraft(args: {
         current: args.current,
         currentInstruction: args.currentInstruction,
         editInstruction: args.editInstruction,
-        kind: args.kind,
         profileUrl: args.profileUrl,
         recentConversation: args.recentConversation,
         recipientLocale: args.locale,

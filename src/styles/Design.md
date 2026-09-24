@@ -229,9 +229,14 @@ Shared component catalog:
 | Clickable card | `CardButton` |
 | Existing card action migration | `InteractiveCard`, `ChoiceCard` |
 | Text | `Text` |
+| Career Markdown | `RichText variant="career"`: H1 uses 20px/medium; tables keep only horizontal separators with no outer border or edge padding. External HTTP(S) links use `ReferenceLink` (favicon + `text-action`, a user-requested Career link style). Shared chat content forwards the variant; other surfaces keep default Markdown styling. Copy/export always uses the unchanged Markdown. |
+| Inline source links | `ReferenceLink` from `src/components/ui/reference-link.tsx`; `RichText referenceLinks` opts in outside Career. Uses a hostname-only favicon request with a globe fallback, destination tooltip, and keyboard focus. |
+| Career message width | `CareerMessageBubble` limits both user and assistant bubbles to 740px (and the available mobile width). Keep the shared `ChatMessageBubbleFrame` defaults unchanged for other products. |
 | Labels/status chips | `Badge` |
 | Calibration 평가 상태 (목록·상세) | `OrgCalibrationReviewBadge` from `src/components/org/role-overview/OrgCalibrationReviewBadge.tsx` |
 | Form fields | `Input`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio` |
+| Career / company onboarding | `src/components/common/onboarding/Onboarding.tsx`: shared frame, progress, transition, header, footer, face ready state and conversation preview. Keep domain steps, copy, persistence and submissions in each domain. Career retains its original geometry by default; company may use flexible title height and place the mobile research preview after the title. |
+| Company Slack channel invitation | `OrgSlackChannelPicker` from `src/components/org/OrgSlackChannelPicker.tsx`: shared search, compact divider-free scrolling channel list, per-row `MuteButton dark / sm` invitation and primary create action. Use inline in onboarding and inside the shared `Dialog` in settings; domain callers own mutations and errors. |
 | Menu | `ActionDropdown`, `DropdownMenu` |
 | Page section copy | `SectionHeader`, `SectionTitle`, `SectionDescription` |
 | Editable document preview and right-side editor | `DocumentEditor` from `src/components/ui/document-editor.tsx` |

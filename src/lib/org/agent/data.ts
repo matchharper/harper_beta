@@ -1142,18 +1142,10 @@ async function readCompanyTalentRequestProjection(args: {
           workflowStatus === "draft" ? Number(row.draft_revision ?? 0) : null,
         draftSubject:
           workflowStatus === "draft" ? text(row.delivery_subject) : null,
-        intent: text(row.intent) || "ordinary",
-        label:
-          text(row.intent) === "candidate_reengagement"
-            ? "재진행 의사 확인"
-            : row.expects_document
-              ? "이력서 요청"
-              : "회사 질문 확인",
+        label: "회사 연락",
         requestId: text(row.id),
         roleId: text(row.role_id),
         roleName: role?.name ?? null,
-        resumeStage: text(row.resume_stage) || null,
-        responseDisposition: text(row.response_disposition) || null,
         scheduledAt: formatRequestTimestamp(candidateDelivery?.scheduled_at),
         status: statusSummary.status,
         topic: text(row.request_context),

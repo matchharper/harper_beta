@@ -1,3 +1,5 @@
+import { buildCompanyContactEventPrompt } from "@/lib/org/agent/contactEventPrompt";
+import { loadCompanyContactEventContext } from "@/lib/org/agent/contactEvent.server";
 import type { User } from "@supabase/supabase-js";
 import { after } from "next/server";
 import {
@@ -1065,7 +1067,7 @@ export type OrgAgentWebActionTurnResult =
     };
 
 /**
- * Runs a company-side LLM turn for an authenticated /org product action.
+ * Runs the existing company-side LLM for a verified product/contact event.
  * The web action is prompt context, not a visible synthetic chat message. Its
  * hidden anchor supplies the same stable idempotency identity used by ordinary
  * tool calls without changing the conversation's visible last message.
@@ -1083,6 +1085,13 @@ export async function runOrgAgentWebActionTurn(args: {
   const admin = getSupabaseAdmin();
   const modelConfig = resolveOrgAgentModel(undefined);
   const runId = args.jobId;
+  const isCandidateContact = args.actionName === "candidate_contact_received";
+  const slackThreadId = isCandidateContact
+    ? String(args.actionContext.slackThreadId ?? "").trim() || null
+    : null;
+  const trigger = isCandidateContact
+    ? ("candidate_contact" as const)
+    : ("web_action" as const);
   const { data: existingRows, error: existingError } = await (
     admin.from("company_messages" as any) as any
   )
@@ -1113,17 +1122,34 @@ export async function runOrgAgentWebActionTurn(args: {
   }
 
   const assertCanContinue = async () => {
-    const { data, error } = await (admin.from("company_messages" as any) as any)
+    let query = (admin.from("company_messages" as any) as any)
       .select("id")
       .eq("conversation_id", args.conversation.id)
-      .eq("message_type", "chat")
+      .in("message_type", slackThreadId ? ["chat", "slack"] : ["chat"])
       .eq("role", "user")
       .gt("id", args.anchorMessageId)
       .order("id", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    if (slackThreadId) query = query.eq("slack_thread_id", slackThreadId);
+    const { data, error } = await query.maybeSingle();
     if (error) throw error;
     if (data) throw new OrgAgentWebActionSupersededError();
+    if (isCandidateContact && args.actionContext.recommendationId) {
+      const { data: newer, error: newerError } = await (
+        admin.from("company_agent_web_action_jobs" as any) as any
+      )
+        .select("id")
+        .eq("company_workspace_id", args.conversation.company_workspace_id)
+        .eq("action_name", "candidate_contact_received")
+        .contains("action_context", {
+          recommendationId: args.actionContext.recommendationId,
+        })
+        .gt("anchor_message_id", args.anchorMessageId)
+        .limit(1)
+        .maybeSingle();
+      if (newerError) throw newerError;
+      if (newer) throw new OrgAgentWebActionSupersededError();
+    }
   };
 
   await assertCanContinue();
@@ -1132,21 +1158,30 @@ export async function runOrgAgentWebActionTurn(args: {
     beforeMessageId: args.anchorMessageId,
     conversation: args.conversation,
     currentUserMessageId: args.anchorMessageId,
-    messageType: "chat",
+    messageType: slackThreadId ? "slack" : "chat",
     readAudience: "caller",
-    scopeKey: `chat:${args.conversation.id}`,
-    slackThreadId: null,
+    scopeKey: slackThreadId
+      ? `slack:${slackThreadId}`
+      : `chat:${args.conversation.id}`,
+    slackThreadId,
     user: args.user,
   });
   let thinkingLogs: OrgAgentThinkingLog[] = [];
   const eventContext = JSON.stringify(args.actionContext).slice(0, 24_000);
-  const eventPrompt = [
-    "<authenticated_web_action_event>",
-    `action_name=${args.actionName}`,
-    `verified_action_context=${eventContext}`,
-    "The action above has already committed and records what succeeded at that point in time. Fresh current state and tool results are authoritative if a later action has changed it. Do not repeat the action. Decide whether any useful follow-up work or company-facing message is warranted. It is not a chat command and does not require a reply.",
-    "</authenticated_web_action_event>",
-  ].join("\n");
+  const eventPrompt = isCandidateContact
+    ? buildCompanyContactEventPrompt(
+        await loadCompanyContactEventContext({
+          relayId: String(args.actionContext.relayId ?? ""),
+          workspaceId: args.conversation.company_workspace_id,
+        })
+      )
+    : [
+        "<authenticated_web_action_event>",
+        `action_name=${args.actionName}`,
+        `verified_action_context=${eventContext}`,
+        "The action above has already committed and records what succeeded at that point in time. Fresh current state and tool results are authoritative if a later action has changed it. Do not repeat the action. Decide whether any useful follow-up work or company-facing message is warranted. It is not a chat command and does not require a reply.",
+        "</authenticated_web_action_event>",
+      ].join("\n");
 
   const llmResult = await runOrgAgentToolLoop({
     allowSilentCompletion: true,
@@ -1175,7 +1210,7 @@ export async function runOrgAgentWebActionTurn(args: {
                 phase: "progress",
                 runId,
                 sequence: 0,
-                trigger: "web_action",
+                trigger,
               },
               model,
               source: "org_agent_web_action_progress",
@@ -1201,11 +1236,15 @@ export async function runOrgAgentWebActionTurn(args: {
           return true;
         },
     readAudience: "caller",
-    scopeKey: `chat:${args.conversation.id}`,
-    slackThreadId: null,
-    source: "chat",
+    scopeKey: slackThreadId
+      ? `slack:${slackThreadId}`
+      : `chat:${args.conversation.id}`,
+    slackThreadId,
+    source: slackThreadId ? "slack" : "chat",
     user: args.user,
-    userLabel: "authenticated web action",
+    userLabel: isCandidateContact
+      ? "delivered candidate contact event"
+      : "authenticated web action",
     userMessage: eventPrompt,
     visibleProgressPublished: Boolean(existingProgress),
   });
@@ -1219,7 +1258,7 @@ export async function runOrgAgentWebActionTurn(args: {
       phase: "terminal",
       runId,
       sequence: progressMessageId ? 1 : 0,
-      trigger: "web_action",
+      trigger,
     },
     source: "org_agent_web_action",
     webActionJobId: args.jobId,
@@ -1265,7 +1304,7 @@ export async function runOrgAgentWebActionTurn(args: {
       model: isOrgAgentModelId(llmResult.model)
         ? llmResult.model
         : DEFAULT_ORG_AGENT_MODEL,
-      slackThreadId: null,
+      slackThreadId,
     });
     return {
       outcome: "completed_message",
@@ -1299,7 +1338,7 @@ export async function runOrgAgentWebActionTurn(args: {
     model: isOrgAgentModelId(llmResult.model)
       ? llmResult.model
       : DEFAULT_ORG_AGENT_MODEL,
-    slackThreadId: null,
+    slackThreadId,
   });
   return {
     outcome: "completed_message",

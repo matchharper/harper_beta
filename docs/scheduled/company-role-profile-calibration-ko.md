@@ -1,7 +1,7 @@
 # Company Role Profile Calibration: 로컬 event 실행·운영 기준
 
 - 상위 작업 지도: [`codex-work.md`](./codex-work.md)
-- 전달 12시간 뒤 후속 작업: [`company-role-post-calibration-review-ko.md`](./company-role-post-calibration-review-ko.md)
+- 전달 12시간 뒤 Company Matching 1회 실행: [`company-role-post-calibration-review-ko.md`](./company-role-post-calibration-review-ko.md)
 - 기준 repository: `harper_beta`
 - 실행 계약: [`company-role-profile-calibration-codex-runbook-ko.md`](../company/company-role-profile-calibration-codex-runbook-ko.md)
 - event prompt: [`company-role-profile-calibration-event-prompt-ko.md`](../company/company-role-profile-calibration-event-prompt-ko.md)
@@ -12,8 +12,9 @@
   `PAUSED` 유지
 
 > 이 문서의 기존 12시간 automation은 **미전송 calibration 재시도 fallback**이다. Calibration
-> 전달 12시간 뒤 Harper talent pool을 검토하는 새 제품 단계와 같은 작업이 아니다. 후속 검토의
-> 시간 anchor, fit write와 회사 안내 계약은 위 후속 작업 문서를 따른다.
+> 전달 12시간 뒤의 후속 탐색은 이 listener가 Codex를 다시 실행하는 작업이 아니라, 월요일 정기
+> 실행과 같은 Company Matching Worker를 한 번 실행하는 작업이다. 시간 anchor와 queue 계약은 위
+> 후속 작업 문서를 따른다.
 
 ## 목적
 
@@ -79,7 +80,9 @@ python3 -m venv .venv-company-role-calibration
 - `20260904130000_company_role_calibrations.sql`의 table, enqueue/claim/finish/delivery RPC와 Role
   enqueue trigger
 - `20260908190000_company_role_calibration_notify.sql`의 notification function과 trigger
+- `20260923120000_post_calibration_company_matching.sql`의 +12시간 Company Matching enqueue hook
 - `/api/internal/company-role-calibrations/deliver`가 포함된 application revision
+- 상시 실행 중인 Company Matching Worker revision
 
 Migration 파일이 git에 있다는 사실만으로 적용됐다고 보지 않는다. 배포·migration 적용은 별도의
 명시적 release 작업에서 수행하고, 그 전에는 listener를 OFF로 둔다.

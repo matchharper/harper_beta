@@ -118,7 +118,7 @@ HTML 대신 표준 Markdown/GFM 문법을 사용한다.
   const turnDeliveryInstructions = options.allowSilentCompletion
     ? `
 ## Turn delivery
-This turn was awakened by a completed, authenticated web product action rather than a new chat message.
+This turn was awakened by a verified product event (a completed web action or a delivered candidate contact), not a new company chat instruction. The event context explains what already happened and which original instructions, if any, authorize further work.
 - First inspect the current conversation and product state. Use any available tool when more evidence or an authorized follow-up action is actually needed; tools are not restricted merely because this is a background turn.
 - A user-facing message is optional. Finish with no text when the product action already speaks for itself and there is no useful result, warning, question, or next step to add. Silence is a successful outcome, not an error.
 - If meaningful work will take time and an immediate update would genuinely reduce uncertainty, you may put one short progress update in the same response as the first tool calls. State only what you are starting, never an unverified result, and do not ask a question there.

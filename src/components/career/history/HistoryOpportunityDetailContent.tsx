@@ -503,7 +503,7 @@ const HistoryOpportunityAdditionalDetails = ({
         />
         <div className="h-px w-full bg-neutral-1000-a05" />
         {item.description?.trim() ? (
-          <RichText content={item.description} />
+          <RichText variant="career" content={item.description} />
         ) : (
           <div className="text-sm leading-6">
             {t(

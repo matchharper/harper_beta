@@ -22,10 +22,10 @@ export const CANDIDATE_CONTACT_CURRENT_INSTRUCTION_MAX_CHARS = 8_000;
 export const CANDIDATE_CONTACT_COPY_SCHEMA = {
   additionalProperties: false,
   properties: {
-    body: { maxLength: 5_000, type: "string" },
+    body: { minLength: 1, maxLength: 5_000, type: "string" },
     reason: { maxLength: 600, type: ["string", "null"] },
-    requestContext: { maxLength: 800, type: "string" },
-    subject: { maxLength: 180, type: "string" },
+    requestContext: { minLength: 1, maxLength: 800, type: "string" },
+    subject: { minLength: 1, maxLength: 180, type: "string" },
   },
   required: ["subject", "body", "requestContext", "reason"],
   type: "object",
@@ -45,6 +45,8 @@ type CandidateContactConversationContext = {
 
 const CANDIDATE_CONTACT_SHARED_SYSTEM_PROMPT = `
 You are Company’s Hiring Partner, Harper.
+
+Return a complete, ready-to-review email in subject and body, and the actual substantive request in requestContext. These fields are the saved message itself, not examples, labels, or instructions for another writer. Fulfil every part of the supplied company request using the supplied facts.
 
 현재의 목적은 회사와 후보자의 중간에서, 회사의 질문/요청/안내를 대신해서 후보자에게 전달하기 위해 보낼 이메일을 작성하는 것이다. 회사의 요청을 정확하게 전달하면서도 후보자에게 부담을 주지 않는 자연스러운 이메일이어야 한다.
 
@@ -67,6 +69,8 @@ You are Company’s Hiring Partner, Harper.
 - 한국어로 작성할 때는 자연스럽고 정중한 어조를 사용하며, 이름을 알고 있다면 이름으로 부른다. ‘후보자님’이라는 일반적인 호칭은 사용하지 않는다.
 
 ## Safety
+
+- 회사의 채용 관련 연락 목적과 후보자의 사생활을 존중한다. 차별적인 선별을 위한 문구를 새로 만들거나 저장된 민감정보를 회사에 임의로 공개하지 않는다. 필요한 공유는 후보자가 직접 내용을 제공하거나 승인하도록 요청한다.
 
 - 나이, 생년월일 또는 출생 연도, 국적, 시민권, 거주 자격, 취업 자격은 이 워크플로에서 요청할 수 있는 정보다. 요청에 포함되어 있다면 그대로 유지하며, 개인정보라는 이유만으로 요청을 거부하거나 다른 내용으로 바꾸지 않는다.
 - requestContext에는 이후 답변을 적절히 처리할 수 있도록, 정확히 어떤 정보를 요청했는지를 간결하고 중립적으로 작성한다.
@@ -142,7 +146,6 @@ export function buildCandidateContactDraftMessages(
   args: CandidateContactConversationContext & {
     candidateName: string;
     companyName: string;
-    kind: "contact" | "question" | "resume";
     profileUrl: string | null;
     requestContext: string;
     roleName: string;
@@ -160,12 +163,10 @@ ${languageAndEvidenceRules(args)}
 ## Current task
 
 ${deliveryTask}
-- For a resume request without complete company-supplied copy, explain that attaching one PDF, DOCX, TXT, or MD file to this message is allowed, the uploaded file becomes the current Harper profile resume and Harper relays it for this named company's role review. Put the supplied URL in a descriptive Markdown link written naturally in the email's chosen language; never show the raw URL as visible link text.
+- Infer the communication needs from the company instruction, not a contact category. Preserve questions, requests, information, and conditions without adding an obligation to reply.
+- If the company requests a resume without complete company-supplied copy, explain that attaching one PDF, DOCX, TXT, or MD file to this message is allowed, the uploaded file becomes the current Harper profile resume and Harper relays it for this named company's role review. Put the supplied URL in a descriptive Markdown link written naturally in the email's chosen language; never show the raw URL as visible link text.
   `.trim();
-  const systemPrompt =
-    args.kind === "contact"
-      ? `${baseSystemPrompt}\n\n## Contact mode\n\n- Pass along the company's substantive message without inventing a question, requested document, response deadline, or implication that the candidate must reply.`
-      : baseSystemPrompt;
+  const systemPrompt = baseSystemPrompt;
 
   const userPrompt = `
 ${conversationEvidence(args)}
@@ -174,9 +175,8 @@ ${conversationEvidence(args)}
 Recipient: ${compact(args.candidateName, 80) || "-"}
 Company: ${compact(args.companyName, 160) || "-"}
 Role: ${compact(args.roleName, 160) || "-"}
-Contact kind: ${args.kind}
 Substantive request: ${compact(args.requestContext, 800) || "-"}
-Required resume upload URL: ${args.profileUrl ?? "-"}
+Available resume upload URL (include only when relevant to the company’s request): ${args.profileUrl ?? "-"}
 </candidate_contact_data>
   `.trim();
 
@@ -190,7 +190,6 @@ export function buildCandidateContactRevisionMessages(
   args: CandidateContactConversationContext & {
     current: CandidateContactDraftCopy;
     editInstruction: string;
-    kind: "contact" | "question" | "resume";
     profileUrl: string | null;
   }
 ): CandidateContactPromptMessage[] {
@@ -204,20 +203,16 @@ ${languageAndEvidenceRules(args)}
 - Revise the complete candidate-facing email using the company's current instruction.
 - Apply the requested change narrowly and keep unaffected wording, facts, and meaning recognizably close. Add or reorganize other material only when it is genuinely needed for clarity, completeness, factual accuracy, professional safety, or a considerate candidate relationship.
 - Keep the request low pressure without forcing a standard reassurance paragraph, company-and-role opening, or Harper signoff when the current draft already handles the communication naturally. Do not add delivery-channel context.
-- For a resume request, preserve the supplied upload URL exactly inside a descriptive Markdown link. Never show the raw URL as visible link text.
+- When the revised message requests a resume, use the supplied upload URL exactly inside a descriptive Markdown link. Never show the raw URL as visible link text.
 - requestContext must track the exact substantive request in the revised body.
   `.trim();
-  const systemPrompt =
-    args.kind === "contact"
-      ? `${baseSystemPrompt}\n\n## Contact mode\n\n- Keep the message as a contact rather than turning it into a question, requested document, response deadline, or obligation to reply.`
-      : baseSystemPrompt;
+  const systemPrompt = baseSystemPrompt;
 
   const userPrompt = `
 ${conversationEvidence(args)}
 
 <current_candidate_email>
-Contact kind: ${args.kind}
-Required resume upload URL: ${args.profileUrl ?? "-"}
+Available resume upload URL (include only when relevant to the company’s request): ${args.profileUrl ?? "-"}
 Current request context: ${args.current.requestContext}
 Current subject: ${args.current.subject}
 Current body:

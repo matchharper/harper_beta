@@ -1,6 +1,6 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
-- 문서 기준: 2026-09-22
+- 문서 기준: 2026-09-23
 - 상태: candidate-first/company-first route 결정과 matching review persistence까지 local 구현. Migration 적용,
   production 배포, route-aware frozen gold와 서로 다른 회사·직군 3곳 shadow gate는 아직 완료하지 않았으며
   이 문서는 production 동작 완료를 뜻하지 않는다.
@@ -16,12 +16,14 @@
 회사 단위 후보 탐색은 더 이상 Codex Scheduled task가 문서를 읽고 매번 직접 수행하는 작업으로
 설계하지 않는다. `harper_worker`의 Python runtime이 매주 월요일 오전 9시 KST에 회사를 queue에 넣고,
 회사 사용자가 `/org` 또는 Slack에서 현재 Hiring Brief 기반 검색을 명시적으로 요청해도 같은 durable
-queue에 넣는다. 두 trigger 모두 회사 하나를 한 실행 단위로 처리한다.
+queue에 넣는다. 새 Role calibration이 Slack에 처음 전달된 12시간 뒤에도 같은 queue에 정기 계약의
+1회 run을 넣는다. 세 trigger 모두 회사 하나를 한 실행 단위로 처리한다.
 
 한 번의 실행은 다음 순서다.
 
 ```text
-월요일 09:00 KST scheduler 또는 company-side LLM의 명시적 검색 요청
+월요일 09:00 KST scheduler, company-side LLM의 명시적 검색 요청,
+또는 calibration 최초 Slack sentAt + 12시간
   → 대상 회사와 Role을 deterministic하게 확정
   → 회사 단위 run enqueue
   → 현재 상태 재검증과 source cutoff 고정
@@ -59,7 +61,8 @@ queue에 넣는다. 두 trigger 모두 회사 하나를 한 실행 단위로 처
 - Worker·scheduler service unit: `harper_worker/harper-company-first-worker.service`,
   `harper_worker/harper-company-first-scheduler.service`
 - DB migrations: `harper_beta/supabase/migrations/20260917162551_company_first_talent_search.sql`,
-  `harper_beta/supabase/migrations/20260921190000_matching_review_route_decisions.sql`
+  `harper_beta/supabase/migrations/20260921190000_matching_review_route_decisions.sql`,
+  `harper_beta/supabase/migrations/20260923120000_post_calibration_company_matching.sql`
 - Slack outbox delivery: `harper_beta/src/app/api/internal/company-first/deliver/route.ts`
 - Read-only shadow runner: `harper_worker/llm_evals/company_first_talent_selection/run_shadow.py`
 
@@ -192,6 +195,14 @@ process가 내려가 있었더라도 이 구간에서는 해당 slot을 한 번�
 `retry_of_run_id`를 쓰고 정기 slot의 unique key를 우회하지 않는다. 회사 사용자의 새 검색 요청은
 `trigger=company_requested`로 구분한다.
 
+새 Role calibration의 최초 Slack delivery transaction은
+`trigger_reason=post_calibration`, `available_at=sentAt+12h`인 run을 같은 table에 한 번 넣는다.
+`source_calibration_id`가 idempotency와 provenance를 보존하고 calibration Role id를
+`requested_role_ids`에 넣는다. 이 trigger는 명시적 `Run Search`가 아니라 regular mixed-route run이므로
+planner skip을 허용하고 `candidate_first | company_first | no_action`, Role별 actionable 최대 3명 계약을
+정기 run과 똑같이 사용한다. Local calibration listener나 별도 Codex direct-review helper는 이 run을
+claim하지 않는다.
+
 명시적 요청은 company-side LLM의 `request_matching_search`가 권한과 exact Role을 확인한 뒤
 `company_first_search_runs`에 `trigger_reason=company_requested`로 넣는다. scheduler가 이 table을 다시
 감시해 별도 process를 띄우지 않는다. 상시 실행 중인 Company Matching Worker pool이 같은 queue를 짧은
@@ -215,8 +226,8 @@ in-flight run을 중단하지는 않는다.
 - 실제 internal Role
 - active이고 만료되지 않음
 - `company_roles.information.testOnly != true`
-- 정기 run은 `company_internal_roles.is_company_first_search = true`. 명시적으로 요청된 exact Role은 그
-  실행에만 포함하며 이 설정을 자동으로 바꾸지 않는다.
+- 정기 run은 `company_internal_roles.is_company_first_search = true`. 회사가 명시적으로 요청했거나
+  post-calibration run에 담긴 exact Role은 그 실행에만 포함하며 이 설정을 자동으로 바꾸지 않는다.
 - active Company Slack integration이 있음
 - enabled Slack channel이 하나 이상 있고 해당 Role이 그 채널에서 opt-out되지 않음
 - 현재 `연결 대기` unique Talent 수가 Role의 `max_pending_talents`보다 작음
@@ -254,7 +265,7 @@ active route uniqueness와 후보자 연락 피로도에는 계속 포함한다.
 새 run table은 transient LLM 판단을 영구 저장하려고 만드는 것이 아니다. 다음 사실은 다른 테이블에서
 복구할 수 없고 다음 planner, retry worker, 운영 화면이 실제로 읽으므로 별도 persistence가 필요하다.
 
-- 어느 회사가 어느 월요일 slot에 실행됐는가
+- 어느 회사가 어느 schedule slot과 trigger로 실행됐는가
 - 실행 당시 대상 Role과 source cutoff는 무엇이었는가
 - search를 실행하거나 생략한 이유는 무엇인가
 - 몇 명을 retrieval·filter·score·rerank·select했는가
@@ -264,7 +275,7 @@ active route uniqueness와 후보자 연락 피로도에는 계속 포함한다.
 
 | 필드군 | 값 |
 | --- | --- |
-| 식별 | `id`, `company_workspace_id`, `scheduled_slot`, `trigger`, `contract_version`, 명시적으로 요청된 `role_ids` |
+| 식별 | `id`, `company_workspace_id`, `scheduled_slot`, `trigger`, `contract_version`, 요청된 `role_ids`, optional `source_calibration_id` |
 | queue | `status`, `available_at`, `lease_token`, `lease_heartbeat_at`, `attempt_count` |
 | snapshot | current attempt의 `source_cutoff`, 대상 `role_ids`, source fingerprint, compact attempt history |
 | 판단 | compact `query_plan` JSON |
@@ -890,6 +901,8 @@ Reranker는 한 회사의 모든 eligible Role과 compact pool을 한 번에 받
 
 - 정기 run은 `candidate_first | company_first | no_action`을 판단하고, 두 actionable route를 합쳐 Role별
   최대 3명이다.
+- `post_calibration` run도 정기 run과 같은 mixed-route·Role별 최대 3명 계약을 사용한다. 차이는 calibration
+  대상 exact Role을 `requested_role_ids`로 이번 한 번 포함한다는 점뿐이다.
 - 명시적 `Run Search` run은 `company_first | no_action`만 판단하고, company-first는 Role별 최대 6명이다.
 - 명시적 run에서는 candidate-first가 더 자연스러운 강한 후보도 회사가 지금 검토할 가치가 충분하면
   company-first로 선택한다. 회사 검토 가치가 부족하면 no-action이며 다른 route로 우회하지 않는다.
@@ -1227,6 +1240,7 @@ non-selected packet을 사람이 검토한다. Shadow 결과를 production ready
 ### 20.1 Python unit
 
 - schedule slot, 월요일 09:00~화요일 00:00 catch-up window와 KST DST 비영향
+- calibration `sentAt + 12h`, `source_calibration_id` idempotency와 regular mixed-route 분기
 - eligible Role, exact exclusion workspace ids, 30 backlog, pending `>= max`
 - previous terminal/search 두 cursor, 누적 skip inventory, text serializer와 date format
 - query plan schema, Role coverage, budget enum
@@ -1336,13 +1350,18 @@ Read-only executor는 Supabase transaction pool이 아니라 기존 dedicated se
 
 - 월요일 09:00 KST slot이 Python scheduler에서 멱등 enqueue된다.
 - 09:00 장애는 월요일 안에 한 번만 catch-up하고 오래된 주차는 소급하지 않는다.
+- 새 Role calibration 최초 Slack `sentAt + 12h`에 `post_calibration` run이 한 번 enqueue되고,
+  calibration Role이 `requested_role_ids`에 들어간다.
+- `post_calibration`은 local Codex listener가 아니라 같은 Company Matching Worker가 정기 mixed-route
+  계약으로 실행한다.
 - `/org`와 Slack의 명시적 현재-Brief 검색 요청이 같은 durable queue에 들어가며, queued 요청은 합쳐지고
   같은 workspace run은 동시에 두 개 실행되지 않는다.
 - 명시적 요청은 planner skip을 허용하지 않고, reranker는 hard 기준을 통과한 가능한 후보를 Role별 6명까지
   적극 선택한다. 가능한 후보가 전혀 없을 때의 0명과 deterministic padding 금지는 유지한다.
 - 실행 단위가 company workspace이고 모든 대상 Role이 같은 rerank에 들어간다.
-- 정기 run에는 `is_company_first_search=true`를 강제하고, 명시적 run에는 요청한 exact Role만 일회성
-  예외로 포함한다. 두 경로 모두 active Slack, non-test, availability, pending capacity를 강제한다.
+- 정기 run에는 `is_company_first_search=true`를 강제하고, 명시적 run과 post-calibration run에는 요청한
+  exact Role을 일회성으로 포함한다. 세 경로 모두 active Slack, non-test, availability, pending capacity를
+  강제한다.
 - exact workspace ID로 세 회사가 제외된다.
 - unresolved ready 30명에서 자동 실행이 멈춘다.
 - Planner가 run 여부, strategy, 100/150/200 budget, Role SQL을 한 번에 만든다.

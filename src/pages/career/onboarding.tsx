@@ -1,4 +1,14 @@
-import { AnimatePresence, motion } from "motion/react";
+import {
+  ONBOARDING_BACKGROUND_CLASS,
+  OnboardingFrame,
+  OnboardingFooter,
+  OnboardingStepHeader,
+  OnboardingFieldLabel,
+  OnboardingReadyBody,
+  OnboardingConversationPreview,
+  OnboardingTransition,
+  type OnboardingStepDefinition,
+} from "@/components/common/onboarding/Onboarding";
 import { useQueryClient } from "@tanstack/react-query";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -20,7 +30,6 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type ReactNode,
 } from "react";
 import { showToast } from "@/components/toast/toast";
 import { Badge } from "@/components/ui/badge";
@@ -73,37 +82,6 @@ import {
 } from "@/i18n/useMessage";
 
 type CareerT = ReturnType<typeof useCareerT>;
-
-const SLIDE_VARIANTS = {
-  enter: (isNext: boolean) => ({
-    opacity: 0,
-    y: isNext ? 36 : -36,
-  }),
-  center: {
-    opacity: 1,
-    y: 0,
-  },
-  exit: (isNext: boolean) => ({
-    opacity: 0,
-    y: isNext ? -36 : 36,
-  }),
-};
-
-const SLIDE_TRANSITION = { duration: 0.22, ease: "easeOut" } as const;
-
-const ONBOARDING_BACKGROUND_CLASS = "bg-bg-basement";
-
-type OnboardingStepDefinition = {
-  label: string;
-  title: string[];
-  description: string[];
-  headerClassName: string;
-  titleClassName: string;
-  descriptionClassName: string;
-  bodyClassName: string;
-  secondaryBodyClassName?: string;
-  footnoteClassName?: string;
-};
 
 const headerClassName =
   "flex h-full flex-col justify-start pt-2 text-left pb-1";
@@ -504,215 +482,6 @@ const getOnboardingKickoffText = (
   return assistantText || getDefaultDoneKickoffText(t);
 };
 
-const useStreamingText = (text: string) => {
-  const [streamedText, setStreamedText] = useState("");
-
-  useEffect(() => {
-    setStreamedText("");
-    if (!text) return;
-
-    let index = 0;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const tick = () => {
-      const increment = index < 40 ? 1 : 2;
-      index = Math.min(text.length, index + increment);
-      setStreamedText(text.slice(0, index));
-
-      if (index < text.length) {
-        timeoutId = setTimeout(tick, index < 40 ? 26 : 14);
-      }
-    };
-
-    timeoutId = setTimeout(tick, 420);
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [text]);
-
-  return streamedText;
-};
-
-const ProgressBar = ({
-  step,
-  totalSteps = TOTAL_STEPS,
-}: {
-  step: number;
-  totalSteps?: number;
-}) => {
-  const currentStep = Math.min(Math.max(step, 0), totalSteps);
-
-  return (
-    <div
-      aria-hidden="true"
-      className="grid h-[3px] w-full gap-1"
-      style={{ gridTemplateColumns: `repeat(${totalSteps}, minmax(0, 1fr))` }}
-    >
-      {Array.from({ length: totalSteps }).map((_, index) => (
-        <span
-          key={index}
-          className={cn(
-            "h-full rounded-full transition-colors duration-300",
-            index < currentStep
-              ? "bg-neutral-1000"
-              : index === currentStep
-                ? "bg-neutral-1000"
-                : "bg-neutral-1000-a10"
-          )}
-        />
-      ))}
-    </div>
-  );
-};
-
-const OnboardingTopBar = ({
-  showProgress = true,
-  step,
-}: {
-  showProgress?: boolean;
-  step: number;
-}) => (
-  <div
-    className={cn(
-      "flex shrink-0 flex-col justify-center",
-      showProgress ? "h-16 gap-4" : "h-8"
-    )}
-  >
-    <div className="font-hedvig font-bold text-[21px] leading-none text-neutral-primary">
-      Harper
-    </div>
-    {showProgress ? <ProgressBar step={step} /> : null}
-  </div>
-);
-
-const OnboardingFrame = ({
-  aside,
-  children,
-  footer,
-  progressStep,
-  showProgress = true,
-  title,
-}: {
-  aside?: ReactNode;
-  children: ReactNode;
-  footer: ReactNode;
-  progressStep: number;
-  showProgress?: boolean;
-  title: ReactNode;
-}) => {
-  const topBar = (
-    <OnboardingTopBar showProgress={showProgress} step={progressStep} />
-  );
-  const titleSlot = title ? (
-    <div className="h-[120px] shrink-0">{title}</div>
-  ) : null;
-
-  if (aside) {
-    return (
-      <div className="mx-auto flex min-h-svh w-full justify-center px-4 pb-8 pt-16 md:py-16">
-        <div className="relative grid w-full max-w-[900px] gap-6 lg:block lg:h-[calc(100svh-8rem)] lg:min-h-[520px]">
-          <div className="order-1 lg:w-[400px]">{topBar}</div>
-          <div className="order-2 mx-auto flex min-h-[360px] w-full max-w-[390px] md:max-w-[640px] lg:absolute lg:left-[480px] lg:top-0 lg:h-full lg:min-h-0 lg:w-[440px] lg:max-w-none xl:left-[560px] xl:w-[520px]">
-            {aside}
-          </div>
-          <div
-            className={cn(
-              "order-3 flex min-h-[460px] w-full flex-col lg:absolute lg:bottom-0 lg:left-0 lg:min-h-0 lg:w-[400px]",
-              showProgress ? "lg:top-16" : "lg:top-8"
-            )}
-          >
-            {titleSlot}
-            <section className="min-h-0 flex-1 overflow-visible py-6 pr-1 lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-thin lg:scrollbar-track-transparent lg:scrollbar-thumb-neutral-1000-a10 lg:hover:scrollbar-thumb-neutral-1000-a50">
-              {children}
-            </section>
-            <footer className="shrink-0 pt-4">{footer}</footer>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div
-      className={cn(
-        "mx-auto flex w-full justify-center px-4 pb-4 pt-16 md:py-16",
-        progressStep === 2 ? "h-svh overflow-y-auto" : "min-h-svh"
-      )}
-    >
-      <div className="grid h-max w-full max-w-[400px] gap-8">
-        <div
-          className={cn(
-            "flex w-full flex-col",
-            progressStep === 2
-              ? "min-h-[520px]"
-              : "h-[calc(100svh-5rem)] min-h-[520px] md:h-[calc(100svh-8rem)]"
-          )}
-        >
-          {topBar}
-          {titleSlot}
-
-          <section
-            className={cn(
-              "py-8 pr-1",
-              progressStep === 2
-                ? "shrink-0 overflow-visible"
-                : "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50"
-            )}
-          >
-            {children}
-          </section>
-
-          <footer className="shrink-0 pt-4">{footer}</footer>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const OnboardingStepHeader = ({
-  stepDefinition,
-}: {
-  stepDefinition: OnboardingStepDefinition;
-}) => (
-  <header className={stepDefinition.headerClassName}>
-    <Text
-      as="h1"
-      variant="head1"
-      tone="primary"
-      className={stepDefinition.titleClassName}
-    >
-      {stepDefinition.title.map((line, index) => (
-        <span
-          key={`${index}-${line}`}
-          className="block text-balance break-keep"
-          dangerouslySetInnerHTML={{ __html: line }}
-        />
-      ))}
-    </Text>
-    <Text as="p" variant="body" tone="subtle" className="mt-2 ">
-      {stepDefinition.description.map((line, index) => (
-        <span
-          key={`${index}-${line}`}
-          className="block text-balance break-keep"
-        >
-          {line}
-        </span>
-      ))}
-    </Text>
-  </header>
-);
-
-const OnboardingFieldLabel = ({ children }: { children: ReactNode }) => (
-  <Text
-    as="label"
-    variant="label"
-    tone="neutral"
-    className="text-sm font-normal"
-  >
-    {children}
-  </Text>
-);
-
 const LinkInput = ({
   label,
   placeholder,
@@ -1016,37 +785,19 @@ const OnboardingFooterControls = ({
   const t = useCareerT();
 
   return (
-    <div className="min-h-[80px] bg-gradient-to-b from-transparent to-bg-basement">
-      <div className={cn("flex w-full gap-3 flex-row")}>
-        {step > 0 && (
-          <AnimatedButton
-            type="button"
-            variant="secondary"
-            size="lg"
-            onClick={onPrev}
-            className="min-w-[110px] font-normal"
-          >
-            {t("career.onboarding.onboarding.0wrohr9", "이전")}
-          </AnimatedButton>
-        )}
-        <AnimatedButton
-          type="button"
-          variant="primary"
-          size="lg"
-          onClick={onNext}
-          className="w-full px-4 font-normal bg-neutral-950"
-        >
-          {step === TOTAL_STEPS - 1
-            ? t("career.onboarding.onboarding.0cvpvmv", "기회 탐색 시작하기")
-            : step === 0
-              ? t("career.onboarding.onboarding.1gr43li", "Harper 시작하기")
-              : t("career.onboarding.onboarding.0wbopf1", "다음")}
-        </AnimatedButton>
-      </div>
-      <div
-        className={`mt-2 flex min-h-5 items-center ${step === 0 ? "justify-center" : "justify-end"} text-[12px] leading-5 text-neutral-soft`}
-      >
-        {step === TOTAL_STEPS - 1 ? (
+    <OnboardingFooter
+      onNext={onNext}
+      onPrev={step > 0 ? onPrev : undefined}
+      previousLabel={t("career.onboarding.onboarding.0wrohr9", "이전")}
+      nextLabel={
+        step === TOTAL_STEPS - 1
+          ? t("career.onboarding.onboarding.0cvpvmv", "기회 탐색 시작하기")
+          : step === 0
+            ? t("career.onboarding.onboarding.1gr43li", "Harper 시작하기")
+            : t("career.onboarding.onboarding.0wbopf1", "다음")
+      }
+      hint={
+        step === TOTAL_STEPS - 1 ? (
           <span>
             {t(
               "career.onboarding.onboarding.0am0h8h",
@@ -1057,9 +808,9 @@ const OnboardingFooterControls = ({
           <span>
             press <Badge>Enter</Badge>
           </span>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   );
 };
 
@@ -1183,51 +934,14 @@ const DoneReadyBody = ({
     );
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-start pt-8 text-center">
-      <div className="relative">
-        <Face status="idle" size={160} aria-label="Harper" priority />
-        <span className="absolute -right-2 top-4 flex h-10 min-w-14 items-center justify-center rounded-[18px] bg-bg-floating px-4 shadow-[0_10px_28px_rgba(31,28,26,0.10)]">
-          <span className="flex gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-          </span>
-        </span>
-        <span className="absolute -left-4 bottom-7 flex h-10 min-w-14 items-center justify-center rounded-[18px] bg-bg-floating px-4 shadow-[0_10px_28px_rgba(31,28,26,0.10)]">
-          <span className="flex gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-            <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-          </span>
-        </span>
-      </div>
-
-      <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-normal leading-none text-neutral-muted shadow-sm">
-        <span className="h-2 w-2 rounded-full bg-positive" />
-        {t("career.onboarding.onboarding_done.ready_badge", "대화 준비 완료")}
-      </div>
-
-      <Text
-        as="h1"
-        variant="head2"
-        tone="primary"
-        className="mt-10 text-[18px] md:text-[22px] font-medium leading-8 tracking-normal"
-      >
-        {title}
-      </Text>
-      <Text
-        as="p"
-        variant="body"
-        tone="subtle"
-        className="mt-3 max-w-[390px] text-[14px] md:text-[14px] font-light leading-5"
-      >
-        {description.split("\n").map((line) => (
-          <span key={line} className="block">
-            {line}
-          </span>
-        ))}
-      </Text>
-    </div>
+    <OnboardingReadyBody
+      title={title}
+      description={description}
+      badge={t(
+        "career.onboarding.onboarding_done.ready_badge",
+        "대화 준비 완료"
+      )}
+    />
   );
 };
 
@@ -1239,56 +953,17 @@ const DoneConversationPreview = ({
   userMessage: string;
 }) => {
   const t = useCareerT();
-  const streamedText = useStreamingText(assistantText);
-  const isStreamComplete =
-    assistantText.length > 0 && streamedText.length >= assistantText.length;
-  const paragraphs = streamedText
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
-  const userBubbleText =
-    userMessage?.trim() ||
-    t(
-      "career.onboarding.onboarding_done.default_user_message",
-      "제 프로필을 보내드렸어요."
-    );
-
   return (
-    <aside className="relative flex h-full w-full flex-col overflow-hidden">
-      <div className="relative flex min-h-full items-start md:items-center justify-center">
-        <div className="w-full max-w-[380px]">
-          <div className="flex justify-end">
-            <div className="max-w-[84%] rounded-[15px] bg-neutral-1000 px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-5 text-neutral-00 shadow-sm">
-              {userBubbleText}
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-start gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-floating font-hedvig text-[18px] font-bold text-neutral-primary shadow-sm">
-              h.
-            </div>
-            <div className="min-w-0 flex-1 space-y-2.5">
-              {paragraphs.map((paragraph, index) => (
-                <div
-                  key={`${index}-${paragraph.slice(0, 14)}`}
-                  className="w-fit max-w-full rounded-[15px] bg-bg-floating px-3.5 py-2.5 text-[14px] md:text-[14px] font-normal leading-6 text-neutral-primary shadow-sm"
-                >
-                  {paragraph}
-                  {index === paragraphs.length - 1 && !isStreamComplete ? (
-                    <span className="ml-1 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-neutral-1000-a50" />
-                  ) : null}
-                </div>
-              ))}
-              <div className="flex w-fit items-center gap-1.5 rounded-[15px] bg-bg-floating px-3.5 py-2.5 shadow-sm">
-                <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-                <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-                <span className="h-1.5 w-1.5 rounded-full bg-neutral-1000-a10" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </aside>
+    <OnboardingConversationPreview
+      assistantText={assistantText}
+      userMessage={
+        userMessage?.trim() ||
+        t(
+          "career.onboarding.onboarding_done.default_user_message",
+          "제 프로필을 보내드렸어요."
+        )
+      }
+    />
   );
 };
 
@@ -2385,23 +2060,14 @@ const CareerNetworkOnboardingContent = () => {
         {effectiveSubmitState === "form" && (
           <OnboardingFrame
             progressStep={step}
+            expandContent={step === 2}
             title={
-              <AnimatePresence mode="wait" custom={true}>
-                <motion.div
-                  key={`header-${step}`}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  variants={SLIDE_VARIANTS}
-                  custom={true}
-                  transition={SLIDE_TRANSITION}
-                  className="h-full"
-                >
-                  <OnboardingStepHeader
-                    stepDefinition={currentStepDefinition}
-                  />
-                </motion.div>
-              </AnimatePresence>
+              <OnboardingTransition
+                stepKey={`header-${step}`}
+                className="h-full"
+              >
+                <OnboardingStepHeader stepDefinition={currentStepDefinition} />
+              </OnboardingTransition>
             }
             footer={
               <OnboardingFooterControls
@@ -2411,206 +2077,194 @@ const CareerNetworkOnboardingContent = () => {
               />
             }
           >
-            <AnimatePresence mode="wait" custom={true}>
-              <motion.div
-                key={`body-${step}`}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                variants={SLIDE_VARIANTS}
-                custom={true}
-                transition={SLIDE_TRANSITION}
-                className="flex min-h-full w-full flex-col items-stretch"
-              >
-                {step === 0 && (
-                  <div className={currentStepDefinition.bodyClassName}>
-                    <div>
-                      <OnboardingFieldLabel>
-                        {t(
-                          "career.onboarding.onboarding.1njrwx4",
-                          "이름 (한글 이름의 경우 한글로 적어주세요.)"
-                        )}
-                      </OnboardingFieldLabel>
-                      <Input
-                        autoFocus
-                        value={name}
-                        onChange={(event) => setName(event.target.value)}
-                        placeholder={t(
-                          "career.onboarding.onboarding.1wh5aat",
-                          "이름"
-                        )}
-                        className="h-12 text-base mt-1"
+            <OnboardingTransition
+              stepKey={`body-${step}`}
+              className="flex min-h-full w-full flex-col items-stretch"
+            >
+              {step === 0 && (
+                <div className={currentStepDefinition.bodyClassName}>
+                  <div>
+                    <OnboardingFieldLabel>
+                      {t(
+                        "career.onboarding.onboarding.1njrwx4",
+                        "이름 (한글 이름의 경우 한글로 적어주세요.)"
+                      )}
+                    </OnboardingFieldLabel>
+                    <Input
+                      autoFocus
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder={t(
+                        "career.onboarding.onboarding.1wh5aat",
+                        "이름"
+                      )}
+                      className="h-12 text-base mt-1"
+                    />
+                  </div>
+                  <div>
+                    <OnboardingFieldLabel>
+                      {t("career.onboarding.onboarding.17sy1or", "이메일")}
+                    </OnboardingFieldLabel>
+                    <Input
+                      type="email"
+                      value={email}
+                      readOnly
+                      onClick={() =>
+                        showToast({
+                          message: t(
+                            "career.onboarding.onboarding.email_change_requires_verification",
+                            "가입 후 이메일 인증을 통해 변경할 수 있습니다."
+                          ),
+                          variant: "white",
+                        })
+                      }
+                      placeholder="email@example.com"
+                      className="h-12 cursor-pointer text-base mt-1"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className={currentStepDefinition.bodyClassName}>
+                  {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option, index) => {
+                    const copy = onboardingEngagementCopy[option.id];
+
+                    return (
+                      <EngagementCardButton
+                        key={option.id}
+                        id={option.id}
+                        label={copy.label}
+                        description={copy.description}
+                        active={selectedEngagements.includes(option.id)}
+                        onClick={() => handleEngagementToggle(option.id)}
                       />
-                    </div>
-                    <div>
-                      <OnboardingFieldLabel>
-                        {t("career.onboarding.onboarding.17sy1or", "이메일")}
-                      </OnboardingFieldLabel>
-                      <Input
-                        type="email"
-                        value={email}
-                        readOnly
-                        onClick={() =>
-                          showToast({
-                            message: t(
-                              "career.onboarding.onboarding.email_change_requires_verification",
-                              "가입 후 이메일 인증을 통해 변경할 수 있습니다."
-                            ),
-                            variant: "white",
-                          })
+                    );
+                  })}
+                </div>
+              )}
+
+              {step === 2 && (
+                <>
+                  <div
+                    className={cn(
+                      currentStepDefinition.bodyClassName,
+                      "mt-[-20px] sm:mt-0"
+                    )}
+                  >
+                    {profileInputOptions.map((option) => (
+                      <ProfileInputToggle
+                        key={option.id}
+                        id={option.id}
+                        label={option.label}
+                        active={selectedProfileInputs.includes(option.id)}
+                        invalid={
+                          showRequiredProfileSignalError &&
+                          (option.id === "linkedin" || option.id === "cv")
                         }
-                        placeholder="email@example.com"
-                        className="h-12 cursor-pointer text-base mt-1"
+                        onClick={() => handleProfileInputToggle(option.id)}
+                        requiredBadge={
+                          option.id === "linkedin" || option.id === "cv"
+                            ? "*"
+                            : undefined
+                        }
                       />
-                    </div>
+                    ))}
                   </div>
-                )}
+                  <div
+                    className={cn(currentStepDefinition.secondaryBodyClassName)}
+                  >
+                    {selectedProfileInputs.includes("linkedin") && (
+                      <LinkInput
+                        label="LinkedIn"
+                        placeholder="https://linkedin.com/in/..."
+                        value={linkedin}
+                        onChange={(event) => {
+                          const nextLinkedin = event.target.value;
+                          setLinkedin(nextLinkedin);
+                          if (
+                            isLinkedinProfileLink(normalizeLink(nextLinkedin))
+                          ) {
+                            setShowRequiredProfileSignalError(false);
+                          }
+                        }}
+                      />
+                    )}
+                    {selectedProfileInputs.includes("github") && (
+                      <LinkInput
+                        label="GitHub"
+                        placeholder="https://github.com/..."
+                        value={github}
+                        onChange={(event) => setGithub(event.target.value)}
+                      />
+                    )}
+                    {selectedProfileInputs.includes("scholar") && (
+                      <LinkInput
+                        label="Google Scholar"
+                        placeholder="https://scholar.google.com/..."
+                        value={scholar}
+                        onChange={(event) => setScholar(event.target.value)}
+                      />
+                    )}
+                    {selectedProfileInputs.includes("website") && (
+                      <LinkInput
+                        label={t(
+                          "career.onboarding.onboarding.0fcepf9",
+                          "개인 페이지"
+                        )}
+                        placeholder="https://..."
+                        value={website}
+                        onChange={(event) => setWebsite(event.target.value)}
+                      />
+                    )}
+                    {selectedProfileInputs.includes("cv") && (
+                      <ResumeUploadInput
+                        fileName={resumeFile?.name ?? ""}
+                        onFileSelect={(file, source) => {
+                          logCareerEvent(
+                            source === "drop"
+                              ? "drop_onboarding_resume_select"
+                              : "click_onboarding_resume_select"
+                          );
+                          setResumeFile(file);
+                          if (file) {
+                            setShowRequiredProfileSignalError(false);
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
 
-                {step === 1 && (
+              {step === 3 && (
+                <>
                   <div className={currentStepDefinition.bodyClassName}>
-                    {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option, index) => {
-                      const copy = onboardingEngagementCopy[option.id];
-
-                      return (
-                        <EngagementCardButton
-                          key={option.id}
-                          id={option.id}
-                          label={copy.label}
-                          description={copy.description}
-                          active={selectedEngagements.includes(option.id)}
-                          onClick={() => handleEngagementToggle(option.id)}
-                        />
-                      );
-                    })}
+                    {profileVisibilityOptions.map((option) => (
+                      <EngagementCardButton
+                        key={option.id}
+                        Icon={option.Icon}
+                        label={option.label}
+                        description={option.description.replace(
+                          /\n/g,
+                          "<br />"
+                        )}
+                        active={profileVisibility === option.id}
+                        onClick={() => handleProfileVisibilitySelect(option.id)}
+                      />
+                    ))}
                   </div>
-                )}
-
-                {step === 2 && (
-                  <>
-                    <div
-                      className={cn(
-                        currentStepDefinition.bodyClassName,
-                        "mt-[-20px] sm:mt-0"
-                      )}
-                    >
-                      {profileInputOptions.map((option) => (
-                        <ProfileInputToggle
-                          key={option.id}
-                          id={option.id}
-                          label={option.label}
-                          active={selectedProfileInputs.includes(option.id)}
-                          invalid={
-                            showRequiredProfileSignalError &&
-                            (option.id === "linkedin" || option.id === "cv")
-                          }
-                          onClick={() => handleProfileInputToggle(option.id)}
-                          requiredBadge={
-                            option.id === "linkedin" || option.id === "cv"
-                              ? "*"
-                              : undefined
-                          }
-                        />
-                      ))}
-                    </div>
-                    <div
-                      className={cn(
-                        currentStepDefinition.secondaryBodyClassName
-                      )}
-                    >
-                      {selectedProfileInputs.includes("linkedin") && (
-                        <LinkInput
-                          label="LinkedIn"
-                          placeholder="https://linkedin.com/in/..."
-                          value={linkedin}
-                          onChange={(event) => {
-                            const nextLinkedin = event.target.value;
-                            setLinkedin(nextLinkedin);
-                            if (
-                              isLinkedinProfileLink(normalizeLink(nextLinkedin))
-                            ) {
-                              setShowRequiredProfileSignalError(false);
-                            }
-                          }}
-                        />
-                      )}
-                      {selectedProfileInputs.includes("github") && (
-                        <LinkInput
-                          label="GitHub"
-                          placeholder="https://github.com/..."
-                          value={github}
-                          onChange={(event) => setGithub(event.target.value)}
-                        />
-                      )}
-                      {selectedProfileInputs.includes("scholar") && (
-                        <LinkInput
-                          label="Google Scholar"
-                          placeholder="https://scholar.google.com/..."
-                          value={scholar}
-                          onChange={(event) => setScholar(event.target.value)}
-                        />
-                      )}
-                      {selectedProfileInputs.includes("website") && (
-                        <LinkInput
-                          label={t(
-                            "career.onboarding.onboarding.0fcepf9",
-                            "개인 페이지"
-                          )}
-                          placeholder="https://..."
-                          value={website}
-                          onChange={(event) => setWebsite(event.target.value)}
-                        />
-                      )}
-                      {selectedProfileInputs.includes("cv") && (
-                        <ResumeUploadInput
-                          fileName={resumeFile?.name ?? ""}
-                          onFileSelect={(file, source) => {
-                            logCareerEvent(
-                              source === "drop"
-                                ? "drop_onboarding_resume_select"
-                                : "click_onboarding_resume_select"
-                            );
-                            setResumeFile(file);
-                            if (file) {
-                              setShowRequiredProfileSignalError(false);
-                            }
-                          }}
-                        />
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {step === 3 && (
-                  <>
-                    <div className={currentStepDefinition.bodyClassName}>
-                      {profileVisibilityOptions.map((option) => (
-                        <EngagementCardButton
-                          key={option.id}
-                          Icon={option.Icon}
-                          label={option.label}
-                          description={option.description.replace(
-                            /\n/g,
-                            "<br />"
-                          )}
-                          active={profileVisibility === option.id}
-                          onClick={() =>
-                            handleProfileVisibilitySelect(option.id)
-                          }
-                        />
-                      ))}
-                    </div>
-                    <Text
-                      as="p"
-                      variant="caption"
-                      tone="caption"
-                      className={currentStepDefinition.footnoteClassName}
-                    >
-                      {selectedVisibilityOption.sub}
-                    </Text>
-                  </>
-                )}
-              </motion.div>
-            </AnimatePresence>
+                  <Text
+                    as="p"
+                    variant="caption"
+                    tone="caption"
+                    className={currentStepDefinition.footnoteClassName}
+                  >
+                    {selectedVisibilityOption.sub}
+                  </Text>
+                </>
+              )}
+            </OnboardingTransition>
           </OnboardingFrame>
         )}
       </main>

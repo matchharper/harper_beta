@@ -1,5 +1,6 @@
 export type OrgWorkspacePageId =
   | "home"
+  | "onboarding"
   | "inbox"
   | "jobs"
   | "member"
@@ -15,6 +16,7 @@ export type OrgSettingsTab = "calendar";
 export type OrgPipelineDisplay = "pipeline" | "board";
 
 const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
+  onboarding: "/org/onboarding",
   documents: "/org/documents",
   home: "/org/home",
   inbox: "/org/inbox",
