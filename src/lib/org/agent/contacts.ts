@@ -547,6 +547,7 @@ async function readCandidateContacts(args: {
     responseDocumentIds.some(Boolean)
       ? (args.admin.from("talent_documents" as any) as any)
           .select("id,file_name,created_at")
+          .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
           .in("id", responseDocumentIds.filter(Boolean))
       : Promise.resolve({ data: [], error: null }),
     fetchCandidateContactScopeTimelines({

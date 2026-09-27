@@ -7083,6 +7083,8 @@ export type Database = {
           content_sha256: string | null;
           content_type: string | null;
           created_at: string;
+          structured_content: Json | null;
+          revision: number;
           extracted_text: string | null;
           file_name: string;
           id: string;
@@ -7101,6 +7103,8 @@ export type Database = {
           content_sha256?: string | null;
           content_type?: string | null;
           created_at?: string;
+          structured_content?: Json | null;
+          revision?: number;
           extracted_text?: string | null;
           file_name: string;
           id?: string;
@@ -7119,6 +7123,8 @@ export type Database = {
           content_sha256?: string | null;
           content_type?: string | null;
           created_at?: string;
+          structured_content?: Json | null;
+          revision?: number;
           extracted_text?: string | null;
           file_name?: string;
           id?: string;

@@ -4,6 +4,7 @@ import type { TalentAdminClient } from "./admin";
 import {
   listTalentDocumentsForTool,
   readTalentDocumentForTool,
+  updateTalentDocumentForTool,
 } from "./documentTool";
 import { serializeTalentDocuments } from "./documentStore";
 import type { TalentDocumentRow } from "./models";
@@ -176,4 +177,44 @@ test("document serialization signs only rows backed by Storage", async () => {
   assert.equal(serialized[0]?.downloadUrl, null);
   assert.equal(serialized[0]?.originType, "gmail_career_history");
   assert.equal(serialized[1]?.downloadUrl, "signed:talent-a/portfolio.pdf");
+});
+
+test("generated resumes expose editable JSON/revision only to their owner and reject sharing", async () => {
+  const structured = {
+    schema_version: 1,
+    content: { language: "ko", basics: { name: "김하늘" } },
+  };
+  const document = createGmailDocument({
+    kind: "resume",
+    origin_type: "harper_generated_resume",
+    origin_id: null,
+    structured_content: structured,
+    revision: 3,
+  });
+  const { admin } = createDocumentAdmin([document]);
+  const result = await readTalentDocumentForTool({
+    admin,
+    userId: "talent-a",
+    input: { document_id: document.id, format: "structured" },
+  });
+  assert.deepEqual(result.structuredContent, structured);
+  assert.equal(result.revision, 3);
+  await assert.rejects(
+    readTalentDocumentForTool({
+      admin,
+      userId: "other",
+      input: { document_id: document.id, format: "structured" },
+    }),
+    /not found/
+  );
+  for (const flag of ["is_public", "is_primary"]) {
+    await assert.rejects(
+      updateTalentDocumentForTool({
+        admin,
+        userId: "talent-a",
+        input: { document_id: document.id, [flag]: true },
+      }),
+      /private/
+    );
+  }
 });

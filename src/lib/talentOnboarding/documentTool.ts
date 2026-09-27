@@ -1,3 +1,4 @@
+import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
 import type { Database } from "@/types/database.types";
 import type { TalentAdminClient } from "./admin";
 import {
@@ -157,6 +158,10 @@ export async function readTalentDocumentForTool(args: {
     throw new Error("Document not found.");
   }
 
+  if (args.input.format === "structured") {
+    if (document.origin_type !== GENERATED_RESUME_ORIGIN || !document.structured_content) throw new Error("This document has no editable resume JSON. Read its text and create a new resume instead.");
+    return { document: toDocumentMetadata(document, Boolean(document.extracted_text)), structuredContent: document.structured_content, revision: document.revision };
+  }
   const content = document.extracted_text?.trim() ?? "";
   const offset = normalizeInteger(
     args.input.offset,
@@ -226,6 +231,9 @@ export async function updateTalentDocumentForTool(args: {
     throw new Error("At least one document change is required.");
   }
 
+  if (document.origin_type === GENERATED_RESUME_ORIGIN && (update.is_primary === true || update.is_public === true || (update.kind && update.kind !== "resume"))) {
+    throw new Error("Harper-generated resumes remain private and cannot be selected as primary or shared.");
+  }
   const effectiveKind = update.kind ?? document.kind;
   const willBeDeleted = update.is_deleted ?? document.is_deleted;
   const isGmailCareerHistory =

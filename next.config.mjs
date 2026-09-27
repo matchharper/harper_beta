@@ -3,6 +3,23 @@ const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  serverExternalPackages: [
+    "@sparticuz/chromium",
+    "playwright-core",
+    "pdf-parse-fork",
+    "pdf-parse",
+    "@fontsource/noto-sans-kr",
+  ],
+  outputFileTracingIncludes: {
+    "/api/talent/chat": [
+      "./node_modules/@sparticuz/chromium/bin/**",
+      "./node_modules/pdf-parse/dist/worker/pdf.worker.mjs",
+      "./node_modules/@fontsource/noto-sans-kr/400.css",
+      "./node_modules/@fontsource/noto-sans-kr/700.css",
+      "./node_modules/@fontsource/noto-sans-kr/files/*-400-normal.woff2",
+      "./node_modules/@fontsource/noto-sans-kr/files/*-700-normal.woff2",
+    ],
+  },
   distDir: process.env.HARPER_E2E_DIST_DIR || ".next",
   images: {
     remotePatterns: [

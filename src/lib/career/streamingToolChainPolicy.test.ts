@@ -11,10 +11,15 @@ test("supports dependent document reads, pagination, and updates", () => {
     "list_documents",
     "read_document",
     "update_document",
+    "read_talent_context",
+    "generate_resume",
   ]);
   assert.deepEqual(getCareerStreamingNextToolNames(["read_document"]), [
     "read_document",
     "update_document",
+    "list_documents",
+    "read_talent_context",
+    "generate_resume",
   ]);
 });
 
@@ -63,7 +68,7 @@ test("deduplicates follow-up tools while preserving dependency order", () => {
       "read_document",
       "unknown_tool",
     ]),
-    ["list_documents", "read_document", "update_document"]
+    ["list_documents", "read_document", "update_document", "read_talent_context", "generate_resume"]
   );
 });
 

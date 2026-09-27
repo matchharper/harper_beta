@@ -6256,12 +6256,14 @@ export async function fetchOrgTalentDetail(args: {
       .limit(100),
     (admin.from("talent_documents" as any) as any)
       .select("id, file_name, storage_path, is_public")
+      .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("talent_id", talentId)
       .eq("kind", "resume")
       .eq("is_primary", true)
       .maybeSingle(),
     (admin.from("talent_documents" as any) as any)
       .select("id, file_name, content_type, created_at")
+      .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("talent_id", talentId)
       .eq("kind", "document")
       .eq("is_public", true)
@@ -6818,6 +6820,7 @@ export async function openOrgResume(args: {
     admin.from("talent_documents" as any) as any
   )
     .select("id, file_name, storage_path, is_public")
+    .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
     .eq("talent_id", talentId)
     .eq("kind", "resume")
     .eq("is_primary", true)
@@ -6852,6 +6855,7 @@ export async function openOrgResume(args: {
       admin.from("talent_documents" as any) as any
     )
       .select("id, file_name, storage_path")
+      .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("id", documentId)
       .eq("talent_id", talentId)
       .eq("kind", "document")

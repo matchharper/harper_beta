@@ -1511,6 +1511,7 @@ export async function runCareerChatAssistant(args: {
 
     if (args.tools.length > 0) {
       return runTalentAssistantToolLoop({
+        maxToolLoops: args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? 8 : 3,
         executeTool: args.executeTool,
         messages: fallbackMessages,
         modelConfig: activeModelConfig,
@@ -1544,6 +1545,7 @@ export async function runCareerChatAssistant(args: {
         content: message.content,
       }));
     const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
+    const maxToolCalls = args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? 8 : 4;
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let executedToolNamesForPolicy: string[] = [];
@@ -1624,7 +1626,7 @@ export async function runCareerChatAssistant(args: {
         content: assistantBlocks,
       });
 
-      const remainingToolCalls = 4 - totalToolCalls;
+      const remainingToolCalls = maxToolCalls - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -1933,6 +1935,7 @@ export async function runCareerChatAssistantStream(args: {
       });
     }
 
+    const maxToolCalls = args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? 8 : STREAMING_TOOL_CHAIN_MAX_CALLS;
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let activeTools = args.tools;
@@ -2013,7 +2016,7 @@ export async function runCareerChatAssistantStream(args: {
       });
 
       const remainingToolCalls =
-        STREAMING_TOOL_CHAIN_MAX_CALLS - totalToolCalls;
+        maxToolCalls - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -2110,7 +2113,7 @@ export async function runCareerChatAssistantStream(args: {
       }
 
       const canContinueToolChain =
-        !shouldStopAfterTool && totalToolCalls < STREAMING_TOOL_CHAIN_MAX_CALLS;
+        !shouldStopAfterTool && totalToolCalls < maxToolCalls;
       const nextTools = canContinueToolChain
         ? resolveNextStreamingTools({
             allTools: args.tools,

@@ -215,6 +215,7 @@ const CareerProfileWorkspace = ({
     return (
       <CareerDocumentDetail
         key={requestedDocumentId}
+        updatedAt={document?.updatedAt}
         document={{
           id: requestedDocumentId,
           title:

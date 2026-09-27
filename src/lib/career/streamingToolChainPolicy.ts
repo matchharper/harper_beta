@@ -10,9 +10,10 @@ import type { TalentToolName } from "@/lib/talentOnboarding/tools";
  */
 export const CAREER_STREAMING_TOOL_CHAIN = {
   web_search: ["open_url", "web_search"],
-  open_url: ["open_url", "web_search"],
-  list_documents: ["list_documents", "read_document", "update_document"],
-  read_document: ["read_document", "update_document"],
+  open_url: ["open_url", "web_search", "list_documents", "read_talent_context", "generate_resume"],
+  list_documents: ["list_documents", "read_document", "update_document", "read_talent_context", "generate_resume"],
+  read_document: ["read_document", "update_document", "list_documents", "read_talent_context", "generate_resume"],
+  generate_resume: ["read_document", "generate_resume"],
   read_recommended_opportunities: [
     "get_role_context",
     "update_recommended_opportunity_feedback",
@@ -26,6 +27,7 @@ export const CAREER_STREAMING_TOOL_CHAIN = {
     "update_recommended_opportunity_feedback",
   ],
   get_role_context: [
+    "list_documents", "read_document", "read_talent_context", "generate_resume",
     "get_role_context",
     "update_recommended_opportunity_feedback",
   ],
@@ -36,6 +38,7 @@ export const CAREER_STREAMING_TOOL_CHAIN = {
   internal_role_priority_review: ["request_internal_role_reconsideration"],
   update_talent_profile: ["recommend_job_postings", "get_internal_roles"],
   read_talent_context: [
+    "read_talent_context", "list_documents", "read_document", "generate_resume",
     "write_talent_context",
     "recommend_job_postings",
     "get_internal_roles",

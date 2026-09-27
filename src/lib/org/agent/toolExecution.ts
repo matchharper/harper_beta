@@ -2244,6 +2244,7 @@ async function executeCompanyTalentRequest(args: {
       args.admin.from("talent_documents" as any) as any
     )
       .select("id, is_public")
+      .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("talent_id", talentId)
       .eq("kind", "resume")
       .eq("is_primary", true)
@@ -2884,6 +2885,7 @@ async function executeCandidateContactLifecycleItem(args: {
         args.admin.from("talent_documents" as any) as any
       )
         .select("id, is_public")
+        .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
         .eq("talent_id", talentId)
         .eq("kind", "resume")
         .eq("is_primary", true)

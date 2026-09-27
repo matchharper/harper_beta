@@ -1,3 +1,4 @@
+import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -100,6 +101,10 @@ export async function PATCH(req: NextRequest) {
         );
       }
       update.file_name = fileName;
+    }
+
+    if (document.origin_type === GENERATED_RESUME_ORIGIN && (body.isPrimary === true || body.isPublic === true)) {
+      return NextResponse.json({ error: "Generated resumes remain private and cannot be selected as primary." }, { status: 400 });
     }
 
     if (body.isPublic !== undefined) {

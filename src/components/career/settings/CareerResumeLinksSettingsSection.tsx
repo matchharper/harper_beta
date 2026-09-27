@@ -183,6 +183,7 @@ const CareerResumeLinksSettingsSection = ({
     return (
       <CareerDocumentDetail
         key={inlineDocument.id}
+        updatedAt={talentDocuments.find(item => item.id === inlineDocument.id)?.updatedAt}
         document={{ id: inlineDocument.id, title: inlineDocument.fileName }}
         onBack={() => setInlineDocument(null)}
       />

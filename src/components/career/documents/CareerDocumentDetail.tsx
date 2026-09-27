@@ -9,6 +9,9 @@ import type { CareerDocumentLink } from "@/lib/career/documentLinks";
 
 type DocumentContent = {
   content: string;
+  format?: "pdf";
+  previewUrl?: string;
+  downloadUrl?: string;
   documentId: string;
   fileName: string;
   updatedAt: string;
@@ -17,13 +20,17 @@ type DocumentContent = {
 export function CareerDocumentDetail({
   document,
   onBack,
+  updatedAt,
 }: {
   document: CareerDocumentLink;
+  updatedAt?: string;
   onBack: () => void;
 }) {
   const t = useCareerT();
-  const [result, setResult] = useState<DocumentContent | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [loadedResult, setResult] = useState<DocumentContent | null>(null);
+  const [failedDocumentId, setFailedDocumentId] = useState<string | null>(null);
+  const result = loadedResult?.documentId === document.id ? loadedResult : null;
+  const failed = failedDocumentId === document.id;
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -33,13 +40,26 @@ export function CareerDocumentDetail({
       { cache: "no-store", signal: controller.signal }
     )
       .then((payload) => {
-        if (!controller.signal.aborted) setResult(payload);
+        if (!controller.signal.aborted) {
+          setFailedDocumentId(null);
+          setResult(payload);
+        }
       })
       .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
+        if (!controller.signal.aborted) setFailedDocumentId(document.id);
       });
     return () => controller.abort();
-  }, [document.id, attempt]);
+  }, [document.id, attempt, updatedAt]);
+
+  useEffect(() => {
+    const refresh = () => setAttempt((value) => value + 1);
+    window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, 10 * 60_000);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const copy = async () => {
     if (!result) return;
@@ -103,20 +123,41 @@ export function CareerDocumentDetail({
               {title}
             </h1>
             <div className="flex flex-wrap gap-2">
-              <MuteButton disabled={!result} onClick={() => void copy()}>
-                <Copy className="h-4 w-4" />
-                {t(
-                  "career.profile.documents.copy_content",
-                  "문서 전체 내용 복사"
-                )}
-              </MuteButton>
-              <MuteButton disabled={!result} onClick={exportMarkdown}>
-                <Download className="h-4 w-4" />
-                {t(
-                  "career.profile.documents.export_markdown",
-                  "Markdown 내보내기"
-                )}
-              </MuteButton>
+              {result?.format === "pdf" ? (
+                <MuteButton
+                  onClick={() => {
+                    void fetchWithInternalAuth(
+                      `/api/talent/documents/${encodeURIComponent(document.id)}/content`,
+                      { method: "POST" }
+                    ).catch(() => {});
+                    window.open(
+                      result.downloadUrl,
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                  {t("career.profile.documents.download_pdf", "PDF 다운로드")}
+                </MuteButton>
+              ) : (
+                <>
+                  <MuteButton disabled={!result} onClick={() => void copy()}>
+                    <Copy className="h-4 w-4" />
+                    {t(
+                      "career.profile.documents.copy_content",
+                      "문서 전체 내용 복사"
+                    )}
+                  </MuteButton>
+                  <MuteButton disabled={!result} onClick={exportMarkdown}>
+                    <Download className="h-4 w-4" />
+                    {t(
+                      "career.profile.documents.export_markdown",
+                      "Markdown 내보내기"
+                    )}
+                  </MuteButton>
+                </>
+              )}
             </div>
           </header>
           {failed ? (
@@ -132,7 +173,7 @@ export function CareerDocumentDetail({
               </p>
               <MuteButton
                 onClick={() => {
-                  setFailed(false);
+                  setFailedDocumentId(null);
                   setAttempt((value) => value + 1);
                 }}
               >
@@ -140,7 +181,16 @@ export function CareerDocumentDetail({
               </MuteButton>
             </div>
           ) : result ? (
-            <RichText content={result.content} />
+            result.format === "pdf" ? (
+              <iframe
+                key={result.previewUrl}
+                src={`${result.previewUrl}#view=FitH&navpanes=0`}
+                title={title}
+                className="h-[75svh] min-h-[480px] w-full border-0"
+              />
+            ) : (
+              <RichText content={result.content} />
+            )
           ) : (
             <div
               role="status"
