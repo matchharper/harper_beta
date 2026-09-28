@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "v5",
+  "frozenAt": "2026-09-24",
+  "provenance": "Synthetic; gold written before model calls; user-reviewed contact contract correction included before freeze",
+  "reviewer": "Codex; product-owner review of contact semantics, full gold review pending",
+  "scenarioCount": 10,
+  "variantCount": 14,
+  "runner": "scripts/evalCompanyAgentCapabilities.ts",
+  "gold": "gold-v5.md",
+  "files": {
+    "cases-v5.json": "e814f866e4c7af1571edb213f90e18cc10cc4cb42b74843da5d83b1256ab0a0a",
+    "gold-v5.md": "0e9117383b32e1a3fc5b97b74a006dd72b6b6948e7d01296b03d89761381a475"
+  }
+}

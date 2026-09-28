@@ -15,9 +15,13 @@ import {
 import path from "node:path";
 import postgres from "postgres";
 import { config } from "dotenv";
+import { assertContactEvaluationStep, contactEvaluationSteps } from "./lib/companyAgentEvaluationContract";
 
 const root = path.resolve(__dirname, "..");
 const task = path.join(root, "docs/evaluation/company-talent-contacts");
+const datasetVersion = process.env.CONTACT_QA_DATASET ?? "v2";
+const roleVersion = process.env.CONTACT_QA_ROLE_DATASET ?? "v2";
+if (!["v2", "v3"].includes(datasetVersion) || !["v2", "v3"].includes(roleVersion)) throw Error("Unsupported frozen version");
 const runId = process.env.CONTACT_QA_RUN_ID || "2026-09-23-immediate-v2";
 if (!/^[a-zA-Z0-9_.-]+$/.test(runId)) throw Error("Invalid local run ID");
 const runDir = path.join(task, "runs", runId);
@@ -65,6 +69,11 @@ globalThis.fetch = async (input: any, init?: any) => {
     throw Error(`QA external network blocked: ${url.hostname}`);
   const start = Date.now();
   const response = await originalFetch(input, init);
+  if (url.hostname === "127.0.0.1" && !response.ok) {
+    const failure = { path: url.pathname, status: response.status, body: await response.clone().text() };
+    trace.push({ localTransportFailure: failure }); save(`${commandId}-local-errors.json`, trace.filter(x => x.localTransportFailure));
+    console.error("Local transport failure:", failure);
+  }
   if (llm && !url.pathname.includes("embeddings")) {
     let request: any = init?.body ?? null;
     try {
@@ -162,6 +171,11 @@ async function setup() {
     await insert("auth.users", { id: t.user_id, email: t.email });
   for (const row of capture.companyDb) await insert("company_db", row);
   await insert("company_workspace", workspace);
+  if (datasetVersion === "v3") {
+    const context = JSON.parse(readFileSync(path.join(task, "context-v1.json"), "utf8"));
+    await db`update company_workspace set company_name=${context.companyName},company_description=${context.description},pitch=${context.description},brief=null,request=null,homepage_url=null,career_url=null,linkedin_url=null where company_workspace_id=${workspace.company_workspace_id}`;
+    for (const row of capture.companyDb) await db`update company_db set name=${context.companyName},description=${context.description},short_description=${context.description},website_url=null,funding_url=null,related_links=null where id=${row.id}`;
+  }
   for (const row of capture.companyUsers) await insert("company_users", row);
   for (const row of capture.memberships)
     await insert("company_user_workspace", row);
@@ -278,7 +292,7 @@ async function setup() {
   await db.unsafe("notify pgrst,'reload schema'");
   save("manifest.json", {
     task: "company-talent-contacts",
-    datasetVersion: "v2",
+    datasetVersion,
     runId,
     createdAt: new Date().toISOString(),
     sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], {
@@ -288,8 +302,8 @@ async function setup() {
     diffHash: hash(
       execFileSync("git", ["diff"], { cwd: root, encoding: "utf8" })
     ),
-    fixtureHash: hash(readFileSync(path.join(task, "cases-v2.json"), "utf8")),
-    goldHash: hash(readFileSync(path.join(task, "gold-v2.json"), "utf8")),
+    fixtureHash: hash(readFileSync(path.join(task, `cases-${datasetVersion}.json`), "utf8")),
+    goldHash: hash(readFileSync(path.join(task, `gold-${datasetVersion}.json`), "utf8")),
     transport: "local capture; no real email/Slack receipt",
     auth: "local verified fixture identity adapter",
     model:
@@ -327,6 +341,37 @@ async function state(fixture: any) {
 }
 
 async function main() {
+  if (datasetVersion === "v3") {
+    const frozenManifest = JSON.parse(readFileSync(path.join(task, "manifest-v3.json"), "utf8"));
+    for (const [file, expected] of Object.entries(frozenManifest.files)) {
+      assert.equal(hash(readFileSync(path.resolve(task, file), "utf8")), expected, `Frozen input changed: ${file}`);
+    }
+    const contract = await (await fetch("http://127.0.0.1:55439/qa-contract")).json();
+    assert.equal(contract.serviceAnswerExamples, "frozen-empty", "Restart sandbox with CONTACT_QA_SERVICE_EXAMPLES=empty");
+  }
+  // Each command is a fresh process: an audit-time snapshot cannot identify the
+  // code that handled an earlier turn if the worktree changed between commands.
+  const runtimePaths = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard",
+    "src/lib/org", "src/lib/companyTalentRequests", "src/lib/talentOnboarding", "src/lib/career",
+    "src/lib/llm", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "scripts/evalUnifiedCompanyContacts.ts",
+    "scripts/companyContactQaSandbox.mjs", "scripts/lib/companyAgentEvaluationContract.ts", "src/lib/internalCandidateReengagement.ts",
+    "supabase/migrations/20260923063625_unified_company_talent_contacts.sql", "supabase/migrations/20260924151548_company_contact_direct_delivery.sql"],
+    { cwd: root, encoding: "utf8" }).trim().split("\n").filter(Boolean).sort();
+  const source = runtimePaths.map(file => ({ file, sha256: hash(readFileSync(path.join(root, file), "utf8")) }));
+  const sourceFingerprint = hash(JSON.stringify(source));
+  const lockFile = path.join(runDir, "cohort.json");
+  if (datasetVersion === "v3" && !["cleanup", "audit", "state", "verify"].includes(command)) {
+    if (existsSync(lockFile)) assert.equal(JSON.parse(readFileSync(lockFile, "utf8")).sourceFingerprint, sourceFingerprint, "Runtime changed within run; use a fresh run/fixture");
+    else {
+      save("cohort.json", { sourceFingerprint, datasetVersion, roleVersion, createdAt: new Date().toISOString() });
+      save("initial-source-snapshot.json", runtimePaths.map(file => ({ file, content: readFileSync(path.join(root, file), "utf8") })));
+    }
+  }
+  save(`${commandId}-source.json`, { command, scenario, createdAt: new Date().toISOString(),
+    revision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
+    sourceFingerprint: hash(JSON.stringify(source)), files: source,
+    inputHash: hash(readFileSync(path.join(task, `cases-${datasetVersion}.json`), "utf8")),
+    goldHash: hash(readFileSync(path.join(task, `gold-${datasetVersion}.json`), "utf8")) });
   const localDataDirectory = (await db`show data_directory`)[0].data_directory;
   if (
     !/^\/(?:private\/)?tmp\/harper-contact-live\.[^/]+\/pgdata$/.test(
@@ -355,16 +400,28 @@ async function main() {
       if (start < 0 || end < start) throw Error("Missing named function");
       await db.unsafe(sql.slice(start, end));
     }
+    await db.unsafe(readFileSync(path.join(root,
+      "supabase/migrations/20260924151548_company_contact_direct_delivery.sql"), "utf8"));
     await db.unsafe("notify pgrst,'reload schema'");
     console.log("Refreshed named functions in isolated local DB only");
     return;
   }
   const fixture = JSON.parse(readFileSync(fixtureFile, "utf8"));
+  if (datasetVersion === "v3" && ["company", "candidate", "candidate-first", "event", "role-creation"].includes(command)) {
+    assert.ok(existsSync(path.join(runDir, "preflight.json")), "Run preflight before model calls");
+  }
   const c = fixture.scenarios[scenario];
   if (!c) throw Error("Unknown frozen scenario");
   const frozen = JSON.parse(
-    readFileSync(path.join(task, "cases-v2.json"), "utf8")
+    readFileSync(path.join(task, `cases-${datasetVersion}.json`), "utf8")
   ).cases.find((x: any) => x.id === scenario);
+  const sequenceFile = path.join(runDir, "execution-sequence.json");
+  const sequence: Record<string, string[]> = existsSync(sequenceFile) ? JSON.parse(readFileSync(sequenceFile, "utf8")) : {};
+  const frozenStep = datasetVersion === "v3" && ["company", "candidate", "candidate-first", "deliver-candidate", "event"].includes(command);
+  if (frozenStep) {
+    assert.equal(process.argv[4], undefined, "Frozen runs forbid message overrides; create a new input version");
+    assertContactEvaluationStep(frozen, sequence[scenario] ?? [], command);
+  }
   const { createClient } = await import("@supabase/supabase-js");
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -382,7 +439,54 @@ async function main() {
     aud: "authenticated",
     created_at: new Date().toISOString(),
   };
-  if (command === "reset-incomplete-fixture" || command === "cleanup") {
+  if (command === "role-creation") {
+    const inputPath = path.join(root, `docs/evaluation/company-side-conversational-qa/role-creation-${roleVersion}.json`);
+    const spec = JSON.parse(readFileSync(inputPath, "utf8"));
+    const roleId = uuid(), channelId = uuid(), integrationId = uuid();
+    save(`${commandId}-role-input.json`, { spec, sha256: hash(readFileSync(inputPath, "utf8")), roleId, channelId });
+    await insert("company_roles", { role_id: roleId, company_workspace_id: fixture.workspaceId,
+      name: "새 역할", status: "draft", source_type: "internal", information: {
+        testOnly: true, testFixture: "company-role-creation-qa-v1", testTalentIds: [] } });
+    const fixtureRoleIds = Object.values(fixture.roles).map((r: any) => r.roleId);
+    const previousRoles = await db`select role_id,status,information from company_roles where role_id in ${db(fixtureRoleIds)}`;
+    assert.ok(previousRoles.every(r => r.information.testOnly === true));
+    try {
+      // Local authoring fixture must have registration capacity. Restore every exact status below.
+      await db`update company_roles set status='paused' where role_id in ${db(fixtureRoleIds)}`;
+      await insert("company_slack_integrations", { id: integrationId, company_workspace_id: fixture.workspaceId,
+        slack_team_id: "T_QA_ROLE_CREATION", slack_team_name: "Local QA", status: "legacy" });
+      await insert("company_slack_channels", { id: channelId, company_workspace_id: fixture.workspaceId,
+        slack_channel_id: "C_QA_ROLE_CREATION", slack_channel_name: spec.fixture.channel,
+        slack_team_id: "T_QA_ROLE_CREATION", is_enabled: true });
+      const { runOrgRoleCreationChat } = await import("../src/lib/org/agent/roleCreationChat");
+      const { fetchRoleCreationState } = await import("../src/lib/org/agent/roleCreationState");
+      const turns = [];
+      for (const [index, message] of spec.turns.entries()) {
+        const result = await runOrgRoleCreationChat({ roleId, user, workspaceId: fixture.workspaceId, message,
+          emit: (event, data) => { trace.push({ event, data }); save(`${commandId}-trace.json`, trace); } });
+        const state = await fetchRoleCreationState({ roleId, user, workspaceId: fixture.workspaceId, allowCompletedRole: true });
+        turns.push({ message, result, state }); save(`${commandId}-role-turns.json`, turns);
+        console.log(JSON.stringify({ turn: index + 1, reply: result.assistantMessage.content, phase: state.metadata.phase, status: state.role.status }));
+        if (index < spec.turns.length - 1) assert.equal(state.role.status, "draft", "Activation before final consent");
+      }
+      const last = turns.at(-1)!.state;
+      assert.equal(last.role.status, "active"); assert.equal(last.metadata.phase, "completed");
+      assert.equal(Number((await db`select count(*) from talent_opportunity_fit where opportunity_id=${roleId}`)[0].count), 0);
+      save(`${commandId}-role-verification.json`, { structuralPass: true, semanticReview: "pending", inputHash: hash(readFileSync(inputPath, "utf8")) });
+    } finally {
+      await db.begin(async tx => {
+        const rows = await tx`select information from company_roles where role_id=${roleId}`;
+        assert.equal(rows[0]?.information.testFixture, "company-role-creation-qa-v1");
+        await tx`delete from company_messages where role_id=${roleId}`;
+        await tx`delete from company_conversations where role_id=${roleId}`;
+        await tx`delete from company_roles where role_id=${roleId}`;
+        await tx`delete from company_slack_channels where id=${channelId}`;
+        await tx`delete from company_slack_integrations where id=${integrationId}`;
+        for (const previous of previousRoles) await tx`update company_roles set status=${previous.status} where role_id=${previous.role_id}`;
+      });
+      save(`${commandId}-role-cleanup.json`, { removedRoleId: roleId, removedChannelId: channelId, productionWrites: 0 });
+    }
+  } else if (command === "reset-incomplete-fixture" || command === "cleanup") {
     const roleIds = Object.values(fixture.roles).map((r: any) => r.roleId);
     const roles =
       await db`select role_id,information from company_roles where role_id in ${db(roleIds)}`;
@@ -462,6 +566,20 @@ async function main() {
     });
     console.log("Repaired local fixture only; original traces preserved.");
   } else if (command === "preflight") {
+    assert.equal((await db`show server_encoding`)[0].server_encoding, "UTF8");
+    assert.equal(Number((await db`select count(*) from talent_opportunity_fit`)[0].count), 0);
+    if (datasetVersion === "v3") {
+      const context = JSON.parse(readFileSync(path.join(task, "context-v1.json"), "utf8"));
+      const [workspace] = await db`select pitch,request from company_workspace where company_workspace_id=${fixture.workspaceId}`;
+      assert.equal(workspace.pitch, context.description); assert.equal(workspace.request, null);
+      const exampleRead = await admin.rpc("match_service_answer_examples" as any, {});
+      assert.equal(exampleRead.error, null); assert.deepEqual(exampleRead.data, []);
+      const snapshotRead = await admin.from("service_answer_examples")
+        .select("id,user_example_text,answer_example_text,tags,embedding,updated_at")
+        .eq("audience", "company").eq("enabled", true)
+        .eq("embedding_model", "text-embedding-3-small");
+      assert.equal(snapshotRead.error, null); assert.deepEqual(snapshotRead.data, []);
+    }
     const { fetchOrgBoard } = await import("../src/lib/org/server");
     const board = await fetchOrgBoard({
       user,
@@ -596,8 +714,8 @@ async function main() {
       )
     );
   } else if (command === "deliver-candidate") {
-    // Local transport adapter: preserve exact approved copy, record actual
-    // candidate-visible message, then call the production completion RPC.
+    // Local transport capture only: preserve exact copy in the candidate thread
+    // and simulate queue completion. This does not call a worker or deliver mail.
     const rows =
       await db`select r.*,q.id as queue_id,q.status as queue_status from company_talent_requests r join contact_queue q on q.company_talent_request_id=r.id and q.type='company_request_candidate_delivery' where r.talent_id=${c.talentId} and r.role_id=${c.roleId} and q.status in ('queued','processing') order by r.created_at`;
     for (const r of rows) {
@@ -695,6 +813,10 @@ async function main() {
       console.log(JSON.stringify(proof));
     }
   } else if (command === "verify") {
+    if (datasetVersion === "v3") {
+      const cases = JSON.parse(readFileSync(path.join(task, "cases-v3.json"), "utf8")).cases;
+      for (const input of cases) assert.deepEqual(sequence[input.id], contactEvaluationSteps(input), `Incomplete frozen conversation: ${input.id}`);
+    }
     const positions =
       await db`select role_id,talent_id,saved_stage,processed_stage from talent_opportunity_recommendation`;
     const position = (key: string, talentId: string) =>
@@ -758,7 +880,6 @@ async function main() {
         .filter((j) =>
           [
             fixture.scenarios.UCT03.recommendationId,
-            fixture.scenarios.UCT05.recommendationId,
           ].includes(j.action_context.recommendationId)
         )
         .every((j) => j.status === "completed_silent")
@@ -882,12 +1003,12 @@ async function main() {
     );
     save("llm-manifest.json", {
       runId,
-      datasetVersion: "v2",
+      datasetVersion,
       calls,
       totalCalls: calls.length,
       models: [...new Set(calls.map((x: any) => x.model))],
-      fixtureHash: hash(readFileSync(path.join(task, "cases-v2.json"), "utf8")),
-      goldHash: hash(readFileSync(path.join(task, "gold-v2.json"), "utf8")),
+      fixtureHash: hash(readFileSync(path.join(task, `cases-${datasetVersion}.json`), "utf8")),
+      goldHash: hash(readFileSync(path.join(task, `gold-${datasetVersion}.json`), "utf8")),
       transport: "captured locally, not real inbox receipt",
       productionWrites: 0,
     });
@@ -902,6 +1023,10 @@ async function main() {
   } else if (command === "state") {
     await state(fixture);
   } else throw Error("Unknown command");
+  if (frozenStep) {
+    sequence[scenario] = [...(sequence[scenario] ?? []), command];
+    save("execution-sequence.json", sequence);
+  }
 }
 main()
   .catch((error) => {

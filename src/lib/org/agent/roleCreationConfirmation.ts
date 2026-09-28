@@ -2,7 +2,6 @@ import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 import { generateRoleCreationOutcomeReply } from "@/lib/org/agent/roleCreationChat";
-import { buildRoleCreationCompletionMessage } from "@/lib/org/agent/roleCreationCompletionMessage";
 import {
   canReclaimRoleCreationConfirmation,
   isRoleCreationConfirmationProcessing,
@@ -467,23 +466,14 @@ export async function confirmRoleCreationChoice(args: {
         );
       }
     }
-    const assistantContent = completed
-      ? buildRoleCreationCompletionMessage({
-          companyName: outcomeState.workspace.companyName,
-          roleName: outcomeState.role.name,
-          slackNotificationDelivered,
-          surface: args.messageType === "slack" ? "slack" : "chat",
-          userName: outcomeState.currentUser.name,
-        })
-      : (
-          await generateRoleCreationOutcomeReply({
-            missingFields,
-            model: sourceMetadata.model ?? rawMessage.model,
-            outcome,
-            surface: args.messageType === "slack" ? "slack" : "chat",
-            state: outcomeState,
-          })
-        ).content;
+    const assistantContent = (await generateRoleCreationOutcomeReply({
+      missingFields,
+      model: sourceMetadata.model ?? rawMessage.model,
+      outcome,
+      slackNotificationDelivered,
+      surface: args.messageType === "slack" ? "slack" : "chat",
+      state: outcomeState,
+    })).content;
     assistantMessage = await persistConfirmationMessages({
       admin,
       assistantMessageMetadata: args.assistantMessageMetadata,
@@ -501,9 +491,11 @@ export async function confirmRoleCreationChoice(args: {
   } catch (error) {
     console.error("[org/agent/role-creation/confirmation-reply]", error);
   }
-  if (!assistantMessage && args.messageType === "slack") {
+  // The transaction already finished. A provider outage must not hide its
+  // durable outcome on either surface; this is error recovery, not prose repair.
+  if (!assistantMessage) {
     const assistantContent = completed
-      ? "역할 등록을 완료했고 지금부터 매칭을 시작합니다. 앞으로 Harper가 역할의 기준과 팀의 선호도에 맞는 후보자를 찾아 추천하고, 회사와 역할을 충분히 소개한 뒤 만나보고 싶다고 응한 분들을 연결해드릴게요."
+      ? "역할 등록은 완료됐어요. 다만 완료 안내를 작성하는 중 문제가 생겨 상세 결과는 역할 화면에서 확인해 주세요."
       : outcome === "revalidation_failed"
         ? "등록 전에 확인할 내용이 남아 있어 역할은 아직 등록하지 않았어요. 이 스레드에서 필요한 내용을 이어서 정리할게요."
         : "역할은 아직 등록하지 않았어요. 이 스레드에서 내용을 더 수정할게요.";

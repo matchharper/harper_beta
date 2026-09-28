@@ -41,6 +41,10 @@ JD에 이미 충분히 적힌 업무, `location`, `work_mode`, `employment_type`
 초안의 가설로만 사용하며 조용히 저장하지 않는다. 과거 evaluator `reason`은 후보자 evidence를 찾는
 index이지 회사의 결정이나 정답이 아니다.
 
+일반 Role 작성에서 사용자가 말한 자격 조건은 원문 구절을 보존한다. 제목·순서·문법은 정리해도
+수식어를 추가해 필요한 경험을 좁히지 않는다. 수행할 업무와 미래 목표는 그 자체로 과거 경력의 필수·우대 조건이 아니다.
+공개 Description과 비공개 Brief에 같은 자격을 옮길 때도 이 경계를 유지한다.
+
 사용자가 학교, 회사, 프로그램 또는 특정 경험의 중요성을 명시했다면 이를 임의로 삭제하거나
 추상적인 성향으로 치환하지 않는다. 반대로 실제 근거가 없는 정밀한 tier와 hard cutoff를 만들지 않는다.
 
@@ -154,6 +158,14 @@ exhaustive whitelist로 만들지 않는다. 유명 회사의 비핵심 직무, 
 
 - Hard constraint는 사용자가 필수·제외라고 명시했거나, 현재 Role 수행에 필수임이 authoritative
   source에서 확인됐을 때만 만든다.
+- 이 근거 계약은 공개 Description, 비공개 Hiring Brief, Evaluation Criteria 모두에 적용한다.
+  새 Role의 기본 작성물은 Description과 Hiring Brief다. 선택 사항인 구조화 Evaluation Criteria는
+  회사가 별도 평가표를 요청하거나 저장할 기준을 제공했을 때 작성한다. 필드가 있다는 이유만으로
+  같은 자격 요건을 세 번째로 해석하지 않는다. 기존 Criteria는 관련 수정 요청 없이 삭제하지 않는다.
+  넓은 경험 조건을 더 좁은 전문성·숙련도·규모 조건으로 확대하거나, 우대 조건의 설명 안에서
+  필수 조건으로 바꾸지 않는다. 일반적인 JD를 완성하려고 새로운 기술·우대사항을 채우지 않는다.
+  Harper가 작성한 이전 초안은 새로운 회사 근거가 아니며, 근무 조건 확인이나 진행 동의가
+  관계없는 추론 조건의 승인도 아니다. 별도 회사 눈높이는 명시된 경우에만 독립적으로 유지한다.
 - 한 positive 사례는 `이 조합이면 통과할 수 있다`는 경로를 보여 줄 뿐, 그 속성이 없으면 탈락한다는
   필요조건을 만들지 않는다.
 - 한 negative 사례는 사용자가 말한 거절 이유의 범위를 넘겨 일반화하지 않는다.
@@ -202,6 +214,11 @@ DB 저장 한도는 20,000자이지만 현재 Worker의 `companyRoleRequest` pro
 
 ## 11. 저장 전 체크리스트
 
+후속 추가·수정은 영향받는 필드와 문구만 바꾼다. 한 공개 목표를 추가했다는 이유로 공개 Description,
+비공개 Brief, Criteria를 모두 다시 쓰지 않는다. `update_role_draft.textEdits`는 정확한 저장 문구를
+부분 교체하는 일반 편집 수단이며, 의미·공개 범위 판단은 원본 대화 LLM이 한다. 실제 저장본을 확인한다.
+부분 편집 자체가 최초 초안의 부정확한 기준을 자동으로 교정하는 것은 아니다.
+
 - [ ] 사용자 또는 authoritative source가 각 기준의 강도와 범위를 뒷받침한다.
 - [ ] 학교를 중요하게 본다는 evidence가 있는데 추상 표현으로 지우지 않았다.
 - [ ] 팀원·참고 인물의 전 직장을 그대로 우대 회사 whitelist로 복사하지 않았다.
@@ -213,4 +230,3 @@ DB 저장 한도는 20,000자이지만 현재 Worker의 `companyRoleRequest` pro
 - [ ] full rewrite는 canonical top-level heading을 사용한다.
 - [ ] 핵심 기준이 현재 Worker projection 뒤에 숨지 않았다.
 - [ ] `company_internal_roles.request`와 필요한 호환 사본의 최종값을 검증했다.
-

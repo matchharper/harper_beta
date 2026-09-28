@@ -40,7 +40,7 @@ import { Text } from "@/components/ui/text";
 import Image from "next/image";
 import { openCareerReferralModal } from "@/components/career/referral/careerReferralEvents";
 
-type CareerProfileMenuVariant = "desktop" | "mobile";
+type CareerProfileMenuVariant = "desktop" | "mobile" | "sidebar";
 
 const PROFILE_LOCALE_OPTIONS: readonly {
   value: Locale;
@@ -68,6 +68,7 @@ const CareerProfileMenu = ({
   onLogout,
   onSuggestUpdate,
   variant = "desktop",
+  sidebarCollapsed = false,
 }: {
   profileImageUrl?: string | null;
   profileName: string;
@@ -76,6 +77,7 @@ const CareerProfileMenu = ({
   onLogout: () => void | Promise<void>;
   onSuggestUpdate: () => void;
   variant?: CareerProfileMenuVariant;
+  sidebarCollapsed?: boolean;
 }) => {
   const t = useCareerT();
 
@@ -195,17 +197,22 @@ const CareerProfileMenu = ({
   };
 
   const isMobile = variant === "mobile";
-  const triggerClassName = isMobile
-    ? cn(
-        "relative inline-flex h-11 w-11 items-center justify-center rounded-full transition-all",
-        menuOpen ? "bg-bg-floating" : "active:bg-bg-weak"
-      )
-    : cn(
-        "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-black text-neutral-00 transition-all",
-        menuOpen
-          ? "ring-4 ring-neutral-1000-a10"
-          : "hover:ring-4 ring-neutral-1000-a10 hover:opacity-90"
-      );
+  const isSidebar = variant === "sidebar";
+  const triggerClassName = isSidebar
+    ? sidebarCollapsed
+      ? "w-full justify-center"
+      : "w-full justify-start gap-2.5 text-left"
+    : isMobile
+      ? cn(
+          "relative inline-flex h-11 w-11 items-center justify-center rounded-full transition-all",
+          menuOpen ? "bg-bg-floating" : "active:bg-bg-weak"
+        )
+      : cn(
+          "relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-black text-neutral-00 transition-all",
+          menuOpen
+            ? "ring-4 ring-neutral-1000-a10"
+            : "hover:ring-4 ring-neutral-1000-a10 hover:opacity-90"
+        );
 
   const avatarBody = isMobile ? (
     <span
@@ -321,18 +328,48 @@ const CareerProfileMenu = ({
       <ActionDropdown
         open={menuOpen}
         onOpenChange={handleMenuOpenChange}
-        align="end"
-        side="bottom"
+        align={isSidebar ? "start" : "end"}
+        side={isSidebar ? "top" : "bottom"}
         sideOffset={isMobile ? 8 : 12}
         contentClassName="w-[236px]"
         trigger={
-          <BareButton
-            type="button"
-            aria-label={"프로필 메뉴"}
-            className={triggerClassName}
-          >
-            {avatarBody}
-          </BareButton>
+          isSidebar ? (
+            <MuteButton
+              variant="transparent"
+              aria-label={"프로필 메뉴"}
+              title={sidebarCollapsed ? profileName : undefined}
+              className={triggerClassName}
+            >
+              <>
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a10 bg-black text-neutral-00",
+                    sidebarCollapsed ? "size-7" : "size-8"
+                  )}
+                >
+                  {avatarBody}
+                </span>
+                {!sidebarCollapsed && (
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {profileName}
+                    </span>
+                    <span className="block truncate text-[12px] font-light text-neutral-soft">
+                      {profileEmail}
+                    </span>
+                  </span>
+                )}
+              </>
+            </MuteButton>
+          ) : (
+            <BareButton
+              type="button"
+              aria-label={"프로필 메뉴"}
+              className={triggerClassName}
+            >
+              {avatarBody}
+            </BareButton>
+          )
         }
       >
         <DropdownMenuLabel className="px-3 pb-2 pt-2.5">

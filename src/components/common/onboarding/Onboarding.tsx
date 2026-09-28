@@ -339,7 +339,7 @@ export const OnboardingReadyBody = ({
 }: {
   title: ReactNode;
   description: string;
-  badge: string;
+  badge?: string;
 }) => {
   return (
     <div className="flex min-h-full flex-col items-center justify-start pt-8 text-center">
@@ -361,10 +361,12 @@ export const OnboardingReadyBody = ({
         </span>
       </div>
 
-      <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-normal leading-none text-neutral-muted shadow-sm">
-        <span className="h-2 w-2 rounded-full bg-positive" />
-        {badge}
-      </div>
+      {badge && (
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-1.5 text-[13px] font-normal leading-none text-neutral-muted shadow-sm">
+          <span className="h-2 w-2 rounded-full bg-positive" />
+          {badge}
+        </div>
+      )}
 
       <Text
         as="h1"

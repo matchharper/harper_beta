@@ -10,12 +10,16 @@ export const ORG_AGENT_RECOMMENDATION_ID_FILTER_MAX = 100;
 
 export const ORG_STAGE_DESCRIPTIONS: Record<string, string> = {
   company_intro:
-    "아직 이 역할을 추천받지 않은 후보에게 회사가 먼저 제안할 수 있습니다. 먼저 제안하기를 선택하면 Intro Requested로 이동합니다.",
+    "이 역할을 아직 수락하지 않은 후보에게 회사가 제안할 수 있습니다. Harper의 이전 추천이나 거절 이력이 있을 수 있습니다. 제안을 요청하면 Intro Requested로 이동합니다.",
   intro_requested:
-    "회사가 먼저 제안을 요청한 후보입니다. Harper가 제안을 전달하고 후보자의 답변을 기다리며, 수락하면 미리 정한 첫 단계로 연결합니다.",
+    "회사가 먼저 제안을 요청한 후보입니다. Harper가 제안을 전달하고 후보자의 답변을 기다리며, 수락하면 소개 이메일로 연결하고 연결됨으로 이동합니다.",
   pending_connection:
     "이미 이 역할을 추천받고 수락한 후보입니다. 회사가 연결을 수락하면 Harper가 소개 이메일로 연결해 인터뷰 등 다음 과정을 시작할 수 있습니다.",
 };
+
+export function isOrgInboxStage(stageId: string) {
+  return stageId === "company_intro" || stageId === "pending_connection";
+}
 
 export function getOrgCompanyIntroBoardStage(
   status: "ready" | "awaiting_talent" | "connecting"
@@ -27,7 +31,7 @@ export function humanizeOrgCompanyIntroStatus(intro: {
   status: string;
   candidateSentAt?: string | null;
 }) {
-  if (intro.status === "ready") return "아직 후보자에게 제안하지 않음";
+  if (intro.status === "ready") return "";
   if (intro.status === "connecting") return "후보자 수락 · 연결 준비 중";
   if (intro.status === "awaiting_talent") {
     return intro.candidateSentAt ? "후보자 답변 대기" : "제안 준비 중";
@@ -78,6 +82,7 @@ const FEEDBACK_LABELS: Record<string, string> = {
 };
 
 const PROGRESS_KIND_LABELS: Record<string, string> = {
+  internal_followup_sent: "Harper 자동 팔로업 발송",
   company_request_followup_sent: "회사 요청 팔로업 발송",
   internal_process_reactivated: "후보자 프로세스 재개",
   internal_process_reengagement_required: "후보자 재진행 의사 확인 필요",
@@ -202,6 +207,8 @@ export function compactOrgProgressMetadata(value: unknown) {
     "stageFallbackToPendingConnection",
     "deliveryState",
     "sentChannel",
+    "lastFollowupAt",
+    "followupIndex",
     "requestId",
     "confirmationContext",
     "confirmedAt",

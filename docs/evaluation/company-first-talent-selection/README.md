@@ -1,5 +1,26 @@
 # Company-first talent selection calibration
 
+## 2026-09-28 OpenAI production read-only pilot
+
+사용자 지정 한국 FDE 역할의 현행 데이터로 서로 다른 후보 117명을 평가했다. 수정 SQL의 최종 후보 83명 중 8명을 rerank에 넣었고, 동일 입력 두 번에서 5명/6명(공통 5명)을 선택했다. SQL scope·JSON 타입 안내·필수 fit enum 및 실패 호출 비용/오류 기록 문제를 수정했다. 기록된 비용은 $0.70587515이며, 수정 전 실패 호출 일부 usage 누락으로 완전한 청구 총액은 아니다.
+
+실행 단위·모델·provider·canonical runner·입력 재사용·privacy·한계는 [비식별 보고서](reports/2026-09-28-openai-production-shadow.md)에 기록했다. 원문과 source/입력/출력 manifest는 owner-only ignored `runs/`에만 둔다. DB write·발송·배포는 없으며, 경계 후보의 판단과 이력 전달에 변동이 남아 전체 품질 gate 통과로 해석하지 않는다. 기존 frozen gold는 변경하지 않았다.
+
+## 2026-09-28 추천 이력·과거 fit challenge: history-v1
+
+- 목적: 이전 추천·거절을 무조건 제외하지 않으면서, 현재 명시적 충돌과 개인정보 경계를 지키는지 확인한다.
+- 단위: 합성 회사 1곳·역할 1개·후보 pair 4개. 실제 scorer → 한 pair의 과거 fit 재사용 → bounded rerank → 회사 writer.
+- Frozen input/gold: [cases-history-v1.json](cases-history-v1.json), [gold-history-v1.json](gold-history-v1.json), [manifest-history-v1.json](manifest-history-v1.json). 최초 호출 전에 동결했으며 기존 v1을 대체하지 않는다.
+- Canonical runner: `harper_worker/llm_evals/company_first_talent_selection/run_history.py`. Worker에서 `python3 llm_evals/company_first_talent_selection/run_history.py --run-id=<새 이름>`으로 실행한다. 매 실행 input/gold hash를 확인한다.
+- 입력 계약: production scorer/reranker/writer의 실제 prompt·input builder·parser를 사용한다. Profile + 전체 Brief + Behavior + 해당 pair의 추천 사실과 현재 Role을 제공한다. 한 cached-fit 사례만 고정 과거 score로 교체한다. Query planner·DB executor는 이 평가의 대상이 아니다.
+- 모델 설정: scorer `openrouter:z-ai/glm-5.3-flash` high/0.3, reranker `gpt-5.6-terra` xhigh/0.25, writer `gpt-5.6-terra` high/0.4. 실제 provider usage·source hash·dirty revision·prompt/input은 각 run manifest와 snapshot에 보존한다.
+- 지표: frozen route 일치율과 별도의 의미 검토(현재 사실, 거절 의미, 공유 범위, 회사 설명). Critical 오류 0과 positive 선정 근거가 필요하다. Route 일치만으로 품질 통과를 선언하지 않는다.
+- Provenance/privacy: 승인 제품 계약으로 작성한 합성 사례만 사용한다. DB 연결·저장·외부 연락은 없다. API는 설정된 production LLM provider를 사용하며 raw output은 ignored `runs/`의 0600 파일·0700 디렉터리에만 저장한다.
+- 결과: [집계 보고서](reports/2026-09-28-history-reuse.md). 첫 run은 4/4, 현재 Role context를 보강한 마지막 run은 3/4 일치. 미응답 후보에 대한 no-action 차이를 숨기거나 frozen gold를 바꾸지 않았다. 전체 release gate 통과로 해석하지 않는다.
+- 한계: 작은 synthetic challenge이며 독립 팀원 gold 검토, production 분포/recall, 실제 회사 반응, transport, candidate final-delivery 생성 평가는 포함하지 않는다.
+
+## 기존 calibration
+
 - 최초 adjudication: 2026-09-11
 - 현재 dataset/gold: `v1`
 - 상태: v1 수동 guard calibration 유지 + production pipeline v2-pilot positive read-only shadow 1건 완료.

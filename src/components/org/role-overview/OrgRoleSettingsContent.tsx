@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import RichText from "@/components/ui/rich-text";
-import { Switch } from "@/components/ui/switch";
+import { AppleSwitch, Switch } from "@/components/ui/switch";
 import { useUpdateOrgRole } from "@/hooks/org/useOrg";
 import {
   useOrgRoleNotificationSettings,
@@ -81,6 +81,7 @@ export function OrgRoleSettingsContent({
   const canManage = permissions.canManageCandidates;
   const addToast = useToastStore((state) => state.add);
   const updateRoleStatus = useUpdateOrgRole();
+  const updateCompanyFirstSearch = useUpdateOrgRole();
   const updateNotifications = useUpdateOrgRoleNotificationSettings();
   const settingsQuery = useOrgRoleNotificationSettings({
     roleId: role.roleId,
@@ -98,6 +99,10 @@ export function OrgRoleSettingsContent({
   );
   const [roleDeleteConfirmOpen, setRoleDeleteConfirmOpen] = useState(false);
   const [settingsSaveError, setSettingsSaveError] = useState("");
+  const [companyFirstSearchError, setCompanyFirstSearchError] = useState("");
+  const companyFirstSearchEnabled = updateCompanyFirstSearch.isPending
+    ? updateCompanyFirstSearch.variables?.isCompanyFirstSearch === true
+    : role.isCompanyFirstSearch === true;
   const channels = useMemo(
     () =>
       settingsQuery.data?.channels.map((channel) => ({
@@ -259,6 +264,37 @@ export function OrgRoleSettingsContent({
     void router.push(
       buildOrgHref({ orgId: workspaceId, page: "jobs", roleId: "all" })
     );
+  };
+
+  const changeCompanyFirstSearch = async (enabled: boolean) => {
+    if (
+      !canManage ||
+      updateCompanyFirstSearch.isPending ||
+      updateRoleStatus.isPending
+    )
+      return;
+    setCompanyFirstSearchError("");
+
+    try {
+      await updateCompanyFirstSearch.mutateAsync({
+        isCompanyFirstSearch: enabled,
+        roleId: role.roleId,
+        workspaceId,
+      });
+      addToast({
+        message: enabled
+          ? "정기 후보 검색을 켰습니다."
+          : "정기 후보 검색을 껐습니다.",
+        variant: "success",
+      });
+    } catch (error) {
+      setCompanyFirstSearchError(
+        getRoleOverviewErrorMessage(
+          error,
+          "정기 후보 검색 설정을 저장하지 못했습니다. 다시 시도해 주세요."
+        )
+      );
+    }
   };
 
   const editingDismissHandlers = createOrgEditingDismissHandlers({
@@ -571,6 +607,44 @@ export function OrgRoleSettingsContent({
           ) : null}
         </OrgSection>
       ) : null}
+
+      <OrgSection>
+        <div className="flex items-start justify-between gap-6">
+          <RoleSectionHeading
+            description="Harper가 회사에게 먼저 추천할 후보를 주기적으로 찾아요."
+            info="회사에게 먼저 추천할 후보자를 정기적으로 찾아서 전달드려요. ‘먼저 제안 가능한 후보’에 표시되며, ‘Intro 요청’을 하면 후보자에게 제안이 전달돼요. off라면 후보자에게 먼저 역할을 추천하고, 수락한 후보자만 Harper가 연결해드려요."
+            title="추천 후보 검색"
+          />
+          <div className="flex min-h-6 shrink-0 items-center gap-2">
+            {updateCompanyFirstSearch.isPending ? (
+              <LoaderCircle
+                aria-hidden="true"
+                className="size-3.5 animate-spin text-neutral-muted"
+              />
+            ) : null}
+            <span className="text-[12px] text-neutral-muted">
+              {companyFirstSearchEnabled ? "켜짐" : "꺼짐"}
+            </span>
+            <AppleSwitch
+              aria-label="추천 후보 검색"
+              checked={companyFirstSearchEnabled}
+              disabled={
+                !canManage ||
+                updateCompanyFirstSearch.isPending ||
+                updateRoleStatus.isPending
+              }
+              onCheckedChange={(enabled) =>
+                void changeCompanyFirstSearch(enabled)
+              }
+            />
+          </div>
+        </div>
+        {companyFirstSearchError ? (
+          <p className="mt-3 text-[13px] text-critical" role="alert">
+            {companyFirstSearchError}
+          </p>
+        ) : null}
+      </OrgSection>
 
       {canManage && hasChanges ? (
         <OrgUnsavedChangesBar

@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
 import { MEETING_INVITATION_LINK_MARKER } from "@/lib/meetings/invitation";
 import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
+import { chunkOrgBoardFilterValues } from "@/lib/org/chunking";
 import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
 
 export const ORG_AGENT_CONTACT_KINDS = [
@@ -199,6 +200,51 @@ function latestDelivery(row: Record<string, any>, type: string) {
   );
 }
 
+/** Only pass requests already scoped to the authorized workspace. Relays have
+ * no workspace column: their request ID is the ownership boundary. Read them
+ * directly so the inverse in_reply_to relationship cannot make embedding
+ * ambiguous or mistake a company's reply for a new candidate response. */
+async function attachCandidateContactRelays(args: {
+  admin: OrgAgentAdminClient;
+  rows: Array<Record<string, any>>;
+  includeContent: boolean;
+}): Promise<Array<Record<string, any>>> {
+  const requestIds = [
+    ...new Set(args.rows.map((row) => text(row.id)).filter(Boolean)),
+  ];
+  const relaysByRequestId = new Map<string, Array<Record<string, any>>>();
+  const columns = args.includeContent
+    ? "id,company_talent_request_id,source_talent_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,last_error,payload)"
+    : "id,company_talent_request_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at)";
+  const pageSize = 200;
+  // Batch IDs instead of one query per contact; paginate child rows so a busy
+  // conversation cannot silently hide another contact's replies at the API cap.
+  for (const ids of chunkOrgBoardFilterValues(requestIds)) {
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await (
+        args.admin.from("company_talent_relays" as any) as any
+      )
+        .select(columns)
+        .in("company_talent_request_id", ids)
+        .order("id", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+      if (error) throw error;
+      const relays = (data ?? []) as Array<Record<string, any>>;
+      for (const relay of relays) {
+        const requestId = text(relay.company_talent_request_id);
+        const siblings = relaysByRequestId.get(requestId) ?? [];
+        siblings.push(relay);
+        relaysByRequestId.set(requestId, siblings);
+      }
+      if (relays.length < pageSize) break;
+    }
+  }
+  return args.rows.map((row) => ({
+    ...row,
+    relays: relaysByRequestId.get(text(row.id)) ?? [],
+  }));
+}
+
 function contactState(row: Record<string, any>) {
   if (
     text(row.contact_kind) === "contact" &&
@@ -329,13 +375,16 @@ export async function listOrgAgentContacts(args: {
     const { data: overlays, error: overlayError } = await (
       args.admin.from("company_talent_requests" as any) as any
     )
-      .select(
-        "id,contact_kind,relays:company_talent_relays(id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at))"
-      )
+      .select("id,contact_kind")
       .eq("company_workspace_id", args.workspaceId)
       .in("id", candidateContactIds);
     if (overlayError) throw overlayError;
-    for (const overlay of (overlays ?? []) as Array<Record<string, any>>) {
+    const overlayRows = await attachCandidateContactRelays({
+      admin: args.admin,
+      rows: overlays ?? [],
+      includeContent: false,
+    });
+    for (const overlay of overlayRows) {
       const relays = Array.isArray(overlay.relays) ? overlay.relays : [];
       const latestRelay = relays.sort(
         (left: Record<string, unknown>, right: Record<string, unknown>) =>
@@ -410,6 +459,23 @@ function candidateContactScopeKey(value: {
   return `${text(value.role_id)}:${text(value.talent_id)}`;
 }
 
+/** Before a company-first connection is shared, contact permits correspondence,
+ * not disclosure of the candidate's private address or raw Career message. */
+export function restrictUnsharedContactEvidence(
+  row: Record<string, any>,
+  unsharedScopes: ReadonlySet<string>
+) {
+  if (!unsharedScopes.has(candidateContactScopeKey(row))) return row;
+  return {
+    ...row,
+    talent: { name: one(row.talent)?.name, email: null },
+    // Company-authorized relay content remains in conversationTimeline. Never
+    // use the underlying Career source message as a substitute for that relay.
+    talent_source_message_id: null,
+    document_id: null,
+  };
+}
+
 async function fetchCandidateContactScopeTimelines(args: {
   admin: OrgAgentAdminClient;
   rows: Array<Record<string, any>>;
@@ -429,7 +495,7 @@ async function fetchCandidateContactScopeTimelines(args: {
     args.admin.from("company_talent_requests" as any) as any
   )
     .select(
-      "id,role_id,talent_id,contact_kind,request_context,delivery_body,talent_source_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,payload),relays:company_talent_relays(id,source_talent_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,payload))"
+      "id,role_id,talent_id,contact_kind,request_context,delivery_body,talent_source_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,payload)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .in("role_id", roleIds)
@@ -438,8 +504,15 @@ async function fetchCandidateContactScopeTimelines(args: {
     .limit(300);
   if (error) throw error;
 
+  const rows = await attachCandidateContactRelays({
+    admin: args.admin,
+    rows: ((data ?? []) as Array<Record<string, any>>).filter((row) =>
+      selectedScopes.has(candidateContactScopeKey(row))
+    ),
+    includeContent: true,
+  });
   const byScope = new Map<string, Array<Record<string, unknown>>>();
-  for (const row of (data ?? []) as Array<Record<string, any>>) {
+  for (const row of rows) {
     const scopeKey = candidateContactScopeKey(row);
     if (!selectedScopes.has(scopeKey)) continue;
     const events = byScope.get(scopeKey) ?? [];
@@ -518,13 +591,33 @@ async function readCandidateContacts(args: {
     args.admin.from("company_talent_requests" as any) as any
   )
     .select(
-      "id,role_id,talent_id,contact_kind,expects_document,request_context,workflow_status,expires_at,created_at,updated_at,approved_at,delivery_subject,delivery_body,draft_revision,talent_source_message_id,document_id,source_message:company_messages!company_talent_requests_source_company_message_id_fkey(company_user_id),role:company_roles!inner(name,status,is_expired,expires_at),talent:talent_users!inner(name,email),deliveries:contact_queue(type,status,scheduled_at,sent_at,cancelled_at,updated_at,last_error,payload),relays:company_talent_relays(id,source_talent_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,last_error,payload))"
+      "id,role_id,talent_id,contact_kind,expects_document,request_context,workflow_status,expires_at,created_at,updated_at,approved_at,delivery_subject,delivery_body,draft_revision,talent_source_message_id,document_id,source_message:company_messages!company_talent_requests_source_company_message_id_fkey(company_user_id),role:company_roles!inner(name,status,is_expired,expires_at),talent:talent_users!inner(name,email),deliveries:contact_queue(type,status,scheduled_at,sent_at,cancelled_at,updated_at,last_error,payload)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .is("talent.deleted_at", null)
     .in("id", args.ids);
   if (error) throw error;
-  const rows = (data ?? []) as Array<Record<string, any>>;
+  const sourceRows = (data ?? []) as Array<Record<string, any>>;
+  if (!sourceRows.length) return [];
+  const { data: intros, error: introError } = await (
+    args.admin.from("company_intro_candidates" as any) as any
+  ).select("role_id,talent_id,status")
+    .eq("company_workspace_id", args.workspaceId)
+    .in("role_id", [...new Set(sourceRows.map((row) => text(row.role_id)))])
+    .in("talent_id", [...new Set(sourceRows.map((row) => text(row.talent_id)))]);
+  if (introError) throw introError;
+  const unsharedScopes = new Set<string>(
+    ((intros ?? []) as Array<Record<string, any>>)
+      .filter((row) => text(row.status) !== "connected")
+      .map(candidateContactScopeKey)
+  );
+  const rows = await attachCandidateContactRelays({
+    admin: args.admin,
+    rows: sourceRows.map((row) =>
+      restrictUnsharedContactEvidence(row, unsharedScopes)
+    ),
+    includeContent: true,
+  });
   const companyUserIds = rows.map((row) =>
     text(one(row.source_message)?.company_user_id)
   );
@@ -769,6 +862,7 @@ async function readInterviewRequests(args: {
       contactRef: contactRef("interview_request", schedule.id),
       kind: "interview_request" as const,
       meeting: {
+        scheduleId: text(schedule.id),
         confirmedEndAt: text(schedule.confirmed_end_at) || null,
         confirmedStartAt: text(schedule.confirmed_start_at) || null,
         durationMinutes: Number(schedule.duration_minutes ?? 0) || null,

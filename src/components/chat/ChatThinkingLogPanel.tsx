@@ -147,7 +147,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
         onClick={() => setExpanded((previous) => !previous)}
         aria-expanded={isExpanded}
         className={cn(
-          "inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-[8px] py-1 font-medium text-neutral-muted transition-colors hover:text-neutral-muted",
+          "inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-[8px] py-1 font-normal text-neutral-muted transition-colors hover:text-neutral-muted",
           typographyClassName
         )}
       >

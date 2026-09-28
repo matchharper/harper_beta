@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { showToast } from "@/components/toast/toast";
 import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
+import DemoVideo from "@/components/landing/DemoVideo";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import {
@@ -79,6 +80,7 @@ const COMPANY_PAGE_COPY = {
       ],
       cta: "미팅 신청하기",
     },
+    videoSoundHint: "소리를 켜고 보시면 좋습니다.",
     socialProof: {
       talentTitle: "이 곳의 인재들이 신뢰합니다.",
       companyTitle: "최고의 팀들과 함께하고 있습니다.",
@@ -202,6 +204,7 @@ const COMPANY_PAGE_COPY = {
       ],
       cta: "Request a demo",
     },
+    videoSoundHint: "Best watched with sound on.",
     socialProof: {
       talentTitle: "Trusted by talent from",
       companyTitle: "Working with exceptional teams",
@@ -1404,6 +1407,13 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
                 {copy.hero.cta}&nbsp; <ArrowRight className="h-4 w-4" />
               </PillLink>
             </div>
+          </Section>
+
+          <Section className="pt-0 pb-14 md:pt-0 md:pb-20">
+            <p className="mb-3 text-left text-[12px] font-normal text-neutral-muted md:text-[13px]">
+              {copy.videoSoundHint}
+            </p>
+            <DemoVideo playerName="Harper company page" />
           </Section>
 
           <Section className="pt-0 md:pt-0">

@@ -54,17 +54,11 @@ test("role and company updates require at least one declared field", () => {
   assert.doesNotMatch(roleBlock, /anyOf/);
   assert.match(roleBlock, /minItems: 0/);
   assert.match(roleBlock, /maxItems: 6/);
-  assert.match(roleBlock, /independently assessable/);
-  assert.match(roleBlock, /minimum bar/);
+  assert.match(roleBlock, /only when requested under the shared authoring contract/);
+  assert.match(roleBlock, /not add a screening bar/);
   assert.match(roleBlock, /Role eligibility/);
-  assert.match(roleBlock, /company talent quality \/ caliber/);
-  assert.match(roleBlock, /independent interview threshold/);
-  assert.match(roleBlock, /may satisfy the Role and remain below/);
-  assert.match(
-    roleBlock,
-    /Top-tier school, company, program, or core-team evidence/
-  );
-  assert.match(roleBlock, /actual role and contribution/);
+  assert.match(roleBlock, /established company caliber/);
+  assert.match(roleBlock, /preserve confirmed content and its original strength/);
   assert.match(roleBlock, /One free-form compensation value/);
   assert.match(roleBlock, /Never split it into minimum, maximum, currency/);
   assert.match(companyBlock, /minProperties: 1/);
@@ -132,16 +126,14 @@ test("final confirmation follows team-preference discovery", () => {
   assert.match(block, /why that person is a strong reference/);
 });
 
-test("the ordinary Hiring Brief writer preserves the independent caliber gate", () => {
+test("ordinary role fields share one authoring contract rather than separate screening policies", () => {
   const block = toolBlock("update_role_draft", "update_company_context");
   assert.match(block, /complete private Hiring Brief/);
   assert.match(block, /Role eligibility/);
-  assert.match(block, /company talent quality \/ caliber/);
-  assert.match(block, /independent interview threshold/);
-  assert.match(block, /may satisfy the Role and remain below/);
-  assert.match(block, /Top-tier school/);
-  assert.match(block, /company, program, or core-team evidence/);
-  assert.match(block, /actual role and contribution/);
+  assert.match(block, /shared authoring source-fidelity contract/);
+  assert.match(block, /established company caliber/);
+  assert.match(block, /not invented qualifications to fill a JD template/);
+  assert.match(block, /Omit this field to preserve existing Criteria/);
   assert.match(
     block,
     /Real-person calibration belongs in calibrate_role_hiring_brief/

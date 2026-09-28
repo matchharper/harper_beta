@@ -15,7 +15,10 @@ import { useCareerT } from "@/i18n/useCareerT";
 import Face from "../common/Face";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { showToast } from "@/components/toast/toast";
-import type { CareerPendingActionOpenTarget } from "@/lib/career/pendingActions";
+import type {
+  CareerComposerPendingAction,
+  CareerPendingActionOpenTarget,
+} from "@/lib/career/pendingActions";
 
 const DEFAULT_COMPOSER_OVERLAY_HEIGHT_PX = 168;
 // Extra empty space after the last timeline item, on top of the composer height.
@@ -81,7 +84,13 @@ const CallSessionView = ({
   );
 };
 
-const CareerChatPanel = () => {
+const CareerChatPanel = ({
+  pendingAction,
+  onPendingActionHandled,
+}: {
+  pendingAction?: CareerComposerPendingAction | null;
+  onPendingActionHandled?: () => void;
+} = {}) => {
   const t = useCareerT();
   const router = useRouter();
   const { fetchWithAuth } = useCareerApi();
@@ -165,8 +174,12 @@ const CareerChatPanel = () => {
   const handlePendingActionHandlerChange = useCallback(
     (handler: CareerComposerPendingActionHandler | null) => {
       composerPendingActionHandlerRef.current = handler;
+      if (handler && pendingAction) {
+        handler(pendingAction);
+        onPendingActionHandled?.();
+      }
     },
-    []
+    [pendingAction, onPendingActionHandled]
   );
 
   useCareerAutoStart({
@@ -268,7 +281,7 @@ const CareerChatPanel = () => {
   const callSessionActive = callStartPending || inputMode === "call";
 
   return (
-    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-bg-floating">
       {inputMode !== "call" && (
         <div
           className={cn(

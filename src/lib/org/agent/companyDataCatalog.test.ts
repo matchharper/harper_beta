@@ -68,3 +68,11 @@ test("role status mutations share one application allowlist", () => {
     false
   );
 });
+
+test("periodic candidate search is an explicitly editable non-nullable boolean", () => {
+  assert.equal(COMPANY_SIDE_LLM_DATA_KEYS.includes("role_is_company_first_search"), true);
+  assert.deepEqual(COMPANY_DATA_CATALOG.role_is_company_first_search, {
+    confirmationRequired: false, longText: false, nullable: false,
+    roleScoped: true, type: "boolean",
+  });
+});

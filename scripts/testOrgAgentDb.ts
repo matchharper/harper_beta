@@ -1205,22 +1205,24 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
     ) === 1,
     "workspace-scoped talent request retry duplicated delivery"
   );
-  await expectDbError(
-    "second company talent request for the same role while one is queued",
-    () =>
-      sql`
-        select *
-        from public.enqueue_company_talent_request_v1(
-          ${IDS.workspaceA}::uuid,
-          ${IDS.legacyRole}::uuid,
-          ${IDS.recommendation}::uuid,
-          ${IDS.talent}::uuid,
-          ${Number(wrongRoleMessage.id)}::bigint,
-          false,
-          'A replacement question while the first is queued'
-        )
-      `,
-    /company_talent_requests_workspace_role_talent_open_uidx/i
+  const concurrentRoleRequest = firstRow(
+    await sql`
+      select request.id, request.workflow_status
+      from public.enqueue_company_talent_request_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(wrongRoleMessage.id)}::bigint,
+        false,
+        'A separate question while the first is queued'
+      ) request
+    `
+  );
+  assert(
+    concurrentRoleRequest.workflow_status === "queued" &&
+      concurrentRoleRequest.id !== created.id,
+    "an independent same-Role request was not created beside the queued request"
   );
   const otherRoleRequest = firstRow(
     await sql`
@@ -1261,25 +1263,28 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
           and type = 'company_request_candidate_delivery'
       `,
       "count"
-    ) === 1,
-    "a failed delivery unexpectedly duplicated the original role request"
+    ) === 2,
+    "independently authorized same-Role requests were not both retained"
   );
-  await expectDbError(
-    "replacement for the same role while an earlier delivery is failed",
-    () =>
-      sql`
-        select *
-        from public.enqueue_company_talent_request_v1(
-          ${IDS.workspaceA}::uuid,
-          ${IDS.legacyRole}::uuid,
-          ${IDS.recommendation}::uuid,
-          ${IDS.talent}::uuid,
-          ${Number(wrongRoleMessage.id)}::bigint,
-          false,
-          'A replacement question after a delivery failure'
-        )
-      `,
-    /company_talent_requests_workspace_role_talent_open_uidx/i
+  const requestAfterFailure = firstRow(
+    await sql`
+      select request.id, request.workflow_status
+      from public.enqueue_company_talent_request_v1(
+        ${IDS.workspaceA}::uuid,
+        ${IDS.legacyRole}::uuid,
+        ${IDS.recommendation}::uuid,
+        ${IDS.talent}::uuid,
+        ${Number(replacementMessage.id)}::bigint,
+        false,
+        'A separate question after a delivery failure'
+      ) request
+    `
+  );
+  assert(
+    requestAfterFailure.workflow_status === "queued" &&
+      requestAfterFailure.id !== created.id &&
+      requestAfterFailure.id !== concurrentRoleRequest.id,
+    "a failed request still blocked an independently authorized same-Role request"
   );
   await expectDbError(
     "unsupported candidate contact change action",

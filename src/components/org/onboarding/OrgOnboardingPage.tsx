@@ -265,7 +265,7 @@ export function OrgOnboardingFlow({
           )
         : step === "company"
           ? definition(
-              ["회사에 대해서 알려주세요."],
+              ["회사에 대해서 더 알려주세요."],
               "인재에게 회사를 소개할 때 사용할 정보를 알려주세요. 외부에 공개되지 않은 특별한 포인트라면 더 좋아요. 직접적으로 공개되지 않고, Harper가 적절한 순간에 활용합니다."
             )
           : definition([roleCopy.title], roleCopy.description);
@@ -650,13 +650,14 @@ export function OrgOnboardingFlow({
                   return (
                     <article
                       key={role.roleId}
-                      className="rounded-xl border border-neutral-1000-a10 p-4"
+                      className="rounded-xl border border-neutral-1000-a10 bg-neutral-50 p-4 shadow-xs"
                     >
                       <div className="mb-3 flex items-center justify-between gap-2">
-                        <BriefcaseBusiness className="size-4 text-neutral-muted" />
+                        {/* <BriefcaseBusiness className="size-4 text-neutral-muted" /> */}
+                        <h2 className="text-[16px] font-medium">{role.name}</h2>
                         <Badge
                           tone={
-                            status.tone === "action" ? "neutral" : status.tone
+                            status.tone === "action" ? "positive" : status.tone
                           }
                           variant="faded"
                           radius="full"
@@ -666,7 +667,6 @@ export function OrgOnboardingFlow({
                             : status.label}
                         </Badge>
                       </div>
-                      <h2 className="text-[16px] font-medium">{role.name}</h2>
                       <p className="mt-2 text-[12px] leading-5 text-neutral-soft">
                         {[
                           role.locationText,
@@ -677,7 +677,7 @@ export function OrgOnboardingFlow({
                           .join(" · ")}
                       </p>
                       {role.description ? (
-                        <div className="mt-3 line-clamp-3 text-[13px] leading-6 text-neutral-muted">
+                        <div className="mt-3 line-clamp-2 text-[13px] leading-6 text-neutral-muted">
                           <RichText content={role.description} />
                         </div>
                       ) : null}
@@ -688,8 +688,7 @@ export function OrgOnboardingFlow({
             ) : null}
             {step === "done" ? (
               <OnboardingReadyBody
-                badge="함께할 준비가 됐어요"
-                title={`${draft.name.trim()}님, 감사합니다!`}
+                title={`${draft.name.trim()}님, 환영합니다.`}
                 description={
                   slackLinks
                     ? "이제 채용 이야기를 함께 시작해요.\n연결한 채널에서 @Harper를 불러주세요.\n찾는 인재, 후보자에 대한 의견, 궁금한 점까지 편하게 말씀해 주세요."

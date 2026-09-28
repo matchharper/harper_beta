@@ -725,3 +725,71 @@ test("list decoding preserves slash, middle-dot, and pipe characters inside an i
     true
   );
 });
+
+test("periodic search accepts exact booleans, preserves false and requires no proposal", () => {
+  for (const value of [false, true]) {
+    const parsed = parseCompanyDataChanges({
+      changes: [{ key: "role_is_company_first_search", kind: "rewrite", roleId: "role-1", value }],
+      summary: "정기 후보 검색 설정 변경",
+    });
+    const result = resolveCompanyDataMutation({
+      ...parsed,
+      isComplete: () => false,
+      snapshot: snapshot({ "role_is_company_first_search:role-1": !value }),
+    });
+    assert.equal(result.confirmationRequired, false);
+    assert.equal(result.changes[0].value, value);
+    assert.equal(result.changes[0].expected, !value);
+    assert.equal(result.changes[0].role_id, "role-1");
+    assert.equal(resolveCompanyDataMutation({
+      ...parsed, isComplete: () => false,
+      snapshot: snapshot({ "role_is_company_first_search:role-1": value }),
+    }).changes.length, 0);
+  }
+});
+
+test("periodic search rejects coercion, missing scope and text operations", () => {
+  const change = { key: "role_is_company_first_search", kind: "rewrite", roleId: "role-1", value: false };
+  const resolve = (input: Record<string, unknown>) => resolveCompanyDataMutation({
+    ...parseCompanyDataChanges({ changes: [input], summary: "정기 후보 검색 변경" }),
+    isComplete: () => false,
+    snapshot: snapshot({ "role_is_company_first_search:role-1": true }),
+  });
+  for (const value of ["false", "true", 0, 1, null, undefined, [], {}]) {
+    assert.throws(() => resolve({ ...change, value }), /must be a boolean/);
+  }
+  assert.throws(() => resolve({ ...change, roleId: undefined }), /requires roleId/);
+  assert.throws(() => resolve({ ...change, kind: "append" }), /append is only/);
+  assert.throws(() => resolve({ ...change, kind: "replace", oldValue: "true" }), /replace is only/);
+});
+
+test("mutation snapshot reads the canonical search setting without losing false", async () => {
+  const seen: Array<{ table: string; fields?: string; filters: unknown[] }> = [];
+  const rows: Record<string, any> = {
+    company_workspace: { company_workspace_id: "workspace-1", company_db_id: null },
+    company_data: null,
+    company_roles: [{ role_id: "role-1", company_workspace_id: "workspace-1", name: "Backend", source_type: "internal", is_expired: false }],
+    company_internal_roles: [{ role_id: "role-1", request: "Existing brief", is_company_first_search: false }],
+    company_memories: [],
+  };
+  const admin = { from(table: string) {
+    const call = { table, fields: "", filters: [] as unknown[] }; seen.push(call);
+    const query: any = {
+      select(fields: string) { call.fields = fields; return query; },
+      eq(...filter: unknown[]) { call.filters.push(filter); return query; },
+      in() { return query; }, or() { return query; },
+      single() { return Promise.resolve({ data: rows[table], error: null }); },
+      maybeSingle() { return query.single(); },
+      then(resolve: any, reject: any) { return query.single().then(resolve, reject); },
+    }; return query;
+  } };
+  const { fetchCompanyDataSnapshot } = await import("./companyDataMutation");
+  const values = await fetchCompanyDataSnapshot({
+    admin: admin as any, workspaceId: "workspace-1",
+    changes: [{ key: "role_is_company_first_search", kind: "rewrite", roleId: "role-1", value: true }],
+  });
+  assert.equal(values.get("role_is_company_first_search:role-1")?.value, false);
+  assert.equal(values.get("role_is_company_first_search:role-1")?.expected, false);
+  assert.ok(seen.find(call => call.table === "company_internal_roles")?.fields?.includes("is_company_first_search"));
+  assert.deepEqual(seen.find(call => call.table === "company_roles")?.filters, [["company_workspace_id", "workspace-1"], ["source_type", "internal"], ["is_expired", false]]);
+});

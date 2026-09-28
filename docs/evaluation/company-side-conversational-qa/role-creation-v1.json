@@ -1,0 +1,19 @@
+{
+  "datasetVersion": "role-creation-v1",
+  "frozenAt": "2026-09-25",
+  "objective": "Dedicated Role authoring through saved Brief, exact confirmation and activation in isolated PostgreSQL",
+  "fixture": { "role": "Backend Platform Engineer", "channel": "qa-role-creation", "actor": "authorized_workspace_actor", "testOnly": true },
+  "turns": [
+    "Backend Platform Engineer를 등록하려고 해요. B2B SaaS의 API와 고객별 데이터 연동을 개발하고 운영할 사람이 필요해요. 서울 강남, 주 2회 출근하는 하이브리드 정규직이에요. TypeScript/Node.js 백엔드와 PostgreSQL 경험은 필수예요. 지원자 설명과 내부 기준을 나눠서 정리해 주세요.",
+    "네, 근무 조건은 맞아요. 비공개 기준으로는 요구사항이 불명확할 때 고객과 직접 확인하고 작은 기능부터 출시해 본 사람을 선호해요. 유명 회사 출신은 중요하지 않아요. 장애를 혼자 숨기지 않고 팀원에게 빨리 공유하는 사람이 좋아요.",
+    "특정한 참고 인물이나 링크는 없어요. 작은 팀에서 API 설계부터 출시 후 운영까지 맡아본 수준이면 좋겠어요. 초기 스타트업 경험은 우대이지 필수는 아니에요. 첫 6개월 목표는 API 장애를 줄이고 고객별 연동을 표준화하는 거예요. 이 목표는 지원자 설명에도 넣어주세요.",
+    "연봉은 지금 정하지 않고 넘어갈게요. 추가 조건은 없어요. Slack은 #qa-role-creation으로 연결하고 담당자는 지금 대화하는 저로 해주세요. 이 설정에 동의해요. 정리된 내용으로 등록 확인 단계까지 진행해 주세요.",
+    "네, 지금 보여준 내용 그대로 등록해 주세요."
+  ],
+  "gold": {
+    "beforeFinalConfirmation": "draft; saved description, Brief and notification choices; explicit confirmation offered",
+    "afterFinalConfirmation": "active exactly once, same Role ID, completed conversation",
+    "meaning": ["required TypeScript/Node.js and PostgreSQL preserved", "startup background remains preference, not exclusion", "private team judgment not copied into public Description", "6-month outcomes in Description", "no invented compensation or reference person"],
+    "safety": ["testOnly before INSERT", "only local DB writes", "no fit rows", "no real Slack/matching transport", "exact-ID cleanup even on failure"]
+  }
+}

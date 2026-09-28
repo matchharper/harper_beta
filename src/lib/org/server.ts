@@ -7,6 +7,7 @@ import {
   isOrgInvitationForUser,
 } from "@/lib/org/access";
 import { extractSentAutoIntroRecommendationBody } from "@/lib/org/autoIntroRecommendation";
+import { companyIntroRoleIsAvailable } from "@/lib/org/companyIntroRoleAvailability";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
 import { buildOrgIntroCandidateProfessionalSummary } from "@/lib/org/introEmailProfessionalSummary";
 import { parseCareerPromptLocale } from "@/lib/career/promptLocale";
@@ -222,6 +223,7 @@ export type OrgRole = {
   description: string | null;
   employmentTypes: string[];
   externalJdUrl: string | null;
+  isCompanyFirstSearch?: boolean;
   lastConversationAt?: string | null;
   locationText: string | null;
   memory?: string | null;
@@ -440,6 +442,9 @@ export type OrgBoardResponse = {
 };
 
 export type OrgCompanyIntroMutationResponse = {
+  candidateAcceptedAt?: string | null;
+  stageTag?: string | null;
+  newIntroCreated?: boolean;
   agentJobId?: string | null;
   deliveryRunId?: string | null;
   introCandidateId: string;
@@ -623,6 +628,8 @@ export type OrgTalentDetailResponse = {
   };
   profileMarkdown: string;
   recommendation: {
+    candidateAcceptedAt: string | null;
+    opportunityType: string | null;
     fitReason: string | null;
     recommendedAt: string;
     recommendationId: string;
@@ -767,34 +774,6 @@ function normalizeNullableText(value: unknown) {
 function getJsonRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
-}
-
-function companyIntroRoleIsAvailable(
-  role: CompanyRoleWithInternalRow,
-  talentId?: string | null
-) {
-  const expiresAtMs = Date.parse(normalizeText(role.expires_at));
-  const information = getJsonRecord(role.information);
-  const testOnly = information.testOnly;
-  const isTestOnly =
-    testOnly === true ||
-    ["true", "1", "yes", "on"].includes(normalizeText(testOnly).toLowerCase());
-  const allowedFixtureTalentIds = Array.isArray(information.testTalentIds)
-    ? information.testTalentIds.map(normalizeText).filter(Boolean)
-    : [];
-  const internalRole = Array.isArray(role.company_internal_roles)
-    ? role.company_internal_roles[0]
-    : role.company_internal_roles;
-  return (
-    normalizeText(role.source_type).toLowerCase() === "internal" &&
-    internalRole?.is_company_first_search === true &&
-    ["active", "paused", "top_priority"].includes(
-      normalizeText(role.status).toLowerCase()
-    ) &&
-    role.is_expired !== true &&
-    (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now()) &&
-    (!isTestOnly || allowedFixtureTalentIds.includes(normalizeText(talentId)))
-  );
 }
 
 function normalizeLooseEmailList(value: unknown) {
@@ -978,7 +957,11 @@ function toRole(
   row: CompanyRoleWithInternalRow,
   memory?: { content: string; updated_at: string } | null,
   lastConversationAt?: string | null,
-  internal?: { criteria?: unknown; request?: string | null } | null
+  internal?: {
+    criteria?: unknown;
+    is_company_first_search?: boolean | null;
+    request?: string | null;
+  } | null
 ): OrgRole {
   const canonicalInternal =
     internal === undefined
@@ -990,6 +973,7 @@ function toRole(
     description: row.description ?? null,
     employmentTypes: normalizeOrgRoleEmploymentTypes(row.type),
     externalJdUrl: row.external_jd_url ?? null,
+    isCompanyFirstSearch: canonicalInternal?.is_company_first_search === true,
     lastConversationAt: lastConversationAt ?? null,
     locationText: row.location_text ?? null,
     memory: normalizeNullableText(memory?.content) ?? null,
@@ -1891,7 +1875,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const roleIds = roleRows.map((role) => role.role_id);
   const internalResult = roleIds.length
     ? await (admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, criteria")
+        .select("role_id, request, criteria, is_company_first_search")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -1899,6 +1883,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
     (
       (internalResult.data ?? []) as Array<{
         criteria: unknown;
+        is_company_first_search: boolean | null;
         request: string | null;
         role_id: string;
       }>
@@ -2654,7 +2639,7 @@ async function assertOrgTalentVisibleInWorkspace(args: {
   }
 
   let recommendationQuery = (
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(
       "id, talent_id, role_id, fit_summary, fit_reasons, feedback, saved_stage, recommended_at, created_at, updated_at"
@@ -2945,7 +2930,7 @@ export async function fetchOrgBoard(args: {
     companyIntroQuery = companyIntroQuery.lt("selected_at", dateRange.endIso);
   }
   let recommendationQuery = (
-    admin.from("talent_opportunity_recommendation" as any) as any
+    admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(
       "id, talent_id, role_id, fit_summary, fit_reasons, feedback, saved_stage, recommended_at, created_at, updated_at"
@@ -3044,15 +3029,13 @@ export async function fetchOrgBoard(args: {
       !blockedCompanies.some((name: string) => companyNames.includes(name))
     );
   });
-  const introRecommendationIds = new Set(
-    companyIntroRows.flatMap((row) =>
-      row.recommendation_id ? [row.recommendation_id] : []
-    )
+  const introPairs = new Set(
+    companyIntroRows.map((row) => `${row.role_id}:${row.talent_id}`)
   );
 
   const recommendationRows = (
     (recommendations ?? []) as RecommendationRow[]
-  ).filter((row) => !introRecommendationIds.has(row.id));
+  ).filter((row) => !introPairs.has(`${row.role_id}:${row.talent_id}`));
   const talentIds = uniqueTexts([
     ...recommendationRows.map((row) => row.talent_id),
     ...companyIntroRows.map((row) => row.talent_id),
@@ -3559,6 +3542,9 @@ export async function fetchOrgBoardProfileLabels(args: {
 function normalizeCompanyIntroRpcResult(value: unknown) {
   const result = getJsonRecord(value);
   return {
+    candidateAcceptedAt: normalizeNullableText(result.candidateAcceptedAt),
+    stageTag: normalizeNullableText(result.stageTag),
+    newIntroCreated: result.status === "requested",
     deliveryRunId: normalizeNullableText(result.deliveryRunId),
     introCandidateId: normalizeText(result.introCandidateId),
     status: normalizeText(result.status),
@@ -3592,7 +3578,7 @@ export async function requestOrgCompanyIntro(args: {
   companyAppeal: string;
   introCandidateId: string;
   introRecipientEmails: string[];
-  nextStageId: string;
+  nextStageId?: string | null;
   user: User;
   workspaceId: string;
 }): Promise<OrgCompanyIntroMutationResponse> {
@@ -3604,20 +3590,8 @@ export async function requestOrgCompanyIntro(args: {
   const introRecipientEmails = normalizeLooseEmailList(
     args.introRecipientEmails
   );
-  if (!workspaceId || !introCandidateId || !nextStageId) {
+  if (!workspaceId || !introCandidateId) {
     throw new OrgHttpError(400, "필수 제안 정보가 누락되었습니다.");
-  }
-  if (!companyAppeal) {
-    throw new OrgHttpError(
-      400,
-      "후보자에게 전할 회사의 관심 이유를 입력해 주세요."
-    );
-  }
-  if (
-    introRecipientEmails.length === 0 ||
-    introRecipientEmails.some((email) => !isValidEmailAddress(email))
-  ) {
-    throw new OrgHttpError(400, "CC로 연결할 회사 이메일을 확인해 주세요.");
   }
   await assertOrgWorkspacePermission({
     admin,
@@ -3632,10 +3606,19 @@ export async function requestOrgCompanyIntro(args: {
     p_company_workspace_id: workspaceId,
     p_intro_candidate_id: introCandidateId,
     p_intro_recipient_emails: introRecipientEmails,
-    p_next_stage_id: nextStageId,
+    p_next_stage_id: nextStageId || null,
   });
   if (error) {
     const message = normalizeText(error.message);
+    if (message.includes("company_intro_appeal_required")) {
+      throw new OrgHttpError(400, "후보자에게 전할 회사의 관심 이유를 입력해 주세요.");
+    }
+    if (message.includes("company_intro_invalid_recipients")) {
+      throw new OrgHttpError(400, "CC로 연결할 회사 이메일을 확인해 주세요.");
+    }
+    if (message.includes("company_intro_next_stage_invalid")) {
+      throw new OrgHttpError(400, "필수 제안 정보가 누락되었습니다.");
+    }
     if (message.includes("company_intro_talent_unavailable")) {
       throw new OrgHttpError(
         409,
@@ -3661,6 +3644,9 @@ export async function requestOrgCompanyIntro(args: {
     throw new OrgHttpError(409, "현재 이 역할에는 먼저 제안할 수 없습니다.");
   }
   return {
+    candidateAcceptedAt: result.candidateAcceptedAt,
+    stageTag: result.stageTag,
+    newIntroCreated: result.newIntroCreated,
     deliveryRunId: result.deliveryRunId,
     introCandidateId: result.introCandidateId || introCandidateId,
     ok: true,
@@ -3783,7 +3769,7 @@ export async function decideTalentCompanyIntro(args: {
     };
   }
 
-  if (!introCandidateId || !workspaceId || !roleId || !nextStageId) {
+  if (!introCandidateId || !workspaceId || !roleId) {
     throw new OrgHttpError(409, "Intro 연결 정보가 완전하지 않습니다.");
   }
   const { data: intro, error: introError } = await (
@@ -3864,7 +3850,9 @@ export async function decideTalentCompanyIntro(args: {
       name: companyUser.name ?? undefined,
     },
   } as User;
-  const targetStage = buildCustomStageId(nextStageId);
+  const targetStage: OrgStageId = nextStageId
+    ? buildCustomStageId(nextStageId)
+    : "connected";
   try {
     await setOrgCandidateStage({
       companyIntroCandidateId: introCandidateId,
@@ -3884,7 +3872,7 @@ export async function decideTalentCompanyIntro(args: {
     if (!(stageError instanceof OrgHttpError && stageError.status === 409)) {
       throw stageError;
     }
-    const expectedTag = buildCustomStageTag(nextStageId);
+    const expectedTag = getStageTagForInsert(targetStage);
     const { data: existingTag, error: tagError } = await (
       admin.from("talent_opportunity_tag" as any) as any
     )
@@ -4691,7 +4679,10 @@ export async function setOrgCandidateStage(args: {
     recommendation.opportunity_type === "intro_request" &&
     companyIntro?.status === "connecting" &&
     normalizeText(args.companyIntroCandidateId) === companyIntro.id &&
-    stage === buildCustomStageId(companyIntro.next_stage_id);
+    stage ===
+      (companyIntro.next_stage_id
+        ? buildCustomStageId(companyIntro.next_stage_id)
+        : "connected");
   if (
     candidateReengagementAppliesToStage(stage) &&
     !internalCandidateRoleIsOpen(role) &&
@@ -4818,13 +4809,6 @@ export async function setOrgCandidateStage(args: {
     throw new OrgHttpError(
       409,
       "Candidate is no longer awaiting a connection decision"
-    );
-  }
-
-  if (previousStage === "pending_connection" && stage === "connected") {
-    throw new OrgHttpError(
-      409,
-      "연결 대기 다음에는 1차 기술 인터뷰나 커피챗처럼 다음 프로세스 단계를 먼저 추가해 주세요. 기존 연결됨 칼럼은 이미 진행 중인 후보자를 위한 상태예요."
     );
   }
 
@@ -5545,10 +5529,10 @@ async function fetchRecommendationForDetail(args: {
   talentId: string;
 }) {
   let query = (
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(
-      "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, saved_stage, recommended_at, created_at, updated_at"
+      "id, talent_id, role_id, opportunity_type, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, saved_stage, recommended_at, created_at, updated_at"
     )
     .eq("talent_id", args.talentId)
     .order("recommended_at", { ascending: false })
@@ -6036,10 +6020,10 @@ export async function fetchOrgTalentDetail(args: {
     user: args.user,
     workspaceId,
   });
-  const requestedRecommendationId = normalizeNullableText(
+  let requestedRecommendationId = normalizeNullableText(
     args.recommendationId
   );
-  const requestedRoleId = normalizeNullableText(args.roleId);
+  let requestedRoleId = normalizeNullableText(args.roleId);
   const companyIntroId = requestedRecommendationId?.startsWith(
     COMPANY_INTRO_RECOMMENDATION_PREFIX
   )
@@ -6095,7 +6079,18 @@ export async function fetchOrgTalentDetail(args: {
     if (error) throw error;
     companyIntro = (data as CompanyIntroDetailRow | null) ?? null;
     if (companyIntroId && !companyIntro) {
-      throw new OrgHttpError(404, "Talent not found");
+      const { data: replaced, error: replacedError } = await (
+        admin.from("company_intro_candidates" as any) as any
+      ).select("role_id").eq("id", companyIntroId)
+        .eq("company_workspace_id", workspaceId).eq("talent_id", talentId)
+        .eq("status", "closed").eq("close_reason", "route_replaced").maybeSingle();
+      if (replacedError) throw replacedError;
+      if (!replaced || (requestedRoleId && requestedRoleId !== replaced.role_id)) {
+        throw new OrgHttpError(404, "Talent not found");
+      }
+      // The existing pipeline permission checks below still apply to old links.
+      requestedRoleId = replaced.role_id;
+      requestedRecommendationId = null;
     }
     if (
       companyIntro &&
@@ -6777,6 +6772,8 @@ export async function fetchOrgTalentDetail(args: {
           : talent,
     }),
     recommendation: {
+      candidateAcceptedAt: recommendation.feedback === "like" ? recommendation.feedback_at : null,
+      opportunityType: recommendation.opportunity_type ?? null,
       fitReason:
         companyIntro?.selection_reason ??
         sentAutoIntroRecommendation ??
@@ -7401,6 +7398,7 @@ export async function updateOrgRole(args: {
   employmentTypes?: string[] | null;
   externalJdUrl?: string | null;
   expectedCriteria?: unknown;
+  isCompanyFirstSearch?: boolean;
   isExpired?: boolean | null;
   locationText?: string | null;
   name?: string | null;
@@ -7425,6 +7423,13 @@ export async function updateOrgRole(args: {
     user: args.user,
     workspaceId,
   });
+
+  if (
+    args.isCompanyFirstSearch !== undefined &&
+    typeof args.isCompanyFirstSearch !== "boolean"
+  ) {
+    throw new OrgHttpError(400, "정기 후보 검색 설정이 올바르지 않습니다.");
+  }
 
   const requestedStatus =
     args.status === undefined
@@ -7510,6 +7515,13 @@ export async function updateOrgRole(args: {
   if (args.request !== undefined) {
     changes.push({ key: "role_request", roleId, value: args.request ?? null });
   }
+  if (args.isCompanyFirstSearch !== undefined) {
+    changes.push({
+      key: "role_is_company_first_search",
+      roleId,
+      value: args.isCompanyFirstSearch,
+    });
+  }
   if (requestedStatus && !activatedDraftRole) {
     changes.push({
       key: "role_status",
@@ -7594,7 +7606,7 @@ export async function updateOrgRole(args: {
   const { data: internalRole, error: internalError } = await (
     admin.from("company_internal_roles" as any) as any
   )
-    .select("request, criteria")
+    .select("request, criteria, is_company_first_search")
     .eq("role_id", roleId)
     .maybeSingle();
   if (internalError) throw internalError;
@@ -7695,7 +7707,7 @@ export async function updateOrgRoleRequestOnly(args: {
   }
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria, is_company_first_search)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)

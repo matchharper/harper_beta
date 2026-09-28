@@ -6,12 +6,15 @@ import {
 } from "@/lib/llm/modelConfig";
 
 export const ORG_AGENT_CLAUDE_MODEL = CLAUDE_MODEL;
+export const ORG_AGENT_GEMINI_FLASH_MODEL = "google/gemini-3.8-flash" as const;
+export const ORG_AGENT_TEMPERATURE = 0.5;
 export const ORG_AGENT_LUNA_MODEL = GPT_56_LUNA_MODEL;
 export const ORG_AGENT_TERRA_MODEL = GPT_56_TERRA_MODEL;
 export const ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL =
   OPENROUTER_DEEPSEEK_V4_FLASH_0731_MODEL;
 
 export const ORG_AGENT_MODEL_IDS = [
+  ORG_AGENT_GEMINI_FLASH_MODEL,
   ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_TERRA_MODEL,
@@ -20,16 +23,17 @@ export const ORG_AGENT_MODEL_IDS = [
 
 export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];
 
-export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId = ORG_AGENT_TERRA_MODEL;
+export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId = ORG_AGENT_GEMINI_FLASH_MODEL;
 export const DEFAULT_SLACK_ORG_AGENT_MODEL: OrgAgentModelId =
-  ORG_AGENT_TERRA_MODEL;
-export const DEFAULT_ORG_AGENT_REASONING_EFFORT = "xhigh" as const;
-export type OrgAgentReasoningEffort = "high" | "xhigh" | "max";
+  ORG_AGENT_GEMINI_FLASH_MODEL;
+export const DEFAULT_ORG_AGENT_REASONING_EFFORT = "medium" as const;
+export type OrgAgentReasoningEffort = "medium" | "high" | "xhigh" | "max";
 
 export function getOrgAgentFallbackModel(
   model: OrgAgentModelId
 ): OrgAgentModelId | null {
-  return model === ORG_AGENT_LUNA_MODEL ? null : ORG_AGENT_LUNA_MODEL;
+  return model === ORG_AGENT_LUNA_MODEL || model === ORG_AGENT_GEMINI_FLASH_MODEL
+    ? null : ORG_AGENT_LUNA_MODEL;
 }
 
 export function isOrgAgentModelId(value: unknown): value is OrgAgentModelId {

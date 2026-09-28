@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "v11",
+  "frozenAt": "2026-09-28T08:51:53.422353+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v11.json": "d3192ee97a00f649c6b93ab2b85c846f7b259c3880ad6558b06565ce1da9c016",
+    "gold-v11.md": "c20acd0150dfacf245e227ef7274a6148a2c18ff1d38c4b47f014a4c64f6e917"
+  },
+  "evaluationUnit": "5 synthetic conversations / 9 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v11 --run=<new>",
+  "model": "production model config; exact provider/reasoning/temperature recorded per run",
+  "provenance": "Synthetic user-approved optional-stage contract; pre-run gold, independent review pending",
+  "privacy": "No production data, DB or transport. Raw outputs owner-only ignored runs.",
+  "releaseGate": "Manual semantic review 5/5; critical 0",
+  "knownLimitations": "Production loop/schema/serializer plus synthetic tools; not delivery/DB/browser E2E."
+}

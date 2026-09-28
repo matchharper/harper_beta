@@ -20,8 +20,7 @@ import { CareerProfileSharingSettingsSection } from "./CareerProfileSettingsSect
 import type { CareerOpportunitySavedStageFilter } from "./types";
 import React from "react";
 import CareerCallCard from "./CareerCallCard";
-import CareerHomeDevControls from "./CareerHomeDevControls";
-import { ConversationStarterActions } from "./ConversationStarterActions";
+import { useCareerWelcomeContent } from "./CareerWelcomeHeader";
 import { ActionButton, InteractiveCard } from "@/components/ui/button";
 import type {
   CareerConversationStarterId,
@@ -36,7 +35,6 @@ import {
   SectionHeader,
   SectionTitle,
 } from "@/components/ui/section-header";
-import { Textarea as UiTextarea } from "@/components/ui/textarea";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Skeleton } from "@/components/ui/skeleton";
 import InternalRoleDecisionBanner from "@/components/career/InternalRoleDecisionBanner";
@@ -170,22 +168,25 @@ const CareerHomePanelSkeleton = () => {
   );
 };
 
-const CareerHomePanel = ({
-  onOpenChat,
-  onOpenHistory,
-}: {
+type CareerHomePanelProps = {
   onOpenChat: () => void;
-  onOpenHistory: (target?: HomeHistoryTarget) => void;
-}) => {
+} & (
+  | { variant: "onboarding" }
+  | {
+      variant?: "home";
+      onOpenHistory: (target?: HomeHistoryTarget) => void;
+    }
+);
+
+const CareerHomePanel = (props: CareerHomePanelProps) => {
+  const { onOpenChat } = props;
   const t = useCareerT();
 
   const logCareerEvent = useCareerLogEvent();
   const {
-    user,
     stage,
     isOnboardingDone,
     workspaceDataLoading,
-    activeCompanyRoleCount,
     callStartPending = false,
     onStartCallMode,
     onStartConversationStarter,
@@ -218,11 +219,7 @@ const CareerHomePanel = ({
   const initialOpportunitySearchStatus =
     useInitialOpportunitySearchStatus(opportunityRun);
 
-  const displayName =
-    talentProfile.talentUser?.name ??
-    user?.user_metadata?.full_name ??
-    user?.user_metadata?.name ??
-    (typeof user?.email === "string" ? user.email.split("@")[0] : "Candidate");
+  const { displayName, activeOpportunityLabel } = useCareerWelcomeContent();
 
   const newPositionCount = historyOpportunityCounts.new;
   const newPositionDescription = formatCareerMessage(
@@ -240,25 +237,6 @@ const CareerHomePanel = ({
     "관심·진행 중인 포지션"
   );
 
-  const activeOpportunityLabel =
-    activeCompanyRoleCount > 0
-      ? formatCareerMessage(
-          m,
-          t(
-            "career.home.career_home_panel.1jcg4hg",
-            "현재 Harper 네트워크에서 {count}개의 기회를 스캔하고 있습니다. 매일매일 더 많은 기회를 발견합니다."
-          ),
-          {
-            count: countFormatter.format(activeCompanyRoleCount * 2),
-          }
-        )
-      : formatCareerMessage(
-          m,
-          t(
-            "career.home.career_home_panel.0rlf0ya",
-            "현재 Harper는 새로운 기회를 계속 탐색하고 있습니다."
-          )
-        );
   const recommendationSettingLabel = talentPreferences
     ? profileVisibility === "dont_share"
       ? t(
@@ -387,6 +365,118 @@ const CareerHomePanel = ({
     return <CareerHomePanelSkeleton />;
   }
 
+  const callCard = initialOpportunitySearchStatus ? (
+    <CareerInitialOpportunitySearchStatus
+      status={initialOpportunitySearchStatus}
+      variant="home"
+    />
+  ) : (
+    <CareerCallCard
+      className={props.variant === "onboarding" ? "mt-0" : undefined}
+      callDisabled={!onStartCallMode}
+      callStartPending={callStartPending}
+      description={callCardDescription}
+      forceCompleteDisabled={
+        forceCompletePending ||
+        onboardingWrapupPending ||
+        chatPending ||
+        assistantTyping ||
+        opportunityFeedbackFollowUpPending
+      }
+      forceCompletePending={forceCompletePending || onboardingWrapupPending}
+      isOnboardingCompleted={callCardUsesCompletedLayout}
+      onForceComplete={
+        !isOnboardingCompleted &&
+        interviewProgress.canForceComplete &&
+        onForceCompleteOnboarding
+          ? handleForceComplete
+          : undefined
+      }
+      progressPercent={interviewProgress.percent}
+      onStartCall={handleStartCall}
+      title={callCardTitle}
+    />
+  );
+
+  const onboardingChecklist = !isOnboardingCompleted ? (
+    <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-6 py-5 shadow-sm">
+      <SectionHeader className="gap-1">
+        <SectionTitle as="h3">
+          {t("career.home.career_home_panel.1ol18h9", "커리어 인터뷰 진행 중")}
+        </SectionTitle>
+        <SectionDescription className="max-w-none">
+          {t(
+            "career.home.career_home_panel.0qe18mm",
+            "원하는 기회의 기준을 확인하고 있어요."
+          )}
+        </SectionDescription>
+      </SectionHeader>
+      <div className="mt-4 space-y-4">
+        {onboardingChecklistItems.map((item) => {
+          const ItemIcon = item.icon;
+
+          return (
+            <div key={item.label} className="flex items-start gap-3 text-sm">
+              <span
+                className={[
+                  "flex mt-px h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
+                  item.state === "done"
+                    ? "border-neutral-800 bg-black text-neutral-00"
+                    : item.state === "current"
+                      ? "border-neutral-800 bg-bg-floating text-neutral-muted"
+                      : "border-neutral-400 bg-bg-floating text-transparent",
+                ].join(" ")}
+                aria-hidden="true"
+              >
+                <Check className="h-3 w-3" />
+              </span>
+              <div className="flex flex-row gap-1 items-start justify-start w-full">
+                <span
+                  className={[
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors",
+                    item.state === "pending"
+                      ? "text-neutral-soft"
+                      : "text-neutral-muted",
+                  ].join(" ")}
+                  aria-hidden="true"
+                >
+                  <ItemIcon className="h-4 w-4" strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0">
+                  <p
+                    className={
+                      item.state === "pending"
+                        ? "text-neutral-soft"
+                        : "text-neutral-primary"
+                    }
+                  >
+                    {item.label}
+                  </p>
+                  {item.meta && (
+                    <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
+                      {item.meta}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  ) : null;
+
+  if (props.variant === "onboarding") {
+    return isOnboardingCompleted ? null : (
+      <div className="space-y-4 text-neutral-primary">
+        {callCard}
+        {onboardingChecklist}
+      </div>
+    );
+  }
+
+  const { onOpenHistory } = props;
+
   return (
     <div className="space-y-4 text-neutral-primary">
       <Text as="h2" type="head1" className="mt-8 text-center font-hedvig">
@@ -453,37 +543,7 @@ const CareerHomePanel = ({
           onStart={handleStartConversationStarter}
         />
       )} */}
-      {initialOpportunitySearchStatus ? (
-        <CareerInitialOpportunitySearchStatus
-          status={initialOpportunitySearchStatus}
-          variant="home"
-        />
-      ) : (
-        <CareerCallCard
-          callDisabled={!onStartCallMode}
-          callStartPending={callStartPending}
-          description={callCardDescription}
-          forceCompleteDisabled={
-            forceCompletePending ||
-            onboardingWrapupPending ||
-            chatPending ||
-            assistantTyping ||
-            opportunityFeedbackFollowUpPending
-          }
-          forceCompletePending={forceCompletePending || onboardingWrapupPending}
-          isOnboardingCompleted={callCardUsesCompletedLayout}
-          onForceComplete={
-            !isOnboardingCompleted &&
-            interviewProgress.canForceComplete &&
-            onForceCompleteOnboarding
-              ? handleForceComplete
-              : undefined
-          }
-          progressPercent={interviewProgress.percent}
-          onStartCall={handleStartCall}
-          title={callCardTitle}
-        />
-      )}
+      {callCard}
       <InternalRoleDecisionBanner
         onConfirm={(roleId) =>
           onOpenHistory({
@@ -493,79 +553,7 @@ const CareerHomePanel = ({
         }
         variant="desktop"
       />
-      {!isOnboardingCompleted ? (
-        <div className="rounded-3xl border border-neutral-1000-a05 bg-bg-floating px-6 py-5 shadow-sm">
-          <SectionHeader className="gap-1">
-            <SectionTitle as="h3">
-              {t(
-                "career.home.career_home_panel.1ol18h9",
-                "커리어 인터뷰 진행 중"
-              )}
-            </SectionTitle>
-            <SectionDescription className="max-w-none">
-              {t(
-                "career.home.career_home_panel.0qe18mm",
-                "원하는 기회의 기준을 확인하고 있어요."
-              )}
-            </SectionDescription>
-          </SectionHeader>
-          <div className="mt-4 space-y-4">
-            {onboardingChecklistItems.map((item) => {
-              const ItemIcon = item.icon;
-
-              return (
-                <div
-                  key={item.label}
-                  className="flex items-start gap-3 text-sm"
-                >
-                  <span
-                    className={[
-                      "flex mt-px h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-colors",
-                      item.state === "done"
-                        ? "border-neutral-800 bg-black text-neutral-00"
-                        : item.state === "current"
-                          ? "border-neutral-800 bg-bg-floating text-neutral-muted"
-                          : "border-neutral-400 bg-bg-floating text-transparent",
-                    ].join(" ")}
-                    aria-hidden="true"
-                  >
-                    <Check className="h-3 w-3" />
-                  </span>
-                  <div className="flex flex-row gap-1 items-start justify-start w-full">
-                    <span
-                      className={[
-                        "flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors",
-                        item.state === "pending"
-                          ? "text-neutral-soft"
-                          : "text-neutral-muted",
-                      ].join(" ")}
-                      aria-hidden="true"
-                    >
-                      <ItemIcon className="h-4 w-4" strokeWidth={1.8} />
-                    </span>
-                    <div className="min-w-0">
-                      <p
-                        className={
-                          item.state === "pending"
-                            ? "text-neutral-soft"
-                            : "text-neutral-primary"
-                        }
-                      >
-                        {item.label}
-                      </p>
-                      {item.meta && (
-                        <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
-                          {item.meta}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
+      {onboardingChecklist}
       {isOnboardingCompleted ? (
         <div className="mt-12 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <HomeOpportunitySummaryCard
@@ -609,8 +597,6 @@ const CareerHomePanel = ({
         showEngagementTypes={false}
         showLastUpdated={false}
       />
-
-      <CareerHomeDevControls onOpenChat={onOpenChat} />
     </div>
   );
 };

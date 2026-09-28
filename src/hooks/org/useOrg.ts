@@ -511,7 +511,7 @@ export function useRequestOrgCompanyIntro() {
       companyAppeal: string;
       introCandidateId: string;
       introRecipientEmails: string[];
-      nextStageId: string;
+      nextStageId?: string | null;
       workspaceId: string;
     }) =>
       fetchWithInternalAuth<OrgCompanyIntroMutationResponse>(
@@ -785,6 +785,7 @@ export function useUpdateOrgRole() {
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
       expectedCriteria?: OrgRoleCriterion[];
+      isCompanyFirstSearch?: boolean;
       isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;

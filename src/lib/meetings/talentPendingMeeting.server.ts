@@ -29,6 +29,7 @@ type PendingMeetingRoundRow = {
 
 export type TalentPendingMeetingSchedule = {
   companyName: string;
+  invitationPath: string;
   roleId: string;
   roleTitle: string;
   scheduleId: string;
@@ -180,6 +181,7 @@ export async function fetchPendingTalentMeetingSchedules(args: {
     return [
       {
         companyName: cleanText(snapshot.companyName, "채용 회사", 160),
+        invitationPath: path,
         roleId: cleanText(schedule.role_id, "", 160),
         roleTitle: cleanText(
           snapshot.roleName,

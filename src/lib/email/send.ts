@@ -1,3 +1,5 @@
+import { resendApiUrl } from "./transport";
+
 type SendResendEmailArgs = {
   cc?: string[];
   from?: string | null;
@@ -63,7 +65,7 @@ export async function sendResendEmail(args: SendResendEmailArgs) {
     headers["Idempotency-Key"] = args.idempotencyKey.slice(0, 256);
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await fetch(resendApiUrl("/emails"), {
     method: "POST",
     headers,
     body: JSON.stringify(payload),
@@ -90,7 +92,7 @@ export async function getResendEmail(emailId: string) {
   if (!id) throw new Error("A Resend email ID is required");
 
   const response = await fetch(
-    `https://api.resend.com/emails/${encodeURIComponent(id)}`,
+    resendApiUrl(`/emails/${encodeURIComponent(id)}`),
     {
       headers: {
         Authorization: `Bearer ${readResendApiKey()}`,

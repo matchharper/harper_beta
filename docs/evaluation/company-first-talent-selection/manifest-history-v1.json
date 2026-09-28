@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "history-v1",
+  "createdAt": "2026-09-28T03:47:33.396631+00:00",
+  "provenance": "Synthetic cases authored from approved product contract before model execution; no production records.",
+  "runner": "harper_worker/llm_evals/company_first_talent_selection/run_history.py",
+  "unit": "One synthetic company run with four talent-role pairs, fresh scoring plus one deliberately reused past fit.",
+  "files": {
+    "cases-history-v1.json": "243f7473ef58bb183e049772d27c18494af811039be4975669590f7d07728083",
+    "gold-history-v1.json": "1bfcbb5b5a34af2aa9f6a5a6bb920f7a3c3fb26a9128417dc2ad978c2ff3aa4f"
+  }
+}

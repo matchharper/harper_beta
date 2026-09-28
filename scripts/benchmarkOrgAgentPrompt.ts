@@ -1,15 +1,12 @@
 import dotenv from "dotenv";
-import {
-  buildOrgAgentSystemPrompt,
-  buildOrgAgentUserPrompt,
-} from "../src/lib/org/agent/prompts";
+import { buildCompanySystemInput, buildCompanyConversationInput } from "../src/lib/org/agent/input";
+import { resolveCompanyCapabilities } from "../src/lib/org/agent/capabilities/resolver";
 import {
   formatPromptSection,
   formatPromptTable,
   serializeOrgAgentToolResult,
 } from "../src/lib/org/agent/promptFormat";
 import type { OrgAgentPromptContext } from "../src/lib/org/agent/context";
-import { ORG_AGENT_TOOLS } from "../src/lib/org/agent/tools";
 
 dotenv.config({ path: ".env.local", quiet: true });
 
@@ -190,13 +187,16 @@ async function countTokens(body: Record<string, unknown>) {
 
 async function main() {
   const fixture = buildFixture();
-  const system = buildOrgAgentSystemPrompt();
-  const user = buildOrgAgentUserPrompt({
+  const mode = process.argv.includes("--full") ? "full" : "progressive";
+  const resolved = resolveCompanyCapabilities({ surface: "slack", mode, loaded: new Set() });
+  const system = buildCompanySystemInput({ resolved, surface: "slack" });
+  const messages = buildCompanyConversationInput({
     context: fixture.context as unknown as OrgAgentPromptContext,
     mentions: [],
     userMessage: "백엔드 포지션 최근 추천 후보 중 누구를 먼저 봐야 해?",
   });
-  const tools = ORG_AGENT_TOOLS.map((item) => ({
+  const user = JSON.stringify(messages);
+  const tools = resolved.tools.map((item) => ({
     description: item.function.description,
     input_schema: item.function.parameters,
     name: item.function.name,
@@ -209,7 +209,7 @@ async function main() {
   const [firstCompletionInputTokens, compactToolResultInputTokens] =
     await Promise.all([
       countTokens({
-        messages: [{ content: user, role: "user" }],
+        messages,
         system,
         tools,
       }),
@@ -221,6 +221,8 @@ async function main() {
   console.log(
     JSON.stringify(
       {
+        mode,
+        tokenizer: "Anthropic count_tokens; not Gemini billing or end-to-end quality",
         baseline: BASELINE,
         current: {
           firstCompletionInputTokens,

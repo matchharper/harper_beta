@@ -15,7 +15,11 @@ export const getStaticProps: GetStaticProps<
     markdown: await readFile(
       path.join(process.cwd(), "src/content/org-documents.md"),
       "utf8"
-    ),
+    ).catch((error: NodeJS.ErrnoException) => {
+      // The FAQ remains available when the optional authored guide is removed.
+      if (error.code === "ENOENT") return "";
+      throw error;
+    }),
   },
 });
 

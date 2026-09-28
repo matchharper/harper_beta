@@ -1,6 +1,7 @@
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
+import { COMPANY_RELAY_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
@@ -157,6 +158,7 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasContactCompanyTool
       ? [
           "- Use `contact_company` only after the user clearly authorizes Harper to pass along a message, question, clarification, or follow-up through one exact returned connectionId. Preserve uncertainty and conditions in relayContent.",
+          `- ${COMPANY_RELAY_CONTENT_CONTRACT}`,
           "- contact_company sends immediately. Confirm a successful contact naturally (for example, 전달했습니다); there is no candidate-facing scheduled-send step. Do not infer that a person read it, answered, or made a hiring decision.",
         ]
       : []),

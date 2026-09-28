@@ -1,0 +1,28 @@
+{
+  "datasetVersion": "v6",
+  "frozenAt": "2026-09-24",
+  "provenance": "Synthetic data only; derived from frozen v5 after adjudication, before any v6 model call.",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "gold-v6.md": "0d9d9c7267a5c6cb32611a25a5d63102e9b710f1928ab245830f27a2e664cde4"
+  },
+  "previousVersion": "v5",
+  "labelReviewHistory": [
+    {
+      "date": "2026-09-24",
+      "reviewer": "Codex",
+      "changes": [
+        "01 removes the same-title existing active Role, which legitimately required disambiguation instead of new Role creation.",
+        "08 changes only that unit's Mina to delivered Intro Requested; pending_connection already implies willingness for that Role and contradicted unknown-interest gold.",
+        "03 removes stale mandatory-draft wording inconsistent with the user's direct-send instruction. No action/safety gate relaxed."
+      ]
+    }
+  ],
+  "userGoldReview": "pending",
+  "privacy": "No production capture. Raw outputs stay in ignored runs/ with owner-only permissions.",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts",
+  "runnerContractFixes": [
+    "read_role.fieldCompleteness now matches the production serializer; v5 r1/r2 omitted role request accidentally.",
+    "Native history contains exact speech; metadata is held only in the reference carrier."
+  ]
+}

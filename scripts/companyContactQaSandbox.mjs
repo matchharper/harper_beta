@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 
 const dir = process.env.CONTACT_QA_SANDBOX;
+const emptyServiceExamples = process.env.CONTACT_QA_SERVICE_EXAMPLES === "empty";
 if (!dir?.startsWith("/tmp/harper-contact-live."))
   throw Error("Explicit isolated temp directory required");
 const require = createRequire(path.join(dir, "package.json"));
@@ -26,6 +27,7 @@ const pg = new EmbeddedPostgres({
   password: "isolated-contact-qa",
   port: 55437,
   persistent: true,
+  initdbFlags: ["--encoding=UTF8", "--locale=C"],
   onLog: () => {},
   onError: (m) => console.error(String(m)),
 });
@@ -33,6 +35,8 @@ if (!existsSync(path.join(dir, "pgdata/PG_VERSION"))) await pg.initialise();
 await pg.start();
 const db = pg.getPgClient();
 await db.connect();
+if ((await db.query("show server_encoding")).rows[0].server_encoding !== "UTF8")
+  throw Error("QA requires a fresh UTF8 cluster; SQL_ASCII changes Korean length validation semantics");
 const q = (s) => '"' + s.replaceAll('"', '""') + '"';
 const errors = [];
 async function attempt(kind, name, sql) {
@@ -109,6 +113,7 @@ if (
   for (const file of [
     "20260922082129_company_agent_web_action_turns.sql",
     "20260923063625_unified_company_talent_contacts.sql",
+    "20260924151548_company_contact_direct_delivery.sql",
   ]) {
     await db.query(
       readFileSync(
@@ -175,6 +180,20 @@ const gateway = createServer(async (req, res) => {
   }
   try {
     const url = new URL(req.url, "http://127.0.0.1");
+    if (url.pathname === "/qa-contract") {
+      res.writeHead(200, { ...headers, "content-type": "application/json" });
+      res.end(JSON.stringify({ serviceAnswerExamples: emptyServiceExamples ? "frozen-empty" : "database", encoding: "UTF8", transport: "local-only" }));
+      return;
+    }
+    if (emptyServiceExamples && (
+      url.pathname === "/rest/v1/rpc/match_service_answer_examples" ||
+      (req.method === "GET" && url.pathname === "/rest/v1/service_answer_examples")
+    )) {
+      // Freeze both legacy RPC and cached snapshot reads. Never replace writes.
+      res.writeHead(200, { ...headers, "content-type": "application/json" });
+      res.end("[]");
+      return;
+    }
     if (url.pathname.startsWith("/auth/v1/")) {
       const token = String(req.headers.authorization ?? "").replace(
         /^Bearer /,

@@ -51,11 +51,7 @@ export function canDropOrgCandidateToStage(
   stage: OrgStage
 ) {
   if (item.source === "company_intro") {
-    return (
-      item.companyIntro?.status === "ready" &&
-      stage.id.startsWith("custom:") &&
-      stage.roleId === item.roleId
-    );
+    return item.companyIntro?.status === "ready" && stage.id === "connected";
   }
   return !stage.roleId || stage.roleId === item.roleId;
 }
@@ -76,7 +72,7 @@ export function OrgCandidateStageMenu({
   const availableStages = stages.filter(
     (stage) =>
       canDropOrgCandidateToStage(item, stage) &&
-      (item.source !== "company_intro" || stage.id.startsWith("custom:")) &&
+      (item.source !== "company_intro" || stage.id === "connected") &&
       (!isOrgInternalStage(stage.id) ||
         (internalOpsAccess && stage.id === "archived"))
   );
@@ -157,8 +153,7 @@ export function OrgCandidateCard({
   const canDrag =
     canManageCandidates &&
     !pending &&
-    (item.source !== "company_intro" ||
-      item.companyIntro?.status === "ready");
+    (item.source !== "company_intro" || item.companyIntro?.status === "ready");
 
   return (
     <div
@@ -186,9 +181,7 @@ export function OrgCandidateCard({
       }}
       className={cn(
         "relative overflow-hidden rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
-        canDrag
-          ? "cursor-grab active:cursor-grabbing"
-          : "cursor-pointer",
+        canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         pending && "cursor-wait opacity-60"
       )}
     >

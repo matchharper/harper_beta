@@ -47,9 +47,10 @@ export function serializeTalentPendingRequest(
     `company: ${company}`,
     `role: ${role}`,
     `company message: ${requestContext}`,
-    "Use contact_company for any reply, question, request, refusal, or information the user wants to send to this company. There is no answer classification and contacting the company does not change a hiring stage.",
+    "Use contact_company for any reply, question, request, refusal, or information the user wants to send to this company.",
     "Preserve the user's meaning, conditions, and uncertainty. Share sensitive information or a document only with the user's explicit authorization; stored profile facts are not sharing permission.",
     "contact_company sends immediately. You may confirm delivery, but never infer a company decision or pipeline change. This history does not require the user to answer; follow their current intent.",
+    "There is no answer classification and contacting the company does not change a hiring stage but do not mention this to the user without request.",
   ].join("\n");
 }
 

@@ -419,6 +419,7 @@ async function createChatCompletionStream(args: {
       arguments: string;
       id: string;
       name: string;
+      metadata: Record<string, unknown>;
     }
   >();
   const reasoningDetails: unknown[] = [];
@@ -427,6 +428,7 @@ async function createChatCompletionStream(args: {
   let finishReason: string | null = null;
   let id: string | undefined;
   let model = args.model;
+  let upstreamProvider: string | undefined;
   let reasoning = "";
   let reasoningContent = "";
   let receivedChoice = false;
@@ -439,11 +441,19 @@ async function createChatCompletionStream(args: {
     }
     id = typeof chunk?.id === "string" ? chunk.id : id;
     model = typeof chunk?.model === "string" ? chunk.model : model;
+    upstreamProvider =
+      typeof chunk?.provider === "string" ? chunk.provider : upstreamProvider;
     created = typeof chunk?.created === "number" ? chunk.created : created;
     usage = chunk?.usage ?? usage;
 
     const choice = chunk?.choices?.[0];
     if (!choice) continue;
+    if (choice.error || choice.finish_reason === "error") {
+      throw Object.assign(
+        new Error(choice.error?.message || "Chat completion stream failed"),
+        { status: choice.error?.code, error: choice.error }
+      );
+    }
     receivedChoice = true;
     finishReason = choice.finish_reason ?? finishReason;
     const delta = choice.delta ?? {};
@@ -470,7 +480,18 @@ async function createChatCompletionStream(args: {
         arguments: "",
         id: "",
         name: "",
+        metadata: {},
       };
+      // Preserve provider-owned fields (including Gemini thought signatures)
+      // when replaying the completed tool call in the next model request.
+      const {
+        index: _index,
+        id: _id,
+        function: _function,
+        type: _type,
+        ...metadata
+      } = toolCallDelta;
+      Object.assign(existing.metadata, metadata);
       if (typeof toolCallDelta?.id === "string" && toolCallDelta.id) {
         existing.id = toolCallDelta.id;
       }
@@ -487,10 +508,14 @@ async function createChatCompletionStream(args: {
   if (!receivedChoice) {
     throw new Error("Chat completion stream ended without a response");
   }
+  if (!finishReason) {
+    throw new Error("Chat completion stream ended before completion");
+  }
 
   const normalizedToolCalls = [...toolCalls.entries()]
     .sort(([left], [right]) => left - right)
     .map(([, toolCall]) => ({
+      ...toolCall.metadata,
       function: {
         arguments: toolCall.arguments || "{}",
         name: toolCall.name,
@@ -524,6 +549,7 @@ async function createChatCompletionStream(args: {
     id,
     model,
     object: "chat.completion",
+    ...(upstreamProvider ? { provider: upstreamProvider } : {}),
     usage,
   };
 }
@@ -854,6 +880,7 @@ export async function createChatCompletionStreamWithFallback(args: {
     reasoningEffort: OpenAIResponsesReasoningEffort;
   };
   signal?: AbortSignal;
+  validateResponse?: (response: any, model: string) => void;
 }): Promise<{
   fallbackReason?: ChatCompletionFallbackReason;
   model: string;
@@ -870,8 +897,9 @@ export async function createChatCompletionStreamWithFallback(args: {
       await args.onTextDelta(delta);
     };
 
+    let response: any;
     if (args.openAIResponses && provider === "openai") {
-      return createOpenAIResponsesCompletionStream({
+      response = await createOpenAIResponsesCompletionStream({
         llmClient,
         model,
         onTextDelta,
@@ -879,15 +907,18 @@ export async function createChatCompletionStreamWithFallback(args: {
         requestBody: rawRequestBody,
         signal: args.signal,
       });
+    } else {
+      response = await createChatCompletionStream({
+        llmClient,
+        model,
+        onTextDelta,
+        provider,
+        requestBody,
+        signal: args.signal,
+      });
     }
-    return createChatCompletionStream({
-      llmClient,
-      model,
-      onTextDelta,
-      provider,
-      requestBody,
-      signal: args.signal,
-    });
+    args.validateResponse?.(response, model);
+    return response;
   };
   const createForModelWithTransientRetry = async (model: string) => {
     let attempt = 0;

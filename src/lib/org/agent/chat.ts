@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { after } from "next/server";
 import {
   createChatCompletionWithFallback,
+  createChatCompletionStreamWithFallback,
   getLlmErrorMessage,
   usesMaxCompletionTokensForModel,
   type ChatCompletionFallbackReason,
@@ -18,7 +19,8 @@ import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
-  ORG_AGENT_TERRA_MODEL,
+  ORG_AGENT_TEMPERATURE,
+  ORG_AGENT_GEMINI_FLASH_MODEL,
   isOrgAgentModelId,
   resolveOrgAgentModel,
   type OrgAgentModelId,
@@ -33,6 +35,12 @@ import {
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
 import { buildOrgAgentBackgroundResultMessages } from "@/lib/org/agent/backgroundResultPrompt";
+import { buildCompanyConversationInput, buildCompanySystemInput } from "./input";
+import { companyCompletionTokenBudget, companyCompletionProviderHint, validateCompanyCompletion } from "./completionContract";
+import { createOrgAgentTextStream } from "./textStream";
+import { continuationCapabilities, getCompanyCapabilityMode, resolveCompanyCapabilities } from "./capabilities/resolver";
+import { loadCompanyCapabilities } from "./capabilities/loader";
+import { capabilityForTool } from "./capabilities/registry";
 import {
   serializeOrgAgentToolError,
   serializeOrgAgentToolResult,
@@ -55,10 +63,7 @@ import {
   promoteOrgAgentToolReadVisibility,
   type OrgAgentToolExecutionState,
 } from "@/lib/org/agent/toolExecution";
-import {
-  getEnabledOrgAgentTools,
-  isOrgAgentToolName,
-} from "@/lib/org/agent/tools";
+import { isOrgAgentToolName } from "@/lib/org/agent/tools";
 import type { SlackRoleCreationExecutionContext } from "@/lib/org/agent/slackRoleCreation";
 import {
   getOrgAgentToolCompletionMaxTokens,
@@ -86,6 +91,7 @@ import type {
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
 import {
+  finalizeOrgAgentThinkingLogs,
   getOrgAgentThinkingLogIcon,
   upsertOrgAgentThinkingLog,
 } from "@/lib/org/agent/thinkingLogs";
@@ -103,7 +109,6 @@ import {
 } from "@/lib/org/agent/referenceAttachments";
 import type { ChatAttachmentPayload } from "@/types/chat";
 import {
-  buildLlmImageMessageContent,
   type LlmImageInput,
   type LlmMessageContent,
 } from "@/lib/llm/imageInput";
@@ -125,6 +130,7 @@ export type OrgAgentChatEventName =
   | "error"
   | "llm_debug"
   | "text_delta"
+  | "text_replace"
   | "tool_debug"
   | "tool_status"
   | "user_message";
@@ -166,6 +172,7 @@ type OrgAgentLlmMessage = {
   content: LlmMessageContent;
   name?: string;
   reasoning_content?: string;
+  reasoning_details?: unknown[];
   role: "assistant" | "system" | "tool" | "user";
   tool_call_id?: string;
   tool_calls?: OrgAgentLlmToolCall[];
@@ -201,7 +208,7 @@ export async function generateOrgAgentBackgroundResultReply(args: {
       resultText,
       roleId: args.roleId,
       roleName: args.roleName,
-      systemPrompt: buildOrgAgentSystemPrompt({ surface }),
+      systemPrompt: buildOrgAgentSystemPrompt({ surface, capabilityCatalogText: "", capabilityPolicyText: "" }),
     }),
     model: modelConfig.model,
     reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
@@ -254,17 +261,6 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
-function chunkText(text: string) {
-  const chunks: string[] = [];
-  let index = 0;
-  while (index < text.length) {
-    const next = Math.min(text.length, index + 24);
-    chunks.push(text.slice(index, next));
-    index = next;
-  }
-  return chunks;
-}
-
 function nowLog(
   label: string,
   status: OrgAgentThinkingLog["status"],
@@ -307,7 +303,9 @@ function normalizeToolCalls(message: any): OrgAgentLlmToolCall[] {
   return message.tool_calls.map((toolCall: any) => {
     const rawArguments = toolCall?.function?.arguments;
     return {
+      ...toolCall,
       function: {
+        ...toolCall?.function,
         arguments:
           typeof rawArguments === "string"
             ? rawArguments
@@ -348,7 +346,7 @@ function buildFallbackReply(state: OrgAgentToolExecutionState) {
   if (updates.length > 1) {
     return "요청하신 변경 내용을 모두 저장했어요.";
   }
-  return "요청을 처리하려면 대상 역할이나 후보자를 조금 더 구체적으로 알려 주세요.";
+  return "지금 답변을 마무리하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 function clipCharacters(value: string, maxLength: number) {
@@ -378,7 +376,7 @@ function restoreLongTextVisibility(args: {
   }
 }
 
-function appendRequiredPresentations(args: {
+export function appendRequiredPresentations(args: {
   reply: string;
   requiredTexts: string[];
 }) {
@@ -404,21 +402,22 @@ function buildProposalPresentation(args: {
   return `${framing}\n\n${exactBlock}`.trim();
 }
 
-async function runCompletion(args: {
+export async function runOrgAgentCompletion(args: {
   allowTools: boolean;
   maxTokens: number;
   messages: OrgAgentLlmMessage[];
   model: OrgAgentModelId;
+  onTextDelta?: (delta: string) => void | Promise<void>;
   reasoningEffort?: OrgAgentReasoningEffort;
   signal?: AbortSignal;
   strictModel?: boolean;
   surface?: "chat" | "slack";
+  tools?: ReturnType<typeof resolveCompanyCapabilities>["tools"];
+  upstreamProvider?: string;
 }) {
-  const maxTokens =
-    args.reasoningEffort === "max"
-      ? Math.max(args.maxTokens, 12_000)
-      : args.maxTokens;
-  return createChatCompletionWithFallback({
+  if (args.allowTools && !args.tools?.length) throw new Error("Tool-enabled completion requires an explicit resolved tool snapshot");
+  const maxTokens = companyCompletionTokenBudget(args.model, args.maxTokens, args.reasoningEffort);
+  const request: Parameters<typeof createChatCompletionWithFallback>[0] = {
     ...(args.strictModel
       ? {}
       : {
@@ -429,16 +428,21 @@ async function runCompletion(args: {
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens }),
       messages: args.messages as any,
-      temperature: 0.1,
+      temperature: ORG_AGENT_TEMPERATURE,
+      // Gemini thought signatures must not cross provider implementations.
+      ...(args.model === ORG_AGENT_GEMINI_FLASH_MODEL && args.upstreamProvider
+        ? { provider: { only: [args.upstreamProvider], allow_fallbacks: false } }
+        : {}),
       ...(args.allowTools
         ? {
             parallel_tool_calls: true,
             tool_choice: "auto" as const,
-            tools: getEnabledOrgAgentTools(args.surface) as any,
+            tools: args.tools as any,
           }
         : {}),
     }),
     debugLabel: "org/agent:chat",
+    validateResponse: validateCompanyCompletion,
     ...(args.reasoningEffort
       ? {
           chatCompletionReasoning: {
@@ -455,10 +459,54 @@ async function runCompletion(args: {
         args.reasoningEffort ?? DEFAULT_ORG_AGENT_REASONING_EFFORT,
     },
     signal: args.signal,
-  });
+  };
+  const startedAt = performance.now();
+  let firstTextMs: number | null = null;
+  try {
+    const result = args.onTextDelta
+      ? await createChatCompletionStreamWithFallback({
+          ...request,
+          onTextDelta: async (delta) => {
+            firstTextMs ??= Math.round(performance.now() - startedAt);
+            await args.onTextDelta!(delta);
+          },
+        })
+      : await createChatCompletionWithFallback(request);
+    console.info("[org/agent:completion]", {
+      model: result.model,
+      provider: result.response?.provider ?? null,
+      generationId: result.response?.id ?? null,
+      streaming: Boolean(args.onTextDelta),
+      durationMs: Math.round(performance.now() - startedAt),
+      firstTextMs,
+      outputTokens: result.response?.usage?.completion_tokens ?? null,
+      reasoningTokens:
+        result.response?.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+    });
+    return result;
+  } catch (error) {
+    console.warn("[org/agent:completion-error]", {
+      model: args.model,
+      streaming: Boolean(args.onTextDelta),
+      durationMs: Math.round(performance.now() - startedAt),
+      firstTextMs,
+      error: getLlmErrorMessage(error),
+    });
+    throw error;
+  }
 }
 
-async function runOrgAgentToolLoop(args: {
+const runCompletion = runOrgAgentCompletion;
+
+// Dependencies are injected only by repository tests/evaluations, never by an
+// HTTP request or model input. The default path is the production executor.
+export type OrgAgentLoopDependencies = {
+  complete?: typeof runOrgAgentCompletion;
+  executeTool?: typeof executeOrgAgentTool;
+  requestTime?: Date;
+};
+
+export async function runOrgAgentToolLoop(args: {
   allowSilentCompletion?: boolean;
   actorId: string;
   actorLabel: string;
@@ -470,6 +518,8 @@ async function runOrgAgentToolLoop(args: {
   currentUserMessageId: number;
   debug?: boolean;
   emit?: OrgAgentChatEmitter;
+  onTextDelta?: (delta: string) => void | Promise<void>;
+  onTextReset?: () => void;
   onToolStatus?: (log: OrgAgentThinkingLog) => void;
   onVisibleProgress?: (args: {
     model: string;
@@ -491,7 +541,7 @@ async function runOrgAgentToolLoop(args: {
   userLabel?: string | null;
   userMessage: string;
   visibleProgressPublished?: boolean;
-}) {
+}, dependencies: OrgAgentLoopDependencies = {}) {
   const companySideUserPrompt = buildOrgAgentUserPrompt({
     context: args.context,
     mentions: args.mentions,
@@ -504,23 +554,20 @@ async function runOrgAgentToolLoop(args: {
       : null,
     userLabel: args.userLabel,
     userMessage: args.userMessage,
+    requestTime: dependencies.requestTime,
   });
+  const capabilityMode = getCompanyCapabilityMode();
+  const loadedCapabilities = continuationCapabilities(args.context.conversationMessages);
   const messages: OrgAgentLlmMessage[] = [
-    {
-      content: buildOrgAgentSystemPrompt({
-        allowSilentCompletion: args.allowSilentCompletion,
-        enableSlackChoiceButtons: args.source === "slack",
-        surface: args.source,
-      }),
-      role: "system",
-    },
-    {
-      content: buildLlmImageMessageContent(
-        companySideUserPrompt,
-        args.imageInputs
-      ),
-      role: "user",
-    },
+    { role: "system", content: "" },
+    ...buildCompanyConversationInput({
+      context: args.context, mentions: args.mentions,
+      serviceAnswerExamplesText: args.serviceAnswerExamplesText,
+      slackContext: args.slackExecutionContext ? { channelId: args.slackExecutionContext.channelId, channelName: args.slackExecutionContext.channelName } : null,
+      userLabel: args.userLabel, userMessage: args.userMessage,
+      currentUserMessageId: args.currentUserMessageId, imageInputs: args.imageInputs,
+      requestTime: dependencies.requestTime,
+    }),
   ];
   const state = createOrgAgentToolExecutionState(args.context);
   let activeModel = args.model;
@@ -534,24 +581,31 @@ async function runOrgAgentToolLoop(args: {
   const usage = createTurnUsage();
   const debugCalls: LlmDebugCall[] = [];
   let visibleProgressPublished = args.visibleProgressPublished === true;
+  let upstreamProvider: string | undefined;
 
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
+    const resolved = resolveCompanyCapabilities({ surface: args.source, mode: capabilityMode, loaded: loadedCapabilities });
+    const offeredTools = resolved.offeredToolNames;
+    messages[0] = { role: "system", content: buildCompanySystemInput({ resolved, surface: args.source, allowSilentCompletion: args.allowSilentCompletion }) };
     let completion: Awaited<ReturnType<typeof runCompletion>>;
     try {
-      completion = await runCompletion({
+      completion = await (dependencies.complete ?? runCompletion)({
         allowTools: true,
         maxTokens: getOrgAgentToolCompletionMaxTokens(state),
         messages,
         model: activeModel,
+        onTextDelta: args.onTextDelta,
         reasoningEffort: activeReasoningEffort,
         signal: args.signal,
         strictModel: calibrationCompleted,
         surface: args.source,
+        tools: resolved.tools,
+        upstreamProvider,
       });
     } catch (error) {
       args.signal?.throwIfAborted();
       if (args.allowSilentCompletion) throw error;
-      if (state.toolResults.length === 0 && state.updateSummaries.length === 0)
+      if (!state.fallbackReply && !state.stagedProposal && !state.requiredPresentationText && !state.requiredSlackContinuationLink && state.updateSummaries.length === 0)
         throw error;
       console.error(
         "[org/agent:post-tool-completion]",
@@ -562,11 +616,13 @@ async function runOrgAgentToolLoop(args: {
         fallbackReason,
         model: activeModel,
         reply: buildFallbackReply(state),
+        completionError: getLlmErrorMessage(error),
         state,
         usage,
       };
     }
     activeModel = completion.model as OrgAgentModelId;
+    upstreamProvider ??= companyCompletionProviderHint(completion.response);
     fallbackReason = fallbackReason ?? completion.fallbackReason ?? null;
     addCompletionUsage({
       debugCalls,
@@ -607,17 +663,22 @@ async function runOrgAgentToolLoop(args: {
       // for every later tool call. It only changes what the model may assume
       // the user has already seen.
       visibleProgressPublished = true;
+    } else {
+      // Tool-step prose which was not accepted as a progress message must not
+      // remain in the terminal answer's live bubble.
+      args.onTextReset?.();
     }
 
     messages.push({
       _responses_output: Array.isArray(responseMessage?._responses_output)
         ? responseMessage._responses_output
         : undefined,
-      content: assistantText,
+      content: responseMessage?.content ?? "",
       reasoning_content:
         typeof responseMessage?.reasoning_content === "string"
           ? responseMessage.reasoning_content
           : undefined,
+      reasoning_details: responseMessage?.reasoning_details,
       role: "assistant",
       tool_calls: toolCalls,
     });
@@ -665,6 +726,30 @@ async function runOrgAgentToolLoop(args: {
         continue;
       }
       totalToolCalls += 1;
+
+      // Freeze the pre-completion snapshot: a loader in this batch cannot
+      // retroactively authorize another call before its policy was exposed.
+      if (!offeredTools.has(toolName)) {
+        const requiredCapability = capabilityForTool(toolName);
+        messages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName,
+          content: JSON.stringify({ ok: false, error: "tool_not_offered", requiredCapability: requiredCapability ?? null, message: "Load the relevant capability and use its tool in a later response; no action occurred." }) });
+        state.toolResults.push({ callId: toolCall.id, name: toolName, status: "error", summary: "이번 응답에 노출되지 않은 도구" });
+        emitToolDebug({ status: "skipped", summary: "tool not offered in completion snapshot" });
+        continue;
+      }
+      if (toolName === "load_capabilities") {
+        let result: ReturnType<typeof loadCompanyCapabilities>;
+        try { result = loadCompanyCapabilities(parseToolArguments(toolCall.function.arguments), loadedCapabilities, args.source); }
+        catch { result = { ok: false, error: "Invalid JSON; nothing was loaded.", validIds: [] }; }
+        const fitted = fitOrgAgentToolResultToBudget({ remainingChars: Math.max(0, ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars), serializedResult: JSON.stringify(result) });
+        const content = fitted.content;
+        if (!fitted.complete) toolBudgetReached = true;
+        totalToolResultChars += content.length;
+        messages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName, content });
+        state.toolResults.push({ callId: toolCall.id, name: toolName, status: result.ok ? "success" : "error", summary: result.ok ? "필요한 기능 지침 로드" : "기능 지침 로드 실패" });
+        emitToolDebug({ status: result.ok ? "completed" : "failed", summary: "capability load" });
+        continue;
+      }
 
       if (!isOrgAgentToolName(toolName)) {
         state.toolResults.push({
@@ -725,7 +810,7 @@ async function runOrgAgentToolLoop(args: {
           state.requiredPresentationText = null;
         }
         const toolInput = parseToolArguments(toolCall.function.arguments);
-        const result = await executeOrgAgentTool({
+        const result = await (dependencies.executeTool ?? executeOrgAgentTool)({
           actorId: args.actorId,
           actorLabel: args.actorLabel,
           admin: args.admin,
@@ -743,6 +828,7 @@ async function runOrgAgentToolLoop(args: {
           slackThreadId: args.slackThreadId,
           source: args.source,
           state,
+          signal: args.signal,
           user: args.user,
           recentConversationContext: args.context.conversationText,
           userMessage: args.userMessage,
@@ -758,8 +844,6 @@ async function runOrgAgentToolLoop(args: {
           state.requiredPresentationTexts.push(state.requiredPresentationText);
         }
         if (toolName === "calibrate_role_hiring_brief") {
-          activeModel = ORG_AGENT_TERRA_MODEL;
-          activeReasoningEffort = "max";
           calibrationCompleted = true;
         }
         const serializedResult = serializeOrgAgentToolResult(toolName, result);
@@ -860,7 +944,7 @@ async function runOrgAgentToolLoop(args: {
 
   let finalCompletion: Awaited<ReturnType<typeof runCompletion>>;
   try {
-    finalCompletion = await runCompletion({
+    finalCompletion = await (dependencies.complete ?? runCompletion)({
       allowTools: false,
       maxTokens: TOOL_FREE_FINAL_MAX_TOKENS,
       messages: [
@@ -876,11 +960,13 @@ async function runOrgAgentToolLoop(args: {
       reasoningEffort: activeReasoningEffort,
       signal: args.signal,
       strictModel: calibrationCompleted,
+      upstreamProvider,
+      onTextDelta: args.onTextDelta,
     });
   } catch (error) {
     args.signal?.throwIfAborted();
     if (args.allowSilentCompletion) throw error;
-    if (state.toolResults.length === 0 && state.updateSummaries.length === 0)
+    if (!state.fallbackReply && !state.stagedProposal && !state.requiredPresentationText && !state.requiredSlackContinuationLink && state.updateSummaries.length === 0)
       throw error;
     console.error(
       "[org/agent:final-post-tool-completion]",
@@ -891,6 +977,7 @@ async function runOrgAgentToolLoop(args: {
       fallbackReason,
       model: activeModel,
       reply: buildFallbackReply(state),
+      completionError: getLlmErrorMessage(error),
       state,
       usage,
     };
@@ -1412,6 +1499,7 @@ export async function runOrgAgentChat(args: {
   let thinkingLogs: OrgAgentThinkingLog[] = [];
   const directTurnRunId = normalizeText(args.turnRunId) || crypto.randomUUID();
   const assistantMessages: OrgAgentMessage[] = [];
+  const textStream = createOrgAgentTextStream(args.emit);
   const recordThinkingLog = (log: OrgAgentThinkingLog) => {
     thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
     args.emit?.("tool_status", log);
@@ -1583,6 +1671,12 @@ export async function runOrgAgentChat(args: {
       emit: args.emit,
       mentions,
       model: modelConfig.model,
+      ...(!args.slackThreadId && args.emit
+        ? {
+            onTextDelta: textStream.append,
+            onTextReset: () => textStream.replace(""),
+          }
+        : {}),
       onToolStatus: (log) => {
         thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
       },
@@ -1590,9 +1684,7 @@ export async function runOrgAgentChat(args: {
         args.slackThreadId && !args.onAssistantProgress
           ? undefined
           : async ({ model, text }) => {
-              for (const delta of chunkText(text)) {
-                args.emit?.("text_delta", { delta });
-              }
+              textStream.replace(text);
               const progressMessage = await insertOrgAgentMessage({
                 admin,
                 content: text,
@@ -1618,6 +1710,7 @@ export async function runOrgAgentChat(args: {
               });
               assistantMessages.push(progressMessage);
               args.emit?.("assistant_message", progressMessage);
+              textStream.committed();
               return args.onAssistantProgress
                 ? args.onAssistantProgress(progressMessage)
                 : true;
@@ -1665,17 +1758,8 @@ export async function runOrgAgentChat(args: {
       args.emit?.("llm_debug", summarizeLlmDebugCalls(llmResult.debugCalls));
     }
     const usedTool = llmResult.state.toolResults.length > 0;
-    if (usedTool) {
-      recordThinkingLog(
-        nowLog("응답 생성 완료", "done", {
-          icon: "run",
-          id: "response",
-        })
-      );
-    } else {
-      // 일반 텍스트 응답에는 완료 상태를 메시지 위에 남기지 않는다.
-      thinkingLogs.length = 0;
-    }
+    // 응답 생성은 실행 중에만 보여 주고, 완료된 Working log에는 실제 조회·작업만 남긴다.
+    thinkingLogs = finalizeOrgAgentThinkingLogs(thinkingLogs, usedTool);
 
     const metadata = {
       ...buildAssistantMetadata(llmResult),
@@ -1722,10 +1806,9 @@ export async function runOrgAgentChat(args: {
           userMessage,
         };
       }
-      for (const delta of chunkText(presentationText)) {
-        args.emit?.("text_delta", { delta });
-      }
+      textStream.replace(presentationText);
       args.emit?.("assistant_message", presented.assistantMessage);
+      textStream.committed();
       assistantMessages.push(presented.assistantMessage);
       scheduleOrgAgentSummary({
         admin,
@@ -1745,9 +1828,7 @@ export async function runOrgAgentChat(args: {
       };
     }
 
-    for (const delta of chunkText(reply)) {
-      args.emit?.("text_delta", { delta });
-    }
+    textStream.replace(reply);
 
     args.signal?.throwIfAborted();
     const assistantMessage = await insertOrgAgentMessage({
@@ -1764,6 +1845,7 @@ export async function runOrgAgentChat(args: {
       thinkingLogs,
     });
     args.emit?.("assistant_message", assistantMessage);
+    textStream.committed();
     assistantMessages.push(assistantMessage);
 
     scheduleOrgAgentSummary({
@@ -1790,6 +1872,7 @@ export async function runOrgAgentChat(args: {
       nowLog("응답 생성 실패", "error", { icon: "run", id: "response" })
     );
     const detail = getVisibleErrorMessage(error);
+    textStream.replace("");
     const message =
       "지금은 에이전트 응답을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.";
     const assistantMessage = await insertOrgAgentMessage({

@@ -1,0 +1,40 @@
+{
+  "datasetVersion": "pilot-v1",
+  "labelVersion": "v1",
+  "groupAssignmentUnblindedAfterLabelFreeze": true,
+  "groupAssignmentMismatches": 0,
+  "matureCohort": 40,
+  "allCohort": 50,
+  "explicitObservationMissingMature": 17,
+  "firstCompletedSessionKindCounts": {
+    "onboarding": 24
+  },
+  "completionVsSavedUserTurnCountMismatches": 11,
+  "readyWithoutEndRecord": 0,
+  "negativeWindows": 0,
+  "rawTableDuplicateIds": 0,
+  "snapshotSha256Verified": true,
+  "sensitivity": {
+    "method": "remove all five pre-unblinding borderline successes",
+    "realtime": [
+      6,
+      18
+    ],
+    "live": [
+      3,
+      22
+    ]
+  },
+  "checks": [
+    "npx eslint scripts/evalCareerVoiceOnboarding.ts",
+    "capture GET/HEAD only",
+    "raw snapshot SHA-256 unchanged",
+    "gold 50 unique labels; success contract validated",
+    "no observed model assignment mismatches"
+  ],
+  "hashes": {
+    "gold-v1.json": "10363f0a873a3cde67ec86dc08ec2fa399b6a920551d64713c9c1123468ce779",
+    "summary-v1.json": "8638f5c491a23bbef6c92a48dfcd1758a3933d00a63a96e89b3d70414a2680a5",
+    "reports/2026-09-28-pilot-v1.md": "3f4da17279ea5fb2443b68cc5fdf33001a32e5da55b83349b2a5cb0638ae9091"
+  }
+}

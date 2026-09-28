@@ -24,6 +24,7 @@ import { CardButton, MuteButton } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import {
   humanizeOrgCompanyIntroStatus,
+  isOrgInboxStage,
   ORG_STAGE_DESCRIPTIONS,
 } from "@/lib/org/pipelineStage";
 import {
@@ -215,7 +216,7 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
   return (
     <section
       aria-label="최근 경력"
-      className="mt-6 grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-2 md:gap-y-5 lg:grid-cols-4"
+      className="mt-6 grid grid-cols-1 gap-x-5 gap-y-3 @sm/talent-card:grid-cols-2 @sm/talent-card:gap-y-5 @3xl/talent-card:grid-cols-4"
     >
       {recentCompanies.map((company) => (
         <div
@@ -276,10 +277,10 @@ export function OrgRoleTalentBoardCard({
   const latestExperience = item.talent.recentCompanies[0] ?? null;
 
   return (
-    <article className="relative isolate overflow-hidden rounded-lg">
+    <article className="@container/talent-card relative isolate min-w-0 overflow-hidden rounded-lg">
       <CardButton
         aria-label={`${name} 후보자 상세 보기`}
-        className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0"
+        className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05"
         onClick={onOpen}
       >
         <span className="sr-only">{name} 후보자 상세 보기</span>
@@ -325,7 +326,7 @@ export function OrgRoleTalentBoardCard({
         {item.criteriaEvaluations.length > 0 ? (
           <section
             aria-label="평가 기준별 적합도"
-            className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
+            className="mt-6 grid grid-cols-1 gap-2 @sm/talent-card:grid-cols-2 @xl/talent-card:grid-cols-3"
           >
             {item.criteriaEvaluations.map((evaluation, index) => (
               <CriteriaEvaluation
@@ -364,7 +365,7 @@ export function OrgRoleTalentBoardCard({
               variant="neutral"
             >
               {item.source === "company_intro"
-                ? "제안하지 않기"
+                ? "Pass"
                 : CANDIDATE_DECISION_LABELS.reject}
             </MuteButton>
             <MuteButton
@@ -375,7 +376,7 @@ export function OrgRoleTalentBoardCard({
               variant="dark"
             >
               {item.source === "company_intro"
-                ? "먼저 제안하기"
+                ? "Intro 요청"
                 : CANDIDATE_DECISION_LABELS.connect}
               <ArrowRight className="size-4" />
             </MuteButton>
@@ -388,8 +389,10 @@ export function OrgRoleTalentBoardCard({
 
 export function OrgRoleTalentBoard({
   displayControl,
+  section = "pipeline",
 }: {
   displayControl?: ReactNode;
+  section?: "inbox" | "pipeline";
 }) {
   const { board, boardQuery } = useOrgJobsBoard();
   const {
@@ -418,20 +421,34 @@ export function OrgRoleTalentBoard({
   } | null>(null);
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
   const [companyIntroRequest, setCompanyIntroRequest] = useState<{
-    initialStageId?: string | null;
     item: OrgBoardItem;
   } | null>(null);
-  const [companyIntroPass, setCompanyIntroPass] =
-    useState<OrgBoardItem | null>(null);
-  const visibleStages = useMemo(
-    () =>
-      (board?.stages ?? []).filter(
-        (stage) =>
-          !isOrgInternalStage(stage.id) ||
-          (internalOpsAccess && stage.id === "accepted")
-      ),
-    [board?.stages, internalOpsAccess]
+  const [companyIntroPass, setCompanyIntroPass] = useState<OrgBoardItem | null>(
+    null
   );
+  const visibleStages = useMemo(() => {
+    const stages = (board?.stages ?? []).filter(
+      (stage) =>
+        isOrgInboxStage(stage.id) === (section === "inbox") &&
+        (!isOrgInternalStage(stage.id) ||
+          (internalOpsAccess && stage.id === "accepted"))
+    );
+    if (section === "inbox") {
+      stages.sort(
+        (left, right) =>
+          Number(right.id === "pending_connection") -
+          Number(left.id === "pending_connection")
+      );
+    }
+    return stages;
+  }, [board?.stages, internalOpsAccess, section]);
+  const stageCounts = useMemo(() => {
+    const counts = new Map<OrgStageId, number>();
+    for (const item of board?.items ?? []) {
+      counts.set(item.stage, (counts.get(item.stage) ?? 0) + 1);
+    }
+    return counts;
+  }, [board?.items]);
   const defaultStageId = visibleStages[0]?.id ?? "";
   const selectedStageId = visibleStages.some(
     (stage) => stage.id === activeStageId
@@ -478,7 +495,6 @@ export function OrgRoleTalentBoard({
     if (item.source === "company_intro") {
       if (item.companyIntro?.status !== "ready") return;
       setCompanyIntroRequest({
-        initialStageId: stage.startsWith("custom:") ? stage : null,
         item,
       });
       return;
@@ -505,13 +521,13 @@ export function OrgRoleTalentBoard({
   if (visibleStages.length === 0) {
     return (
       <div className="px-4 py-10 text-center text-[13px] text-neutral-muted">
-        표시할 파이프라인 단계가 없습니다.
+        표시할 단계가 없습니다.
       </div>
     );
   }
 
   return (
-    <section aria-label="후보자 보드" className="min-w-0">
+    <section aria-label="후보자 보드" className="@container/talent-board min-w-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 overflow-x-auto pb-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
           <Tabs
@@ -519,7 +535,18 @@ export function OrgRoleTalentBoard({
             aria-label="보드 단계 선택"
             className="min-w-max w-fit gap-0.5"
             items={visibleStages.map((stage) => ({
-              label: getBoardStageLabel(stage, activeRole?.name ?? null),
+              label: (
+                <span className="inline-flex items-center gap-2">
+                  {getBoardStageLabel(stage, activeRole?.name ?? null)}
+                  <span
+                    className={cn(
+                      "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
+                    )}
+                  >
+                    {stageCounts.get(stage.id) ?? 0}
+                  </span>
+                </span>
+              ),
               tooltip: ORG_STAGE_DESCRIPTIONS[stage.id],
               value: stage.id,
             }))}
@@ -535,7 +562,7 @@ export function OrgRoleTalentBoard({
 
       <div
         className={cn(
-          "relative isolate mt-4 space-y-4",
+          "relative isolate mt-4 grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
           selectedStage?.id === "accepted" && "overflow-hidden"
         )}
       >
@@ -571,7 +598,7 @@ export function OrgRoleTalentBoard({
           />
         ))}
         {items.length === 0 ? (
-          <div className="px-4 py-12 text-center text-[13px] text-neutral-muted">
+          <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted">
             이 단계에는 아직 후보자가 없습니다.
           </div>
         ) : null}
@@ -587,6 +614,9 @@ export function OrgRoleTalentBoard({
         companyContactName={currentUser?.name}
         defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
         defaultEmail={currentUserEmail}
+        destinationLabel={
+          board?.stages.find((stage) => stage.id === acceptRequest?.stage)?.label
+        }
         members={members}
         onClose={() => setAcceptRequest(null)}
         onSubmit={async ({
@@ -599,22 +629,11 @@ export function OrgRoleTalentBoard({
           introEmails,
           meetingCandidateMessage,
           meetingPurpose,
-          processStageLabel,
           scheduleInterview,
           title,
         }) => {
           if (!acceptRequest) return;
-          const stage =
-            acceptRequest.item.stage === "pending_connection" &&
-            acceptRequest.stage === "connected"
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: processStageLabel ?? "",
-                    roleId: acceptRequest.item.roleId,
-                    workspaceId,
-                  })
-                ).stage.stage
-              : acceptRequest.stage;
+          const stage = acceptRequest.stage;
           const result = await changeStage(acceptRequest.item, stage, {
             acceptReason,
             additionalMessage,
@@ -634,13 +653,8 @@ export function OrgRoleTalentBoard({
         }}
         open={Boolean(acceptRequest)}
         pending={Boolean(
-          createCustomStage.isPending ||
-          (acceptRequest && isCandidateStagePending(acceptRequest.item))
+          acceptRequest && isCandidateStagePending(acceptRequest.item)
         )}
-        requiresProcessStage={
-          acceptRequest?.item.stage === "pending_connection" &&
-          acceptRequest.stage === "connected"
-        }
         roleTitle={acceptRequest?.item.roleName ?? ""}
       />
 
@@ -662,39 +676,21 @@ export function OrgRoleTalentBoard({
       />
 
       <CompanyIntroRequestDialog
-        key={`${companyIntroRequest?.item.companyIntro?.id ?? "closed"}:${companyIntroRequest?.initialStageId ?? "default"}`}
+        key={companyIntroRequest?.item.companyIntro?.id ?? "closed"}
         candidateName={
           companyIntroRequest
             ? getOrgCandidateDisplayName(companyIntroRequest.item)
             : ""
         }
         defaultEmail={currentUserEmail}
-        initialStageId={companyIntroRequest?.initialStageId}
-        members={members}
         onClose={() => setCompanyIntroRequest(null)}
-        onSubmit={async ({
-          companyAppeal,
-          introRecipientEmails,
-          newStageLabel,
-          nextStageId,
-        }) => {
+        onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!companyIntroRequest?.item.companyIntro) return;
           try {
-            const stageId = newStageLabel
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: newStageLabel,
-                    roleId: companyIntroRequest.item.roleId,
-                    workspaceId,
-                  })
-                ).stage.id
-              : nextStageId;
-            if (!stageId) throw new Error("수락 후 첫 단계를 선택해 주세요.");
             await requestCompanyIntro.mutateAsync({
               companyAppeal,
               introCandidateId: companyIntroRequest.item.companyIntro.id,
               introRecipientEmails,
-              nextStageId: stageId,
               workspaceId,
             });
             setCompanyIntroRequest(null);
@@ -715,10 +711,7 @@ export function OrgRoleTalentBoard({
           }
         }}
         open={Boolean(companyIntroRequest)}
-        pending={createCustomStage.isPending || requestCompanyIntro.isPending}
-        roleId={companyIntroRequest?.item.roleId ?? ""}
-        roleName={companyIntroRequest?.item.roleName ?? "해당 역할"}
-        stages={board?.stages ?? []}
+        pending={requestCompanyIntro.isPending}
       />
 
       <CompanyIntroPassDialog

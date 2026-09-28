@@ -1,5 +1,6 @@
 import { formatPromptTable } from "@/lib/org/agent/promptFormat";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
+import { conversationCompatibilityText, type OrgAgentConversationInput } from "./conversationInput";
 
 export const DEFAULT_RECENT_PIPELINE_MAX_CHARS = 6_000;
 // Leave room for the expanded recent-conversation section alongside the
@@ -37,6 +38,8 @@ type OrgAgentContextBudgetShape = {
   companyText: string;
   contextNotesText: string;
   conversationText: string;
+  conversationMessages?: OrgAgentConversationInput[];
+  conversationHistoryInfo?: { hasMore: boolean; threadId: string | null; returnedItems: number };
   inProgressRoleCreationsText?: string;
   pendingUpdateText?: string;
   recentToolContextText?: string;
@@ -130,7 +133,16 @@ export function enforceOrgAgentContextBudget<
     mutable[key] = keep > 0 ? `${prefix}\n${body.slice(-keep)}` : prefix;
   };
   trimOldest("summariesText", "older_summaries_truncated=true");
-  trimOldest("conversationText", "older_conversation_truncated=true");
+  if (mutable.conversationMessages) {
+    while (size() > ORG_AGENT_CONTEXT_MAX_CHARS && mutable.conversationMessages.length > 0) {
+      mutable.conversationMessages = mutable.conversationMessages.slice(1);
+      mutable.conversationHistoryInfo = { hasMore: true, threadId: mutable.conversationHistoryInfo?.threadId ?? null, returnedItems: mutable.conversationMessages.length };
+      mutable.conversationText = "older_conversation_truncated=true\n" + conversationCompatibilityText(mutable.conversationMessages);
+    }
+  } else {
+    // Compatibility for older callers; production uses complete message units.
+    trimOldest("conversationText", "older_conversation_truncated=true");
+  }
   if (size() > ORG_AGENT_CONTEXT_MAX_CHARS) {
     mutable.recentRecommendationsText = [
       "recent_complete=false",

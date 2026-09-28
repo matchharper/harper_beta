@@ -386,13 +386,13 @@ async function buildVoiceExperiment(
 
   const variants: [OpsAbTestVariant, OpsAbTestVariant] = [
     makeVariant(CAREER_REALTIME_MODEL, "A · Realtime", CAREER_REALTIME_MODEL),
-    makeVariant(CAREER_LIVE_MODEL, "B · Live", CAREER_LIVE_MODEL),
+    makeVariant(CAREER_LIVE_MODEL, "B · GPT Live", CAREER_LIVE_MODEL),
   ];
 
   return {
     allocation: "유저별 고정 50:50",
     caveat:
-      "유효 통화율은 만족도의 직접 측정값이 아니라, 유저 발화가 1회 이상 기록된 통화 비율입니다.",
+      "통화를 시도한 사용자 중, 사용자 발화가 1회 이상 기록된 종료 통화가 있는 사용자의 비율입니다. 같은 사용자는 한 번만 세며, 여러 번 시도해도 한 번만 충족하면 포함됩니다. 온보딩 완료율이나 만족도가 아닙니다. 통화 시간과 평균 발화 수는 이 조건을 충족한 세션만 집계합니다.",
     conclusion: compareOpsAbTestRates({
       first: variants[0].primary,
       firstVariantId: variants[0].id,

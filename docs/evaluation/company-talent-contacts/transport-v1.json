@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "transport-v1",
+  "purpose": "Actual email round trip on an existing, already connected position belonging to the explicitly authorized fixture account. This is transport smoke evidence, not one of the five behavioral cases.",
+  "companyMessage": "이번에는 연락 기능만 테스트할게요. {candidate}님에게 현재 {role} 역할 관련 연락으로 다음 내용을 지금 보내 주세요: 'Harper 연락 전달 테스트입니다. 이 메일을 받으시면 10월 첫째 주에 다시 이야기할 수 있다고 답장해 주세요.' 답장이 오면 이 대화에 알려주세요. 실제 채용 의사나 단계, 역할 정보, 메모, 일정은 바꾸지 마세요.",
+  "candidateReply": "Harper 연락 테스트 답장입니다. 10월 첫째 주에 다시 이야기할 수 있어요. 이 내용을 회사 담당자에게 전달해 주세요. 실제 채용 진행이나 일정 예약을 요청하는 것은 아닙니다.",
+  "gold": [
+    "Exactly one general contact_talent send to the authorized connected account, no unnecessary draft approval",
+    "Actual email visible in the recipient inbox; candidate reply is submitted through the normal mail UI",
+    "Inbound reply is durably received, company-authorized meaning is relayed and visible in the company conversation",
+    "No pipeline, Role, candidate note, interview or Calendar mutation",
+    "Record local source and deployed inbound/runtime separately; do not claim the new branch is deployed"
+  ]
+}

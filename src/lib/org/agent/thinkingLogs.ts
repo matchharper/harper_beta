@@ -12,6 +12,14 @@ export function hasOrgAgentToolWork(logs: OrgAgentThinkingLog[]) {
   });
 }
 
+export function finalizeOrgAgentThinkingLogs(
+  logs: OrgAgentThinkingLog[],
+  usedTool: boolean
+) {
+  if (!usedTool) return [];
+  return logs.filter((log) => log.id !== "response");
+}
+
 export function getOrgAgentThinkingLogIcon(
   toolName: string
 ): OrgAgentThinkingLogIcon {

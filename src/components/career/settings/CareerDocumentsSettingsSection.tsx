@@ -208,9 +208,11 @@ const CareerDocumentsSettingsSection = ({
         }
       />
 
-      <div className="mt-3 max-w-2xl text-[13px] rounded-[10px] border border-neutral-1000-a10 bg-white/10 px-3 py-2.5">
-        {!hasSavedResume ? <>{resumeEmptyNotice}</> : null}
-      </div>
+      {!hasSavedResume && (
+        <div className="mt-3 max-w-2xl text-[13px] rounded-[10px] border border-neutral-1000-a10 bg-white/10 px-3 py-2.5">
+          {resumeEmptyNotice}
+        </div>
+      )}
       {companyRequest ? (
         <div className="mt-3 max-w-2xl rounded-[10px] border border-neutral-1000-a10 bg-info-faded px-4 py-3">
           <p className="text-sm font-medium text-neutral-primary">

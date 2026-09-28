@@ -263,9 +263,9 @@ export const CAREER_CONVERSATION_STARTER_PROMPT_COPY: Record<
   },
   career_coaching: {
     chatMessage: {
-      en: "I'd like to have a career coaching conversation.",
+      en: "I'd like to talk about my career.",
       // career-i18n-skip-next-line localized alongside the English value above
-      ko: "커리어에 관해 코칭 대화를 하고 싶어요.",
+      ko: "커리어에 관해 이야기해보고 싶어요.",
     },
     callOpeningText: {
       en: CAREER_COACHING_CALL_OPENING_TEXT_EN,

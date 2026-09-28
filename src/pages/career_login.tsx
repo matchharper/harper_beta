@@ -12,7 +12,6 @@ import { useRouter } from "next/router";
 import type { ParsedUrlQuery } from "querystring";
 import { Copy, ExternalLink, Loader2, MailCheck } from "lucide-react";
 import { useCareerAuth } from "@/hooks/career/useCareerAuth";
-import OfficialJobsApplyHelpMessage from "@/components/jobs/OfficialJobsApplyHelpMessage";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import {
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
@@ -386,10 +385,6 @@ const CareerLoginContent = () => {
       officialJobsRoleTitleFromLoginQuery(router.query),
     [nextPath, router.query]
   );
-  const showOfficialJobsApplyHelpMessage = Boolean(
-    (sourceParam === OFFICIAL_JOBS_LANDING_SOURCE && officialJobSlugParam) ||
-    officialJobSlugFromNext
-  );
   const heroDescriptionLines = officialJobsRoleTitle
     ? [copy.officialJobProgressHelp(officialJobsRoleTitle)]
     : [copy.heroDescription];
@@ -756,15 +751,6 @@ const CareerLoginContent = () => {
               </span>
             ))}
           </Text>
-          {showOfficialJobsApplyHelpMessage ? (
-            <div className="mt-3 flex w-full max-w-[420px] justify-center">
-              <OfficialJobsApplyHelpMessage
-                className="text-center text-sm leading-5"
-                locale={locale}
-              />
-            </div>
-          ) : null}
-
           <div className="mt-7 w-full max-w-[420px] rounded-[22px] border border-neutral-1000-a05 bg-bg-floating/90 p-4 shadow-[0_18px_54px_rgba(31,28,26,0.07)] backdrop-blur-sm sm:p-6">
             {emailConfirmationSent ? (
               <div

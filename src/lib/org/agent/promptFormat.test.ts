@@ -558,6 +558,7 @@ test("candidate meeting coordination exposes exact user-safe delivery facts", ()
     harperSharedInformation: [],
     meetingHistory: [
       {
+        scheduleId: "11111111-1111-4111-8111-111111111111",
         canReviseCandidateContext: true,
         confirmedEndAt: null,
         confirmedStartAt: null,
@@ -582,7 +583,9 @@ test("candidate meeting coordination exposes exact user-safe delivery facts", ()
   assert.match(compact, /2026\. 8\. 29\. 00:01 KST/);
   assert.match(compact, /후보자에게 일정 선택 안내를 보낼 예정/);
   assert.match(compact, /candidate_context_changeable/);
-  assert.doesNotMatch(compact, /queue|delivery_queue_id|schedule_id/);
+  assert.match(compact, /meeting_schedule_id/);
+  assert.match(compact, /11111111-1111-4111-8111-111111111111/);
+  assert.doesNotMatch(compact, /queue|delivery_queue_id/);
 });
 
 test("candidate contact history separates email, response, and company relay milestones", () => {
@@ -1014,7 +1017,8 @@ test("company-first intro preparation exposes only verified decision facts", () 
   assert.match(missing, /missing_inputs=company_appeal,next_process_stage/);
   assert.match(missing, /proposed_intro_recipients=owner@company.com/);
   assert.match(missing, /custom:stage-1\t1차 대화/);
-  assert.match(missing, /candidate_has_seen_role=false/);
+  assert.match(missing, /prior_role_exposure=use_recommendation_history_if_available/);
+  assert.doesNotMatch(missing, /candidate_has_seen_role=false/);
   assert.match(missing, /candidate_contacted=false/);
   assert.match(confirmation, /outcome=awaiting_confirmation/);
   assert.match(confirmation, /company_appeal=초기 제품을 직접 만든 경험/);
@@ -1187,7 +1191,7 @@ test("scheduled stage movement gives the writer user-safe coordination facts", (
   assert.match(compact, /availability_settings_url=/);
   assert.doesNotMatch(
     compact,
-    /schedule-private-id|invitation_delivery_started|candidate_stage_moved|response_mode/
+    /invitation_delivery_started|candidate_stage_moved|response_mode/
   );
 });
 
@@ -1221,7 +1225,7 @@ test("an expedited meeting invitation reports the action without claiming delive
   assert.match(compact, /candidate_message_state=scheduled/);
   assert.match(compact, /candidate_message_sent=false/);
   assert.match(compact, /standard_delivery_delay_minutes=0/);
-  assert.doesNotMatch(compact, /private-schedule-id/);
+  assert.match(compact, /meeting_schedule_id=private-schedule-id/);
 });
 
 test("blocked scheduled movement identifies company organizer availability without fixed copy", () => {
@@ -1395,39 +1399,6 @@ test("schedule decision keeps the company in the chat-only scheduling flow", () 
   );
 });
 
-test("pending candidate contact results tell the model what can be replaced", () => {
-  const compact = serializeOrgAgentToolResult("contact_talent", {
-    existingRequest: {
-      cancelable: true,
-      kind: "회사 질문 확인",
-      requestId: "request-existing",
-      roleName: "Backend Engineer",
-      scheduledAt: "2026. 8. 6. 15:26",
-      status: "발송 실패·재시도 필요",
-      topic: "현재 또는 희망 연봉을 공유할 의향이 있는지 확인",
-    },
-    responseGuidance: "Make the existing request and replacement choice clear.",
-    newRequestQueued: false,
-    requested: {
-      kind: "question",
-      roleName: "Backend Engineer",
-      topic: "연 5,500만원이 가능한지 확인",
-    },
-    status: "already_pending",
-    userMessage: "기존 요청을 취소하고 이번 요청으로 새로 접수할까요?",
-  });
-
-  assert.match(compact, /status=already_pending/);
-  assert.match(compact, /new_request_queued=false/);
-  assert.match(compact, /발송 실패·재시도 필요/);
-  assert.match(compact, /현재 또는 희망 연봉/);
-  assert.match(compact, /연 5,500만원/);
-  assert.match(compact, /cancelable/);
-  assert.match(compact, /replacement_available=true/);
-  assert.match(compact, /replacement_requires_confirmation=true/);
-  assert.match(compact, /response_guidance=Make the existing request/);
-});
-
 test("scheduled candidate contact returns verified state instead of prewritten prose", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
     candidateContactState: "scheduled",
@@ -1494,14 +1465,17 @@ test("candidate contact batch results preserve counts and every item outcome", (
   assert.match(compact, /candidate_preferred_language/);
   assert.match(compact, /Laura.*English/);
   assert.match(compact, /saved language is English/);
-  assert.doesNotMatch(compact, /talent-richard/);
+  // Recovery must retain the exact failed target, including unnamed failures.
+  assert.match(compact, /talent-richard/);
+  assert.match(compact, /role-1/);
+  assert.match(compact, /contact-laura/);
   assert.match(compact, /후보자 연락 이메일/);
   assert.match(compact, /연락 가능한 이메일/);
   assert.match(
     compact,
     /single_confirmation_applies_to_all_displayed_drafts=true/
   );
-  assert.match(compact, /response_guidance=.*partial batch/);
+  assert.doesNotMatch(compact, /response_guidance=/);
 });
 
 test("candidate contact batch distinguishes Role requests from unique people", () => {
@@ -1525,10 +1499,12 @@ test("candidate contact batch distinguishes Role requests from unique people", (
   assert.match(compact, /person_count_unit=distinct_candidates/);
 });
 
-test("candidate contact drafts expose only the approval state and next decision", () => {
+test("candidate contact drafts expose the saved copy as well as approval state", () => {
   const compact = serializeOrgAgentToolResult("contact_talent", {
     candidatePreferredLanguage: "Korean",
     candidateName: "김호진",
+    subject: "작성된 제목",
+    body: "첫 문단\n\n둘째 문단—원문 조건을 유지합니다.",
     reason:
       "후보자의 설정 언어가 한국어이므로 회사가 준 영어 예시를 한국어로 작성했습니다.",
     status: "draft",
@@ -1539,6 +1515,10 @@ test("candidate contact drafts expose only the approval state and next decision"
   assert.match(compact, /approval_state=awaiting_company_confirmation/);
   assert.match(compact, /candidate_contact_state=not_sent/);
   assert.match(compact, /exact_body_appended_by_server=true/);
+  assert.ok(compact.includes(JSON.stringify({
+    subject: "작성된 제목",
+    body: "첫 문단\n\n둘째 문단—원문 조건을 유지합니다.",
+  })));
   assert.match(compact, /candidate_preferred_language=Korean/);
   assert.match(
     compact,
@@ -1552,12 +1532,23 @@ test("candidate contact drafts expose only the approval state and next decision"
     compact,
     /candidate_answer_destination=this_conversation_after_delivery/
   );
-  assert.match(
-    compact,
-    /response_guidance=Ask once whether Harper should send/
-  );
+  assert.doesNotMatch(compact, /response_guidance=/);
   assert.doesNotMatch(compact, /writing_instruction/);
   assert.doesNotMatch(compact, /이 고정 fallback/);
+});
+
+test("batch draft readback keeps each exact copy paired with its saved revision", () => {
+  const drafts = [
+    { contactId: "c1", revision: 2, candidateName: "A", roleName: "Engineer", subject: "A subject", body: "A\n\nexact body" },
+    { contactId: "c2", revision: 5, candidateName: "B", roleName: "Designer", subject: "B subject", body: "B\n\nexact body" },
+  ];
+  const compact = serializeOrgAgentToolResult("contact_talent", {
+    action: "revise_draft", status: "batch_partial", items: drafts,
+  });
+  assert.ok(compact.includes(JSON.stringify(drafts.map(item => ({
+    contactId: item.contactId, revision: item.revision, candidate: item.candidateName,
+    role: item.roleName, subject: item.subject, body: item.body,
+  })))));
 });
 
 test("candidate contact copy failures expose facts and recovery without fallback prose", () => {
@@ -1599,10 +1590,7 @@ test("candidate note results keep the saved note internal and bounded", () => {
   assert.match(compact, /리모트 근무 선호/);
   assert.match(compact, /visibility=company_internal/);
   assert.match(compact, /candidate_contacted=false/);
-  assert.match(
-    compact,
-    /response_guidance=Confirm the saved internal note briefly/
-  );
+  assert.doesNotMatch(compact, /response_guidance=/);
 });
 
 test("get_more_data serialization is bounded and keeps completeness markers", () => {
@@ -1808,10 +1796,7 @@ test("start_role_creation exposes verified state and the required continuation l
   assert.match(compact, /role_registration_state=in_progress/);
   assert.match(compact, /matching_started=false/);
   assert.match(compact, /transferred_message_count=3/);
-  assert.match(
-    compact,
-    /response_guidance=Explain that registration continues/
-  );
+  assert.doesNotMatch(compact, /response_guidance=/);
   assert.doesNotMatch(compact, /illustrative_response/);
   assert.doesNotMatch(compact, /private-role-id/);
   assert.doesNotMatch(compact, /harper\.example/);
@@ -1831,7 +1816,7 @@ test("matching search result gives facts without prescribing acknowledgement cop
   assert.match(compact, /requested_role=Founding Engineer/);
   assert.match(compact, /saved current Hiring Brief/);
   assert.match(compact, /completed outcome will be shared separately/);
-  assert.match(compact, /naturally in the current conversation/);
+  assert.doesNotMatch(compact, /naturally in the current conversation/);
   assert.doesNotMatch(compact, /say|one brief acknowledgement only/);
   assert.doesNotMatch(compact, /search_scope/);
   assert.doesNotMatch(compact, /starts_after_current_search/);
@@ -1886,4 +1871,39 @@ test("tool errors give the model action-specific recovery guidance", () => {
   assert.match(readError, /verification_boundary=/);
   assert.doesNotMatch(readError, /effect_status/);
   assert.doesNotMatch(readError, /final effect is uncertain/);
+});
+
+test("role reads expose the verified periodic-search setting in plain language", () => {
+  for (const [value, label] of [[true, "켜짐"], [false, "꺼짐"]] as const) {
+    const result = serializeOrgAgentToolResult("read_role", {
+      role: { roleId: "role-1", name: "Backend", isCompanyFirstSearch: value },
+    });
+    assert.ok(result.includes(`정기 후보 검색\t${label}`));
+    assert.ok(!result.includes("is_company_first_search"));
+  }
+});
+
+
+test("stale Intro action retains actual acceptance and current pipeline facts", () => {
+  const result = serializeOrgAgentToolResult("decide_company_intro", {
+    status: "already_in_pipeline", decision: "request_intro", candidateName: "Synthetic Talent",
+    roleName: "Backend", currentStage: "pending_connection", candidateAcceptedAt: "2026-09-28T03:00:00Z",
+    originalRecommendationType: "internal_recommendation", candidateRequestCreated: false,
+  });
+  assert.match(result, /current_stage=pending_connection/);
+  assert.match(result, /candidate_accepted_at=2026-09-28/);
+  assert.match(result, /original_recommendation_type=internal_recommendation/);
+  assert.match(result, /new_intro_request_created=false/);
+  assert.doesNotMatch(result, /candidate_interest_confirmed=false|candidate_request_created=true/);
+});
+
+test("current talent reader carries acceptance origin into the company prompt", () => {
+  const result = serializeOrgAgentToolResult("read_talent", {
+    candidate: { talentId: "synthetic", name: "Synthetic Talent" },
+    positions: [{ roleId: "role", roleName: "Backend", stage: "pending_connection",
+      candidateAcceptedAt: "2026-09-28T03:00:00Z", recommendationOrigin: "harper_recommendation" }],
+  });
+  assert.match(result, /candidate_accepted_kst/);
+  assert.match(result, /2026년 9월 28일 12:00 KST/);
+  assert.match(result, /harper_recommendation/);
 });

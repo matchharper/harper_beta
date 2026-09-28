@@ -27,10 +27,9 @@ import type {
   CareerPendingAction,
   CareerPendingActionReference,
 } from "@/lib/career/pendingActions";
-import type {
-  CareerCoachingActivity,
-} from "@/lib/career/careerCoachingActivitySchema";
+import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import type { CareerCoachingActivityUiAction } from "@/components/career/chat/CareerCoachingActivityCard";
+import type { CareerTasksSnapshot } from "@/lib/career/taskItems";
 
 export type CareerChatPanelContextValue = {
   user: User | null;
@@ -83,6 +82,7 @@ export type CareerChatPanelContextValue = {
   callStartPending?: boolean;
   callWrapUpPending?: boolean;
   pendingActionsOverride?: CareerPendingAction[];
+  tasksOverride?: CareerTasksSnapshot;
   onboardingPausePending: boolean;
 
   onGoogleLogin: () => void | Promise<void>;

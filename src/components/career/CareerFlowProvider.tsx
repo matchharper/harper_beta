@@ -1238,23 +1238,14 @@ export const CareerFlowProvider = ({
     }) => {
       if (!conversationId) return false;
       const { action, activity } = args;
-      const isEnglish = locale === "en";
       const text =
         action.action === "start"
-          ? isEnglish
-            ? action.channel === "call"
-              ? `I'd like to start this coaching conversation by call: “${activity.topic}”.`
-              : "I'll continue in chat."
-            : action.channel === "call"
-              ? `“${activity.topic}” 주제로 코칭 대화를 통화로 시작할게요.`
-              : "채팅으로 진행할게요."
+          ? action.channel === "call"
+            ? t("career.coaching.action_start_call", "“{topic}” 주제로 코칭 대화를 통화로 시작할게요.", { values: { topic: activity.topic } })
+            : t("career.coaching.action_start_chat", "채팅으로 진행할게요.")
           : activity.status === "suggested"
-            ? isEnglish
-              ? "I'll pass on this coaching suggestion for now."
-              : "이 코칭 제안은 지금은 넘길게요."
-            : isEnglish
-              ? "I'd like to finish this coaching conversation here."
-              : "이 코칭 대화는 여기서 마칠게요.";
+            ? t("career.coaching.action_dismiss", "이 코칭 제안은 지금은 넘길게요.")
+            : t("career.coaching.action_end", "이 코칭 대화는 여기서 마칠게요.");
       await sendChatMessage({
         coachingActivityAction: {
           action: action.action,
@@ -1266,7 +1257,7 @@ export const CareerFlowProvider = ({
       });
       return true;
     },
-    [conversationId, locale, sendChatMessage]
+    [conversationId, sendChatMessage, t]
   );
 
   const handleRequestMoreOpenPositions = useCallback(async () => {

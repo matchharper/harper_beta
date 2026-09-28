@@ -37,6 +37,7 @@ import {
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import {
   ORG_AGENT_CLAUDE_MODEL,
+  ORG_AGENT_GEMINI_FLASH_MODEL,
   ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_TERRA_MODEL,
@@ -121,6 +122,7 @@ function ModelSelector({
   visible: boolean;
 }) {
   const options: Array<{ label: string; value: OrgAgentModelId }> = [
+    { label: "Gemini 3.8 Flash · OpenRouter", value: ORG_AGENT_GEMINI_FLASH_MODEL },
     {
       label: "DeepSeek V4 Flash 0731 · OpenRouter",
       value: ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,

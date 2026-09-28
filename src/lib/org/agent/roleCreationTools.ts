@@ -32,6 +32,7 @@ import {
   generateRoleHiringBriefCalibration,
 } from "@/lib/org/agent/roleCalibration";
 import type { ChatAttachmentPayload } from "@/types/chat";
+import { applyRoleTextEdits } from "./roleTextEdits";
 
 export const ROLE_CREATION_TOOL_NAMES = [
   "open_url",
@@ -82,28 +83,41 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "update_role_draft",
       description:
-        "Best suited to saving role facts the user has supplied, confirmed, or asked Harper to extract from a source in this turn. Partial updates are welcome.",
+        "Save role facts the user supplied, confirmed, or asked Harper to extract. For additions/corrections to an existing Description or Brief, prefer textEdits to preserve unaffected text exactly. Use full fields for initial authoring or a requested full rewrite. Do not regenerate all three documents for each new fact.",
       parameters: {
         type: "object",
         minProperties: 1,
         properties: {
           name: { type: "string" },
+          textEdits: {
+            type: "array", minItems: 1, maxItems: 12,
+            description: "Ordered exact replacements in saved Description or Brief. before must occur exactly once; after replaces only that span (empty deletes it). To append, replace a unique ending with that ending plus the addition. Never supply the same field both here and as a full replacement. Missing or ambiguous anchors make the entire edit fail without writing.",
+            items: {
+              type: "object", additionalProperties: false,
+              required: ["field", "before", "after"],
+              properties: {
+                field: { type: "string", enum: ["description", "request"] },
+                before: { type: "string", minLength: 1 },
+                after: { type: "string" },
+              },
+            },
+          },
           description: {
             type: ["string", "null"],
             description:
-              "The complete candidate-visible Role Description in Markdown. Write the actual company introduction from companyInformationDocument as natural prose when usable. Never put [[company_info]], [company_info], or any placeholder or acknowledgement token in this field.",
+              "The complete candidate-visible Role Description in Markdown, following the shared authoring source-fidelity contract. Complete means all known public facts, not invented qualifications to fill a JD template. Write the actual company introduction from companyInformationDocument as natural prose when usable. Never put [[company_info]], [company_info], or any placeholder or acknowledgement token in this field.",
           },
           request: {
             type: ["string", "null"],
             description:
-              "The complete private Hiring Brief in Markdown for ordinary requirement edits. Preserve confirmed content and keep Role eligibility, company talent quality / caliber, and team-specific bonuses distinct. Company caliber is an independent interview threshold: a person may satisfy the Role and remain below the company's expected level. Use explicit Top-tier school, company, program, or core-team evidence when the user has established its importance, while interpreting the actual role and contribution. Real-person calibration belongs in calibrate_role_hiring_brief.",
+              "The complete private Hiring Brief in Markdown for ordinary requirement edits. Follow the shared authoring contract for Role eligibility, established company caliber and team-specific preferences; preserve confirmed content and its original strength. Real-person calibration belongs in calibrate_role_hiring_brief.",
           },
           criteria: {
             type: "array",
             minItems: 0,
             maxItems: 6,
             description:
-              "Optional high-level evaluation dimensions. Zero to six may be saved; when useful, prefer two to four complete dimensions and keep two when only two meaningful judgments exist. Consolidate related languages, frameworks, databases, cloud services, and baseline qualifications into one technical-fit criterion instead of one item per technology. Each dimension must still be independently assessable. name is a concise dimension label, never a yes/no question; criteria states the minimum bar, strong and acceptable adjacent evidence, tradeoffs, and concrete concerns.",
+              "Optional high-level evaluation dimensions, only when requested under the shared authoring contract. Omit this field to preserve existing Criteria. Zero to six may be saved; there is no target count. Each dimension must organize confirmed company evidence, not add a screening bar. name is a concise label; criteria explains the supported judgment.",
             items: {
               type: "object",
               additionalProperties: false,
@@ -217,7 +231,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "confirm_pending_role_creation",
       description:
-        "Activate the saved draft after the immediately preceding Harper message asked for final role-creation confirmation and the user's current free-form reply clearly authorizes registering that exact role now. Natural affirmative replies such as '응', '좋아요, 진행해 주세요', or equivalent wording count when their conversational meaning is clear. Do not call it when the user asks a question, is ambiguous, merely reacts positively, or adds, removes, or changes any role detail; apply changes first and present a fresh confirmation instead.",
+        "ACTIVATE the saved Role now and start its matching lifecycle; this is not a review/preview action. Available only after the immediately preceding Harper message asked for final role-creation confirmation and the current reply authorizes that exact activation. Natural affirmative replies count only when they approve activation, not merely settings or preparation. A request to reach, show or repeat the confirmation/review step uses request_role_creation_confirmation, even if it also approves all saved settings. Do not call it when the user asks a question, is ambiguous, merely reacts positively, or adds, removes, or changes any role detail; apply changes first and present a fresh confirmation instead.",
       parameters: {
         type: "object",
         properties: {},
@@ -515,9 +529,15 @@ export async function executeRoleCreationTool(args: {
       "salaryRange",
       "externalJdUrl",
       "memory",
+      "textEdits",
     ] as const;
     assertOnlyKeys(args.input, allowedKeys, args.name);
     requireOneInput(args.input, allowedKeys, args.name);
+    if (args.input.textEdits !== undefined) {
+      const current = await fetchRoleCreationState(args);
+      try { args = { ...args, input: applyRoleTextEdits(current.role, args.input) }; }
+      catch (error) { throw new OrgHttpError(400, error instanceof Error ? error.message : "Invalid text edits"); }
+    }
     const rawWorkMode = optionalText(args.input.workMode);
     const workMode =
       rawWorkMode === null || rawWorkMode === undefined
@@ -577,6 +597,9 @@ export async function executeRoleCreationTool(args: {
     const editingRegisteredRole = state.role.status !== "draft";
     return {
       result: {
+        // Read-back is authoritative; a success flag alone loses the exact
+        // stored copy that the next edit and final confirmation depend on.
+        savedFields: Object.fromEntries(Object.keys(args.input).map((key) => [key, state.role[key as keyof typeof state.role]])),
         ...(editingRegisteredRole
           ? { registeredRole: true }
           : { missingFields: getRoleCreationMissingFields(state) }),
@@ -681,7 +704,7 @@ export async function executeRoleCreationTool(args: {
     }
     return {
       confirmationAccepted: true,
-      result: { activated: true, ok: true },
+      result: { confirmationAccepted: true, ok: true },
     };
   }
 

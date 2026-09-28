@@ -35,6 +35,7 @@ export async function PATCH(req: NextRequest) {
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
       expectedCriteria?: unknown;
+      isCompanyFirstSearch?: boolean;
       isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;
@@ -51,6 +52,7 @@ export async function PATCH(req: NextRequest) {
       employmentTypes: body.employmentTypes,
       externalJdUrl: body.externalJdUrl,
       expectedCriteria: body.expectedCriteria,
+      isCompanyFirstSearch: body.isCompanyFirstSearch,
       isExpired: body.isExpired,
       locationText: body.locationText,
       name: body.name,

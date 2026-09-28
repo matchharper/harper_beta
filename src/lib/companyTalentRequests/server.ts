@@ -4,7 +4,6 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { buildOrgHref } from "@/lib/org/routes";
 import { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
 import {
-  companyTalentRequestBlocksNewContact,
   companyTalentRequestCandidateEmailWasSent,
   humanizeCompanyTalentRequestStatus,
   normalizeCompanyTalentRelayDeliveryStatus,
@@ -31,12 +30,6 @@ export const COMPANY_TALENT_REQUEST_ACTIVE_STATUSES = [
 export const COMPANY_TALENT_REQUEST_TRACKED_STATUSES = [
   "draft",
   ...COMPANY_TALENT_REQUEST_ACTIVE_STATUSES,
-  "failed",
-] as const;
-
-export const COMPANY_TALENT_REQUEST_BLOCKING_STATUSES = [
-  "draft",
-  "queued",
   "failed",
 ] as const;
 
@@ -164,21 +157,34 @@ function normalizedRelayContent(value: unknown, maxLength = 5_000) {
     .slice(0, maxLength);
 }
 
-async function assertCompanyIntroRequestIsNotPending(args: {
+export async function fetchRequestedIntroContactTarget(args: {
   admin: UntypedAdmin;
+  roleId: string;
   talentId: string;
   workspaceId: string;
 }) {
   const { data, error } = await args.admin
     .from("company_intro_candidates")
-    .select("id")
+    .select("recommendation_id, candidate_sent_at, status")
     .eq("company_workspace_id", args.workspaceId)
+    .eq("role_id", args.roleId)
     .eq("talent_id", args.talentId)
-    .in("status", ["ready", "awaiting_talent", "connecting"])
+    .eq("status", "awaiting_talent")
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  if (data) throw new Error("company_intro_action_forbidden");
+  if (!data?.recommendation_id || !data.candidate_sent_at) return null;
+  const eligible = await args.admin.rpc("company_talent_pair_is_contactable_v1", {
+    p_workspace_id: args.workspaceId, p_role_id: args.roleId,
+    p_talent_id: args.talentId, p_recommendation_id: data.recommendation_id,
+  });
+  if (eligible.error) throw eligible.error;
+  if (eligible.data !== true) return null;
+  const talent = await args.admin.from("talent_users").select("email")
+    .eq("user_id", args.talentId).maybeSingle();
+  if (talent.error) throw talent.error;
+  // Executor-only address: never returned by read_talent before sharing consent.
+  return { recommendationId: String(data.recommendation_id), email: talent.data?.email ?? null };
 }
 
 export async function createCompanyTalentContactDraft(args: {
@@ -193,7 +199,12 @@ export async function createCompanyTalentContactDraft(args: {
   talentId: string;
   workspaceId: string;
 }) {
-  await assertCompanyIntroRequestIsNotPending(args);
+  const eligibility = await args.admin.rpc("company_talent_pair_is_contactable_v1", {
+    p_workspace_id: args.workspaceId, p_role_id: args.roleId,
+    p_talent_id: args.talentId, p_recommendation_id: args.recommendationId,
+  });
+  if (eligibility.error) throw eligibility.error;
+  if (eligibility.data !== true) throw new Error("company_talent_request_target_not_active");
   const context = validateCompanyContactContext(args.requestContext);
   const { data, error } = await args.admin
     .from("company_talent_requests")
@@ -491,10 +502,10 @@ export async function fetchRelayableCompanyTalentConnections(args: {
   const { data: recommendations, error: recommendationError } = await args.admin
     .from("talent_opportunity_recommendation")
     .select(
-      "id, role_id, saved_stage, processed_stage, opportunity_type, feedback_at, created_at, role:company_roles!inner(name, information, company_workspace_id, workspace:company_workspace!inner(company_name))"
+      "id, role_id, saved_stage, processed_stage, opportunity_type, feedback, feedback_at, created_at, role:company_roles!inner(name, status, is_expired, information, company_workspace_id, workspace:company_workspace!inner(company_name))"
     )
     .eq("talent_id", args.talentId)
-    .eq("feedback", "like")
+    .or("feedback.eq.like,opportunity_type.eq.intro_request")
     .in("opportunity_type", ["internal_recommendation", "intro_request"])
     .order("feedback_at", { ascending: false })
     .limit(Math.min(limit * 8, 240));
@@ -526,11 +537,11 @@ export async function fetchRelayableCompanyTalentConnections(args: {
       args.admin
         .from("company_intro_candidates")
         .select(
-          "recommendation_id, status, requested_at, talent_decision_at, connected_at, updated_at"
+          "recommendation_id, status, candidate_sent_at, requested_at, talent_decision_at, connected_at, updated_at"
         )
         .eq("talent_id", args.talentId)
         .in("recommendation_id", recommendationIds)
-        .in("status", ["connecting", "connected"]),
+        .in("status", ["awaiting_talent", "connecting", "connected"]),
       args.admin
         .from("company_talent_requests")
         .select(
@@ -672,6 +683,11 @@ export async function fetchRelayableCompanyTalentConnections(args: {
         latestCompanyVisibleTagByRoleId.get(roleId) ?? null;
       const sentRequests =
         sentRequestsByRecommendationId.get(recommendationId) ?? [];
+      // Correspondence does not imply acceptance. The RPC rechecks at write.
+      if (row.feedback !== "like" && !(
+        intro?.status === "awaiting_talent" && intro.candidate_sent_at &&
+        sentRequests.length > 0 && !["ended", "deleted"].includes(role?.status) && !role?.is_expired
+      )) return null;
       const companySharedAt =
         companySharedAtByRecommendationId.get(recommendationId) ?? null;
       if (
@@ -796,104 +812,6 @@ export function formatRelayableCompanyTalentConnections(
       ].join("\n");
     }),
   ].join("\n");
-}
-
-export async function fetchBlockingCompanyTalentRequestForWorkspace(args: {
-  admin: UntypedAdmin;
-  roleId: string;
-  talentId: string;
-  workspaceId: string;
-}) {
-  const { data, error } = await args.admin
-    .from("company_talent_requests")
-    .select(
-      "id, role_id, contact_kind, expects_document, request_context, workflow_status, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, role:company_roles!inner(name), deliveries:contact_queue(scheduled_at, sent_at, status, last_error, payload, type)"
-    )
-    .eq("company_workspace_id", args.workspaceId)
-    .eq("role_id", args.roleId)
-    .eq("talent_id", args.talentId)
-    .in("workflow_status", [...COMPANY_TALENT_REQUEST_BLOCKING_STATUSES])
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false })
-    .limit(30);
-  if (error) throw error;
-  const rows = (Array.isArray(data) ? data : []) as Array<
-    CompanyTalentRequestRow & {
-      deliveries?: Array<{
-        scheduled_at?: string | null;
-        sent_at?: string | null;
-        status?: string | null;
-        last_error?: string | null;
-        payload?: unknown;
-        type?: string | null;
-      }> | null;
-      role?: { name?: string | null } | null;
-      talent_source_message_id?: number | null;
-    }
-  >;
-  const row = rows.find((candidate) => {
-    const candidateDelivery = candidate.deliveries?.find(
-      (item) => item.type === "company_request_candidate_delivery"
-    );
-    return companyTalentRequestBlocksNewContact({
-      candidate_delivery_status: candidateDelivery?.status,
-      candidate_sent_at: candidateDelivery?.sent_at,
-      expires_at: candidate.expires_at,
-      has_candidate_response: Boolean(
-        candidate.talent_source_message_id || candidate.document_id
-      ),
-      workflow_status: candidate.workflow_status,
-    });
-  });
-  if (!row) return null;
-  const candidateDelivery = row.deliveries?.find(
-    (item) => item.type === "company_request_candidate_delivery"
-  );
-  const companyDelivery = row.deliveries?.find(
-    (item) => item.type === "company_request_company_delivery"
-  );
-  const deliveryStatus = normalizedText(candidateDelivery?.status, 80);
-  const candidateDeliveryPayload =
-    candidateDelivery?.payload &&
-    typeof candidateDelivery.payload === "object" &&
-    !Array.isArray(candidateDelivery.payload)
-      ? (candidateDelivery.payload as Record<string, unknown>)
-      : {};
-  const cancellation =
-    candidateDeliveryPayload.cancellation &&
-    typeof candidateDeliveryPayload.cancellation === "object" &&
-    !Array.isArray(candidateDeliveryPayload.cancellation)
-      ? (candidateDeliveryPayload.cancellation as Record<string, unknown>)
-      : {};
-  return {
-    blocksNewRequest: true,
-    cancelable:
-      row.workflow_status === "draft" ||
-      (["queued", "failed"].includes(deliveryStatus) &&
-        ["queued", "failed"].includes(row.workflow_status)),
-    draftBody: row.delivery_body,
-    draftRevision: row.draft_revision,
-    draftSubject: row.delivery_subject,
-    label: "회사 연락",
-    requestId: row.id,
-    roleId: row.role_id,
-    roleName: normalizedText(row.role?.name, 160) || null,
-    scheduledAt: normalizedText(candidateDelivery?.scheduled_at, 100) || null,
-    status: humanizeCompanyTalentRequestStatus({
-      ...row,
-      candidate_cancellation_source: normalizedText(cancellation.source, 80),
-      candidate_delivery_error: normalizedText(
-        candidateDelivery?.last_error,
-        120
-      ),
-      candidate_delivery_status: deliveryStatus,
-      candidate_sent_at: candidateDelivery?.sent_at,
-      company_delivery_status: normalizedText(companyDelivery?.status, 80),
-      company_sent_at: companyDelivery?.sent_at,
-      has_candidate_response: Boolean(row.talent_source_message_id),
-    }),
-    topic: normalizedText(row.request_context, 800),
-  };
 }
 
 function tokenSecret() {
@@ -1224,6 +1142,44 @@ export async function fetchCompanyTalentRelayReplyTarget(args: {
     roleName: normalizedText(role.name, 160) || "해당 역할",
     talentId: normalizedText(talent.user_id, 120),
   };
+}
+
+// Look up the durable result before regenerating copy or treating a retry as a
+// competing request. The database remains the atomic authority for races.
+export async function fetchCompanyTalentContactBySource(args: {
+  admin: UntypedAdmin; workspaceId: string; roleId: string; talentId: string;
+  sourceCompanyMessageId: number;
+}) {
+  const { data, error } = await args.admin.from("company_talent_requests")
+    .select("id, workflow_status, delivery_body, deliveries:contact_queue(type, status, scheduled_at)")
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("role_id", args.roleId)
+    .eq("talent_id", args.talentId)
+    .eq("source_company_message_id", args.sourceCompanyMessageId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const delivery = data.deliveries?.find((item: { type: string }) => item.type === "company_request_candidate_delivery");
+  return {
+    requestId: String(data.id), status: delivery?.status ?? data.workflow_status,
+    scheduledAt: delivery?.scheduled_at ?? null, body: data.delivery_body,
+    idempotent: true as const,
+  };
+}
+
+export async function sendCompanyTalentContact(args: {
+  admin: UntypedAdmin; id: string; workspaceId: string; roleId: string; talentId: string;
+  recommendationId: string; sourceCompanyMessageId: number;
+  subject: string; body: string; requestContext: string;
+}) {
+  const { data, error } = await args.admin.rpc("send_company_talent_contact_v1", {
+    p_request_id: args.id, p_workspace_id: args.workspaceId, p_role_id: args.roleId,
+    p_talent_id: args.talentId, p_recommendation_id: args.recommendationId,
+    p_source_company_message_id: args.sourceCompanyMessageId,
+    p_subject: args.subject, p_body: args.body, p_request_context: validateCompanyContactContext(args.requestContext),
+  });
+  if (error) throw error;
+  return data as { requestId: string; status: string; scheduledAt: string | null; idempotent: boolean };
 }
 
 export async function sendCompanyTalentRelayReply(args: {

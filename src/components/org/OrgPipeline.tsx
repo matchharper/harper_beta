@@ -2,7 +2,10 @@ import { LoaderCircle } from "lucide-react";
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
-import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
+import {
+  isOrgInboxStage,
+  ORG_STAGE_DESCRIPTIONS,
+} from "@/lib/org/pipelineStage";
 import {
   Dialog,
   DialogContent,
@@ -91,11 +94,11 @@ export function OrgPipeline() {
   } | null>(null);
   const [stopItem, setStopItem] = useState<OrgBoardItem | null>(null);
   const [companyIntroRequest, setCompanyIntroRequest] = useState<{
-    initialStageId?: string | null;
     item: OrgBoardItem;
   } | null>(null);
-  const [companyIntroPass, setCompanyIntroPass] =
-    useState<OrgBoardItem | null>(null);
+  const [companyIntroPass, setCompanyIntroPass] = useState<OrgBoardItem | null>(
+    null
+  );
   const [draggedRecommendationId, setDraggedRecommendationId] = useState<
     string | null
   >(null);
@@ -156,11 +159,10 @@ export function OrgPipeline() {
     () =>
       (board?.stages ?? []).filter(
         (stage) =>
-          stage.id === "pending_connection" ||
-          stage.id === "company_intro" ||
-          stage.id === "intro_requested" ||
-          stage.id === "connected" ||
-          Boolean(stage.roleId && stage.roleId === activeRoleId)
+          !isOrgInboxStage(stage.id) &&
+          (stage.id === "intro_requested" ||
+            stage.id === "connected" ||
+            Boolean(stage.roleId && stage.roleId === activeRoleId))
       ),
     [activeRoleId, board?.stages]
   );
@@ -200,7 +202,6 @@ export function OrgPipeline() {
     if (item.source === "company_intro") {
       if (item.companyIntro?.status !== "ready") return;
       setCompanyIntroRequest({
-        initialStageId: stage.startsWith("custom:") ? stage : null,
         item,
       });
       return;
@@ -373,6 +374,7 @@ export function OrgPipeline() {
           compact
           className="shrink-0 !border-x-0"
           count={items.length}
+          countPlacement="end"
           description={ORG_STAGE_DESCRIPTIONS[stage.id]}
           label={stage.label}
           onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
@@ -538,11 +540,13 @@ export function OrgPipeline() {
         companyContactName={currentUser?.name}
         defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
         defaultEmail={currentUserEmail}
+        destinationLabel={
+          board?.stages.find((stage) => stage.id === acceptRequest?.stage)?.label
+        }
         members={members}
         open={Boolean(acceptRequest)}
         pending={Boolean(
-          createCustomStage.isPending ||
-          (acceptRequest && isCandidateStagePending(acceptRequest.item))
+          acceptRequest && isCandidateStagePending(acceptRequest.item)
         )}
         onClose={() => setAcceptRequest(null)}
         onSubmit={async ({
@@ -555,22 +559,11 @@ export function OrgPipeline() {
           introEmails,
           meetingCandidateMessage,
           meetingPurpose,
-          processStageLabel,
           scheduleInterview,
           title,
         }) => {
           if (!acceptRequest) return;
-          const stage =
-            acceptRequest.item.stage === "pending_connection" &&
-            acceptRequest.stage === "connected"
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: processStageLabel ?? "",
-                    roleId: acceptRequest.item.roleId,
-                    workspaceId,
-                  })
-                ).stage.stage
-              : acceptRequest.stage;
+          const stage = acceptRequest.stage;
           const result = await onStageChange(acceptRequest.item, stage, {
             acceptReason,
             additionalMessage,
@@ -588,10 +581,6 @@ export function OrgPipeline() {
           setAcceptRequest(null);
           return result;
         }}
-        requiresProcessStage={
-          acceptRequest?.item.stage === "pending_connection" &&
-          acceptRequest.stage === "connected"
-        }
         roleTitle={acceptRequest?.item.roleName ?? ""}
       />
 
@@ -613,39 +602,21 @@ export function OrgPipeline() {
       />
 
       <CompanyIntroRequestDialog
-        key={`${companyIntroRequest?.item.companyIntro?.id ?? "closed"}:${companyIntroRequest?.initialStageId ?? "default"}`}
+        key={companyIntroRequest?.item.companyIntro?.id ?? "closed"}
         candidateName={
           companyIntroRequest
             ? getOrgCandidateDisplayName(companyIntroRequest.item)
             : ""
         }
         defaultEmail={currentUserEmail}
-        initialStageId={companyIntroRequest?.initialStageId}
-        members={members}
         onClose={() => setCompanyIntroRequest(null)}
-        onSubmit={async ({
-          companyAppeal,
-          introRecipientEmails,
-          newStageLabel,
-          nextStageId,
-        }) => {
+        onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!companyIntroRequest?.item.companyIntro) return;
           try {
-            const stageId = newStageLabel
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: newStageLabel,
-                    roleId: companyIntroRequest.item.roleId,
-                    workspaceId,
-                  })
-                ).stage.id
-              : nextStageId;
-            if (!stageId) throw new Error("수락 후 첫 단계를 선택해 주세요.");
             await requestCompanyIntro.mutateAsync({
               companyAppeal,
               introCandidateId: companyIntroRequest.item.companyIntro.id,
               introRecipientEmails,
-              nextStageId: stageId,
               workspaceId,
             });
             setCompanyIntroRequest(null);
@@ -666,10 +637,7 @@ export function OrgPipeline() {
           }
         }}
         open={Boolean(companyIntroRequest)}
-        pending={createCustomStage.isPending || requestCompanyIntro.isPending}
-        roleId={companyIntroRequest?.item.roleId ?? ""}
-        roleName={companyIntroRequest?.item.roleName ?? "해당 역할"}
-        stages={board?.stages ?? []}
+        pending={requestCompanyIntro.isPending}
       />
 
       <CompanyIntroPassDialog

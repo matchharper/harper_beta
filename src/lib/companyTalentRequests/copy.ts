@@ -49,9 +49,14 @@ function parseJsonObject(value: string) {
 }
 
 async function generateJson(
-  messages: Array<{ content: string; role: string }>
+  messages: Array<{ content: string; role: string }>,
+  parentSignal?: AbortSignal
 ) {
+  const deadline = AbortSignal.timeout(120_000);
+  const signal = parentSignal ? AbortSignal.any([parentSignal, deadline]) : deadline;
+  signal.throwIfAborted();
   const { response } = await createChatCompletionWithFallback({
+    signal,
     anthropicOverloadFallbackModel: GPT_56_LUNA_MODEL,
     buildRequest: () => ({
       // Responses API output budgets include both reasoning and visible JSON.
@@ -103,6 +108,7 @@ function validateDraft(args: {
 
 export async function generateCandidateContactDraft(args: {
   candidateName: string;
+  verifiedContext?: string;
   companyName: string;
   currentInstruction: string;
   deliveryIntent?: "direct_reply" | "review_draft";
@@ -112,13 +118,18 @@ export async function generateCandidateContactDraft(args: {
   requestContext: string;
   requestId: string;
   roleName: string;
+  signal?: AbortSignal;
 }) {
   const deliveryIntent = args.deliveryIntent ?? "review_draft";
-  const requestContext = validateCompanyContactContext(args.requestContext);
-  if (!requestContext) throw new Error("Candidate contact context is empty");
+  // Input may be an entire authorized message; the generated durable summary
+  // still uses the existing 800-character contract validated below.
+  const requestContext = args.requestContext.trim();
+  if (!requestContext || requestContext.length > 5_000)
+    throw new Error("Candidate contact input must contain 1–5000 characters");
   try {
     const parsed = await generateJson(
       buildCandidateContactDraftMessages({
+        verifiedContext: args.verifiedContext,
         candidateName: args.candidateName,
         companyName: args.companyName,
         currentInstruction: args.currentInstruction,
@@ -128,7 +139,7 @@ export async function generateCandidateContactDraft(args: {
         recipientLocale: args.locale,
         requestContext,
         roleName: args.roleName,
-      })
+      }), args.signal
     );
     return validateDraft({
       body: parsed.body,
@@ -155,6 +166,7 @@ export async function reviseCandidateContactDraft(args: {
   profileUrl: string | null;
   recentConversation: string;
   requestId: string;
+  signal?: AbortSignal;
 }) {
   try {
     const parsed = await generateJson(
@@ -165,7 +177,7 @@ export async function reviseCandidateContactDraft(args: {
         profileUrl: args.profileUrl,
         recentConversation: args.recentConversation,
         recipientLocale: args.locale,
-      })
+      }), args.signal
     );
     return validateDraft({
       body: parsed.body,

@@ -6,6 +6,7 @@ import {
   classifyTalentGtmChannel,
   formatTalentGtmCountDelta,
   formatTalentGtmSlackMessages,
+  type SlackTableBlock,
 } from "@/lib/growthTalentGtmReport";
 
 test("uses same-weekday date arithmetic across month boundaries", () => {
@@ -276,7 +277,9 @@ test("shows yesterday deltas in every channel metric and only visitor deltas for
   assert.equal(report.weekComparisonDate, "2026-09-08");
 
   const messages = formatTalentGtmSlackMessages(report);
-  const table = messages.main.blocks?.find((block) => block.type === "table");
+  const table = messages.main.blocks?.find(
+    (block): block is SlackTableBlock => block.type === "table"
+  );
   assert.ok(table && "rows" in table);
   if (!table || !("rows" in table)) throw new Error("Channel table is missing");
 

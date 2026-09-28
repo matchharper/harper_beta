@@ -74,24 +74,6 @@ export function companyTalentRequestCandidateEmailWasSent(
 }
 
 /**
- * Only a request whose candidate email has not been sent may reserve the
- * company/role/talent contact slot. Sent requests remain visible in history,
- * but they must not prevent the company from asking a separate question.
- */
-export function companyTalentRequestBlocksNewContact(
-  row: CompanyTalentRequestStatusInput
-) {
-  if (companyTalentRequestCandidateEmailWasSent(row)) return false;
-  if (
-    !["draft", "queued", "failed"].includes(String(row.workflow_status ?? ""))
-  ) {
-    return false;
-  }
-  const expiresAt = Date.parse(String(row.expires_at ?? ""));
-  return !Number.isFinite(expiresAt) || expiresAt > (row.now ?? Date.now());
-}
-
-/**
  * Converts the durable request and delivery facts into cumulative, user-safe
  * milestones. Later workflow stages must not hide that an earlier email was
  * sent or that a candidate response was received.

@@ -1,4 +1,5 @@
 import { deliverCompanyContactEventMessages } from "@/lib/org/agent/contactEvent.server";
+import { timingSafeEqual } from "node:crypto";
 import { assertOrgWorkspacePermission } from "@/lib/org/server";
 import { handleCallback, type MessageMetadata } from "@vercel/queue";
 import {
@@ -62,7 +63,7 @@ async function markRetry(args: {
   if (!exhausted) throw new WebActionQueueRetryError(message, delay);
 }
 
-async function processMessage(raw: unknown, metadata: MessageMetadata) {
+async function processMessage(raw: unknown, metadata: Pick<MessageMetadata, "messageId">) {
   const message = parseCompanyAgentWebActionQueueMessage(raw);
   if (!message) {
     throw new WebActionQueuePermanentError(
@@ -201,7 +202,7 @@ async function processMessage(raw: unknown, metadata: MessageMetadata) {
   }
 }
 
-export const POST = handleCallback(processMessage, {
+const queueCallback = handleCallback(processMessage, {
   retry: (error, metadata) => {
     if (error instanceof WebActionQueuePermanentError) {
       console.error("[org-agent/web-action:permanent]", error);
@@ -214,3 +215,18 @@ export const POST = handleCallback(processMessage, {
   },
   visibilityTimeoutSeconds: 390,
 });
+
+export async function POST(request: Request) {
+  if (process.env.HARPER_LOCAL_E2E !== "1") return queueCallback(request);
+  const expected = Buffer.from(process.env.INTERNAL_WORKER_API_SECRET || "");
+  const actual = Buffer.from((request.headers.get("authorization") || "").replace(/^Bearer /, ""));
+  if (!expected.length || expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  try {
+    await processMessage(await request.json(), { messageId: `local-e2e:${crypto.randomUUID()}` });
+    return Response.json({ ok: true });
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Local queue failed" }, { status: 503 });
+  }
+}

@@ -52,7 +52,7 @@ test("a contextual free-form affirmative reuses the guarded confirmation path", 
   );
 });
 
-test("role creation conversation stays model-authored while successful completion uses fixed guidance", () => {
+test("all Role outcomes use model-authored shared voice over verified state", () => {
   assert.doesNotMatch(
     chat,
     /MIN_ROLE_CREATION_REPLY_CHARS|MAX_RESPONSE_REPAIR_ATTEMPTS|buildRoleCreationConfirmationReply|buildRoleCreationRecoveryReply/
@@ -61,9 +61,9 @@ test("role creation conversation stays model-authored while successful completio
     confirmation,
     /missingFieldsReply|declinedReply|completedReply/
   );
-  assert.match(
-    confirmation,
-    /completed[\s\S]*buildRoleCreationCompletionMessage/
-  );
+  assert.doesNotMatch(confirmation, /buildRoleCreationCompletionMessage/);
+  assert.match(confirmation, /slackNotificationDelivered,/);
   assert.match(confirmation, /generateRoleCreationOutcomeReply/);
+  assert.match(confirmation, /if \(!assistantMessage\) \{/);
+  assert.doesNotMatch(confirmation, /!assistantMessage && args.messageType === "slack"/);
 });

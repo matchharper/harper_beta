@@ -14,6 +14,48 @@ export type Database = {
   };
   public: {
     Tables: {
+      company_first_talent_scores: {
+        Row: {
+          talent_id: string;
+          role_id: string;
+          score: number;
+          role_fit: string;
+          candidate_fit: string;
+          company_fit: string;
+          reason: string;
+          criteria_evaluations: Json;
+          scored_at: string;
+          evaluation_as_of: string;
+          source_run_id: string;
+        };
+        Insert: {
+          talent_id: string;
+          role_id: string;
+          score: number;
+          role_fit: string;
+          candidate_fit: string;
+          company_fit: string;
+          reason: string;
+          criteria_evaluations?: Json;
+          scored_at: string;
+          evaluation_as_of: string;
+          source_run_id: string;
+        };
+        Update: {
+          talent_id?: string;
+          role_id?: string;
+          score?: number;
+          role_fit?: string;
+          candidate_fit?: string;
+          company_fit?: string;
+          reason?: string;
+          criteria_evaluations?: Json;
+          scored_at?: string;
+          evaluation_as_of?: string;
+          source_run_id?: string;
+        };
+        Relationships: [];
+      };
       billing_sessions: {
         Row: {
           amount_krw: number;
@@ -8591,6 +8633,7 @@ export type Database = {
       };
       worker_runtime_settings: {
         Row: {
+          company_first: Json;
           created_at: string;
           found_threshold: number;
           name: string;
@@ -8601,6 +8644,7 @@ export type Database = {
           variant_candidate_limit: number;
         };
         Insert: {
+          company_first?: Json;
           created_at?: string;
           found_threshold: number;
           name: string;
@@ -8611,6 +8655,7 @@ export type Database = {
           variant_candidate_limit: number;
         };
         Update: {
+          company_first?: Json;
           created_at?: string;
           found_threshold?: number;
           name?: string;
@@ -8624,9 +8669,24 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      talent_effective_opportunity_recommendations_v1: {
+        Row: Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"];
+        Relationships: Database["public"]["Tables"]["talent_opportunity_recommendation"]["Relationships"];
+      };
     };
     Functions: {
+      company_first_pair_is_available_v1: {
+        Args: { p_talent_id: string; p_role_id: string };
+        Returns: boolean;
+      };
+      current_talent_recommendation_id_v1: {
+        Args: { p_recommendation_id: string };
+        Returns: string;
+      };
+      current_talent_recommendation_for_talent_v1: {
+        Args: { p_talent_id: string; p_recommendation_id: string };
+        Returns: string | null;
+      };
       accept_talent_internal_role_recommendation_v1: {
         Args: {
           p_context?: Json;

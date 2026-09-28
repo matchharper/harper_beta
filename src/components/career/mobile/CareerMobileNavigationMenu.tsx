@@ -1,8 +1,8 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,9 +18,10 @@ export type CareerMobileNavigationOptionId =
 
 export type CareerMobileNavigationOption = {
   badgeCount?: number;
+  badgeClassName?: string;
   id: CareerMobileNavigationOptionId;
   label: string;
-  icon?: LucideIcon;
+  icon?: ComponentType<{ className?: string; strokeWidth?: number }>;
 };
 
 type CareerMobileNavigationMenuProps = {
@@ -71,14 +72,24 @@ export default function CareerMobileNavigationMenu({
             >
               {Icon ? (
                 <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-neutral-muted">
-                  <Icon className="h-4 w-4" />
+                  <Icon
+                    className="h-4 w-4"
+                    strokeWidth={option.id === "home" ? undefined : 1.5}
+                  />
                 </span>
               ) : null}
               <span className="min-w-0 flex-1 truncate">{option.label}</span>
               {badgeCount > 0 ? (
-                <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-action px-2.5 text-[11px] leading-none text-neutral-00">
+                <Badge
+                  className={cn(
+                    "min-w-5 bg-primary-faded font-normal tabular-nums text-primary",
+                    option.badgeClassName
+                  )}
+                  radius="full"
+                  size="sm"
+                >
                   {badgeCount}
-                </span>
+                </Badge>
               ) : null}
             </DropdownMenuItem>
           );

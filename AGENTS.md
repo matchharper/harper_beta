@@ -52,7 +52,11 @@
   recommendation/follow-up path. A `company_first` decision may create only
   the company-side `ready` artifact; its candidate-visible recommendation,
   message, email, and follow-up begin only after a company explicitly requests
-  the intro. Never create both active routes for the same company and Talent.
+  the intro. An existing unanswered or declined Harper recommendation may coexist
+  with a company-first ready proposal for the same Role. Do not create a new duplicate
+  candidate-first recommendation. A company Intro supersedes the older candidate
+  card; accepting the older recommendation while the company proposal is still ready
+  closes that proposal and moves the candidate to pending connection atomically.
 
 ## Company-side UX writing
 
@@ -79,6 +83,8 @@
 - Agent-system data must accommodate diverse inputs an LLM may generate; avoid overly restrictive database constraints that reject otherwise valid variations.
 
 ## Prompt and context design
+
+- Company-side LLM의 prompt, context, tool, model 또는 evaluation을 변경하기 전에 `docs/company-side-agent-engineering-contract-ko.md`를 읽는다. 지침은 해당 책임 원본에서 수정하고 시나리오별 규칙을 다른 prompt에 덧붙이지 않는다. 관련 frozen 평가를 재실행하고 한계와 실패를 기록한다.
 
 - Career Memory/Brief 변경·리뷰 전에는 `docs/talent-unified-memory-implementation-plan-ko.md`의 설계 계약을 읽는다. 온보딩의 기존 extraction·checklist·진행 로직은 유지하되, 이후에는 원본 LLM의 공통 read/write tool을 사용한다. 의미 판단을 별도 추출 모델이나 룰베이스·키워드 분류로 옮기지 않는다. 서버는 권한·타입·식별자·동시 수정·안전 경계를 검증한다. 설계 문서를 구현 완료의 증거로 취급하지 않는다.
 - Brief의 새 주제는 자유 형식 label·content로 저장하고, 일반 tool에 key enum이나 key 작성 요구를 두지 않는다. 기존 key는 온보딩·이관·reader 호환 metadata로 보존한다. 기존 행은 짧은 ref로 수정하며 label을 식별자나 의미 분류 규칙으로 사용하지 않는다. 고정 key가 없는 Brief도 사용자측 채팅·검색·추천·UI에 포함한다.

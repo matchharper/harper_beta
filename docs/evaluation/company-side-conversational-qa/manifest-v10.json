@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "v10",
+  "frozenAt": "2026-09-28T03:53:44.567145+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "gold-v7.md": "629cb41140afa2b9634e6969103e97f9887b80d827906840ec30c3ea665573cb",
+    "gold-v8.md": "78dadbc4040fdb8ccd4afef3ce60214a246f416c1509b8914d8db75826d6bbb7",
+    "role-creation-v3.json": "ddfd0fc8e309882469900d39b55be554caf9528377c8eb805631740d2b84f199",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37",
+    "../company-talent-contacts/context-v1.json": "b1d12b2dad6530d0ffb48dbe2339cef9aa711aa51698124dd7d85bf257b8c85d",
+    "cases-v9.json": "add4fba0eccdff37c923c618e8f601509fbf5b9c45b48df672ee4f69e6e0b243",
+    "gold-v9.md": "0f6fc0629e9ebaf6d8d21814719a98875f2d396ba58ae2e2ac30d3985e744350",
+    "cases-v10.json": "33f60f8e1f3fbf75a4236692d5c333673fea50b347f29ef9d29a1247c9adea96",
+    "gold-v10.md": "3e15cda2d3b138449621166bb0fde9f398a0963ebb2ac05f6502b04ee6464c06"
+  },
+  "evaluationUnit": "2 conversations / 3 turns, focused history challenge",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v10 --case=CSCQ1012 --run=<new>",
+  "provenance": "Synthetic cases from approved product contract, pre-run gold authored by Codex; independent team review pending.",
+  "privacy": "Synthetic only, no DB or external delivery. Raw/source owner-only ignored runs.",
+  "releaseGate": "Manual semantic review of all three turns, critical 0. Not full v9 coverage.",
+  "knownLimitations": "Synthetic read executor; actual SQL transitions verified separately."
+}

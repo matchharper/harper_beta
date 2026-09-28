@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/dev-color-palettes.css";
 
 @source not "../.next-e2e";
 
@@ -7,7 +8,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme {
+@theme static {
   --background-image-gradblack: linear-gradient(
     180deg,
     #111111 0%,
@@ -26,36 +27,37 @@
     #94b8f0 100%
   );
 
-  --color-beige50: #fdfaf3;
-  --color-beige100: #fdf6ee;
-  --color-beige200: #f7f0e8;
-  --color-beige700: #ac7850;
-  --color-beige500: #f2e7dc;
-  --color-beige900: #2e1706;
+  /* Global default: the "누런끼 조금 제거" (soft) palette. */
+  --color-beige50: #fdfcfb;
+  --color-beige100: #faf9f6;
+  --color-beige200: #f6f4f0;
+  --color-beige700: #97816e;
+  --color-beige500: #efece7;
+  --color-beige900: #2a231d;
   --color-beigeblack: #141413;
 
   --color-black: #000000;
   --color-white: #ffffff;
 
-  --color-neutral-00: #fffefd;
-  --color-neutral-100: #fbf8f5;
-  --color-neutral-200: #f3efeb;
-  --color-neutral-300: #e8e2dc;
-  --color-neutral-400: #d9d0c8;
-  --color-neutral-500: #c8bcb2;
-  --color-neutral-600: #958a82;
-  --color-neutral-700: #746b65;
-  --color-neutral-800: #514a45;
-  --color-neutral-900: #302a26;
-  --color-neutral-1000: #0b0908;
-  --color-neutral-1000-a05: #1f1c1a0d;
-  --color-neutral-1000-a10: #1f1c1a1a;
-  --color-neutral-1000-a50: #1f1c1a77;
+  --color-neutral-00: #ffffff;
+  --color-neutral-100: #faf9f8;
+  --color-neutral-200: #f5f4f3;
+  --color-neutral-300: #eae9e6;
+  --color-neutral-400: #dedcd8;
+  --color-neutral-500: #c5c2bd;
+  --color-neutral-600: #999792;
+  --color-neutral-700: #6b6966;
+  --color-neutral-800: #4b4946;
+  --color-neutral-900: #32312f;
+  --color-neutral-1000: #1b1b1a;
+  --color-neutral-1000-a05: #1b1b1a0d;
+  --color-neutral-1000-a10: #1b1b1a1a;
+  --color-neutral-1000-a50: #1b1b1a77;
 
-  --color-accent-00: #fffaf6;
-  --color-accent-100: #ffe7d6;
-  --color-accent-200: #ffd0ad;
-  --color-accent-300: #ffb176;
+  --color-accent-00: #fdfcfa;
+  --color-accent-100: #fbf6f1;
+  --color-accent-200: #f6ece3;
+  --color-accent-300: #efddcf;
   --color-accent-400: #ef8841;
   --color-accent-500: #d96b28;
   --color-accent-600: #b95418;
@@ -67,8 +69,8 @@
   --color-accent-900: #471a05;
   --color-accent-1000: #2c0f02;
 
-  --color-red-00: #ffedea;
-  --color-red-100: #ffddd7;
+  --color-red-00: #fff9f7;
+  --color-red-100: #fff1ee;
   --color-red-200: #ffc3b9;
   --color-red-300: #ffaca0;
   --color-red-400: #f77f6f;
@@ -80,8 +82,8 @@
   --color-red-900: #45120b;
   --color-red-1000: #220805;
 
-  --color-yellow-00: #fff6e3;
-  --color-yellow-100: #fef3c7;
+  --color-yellow-00: #fffcf5;
+  --color-yellow-100: #fff9e9;
   --color-yellow-200: #fde68a;
   --color-yellow-400: #fbbf24;
   --color-yellow-500: #f59e0b;
@@ -91,8 +93,8 @@
   --color-yellow-900: #78350f;
   --color-yellow-1000: #451a03;
 
-  --color-blue-00: #eef7ff;
-  --color-blue-100: #d7e6ff;
+  --color-blue-00: #f8fbff;
+  --color-blue-100: #eef5ff;
   --color-blue-200: #c3d8ff;
   --color-blue-300: #a9c4ff;
   --color-blue-400: #7da4f8;
@@ -103,8 +105,8 @@
   --color-blue-900: #102042;
   --color-blue-1000: #081022;
 
-  --color-green-00: #ebfff3;
-  --color-green-100: #d4f3de;
+  --color-green-00: #f7fcf9;
+  --color-green-100: #edf8f0;
   --color-green-200: #b9ecc1;
   --color-green-300: #9fdcab;
   --color-green-400: #71c887;
@@ -115,8 +117,8 @@
   --color-green-900: #0d2c17;
   --color-green-1000: #06150b;
 
-  --color-info-00: #fff6e3;
-  --color-info-100: #fef3c7;
+  --color-info-00: #fffcf5;
+  --color-info-100: #fff9e9;
   --color-info-200: #fde68a;
   --color-info-300: #fcd34d;
   --color-info-400: #fbbf24;
@@ -128,18 +130,19 @@
   --color-info-1000: #451a03;
   --color-positive-100: var(--color-green-100);
   --color-positive-500: var(--color-green-500);
-  --color-action-100: #0092ff55;
+  --color-action-100: #0092ff14;
   --color-action-500: #0092ff;
   --color-critical-100: var(--color-red-100);
   --color-critical-500: var(--color-red-700);
 
   --color-bg-default: var(--color-neutral-00);
-  --color-bg-basement: var(--color-neutral-100);
+  --color-bg-basement: color-mix(in srgb, var(--color-neutral-100) 40%, #ffffff);
   --color-bg-floating: #ffffff;
   --color-bg-weak: var(--color-neutral-200);
   --color-neutral-primary: var(--color-neutral-1000);
   --color-neutral-muted: var(--color-neutral-700);
   --color-neutral-soft: var(--color-neutral-600);
+  --color-faded: var(--color-neutral-soft);
   --color-neutral-placeholder: var(--color-neutral-1000-a50);
   --color-neutral-disabled: var(--color-neutral-500);
   --color-link: var(--color-blue-500);
@@ -269,7 +272,7 @@
 
   :root {
     --foreground-rgb: 0, 0, 0;
-    --main-body-background: #fffefd;
+    --main-body-background: var(--color-bg-default);
     --background-start-rgb: 248, 247, 245;
     --background-end-rgb: 248, 247, 245;
     --font-inter: "Inter";

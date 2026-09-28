@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { COMPANY_CAPABILITY_POLICIES } from "./capabilities/policies";
 import {
   getEnabledOrgAgentTools,
   ORG_AGENT_TOOLS,
@@ -301,7 +302,7 @@ test("stage scheduling can prepare a meeting without moving an already-staged ca
 
   assert.match(
     move?.function.description ?? "",
-    /targetStageId may equal the current custom stage/
+    /retain the current active stage/
   );
   assert.match(
     move?.function.description ?? "",
@@ -321,7 +322,7 @@ test("stage scheduling can prepare a meeting without moving an already-staged ca
   );
   assert.match(
     parameters.properties.targetStageId.description,
-    /may equal expectedCurrentStageId/
+    /retain expectedCurrentStageId/
   );
 });
 
@@ -612,7 +613,7 @@ test("pipeline management can continue into one sequential candidate movement", 
   assert.match(move.function.description, /compare-and-set/);
   assert.match(
     move.function.description,
-    /pending_connection may move only to a custom/
+    /pending_connection moves to connected by default/
   );
   assert.match(
     move.function.description,
@@ -663,7 +664,7 @@ test("read_role documents built-in pipeline stage filter values", () => {
   assert.match(stageDescription, /company_intro=먼저 제안 가능한 후보/);
   assert.match(stageDescription, /intro_requested=Intro Requested/);
   assert.match(stageDescription, /pending_connection=연결 대기/);
-  assert.match(stageDescription, /connected=진행 중/);
+  assert.match(stageDescription, /connected=연결됨/);
   assert.match(stageDescription, /process_stopped=프로세스 종료/);
 });
 
@@ -692,8 +693,10 @@ test("read_talent accepts up to ten IDs and keeps resume output availability-onl
   assert.equal("preferenceTopics" in properties, false);
   assert.match(
     readTalent?.function.description ?? "",
-    /five safe career insights/
+    /safe career insights/
   );
+  assert.match(readTalent?.function.description ?? "", /unaccepted company-first proposal/);
+  assert.match(readTalent?.function.description ?? "", /never exposes the private email/);
   assert.match(
     readTalent?.function.description ?? "",
     /Compensation.*never returned/
@@ -704,11 +707,11 @@ test("read_talent accepts up to ten IDs and keeps resume output availability-onl
   );
   assert.match(
     readTalent?.function.description ?? "",
-    /includeProfile=false \(the compact default\).*candidate name, email, and headline/
+    /For already-shared candidates, includeProfile=false \(the compact default\).*name, email, headline/
   );
   assert.match(
     readTalent?.function.description ?? "",
-    /includeProfile=true.*current profile location, bio, structured work history, education, and extras/
+    /includeProfile=true, shared candidates.*profile location, bio, work history, education, and extras/
   );
   assert.match(
     String((properties.includeProfile as any).description),
@@ -760,101 +763,16 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
   assert.equal(parameters.properties.items.minItems, 1);
   assert.equal(parameters.properties.items.maxItems, 10);
   assert.equal(parameters.properties.presentedDrafts.type, "boolean");
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /one to ten exact candidate contacts/
-  );
   assert.equal(parameters.properties.relayId.type, "string");
   assert.equal(parameters.properties.messageContent.type, "string");
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /presentedDrafts=true.*server resolves every exact ID and revision/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /exact targets are known.*contactId and expectedRevision.*without requiring them to appear again in a recent Harper message/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /never silently treat a partial batch as complete/
-  );
-  assert.match(
-    parameters.properties.requestContext.description,
-    /For create_draft:/
-  );
-  assert.match(
-    parameters.properties.requestContext.description,
-    /latest user's language/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /action=create_draft/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /recent conversation, current instruction, and candidate's saved locale/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /saves each complete subject and body without queuing delivery/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /action=revise_draft/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /action=schedule.*current company message explicitly approves one or more drafts/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /Scheduling never regenerates or rewrites copy/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /standard schedules exactly 5 minutes later at any time of day/
-  );
-  assert.match(
-    parameters.properties.deliveryMode.description,
-    /5 minutes after approval at any time of day/
-  );
-  assert.doesNotMatch(
-    contactTalent?.function.description ?? "",
-    /within 08:00–20:00 KST/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /action=immediate.*already queued.*preserves the approved subject and body/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /already said the request would be sent later, today, or tomorrow, never call schedule again/
-  );
-  assert.match(
-    parameters.properties.contactId.description,
-    /schedule, immediate, and cancel/
-  );
-  assert.match(contactTalent?.function.description ?? "", /action=cancel/);
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /candidate_contact_ref[\s\S]*list_contacts followed by read_contact/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /company-visible position for the Role/
-  );
-  assert.match(
-    contactTalent?.function.description ?? "",
-    /never changes that position's pipeline stage/
-  );
-  assert.doesNotMatch(
-    contactTalent?.function.description ?? "",
-    /프로세스 종료 positions are not active contact targets/
-  );
-  assert.doesNotMatch(
-    contactTalent?.function.description ?? "",
-    /must be in 연결 대기 for the Role/
-  );
+  assert.match(contactTalent?.function.description ?? "", /talentId \+ roleId \+ messageContent/);
+  assert.match(contactTalent?.function.description ?? "", /never changes candidate interest, sharing consent, or pipeline stage/);
+  const policy = COMPANY_CAPABILITY_POLICIES.candidate_contact;
+  for (const fact of ["lightweight reply or routine follow-up", "new first outreach", "one company review", "create_draft", "revise_draft", "expectedRevision", "presentedDrafts=true", "five-minute delay", "Never regenerate approved copy", "already queued", "immediate", "Cancel only", "list_contacts/read_contact", "partial", "idempotency"]) {
+    assert.ok(policy.includes(fact === "partial" ? "completed/incomplete" : fact), fact);
+  }
+  assert.match(parameters.properties.deliveryMode.description, /5 minutes after approval/);
+  assert.match(parameters.properties.contactId.description, /schedule, immediate, and cancel/);
   assert.equal(enabled.includes("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("change_talent_contact"), false);
   assert.equal(isOrgAgentToolName("cancel_talent_contact"), false);
@@ -925,4 +843,12 @@ test("ordinary candidate connection keeps scheduling on the stage-move path", ()
     JSON.stringify(prepare?.function.parameters),
     /schedule_interview/
   );
+});
+
+test("process tools defer all contact delivery decisions to the shared contact policy", () => {
+  for (const name of ["move_candidate_stage", "decide_candidate_connection"]) {
+    const description = ORG_AGENT_TOOLS.find(tool => tool.function.name === name)!.function.description;
+    assert.match(description, /contact_talent under its shared authorization policy/);
+    assert.doesNotMatch(description, /contact_talent create_draft/);
+  }
 });

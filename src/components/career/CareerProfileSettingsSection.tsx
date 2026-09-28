@@ -11,7 +11,7 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import React, { KeyboardEvent, useMemo, useState } from "react";
+import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useCareerProfileContext } from "./CareerSidebarContext";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -28,7 +28,12 @@ import {
 } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/panel";
-import { Tooltips } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 
@@ -110,6 +115,88 @@ const getEngagementTypeOptions = (
   },
 ];
 
+const ProfileVisibilityChoice = ({
+  option,
+  selected,
+  disabled,
+  isAtScrollTop,
+  tooltipsEnabled,
+  upliftDescription,
+  onSelect,
+}: {
+  option: ProfileVisibilityOption;
+  selected: boolean;
+  disabled: boolean;
+  isAtScrollTop: boolean;
+  tooltipsEnabled: boolean;
+  upliftDescription: string;
+  onSelect: () => void;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const isOpenToMatches = option.value === "open_to_matches";
+  const hasPersistentHint = isOpenToMatches && !selected;
+  const showPersistentHint = hasPersistentHint && isAtScrollTop;
+  const compact = hasPersistentHint && !expanded;
+
+  return (
+    <div className={hasPersistentHint ? "mt-7 md:mt-0" : undefined}>
+      <Tooltip
+        open={tooltipsEnabled && (showPersistentHint || expanded)}
+        onOpenChange={setExpanded}
+      >
+        <TooltipTrigger asChild>
+          <ChoiceCard
+            onClick={onSelect}
+            onPointerMove={(event) => {
+              if (hasPersistentHint && event.pointerType !== "touch") {
+                setExpanded(true);
+              }
+            }}
+            onFocus={() => {
+              if (hasPersistentHint) setExpanded(true);
+            }}
+            disabled={disabled}
+            selected={selected}
+            aria-pressed={selected}
+            className="h-11 justify-center whitespace-nowrap px-3 text-center text-sm font-medium"
+          >
+            <option.Icon className="h-4 w-4" />
+            <span>{option.label}</span>
+          </ChoiceCard>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          sideOffset={0}
+          showArrow
+          arrowClassName="bg-black fill-black"
+          hideWhenDetached
+          onPointerEnter={() => {
+            if (hasPersistentHint) setExpanded(true);
+          }}
+          className={`max-w-[calc(100vw-32px)] rounded-lg bg-black text-white transition-[width,padding] duration-200 motion-reduce:transition-none ${
+            compact ? "w-14 text-center font-medium" : "w-80 py-3 leading-5"
+          }`}
+        >
+          <div
+            className={`overflow-hidden transition-[max-height] duration-200 motion-reduce:transition-none ${
+              compact ? "max-h-4" : "max-h-72"
+            }`}
+          >
+            {compact ? (
+              "65%"
+            ) : (
+              <div className="space-y-2">
+                <p>{option.description}</p>
+                {isOpenToMatches ? <p>{upliftDescription}</p> : null}
+              </div>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+};
+
 const formatUpdatedAt = (value: string, locale: Locale) => {
   return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
     year: "numeric",
@@ -121,11 +208,15 @@ const formatUpdatedAt = (value: string, locale: Locale) => {
 };
 
 export const CareerProfileSharingSettingsSection = ({
+  showBlockedCompanies = true,
   showEngagementTypes = true,
   showLastUpdated = true,
+  showProfileVisibility = true,
 }: {
+  showBlockedCompanies?: boolean;
   showEngagementTypes?: boolean;
   showLastUpdated?: boolean;
+  showProfileVisibility?: boolean;
 }) => {
   const t = useCareerT();
 
@@ -156,6 +247,41 @@ export const CareerProfileSharingSettingsSection = ({
     useState<CareerProfileVisibility | null>(null);
   const [blockedCompaniesSavePending, setBlockedCompaniesSavePending] =
     useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+  const [isAtScrollTop, setIsAtScrollTop] = useState(false);
+
+  useEffect(() => {
+    if (!showProfileVisibility) return;
+
+    let scrollTarget: HTMLElement | Window = window;
+    for (
+      let parent = settingsRef.current?.parentElement;
+      parent;
+      parent = parent.parentElement
+    ) {
+      const overflowY = getComputedStyle(parent).overflowY;
+      if (overflowY === "auto" || overflowY === "scroll") {
+        scrollTarget = parent;
+        break;
+      }
+    }
+
+    const updateScrollPosition = () => {
+      const scrollTop =
+        scrollTarget === window
+          ? window.scrollY
+          : (scrollTarget as HTMLElement).scrollTop;
+      setIsAtScrollTop(scrollTop <= 0);
+    };
+
+    updateScrollPosition();
+    scrollTarget.addEventListener("scroll", updateScrollPosition, {
+      passive: true,
+    });
+    return () => {
+      scrollTarget.removeEventListener("scroll", updateScrollPosition);
+    };
+  }, [showProfileVisibility]);
 
   const isSavePending = settingsSaving;
   const hasUnsavedChanges = hasUnsavedTalentSettingsChanges;
@@ -166,6 +292,10 @@ export const CareerProfileSharingSettingsSection = ({
     [t]
   );
   const engagementTypeOptions = useMemo(() => getEngagementTypeOptions(t), [t]);
+  const openToMatchesUpliftDescription = t(
+    "career.profile.career_profile_settings_section.open_to_matches_uplift",
+    "Open to matches 상태인 유저들은 평균적으로 65% 더 많은 기회를 연결받았어요."
+  );
   const selectedEngagementTypes = useMemo(
     () => new Set<CareerEngagementType>(engagementTypes),
     [engagementTypes]
@@ -300,7 +430,7 @@ export const CareerProfileSharingSettingsSection = ({
 
   return (
     <>
-      <div>
+      <div ref={settingsRef}>
         {showLastUpdated ? (
           <div className="mb-6 text-sm">
             <span className="text-neutral-soft">Last updated : </span>
@@ -309,72 +439,73 @@ export const CareerProfileSharingSettingsSection = ({
         ) : null}
 
         <div>
-          <Field
-            label={
-              <span className="inline-flex items-center gap-2">
-                <span>
-                  {t(
-                    "career.profile.career_profile_settings_section.1tnqucg",
-                    "프로필 공개"
-                  )}
+          {showProfileVisibility ? (
+            <Field
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span>
+                    {t(
+                      "career.profile.career_profile_settings_section.1tnqucg",
+                      "프로필 공개"
+                    )}
+                  </span>
+                  {profileVisibilitySavePending ? (
+                    <Loader2
+                      className="h-3.5 w-3.5 animate-spin text-neutral-muted"
+                      aria-label={"프로필 공개 저장 중"}
+                    />
+                  ) : null}
                 </span>
-                {profileVisibilitySavePending ? (
-                  <Loader2
-                    className="h-3.5 w-3.5 animate-spin text-neutral-muted"
-                    aria-label={"프로필 공개 저장 중"}
-                  />
-                ) : null}
-              </span>
-            }
-            hint={t(
-              "career.common.career.1bbxwls",
-              "어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지 정합니다."
-            )}
-          >
-            <div className="space-y-3">
-              <div className="grid gap-2 md:grid-cols-3">
-                {profileVisibilityOptions.map((option) => {
-                  const isSelected = option.value === profileVisibility;
-
-                  return (
-                    <Tooltips
-                      key={option.value}
-                      text={option.description}
-                      side="bottom"
-                    >
-                      <ChoiceCard
-                        onClick={() =>
-                          handleProfileVisibilitySelect(option.value)
-                        }
+              }
+              hint={t(
+                "career.common.career.1bbxwls",
+                "어떤 수준의 매칭에서 회사가 프로필을 볼 수 있는지 정합니다."
+              )}
+            >
+              <div className="space-y-3">
+                <TooltipProvider delayDuration={100}>
+                  <div
+                    className={`grid gap-2 md:grid-cols-3 ${
+                      profileVisibility !== "open_to_matches" ? "md:pt-7" : ""
+                    }`}
+                  >
+                    {profileVisibilityOptions.map((option) => (
+                      <ProfileVisibilityChoice
+                        key={option.value}
+                        option={option}
+                        selected={option.value === profileVisibility}
+                        isAtScrollTop={isAtScrollTop}
                         disabled={
                           settingsLoading ||
                           isSavePending ||
                           profileVisibilitySavePending
                         }
-                        selected={isSelected}
-                        className="h-11 justify-center whitespace-nowrap px-3 text-center text-sm font-medium"
-                      >
-                        <option.Icon className="h-4 w-4" />
-                        <span>{option.label}</span>
-                      </ChoiceCard>
-                    </Tooltips>
-                  );
-                })}
-              </div>
+                        tooltipsEnabled={
+                          !settingsLoading && pendingProfileVisibility === null
+                        }
+                        upliftDescription={openToMatchesUpliftDescription}
+                        onSelect={() =>
+                          handleProfileVisibilitySelect(option.value)
+                        }
+                      />
+                    ))}
+                  </div>
+                </TooltipProvider>
 
-              {settingsLoading ? (
-                <div className="flex items-center gap-2 text-[13px] text-neutral-muted">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  <span>
-                    {t(
-                      "career.profile.career_profile_settings_section.1qqh6ja",
-                      "불러오는 중"
-                    )}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-          </Field>
+                {settingsLoading ? (
+                  <div className="flex items-center gap-2 text-[13px] text-neutral-muted">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>
+                      {t(
+                        "career.profile.career_profile_settings_section.1qqh6ja",
+                        "불러오는 중"
+                      )}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </Field>
+          ) : null}
 
           {showEngagementTypes ? (
             <Field
@@ -399,138 +530,151 @@ export const CareerProfileSharingSettingsSection = ({
                 "지금 열려있는 기회를 모두 선택해주세요."
               )}
             >
-              <div className="grid gap-2 md:grid-cols-3">
-                {engagementTypeOptions.map((option) => {
-                  const isSelected = selectedEngagementTypes.has(option.value);
+              <TooltipProvider delayDuration={100}>
+                <div className="grid gap-2 md:grid-cols-3">
+                  {engagementTypeOptions.map((option) => {
+                    const isSelected = selectedEngagementTypes.has(
+                      option.value
+                    );
 
-                  return (
-                    <Tooltips
-                      key={option.value}
-                      text={option.description}
-                      side="bottom"
-                    >
-                      <ChoiceCard
-                        onClick={() =>
-                          void handleEngagementTypeToggle(option.value)
-                        }
-                        disabled={
-                          settingsLoading ||
-                          isSavePending ||
-                          engagementTypesSavePending
-                        }
-                        selected={isSelected}
-                        aria-pressed={isSelected}
-                        className="h-11 justify-center whitespace-nowrap px-3 text-center text-sm font-medium"
-                      >
-                        <option.Icon className="h-4 w-4" />
-                        <span>{option.label}</span>
-                      </ChoiceCard>
-                    </Tooltips>
-                  );
-                })}
-              </div>
+                    return (
+                      <Tooltip key={option.value}>
+                        <TooltipTrigger asChild>
+                          <ChoiceCard
+                            onClick={() =>
+                              void handleEngagementTypeToggle(option.value)
+                            }
+                            disabled={
+                              settingsLoading ||
+                              isSavePending ||
+                              engagementTypesSavePending
+                            }
+                            selected={isSelected}
+                            aria-pressed={isSelected}
+                            className="h-11 justify-center whitespace-nowrap px-3 text-center text-sm font-medium"
+                          >
+                            <option.Icon className="h-4 w-4" />
+                            <span>{option.label}</span>
+                          </ChoiceCard>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="top"
+                          sideOffset={0}
+                          showArrow
+                          arrowClassName="bg-black fill-black"
+                          className="max-w-80 rounded-lg bg-black text-white"
+                        >
+                          {option.description}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </TooltipProvider>
             </Field>
           ) : null}
 
-          <Field
-            label={
-              <span className="inline-flex items-center gap-2">
-                <span>
-                  {t(
-                    "career.profile.career_profile_settings_section.0o48hts",
-                    "차단 기업"
-                  )}
-                </span>
-                {blockedCompaniesSavePending ? (
-                  <Loader2
-                    className="h-3.5 w-3.5 animate-spin text-neutral-muted"
-                    aria-label={"차단 기업 저장 중"}
-                  />
-                ) : null}
-              </span>
-            }
-            icon={<ShieldAlert className="h-4 w-4" />}
-            hint={t(
-              "career.common.career.1v4kit0",
-              "여기에 등록된 회사와는 매칭이 일어나지 않고 프로필도 절대 공유되지 않습니다."
-            )}
-          >
-            <div className="space-y-2">
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Input
-                  value={blockedCompanyDraft}
-                  onChange={(event) =>
-                    setBlockedCompanyDraft(event.target.value)
-                  }
-                  onKeyDown={handleBlockedCompanyKeyDown}
-                  placeholder={t(
-                    "career.profile.career_profile_settings_section.10tme3s",
-                    "회사명을 입력하고 Enter"
-                  )}
-                  disabled={
-                    settingsLoading ||
-                    isSavePending ||
-                    blockedCompaniesSavePending
-                  }
-                  className="flex-1"
-                />
-                <MuteButton
-                  onClick={() => void handleAddBlockedCompany()}
-                  disabled={
-                    settingsLoading ||
-                    isSavePending ||
-                    blockedCompaniesSavePending
-                  }
-                >
+          {showBlockedCompanies ? (
+            <Field
+              label={
+                <span className="inline-flex items-center gap-2">
+                  <span>
+                    {t(
+                      "career.profile.career_profile_settings_section.0o48hts",
+                      "차단 기업"
+                    )}
+                  </span>
                   {blockedCompaniesSavePending ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Plus className="h-3 w-3" />
-                  )}
-                  {blockedCompaniesSavePending
-                    ? t(
-                        "career.profile.career_profile_settings_section.08zy6at",
-                        "저장 중..."
-                      )
-                    : t(
-                        "career.profile.career_profile_settings_section.07836ex",
-                        "추가"
-                      )}
-                </MuteButton>
-              </div>
-
-              {blockedCompanies.length === 0 ? (
-                <div className=""></div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {blockedCompanies.map((companyName) => (
-                    <div
-                      key={companyName}
-                      className="inline-flex items-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating py-1.5 pl-3 pr-1.5 text-sm text-neutral-primary shadow-xs"
-                    >
-                      <span>{companyName}</span>
-                      <ActionButton
-                        onClick={() =>
-                          void handleRemoveBlockedCompany(companyName)
-                        }
-                        disabled={
-                          settingsLoading ||
-                          isSavePending ||
-                          blockedCompaniesSavePending
-                        }
-                        actionVariant="icon"
-                        buttonRadius="rounded"
-                        className="h-6 w-6 border-transparent bg-transparent text-neutral-soft hover:bg-bg-weak"
-                        aria-label={`${companyName} 삭제`}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </ActionButton>
-                    </div>
-                  ))}
-                </div>
+                    <Loader2
+                      className="h-3.5 w-3.5 animate-spin text-neutral-muted"
+                      aria-label={"차단 기업 저장 중"}
+                    />
+                  ) : null}
+                </span>
+              }
+              icon={<ShieldAlert className="h-4 w-4" />}
+              hint={t(
+                "career.common.career.1v4kit0",
+                "여기에 등록된 회사와는 매칭이 일어나지 않고 프로필도 절대 공유되지 않습니다."
               )}
-            </div>
-          </Field>
+            >
+              <div className="space-y-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={blockedCompanyDraft}
+                    onChange={(event) =>
+                      setBlockedCompanyDraft(event.target.value)
+                    }
+                    onKeyDown={handleBlockedCompanyKeyDown}
+                    placeholder={t(
+                      "career.profile.career_profile_settings_section.10tme3s",
+                      "회사명을 입력하고 Enter"
+                    )}
+                    disabled={
+                      settingsLoading ||
+                      isSavePending ||
+                      blockedCompaniesSavePending
+                    }
+                    className="flex-1"
+                  />
+                  <MuteButton
+                    onClick={() => void handleAddBlockedCompany()}
+                    disabled={
+                      settingsLoading ||
+                      isSavePending ||
+                      blockedCompaniesSavePending
+                    }
+                  >
+                    {blockedCompaniesSavePending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Plus className="h-3 w-3" />
+                    )}
+                    {blockedCompaniesSavePending
+                      ? t(
+                          "career.profile.career_profile_settings_section.08zy6at",
+                          "저장 중..."
+                        )
+                      : t(
+                          "career.profile.career_profile_settings_section.07836ex",
+                          "추가"
+                        )}
+                  </MuteButton>
+                </div>
+
+                {blockedCompanies.length === 0 ? (
+                  <div className=""></div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {blockedCompanies.map((companyName) => (
+                      <div
+                        key={companyName}
+                        className="inline-flex items-center gap-2 rounded-[8px] border border-neutral-1000-a05 bg-bg-floating py-1.5 pl-3 pr-1.5 text-sm text-neutral-primary shadow-xs"
+                      >
+                        <span>{companyName}</span>
+                        <ActionButton
+                          onClick={() =>
+                            void handleRemoveBlockedCompany(companyName)
+                          }
+                          disabled={
+                            settingsLoading ||
+                            isSavePending ||
+                            blockedCompaniesSavePending
+                          }
+                          actionVariant="icon"
+                          buttonRadius="rounded"
+                          className="h-6 w-6 border-transparent bg-transparent text-neutral-soft hover:bg-bg-weak"
+                          aria-label={`${companyName} 삭제`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </ActionButton>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </Field>
+          ) : null}
         </div>
 
         {saveError && (
@@ -670,6 +814,14 @@ export const CareerProfileSharingSettingsSection = ({
 
 const CareerProfileSettingsSection = () => (
   <CareerProfileSharingSettingsSection />
+);
+
+export const CareerBlockedCompaniesSettingsSection = () => (
+  <CareerProfileSharingSettingsSection
+    showEngagementTypes={false}
+    showLastUpdated={false}
+    showProfileVisibility={false}
+  />
 );
 
 export default CareerProfileSettingsSection;

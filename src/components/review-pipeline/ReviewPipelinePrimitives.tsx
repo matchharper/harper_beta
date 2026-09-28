@@ -68,6 +68,7 @@ export function ReviewPipelineColumnHeader({
   collapsed = false,
   compact = false,
   count,
+  countPlacement = "label",
   description,
   label,
   onAdd,
@@ -81,6 +82,7 @@ export function ReviewPipelineColumnHeader({
   collapsed?: boolean;
   compact?: boolean;
   count: number;
+  countPlacement?: "label" | "end";
   description?: string;
   label: string;
   onAdd?: () => void;
@@ -139,17 +141,19 @@ export function ReviewPipelineColumnHeader({
                 </span>
               </Tooltips>
             ) : null}
-            <span
-              className={cn(
-                compact
-                  ? "text-[13px] ml-2 font-normal text-neutral-soft"
-                  : "rounded-sm bg-bg-default px-1.5 py-0.5 text-[13px] text-neutral-muted"
-              )}
-            >
-              {count}
-            </span>
+            {countPlacement === "label" ? (
+              <span
+                className={cn(
+                  compact
+                    ? "text-[13px] ml-2 font-normal text-neutral-soft"
+                    : "rounded-sm bg-bg-default px-1.5 py-0.5 text-[13px] text-neutral-muted"
+                )}
+              >
+                {count}
+              </span>
+            ) : null}
           </div>
-          <div className="flex items-center gap-1 flex-row">
+          <div className="flex shrink-0 items-center gap-1 flex-row">
             {onEdit ? (
               <BareButton
                 type="button"
@@ -198,6 +202,11 @@ export function ReviewPipelineColumnHeader({
               >
                 <Plus className="h-3.5 w-3.5" />
               </BareButton>
+            ) : null}
+            {countPlacement === "end" ? (
+              <span className="ml-2 text-[13px] font-normal tabular-nums text-neutral-soft">
+                {count}
+              </span>
             ) : null}
           </div>
         </div>

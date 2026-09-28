@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useId, useMemo, useState } from "react";
+import { FormEvent, useId, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import {
@@ -12,70 +12,30 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { OrgMember, OrgStage } from "@/lib/org/server";
-
-const NEW_STAGE_VALUE = "__new_stage__";
 
 export function CompanyIntroRequestDialog({
   candidateName,
   defaultEmail,
-  initialStageId,
-  members,
   onClose,
   onSubmit,
   open,
   pending,
-  roleId,
-  roleName,
-  stages,
 }: {
   candidateName: string;
   defaultEmail?: string | null;
-  initialStageId?: string | null;
-  members: OrgMember[];
   onClose: () => void;
   onSubmit: (value: {
     companyAppeal: string;
     introRecipientEmails: string[];
-    nextStageId: string | null;
-    newStageLabel: string | null;
   }) => Promise<unknown>;
   open: boolean;
   pending: boolean;
-  roleId: string;
-  roleName: string;
-  stages: OrgStage[];
 }) {
   const fieldId = useId();
-  const customStages = useMemo(
-    () =>
-      stages.filter(
-        (stage) => stage.roleId === roleId && stage.id.startsWith("custom:")
-      ),
-    [roleId, stages]
-  );
-  const defaultStageValue = customStages.some(
-    (stage) => stage.id === initialStageId
-  )
-    ? String(initialStageId)
-    : (customStages[0]?.id ?? NEW_STAGE_VALUE);
-  const [stageValue, setStageValue] = useState(defaultStageValue);
-  const [newStageLabel, setNewStageLabel] = useState("");
   const [companyAppeal, setCompanyAppeal] = useState("");
   const [emails, setEmails] = useState(defaultEmail?.trim() ?? "");
   const [error, setError] = useState("");
-
-  const memberEmails = members
-    .map((member) => member.email?.trim())
-    .filter((email): email is string => Boolean(email));
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -88,7 +48,6 @@ export function CompanyIntroRequestDialog({
       )
     );
     const appeal = companyAppeal.trim();
-    const creatingStage = stageValue === NEW_STAGE_VALUE;
     if (!appeal) {
       setError("후보자에게 전할 회사의 관심 이유를 적어 주세요.");
       return;
@@ -97,17 +56,11 @@ export function CompanyIntroRequestDialog({
       setError("후보자가 수락했을 때 CC할 회사 이메일을 입력해 주세요.");
       return;
     }
-    if (creatingStage && !newStageLabel.trim()) {
-      setError("후보자가 수락한 뒤 이동할 첫 단계를 입력해 주세요.");
-      return;
-    }
     setError("");
     try {
       await onSubmit({
         companyAppeal: appeal,
         introRecipientEmails: recipientEmails,
-        newStageLabel: creatingStage ? newStageLabel.trim() : null,
-        nextStageId: creatingStage ? null : stageValue.slice("custom:".length),
       });
     } catch (submitError) {
       setError(
@@ -124,6 +77,9 @@ export function CompanyIntroRequestDialog({
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>Request Intro: {candidateName}</DialogTitle>
+            <DialogDescription>
+              후보자가 수락하면 소개 이메일로 연결하고 연결됨으로 옮겨요.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="mt-5 space-y-5 text-[13px]">
@@ -132,10 +88,9 @@ export function CompanyIntroRequestDialog({
                 className="mb-2 block font-medium text-neutral-primary"
                 htmlFor={`${fieldId}-appeal`}
               >
-                이 후보자에게 함께 전달하고 싶은 내용(optional)
+                후보자에게 전할 회사의 관심 이유
               </label>
               <Textarea
-                aria-describedby={`${fieldId}-appeal-help`}
                 className="min-h-28"
                 disabled={pending}
                 id={`${fieldId}-appeal`}
@@ -146,6 +101,20 @@ export function CompanyIntroRequestDialog({
             </div>
           </div>
 
+          <label className="mt-4 block text-[13px]">
+            수락 시 소개 이메일을 받을 회사 이메일
+            <Input
+              className="mt-2"
+              value={emails}
+              disabled={pending}
+              onChange={(event) => setEmails(event.target.value)}
+            />
+          </label>
+          {error ? (
+            <p role="alert" className="mt-3 text-[13px] text-critical">
+              {error}
+            </p>
+          ) : null}
           <DialogFooter className="mt-6">
             <MuteButton disabled={pending} onClick={onClose} type="button">
               취소

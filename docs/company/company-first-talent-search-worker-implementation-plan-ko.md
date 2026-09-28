@@ -1,5 +1,13 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+> 2026-09-29 로컬 구현: [운영 설정 계약](./company-first-runtime-settings-ko.md)에 따라 예약 주기·시간대·정기/직접 요청 Role별 상한·미처리 제안 한도를 DB에서 읽는다. 아래 월요일 09:00, 3명/6명, 30명은 기본값이다. 관련 DB migration은 적용했으며 새 Ops 화면과 Worker 코드는 아직 미배포다.
+
+> 2026-09-28 로컬 구현: Intro 전달 직전 guard는 `next_stage_id`가 NULL인 기본 `연결됨` 요청도 허용한다. 값이 있는 기존 목적지는 동일 Role 소속을 검사한다. 동의·공개 범위·역할 상태·testOnly 검사는 유지한다. optional-stage migration은 운영 DB에 적용했지만 웹·Worker 코드는 아직 미배포다. 새 웹을 공개하기 전에 이 Worker guard도 반영해야 한다.
+
+> 2026-09-28 로컬 구현: [추천 이력·scoring 재사용 계약](./company-first-history-and-scoring-reuse-implementation-plan-ko.md)을 반영했다. 과거 company-first fit은 재사용하고 non-fit은 30일 뒤 SQL 검색 자격을 회복한다. 기존 미응답·거절 Harper 추천도 검토하며, 추천 이력과 현재 조건을 LLM이 함께 판단한다. 운영 migration 적용·배포는 별도다.
+
+> 2026-09-24 로컬 계약 보완: 전달된 제안의 답변 대기 중 회사가 승인한 메시지는 기존 연락 경로로 허용한다. 별도 follow-up worker나 분류기는 추가하지 않는다. 후보 선정·수락·공유 상태는 변하지 않는다. [현재 연락 계약](../company-talent-contacts-ko.md) 참고. 운영 배포를 뜻하지 않는다.
+
 - 문서 기준: 2026-09-23
 - 상태: candidate-first/company-first route 결정과 matching review persistence까지 local 구현. Migration 적용,
   production 배포, route-aware frozen gold와 서로 다른 회사·직군 3곳 shadow gate는 아직 완료하지 않았으며
@@ -147,23 +155,22 @@ Profile·Brief·Behavior Context·Role·회사 context를 읽은 reranker가 의
 - `company_intro_candidates/ready`: 회사에 먼저 실제로 보여 준 사실
 
 `fit.recommend=true`만으로 retrieval에서 제외하지 않는다. 그렇지 않으면 좋은 후보가 모두 빠져 회사에는
-애매한 사람만 남는다. 반대로 동일 Role의 candidate-visible recommendation이 이미 있으면 그
-Role–Talent pair만 hard exclude한다. 같은 회사의 다른 Role recommendation 이력만으로 Talent 전체를
-제외하지 않는다. Active candidate-origin progress 같은 기존 회사 단위 route guard는 그대로 적용한다.
+애매한 사람만 남는다. 동일 Role의 미응답·거절 recommendation도 회사 선제안 후보가 될 수 있다.
+해당 pair의 수락, 과거 company-first 제안, 후보자 직접 연결 요청 또는 이미 진행 중인 pipeline은
+제외한다. 다른 Role의 이력만으로 회사 전체에서 제외하지 않는다.
 
 ### 3.4 동시에 두 경로가 생기지 않게 하는 방법
 
 Selection 시작 시 조회만으로 race를 막을 수 없다. 최종 ready insert와 candidate-first recommendation
 생성 경로가 같은 transaction coordinator를 사용해야 한다.
 
-1. workspace–Talent와 Role–Talent 기준 transaction lock을 잡는다.
-2. 선택한 exact Role–Talent pair에 기존 recommendation 행이 없는지 다시 확인한다. 같은 회사의 다른
-   Role recommendation은 충돌로 보지 않는다. Candidate request, pipeline, progress, intro의 기존 회사
-   단위 충돌은 별도로 다시 확인한다.
+1. 후보자 변경 lock, 회사–후보자 route lock, 행 lock 순서로 잠근다.
+2. 선택 pair의 수락·회사 제안·직접 연결 요청·pipeline을 다시 확인한다. 기존 미응답·거절 추천은
+   company-first를 막지 않으며, candidate-first를 새로 만드는 경우에만 기존 추천을 제외한다.
 3. company-first가 이기면 `company_intro_candidates/ready`를 insert한다.
 4. candidate-first가 이기면 기존 Opportunity Worker의 forced single internal Role delivery run을 enqueue한다.
 5. candidate-first 생성 경로도 ready ledger를 같은 방식으로 검사한다.
-6. Rerank 이후 다른 route가 먼저 생겼다면 해당 pair는 이번 run에서 제외한다. 빈 slot을 약한 후보로
+6. Rerank 이후 추천·응답 사실이 바뀌었거나 실제 제외 상태가 됐으면 이번 run에서 제외한다. 빈 slot을 약한 후보로
    자동 보충하지 않는다.
 
 최종 reranker 판단은 `talent_opportunity_matching_review`에 남긴다. 이 table은 중간 reasoning state가 아니라
@@ -176,7 +183,7 @@ evaluation, 입력 fingerprint와 candidate-first discovery run 연결만 보존
 ### 4.1 시각과 enqueue
 
 - 기준 timezone: `Asia/Seoul`
-- 정기 실행: 매주 월요일 오전 9시 KST
+- 정기 실행 기본값: 매주 월요일 오전 9시 KST. 실행 시각·주기·시간대는 Ops 운영 설정에서 변경한다.
 - 별도 `harper-company-first-scheduler` process가 이 queue의 enqueue만 담당한다.
 - 실제 company run은 별도 `harper-company-first-worker` Python process가 claim한다.
 - Worker process는 작은 고정 consumer pool을 유지한다. 기본은 2개이고 환경 설정으로 1~8개 안에서
@@ -187,11 +194,11 @@ Company-first run을 기존 여섯 Opportunity Worker가 직접 소비하게 하
 회사 내부의 병렬 scoring이 Talent 단위 discovery queue를 굶기지 않게 하기 위해서다. LLM client,
 config, context loader, usage logging, shutdown·heartbeat 방식은 재사용한다.
 
-Scheduler는 매 분 leader lock 아래에서 due slot을 확인한다. `scheduled_slot`은 해당 월요일
-`09:00 KST`의 절대 시각이며 `(company_workspace_id, scheduled_slot, contract_version)` unique key로 중복
-enqueue를 막는다. Catch-up window는 **월요일 09:00 이상, 화요일 00:00 KST 미만**으로 고정한다. 09:00에
-process가 내려가 있었더라도 이 구간에서는 해당 slot을 한 번만 복구하고, 화요일이 되면 지난 slot과 지난
-여러 주를 소급 실행하지 않는다. 운영자가 실패 run을 수동 재실행하는 경우에는 새 `trigger=manual`과
+Scheduler는 매 분 DB의 최신 운영 설정을 읽고 due slot을 확인한다. `scheduled_slot`은 설정한 시간대에서
+현재 날짜 안의 가장 최근 실행 시각이다. `(company_workspace_id, scheduled_slot, contract_version)` unique key로
+중복 enqueue를 막는다. 기본 설정의 catch-up window는 **월요일 09:00 이상, 화요일 00:00 KST 미만**이다.
+실행기에 장애가 있어도 같은 날짜 안에서는 가장 최근 slot을 한 번 복구하며, 전날이나 여러 번 놓친 slot을
+소급하지 않는다. 운영자가 실패 run을 수동 재실행하는 경우에는 새 `trigger=manual`과
 `retry_of_run_id`를 쓰고 정기 slot의 unique key를 우회하지 않는다. 회사 사용자의 새 검색 요청은
 `trigger=company_requested`로 구분한다.
 
@@ -628,7 +635,9 @@ Raw `talent_messages`, Memory 원문, email body, candidate-side private convers
 - 반환 column은 UUID-compatible `talent_id` 하나
 - stable `ORDER BY`와 마지막 `talent_id` tie-break 요구. 정렬이 없거나 non-deterministic function을 쓰면
   validation 실패
-- planner가 쓴 LIMIT은 제거하고 Python이 `SELECT talent_id FROM (...) LIMIT %s` 형태의 hard LIMIT 적용
+- planner root LIMIT은 제거하고 runtime 자격 조건을 최종 WHERE에 넣는다. 하위 LIMIT/FETCH/OFFSET은 금지한다.
+  읽기 전용 cursor로 모델 정렬 순서대로 읽되 중복 ID를 제거한 뒤 unique Talent 한도에서 멈춘다.
+  최근 non-fit이나 이미 전달된 pair는 이 한도 전에 제외된다. 정규화된 모델 SQL과 실행 SQL을 구분한다.
 - `COUNT(*)`는 허용하되 row `SELECT *`는 금지하고, CTE·derived table alias는 그 relation이 실제 project한
   column만 참조할 수 있음
 - psycopg named parameter binding 전에 `LIKE/ILIKE '%...%'`의 literal percent만 escape하고 검증된 세 runtime
@@ -692,11 +701,9 @@ SQL 결과는 추천 가능한 후보가 아니라 **평가할 후보 ID**다. P
 
 ### 10.2 route·history
 
-- same workspace의 active `company_intro_candidates` 없음
-- 동일 Role–Talent pair에 candidate-visible recommendation 행이 없음. 같은 회사의 다른 Role 추천 이력은
-  이 조건으로 Talent 전체를 제외하지 않음
-- active company request, candidate-origin connection request, normal pipeline 없음
-- 회사나 후보자가 명시적으로 종료한 exact pair를 material change 없이 되살리지 않음
+- 같은 pair의 과거 `company_intro_candidates` 이력 없음(상태와 무관)
+- 같은 pair의 수락·candidate-origin connection request·normal pipeline 없음
+- 이전 Harper 추천·거절은 LLM 입력으로 제공하며 그 사실만으로 제외하지 않음
 - 최근 동일 회사 outreach와 contact-frequency policy 위반 없음
 
 이 검사는 planner SQL마다 흩어진 status 문자열로 구현하지 않는다. Candidate-first recommendation,
@@ -704,7 +711,7 @@ candidate-origin request, normal pipeline, company-first ledger를 한 곳에서
 만들고 retrieval post-filter와 final transaction이 같은 함수를 사용한다. “active”의 정확한 terminal status
 목록도 이 coordinator가 소유한다.
 
-과거 company-first `passed`, candidate decline, no response는 삭제하지 않고 terminal evidence로 읽는다.
+과거 company-first `passed`, 해당 Intro의 candidate decline, no response는 삭제하지 않고 terminal evidence로 읽는다. 일반 Harper 추천의 미응답·거절은 이 제외에 해당하지 않는다.
 재추천이 허용되는 material change 계약이 별도로 생기기 전에는 자동 재노출하지 않는다.
 
 ### 10.3 reply confidence
@@ -732,11 +739,11 @@ query가 놓친 더 적절한 sibling Role도 발견할 수 있게 한다.
 한 scoring call의 기본 단위는 다음이다.
 
 ```text
-Talent 한 명 × 회사 한 곳의 eligible Role 전체
+Talent 한 명 × 회사 한 곳의 이번에 scoring이 필요한 Role
 ```
 
 후보 여러 명을 한 prompt에 넣지 않는다. 후보끼리 비교하는 일은 reranker가 담당하고, scorer는 한 사람의
-증거를 빠뜨리지 않고 모든 Role에 독립적으로 판단한다. 회사의 Role이 context budget을 넘을 때는 기존
+증거를 빠뜨리지 않고 요청된 Role에 독립적으로 판단한다. 회사 전체 Role은 비교 context로 유지한다. 회사의 Role이 context budget을 넘을 때는 기존
 internal fit의 shared source Role/variant grouping을 사용해 loss 없이 나누고 결과를 합친다. 단순 문자열
 truncate로 Role을 누락하지 않는다.
 
@@ -754,6 +761,12 @@ Run 시작 시 load한 같은 snapshot을 모든 scoring call이 재사용한다
 - 기존 `talent_opportunity_fit` A/B/C, score, label, recommend, reason, company criteria evaluations,
   Behavior Context version, evaluated_at
 - retrieved-for Role ids
+- 이번에 scoring할 Role ID, 해당 후보자–Role의 짧은 추천·응답 이력
+
+직전 company-first fit은 scoring을 다시 호출하지 않는다. non-fit은 `scored_at + 30일 <= run 기준 시각`일
+때만 새 scoring 대상이다. 성공한 모든 scoring을 `company_first_talent_scores`에 저장하고 실패는 갱신하지 않는다.
+재사용 fit과 새 fit을 합친 뒤 기존 역할별 12쌍·회사별 50명/72쌍 상한을 한 번 적용한다. Rerank의
+`no_action`은 scoring 결과를 바꾸지 않는다. 재사용 후보도 최신 Brief·Behavior·추천 이력과 현재 역할 조건을 읽는다.
 
 기존 fit은 같은 canonical evaluator가 만든 **강한 prior**로 명시한다. 현재 Profile·전체 Search Brief·같은
 version Behavior Context·Role 사실과 양립하면 처음부터 같은 분석을 반복하지 않고 적극 재사용한다. 최신
@@ -789,7 +802,7 @@ fingerprint에 포함해 scoring 뒤 값이 바뀌면 commit을 중단한다. �
 }
 ```
 
-- 모든 input Role이 정확히 한 번 반환돼야 한다.
+- 이번에 scoring하도록 요청한 Role만 정확히 한 번 반환돼야 한다.
 - `score`는 pool trim과 관찰용 0~100 값이며 최종 선택을 자동 결정하지 않는다.
 - Python은 A/B/C 하한과 context budget용 Role별 score 순서만 사용해 rerank pool을 만든다. Scorer가 별도
   `pass`, route, communication plan을 중복 판단하지 않는다.
@@ -872,16 +885,17 @@ runtime gate는 `failed_talent_count / attempted_talent_count > 0.20`이면 run 
 이 cap은 quality threshold가 아니라 context budget이다. Pool trim 때문에 좋은 후보가 반복적으로 잘린다면
 hardcoded 직군 예외를 추가하지 않고 scoring prompt, pool cap, model 또는 retrieval eval을 개선한다.
 
-Rerank 입력은 full resume와 full JD를 다시 반복하지 않고 다음 compact evidence만 쓴다.
+재사용 fit과 신규 fit을 합친 뒤 위 pool 함수를 한 번만 적용한다. 재사용 pool을 별도로 덧붙이지 않는다.
+Rerank는 과거 점수와 현재 조건을 구분할 수 있도록 다음 context를 받는다.
 
-- Role id/name과 핵심 기준
+- pool에 포함된 Role의 id/name, 현재 Hiring Brief·역할 설명·위치·근무 방식·seniority·보상·기준
 - Talent id와 compact career summary
-- scorer의 각 Role A/B/C, score, reason과 validated criteria evaluations
+- scorer의 각 Role A/B/C, score, reason, 평가 시각과 호환되는 criteria evaluations
+- 현재 전체 Search Brief와 Behavior Context, 해당 pair의 짧은 추천·응답 사실
 - 저장된 canonical fit의 compact prior
 - retrieved-for Role
 - reply confidence `high|unknown`
-- 입력된 exact Role–Talent pair에 기존 recommendation이 없고, 나머지 회사 단위 route guard도
-  통과했다는 verified fact
+- pair별 허용 route. 이전 Harper 추천이 있으면 중복 candidate-first를 막고 company-first/no-action만 허용
 - 이번 search strategy
 
 ## 13. Stage 3 — Company-wide reranking
@@ -1064,8 +1078,8 @@ Writer 이후, ready transaction 전에 다음을 다시 batch 확인한다.
 - ready backlog가 30 미만이며 이번 insert 뒤 30을 넘지 않음
 - Talent visibility, delete, opt-out, block 상태가 여전히 허용
 - reply confidence가 LOW로 바뀌지 않음
-- 선택한 exact Role–Talent pair에 recommendation이 생기지 않음
-- 기존 회사 단위 company-first route, candidate-origin route, matching candidate-first queued run이 생기지 않음
+- 선택한 exact Role–Talent pair에 후보자 수락·진행 또는 company-first 제안 이력이 생기지 않음
+- candidate-first로 새 추천을 만드는 pair에는 기존 recommendation이 없음. company-first는 미응답·거절한 Harper 추천과 공존 가능
 - 같은 Talent가 같은 회사 selected set에 한 번만 존재
 - Role fingerprint와 selected Talent input fingerprint가 planning snapshot과 같음
 
@@ -1380,13 +1394,12 @@ Read-only executor는 Supabase transaction pool이 아니라 기존 dedicated se
 - Scorer가 criteria evaluations를 소유하고 reranker는 대표 Role 값을 재생성하지 않고 전달한다.
 - 모든 최종 rerank 판단이 새 compact `talent_opportunity_matching_review`에 저장된다.
 - Candidate-first는 기존 Opportunity Worker의 forced single Role delivery와 follow-up 경로를 사용한다.
-- Candidate-first actual route와 ready가 동시에 생기지 않는다.
+- 한 run은 한 후보에 한 route만 만든다. 이미 있는 미응답·거절 Harper 추천과 ready는 공존하며, 기존 추천을 수락하면 원자적으로 연결 대기로 옮긴다.
 - Writer는 selected safe facts만 읽고 회사가 먼저 연락할 이유를 정확히 설명한다.
 - Ready ledger와 delivery outbox가 원자적으로 저장되고 Slack은 멱등 재시도된다.
 - Role opt-out별 channel bundle을 지키고, Slack platform limit을 넘는 결과도 chunk로 전부 전달하며 성공
   chunk를 중복 발송하지 않는다.
-- Company-first로 결정된 pair의 candidate recommendation, email, follow-up은 회사가 먼저 제안하기를 누르기
-  전 0건이다. Candidate-first로 결정된 pair는 기존 candidate delivery를 즉시 시작한다.
+- Company-first 선정만으로 새 candidate recommendation, email, follow-up을 만들지 않는다. 과거 Harper 추천은 있을 수 있다. Intro 요청 transaction에서 실제 Intro recommendation을 확보하고 delivery가 같은 행을 완성한다. Candidate-first 결정은 기존 candidate delivery를 시작한다.
 - Eval release gate와 최소 세 곳 shadow review를 통과한다.
 - 문서와 실제 model/config/queue/schema가 일치한다.
 

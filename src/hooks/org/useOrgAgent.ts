@@ -33,10 +33,6 @@ import {
   getOrgAgentLiveChatKey,
   useOrgAgentLiveChatStore,
 } from "@/store/useOrgAgentLiveChatStore";
-import {
-  splitChatTextDeltaForReveal,
-  waitForChatTextReveal,
-} from "@/lib/chat/progressiveText";
 
 type OrgAgentMessagesPage = OrgAgentMessagesResponse;
 
@@ -387,6 +383,12 @@ export function useOrgAgentChat(args: {
       if (!workspaceId) return;
 
       let streamLiveChatKey = liveChatKey;
+      let streamFinished = false;
+      const finishStream = () => {
+        if (streamFinished) return;
+        streamFinished = true;
+        useOrgAgentLiveChatStore.getState().finish(streamLiveChatKey);
+      };
       const optimisticUserMessage: OrgAgentMessage = {
         authorUserId: args.currentUserId?.trim() || null,
         content: input.message,
@@ -561,20 +563,22 @@ export function useOrgAgentChat(args: {
                 (parsed.data as { delta?: unknown }).delta ?? ""
               );
               if (delta) {
+                const current =
+                  useOrgAgentLiveChatStore.getState().chats[streamLiveChatKey] ??
+                  EMPTY_ORG_AGENT_LIVE_CHAT;
                 useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
                   assistantStatus: "streaming",
+                  streamingText: current.streamingText + delta,
                 });
-                for (const revealChunk of splitChatTextDeltaForReveal(delta)) {
-                  const current =
-                    useOrgAgentLiveChatStore.getState().chats[
-                      streamLiveChatKey
-                    ] ?? EMPTY_ORG_AGENT_LIVE_CHAT;
-                  useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
-                    streamingText: current.streamingText + revealChunk,
-                  });
-                  await waitForChatTextReveal();
-                }
               }
+            } else if (parsed.event === "text_replace") {
+              const text = String((parsed.data as { text?: unknown }).text ?? "");
+              useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
+                assistantStatus: text ? "streaming" : "pending",
+                streamingText: text,
+              });
+            } else if (parsed.event === "done") {
+              finishStream();
             } else if (parsed.event === "tool_status") {
               const log = toThinkingLog(parsed.data);
               if (log) {
@@ -628,6 +632,7 @@ export function useOrgAgentChat(args: {
         ]);
         queriesInvalidated = true;
       } catch (error) {
+        if (streamFinished) return;
         useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
           error:
             error instanceof Error
@@ -657,7 +662,7 @@ export function useOrgAgentChat(args: {
               : []),
           ]);
         }
-        useOrgAgentLiveChatStore.getState().finish(streamLiveChatKey);
+        finishStream();
       }
     },
     [

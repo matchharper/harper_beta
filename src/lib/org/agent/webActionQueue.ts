@@ -31,6 +31,7 @@ export function parseCompanyAgentWebActionQueueMessage(
 export async function publishCompanyAgentWebActionJob(jobIdValue: string) {
   const jobId = clean(jobIdValue);
   if (!jobId) throw new Error("Company agent web-action job id is required");
+  if (process.env.HARPER_LOCAL_E2E === "1") return { messageId: jobId };
   return send(
     COMPANY_AGENT_WEB_ACTION_QUEUE_TOPIC,
     { jobId, kind: "web_action_job", version: 1 },

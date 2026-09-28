@@ -57,7 +57,6 @@ import {
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCancelOrgCompanyTalentRequest,
-  useCreateOrgReviewStage,
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
@@ -1338,7 +1337,6 @@ export function TalentDetailSimpleView() {
   } = useOrgWorkspace();
   const detail = detailQuery.data;
   const members = detail?.members ?? bootstrap.members;
-  const createCustomStage = useCreateOrgReviewStage();
   const requestCompanyIntro = useRequestOrgCompanyIntro();
   const passCompanyIntro = usePassOrgCompanyIntro();
   const addToast = useToastStore((state) => state.add);
@@ -1877,7 +1875,7 @@ export function TalentDetailSimpleView() {
         defaultEmail={currentUserEmail}
         members={members}
         open={acceptDialogOpen && Boolean(detail)}
-        pending={decisionPending || createCustomStage.isPending}
+        pending={decisionPending}
         onClose={closeAcceptDialog}
         onSubmit={async ({
           acceptReason,
@@ -1889,22 +1887,11 @@ export function TalentDetailSimpleView() {
           introEmails,
           meetingCandidateMessage,
           meetingPurpose,
-          processStageLabel,
           scheduleInterview,
           title,
         }) => {
           if (!acceptStageId || !onAcceptCandidate) return;
-          const stage =
-            detail?.recommendation.stage === "pending_connection" &&
-            acceptStageId === "connected"
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: processStageLabel ?? "",
-                    roleId: detail.role.roleId,
-                    workspaceId,
-                  })
-                ).stage.stage
-              : acceptStageId;
+          const stage = acceptStageId;
           const result = await onAcceptCandidate({
             acceptReason,
             additionalMessage,
@@ -1922,10 +1909,6 @@ export function TalentDetailSimpleView() {
           closeAcceptDialog();
           return result;
         }}
-        requiresProcessStage={
-          detail?.recommendation.stage === "pending_connection" &&
-          acceptStageId === "connected"
-        }
         roleTitle={detail?.role.name ?? ""}
       />
 
@@ -1946,31 +1929,14 @@ export function TalentDetailSimpleView() {
         key={detail?.companyIntro?.id ?? "closed"}
         candidateName={title}
         defaultEmail={currentUserEmail}
-        members={members}
         onClose={() => setCompanyIntroRequestOpen(false)}
-        onSubmit={async ({
-          companyAppeal,
-          introRecipientEmails,
-          newStageLabel,
-          nextStageId,
-        }) => {
+        onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!detail?.companyIntro) return;
           try {
-            const stageId = newStageLabel
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: newStageLabel,
-                    roleId: detail.role.roleId,
-                    workspaceId,
-                  })
-                ).stage.id
-              : nextStageId;
-            if (!stageId) throw new Error("수락 후 첫 단계를 선택해 주세요.");
             await requestCompanyIntro.mutateAsync({
               companyAppeal,
               introCandidateId: detail.companyIntro.id,
               introRecipientEmails,
-              nextStageId: stageId,
               workspaceId,
             });
             setCompanyIntroRequestOpen(false);
@@ -1991,10 +1957,7 @@ export function TalentDetailSimpleView() {
           }
         }}
         open={companyIntroRequestOpen && Boolean(detail?.companyIntro)}
-        pending={createCustomStage.isPending || requestCompanyIntro.isPending}
-        roleId={detail?.role.roleId ?? ""}
-        roleName={detail?.role.name ?? "해당 역할"}
-        stages={optionalBoard?.board?.stages ?? []}
+        pending={requestCompanyIntro.isPending}
       />
 
       <CompanyIntroPassDialog

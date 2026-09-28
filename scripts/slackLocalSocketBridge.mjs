@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { SocketModeClient } from "@slack/socket-mode";
+import { belongsToLocalRound } from "./localE2e/slackScope.mjs";
 
 const APP_ORIGIN =
   process.env.HARPER_LOCAL_APP_ORIGIN || "http://127.0.0.1:3000";
@@ -27,6 +28,14 @@ const forwardDelayMs = Math.min(
   Math.max(0, Number(process.env.HARPER_LOCAL_FORWARD_DELAY_MS || 0) || 0)
 );
 const execFileAsync = promisify(execFile);
+
+if (process.env.HARPER_LOCAL_E2E === "1") {
+  const { assertLocalStack } = await import("./localE2e/isolation.mjs");
+  assertLocalStack();
+  if (useVercelCliBypass || new URL(APP_ORIGIN).origin !== new URL(process.env.APP_BASE_URL).origin) {
+    throw new Error("Isolated Socket Mode must forward only to the local application");
+  }
+}
 
 if (!appToken.startsWith("xapp-")) {
   throw new Error("SLACK_HARPER_LOCAL_APP_TOKEN is required");
@@ -139,6 +148,15 @@ const client = new SocketModeClient({ appToken });
 
 client.on("interactive", async ({ ack, body }) => {
   try {
+    if (process.env.HARPER_LOCAL_E2E === "1") {
+      const channel = body?.channel?.id || body?.container?.channel_id;
+      // Modal submissions have no channel; the local app's stored modal
+      // metadata is validated by the normal interactivity handler.
+      if (body?.api_app_id !== process.env.SLACK_HARPER_LOCAL_APP_ID || (channel && channel !== onlyChannelId) || !belongsToLocalRound(body, Number(process.env.HARPER_LOCAL_SLACK_STARTED_AT))) {
+        await ack();
+        return;
+      }
+    }
     const response = await forwardInteraction(body);
     await ack(body?.type === "view_submission" ? response : undefined);
     const actionId = String(body?.actions?.[0]?.action_id || "").trim();
@@ -154,6 +172,11 @@ client.on("interactive", async ({ ack, body }) => {
 
 async function handleSlackEvent({ ack, body }) {
   try {
+    if (process.env.HARPER_LOCAL_E2E === "1" &&
+      (body?.api_app_id !== process.env.SLACK_HARPER_LOCAL_APP_ID || !belongsToLocalRound(body, Number(process.env.HARPER_LOCAL_SLACK_STARTED_AT)))) {
+      await ack();
+      return;
+    }
     if (
       (onlyMessageTs && String(body?.event?.ts || "").trim() !== onlyMessageTs) ||
       (onlyMessageTextPrefix &&

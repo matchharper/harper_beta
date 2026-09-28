@@ -99,6 +99,9 @@ export async function POST(req: NextRequest) {
         const queued = await enqueueOrgAgentWebActionTurn({
           actionContext: {
             decision: "request_intro",
+            candidateAcceptedAt: payload.candidateAcceptedAt,
+            currentStageTag: payload.stageTag,
+            newIntroCreated: payload.newIntroCreated,
             introCandidateId: payload.introCandidateId,
             nextStageId: String(body.nextStageId ?? "").trim(),
             status: payload.status,

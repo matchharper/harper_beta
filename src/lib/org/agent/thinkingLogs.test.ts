@@ -1,11 +1,42 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { OrgAgentThinkingLog } from "@/lib/org/agent/types";
 import {
   compactOrgAgentThinkingLogs,
+  finalizeOrgAgentThinkingLogs,
   getOrgAgentThinkingLogIcon,
   hasOrgAgentToolWork,
   upsertOrgAgentThinkingLog,
 } from "@/lib/org/agent/thinkingLogs";
+
+test("removes response generation from the saved terminal working log", () => {
+  const logs: OrgAgentThinkingLog[] = [
+    {
+      at: "2026-08-14T00:00:00.000Z",
+      id: "context",
+      label: "회사와 최근 추천 정보 확인 완료",
+      status: "done",
+    },
+    {
+      at: "2026-08-14T00:00:01.000Z",
+      id: "response",
+      label: "응답 생성 중",
+      status: "running",
+    },
+    {
+      at: "2026-08-14T00:00:02.000Z",
+      id: "call-1",
+      label: "후보자 확인 완료",
+      status: "done",
+    },
+  ];
+
+  assert.deepEqual(
+    finalizeOrgAgentThinkingLogs(logs, true).map((log) => log.id),
+    ["context", "call-1"]
+  );
+  assert.deepEqual(finalizeOrgAgentThinkingLogs(logs, false), []);
+});
 
 test("distinguishes model preparation logs from actual tool work", () => {
   assert.equal(

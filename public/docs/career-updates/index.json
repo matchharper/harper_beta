@@ -1,5 +1,17 @@
 [
   {
+    "date": "2026-09-28",
+    "tag": "IMPROVED",
+    "ko": "Harper의 화면 구성과 디자인을 새롭게 다듬었습니다.",
+    "en": "We've refreshed Harper's layout and design."
+  },
+  {
+    "date": "2026-09-28",
+    "tag": "IMPROVED",
+    "ko": "커리어에 대한 고민을 더 깊이 이야기할 수 있도록 Harper와의 대화를 개선했습니다. 앞으로의 방향이나 선택이 고민될 때, Harper와 함께 생각을 정리해 보세요.",
+    "en": "We've improved conversations with Harper so you can explore your career concerns in greater depth. When you're unsure about your next step or a career decision, talk it through with Harper."
+  },
+  {
     "date": "2026-09-21",
     "tag": "NEW",
     "ko": "특정 포지션에 맞춘 모의 인터뷰를 도와드립니다.",

@@ -359,6 +359,15 @@ function normalizeList(args: {
 
 function normalizeRewriteValue(key: CompanyDataKey, value: unknown) {
   const catalog = COMPANY_DATA_CATALOG[key];
+  if (catalog.type === "boolean") {
+    if (typeof value !== "boolean") {
+      throw new CompanyDataMutationError(
+        "invalid_boolean",
+        `${key} must be a boolean`
+      );
+    }
+    return value;
+  }
   if (catalog.type === "integer") {
     return normalizeInteger(value, catalog.nullable);
   }
@@ -647,6 +656,9 @@ export function formatCompanyDataValueForPreview(
   key: CompanyDataKey,
   value: unknown
 ) {
+  if (key === "role_is_company_first_search") {
+    return value === true ? "켜짐" : "꺼짐";
+  }
   if (key === "role_status" && value != null) {
     return humanizeOrgRoleStatus(value);
   }
@@ -1124,7 +1136,7 @@ export async function fetchCompanyDataSnapshot(args: {
 
   const internalResult = roleIds.length
     ? await (args.admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request")
+        .select("role_id, request, is_company_first_search")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -1228,6 +1240,7 @@ export async function fetchCompanyDataSnapshot(args: {
       role_location: role.location_text ?? null,
       salaryRange: role.salary_range ?? null,
       role_status: role.status,
+      role_is_company_first_search: internal.is_company_first_search,
       role_work_mode: role.work_mode ?? null,
       role_employment_types: Array.isArray(role.type) ? role.type : [],
       role_request: internal.request ?? null,

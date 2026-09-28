@@ -4,6 +4,8 @@
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "scripts": {
+    "local:e2e": "node scripts/localE2e/stack.mjs",
+    "local:e2e:seed": "node scripts/localE2e/seed.mjs",
     "dev": "HARPER_E2E_DIST_DIR=.next-e2e next dev",
     "dev:slack-socket": "node --env-file=.env.local scripts/slackLocalSocketBridge.mjs",
     "dev:slack-review-post": "node --env-file=.env.local --import tsx scripts/postLocalSlackTalentReview.ts",
@@ -71,6 +73,7 @@
     "bufferutil": "^4.1.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cron-parser": "5.6.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "exa-js": "^2.17.0",

@@ -23,6 +23,7 @@ const candidateCopy = readFileSync(
   "utf8"
 );
 const companyTools = readFileSync("src/lib/org/agent/tools.ts", "utf8");
+const contactPolicies = readFileSync("src/lib/org/agent/capabilities/policies.ts", "utf8");
 const companyToolExecution = readFileSync(
   "src/lib/org/agent/toolExecution.ts",
   "utf8"
@@ -138,19 +139,19 @@ test("Request Intro progress is fact-based and bypasses 7/21 fixed progress", ()
 test("contact_talent lets the model choose a verified direct relay reply", () => {
   assert.match(companyTools, /"create_draft",[\s\S]*"send",/);
   assert.match(
-    companyTools,
-    /Choose between create_draft and send from the conversational meaning, not keywords/
+    contactPolicies,
+    /Decide from the whole conversation whether delivery is authorized/
   );
   assert.match(companyTools, /messageContent:[\s\S]*relayId:/);
   assert.match(
     companyToolExecution,
-    /if \(action === "send"\)[\s\S]*fetchCompanyTalentRelayReplyTarget[\s\S]*generateCandidateContactDraft[\s\S]*sendCompanyTalentRelayReply/
+    /if \(action === "send" && has\(args.input, "relayId"\)\)[\s\S]*fetchCompanyTalentRelayReplyTarget[\s\S]*prepareDirectCandidateMessage[\s\S]*sendCompanyTalentRelayReply/
   );
   assert.match(
     companyToolExecution,
     /candidateMessageSent = sent\.status === "sent"[\s\S]*sent\.status === "queued"[\s\S]*"scheduled"[\s\S]*"not_sent"/
   );
-  assert.match(companyTools, /For send provide relayId and messageContent\./);
+  assert.match(companyTools, /For send provide talentId \+ roleId \+ messageContent, or relayId \+ messageContent/);
   assert.match(
     candidateCopy,
     /validateCompanyContactContext\(args\.requestContext\)/

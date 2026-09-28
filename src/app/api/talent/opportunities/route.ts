@@ -10,6 +10,7 @@ import {
 } from "@/lib/talentOnboarding/server";
 import {
   archiveEndedInternalOpportunitiesForTalent,
+  assertCurrentTalentRecommendation,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentOpportunityHistoryCounts,
@@ -524,6 +525,9 @@ export async function PATCH(req: NextRequest) {
         : null;
     responseLocale =
       talentSetting?.preferred_locale ?? body.locale ?? responseLocale ?? null;
+    if (action === "internal_decision_change") {
+      await assertCurrentTalentRecommendation({ admin, userId: user.id, recommendationId: opportunityId });
+    }
     let previousOpportunity: TalentOpportunityHistoryItem | null = null;
     if (
       action === "feedback" ||
@@ -901,7 +905,7 @@ export async function PATCH(req: NextRequest) {
           body.feedback === "positive" &&
           opportunity.opportunityType !== OpportunityType.IntroRequest
         ) {
-          shouldCreateInternalCallRequestOnFollowUp = true;
+          shouldCreateInternalCallRequestOnFollowUp = !("companyShared" in result && result.companyShared === true);
         }
 
         const isInternalAcceptance =
@@ -996,6 +1000,14 @@ export async function PATCH(req: NextRequest) {
       userMessage,
     });
   } catch (error) {
+    if (error instanceof InternalRoleAcceptanceError && error.reason === "internal_recommendation_superseded") {
+      return NextResponse.json({
+        error: careerT(responseLocale, "career.api.opportunities.superseded", "회사에서 새 Intro 요청을 보냈습니다. 최신 요청에서 응답해 주세요."),
+        errorCode: "internal_recommendation_superseded",
+        currentRecommendationId: error.currentRecommendationId,
+        historyShouldRefresh: true,
+      }, { status: 409 });
+    }
     if (
       error instanceof InternalRoleAcceptanceError &&
       error.reason === "target_role_unavailable"

@@ -1222,7 +1222,7 @@ function buildTalentOpportunityHistoryQuery(args: {
   userId: string;
 }) {
   let query = (
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
@@ -1371,7 +1371,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
       : 10;
 
   const [recommendationResponse, meetingResponse] = await Promise.all([
-    (args.admin.from("talent_opportunity_recommendation" as any) as any)
+    (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
       .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
       .eq("talent_id", args.userId)
       .or("feedback.not.is.null,saved_stage.is.null,saved_stage.neq.hidden")
@@ -1429,7 +1429,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
   let extraRows: RawRecentRecommendationPromptRow[] = [];
   if (extraMeetingRecommendationIds.length > 0) {
     const { data: extraData, error: extraError } = await ((
-      args.admin.from("talent_opportunity_recommendation" as any) as any
+      args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
     )
       .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
       .eq("talent_id", args.userId)
@@ -1474,7 +1474,7 @@ async function countTalentOpportunityRecommendations(args: {
   userId: string;
 }) {
   let query = (
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(
       args.sourceType
@@ -1518,7 +1518,7 @@ async function fetchSavedRowsMissingStage(args: {
   userId: string;
 }) {
   const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(
       `
@@ -2792,7 +2792,7 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
   if (ids.length === 0) return [];
 
   const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
@@ -2826,7 +2826,7 @@ export async function fetchTalentOpportunityHistoryByRoleIds(args: {
   if (roleIds.length === 0) return [];
 
   const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
@@ -3013,10 +3013,28 @@ async function resolvePositiveFeedbackSavedStage(args: {
 export class InternalRoleAcceptanceError extends Error {
   reason: string;
 
-  constructor(reason: string) {
+  currentRecommendationId: string | null;
+
+  constructor(reason: string, currentRecommendationId: string | null = null) {
     super(`Internal role recommendation acceptance was not applied: ${reason}`);
+    this.currentRecommendationId = currentRecommendationId;
     this.name = "InternalRoleAcceptanceError";
     this.reason = reason;
+  }
+}
+
+export async function assertCurrentTalentRecommendation(args: {
+  admin: AdminClient;
+  userId: string;
+  recommendationId: string;
+}) {
+  const { data: currentId, error } = await args.admin.rpc(
+    "current_talent_recommendation_for_talent_v1",
+    { p_talent_id: args.userId, p_recommendation_id: args.recommendationId }
+  );
+  if (error) throw error;
+  if (currentId && currentId !== args.recommendationId) {
+    throw new InternalRoleAcceptanceError("internal_recommendation_superseded", currentId);
   }
 }
 
@@ -3089,9 +3107,9 @@ async function acceptInternalRoleRecommendation(args: {
     status === "accepted" ||
     (status === "no_change" && result?.targetAccepted === true)
   ) {
-    return true;
+    return { companyShared: result?.companyShared === true };
   }
-  throw new InternalRoleAcceptanceError(reason);
+  throw new InternalRoleAcceptanceError(reason, String(result?.currentRecommendationId ?? "").trim() || null);
 }
 
 export async function updateTalentOpportunityHistoryItem(args: {
@@ -3125,6 +3143,10 @@ export async function updateTalentOpportunityHistoryItem(args: {
 
   const now = new Date().toISOString();
 
+  if (args.action === "feedback" || args.action === "saved_stage") {
+    await assertCurrentTalentRecommendation({ ...args, recommendationId: opportunityId });
+  }
+
   if (args.action === "memo") {
     const content = String(args.talentMemo ?? "").trim();
     if (!content) throw new Error("Memo content is required");
@@ -3154,6 +3176,9 @@ export async function updateTalentOpportunityHistoryItem(args: {
       }
     );
     if (error) {
+      if (error.message === "internal_recommendation_superseded") {
+        await assertCurrentTalentRecommendation({ ...args, recommendationId: opportunityId });
+      }
       throw new Error(error.message ?? "Failed to move talent role stage");
     }
     return { ok: true, opportunityId, updatedAt: now };
@@ -3188,18 +3213,17 @@ export async function updateTalentOpportunityHistoryItem(args: {
         };
       }
     }
-    if (
-      args.feedback === "positive" &&
-      (await acceptInternalRoleRecommendation({
+    const acceptance = args.feedback === "positive"
+      ? await acceptInternalRoleRecommendation({
         admin: args.admin,
         clearEmailAcceptanceConfirmation: args.clearEmailAcceptanceConfirmation,
         emailAcceptanceConfirmation: args.emailAcceptanceConfirmation,
         feedbackReason: args.feedbackReason,
         recommendationId: opportunityId,
         userId: args.userId,
-      }))
-    ) {
-      return { ok: true, opportunityId, updatedAt: now };
+      }) : false;
+    if (acceptance) {
+      return { ok: true, opportunityId, updatedAt: now, companyShared: acceptance.companyShared };
     }
 
     const savedStage =
@@ -3225,6 +3249,9 @@ export async function updateTalentOpportunityHistoryItem(args: {
       }
     );
     if (error) {
+      if (error.message === "internal_recommendation_superseded") {
+        await assertCurrentTalentRecommendation({ ...args, recommendationId: opportunityId });
+      }
       throw new Error(error.message ?? "Failed to update opportunity feedback");
     }
 

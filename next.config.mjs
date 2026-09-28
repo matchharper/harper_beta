@@ -1,8 +1,13 @@
+import { assertLocalStack } from "./scripts/localE2e/isolation.mjs";
+assertLocalStack();
 const supabaseHostname = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
 const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(process.env.HARPER_LOCAL_E2E === "1" ? {
+    typescript: { tsconfigPath: ".local/full-stack/tsconfig.json" },
+  } : {}),
   distDir: process.env.HARPER_E2E_DIST_DIR || ".next",
   images: {
     remotePatterns: [

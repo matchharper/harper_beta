@@ -257,7 +257,7 @@ export function formatPreparedMeetingScheduleConfirmation(args: {
   draft: PreparedMeetingScheduleDraft;
   roleName?: string;
 }) {
-  const { candidateName, draft, roleName } = args;
+  const { candidateName, draft } = args;
   const { config } = draft;
   const calendarSettingsUrl = clean(args.calendarSettingsUrl);
   const calendarSettingsLink = calendarSettingsUrl
@@ -272,8 +272,7 @@ export function formatPreparedMeetingScheduleConfirmation(args: {
   }
 
   if (draft.draftBlocker === "meeting_stage_missing") {
-    const stageText = draft.config.processStageName || roleName || "다음 단계";
-    return `${stageText} 단계에서 ${candidateName}님과 어떤 주제로, 몇 분 정도 이야기 나누고 싶으신지 알려주세요. 후보자도 미리 알면 좋을 내용이 있다면 함께 말씀해 주세요. 그 내용을 이 단계의 안내로 남겨 다음에도 자연스럽게 이어갈게요.`;
+    return `${candidateName}님과 미팅에서 어떤 이야기를 나누고 싶으신가요? 시간은 ${config.durationMinutes}분으로 준비할 수 있어요.`;
   }
 
   if (draft.draftBlocker === "calendar_connection_missing") {
@@ -317,4 +316,24 @@ export function formatPreparedMeetingScheduleConfirmation(args: {
     "",
     `이대로 ${candidateName}님과 연결하고, 가능한 시간을 물어볼 메일을 준비할까요? 미팅 주제나 길이, 함께 전할 말을 바꾸고 싶다면 지금 편하게 말씀해 주세요. 아직 ${candidateName}님께 메일이 보내지는 것은 아니에요.`,
   ].join("\n");
+}
+
+/** Stable across retries of one company request, distinct for subsequent meetings. */
+export function buildMeetingRequestIdempotencyKey(args: {
+  workspaceId: string;
+  recommendationId: string;
+  sourceCompanyMessageId: number;
+}) {
+  if (
+    !Number.isSafeInteger(args.sourceCompanyMessageId) ||
+    args.sourceCompanyMessageId <= 0
+  ) {
+    throw new Error("A meeting request needs its originating company message");
+  }
+  return [
+    "meeting_request",
+    args.workspaceId,
+    args.recommendationId,
+    args.sourceCompanyMessageId,
+  ].join(":");
 }

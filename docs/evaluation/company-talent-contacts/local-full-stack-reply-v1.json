@@ -1,0 +1,36 @@
+{
+  "datasetVersion": "local-full-stack-reply-v1",
+  "purpose": "Company question to candidate, candidate email or Career reply, and faithful company-visible relay through the current isolated local full stack.",
+  "provenance": "User requested a reply round-trip on 2026-09-28 using their two authorized fixture accounts. Business content, candidate profile and Role are synthetic. Real identifiers remain private.",
+  "setup": "Use existing marked local Role and ready proposal. Establish sharing/connection through normal Intro request and candidate acceptance before contact. Do not write connection status directly.",
+  "cases": [
+    {
+      "id": "LOCALREPLY01",
+      "channel": "email",
+      "companyMessage": "{candidate}님께 다음 주 화요일 오후 2시에 짧게 대화 가능한지 물어볼 메일을 먼저 작성해줘.",
+      "approval": "이 내용 그대로 지금 보내줘.",
+      "candidateReply": "화요일 오후 2시는 어렵고, 목요일 오전 11시는 가능합니다. 다만 첫 대화는 온라인으로만 할 수 있어요. 회사에 이 내용 그대로 전달해 주세요.",
+      "gold": [
+        "Exact candidate/Role and complete displayed draft; explicit approval sends the same current revision once.",
+        "Candidate email reply passes the signed local webhook and actual email worker, and is linked to the exact company request.",
+        "Company receives Tuesday unavailability, Thursday availability and the online-only condition without implying that a meeting is booked.",
+        "Original reply and company-authorized meaning are durably stored and visible in the originating company conversation.",
+        "No unrelated Role, candidate, fit, pipeline, interview or Calendar mutation. No duplicate reply or company delivery."
+      ]
+    },
+    {
+      "id": "LOCALREPLY02",
+      "channel": "career_chat",
+      "companyMessage": "{candidate}님께 주 3일 서울 사무실 출근이 가능한지 물어봐줘.",
+      "approvalIfDraft": "이 내용 그대로 지금 보내줘.",
+      "candidateReply": "주 3일 출근은 가능하지만 수요일에는 재택근무가 필요합니다. 회사에 이 조건까지 전달해 주세요.",
+      "gold": [
+        "Contact asks only the provided working condition and goes to the existing exact candidate/Role.",
+        "Candidate responds in the actual local Career agent with the shared company request in context.",
+        "The original candidate LLM relays the authorized meaning to the company in the same tool call, preserving the Wednesday condition.",
+        "Company conversation receives the answer once without changing Role conditions or candidate pipeline state."
+      ]
+    }
+  ],
+  "boundary": "All business data and queues are local. Capture mode proves webhook/worker/DB/UI behavior, not real Gmail delivery. A real inbox test additionally requires an active Gmail connection and observed inbox receipt/reply. Record transport mode for each case."
+}

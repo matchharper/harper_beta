@@ -1,7 +1,7 @@
 # Company-side LLM 입력 구조·프롬프트·선택적 기능 로딩 구현 계획
 
 - 문서 기준: 2026-09-24
-- 상태: **구현 전 설계. 이 문서 작성으로 runtime·DB·배포가 변경되지 않는다.**
+- 상태: **로컬 브랜치 구현·반복 평가 완료, 품질 release gate 미충족. 운영 미배포.** 현재 변경 계약은 [engineering 정본](company-side-agent-engineering-contract-ko.md), 검증 범위와 남은 문제는 [구현·평가 보고서](evaluation/company-side-conversational-qa/reports/2026-09-24-agent-refactor.md)를 먼저 본다. 아래 체크리스트는 원래의 전체 수용 기준이며 실제 외부 전달 E2E까지 완료한 것으로 표시하지 않는다.
 - 대상: `/org`와 회사 Slack의 company-side LLM, 같은 실행부를 사용하는 후속 이벤트
 - 코드 검토 기준: `harper_beta` HEAD `c55ebf03`과 당시 로컬 변경사항. 운영 배포 상태의 증거가 아니다.
 - 범위: 1차 변경 묶음인 프롬프트 책임 정리, 대화 메시지 구조 복원, tool 결과의 중복 답변 지시 제거와 **상세 tool policy·schema의 선택적 지연 로딩**을 함께 설계한다.
@@ -70,12 +70,12 @@
 - **선택 단위:** 상황별 intent가 아니라 재사용 가능한 업무 능력.
 - **로더:** 정확한 capability ID를 받는 로컬 registry 조회. 별도 LLM·embedding 검색 없음.
 - **원본:** trusted TypeScript registry와 지침 모듈. 첫 버전에 runtime filesystem 탐색이나 외부 skill 설치 기능은 만들지 않는다.
-- **첫 턴:** 기본 조회 5개 + loader + 전체 지원 기능 개요.
+- **첫 턴:** 기본 조회 5개 + 핵심 연락 3개 + loader + 전체 지원 기능 개요. 09/25 평가에서 초안의 무도구 수정 실패가 관측되어 연락은 기본 능력으로 올렸다.
 - **한 turn 안:** 로드된 capability·tool을 추가만 하고 중간에 제거하지 않는다.
-- **다음 turn:** 기본 집합에서 다시 시작한다. 이전 대화와 pending artifact는 보존하되 skill 본문을 영구 누적하지 않는다.
+- **다음 turn:** 기본 집합과 직전 실제 Harper toolResults에 해당하는 기능으로 시작한다. 이전 대화와 pending artifact를 보존하되 과거 전체 기능을 영구 누적하지 않는다.
 - **실행:** 그 completion에 실제로 노출된 tool만 호출 가능. 이후 기존 executor의 권한·동의 검증을 모두 통과해야 한다.
-- **DB:** 이 변경을 위해 새 테이블이나 migration을 만들지 않는다.
-- **모델:** 현재 모델·reasoning 기본값은 유지한다. 구조 변경과 모델 변경을 한 실험으로 섞지 않는다.
+- **DB:** 입력 구조 변경에는 DB가 필요 없다. 이후 사용자가 명시한 일반 `contact_talent(send)` 확장에는 기존 연락·queue 테이블의 RPC migration을 추가한다. 새 테이블이나 follow-up 전용 기능은 만들지 않는다. 운영 적용은 별도 승인 대상이다.
+- **모델:** 이후 사용자 요청으로 OpenRouter Gemini 3.8 Flash, temperature 0.5를 기본으로 변경한다. 실험은 같은 모델의 full/progressive 모드를 구분하며 구모델보다 개선됐다고 단정하지 않는다.
 
 ### 3.2 만들지 않는 것
 
@@ -154,7 +154,8 @@ tools.ts
 
 ### 5.1 기본 도구
 
-다음 5개 조회 도구와 `load_capabilities`를 일반 대화·후속 실행의 기본 집합으로 둔다.
+다음 5개 조회 도구에 핵심 연락의 `list_contacts`, `read_contact`, `contact_talent`와 `load_capabilities`를
+기본 집합으로 둔다. 아래 표는 조회 도구만 설명한다. 연락 policy/schema도 항상 제공한다.
 
 | 기본 domain tool | 이유 |
 | --- | --- |
@@ -300,7 +301,7 @@ Loader 오류마다 자동으로 모든 기능을 노출하는 fail-open 정책�
 아래는 책임 순서를 보여주는 문서용 의사코드다. 기존 전달·취소·예산·오류 처리를 대체하는 복사 가능한 runner가 아니다.
 
 ```ts
-const capabilityState = createCapabilityState(); // 이번 turn에만 존재
+const capabilityState = createCapabilityState(); // 의사 코드: 기본 연락 + 직전 실제 도구 기능으로 초기화
 const conversation = buildConversationInput(context, currentInput);
 
 while (withinExistingTurnBudget()) {
@@ -336,11 +337,11 @@ Registry의 policy·schema와 `offeredTools`는 같은 resolved snapshot에서 �
 
 ### 7.1 일반 다음 turn
 
-다음 회사 발화에서는 기본 tool set으로 시작한다. 최근 대화, 실제 pending preview·연락 draft 참조는 유지되므로 "네, 그렇게 해주세요"를 빈 context에서 해석하지 않는다.
+다음 회사 발화에서는 기본 tool set과 직전 실제 Harper 답변에서 사용한 기능으로 시작한다. 최근 대화, 실제 pending preview·연락 draft 참조를 유지한다. 출처가 후보자 relay이거나 회사 사용자이면 tool-name metadata로 기능을 활성화하지 않는다.
 
 모델은 필요한 capability를 다시 로드할 수 있다. 이 추가 호출은 내부 작업이다. 사용자의 확인을 다시 받거나 이전 preview를 새로 작성할 이유가 아니다. Loader 호출·실패가 기존 draft revision·proposal·마지막 사용자 메시지를 바꾸지 않게 한다.
 
-이 방식은 작은 재로딩 지연을 허용하는 대신 별도 skill 관련성 분류, 영구 active set, TTL·eviction 규칙을 피한다. 자동 sticky skill이나 예측 prefetch는 첫 버전 이후 별도 최적화다.
+별도 관련성 분류·영구 active set·TTL·예측 prefetch는 없다. 직전 실제 tool metadata만 사용하는 작은 연속성 계약이며, 도구 가용성이 실행 권한을 만들지는 않는다.
 
 ### 7.2 후보자 연락·웹 UI action 후속 실행
 
@@ -549,7 +550,7 @@ Native tool search는 이후 provider별 최적화 옵션이다. 첫 구현에 �
 ### C. Registry와 선택적 로딩
 
 - 현재 25개 domain tool의 coverage test부터 추가한다.
-- 기본 5개 + loader, 8개 capability의 resolver를 구현한다.
+- 기본 조회 5개 + 핵심 연락 3개 + loader, 8개 capability의 resolver를 구현한다.
 - 상세 policy와 schema를 함께 다음 completion에 반영한다.
 - 미노출 호출, 같은 completion 내 loader+미노출 action, 잘못된 ID, 중복 load, feature gate를 검증한다.
 - 이벤트 후속 실행도 같은 구조를 사용한다.
@@ -636,7 +637,7 @@ Private production 원문·모델 raw output·계정 매핑은 해당 task의 ig
 새 registry에는 `full`과 `progressive` 두 실행 구성을 둔다. 기존 배포 설정 방식에 맞는 **서버 측 단일 설정**으로 고르고, 모델이나 사용자 입력이 임의로 바꾸지 못한다.
 
 - `full`: 정리된 새 core·native history·결과 projection을 사용하되, 현재 surface에서 지원하는 모든 capability policy·domain schema를 처음부터 제공한다. loader는 필요 없으므로 제외한다.
-- `progressive`: 기본 5개와 loader부터 시작하고 선택된 기능만 추가한다.
+- `progressive`: 기본 조회 5개·핵심 연락 3개·loader와 직전 실제 사용 기능으로 시작하고 선택된 무거운 기능만 추가한다.
 
 이 모드는 loader 문제가 생겼을 때 기능 접근성을 복구하는 용도다. 권한·동의 보호를 완화하거나 오래된 문구 지시를 되살리는 용도가 아니다. 실행 중 mode를 바꾸지 않고 새 turn부터 적용한다. 이미 발생한 side effect를 자동으로 취소하거나 다시 실행하지 않는다.
 

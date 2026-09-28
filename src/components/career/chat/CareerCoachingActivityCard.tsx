@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
-import { useMessages } from "@/i18n/useMessage";
+import { useCareerT } from "@/i18n/useCareerT";
 
 export type CareerCoachingActivityUiAction =
   | { action: "start"; channel: "chat" | "call" }
@@ -27,42 +27,31 @@ type Props = {
   ) => boolean | Promise<boolean>;
 };
 
-const COPY = {
-  ko: {
-    active: "진행 중",
-    agenda: "이번 대화에서 함께 볼 내용",
-    call: "통화하기",
-    chat: "채팅으로 이어하기",
-    dismiss: "지금은 괜찮아요",
-    end: "이 대화 마치기",
-    ended: "종료됨",
-    error: "요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요.",
-    minutes: (value: number) => `약 ${value}분`,
-    reopenCall: "통화 열기",
-    suggested: "코칭 제안",
-  },
-  en: {
-    active: "In progress",
-    agenda: "What we'll work through",
-    call: "Start a call",
-    chat: "Continue in chat",
-    dismiss: "Not now",
-    end: "Finish this conversation",
-    ended: "Ended",
-    error: "I couldn't send that request. Please try again in a moment.",
-    minutes: (value: number) => `About ${value} min`,
-    reopenCall: "Open call",
-    suggested: "Coaching suggestion",
-  },
-} as const;
-
 export function CareerCoachingActivityCard({
   activity,
   disabled = false,
   onAction,
 }: Props) {
-  const { locale } = useMessages();
-  const copy = COPY[locale === "en" ? "en" : "ko"];
+  const t = useCareerT();
+  const copy = {
+    active: t("career.coaching.active", "진행 중"),
+    agenda: t("career.coaching.agenda", "이번 대화에서 함께 볼 내용"),
+    call: t("career.coaching.call", "통화하기"),
+    chat: t("career.coaching.chat", "채팅으로 이어하기"),
+    dismiss: t("career.coaching.dismiss", "지금은 괜찮아요"),
+    end: t("career.coaching.end", "이 대화 마치기"),
+    ended: t("career.coaching.ended", "종료됨"),
+    error: t(
+      "career.coaching.error",
+      "요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요."
+    ),
+    minutes: (value: number) =>
+      t("career.coaching.minutes", "약 {minutes}분", {
+        values: { minutes: value },
+      }),
+    reopenCall: t("career.coaching.reopen_call", "통화 열기"),
+    suggested: t("career.coaching.suggested", "코칭 제안"),
+  };
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [error, setError] = useState("");
   const actionDisabled = disabled || Boolean(pendingAction) || !onAction;

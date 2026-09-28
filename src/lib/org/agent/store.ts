@@ -93,6 +93,7 @@ export type OrgAgentPromptMessagePage = {
 
 export type OrgAgentStoredRole = OrgRole & {
   hasMemory: boolean;
+  isCompanyFirstSearch: boolean;
   memory: string | null;
 };
 
@@ -1089,12 +1090,14 @@ export async function fetchRoleForOrgAgent(args: {
     work_mode: string | null;
   };
   const [internalResult, memoryResult] = await Promise.all([
-    args.includeCriteria === false
-      ? Promise.resolve({ data: null, error: null })
-      : (args.admin.from("company_internal_roles" as any) as any)
-          .select("request, criteria")
-          .eq("role_id", args.roleId)
-          .maybeSingle(),
+    (args.admin.from("company_internal_roles" as any) as any)
+      .select(
+        args.includeCriteria === false
+          ? "is_company_first_search"
+          : "request, criteria, is_company_first_search"
+      )
+      .eq("role_id", args.roleId)
+      .maybeSingle(),
     args.includeMemory === false
       ? Promise.resolve({ data: null, error: null })
       : (args.admin.from("company_memories" as any) as any)
@@ -1108,6 +1111,7 @@ export async function fetchRoleForOrgAgent(args: {
   const memory = normalizeText(memoryResult.data?.content) || null;
   return {
     criteria: normalizeOrgRoleCriteria(internalResult.data?.criteria),
+    isCompanyFirstSearch: internalResult.data?.is_company_first_search === true,
     createdAt: row.created_at,
     description: row.description ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],

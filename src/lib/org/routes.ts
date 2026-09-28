@@ -11,7 +11,12 @@ export type OrgWorkspacePageId =
   | "documents";
 
 export type OrgJobsView = "pipeline" | "role";
-export type OrgRoleTab = "pipeline" | "matching" | "role" | "settings";
+export type OrgRoleTab =
+  | "inbox"
+  | "pipeline"
+  | "matching"
+  | "role"
+  | "settings";
 export type OrgSettingsTab = "calendar";
 export type OrgPipelineDisplay = "pipeline" | "board";
 

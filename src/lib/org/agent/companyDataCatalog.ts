@@ -35,6 +35,7 @@ export const COMPANY_DATA_KEYS = [
   "role_location",
   "salaryRange",
   "role_status",
+  "role_is_company_first_search",
   "role_work_mode",
   "role_employment_types",
   "role_request",
@@ -71,6 +72,7 @@ export const COMPANY_SIDE_LLM_DATA_KEYS = [
   "role_location",
   "salaryRange",
   "role_status",
+  "role_is_company_first_search",
   "role_work_mode",
   "role_employment_types",
   "role_request",
@@ -84,6 +86,7 @@ export type CompanyDataRequestSection =
   | "preferred_criteria";
 
 type CompanyDataLogicalType =
+  | "boolean"
   | "enum"
   | "integer"
   | "string_list"
@@ -218,6 +221,13 @@ export const COMPANY_DATA_CATALOG: Record<
     roleScoped: true,
     type: "enum",
   },
+  role_is_company_first_search: {
+    confirmationRequired: false,
+    longText: false,
+    nullable: false,
+    roleScoped: true,
+    type: "boolean",
+  },
   role_work_mode: {
     allowedValues: ORG_ROLE_WORK_MODE_VALUES,
     confirmationRequired: false,
@@ -305,6 +315,7 @@ const COMPANY_DATA_LABELS: Record<CompanyDataKey, string> = {
   role_location: "포지션 근무지",
   salaryRange: "보상 범위",
   role_status: "포지션 상태",
+  role_is_company_first_search: "정기 후보 검색",
   role_work_mode: "근무 방식",
   role_employment_types: "고용 형태",
   role_request: "채용 기준",
