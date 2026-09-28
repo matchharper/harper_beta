@@ -1,6 +1,8 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
-> 2026-09-29 로컬 구현: [운영 설정 계약](./company-first-runtime-settings-ko.md)에 따라 예약 주기·시간대·정기/직접 요청 Role별 상한·미처리 제안 한도를 DB에서 읽는다. 아래 월요일 09:00, 3명/6명, 30명은 기본값이다. 관련 DB migration은 적용했으며 새 Ops 화면과 Worker 코드는 아직 미배포다.
+> 2026-09-29 운영 반영: beta `dc52b832`, Worker `8b355199`와 관련 DB 변경을 반영했고 Company-first 실행기·예약 실행기를 활성화했다. [운영 설정 계약](./company-first-runtime-settings-ko.md)에 따라 예약 주기·시간대·Role별 상한·미처리 한도를 DB에서 읽는다. 아래 월요일 09:00, 3명/6명, 30명은 재배포 없이 수정 가능한 기본값이다. 정기는 `is_company_first_search = true`, calibration 후 첫 검색은 기존 자동 실행 설정, 직접 요청은 명시적으로 지정한 Role을 따른다.
+
+> 아래 2026-09-24~28의 미배포 표기는 당시 구현 이력이다. 현재 출시 상태는 위 운영 반영 기록을 따른다. 모델의 정성적 품질 개선과 미완료된 평가 gate는 이번 배포에서 완료로 처리하지 않는다.
 
 > 2026-09-28 로컬 구현: Intro 전달 직전 guard는 `next_stage_id`가 NULL인 기본 `연결됨` 요청도 허용한다. 값이 있는 기존 목적지는 동일 Role 소속을 검사한다. 동의·공개 범위·역할 상태·testOnly 검사는 유지한다. optional-stage migration은 운영 DB에 적용했지만 웹·Worker 코드는 아직 미배포다. 새 웹을 공개하기 전에 이 Worker guard도 반영해야 한다.
 
@@ -8,10 +10,8 @@
 
 > 2026-09-24 로컬 계약 보완: 전달된 제안의 답변 대기 중 회사가 승인한 메시지는 기존 연락 경로로 허용한다. 별도 follow-up worker나 분류기는 추가하지 않는다. 후보 선정·수락·공유 상태는 변하지 않는다. [현재 연락 계약](../company-talent-contacts-ko.md) 참고. 운영 배포를 뜻하지 않는다.
 
-- 문서 기준: 2026-09-23
-- 상태: candidate-first/company-first route 결정과 matching review persistence까지 local 구현. Migration 적용,
-  production 배포, route-aware frozen gold와 서로 다른 회사·직군 3곳 shadow gate는 아직 완료하지 않았으며
-  이 문서는 production 동작 완료를 뜻하지 않는다.
+- 문서 기준: 2026-09-29
+- 상태: candidate-first/company-first route 결정과 matching review persistence를 운영 반영했다. 실행기 활성화와 실제 대기 작업 claim을 확인했다. 기존 route-aware frozen gold·회사/직군별 shadow gate의 완료 여부와 정성적 품질 과제는 배포 성공과 별도로 유지한다.
 - 범위: 회사 단위 예약 실행, search 여부 판단, 동적 SQL retrieval, scoring, 회사 전체 reranking,
   candidate-first/company-first/no-action route 결정, 결과 기록, candidate-first 기존 delivery queue 연계,
   company-first의 `company_intro_candidates/ready` 반영과 회사 Slack 전달
@@ -62,7 +62,7 @@ queue에 넣는다. 새 Role calibration이 Slack에 처음 전달된 12시간 �
    통과한 실제 검토 가능 후보를 Role별 N명까지 적극 선택한다. 강한 후보가 N명보다 적으면 가능한 후보를
    모두 선택하되, hard conflict나 핵심 수행 근거 부족을 deterministic padding으로 덮지 않는다.
 
-### 1.1 현재 local 구현 위치
+### 1.1 현재 운영 구현 위치
 
 - Worker pipeline: `harper_worker/opp/company_first_search/`
 - Worker entrypoint: `harper_worker/company_first_worker.py`

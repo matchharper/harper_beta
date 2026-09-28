@@ -1,6 +1,6 @@
 # Company-first 검색 운영 설정
 
-문서 기준: 2026-09-29. DB migration은 적용했으며, 새 Ops 화면과 Worker 설정 조회 코드는 로컬 구현 상태다. 처음 한 번 배포한 뒤에는 이 설정을 바꾸기 위해 재배포하거나 서비스를 재시작할 필요가 없다.
+문서 기준: 2026-09-29. DB migration, Ops 화면과 Worker 설정 조회 코드를 운영에 반영했고 Company-first 실행기·예약 실행기를 활성화했다. 이 설정을 바꾸기 위해 재배포하거나 서비스를 재시작할 필요가 없다. 정기 검색은 `company_internal_roles.is_company_first_search = true`인 유효한 Role만 대상으로 한다. 직접 요청과 calibration 후 첫 검색은 별도 시작 조건을 유지한다.
 
 ## 변경 위치
 
