@@ -10,6 +10,7 @@
 
 - `src/pages/career/preview.tsx`
   - 실제 API 없이 UI를 빠르게 미리보기하기 위한 preview 페이지입니다.
+  - `?tab=tasks&onboarding=1`로 온보딩 진행 중 상태를 확인할 수 있습니다.
   - `CareerSidebarContextValue`, `CareerChatPanelContextValue` shape 변경 시 이 파일도 같이 맞춰야 합니다.
 
 ## Runtime Structure
@@ -20,23 +21,59 @@
 
 - `CareerWorkspaceScreen.tsx`
   - workspace 전체 shell 입니다.
-  - 좌측 nav 와 우측 canvas 를 구성합니다.
+  - 데스크톱은 왼쪽 메뉴 → 대화창 → 오른쪽 canvas로 구성합니다.
+  - `/career`의 데스크톱 기본 화면은 할 일이며, 모바일 기본 홈은 유지합니다.
+  - 대화창·오른쪽 패널 비율과 divider는 이 파일에서 조립하며,
+    저장된 너비 기본값·범위는 `src/store/useCareerWorkspaceUiStore.ts`에 있습니다.
 
 - `CareerWorkspaceNav.tsx`
-  - 좌측 메인 nav.
-  - 탭은 `home | profile | chat | history` 네 개입니다.
+  - 데스크톱 왼쪽 메인 nav. 상단 AppBar와 오른쪽의 workspace 탭을 대체합니다.
+  - 할 일 / 새 기회 / 내 기회 / 프로필 / 선호 기준을 표시하고,
+    새 기회·내 기회는 기존 history 화면의 `new`·`saved` 목록으로 연결합니다.
+  - 펼친 너비 244px, 접힌 너비 64px, 행 높이 36px, 메뉴 간격 4px이며,
+    선택 상태는 `/org` sidebar를 참고합니다.
+    너비·여백은 `aside`, 행 디자인은 `NAV_ITEM_CLASS_NAME`에서 수정합니다.
+  - Harper 오른쪽 버튼으로 접고 펼칩니다. 접으면 메뉴 아이콘과 28px 프로필 사진을
+    표시하며, 선택한 상태는 `useCareerWorkspaceUiStore.ts`에서 브라우저에 저장합니다.
+  - 정보 탭은 `home | tasks | history | profile | brief | watchlist`이고, 대화는 별도 패널입니다.
   - 하단의 설정 버튼이 `CareerSettingsModal` 을 엽니다.
+  - 하단 사진·이름·이메일은 `CareerProfileMenu.tsx`의 `sidebar` variant입니다.
 
 - `CareerHomePanel.tsx`
   - home 탭의 요약 화면입니다.
   - welcome, 대화 시작 CTA, preference 요약을 보여줍니다.
+  - `variant="onboarding"`은 기존 인터뷰 진행률·통화/완료 버튼과 체크리스트만
+    재사용하며, 온보딩이 완료되면 표시하지 않습니다.
+
+- `CareerTasksPanel.tsx`
+  - `/career/tasks`에서 지금 결정, Harper 제안, Harper가 하는 중을 보여줍니다.
+  - 하단에 `CareerHomeDevControls`를 표시합니다. 데스크톱·모바일 모두 온보딩 완료
+    여부와 관계없이 유지하며, 노출 권한은 Dev Controls의 기존 계정 조건을 따릅니다.
+  - 온보딩 중에는 `CareerHomePanel variant="onboarding"`을 목록 최상단에 표시합니다.
+    완료 여부가 아직 로딩 중이거나 `isOnboardingDone`·`stage="completed"`이면 숨깁니다.
+  - 결정할 일이 있으면 결정 → 제안 → 진행, 없으면 진행 → 제안 순서입니다.
+  - 회사 질문·이력서는 기존 composer 요청 카드, 연결 제안은 포지션 상세,
+    일정 요청은 현재 유효한 일정 선택 화면으로 이어집니다.
+  - pending-actions 조회를 composer·메뉴 숫자와 공유하고, 수락 후 진행 조회는
+    할 일 화면을 열었을 때만 실행합니다. 대기 표시는 경과 시간이 아닌 저장된 단계에 따릅니다.
+  - Harper 제안은 `useCareerTaskSuggestions`로 독립 조회합니다. 미응답 외부 추천은
+    최신 4개 회사 로고를 2×2로 표시하고, 추천 확인 버튼은 가장 최근 새 기회 상세로 이동합니다.
+    사용자가 직접 추가한 기회와 숨긴 기회는 제외합니다. 피드백·목록 갱신 후 다시 조회합니다.
+  - 저장된 개인 링크 수 + 활성 Gmail 연결(1/0)이 1 이하이면 아직 없는 자료의
+    추가를 요청하는 Link2 아이콘과 `/career/profile?profileSection=links` 이동 버튼을 표시합니다.
+    미저장 초안은 세지 않으며, 링크가 이미 2개 이상이면 Gmail 조회도 생략합니다.
+    각 추가 제안만 skeleton을 표시하므로 다른 할 일의 표시를 기다리게 하지 않습니다.
+    외부 추천 피드백·자료 보완 항목은 기존 통화·질문 제안 뒤에 항상 마지막으로 표시합니다.
+  - 로컬 미리보기: `?tab=tasks&taskFeedback=1&profileLinks=0&gmail=0`.
+    `profileLinks=0|1|2`, `gmail=0|1`로 자료 보완 표시 경계를 확인할 수 있습니다.
 
 - `profile/CareerProfileWorkspace.tsx`
-  - profile 탭 내부의 in-page tab shell.
-  - Search Brief, 구조화 프로필, 이력서·링크를 확인·관리합니다.
+  - `/career/profile`은 구조화 프로필·이력서/링크의 기존 in-page tab shell입니다.
+  - `/career/brief`는 `view="brief"`로 같은 선호 기준·차단 기업 UI를 별도 탭에서 보여줍니다.
+  - 기존 `/career/profile?profileSection=brief` 링크는 `/career/brief`로 전환합니다.
 
 - `CareerSettingsModal.tsx`
-  - 우측 상단 설정 버튼으로 여는 모달.
+  - 데스크톱 왼쪽 하단 또는 모바일 상단의 설정 버튼으로 여는 모달.
   - `프로필 설정 / 내 이력서·링크 / 계정 관리` 탭으로 구성됩니다.
   - profile 탭에서도 `CareerProfileSettingsSection` 을 그대로 재사용합니다.
 
@@ -91,6 +128,7 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
   - 섹션 전체에서 변경사항이 생기면 우하단에 `Refresh`, `설정 저장` 버튼이 나타납니다.
   - `Refresh` 는 서버 재조회가 아니라 마지막 저장 snapshot 으로 draft 를 되돌립니다.
   - `profileVisibility` 클릭 시 자동 저장하지 않습니다.
+  - `CareerBlockedCompaniesSettingsSection`은 차단 기업 입력·목록·추가/삭제 저장 기능만 재사용하며, 선호 기준(`/career/brief`) 맨 아래에 표시됩니다.
 
 - `settings/CareerResumeLinksSettingsSection.tsx`
   - 이력서 파일/링크 저장 전용 섹션.
@@ -122,6 +160,8 @@ UI에 현재 보이는 탭과 prompt에 필요한 데이터의 로딩 시점은 
 
 - `CareerHistoryPanel.tsx`
   - history 탭 표시.
+  - 데스크톱의 새 기회는 새 포지션 목록만 표시하고 상단 탭을 숨깁니다.
+  - 내 기회는 상단의 저장한 포지션·보관함 탭과 제외한 포지션 버튼을 유지합니다.
 
 - `CareerInPageTabs.tsx`
   - profile 탭 내부 상단 탭.

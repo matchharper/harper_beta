@@ -15,7 +15,14 @@ import {
   buildCareerSessionStartTurnInstruction,
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
-import { fetchCareerReengagementPendingActions } from "@/lib/career/reengagementPendingActions.server";
+import {
+  fetchCareerReengagementPendingActions,
+  type CareerReengagementPendingActionsServerSnapshot,
+} from "@/lib/career/reengagementPendingActions.server";
+import {
+  CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
+  fetchCareerReengagementHistory,
+} from "@/lib/career/reengagementHistory.server";
 import { resolveCareerReengagementActionKeys } from "@/lib/career/reengagementActions";
 import { createCareerPendingActionRef } from "@/lib/career/pendingActionRef.server";
 import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
@@ -382,15 +389,27 @@ export async function POST(req: NextRequest) {
               { values: { count: hiddenExpiredExternalOpportunityCount } }
             )
         : null;
-    const pendingActionsSnapshot = talentSetting?.is_onboarding_done
-      ? await fetchCareerReengagementPendingActions({
+    const [pendingActionsSnapshot, recentReengagementHistory] =
+      await Promise.all([
+        talentSetting?.is_onboarding_done
+          ? fetchCareerReengagementPendingActions({
+              admin,
+              includeReevaluationQuestion:
+                talentSetting.profile_visibility !== "dont_share",
+              locale: talentSetting.preferred_locale,
+              userId: user.id,
+            })
+          : Promise.resolve<CareerReengagementPendingActionsServerSnapshot>({
+              actionReferences: {},
+              actions: [],
+              promptActions: [],
+            }),
+        fetchCareerReengagementHistory({
           admin,
-          includeReevaluationQuestion:
-            talentSetting.profile_visibility !== "dont_share",
-          locale: talentSetting.preferred_locale,
+          conversationId: conversation.id,
           userId: user.id,
-        })
-      : { actionReferences: {}, actions: [], promptActions: [] };
+        }),
+      ]);
     const pendingActionsForTurn = pendingActionsSnapshot.promptActions;
     const transformAssistantTextBeforeInsert = (content: string) =>
       resolveCareerReengagementActionKeys({
@@ -424,6 +443,7 @@ export async function POST(req: NextRequest) {
       pendingActions: pendingActionsForTurn,
       preferredLocale: talentSetting?.preferred_locale ?? null,
       previousChatAt: latestChatMessage?.created_at ?? null,
+      recentReengagementHistory,
       timeZone: promptTimeZone,
     });
 
@@ -440,6 +460,7 @@ export async function POST(req: NextRequest) {
               allowedToolNames: [],
               admin,
               assistantModel: GPT_56_LUNA_MODEL,
+              assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
               assistantMessagePrefix,
               assistantTemperature: REENGAGEMENT_TEMPERATURE,
               conversationId: conversation.id,
@@ -492,6 +513,7 @@ export async function POST(req: NextRequest) {
       allowedToolNames: [],
       admin,
       assistantModel: GPT_56_LUNA_MODEL,
+      assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
       assistantMessagePrefix,
       assistantTemperature: REENGAGEMENT_TEMPERATURE,
       conversationId: conversation.id,

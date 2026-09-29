@@ -125,8 +125,9 @@ export const TimelineBlock = ({
         )}
         {description && (
           <RichText
+            variant="career"
             content={description}
-            className="mt-2 text-neutral-muted [&_a]:text-neutral-muted [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-neutral-muted [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-neutral-primary [&_ul]:text-[13px]"
+            className="mt-2 text-neutral-muted [&_blockquote]:text-[13px] [&_code]:text-[12px] [&_em]:text-neutral-muted [&_li]:text-[13px] [&_ol]:text-[13px] [&_p]:text-[13px] [&_strong]:text-neutral-primary [&_ul]:text-[13px]"
           />
         )}
         {memo && (

@@ -10,6 +10,7 @@ type AuthenticatedFetch = (
 
 type DocumentUploadPayload = {
   [key: string]: unknown;
+  code?: unknown;
   document?: ({ id?: unknown } & Record<string, unknown>) | null;
   requestCompleted?: unknown;
   resumeDownloadUrl?: unknown;
@@ -17,6 +18,42 @@ type DocumentUploadPayload = {
   resumeStoragePath?: unknown;
   resumeText?: unknown;
 };
+
+export const TALENT_DOCUMENT_UPLOAD_ERROR_CODES = [
+  "empty_file",
+  "file_too_large",
+  "invalid_file_content",
+  "invalid_resume_request",
+  "missing_file",
+  "request_inactive",
+  "unsupported_file_type",
+] as const;
+
+export type TalentDocumentUploadErrorCode =
+  (typeof TALENT_DOCUMENT_UPLOAD_ERROR_CODES)[number];
+
+const TALENT_DOCUMENT_UPLOAD_ERROR_CODE_SET = new Set<string>(
+  TALENT_DOCUMENT_UPLOAD_ERROR_CODES
+);
+
+function parseTalentDocumentUploadErrorCode(
+  value: unknown
+): TalentDocumentUploadErrorCode | null {
+  if (typeof value !== "string") return null;
+  return TALENT_DOCUMENT_UPLOAD_ERROR_CODE_SET.has(value)
+    ? (value as TalentDocumentUploadErrorCode)
+    : null;
+}
+
+export class TalentDocumentUploadError extends Error {
+  readonly code: TalentDocumentUploadErrorCode | null;
+
+  constructor(message: string, code: TalentDocumentUploadErrorCode | null) {
+    super(message);
+    this.name = "TalentDocumentUploadError";
+    this.code = code;
+  }
+}
 
 function payloadError(payload: unknown, fallback: string) {
   if (payload && typeof payload === "object" && !Array.isArray(payload)) {
@@ -40,10 +77,16 @@ export async function uploadTalentDocument(args: {
   signal?: AbortSignal;
   source?: "chat" | "profile";
 }): Promise<DocumentUploadPayload> {
-  if (args.file.size <= 0) throw new Error("The selected file is empty.");
+  if (args.file.size <= 0) {
+    throw new TalentDocumentUploadError(
+      "The selected file is empty.",
+      "empty_file"
+    );
+  }
   if (args.file.size > MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES) {
-    throw new Error(
-      `File size must not exceed ${MAX_TALENT_DOCUMENT_FILE_SIZE_LABEL}`
+    throw new TalentDocumentUploadError(
+      `File size must not exceed ${MAX_TALENT_DOCUMENT_FILE_SIZE_LABEL}`,
+      "file_too_large"
     );
   }
   throwIfAborted(args.signal);
@@ -65,8 +108,9 @@ export async function uploadTalentDocument(args: {
     .json()
     .catch(() => ({}))) as DocumentUploadPayload;
   if (!response.ok) {
-    throw new Error(
-      payloadError(payload, "Failed to upload document")
+    throw new TalentDocumentUploadError(
+      payloadError(payload, "Failed to upload document"),
+      parseTalentDocumentUploadErrorCode(payload.code)
     );
   }
   return payload;

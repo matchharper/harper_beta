@@ -1,0 +1,27 @@
+{
+  "datasetVersion": "v1",
+  "cases": [
+    {
+      "id": "UCT01",
+      "candidate": "candidate_a",
+      "initialState": "active in Product Operations, two alternative Roles available",
+      "company": "후보자에게 Product Operations와 Customer Success 중 어느 역할로 이어가고 싶은지 물어봐 주세요. 고른 역할의 대화 단계로 옮겨 주세요. 일정은 아직 잡지 마세요.",
+      "candidateReply": "Product Operations보다는 Customer Success로 진행하고 싶어요. 이 선택을 회사에 전달해 주세요. 인터뷰 일정은 다음 주에 다시 이야기하고 싶습니다."
+    },
+    {
+      "id": "UCT02",
+      "candidate": "candidate_b",
+      "initialState": "closed position, Role itself open",
+      "company": "이전에 종료했던 후보자에게 지금 다시 진행할 의향이 있는지 물어봐 주세요. 동의하면 이 역할의 대화 단계로 다시 옮겨 주세요. 미팅 예약은 하지 마세요.",
+      "candidateReply": "네, 같은 역할로 다시 이야기해 보고 싶습니다. 회사에 그렇게 전달해 주세요."
+    },
+    {
+      "id": "UCT03",
+      "candidate": "candidate_a",
+      "initialState": "established mutual connection, no pending company question or delegated action",
+      "candidateFirst": "Harper 회사에 먼저 연락 좀 해주세요. 새 프로젝트 때문에 이번 달에는 바로 진행하기 어렵고, 10월에 다시 이야기할 수 있는지 궁금합니다. 제 현재 연봉이 8천만 원인 건 회사에 전달하지 마세요. 아직 그만하겠다는 뜻은 아닙니다.",
+      "companyReply": "10월에 다시 이야기해도 괜찮다고 전해 주세요. 지금 단계는 그대로 두세요.",
+      "candidateReply": "고맙습니다. 10월 첫째 주에 제가 다시 연락드리겠다고 전달해 주세요."
+    }
+  ]
+}

@@ -84,3 +84,15 @@ test("prices OpenRouter Muse Spark 1.3", () => {
   assert.equal(cost?.pricingSource, "openrouter_pricing_2026_09_15");
   assert.equal(cost?.estimatedCostUsd, 0.003375);
 });
+
+test("prices OpenRouter MiMo V2.6 Pro", () => {
+  const usage = extractLlmTokenUsage({
+    usage: { input_tokens: 1_000, output_tokens: 500 },
+  });
+
+  const cost = estimateLlmUsageCost("xiaomi/mimo-v2.6-pro", usage);
+  assert.equal(cost?.inputUsdPerMtok, 0.435);
+  assert.equal(cost?.outputUsdPerMtok, 0.87);
+  assert.equal(cost?.pricingSource, "openrouter_pricing_2026_09_22");
+  assert.equal(cost?.estimatedCostUsd, 0.00087);
+});

@@ -823,6 +823,9 @@ export function useCareerHistoryState(args: {
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (payload.historyShouldRefresh === true) {
+          await refreshLatestHistoryOpportunitiesRef.current();
+        }
         throw new Error(
           getErrorMessage(payload, tCareer(H.opportunityStatusUpdateFailed))
         );
@@ -1060,6 +1063,15 @@ export function useCareerHistoryState(args: {
         if (payload.historyShouldRefresh || !shouldUpdateHistoryCache) {
           await refreshLatestHistoryOpportunitiesRef.current();
         }
+        void queryClient.invalidateQueries({
+          queryKey: ["career-pending-actions", userId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["career-task-progress", userId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["career-task-external-feedback", userId],
+        });
         return true;
       } catch (error) {
         if (shouldUpdateHistoryCache) {
@@ -1098,6 +1110,8 @@ export function useCareerHistoryState(args: {
       onPendingInternalOpportunityCallRequestsChanged,
       patchHistoryOpportunity,
       removeHistoryOpportunityLocally,
+      queryClient,
+      userId,
       restoreHistoryOpportunity,
       scheduleOpportunityFeedbackFollowUp,
       tCareer,
@@ -1157,6 +1171,9 @@ export function useCareerHistoryState(args: {
             replaceOpportunityId: normalizedOpportunityId,
           });
         }
+        void queryClient.invalidateQueries({
+          queryKey: ["career-task-external-feedback", userId],
+        });
       } catch (error) {
         restoreHistoryOpportunity(normalizedOpportunityId, previousItem);
         setHistoryOpportunityCounts(previousCounts);
@@ -1176,10 +1193,12 @@ export function useCareerHistoryState(args: {
       historyOpportunityCounts,
       applyHistoryOpportunityCountsTransition,
       patchHistoryOpportunity,
+      queryClient,
       restoreHistoryOpportunity,
       tCareer,
       updateHistoryOpportunityLocally,
       upsertHistoryOpportunityLocally,
+      userId,
     ]
   );
 
@@ -1420,6 +1439,15 @@ export function useCareerHistoryState(args: {
         setHistoryOpportunityCounts(firstPage.counts);
         setHistoryLoaded(true);
         setHistoryUpdateError("");
+        void queryClient.invalidateQueries({
+          queryKey: ["career-pending-actions", userId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["career-task-progress", userId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["career-task-external-feedback", userId],
+        });
       } catch (error) {
         setHistoryUpdateError(
           error instanceof Error

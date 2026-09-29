@@ -20,8 +20,9 @@ test("allows only the Career dev-control text chat models", () => {
   assert.equal(isCareerTextChatModelId("grok-4.3"), false);
 });
 
-test("uses Sonnet by default and maps model-specific reasoning effort", () => {
+test("uses GLM 5.3 Flash high by default and maps model-specific reasoning effort", () => {
   assert.deepEqual(resolveCareerTextChatModel("unsupported"), {
+    chatCompletionReasoningEffort: "high",
     model: DEFAULT_CAREER_TEXT_CHAT_MODEL,
   });
   assert.deepEqual(resolveCareerTextChatModel(OPENROUTER_GLM_53_FLASH_MODEL), {
@@ -41,7 +42,10 @@ test("uses Sonnet by default and maps model-specific reasoning effort", () => {
 test("ignores a per-request model override without dev-control access", () => {
   assert.deepEqual(
     resolveCareerTextChatModelForRequest(OPENROUTER_GLM_53_FLASH_MODEL, false),
-    { model: DEFAULT_CAREER_TEXT_CHAT_MODEL }
+    {
+      chatCompletionReasoningEffort: "high",
+      model: DEFAULT_CAREER_TEXT_CHAT_MODEL,
+    }
   );
   assert.equal(
     resolveCareerTextChatModelForRequest(OPENROUTER_GLM_53_FLASH_MODEL, true)

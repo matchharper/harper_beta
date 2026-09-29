@@ -523,6 +523,8 @@ export const useCareerOnboardingVoice = ({
   const clearVoiceBufferRef = useRef<(() => void) | null>(null);
   const activeCallConversationStarterIdRef =
     useRef<CareerConversationStarterId | null>(null);
+  const activeCareerCoachingActivityMessageIdRef = useRef<number | null>(null);
+  const activeCareerCoachingActivityRevisionRef = useRef<number | null>(null);
   const activeInternalCallRequestIdRef = useRef<string | null>(null);
   const activeMockInterviewOpportunityIdRef = useRef<string | null>(null);
   const activeResumeCallNoteIdRef = useRef<string | null>(null);
@@ -1492,6 +1494,16 @@ export const useCareerOnboardingVoice = ({
         typeof startArgs === "object"
           ? (startArgs.conversationStarterId ?? null)
           : null;
+      const careerCoachingActivityMessageId =
+        typeof startArgs === "object" &&
+        Number.isSafeInteger(startArgs.careerCoachingActivityMessageId)
+          ? (startArgs.careerCoachingActivityMessageId ?? null)
+          : null;
+      const careerCoachingActivityRevision =
+        typeof startArgs === "object" &&
+        Number.isSafeInteger(startArgs.careerCoachingActivityRevision)
+          ? (startArgs.careerCoachingActivityRevision ?? null)
+          : null;
       const forceBeginOnboarding =
         typeof startArgs === "object" &&
         startArgs.forceBeginOnboarding === true;
@@ -1512,6 +1524,10 @@ export const useCareerOnboardingVoice = ({
           ? (startArgs.resumeCallNoteId?.trim() ?? null)
           : null;
       activeCallConversationStarterIdRef.current = conversationStarterId;
+      activeCareerCoachingActivityMessageIdRef.current =
+        careerCoachingActivityMessageId;
+      activeCareerCoachingActivityRevisionRef.current =
+        careerCoachingActivityRevision;
       activeInternalCallRequestIdRef.current = internalCallRequestId;
       activeResumeCallNoteIdRef.current = resumeCallNoteId;
       activeMockInterviewOpportunityIdRef.current = mockInterviewOpportunityId;
@@ -1531,6 +1547,7 @@ export const useCareerOnboardingVoice = ({
 
         const hasFocusedCallObjective = Boolean(
           conversationStarterId ||
+          careerCoachingActivityMessageId ||
           internalCallRequestId ||
           resumeCallNoteId ||
           mockInterviewOpportunityId
@@ -1548,6 +1565,8 @@ export const useCareerOnboardingVoice = ({
           if (!beginResult.ok) {
             setShowVoiceStartPrompt(true);
             activeCallConversationStarterIdRef.current = null;
+            activeCareerCoachingActivityMessageIdRef.current = null;
+            activeCareerCoachingActivityRevisionRef.current = null;
             activeInternalCallRequestIdRef.current = null;
             activeResumeCallNoteIdRef.current = null;
             activeMockInterviewOpportunityIdRef.current = null;
@@ -1568,20 +1587,24 @@ export const useCareerOnboardingVoice = ({
             ? `${greetingText}\n\n${followUpText}`
             : greetingText;
         }
-        const openingInstructions = buildCallOpeningResponseInstruction({
-          interviewProgress: callInterviewProgress,
-          isInternalOpportunityCall: Boolean(internalCallRequestId),
-          isMockInterview: Boolean(mockInterviewOpportunityId),
-          isOnboardingDone,
-          isConversationStarter: Boolean(conversationStarterId),
-          locale,
-          openingText,
-          recentConversationContext: openingRecentConversationContext,
-          t,
-        });
+        const openingInstructions = careerCoachingActivityMessageId
+          ? ""
+          : buildCallOpeningResponseInstruction({
+              interviewProgress: callInterviewProgress,
+              isInternalOpportunityCall: Boolean(internalCallRequestId),
+              isMockInterview: Boolean(mockInterviewOpportunityId),
+              isOnboardingDone,
+              isConversationStarter: Boolean(conversationStarterId),
+              locale,
+              openingText,
+              recentConversationContext: openingRecentConversationContext,
+              t,
+            });
 
         const callStarted = await startCallMode({
           callSessionId: activeCallSessionIdRef.current,
+          careerCoachingActivityMessageId,
+          careerCoachingActivityRevision,
           conversationStarterId,
           initialResponseInstruction: openingInstructions,
           internalCallRequestId,
@@ -1589,10 +1612,41 @@ export const useCareerOnboardingVoice = ({
           mockInterviewOpportunityId,
         });
         if (!callStarted) {
+          if (
+            careerCoachingActivityMessageId &&
+            careerCoachingActivityRevision
+          ) {
+            try {
+              const rollbackResponse = await fetchWithAuth(
+                "/api/talent/coaching/call-rollback",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    activityMessageId: careerCoachingActivityMessageId,
+                    conversationId,
+                    expectedRevision: careerCoachingActivityRevision,
+                  }),
+                }
+              );
+              const rollbackPayload = await rollbackResponse
+                .json()
+                .catch(() => ({}));
+              if (rollbackResponse.ok && rollbackPayload?.activityMessage) {
+                await onMessagesChanged?.([rollbackPayload.activityMessage]);
+              }
+            } catch (error) {
+              console.error(
+                "[CareerOnboardingVoice] Failed to roll back coaching call start",
+                error
+              );
+            }
+          }
           if (shouldBeginOnboarding) {
             setShowVoiceStartPrompt(true);
           }
           activeCallConversationStarterIdRef.current = null;
+          activeCareerCoachingActivityMessageIdRef.current = null;
+          activeCareerCoachingActivityRevisionRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeResumeCallNoteIdRef.current = null;
           activeMockInterviewOpportunityIdRef.current = null;
@@ -1613,6 +1667,8 @@ export const useCareerOnboardingVoice = ({
       } finally {
         if (!callStartedSuccessfully) {
           activeCallConversationStarterIdRef.current = null;
+          activeCareerCoachingActivityMessageIdRef.current = null;
+          activeCareerCoachingActivityRevisionRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeResumeCallNoteIdRef.current = null;
           activeMockInterviewOpportunityIdRef.current = null;
@@ -1628,10 +1684,13 @@ export const useCareerOnboardingVoice = ({
       callStartPending,
       callInterviewProgress,
       clearRealtimeTurnSyncState,
+      conversationId,
+      fetchWithAuth,
       isOnboardingDone,
       locale,
       messages,
       onboardingBeginPending,
+      onMessagesChanged,
       showVoiceStartPrompt,
       startCallMode,
       t,
@@ -1661,6 +1720,10 @@ export const useCareerOnboardingVoice = ({
         activeCallOnboardingCompletedAtStartRef.current;
       const activeCallConversationStarterId =
         activeCallConversationStarterIdRef.current;
+      const activeCareerCoachingActivityMessageId =
+        activeCareerCoachingActivityMessageIdRef.current;
+      const activeCareerCoachingActivityRevision =
+        activeCareerCoachingActivityRevisionRef.current;
       const activeInternalCallRequestId =
         activeInternalCallRequestIdRef.current;
       const activeResumeCallNoteId = activeResumeCallNoteIdRef.current;
@@ -1685,6 +1748,8 @@ export const useCareerOnboardingVoice = ({
 
       if (!conversationId) {
         activeCallConversationStarterIdRef.current = null;
+        activeCareerCoachingActivityMessageIdRef.current = null;
+        activeCareerCoachingActivityRevisionRef.current = null;
         activeInternalCallRequestIdRef.current = null;
         activeResumeCallNoteIdRef.current = null;
         activeMockInterviewOpportunityIdRef.current = null;
@@ -1701,9 +1766,13 @@ export const useCareerOnboardingVoice = ({
       if (
         !hasUserSpeech &&
         !forceCompleteOnboarding &&
-        !activeInternalCallRequestId
+        !activeInternalCallRequestId &&
+        !activeCareerCoachingActivityMessageId &&
+        activeCallConversationStarterId !== "career_coaching"
       ) {
         activeCallConversationStarterIdRef.current = null;
+        activeCareerCoachingActivityMessageIdRef.current = null;
+        activeCareerCoachingActivityRevisionRef.current = null;
         activeInternalCallRequestIdRef.current = null;
         activeResumeCallNoteIdRef.current = null;
         activeMockInterviewOpportunityIdRef.current = null;
@@ -1728,6 +1797,10 @@ export const useCareerOnboardingVoice = ({
               callId: activeCallId ?? undefined,
               conversationId,
               callSessionId: activeCallSessionId ?? undefined,
+              careerCoachingActivityMessageId:
+                activeCareerCoachingActivityMessageId ?? undefined,
+              careerCoachingActivityRevision:
+                activeCareerCoachingActivityRevision ?? undefined,
               conversationStarterId:
                 activeCallConversationStarterId ?? undefined,
               internalCallRequestId: activeInternalCallRequestId ?? undefined,
@@ -1755,6 +1828,10 @@ export const useCareerOnboardingVoice = ({
             console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
             setChatError(tCareer(H.callWrapupMessageFailed));
             return;
+          }
+
+          if (payload?.activityMessage?.coachingActivity) {
+            await onMessagesChanged?.([payload.activityMessage]);
           }
 
           if (payload?.callNoteDocument?.id) {
@@ -1918,6 +1995,8 @@ export const useCareerOnboardingVoice = ({
           callWrapUpPendingRef.current = false;
           setCallWrapUpPending(false);
           activeCallConversationStarterIdRef.current = null;
+          activeCareerCoachingActivityMessageIdRef.current = null;
+          activeCareerCoachingActivityRevisionRef.current = null;
           activeInternalCallRequestIdRef.current = null;
           activeResumeCallNoteIdRef.current = null;
           activeMockInterviewOpportunityIdRef.current = null;
@@ -1991,6 +2070,8 @@ export const useCareerOnboardingVoice = ({
     suppressNextAssistantDoneRef.current = false;
     lastRealtimeUserTextRef.current = "";
     activeCallConversationStarterIdRef.current = null;
+    activeCareerCoachingActivityMessageIdRef.current = null;
+    activeCareerCoachingActivityRevisionRef.current = null;
     activeInternalCallRequestIdRef.current = null;
     activeResumeCallNoteIdRef.current = null;
     activeMockInterviewOpportunityIdRef.current = null;

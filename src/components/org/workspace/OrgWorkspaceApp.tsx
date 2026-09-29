@@ -2,7 +2,6 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import type { ReactNode } from "react";
 import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
-import { OrgMemberProfileDialog } from "@/components/org/OrgMemberProfileDialog";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
@@ -103,10 +102,19 @@ export function OrgWorkspaceApp({
   const pageTitle = isRoleWorkspacePage
     ? `${workspace.companyName} · ${page === "new-role" ? "새 역할 등록" : "역할"}`
     : `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
-  const requiresMemberProfile =
+  const requiresOnboarding =
     !contextValue.internalOpsAccess &&
     Boolean(contextValue.currentUser) &&
-    !contextValue.currentUser?.role?.trim();
+    !contextValue.currentUser?.onboardingCompletedAt;
+
+  if (page === "onboarding") {
+    return (
+      <OrgWorkspaceProvider value={contextValue}>
+        {children}
+      </OrgWorkspaceProvider>
+    );
+  }
+  if (requiresOnboarding) return <OrgWorkspaceShellSkeleton />;
 
   return (
     <OrgWorkspaceProvider value={contextValue}>
@@ -146,13 +154,6 @@ export function OrgWorkspaceApp({
           </div>
         </Page>
       </OrgMobileNavigationProvider>
-      {requiresMemberProfile && contextValue.currentUser ? (
-        <OrgMemberProfileDialog
-          key={workspace.workspaceId}
-          member={contextValue.currentUser}
-          workspace={workspace}
-        />
-      ) : null}
     </OrgWorkspaceProvider>
   );
 }

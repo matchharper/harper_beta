@@ -1,0 +1,26 @@
+{
+  "datasetVersion": "history-v1",
+  "reviewer": "Codex authored before first run; independent team review pending",
+  "expectedRoutes": {
+    "scope_rejection": [
+      "company_first"
+    ],
+    "cached_fit_hard_conflict": [
+      "no_action"
+    ],
+    "unanswered_prior": [
+      "company_first"
+    ],
+    "new_direct_fit": [
+      "candidate_first"
+    ]
+  },
+  "qualitativeRequirements": [
+    "이전 거절만으로 scope_rejection을 제외하지 않고 현재 Role 소유권과 연결해 회사 검토 이유를 설명한다.",
+    "cached_fit_hard_conflict는 과거 fit 점수와 무관하게 현재 명시적 출근 충돌을 존중한다.",
+    "미응답은 관심이나 수락으로 표현하지 않는다.",
+    "회사 reason/writer는 내부점수, Brief, 가족 돌봄 사정을 노출하지 않는다.",
+    "역할 조건 변경 또는 회사/후보자의 의사 변경을 만들어내지 않는다.",
+    "거절 사유 언급 자체는 강제하지 않으며 회사가 알아야 할 소유권 확인 사항은 자연스럽게 전달한다."
+  ]
+}

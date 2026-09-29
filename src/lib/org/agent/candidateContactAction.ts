@@ -1,5 +1,6 @@
 export type CandidateContactLifecycleAction =
   | "create_draft"
+  | "send"
   | "revise_draft"
   | "schedule"
   | "immediate"

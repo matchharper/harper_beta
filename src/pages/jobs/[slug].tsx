@@ -4,7 +4,6 @@ import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker";
 import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
 import OfficialJobsReferralCta from "@/components/jobs/OfficialJobsReferralCta";
-import OfficialJobsApplyHelpMessage from "@/components/jobs/OfficialJobsApplyHelpMessage";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import {
@@ -229,10 +228,6 @@ export default function OfficialJobDetailPage({
                   {job.shortDescription}
                 </p>
                 <div className="mt-8 flex flex-col gap-2 w-full md:w-fit">
-                  <OfficialJobsApplyHelpMessage
-                    className="max-w-[440px] text-[14px] leading-6"
-                    locale={locale}
-                  />
                   <OfficialJobsCtaLink
                     className="bg-primary border-none"
                     job={job}

@@ -23,6 +23,7 @@ type DocumentContent = {
   downloadUrl?: string;
   documentId: string;
   fileName: string;
+  originType: string | null;
   updatedAt: string;
 };
 
@@ -221,17 +222,11 @@ export function CareerDocumentDetail({
                 <>
                   <MuteButton disabled={!result} onClick={() => void copy()}>
                     <Copy className="h-4 w-4" />
-                    {t(
-                      "career.profile.documents.copy_content",
-                      "문서 전체 내용 복사"
-                    )}
+                    {t("career.profile.documents.copy_content", "복사")}
                   </MuteButton>
                   <MuteButton disabled={!result} onClick={exportMarkdown}>
                     <Download className="h-4 w-4" />
-                    {t(
-                      "career.profile.documents.export_markdown",
-                      "Markdown 내보내기"
-                    )}
+                    {t("career.profile.documents.export_markdown", "Export")}
                   </MuteButton>
                 </>
               )}
@@ -274,7 +269,11 @@ export function CareerDocumentDetail({
                 className="h-[75svh] min-h-[480px] w-full border-0"
               />
             ) : (
-              <RichText content={result.content} />
+              <RichText
+                variant="career"
+                content={result.content}
+                referenceLinks={result.originType === "company_research"}
+              />
             )
           ) : (
             <div

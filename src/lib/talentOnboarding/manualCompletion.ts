@@ -3,6 +3,7 @@ import {
   getActiveOpportunityRun,
   serializeOpportunityRun,
 } from "@/lib/opportunityDiscovery/store";
+import { after } from "next/server";
 import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
 import {
   createOnboardingCompletionMessages,
@@ -73,16 +74,20 @@ export async function completeTalentOnboardingManually(args: {
     userId: args.userId,
   });
 
-  void maybeSummarizeTalentConversation({
-    admin: args.admin,
-    conversationId: args.conversationId,
-    userId: args.userId,
-  }).catch((error) => {
-    console.error("[manual-completion] Failed to summarize conversation", {
-      conversationId: args.conversationId,
-      error: error instanceof Error ? error.message : String(error),
-      userId: args.userId,
-    });
+  after(async () => {
+    try {
+      await maybeSummarizeTalentConversation({
+        admin: args.admin,
+        conversationId: args.conversationId,
+        userId: args.userId,
+      });
+    } catch (error) {
+      console.error("[manual-completion] Failed to summarize conversation", {
+        conversationId: args.conversationId,
+        error: error instanceof Error ? error.message : String(error),
+        userId: args.userId,
+      });
+    }
   });
 
   const [activeRun, brief, updatedAt] = await Promise.all([

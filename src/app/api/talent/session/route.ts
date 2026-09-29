@@ -53,6 +53,10 @@ import {
   CAREER_SESSION_START_NO_MESSAGE_MARKER,
 } from "@/lib/career/prompts";
 import { resolveCareerReengagementActionKeys } from "@/lib/career/reengagementActions";
+import {
+  CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
+  fetchCareerReengagementHistory,
+} from "@/lib/career/reengagementHistory.server";
 import { fetchPendingInternalOpportunityCallRequests } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { syncVerifiedTalentAccountEmail } from "@/lib/talentOnboarding/accountEmail";
@@ -233,10 +237,16 @@ async function generateSessionStartGreeting(args: {
     previousChatAt,
     userId,
   } = args;
+  const recentReengagementHistory = await fetchCareerReengagementHistory({
+    admin,
+    conversationId,
+    userId,
+  });
 
   const result = await runCareerChatTurn({
     allowedToolNames: [],
     admin,
+    assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
     conversationId,
     isMobile: args.isMobile,
     noMessageMarker: CAREER_SESSION_START_NO_MESSAGE_MARKER,
@@ -246,6 +256,7 @@ async function generateSessionStartGreeting(args: {
       isOnboardingDone: args.isOnboardingDone,
       preferredLocale: args.preferredLocale,
       previousChatAt,
+      recentReengagementHistory,
       timeZone: args.timeZone,
     }),
     transformAssistantTextBeforeInsert: (content) =>

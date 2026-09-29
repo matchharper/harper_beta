@@ -250,15 +250,11 @@ export async function listGmailHistory(startHistoryId: string) {
   return { latestHistoryId, messageIds: [...messageIds] };
 }
 
-export async function listInboxMessageIds() {
+export async function listInboxMessageIds(query?: string) {
   const messageIds = new Set<string>();
   let pageToken: string | undefined;
   do {
-    const params = new URLSearchParams({
-      labelIds: "INBOX",
-      maxResults: "500",
-    });
-    if (pageToken) params.set("pageToken", pageToken);
+    const params = buildInboxListParams(query, pageToken);
     const result = await gmailRequest<{
       messages?: Array<{ id?: string }>;
       nextPageToken?: string;
@@ -269,6 +265,16 @@ export async function listInboxMessageIds() {
     pageToken = result.nextPageToken;
   } while (pageToken);
   return [...messageIds];
+}
+
+export function buildInboxListParams(query?: string, pageToken?: string) {
+  const params = new URLSearchParams({
+    labelIds: "INBOX",
+    maxResults: "500",
+  });
+  if (query) params.set("q", query);
+  if (pageToken) params.set("pageToken", pageToken);
+  return params;
 }
 
 function getHeader(payload: GmailPart | undefined, name: string) {

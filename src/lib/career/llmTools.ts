@@ -18,7 +18,6 @@ export type CareerRealtimeTool = ReturnType<typeof getRealtimeTools>[number];
 export type CareerChatToolSelectionArgs = {
   allowedToolNames?: readonly string[] | null;
   activeInternalFitHoldQuestion?: boolean | null;
-  activeCompanyTalentRequestMode?: "document" | "text" | null;
   channel?: TalentToolChannel | null;
   hasActiveGmailIntegration?: boolean | null;
   isOnboardingDone?: boolean | null;
@@ -62,9 +61,8 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
   TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
   // 실제 회사 연락에 대한 답변·후속 전달은 온보딩 상태와 무관하게 처리한다.
-  TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
-  TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS,
-  TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
+  TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
+  TALENT_TOOL_NAMES.CONTACT_COMPANY,
 ] as const;
 
 export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
@@ -105,12 +103,16 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.GENERATE_RESUME,
+  TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
+  // The schema is always present after onboarding. Its prompt and tool
+  // contract keep ordinary chat as the default; no classifier call is added.
+  TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,
   TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
   // 회사가 이전에 보낸 연락을 찾고, 첫 답변 이후에도 같은 연결로 전달할 때.
-  TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS,
-  TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
+  TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
+  TALENT_TOOL_NAMES.CONTACT_COMPANY,
 ] as const;
 
 export const CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES: readonly string[] = [
@@ -184,13 +186,6 @@ function shouldExposeCareerChatTool(
     return shouldExposeConnectedGmailTool(args);
   }
 
-  if (toolName === TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE) {
-    return (
-      args.activeCompanyTalentRequestMode === "text" ||
-      args.activeCompanyTalentRequestMode === "document"
-    );
-  }
-
   if (isOnboardingActive) {
     if (channel === "voice") {
       return isListedToolName(
@@ -240,12 +235,18 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
 }
 
 export function getCareerRealtimeToolCandidates(
-  preferredLocale?: string | null
+  preferredLocale?: string | null,
+  options?: { includeCareerCoachingActivity?: boolean }
 ) {
   const enabledVoiceToolNames = new Set<string>([
     ...CAREER_REALTIME_VOICE_ONBOARDING_TOOL_NAMES,
     ...CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES,
   ]);
+  if (options?.includeCareerCoachingActivity) {
+    enabledVoiceToolNames.add(
+      TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY
+    );
+  }
   return getRealtimeTools("voice", { responseLocale: preferredLocale }).filter(
     (tool) => enabledVoiceToolNames.has(tool.name)
   );

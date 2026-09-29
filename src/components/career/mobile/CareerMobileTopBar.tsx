@@ -5,6 +5,7 @@ import { ChevronDown, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CareerProfileMenu from "@/components/career/CareerProfileMenu";
 import { BareButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import CareerMobileNavigationMenu, {
@@ -88,19 +89,34 @@ export default function CareerMobileTopBar({
       >
         <BareButton
           type="button"
-          className="relative z-10 inline-flex h-11 max-w-[180px] items-center gap-1 rounded-md px-2.5 text-base font-medium text-neutral-primary transition active:bg-bg-weak"
+          className="relative z-10 inline-flex h-11 max-w-[calc(100vw-112px)] items-center gap-1 rounded-md px-2.5 text-base font-medium text-neutral-primary transition active:bg-bg-weak"
         >
           {ActiveIcon && (
             <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-neutral-primary">
-              <ActiveIcon className="h-4 w-4" />
+              <ActiveIcon
+                className="h-4 w-4"
+                strokeWidth={activeOption.id === "home" ? undefined : 1.5}
+              />
             </span>
           )}
           <span className="min-w-0 truncate">{activeOption?.label}</span>
+          {(activeOption?.badgeCount ?? 0) > 0 ? (
+            <Badge
+              className={cn(
+                "min-w-5 bg-primary-faded font-normal tabular-nums text-primary",
+                activeOption.badgeClassName
+              )}
+              radius="full"
+              size="sm"
+            >
+              {activeOption.badgeCount}
+            </Badge>
+          ) : null}
           <ChevronDown className="h-5 w-5 shrink-0 text-neutral-muted" />
         </BareButton>
       </CareerMobileNavigationMenu>
 
-      <div className="relative z-10 flex items-center gap-0">
+      <div className="relative z-10 flex shrink-0 items-center gap-0">
         <IconButton
           ariaLabel={"설정"}
           onClick={onOpenSettings}

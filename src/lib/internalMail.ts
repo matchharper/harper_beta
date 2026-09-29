@@ -1,3 +1,4 @@
+import { resendApiUrl } from "@/lib/email/transport";
 import {
   renderEmailBodyHtml,
   renderEmailBodyText,
@@ -21,7 +22,7 @@ export async function sendInternalEmail(args: {
   const resendApiKey = readEnv("RESEND_API_KEY");
   const userAgent = "harper/0.1.0 internal-mailer";
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await fetch(resendApiUrl("/emails"), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${resendApiKey}`,

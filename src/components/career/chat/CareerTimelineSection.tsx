@@ -16,6 +16,7 @@ import {
   ChatDateDivider,
   ChatLoadOlderButton,
   getChatMessageDateKey,
+  getChatTurnStartedAt,
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import {
@@ -71,6 +72,11 @@ import { OpportunityPreviewCards } from "./elements/OpportunityPreviewCards";
 import { RecommendationSearchStatusPanel } from "./elements/RecommendationSearchStatusPanel";
 import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
+import {
+  CareerCoachingActivityCard,
+  type CareerCoachingActivityUiAction,
+} from "./CareerCoachingActivityCard";
+import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import Face from "@/components/common/Face";
@@ -250,6 +256,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
   assistantChoiceActionsDisabled,
   onSelectAssistantChoice,
   onSelectReengagementAction,
+  onUpdateCareerCoachingActivity,
   onDeleteMessage,
   showDevMessageActions,
 }: {
@@ -264,6 +271,10 @@ const TimelineMessageList = memo(function TimelineMessageList({
   onSelectReengagementAction?: (
     selection: CareerReengagementActionSelection
   ) => void | Promise<void>;
+  onUpdateCareerCoachingActivity?: (args: {
+    action: CareerCoachingActivityUiAction;
+    activity: CareerCoachingActivity;
+  }) => boolean | Promise<boolean>;
   onDeleteMessage?: (messageId: string | number) => boolean | Promise<boolean>;
   onRegenerateOnboardingWrapup?: () => void | Promise<void>;
   onCancelActiveRecommendationSearch?: () => void;
@@ -302,6 +313,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
             followingMessage.thinkingLogs ?? []
           ).latestStatus?.state === "stopped";
         const isRunningRecommendationSearch = latestStatus?.state === "running";
+        const turnStartedAt = isUser
+          ? undefined
+          : getChatTurnStartedAt(messages, index);
         const recommendationSearchRun = !isUser
           ? (message.recommendationSearchRun ?? null)
           : null;
@@ -375,7 +389,9 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   isAssistantStreamActive ||
                   (isOnboardingCompletionWrapup && onboardingWrapupPending)
                 }
+                completedAt={message.createdAt}
                 logs={textLogs}
+                startedAt={turnStartedAt}
               />
             )}
             {!isUser &&
@@ -388,7 +404,21 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   status={latestStatus}
                 />
               )}
-            {shouldRenderSplitRecommendationSearch && latestStatus ? (
+            {message.coachingActivity ? (
+              <CareerCoachingActivityCard
+                activity={message.coachingActivity}
+                disabled={assistantChoiceActionsDisabled}
+                onAction={
+                  onUpdateCareerCoachingActivity
+                    ? (action) =>
+                        onUpdateCareerCoachingActivity({
+                          action,
+                          activity: message.coachingActivity!,
+                        })
+                    : undefined
+                }
+              />
+            ) : shouldRenderSplitRecommendationSearch && latestStatus ? (
               <>
                 <AssistantLabel />
                 <CareerMessageBubble
@@ -603,6 +633,7 @@ const CareerTimelineSection = ({
     onRegenerateOnboardingWrapup,
     onSendChatMessage,
     onStartConversationStarter,
+    onUpdateCareerCoachingActivity,
     showVoiceStartPrompt,
     onStartCallMode,
     onUseChatOnly,
@@ -1154,6 +1185,7 @@ const CareerTimelineSection = ({
             onboardingWrapupPending={onboardingWrapupPending}
             onStartCallMode={onStartCallMode}
             onStartConversationStarter={onStartConversationStarter}
+            onUpdateCareerCoachingActivity={onUpdateCareerCoachingActivity}
             sessionReengagementActionMessageId={
               visibleSessionReengagementActionMessageId
             }

@@ -29,19 +29,23 @@ const PREFERENCE_FIT_ICON: Record<CareerPreferenceFitKey, LucideIcon> = {
 const PREFERENCE_FIT_STATUS_META: Record<
   CareerPreferenceFitStatus,
   {
+    iconClassName: string;
     label: React.ReactNode;
     statusClassName: string;
   }
 > = {
   Satisfied: {
+    iconClassName: "bg-positive-faded text-positive",
     label: <Check className="h-4 w-4" />,
     statusClassName: "text-positive",
   },
   Neutral: {
+    iconClassName: "bg-info-faded text-info",
     label: <TriangleAlert className="h-3.5 w-3.5" />,
     statusClassName: "text-info",
   },
   Dissatisfied: {
+    iconClassName: "bg-critical-faded text-critical",
     label: <X className="h-3.5 w-3.5" />,
     statusClassName: "text-critical",
   },
@@ -56,10 +60,35 @@ const OpportunityPreferenceFit = ({
 }: {
   className?: string;
   items?: CareerPreferenceFitItem[];
-  variant?: "compact" | "detail";
+  variant?: "compact" | "detail" | "icons";
 }) => {
   const visibleItems = (items ?? []).filter((item) => item.note.trim());
   if (visibleItems.length === 0) return null;
+
+  if (variant === "icons") {
+    return (
+      <div className={cn("flex flex-wrap items-center gap-2", className)}>
+        {visibleItems.map((item) => {
+          const Icon =
+            PREFERENCE_FIT_ICON[item.key] ?? PreferenceFitIconFallback;
+          return (
+            <Tooltips key={item.key} text={`${item.label}\n${item.note}`}>
+              <span
+                aria-label={`${item.label}: ${item.note}`}
+                className={cn(
+                  "inline-flex size-8 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                  PREFERENCE_FIT_STATUS_META[item.status].iconClassName
+                )}
+                tabIndex={0}
+              >
+                <Icon aria-hidden className="size-4" strokeWidth={1.7} />
+              </span>
+            </Tooltips>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div

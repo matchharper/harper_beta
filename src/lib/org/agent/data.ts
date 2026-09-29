@@ -26,10 +26,7 @@ import type {
 import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
 import { hasOrgWorkspaceAccessBypass } from "@/lib/org/access";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import {
-  companyTalentRequestBlocksNewContact,
-  summarizeCompanyTalentRequestStatus,
-} from "@/lib/companyTalentRequests/status";
+import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 import { resolveTalentLocation } from "@/lib/talentLocation";
@@ -53,6 +50,7 @@ export type OrgAgentPipelineRoleCounts = {
   complete: boolean;
   ended: number;
   intro: number;
+  requested: number;
   waiting: number;
 };
 
@@ -92,6 +90,7 @@ type RecommendationRow = {
   created_at: string;
   feedback: string | null;
   feedback_at: string | null;
+  opportunity_type?: string | null;
   feedback_reason: string | null;
   fit_reasons: unknown;
   fit_summary: string | null;
@@ -128,7 +127,7 @@ type ProgressRow = {
 };
 
 const RECOMMENDATION_FIELDS =
-  "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, processed_stage, saved_stage, talent_memo, tradeoffs, rank, recommended_at, created_at, updated_at";
+  "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, opportunity_type, processed_stage, saved_stage, talent_memo, tradeoffs, rank, recommended_at, created_at, updated_at";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -403,7 +402,14 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
   const emptyCounts = new Map<string, OrgAgentPipelineRoleCounts>(
     roleIds.map((roleId) => [
       roleId,
-      { active: 0, complete: true, ended: 0, intro: 0, waiting: 0 },
+      {
+        active: 0,
+        complete: true,
+        ended: 0,
+        intro: 0,
+        requested: 0,
+        waiting: 0,
+      },
     ])
   );
   if (roleIds.length === 0) {
@@ -431,10 +437,10 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
       user: args.user,
       workspaceId: args.workspaceId,
     }),
-    (args.admin.from("talent_opportunity_recommendation" as any) as any)
+    (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
       .select("id", { count: "exact", head: true })
       .in("role_id", roleIds),
-    (args.admin.from("talent_opportunity_recommendation" as any) as any)
+    (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
       .select("id, talent_id, role_id, updated_at")
       .in("role_id", roleIds)
       .order("updated_at", { ascending: false })
@@ -478,6 +484,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
         complete: countsComplete,
         ended: 0,
         intro: 0,
+        requested: 0,
         waiting: 0,
       },
     ])
@@ -565,7 +572,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
       unresolvedKeys.map((key) => key.slice(0, key.lastIndexOf(":")))
     );
     const { data: supplementalData, error: supplementalError } = await (
-      args.admin.from("talent_opportunity_recommendation" as any) as any
+      args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
     )
       .select("id, talent_id, role_id, updated_at")
       .in("role_id", roleIds)
@@ -992,6 +999,7 @@ function objectValue(value: unknown): Record<string, unknown> {
 
 async function readCompanyTalentRequestProjection(args: {
   admin: OrgAgentAdminClient;
+  includeResumeAvailability?: boolean;
   roleById: Map<string, OrgAgentRole>;
   talentId: string;
   workspaceId: string;
@@ -1003,9 +1011,10 @@ async function readCompanyTalentRequestProjection(args: {
       )
       .eq("company_workspace_id", args.workspaceId)
       .eq("talent_id", args.talentId)
+      .in("role_id", [...args.roleById.keys()])
       .order("created_at", { ascending: false })
       .limit(5),
-    (args.admin.from("talent_documents" as any) as any)
+    args.includeResumeAvailability === false ? Promise.resolve({ data: [], error: null }) : (args.admin.from("talent_documents" as any) as any)
       .select("id, is_public, is_primary")
       .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("talent_id", args.talentId)
@@ -1089,23 +1098,11 @@ async function readCompanyTalentRequestProjection(args: {
         role_is_open: roleIsOpen,
         workflow_status: workflowStatus,
       });
-      const blocksNewRequest =
-        roleIsOpen !== false &&
-        companyTalentRequestBlocksNewContact({
-          candidate_delivery_status: text(candidateDelivery?.status),
-          candidate_sent_at: text(candidateDelivery?.sent_at),
-          expires_at: text(row.expires_at),
-          has_candidate_response: Boolean(
-            responseMessageId || responseDocumentId
-          ),
-          workflow_status: workflowStatus,
-        });
       return {
         approvedAt: formatRequestTimestamp(row.approved_at),
         at: formatRequestTimestamp(
           candidateDelivery?.sent_at ?? row.created_at
         ),
-        blocksNewRequest,
         cancelable:
           workflowStatus === "draft" ||
           (["queued", "failed"].includes(text(candidateDelivery?.status)) &&
@@ -1135,18 +1132,10 @@ async function readCompanyTalentRequestProjection(args: {
           workflowStatus === "draft" ? Number(row.draft_revision ?? 0) : null,
         draftSubject:
           workflowStatus === "draft" ? text(row.delivery_subject) : null,
-        intent: text(row.intent) || "ordinary",
-        label:
-          text(row.intent) === "candidate_reengagement"
-            ? "재진행 의사 확인"
-            : row.expects_document
-              ? "이력서 요청"
-              : "회사 질문 확인",
+        label: "회사 연락",
         requestId: text(row.id),
         roleId: text(row.role_id),
         roleName: role?.name ?? null,
-        resumeStage: text(row.resume_stage) || null,
-        responseDisposition: text(row.response_disposition) || null,
         scheduledAt: formatRequestTimestamp(candidateDelivery?.scheduled_at),
         status: statusSummary.status,
         topic: text(row.request_context),
@@ -1267,6 +1256,7 @@ async function readMeetingScheduleProjection(args: {
       invitationScheduledAt: scheduledAt,
       invitationSentAt: sentAt,
       invitationState,
+      scheduleId: text(schedule.id),
       meetingPurpose: text(config.meetingPurpose) || null,
       processStageName: text(config.processStageName) || null,
       roleName: args.roleById.get(text(schedule.role_id))?.name ?? null,
@@ -1336,6 +1326,36 @@ function compactTalentExtras(value: unknown) {
     .slice(0, 5);
 }
 
+export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: ProgressRow[]) {
+  if (!items.length || items.some((item) => !item.companyIntro)) throw new Error("Expected visible company-intro items");
+  const first = items[0];
+  const roleById = new Map(items.map((item) => [item.roleId, item]));
+  return {
+    candidate: { email: null, headline: first.talent.headline, name: first.talent.name, talentId: first.talentId },
+    positions: items.map((item) => ({
+      existingFeedback: null, feedbackReason: null, fitReasons: item.fitReasons,
+      fitSummary: item.fitSummary, recommendationId: item.recommendationId,
+      recommendedAt: item.recommendedAt, roleId: item.roleId, roleName: item.roleName,
+      candidateAccepted: false, closed: false, processClosureNotification: null,
+      savedStage: null, stage: item.stage, stageLabel: humanizeOrgStage(item.stage),
+      talentMemo: null, tradeoffs: null, updatedAt: item.updatedAt,
+      companyIntroStatus: item.companyIntro!.status,
+      introRequestedAt: item.companyIntro!.requestedAt,
+      candidateSentAt: item.companyIntro!.candidateSentAt,
+    })),
+    profile: null, profileIncluded: false,
+    responseGuide: "Candidate interest is not yet confirmed. Only company-visible proposal facts are available; no resume, contact address or private Career data is disclosed.",
+    harperSharedInformation: [], meetingHistory: [], requestHistory: [],
+    resumeAvailability: { available: false, guidance: "제안 수락 전에는 비공개 이력서를 조회할 수 없어요. 후보자가 직접 공유하도록 요청하는 연락과는 별개예요." },
+    recentProgress: progress.filter((row) => row.talent_id === first.talentId && roleById.has(row.role_id) && row.kind === "internal_followup_sent").map((row) => ({
+      at: row.created_at, kind: humanizeOrgProgressKind(row.kind),
+      metadata: compactOrgProgressMetadata(row.metadata), recommendationId: row.recommendation_id,
+      roleId: row.role_id, roleName: roleById.get(row.role_id)!.roleName,
+      text: "Harper가 기존 제안의 응답을 확인하는 자동 팔로업을 발송했습니다.",
+    })),
+  };
+}
+
 export async function readOrgAgentTalent(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
@@ -1358,9 +1378,9 @@ export async function readOrgAgentTalent(args: {
   if (relevantRoleIds.length === 0) {
     throw new OrgHttpError(404, "Talent not found in this workspace");
   }
-  const [recommendationIdResult, progressRecommendationIdResult] =
+  const [recommendationIdResult, progressRecommendationIdResult, introResult] =
     await Promise.all([
-      (args.admin.from("talent_opportunity_recommendation" as any) as any)
+      (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
         .select("id")
         .eq("talent_id", talentId)
         .in("role_id", relevantRoleIds)
@@ -1374,7 +1394,15 @@ export async function readOrgAgentTalent(args: {
         .not("recommendation_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(50),
+      (args.admin.from("company_intro_candidates" as any) as any)
+        .select("id, recommendation_id, role_id")
+        .eq("talent_id", talentId)
+        .in("role_id", relevantRoleIds)
+        .in("status", ["ready", "awaiting_talent", "connecting"])
+        .limit(100),
     ]);
+  if (introResult.error) throw introResult.error;
+  const introRows = (introResult.data ?? []) as Array<{ id: string; recommendation_id: string | null; role_id: string }>;
   if (recommendationIdResult.error) throw recommendationIdResult.error;
   if (progressRecommendationIdResult.error) {
     throw progressRecommendationIdResult.error;
@@ -1390,7 +1418,7 @@ export async function readOrgAgentTalent(args: {
   // event even when the recommendation itself is old.
   const board = await fetchVisibleOrgAgentBoard({
     audience: args.audience,
-    recommendationIds: candidateRecommendationIds,
+    recommendationIds: [...candidateRecommendationIds, ...introRows.map((row) => `company-intro:${row.id}`)],
     roleId: exactRoleId || null,
     user: args.user,
     workspaceId: args.workspaceId,
@@ -1399,15 +1427,40 @@ export async function readOrgAgentTalent(args: {
   if (visibleItems.length === 0) {
     throw new OrgHttpError(404, "Talent not found in this workspace");
   }
+  const visibleIntroItems = visibleItems.filter((item) => item.source === "company_intro");
+  // Before acceptance, reuse only the company's safe board projection. Do not
+  // reach raw profile/email, resume, Career memory or hidden recommendation data.
+  if (visibleItems.every((item) => item.source === "company_intro")) {
+    const visibleIntroIds = new Set(visibleIntroItems.map((item) => item.companyIntro!.id));
+    const scopedRows = introRows.filter((row) => visibleIntroIds.has(row.id));
+    const progress = scopedRows.some((row) => row.recommendation_id)
+      ? await (args.admin.from("talent_progress" as any) as any)
+          .select("created_at, kind, recommendation_id, role_id, talent_id, text, metadata")
+          .eq("talent_id", talentId)
+          .in("role_id", scopedRows.map((row) => row.role_id))
+          .in("recommendation_id", scopedRows.flatMap((row) => row.recommendation_id ? [row.recommendation_id] : []))
+          .eq("kind", "internal_followup_sent")
+          .order("created_at", { ascending: false })
+          .limit(integer(args.progressLimit, 10, 1, 30))
+      : { data: [], error: null };
+    if (progress.error) throw progress.error;
+    const projection = buildCompanyIntroTalentRead(visibleIntroItems, (progress.data ?? []) as ProgressRow[]);
+    const contacts = await readCompanyTalentRequestProjection({
+      admin: args.admin, talentId, workspaceId: args.workspaceId,
+      roleById: new Map([...roleById].filter(([id]) => visibleIntroItems.some((item) => item.roleId === id))),
+      includeResumeAvailability: false,
+    });
+    return { ...projection, requestHistory: contacts.requestHistory };
+  }
   const visibleItemByRecommendationId = new Map(
-    visibleItems.map((item) => [item.recommendationId, item])
+    visibleItems.filter((item) => item.source !== "company_intro").map((item) => [item.recommendationId, item])
   );
   const recommendationIds = [...visibleItemByRecommendationId.keys()];
   const visibleRoleIds = unique(visibleItems.map((item) => item.roleId));
 
   const [{ data: recommendationData, error: recommendationError }, talentById] =
     await Promise.all([
-      (args.admin.from("talent_opportunity_recommendation" as any) as any)
+      (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
         .select(RECOMMENDATION_FIELDS)
         .in("id", recommendationIds)
         .order("updated_at", { ascending: false })
@@ -1470,7 +1523,8 @@ export async function readOrgAgentTalent(args: {
     .filter(
       (row) =>
         !row.recommendation_id ||
-        visibleItemByRecommendationId.has(row.recommendation_id)
+        visibleItemByRecommendationId.has(row.recommendation_id) ||
+        (row.kind === "internal_followup_sent" && introRows.some((intro) => intro.recommendation_id === row.recommendation_id && visibleIntroItems.some((item) => item.companyIntro?.id === intro.id)))
     )
     .slice(0, progressLimit);
 
@@ -1526,12 +1580,14 @@ export async function readOrgAgentTalent(args: {
       name: candidateName,
       talentId,
     },
-    positions: recommendations.flatMap((row) => {
+    positions: [...(visibleIntroItems.length ? buildCompanyIntroTalentRead(visibleIntroItems, []).positions : []), ...recommendations.flatMap((row) => {
       const visibleItem = visibleItemByRecommendationId.get(row.id);
       if (!visibleItem) return [];
       return [
         {
           existingFeedback: row.feedback,
+          candidateAcceptedAt: row.feedback === "like" ? row.feedback_at : null,
+          recommendationOrigin: row.opportunity_type === "intro_request" ? "company_intro_request" : "harper_recommendation",
           feedbackReason: row.feedback_reason,
           fitReasons: stringList(row.fit_reasons),
           fitSummary: clip(row.fit_summary, 700) || null,
@@ -1562,7 +1618,7 @@ export async function readOrgAgentTalent(args: {
           updatedAt: row.updated_at,
         },
       ];
-    }),
+    })],
     profile,
     profileIncluded: Boolean(args.includeProfile),
     responseGuide: buildReadTalentResponseGuide({
@@ -1813,6 +1869,7 @@ export async function readOrgAgentRole(args: {
   const recentUpdateLimit = integer(args.recentUpdateLimit, 10, 0, 20);
   const stage = validateStage(text(args.stage));
   const baseRole = {
+    isCompanyFirstSearch: role.isCompanyFirstSearch,
     employmentTypes: role.employmentTypes.map(humanizeOrgEmploymentType),
     externalJdUrl: role.externalJdUrl,
     locationText: role.locationText,
@@ -1932,6 +1989,7 @@ export async function readOrgAgentRole(args: {
     complete: false,
     ended: 0,
     intro: 0,
+    requested: 0,
     waiting: 0,
   };
   const pipelineResult = {
@@ -2008,6 +2066,7 @@ export async function readOrgAgentRole(args: {
     })),
     stageCounts: [
       { count: bucketCounts.intro, stage: "먼저 제안 가능한 후보" },
+      { count: bucketCounts.requested, stage: "Intro Requested" },
       { count: bucketCounts.waiting, stage: "연결 대기" },
       { count: bucketCounts.active, stage: "진행 중" },
       { count: bucketCounts.ended, stage: "프로세스 종료" },

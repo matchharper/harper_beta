@@ -1,5 +1,9 @@
 # Company-side LLM 호출 지도
 
+> 2026-09-24 로컬 변경: 아래 상세 예시는 8월의 과거 구조다. 현재는 `input.ts`가 참고 context와 native 대화를 분리하고,
+> 기본 조회 5개+핵심 연락 3개+loader+기능 개요로 시작한다. 직전 실제 Harper toolResults의 기능은 한 turn 이어서 노출한다. 나머지 무거운 기능은 `load_capabilities` 뒤 다음 completion부터 상세 policy/schema가 함께 들어간다. 현재 정본은 `docs/company-side-agent-engineering-contract-ko.md`다.
+> [`engineering 정본`](../../../../docs/company-side-agent-engineering-contract-ko.md)이 현재 변경 기준이며 운영 배포를 뜻하지 않는다.
+
 이 문서는 `/org` 웹 채팅과 `/org-Slack`의 company-side LLM이 실제로 어떤
 message와 tool을 주고받는지 설명한다. 예시는 2026-08-05 코드를 기준으로 만든
 가상 데이터다. 최종 소스 오브 트루스는 `chat.ts`, `context.ts`, `prompts.ts`,

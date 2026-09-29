@@ -3,7 +3,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 
 import { BareButton } from "@/components/ui/button";
-import RichText from "@/components/ui/rich-text";
+import RichText, { type RichTextVariant } from "@/components/ui/rich-text";
 import { cn } from "@/lib/utils";
 
 export const CHAT_USER_BUBBLE_CLASS =
@@ -40,6 +40,16 @@ export function getPreviousChatMessageDateKey<
     if (dateKey) return dateKey;
   }
   return "";
+}
+
+export function getChatTurnStartedAt<
+  TMessage extends { createdAt: string; role: string },
+>(messages: TMessage[], currentIndex: number) {
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "user") return message.createdAt;
+  }
+  return undefined;
 }
 
 export function ChatDateDivider({
@@ -97,15 +107,18 @@ export function ChatAssistantContent({
   linkClassName,
   onHarperLinkClick,
   renderEmailLinksAsText = false,
+  variant,
 }: {
   className?: string;
   content: string;
   linkClassName?: string;
   onHarperLinkClick?: (href: string) => void;
   renderEmailLinksAsText?: boolean;
+  variant?: RichTextVariant;
 }) {
   return (
     <RichText
+      variant={variant}
       className={className}
       content={content}
       linkClassName={linkClassName}

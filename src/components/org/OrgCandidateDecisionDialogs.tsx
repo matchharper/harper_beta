@@ -59,12 +59,12 @@ export function AcceptIntroDialog({
   companyContactName,
   defaultContactDirectly = false,
   defaultEmail,
+  destinationLabel = "연결됨",
   members = [],
   onClose,
   onSubmit,
   open,
   pending,
-  requiresProcessStage = false,
   roleTitle,
 }: {
   allowContactDirectly?: boolean;
@@ -73,6 +73,7 @@ export function AcceptIntroDialog({
   companyContactName?: string | null;
   defaultContactDirectly?: boolean;
   defaultEmail?: string | null;
+  destinationLabel?: string;
   members?: Pick<OrgMember, "email" | "name" | "userId">[];
   onClose: () => void;
   onSubmit: (args: {
@@ -85,13 +86,11 @@ export function AcceptIntroDialog({
     introEmails: string[];
     meetingCandidateMessage: string | null;
     meetingPurpose: string;
-    processStageLabel: string | null;
     scheduleInterview: boolean;
     title: string;
   }) => AcceptIntroSubmitResult | Promise<AcceptIntroSubmitResult>;
   open: boolean;
   pending?: boolean;
-  requiresProcessStage?: boolean;
   roleTitle: string;
 }) {
   const router = useRouter();
@@ -114,12 +113,8 @@ export function AcceptIntroDialog({
   // Meeting scheduling is intentionally chat-only. This dialog only covers
   // direct contact and the existing email-introduction flow.
   const schedulesInterview = false;
-  const processDestinationLabel = requiresProcessStage
-    ? "선택한 다음 프로세스"
-    : "연결됨";
-  const processDestinationDirection = requiresProcessStage
-    ? "선택한 다음 프로세스로"
-    : "연결됨으로";
+  const processDestinationLabel = destinationLabel;
+  const processDestinationDirection = `${destinationLabel} 단계로`;
   const availabilityQuery = useOrgMeetingAvailability({
     enabled: open && schedulesInterview,
     workspaceId: workspace.workspaceId,
@@ -139,7 +134,6 @@ export function AcceptIntroDialog({
   );
   const [meetingPurpose, setMeetingPurpose] = useState("");
   const [meetingCandidateMessage, setMeetingCandidateMessage] = useState("");
-  const [processStageLabel, setProcessStageLabel] = useState("");
   const [meetingAttendeeEmails, setMeetingAttendeeEmails] = useState(() =>
     getDefaultEmailText() ? [getDefaultEmailText()] : []
   );
@@ -179,7 +173,6 @@ export function AcceptIntroDialog({
     setDurationMinutes(DEFAULT_INTERVIEW_DURATION_MINUTES);
     setMeetingPurpose("");
     setMeetingCandidateMessage("");
-    setProcessStageLabel("");
     setMeetingAttendeeEmails(
       getDefaultEmailText() ? [getDefaultEmailText()] : []
     );
@@ -214,10 +207,6 @@ export function AcceptIntroDialog({
       setError("미팅에서 나눌 주제를 알려주세요.");
       return;
     }
-    if (requiresProcessStage && !processStageLabel.trim()) {
-      setError("다음 프로세스 이름을 입력해 주세요.");
-      return;
-    }
     setError("");
     try {
       const result = await onSubmit({
@@ -232,9 +221,6 @@ export function AcceptIntroDialog({
           ? meetingCandidateMessage.trim() || null
           : null,
         meetingPurpose: schedulesInterview ? meetingPurpose.trim() : "",
-        processStageLabel: requiresProcessStage
-          ? processStageLabel.trim()
-          : null,
         scheduleInterview: schedulesInterview,
         title: meetingTitle.trim(),
       });
@@ -291,7 +277,7 @@ export function AcceptIntroDialog({
           ? `${processDestinationDirection} 옮기기 전에 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요.`
           : usesDirectContact
             ? `후보자를 ${processDestinationDirection} 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요.`
-            : "Harper가 후보자와 선택한 담당자를 소개하는 이메일을 보내요."
+            : "Harper가 후보자와 소개 이메일로 연결해요."
       }
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -312,7 +298,6 @@ export function AcceptIntroDialog({
                   !availability ||
                   !meetingTitle.trim() ||
                   !meetingPurpose.trim())) ||
-              (requiresProcessStage && !processStageLabel.trim()) ||
               (!usesDirectContact &&
                 !schedulesInterview &&
                 (!normalizedCandidateEmail || introEmails.length === 0))
@@ -324,16 +309,10 @@ export function AcceptIntroDialog({
           >
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {schedulesInterview
-              ? requiresProcessStage
-                ? "일정 초안 저장하고 다음 단계로"
-                : "일정 초안 저장하고 연결하기"
+              ? "일정 초안 저장하고 연결하기"
               : usesDirectContact
-                ? requiresProcessStage
-                  ? "다음 프로세스로 이동"
-                  : "Mark as connected"
-                : requiresProcessStage
-                  ? "소개 메일 보내고 다음 단계로"
-                  : "Send intro & connect"}
+                ? "Mark as connected"
+                : "Send intro & connect"}
           </MuteButton>
         </div>
       }
@@ -346,32 +325,13 @@ export function AcceptIntroDialog({
       open={open}
       panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
       showCloseButton={!pending}
-      title={requiresProcessStage ? "다음 프로세스 시작" : "Connect candidate"}
+      title="Connect candidate"
     >
       <form
         className="mt-0 space-y-4"
         id={acceptFormId}
         onSubmit={handleSubmit}
       >
-        {requiresProcessStage ? (
-          <section className="space-y-2 rounded-lg border border-neutral-1000-a05 bg-bg-default p-4">
-            <div className="text-[13px] font-medium text-neutral-primary">
-              다음 프로세스
-            </div>
-            <p className="text-[12px] leading-5 text-neutral-muted">
-              옮길 다음 프로세스를 알려주세요.(ex. 1차 기술 인터뷰, 커피챗 등)
-            </p>
-            <Input
-              aria-label="다음 프로세스 이름"
-              className="h-9 text-[13px]"
-              disabled={pending}
-              maxLength={40}
-              onChange={(event) => setProcessStageLabel(event.target.value)}
-              placeholder="예: 1차 기술 인터뷰"
-              value={processStageLabel}
-            />
-          </section>
-        ) : null}
         {allowContactDirectly ? (
           <div
             aria-label="연결 방식"

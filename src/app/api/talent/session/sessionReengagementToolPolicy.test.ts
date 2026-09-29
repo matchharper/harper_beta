@@ -29,6 +29,13 @@ const reengagementPendingActions = readFileSync(
   ),
   "utf8"
 );
+const reengagementHistory = readFileSync(
+  new URL(
+    "../../../../lib/career/reengagementHistory.server.ts",
+    import.meta.url
+  ),
+  "utf8"
+);
 
 test("session start and re-engagement turns expose no career tools", () => {
   assert.match(sessionRoute, /allowedToolNames:\s*\[\]/);
@@ -65,6 +72,16 @@ test("session and dedicated re-engagement both require 12 idle hours", () => {
 test("dedicated re-engagement loads fresh pending actions into the turn instruction", () => {
   assert.match(reengagementRoute, /fetchCareerReengagementPendingActions\s*\(/);
   assert.match(reengagementRoute, /pendingActions:\s*pendingActionsForTurn/);
+});
+
+test("session re-engagement stores provenance and supplies the latest three prior messages", () => {
+  assert.match(sessionRoute, /CAREER_REENGAGEMENT_MESSAGE_PAYLOAD/);
+  assert.match(reengagementRoute, /CAREER_REENGAGEMENT_MESSAGE_PAYLOAD/);
+  assert.match(sessionRoute, /fetchCareerReengagementHistory\s*\(/);
+  assert.match(reengagementRoute, /fetchCareerReengagementHistory\s*\(/);
+  assert.match(reengagementHistory, /kind:\s*"session_reengagement"/);
+  assert.match(reengagementHistory, /CAREER_REENGAGEMENT_HISTORY_LIMIT\s*=\s*3/);
+  assert.match(reengagementHistory, /stripCareerReengagementActions/);
 });
 
 test("dedicated re-engagement exposes durable pending call actions", () => {

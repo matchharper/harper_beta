@@ -789,7 +789,9 @@ export const CompanyDetailView = ({
                 </div>
               ) : null}
               <RichText
+                variant="career"
                 content={snapshotMarkdown}
+                referenceLinks
                 className={cn(
                   "text-neutral-primary/85",
                   mobileLayout &&

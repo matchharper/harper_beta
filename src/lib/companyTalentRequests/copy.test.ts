@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
-import { assertCandidateResumeUploadLink } from "@/lib/companyTalentRequests/copyRules";
+import { assertCandidateContactUploadLinks } from "@/lib/companyTalentRequests/copyRules";
 import {
   CANDIDATE_CONTACT_COPY_MAX_OUTPUT_TOKENS,
   CANDIDATE_CONTACT_COPY_SCHEMA,
   CANDIDATE_CONTACT_CURRENT_INSTRUCTION_MAX_CHARS,
   CANDIDATE_CONTACT_RECENT_CONTEXT_MAX_CHARS,
+  CANDIDATE_CONTACT_STYLE_EXAMPLES_KO,
+  CANDIDATE_CONTACT_STYLE_EXAMPLES_EN,
   buildCandidateContactDraftMessages,
   buildCandidateContactRevisionMessages,
 } from "@/lib/companyTalentRequests/copyPrompt";
@@ -15,7 +18,6 @@ function buildRepresentativeDraftPrompt() {
     candidateName: "김호진",
     companyName: "SBVA",
     currentInstruction: "Replace Atlas with SBVA in the email and prepare it.",
-    kind: "question",
     profileUrl: null,
     recentConversation:
       "Chris: Hi Alex, would you be open to a coffee chat with Atlas? Best, Chris",
@@ -39,6 +41,13 @@ test("candidate contact copy reserves enough output for reasoning and JSON", () 
   assert.ok(CANDIDATE_CONTACT_COPY_SCHEMA.required.includes("reason"));
 });
 
+test("authorized long message input preserves its ending while durable summary remains bounded", () => {
+  const request = "가".repeat(4200) + "끝의 중요한 조건";
+  const prompt = buildCandidateContactDraftMessages({ candidateName: "Synthetic", companyName: "Synthetic Labs", currentInstruction: "그대로 전달해줘", profileUrl: null, recentConversation: "", recipientLocale: "ko", requestContext: request, roleName: "Backend" });
+  assert.ok(prompt[1].content.includes(request));
+  assert.equal(CANDIDATE_CONTACT_COPY_SCHEMA.properties.requestContext.maxLength, 800);
+});
+
 test("candidate contact prompt bounds repeated batch context while preserving the newest turns", () => {
   const newestMarker = "NEWEST_COMPANY_INSTRUCTION";
   const currentStart = "CURRENT_START";
@@ -50,7 +59,6 @@ test("candidate contact prompt bounds repeated batch context while preserving th
       currentStart +
       "c".repeat(CANDIDATE_CONTACT_CURRENT_INSTRUCTION_MAX_CHARS * 2) +
       currentEnd,
-    kind: "contact",
     profileUrl: null,
     recentConversation:
       "old".repeat(CANDIDATE_CONTACT_RECENT_CONTEXT_MAX_CHARS) + newestMarker,
@@ -65,7 +73,7 @@ test("candidate contact prompt bounds repeated batch context while preserving th
   assert.match(prompt, new RegExp(currentStart));
   assert.match(prompt, new RegExp(currentEnd));
   assert.match(prompt, /middle omitted to keep the writing context bounded/);
-  assert.ok(prompt.length < 30_000);
+  assert.ok(messages[1].content.length < 25_000);
 });
 
 test("candidate contact prompt uses one broad writing guide", () => {
@@ -78,7 +86,7 @@ test("candidate contact prompt uses one broad writing guide", () => {
   );
   assert.match(
     prompt,
-    /직접적인 내용 혹은 요구를 한 경우에는 그것을 최대한 따른다/
+    /회사가 직접 쓴 문구가 있으면 그 의미와 문체를 우선/
   );
   assert.match(prompt, /전부 필수적인 것은 아니며/);
   assert.match(prompt, /제목에는 회사명과 역할명을 정확히 언급/);
@@ -86,34 +94,59 @@ test("candidate contact prompt uses one broad writing guide", () => {
   assert.match(prompt, /제공되었거나 확인된 사실만 사용/);
   assert.match(prompt, /‘후보자님’이라는 일반적인 호칭은 사용하지 않는다/);
   assert.match(prompt, /특별한 이유가 없다면 null/);
-  assert.doesNotMatch(prompt, /### Korean example|### English example/);
 });
 
-test("candidate resume requests require a descriptive markdown upload link without rewriting its language", () => {
+test("draft and revision prompts include the historical email examples verbatim", () => {
+  // SHA-256 of the exact constants in 5b115ab5:candidateContactWriting.ts.
+  // This checks source fidelity and prompt wiring, not generated writing quality.
+  const examples = [
+    [CANDIDATE_CONTACT_STYLE_EXAMPLES_KO, "c5ad969cd95e05d3d783725e5cdc5ad8031a7775d88b90aa8bbd0fdefa5f7b16"],
+    [CANDIDATE_CONTACT_STYLE_EXAMPLES_EN, "c7c816bdc9568b5deaab0fecfb2947d849a7cc946a25a588b6ac07e8bd58776c"],
+  ];
+  const revision = buildCandidateContactRevisionMessages({
+    current: { body: "Existing body", subject: "Existing subject", requestContext: "Existing request" },
+    currentInstruction: "Make the greeting shorter.",
+    editInstruction: "Make the greeting shorter.",
+    profileUrl: null,
+    recentConversation: "",
+    recipientLocale: "en",
+  });
+  const draft = buildRepresentativeDraftPrompt();
+  for (const [example, historicalHash] of examples) {
+    assert.equal(createHash("sha256").update(example).digest("hex"), historicalHash);
+    assert.ok(draft.includes(example));
+    assert.ok(revision[0].content.includes(example));
+  }
+});
+
+test("upload links are optional and validated only for signed destination integrity", () => {
   const url =
     "https://matchharper.com/career/profile?profileSection=links&resumeRequest=signed";
-
+  for (const body of ["No attachment needed.", url, `[Upload](${url})`]) {
+    assert.doesNotThrow(() => assertCandidateContactUploadLinks(body, url));
+  }
   assert.doesNotThrow(() =>
-    assertCandidateResumeUploadLink(
-      `Upload it here: [Share your latest CV](${url})`,
-      url
-    )
+    assertCandidateContactUploadLinks("Read https://example.com/info", null)
   );
   assert.throws(
     () =>
-      assertCandidateResumeUploadLink(
-        `아래 링크에서 업로드해 주세요.\n${url}`,
+      assertCandidateContactUploadLinks(
+        url.replace("signed", "different"),
         url
       ),
-    /descriptive Markdown link/
+    /unverified upload URL/
   );
   assert.throws(
-    () => assertCandidateResumeUploadLink(`[Upload](${url})\nRaw: ${url}`, url),
-    /must not expose the raw upload URL/
+    () =>
+      assertCandidateContactUploadLinks(
+        url.replace("matchharper.com", "other.example"),
+        url
+      ),
+    /unverified upload URL/
   );
   assert.throws(
-    () => assertCandidateResumeUploadLink(`[${url}](${url})`, url),
-    /descriptive Markdown link/
+    () => assertCandidateContactUploadLinks(url, null),
+    /unverified upload URL/
   );
 });
 
@@ -140,7 +173,6 @@ test("candidate contact revision prompt preserves the authoritative draft and ex
     },
     currentInstruction: "Keep it in English and make the greeting shorter.",
     editInstruction: "Make the greeting shorter.",
-    kind: "resume",
     profileUrl: url,
     recentConversation: "Chris: Please revise the draft above.",
     recipientLocale: "en",
@@ -161,29 +193,48 @@ test("candidate contact copy supports an informational contact without a respons
     candidateName: "Alex",
     companyName: "Acme",
     currentInstruction: "팀 소개 자료를 전달해 주세요.",
-    kind: "contact",
     profileUrl: null,
     recentConversation: "",
     recipientLocale: "ko",
     requestContext: "Acme 팀 소개 자료 전달",
     roleName: "Backend Engineer",
   });
-  assert.match(messages[0]?.content ?? "", /## Contact mode/);
+  assert.match(messages[0]?.content ?? "", /not a contact category/);
   assert.match(
     messages[0]?.content ?? "",
-    /without inventing a question, requested document, response deadline/
+    /without adding an obligation to reply/
   );
-  assert.match(messages[1]?.content ?? "", /Contact kind: contact/);
+  assert.doesNotMatch(messages[1]?.content ?? "", /Contact kind:/);
   assert.match(messages[1]?.content ?? "", /Acme 팀 소개 자료 전달/);
 });
 
-test("contact mode is additive and does not alter question or resume instructions", () => {
+test("authorized contact copy covers an initial request or reply without implying another review", () => {
+  const messages = buildCandidateContactDraftMessages({
+    candidateName: "Alex",
+    companyName: "Acme",
+    currentInstruction: "후보자에게 다음 주에 답을 주겠다고 전해 주세요.",
+    deliveryIntent: "direct_reply",
+    profileUrl: null,
+    recentConversation: "Harper: 후보자가 진행 상황을 물었습니다.",
+    recipientLocale: "ko",
+    requestContext: "다음 주에 진행 상황을 다시 안내할 예정이라는 회사의 답변",
+    roleName: "Backend Engineer",
+  });
+  const prompt = messages[0]?.content ?? "";
+
+  assert.match(prompt, /deliver on the company's authority/);
+  assert.match(prompt, /initiate a request or continue existing correspondence/);
+  assert.match(prompt, /do not invent a previous candidate message/);
+  assert.match(prompt, /do not describe this as a draft awaiting company review/);
+  assert.doesNotMatch(prompt, /company will review verbatim before delivery/);
+});
+
+test("contact content and optional document links share the same contract", () => {
   for (const kind of ["question", "resume"] as const) {
     const messages = buildCandidateContactDraftMessages({
       candidateName: "Alex",
       companyName: "Acme",
       currentInstruction: "Use the existing request copy.",
-      kind,
       profileUrl: kind === "resume" ? "https://matchharper.com/upload" : null,
       recentConversation: "",
       recipientLocale: "en",

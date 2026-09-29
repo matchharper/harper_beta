@@ -1,42 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
+import { validateCompanyContactContext } from "./policy";
 
-test("relay policy accepts a neutral professional request without classifying it", () => {
-  assert.equal(
-    assertSafeProfessionalQuestion(
-      "초기 단계의 소규모 팀 환경도 적극적으로 검토하는지 확인"
-    ),
-    "초기 단계의 소규모 팀 환경도 적극적으로 검토하는지 확인"
-  );
+test("the contact contract preserves meaning without keyword classification", () => {
+  for (const content of [
+    "어떤 역할을 선택하실지, 희망 조건이 있다면 알려 주세요.",
+    "Thank you. No reply is needed.",
+    "Please share a resume, or let us know if you prefer to wait.",
+    "가족 건강 때문에 일정 변경을 요청하셨으니 가능한 시간을 여쭤봐 주세요.",
+  ])
+    assert.equal(validateCompanyContactContext(content), content);
 });
-
-test("relay policy does not reject a request merely because it has related questions", () => {
-  assert.equal(
-    assertSafeProfessionalQuestion(
-      "소규모 팀도 괜찮으신가요? 합류 시점은 언제쯤 가능하신가요?"
-    ),
-    "소규모 팀도 괜찮으신가요? 합류 시점은 언제쯤 가능하신가요?"
-  );
-});
-
-test("relay policy allows age and nationality questions", () => {
-  for (const request of [
-    "후보자의 나이와 생년월일, 국적, 출신 국가, 시민권, 영주권 확인",
-    "Confirm the candidate's age, birth date, nationality, citizenship, and residency",
-  ]) {
-    assert.equal(assertSafeProfessionalQuestion(request), request);
-  }
-});
-
-test("relay policy blocks remaining sensitive questions without requiring a question enum", () => {
-  assert.throws(() =>
-    assertSafeProfessionalQuestion("후보자의 결혼 여부와 건강 상태 확인")
-  );
-  assert.equal(
-    assertSafeProfessionalQuestion(
-      "현재 희망 연봉을 어떤 표현으로 공유할지 확인"
-    ),
-    "현재 희망 연봉을 어떤 표현으로 공유할지 확인"
-  );
+test("only structural context limits are enforced", () => {
+  assert.throws(() => validateCompanyContactContext(""));
+  assert.throws(() => validateCompanyContactContext(null));
+  assert.throws(() => validateCompanyContactContext("a".repeat(801)));
+  assert.equal(validateCompanyContactContext("a".repeat(800)).length, 800);
 });

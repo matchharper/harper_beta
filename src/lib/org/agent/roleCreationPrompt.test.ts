@@ -28,103 +28,25 @@ test("Slack role creation keeps the thread linked and uses Slack mrkdwn", () => 
   assert.match(prompt, /press a button or clearly confirm/);
 });
 
-test("guides compact adaptive role discovery without a fixed script", () => {
+test("one compact authoring contract retains discovery and confirmation boundaries", () => {
   const prompt = buildRoleCreationSystemPrompt();
-
-  assert.ok(prompt.length < 24_000);
-  assert.match(prompt, /<company_service_core>/);
-  assert.match(prompt, /## Tool Response Guidance/);
-  assert.match(prompt, /not a questionnaire, fixed script, or mandatory sequence/);
-  assert.match(prompt, /server result identifies actual blockers/);
-
-  assert.match(prompt, /substantial supplied JD text, URL, or file as the primary source/);
-  assert.match(prompt, /begin with an accurate company introduction/);
-  assert.match(prompt, /never \[\[company_info\]\] or a placeholder/);
-  assert.match(prompt, /standalone \[\[company_info\]\] marker only in the user-facing reply/);
-  assert.match(prompt, /Preserve an existing registered Role's structure during partial edits/);
-
-  assert.match(prompt, /compensation and Evaluation Criteria are optional/i);
-  assert.match(prompt, /0–6 are valid/);
-  assert.match(prompt, /Group related technologies.*one technical-fit dimension/);
-  assert.match(prompt, /treat missing evidence as uncertainty rather than failure/);
-  assert.match(prompt, /criteria do not replace/);
-  assert.match(prompt, /Translate vague traits into observable capabilities/);
-  assert.match(prompt, /<hiring_brief_authoring_contract>/);
-  assert.match(prompt, /Never erase an established school bar/);
-  assert.match(prompt, /not an automatic preferred-company list/);
-
-  assert.match(prompt, /NEW-DRAFT CONVERSATION CADENCE/);
-  assert.match(prompt, /save onsite and present it as `대면 근무`/);
-  assert.match(prompt, /save full_time and present it as `풀타임`/);
-  assert.match(prompt, /혹시 위 내용 중 잘못된 내용이 있다면/);
-  assert.match(prompt, /Slack channel and assignee belong at the end/);
-  assert.match(prompt, /\*마지막 설정\*/);
-  assert.match(prompt, /Never mention the raw channel count/);
-
-  assert.match(prompt, /OPTIONAL COMPENSATION CHECKPOINT FOR A NEW DRAFT/);
-  assert.match(prompt, /ask at most once/);
-  assert.match(prompt, /genuinely analogous company Roles/);
-  assert.match(prompt, /never average or choose silently/);
-  assert.match(prompt, /salaryRange is one free-form value/);
-  assert.match(prompt, /never split, infer, convert, normalize, or silently copy/);
-
-  assert.match(prompt, /ONE-TIME DESCRIPTION SOURCE DISCOVERY/);
-  assert.match(prompt, /descriptionSourceResearch is the durable one-attempt marker/);
-  assert.match(prompt, /choose at most one result clearly matching/);
-  assert.match(prompt, /Never combine postings or borrow another company's content/);
-  assert.match(prompt, /Treat this draft as a proposal/);
-
-  assert.match(prompt, /REQUIRED TEAM-PREFERENCE DISCOVERY/);
-  assert.match(prompt, /at least two distinct substantive opportunities/);
-  assert.match(prompt, /One must be an open invitation/);
-  assert.match(prompt, /JD facts, technical requirements.*do not count/);
-  assert.match(prompt, /read_other_roles once/);
-
-  assert.match(prompt, /REFERENCE-PROFILE CALIBRATION/);
-  assert.match(prompt, /current team members/);
-  assert.match(prompt, /call calibrate_role_hiring_brief/);
-  assert.match(prompt, /Treat the person as caliber evidence, not a candidate/);
-  assert.match(prompt, /Ask at most one follow-up/);
-
-  assert.match(prompt, /CONVERSATION AND EVIDENCE/);
-  assert.match(prompt, /Translate protected traits or proxies/);
-  assert.match(prompt, /SLACK AND ASSIGNEE/);
-  assert.match(prompt, /\[Slack 연결하기\]\(\/org\/settings\)/);
-  assert.match(prompt, /request_role_creation_confirmation/);
-  assert.match(prompt, /confirm_pending_role_creation/);
-  assert.match(prompt, /short contextual “응”/);
-  assert.match(prompt, /do not merely acknowledge/);
-});
-
-test("requires a settings link when no Slack channel is available", () => {
-  const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
-
-  assert.match(prompt, /availableSlackChannels.*is empty/);
-  assert.match(prompt, /do not imply that Slack is optional/);
-  assert.match(prompt, /role cannot be registered until Slack is connected/);
-  assert.match(prompt, /\[Slack 연결하기\]\(\/org\/settings\)/);
-  assert.match(prompt, /return once Slack and a channel are connected/);
-  assert.match(prompt, /Do not request final role-creation confirmation/);
-});
-
-test("calibrates the company selection bar from professional references", () => {
-  const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
-  const slackPrompt = buildRoleCreationSystemPrompt({ surface: "slack" });
-
-  for (const value of [prompt, slackPrompt]) {
-    assert.match(value, /REFERENCE-PROFILE CALIBRATION FOR A NEW DRAFT/);
-    assert.match(value, /real professional references/);
-    assert.match(value, /current team members/);
-    assert.match(value, /LinkedIn\/GitHub/);
-    assert.match(value, /resolved internal mention/);
-    assert.match(value, /prioritize this over another generic trait question/);
-    assert.match(value, /call calibrate_role_hiring_brief/);
-    assert.match(value, /caliber evidence, not a candidate/);
-    assert.match(value, /non-exclusive, professional peer-group signals/);
-    assert.match(value, /user-stated reasons are strongest/);
-    assert.match(value, /Ask at most one follow-up/);
-  }
-  assert.doesNotMatch(prompt, /gpt-5\.6-terra|pre-open sources|another model/i);
+  assert.ok(prompt.length < 16_000);
+  for (const required of [
+    "<company_service_core>", "<tool_outcome_response_contract>", "<hiring_brief_authoring_contract>",
+    "source-preserving editing", "not a questionnaire", "actual blockers",
+    "Duties and future goals", "Preferred criteria may stay empty", "breadth and strength",
+    "update_role_draft.textEdits", "at most six dimensions", "criteria do not replace",
+    "save onsite", "save full_time", "at least two distinct substantive opportunities",
+    "read_other_roles once", "salaryRange is one free-form value", "never average or choose silently",
+    "descriptionSourceResearch is the durable one-attempt marker", "Never combine postings",
+    "calibrate_role_hiring_brief", "caliber evidence, not a candidate", "Ask at most one follow-up",
+    "Translate protected traits or proxies", "availableSlackChannels is empty",
+    "role cannot be registered until Slack is connected", "[Slack 연결하기](/org/settings)",
+    "set_role_notification", "request_role_creation_confirmation", "confirm_pending_role_creation",
+    "same turn", "never activates", "immediately following authorization",
+  ]) assert.ok(prompt.includes(required), required);
+  assert.doesNotMatch(prompt, /<professional_reference_calibration_contract>/);
+  assert.doesNotMatch(prompt, /\*먼저 이렇게 등록했어요\*|\*마지막 설정\*/);
 });
 
 test("includes the durable one-attempt source-research marker in role state", () => {
@@ -264,7 +186,7 @@ test("includes server-resolved talent mentions in role creation context", () => 
   assert.match(prompt, /talent-1/);
 });
 
-test("signals when Harper should proactively draft structured criteria", () => {
+test("provides structural criteria limits without a heuristic telling the model to invent more", () => {
   const prompt = buildRoleCreationUserPrompt({
     attachments: [],
     history: [],
@@ -293,11 +215,10 @@ test("signals when Harper should proactively draft structured criteria", () => {
     userMessage: "지금까지 내용을 정리해 주세요.",
   });
 
-  assert.match(prompt, /"draftRecommended": true/);
+  assert.doesNotMatch(prompt, /draftRecommended|recommendedMinItems/);
   assert.match(prompt, /"valid": true/);
   assert.match(prompt, /"requiredBeforeCompletion": false/);
   assert.match(prompt, /"minItems": 0/);
-  assert.match(prompt, /"recommendedMinItems": 2/);
   assert.match(prompt, /"maxItems": 6/);
 });
 

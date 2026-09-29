@@ -170,7 +170,9 @@ function formatTalentSearchResult(result: Record<string, any>) {
     (item: any) =>
       Array.isArray(item?.profileMatches) && item.profileMatches.length > 0
   );
-  const hasCompanyProposals = items.some((item: any) => item?.companyIntroStatus);
+  const hasCompanyProposals = items.some(
+    (item: any) => item?.companyIntroStatus
+  );
   return [
     "status=ok",
     pageLine(result),
@@ -458,6 +460,7 @@ function formatContactDetailItem(itemValue: unknown, index: number) {
               "meeting",
               formatPromptTable(
                 [
+                  "meeting_schedule_id",
                   "title",
                   "stage",
                   "purpose",
@@ -468,6 +471,7 @@ function formatContactDetailItem(itemValue: unknown, index: number) {
                 ],
                 [
                   [
+                    meeting.scheduleId,
                     meeting.title,
                     meeting.stageName,
                     meeting.purpose,
@@ -477,7 +481,7 @@ function formatContactDetailItem(itemValue: unknown, index: number) {
                     formatPromptKstDateTime(meeting.confirmedEndAt),
                   ],
                 ],
-                [200, 160, 500, 20, 40, 40, 40]
+                [100, 200, 160, 500, 20, 40, 40, 40]
               )
             ),
           ]
@@ -629,6 +633,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
     : [];
   return [
     "status=ok",
+    `candidate_preferred_language=${formatPromptCell(result.candidatePreferredLanguage, 40)}`,
     formatPromptSection(
       "candidate",
       formatPromptTable(
@@ -664,6 +669,11 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "tradeoffs",
           "recommended",
           "updated",
+          "intro_status",
+          "intro_requested_kst",
+          "candidate_sent_kst",
+          "candidate_accepted_kst",
+          "recommendation_origin",
         ],
         positions.map((item: any) => [
           item?.roleId,
@@ -682,26 +692,31 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.tradeoffs,
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
+          item?.companyIntroStatus,
+          formatPromptKstDateTime(item?.introRequestedAt),
+          formatPromptKstDateTime(item?.candidateSentAt),
+          formatPromptKstDateTime(item?.candidateAcceptedAt),
+          item?.recommendationOrigin,
         ]),
         [
           100, 160, 100, 30, 10, 30, 10, 40, 700, 500, 300, 400, 700, 1_000, 10,
-          10,
+          10, 40, 40, 40, 40, 40,
         ]
       )
     ),
     formatPromptSection(
       "recent_progress",
       formatPromptTable(
-        ["date", "role_id", "role", "kind", "text", "details"],
+        ["sent_or_recorded_kst", "role_id", "role", "kind", "text", "details"],
         progress.map((item: any) => [
-          formatPromptDate(item?.at),
+          formatPromptKstDateTime(item?.at),
           item?.roleId,
           item?.roleName,
           item?.kind,
           item?.text,
           item?.metadata,
         ]),
-        [10, 100, 160, 100, 2_000, 500]
+        [40, 100, 160, 100, 2_000, 500]
       )
     ),
     formatPromptSection(
@@ -729,13 +744,10 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "company_relay_state",
           "role",
           "request",
-          "intent",
-          "resume_stage",
           "topic",
           "candidate_email_subject",
           "candidate_email_body",
           "overall_status",
-          "response_disposition",
           "cancelable",
         ],
         requestHistory.map((item: any) => [
@@ -752,18 +764,15 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.companyRelayState,
           item?.roleName,
           item?.label,
-          item?.intent,
-          humanizeOrgStage(item?.resumeStage),
           item?.topic,
           item?.candidateEmailSubject,
           item?.candidateEmailBody,
           item?.status,
-          item?.responseDisposition,
           item?.cancelable,
         ]),
         [
           100, 40, 40, 40, 40, 100, 40, 100, 40, 40, 100, 160, 180, 800, 240,
-          100, 100, 1_600, 300, 100, 10,
+          1_600, 300, 10,
         ]
       )
     ),
@@ -771,6 +780,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
       "meeting_coordination",
       formatPromptTable(
         [
+          "meeting_schedule_id",
           "role",
           "process",
           "purpose",
@@ -784,6 +794,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "confirmed_end_kst",
         ],
         meetingHistory.map((item: any) => [
+          item?.scheduleId,
           item?.roleName,
           item?.processStageName,
           item?.meetingPurpose,
@@ -796,7 +807,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.confirmedStartAt,
           item?.confirmedEndAt,
         ]),
-        [160, 120, 700, 20, 180, 220, 40, 40, 10, 40, 40]
+        [100, 160, 120, 700, 20, 180, 220, 40, 40, 10, 40, 40]
       )
     ),
     "Harper에게 말해준 정보. 후보자가 Harper에게 공유한 직업 관련 정보이며, 없는 내용은 추정하지 마세요. 보상 정보는 이 목록에 포함되지 않습니다.",
@@ -920,6 +931,14 @@ function formatRoleResult(result: Record<string, any>) {
           ["location", role.locationText],
           ["work_mode", role.workMode],
           ["salaryRange", role.salaryRange],
+          [
+            "정기 후보 검색",
+            typeof role.isCompanyFirstSearch === "boolean"
+              ? role.isCompanyFirstSearch
+                ? "켜짐"
+                : "꺼짐"
+              : EMPTY_CELL,
+          ],
           [
             "employment",
             Array.isArray(role.employmentTypes)
@@ -1348,6 +1367,7 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
   }
   if (result.status === "meeting_setup_required") {
     const blocker = String(meetingDraft.draftBlocker ?? "unknown");
+    const existingMeeting = result.existingMeeting;
     return [
       "outcome=not_completed",
       `status=${formatPromptCell(result.status, 60)}`,
@@ -1357,12 +1377,19 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
       `requested_stage=${to}`,
       "candidate_moved=false",
       "meeting_request_created=false",
-      "candidate_contacted=false",
+      ...(existingMeeting
+        ? [
+            "candidate_contacted_by_this_action=false",
+            `existing_meeting_schedule_id=${formatPromptCell(existingMeeting.scheduleId, 100)}`,
+            `existing_meeting_status=${formatPromptCell(existingMeeting.status, 60)}`,
+            `existing_invitation_sent_at=${formatPromptCell(existingMeeting.sentAt, 60)}`,
+          ]
+        : ["candidate_contacted=false"]),
       `blocker=${formatPromptCell(blocker, 80)}`,
       `calendar_connection_required=${blocker === "calendar_connection_missing"}`,
       `organizer_availability_required=${blocker === "availability_missing" || (blocker === "calendar_connection_missing" && !meetingDraft.availabilityVersion)}`,
       `organizer_email_required=${blocker === "organizer_email_missing"}`,
-      `meeting_stage_defaults_required=${blocker === "meeting_stage_missing"}`,
+      `meeting_purpose_required=${blocker === "meeting_stage_missing"}`,
       `calendar_requirement=${formatPromptCell(result.calendarRequirementExplanation, 1_000)}`,
       ...(calendarSettingsUrl !== EMPTY_CELL
         ? [`calendar_settings_url=${calendarSettingsUrl}`]
@@ -1390,6 +1417,7 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
     facts.push(
       `organizer_availability=${formatPromptCell(availability.summary, 800)}`,
       `organizer_timezone=${formatPromptCell(availability.timezone, 120)}`,
+      `meeting_schedule_id=${formatPromptCell(result.scheduleId, 100)}`,
       `meeting_purpose=${formatPromptCell(meeting.purpose, 700)}`,
       `meeting_duration_minutes=${formatPromptCell(meeting.durationMinutes, 20)}`,
       `meeting_stage=${formatPromptCell(meeting.stageName, 120)}`,
@@ -1471,6 +1499,117 @@ function formatCandidateRoleMoveResult(result: Record<string, any>) {
   ].join("\n");
 }
 
+function formatCompanyIntroDecisionResult(result: Record<string, any>) {
+  const availableStages = Array.isArray(result.availableProcessStages)
+    ? result.availableProcessStages
+    : [];
+  const recipients = Array.isArray(result.introRecipientEmails)
+    ? result.introRecipientEmails
+    : [];
+  const decision = String(result.decision ?? "");
+  const common = [
+    `status=${formatPromptCell(result.status, 60)}`,
+    `candidate=${formatPromptCell(result.candidateName, 160)}`,
+    `role=${formatPromptCell(result.roleName, 200)}`,
+    `decision=${formatPromptCell(decision, 30)}`,
+  ];
+  if (result.status === "details_required") {
+    return [
+      "outcome=not_completed",
+      ...common,
+      `missing_inputs=${formatPromptCell(result.missingInputs, 300)}`,
+      `proposed_intro_recipients=${formatPromptCell(recipients.join(", "), 1_000)}`,
+      "prior_role_exposure=use_recommendation_history_if_available",
+      "candidate_interest_confirmed=false",
+      "candidate_request_created=false",
+      "candidate_contacted=false",
+      formatPromptSection(
+        "available_process_stages",
+        formatPromptTable(
+          ["stage_id", "label"],
+          availableStages.map((stage: any) => [stage?.id, stage?.label]),
+          [100, 160]
+        )
+      ),
+      "next_required_decision=provide_missing_company_appeal_or_recipients",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  if (result.status === "confirmation_required") {
+    return [
+      "outcome=awaiting_confirmation",
+      ...common,
+      `company_appeal=${formatPromptCell(result.companyAppeal, 2_000)}`,
+      `intro_recipients=${formatPromptCell(recipients.join(", "), 1_000)}`,
+      `first_process_stage=${formatPromptCell(result.nextStageName, 160)}`,
+      "prior_role_exposure=use_recommendation_history_if_available",
+      "candidate_interest_confirmed=false",
+      "candidate_request_created=false",
+      "candidate_contacted=false",
+      `candidate_acceptance_effect=${
+        decision === "request_intro"
+          ? "send_CC_introduction_and_move_to_confirmed_first_stage_without_another_company_approval"
+          : "not_applicable"
+      }`,
+      `pass_effect=${
+        decision === "pass"
+          ? "remove_from_company_first_proposal_without_candidate_contact"
+          : "not_applicable"
+      }`,
+      "next_required_decision=confirm_exact_company_intro_decision",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  if (result.status === "already_in_pipeline") {
+    return [
+      "outcome=current_state_confirmed",
+      ...common,
+      `current_stage=${formatPromptCell(result.currentStage, 160)}`,
+      `candidate_accepted_at=${formatPromptCell(result.candidateAcceptedAt, 100)}`,
+      `original_recommendation_type=${formatPromptCell(result.originalRecommendationType, 80)}`,
+      "new_intro_request_created=false",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  if (result.status === "already_requested") {
+    return [
+      "outcome=unchanged",
+      ...common,
+      "candidate_request_created=true",
+      `candidate_delivery_state=${formatPromptCell(result.candidateDeliveryState, 40)}`,
+      `candidate_contacted=${Boolean(result.candidateContacted)}`,
+      `candidate_interest_confirmed=${Boolean(result.candidateInterestConfirmed)}`,
+      "company_second_approval_required=false",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  if (decision === "pass") {
+    return [
+      "outcome=completed",
+      ...common,
+      "candidate_proposal_passed=true",
+      "candidate_request_created=false",
+      "candidate_contacted=false",
+      "candidate_visible_opportunity_created=false",
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
+  return [
+    "outcome=completed",
+    ...common,
+    "candidate_request_created=true",
+    `candidate_delivery_state=${formatPromptCell(result.candidateDeliveryState, 40)}`,
+    `candidate_contacted=${Boolean(result.candidateContacted)}`,
+    `candidate_message_sent_at=${formatPromptCell(result.candidateSentAt, 100)}`,
+    "candidate_interest_confirmed=false",
+    "company_second_approval_required=false",
+    `intro_recipients_on_acceptance=${formatPromptCell(recipients.join(", "), 1_000)}`,
+    `first_process_stage_on_acceptance=${formatPromptCell(result.nextStageName, 160)}`,
+    "candidate_acceptance_effect=send_CC_introduction_and_move_to_connected_or_explicit_destination",
+    ...formatOptionalResponseGuidance(result),
+  ].join("\n");
+}
+
 function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
   const connectionMethod = String(result.connectionMethod ?? "");
   const decision = String(result.decision ?? "");
@@ -1478,7 +1617,6 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
   if (
     result.status === "candidate_reengagement_required" ||
     result.status === "confirmation_required" ||
-    result.status === "process_stage_required" ||
     result.status === "meeting_setup_required"
   ) {
     const availableStages = Array.isArray(result.availableProcessStages)
@@ -1486,7 +1624,6 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
       : [];
     return [
       `outcome=${
-        result.status === "process_stage_required" ||
         result.status === "meeting_setup_required"
           ? "not_completed"
           : "awaiting_confirmation"
@@ -1513,9 +1650,7 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
           ? "candidate_reengagement_route"
           : result.status === "confirmation_required"
             ? "confirm_candidate_connection_decision"
-            : result.status === "process_stage_required"
-              ? "choose_process_stage"
-              : "complete_meeting_setup"
+            : "complete_meeting_setup"
       }`,
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
@@ -1643,7 +1778,7 @@ function formatCandidateConnectionPreparationResult(
     `calendar_connection_required=${blocker === "calendar_connection_missing"}`,
     `organizer_availability_required=${blocker === "availability_missing" || (blocker === "calendar_connection_missing" && !meetingDraft.availabilityVersion)}`,
     `organizer_email_required=${blocker === "organizer_email_missing"}`,
-    `meeting_stage_defaults_required=${blocker === "meeting_stage_missing"}`,
+    `meeting_purpose_required=${blocker === "meeting_stage_missing"}`,
     ...(result.status === "meeting_setup_required" &&
     ["calendar_connection_missing", "availability_missing"].includes(
       String(meetingDraft.draftBlocker ?? "")
@@ -1689,8 +1824,13 @@ function formatCompanyTalentRequestResult(result: Record<string, any>) {
             "completed",
             "candidate",
             "role",
+            "talent_id",
+            "role_id",
+            "contact_id",
             "status",
             "current_state",
+            "candidate_message_sent",
+            "delivery_mode",
             "candidate_preferred_language",
             "scheduled_at",
             "reason",
@@ -1701,75 +1841,40 @@ function formatCompanyTalentRequestResult(result: Record<string, any>) {
             Boolean(item?.completed),
             item?.candidateName,
             item?.roleName,
+            item?.talentId ?? item?.target?.talentId,
+            item?.roleId ?? item?.target?.roleId,
+            item?.contactId ?? item?.target?.contactId,
             item?.status,
             item?.candidateContactState ?? item?.previousContactState,
+            item?.candidateMessageSent,
+            item?.deliveryMode,
             item?.candidatePreferredLanguage,
             item?.scheduledAt,
             item?.reason,
             item?.nextAction,
           ]),
-          [12, 10, 160, 180, 60, 80, 140, 100, 700, 500]
+          [12, 10, 160, 180, 100, 100, 100, 60, 80, 10, 40, 140, 100, 700, 500]
         )
       ),
       `exact_bodies_appended_by_server=${
         result.action === "create_draft" || result.action === "revise_draft"
       }`,
+      ...(result.action === "create_draft" || result.action === "revise_draft"
+        ? [formatPromptSection("saved_drafts", JSON.stringify(items
+            .filter((item: any) => typeof item?.body === "string")
+            .map((item: any) => ({
+              contactId: item.contactId,
+              revision: item.revision,
+              candidate: item.candidateName,
+              role: item.roleName,
+              subject: item.subject,
+              body: item.body,
+            }))))]
+        : []),
       "request_count_unit=candidate_role_contact_requests",
       "person_count_unit=distinct_candidates",
       `single_confirmation_applies_to_all_displayed_drafts=${
         result.action === "create_draft" || result.action === "revise_draft"
-      }`,
-      "response_guidance=For a partial batch, distinguish completed and incomplete candidates clearly. For displayed drafts, ask once whether to send the whole displayed set as written.",
-      ...formatOptionalResponseGuidance(result),
-    ].join("\n");
-  }
-  if (result.status === "already_pending") {
-    const existing = asRecord(result.existingRequest);
-    const requested = asRecord(result.requested);
-    return [
-      "status=already_pending",
-      `new_request_queued=${Boolean(result.newRequestQueued)}`,
-      formatPromptSection(
-        "requested_replacement",
-        formatPromptTable(
-          ["kind", "role", "topic"],
-          [[requested.kind, requested.roleName, requested.topic]],
-          [40, 160, 800]
-        )
-      ),
-      formatPromptSection(
-        "existing_request",
-        Object.keys(existing).length > 0
-          ? formatPromptTable(
-              [
-                "request_id",
-                "kind",
-                "role",
-                "topic",
-                "status",
-                "scheduled_kst",
-                "cancelable",
-              ],
-              [
-                [
-                  existing.requestId,
-                  existing.kind,
-                  existing.roleName,
-                  existing.topic,
-                  existing.status,
-                  existing.scheduledAt,
-                  existing.cancelable,
-                ],
-              ],
-              [100, 80, 160, 800, 160, 40, 10]
-            )
-          : "private_conflict=true"
-      ),
-      `replacement_available=${Boolean(existing.cancelable)}`,
-      `replacement_requires_confirmation=${Boolean(existing.cancelable)}`,
-      `existing_delivery_changeable=${Boolean(existing.cancelable)}`,
-      `next_required_decision=${
-        existing.cancelable ? "cancel_existing_and_create_requested" : "none"
       }`,
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
@@ -1782,9 +1887,15 @@ function formatCompanyTalentRequestResult(result: Record<string, any>) {
     return [
       `status=${formatPromptCell(result.status, 40)}`,
       `candidate=${formatPromptCell(result.candidateName, 160)}`,
+      `contact_id=${formatPromptCell(result.contactId, 100)}`,
+      `revision=${formatPromptCell(result.revision, 20)}`,
       "approval_state=awaiting_company_confirmation",
       "candidate_contact_state=not_sent",
       "exact_body_appended_by_server=true",
+      formatPromptSection("saved_draft", JSON.stringify({
+        subject: result.subject ?? null,
+        body: result.body ?? null,
+      })),
       result.candidatePreferredLanguage
         ? `candidate_preferred_language=${formatPromptCell(result.candidatePreferredLanguage, 40)}`
         : null,
@@ -1793,7 +1904,6 @@ function formatCompanyTalentRequestResult(result: Record<string, any>) {
         : null,
       "next_required_decision=approve_or_reject_displayed_draft",
       "candidate_answer_destination=this_conversation_after_delivery",
-      "response_guidance=Ask once whether Harper should send the displayed draft as written.",
       ...formatOptionalResponseGuidance(result),
     ]
       .filter(Boolean)
@@ -2005,7 +2115,6 @@ export function serializeOrgAgentToolResult(
       "matching_started=false",
       "conversation_destination=separate Role conversation",
       `required_continuation_link=${exactRequiredContinuationLink}`,
-      "response_guidance=Explain that registration continues in the separate Role conversation and include the required continuation link exactly once.",
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
@@ -2022,13 +2131,27 @@ export function serializeOrgAgentToolResult(
       "candidate_profile_changed=false",
       "candidate_stage_changed=false",
       "candidate_contacted=false",
-      "response_guidance=Confirm the saved internal note briefly.",
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
   if (name === "list_contacts") return formatContactListResult(result);
   if (name === "read_contact") return formatContactDetailResult(result);
   if (name === "read_role") return formatRoleResult(result);
+  if (name === "request_matching_search") {
+    return [
+      `status=${formatPromptCell(result.status, 40)}`,
+      `requested_role=${formatPromptCell(result.requestedRoleName ?? result.roleName, 200)}`,
+      ...(result.unavailableReason
+        ? [
+            `unavailable_reason=${formatPromptCell(result.unavailableReason, 500)}`,
+            "result_meaning=No new search was started. Use the verified reason to respond naturally in the current conversation; mention a next step only when it is genuinely useful.",
+          ]
+        : [
+            "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating the pool can take time, and the completed outcome will be shared separately.",
+          ]),
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
   if (name === "calibrate_role_hiring_brief") {
     return [
       `status=${formatPromptCell(result.status, 30)}`,
@@ -2038,7 +2161,6 @@ export function serializeOrgAgentToolResult(
       `follow_up_question=${formatPromptCell(result.followUpQuestion, 1_000)}`,
       `failed_reference_urls=${formatPromptCell(result.failedReferenceUrls, 2_000)}`,
       `follow_up_needed=${Boolean(String(result.followUpQuestion ?? "").trim())}`,
-      "response_guidance=Explain the updated decision boundary and ask the supplied follow-up question only when present.",
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
@@ -2049,7 +2171,6 @@ export function serializeOrgAgentToolResult(
       `reviewed_profiles=${formatPromptCell(result.reviewedProfiles, 100)}`,
       `hiring_brief_updated=${Boolean(result.hiringBriefUpdated)}`,
       `summary=${formatPromptCell(result.summary, 600)}`,
-      "response_guidance=State which examples were recorded and whether their stated reasons changed the Hiring Brief.",
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
@@ -2089,6 +2210,9 @@ export function serializeOrgAgentToolResult(
   }
   if (name === "contact_talent") {
     return formatCompanyTalentRequestResult(result);
+  }
+  if (name === "decide_company_intro") {
+    return formatCompanyIntroDecisionResult(result);
   }
   if (name === "decide_candidate_connection") {
     return formatCandidateConnectionDecisionResult(result);
@@ -2140,11 +2264,15 @@ function orgAgentToolRecoveryInstruction(args: {
       return `${retryPrefix} For an execution failure, read the candidate's current contact history for this exact Role before retrying so no draft or delivery is duplicated. Continue other independently requested candidates when safe.`;
     case "decide_candidate_connection":
       return `${retryPrefix} For an execution failure, read the candidate's current Role position and contact or email state before another decision so no introduction or closure notice is duplicated.`;
+    case "decide_company_intro":
+      return `${retryPrefix} For an execution failure, re-read the exact candidate's current company stage before another decision so no company-first proposal or candidate delivery is duplicated. Preserve the distinction between a prepared request and verified candidate delivery.`;
     case "move_candidate_stage":
     case "move_candidate_to_role":
       return `${retryPrefix} Re-read the exact candidate and relevant Role pipeline state before another move. Preserve any successful independent work already completed.`;
     case "start_role_creation":
       return `${retryPrefix} If the failure happened during execution, do not create another Role thread until the existing in-progress Role conversations have been checked. Explain the current uncertainty without exposing implementation details.`;
+    case "request_matching_search":
+      return `${retryPrefix} Do not immediately request another search because the queue effect may already exist. Explain that the fresh-search request could not be confirmed; do not claim that matching started or that candidates were contacted.`;
     case "update_data":
     case "update_role_criteria":
     case "change_role_status":

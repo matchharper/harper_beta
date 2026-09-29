@@ -5,9 +5,9 @@ import {
   getLlmErrorMessage,
 } from "@/lib/llm/llm";
 import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
-import { assertSafeProfessionalQuestion } from "@/lib/companyTalentRequests/policy";
+import { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
 import { candidateContactBodyWithoutTransportFooter } from "@/lib/companyTalentRequests/presentation";
-import { assertCandidateResumeUploadLink } from "@/lib/companyTalentRequests/copyRules";
+import { assertCandidateContactUploadLinks } from "@/lib/companyTalentRequests/copyRules";
 import {
   CANDIDATE_CONTACT_COPY_MAX_OUTPUT_TOKENS,
   CANDIDATE_CONTACT_COPY_SCHEMA,
@@ -49,9 +49,14 @@ function parseJsonObject(value: string) {
 }
 
 async function generateJson(
-  messages: Array<{ content: string; role: string }>
+  messages: Array<{ content: string; role: string }>,
+  parentSignal?: AbortSignal
 ) {
+  const deadline = AbortSignal.timeout(120_000);
+  const signal = parentSignal ? AbortSignal.any([parentSignal, deadline]) : deadline;
+  signal.throwIfAborted();
   const { response } = await createChatCompletionWithFallback({
+    signal,
     anthropicOverloadFallbackModel: GPT_56_LUNA_MODEL,
     buildRequest: () => ({
       // Responses API output budgets include both reasoning and visible JSON.
@@ -69,7 +74,11 @@ async function generateJson(
       schema: CANDIDATE_CONTACT_COPY_SCHEMA,
     },
     validateResponse: (response) => {
-      parseJsonObject(assistantText(response));
+      const parsed = parseJsonObject(assistantText(response));
+      for (const key of ["subject", "body", "requestContext"]) {
+        if (typeof parsed[key] !== "string" || !String(parsed[key]).trim())
+          throw new Error(`Candidate contact ${key} is required`);
+      }
     },
   });
   return parseJsonObject(assistantText(response));
@@ -77,6 +86,7 @@ async function generateJson(
 
 function validateDraft(args: {
   body: unknown;
+  deliveryIntent: "direct_reply" | "review_draft";
   profileUrl: string | null;
   reason: unknown;
   requestContext: unknown;
@@ -87,43 +97,53 @@ function validateDraft(args: {
     0,
     5_000
   );
-  const requestContext = assertSafeProfessionalQuestion(args.requestContext);
+  const requestContext = validateCompanyContactContext(args.requestContext);
   const reason = compact(args.reason, 600) || null;
-  if (!subject || !body) throw new Error("Candidate contact copy is empty");
-  assertSafeProfessionalQuestion(body);
-  assertCandidateResumeUploadLink(body, args.profileUrl);
+  if (!subject || !body || !requestContext) {
+    throw new Error("Candidate contact copy is empty");
+  }
+  assertCandidateContactUploadLinks(body, args.profileUrl);
   return { body, reason, requestContext, subject };
 }
 
 export async function generateCandidateContactDraft(args: {
   candidateName: string;
+  verifiedContext?: string;
   companyName: string;
   currentInstruction: string;
-  kind: "contact" | "question" | "resume";
+  deliveryIntent?: "direct_reply" | "review_draft";
   locale: string | null;
   profileUrl: string | null;
   recentConversation: string;
   requestContext: string;
   requestId: string;
   roleName: string;
+  signal?: AbortSignal;
 }) {
-  const requestContext = assertSafeProfessionalQuestion(args.requestContext);
+  const deliveryIntent = args.deliveryIntent ?? "review_draft";
+  // Input may be an entire authorized message; the generated durable summary
+  // still uses the existing 800-character contract validated below.
+  const requestContext = args.requestContext.trim();
+  if (!requestContext || requestContext.length > 5_000)
+    throw new Error("Candidate contact input must contain 1–5000 characters");
   try {
     const parsed = await generateJson(
       buildCandidateContactDraftMessages({
+        verifiedContext: args.verifiedContext,
         candidateName: args.candidateName,
         companyName: args.companyName,
         currentInstruction: args.currentInstruction,
-        kind: args.kind,
+        deliveryIntent: args.deliveryIntent,
         profileUrl: args.profileUrl,
         recentConversation: args.recentConversation,
         recipientLocale: args.locale,
         requestContext,
         roleName: args.roleName,
-      })
+      }), args.signal
     );
     return validateDraft({
       body: parsed.body,
+      deliveryIntent,
       profileUrl: args.profileUrl,
       reason: parsed.reason,
       requestContext: parsed.requestContext || requestContext,
@@ -142,11 +162,11 @@ export async function reviseCandidateContactDraft(args: {
   current: CandidateContactDraftCopy;
   currentInstruction: string;
   editInstruction: string;
-  kind: "contact" | "question" | "resume";
   locale: string | null;
   profileUrl: string | null;
   recentConversation: string;
   requestId: string;
+  signal?: AbortSignal;
 }) {
   try {
     const parsed = await generateJson(
@@ -154,14 +174,14 @@ export async function reviseCandidateContactDraft(args: {
         current: args.current,
         currentInstruction: args.currentInstruction,
         editInstruction: args.editInstruction,
-        kind: args.kind,
         profileUrl: args.profileUrl,
         recentConversation: args.recentConversation,
         recipientLocale: args.locale,
-      })
+      }), args.signal
     );
     return validateDraft({
       body: parsed.body,
+      deliveryIntent: "review_draft",
       profileUrl: args.profileUrl,
       reason: parsed.reason,
       requestContext: parsed.requestContext || args.current.requestContext,

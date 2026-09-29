@@ -23,6 +23,8 @@ export type UseRealtimeSessionArgs = {
 
 export type RealtimeConnectOptions = {
   callSessionId?: string | null;
+  careerCoachingActivityMessageId?: number | null;
+  careerCoachingActivityRevision?: number | null;
   conversationStarterId?: CareerConversationStarterId | null;
   initialResponseInstruction?: string | null;
   internalCallRequestId?: string | null;
@@ -375,6 +377,10 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           method: "POST",
           body: JSON.stringify({
             callSessionId: options?.callSessionId ?? undefined,
+            careerCoachingActivityMessageId:
+              options?.careerCoachingActivityMessageId ?? undefined,
+            careerCoachingActivityRevision:
+              options?.careerCoachingActivityRevision ?? undefined,
             conversationId,
             conversationStarterId: options?.conversationStarterId ?? undefined,
             initialResponseInstruction:

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { uploadTalentDocument } from "./documentUploadClient";
+import {
+  TalentDocumentUploadError,
+  uploadTalentDocument,
+} from "./documentUploadClient";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "./documentUploadLimits";
 
 test("uploads the file to the Vercel API as multipart form data", async () => {
@@ -45,9 +48,54 @@ test("rejects files above 4 MiB before making a request", async () => {
       },
       file,
     }),
-    /4 MB/
+    (error: unknown) =>
+      error instanceof TalentDocumentUploadError &&
+      error.code === "file_too_large" &&
+      /4 MB/.test(error.message)
   );
   assert.equal(requested, false);
+});
+
+test("preserves a safe server error code for the onboarding UI", async () => {
+  const file = new File(["not really a pdf"], "resume.pdf", {
+    type: "application/pdf",
+  });
+
+  await assert.rejects(
+    uploadTalentDocument({
+      fetchWithAuth: async () =>
+        Response.json(
+          {
+            code: "invalid_file_content",
+            error: "File content does not match a supported document format",
+          },
+          { status: 400 }
+        ),
+      file,
+    }),
+    (error: unknown) =>
+      error instanceof TalentDocumentUploadError &&
+      error.code === "invalid_file_content" &&
+      error.message ===
+        "File content does not match a supported document format"
+  );
+});
+
+test("does not trust an unknown server error code", async () => {
+  const file = new File(["resume"], "resume.txt", { type: "text/plain" });
+
+  await assert.rejects(
+    uploadTalentDocument({
+      fetchWithAuth: async () =>
+        Response.json(
+          { code: "database_error", error: "Failed to upload document" },
+          { status: 500 }
+        ),
+      file,
+    }),
+    (error: unknown) =>
+      error instanceof TalentDocumentUploadError && error.code === null
+  );
 });
 
 test("keeps a maximum-size multipart request below Vercel's 4.5 MiB limit", async () => {

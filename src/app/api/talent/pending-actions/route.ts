@@ -12,6 +12,7 @@ import {
   getCompanyTalentRequestLogoUrl,
 } from "@/lib/companyTalentRequests/server";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
+import { fetchCareerExternalFeedbackSuggestions } from "@/lib/career/taskSuggestions.server";
 import type {
   CareerPendingAction,
   CareerReengagementPendingActionsSnapshot,
@@ -19,6 +20,15 @@ import type {
 import { fetchCareerReengagementPendingActions } from "@/lib/career/reengagementPendingActions.server";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { fetchOpenCareerCheckInCall } from "@/lib/talentOnboarding/careerCheckInCall";
+import { fetchPendingTalentMeetingSchedules } from "@/lib/meetings/talentPendingMeeting.server";
+import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
+import { OpportunityType } from "@/lib/opportunityType";
+import {
+  getCareerWaitingConnection,
+  type CareerExternalFeedbackSnapshot,
+  type CareerPendingActionsSnapshot,
+  type CareerTaskProgressSnapshot,
+} from "@/lib/career/taskItems";
 
 const cleanText = (value: unknown, fallback: string, maxLength = 1000) => {
   const text =
@@ -31,10 +41,12 @@ async function withPendingActionsFallback<T>(args: {
   label: string;
   promise: Promise<T>;
   userId: string;
+  unavailableCategories: string[];
 }) {
   try {
     return await args.promise;
   } catch (error) {
+    args.unavailableCategories.push(args.label);
     console.error("[CareerPendingActions] Failed to load category", {
       error: error instanceof Error ? error.message : String(error),
       label: args.label,
@@ -51,9 +63,30 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = getTalentSupabaseAdmin();
+  if (req.nextUrl.searchParams.get("scope") === "external-feedback") {
+    try {
+      const externalFeedback = await fetchCareerExternalFeedbackSuggestions({
+        admin,
+        userId: user.id,
+      });
+      return NextResponse.json({
+        externalFeedback,
+      } satisfies CareerExternalFeedbackSnapshot);
+    } catch (error) {
+      console.error(
+        "[CareerTaskSuggestions] Failed to load recommendations",
+        error
+      );
+      return NextResponse.json(
+        { error: "Failed to load recommendation feedback suggestions" },
+        { status: 500 }
+      );
+    }
+  }
   const setting = await fetchTalentSetting({ admin, userId: user.id });
   const isReengagementScope =
     req.nextUrl.searchParams.get("scope") === "reengagement";
+  const isProgressScope = req.nextUrl.searchParams.get("scope") === "progress";
   if (!setting?.is_onboarding_done) {
     if (isReengagementScope) {
       return NextResponse.json({
@@ -61,11 +94,46 @@ export async function GET(req: NextRequest) {
         promptActions: [],
       } satisfies CareerReengagementPendingActionsSnapshot);
     }
-    return NextResponse.json({ actions: [] satisfies CareerPendingAction[] });
+    if (isProgressScope) {
+      return NextResponse.json({
+        connections: [],
+        searchStatus: setting?.status ?? null,
+      });
+    }
+    return NextResponse.json({
+      actions: [],
+      meetingSchedules: [],
+      unavailableCategories: [],
+    } satisfies CareerPendingActionsSnapshot);
   }
 
   const locale =
     req.nextUrl.searchParams.get("locale") ?? setting.preferred_locale;
+  if (isProgressScope) {
+    try {
+      const opportunities = await fetchTalentOpportunityHistory({
+        admin,
+        historyTab: "saved",
+        locale,
+        sourceType: "internal",
+        userId: user.id,
+      });
+      const connections = opportunities.flatMap((item) => {
+        const connection = getCareerWaitingConnection(item);
+        return connection ? [connection] : [];
+      });
+      return NextResponse.json({
+        connections,
+        searchStatus: setting.status,
+      } satisfies CareerTaskProgressSnapshot);
+    } catch (error) {
+      console.error("[CareerTaskProgress] Failed to load", error);
+      return NextResponse.json(
+        { error: "Failed to load career task progress" },
+        { status: 500 }
+      );
+    }
+  }
   if (isReengagementScope) {
     const snapshot = await fetchCareerReengagementPendingActions({
       admin,
@@ -80,69 +148,86 @@ export async function GET(req: NextRequest) {
     } satisfies CareerReengagementPendingActionsSnapshot);
   }
 
+  const unavailableCategories: string[] = [];
   const [
     callRequests,
     careerCheckInCall,
     fitQuestion,
     companyRequests,
     internalOpportunities,
-  ] =
-    await Promise.all([
-      withPendingActionsFallback({
-        fallback: [],
-        label: "internal opportunity calls",
-        promise: fetchPendingInternalOpportunityCallRequests({
-          admin,
-          userId: user.id,
-        }),
+    meetingSchedules,
+  ] = await Promise.all([
+    withPendingActionsFallback({
+      unavailableCategories,
+      fallback: [],
+      label: "internal opportunity calls",
+      promise: fetchPendingInternalOpportunityCallRequests({
+        admin,
         userId: user.id,
       }),
-      withPendingActionsFallback({
-        fallback: null,
-        label: "career check-in call",
-        promise: fetchOpenCareerCheckInCall({
-          admin,
-          userId: user.id,
-        }),
+      userId: user.id,
+    }),
+    withPendingActionsFallback({
+      unavailableCategories,
+      fallback: null,
+      label: "career check-in call",
+      promise: fetchOpenCareerCheckInCall({
+        admin,
         userId: user.id,
       }),
-      withPendingActionsFallback({
-        fallback: null,
-        label: "internal fit question",
-        promise:
-          setting.profile_visibility === "dont_share"
-            ? Promise.resolve(null)
-            : fetchActiveInternalFitHoldQuestion({
-                admin,
-                locale,
-                userId: user.id,
-              }),
+      userId: user.id,
+    }),
+    withPendingActionsFallback({
+      unavailableCategories,
+      fallback: null,
+      label: "internal fit question",
+      promise:
+        setting.profile_visibility === "dont_share"
+          ? Promise.resolve(null)
+          : fetchActiveInternalFitHoldQuestion({
+              admin,
+              locale,
+              userId: user.id,
+            }),
+      userId: user.id,
+    }),
+    withPendingActionsFallback({
+      unavailableCategories,
+      fallback: [],
+      label: "company requests",
+      promise: fetchActiveCompanyTalentRequests({
+        admin: admin as any,
+        awaitingTalentOnly: true,
+        talentId: user.id,
+      }),
+      userId: user.id,
+    }),
+    withPendingActionsFallback({
+      unavailableCategories,
+      fallback: [],
+      label: "internal opportunities",
+      promise: fetchTalentOpportunityHistory({
+        admin,
+        historyTab: "new",
+        limit: 100,
+        locale,
+        sourceType: "internal",
         userId: user.id,
       }),
-      withPendingActionsFallback({
-        fallback: [],
-        label: "company requests",
-        promise: fetchActiveCompanyTalentRequests({
-          admin: admin as any,
-          awaitingTalentOnly: true,
-          talentId: user.id,
-        }),
-        userId: user.id,
+      userId: user.id,
+    }),
+    withPendingActionsFallback({
+      unavailableCategories,
+      fallback: [],
+      label: "meeting schedules",
+      promise: fetchPendingTalentMeetingSchedules({
+        admin,
+        limit: 100,
+        talentId: user.id,
       }),
-      withPendingActionsFallback({
-        fallback: [],
-        label: "internal opportunities",
-        promise: fetchTalentOpportunityHistory({
-          admin,
-          historyTab: "new",
-          limit: 100,
-          locale,
-          sourceType: "internal",
-          userId: user.id,
-        }),
-        userId: user.id,
-      }),
-    ]);
+      userId: user.id,
+    }),
+  ]);
 
   const actions: CareerPendingAction[] = [
     ...callRequests.map((callRequest) => ({
@@ -222,16 +307,28 @@ export async function GET(req: NextRequest) {
           },
         ]
       : []),
-    ...internalOpportunities.map((opportunity) => ({
-      companyLogoUrl: opportunity.companyLogoUrl,
-      companyName: opportunity.companyName,
-      id: opportunity.id,
-      kind: "internal_opportunity" as const,
-      recommendationSummary: opportunity.recommendationSummary,
-      roleId: opportunity.roleId,
-      roleTitle: opportunity.title,
-    })),
+    ...internalOpportunities
+      .filter(
+        (opportunity) =>
+          !opportunity.isExpired &&
+          isInternalRoleCandidateDecisionAvailable(opportunity.status)
+      )
+      .map((opportunity) => ({
+        companyLogoUrl: opportunity.companyLogoUrl,
+        companyName: opportunity.companyName,
+        id: opportunity.id,
+        kind: "internal_opportunity" as const,
+        isCompanyIntro:
+          opportunity.opportunityType === OpportunityType.IntroRequest,
+        recommendationSummary: opportunity.recommendationSummary,
+        roleId: opportunity.roleId,
+        roleTitle: opportunity.title,
+      })),
   ];
 
-  return NextResponse.json({ actions });
+  return NextResponse.json({
+    actions,
+    meetingSchedules,
+    unavailableCategories,
+  } satisfies CareerPendingActionsSnapshot);
 }

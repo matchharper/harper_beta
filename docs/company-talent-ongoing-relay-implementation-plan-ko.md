@@ -1105,7 +1105,7 @@ Release gate의 critical failure는 최소 다음을 포함한다.
 | delivery API | `src/app/api/internal/company-talent-requests/deliver/route.ts` | relay별 finalize와 destination mirror |
 | queue type | `src/lib/contactQueue.ts` | 새 relay delivery type 지원 |
 | 사용자 표시 | `src/lib/career/toolThinkingLog.ts`, `src/lang/ko.ts`, `src/lang/en.ts` | generic list/relay 진행 문구 |
-| tool policy | `src/lib/career/streamingToolChainPolicy.ts` | 새 read/write tool의 연속 실행·stop 조건 |
+| tool continuation | `src/lib/career/llm.ts` | 최초 노출된 read/write tool 전체를 후속 호출에도 유지하고 공통 호출 상한 적용 |
 
 Career 사용자 문구가 추가되면 `scripts/translation.md` 절차에 따라 실제 사용 문맥을 읽고 한국어와
 영어를 직접 작성한다. 이번 변경 키만 plan/sync하고 전체 번역 DB를 밀지 않는다.

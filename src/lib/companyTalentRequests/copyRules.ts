@@ -1,25 +1,13 @@
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-export function assertCandidateResumeUploadLink(
+/** An upload link is optional; if present, its signed destination must be exact. */
+export function assertCandidateContactUploadLinks(
   body: string,
   profileUrl: string | null
 ) {
-  const url = String(profileUrl ?? "").trim();
-  if (!url) return;
-
-  const markdownLink = new RegExp(
-    `\\[([^\\]\\n]{1,120})\\]\\(${escapeRegExp(url)}\\)`
-  );
-  const match = body.match(markdownLink);
-  const label = String(match?.[1] ?? "").trim();
-  if (!match || !label || label === url) {
-    throw new Error(
-      "Resume request copy must contain the required URL in a descriptive Markdown link"
-    );
-  }
-  if (body.replace(match[0], "").includes(url)) {
-    throw new Error("Resume request copy must not expose the raw upload URL");
+  const expected = profileUrl ? new URL(profileUrl).href : null;
+  for (const value of body.match(/https?:\/\/[^\s<>"')\]]+/g) ?? []) {
+    const url = new URL(value);
+    if (url.searchParams.has("resumeRequest") && url.href !== expected) {
+      throw new Error("Candidate contact contains an unverified upload URL");
+    }
   }
 }

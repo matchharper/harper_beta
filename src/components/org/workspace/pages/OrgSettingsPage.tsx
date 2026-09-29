@@ -13,6 +13,10 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
+import {
+  ORG_SLACK_PRIVATE_CHANNEL_HELP,
+  OrgSlackChannelPicker,
+} from "@/components/org/OrgSlackChannelPicker";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { OrgGoogleCalendarIntegration } from "@/components/org/workspace/OrgGoogleCalendarIntegration";
@@ -22,7 +26,6 @@ import {
 } from "@/components/org/workspace/OrgSection";
 import { Badge } from "@/components/ui/badge";
 import { CardButton, MuteButton } from "@/components/ui/button";
-import { Code } from "@/components/ui/code";
 import {
   Dialog,
   DialogContent,
@@ -92,7 +95,7 @@ export function OrgSettingsPage() {
   >(null);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
-  const [newChannelId, setNewChannelId] = useState("");
+  const [addChannelOpen, setAddChannelOpen] = useState(false);
   const statusQuery = useOrgSlackStatus({
     enabled: activeIntegration === "slack",
     workspaceId: workspace.workspaceId,
@@ -158,18 +161,18 @@ export function OrgSettingsPage() {
     }
   };
 
-  const addChannel = async () => {
-    if (!newChannelId) return;
+  const addChannel = async (channelId: string) => {
+    if (addSlackChannel.isPending) return;
     try {
       await addSlackChannel.mutateAsync({
-        channelId: newChannelId,
+        channelId,
       });
       const channel = status?.availableChannels.find(
-        (item) => item.channelId === newChannelId
+        (item) => item.channelId === channelId
       );
-      setNewChannelId("");
+      setAddChannelOpen(false);
       addToast({
-        message: `${formatChannel(channel?.channelName, newChannelId)}을 Harper 채널로 추가했습니다.`,
+        message: `${formatChannel(channel?.channelName, channelId)}을 Harper 채널로 추가했습니다.`,
         variant: "success",
       });
     } catch (error) {
@@ -481,70 +484,22 @@ export function OrgSettingsPage() {
                     연결된 채널
                   </h3>
                   {permissions.canManageIntegrations ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {status.availableChannels.length > 0 ? (
-                        <>
-                          <select
-                            aria-label="기존 Slack 채널"
-                            className="h-9 rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[13px]"
-                            onChange={(event) =>
-                              setNewChannelId(event.target.value)
-                            }
-                            value={newChannelId}
-                          >
-                            <option value="">채널 선택</option>
-                            {status.availableChannels.map((channel) => (
-                              <option
-                                key={channel.channelId}
-                                value={channel.channelId}
-                              >
-                                {formatChannel(
-                                  channel.channelName,
-                                  channel.channelId
-                                )}
-                                {channel.isPrivate ? " (private)" : ""}
-                              </option>
-                            ))}
-                          </select>
-                          <MuteButton
-                            disabled={
-                              addSlackChannel.isPending || !newChannelId
-                            }
-                            onClick={() => void addChannel()}
-                            size="md"
-                          >
-                            {addSlackChannel.isPending ? (
-                              <LoaderCircle className="size-4 animate-spin" />
-                            ) : null}
-                            선택된 채널 연결
-                          </MuteButton>
-                          <MuteButton
-                            disabled={
-                              createSlackChannel.isPending ||
-                              !status.canCreateChannels
-                            }
-                            onClick={() => setCreateChannelOpen(true)}
-                            size="sm"
-                            variant="primary"
-                            className="md:mt-0 mt-4 flex"
-                          >
-                            <Plus className="size-4" />
-                            Slack 채널 만들기
-                          </MuteButton>
-                        </>
-                      ) : null}
-                    </div>
+                    <MuteButton
+                      size="sm"
+                      disabled={
+                        addSlackChannel.isPending ||
+                        createSlackChannel.isPending
+                      }
+                      onClick={() => {
+                        addSlackChannel.reset();
+                        setAddChannelOpen(true);
+                      }}
+                    >
+                      <Plus className="size-3.5" />
+                      채널 추가
+                    </MuteButton>
                   ) : null}
                 </div>
-                {permissions.canManageIntegrations ? (
-                  <div className="mt-3 w-full flex flex-col md:flex-row items-center justify-between">
-                    <p className="text-[12px] font-light leading-5 text-neutral-soft">
-                      비공개 채널에 연결하려면 Slack의 해당 채널에서 먼저{" "}
-                      <Code>/invite @Harper</Code>를 한 뒤 현재 페이지에서
-                      새로고침 후 목록에서 선택해 주세요.
-                    </p>
-                  </div>
-                ) : null}
                 <div className="mt-4 border-t border-neutral-1000-a05">
                   {status.channels.map((channel) => (
                     <div
@@ -733,6 +688,59 @@ export function OrgSettingsPage() {
         userId={user.id}
         workspaceId={workspace.workspaceId}
       />
+
+      <Dialog
+        open={addChannelOpen && permissions.canManageIntegrations}
+        onOpenChange={(open) => {
+          if (!addSlackChannel.isPending) setAddChannelOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>채널에 Harper 초대</DialogTitle>
+            <DialogDescription>
+              {status?.teamName || workspace.companyName}
+              {status?.connected ? (
+                <span className="mt-2 block">
+                  {ORG_SLACK_PRIVATE_CHANNEL_HELP.map((line) => (
+                    <span key={line} className="block">
+                      {line}
+                    </span>
+                  ))}
+                </span>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <OrgSlackChannelPicker
+            channels={status?.availableChannels ?? []}
+            disabled={addSlackChannel.isPending}
+            pendingChannelId={
+              addSlackChannel.isPending
+                ? addSlackChannel.variables?.channelId
+                : null
+            }
+            refreshing={statusQuery.isFetching}
+            onInvite={(channelId) => void addChannel(channelId)}
+            onRefresh={() => void statusQuery.refetch()}
+            onCreate={
+              status?.canCreateChannels
+                ? () => {
+                    setAddChannelOpen(false);
+                    setCreatingChannelName("harper");
+                    setCreateChannelOpen(true);
+                  }
+                : undefined
+            }
+          />
+          {addSlackChannel.isError ? (
+            <p role="alert" className="text-[13px] leading-5 text-critical">
+              {addSlackChannel.error instanceof Error
+                ? addSlackChannel.error.message
+                : "채널을 연결하지 못했어요."}
+            </p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={createChannelOpen}

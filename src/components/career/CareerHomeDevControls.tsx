@@ -14,6 +14,7 @@ import {
   Terminal,
 } from "lucide-react";
 import React from "react";
+import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
 import { MuteButton } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { Textarea as UiTextarea } from "@/components/ui/textarea";
@@ -480,6 +481,9 @@ export default function CareerHomeDevControls({
             worker 처리 대기 중
           </Text>
         ) : null}
+      </div>
+      <div className="mt-4">
+        <DevColorPaletteControls />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">

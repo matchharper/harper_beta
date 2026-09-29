@@ -95,10 +95,7 @@ import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunity
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 import { resolveCareerRecentConversationLocale } from "@/lib/career/recentConversationLocale";
 import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
-import {
-  fetchActiveCompanyTalentRequest,
-  serializeTalentPendingRequest,
-} from "@/lib/companyTalentRequests/server";
+import { fetchTalentCompanyContactContext } from "@/lib/companyTalentRequests/server";
 import {
   COMPANY_SNAPSHOT_RESULT_MESSAGE_TYPE,
   fetchRecentCompanySnapshot,
@@ -134,6 +131,7 @@ export type CareerChatTurnChannel = "chat" | "voice";
 
 export type RunCareerChatTurnArgs = {
   admin: TalentAdminClient;
+  assistantMessagePayload?: TalentMessageRow["payload"];
   allowedToolNames?: readonly string[] | null;
   assistantModel?: string;
   assistantMessagePrefix?: string | null;
@@ -449,17 +447,21 @@ export async function runCareerChatTurn(
   const summarizeConversationInBackground = (options?: {
     maxToMessageId?: number | null;
   }) => {
-    void maybeSummarizeTalentConversation({
-      admin,
-      conversationId,
-      maxToMessageId: options?.maxToMessageId,
-      userId,
-    }).catch((error) => {
-      console.error("[TalentChatTurn] Failed to summarize conversation", {
-        conversationId,
-        error: error instanceof Error ? error.message : String(error),
-        userId,
-      });
+    after(async () => {
+      try {
+        await maybeSummarizeTalentConversation({
+          admin,
+          conversationId,
+          maxToMessageId: options?.maxToMessageId,
+          userId,
+        });
+      } catch (error) {
+        console.error("[TalentChatTurn] Failed to summarize conversation", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+        });
+      }
     });
   };
   const touchConversationIfAllowed = async () => {
@@ -601,10 +603,9 @@ export async function runCareerChatTurn(
           userId,
         })
       : null;
-  const activeCompanyTalentRequest = talentSetting?.is_onboarding_done
-    ? await fetchActiveCompanyTalentRequest({
+  const companyContactContext = talentSetting?.is_onboarding_done
+    ? await fetchTalentCompanyContactContext({
         admin: admin as any,
-        awaitingTalentOnly: true,
         talentId: userId,
       })
     : null;
@@ -723,11 +724,6 @@ export async function runCareerChatTurn(
   }
 
   const toolSelection = resolveCareerChatTools({
-    activeCompanyTalentRequestMode: activeCompanyTalentRequest
-      ? activeCompanyTalentRequest.expects_document
-        ? "document"
-        : "text"
-      : null,
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
@@ -778,9 +774,7 @@ export async function runCareerChatTurn(
     buildCareerConversationPromptPlan({
       activeInternalFitHoldQuestion,
       channel: "chat",
-      companyTalentRequestText: serializeTalentPendingRequest(
-        activeCompanyTalentRequest
-      ),
+      companyTalentRequestText: companyContactContext,
       talentContextSection,
       currentPreferences,
       gmailCapability,
@@ -1369,6 +1363,9 @@ export async function runCareerChatTurn(
           role: "assistant",
           content: safeAssistantText,
           message_type: assistantMessageType,
+          ...(args.assistantMessagePayload !== undefined
+            ? { payload: args.assistantMessagePayload }
+            : {}),
           thinking_logs: thinkingLogs,
         },
         isMobile

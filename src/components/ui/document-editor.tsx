@@ -339,7 +339,7 @@ export const DocumentEditor = forwardRef<
       autoFocus,
       className,
       copyErrorMessage = "문서 내용을 복사하지 못했어요. 다시 시도해 주세요.",
-      copyLabel = "문서 전체 내용 복사",
+      copyLabel = "복사",
       copySuccessMessage = "문서 내용을 복사했어요.",
       dialogDescription,
       disabled,

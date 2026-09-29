@@ -27,6 +27,7 @@ import {
   convertSlackMrkdwnToWebMarkdown,
   renderOrgAgentWebLinks,
 } from "@/lib/org/agent/navigationMarkdown";
+import { hasOrgAgentToolWork } from "@/lib/org/agent/thinkingLogs";
 import type {
   OrgAgentMessage,
   OrgAgentMessageAction,
@@ -272,6 +273,8 @@ export function OrgAgentMessageBubble({
   readOnly = false,
   roleId,
   showUserAttribution = false,
+  turnStartedAt,
+  workActive = false,
   workspaceId,
 }: {
   assistantContentOverride?: string;
@@ -288,6 +291,8 @@ export function OrgAgentMessageBubble({
   readOnly?: boolean;
   roleId?: string | null;
   showUserAttribution?: boolean;
+  turnStartedAt?: string;
+  workActive?: boolean;
   workspaceId: string;
 }) {
   const isUser = message.role === "user";
@@ -325,7 +330,11 @@ export function OrgAgentMessageBubble({
     <div className="space-y-0">
       {!isUser && (
         <ChatThinkingLogPanel
+          active={workActive}
+          completedAt={message.createdAt}
+          hasToolWork={hasOrgAgentToolWork(message.thinkingLogs)}
           logs={message.thinkingLogs}
+          startedAt={turnStartedAt}
           typographyClassName="text-[13px] leading-[1.65]"
         />
       )}

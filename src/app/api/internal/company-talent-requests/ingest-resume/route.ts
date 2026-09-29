@@ -5,6 +5,7 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { finalizeEmailedCompanyTalentResumeRelay } from "@/lib/companyTalentRequests/server";
+import { deliverCompanyTalentRelay } from "@/lib/companyTalentRequests/delivery";
 import {
   TALENT_RESUME_BUCKET,
   getTalentSupabaseAdmin,
@@ -152,12 +153,7 @@ export async function POST(req: NextRequest) {
             Boolean(delivery.sent_at)
         )
       : false;
-    if (
-      !request ||
-      request.contact_kind !== "resume" ||
-      request.expects_document !== true ||
-      !candidateContactWasSent
-    ) {
+    if (!request || !candidateContactWasSent) {
       return NextResponse.json(
         { error: "relayable_resume_contact_not_found" },
         { status: 409 }
@@ -194,8 +190,9 @@ export async function POST(req: NextRequest) {
       });
     if (uploadError) throw uploadError;
 
+    let result;
     try {
-      const result = await finalizeEmailedCompanyTalentResumeRelay({
+      result = await finalizeEmailedCompanyTalentResumeRelay({
         admin: admin as any,
         contentType: upload.contentType,
         extractedText: await extractResumeTextContentBestEffort({
@@ -223,11 +220,17 @@ export async function POST(req: NextRequest) {
       if (result.idempotent) {
         await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
       }
-      return NextResponse.json({ ok: true, ...result });
     } catch (error) {
       await admin.storage.from(TALENT_RESUME_BUCKET).remove([storagePath]);
       throw error;
     }
+    // The saved document owns this file now. Transport failure must not delete
+    // it; retry uses the same durable relay and attachment.
+    await deliverCompanyTalentRelay({
+      admin: admin as any,
+      relayId: result.relayId,
+    });
+    return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return toInternalApiErrorResponse(
       error,

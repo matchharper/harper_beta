@@ -199,8 +199,7 @@ export function OrgRoleMatchingContent({
                 여러 기준이 있다면 우선순위와 허용할 수 있는 tradeoff를 함께
                 적어 주세요.
                 <br />
-                공개 Description에 넣기 어려운 내부 기준도 작성할 수 있어요.
-                직무와 관련된 기준만 남겨 주세요.
+                외부에 공개하기 어려운 내부 기준도 작성할 수 있어요.
               </div>
             </div>
           </div>
@@ -213,7 +212,7 @@ export function OrgRoleMatchingContent({
             onChange={(event) =>
               changeDraft({ request: event.target.value }, "request")
             }
-            placeholder="Harper가 후보자를 탐색하고 판단할 때 알아야 할 내부 기준을 작성해 주세요."
+            placeholder="Harper가 후보자를 탐색하고 판단할 때 알아야 할 내부 기준을 알려주세요."
             readOnly={!canManage}
             rows={5}
             savedValue={role.request ?? ""}

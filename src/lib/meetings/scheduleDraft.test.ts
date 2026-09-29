@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildMeetingRequestIdempotencyKey,
   buildOrgMeetingSchedulePath,
   buildDefaultInterviewTitle,
   formatPreparedMeetingScheduleConfirmation,
@@ -293,7 +294,7 @@ test("missing Calendar connection explains why it is required and links setup", 
   assert.match(confirmation, /아직 Ito님께는 아무 연락도 보내지 않았어요/);
 });
 
-test("a process stage asks for its meeting guidance before availability", () => {
+test("missing purpose asks only for purpose, retaining the default duration", () => {
   const confirmation = formatPreparedMeetingScheduleConfirmation({
     candidateName: "Ito",
     draft: draft({
@@ -304,8 +305,25 @@ test("a process stage asks for its meeting guidance before availability", () => 
     roleName: "FDE",
   });
 
-  assert.match(confirmation, /1차 기술 인터뷰 단계에서/);
-  assert.match(confirmation, /어떤 주제로, 몇 분 정도/);
-  assert.match(confirmation, /함께 말씀해 주세요/);
+  assert.match(confirmation, /어떤 이야기를/);
+  assert.match(confirmation, /60분/);
+  assert.doesNotMatch(confirmation, /몇 분 정도/);
   assert.doesNotMatch(confirmation, /가능 시간을 정해주시면/);
+});
+
+
+test("same request is idempotent, later meetings for the same candidate are distinct", () => {
+  const request = { workspaceId: "workspace", recommendationId: "recommendation", sourceCompanyMessageId: 100 };
+  assert.equal(buildMeetingRequestIdempotencyKey(request), buildMeetingRequestIdempotencyKey({ ...request }));
+  assert.notEqual(buildMeetingRequestIdempotencyKey(request), buildMeetingRequestIdempotencyKey({ ...request, sourceCompanyMessageId: 101 }));
+  assert.notEqual(buildMeetingRequestIdempotencyKey(request), buildMeetingRequestIdempotencyKey({ ...request, recommendationId: "other" }));
+  for (const invalid of [0, -1, NaN, 1.5]) {
+    assert.throws(() => buildMeetingRequestIdempotencyKey({ ...request, sourceCompanyMessageId: invalid }));
+  }
+});
+
+test("no process stage is needed when the meeting purpose and calendar are ready", () => {
+  const prepared = draft({ config: { ...draft().config, processStageId: null, processStageName: null }, meetingStage: null });
+  assert.equal(resolveMeetingScheduleDraftBlocker({ availabilityConfigured: true, calendarConnectionActive: true, meetingPurposeConfigured: Boolean(prepared.config.meetingPurpose), meetingStageRequired: false, organizerEmailConfigured: true }), null);
+  assert.equal(prepared.config.durationMinutes, 60);
 });

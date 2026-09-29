@@ -1,0 +1,19 @@
+{
+  "datasetVersion": "v7",
+  "frozenAt": "2026-09-25",
+  "previousVersion": "v6",
+  "files": {
+    "cases-v7.json": "846d8e300df8934c515c1deffa286a49084d0b1c1928bd200c2ee09f3db7b067",
+    "gold-v7.md": "629cb41140afa2b9634e6969103e97f9887b80d827906840ec30c3ea665573cb",
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a"
+  },
+  "runner": "scripts/evalCompanyAgentCapabilities.ts",
+  "evaluationUnit": "One variant, complete sequential conversation; 34 variants, 49 user turns",
+  "provenance": "Synthetic regression expansion of the 2026-09-25 audit; no production capture. Frozen before first v7 call. v6 is retained as immutable base fixtures.",
+  "labelReviewHistory": [{"date":"2026-09-25","reviewer":"Codex","change":"Add ambiguity resolution, multi-role, recent manual contact/reply, follow-through after offer, draft/cross-thread/English fidelity, partial failure/retry, cancellation, pagination, current-vs-stale evidence. Explicitly distinguish entry checks from full Role/Calendar/transport E2E."}],
+  "modelConfiguration": "Current production company-side default, OpenRouter Gemini 3.8 Flash, temperature 0.5; exact configuration in each run",
+  "privacy": "De-identified inputs; raw outputs only owner-readable ignored runs/",
+  "userGoldReview": "pending",
+  "releaseGate": "Zero critical failures and all 34 behavioral and qualitative checks pass; does not replace real executor/database/external transport gates",
+  "knownLimitations": "Synthetic executor; no actual delivery. UCT v2 owns delegated event/consent cases. Dedicated Role creation, Calendar, real service-example retrieval and background search results require separate layers. Model prompt source is fingerprinted; raw requests preserved. Single reviewer."
+}

@@ -460,7 +460,7 @@ async function searchInternalRoleRows(args: {
         FROM eligible_roles er
         LEFT JOIN LATERAL (
           SELECT recommendation.id, recommendation.feedback, recommendation.saved_stage
-          FROM public.talent_opportunity_recommendation recommendation
+          FROM public.talent_effective_opportunity_recommendations_v1 recommendation
           WHERE recommendation.talent_id = ${args.userId}::uuid
             AND recommendation.role_id = er.role_id
           ORDER BY recommendation.updated_at DESC, recommendation.created_at DESC, recommendation.id DESC
@@ -490,7 +490,7 @@ async function searchInternalRoleRows(args: {
           FROM public.company_roles same_company_role
           JOIN LATERAL (
             SELECT recommendation.*
-            FROM public.talent_opportunity_recommendation recommendation
+            FROM public.talent_effective_opportunity_recommendations_v1 recommendation
             WHERE recommendation.talent_id = ${args.userId}::uuid
               AND recommendation.role_id = same_company_role.role_id
             ORDER BY recommendation.updated_at DESC, recommendation.created_at DESC, recommendation.id DESC
@@ -634,7 +634,7 @@ async function searchMatchedInternalRoleRows(args: {
        AND fit.talent_id = ${args.userId}::uuid
       LEFT JOIN LATERAL (
         SELECT recommendation.id, recommendation.feedback, recommendation.saved_stage
-        FROM public.talent_opportunity_recommendation recommendation
+        FROM public.talent_effective_opportunity_recommendations_v1 recommendation
         WHERE recommendation.talent_id = ${args.userId}::uuid
           AND recommendation.role_id = role.role_id
         ORDER BY recommendation.updated_at DESC, recommendation.created_at DESC, recommendation.id DESC
@@ -664,7 +664,7 @@ async function searchMatchedInternalRoleRows(args: {
         FROM public.company_roles same_company_role
         JOIN LATERAL (
           SELECT recommendation.*
-          FROM public.talent_opportunity_recommendation recommendation
+          FROM public.talent_effective_opportunity_recommendations_v1 recommendation
           WHERE recommendation.talent_id = ${args.userId}::uuid
             AND recommendation.role_id = same_company_role.role_id
           ORDER BY recommendation.updated_at DESC, recommendation.created_at DESC, recommendation.id DESC
@@ -755,7 +755,7 @@ async function fetchMatchedInternalRoleSourceRelationship(args: {
     FROM public.company_roles role
     LEFT JOIN LATERAL (
       SELECT current_recommendation.*
-      FROM public.talent_opportunity_recommendation current_recommendation
+      FROM public.talent_effective_opportunity_recommendations_v1 current_recommendation
       WHERE current_recommendation.talent_id = ${args.userId}::uuid
         AND current_recommendation.role_id = role.role_id
       ORDER BY

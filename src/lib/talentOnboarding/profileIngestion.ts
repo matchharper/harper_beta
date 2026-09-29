@@ -24,6 +24,7 @@ import {
   sanitizeSingleLineDbText,
 } from "@/lib/textSanitization";
 import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import { resolveResumeExperienceCompaniesSafely } from "@/lib/talentOnboarding/profileIngestionCompanyResolution";
 
 const DEFAULT_LINKEDIN_ACTOR_ID = "LpVuK3Zozwuipa5bp";
 const NULL_CHAR_RE = /\u0000/g;
@@ -69,6 +70,7 @@ export type TalentExperienceDraft = {
   company_name: string | null;
   company_location: string | null;
   company_id: number | null;
+  linkedin_company_id?: number | null;
   company_link: string | null;
   company_logo: string | null;
 };
@@ -601,7 +603,13 @@ function toTalentExperienceDraft(
     cleanText(item.company_location, 300) ?? cleanText(item.location, 300);
   const employmentType =
     cleanText(item.employment_type, 120) ?? cleanText(item.employmentType, 120);
-  const companyId = parseCompanyId(item.company_id ?? item.companyId);
+  const companyId = parseCompanyId(item.company_db_id ?? item.companyDbId);
+  const linkedinCompanyId = parseCompanyId(
+    item.linkedin_company_id ??
+      item.linkedinCompanyId ??
+      item.company_id ??
+      item.companyId
+  );
   const companyLink =
     extractLinkValue(
       item.company_link ??
@@ -639,6 +647,7 @@ function toTalentExperienceDraft(
     company_name: companyName,
     company_location: companyLocation,
     company_id: companyId,
+    linkedin_company_id: linkedinCompanyId,
     company_link: companyLink,
     company_logo: null,
   };
@@ -772,6 +781,9 @@ function recoverExperienceCompanyIds(
   const linkedinWithRecoverableFields = linkedinExperiences.filter(
     (item) =>
       (typeof item.company_id === "number" && item.company_id > 0) ||
+      (typeof item.linkedin_company_id === "number" &&
+        item.linkedin_company_id > 0) ||
+      Boolean(item.company_link) ||
       Boolean(item.employment_type)
   );
 
@@ -852,6 +864,8 @@ function recoverExperienceCompanyIds(
     return {
       ...item,
       company_id: item.company_id ?? resolvedCompanyId,
+      linkedin_company_id:
+        item.linkedin_company_id ?? bestCandidate.linkedin_company_id ?? null,
       company_link: item.company_link ?? bestCandidate.company_link ?? null,
       employment_type: item.employment_type ?? bestCandidate.employment_type,
       company_logo: null,
@@ -1440,6 +1454,11 @@ async function extractTalentProfileDraftFromSources(
     experiences,
     experiencesFromLinkedin
   );
+  experiences = await resolveResumeExperienceCompaniesSafely({
+    admin,
+    experiences,
+    hasResumeText: Boolean(resumeText),
+  });
 
   const companyLogoById = await loadCompanyLogoMap({
     admin,
@@ -1466,7 +1485,9 @@ async function extractTalentProfileDraftFromSources(
       extrasFromLlm,
     },
     talentUser,
-    experiences,
+    experiences: experiences.map(
+      ({ linkedin_company_id: _linkedinCompanyId, ...experience }) => experience
+    ),
     educations,
     talentExtras,
     blockedCompanies,

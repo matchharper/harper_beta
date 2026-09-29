@@ -26,6 +26,7 @@ const normalizeSavedHistoryDisplayMode = (
 
 type CareerWorkspaceUiStoreState = {
   chatPanelWidthPct: number;
+  desktopSidebarCollapsed: boolean;
   companyJobsOpportunity: CareerHistoryOpportunity | null;
   companyJobsOnOpenChat: (() => void) | null;
   setCompanyJobsOpportunity: (
@@ -36,6 +37,7 @@ type CareerWorkspaceUiStoreState = {
   desktopRoleActionScope: "role" | "company";
   savedHistoryDisplayMode: CareerSavedHistoryDisplayMode;
   setChatPanelWidthPct: (value: number) => void;
+  setDesktopSidebarCollapsed: (collapsed: boolean) => void;
   setDesktopRoleActionOpportunity: (
     opportunity: CareerHistoryOpportunity | null,
     scope?: "role" | "company"
@@ -47,6 +49,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
   persist(
     (set) => ({
       chatPanelWidthPct: CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
+      desktopSidebarCollapsed: false,
       companyJobsOpportunity: null,
       companyJobsOnOpenChat: null,
       setCompanyJobsOpportunity: (item, onOpenChat) =>
@@ -59,6 +62,8 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
       savedHistoryDisplayMode: "list",
       setChatPanelWidthPct: (value) =>
         set({ chatPanelWidthPct: normalizeCareerChatPanelWidthPct(value) }),
+      setDesktopSidebarCollapsed: (collapsed) =>
+        set({ desktopSidebarCollapsed: collapsed }),
       setDesktopRoleActionOpportunity: (opportunity, scope = "role") =>
         set({
           desktopRoleActionOpportunity: opportunity,
@@ -74,6 +79,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         chatPanelWidthPct: state.chatPanelWidthPct,
+        desktopSidebarCollapsed: state.desktopSidebarCollapsed,
         savedHistoryDisplayMode: state.savedHistoryDisplayMode,
       }),
       merge: (persistedState, currentState) => {
@@ -85,6 +91,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
           chatPanelWidthPct: normalizeCareerChatPanelWidthPct(
             state?.chatPanelWidthPct
           ),
+          desktopSidebarCollapsed: state?.desktopSidebarCollapsed === true,
           savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(
             state?.savedHistoryDisplayMode
           ),

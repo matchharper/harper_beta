@@ -63,7 +63,10 @@ export function notifyGmailIntegrationChanged() {
   window.dispatchEvent(new Event(GMAIL_INTEGRATION_CHANGED_EVENT));
 }
 
-export function useGmailIntegration(userId: string | null) {
+export function useGmailIntegration(
+  userId: string | null,
+  { enabled = true }: { enabled?: boolean } = {}
+) {
   const queryClient = useQueryClient();
   const [pendingAction, setPendingAction] = useState<
     "analyze" | "connect" | "disconnect" | null
@@ -94,11 +97,13 @@ export function useGmailIntegration(userId: string | null) {
   }, [loadFullStatus, queryClient, queryKey]);
 
   const statusQuery = useQuery({
-    enabled: Boolean(userId),
+    enabled: enabled && Boolean(userId),
     gcTime: GMAIL_INTEGRATION_GC_TIME_MS,
     queryFn: loadStatus,
     queryKey,
     refetchInterval: (query) =>
+      enabled &&
+      Boolean(userId) &&
       isGmailCareerHistoryAnalysisRunning(
         query.state.data?.analysis.status ?? "not_started"
       )
@@ -122,6 +127,7 @@ export function useGmailIntegration(userId: string | null) {
   );
 
   useEffect(() => {
+    if (!enabled || !userId) return;
     const handleChanged = () => {
       void refresh().catch(() => undefined);
     };
@@ -132,7 +138,7 @@ export function useGmailIntegration(userId: string | null) {
         handleChanged
       );
     };
-  }, [refresh]);
+  }, [enabled, refresh, userId]);
 
   const connect = useCallback(async () => {
     setPendingAction("connect");

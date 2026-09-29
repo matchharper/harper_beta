@@ -112,3 +112,95 @@ test("renders underline with Markdown emphasis, quotes and inline code without e
   assert.doesNotMatch(html, /<img|<script/);
   assert.match(html, /&lt;img/);
 });
+
+test("reference links preserve exact destinations and accessible source labels", () => {
+  const html = renderToStaticMarkup(
+    <RichText
+      referenceLinks
+      content="투자 발표가 있었다. [**공식 발표**](https://example.com/news?round=a#funding)"
+    />
+  );
+
+  assert.match(html, /data-rich-text-reference="true"/);
+  assert.match(html, /href="https:\/\/example.com\/news\?round=a#funding"/);
+  assert.match(html, /aria-label="공식 발표 \(example.com\)"/);
+  assert.match(html, /target="_blank" rel="noopener noreferrer"/);
+  assert.match(html, /focus-visible:outline-2/);
+  assert.match(html, /aria-hidden="true"/);
+  assert.match(html, /s2\/favicons\?domain=example.com&amp;sz=32/);
+  assert.match(html, /referrerPolicy="no-referrer"/);
+  assert.match(html, /text-action/);
+  assert.doesNotMatch(html, /bg-bg-weak|domain_url=.*round/);
+});
+
+test("references work in tables and standalone source paragraphs with long URLs", () => {
+  const html = renderToStaticMarkup(
+    <RichText
+      referenceLinks
+      content={[
+        "| 항목 | 출처 |",
+        "|---|---|",
+        "| 연간 기본급 | [채용 공고](https://jobs.example.com/ml) |",
+        "",
+        "https://example.com/very/long/path?source=research",
+      ].join("\n")}
+    />
+  );
+
+  assert.equal(html.match(/data-rich-text-reference="true"/g)?.length, 2);
+  assert.match(html, /<table/);
+  assert.match(html, /aria-label="example.com \(example.com\)"/);
+  assert.match(
+    html,
+    /href="https:\/\/example.com\/very\/long\/path\?source=research"/
+  );
+});
+
+test("reference styling is opt-in and leaves internal navigation and email handling intact", () => {
+  const defaultHtml = renderToStaticMarkup(
+    <RichText content="[공식 발표](https://example.com/news)" />
+  );
+  assert.doesNotMatch(defaultHtml, /data-rich-text-reference/);
+
+  const html = renderToStaticMarkup(
+    <RichText
+      referenceLinks
+      renderEmailLinksAsText
+      onHarperLinkClick={() => undefined}
+      content="[문서](/career/profile) · [이메일](mailto:hello@example.com)"
+    />
+  );
+  assert.match(html, /<button[^>]*title="\/career\/profile"/);
+  assert.match(html, /이메일/);
+  assert.doesNotMatch(html, /data-rich-text-reference|<a /);
+});
+
+test("reference mode does not enable unsafe protocols or raw HTML", () => {
+  const html = renderToStaticMarkup(
+    <RichText
+      referenceLinks
+      content={"[bad](javascript:alert%281%29) <script>alert(1)</script>"}
+    />
+  );
+  assert.doesNotMatch(
+    html,
+    /href="javascript:|data-rich-text-reference|<script/
+  );
+});
+
+test("Career Markdown has a larger medium H1 and open-edge tables, without changing the default", () => {
+  const content =
+    "# Fieldguide\n\n| 시점 | 투자금 |\n|---|---:|\n| 2026년 | 100원 |";
+  const career = renderToStaticMarkup(
+    <RichText variant="career" content={content} />
+  );
+  const standard = renderToStaticMarkup(<RichText content={content} />);
+
+  assert.match(career, /<h1[^>]*text-xl font-medium/);
+  assert.match(career, /first:pl-0 last:pr-0/);
+  assert.match(career, /tr:last-child&gt;td\]:border-b-0/);
+  assert.match(career, /<td style="text-align:right"/);
+  assert.doesNotMatch(career, /class="border border-/);
+  assert.match(standard, /text-base font-semibold/);
+  assert.doesNotMatch(standard, /first:pl-0|last:pr-0|text-xl/);
+});

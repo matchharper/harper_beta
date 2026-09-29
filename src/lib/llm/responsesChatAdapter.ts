@@ -16,8 +16,35 @@ type PromptCacheBreakpoint = {
 
 function toOpenAIResponsesMessageContent(content: unknown) {
   if (!Array.isArray(content)) return String(content ?? "");
-  return content.flatMap((part: any) => {
+  return content.flatMap((part: any): any[] => {
     if (!part || typeof part !== "object") return [];
+    if (part.type === "image_url") {
+      const imageUrl =
+        typeof part.image_url === "string"
+          ? part.image_url
+          : typeof part.image_url?.url === "string"
+            ? part.image_url.url
+            : "";
+      if (!imageUrl) return [];
+      const requestedDetail =
+        typeof part.image_url?.detail === "string"
+          ? part.image_url.detail
+          : typeof part.detail === "string"
+            ? part.detail
+            : "auto";
+      const detail = ["auto", "high", "low", "original"].includes(
+        requestedDetail
+      )
+        ? requestedDetail
+        : "auto";
+      return [
+        {
+          detail,
+          image_url: imageUrl,
+          type: "input_image" as const,
+        },
+      ];
+    }
     const text =
       typeof part.text === "string"
         ? part.text

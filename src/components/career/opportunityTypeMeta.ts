@@ -378,7 +378,7 @@ const buildCareerOpportunityTypeMeta = (
     positiveActionIcon: Handshake,
     positiveActionLabel: t(
       "career.common.internal_connection_acceptance_modal.intro_submit",
-      "소개 수락"
+      "만나볼게요."
     ),
     savedStageLabels: {
       applied: t(

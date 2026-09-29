@@ -67,6 +67,7 @@ import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidat
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
 import { fetchCompanyRoleCalibrationPromptIndex } from "@/lib/org/roleCalibrationServer";
+import { conversationCompatibilityText, type OrgAgentConversationInput } from "./conversationInput";
 
 export type OrgAgentPromptContext = {
   calibrationsText?: string;
@@ -74,6 +75,8 @@ export type OrgAgentPromptContext = {
   completeRoleRequestIds: string[];
   contextNotesText: string;
   conversationText: string;
+  conversationMessages?: OrgAgentConversationInput[];
+  conversationHistoryInfo?: { hasMore: boolean; threadId: string | null; returnedItems: number };
   defaultLongTextObservations?: OrgAgentLongTextObservation[];
   inProgressRoleCreationsText?: string;
   pendingUpdateText?: string;
@@ -107,10 +110,6 @@ function text(value: unknown) {
 
 function unique(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map(text).filter(Boolean)));
-}
-
-function stripSerializedMentionIds(value: string) {
-  return value.replace(/@\[([^\]]+)\]\(talent:[^)]+\)/g, "@$1");
 }
 
 async function optionalContext<T>(args: {
@@ -276,11 +275,11 @@ function formatConversation(
   page: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>,
   slackThreadId: string | null
 ) {
-  const messages = page.messages;
+  const messages = page.messages.filter((message) => message.role === "user" || message.role === "assistant");
   if (messages.length === 0) {
-    return slackThreadId
+    return { conversationText: slackThreadId
       ? `scope=current_thread thread_id=${slackThreadId} returned_items=0 has_more=false`
-      : "-";
+      : "-", conversationMessages: [] as OrgAgentConversationInput[], conversationHistoryInfo: { hasMore: page.hasMore, threadId: slackThreadId, returnedItems: 0 } };
   }
   const slackAliasById = new Map<string, string>();
   const slackAlias = (slackUserId: string) => {
@@ -311,6 +310,18 @@ function formatConversation(
         )
         .map((value) => `candidate_decision_context{${value}}`)
         .join(","),
+      (message.metadata.companyIntroDecisionConfirmations ?? [])
+        .map((confirmation) =>
+          [
+            `decision=${confirmation.decision}`,
+            `talent_id=${confirmation.talentId}`,
+            `role_id=${confirmation.roleId}`,
+            `next_stage_id=${confirmation.nextStageId ?? "not_selected"}`,
+            `intro_recipients=${confirmation.introRecipientEmails.join("|") || "not_selected"}`,
+          ].join(";")
+        )
+        .map((value) => `company_intro_decision_context{${value}}`)
+        .join(","),
       ...(message.metadata.contactDraftRefs?.length
         ? message.metadata.contactDraftRefs
         : message.metadata.contactDraftRef
@@ -324,7 +335,8 @@ function formatConversation(
         ? `candidate_contact_ref{${[
             `talent_id=${message.metadata.candidateRelayRef.talentId}`,
             `role_id=${message.metadata.candidateRelayRef.roleId}`,
-            `request_id=${message.metadata.candidateRelayRef.requestId}`,
+            `recommendation_id=${message.metadata.candidateRelayRef.recommendationId}`,
+            `request_id=${message.metadata.candidateRelayRef.requestId ?? "none"}`,
             `relay_id=${message.metadata.candidateRelayRef.relayId}`,
           ].join(";")}}`
         : "",
@@ -346,10 +358,10 @@ function formatConversation(
         index: index + 1,
         name: clipPromptText(attachment.name, 240),
         text: clipPromptText(attachment.text, 2_400),
-        truncated: Boolean(attachment.truncated),
+        truncated: Boolean(attachment.truncated) || String(attachment.text ?? "").length > 2_400,
       }));
     const messageContent = [
-      stripSerializedMentionIds(message.content),
+      message.content,
       slackFileContext.length > 0
         ? `<untrusted_slack_file_attachments>${JSON.stringify(slackFileContext)}</untrusted_slack_file_attachments>`
         : "",
@@ -363,6 +375,19 @@ function formatConversation(
         clipPromptText(messageContent, CONVERSATION_MESSAGE_MAX_CHARS),
       ],
       id: message.id,
+      native: {
+        id: message.id,
+        createdAt: message.createdAt,
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: clipPromptText(messageContent, CONVERSATION_MESSAGE_MAX_CHARS),
+        speaker,
+        references: references.join(","),
+        toolNames: message.role === "assistant" && !message.metadata.candidateRelayRef
+          ? [...new Set((message.metadata.toolResults ?? []).map((result) => result.name))]
+          : [],
+        source: message.metadata.candidateRelayRef ? "candidate_contact" : message.role === "user" ? "company" : "harper",
+        complete: messageContent.length <= CONVERSATION_MESSAGE_MAX_CHARS && !slackFileContext.some((file) => file.truncated),
+      } satisfies OrgAgentConversationInput,
     };
   });
 
@@ -384,15 +409,13 @@ function formatConversation(
     totalChars += rowChars;
     selected.unshift(row);
   }
-  const table = formatPromptTable(
-    ["speaker", "references", "message"],
-    selected.map((row) => row.cells),
-    [140, 500, CONVERSATION_MESSAGE_MAX_CHARS]
-  );
-  if (!slackThreadId) return table;
+  const conversationMessages = selected.map((row) => row.native);
+  const table = conversationCompatibilityText(conversationMessages);
   const hasMore = page.hasMore || selected.length < messages.length;
+  const conversationHistoryInfo = { hasMore, threadId: slackThreadId, returnedItems: selected.length };
+  if (!slackThreadId) return { conversationText: table, conversationMessages, conversationHistoryInfo };
   const pageMetadata = `scope=current_thread thread_id=${slackThreadId} returned_items=${selected.length} has_more=${hasMore}`;
-  return `${pageMetadata}\n${table}`;
+  return { conversationText: `${pageMetadata}\n${table}`, conversationMessages, conversationHistoryInfo };
 }
 
 const RECENT_TOOL_CONTEXT_MESSAGE_WINDOW = 4;
@@ -693,7 +716,7 @@ export async function buildOrgAgentPromptContext(args: {
     }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
     contextNotesText: notes.join("\n") || "-",
-    conversationText: formatConversation(
+    ...formatConversation(
       messages,
       scope.kind === "slack" ? scope.slackThreadId : null
     ),

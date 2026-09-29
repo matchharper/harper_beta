@@ -112,6 +112,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       content: document.extracted_text ?? "",
       documentId: document.id,
       fileName: document.file_name,
+      originType: document.origin_type,
       updatedAt: document.updated_at,
     });
   } catch (error) {

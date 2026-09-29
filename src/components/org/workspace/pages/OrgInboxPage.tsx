@@ -25,11 +25,16 @@ import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendat
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { cn } from "@/lib/utils";
 
-type InboxFilter = "acceptedWaiting" | "pendingConnection" | "unread";
+type InboxFilter =
+  | "acceptedWaiting"
+  | "introAvailable"
+  | "pendingConnection"
+  | "unread";
 
 const INBOX_FILTERS = [
   { label: "미열람", value: "unread" },
   { label: "연결 대기", value: "pendingConnection" },
+  { label: "Intro 요청 가능", value: "introAvailable" },
 ] as const;
 
 function OrgInboxMain() {
@@ -86,6 +91,7 @@ function OrgInboxMain() {
   const unreadOnly = activeFilters.includes("unread");
   const pendingConnectionOnly = activeFilters.includes("pendingConnection");
   const acceptedWaitingOnly = activeFilters.includes("acceptedWaiting");
+  const introAvailableOnly = activeFilters.includes("introAvailable");
   const normalizedSearchQuery = searchQuery.toLocaleLowerCase("ko-KR");
   const visibleItems = useMemo(
     () =>
@@ -98,10 +104,11 @@ function OrgInboxMain() {
         }
         if (unreadOnly && isViewed(item.recommendationId)) return false;
         if (
-          (acceptedWaitingOnly || pendingConnectionOnly) &&
+          (acceptedWaitingOnly || pendingConnectionOnly || introAvailableOnly) &&
           !(
             (acceptedWaitingOnly && item.stage === "accepted") ||
-            (pendingConnectionOnly && item.stage === "pending_connection")
+            (pendingConnectionOnly && item.stage === "pending_connection") ||
+            (introAvailableOnly && item.stage === "company_intro")
           )
         ) {
           return false;
@@ -120,6 +127,7 @@ function OrgInboxMain() {
       }),
     [
       acceptedWaitingOnly,
+      introAvailableOnly,
       isViewed,
       items,
       normalizedSearchQuery,
@@ -261,6 +269,18 @@ function OrgInboxMain() {
             {INBOX_FILTERS[1].label}
           </MuteButton>
 
+          <MuteButton
+            aria-pressed={introAvailableOnly}
+            onClick={() => toggleInboxFilter(INBOX_FILTERS[2].value)}
+            size="sm"
+            variant={introAvailableOnly ? "neutral" : "default"}
+          >
+            {introAvailableOnly ? (
+              <Check aria-hidden className="size-3.5" />
+            ) : null}
+            {INBOX_FILTERS[2].label}
+          </MuteButton>
+
           {searchOpen ? (
             <form
               aria-label="이름 또는 이메일 검색"
@@ -360,15 +380,23 @@ function OrgInboxMain() {
             profilePicture: item.talent.profilePicture,
             roleName: item.roleName,
             statusLabel:
-              item.stage === "accepted"
-                ? "수락 후 대기"
-                : item.stage === "pending_connection"
-                  ? "연결 대기"
-                  : "결정 완료",
+              item.stage === "company_intro"
+                ? "검토 대기"
+                : item.stage === "intro_requested"
+                  ? "Intro Requested"
+                  : item.stage === "accepted"
+                    ? "수락 후 대기"
+                    : item.stage === "pending_connection"
+                      ? "연결 대기"
+                      : "결정 완료",
             statusTone:
-              item.stage === "accepted" || item.stage === "pending_connection"
+              item.stage === "company_intro" ||
+              item.stage === "accepted" ||
+              item.stage === "pending_connection"
                 ? "primary"
-                : "muted",
+                : item.stage === "intro_requested"
+                  ? "action"
+                  : "muted",
             viewed: isViewed(item.recommendationId),
           }))}
           statusHeader="연결 상태"
@@ -383,7 +411,7 @@ function OrgInboxMain() {
           <div className="mt-1 text-[13px] font-light text-neutral-muted">
             {hasActiveFilter
               ? "필터를 해제하면 추천 후보자 전체를 다시 확인할 수 있어요."
-              : "수락 이후 연결 검토가 시작된 후보자가 여기에 표시돼요."}
+              : "먼저 제안할 수 있는 후보자와 수락 이후 연결 검토가 시작된 후보자가 여기에 표시돼요."}
           </div>
         </div>
       )}

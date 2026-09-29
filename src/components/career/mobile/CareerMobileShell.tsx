@@ -32,7 +32,7 @@ export default function CareerMobileShell({
   return (
     <div
       className={cn(
-        "relative flex h-svh w-full flex-col overflow-hidden bg-bg-basement text-neutral-primary",
+        "relative flex h-svh w-full flex-col overflow-hidden bg-bg-default text-neutral-primary",
         className
       )}
     >
@@ -64,7 +64,7 @@ export default function CareerMobileShell({
       <main
         id={MOBILE_SCROLL_CONTAINER_ID}
         className={cn(
-          "relative min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth bg-bg-basement",
+          "relative min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth bg-bg-default",
           contentClassName
         )}
       >

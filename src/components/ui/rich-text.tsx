@@ -5,6 +5,7 @@ import React, {
   type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
+import { ReferenceLink } from "@/components/ui/reference-link";
 import remarkGfm from "remark-gfm";
 import { remarkUnderline } from "@/lib/markdown/remarkUnderline";
 import TurndownService from "turndown";
@@ -312,12 +313,16 @@ function isStandaloneStrongParagraph(children: ReactNode) {
   );
 }
 
+export type RichTextVariant = "default" | "career";
+
 export default function RichText({
   content,
   className,
   linkClassName,
   onHarperLinkClick,
   renderEmailLinksAsText = false,
+  referenceLinks = false,
+  variant = "default",
   trailingInlineNode,
 }: {
   content: string;
@@ -325,6 +330,9 @@ export default function RichText({
   linkClassName?: string;
   onHarperLinkClick?: (href: string) => void;
   renderEmailLinksAsText?: boolean;
+  /** Render external web sources as compact inline references; Markdown stays unchanged. */
+  referenceLinks?: boolean;
+  variant?: RichTextVariant;
   trailingInlineNode?: ReactNode;
 }) {
   const normalizedContent = normalizeRichText(
@@ -357,17 +365,22 @@ export default function RichText({
         remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkUnderline]}
         components={{
           h1: ({ children }) => (
-            <h1 className="mt-5 text-base font-semibold leading-6 text-neutral-primary first:mt-0">
+            <h1
+              className={cn(
+                "mt-5 text-neutral-primary first:mt-0",
+                "text-xl font-medium leading-7 [&_strong]:font-medium"
+              )}
+            >
               {renderNodeWithHighlights(children, "h1", trailingInlineNode)}
             </h1>
           ),
           h2: ({ children }) => (
-            <h2 className="mt-5 text-[15px] font-semibold leading-6 text-neutral-primary first:mt-0">
+            <h2 className="mt-5 text-[17px] font-medium leading-6 text-neutral-primary first:mt-0">
               {renderNodeWithHighlights(children, "h2", trailingInlineNode)}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="mt-4 text-sm font-semibold leading-6 text-neutral-primary first:mt-0">
+            <h3 className="mt-4 text-base font-medium leading-6 text-neutral-primary first:mt-0">
               {renderNodeWithHighlights(children, "h3", trailingInlineNode)}
             </h3>
           ),
@@ -516,6 +529,32 @@ export default function RichText({
               );
             }
 
+            if (
+              (referenceLinks || variant === "career") &&
+              /^https?:\/\//i.test(href)
+            ) {
+              let hostname: string;
+              try {
+                hostname = new URL(href).hostname;
+              } catch {
+                return <span>{children}</span>;
+              }
+              const label =
+                !childText.trim() ||
+                isUrlText(childText) ||
+                childText.trim() === href
+                  ? hostname
+                  : childText.trim();
+              return (
+                <ReferenceLink
+                  href={href}
+                  hostname={hostname}
+                  label={label}
+                  className={linkClassName}
+                />
+              );
+            }
+
             return (
               <a
                 href={href}
@@ -558,18 +597,40 @@ export default function RichText({
               className="mt-4 overflow-x-auto first:mt-0"
               data-rich-text-table="true"
             >
-              <table className="min-w-full border-collapse text-left text-sm leading-6 text-neutral-primary">
+              <table
+                className={cn(
+                  "min-w-full border-collapse text-left text-sm leading-6 text-neutral-primary",
+                  variant === "career" &&
+                    "[&_tbody>tr:last-child>td]:border-b-0"
+                )}
+              >
                 {children}
               </table>
             </div>
           ),
-          th: ({ children }) => (
-            <th className="border border-neutral-1000-a05 bg-bg-floating px-3 py-2 font-medium text-neutral-primary">
+          th: ({ children, style }) => (
+            <th
+              style={style}
+              className={cn(
+                "px-3 font-medium text-neutral-primary",
+                variant === "career"
+                  ? "border-b border-neutral-1000-a10 py-3 first:pl-0 last:pr-0"
+                  : "border border-neutral-1000-a05 bg-bg-floating py-2"
+              )}
+            >
               {renderNodeWithHighlights(children, "th", trailingInlineNode)}
             </th>
           ),
-          td: ({ children }) => (
-            <td className="border border-neutral-1000-a05 px-3 py-2 align-top text-neutral-primary [&_em]:text-neutral-primary [&_blockquote]:text-neutral-primary">
+          td: ({ children, style }) => (
+            <td
+              style={style}
+              className={cn(
+                "px-3 align-top text-neutral-primary [&_em]:text-neutral-primary [&_blockquote]:text-neutral-primary",
+                variant === "career"
+                  ? "border-b border-neutral-1000-a05 py-3 first:pl-0 last:pr-0"
+                  : "border border-neutral-1000-a05 py-2"
+              )}
+            >
               {renderNodeWithHighlights(children, "td", trailingInlineNode)}
             </td>
           ),

@@ -118,6 +118,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/matching",
       },
       {
+        description: "Company-first 검색 예약과 인원 제한 관리",
+        href: "/ops/company-first",
+        label: "검색 설정",
+        matchPrefix: "/ops/company-first",
+      },
+      {
         align: "end",
         description: "모든 internal role에서 수락한 후보자 확인",
         href: "/ops/accepted-talents",

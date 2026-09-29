@@ -268,7 +268,7 @@ export default function InternalConnectionAcceptanceModal({
               {isIntroRequest
                 ? t(
                     "career.common.internal_connection_acceptance_modal.intro_submit",
-                    "소개 수락"
+                    "만나볼게요."
                   )
                 : t(
                     "career.common.internal_connection_acceptance_modal.submit",

@@ -232,6 +232,11 @@ export const queryKeys = {
         filters?.mode ?? "general",
         filters?.roleId ?? "",
       ] as const,
+    matchingSearchStatus: (
+      workspaceId?: string | null,
+      roleId?: string | null
+    ) =>
+      ["org", "matchingSearchStatus", workspaceId ?? "", roleId ?? ""] as const,
     agentMentions: (filters?: {
       query?: string | null;
       roleId?: string | null;

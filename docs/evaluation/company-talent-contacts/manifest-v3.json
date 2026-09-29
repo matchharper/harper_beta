@@ -1,0 +1,24 @@
+{
+  "datasetVersion": "v3",
+  "frozenAt": "2026-09-25T01:51:00.232Z",
+  "files": {
+    "cases-v3.json": "53c5b7b56d78a12ee73079ff0576311b701d78f5582fae51df9424c86b5798aa",
+    "gold-v3.json": "a2e9c3a8e9b6aae825c2b21f8b4d9d36e3ce36e11f7db2cee913afa9f0fbc8c7",
+    "context-v1.json": "b1d12b2dad6530d0ffb48dbe2339cef9aa711aa51698124dd7d85bf257b8c85d",
+    "../company-side-conversational-qa/role-creation-v3.json": "ddfd0fc8e309882469900d39b55be554caf9528377c8eb805631740d2b84f199",
+    "../company-side-conversational-qa/evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "Five complete reciprocal contacts; separately Role v3",
+  "runner": "scripts/evalUnifiedCompanyContacts.ts with CONTACT_QA_DATASET=v3 CONTACT_QA_ROLE_DATASET=v3",
+  "provenance": "v2 turns unchanged; frozen synthetic company facts and explicit empty retrieval. Previous outputs seen; not blind holdout.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "date": "2026-09-25",
+      "change": "Distinguish accepted inline delivery from reading; allow courtesy/paraphrase, disallow new decisions/conditions/promises."
+    }
+  ],
+  "releaseGate": "5/5 faithful authorized round trips and critical 0, inline delivery, state integrity and dedup. Role v3 separately all required facts and activation boundaries.",
+  "privacy": "Only two previously approved account identities; no production histories; raw ignored private/runs 0600",
+  "knownLimitations": "Local auth and email capture, no live inbox or Slack, vector search explicitly not tested. Frozen company facts unlike production; source locked per run."
+}

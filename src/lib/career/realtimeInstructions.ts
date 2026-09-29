@@ -20,7 +20,7 @@ import {
 } from "@/lib/career/prompts";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
-import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
+import { fetchCurrentCareerCoachingActivity } from "@/lib/career/careerCoachingActivity";
 import {
   fetchRecentRecommendedOpportunitiesForPrompt,
   formatRecentRecommendedOpportunitiesForPrompt,
@@ -40,12 +40,15 @@ import { shouldUseCareerRealtimeOnboarding } from "@/lib/career/realtimeCallScop
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
+import { buildCareerCoachingCallOpeningInstruction } from "@/lib/career/prompts/cases/coachingPrompts";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
  * voice-only guidance and dynamic context.
  */
 export async function buildCareerRealtimeSessionInstructions(args: {
+  careerCoachingActivityMessageId?: number | null;
+  careerCoachingActivityRevision?: number | null;
   conversationId: string;
   conversationStarterId?: string | null;
   internalCallRequestId?: string | null;
@@ -160,14 +163,6 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   const memoryRetrievalInputs = visibleMessages
     .slice(-6)
     .map((message) => formatTalentMessageContentForLlmPrompt(message));
-  if (conversationStarterForRetrieval?.id === "career_coaching") {
-    memoryRetrievalInputs.push(
-      normalizeCareerPromptLocale(args.preferredLocale) === "en"
-        ? "Purpose of this conversation: continue the user's current career concern, tradeoffs between options, and previously confirmed career criteria and decision context"
-        : "이번 대화의 목적: 현재 커리어 고민, 선택지 사이의 트레이드오프, 이전에 확인한 커리어 기준과 결정 맥락을 이어서 이야기하기"
-    );
-  }
-
   const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
     admin,
     query: buildTalentMemoryRetrievalQuery(memoryRetrievalInputs),
@@ -214,8 +209,27 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     isOpenInternalOpportunityCallRequestStatus(internalCallRequest.status)
       ? internalCallRequest
       : null;
+  const careerCoachingActivity = args.careerCoachingActivityMessageId
+    ? await fetchCurrentCareerCoachingActivity({
+        activityMessageId: args.careerCoachingActivityMessageId,
+        admin,
+        conversationId: args.conversationId,
+        userId: args.userId,
+      })
+    : null;
+  if (
+    args.careerCoachingActivityMessageId &&
+    (!careerCoachingActivity ||
+      careerCoachingActivity.revision !== args.careerCoachingActivityRevision ||
+      careerCoachingActivity.status !== "active" ||
+      careerCoachingActivity.channel !== "call")
+  ) {
+    throw new Error("Career coaching call activity is stale or unavailable");
+  }
   const isOnboardingActiveForSession = shouldUseCareerRealtimeOnboarding({
-    hasConversationStarter: Boolean(conversationStarter),
+    hasConversationStarter: Boolean(
+      conversationStarter || careerCoachingActivity
+    ),
     hasMockInterview: false,
     hasInternalOpportunityCall: Boolean(openInternalCallRequest),
     isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
@@ -248,6 +262,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     );
 
   const promptPlan = buildCareerConversationPromptPlan({
+    careerCoachingActivity,
     channel: "voice",
     talentContextSection,
     currentPreferences,
@@ -264,10 +279,18 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     profile,
     conversationMode: openInternalCallRequest
       ? "internal_opportunity_call"
-      : (conversationStarter?.id ?? "default"),
+      : careerCoachingActivity
+        ? "career_coaching"
+        : (conversationStarter?.id ?? "default"),
     internalCallRequest,
     recentConversationSection,
     recentRecommendedOpportunitiesText,
+    runtimeInstruction: careerCoachingActivity
+      ? buildCareerCoachingCallOpeningInstruction({
+          activity: careerCoachingActivity,
+          preferredLocale: currentPreferences.preferredLocale,
+        })
+      : undefined,
     structuredProfileText,
     timeZone: args.timeZone,
     toolNames: promptToolNames,

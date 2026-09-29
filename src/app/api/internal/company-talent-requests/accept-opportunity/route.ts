@@ -106,10 +106,18 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({
       acceptedAt: result.updatedAt,
+      companyShared: "companyShared" in result && result.companyShared === true,
       ok: true,
       recommendationId,
     });
   } catch (error) {
+    if (error instanceof InternalRoleAcceptanceError && error.reason === "internal_recommendation_superseded") {
+      return NextResponse.json({
+        error: "internal_recommendation_superseded",
+        currentRecommendationId: error.currentRecommendationId,
+        historyShouldRefresh: true,
+      }, { status: 409 });
+    }
     if (
       error instanceof InternalRoleAcceptanceError &&
       error.reason === "target_role_unavailable"

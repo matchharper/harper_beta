@@ -1,0 +1,366 @@
+{
+  "datasetVersion": "pilot-v1",
+  "rubricVersion": "v1",
+  "labelVersion": "v1",
+  "evaluator": "Codex direct qualitative audit; independent human gold pending",
+  "labelingProcedure": "Per-case model hidden; labels frozen before joining model assignments; previous aggregate turn rates known. No additional external LLM API calls.",
+  "sensitivityCases": [
+    "VO002",
+    "VO025",
+    "VO026",
+    "VO046",
+    "VO049"
+  ],
+  "cases": [
+    {
+      "id": "VO001",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO002",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO003",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "hard_compensation_condition_weakened"
+    },
+    {
+      "id": "VO004",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "future_role_and_constraints_unresolved"
+    },
+    {
+      "id": "VO005",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO006",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "interview_interrupted_before_constraints"
+    },
+    {
+      "id": "VO007",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO008",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO009",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO010",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO011",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "role_and_tradeoffs_unresolved"
+    },
+    {
+      "id": "VO012",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO013",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "interview_not_started_beyond_identity_question"
+    },
+    {
+      "id": "VO014",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO015",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "location_answer_incomplete_and_constraints_unresolved"
+    },
+    {
+      "id": "VO016",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "compensation_and_material_tradeoffs_unresolved"
+    },
+    {
+      "id": "VO017",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO018",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO019",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO020",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO021",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO022",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO023",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO024",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO025",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO026",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO027",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO028",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO029",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO030",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO031",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO032",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO033",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO034",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO035",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO036",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO037",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "income_priority_without_location_or_pay_constraints"
+    },
+    {
+      "id": "VO038",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO039",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO040",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "confirmed_compensation_period_omitted"
+    },
+    {
+      "id": "VO041",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO042",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "search_intent_only"
+    },
+    {
+      "id": "VO043",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO044",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO045",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO046",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO047",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO048",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO049",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO050",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    }
+  ]
+}

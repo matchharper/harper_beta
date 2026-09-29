@@ -52,6 +52,8 @@ import type {
 } from "@/lib/career/prompts/types";
 import { getCareerInterruptHandlingPrompt } from "./initialPrompts";
 import { buildInternalOpportunityRealtimeInstruction } from "./cases/lifecyclePrompts";
+import { buildCareerCoachingPrompt } from "./cases/coachingPrompts";
+import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import type { InternalOpportunityCallRequest } from "@/lib/talentOnboarding/internalOpportunityCallRequest";
 import {
   buildCareerPostOnboardingContextSection,
@@ -113,6 +115,7 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
  */
 export function buildCareerConversationPromptPlan(args: {
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
+  careerCoachingActivity?: CareerCoachingActivity | null;
   channel: CareerPromptChannel;
   companyTalentRequestText?: string | null;
   conversationMode?: CareerConversationPromptMode;
@@ -275,11 +278,10 @@ export function buildCareerConversationPromptPlan(args: {
     });
   }
 
-
-
   if (
     !isOnboardingActive &&
-    args.includePostOnboardingConversationGuide !== false
+    args.includePostOnboardingConversationGuide !== false &&
+    conversationMode !== "career_coaching"
   ) {
     promptBlocks.push({
       key: "post_onboarding_conversation_guide",
@@ -332,7 +334,6 @@ export function buildCareerConversationPromptPlan(args: {
     }
 
     if (
-      conversationMode === "career_coaching" ||
       conversationMode === "match_quality" ||
       conversationMode === "career_check_in"
     )
@@ -347,6 +348,16 @@ export function buildCareerConversationPromptPlan(args: {
   };
 
   const callModeInstruction = callModePrompt();
+
+  const careerCoachingInstruction =
+    !isOnboardingActive &&
+    normalizedToolNames.includes("manage_career_coaching_activity")
+      ? buildCareerCoachingPrompt({
+          activity: args.careerCoachingActivity,
+          channel: args.channel,
+          preferredLocale: args.currentPreferences?.preferredLocale,
+        })
+      : "";
 
   promptBlocks.push({
     key: "profile_context",
@@ -381,6 +392,13 @@ export function buildCareerConversationPromptPlan(args: {
     promptBlocks.push({
       key: "call_mode_instruction",
       text: callModeInstruction,
+    });
+  }
+
+  if (careerCoachingInstruction) {
+    promptBlocks.push({
+      key: "career_coaching_activity",
+      text: careerCoachingInstruction,
     });
   }
 

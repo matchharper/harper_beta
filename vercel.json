@@ -19,6 +19,16 @@
           "initialDelaySeconds": 0
         }
       ]
+    },
+    "src/app/api/queues/process-company-agent-web-action/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "company-agent-web-action-v1",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
     }
   },
   "crons": [
@@ -40,6 +50,10 @@
     },
     {
       "path": "/api/internal/slack/queue-dispatch",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/org-agent/web-action-dispatch",
       "schedule": "*/5 * * * *"
     },
     {

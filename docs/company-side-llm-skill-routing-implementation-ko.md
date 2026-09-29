@@ -1,6 +1,10 @@
 # Company-side LLM Skill·Tool 라우팅 구현 설계
 
-상태: 구현 전 설계
+상태: **대체된 과거 설계 — 구현 기준으로 사용하지 않음**
+
+2026-09-24의 [Company-side LLM 입력 구조·프롬프트·선택적 기능 로딩 구현 계획](company-side-agent-input-and-capability-refactor-plan-ko.md)이 이 문서를 대체한다.
+아래 본문은 설계 이력을 위해 보존한다. 별도 routing LLM, generic ActionGate와 새 승인 도구·저장소는 새 계획에서 채택하지 않는다.
+새 계획은 기존 company-side LLM이 필요한 capability를 직접 로드하고 현재의 승인·동의 계약을 유지한다.
 
 대상: `/org` 웹 채팅과 `/org-Slack`이 공유하는 company-side LLM
 

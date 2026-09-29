@@ -24,6 +24,10 @@ export function useOrgJobsRoute({
   const baseWorkspaceId = workspace.workspaceId;
   const urlRoleId = router.isReady ? getQueryText(router.query.roleId) : "";
   const urlView = router.isReady ? getQueryText(router.query.view) : "";
+  const roleTab =
+    router.isReady && getQueryText(router.query.tab) === "inbox"
+      ? "inbox"
+      : "pipeline";
   const detailTalentId = router.isReady
     ? getQueryText(router.query.talentId)
     : "";
@@ -138,9 +142,8 @@ export function useOrgJobsRoute({
           },
           orgId: baseWorkspaceId,
           page,
-          roleId:
-            page === "jobs" || page === "role" ? activeRoleId : null,
-          tab: page === "role" ? "pipeline" : undefined,
+          roleId: page === "jobs" || page === "role" ? activeRoleId : null,
+          tab: page === "role" ? roleTab : undefined,
           view:
             page === "jobs"
               ? activeView
@@ -152,7 +155,7 @@ export function useOrgJobsRoute({
         })
       );
     },
-    [activeRoleId, activeView, baseWorkspaceId, page, router, urlView]
+    [activeRoleId, activeView, baseWorkspaceId, page, roleTab, router, urlView]
   );
 
   const closeTalentDetail = useCallback(() => {
@@ -163,7 +166,7 @@ export function useOrgJobsRoute({
         orgId: baseWorkspaceId,
         page,
         roleId: page === "jobs" || page === "role" ? activeRoleId : null,
-        tab: page === "role" ? "pipeline" : undefined,
+        tab: page === "role" ? roleTab : undefined,
         view:
           page === "jobs"
             ? activeView
@@ -176,7 +179,15 @@ export function useOrgJobsRoute({
       undefined,
       { shallow: true }
     );
-  }, [activeRoleId, activeView, baseWorkspaceId, page, router, urlView]);
+  }, [
+    activeRoleId,
+    activeView,
+    baseWorkspaceId,
+    page,
+    roleTab,
+    router,
+    urlView,
+  ]);
 
   return {
     activeRoleId,

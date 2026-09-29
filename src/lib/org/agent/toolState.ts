@@ -31,6 +31,9 @@ export type OrgAgentToolExecutionState = {
   candidateConnectionConfirmations: NonNullable<
     OrgAgentMessageMetadata["candidateConnectionConfirmations"]
   >;
+  companyIntroDecisionConfirmations: NonNullable<
+    OrgAgentMessageMetadata["companyIntroDecisionConfirmations"]
+  >;
   contactDraftRef: NonNullable<
     OrgAgentMessageMetadata["contactDraftRef"]
   > | null;
@@ -317,6 +320,7 @@ export function createOrgAgentToolExecutionStateFromSnapshot(args: {
     activatedMoreData: [],
     actions: [],
     candidateConnectionConfirmations: [],
+    companyIntroDecisionConfirmations: [],
     contactDraftRef: null,
     contactDraftRefs: [],
     company: { ...args.workspace },

@@ -106,8 +106,23 @@ test("website keys stay within the SQL mutation allowlist", () => {
     /if v_key is null or v_key not in \(([\s\S]*?)\) then/
   )?.[1];
   assert.ok(allowlist, "SQL mutation allowlist is missing");
+  const searchSettingSql = readFileSync(
+    new URL(
+      "../../../supabase/migrations/20260928024416_company_first_search_setting_without_intro_side_effects.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const searchSettingAllowlist = searchSettingSql.match(
+    /\$patch\$('role_request', 'role_memory', 'role_is_company_first_search',[\s\S]*?)\$patch\$/
+  )?.[1];
+  assert.ok(searchSettingAllowlist, "Search setting allowlist patch is missing");
   for (const key of WEBSITE_COMPANY_DATA_KEYS) {
-    assert.match(allowlist, new RegExp(`'${key}'`), `${key} missing from SQL`);
+    assert.match(
+      `${allowlist}\n${searchSettingAllowlist}`,
+      new RegExp(`'${key}'`),
+      `${key} missing from SQL`
+    );
   }
 });
 
@@ -392,6 +407,86 @@ test("applies Slack role deletion status and expiry in one atomic RPC", async ()
       value: true,
     },
   ]);
+});
+
+test("saves search toggles with the canonical boolean expectation", async () => {
+  for (const enabled of [true, false]) {
+    const fixture = createWebsiteMutationAdminFixture({
+      internalRoles: {
+        "role-1": {
+          is_company_first_search: !enabled,
+          role_id: "role-1",
+        },
+      },
+      roles: {
+        "role-1": {
+          name: "Backend",
+          role_id: "role-1",
+          source_type: "internal",
+          status: "active",
+        },
+      },
+      workspace: {
+        company_db_id: null,
+        company_workspace_id: "workspace-1",
+      },
+    });
+
+    await applyWebsiteCompanyDataChanges({
+      actorLabel: "김호진",
+      admin: fixture.admin as never,
+      changes: [
+        {
+          key: "role_is_company_first_search",
+          roleId: "role-1",
+          value: enabled,
+        },
+      ],
+      workspaceId: "workspace-1",
+    });
+
+    assert.equal(fixture.rpcCalls.length, 1);
+    assert.equal(fixture.rpcCalls[0]?.name, "apply_company_data_changes_v1");
+    assert.deepEqual(fixture.rpcCalls[0]?.args.p_changes, [
+      {
+        expected: !enabled,
+        key: "role_is_company_first_search",
+        role_id: "role-1",
+        value: enabled,
+      },
+    ]);
+  }
+});
+
+test("an unchanged disabled search setting skips the mutation RPC", async () => {
+  const fixture = createWebsiteMutationAdminFixture({
+    internalRoles: {
+      "role-1": { is_company_first_search: false, role_id: "role-1" },
+    },
+    roles: {
+      "role-1": {
+        name: "Backend",
+        role_id: "role-1",
+        source_type: "internal",
+      },
+    },
+    workspace: {
+      company_db_id: null,
+      company_workspace_id: "workspace-1",
+    },
+  });
+
+  const result = await applyWebsiteCompanyDataChanges({
+    actorLabel: "김호진",
+    admin: fixture.admin as never,
+    changes: [
+      { key: "role_is_company_first_search", roleId: "role-1", value: false },
+    ],
+    workspaceId: "workspace-1",
+  });
+
+  assert.equal(result.status, "already_reflected");
+  assert.deepEqual(fixture.rpcCalls, []);
 });
 
 test("external-to-internal request snapshots an absent child and timestamps use UTC milliseconds", async () => {

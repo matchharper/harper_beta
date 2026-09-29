@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { OpportunityType } from "./opportunityType";
 import {
   buildInternalRecommendationProgress,
   formatRecentRecommendedOpportunitiesForPrompt,
@@ -75,6 +76,18 @@ const processStoppedTags = [
     updated_at: "2026-07-11T05:42:24.000Z",
   },
 ];
+
+test("Request Intro does not use Harper-first 7/21 progress copy", () => {
+  const progress = buildInternalRecommendationProgress({
+    item: {
+      ...baseItem,
+      opportunityType: OpportunityType.IntroRequest,
+    },
+    tags: [],
+  });
+
+  assert.equal(progress, null);
+});
 
 test("accepted internal progress promises profile sharing and connection without internal timing", () => {
   const now = new Date().toISOString();

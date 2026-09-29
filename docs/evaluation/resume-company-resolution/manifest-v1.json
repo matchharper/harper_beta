@@ -1,0 +1,48 @@
+{
+  "task": "resume-company-resolution",
+  "datasetVersion": "private-pilot-v1",
+  "goldVersion": "v1",
+  "capturedAt": "2026-09-21T11:47:17.249Z",
+  "sourceRevision": "b5b18dce76a0d2bc75786dd3b540806bcf8a1c00",
+  "sourceState": "dirty_worktree",
+  "sourceFingerprint": "89b551d9aa23b0e209c96df4f5e4c45dfd9adad05546c86fef135922eb88aa2d",
+  "fixture": {
+    "locator": "private/pilot-v1.json",
+    "sha256": "5da144877527900f3514b3b72eda83e1f53073f975ad3c0a3aa40f98b92bc1e5",
+    "seed": "resume-company-resolution-v1",
+    "eligibleResumeCount": 3773,
+    "sampledResumes": 5,
+    "sampledExperiences": 29,
+    "privacy": "local-only; user ids and company sequences are not committed"
+  },
+  "gold": {
+    "file": "gold-v1.json",
+    "sha256": "7ab9ba44984aef360e0e45c9a125a181429e9ae8966c59efad5f5891552c8348",
+    "labeledExperiences": 26,
+    "excludedExperiences": 3,
+    "reviewType": "unblinded_manual_adjudication"
+  },
+  "inputContract": {
+    "included": ["company_name", "company_location"],
+    "removedBeforeResolution": ["company_id", "company_link", "resume_text", "user_id"]
+  },
+  "runConfig": {
+    "internalLookup": "Supabase REST read-only select",
+    "externalProvider": "Exa",
+    "externalSearchType": "fast",
+    "externalCategory": "company",
+    "resultsPerSearch": 5,
+    "maxExternalSearchesPerResume": 3,
+    "llm": null,
+    "externalInput": ["company_name", "company_location"]
+  },
+  "canonicalRunner": "scripts/evalResumeCompanyResolution.ts",
+  "canonicalImplementation": "src/lib/talentOnboarding/companyResolution.ts",
+  "finalRun": "runs/20260922-pilot-v1h-final",
+  "knownLimitations": [
+    "Five resumes are not representative of production traffic.",
+    "Gold was adjudicated after observing resolver outputs and is not a blind holdout.",
+    "External search results can change between runs.",
+    "Resume extraction errors are outside this evaluation."
+  ]
+}

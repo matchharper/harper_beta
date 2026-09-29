@@ -397,6 +397,19 @@ export type TalentRoleActivityItem = {
   savedStage: TalentOpportunitySavedStage | null;
 };
 
+export type TalentCompanyRequestIntroProgressFacts = {
+  canRelayToCompany: boolean;
+  connectedAt: string | null;
+  connectionId: string;
+  latestCandidateRelayAt: string | null;
+  latestCandidateRelayStatus: "cancelled" | "failed" | "queued" | "sent" | null;
+  latestCompanyContactAt: string | null;
+  origin: "company_request_intro";
+  requestedAt: string | null;
+  status: string;
+  talentAcceptedAt: string | null;
+};
+
 export type TalentOpportunityHistoryItem = {
   activityTimelineLoaded?: boolean;
   clickedAt: string | null;
@@ -407,6 +420,7 @@ export type TalentOpportunityHistoryItem = {
   companyLinkedinUrl: string | null;
   companyLogoUrl: string | null;
   companyName: string;
+  companyRequestIntroProgress: TalentCompanyRequestIntroProgressFacts | null;
   confirmedMeetings?: TalentOpportunityMeeting[];
   description: string | null;
   employmentTypes: string[];
@@ -723,7 +737,13 @@ export function buildInternalRecommendationProgress(args: {
   item: TalentOpportunityHistoryItem;
   tags: RawTalentOpportunityTagRow[];
 }): TalentInternalRecommendationProgress | null {
-  if (!args.item.isInternal || args.item.feedback !== "positive") return null;
+  if (
+    !args.item.isInternal ||
+    args.item.feedback !== "positive" ||
+    args.item.opportunityType === OpportunityType.IntroRequest
+  ) {
+    return null;
+  }
 
   const acceptedAt = args.item.feedbackAt ?? args.item.recommendedAt;
   const daysSinceAccepted = getDaysSinceInternalProgressDate(acceptedAt);
@@ -1202,7 +1222,7 @@ function buildTalentOpportunityHistoryQuery(args: {
   userId: string;
 }) {
   let query = (
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
@@ -1351,7 +1371,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
       : 10;
 
   const [recommendationResponse, meetingResponse] = await Promise.all([
-    (args.admin.from("talent_opportunity_recommendation" as any) as any)
+    (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
       .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
       .eq("talent_id", args.userId)
       .or("feedback.not.is.null,saved_stage.is.null,saved_stage.neq.hidden")
@@ -1409,7 +1429,7 @@ export async function fetchRecentRecommendedOpportunitiesForPrompt(args: {
   let extraRows: RawRecentRecommendationPromptRow[] = [];
   if (extraMeetingRecommendationIds.length > 0) {
     const { data: extraData, error: extraError } = await ((
-      args.admin.from("talent_opportunity_recommendation" as any) as any
+      args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
     )
       .select(TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT)
       .eq("talent_id", args.userId)
@@ -1454,7 +1474,7 @@ async function countTalentOpportunityRecommendations(args: {
   userId: string;
 }) {
   let query = (
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(
       args.sourceType
@@ -1498,7 +1518,7 @@ async function fetchSavedRowsMissingStage(args: {
   userId: string;
 }) {
   const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(
       `
@@ -1754,6 +1774,7 @@ function mapRecommendationRow(
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
     isUserAdded: row.kind === "user_link_import",
+    companyRequestIntroProgress: null,
     internalProgress: null,
     kind,
     location: role.location_text ?? null,
@@ -1879,6 +1900,7 @@ function mapPostingRoleRow(
     isAccepted: kind === "match",
     isInternal: sourceType === "internal",
     isUserAdded: existingRecommendation?.kind === "user_link_import",
+    companyRequestIntroProgress: null,
     internalProgress: null,
     kind,
     location: row.location_text ?? null,
@@ -2253,6 +2275,143 @@ async function fetchTalentRoleActivitiesForHistoryItems(args: {
   return activitiesByRecommendationId;
 }
 
+function normalizeCompanyRequestIntroRelayStatus(value: unknown) {
+  const status = String(value ?? "").trim();
+  return ["cancelled", "failed", "queued", "sent"].includes(status)
+    ? (status as TalentCompanyRequestIntroProgressFacts["latestCandidateRelayStatus"])
+    : null;
+}
+
+async function fetchCompanyRequestIntroProgressForHistoryItems(args: {
+  admin: AdminClient;
+  items: TalentOpportunityHistoryItem[];
+  userId: string;
+}) {
+  const recommendationIds = args.items
+    .filter(
+      (item) =>
+        item.opportunityType === OpportunityType.IntroRequest &&
+        item.feedback === "positive"
+    )
+    .map((item) => item.id);
+  const progressByRecommendationId = new Map<
+    string,
+    TalentCompanyRequestIntroProgressFacts
+  >();
+  if (recommendationIds.length === 0) return progressByRecommendationId;
+
+  const [introResult, requestResult, relayResult] = await Promise.all([
+    (args.admin.from("company_intro_candidates" as any) as any)
+      .select(
+        "recommendation_id,status,requested_at,talent_decision_at,connected_at,updated_at"
+      )
+      .eq("talent_id", args.userId)
+      .in("recommendation_id", recommendationIds),
+    (args.admin.from("company_talent_requests" as any) as any)
+      .select(
+        "recommendation_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at)"
+      )
+      .eq("talent_id", args.userId)
+      .in("recommendation_id", recommendationIds)
+      .order("created_at", { ascending: false }),
+    (args.admin.from("company_talent_relays" as any) as any)
+      .select(
+        "recommendation_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at)"
+      )
+      .in("recommendation_id", recommendationIds)
+      .order("created_at", { ascending: false }),
+  ]);
+  if (introResult.error) {
+    console.warn("[TalentOpportunity] failed to load Request Intro facts", {
+      error: introResult.error.message ?? "Unknown error",
+      userId: args.userId,
+    });
+    return progressByRecommendationId;
+  }
+  if (requestResult.error) {
+    console.warn("[TalentOpportunity] failed to load company contact facts", {
+      error: requestResult.error.message ?? "Unknown error",
+      userId: args.userId,
+    });
+  }
+  if (relayResult.error) {
+    console.warn("[TalentOpportunity] failed to load candidate relay facts", {
+      error: relayResult.error.message ?? "Unknown error",
+      userId: args.userId,
+    });
+  }
+
+  const latestCompanyContactByRecommendationId = new Map<string, string>();
+  for (const row of coerceJsonArray<any>(requestResult.data)) {
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    if (!recommendationId) continue;
+    const sentAt = (Array.isArray(row.deliveries) ? row.deliveries : [])
+      .filter(
+        (delivery: any) =>
+          delivery?.type === "company_request_candidate_delivery" &&
+          delivery?.status === "sent" &&
+          delivery?.sent_at
+      )
+      .map((delivery: any) => String(delivery.sent_at))
+      .sort((left: string, right: string) => right.localeCompare(left))[0];
+    if (
+      sentAt &&
+      !latestCompanyContactByRecommendationId.has(recommendationId)
+    ) {
+      latestCompanyContactByRecommendationId.set(recommendationId, sentAt);
+    }
+  }
+
+  const latestRelayByRecommendationId = new Map<
+    string,
+    {
+      createdAt: string | null;
+      status: TalentCompanyRequestIntroProgressFacts["latestCandidateRelayStatus"];
+    }
+  >();
+  for (const row of coerceJsonArray<any>(relayResult.data)) {
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    if (
+      !recommendationId ||
+      latestRelayByRecommendationId.has(recommendationId)
+    ) {
+      continue;
+    }
+    const delivery = (Array.isArray(row.deliveries) ? row.deliveries : [])
+      .filter((item: any) => item?.type === "company_contact_company_delivery")
+      .sort((left: any, right: any) =>
+        String(right?.updated_at ?? "").localeCompare(
+          String(left?.updated_at ?? "")
+        )
+      )[0];
+    latestRelayByRecommendationId.set(recommendationId, {
+      createdAt: String(row.created_at ?? "").trim() || null,
+      status: normalizeCompanyRequestIntroRelayStatus(delivery?.status),
+    });
+  }
+
+  for (const row of coerceJsonArray<any>(introResult.data)) {
+    const recommendationId = String(row.recommendation_id ?? "").trim();
+    if (!recommendationId) continue;
+    const status = String(row.status ?? "").trim();
+    const latestRelay = latestRelayByRecommendationId.get(recommendationId);
+    progressByRecommendationId.set(recommendationId, {
+      canRelayToCompany: ["connecting", "connected"].includes(status),
+      connectedAt: String(row.connected_at ?? "").trim() || null,
+      connectionId: `recommendation:${recommendationId}`,
+      latestCandidateRelayAt: latestRelay?.createdAt ?? null,
+      latestCandidateRelayStatus: latestRelay?.status ?? null,
+      latestCompanyContactAt:
+        latestCompanyContactByRecommendationId.get(recommendationId) ?? null,
+      origin: "company_request_intro",
+      requestedAt: String(row.requested_at ?? "").trim() || null,
+      status,
+      talentAcceptedAt: String(row.talent_decision_at ?? "").trim() || null,
+    });
+  }
+  return progressByRecommendationId;
+}
+
 async function enrichTalentOpportunityHistoryItems(args: {
   admin: AdminClient;
   includeActivityTimeline?: boolean;
@@ -2267,6 +2426,7 @@ async function enrichTalentOpportunityHistoryItems(args: {
     meetingsByRecommendationId,
     confirmedMeetingsByRecommendationId,
     activitiesByRecommendationId,
+    companyRequestIntroProgressByRecommendationId,
   ] = await Promise.all([
     fetchInternalProgressTagsForHistoryItems(args),
     fetchInternalProgressEventsForHistoryItems(args),
@@ -2277,17 +2437,23 @@ async function enrichTalentOpportunityHistoryItems(args: {
     args.includeActivityTimeline
       ? fetchTalentRoleActivitiesForHistoryItems(args)
       : Promise.resolve(new Map<string, TalentRoleActivityItem[]>()),
+    fetchCompanyRequestIntroProgressForHistoryItems(args),
   ]);
   if (tagsByRoleId.size === 0) {
     return args.items.map((item) => ({
       ...item,
       activityTimelineLoaded: Boolean(args.includeActivityTimeline),
       confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
-      internalProgress: buildInternalRecommendationProgress({
-        events: eventsByRoleId.get(item.roleId) ?? [],
-        item,
-        tags: [],
-      }),
+      companyRequestIntroProgress:
+        companyRequestIntroProgressByRecommendationId.get(item.id) ?? null,
+      internalProgress:
+        item.opportunityType === OpportunityType.IntroRequest
+          ? null
+          : buildInternalRecommendationProgress({
+              events: eventsByRoleId.get(item.roleId) ?? [],
+              item,
+              tags: [],
+            }),
       talentRoleActivities: activitiesByRecommendationId.get(item.id) ?? [],
       upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
     }));
@@ -2297,11 +2463,16 @@ async function enrichTalentOpportunityHistoryItems(args: {
     ...item,
     activityTimelineLoaded: Boolean(args.includeActivityTimeline),
     confirmedMeetings: confirmedMeetingsByRecommendationId.get(item.id) ?? [],
-    internalProgress: buildInternalRecommendationProgress({
-      events: eventsByRoleId.get(item.roleId) ?? [],
-      item,
-      tags: tagsByRoleId.get(item.roleId) ?? [],
-    }),
+    companyRequestIntroProgress:
+      companyRequestIntroProgressByRecommendationId.get(item.id) ?? null,
+    internalProgress:
+      item.opportunityType === OpportunityType.IntroRequest
+        ? null
+        : buildInternalRecommendationProgress({
+            events: eventsByRoleId.get(item.roleId) ?? [],
+            item,
+            tags: tagsByRoleId.get(item.roleId) ?? [],
+          }),
     talentRoleActivities: activitiesByRecommendationId.get(item.id) ?? [],
     upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
   }));
@@ -2621,7 +2792,7 @@ export async function fetchTalentOpportunityHistoryByIds(args: {
   if (ids.length === 0) return [];
 
   const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
@@ -2655,7 +2826,7 @@ export async function fetchTalentOpportunityHistoryByRoleIds(args: {
   if (roleIds.length === 0) return [];
 
   const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
+    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
   )
     .select(TALENT_OPPORTUNITY_HISTORY_SELECT)
     .eq("talent_id", args.userId)
@@ -2842,10 +3013,28 @@ async function resolvePositiveFeedbackSavedStage(args: {
 export class InternalRoleAcceptanceError extends Error {
   reason: string;
 
-  constructor(reason: string) {
+  currentRecommendationId: string | null;
+
+  constructor(reason: string, currentRecommendationId: string | null = null) {
     super(`Internal role recommendation acceptance was not applied: ${reason}`);
+    this.currentRecommendationId = currentRecommendationId;
     this.name = "InternalRoleAcceptanceError";
     this.reason = reason;
+  }
+}
+
+export async function assertCurrentTalentRecommendation(args: {
+  admin: AdminClient;
+  userId: string;
+  recommendationId: string;
+}) {
+  const { data: currentId, error } = await args.admin.rpc(
+    "current_talent_recommendation_for_talent_v1",
+    { p_talent_id: args.userId, p_recommendation_id: args.recommendationId }
+  );
+  if (error) throw error;
+  if (currentId && currentId !== args.recommendationId) {
+    throw new InternalRoleAcceptanceError("internal_recommendation_superseded", currentId);
   }
 }
 
@@ -2918,9 +3107,9 @@ async function acceptInternalRoleRecommendation(args: {
     status === "accepted" ||
     (status === "no_change" && result?.targetAccepted === true)
   ) {
-    return true;
+    return { companyShared: result?.companyShared === true };
   }
-  throw new InternalRoleAcceptanceError(reason);
+  throw new InternalRoleAcceptanceError(reason, String(result?.currentRecommendationId ?? "").trim() || null);
 }
 
 export async function updateTalentOpportunityHistoryItem(args: {
@@ -2954,6 +3143,10 @@ export async function updateTalentOpportunityHistoryItem(args: {
 
   const now = new Date().toISOString();
 
+  if (args.action === "feedback" || args.action === "saved_stage") {
+    await assertCurrentTalentRecommendation({ ...args, recommendationId: opportunityId });
+  }
+
   if (args.action === "memo") {
     const content = String(args.talentMemo ?? "").trim();
     if (!content) throw new Error("Memo content is required");
@@ -2983,6 +3176,9 @@ export async function updateTalentOpportunityHistoryItem(args: {
       }
     );
     if (error) {
+      if (error.message === "internal_recommendation_superseded") {
+        await assertCurrentTalentRecommendation({ ...args, recommendationId: opportunityId });
+      }
       throw new Error(error.message ?? "Failed to move talent role stage");
     }
     return { ok: true, opportunityId, updatedAt: now };
@@ -3017,18 +3213,17 @@ export async function updateTalentOpportunityHistoryItem(args: {
         };
       }
     }
-    if (
-      args.feedback === "positive" &&
-      (await acceptInternalRoleRecommendation({
+    const acceptance = args.feedback === "positive"
+      ? await acceptInternalRoleRecommendation({
         admin: args.admin,
         clearEmailAcceptanceConfirmation: args.clearEmailAcceptanceConfirmation,
         emailAcceptanceConfirmation: args.emailAcceptanceConfirmation,
         feedbackReason: args.feedbackReason,
         recommendationId: opportunityId,
         userId: args.userId,
-      }))
-    ) {
-      return { ok: true, opportunityId, updatedAt: now };
+      }) : false;
+    if (acceptance) {
+      return { ok: true, opportunityId, updatedAt: now, companyShared: acceptance.companyShared };
     }
 
     const savedStage =
@@ -3054,6 +3249,9 @@ export async function updateTalentOpportunityHistoryItem(args: {
       }
     );
     if (error) {
+      if (error.message === "internal_recommendation_superseded") {
+        await assertCurrentTalentRecommendation({ ...args, recommendationId: opportunityId });
+      }
       throw new Error(error.message ?? "Failed to update opportunity feedback");
     }
 

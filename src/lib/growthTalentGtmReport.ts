@@ -184,7 +184,7 @@ type ReportInput = {
 };
 
 type SlackRawTextCell = { text: string; type: "raw_text" };
-type SlackTableBlock = {
+export type SlackTableBlock = {
   column_settings: Array<{
     align?: "left" | "right";
     is_wrapped?: boolean;

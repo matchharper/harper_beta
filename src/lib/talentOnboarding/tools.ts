@@ -6,6 +6,10 @@ import {
   executeSharedWebSearch,
 } from "@/lib/agentTools/web";
 import {
+  COMPANY_RELAY_CONTENT_CONTRACT,
+  COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT,
+} from "@/lib/companyTalentRequests/relayContract";
+import {
   fetchTalentOpportunityHistory,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
@@ -94,9 +98,8 @@ import { IncomingWebhook } from "@slack/webhook";
 import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
 import {
   createCompanyTalentRelay,
-  fetchRelayableCompanyTalentContacts,
-  formatRelayableCompanyTalentContacts,
-  recordCompanyTalentResponse,
+  fetchRelayableCompanyTalentConnections,
+  formatRelayableCompanyTalentConnections,
 } from "@/lib/companyTalentRequests/server";
 import { buildProfileLinkReplyInstruction } from "@/lib/talentOnboarding/profileLinkReplyInstruction";
 import { getCompanyInternalRoleRequest } from "@/lib/companyInternalRole";
@@ -120,6 +123,12 @@ import {
 import { executeConnectedGmailSearch } from "@/lib/integrations/gmail";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 import { fetchLatestInternalRoleRequestEntryPage } from "./internalRoleRequestEntryPage";
+import {
+  fetchCurrentCareerCoachingActivity,
+  mutateCareerCoachingActivity,
+  type CareerCoachingActivityAction,
+} from "@/lib/career/careerCoachingActivity";
+import { readCareerCoachingListText } from "@/lib/career/careerCoachingList";
 
 export type TalentToolChannel = "chat" | "voice";
 
@@ -224,11 +233,12 @@ export const TALENT_TOOL_NAMES = {
   UPDATE_TALENT_PROFILE: "update_talent_profile",
   READ_TALENT_CONTEXT: "read_talent_context",
   WRITE_TALENT_CONTEXT: "write_talent_context",
+  READ_CAREER_COACHING_LIST: "read_career_coaching_list",
+  MANAGE_CAREER_COACHING_ACTIVITY: "manage_career_coaching_activity",
   RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION:
     "record_internal_fit_reevaluation_information",
-  RECORD_COMPANY_REQUEST_RESPONSE: "record_company_request_response",
-  LIST_COMPANY_REQUESTS: "list_company_requests",
-  RELAY_TO_COMPANY: "relay_to_company",
+  READ_COMPANY_CONNECTIONS: "read_company_connections",
+  CONTACT_COMPANY: "contact_company",
 } as const;
 
 export type TalentToolName =
@@ -257,10 +267,11 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
+  TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
+  TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
   TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
-  TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
-  TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS,
-  TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
+  TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
+  TALENT_TOOL_NAMES.CONTACT_COMPANY,
 ] as const;
 
 // Edit this value to change the common final-reply guidance added to every
@@ -281,6 +292,17 @@ const optionalToolString = (value: unknown) => {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
 };
+
+function normalizeCareerCoachingMinutes(value: unknown) {
+  if (value === undefined || value === null) return null;
+  const minutes = Number(value);
+  if (![5, 10, 20].includes(minutes)) {
+    throw new TalentToolError(
+      "Career coaching duration must be 5, 10, or 20 minutes."
+    );
+  }
+  return minutes;
+}
 
 const normalizeRowMemoText = (value: unknown) =>
   typeof value === "string" ? value.trim() : null;
@@ -348,6 +370,12 @@ const normalizeToolBio = (value: unknown) => {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return text ? text.slice(0, 8000) : null;
+};
+
+const normalizeToolName = (value: unknown) => {
+  if (typeof value !== "string") return undefined;
+  const text = value.replace(/\s+/g, " ").trim();
+  return text ? text.slice(0, 240) : undefined;
 };
 
 const normalizeToolLocation = (value: unknown) => {
@@ -484,6 +512,7 @@ function compactOpportunityForTool(item: TalentOpportunityHistoryItem) {
     id: item.id,
     roleId: item.roleId,
     companyName: item.companyName,
+    companyRequestIntroProgress: item.companyRequestIntroProgress,
     title: item.title,
     opportunityType: item.opportunityType,
     sourceType: item.sourceType,
@@ -545,6 +574,31 @@ function formatRecommendedOpportunityProgress(
       formatCompactToolDate(item.internalProgress.stageChangedAt) ??
       item.internalProgress.stageChangedAt,
     stopReason: item.internalProgress.stopReason,
+  };
+}
+
+function formatCompanyRequestIntroProgress(item: TalentOpportunityHistoryItem) {
+  const progress = item.companyRequestIntroProgress;
+  if (!progress) return null;
+  return {
+    canRelayToCompany: progress.canRelayToCompany,
+    connectedAt:
+      formatCompactToolDate(progress.connectedAt) ?? progress.connectedAt,
+    connectionId: progress.connectionId,
+    latestCandidateRelayAt:
+      formatCompactToolDate(progress.latestCandidateRelayAt) ??
+      progress.latestCandidateRelayAt,
+    latestCandidateRelayStatus: progress.latestCandidateRelayStatus,
+    latestCompanyContactAt:
+      formatCompactToolDate(progress.latestCompanyContactAt) ??
+      progress.latestCompanyContactAt,
+    origin: progress.origin,
+    requestedAt:
+      formatCompactToolDate(progress.requestedAt) ?? progress.requestedAt,
+    status: progress.status,
+    talentAcceptedAt:
+      formatCompactToolDate(progress.talentAcceptedAt) ??
+      progress.talentAcceptedAt,
   };
 }
 
@@ -2903,6 +2957,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           const detailedItem = detailedItemById.get(item.id) ?? item;
           const feedbackReason = optionalToolString(item.feedbackReason);
           const progress = formatRecommendedOpportunityProgress(item);
+          const companyRequestIntroProgress =
+            formatCompanyRequestIntroProgress(item);
           const userMemo = optionalToolString(item.talentMemo);
           const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
             detailedItem.upcomingMeeting?.startAt
@@ -2927,6 +2983,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             ...(!recentActivity && userMemo ? { userMemo } : {}),
             ...(feedbackReason ? { feedbackReason } : {}),
             ...(progress ? { progress } : {}),
+            ...(companyRequestIntroProgress
+              ? { companyRequestIntroProgress }
+              : {}),
             ...(upcomingMeeting ? { upcomingMeeting } : {}),
             ...(recentActivity ? { recentActivity } : {}),
             savedStage,
@@ -3190,80 +3249,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
-  [TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE]: {
-    name: TALENT_TOOL_NAMES.RECORD_COMPANY_REQUEST_RESPONSE,
+  [TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS]: {
+    name: TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
     description:
-      "Record the user's latest message as the response to the active company request. Use only when the message substantively answers or explicitly declines the request. If the pending request is a renewed-interest check, disposition is required: judge the full meaning and use positive only for clear renewed willingness, negative for clear refusal, and other for an answer that establishes neither. For a resume request, use this only for decline or unavailability; a real upload is recorded by the upload service. For compensation, do not call until the user explicitly provides an amount, range, or wording to share, or clearly approves the wording Harper showed them.",
-    parameters: {
-      type: "object",
-      properties: {
-        disposition: {
-          type: "string",
-          enum: ["positive", "negative", "other"],
-          description:
-            "Required only for a renewed-interest request. Omit for every ordinary company question or resume request.",
-        },
-        requestId: {
-          type: "string",
-          description:
-            "Exact requestId from the pending company request block.",
-        },
-      },
-      required: ["requestId"],
-      additionalProperties: false,
-    },
-    channels: ["chat"],
-    async execute(input, context) {
-      const admin = context?.admin;
-      const userId = context?.userId;
-      const sourceMessageId = Number(context?.userMessageId);
-      if (!admin || !userId || !Number.isSafeInteger(sourceMessageId)) {
-        throw new TalentToolError(
-          "record_company_request_response requires exact user message context."
-        );
-      }
-      const requestId = optionalToolString(input.requestId);
-      if (!requestId) {
-        throw new TalentToolError("Invalid company request response.");
-      }
-      const response = await recordCompanyTalentResponse({
-        admin: admin as any,
-        disposition:
-          input.disposition === "positive" ||
-          input.disposition === "negative" ||
-          input.disposition === "other"
-            ? input.disposition
-            : null,
-        requestId,
-        sourceMessageId,
-        talentId: userId,
-      });
-      const assistantInstruction =
-        input.disposition === "positive"
-          ? response.positionActive
-            ? "Confirm gently that the Role is active in Positions and that Harper delivered the answer to the company. Do not overstate any details beyond renewed willingness or add future status updates that this result does not provide."
-            : "Confirm gently that Harper delivered the renewed willingness to the company, but kept the current Position state because the company changed it after asking. Do not add future status updates that this result does not provide."
-          : input.disposition === "negative" || input.disposition === "other"
-            ? "Confirm gently that the Role remains closed and Harper delivered the answer to the company. Do not overstate the user's meaning or add future status updates that this result does not provide."
-            : "Confirm gently that Harper delivered the response to the company in polished wording without overstating the user's meaning. Do not repeat private request metadata or add future status updates that this result does not provide.";
-      return {
-        assistantInstruction,
-        modelOutput: [
-          "status=delivered_to_company",
-          ...(typeof response.positionActive === "boolean"
-            ? [`position_active=${response.positionActive}`]
-            : []),
-          `instruction=${assistantInstruction}`,
-        ].join("\n"),
-        ok: true,
-        skipCommonAssistantInstruction: true,
-      };
-    },
-  },
-  [TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS]: {
-    name: TALENT_TOOL_NAMES.LIST_COMPANY_REQUESTS,
-    description:
-      "List companies and Roles for which Harper has already sent this user a company-originated contact. Use it when the user wants to reply, follow up, pass along information, or identify which prior company contact they mean. The result says whether each contact already has a response and reports its latest relay as queued, sent, failed, or cancelled; answered contacts remain valid relay destinations.",
+      "Read companies and Roles where Harper has a verified mutual connection between this user and the company. This includes an accepted company Request Intro, a Harper recommendation actually handed to the company, and a company contact that reached the user. Use it when the user wants Harper to ask, follow up, clarify, pass along information, or identify which connected company they mean. The result reports durable relationship facts and the latest relay transport status without deciding what Harper should say.",
     parameters: {
       type: "object",
       properties: {
@@ -3271,13 +3260,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "integer",
           minimum: 1,
           maximum: 30,
-          description: "Maximum contacts to return. Defaults to 20.",
+          description: "Maximum connections to return. Defaults to 20.",
         },
         query: {
           type: "string",
           maxLength: 200,
-          description:
-            "Optional company, Role, or prior-contact text used to narrow the list.",
+          description: "Optional company or Role text used to narrow the list.",
         },
       },
       additionalProperties: false,
@@ -3288,10 +3276,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "list_company_requests requires user context."
+          "read_company_connections requires user context."
         );
       }
-      const contacts = await fetchRelayableCompanyTalentContacts({
+      const connections = await fetchRelayableCompanyTalentConnections({
         admin: admin as any,
         limit:
           typeof input.limit === "number" && Number.isFinite(input.limit)
@@ -3300,15 +3288,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         query: optionalToolString(input.query) || null,
         talentId: userId,
       });
-      const readableContacts = formatRelayableCompanyTalentContacts(contacts);
+      const readableConnections =
+        formatRelayableCompanyTalentConnections(connections);
       const assistantInstruction =
-        "Use the readable contact list to identify the intended company and Role. Treat its latest relay status as the source of truth: queued is still processing, sent completed transport, and failed or cancelled was not delivered. Distinguish delivery from the company's later reading or response. Do not expose the contact ID unless the user needs to disambiguate, and do not imply that an earlier answer prevents another message.";
+        "Use these relationship facts and contact history to identify the intended company and Role. An old contact is not an obligation to answer it. If a filtered search is empty, retry without the filter before concluding there is no connection. Do not claim the company read or answered a contact. Do not expose IDs.";
       return {
         assistantInstruction,
-        contacts: readableContacts,
+        connections: readableConnections,
         modelOutput: [
           "status=ok",
-          readableContacts,
+          readableConnections,
           `instruction=${assistantInstruction}`,
         ].join("\n"),
         ok: true,
@@ -3316,10 +3305,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       };
     },
   },
-  [TALENT_TOOL_NAMES.RELAY_TO_COMPANY]: {
-    name: TALENT_TOOL_NAMES.RELAY_TO_COMPANY,
+  [TALENT_TOOL_NAMES.CONTACT_COMPANY]: {
+    name: TALENT_TOOL_NAMES.CONTACT_COMPANY,
     description:
-      "Deliver one user-authorized message to a company through a prior company contact. Use for both a first response and any later follow-up; the contact does not need to be awaiting a response. Use the exact requestId from current private context or list_company_requests. relayContent is the substantive information the user wants Harper to pass along, faithfully preserving qualifications, uncertainty, and refusal. If the content is unrelated to that company or Role contact, briefly mention that it is generally better not to relay unrelated content and let the candidate decide whether to continue.",
+      "Send one user-authorized message immediately to a company through a verified mutual connection. It may be a response, follow-up, clarification, question, or proactive update and does not require an earlier company question or reply identifier. Use the exact connectionId from current private context or read_company_connections. relayContent is the substantive information the user wants Harper to pass along, faithfully preserving qualifications, uncertainty, and refusal. If the intended company or Role is ambiguous, clarify before sending.",
     parameters: {
       type: "object",
       properties: {
@@ -3328,15 +3317,20 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           minLength: 1,
           maxLength: 5000,
           description:
-            "The candidate-authorized content Harper should convey to the selected company.",
+            COMPANY_RELAY_CONTENT_CONTRACT,
         },
-        requestId: {
+        documentId: {
           type: "string",
           description:
-            "Exact contact ID from private request context or list_company_requests.",
+            "Optional exact owned resume document ID explicitly approved for sharing.",
+        },
+        connectionId: {
+          type: "string",
+          description:
+            "Exact mutual-connection ID from private context or read_company_connections.",
         },
       },
-      required: ["requestId", "relayContent"],
+      required: ["connectionId", "relayContent"],
       additionalProperties: false,
     },
     channels: ["chat"],
@@ -3344,44 +3338,43 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const admin = context?.admin;
       const userId = context?.userId;
       const sourceMessageId = Number(context?.userMessageId);
-      const requestId = optionalToolString(input.requestId);
+      const connectionId = optionalToolString(input.connectionId);
       const relayContent = optionalToolString(input.relayContent);
       if (
         !admin ||
         !userId ||
-        !requestId ||
+        !connectionId ||
         !relayContent ||
         !Number.isSafeInteger(sourceMessageId)
       ) {
         throw new TalentToolError(
-          "relay_to_company requires an exact contact and user message."
+          "contact_company requires an exact mutual connection and user message."
         );
       }
       const relay = await createCompanyTalentRelay({
         admin: admin as any,
+        connectionId,
+        documentId: optionalToolString(input.documentId) ?? undefined,
         relayContent,
-        requestId,
         sourceMessageId,
         talentId: userId,
       });
       const contentMismatch = Boolean(relay.contentMismatch);
       const assistantInstruction = contentMismatch
-        ? "The same source message was already delivered by Harper using its earlier content. Confirm that existing delivery only; do not claim that a differently rewritten version replaced it or add future status updates that this result does not provide."
-        : "Confirm simply that Harper delivered this candidate-authorized message to the selected company. Preserve any uncertainty or limits in what the user authorized, and do not add future status updates that this result does not provide.";
+        ? "The same source message was already accepted earlier using its original content. State only the returned transport status; do not claim that a differently rewritten version replaced it."
+        : COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT;
       return {
         assistantInstruction,
         idempotent: relay.idempotent,
         modelOutput: [
-          `status=${relay.idempotent ? "already_delivered_to_company" : "delivered_to_company"}`,
+          `status=${relay.status}`,
           `idempotent=${Boolean(relay.idempotent)}`,
           `requested_rewrite_replaced_existing=${relay.idempotent ? !contentMismatch : "not_applicable"}`,
           `instruction=${assistantInstruction}`,
         ].join("\n"),
         ok: true,
         skipCommonAssistantInstruction: true,
-        status: relay.idempotent
-          ? "already_delivered_to_company"
-          : "delivered_to_company",
+        status: relay.status,
       };
     },
   },
@@ -3539,8 +3532,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             to: nextGetExternalRecommendation,
           });
         }
-        summary =
-          `사용자가 ${interactionLabel}에서 외부 공개 포지션 추천 중단을 요청했습니다.`;
+        summary = `사용자가 ${interactionLabel}에서 외부 공개 포지션 추천 중단을 요청했습니다.`;
       } else if (action === "stop_all") {
         const nextProfileVisibility = "dont_share";
         updatePayload.profileVisibility = nextProfileVisibility;
@@ -3557,8 +3549,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             to: nextProfileVisibility,
           });
         }
-        summary =
-          `사용자가 ${interactionLabel}에서 모든 Harper 매칭 연락 중단을 요청했습니다.`;
+        summary = `사용자가 ${interactionLabel}에서 모든 Harper 매칭 연락 중단을 요청했습니다.`;
       } else if (action === "resume") {
         const nextGetExternalRecommendation = true;
         const nextProfileVisibility = "exceptional_only";
@@ -3592,8 +3583,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             to: nextProfileVisibility,
           });
         }
-        summary =
-          `사용자가 ${interactionLabel}에서 Harper 추천 연락 재개를 요청했습니다.`;
+        summary = `사용자가 ${interactionLabel}에서 Harper 추천 연락 재개를 요청했습니다.`;
       } else {
         throw new TalentToolError("update_setting requires a valid action.");
       }
@@ -3844,18 +3834,202 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       };
     },
   },
+  [TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY]: {
+    name: TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
+    description:
+      "Manage one user-visible focused career-coaching conversation. The default is ordinary Career chat. Do not use it for an ordinary career question or advice request, role/company evaluation, job recommendation, settings or document task, isolated emotional remark, vague dissatisfaction, complex topic alone, or old coaching history. When uncertain, answer normally without proposing coaching. Every new activity must use suggest first after one honest topic is clear; never use start to create a new activity. Ask the user to choose 5, 10, or 20 minutes before suggesting unless they already provided one. If they do not answer that question but continue or ask to proceed, choose one of those three durations. No other duration is valid. Use start only for an existing suggested activity after the user chooses chat or call, including through the exact activity-card action. An explicit start action on the exact current active call activity may re-open a call whose client connection was interrupted. Never use update or end when no current activity snapshot is present; an end mentioned in history has already happened. For a suggested activity, update only a confirmed topic or suggested duration. For an active activity, update only a material confirmed change to topic, planned duration, agenda, or channel. Use end when the user clearly finishes, stops, or dismisses the current activity. This tool changes the visible activity lifecycle only; use shared context tools for durable career facts.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["suggest", "start", "update", "end"],
+        },
+        activityMessageId: { type: "integer", minimum: 1 },
+        expectedRevision: { type: "integer", minimum: 1 },
+        topic: { type: "string", minLength: 1, maxLength: 160 },
+        suggestedMinutes: {
+          type: "integer",
+          enum: [5, 10, 20],
+        },
+        plannedMinutes: {
+          type: "integer",
+          enum: [5, 10, 20],
+        },
+        agenda: {
+          type: "array",
+          minItems: 1,
+          maxItems: 8,
+          items: { type: "string", minLength: 1, maxLength: 240 },
+        },
+        channel: { type: "string", enum: ["chat", "call"] },
+      },
+      required: ["action"],
+      additionalProperties: false,
+    },
+    channels: ["chat", "voice"],
+    async execute(input, context) {
+      const admin = context?.admin as TalentAdminClient | undefined;
+      const userId = context?.userId;
+      const conversationId = context?.conversationId;
+      if (!admin || !userId || !conversationId) {
+        throw new TalentToolError(
+          "manage_career_coaching_activity requires conversation context."
+        );
+      }
+
+      const action = optionalToolString(
+        input.action
+      ) as CareerCoachingActivityAction | null;
+      if (!action || !["suggest", "start", "update", "end"].includes(action)) {
+        throw new TalentToolError("Invalid career coaching action.");
+      }
+
+      const activityMessageId = Number(input.activityMessageId);
+      const expectedRevision = Number(input.expectedRevision);
+      const needsCurrentActivityReference =
+        action !== "suggest" &&
+        (!Number.isSafeInteger(activityMessageId) ||
+          !Number.isSafeInteger(expectedRevision));
+      const currentActivity = needsCurrentActivityReference
+        ? await fetchCurrentCareerCoachingActivity({
+            admin,
+            conversationId,
+            userId,
+          })
+        : null;
+      const resolvedActivityMessageId = Number.isSafeInteger(activityMessageId)
+        ? activityMessageId
+        : (currentActivity?.messageId ?? null);
+      const resolvedExpectedRevision = Number.isSafeInteger(expectedRevision)
+        ? expectedRevision
+        : (currentActivity?.revision ?? null);
+      const channel =
+        input.channel === "chat" || input.channel === "call"
+          ? input.channel
+          : null;
+      const plannedMinutes = normalizeCareerCoachingMinutes(
+        input.plannedMinutes
+      );
+      const suggestedMinutes = normalizeCareerCoachingMinutes(
+        input.suggestedMinutes
+      );
+      let activityMessage;
+      try {
+        activityMessage = await mutateCareerCoachingActivity({
+          action,
+          activityMessageId: resolvedActivityMessageId,
+          admin,
+          agenda: Array.isArray(input.agenda)
+            ? input.agenda.filter(
+                (item): item is string => typeof item === "string"
+              )
+            : null,
+          channel,
+          conversationId,
+          expectedRevision: resolvedExpectedRevision,
+          idempotencyKey: `${conversationId}:${
+            context.userMessageId ?? context.toolCallId ?? "unknown"
+          }:${action}:${resolvedActivityMessageId ?? "new"}`,
+          plannedMinutes,
+          suggestedMinutes,
+          topic: optionalToolString(input.topic),
+          userId,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/revision conflict|open career coaching activity/i.test(message)) {
+          console.error("[career-coaching] activity mutation failed", {
+            action,
+            conversationId,
+            error: message,
+            userId,
+          });
+          return {
+            assistantInstruction:
+              "The focused activity change was not applied. Do not claim that a coaching card is visible, that coaching started or ended, or expose technical details. Continue the user's underlying career conversation normally. If the missing activity state matters to the request, say briefly that the focused conversation could not be opened right now and invite the user to retry later.",
+            error: "activity_unavailable",
+            ok: false,
+            status: "unavailable",
+            skipCommonAssistantInstruction: true,
+          };
+        }
+        const currentActivity = await fetchCurrentCareerCoachingActivity({
+          admin,
+          conversationId,
+          userId,
+        });
+        return {
+          assistantInstruction:
+            "The requested coaching-card change was stale and was not applied. Use the returned current activity state, briefly explain that the visible state changed when needed, and do not repeat the failed mutation in this turn.",
+          currentActivity,
+          ok: false,
+          status: "conflict",
+          skipCommonAssistantInstruction: true,
+        };
+      }
+
+      const status = activityMessage.coachingActivity.status;
+      return {
+        activityMessage,
+        ok: true,
+        status,
+        ...(action === "start" && channel === "call"
+          ? {
+              uiAction: {
+                type: "open_career_coaching_call",
+                activity: activityMessage.coachingActivity,
+              },
+            }
+          : {}),
+        assistantInstruction:
+          status === "ended"
+            ? "The activity is ended. Briefly acknowledge the boundary and do not ask another coaching question or reopen the topic."
+            : status === "suggested"
+              ? "The suggestion card is visible. Briefly explain why this focused topic may be useful and let the user choose chat, call, or continue normally. Do not claim that coaching has started."
+              : channel === "call"
+                ? "The activity is active and the client will open the bound call. Briefly tell the user the call is ready; do not continue the coaching exchange in chat."
+                : "Continue the active coaching conversation now. Use the topic, duration, and agenda as scope rather than reading them back or running a checklist.",
+        skipCommonAssistantInstruction: true,
+      };
+    },
+  },
+  [TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST]: {
+    name: TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
+    description:
+      "Read the prepared catalog of career-coaching topics when the user explicitly wants coaching and needs help choosing what to discuss. The tool has no inputs and no side effects. Its result is ready-to-read text, not structured topic data.",
+    parameters: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    channels: ["chat"],
+    async execute(_input, context) {
+      return {
+        modelOutput: readCareerCoachingListText(context?.responseLocale),
+        skipCommonAssistantInstruction: true,
+      };
+    },
+  },
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile state from the latest user statement: profile summary, current base, the talent's own profile/material links, row memos, or recommendationBatchSize. Save only facts the user stated; never infer or add details the user did not provide. Use write_talent_context for Search Brief and Memory. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
+      "Update saved profile state from the latest user statement: exact name, profile summary, current base, the talent's own profile/material links, row memos, or recommendationBatchSize. Save only facts the user stated; never infer or add details the user did not provide. Use write_talent_context for Search Brief and Memory. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
     parameters: {
       type: "object",
       properties: {
         talentUser: {
           type: "object",
           description:
-            "Profile-level fields. Supports bio and current primary location. Use bio when the user explicitly provides or corrects their profile summary/about text. Use location only when the user explicitly provides or corrects their current main base/residence. Do not infer location from a short-term stay, travel, past job, target job location, or work-location preference.",
+            "Profile-level fields. Use name only when the user explicitly states or corrects it, copied exactly as written. Use bio for an explicit profile summary/about correction. Use location only for an explicit current main base/residence; do not infer it from travel, past or target jobs, or work-location preference.",
           properties: {
+            name: {
+              type: "string",
+              minLength: 1,
+              maxLength: 240,
+              description:
+                "The user's name exactly as they stated it. Never translate, transliterate, shorten, expand, or infer it.",
+            },
             bio: {
               anyOf: [{ type: "string" }, { type: "null" }],
               description:
@@ -4075,6 +4249,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       // talent_users — direct profile-level updates.
+      const hasTalentUserNameUpdate = Boolean(
+        talentUserInput &&
+        Object.prototype.hasOwnProperty.call(talentUserInput, "name")
+      );
       const hasTalentUserBioUpdate = Boolean(
         talentUserInput &&
         Object.prototype.hasOwnProperty.call(talentUserInput, "bio")
@@ -4085,8 +4263,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       );
       if (
         talentUserInput &&
-        (hasTalentUserBioUpdate || hasTalentUserLocationUpdate)
+        (hasTalentUserNameUpdate ||
+          hasTalentUserBioUpdate ||
+          hasTalentUserLocationUpdate)
       ) {
+        const nextName = hasTalentUserNameUpdate
+          ? normalizeToolName(talentUserInput.name)
+          : undefined;
         const nextBio = hasTalentUserBioUpdate
           ? normalizeToolBio(talentUserInput.bio)
           : undefined;
@@ -4094,10 +4277,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           ? normalizeToolLocation(talentUserInput.location)
           : undefined;
 
-        if (nextBio !== undefined || nextLocation !== undefined) {
+        if (
+          nextName !== undefined ||
+          nextBio !== undefined ||
+          nextLocation !== undefined
+        ) {
           const { data: currentUser, error: currentUserError } = await admin
             .from("talent_users")
-            .select("bio, location")
+            .select("name, bio, location")
             .eq("user_id", userId)
             .maybeSingle();
           if (currentUserError) {
@@ -4107,6 +4294,19 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           }
 
           const talentUserPatch: Record<string, string | null> = {};
+          if (nextName !== undefined) {
+            const previousName = normalizeToolName(currentUser?.name) ?? null;
+            if (previousName !== nextName) {
+              talentUserPatch.name = nextName;
+              updatedTalentUserFields.push("name");
+              talentUserActivityChanges.push({
+                field: "name",
+                from: previousName,
+                to: nextName,
+              });
+            }
+          }
+
           if (nextBio !== undefined) {
             const previousBio = normalizeToolBio(currentUser?.bio) ?? null;
             if (previousBio !== nextBio) {
@@ -4340,6 +4540,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         talentUserActivityChanges.length > 0
           ? talentUserActivityChanges
               .map((change) => {
+                if (change.field === "name") {
+                  return "profile name updated";
+                }
                 if (change.field === "bio") {
                   return change.to
                     ? "profile summary updated"
@@ -4487,7 +4690,8 @@ function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
 
 function getToolParameters(tool: TalentToolDefinition) {
   return tool.name === TALENT_TOOL_NAMES.END_CALL ||
-    tool.name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING
+    tool.name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING ||
+    tool.name === TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST
     ? tool.parameters
     : withUiStatusMessageParameter(tool.parameters);
 }

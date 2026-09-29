@@ -108,6 +108,8 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json().catch(() => ({}))) as {
       callSessionId?: string;
+      careerCoachingActivityMessageId?: number;
+      careerCoachingActivityRevision?: number;
       conversationId?: string;
       conversationStarterId?: string;
       initialResponseInstruction?: string;
@@ -120,12 +122,25 @@ export async function POST(req: NextRequest) {
     };
     const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
     const callSessionId = readBodyString(body.callSessionId);
+    const careerCoachingActivityMessageId = Number(
+      body.careerCoachingActivityMessageId
+    );
+    const careerCoachingActivityRevision = Number(
+      body.careerCoachingActivityRevision
+    );
+    const hasCareerCoachingActivity =
+      Number.isSafeInteger(careerCoachingActivityMessageId) &&
+      careerCoachingActivityMessageId > 0 &&
+      Number.isSafeInteger(careerCoachingActivityRevision) &&
+      careerCoachingActivityRevision > 0;
     const conversationId = readBodyString(body.conversationId);
     const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
     const conversationStarterId = readBodyString(body.conversationStarterId);
     const initialResponseInstruction = mockInterviewOpportunityId
       ? MOCK_INTERVIEW_OPENING_PROMPT
-      : readBodyString(body.initialResponseInstruction);
+      : hasCareerCoachingActivity
+        ? ""
+        : readBodyString(body.initialResponseInstruction);
     const internalCallRequestId = readBodyString(body.internalCallRequestId);
     const resumeCallNoteId = readBodyString(body.resumeCallNoteId);
     const sdp = parseLiveSdpOffer(body.sdp);
@@ -133,6 +148,27 @@ export async function POST(req: NextRequest) {
     if (!conversationId) {
       return NextResponse.json(
         { error: "conversationId is required" },
+        { status: 400 }
+      );
+    }
+    if (
+      (body.careerCoachingActivityMessageId !== undefined ||
+        body.careerCoachingActivityRevision !== undefined) &&
+      !hasCareerCoachingActivity
+    ) {
+      return NextResponse.json(
+        { error: "Invalid career coaching call activity" },
+        { status: 400 }
+      );
+    }
+    if (
+      hasCareerCoachingActivity &&
+      (conversationStarterId ||
+        internalCallRequestId ||
+        mockInterviewOpportunityId)
+    ) {
+      return NextResponse.json(
+        { error: "A coaching call cannot use another call objective" },
         { status: 400 }
       );
     }
@@ -145,7 +181,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (resumeCallNoteId && (conversationStarterId || internalCallRequestId)) {
+    if (
+      resumeCallNoteId &&
+      (conversationStarterId ||
+        internalCallRequestId ||
+        hasCareerCoachingActivity)
+    ) {
       return NextResponse.json(
         { error: "A continued call note cannot use another call objective" },
         { status: 400 }
@@ -191,6 +232,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (conversationStarterId === "career_coaching") {
+      return NextResponse.json(
+        { error: "Career coaching calls require an active bound activity" },
+        { status: 409 }
+      );
+    }
     if (conversationStarterId === "career_check_in") {
       const careerCheckInCall = await touchOpenCareerCheckInCall({
         admin,
@@ -229,8 +276,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const toolCandidates = getCareerRealtimeToolCandidates(responseLocale);
+    const toolCandidates = getCareerRealtimeToolCandidates(responseLocale, {
+      includeCareerCoachingActivity: hasCareerCoachingActivity,
+    });
     const promptPlan = await buildCareerRealtimeSessionInstructions({
+      careerCoachingActivityMessageId: hasCareerCoachingActivity
+        ? careerCoachingActivityMessageId
+        : null,
+      careerCoachingActivityRevision: hasCareerCoachingActivity
+        ? careerCoachingActivityRevision
+        : null,
       conversationId,
       conversationStarterId,
       mockInterviewOpportunityId,

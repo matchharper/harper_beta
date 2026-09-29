@@ -25,6 +25,8 @@ type SourceMessage = {
 };
 
 type CliOptions = {
+  mode: "full" | "progressive";
+  capabilities: string[];
   messageId: number | null;
   output: string | null;
   surface: "chat" | "slack" | null;
@@ -48,12 +50,20 @@ function record(value: unknown): JsonRecord {
 }
 
 function parseArgs(argv: string[]): CliOptions {
+  let mode: CliOptions["mode"] = "progressive";
+  let capabilities: string[] = [];
   let messageId: number | null = null;
   let output: string | null = null;
   let surface: CliOptions["surface"] = null;
   let workspaceId: string | null = null;
 
   for (const argument of argv) {
+    if (argument.startsWith("--mode=")) {
+      const value = argument.slice(7);
+      if (value !== "full" && value !== "progressive") throw Error("mode must be full or progressive");
+      mode = value; continue;
+    }
+    if (argument.startsWith("--capabilities=")) { capabilities = argument.slice(15).split(",").filter(Boolean); continue; }
     if (argument.startsWith("--message-id=")) {
       const parsed = Number(argument.slice("--message-id=".length));
       if (!Number.isSafeInteger(parsed) || parsed <= 0) {
@@ -85,7 +95,7 @@ function parseArgs(argv: string[]): CliOptions {
     throw new Error(`Unknown argument: ${argument}`);
   }
 
-  return { messageId, output, surface, workspaceId };
+  return { mode, capabilities, messageId, output, surface, workspaceId };
 }
 
 function sourceName(message: SourceMessage) {
@@ -240,24 +250,26 @@ async function main() {
     { buildOrgAgentPromptContext },
     { usesMaxCompletionTokensForModel },
     {
+      ORG_AGENT_TEMPERATURE,
+      DEFAULT_ORG_AGENT_REASONING_EFFORT,
       getOrgAgentFallbackModel,
       getSlackOrgAgentModel,
       isOrgAgentModelId,
       resolveOrgAgentModel,
     },
-    { buildOrgAgentSystemPrompt, buildOrgAgentUserPrompt },
+    { buildCompanySystemInput, buildCompanyConversationInput },
     { createOrgAgentToolExecutionState },
     { getOrgAgentToolCompletionMaxTokens },
-    { getEnabledOrgAgentTools },
+    { resolveCompanyCapabilities },
     { getSupabaseAdmin },
   ] = await Promise.all([
     import("../src/lib/org/agent/context"),
     import("../src/lib/llm/llm"),
     import("../src/lib/org/agent/modelConfig"),
-    import("../src/lib/org/agent/prompts"),
+    import("../src/lib/org/agent/input"),
     import("../src/lib/org/agent/toolExecution"),
     import("../src/lib/org/agent/toolCompletionBudget"),
-    import("../src/lib/org/agent/tools"),
+    import("../src/lib/org/agent/capabilities/resolver"),
     import("../src/lib/server/candidateAccess"),
   ]);
 
@@ -290,20 +302,22 @@ async function main() {
   });
 
   const mentions = safeMentions(message.mentions);
-  const systemPrompt = buildOrgAgentSystemPrompt({
-    enableSlackChoiceButtons: isSlack,
-    surface: isSlack ? "slack" : "chat",
+  const surface = isSlack ? "slack" as const : "chat" as const;
+  const { loadCompanyCapabilities } = await import("../src/lib/org/agent/capabilities/loader");
+  const loaded = new Set<import("../src/lib/org/agent/capabilities/registry").CompanyCapabilityId>();
+  if (options.capabilities.length) {
+    const result = loadCompanyCapabilities({ capabilityIds: options.capabilities }, loaded, surface);
+    if (!result.ok) throw Error(result.error);
+  }
+  const resolved = resolveCompanyCapabilities({ surface, mode: options.mode, loaded });
+  const systemPrompt = buildCompanySystemInput({ resolved, surface });
+  const messages = buildCompanyConversationInput({
+    context, mentions, currentUserMessageId: message.id,
+    userLabel: text(metadata.slackUserName) || "company user",
+    userMessage: llmUserMessage, requestTime: new Date(message.created_at),
   });
-  const userPrompt = buildOrgAgentUserPrompt({
-    context,
-    mentions,
-    userLabel: isSlack
-      ? text(metadata.slackUserName) ||
-        (text(message.slack_user_id) ? "Slack participant" : "user")
-      : "user",
-    userMessage: llmUserMessage,
-  });
-  const tools = getEnabledOrgAgentTools();
+  const userPrompt = JSON.stringify(messages, null, 2);
+  const tools = resolved.tools;
   const toolsJson = JSON.stringify(tools, null, 2);
   const recordedModel = text(metadata.model) || text(message.model);
   const model = isOrgAgentModelId(recordedModel)
@@ -312,7 +326,8 @@ async function main() {
       ? getSlackOrgAgentModel()
       : resolveOrgAgentModel(recordedModel || null).model;
   const state = createOrgAgentToolExecutionState(context);
-  const maxTokens = getOrgAgentToolCompletionMaxTokens(state);
+  const { companyCompletionTokenBudget } = await import("../src/lib/org/agent/completionContract");
+  const maxTokens = companyCompletionTokenBudget(model, getOrgAgentToolCompletionMaxTokens(state), DEFAULT_ORG_AGENT_REASONING_EFFORT);
   const maxTokensField = usesMaxCompletionTokensForModel(model)
     ? "max_completion_tokens"
     : "max_tokens";
@@ -323,9 +338,11 @@ async function main() {
     maxTokensField,
     maxTokens,
     model,
-    openAIResponsesReasoningEffort: "high",
-    chatCompletionReasoningEffort: "high",
-    temperature: 0.1,
+    openAIResponsesReasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    chatCompletionReasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    temperature: ORG_AGENT_TEMPERATURE,
+    mode: options.mode,
+    loadedCapabilities: resolved.activeCapabilityIds,
     toolChoice: "auto",
   };
   const hashes = {
@@ -378,9 +395,9 @@ async function main() {
     "",
     markdownFence(systemPrompt),
     "",
-    "## messages[1] — user",
+    "## messages[1..] — reference + native conversation + latest user",
     "",
-    markdownFence(userPrompt),
+    markdownFence(userPrompt, "json"),
     "",
     "## tools",
     "",
@@ -394,8 +411,8 @@ async function main() {
     `${timestampForPath(generatedAt)}-${isSlack ? "slack" : "chat"}-message-${message.id}.md`
   );
   const outputPath = path.resolve(process.cwd(), options.output || defaultPath);
-  await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, markdown, { encoding: "utf8", flag: "wx" });
+  await mkdir(path.dirname(outputPath), { recursive: true, mode: 0o700 });
+  await writeFile(outputPath, markdown, { encoding: "utf8", flag: "wx", mode: 0o600 });
 
   process.stdout.write(
     `${JSON.stringify(

@@ -2,6 +2,7 @@
 
 import { Activity, Check, Copy, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
 import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
 import { MuteButton } from "@/components/ui/button";
 import { Code } from "@/components/ui/code";
@@ -112,6 +113,7 @@ export function OrgRoleMatchingHealthDevControls({
         label="Harper 내부 전용 · Dev controls"
       >
         <div className="relative z-20 space-y-4">
+          <DevColorPaletteControls />
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Activity aria-hidden className="size-4 text-neutral-muted" />

@@ -1,0 +1,143 @@
+{
+  "task": "career-coaching-dialogue",
+  "datasetVersion": "v5",
+  "kind": "synthetic_active_chat_quality_challenge",
+  "createdAt": "2026-09-22",
+  "locale": "ko",
+  "cases": [
+    {
+      "id": "pm_transition_hypothesis_correction",
+      "title": "채팅 시작 뒤 PM 전환 가설을 교정하며 검증 행동으로 좁히기",
+      "structuredProfileText": "8년차 백엔드 개발자이며 최근 두 프로젝트에서 요구사항 정리와 이해관계자 조율을 일부 맡았다.",
+      "talentContextSection": "## Search Brief\n- 다음 역할은 아직 확정하지 않았다.\n\n## Memory\n- 기술적으로 깊게 문제를 푸는 일도 여전히 좋아한다고 말했다.",
+      "initialActivity": {
+        "status": "suggested",
+        "topic": "개발 경험을 활용한 PM 전환 적합성과 검증 방법 판단",
+        "suggestedMinutes": 20,
+        "plannedMinutes": null,
+        "agenda": [],
+        "channel": null,
+        "revision": 1
+      },
+      "recentConversation": [
+        {
+          "role": "assistant",
+          "content": "개발 경험을 활용한 PM 전환 적합성과 검증 방법을 20분 동안 이야기하는 대화를 제안했어요. 통화나 채팅 중 편한 방식을 선택해주세요."
+        }
+      ],
+      "userTurns": [
+        {
+          "text": "채팅으로 진행할게요.",
+          "runtimeInstruction": "The user deliberately selected an action on the currently visible career-coaching card before sending the latest message. The exact action is start; activityMessageId=9000; expectedRevision=1; channel=chat. Treat the visible user message as explicit intent for this exact activity. Use manage_career_coaching_activity with the referenced identifiers. For start, supply the final topic, duration, and a compact agenda; do not mutate a different activity."
+        },
+        {
+          "text": "개발이 싫어서라기보다, 요즘은 직접 코드를 짜는 것보다 어떤 문제를 풀지 정하고 여러 팀을 설득하는 일이 더 재미있어."
+        },
+        {
+          "text": "최근 결제 개편에서는 사용자 문제를 정리하고 우선순위를 제안하고 엔지니어들을 설득했어. 다만 최종 결정 권한은 PM에게 있었고."
+        },
+        {
+          "text": "그런데 사람 조율을 좋아한다는 이유만으로 PM이 맞다고 결론 내리면 싫어. 기술을 깊게 파는 것도 여전히 좋아하거든."
+        },
+        {
+          "text": "내가 진짜 알고 싶은 건 직무를 바로 바꿀지가 아니라, PM의 실제 일이 나한테 맞는지를 낮은 비용으로 검증하는 방법이야."
+        },
+        {
+          "text": "다음 프로젝트에서 요구사항 정의와 우선순위 결정을 끝까지 맡고, 담당 PM에게 결정 근거에 대한 피드백을 받는 건 가능해. 이 경험으로 무엇을 보면 적합성을 판단할 수 있을까?"
+        },
+        {
+          "text": "좋아. 그 정도면 해볼 수 있겠다. 오늘은 여기까지 하자."
+        }
+      ]
+    },
+    {
+      "id": "low_engagement_cause_revision",
+      "title": "일의 재미 저하를 이직 결론으로 단정하지 않고 원인과 판단 실험으로 좁히기",
+      "structuredProfileText": "7년차 Product Manager이며 같은 B2B 운영 제품 영역을 3년째 맡고 있다.",
+      "talentContextSection": "## Search Brief\n- 다음 역할도 product ownership이 있는 PM 역할을 선호한다.\n\n## Memory\n- 복잡한 제품 문제를 구조화하는 일과 현재 동료들은 좋아한다고 말했다.",
+      "initialActivity": {
+        "status": "active",
+        "topic": "일의 재미가 줄어든 원인과 다음 선택 판단",
+        "suggestedMinutes": 20,
+        "plannedMinutes": 20,
+        "agenda": [
+          "재미 저하의 실제 원인 구분",
+          "현재 환경에서 검증할 변화 확인",
+          "잔류와 이동 판단 기준 정리"
+        ],
+        "channel": "chat",
+        "revision": 2
+      },
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "요즘 일이 재미없네.."
+        },
+        {
+          "text": "제품 문제를 푸는 건 여전히 좋고 동료들도 괜찮아. 그런데 2년째 비슷한 운영 이슈를 반복해서 다루는 느낌이야."
+        },
+        {
+          "text": "처음에는 새로운 문제가 없어서 그런 줄 알았는데, 생각해보면 새로운 제안을 내도 매번 상위 리더 승인에서 작아지는 게 더 답답해."
+        },
+        {
+          "text": "회사를 당장 옮기고 싶다는 뜻은 아니야. 내가 문제를 새롭게 못 찾는 건지, 이 조직에서는 어차피 권한을 못 받는 건지 확인하고 싶어."
+        },
+        {
+          "text": "다음 분기 로드맵 하나는 내가 가설, 지표, 우선순위를 정하고 리더에게는 결과만 리뷰받는 방식으로 해보자고 제안할 수 있어."
+        },
+        {
+          "text": "그 실험 결과가 어떠면 남을지, 어떠면 다른 환경을 봐야 할지 판단 기준을 정리해줘."
+        },
+        {
+          "text": "응, 그 기준이면 충분해. 오늘 코칭은 끝내자."
+        }
+      ]
+    },
+    {
+      "id": "compensation_without_invented_market_data",
+      "title": "보상 질문에 숫자를 지어내지 않고 시장 판단과 협상 근거를 분리하기",
+      "structuredProfileText": "서울의 B2B SaaS 회사에서 일하는 5년차 데이터 엔지니어다. 현재 직급은 Senior가 아니다.",
+      "talentContextSection": "## Search Brief\n- 이직 시 현재보다 높은 보상을 원하지만 목표 수준은 아직 확정하지 않았다.\n\n## Memory\n- 데이터 파이프라인 안정성과 비용 최적화 경험이 있다.",
+      "initialActivity": {
+        "status": "active",
+        "topic": "이직 보상 목표와 협상 근거 정리",
+        "suggestedMinutes": 20,
+        "plannedMinutes": 20,
+        "agenda": [
+          "시장가와 개인 목표 구분",
+          "보상을 뒷받침할 성과 근거 확인",
+          "협상 기준과 다음 준비 결정"
+        ],
+        "channel": "chat",
+        "revision": 2
+      },
+      "recentConversation": [],
+      "userTurns": [
+        {
+          "text": "연봉을 높여서 이직하고 싶은데 현실적으로 나 정도면 얼마일까?"
+        },
+        {
+          "text": "서울 B2B SaaS 데이터 엔지니어 5년차고, 지금 기본급 8천에 보너스가 보통 5백 정도야. 주식은 없어."
+        },
+        {
+          "text": "그런데 숫자 자체보다 내가 왜 더 받아야 하는지 설명할 근거가 약한 것 같아."
+        },
+        {
+          "text": "작년에 파이프라인 비용을 25% 줄였고, 장애 대응 시간을 40분에서 10분으로 줄였어. 세 팀이 쓰는 공통 플랫폼 설계도 내가 주도했고."
+        },
+        {
+          "text": "직급은 일반 엔지니어지만 실제로는 두 명의 설계를 리뷰하고 프로젝트 우선순위를 같이 정해."
+        },
+        {
+          "text": "웹 근거가 없으면 시장 연봉 범위를 지어내지는 마. 지금 정보만으로 내 협상 논리를 먼저 만들어줘."
+        },
+        {
+          "text": "만약 회사가 현재보다 10% 높은 조건만 제시하면, 무엇을 확인한 뒤 받아들이거나 더 요구해야 할까?"
+        },
+        {
+          "text": "좋아. 여기까지만 하자."
+        }
+      ]
+    }
+  ]
+}

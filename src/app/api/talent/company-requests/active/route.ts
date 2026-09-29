@@ -22,13 +22,16 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     );
   }
+  // A generic profile upload must not silently become a company transmission.
+  // Only the exact company contact link supplies that explicit destination.
+  if (!token) return NextResponse.json({ ok: true, request: null });
   const request = await fetchActiveCompanyTalentRequest({
     admin: getTalentSupabaseAdmin() as any,
     awaitingTalentOnly: true,
     requestId: token?.requestId ?? null,
     talentId: user.id,
   });
-  if (!request || !request.expects_document) {
+  if (!request) {
     if (!tokenValue) {
       return NextResponse.json({ ok: true, request: null });
     }

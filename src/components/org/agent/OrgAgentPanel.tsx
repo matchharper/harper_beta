@@ -1,4 +1,4 @@
-import { Info, LoaderCircle } from "lucide-react";
+import { Info, LoaderCircle, Search } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -10,6 +10,7 @@ import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import {
   ChatLoadOlderButton,
   getChatMessageDateKey,
+  getChatTurnStartedAt,
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
@@ -24,6 +25,7 @@ import {
   useConfirmOrgRoleCreation,
   useOrgAgentChat,
   useOrgAgentMessageHistory,
+  useOrgMatchingSearchStatus,
 } from "@/hooks/org/useOrgAgent";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
@@ -33,10 +35,12 @@ import {
 } from "@/lib/org/agent/modelConfig";
 import {
   ORG_ROLE_QUICK_ACTION_IDLE_MS,
-  ORG_ROLE_QUICK_ACTIONS,
+  ORG_ROLE_CHAT_QUICK_ACTIONS,
+  ORG_ROLE_RUN_SEARCH_ACTION,
   shouldShowOrgRoleQuickActions,
 } from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
+import { hasOrgAgentToolWork } from "@/lib/org/agent/thinkingLogs";
 import {
   hasReachedOrgActiveRoleLimit,
   ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
@@ -127,6 +131,11 @@ export function OrgAgentChatSurface({
     roleId,
     workspaceId,
   });
+  const matchingSearchStatus = useOrgMatchingSearchStatus({
+    enabled: purpose === "role" && !readOnly,
+    roleId,
+    workspaceId,
+  });
   const confirmRoleCreation = useConfirmOrgRoleCreation();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const composerOverlayRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +145,9 @@ export function OrgAgentChatSurface({
   );
   const [stickToBottom, setStickToBottom] = useState(true);
   const [quickActionClock, setQuickActionClock] = useState(0);
+  const [submittingSearchKey, setSubmittingSearchKey] = useState<string | null>(
+    null
+  );
   const [completionReveal, setCompletionReveal] = useState<{
     content: string;
     messageId: number;
@@ -161,6 +173,16 @@ export function OrgAgentChatSurface({
       now: quickActionClock,
     })
   );
+  const currentSearchKey = `${workspaceId}:${roleId ?? ""}`;
+  const isRunSearchActive = Boolean(
+    submittingSearchKey === currentSearchKey ||
+    matchingSearchStatus.data?.active
+  );
+  const visibleRoleQuickActions = showRoleQuickActions
+    ? ORG_ROLE_CHAT_QUICK_ACTIONS
+    : isRunSearchActive
+      ? [ORG_ROLE_RUN_SEARCH_ACTION]
+      : [];
 
   const handleModelChange = (nextModel: OrgAgentModelId) => {
     setModel(nextModel);
@@ -282,6 +304,9 @@ export function OrgAgentChatSurface({
   ]);
 
   const lastHistoryMessage = history.messages.at(-1);
+  const latestUserMessageIndex = history.messages.findLastIndex(
+    (message) => message.role === "user"
+  );
   const showOptimisticDateDivider = Boolean(
     chat.optimisticUserMessage &&
     getChatMessageDateKey(chat.optimisticUserMessage.createdAt) !==
@@ -359,6 +384,14 @@ export function OrgAgentChatSurface({
                 history.messages,
                 index
               );
+              const turnStartedAt =
+                message.role === "assistant"
+                  ? getChatTurnStartedAt(history.messages, index)
+                  : undefined;
+              const workActive =
+                chat.isStreaming &&
+                index > latestUserMessageIndex &&
+                message.metadata.agentTurn?.phase === "progress";
               const authorMember = message.authorUserId
                 ? bootstrap.members.find(
                     (member) => member.userId === message.authorUserId
@@ -427,6 +460,8 @@ export function OrgAgentChatSurface({
                     readOnly={readOnly}
                     roleId={roleId}
                     showUserAttribution={purpose === "role-creation"}
+                    turnStartedAt={turnStartedAt}
+                    workActive={workActive}
                     workspaceId={workspaceId}
                   />
                 </div>
@@ -456,6 +491,7 @@ export function OrgAgentChatSurface({
           )}
           <ChatThinkingLogPanel
             active={chat.isStreaming}
+            hasToolWork={hasOrgAgentToolWork(chat.thinkingLogs)}
             logs={chat.thinkingLogs}
             typographyClassName="text-[13px] leading-[1.65]"
           />
@@ -497,28 +533,66 @@ export function OrgAgentChatSurface({
               JD 링크 혹은 파일로 시작하거나, 편하게 설명해주셔도 좋습니다.
             </p>
           ) : null}
-          {showRoleQuickActions ? (
+          {visibleRoleQuickActions.length > 0 ? (
             <div className="mx-auto mb-3 flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:px-5 md:pt-0">
-              {ORG_ROLE_QUICK_ACTIONS.map((action) => (
-                <MuteButton
-                  className="border-white bg-white text-black shadow-sm hover:border-white hover:bg-white/90 active:border-white active:bg-white/80"
-                  key={action.id}
-                  onClick={() => {
-                    setStickToBottom(true);
-                    void chat.sendMessage({
-                      attachments: [],
-                      mentions: [],
-                      message: action.message,
-                      model,
-                    });
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="default"
-                >
-                  {action.label}
-                </MuteButton>
-              ))}
+              {visibleRoleQuickActions.map((action) => {
+                const isRunSearchAction = action.id === "run_search";
+                return (
+                  <MuteButton
+                    aria-busy={
+                      isRunSearchAction && isRunSearchActive ? true : undefined
+                    }
+                    className={cn(
+                      isRunSearchAction && isRunSearchActive
+                        ? "border-transparent bg-primary-faded text-primary shadow-none hover:border-transparent hover:bg-primary-faded active:border-transparent active:bg-primary-faded disabled:opacity-100"
+                        : "border-white bg-white text-black shadow-sm hover:border-white hover:bg-white/90 active:border-white active:bg-white/80"
+                    )}
+                    disabled={isRunSearchAction && isRunSearchActive}
+                    key={action.id}
+                    onClick={() => {
+                      setStickToBottom(true);
+                      const input = {
+                        attachments: [],
+                        mentions: [],
+                        message: action.message,
+                        model,
+                      };
+                      if (!isRunSearchAction) {
+                        void chat.sendMessage(input);
+                        return;
+                      }
+
+                      const submissionKey = currentSearchKey;
+                      setSubmittingSearchKey(submissionKey);
+                      void (async () => {
+                        try {
+                          await chat.sendMessage(input);
+                        } finally {
+                          await matchingSearchStatus.refetch();
+                          setSubmittingSearchKey((current) =>
+                            current === submissionKey ? null : current
+                          );
+                        }
+                      })();
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="default"
+                  >
+                    {isRunSearchAction ? (
+                      isRunSearchActive ? (
+                        <LoaderCircle
+                          aria-hidden="true"
+                          className="h-3.5 w-3.5 animate-spin"
+                        />
+                      ) : (
+                        <Search aria-hidden="true" className="h-3.5 w-3.5" />
+                      )
+                    ) : null}
+                    {action.label}
+                  </MuteButton>
+                );
+              })}
             </div>
           ) : null}
           <OrgAgentComposer

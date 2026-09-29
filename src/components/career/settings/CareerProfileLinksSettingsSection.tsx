@@ -1,6 +1,5 @@
 import * as Popover from "@radix-ui/react-popover";
-import { Cable, Globe2, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
-import Image from "next/image";
+import { Cable, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { useCareerProfileContext } from "@/components/career/CareerSidebarContext";
 import { getCareerLinkLabels } from "@/components/career/constants";
@@ -11,26 +10,8 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { useCareerT } from "@/i18n/useCareerT";
 import CareerGmailSettingsRow from "./CareerGmailSettingsRow";
 import CareerProfileSourceCard from "./CareerProfileSourceCard";
-
-const CAREER_LINK_ITEMS = [
-  {
-    iconSrc: "/images/logos/linkedin.svg",
-    placeholder: "https://linkedin.com/in/username",
-  },
-  {
-    iconSrc: "/images/logos/github.svg",
-    placeholder: "https://github.com/username",
-  },
-  {
-    iconSrc: "/images/logos/scholar.png",
-    placeholder: "https://scholar.google.com/citations?user=",
-  },
-  { iconSrc: null, placeholder: "https://yourname.com" },
-  {
-    iconSrc: "/images/logos/xcom.png",
-    placeholder: "https://x.com/username",
-  },
-] as const;
+import CareerProfileSourceIcon from "./CareerProfileSourceIcon";
+import { CAREER_PROFILE_LINK_SOURCES as CAREER_LINK_ITEMS } from "@/lib/career/profileSources";
 
 const LINKEDIN_LINK_INDEX = 0;
 
@@ -42,19 +23,7 @@ type LinkEditorState = {
 } | null;
 
 const LinkItemIcon = ({ index }: { index: number }) => {
-  const item = CAREER_LINK_ITEMS[index];
-  if (!item?.iconSrc) {
-    return <Globe2 className="h-5 w-5" aria-hidden="true" />;
-  }
-  return (
-    <Image
-      src={item.iconSrc}
-      alt=""
-      width={22}
-      height={22}
-      className="h-[22px] w-[22px] object-contain"
-    />
-  );
+  return <CareerProfileSourceIcon source={index} />;
 };
 
 const getLinkHost = (value: string) => {

@@ -183,6 +183,15 @@ export async function publishHarperSlackEvent(
 ) {
   const eventId = clean(envelope.event_id);
   if (!eventId) throw new Error("Slack event id is required for Queue publish");
+  if (process.env.HARPER_LOCAL_E2E === "1") {
+    if (envelope.api_app_id !== process.env.SLACK_HARPER_LOCAL_APP_ID ||
+        envelope.event?.channel !== process.env.HARPER_LOCAL_ONLY_CHANNEL_ID) {
+      throw new Error("Slack event is outside the local E2E app/channel");
+    }
+    const { queueHarperSlackEvent } = await import("@/lib/org/slackHarperEvents");
+    await queueHarperSlackEvent(envelope);
+    return { messageId: eventId };
+  }
   return send(
     HARPER_SLACK_TURN_QUEUE_TOPIC,
     toHarperSlackEventQueueMessage(envelope),
@@ -202,6 +211,11 @@ export async function publishHarperSlackReplyJob(args: {
 }) {
   const jobId = clean(args.jobId);
   if (!jobId) throw new Error("Slack reply job id is required for Queue publish");
+  if (process.env.HARPER_LOCAL_E2E === "1") {
+    // This function is called after the durable job insert. The local poller
+    // claims it from the isolated DB; it must never reach Vercel Queue.
+    return { messageId: jobId };
+  }
   return send(
     HARPER_SLACK_TURN_QUEUE_TOPIC,
     {

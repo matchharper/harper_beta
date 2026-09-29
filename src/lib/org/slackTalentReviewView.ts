@@ -599,8 +599,7 @@ export function parseSlackTalentReviewDecisionSubmission(args: {
     if (acceptReason.length > 2_000) {
       return {
         errors: {
-          review_accept_reason:
-            "연결 메모는 2,000자 이내로 입력해 주세요.",
+          review_accept_reason: "연결 메모는 2,000자 이내로 입력해 주세요.",
         },
       };
     }
@@ -674,8 +673,8 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
   });
   const connectionOptions = [
     decisionOption({
-      description: "Harper가 후보자와 선택한 담당자를 소개 메일로 연결합니다.",
-      label: "소개 이메일",
+      description: "Harper가 후보자와 회사를 소개 메일로 연결합니다.",
+      label: "연결 이메일",
       value: "cc_intro",
     }),
     decisionOption({

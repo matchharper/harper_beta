@@ -1,14 +1,35 @@
 # Company-first talent selection calibration
 
+## 2026-09-28 OpenAI production read-only pilot
+
+사용자 지정 한국 FDE 역할의 현행 데이터로 서로 다른 후보 117명을 평가했다. 수정 SQL의 최종 후보 83명 중 8명을 rerank에 넣었고, 동일 입력 두 번에서 5명/6명(공통 5명)을 선택했다. SQL scope·JSON 타입 안내·필수 fit enum 및 실패 호출 비용/오류 기록 문제를 수정했다. 기록된 비용은 $0.70587515이며, 수정 전 실패 호출 일부 usage 누락으로 완전한 청구 총액은 아니다.
+
+실행 단위·모델·provider·canonical runner·입력 재사용·privacy·한계는 [비식별 보고서](reports/2026-09-28-openai-production-shadow.md)에 기록했다. 원문과 source/입력/출력 manifest는 owner-only ignored `runs/`에만 둔다. DB write·발송·배포는 없으며, 경계 후보의 판단과 이력 전달에 변동이 남아 전체 품질 gate 통과로 해석하지 않는다. 기존 frozen gold는 변경하지 않았다.
+
+## 2026-09-28 추천 이력·과거 fit challenge: history-v1
+
+- 목적: 이전 추천·거절을 무조건 제외하지 않으면서, 현재 명시적 충돌과 개인정보 경계를 지키는지 확인한다.
+- 단위: 합성 회사 1곳·역할 1개·후보 pair 4개. 실제 scorer → 한 pair의 과거 fit 재사용 → bounded rerank → 회사 writer.
+- Frozen input/gold: [cases-history-v1.json](cases-history-v1.json), [gold-history-v1.json](gold-history-v1.json), [manifest-history-v1.json](manifest-history-v1.json). 최초 호출 전에 동결했으며 기존 v1을 대체하지 않는다.
+- Canonical runner: `harper_worker/llm_evals/company_first_talent_selection/run_history.py`. Worker에서 `python3 llm_evals/company_first_talent_selection/run_history.py --run-id=<새 이름>`으로 실행한다. 매 실행 input/gold hash를 확인한다.
+- 입력 계약: production scorer/reranker/writer의 실제 prompt·input builder·parser를 사용한다. Profile + 전체 Brief + Behavior + 해당 pair의 추천 사실과 현재 Role을 제공한다. 한 cached-fit 사례만 고정 과거 score로 교체한다. Query planner·DB executor는 이 평가의 대상이 아니다.
+- 모델 설정: scorer `openrouter:z-ai/glm-5.3-flash` high/0.3, reranker `gpt-5.6-terra` xhigh/0.25, writer `gpt-5.6-terra` high/0.4. 실제 provider usage·source hash·dirty revision·prompt/input은 각 run manifest와 snapshot에 보존한다.
+- 지표: frozen route 일치율과 별도의 의미 검토(현재 사실, 거절 의미, 공유 범위, 회사 설명). Critical 오류 0과 positive 선정 근거가 필요하다. Route 일치만으로 품질 통과를 선언하지 않는다.
+- Provenance/privacy: 승인 제품 계약으로 작성한 합성 사례만 사용한다. DB 연결·저장·외부 연락은 없다. API는 설정된 production LLM provider를 사용하며 raw output은 ignored `runs/`의 0600 파일·0700 디렉터리에만 저장한다.
+- 결과: [집계 보고서](reports/2026-09-28-history-reuse.md). 첫 run은 4/4, 현재 Role context를 보강한 마지막 run은 3/4 일치. 미응답 후보에 대한 no-action 차이를 숨기거나 frozen gold를 바꾸지 않았다. 전체 release gate 통과로 해석하지 않는다.
+- 한계: 작은 synthetic challenge이며 독립 팀원 gold 검토, production 분포/recall, 실제 회사 반응, transport, candidate final-delivery 생성 평가는 포함하지 않는다.
+
+## 기존 calibration
+
 - 최초 adjudication: 2026-09-11
 - 현재 dataset/gold: `v1`
 - 상태: v1 수동 guard calibration 유지 + production pipeline v2-pilot positive read-only shadow 1건 완료.
-  v2-pilot은 아직 frozen dataset/gold가 아님
+  2026-09-21 route-aware runtime은 구현됐지만 v2-pilot은 아직 frozen dataset/gold가 아님
 
 ## 목적과 평가 단위
 
-회사가 먼저 후보자를 검토하는 흐름에서 강한 후보만 0~3명 선택하고, 이미 진행 중인 candidate-first
-경로를 가로채거나 세 자리를 채우기 위해 약한 후보를 넣지 않는지 평가한다. 평가 단위는
+회사 단위 matching에서 적합한 후보만 고른 뒤 candidate-first/company-first/no-action을 정확히 구분하고,
+이미 진행 중인 route를 가로채거나 세 자리를 채우기 위해 약한 후보를 넣지 않는지 평가한다. 평가 단위는
 `company workspace × 명시적으로 제한한 internal Role` 한 번의 shadow run이다. Candidate pair 판단과
 company-facing reason 품질은 같은 run 안의 하위 관찰값이다.
 
@@ -46,6 +67,17 @@ input/gold를 덮어쓰지 않고 query planner·scorer·company-wide reranker·
 version과 gold를 별도로 동결한다. 현재 v2-pilot production snapshot은 local-only pilot이지 frozen fixture가
 아니므로 runtime code, unit contract test, 한 Role 결과만으로 rollout gate를 통과했다고 보지 않는다.
 
+Canonical runner의 기본값은 정기 run의 mixed-route 계약이다. 명시적 `Run Search` 계약을 평가할 때만
+`--company-first-only`를 사용하며, 이 모드에서는 reranker가 `company_first | no_action`만 반환하고 Role별
+최대 6명을 허용한다. 두 모드의 결과를 같은 run configuration으로 취급하지 않고 manifest의
+`evaluationOverrides.companyFirstOnly`로 구분한다.
+
+다음 frozen version은 route-aware contract로 새로 만든다. 같은 candidate pool에서 candidate-first가 맞는
+strong anchor, 회사의 선판단이 실제로 불확실성을 푸는 company-first, 충분하지 않은 no-action을 모두
+포함해야 한다. 저장된 canonical `talent_opportunity_fit`이 현재 입력과 일치해 재사용되는 사례와 최신
+Profile·Brief·Behavior·Role 사실 때문에 달라지는 사례, scorer criteria evaluations가 final review에 그대로
+이어지는 사례도 포함한다. 기존 v1 input과 gold는 수정하지 않는다.
+
 각 run은 다음 순서를 따른다.
 
 1. Active, unexpired, internal, non-test Role과 workspace를 정확히 확인한다.
@@ -67,6 +99,9 @@ version과 gold를 별도로 동결한다. 현재 v2-pilot production snapshot�
 - `padding_error`: 독립적으로 약한 후보를 slot 충족을 위해 선택했는가
 - `unsupported_fit_selection`: 기존 fit score와 달리 최신 원문이 핵심 Role bar를 지지하지 않는데 선택했는가
 - `company_reason_grounding`: reason이 candidate-owned evidence와 Role 연결, 필요한 caveat를 담는가
+- `route_accuracy`: actionable 후보가 candidate-first/company-first 중 더 자연스러운 순서로 배정됐는가
+- `saved_fit_use`: 호환되는 canonical fit을 무시하고 불필요하게 재판단하거나, 충돌하는 fit을 맹종하지 않았는가
+- `criteria_handoff`: scorer의 validated criteria evaluations가 대표 Role review에 변형 없이 이어졌는가
 - `private_context_leak`: Brief, Behavior, reply band, 정확한 사적 조건이나 존재하지 않는 관심 상태를 노출했는가
 
 Release gate는 critical error 0건이다. 또한 실제 commit rollout 전에 최소 하나의 독립적으로 selectable한

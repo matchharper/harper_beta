@@ -61,6 +61,7 @@ export type CareerPendingInternalOpportunityAction = {
   companyName: string;
   id: string;
   kind: "internal_opportunity";
+  isCompanyIntro?: boolean;
   recommendationSummary: string | null;
   roleId: string;
   roleTitle: string;

@@ -196,7 +196,10 @@ export function ConversationStarterActions({
           <ActionButton
             key={starter.id}
             onClick={() =>
-              void handleStart({ mode: "call", starterId: starter.id })
+              void handleStart({
+                mode: starter.id === "career_coaching" ? "chat" : "call",
+                starterId: starter.id,
+              })
             }
             disabled={actionDisabled}
             aria-busy={callPending || undefined}

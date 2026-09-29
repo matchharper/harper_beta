@@ -169,6 +169,9 @@ test("session re-engagement uses readable Korean-local times and distinguishes a
   assert.match(prompt, /일반 CAREER_CHOICE_BUTTONS는 쓰지 않는다/);
   assert.match(prompt, /Harper가 먼저 보낼 자연스러운 Korean 메시지/);
   assert.match(prompt, /필요하면 적당히 길게 작성해도 된다/);
+  assert.match(prompt, /이전 대화에 이어서 답하는 turn이 아니라/);
+  assert.match(prompt, /마지막 메시지에 곧바로 답하거나 직전 문장을 이어 쓰지 마라/);
+  assert.match(prompt, /반드시.*짧고 자연스러운 재접속 인사나 가벼운 아이스브레이킹으로 시작/);
   assert.doesNotMatch(prompt, /one brief/i);
   assert.doesNotMatch(prompt, /primary pending action/);
   assert.doesNotMatch(prompt, /다른 미응답 추천이 있더라도 함께 꺼내지 않는다/);
@@ -187,6 +190,43 @@ test("session re-engagement localizes times to the current access timezone and p
   assert.match(prompt, /currentAccessAt: Aug 31, 22:57/);
   assert.match(prompt, /previousChatAt: Aug 30, 22:57/);
   assert.match(prompt, /현재 접속 지역 타임존\(America\/New_York\)/);
+});
+
+test("session re-engagement includes up to three prior messages and simple proactive candidates", () => {
+  const prompt = buildCareerSessionStartTurnInstruction({
+    currentAccessAt: "2026-09-01T02:57:00.000Z",
+    idleMs: 31 * 60 * 60 * 1000,
+    isOnboardingDone: true,
+    preferredLocale: "ko",
+    previousChatAt: "2026-08-31T02:57:00.000Z",
+    recentReengagementHistory: [
+      "첫 번째 과거 메시지",
+      "두 번째 과거 메시지",
+      "세 번째 과거 메시지",
+      "네 번째 과거 메시지",
+    ],
+  });
+
+  assert.doesNotMatch(prompt, /첫 번째 과거 메시지/);
+  assert.match(prompt, /두 번째 과거 메시지/);
+  assert.match(prompt, /세 번째 과거 메시지/);
+  assert.match(prompt, /네 번째 과거 메시지/);
+  assert.match(prompt, /같은 주제·제안·표현을 두 번 연속 반복하지 말고/);
+  assert.match(prompt, /pending action이 있으면 다른 제안 후보보다 먼저 다룬다/);
+  assert.match(
+    prompt,
+    /pending action이 최근에 이미 언급되었거나 없거나 함께 언급할 가치가 있을 때/
+  );
+  assert.match(prompt, /회사의 선연락.*open_to_matches 전환/);
+  assert.match(prompt, /internal 추천이나 intro request/);
+  assert.match(prompt, /외부 추천 포지션.*피드백/);
+  assert.match(prompt, /최신 이력서.*업로드/);
+  assert.match(prompt, /최근 상태·니즈·맥락·선호/);
+  assert.match(prompt, /지금 조건으로 새로운 포지션 추천/);
+  assert.match(prompt, /저장한 포지션.*지원 우선순위/);
+  assert.match(prompt, /면접 준비나 커리어 의사결정/);
+  assert.match(prompt, /가장 유용한 1~2개/);
+  assert.match(prompt, /목록 전체를 그대로 나열하지 않는다/);
 });
 
 test("session re-engagement describes the update call as a natural invitation", () => {

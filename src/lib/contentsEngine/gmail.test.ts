@@ -1,10 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildInboxListParams,
   buildGmailRawMessage,
   isGmailNotFoundError,
   parseGmailMessage,
 } from "@/lib/contentsEngine/gmail";
+
+test("builds a bounded Gmail inbox recovery query", () => {
+  const params = buildInboxListParams(
+    "to:harper@matchharper.com newer_than:30d",
+    "next-page"
+  );
+  assert.equal(params.get("labelIds"), "INBOX");
+  assert.equal(params.get("maxResults"), "500");
+  assert.equal(
+    params.get("q"),
+    "to:harper@matchharper.com newer_than:30d"
+  );
+  assert.equal(params.get("pageToken"), "next-page");
+});
 
 test("recognizes Gmail's missing-message error without masking other failures", () => {
   assert.equal(

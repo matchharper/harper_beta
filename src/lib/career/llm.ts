@@ -29,7 +29,6 @@ import {
 } from "@/lib/talentOnboarding/toolLogging";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { buildCareerToolPolicyPrompt } from "@/lib/career/prompts/toolPolicyPrompt";
-import { getCareerStreamingNextToolNames } from "@/lib/career/streamingToolChainPolicy";
 
 export const CAREER_LLM_CONFIG = {
   // 커리어 제품군의 LLM/Realtime 기본 설정 모음.
@@ -66,7 +65,7 @@ export const CAREER_LLM_CONFIG = {
       model: GPT_56_LUNA_MODEL,
       reasoningEffort: "high" as const,
     },
-    temperature: 0.55,
+    temperature: 0.7,
   },
   // 대화 저장/응답 이후 assistant 답변에서 structured insight JSON을 뽑을 때.
   // 사용처: /api/talent/chat, /api/talent/chat/save.
@@ -147,17 +146,10 @@ export const CAREER_LLM_CONFIG = {
     model: "gpt-live-1",
     voice: "cedar",
   },
-  // 회사 스냅샷이 캐시에 없을 때 Exa deep research로 넓게 조사하고,
-  // Luna Responses가 필요한 근거만 추가 검색한 뒤 합류 판단에 필요한 회사 사실을 종합한다.
-  // Luna 장애 시 같은 Responses 경로의 Terra로 fallback한다.
+  // 기본 Exa 검색 자료와 개인 맥락을 한 번에 받은 Terra가 필요할 때 직접
+  // 검색 도구를 사용하면서 회사 조사 글 전체를 완성한다.
   // 사용처: src/lib/career/companySnapshot.ts 의 runCompanySnapshotResearch.
   companySnapshotResearch: {
-    fallbackModel: GPT_56_TERRA_MODEL,
-    primaryModel: GPT_56_LUNA_MODEL,
-  },
-  // 개인 경력의 경로 의존성과 다음 선택지는 공개 조사와 분리해 더 깊게 판단한다.
-  companySnapshotPersonalization: {
-    fallbackModel: GPT_56_LUNA_MODEL,
     primaryModel: GPT_56_TERRA_MODEL,
     reasoningEffort: "high" as const,
   },
@@ -300,7 +292,7 @@ type LlmToolCostAttribution = {
 
 type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
-const STREAMING_TOOL_CHAIN_MAX_CALLS = 3;
+const MAX_STREAMING_TOOL_CALLS_PER_TURN = 3;
 
 function cleanModelText(raw: string) {
   return raw
@@ -478,20 +470,6 @@ function withScopedContinuationToolPolicy(args: {
   ];
 }
 
-function resolveNextStreamingTools(args: {
-  allTools: readonly TalentChatTool[];
-  attemptedToolNames: readonly string[];
-}) {
-  const nextToolNameSet = new Set<string>(
-    getCareerStreamingNextToolNames(args.attemptedToolNames)
-  );
-  if (nextToolNameSet.size === 0) return [];
-
-  return args.allTools.filter((tool) =>
-    nextToolNameSet.has(getTalentChatToolName(tool))
-  );
-}
-
 function shouldLogCareerChatLlmRequestBody(usageLabel: string | undefined) {
   return Boolean(usageLabel?.startsWith("career/chat:assistant"));
 }
@@ -592,7 +570,9 @@ function buildAssistantInstructionsFromToolResults(
   ].join("\n");
 }
 
-function buildToolResultFollowupInstruction(responseLocale?: string | null) {
+export function buildToolResultFollowupInstruction(
+  responseLocale?: string | null
+) {
   const outputLanguage = getCareerPromptLanguageName(responseLocale);
 
   return [
@@ -1935,7 +1915,7 @@ export async function runCareerChatAssistantStream(args: {
       });
     }
 
-    const maxToolCalls = args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? 8 : STREAMING_TOOL_CHAIN_MAX_CALLS;
+    const maxToolCalls = args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? 8 : MAX_STREAMING_TOOL_CALLS_PER_TURN;
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let activeTools = args.tools;
@@ -2112,15 +2092,14 @@ export async function runCareerChatAssistantStream(args: {
         }
       }
 
-      const canContinueToolChain =
-        !shouldStopAfterTool && totalToolCalls < maxToolCalls;
-      const nextTools = canContinueToolChain
-        ? resolveNextStreamingTools({
-            allTools: args.tools,
-            attemptedToolNames,
-          })
-        : [];
-      const nextToolNames = nextTools.map(getTalentChatToolName);
+      const continuationTools =
+        !shouldStopAfterTool &&
+        totalToolCalls < maxToolCalls
+          ? args.tools
+          : [];
+      const continuationToolNames = continuationTools.map(
+        getTalentChatToolName
+      );
       executedToolNamesForPolicy = normalizeUniqueToolNames([
         ...executedToolNamesForPolicy,
         ...attemptedToolNames,
@@ -2133,8 +2112,8 @@ export async function runCareerChatAssistantStream(args: {
             toolResultBlocks,
             args.responseLocale,
             {
-              callableToolNames: nextToolNames,
-              forceFinalAnswer: nextToolNames.length === 0,
+              callableToolNames: continuationToolNames,
+              forceFinalAnswer: continuationToolNames.length === 0,
             }
           ),
         });
@@ -2145,8 +2124,8 @@ export async function runCareerChatAssistantStream(args: {
       }
 
       pendingToolResultAttribution = attemptedToolNames;
-      if (nextTools.length > 0) {
-        activeTools = nextTools;
+      if (continuationTools.length > 0) {
+        activeTools = continuationTools;
         continue;
       }
 

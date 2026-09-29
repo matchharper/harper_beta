@@ -38,6 +38,7 @@ Career의 LLM tool schema와 실행 함수는 `src/lib/talentOnboarding/tools.ts
 - Career에는 Ops 답변 예시를 자동 검색하거나 LLM tool로 호출하는 경로가 없다. 기존 Career 예시는 내용을 재검토할 때까지 DB에만 보관한다.
 - `research_company`는 `stopAfterExecution` tool이다. LLM이 tool call을 만들면 route-local executor가 company snapshot을 생성하고, 일반 tool loop 후속 답변을 이어가지 않는다.
 - `allowedToolNames`가 빈 배열이면 tools가 전부 빠진다. 값이 있으면 상황별 allowlist를 통과한 tool 중 해당 이름만 남긴다.
+- Text chat의 일반 tool loop에서는 최초 호출에 노출된 tool 전체를 매 continuation에도 그대로 노출한다. 직전 tool 이름에 따른 별도 chain allowlist는 두지 않는다.
 - `update_talent_profile`은 onboarding 중에는 profile/row memo 중심이고, onboarding 완료 후에는 future matching memory도 저장할 수 있다.
 - `update_setting`은 recommendation delivery 설정만 바꾼다. role/location/company preference 같은 matching memory는 `update_talent_profile` 대상이다.
 - `recommend_job_postings`는 durable hard filter가 포함된 요청이면 먼저 `update_talent_profile`로 저장한 뒤 fresh search를 돌리도록 prompt되어 있다.

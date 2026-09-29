@@ -172,6 +172,7 @@ export async function confirmCandidateReengagementByCompany(args: {
   actorUserId?: string | null;
   actionKey?: string | null;
   admin: AdminClient;
+  candidateConsentRelayId?: string | null;
   recommendationId: string;
   roleId: string;
   stage: OrgStageId;
@@ -183,14 +184,23 @@ export async function confirmCandidateReengagementByCompany(args: {
     ? `candidate-reengagement-confirmed:${args.actionKey}`
     : null;
   const { data, error } = await args.admin.rpc(
-    "confirm_internal_candidate_reengagement_v1",
+    args.candidateConsentRelayId
+      ? "confirm_internal_candidate_from_contact_v1"
+      : "confirm_internal_candidate_reengagement_v1",
     {
+      ...(args.candidateConsentRelayId
+        ? { p_relay_id: args.candidateConsentRelayId }
+        : {}),
       p_actor_email: args.actorEmail ?? null,
       p_actor_user_id: args.actorUserId ?? null,
       p_metadata: {
-        confirmationContext: "company_reported_direct_candidate_confirmation",
+        confirmationContext: args.candidateConsentRelayId
+          ? "candidate_contact_authorizes_delegated_action"
+          : "company_reported_direct_candidate_confirmation",
         confirmedAt,
-        consentSource: "company_confirmed",
+        consentSource: args.candidateConsentRelayId
+          ? "candidate_contact"
+          : "company_confirmed",
         ...(eventKey ? { eventKey } : {}),
         requestedStage: args.stage,
         requestedStageLabel: stageLabel,
@@ -200,7 +210,9 @@ export async function confirmCandidateReengagementByCompany(args: {
       p_role_id: args.roleId,
       p_stage: args.stage,
       p_talent_id: args.talentId,
-      p_text: `회사가 후보자에게 다시 진행 의향을 직접 확인했다고 알려 종료 상태를 복구하고 ${stageLabel} 단계 진행을 계속합니다.`,
+      p_text: args.candidateConsentRelayId
+        ? `후보자가 보낸 연락에서 진행 의향을 확인하여 ${stageLabel} 단계 진행을 계속합니다.`
+        : `회사가 후보자에게 다시 진행 의향을 직접 확인했다고 알려 종료 상태를 복구하고 ${stageLabel} 단계 진행을 계속합니다.`,
     }
   );
   if (error) throw error;
@@ -329,95 +341,6 @@ export async function requestCandidateReengagement(args: {
     throw new Error("candidate_reengagement_no_longer_required");
   }
 
-  const requestSelect =
-    "id, intent, request_context, resume_stage, workflow_status, draft_revision";
-  const loadExistingRequest = async (args_: {
-    intent?: "candidate_reengagement";
-    statuses: string[];
-  }) => {
-    let query = args.admin
-      .from("company_talent_requests")
-      .select(requestSelect)
-      .eq("company_workspace_id", args.workspaceId)
-      .eq("role_id", args.roleId)
-      .eq("talent_id", args.talentId)
-      .in("workflow_status", args_.statuses)
-      .is("talent_source_message_id", null)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (args_.intent) query = query.eq("intent", args_.intent);
-    return query.maybeSingle();
-  };
-  const preSendRequest = await loadExistingRequest({
-    statuses: ["draft", "queued", "failed"],
-  });
-  if (preSendRequest.error) throw preSendRequest.error;
-  const activeReengagementRequest = preSendRequest.data
-    ? null
-    : await loadExistingRequest({
-        intent: "candidate_reengagement",
-        statuses: ["awaiting_talent", "relay_queued", "review_required"],
-      });
-  if (activeReengagementRequest?.error) {
-    throw activeReengagementRequest.error;
-  }
-  const existing =
-    preSendRequest.data ?? activeReengagementRequest?.data ?? null;
-  if (existing) {
-    if (
-      existing.intent !== "candidate_reengagement" ||
-      text(existing.resume_stage) !== stage
-    ) {
-      throw new Error("company_talent_request_already_active");
-    }
-    if (existing.workflow_status === "draft") {
-      const scheduled = await scheduleCompanyTalentContact({
-        admin: args.admin,
-        deliveryMode: "standard",
-        expectedRevision: Number(existing.draft_revision),
-        requestId: text(existing.id),
-        roleId: args.roleId,
-        talentId: args.talentId,
-        workspaceId: args.workspaceId,
-      });
-      await recordCandidateReengagementRequested({
-        actorEmail: args.actorEmail,
-        actorUserId: args.actorUserId,
-        admin: args.admin,
-        recommendationId: args.recommendationId,
-        requestContext:
-          text(existing.request_context) || "후보자의 재진행 의사 확인",
-        requestId: text(existing.id),
-        roleId: args.roleId,
-        stage,
-        status: "waiting_for_candidate_reply",
-        talentId: args.talentId,
-      });
-      return scheduled;
-    }
-    if (["queued", "awaiting_talent"].includes(existing.workflow_status)) {
-      await recordCandidateReengagementRequested({
-        actorEmail: args.actorEmail,
-        actorUserId: args.actorUserId,
-        admin: args.admin,
-        recommendationId: args.recommendationId,
-        requestContext:
-          text(existing.request_context) || "후보자의 재진행 의사 확인",
-        requestId: text(existing.id),
-        roleId: args.roleId,
-        stage,
-        status: "waiting_for_candidate_reply",
-        talentId: args.talentId,
-      });
-    }
-    return {
-      requestId: text(existing.id),
-      revision: Number(existing.draft_revision),
-      scheduledAt: null,
-      status: existing.workflow_status,
-    };
-  }
-
   const [roleResult, talentResult, workspaceResult, settingResult, stageLabel] =
     await Promise.all([
       args.admin
@@ -470,7 +393,7 @@ export async function requestCandidateReengagement(args: {
   const sourceMessageId = await ensureHiddenSourceMessage({
     actorUserId: args.actorUserId,
     admin: args.admin,
-    content: requestContext,
+    content: `${requestContext}. 후보자가 이 진행에 동의하면 ${stageLabel} 단계(stageId: ${stage})로 이어가 주세요. 동의하지 않거나 불명확하면 상태를 바꾸지 말고 연락 내용을 전달해 주세요.`,
     metadata: {
       candidateReengagement: true,
       recommendationId: args.recommendationId,
@@ -484,7 +407,6 @@ export async function requestCandidateReengagement(args: {
     candidateName: text(talentResult.data.name, 160),
     companyName: text(workspaceResult.data.company_name, 160) || "채용 회사",
     currentInstruction: requestContext,
-    kind: "question",
     locale: text(settingResult.data?.preferred_locale, 10) || "ko",
     profileUrl: null,
     recentConversation: "",
@@ -495,13 +417,9 @@ export async function requestCandidateReengagement(args: {
   const draft = await createCompanyTalentContactDraft({
     admin: args.admin,
     body: draftCopy.body,
-    contactKind: "question",
-    expectsDocument: false,
     id: requestId,
-    intent: "candidate_reengagement",
     recommendationId: args.recommendationId,
     requestContext: draftCopy.requestContext,
-    resumeStage: stage,
     roleId: args.roleId,
     sourceCompanyMessageId: sourceMessageId,
     subject: draftCopy.subject,

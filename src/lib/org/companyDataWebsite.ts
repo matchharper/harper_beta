@@ -39,6 +39,7 @@ export const WEBSITE_COMPANY_DATA_KEYS = [
   "role_work_mode",
   "role_employment_types",
   "role_request",
+  "role_is_company_first_search",
   "role_is_expired",
   "role_source_type",
   "role_source_provider",
@@ -299,12 +300,14 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
     : { data: null, error: null };
   if (companyDbResult.error) throw companyDbResult.error;
 
-  const needsInternalRequests = args.changes.some(
-    (change) => change.key === "role_request"
+  const needsInternalRoles = args.changes.some(
+    (change) =>
+      change.key === "role_request" ||
+      change.key === "role_is_company_first_search"
   );
-  const internalResult = needsInternalRequests
+  const internalResult = needsInternalRoles
     ? await (args.admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request")
+        .select("role_id, request, is_company_first_search")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -399,11 +402,16 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
     if (!role) throw new Error("Role not found");
     const internal = internalByRoleId.get(roleId);
     if (
-      change.key === "role_request" &&
+      (change.key === "role_request" ||
+        change.key === "role_is_company_first_search") &&
       singleLine(role.source_type) === "internal" &&
       !internal
     ) {
-      throw new Error("Canonical internal role request is unavailable");
+      throw new Error(
+        change.key === "role_request"
+          ? "Canonical internal role request is unavailable"
+          : "Canonical internal role settings are unavailable"
+      );
     }
     const roleValues: Partial<Record<WebsiteCompanyDataKey, unknown>> = {
       role_description: role.description ?? null,
@@ -411,6 +419,7 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
       role_employment_types: Array.isArray(role.type) ? role.type : [],
       role_expires_at: utcMillisOrNull(role.expires_at),
       role_external_jd_url: role.external_jd_url ?? null,
+      role_is_company_first_search: internal?.is_company_first_search ?? null,
       role_is_expired: role.is_expired ?? null,
       role_location: role.location_text ?? null,
       role_name: role.name,

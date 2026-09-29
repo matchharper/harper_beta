@@ -34,6 +34,7 @@ export type OrgCandidateStageMutationInput = {
 
 export type OrgCandidateStageMutationResponse =
   | {
+      agentJobId?: string | null;
       candidateName: string;
       currentStage: OrgStageId;
       ok: true;
@@ -44,6 +45,7 @@ export type OrgCandidateStageMutationResponse =
       talentId: string;
     }
   | {
+      agentJobId?: string | null;
       ok: true;
       requestId: string;
       requestedStage: OrgStageId;
@@ -53,6 +55,7 @@ export type OrgCandidateStageMutationResponse =
       talentId: string;
     }
   | {
+      agentJobId?: string | null;
       meetingSchedule?: {
         alreadyExisted: boolean;
         detailPath: string;

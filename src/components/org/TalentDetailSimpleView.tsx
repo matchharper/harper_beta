@@ -57,7 +57,6 @@ import {
 import { useOpsCareerDetail } from "@/hooks/ops/useOpsCareer";
 import {
   useCancelOrgCompanyTalentRequest,
-  useCreateOrgReviewStage,
   useCreateOrgFeedItem,
   useDeleteOrgFeedItem,
   useOpenOrgResume,
@@ -700,16 +699,16 @@ function CompanyIntroDecisionActions({
   return (
     <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
       <div className="text-[16px] font-medium text-neutral-primary">
-        {candidateName}님에게 먼저 제안할까요?
+        Request Intro: {candidateName}
       </div>
-      <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
-        아직 이 역할을 추천받지 않았고 관심 여부도 확인되지 않은 후보입니다.
-        만나고 싶은 이유를 적으면 Harper가 회사를 대신해 먼저 제안합니다.
-        후보자가 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다.
-      </p>
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <MuteButton disabled={pending} onClick={onPass} size="md">
-          제안하지 않기
+        <MuteButton
+          disabled={pending}
+          onClick={onPass}
+          size="md"
+          variant="critical"
+        >
+          Pass
         </MuteButton>
         <MuteButton
           disabled={pending}
@@ -717,7 +716,7 @@ function CompanyIntroDecisionActions({
           size="md"
           variant="dark"
         >
-          먼저 제안하기
+          Request Intro
         </MuteButton>
       </div>
     </section>
@@ -1338,7 +1337,6 @@ export function TalentDetailSimpleView() {
   } = useOrgWorkspace();
   const detail = detailQuery.data;
   const members = detail?.members ?? bootstrap.members;
-  const createCustomStage = useCreateOrgReviewStage();
   const requestCompanyIntro = useRequestOrgCompanyIntro();
   const passCompanyIntro = usePassOrgCompanyIntro();
   const addToast = useToastStore((state) => state.add);
@@ -1513,7 +1511,7 @@ export function TalentDetailSimpleView() {
     (detail?.recommendation.stage === "pending_connection" ||
       (detail?.recommendation.stage === "company_intro" &&
         detail.companyIntro?.status === "ready")) &&
-      canManageCandidates
+    canManageCandidates
   );
 
   return createPortal(
@@ -1788,25 +1786,26 @@ export function TalentDetailSimpleView() {
                         }
                       />
                     ) : (
-                    <CandidateDecisionActions
-                      acceptDisabled={
-                        !acceptStageId || !canUseExistingCandidateActions
-                      }
-                      candidateName={title}
-                      currentStage={detail.recommendation.stage}
-                      decisionPending={decisionPending}
-                      onAcceptClick={
-                        canUseExistingCandidateActions
-                          ? () => setAcceptDialogOpen(true)
-                          : undefined
-                      }
-                      onMoveToPendingConnection={onMoveToPendingConnection}
-                      onRejectClick={
-                        canUseExistingCandidateActions
-                          ? () => setRejectDialogOpen(true)
-                          : undefined
-                      }
-                    />)
+                      <CandidateDecisionActions
+                        acceptDisabled={
+                          !acceptStageId || !canUseExistingCandidateActions
+                        }
+                        candidateName={title}
+                        currentStage={detail.recommendation.stage}
+                        decisionPending={decisionPending}
+                        onAcceptClick={
+                          canUseExistingCandidateActions
+                            ? () => setAcceptDialogOpen(true)
+                            : undefined
+                        }
+                        onMoveToPendingConnection={onMoveToPendingConnection}
+                        onRejectClick={
+                          canUseExistingCandidateActions
+                            ? () => setRejectDialogOpen(true)
+                            : undefined
+                        }
+                      />
+                    )
                   }
                   detail={detail}
                   internalOpsAccess={internalOpsAccess}
@@ -1876,7 +1875,7 @@ export function TalentDetailSimpleView() {
         defaultEmail={currentUserEmail}
         members={members}
         open={acceptDialogOpen && Boolean(detail)}
-        pending={decisionPending || createCustomStage.isPending}
+        pending={decisionPending}
         onClose={closeAcceptDialog}
         onSubmit={async ({
           acceptReason,
@@ -1888,22 +1887,11 @@ export function TalentDetailSimpleView() {
           introEmails,
           meetingCandidateMessage,
           meetingPurpose,
-          processStageLabel,
           scheduleInterview,
           title,
         }) => {
           if (!acceptStageId || !onAcceptCandidate) return;
-          const stage =
-            detail?.recommendation.stage === "pending_connection" &&
-            acceptStageId === "connected"
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: processStageLabel ?? "",
-                    roleId: detail.role.roleId,
-                    workspaceId,
-                  })
-                ).stage.stage
-              : acceptStageId;
+          const stage = acceptStageId;
           const result = await onAcceptCandidate({
             acceptReason,
             additionalMessage,
@@ -1921,10 +1909,6 @@ export function TalentDetailSimpleView() {
           closeAcceptDialog();
           return result;
         }}
-        requiresProcessStage={
-          detail?.recommendation.stage === "pending_connection" &&
-          acceptStageId === "connected"
-        }
         roleTitle={detail?.role.name ?? ""}
       />
 
@@ -1945,31 +1929,14 @@ export function TalentDetailSimpleView() {
         key={detail?.companyIntro?.id ?? "closed"}
         candidateName={title}
         defaultEmail={currentUserEmail}
-        members={members}
         onClose={() => setCompanyIntroRequestOpen(false)}
-        onSubmit={async ({
-          companyAppeal,
-          introRecipientEmails,
-          newStageLabel,
-          nextStageId,
-        }) => {
+        onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!detail?.companyIntro) return;
           try {
-            const stageId = newStageLabel
-              ? (
-                  await createCustomStage.mutateAsync({
-                    label: newStageLabel,
-                    roleId: detail.role.roleId,
-                    workspaceId,
-                  })
-                ).stage.id
-              : nextStageId;
-            if (!stageId) throw new Error("수락 후 첫 단계를 선택해 주세요.");
             await requestCompanyIntro.mutateAsync({
               companyAppeal,
               introCandidateId: detail.companyIntro.id,
               introRecipientEmails,
-              nextStageId: stageId,
               workspaceId,
             });
             setCompanyIntroRequestOpen(false);
@@ -1990,10 +1957,7 @@ export function TalentDetailSimpleView() {
           }
         }}
         open={companyIntroRequestOpen && Boolean(detail?.companyIntro)}
-        pending={createCustomStage.isPending || requestCompanyIntro.isPending}
-        roleId={detail?.role.roleId ?? ""}
-        roleName={detail?.role.name ?? "해당 역할"}
-        stages={optionalBoard?.board?.stages ?? []}
+        pending={requestCompanyIntro.isPending}
       />
 
       <CompanyIntroPassDialog

@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local", quiet: true });
+// Legacy exploratory harness, not the release evaluation. New comparisons
+// use evalCompanyAgentCapabilities.ts with the actual production loop.
 
 type ToolCallRecord = {
   arguments: Record<string, unknown>;
@@ -299,7 +301,7 @@ async function main() {
       isOrgAgentModelId,
       resolveOrgAgentModel,
     },
-    { buildOrgAgentSystemPrompt, buildOrgAgentUserPrompt },
+    { buildCompanySystemInput, buildCompanyConversationInput },
     {
       serializeOrgAgentDeferredToolCall,
       serializeOrgAgentToolError,
@@ -318,7 +320,7 @@ async function main() {
     import("../src/lib/org/agent/data"),
     import("../src/lib/llm/llm"),
     import("../src/lib/org/agent/modelConfig"),
-    import("../src/lib/org/agent/prompts"),
+    import("../src/lib/org/agent/input"),
     import("../src/lib/org/agent/promptFormat"),
     import("../src/lib/server/candidateAccess"),
     import("../src/lib/org/agent/toolExecution"),
@@ -327,6 +329,11 @@ async function main() {
   ]);
 
   const admin = getSupabaseAdmin();
+  console.warn("Legacy full-tool exploratory harness; not production-loop evaluation. Use scripts/evalCompanyAgentCapabilities.ts for release comparisons.");
+  const { resolveCompanyCapabilities } = await import("../src/lib/org/agent/capabilities/resolver");
+  const { ORG_AGENT_TEMPERATURE, DEFAULT_ORG_AGENT_REASONING_EFFORT } = await import("../src/lib/org/agent/modelConfig");
+  const { companyCompletionTokenBudget, validateCompanyCompletion } = await import("../src/lib/org/agent/completionContract");
+  const resolved = resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set() });
   if (selectedModel && !isOrgAgentModelId(selectedModel)) {
     throw new Error(`Unsupported company-side model: ${selectedModel}`);
   }
@@ -483,6 +490,7 @@ async function main() {
     if (!history?.length) return context;
     return {
       ...context,
+      conversationMessages: history.map((item, index) => ({ id: index + 1, role: item.speaker === "assistant" ? "assistant" as const : "user" as const, content: item.message, speaker: item.speaker, references: "", complete: true, source: item.speaker === "assistant" ? "harper" as const : "company" as const })),
       conversationText: [
         "speaker\tmentions\tmessage",
         ...history.map(
@@ -500,16 +508,13 @@ async function main() {
     const caseContext = contextWithHistory(options.history);
     const state = createOrgAgentToolExecutionState(caseContext);
     const messages: any[] = [
-      { content: buildOrgAgentSystemPrompt(), role: "system" },
-      {
-        content: buildOrgAgentUserPrompt({
+      { content: buildCompanySystemInput({ resolved, surface: "chat" }), role: "system" },
+      ...buildCompanyConversationInput({
           context: caseContext,
           mentions: [],
           userLabel: "Workspace recruiter",
           userMessage: message,
         }),
-        role: "user",
-      },
     ];
     const calls: ToolCallRecord[] = [];
     const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
@@ -520,15 +525,16 @@ async function main() {
       const completion = await createChatCompletionWithFallback({
         anthropicOverloadFallbackModel: getOrgAgentFallbackModel(activeModel),
         buildRequest: () => ({
-          max_tokens: 4_000,
+          max_tokens: companyCompletionTokenBudget(activeModel, 4_000),
           messages,
           parallel_tool_calls: false,
-          temperature: 0.1,
+          temperature: ORG_AGENT_TEMPERATURE,
           tool_choice: "auto",
-          tools: ORG_AGENT_TOOLS,
+          tools: resolved.tools,
         }),
         debugLabel: `org/agent:live-eval:${loop}`,
-        chatCompletionReasoning: { reasoningEffort: "high" },
+        validateResponse: validateCompanyCompletion,
+        chatCompletionReasoning: { reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT },
         fallbackModel: getOrgAgentFallbackModel(activeModel),
         model: activeModel,
         openAIResponses: { reasoningEffort: "high" },
@@ -556,6 +562,7 @@ async function main() {
           typeof responseMessage.reasoning_content === "string"
             ? responseMessage.reasoning_content
             : undefined,
+        reasoning_details: responseMessage.reasoning_details,
         role: "assistant",
         ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
       });
@@ -1145,7 +1152,7 @@ async function main() {
     const finalCompletion = await createChatCompletionWithFallback({
       anthropicOverloadFallbackModel: getOrgAgentFallbackModel(activeModel),
       buildRequest: () => ({
-        max_tokens: 4_000,
+        max_tokens: companyCompletionTokenBudget(activeModel, 4_000),
         messages: [
           ...messages,
           {
@@ -1154,7 +1161,7 @@ async function main() {
             role: "user",
           },
         ],
-        temperature: 0.1,
+        temperature: ORG_AGENT_TEMPERATURE,
       }),
       debugLabel: "org/agent:live-eval:final",
       chatCompletionReasoning: { reasoningEffort: "high" },

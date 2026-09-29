@@ -1,0 +1,208 @@
+{
+  "captureAt": "2026-09-23T02:05:59.415004+00:00",
+  "cases": [
+    {
+      "caseId": "KRS4A8A9361",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "에이전트 엔지니어(로봇 데이터)"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSB1E9BBB9",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "서울시, Seoul, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "우리은행 데이터 사이언티스트 (AI데이터사업부_AI서비스운영) 전문직 채용공고"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSD45D2B65",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "내부회계관리"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSA864B9AD",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Daejeon, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "AI 제품 엔지니어 (AI Product Engineer)"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRS66A1AFA1",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "South Korea",
+        "roleLocation": "North Gyeongsang, Seoul, Gyeonggi, Daejeon, Sejong, South Chungcheong, Daegu, Busan, Incheon, South Gyeongsang, Ulsan, Jeju, South Korea",
+        "title": "한국교통안전공단 2026년 제4차 기간제근로자 통합채용공고"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRS6CD2D6F8",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "대한민국 서울",
+        "roleLocation": "Seoul, South Korea",
+        "title": "Shipping Operations Specialist, Aerospace (KOR) — Korea"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSD3B55173",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "경기도, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "보안솔루션 운영 경력직 채용(을지로)"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRS8A5F25A4",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "주니어 프론트엔드 (풀스택 성장형) 개발자"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSA7AA7732",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "서울",
+        "roleLocation": "서울특별시 서초구 강남대로51길 1 511 TOWER 8층 브랜드홀더",
+        "title": "[코이] 뷰티 브랜드 HR팀 5년 이상"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSEF05322F",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "Other",
+        "title": "메디픽셀 해외영업 (Global Sales) 담당자 채용"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSDB792E4B",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "기타",
+        "title": "전략 팀 공공 · 방산 사업 담당 PM"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSB695B9AA",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "대한민국 서울",
+        "roleLocation": "Seoul, South Korea",
+        "title": "[비즈테크아이] 네트워크 운영 담당자 모집 (경력)"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRS79E25331",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "Gyeonggi, South Korea",
+        "title": "한화시스템 레이다연구소 경력사원 채용"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRS8EDA056D",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "대한민국 서울",
+        "roleLocation": "서울",
+        "title": "콘텐츠 마케터"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSFDAFE8DF",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "SEOUL, Seoul, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "AI 웹툰 콘텐츠 제작자(인턴십)"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRS3211954B",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "Taipei, Taipei City, Taiwan",
+        "title": "Cyber Security Sales Manager(Taiwan)"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRS7396A1C6",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "서울특별시, Seoul, South Korea",
+        "roleLocation": "Seoul, South Korea",
+        "title": "[VT코스메틱/리들샷] 틱톡샵 MD"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSFF8AEE4C",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "Seoul, South Korea",
+        "roleLocation": "서울 금천구",
+        "title": "AIoT 서비스 백앤드 개발자 (3년 이상)"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSAA75D500",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "대한민국 서울",
+        "roleLocation": "서울 영등포구 선유로13길 25, 에이스하이테크시티2차 1112~1113호",
+        "title": "서비스 기획자(Product Manager) 신입"
+      },
+      "labelStatus": "unlabeled"
+    },
+    {
+      "caseId": "KRSD766AA7F",
+      "gold": null,
+      "inputSummary": {
+        "companyLocation": "성동구, South Korea",
+        "roleLocation": "Seoul, Gyeonggi, North Chungcheong, South Korea",
+        "title": "대원제약 DNA 채용 (신입/경력 수시 채용)"
+      },
+      "labelStatus": "unlabeled"
+    }
+  ],
+  "datasetVersion": "v4-korea",
+  "labelSource": "optional numeric annual company_roles salary; unlabeled otherwise; all salary values hidden from provider input",
+  "task": "company-role-salary-estimation"
+}

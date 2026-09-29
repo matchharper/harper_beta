@@ -439,12 +439,11 @@ const CareerWorkspacePage = ({
   useEffect(() => {
     if (!isRouterReady || authLoading || !user) return;
 
-    const profileSection = getSingleQueryParam(router.query.profileSection);
     const historyTab = getSingleQueryParam(router.query.historyTab);
     const historyRoleId = getSingleQueryParam(router.query.id)?.trim();
     const events: Array<{ key: string; type: string }> = [];
 
-    if (currentActiveTab === "profile" && profileSection === "brief") {
+    if (currentActiveTab === "brief") {
       events.push({ key: "profile:brief", type: "view_profile_brief" });
     }
     if (currentActiveTab === "history" && historyTab === "saved") {
@@ -472,7 +471,6 @@ const CareerWorkspacePage = ({
     logCareerEvent,
     router.query.historyTab,
     router.query.id,
-    router.query.profileSection,
     user,
   ]);
 
@@ -619,7 +617,9 @@ const CareerWorkspacePage = ({
         mail={mail}
         onOpenSettings={handleOpenSettings}
         settingsDataEnabled={
-          settingsModalOpen || currentActiveTab === "profile"
+          settingsModalOpen ||
+          currentActiveTab === "profile" ||
+          currentActiveTab === "brief"
         }
       >
         <CareerWorkspaceScreen

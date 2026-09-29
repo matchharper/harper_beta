@@ -1,10 +1,23 @@
 # Connections.md
 
-버전: 2.0 · 적용일: 2026-09-21 · 상태: Supabase 원장과 인증 전환 DB 적용 완료. `/ops/gtm`, Resend 발송, Gmail 회신, Slack 알림 코드는 검증 완료 후 배포 전 · 관리: 데이터 연결 담당
+버전: 2.1 · 적용일: 2026-09-22 · 상태: Supabase 원장과 인증 전환 DB 적용 완료. Agent 세션별 Supabase plugin 설치·연결은 실행 시 확인. `/ops/gtm`, Resend 발송, Gmail 회신, Slack 알림 코드는 검증 완료 후 배포 전 · 관리: 데이터 연결 담당
 
 ## 팀원을 위한 한눈에 보기
 
-팀원은 `@matchharper.com` 계정으로 `/ops/gtm`을 사용한다. Codex와 Claude Code는 이미 연결된 Supabase plugin으로 같은 `gtm_workspace` 계약을 호출한다. 추가 인증 파일이나 별도 연결 설정은 필요 없다. Agent는 후보 조사·선정·초안·기록을 처리할 수 있고, 실제 이메일은 팀원이 Outreach Review에서 최종 확인한 뒤 발송한다.
+팀원은 `@matchharper.com` 계정으로 `/ops/gtm`을 사용한다. Agent는 현재 세션에 Supabase plugin과 Harper project 연결이 실제로 보일 때만 같은 `gtm_workspace` 계약을 호출한다. 연결이 없으면 설치·연결 필요를 보고하고 Dashboard·SQL Editor·브라우저로 우회하지 않는다. Agent는 후보 조사·선정·초안·기록을 처리할 수 있고, 실제 이메일은 팀원이 Outreach Review에서 최종 확인한 뒤 발송한다.
+
+## Agent 도구 우선순위
+
+| 순서 | 사용하는 경로 | 용도와 경계 |
+| --- | --- | --- |
+| 1 | Supabase plugin → `public.gtm_workspace` | 크리에이터, 회신, 제안, 협업, 콘텐츠, 성과, 비용, 활동의 기본 조회·변경. 일상 업무의 유일한 DB 경로 |
+| 2 | 해당 서비스의 연결된 API·plugin·connector | 원장에 없거나 최신성이 부족한 메일·플랫폼·문서 등의 외부 사실만 보완. 이미 원장에 있는 사실을 재수집하지 않음 |
+| 3 | 공개 웹 자료 | 공개 조사나 출처 확인이 작업 자체인 경우. 관측 시각·URL·한계를 함께 기록 |
+| 예외 | Computer Use 또는 브라우저 UI | 팀원이 UI 조작을 명시적으로 요청했거나, 위 경로에 없는 UI 전용 증거가 작업 완료에 필수일 때만 사용 |
+
+매 작업은 도구 목록에서 Supabase plugin이 노출되는지와 선택된 project가 Harper인지 먼저 확인한다. 연결된 경우 첫 호출은 `catalog`이며, catalog가 반환한 실제 시트·원본·필드를 사용한다. 문서에 “연결됨”이라고 쓰여 있거나 과거 세션에서 성공했다는 이유만으로 현재 세션도 연결됐다고 가정하지 않는다.
+
+Supabase Dashboard, 브라우저 SQL Editor, 서비스 역할 키, DB 비밀번호, 로컬 설정 파일과 임의 PostgreSQL 클라이언트는 Contents Engine 운영의 대체 경로가 아니다. plugin이 없으면 조용히 UI로 전환하지 말고, 누락된 연결과 영향을 받는 작업 범위를 보고한다. 저장소 구현·migration·장애 진단을 명시적으로 맡긴 개발 작업은 별도이며, 그때도 운영 데이터 변경 권한이나 배포 권한이 자동으로 생기지 않는다.
 
 ## 연결 상태
 
@@ -33,7 +46,7 @@ Supabase plugin으로 실행한 GTM 변경은 DB 감사 기록에서 `supabase-p
 
 ## Agent API
 
-외부 계약은 `public.gtm_workspace(p_action text, p_data jsonb)` 하나다. Agent는 Supabase plugin의 SQL 실행 기능으로 호출한다.
+외부 계약은 `public.gtm_workspace(p_action text, p_data jsonb)` 하나다. Agent는 **현재 세션에서 확인된 Supabase plugin**의 SQL 실행 기능으로 호출한다. plugin 자체가 프로젝트 전체에 더 넓은 기능을 보여도 Contents Engine 운영에서는 이 함수만 사용한다.
 
 ```sql
 select public.gtm_workspace('catalog', '{}'::jsonb);
@@ -77,7 +90,8 @@ Gmail push는 인증된 Pub/Sub 호출만 받는다. Gmail message/thread/reply 
 ## 복구
 
 - `/ops/gtm` 401/403: 팀원의 로그인 상태와 `@matchharper.com` 계정을 확인한다.
-- Supabase plugin 호출 실패: 올바른 Harper Supabase project 연결과 `gtm_workspace(text,jsonb)` 존재 여부를 확인한다.
+- Supabase plugin 도구가 없음: 설치·연결 필요와 중단된 업무 범위를 보고한다. Dashboard·SQL Editor·Computer Use로 우회하지 않는다.
+- Supabase plugin 호출 실패: 올바른 Harper Supabase project 연결과 `gtm_workspace(text,jsonb)` 존재 여부를 확인한다. project나 권한이 불명확하면 쓰지 않는다.
 - `40001`: 최신 행과 차이를 읽고 새 request ID로 재적용한다.
 - 응답을 받지 못한 쓰기: 같은 request ID·같은 본문으로 결과를 확인하거나 재시도한다.
 - 메일 발송 결과 불명확: dispatch와 provider 결과를 먼저 대조하며 새 발송을 만들지 않는다.
@@ -86,5 +100,6 @@ Gmail push는 인증된 Pub/Sub 호출만 받는다. Gmail message/thread/reply 
 
 | 날짜 | 버전 | 주요 변경 |
 | --- | --- | --- |
+| 2026-09-22 | 2.1 | 세션별 plugin 확인, `gtm_workspace` 우선순위, connector와 Computer Use의 예외 경계, 연결 부재 시 중단 기준 추가 |
 | 2026-09-21 | 2.0 | 팀원 Supabase 로그인과 Agent Supabase plugin으로 인증을 통합 |
 | 2026-09-21 | 1.9 | GTM 웹, Resend 발송, Gmail 회신, Slack 알림과 전달 실패 복구 계약 추가 |

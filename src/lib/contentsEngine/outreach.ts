@@ -489,19 +489,31 @@ export async function reconcileGtmResendMessageIds() {
   return resolved;
 }
 
-export async function syncGtmOutreachGmailHistory(notificationHistoryId = "") {
+export async function syncGtmOutreachGmailHistory(
+  notificationHistoryId = "",
+  options: { recoverRecentInbox?: boolean } = {}
+) {
   // Every entry point (Pub/Sub, cron, and the Ops button) must establish the
   // provider identity before it is allowed to advance Gmail's durable cursor.
   await reconcileGtmResendMessageIds();
-  const mailbox = getGtmOutreachGmailConfig().mailbox;
+  const gmailConfig = getGtmOutreachGmailConfig();
+  const mailbox = gmailConfig.mailbox;
   const state = await getMailboxState(mailbox);
   let messageIds: string[] = [];
   let latestHistoryId = notificationHistoryId || (await getGmailHistoryId());
+  const recoverRecentInbox =
+    options.recoverRecentInbox ?? notificationHistoryId.length === 0;
   try {
     if (state?.history_id) {
       const history = await listGmailHistory(state.history_id);
       messageIds = history.messageIds;
       latestHistoryId = history.latestHistoryId || latestHistoryId;
+      if (recoverRecentInbox) {
+        const recentInboxIds = await listInboxMessageIds(
+          `to:${gmailConfig.fromEmail} newer_than:30d`
+        );
+        messageIds = [...new Set([...messageIds, ...recentInboxIds])];
+      }
     } else {
       messageIds = await listInboxMessageIds();
     }

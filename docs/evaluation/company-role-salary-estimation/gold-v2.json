@@ -1,0 +1,149 @@
+{
+  "captureAt": "2026-09-22T17:39:50.534260+00:00",
+  "cases": [
+    {
+      "caseId": "SAL2504C751F",
+      "gold": {
+        "currency": "USD",
+        "max": 90000,
+        "min": 80000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote",
+        "seniority": "mid_senior",
+        "title": "Licensed Clinical Therapist (California- LCSW/LPC/LPCC)"
+      }
+    },
+    {
+      "caseId": "SAL2606B2E85",
+      "gold": {
+        "currency": "USD",
+        "max": 250000,
+        "min": 135000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "San Francisco, California, United States",
+        "seniority": "Mid",
+        "title": "Backend Engineer"
+      }
+    },
+    {
+      "caseId": "SAL2122E78F8",
+      "gold": {
+        "currency": "USD",
+        "max": 220000,
+        "min": 180000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "United States",
+        "seniority": "Expert",
+        "title": "Solutions Architect, East Asia"
+      }
+    },
+    {
+      "caseId": "SAL2EED6A60A",
+      "gold": {
+        "currency": "USD",
+        "max": 300000,
+        "min": 225000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Palo Alto, California, United States",
+        "seniority": "senior",
+        "title": "Senior Platform Engineer"
+      }
+    },
+    {
+      "caseId": "SAL27D9FACA9",
+      "gold": {
+        "currency": "USD",
+        "max": 260000,
+        "min": 220000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Austin, Texas, USA",
+        "seniority": "Mid",
+        "title": "Principle Software Engineer"
+      }
+    },
+    {
+      "caseId": "SAL2BDDE9C5D",
+      "gold": {
+        "currency": "USD",
+        "max": 105000,
+        "min": 90000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "McLean, Virginia, United States",
+        "seniority": "mid_senior",
+        "title": "Financial Analyst, Cash Flow"
+      }
+    },
+    {
+      "caseId": "SAL24460F6F3",
+      "gold": {
+        "currency": "USD",
+        "max": 343000,
+        "min": 146000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "All, New Jersey, United States of America · All, Georgia, United States of America · All, Texas, United States of America",
+        "seniority": "senior",
+        "title": "Senior Network Sales Engineer - AT&T"
+      }
+    },
+    {
+      "caseId": "SAL2B2D02BDB",
+      "gold": {
+        "currency": "USD",
+        "max": 175000,
+        "min": 130000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York, United States",
+        "seniority": "Expert",
+        "title": "Blockchain Solutions Architect"
+      }
+    },
+    {
+      "caseId": "SAL2E8890DCE",
+      "gold": {
+        "currency": "JPY",
+        "max": 14000000,
+        "min": 9000000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Greater Tokyo Area",
+        "seniority": "Not Applicable",
+        "title": "エンタープライズセールス（Enterprise Sales）"
+      }
+    },
+    {
+      "caseId": "SAL225B5D615",
+      "gold": {
+        "currency": "USD",
+        "max": 143260,
+        "min": 74161,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "United States",
+        "seniority": "Senior",
+        "title": "Senior Customer Success Manager - Quora (Remote)"
+      }
+    }
+  ],
+  "datasetVersion": "v2",
+  "labelSource": "numeric company_roles salary fields hidden from model input",
+  "selection": "random holdout captured before any v2 model call",
+  "task": "company-role-salary-estimation"
+}

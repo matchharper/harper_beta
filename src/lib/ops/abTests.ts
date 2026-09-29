@@ -14,6 +14,7 @@ export type OpsAbTestConclusion = {
   confidenceLow: number | null;
   delta: number | null;
   leaderVariantId: string | null;
+  observedLeaderVariantId: string | null;
   state: OpsAbTestConclusionState;
 };
 
@@ -109,6 +110,7 @@ export function compareOpsAbTestRates(args: {
       confidenceLow: null,
       delta: null,
       leaderVariantId: null,
+      observedLeaderVariantId: null,
       state: "collecting",
     };
   }
@@ -138,6 +140,8 @@ export function compareOpsAbTestRates(args: {
     confidenceLow,
     delta,
     leaderVariantId,
+    observedLeaderVariantId:
+      delta > 0 ? args.secondVariantId : delta < 0 ? args.firstVariantId : null,
     state: leaderVariantId ? "leader" : "no_clear_difference",
   };
 }

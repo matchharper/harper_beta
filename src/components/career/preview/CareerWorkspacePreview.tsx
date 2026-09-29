@@ -21,7 +21,10 @@ import {
 } from "@/components/career/CareerSidebarContext";
 import CareerSettingsModal from "@/components/career/CareerSettingsModal";
 import CareerWorkspaceScreen from "@/components/career/CareerWorkspaceScreen";
-import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
+import {
+  isCareerWorkspaceTab,
+  type CareerWorkspaceTab,
+} from "@/components/career/CareerWorkspaceNav";
 import {
   CareerOpportunityType,
   type CareerHistoryOpportunity,
@@ -42,6 +45,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { CareerPendingAction } from "@/lib/career/pendingActions";
+import {
+  getCareerWaitingConnection,
+  isCareerDecisionAction,
+  type CareerTasksSnapshot,
+} from "@/lib/career/taskItems";
 import { ENABLE_NEW_OPPORTUNITY_COMPANY_ROLE_SWITCHER } from "@/components/career/history/NewOpportunityCompanyRoleSwitcher";
 
 type CareerT = ReturnType<typeof useCareerT>;
@@ -635,6 +643,11 @@ type CareerWorkspacePreviewProps = {
   disableInteractions?: boolean;
   embedded?: boolean;
   initialTab?: CareerWorkspaceTab | "chat";
+  initialOnboardingDone?: boolean;
+  hideTaskDecisions?: boolean;
+  initialProfileLinkCount?: 0 | 1 | 2;
+  initialGmailConnected?: boolean;
+  taskFeedbackExamples?: boolean;
   viewport?: CareerWorkspacePreviewViewportMode;
 };
 
@@ -720,13 +733,18 @@ const CareerWorkspacePreview = ({
   disableInteractions = false,
   embedded = false,
   initialTab = "chat",
+  initialOnboardingDone = true,
+  hideTaskDecisions = false,
+  initialProfileLinkCount,
+  initialGmailConnected = false,
+  taskFeedbackExamples = false,
   viewport = "auto",
 }: CareerWorkspacePreviewProps) => {
   const router = useRouter();
   const t = useCareerT();
   const previewConversationTurns = useMemo(
-    () => getPreviewConversationTurns(t),
-    [t]
+    () => (initialOnboardingDone ? getPreviewConversationTurns(t) : []),
+    [initialOnboardingDone, t]
   );
   const initialMessages = useMemo(
     () =>
@@ -738,19 +756,76 @@ const CareerWorkspacePreview = ({
       }),
     [previewConversationTurns]
   );
-  const initialHistoryOpportunities = useMemo(
-    () => getInitialHistoryOpportunities(t),
-    [t]
-  );
+  const initialHistoryOpportunities = useMemo(() => {
+    const items = getInitialHistoryOpportunities(t);
+    if (taskFeedbackExamples) {
+      const external = items.find((item) => item.sourceType === "external" && item.feedback === null);
+      if (external) {
+        // Browser-only fixtures for the four-logo preview; no database writes.
+        [
+          ["Google", "/images/logos/google.svg"],
+          ["NVIDIA", "/images/logos/nvidia.svg"],
+          ["Microsoft", "/images/logos/microsoft.svg"],
+          ["Amazon", "/images/logos/amazon.svg"],
+        ].forEach(([companyName, companyLogoUrl], index) => {
+          items.push({
+            ...external,
+            id: `preview-feedback-${index}`,
+            roleId: `preview-feedback-role-${index}`,
+            companyName,
+            companyLogoUrl,
+            recommendedAt: previewHoursAgo(index + 1),
+          });
+        });
+      }
+    }
+    const internal = items.find((item) => item.sourceType === "internal");
+    if (!internal) return items;
+    // Local browser fixtures only; these never create database roles.
+    return [
+      ...items,
+      ...(["accepted", "pending_connection"] as const).map((stage, index) => ({
+        ...internal,
+        id: `preview-waiting-${index}`,
+        roleId: `preview-waiting-role-${index}`,
+        companyName: index === 0 ? "Orbit Labs" : "Northstar AI",
+        feedback: "positive" as const,
+        feedbackAt: previewDaysAgo(30),
+        savedStage: "connected" as const,
+        internalProgress: {
+          acceptedAt: previewDaysAgo(30),
+          code: "waiting_to_share" as const,
+          daysSinceAccepted: 30,
+          daysSinceStageChanged: 1,
+          message: "",
+          stage,
+          stageChangedAt: previewDaysAgo(1),
+          stageTag: null,
+        },
+      })),
+    ];
+  }, [t, taskFeedbackExamples]);
   const initialTalentInsights = useMemo(() => getInitialTalentInsights(t), [t]);
   const initialTalentProfile = useMemo(() => getInitialTalentProfile(t), [t]);
-  const previewPendingActions = useMemo(() => getPreviewPendingActions(), []);
+  const previewPendingActionSeeds = useMemo(
+    () => getPreviewPendingActions(),
+    []
+  );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<CareerWorkspaceTab | "chat">(
+  const [activeTabState, setActiveTab] = useState<CareerWorkspaceTab | "chat">(
     initialTab
   );
+  const requestedTab =
+    typeof router.query.tab === "string" ? router.query.tab : null;
+  const activeTab = isCareerWorkspaceTab(requestedTab)
+    ? requestedTab === "profile" && router.query.profileSection === "brief"
+      ? "brief"
+      : requestedTab
+    : activeTabState;
   const workspaceActiveTab = activeTab === "chat" ? "home" : activeTab;
-  const [autoLoopEnabled, setAutoLoopEnabled] = useState(autoPlayConversation);
+  const [autoLoopEnabled, setAutoLoopEnabled] = useState(
+    autoPlayConversation && initialOnboardingDone
+  );
   const [previewInputMode, setPreviewInputMode] = useState<"text" | "call">(
     "text"
   );
@@ -761,29 +836,26 @@ const CareerWorkspacePreview = ({
   const [manualMessages, setManualMessages] = useState<CareerMessage[] | null>(
     autoPlayConversation ? null : initialMessages
   );
-  const [profileLinks, setProfileLinks] = useState<string[]>([
+  const initialProfileLinks = [
     "https://linkedin.com/in/preview-candidate",
     "https://github.com/preview-candidate",
     "",
     "https://previewcandidate.dev",
     "https://x.com/previewcandidate",
-  ]);
-  const [savedProfileLinks, setSavedProfileLinks] = useState<string[]>([
-    "https://linkedin.com/in/preview-candidate",
-    "https://github.com/preview-candidate",
-    "",
-    "https://previewcandidate.dev",
-    "https://x.com/previewcandidate",
-  ]);
+  ].map((link, index) => initialProfileLinkCount === undefined || index < initialProfileLinkCount ? link : "");
+  const [profileLinks, setProfileLinks] = useState<string[]>(initialProfileLinks);
+  const [savedProfileLinks, setSavedProfileLinks] = useState<string[]>(initialProfileLinks);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [savedResumeFileName, setSavedResumeFileName] =
     useState("preview_resume.pdf");
-  const [talentPreferences, setTalentPreferences] = useState(
-    initialTalentPreferences
-  );
-  const [savedTalentPreferences, setSavedTalentPreferences] = useState(
-    initialTalentPreferences
-  );
+  const [talentPreferences, setTalentPreferences] = useState(() => ({
+    ...initialTalentPreferences,
+    isOnboardingDone: initialOnboardingDone,
+  }));
+  const [savedTalentPreferences, setSavedTalentPreferences] = useState(() => ({
+    ...initialTalentPreferences,
+    isOnboardingDone: initialOnboardingDone,
+  }));
   const [talentPreferencesUpdatedAt, setTalentPreferencesUpdatedAt] =
     useState(previewDate());
   const [talentPreferencesSaveInfo, setTalentPreferencesSaveInfo] =
@@ -820,6 +892,39 @@ const CareerWorkspacePreview = ({
   const [settingsUpdatedAt, setSettingsUpdatedAt] = useState(previewDate());
   const [historyOpportunities, setHistoryOpportunities] = useState(
     initialHistoryOpportunities
+  );
+  const previewPendingActions = useMemo(
+    () =>
+      previewPendingActionSeeds.filter((action) => {
+        if (hideTaskDecisions && isCareerDecisionAction(action)) return false;
+        if (action.kind !== "internal_opportunity") return true;
+        return (
+          historyOpportunities.find((item) => item.id === action.id)
+            ?.feedback === null
+        );
+      }),
+    [hideTaskDecisions, historyOpportunities, previewPendingActionSeeds]
+  );
+  const previewTasks = useMemo(
+    (): CareerTasksSnapshot => ({
+      actions: previewPendingActions,
+      meetingSchedules: [],
+      connections: historyOpportunities.flatMap((item) => {
+        const connection = getCareerWaitingConnection(item);
+        return connection ? [connection] : [];
+      }),
+      searchStatus: "active",
+      externalFeedback: historyOpportunities
+        .filter((item) => item.sourceType === "external" && !item.isUserAdded && item.feedback === null && item.savedStage !== "hidden")
+        .sort((left, right) => Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt) || left.id.localeCompare(right.id))
+        .slice(0, 4)
+        .map(({ id, roleId, companyName, companyLogoUrl, recommendedAt }) => ({
+          id, roleId, companyName, companyLogoUrl: companyLogoUrl ?? null, recommendedAt,
+        })),
+      gmailConnected: initialGmailConnected,
+      unavailableCategories: [],
+    }),
+    [historyOpportunities, initialGmailConnected, previewPendingActions]
   );
 
   useEffect(() => {
@@ -919,24 +1024,32 @@ const CareerWorkspacePreview = ({
       if (disableInteractions) return;
       setActiveTab(nextTab);
 
-      if (!router.isReady || nextTab !== "history") return;
+      if (!router.isReady) return;
 
-      const historyTarget = options?.historyTarget;
-      if (!historyTarget) return;
+      const historyTarget =
+        nextTab === "history" ? options?.historyTarget : undefined;
 
       const query: Record<string, string | string[] | undefined> = {
         ...router.query,
-        historyTab: historyTarget.historyTab,
+        tab: nextTab,
       };
-      delete query.tab;
+      delete query.profileSection;
+      delete query.callNoteId;
+      delete query.documentId;
 
-      if (historyTarget.savedStage) {
+      if (historyTarget) {
+        query.historyTab = historyTarget.historyTab;
+      } else if (nextTab !== "history") {
+        delete query.historyTab;
+      }
+
+      if (historyTarget?.savedStage) {
         query.savedStage = historyTarget.savedStage;
       } else {
         delete query.savedStage;
       }
 
-      if (historyTarget.roleId) {
+      if (historyTarget?.roleId) {
         query.id = historyTarget.roleId;
       } else {
         delete query.id;
@@ -958,13 +1071,23 @@ const CareerWorkspacePreview = ({
     () => ({
       user: mockUser,
       conversationId: "preview-conversation",
-      stage: "completed",
+      stage: talentPreferences.isOnboardingDone ? "completed" : "chat",
       isOnboardingDone: talentPreferences.isOnboardingDone,
       workspaceDataLoading: false,
+      onStartCallMode: async () => {
+        setAutoLoopEnabled(false);
+        setPreviewInputMode("call");
+        return true;
+      },
+      onStartConversationStarter: async ({ mode }) => {
+        setAutoLoopEnabled(false);
+        if (mode === "call") setPreviewInputMode("call");
+        return true;
+      },
       userChatCount: 2,
-      answeredCount: 8,
+      answeredCount: talentPreferences.isOnboardingDone ? 8 : 6,
       targetQuestions: 8,
-      progressPercent: 100,
+      progressPercent: talentPreferences.isOnboardingDone ? 100 : 75,
       onOpenSettings: () => setIsSettingsOpen(true),
       onLogout: () => undefined,
       activeCompanyRoleCount: 1284,
@@ -1360,7 +1483,7 @@ const CareerWorkspacePreview = ({
     () => ({
       user: mockUser,
       conversationId: "preview-conversation",
-      stage: "completed",
+      stage: talentPreferences.isOnboardingDone ? "completed" : "chat",
       messages,
       scrollRef,
       hasOlderMessages: false,
@@ -1393,13 +1516,14 @@ const CareerWorkspacePreview = ({
       opportunitySearchLocked: false,
       historyUpdatingOpportunityIds: [],
       pendingActionsOverride: previewPendingActions,
+      tasksOverride: previewTasks,
       onboardingBeginPending: false,
       forceCompletePending: false,
       interviewProgress: {
-        canForceComplete: false,
-        filledCount: 8,
-        percent: 100,
-        remainingCount: 0,
+        canForceComplete: !talentPreferences.isOnboardingDone,
+        filledCount: talentPreferences.isOnboardingDone ? 8 : 6,
+        percent: talentPreferences.isOnboardingDone ? 100 : 75,
+        remainingCount: talentPreferences.isOnboardingDone ? 0 : 2,
         totalCount: 8,
       },
       onboardingPausePending: false,
@@ -1454,6 +1578,14 @@ const CareerWorkspacePreview = ({
       onLoadOlderMessages: async () => undefined,
       onForceCompleteOnboarding: async () => {
         setAutoLoopEnabled(false);
+        setTalentPreferences((current) => ({
+          ...current,
+          isOnboardingDone: true,
+        }));
+        setSavedTalentPreferences((current) => ({
+          ...current,
+          isOnboardingDone: true,
+        }));
         const now = Date.now();
         const nextAssistantMessage: CareerMessage = {
           id: now,
@@ -1504,7 +1636,8 @@ const CareerWorkspacePreview = ({
           timestamp: previewDate(),
         },
       ],
-      callConnectionStatus: "connected",
+      callConnectionStatus:
+        previewInputMode === "call" ? "connected" : "disconnected",
       isAssistantSpeaking: false,
       isVoiceToolExecuting: false,
       onOpenHistoryOpportunity: (roleId) =>
@@ -1517,6 +1650,7 @@ const CareerWorkspacePreview = ({
       messages,
       previewInputMode,
       previewPendingActions,
+      previewTasks,
       profileLinks,
       resumeFile,
       t,

@@ -249,12 +249,13 @@ test("formats the complete decision brief instead of only the summary", async ()
   assert.match(message, /서연님/);
 });
 
-test("research prompt defines stage-adaptive evidence and the private personalization contract", async () => {
+test("research prompt gives Terra one autonomous writing task with light format guidance", async () => {
   const {
     buildCompanyResearchPrompt,
     COMPANY_RESEARCH_MAX_OUTPUT_TOKENS,
     COMPANY_SNAPSHOT_SCHEMA_VERSION,
   } = await companySnapshotModule;
+  const { CAREER_LLM_CONFIG } = await import("@/lib/career/llm");
   const prompt = buildCompanyResearchPrompt({
     companyDbId: null,
     companyName: "테스트코",
@@ -263,26 +264,34 @@ test("research prompt defines stage-adaptive evidence and the private personaliz
     talentContext: "B2B PM 경력 5년",
   });
 
-  assert.match(prompt, /scannable fact layer/);
-  assert.match(prompt, /For an early startup/);
-  assert.match(prompt, /For a public or mature company/);
-  assert.match(prompt, /Do not generate decorative charts/);
-  assert.match(prompt, /Do not cite an unrelated filing/);
-  assert.match(prompt, /funding history and investors/);
-  assert.match(prompt, /major recent news/);
-  assert.match(prompt, /build company_flow/);
-  assert.match(prompt, /oldest to newest/);
-  assert.match(prompt, /otherwise omit the claim/);
-  assert.match(prompt, /unknown only if resolving it could change the decision/);
-  assert.match(
-    prompt,
-    /every personalized insight must connect one explicit fact/
+  assert.match(prompt, /one continuous research-and-writing task/);
+  assert.match(prompt, /available throughout the work/);
+  assert.match(prompt, /Profile, Search Brief, Memory/);
+  assert.match(prompt, /For a very early startup/);
+  assert.match(prompt, /For a public company or large company/);
+  assert.match(prompt, /there is no required number of sections/);
+  const { COMPANY_RESEARCH_WRITING_EXAMPLE } =
+    await import("@/lib/career/prompts/companyResearchExample");
+  assert.ok(
+    prompt.includes(
+      `<writing_example>\n${COMPANY_RESEARCH_WRITING_EXAMPLE}\n</writing_example>`
+    )
   );
+  assert.match(prompt, /two or three years/);
+  assert.match(prompt, /Use only source URLs/);
   assert.match(prompt, /B2B PM 경력 5년/);
-  assert.match(prompt, /final personalized section only/);
-  assert.match(prompt, /Never copy private talent context/);
+  assert.doesNotMatch(prompt, /private talent context.*web search query/i);
+  assert.doesNotMatch(prompt, /company_flow|report_sections|harper_thoughts/);
   assert.equal(COMPANY_RESEARCH_MAX_OUTPUT_TOKENS, 128_000);
-  assert.equal(COMPANY_SNAPSHOT_SCHEMA_VERSION, 7);
+  assert.equal(COMPANY_SNAPSHOT_SCHEMA_VERSION, 8);
+  assert.equal(
+    CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel,
+    "gpt-5.6-terra"
+  );
+  assert.equal(
+    CAREER_LLM_CONFIG.companySnapshotResearch.reasoningEffort,
+    "high"
+  );
 
   const noContextPrompt = buildCompanyResearchPrompt({
     companyDbId: null,
@@ -291,15 +300,28 @@ test("research prompt defines stage-adaptive evidence and the private personaliz
     reason: "지원 여부를 알고 싶습니다.",
     talentContext: "",
   });
-  assert.match(
-    noContextPrompt,
-    /personalized\.harper_thoughts, personalized\.career_value and personalized\.risks_fit as empty strings/
-  );
-  assert.match(
-    noContextPrompt,
-    /never write an apology, disclaimer or generic substitute/
-  );
-  assert.doesNotMatch(noContextPrompt, /broadly relevant/);
+  assert.match(noContextPrompt, /No personal context was supplied/);
+  assert.doesNotMatch(noContextPrompt, /empty strings|personalized\./);
+});
+
+test("returns Terra-authored Markdown without imposing renderer sections", async () => {
+  const { buildCompanySnapshotMarkdown } = await companySnapshotModule;
+  const authored = [
+    "테스트코는 지금 제품보다 영업 구조를 먼저 봐야 합니다.",
+    "",
+    "투자 이후 매출이 두 배가 됐습니다. [공식 발표](https://example.com/report)",
+    "",
+    "Harper의 생각은 분명합니다. 현재 경력에는 좋은 확장입니다.",
+  ].join("\n");
+  const markdown = buildCompanySnapshotMarkdown({
+    companyName: "테스트코",
+    content: { private_markdown: authored },
+    includePersonalized: true,
+    preferredLocale: "ko",
+  });
+
+  assert.equal(markdown, authored);
+  assert.doesNotMatch(markdown, /^# |^## /m);
 });
 
 test("links only a saved document and keeps the report readable if saving fails", async () => {
@@ -316,7 +338,7 @@ test("links only a saved document and keeps the report readable if saving fails"
   };
   const document = {
     id: "aaaa1111-2222-4333-8444-555555555555",
-    title: "테스트코 합류 검토.md",
+    title: "테스트코 리서치.md",
   };
   const saved = formatCompanySnapshotMessage({
     snapshot: { ...snapshot, document },

@@ -1,0 +1,74 @@
+type ResultRole = {
+  automaticSearchEnabled: boolean;
+  id: string;
+  name: string;
+};
+
+type ResultCandidate = {
+  headline: string | null;
+  name: string;
+  profileUrl: string;
+  reason: string;
+  roleId: string;
+  roleName: string;
+  summary: string | null;
+};
+
+export type CompanyMatchingResultContextInput = {
+  candidates: ResultCandidate[];
+  roles: ResultRole[];
+  runStatus: string;
+};
+
+export function buildCompanyMatchingResultContext(
+  input: CompanyMatchingResultContextInput
+) {
+  const selected = input.candidates.length;
+  const succeeded = input.runStatus === "succeeded";
+  const roleNames =
+    input.roles
+      .map((role) => role.name)
+      .filter(Boolean)
+      .join(", ") || "부탁받은 채용";
+  const lines = [
+    `- Harper가 ${roleNames} 채용에 관해 앞서 부탁받은 확인을 마쳤다.`,
+    ...(succeeded
+      ? selected > 0
+        ? [
+            "- 지금 회사에 소개해도 좋겠다고 판단한 사람들이 아래에 있다.",
+            "- 이들은 아직 이 회사를 보거나 대화할 마음이 있는지 확인한 상태가 아니다. 회사가 만나 보고 싶은 사람을 고르면 그때 Harper가 본인에게 의사를 묻는다.",
+          ]
+        : [
+            "- 지금 Harper가 알고 있는 사람들 가운데 회사가 찾는 사람에 비춰 바로 소개해도 좋겠다고 확신할 만한 사람은 고르지 못했다.",
+            "- 이 채용에 잘 맞는 사람이 전혀 없다는 뜻은 아니다. 확신이 부족한 사람을 숫자를 채우기 위해 소개하지 않았다는 뜻이다.",
+            "- 사람에 따라 자신의 프로필이 회사에 먼저 전달되기보다 본인이 회사를 먼저 보고 대화할지 정하길 원하기도 한다. 그런 사람은 지금 회사에 바로 보여 줄 수 없지만, 충분히 잘 맞는다면 Harper가 회사를 먼저 소개하고 동의를 받은 뒤 연결할 수 있다.",
+          ]
+      : input.runStatus === "skipped"
+        ? [
+            "- 현재 회사 또는 Role 상태 때문에 부탁받은 일을 진행하지 못했다.",
+            "- 사람을 검토한 뒤 적합한 사람이 없었다는 의미는 아니다.",
+          ]
+        : [
+            "- 부탁받은 일을 끝까지 마치지 못했다.",
+            "- 적합한 사람이 없었다거나 누군가에게 연락했다는 의미는 아니다.",
+          ]),
+    ...(succeeded && input.roles.some((role) => role.automaticSearchEnabled)
+      ? [
+          "- 이 채용은 이후 새로 들어오거나 정보가 달라진 사람도 다시 살펴보도록 설정되어 있다. 시점이나 결과를 약속할 수는 없다.",
+        ]
+      : []),
+  ];
+
+  if (selected > 0) {
+    lines.push("");
+    for (const candidate of input.candidates) {
+      lines.push(
+        `- [${candidate.name}](${candidate.profileUrl}) · ${candidate.roleName}`,
+        `  - ${candidate.headline || "공개 headline 없음"}`,
+        `  - ${candidate.summary || "공개 가능한 경력 요약 없음"}`,
+        `  - 이 회사와 잘 맞을 수 있다고 본 이유: ${candidate.reason}`
+      );
+    }
+  }
+  return lines.join("\n");
+}

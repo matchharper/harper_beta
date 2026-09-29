@@ -46,10 +46,17 @@
 - `docs/company/company-first-talent-recommendation-codex-runbook-ko.md` is kept
   only to interpret and reproduce the historical manual `v1` shadow calibration.
   Do not use its commit procedure as a production or scheduled runner.
-- A selection run may create only the company-side `ready` artifact described
-  by those documents. It must not create a candidate-visible recommendation,
-  candidate message, email, follow-up, or normal pipeline stage; those begin
-  only after a company explicitly requests the intro.
+- A company-scoped matching run may choose `candidate_first`, `company_first`,
+  or `no_action`. A `candidate_first` decision must enqueue the existing
+  Opportunity Worker forced-internal-role delivery and reuse its normal
+  recommendation/follow-up path. A `company_first` decision may create only
+  the company-side `ready` artifact; its candidate-visible recommendation,
+  message, email, and follow-up begin only after a company explicitly requests
+  the intro. An existing unanswered or declined Harper recommendation may coexist
+  with a company-first ready proposal for the same Role. Do not create a new duplicate
+  candidate-first recommendation. A company Intro supersedes the older candidate
+  card; accepting the older recommendation while the company proposal is still ready
+  closes that proposal and moves the candidate to pending connection atomically.
 
 ## Company-side UX writing
 
@@ -77,6 +84,8 @@
 
 ## Prompt and context design
 
+- Company-side LLM의 prompt, context, tool, model 또는 evaluation을 변경하기 전에 `docs/company-side-agent-engineering-contract-ko.md`를 읽는다. 지침은 해당 책임 원본에서 수정하고 시나리오별 규칙을 다른 prompt에 덧붙이지 않는다. 관련 frozen 평가를 재실행하고 한계와 실패를 기록한다.
+
 - Career Memory/Brief 변경·리뷰 전에는 `docs/talent-unified-memory-implementation-plan-ko.md`의 설계 계약을 읽는다. 온보딩의 기존 extraction·checklist·진행 로직은 유지하되, 이후에는 원본 LLM의 공통 read/write tool을 사용한다. 의미 판단을 별도 추출 모델이나 룰베이스·키워드 분류로 옮기지 않는다. 서버는 권한·타입·식별자·동시 수정·안전 경계를 검증한다. 설계 문서를 구현 완료의 증거로 취급하지 않는다.
 - Brief의 새 주제는 자유 형식 label·content로 저장하고, 일반 tool에 key enum이나 key 작성 요구를 두지 않는다. 기존 key는 온보딩·이관·reader 호환 metadata로 보존한다. 기존 행은 짧은 ref로 수정하며 label을 식별자나 의미 분류 규칙으로 사용하지 않는다. 고정 key가 없는 Brief도 사용자측 채팅·검색·추천·UI에 포함한다.
 - Memory add에는 원본 LLM이 매칭·판단 중요도 1·2·3을 정한다. Brief에는 importance를 두지 않는다. 새 발화로 기존 행이 더 이상 사실이 아니게 되면 상충 행을 추가하지 말고 기존 행을 수정하거나 삭제한다. 중요도나 stale 여부를 키워드·휴리스틱으로 정하지 않는다.
@@ -86,6 +95,7 @@
 - Apply context minimization before prompt instructions. If the final-writing LLM must not expose an internal value, do not provide that raw value and then tell it not to mention it. Omit unnecessary implementation data entirely; when a fact is needed, transform internal IDs, enums, booleans, queue states, tool names, and provider diagnostics into the smallest user-safe semantic fact before it enters the final-generation context.
 - Keep code and prompt responsibilities separate. Code owns authorization, state transitions, verified facts, exact user-authored content, and required links. The LLM owns the surrounding explanation and conversational judgment. On successful actions, do not replace the whole LLM response with a deterministic success narrative. Deterministic text may be appended only for exact content or verified links that must not be changed. Server-authoritative failure and uncertainty boundaries may still override unsupported success claims.
 - Tool descriptions define when a tool is appropriate, required inputs, effects, and continuation rules. They must not carry final-answer templates, hidden implementation vocabulary, or wording instructions that belong to the final-writing contract. Tool results for final generation should contain user-safe facts that are sufficient to write an accurate answer, including timing and incomplete states when they materially affect the experience.
+- Whenever a tool, background job, or asynchronous run produces a result that must be communicated to a company user, pass a compact user-safe result and the relevant conversation context back through the company-side LLM. Do not turn success, zero-result, partial, skipped, or failed outcomes into deterministic prose templates, and do not instruct the model to emit an exact sentence. Code owns verified facts, authorization, idempotency, and delivery; the company-side LLM chooses the natural wording, amount of context, and format from a light outcome-oriented instruction.
 
 ## Conversational E2E quality
 

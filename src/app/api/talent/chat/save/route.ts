@@ -396,16 +396,20 @@ export async function POST(req: NextRequest) {
 
     // 온보딩 답변 저장이 끝나기 전에 완료 처리와 첫 추천을 시작하지 않는다.
     await runInsightExtraction();
-    void maybeSummarizeTalentConversation({
-      admin,
-      conversationId,
-      userId: user.id,
-    }).catch((error) => {
-      console.error("[ChatSave] Failed to summarize conversation", {
-        conversationId,
-        error: error instanceof Error ? error.message : String(error),
-        userId: user.id,
-      });
+    after(async () => {
+      try {
+        await maybeSummarizeTalentConversation({
+          admin,
+          conversationId,
+          userId: user.id,
+        });
+      } catch (error) {
+        console.error("[ChatSave] Failed to summarize conversation", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+        });
+      }
     });
 
     // Completion check: LLM marker or checklist coverage.
@@ -525,9 +529,10 @@ export async function POST(req: NextRequest) {
             internalCallRequestId,
             preferredLocale: responseLocale,
             timeZone: promptTimeZone,
-            toolNames: getCareerRealtimeToolCandidates(responseLocale).map(
-              (tool) => tool.name
-            ),
+            toolNames: getCareerRealtimeToolCandidates(responseLocale, {
+              includeCareerCoachingActivity:
+                conversationStarterId === "career_coaching",
+            }).map((tool) => tool.name),
             userId: user.id,
           })
         ).instructions;

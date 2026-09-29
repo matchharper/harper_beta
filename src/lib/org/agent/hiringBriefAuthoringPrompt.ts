@@ -1,13 +1,24 @@
-export const HIRING_BRIEF_AUTHORING_PROMPT = `
+/** Ordinary authoring does not need the professional-reference calibration manual. */
+export const ROLE_SOURCE_AUTHORING_PROMPT = `
 <hiring_brief_authoring_contract>
-- A Hiring Brief is private evaluator guidance, not candidate-facing copy. Keep Role eligibility, company caliber, and team-specific bonuses distinct.
-- Every material rule must identify the decision axis, rule strength, observable profile evidence, any supported substitute, and the effect of satisfied, contradicted, or missing evidence.
+- Authoring is source-preserving editing, not generation of an ideal recruiting advertisement. Public Description, private Hiring Brief and optional Evaluation Criteria have different readers, not separate licenses to enrich the facts. Keep broad requirements close to the company's own wording. Headings and readable prose may change; the eligible population, evidence threshold and visibility may not.
+- Description contains public opportunity facts. Private team preferences stay in the Brief unless the user specifically authorizes publishing them. A later public addition does not authorize publishing other private criteria from the conversation. Criteria only organize already-supported judgments. Do not automatically synchronize all three documents when one changes.
+- For a new Role, Description and Hiring Brief are the normal authoring outputs. Leave optional structured Evaluation Criteria empty unless the company asks for a separate evaluation rubric or supplies criteria to save. Do not generate a third interpretation of the qualifications merely because the field exists. Preserve existing Criteria on edits unless the requested change affects them; optional does not mean delete existing work.
+- A Hiring Brief is private evaluator guidance, not candidate-facing copy. Keep Role eligibility, company caliber, and team-specific bonuses distinct. An explicitly established company caliber bar is an independent interview threshold: a person may satisfy the Role and remain below that bar. Do not invent such a bar when the company has not established one.
+- Every material rule retains its supported decision axis and strength. Preserve observable evidence, substitutes and decision effects when actually given. Do not manufacture these to make a broad requirement more detailed. Duties and future goals describe the opportunity; they do not by themselves establish an additional past-experience prerequisite or preference.
 - Do not save vague traits such as fast learner, ownership, startup mindset, smart, strong company, or good communication unless the text defines the concrete professional evidence and responsibility that demonstrate them.
+- Qualifications are source clauses, not promotional prose: copy the user's qualification phrases into Description and Brief without adding descriptive modifiers. Change headings, ordering and grammar, not the qualifying experience itself. Only a new user-supplied qualification or an explicit correction changes those clauses. A broad experience requirement is already usable; missing depth, scale, evidence thresholds or extra preferences are questions, not gaps to fill.
+- Only explicit must-have or exclusion evidence creates a hard constraint. Preserve its actual breadth and strength across all three views. Keep a broad experience requirement broad: adding a specialty, depth threshold, production scale or technology narrows the eligible population even if it sounds professionally reasonable. Illustrative evidence is optional, not another requirement. A preferred behavior must not become mandatory within its explanation.
+- Generated JD prose, Harper's earlier draft, a generic profession template and another Role are not new evidence for this Role's requirements or preferences. If an additional criterion would help, ask about it rather than saving it as an established company preference. A user's agreement to work conditions or to continue the flow is not approval of unrelated inferred qualifications. Distinguish missing evidence from confirmed failure to meet the bar.
+- A full rewrite uses exactly the top-level headings ## Hard constraints and ## Preferred criteria. Put the most decision-relevant requirements and company bar first because the current worker projection may truncate later text.
+</hiring_brief_authoring_contract>
+`;
+
+export const HIRING_BRIEF_AUTHORING_PROMPT = `${ROLE_SOURCE_AUTHORING_PROMPT}
+<professional_reference_calibration_contract>
 - Preserve explicit school or program anchors when the user has established that education matters. State what each anchor means, whether it is sufficient alone or must combine with Role-direct evidence, and how unlisted backgrounds are treated. Never erase an established school bar by replacing it with an abstract trait.
 - A reference person's exact employers are observed anchors, not an automatic preferred-company list. Generalize the demonstrated level into a matchable peer group based on function, team, scope, progression, production or customer responsibility, and results. Include representative company names only when they make an evidence-backed level operational; never turn one biography into an exhaustive whitelist.
 - The user's stated reason is the strongest calibration evidence. One reference normally supports a small set of non-exclusive bonuses, not a new hard requirement. Stronger rules, equivalents, or exclusions require explicit user direction or corroborating independent evidence.
-- Only explicit must-have or exclusion evidence creates a hard constraint. Distinguish missing evidence from confirmed failure to meet the bar.
 - Keep reference identity, URLs, chronology, profile labels, and calibration provenance out of the Hiring Brief. Write reusable present-tense criteria for future candidates.
-- A full rewrite uses exactly the top-level headings ## Hard constraints and ## Preferred criteria. Put the most decision-relevant requirements and company bar first because the current worker projection may truncate later text.
-</hiring_brief_authoring_contract>
+</professional_reference_calibration_contract>
 `;

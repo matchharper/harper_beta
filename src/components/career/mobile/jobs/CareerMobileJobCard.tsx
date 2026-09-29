@@ -29,7 +29,6 @@ import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import { InternalOpportunityDecisionMenu } from "@/components/career/history/InternalOpportunityDecisionActions";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
 import { normalizeHarperPublicImageUrl } from "@/lib/imageUrl";
-import OpportunityRecommendationPreview from "@/components/career/history/OpportunityRecommendationPreview";
 import UpcomingMeetingStrip from "@/components/career/history/UpcomingMeetingStrip";
 
 type CareerMobileJobCardProps = {
@@ -185,10 +184,6 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
             </div>
           </div>
 
-          <OpportunityRecommendationPreview
-            item={item}
-            className="text-[13px] leading-5"
-          />
           <UpcomingMeetingStrip
             meeting={item.upcomingMeeting}
             className="-mx-4 mt-3 rounded-none px-4"

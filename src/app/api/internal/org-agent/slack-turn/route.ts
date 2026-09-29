@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireInternalWorkerSecret,
@@ -44,6 +45,7 @@ import {
 } from "@/lib/org/slackFiles";
 import {
   getSlackOrgAgentModel,
+  ORG_AGENT_TERRA_MODEL,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import {
@@ -79,6 +81,21 @@ export const maxDuration = 300;
 export const runtime = "nodejs";
 
 const clean = (value: unknown) => String(value ?? "").trim();
+
+function stableSlackClientMessageId(seed: string) {
+  const digest = createHash("sha256").update(seed).digest("hex").slice(0, 32);
+  const chars = digest.split("");
+  chars[12] = "4";
+  chars[16] = "8";
+  const value = chars.join("");
+  return [
+    value.slice(0, 8),
+    value.slice(8, 12),
+    value.slice(12, 16),
+    value.slice(16, 20),
+    value.slice(20, 32),
+  ].join("-");
+}
 
 function object(value: unknown): Record<string, any> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -492,15 +509,14 @@ async function recoverPersistedSlackReply(args: {
       .limit(1)
       .maybeSingle(),
     (args.admin.from("company_messages" as any) as any)
-      .select("id, content, slack_message_ts")
+      .select("id, content, metadata, slack_message_ts")
       .eq("company_workspace_id", args.workspaceId)
       .eq("slack_thread_id", args.slackThreadId)
       .eq("message_type", "slack")
       .eq("role", "assistant")
       .contains("metadata", { slackReplyJobId: args.jobId })
       .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .limit(5),
     (args.admin.from("company_messages" as any) as any)
       .select("id")
       .eq("company_workspace_id", args.workspaceId)
@@ -528,7 +544,10 @@ async function recoverPersistedSlackReply(args: {
     proposal?.created_by_user_message_id || 0
   );
   if (proposal && proposalText && proposalUserMessageId) {
-    const proposalMessage = assistantResult.data as {
+    const proposalMessage = (assistantResult.data ?? []).find(
+      (message: any) =>
+        Number(message.id) === Number(proposal.presented_message_id)
+    ) as {
       id: number;
       slack_message_ts: string | null;
     } | null;
@@ -546,11 +565,19 @@ async function recoverPersistedSlackReply(args: {
     };
   }
 
-  const assistant = assistantResult.data as {
-    content: string;
-    id: number;
-    slack_message_ts: string | null;
-  } | null;
+  const assistant =
+    (
+      (assistantResult.data ?? []) as Array<{
+        content: string;
+        id: number;
+        metadata: Record<string, unknown> | null;
+        slack_message_ts: string | null;
+      }>
+    ).find((message) => {
+      const metadata = object(message.metadata);
+      const agentTurn = object(metadata.agentTurn);
+      return !clean(agentTurn.phase) || clean(agentTurn.phase) === "terminal";
+    }) ?? null;
   const userMessageId = Number(userResult.data?.id || 0);
   const assistantText = clean(assistant?.content);
   if (assistant && assistantText && userMessageId) {
@@ -576,6 +603,9 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
     threadTs: string;
     token: string;
   } | null = null;
+  const pendingSlackProgressDelivery: {
+    current: Promise<boolean> | null;
+  } = { current: null };
   let slackTurnSignal: AbortSignal | null = null;
   let slackTurnTimeBudgetExpired = false;
   const slackTurnTimeBudget = AbortSignal.timeout(SLACK_TURN_TIME_BUDGET_MS);
@@ -1064,6 +1094,9 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         let slackFileAttachments: Awaited<
           ReturnType<typeof extractHarperSlackFileAttachments>
         >["attachments"] = bootstrapAttachments;
+        let slackImageInputs: Awaited<
+          ReturnType<typeof extractHarperSlackFileAttachments>
+        >["images"] = [];
         slackFileErrors.push(...bootstrapFileErrors);
         if (pendingUserFiles.length > 0) {
           pendingUserFiles = mergeHarperSlackFiles(pendingUserFiles);
@@ -1103,20 +1136,29 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
               token,
             });
             slackFileAttachments = extracted.attachments;
+            slackImageInputs = extracted.images;
             slackFileErrors.push(...extracted.errors);
           }
         }
 
         const sharedMessageMetadata: OrgAgentMessageMetadata = {
-          ...(slackFileAttachments.length > 0
+          ...(slackFileAttachments.length > 0 || slackImageInputs.length > 0
             ? {
-                attachments: slackFileAttachments.map((attachment) => ({
-                  kind: attachment.kind,
-                  mime: attachment.mime,
-                  name: attachment.name,
-                  size: attachment.size,
-                  truncated: attachment.truncated,
-                })),
+                attachments: [
+                  ...slackFileAttachments.map((attachment) => ({
+                    kind: attachment.kind,
+                    mime: attachment.mime,
+                    name: attachment.name,
+                    size: attachment.size,
+                    truncated: attachment.truncated,
+                  })),
+                  ...slackImageInputs.map((image) => ({
+                    kind: "file" as const,
+                    mime: image.mime,
+                    name: image.name,
+                    size: image.size,
+                  })),
+                ],
                 slackFileAttachments,
               }
             : {}),
@@ -1138,11 +1180,16 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         const llmUserMessage = buildHarperSlackFileLlmMessage({
           attachments: slackFileAttachments,
           errors: slackFileErrors,
+          images: slackImageInputs,
           message:
             isRoleCreationBootstrap && !isSyntheticBootstrapMessage
               ? prompt
               : batchedPrompt,
         });
+        const slackOrgAgentModel =
+          slackImageInputs.length > 0
+            ? ORG_AGENT_TERRA_MODEL
+            : getSlackOrgAgentModel();
         let roleConfirmationResult: Awaited<
           ReturnType<typeof runOrgRoleCreationChat>
         > | null = null;
@@ -1233,7 +1280,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                   assistantMessage: confirmed.assistantMessage,
                   conversationId: clean(sourceMessage?.conversation_id),
                   kind: "message",
-                  model: getSlackOrgAgentModel() as OrgAgentModelId,
+                  model: slackOrgAgentModel as OrgAgentModelId,
                   roleId: draftRoleCreation.roleId,
                   userMessage: currentUserMessage,
                 };
@@ -1269,11 +1316,12 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                 attachments: slackFileAttachments,
                 emit: emitSlackAgentEvent,
                 llmUserMessage,
+                imageInputs: slackImageInputs,
                 mentions: [],
                 message: prompt,
                 messageType: "slack",
                 messageUserId: actorUserId,
-                model: getSlackOrgAgentModel(),
+                model: slackOrgAgentModel,
                 roleId: draftRoleCreation.roleId,
                 slackAssistantUserId: integration.slack_bot_user_id,
                 slackThreadId: thread.id,
@@ -1294,10 +1342,107 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                 emit: emitSlackAgentEvent,
                 mentions: [],
                 llmUserMessage,
+                imageInputs: slackImageInputs,
                 message: prompt,
                 messageType: "slack",
                 messageUserId: null,
-                model: getSlackOrgAgentModel(),
+                model: slackOrgAgentModel,
+                onAssistantProgress: async (progressMessage) => {
+                  pendingSlackProgressDelivery.current = (async () => {
+                    try {
+                      const {
+                        data: storedProgress,
+                        error: storedProgressError,
+                      } = await (admin.from("company_messages" as any) as any)
+                        .select("slack_message_ts")
+                        .eq("id", progressMessage.id)
+                        .maybeSingle();
+                      if (storedProgressError) throw storedProgressError;
+                      if (clean(storedProgress?.slack_message_ts)) return true;
+
+                      const parsed = parseHarperSlackChoiceMarkers(
+                        progressMessage.content
+                      );
+                      const targets = await loadSlackOrgLinkTargets({
+                        admin,
+                        message: parsed.text,
+                        preferredRoleId: clean(thread.role_id) || null,
+                        workspaceId: channel.company_workspace_id,
+                      });
+                      let progressText = renderSlackOrgLinks({
+                        message: parsed.text,
+                        publicSiteUrl,
+                        ...targets,
+                        workspaceId: channel.company_workspace_id,
+                      });
+                      progressText =
+                        convertMarkdownLinksToSlackMrkdwn(progressText);
+                      const posted = await postHarperSlackMessage({
+                        channelId,
+                        clientMessageId: stableSlackClientMessageId(
+                          `${job.id}:progress`
+                        ),
+                        text: progressText,
+                        threadTs,
+                        token,
+                        unfurlLinks: false,
+                      });
+                      const progressTs = clean(posted.ts);
+                      if (!progressTs) {
+                        throw new Error(
+                          "Slack progress message has no timestamp"
+                        );
+                      }
+                      const { error: progressUpdateError } = await (
+                        admin.from("company_messages" as any) as any
+                      )
+                        .update({ slack_message_ts: progressTs })
+                        .eq("id", progressMessage.id)
+                        .is("slack_message_ts", null);
+                      if (progressUpdateError) throw progressUpdateError;
+                      // chat.postMessage clears Slack's transient thread status.
+                      pendingSlackStatus = null;
+                      return true;
+                    } catch (progressError) {
+                      // A progress delivery failure must never stop the tool
+                      // loop or replace its verified terminal answer.
+                      console.warn(
+                        "[org-agent/slack-turn:progress-delivery]",
+                        progressError
+                      );
+                      const { data: storedMessage } = await (
+                        admin.from("company_messages" as any) as any
+                      )
+                        .select("metadata")
+                        .eq("id", progressMessage.id)
+                        .maybeSingle();
+                      const { error: hideProgressError } = await (
+                        admin.from("company_messages" as any) as any
+                      )
+                        .update({
+                          message_type: "agent_internal",
+                          metadata: {
+                            ...object(storedMessage?.metadata),
+                            source: "org_agent_progress_delivery_failed",
+                          },
+                          status: "failed",
+                        })
+                        .eq("id", progressMessage.id)
+                        .is("slack_message_ts", null);
+                      if (hideProgressError) {
+                        console.error(
+                          "[org-agent/slack-turn:hide-failed-progress]",
+                          hideProgressError
+                        );
+                      }
+                      return false;
+                    }
+                  })();
+                  // Provider delivery proceeds concurrently with subsequent
+                  // tool calls. The turn awaits it only at the final ordering
+                  // boundary before posting the terminal message.
+                  return true;
+                },
                 roleId: clean(thread.role_id) || null,
                 slackAssistantUserId: integration.slack_bot_user_id,
                 slackExecutionContext: {
@@ -1315,8 +1460,13 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                 signal: slackTurnSignal,
                 user: authData.user,
                 userMessageMetadata: sharedMessageMetadata,
+                turnRunId: job.id,
                 workspaceId: channel.company_workspace_id,
               }));
+        if (pendingSlackProgressDelivery.current) {
+          await pendingSlackProgressDelivery.current;
+          pendingSlackProgressDelivery.current = null;
+        }
         slackTurnSignal.throwIfAborted();
         await assertSlackReplyJobCurrent({ admin, jobId: job.id });
         if (result.kind === "slack_proposal_draft") {
@@ -1579,6 +1729,9 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
     console.error("[org-agent/slack-turn]", error);
     return toInternalApiErrorResponse(error, "Failed to run Slack agent turn");
   } finally {
+    if (pendingSlackProgressDelivery.current) {
+      await pendingSlackProgressDelivery.current.catch(() => false);
+    }
     stopSlackJobWatch?.();
   }
 }

@@ -2,200 +2,193 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const migration = readFileSync(
+const baseMigration = readFileSync(
   "supabase/migrations/20260915130000_company_talent_ongoing_relays.sql",
+  "utf8"
+);
+const mutualMigration = readFileSync(
+  "supabase/migrations/20260922190000_mutual_company_talent_relays.sql",
   "utf8"
 );
 const candidateTools = readFileSync(
   "src/lib/talentOnboarding/tools.ts",
   "utf8"
 );
-const candidateRequestPresentation = readFileSync(
-  "src/lib/companyTalentRequests/presentation.ts",
-  "utf8"
-);
 const candidateRequestServer = readFileSync(
   "src/lib/companyTalentRequests/server.ts",
   "utf8"
 );
+const candidateCopy = readFileSync(
+  "src/lib/companyTalentRequests/copy.ts",
+  "utf8"
+);
 const companyTools = readFileSync("src/lib/org/agent/tools.ts", "utf8");
+const contactPolicies = readFileSync("src/lib/org/agent/capabilities/policies.ts", "utf8");
+const companyToolExecution = readFileSync(
+  "src/lib/org/agent/toolExecution.ts",
+  "utf8"
+);
 const deliveryRoute = readFileSync(
-  "src/app/api/internal/company-talent-requests/deliver/route.ts",
+  "src/lib/companyTalentRequests/delivery.ts",
   "utf8"
 );
 const companyContext = readFileSync("src/lib/org/agent/context.ts", "utf8");
 const careerToolSelection = readFileSync("src/lib/career/llmTools.ts", "utf8");
+const opportunityHistory = readFileSync("src/lib/talentOpportunity.ts", "utf8");
 
-test("each candidate transmission has an independent durable delivery identity", () => {
+test("relay persistence is recommendation-based while preserving request provenance", () => {
   assert.match(
-    migration,
-    /create table if not exists public\.company_talent_relays/
+    mutualMigration,
+    /add column if not exists recommendation_id uuid[\s\S]*talent_opportunity_recommendation/
   );
   assert.match(
-    migration,
-    /unique \(company_talent_request_id, source_talent_message_id\)/
+    mutualMigration,
+    /alter column recommendation_id set not null,[\s\S]*alter column company_talent_request_id drop not null/
   );
   assert.match(
-    migration,
+    mutualMigration,
+    /company_talent_relays_recommendation_created_idx/
+  );
+  assert.match(
+    mutualMigration,
+    /company_talent_relays_recommendation_source_uidx/
+  );
+  assert.match(
+    baseMigration,
     /contact_queue_company_talent_relay_delivery_uidx[\s\S]*company_talent_relay_id/
   );
-  assert.match(
-    migration,
-    /jsonb_build_object\('requestId', v_request\.id, 'relayId', v_relay\.id\)[\s\S]*v_request\.role_id,[\s\S]*null,[\s\S]*null,[\s\S]*v_relay\.id/
-  );
-  assert.match(
-    deliveryRoute,
-    /idempotencyKey: relayId[\s\S]*finalize_company_talent_relay_delivery_v1/
-  );
 });
 
-test("the outbox is the only relay delivery-state owner", () => {
-  const tableSql =
-    migration.match(
-      /create table if not exists public\.company_talent_relays \([\s\S]*?\n\);/
-    )?.[0] ?? "";
-  assert.doesNotMatch(
-    tableSql,
-    /delivery_body|delivered_at|slack_message_ts|slack_bot_user_id|\bstatus\b|updated_at/
-  );
-  const bodyWriter =
-    migration.match(
-      /create or replace function public\.store_company_talent_relay_body_v2[\s\S]*?\n\$\$;/
-    )?.[0] ?? "";
-  assert.match(bodyWriter, /update public\.contact_queue/);
-  assert.doesNotMatch(bodyWriter, /update public\.company_talent_relays/);
-});
-
-test("ongoing relay authorization depends on a sent prior contact, not request state", () => {
+test("mutual relay authorization recognizes all durable connection origins", () => {
   const functionSql =
-    migration.match(
-      /create or replace function public\.create_company_talent_relay_v1[\s\S]*?\n\$\$;/
+    mutualMigration.match(
+      /create or replace function public\.create_company_talent_relay_v2[\s\S]*?\n\$\$;/
     )?.[0] ?? "";
   assert.match(functionSql, /company_request_candidate_delivery/);
-  assert.match(functionSql, /delivery\.status = 'sent'/);
-  assert.match(functionSql, /message\.user_id = p_talent_id/);
-  assert.doesNotMatch(functionSql, /v_request\.workflow_status/);
-  assert.doesNotMatch(
+  assert.match(functionSql, /intro\.status in \('connecting', 'connected'\)/);
+  assert.match(
     functionSql,
-    /role\.status|role\.is_expired|expires_at > now/
+    /'내부:연결대기', '내부:연결됨', '내부:최종오퍼'[\s\S]*'내부단계:%'/
   );
+  assert.match(
+    functionSql,
+    /talent_progress[\s\S]*org_stage_change[\s\S]*pending_connection[\s\S]*custom:%/
+  );
+  assert.match(functionSql, /recommendation\.feedback = 'like'/);
+  assert.match(functionSql, /message\.user_id = p_talent_id/);
+  assert.doesNotMatch(functionSql, /role\.status|role\.is_expired/);
 });
 
-test("company contact and candidate ongoing-relay tools are additive", () => {
-  assert.match(companyTools, /enum: \["contact", "question", "resume"\]/);
+test("Career exposes one general connection reader and one relay writer", () => {
   assert.match(
     candidateTools,
-    /LIST_COMPANY_REQUESTS: "list_company_requests"/
+    /READ_COMPANY_CONNECTIONS: "read_company_connections"/
   );
-  assert.match(candidateTools, /RELAY_TO_COMPANY: "relay_to_company"/);
-  assert.match(
-    candidateTools,
-    /answered contacts remain valid relay destinations/
-  );
+  assert.match(candidateTools, /CONTACT_COMPANY: "contact_company"/);
   assert.match(
     careerToolSelection,
-    /CAREER_CHAT_ONBOARDING_TOOL_NAMES[\s\S]*TALENT_TOOL_NAMES\.LIST_COMPANY_REQUESTS[\s\S]*TALENT_TOOL_NAMES\.RELAY_TO_COMPANY/
+    /CAREER_CHAT_ONBOARDING_TOOL_NAMES[\s\S]*TALENT_TOOL_NAMES\.READ_COMPANY_CONNECTIONS[\s\S]*TALENT_TOOL_NAMES\.CONTACT_COMPANY/
   );
   assert.match(
-    careerToolSelection,
-    /toolName === TALENT_TOOL_NAMES\.RECORD_COMPANY_REQUEST_RESPONSE[\s\S]*activeCompanyTalentRequestMode === "text"[\s\S]*activeCompanyTalentRequestMode === "document"/
+    candidateRequestServer,
+    /company_intro_candidates[\s\S]*talent_opportunity_tag[\s\S]*company_talent_requests[\s\S]*company_talent_relays[\s\S]*talent_progress/
   );
+  assert.match(candidateTools, /required: \["connectionId", "relayContent"\]/);
+  assert.doesNotMatch(candidateTools, /LIST_COMPANY_REQUESTS/);
 });
 
-test("candidate contact list includes the latest relay delivery state", () => {
-  assert.match(
-    candidateRequestServer,
-    /relays:company_talent_relays\(id,created_at,deliveries:contact_queue\(type,status,sent_at,updated_at\)\)/
-  );
-  assert.match(
-    candidateRequestServer,
-    /referencedTable: "relays"[\s\S]*\.limit\(1, \{ referencedTable: "relays" \}\)/
-  );
-  assert.match(
-    candidateRequestServer,
-    /latestRelayStatus:[\s\S]*normalizeCompanyTalentRelayDeliveryStatus/
-  );
-  assert.match(
-    candidateRequestServer,
-    /최근 후보자→회사 relay: \$\{latestRelay\}/
-  );
-  assert.match(
-    candidateTools,
-    /latest relay as queued, sent, failed, or cancelled/
-  );
-});
-
-test("candidate relay replies omit queue and unsupported follow-up promises", () => {
-  const responseTool =
-    candidateTools.match(
-      /\[TALENT_TOOL_NAMES\.RECORD_COMPANY_REQUEST_RESPONSE\]: \{[\s\S]*?\n  \},\n  \[TALENT_TOOL_NAMES\.LIST_COMPANY_REQUESTS\]/
-    )?.[0] ?? "";
-  const listTool =
-    candidateTools.match(
-      /\[TALENT_TOOL_NAMES\.LIST_COMPANY_REQUESTS\]: \{[\s\S]*?\n  \},\n  \[TALENT_TOOL_NAMES\.RELAY_TO_COMPANY\]/
-    )?.[0] ?? "";
+test("Career waits for immediate delivery without exposing requestId or a pending-send state", () => {
   const relayTool =
     candidateTools.match(
-      /\[TALENT_TOOL_NAMES\.RELAY_TO_COMPANY\]: \{[\s\S]*?\n  \},\n  \[TALENT_TOOL_NAMES\.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK\]/
+      /\[TALENT_TOOL_NAMES\.CONTACT_COMPANY\]: \{[\s\S]*?\n  \},\n  \[TALENT_TOOL_NAMES\.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK\]/
     )?.[0] ?? "";
-
-  for (const tool of [responseTool, listTool, relayTool]) {
-    assert.notEqual(tool, "");
-    assert.match(tool, /skipCommonAssistantInstruction: true/);
-  }
+  assert.notEqual(relayTool, "");
+  assert.match(relayTool, /status=\$\{relay\.status\}/);
   assert.doesNotMatch(
-    `${responseTool}\n${relayTool}\n${candidateRequestPresentation}`,
-    /queued_for_company|already_queued|will relay|accepted this message for delivery/i
+    relayTool,
+    /requestId:|relayQueued|Do not say delivery completed/
   );
-  assert.match(responseTool, /status=delivered_to_company/);
-  assert.match(relayTool, /delivered_to_company/);
+  assert.match(candidateRequestServer, /await deliverCompanyTalentRelay/);
+  assert.match(
+    candidateRequestServer,
+    /return \{ \.\.\.result, status: "sent" \}/
+  );
+  assert.match(deliveryRoute, /store_company_talent_relay_body_v2/);
+  assert.match(deliveryRoute, /finalize_company_talent_relay_delivery_v1/);
 });
 
-test("renewed-interest first response keeps its existing state side effect", () => {
+test("Request Intro progress is fact-based and bypasses 7/21 fixed progress", () => {
   assert.match(
-    migration,
-    /v_first_response and v_request\.intent = 'candidate_reengagement'[\s\S]*candidate_reengagement_requires_response_recording/
+    opportunityHistory,
+    /TalentCompanyRequestIntroProgressFacts[\s\S]*origin: "company_request_intro"/
   );
+  assert.match(
+    opportunityHistory,
+    /args\.item\.opportunityType === OpportunityType\.IntroRequest[\s\S]*return null/
+  );
+  for (const field of [
+    "requestedAt",
+    "talentAcceptedAt",
+    "latestCompanyContactAt",
+    "latestCandidateRelayStatus",
+  ]) {
+    assert.match(opportunityHistory, new RegExp(`${field}:`));
+  }
 });
 
-test("legacy responses and repeated resume attachments share the relay ledger", () => {
+test("contact_talent lets the model choose a verified direct relay reply", () => {
+  assert.match(companyTools, /"create_draft",[\s\S]*"send",/);
   assert.match(
-    migration,
-    /insert into public\.company_talent_relays[\s\S]*request\.talent_source_message_id[\s\S]*on conflict \(company_talent_request_id, source_talent_message_id\) do nothing/
+    contactPolicies,
+    /Decide from the whole conversation whether delivery is authorized/
+  );
+  assert.match(companyTools, /messageContent:[\s\S]*relayId:/);
+  assert.match(
+    companyToolExecution,
+    /if \(action === "send" && has\(args.input, "relayId"\)\)[\s\S]*fetchCompanyTalentRelayReplyTarget[\s\S]*prepareDirectCandidateMessage[\s\S]*sendCompanyTalentRelayReply/
   );
   assert.match(
-    migration,
-    /document_id uuid references public\.talent_documents/
+    companyToolExecution,
+    /candidateMessageSent = sent\.status === "sent"[\s\S]*sent\.status === "queued"[\s\S]*"scheduled"[\s\S]*"not_sent"/
   );
+  assert.match(companyTools, /For send provide talentId \+ roleId \+ messageContent, or relayId \+ messageContent/);
   assert.match(
-    migration,
-    /create or replace function public\.finalize_company_talent_resume_relay_v1/
+    candidateCopy,
+    /validateCompanyContactContext\(args\.requestContext\)/
   );
-  assert.match(
-    migration,
-    /origin_type[\s\S]*'company_talent_relay'[\s\S]*company_contact_company_delivery/
-  );
+  const directSendServer =
+    candidateRequestServer.match(
+      /export async function sendCompanyTalentRelayReply[\s\S]*?\n\}/
+    )?.[0] ?? "";
+  assert.notEqual(directSendServer, "");
+  assert.doesNotMatch(directSendServer, /assertSafeProfessionalQuestion/);
 });
 
-test("contact kind remains structurally consistent with document expectation", () => {
-  assert.match(migration, /expects_document = \(contact_kind = 'resume'\)/);
+test("direct replies retain exact relay context and enforce it in the database", () => {
+  const functionSql =
+    mutualMigration.match(
+      /create or replace function public\.send_company_talent_relay_reply_v1[\s\S]*?\n\$\$;/
+    )?.[0] ?? "";
+  assert.match(functionSql, /candidateRelayRef,relayId[\s\S]*p_relay_id::text/);
   assert.match(
-    migration,
-    /case when p_expects_document then 'resume' else 'question' end/
+    functionSql,
+    /prior\.conversation_id = v_source_conversation_id/
   );
   assert.match(
-    migration,
-    /record_contact_queue_org_candidate_activity_v1[\s\S]*request\.contact_kind[\s\S]*'requestKind', v_contact_kind/
+    functionSql,
+    /in_reply_to_company_talent_relay_id[\s\S]*'deliveryMode', 'immediate'/
   );
-});
-
-test("delivered relays carry an exact private company-conversation reference", () => {
+  assert.match(functionSql, /pg_advisory_xact_lock/);
+  assert.match(
+    functionSql,
+    /company_request_candidate_delivery[\s\S]*v_delivery_status = 'sent'[\s\S]*then 'sent'/
+  );
   assert.match(
     deliveryRoute,
-    /candidateRelayRef:[\s\S]*relayId:[\s\S]*requestId:[\s\S]*roleId[\s\S]*talentId/
+    /candidateRelayRef:[\s\S]*relayId:[\s\S]*recommendationId:[\s\S]*roleId[\s\S]*talentId/
   );
   assert.match(
     companyContext,
-    /candidate_contact_ref\{[\s\S]*talent_id=[\s\S]*role_id=[\s\S]*request_id=[\s\S]*relay_id=/
+    /candidate_contact_ref\{[\s\S]*recommendation_id=[\s\S]*relay_id=/
   );
 });

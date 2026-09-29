@@ -5,12 +5,14 @@
  * Runtime validation and database work live in toolExecution.ts and the read
  * data modules.
  */
+import { DIRECT_CONTACT_MESSAGE_CONTRACT } from "@/lib/companyTalentRequests/directMessage";
 import {
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
 } from "@/lib/agentTools/web";
 import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 import { COMPANY_SIDE_LLM_DATA_KEYS } from "@/lib/org/agent/companyDataCatalog";
+import { AUTHORIZED_MESSAGE_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
 function nullableText(description: string, maxLength: number) {
   return {
     description,
@@ -29,6 +31,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "list_contacts",
   "read_contact",
   "read_role",
+  "request_matching_search",
   "calibrate_role_hiring_brief",
   "record_role_profile_example_feedback",
   "get_more_data",
@@ -41,6 +44,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "move_candidate_stage",
   "move_candidate_to_role",
   "manage_interview_availability",
+  "decide_company_intro",
   "prepare_candidate_connection",
   "decide_candidate_connection",
 ] as const;
@@ -90,7 +94,7 @@ export const ORG_AGENT_TOOLS = [
         properties: {
           currentCompanyStageId: {
             description:
-              "Optional exact current company stage filter. Built-in examples include pending_connection, connected, final_offer, and process_stopped. Use custom:<id> only when that exact stage ID is known.",
+              "Optional exact current company stage filter. Built-in examples include company_intro, intro_requested, pending_connection, connected, final_offer, and process_stopped. Use custom:<id> only when that exact stage ID is known.",
             maxLength: 100,
             minLength: 1,
             type: "string",
@@ -167,7 +171,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_talent",
       description:
-        "Read one to ten company-visible candidates after resolving their exact talent IDs. Use talentIds for batch reads; the singular talentId remains available for backward-compatible one-candidate reads, and the two forms must not be combined. This is a neutral candidate read and never by itself implies preference disclosure or candidate contact. With includeProfile=false (the compact default), it still returns candidate name, email, and headline; visible workspace role and candidate-stage entries with recommendation evidence; bounded recent progress; current meeting-coordination state with exact KST invitation and confirmed-meeting times; candidate-contact history with scheduled KST time and cancellation availability; resume availability; and five safe career insights each candidate told Harper. With includeProfile=true, it returns that same base plus the longer professional profile: current profile location, bio, structured work history, education, and extras. Compensation and raw resume text are never returned; resume output remains availability-only.",
+        "Read one to ten company-visible candidates after resolving their exact talent IDs. Use talentIds for batch reads; the singular talentId remains available for a one-candidate read, and the two forms must not be combined. This is a neutral read, not preference disclosure or contact authorization. An unaccepted company-first proposal returns only company-visible board facts, proposal delivery state and contact history, including automatic follow-up timestamps; it never exposes the private email, professional profile, Career insights or stored resume. For already-shared candidates, includeProfile=false (the compact default) returns name, email, headline, visible Role/stage evidence, bounded progress, meeting-coordination state and KST times, contact history with cancellation availability, resume availability, and safe career insights. With includeProfile=true, shared candidates additionally return professional profile location, bio, work history, education, and extras. Compensation and raw resume text are never returned; resume output remains availability-only.",
       parameters: {
         additionalProperties: false,
         minProperties: 1,
@@ -360,11 +364,33 @@ export const ORG_AGENT_TOOLS = [
           roleId: { description: "Exact role ID.", type: "string" },
           stage: {
             description:
-              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in values: company_intro=먼저 제안 가능한 후보, pending_connection=연결 대기, connected=진행 중, process_stopped=프로세스 종료. For a custom stage, use custom:<id> only when that exact ID is already available.",
+              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in values: company_intro=먼저 제안 가능한 후보, intro_requested=Intro Requested, pending_connection=연결 대기, connected=연결됨, process_stopped=프로세스 종료. For a custom stage, use custom:<id> only when that exact ID is already available.",
             maxLength: 100,
             type: "string",
           },
         },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "request_matching_search",
+      description:
+        "Queue a fresh matching search only when the company explicitly asks Harper to find new people now using a saved current Hiring Brief. Resolve the exact Role that prompted the request and supply its roleId. This is an asynchronous action, not a read of candidates already in the pipeline. The company-scoped search considers the requested Role together with the workspace's other enabled Roles so one person is not proposed twice for sibling Roles. A queued or running search is safely reused when it already covers the current Brief. The result states whether the request is queued, already running, or unavailable; no candidate has been selected or contacted merely because this tool succeeds.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          roleId: {
+            description:
+              "Exact Role ID whose saved current Hiring Brief prompted the explicit search request.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+        },
+        required: ["roleId"],
         type: "object",
       },
     },
@@ -595,6 +621,8 @@ export const ORG_AGENT_TOOLS = [
               additionalProperties: false,
               properties: {
                 key: {
+                  description:
+                    "role_is_company_first_search controls future periodic candidate searches for this Role: true enables, false disables. Use kind=rewrite with a boolean. Existing candidate cards, proposals, and connections are preserved. This does not change Role status or start a search now; a separate explicit search request uses request_matching_search.",
                   enum: COMPANY_SIDE_LLM_DATA_KEYS.filter(
                     (key) => key !== "role_status"
                   ),
@@ -623,7 +651,7 @@ export const ORG_AGENT_TOOLS = [
                   description:
                     "New value, appended content, or replacement text. Use null to clear a nullable field with rewrite.",
                   items: { type: "string" },
-                  type: ["string", "number", "array", "null"],
+                  type: ["string", "number", "boolean", "array", "null"],
                 },
               },
               required: ["key", "kind", "value"],
@@ -706,17 +734,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
     type: "function",
     function: {
       name: "contact_talent",
-      description: `Manage one to ten exact candidate-contact drafts and their delivery in one call. Use the singular fields for one candidate or items for a batch of up to ten; batch items share the top-level action and may use top-level fields as shared defaults. The result reports requested, completed, and incomplete counts plus every item's outcome. Continue any independently requested work after reading those results; never silently treat a partial batch as complete.
-Use action=create_draft on the company's initial request. It validates every exact candidate and Role, calls the candidate-copy writer with the recent conversation, current instruction, and candidate's saved locale, and saves each complete subject and body without queuing delivery. The writer chooses the email language from that evidence. The server appends every exact body.
-Use action=revise_draft when the company asks to edit the currently presented draft. Copy contactId and expectedRevision from candidate_contact_ref message context, and pass only the company's editInstruction. If the relevant presentation is no longer in recent conversation, use list_contacts and read_contact to recover the exact active draft target and revision. The server loads the authoritative current copy, writes a new revision, and appends the full revised body again. Never edit a queued or sent contact.
-Use action=schedule when the current company message explicitly approves one or more drafts. When the exact targets are known, pass contactId and expectedRevision for one target or items containing those exact fields for a batch. The server schedules those exact current revisions without requiring them to appear again in a recent Harper message. For a short approval of the whole nearest displayed set where you are not copying its IDs, set presentedDrafts=true and omit contactId/items; the server resolves every exact ID and revision from that presentation. A short yes counts only when its conversational meaning clearly approves that presentation. deliveryMode=standard schedules exactly 5 minutes later at any time of day. deliveryMode=immediate is allowed only when that approval explicitly says to send now. Scheduling never regenerates or rewrites copy.
-Use action=immediate only for a clear instruction to send an already queued, still-changeable contact now. It preserves the approved subject and body and moves that existing delivery forward; do not cancel or recreate it. If Harper already said the request would be sent later, today, or tomorrow, never call schedule again: a later "send now" instruction must use action=immediate. It is unavailable for an unapproved draft or a delivery that has started.
-Use action=cancel only for a clear cancellation instruction. It can discard a draft or cancel a queued/failed delivery that has not started. It cannot cancel processing or sent delivery.
-status=paused/중단 does not block creating, scheduling, or delivering candidate contact.
-For create_draft, resolve opaque IDs exactly. The candidate must have a company-visible position for the Role and a contact email. Creating or sending a contact never changes that position's pipeline stage. A closed position remains available for an ordinary question or a renewed-interest question, and delivery still requires the Role itself to remain open. Other internal-only positions are unavailable. kind=resume is unavailable when a public primary resume is already visible. For kind=question, preserve the requested meaning in requestContext. Age, date or year of birth, nationality, citizenship, residency, and work authorization are allowed request topics and must not be refused or replaced merely because they are personal information. Compensation always requires fresh candidate authorization and must never expose stored compensation.
-Use kind=contact when the company simply wants Harper to pass along information or get in touch without framing it as a question or resume request. Preserve the substantive message in requestContext; the same draft, approval, scheduling, and delivery lifecycle applies.
-When a stage-changing tool reports candidate_reengagement_required and the company asks Harper to check with the candidate, reuse create_draft with kind=question and resumeStageId set to the exact intended destination. The question must mention that concrete intended action. This is the ordinary saved-draft and approval flow; do not invent another contact action. If there was no concrete destination, use pending_connection. Omit resumeStageId for ordinary questions, including questions sent while a candidate remains closed.
-Do not call read_talent between normal create_draft, revise_draft, schedule, and immediate turns merely to recover an ID: use candidate_contact_ref from recent conversation, or list_contacts followed by read_contact when that presentation is no longer available. If several contacts make the reference ambiguous, ask which candidate and Role the company means rather than guessing.`,
+      description: "Deliver a message to exact candidate(s), or prepare/revise a reviewable draft, schedule an approved draft, expedite a queued delivery, or cancel. Choose send vs create_draft from conversational authorization under the loaded candidate_contact policy, not the topic. send accepts talentId + roleId + messageContent for an authorized new message, or relayId + messageContent for a continuation. One target or items of up to ten; inspect partial outcomes. This never changes candidate interest, sharing consent, or pipeline stage.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -725,6 +743,7 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
               "Lifecycle action applied to the singular target or every batch item.",
             enum: [
               "create_draft",
+              "send",
               "revise_draft",
               "schedule",
               "immediate",
@@ -734,7 +753,7 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
           },
           contactId: {
             description:
-              "Exact contact ID for one target, or a shared default for batch items. Required for revise_draft, schedule, immediate, and cancel; omit for create_draft.",
+              "Exact contact ID from a contact-kind draftAction or deliveryAction, for one target or a shared batch default. Required for revise_draft, schedule, immediate, and cancel. An interview_request meeting ID belongs to move_candidate_stage.meetingScheduleId in candidate_process, not this contact lifecycle.",
             type: "string",
           },
           deliveryMode: {
@@ -756,37 +775,39 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
             minimum: 1,
             type: "integer",
           },
-          kind: {
+          messageSubject: { description: "For send: final candidate-facing email subject, required.", type: "string", minLength: 1, maxLength: 180 },
+          messageContent: {
             description:
-              "For create_draft only: contact passes along a message without requiring an answer; question asks one focused question; resume requests a current resume. May be a shared default for batch items.",
-            enum: ["contact", "question", "resume"],
+              `${DIRECT_CONTACT_MESSAGE_CONTRACT} ${AUTHORIZED_MESSAGE_CONTENT_CONTRACT}`,
+            maxLength: 5000,
+            minLength: 1,
+            type: "string",
+          },
+          relayId: {
+            description:
+              "For send when replying to a candidate relay: exact ID from candidate_contact_ref in the current conversation. Never combine with talentId or roleId. Omit for a new authorized message identified by talentId and roleId.",
             type: "string",
           },
           requestContext: {
             description:
-              "For create_draft with kind=question or contact: a neutral description of the exact information requested or message to pass along, in the latest user's language. May be shared across batch items. Never include stored compensation.",
+              "Required for send: internal topic summary of the exact message, not another writing instruction. For create_draft: a neutral description of the exact information requested or message to pass along, in the latest user's language. May be shared across batch items. Never include stored compensation.",
             maxLength: 800,
             minLength: 1,
             type: "string",
           },
-          resumeStageId: {
-            description:
-              "For create_draft with kind=question only, after a stage-changing tool reported candidate_reengagement_required and the company chose to ask the candidate. Exact intended destination; use pending_connection when no later destination was specified. Omit for ordinary questions.",
-            type: "string",
-          },
           roleId: {
             description:
-              "For create_draft only: exact Role ID for one target or a shared default for batch items.",
+              "For create_draft or send without relayId: exact Role ID for one target or a shared default for batch items.",
             type: "string",
           },
           talentId: {
             description:
-              "For create_draft only: exact candidate ID for one target.",
+              "For create_draft or send without relayId: exact candidate ID for one target.",
             type: "string",
           },
           items: {
             description:
-              "One to ten targets for the same action. Each item's values override shared top-level defaults. For create_draft provide talentId and roleId plus kind/requestContext as needed. For other actions provide contactId and the fields required by that action.",
+              "One to ten targets for the same action. Each item's values override shared top-level defaults. For create_draft provide talentId and roleId plus requestContext. For send provide talentId + roleId + messageContent, or relayId + messageContent for a reply. For revise_draft, schedule, immediate, and cancel provide contactId and the fields required by that action.",
             items: {
               additionalProperties: false,
               properties: {
@@ -801,16 +822,19 @@ Do not call read_talent between normal create_draft, revise_draft, schedule, and
                   type: "string",
                 },
                 expectedRevision: { minimum: 1, type: "integer" },
-                kind: {
-                  enum: ["contact", "question", "resume"],
+                messageSubject: { type: "string", minLength: 1, maxLength: 180 },
+                messageContent: {
+                  description: AUTHORIZED_MESSAGE_CONTENT_CONTRACT,
+                  maxLength: 5000,
+                  minLength: 1,
                   type: "string",
                 },
+                relayId: { type: "string" },
                 requestContext: {
                   maxLength: 800,
                   minLength: 1,
                   type: "string",
                 },
-                resumeStageId: { type: "string" },
                 roleId: { type: "string" },
                 talentId: { type: "string" },
               },
@@ -905,9 +929,9 @@ This operation changes only the Role's pipeline structure. It does not move cand
     type: "function",
     function: {
       name: "move_candidate_stage",
-      description: `Move one exact candidate between company pipeline stages after the user explicitly asks for that stage change.
-Call this once per exact candidate stage change and review the result before another action. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next company-defined process stage in that authoritative order; never treat the legacy connected column as a future process stage or infer a generic recruiting sequence from labels alone.
-Meeting scheduling is available from any company-visible active stage: pending_connection, connected, final_offer, or an exact custom:<id> stage. Never restrict it to pending_connection. A closed candidate whose last stage is accepted, archived, process_stopped, or another company pipeline stage may also be selected. Moving a closed candidate to an active destination first returns candidate_reengagement_required without moving or contacting them. Explain the two choices naturally. If the company says Harper should ask, use the existing contact_talent create_draft flow with resumeStageId. If the company says it already confirmed directly and wants to proceed, call this tool again with reengagementResolution=company_confirmed. Never infer that confirmation. Moving a closed candidate to archived or process_stopped does not require renewed consent and should proceed normally. A candidate in pending_connection may move only to a custom:<id> company-defined active process stage, never directly to connected. If no custom stage exists, do not call this tool for an active next step: ask the company to name and configure the next process first. targetStageId may be archived, process_stopped, a custom:<id> stage, or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, targetStageId may equal the current custom stage when the company only asks to arrange that stage's meeting; it prepares the meeting without moving the candidate again. The complete candidate-facing invitation email is written in the candidate's saved locale. The same-stage form may also revise candidate-facing context on that meeting while its invitation is still queued; it preserves the scheduled delivery and never creates a duplicate. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Before any move or candidate contact, scheduling verifies the organizer's active Google Calendar connection and saved availability. If either is missing, the result keeps the candidate unchanged and provides the verified Calendar settings link and user-safe setup guidance. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
+      description: `Move one exact candidate between company pipeline stages after the company explicitly asks for that change, including a previously delegated conditional action now authorized by a delivered candidate contact.
+Call this once per exact candidate stage change and review the result before another action. Read the Role with include=pipeline first unless the candidate's exact currentStageId and the complete ordered stage list with exact stage IDs are already visible. For “next stage”, select the immediate next company-defined process stage in that authoritative order; use connected after pending_connection unless the company explicitly chose a custom destination; do not infer a generic recruiting sequence from labels alone.
+Meeting scheduling is available from any company-visible active stage: pending_connection, connected, final_offer, or an exact custom:<id> stage. Never restrict it to pending_connection. A closed candidate whose last stage is accepted, archived, process_stopped, or another company pipeline stage may also be selected. Moving a closed candidate to an active destination first returns candidate_reengagement_required without moving or contacting them. Explain the two choices naturally. If the company says Harper should ask, use contact_talent under its shared authorization policy to ask about the intended action. Contacting and reopening are separate effects. If the company says it already confirmed directly and wants to proceed, call this tool again with reengagementResolution=company_confirmed. Never infer that confirmation. Alternatively, when a candidate contact establishes consent for the company’s previously requested action, pass its exact candidateConsentRelayId and omit reengagementResolution; read current state before acting. Moving a closed candidate to archived or process_stopped does not require renewed consent and should proceed normally. A candidate in pending_connection moves to connected by default. Custom stages are optional and must never be a prerequisite for connecting or scheduling. targetStageId may be connected, archived, process_stopped, a custom:<id> stage, or final_offer. A final_offer target returns a confirmation question unless confirmFinalOffer=true after Harper has just asked the exact question. The executor re-reads the candidate and applies compare-and-set protection. If scheduleInterview=true, use connected from pending_connection, or retain the current active stage unless a different destination was explicitly requested. No custom stage is required. The complete candidate-facing invitation email is written in the candidate's saved locale. To resume, revise, or expedite an existing invitation, pass its exact meetingScheduleId from read_talent or read_contact. Omit meetingScheduleId only for a new meeting request. Each new request has its own meeting, including a later interview with the same candidate in the same stage; retries of the same request remain idempotent. meetingDeliveryMode defaults to the standard delayed-delivery policy; use immediate only when the company explicitly instructs Harper to send this invitation now. An immediate update preserves the existing body, public link, and delivery identity. Before any move or candidate contact, scheduling verifies the organizer's active Google Calendar connection and saved availability. If either is missing, the result keeps the candidate unchanged and provides the verified Calendar settings link and user-safe setup guidance. Otherwise it moves the candidate only after the meeting request is ready. With scheduling disabled, this operation never contacts the candidate. With scheduling enabled, it creates, revises, or expedites the time-selection request and returns the verified delivery facts for the final response.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -930,7 +954,7 @@ Meeting scheduling is available from any company-visible active stage: pending_c
           },
           targetStageId: {
             description:
-              "Exact destination stage ID from the ordered read_role pipeline result. For scheduleInterview only, this may equal expectedCurrentStageId when the company wants to arrange a meeting for the current custom stage without moving the candidate.",
+              "Exact destination stage ID from the ordered read_role pipeline result. For scheduleInterview, use connected from pending_connection; otherwise retain expectedCurrentStageId unless a stage move was requested.",
             maxLength: 100,
             minLength: 1,
             type: "string",
@@ -939,6 +963,11 @@ Meeting scheduling is available from any company-visible active stage: pending_c
             description:
               "Set true only when the immediately previous Harper message asked whether to move this exact candidate to final offer and the user explicitly confirmed it.",
             type: "boolean",
+          },
+          candidateConsentRelayId: {
+            type: "string",
+            description:
+              "Exact delivered candidate contact ID whose full meaning authorizes this stage change, under the company’s preceding instruction. For a closed position, this is fresh consent evidence instead of claiming company_confirmed. Never infer consent merely from the arrival of a contact.",
           },
           reengagementResolution: {
             description:
@@ -950,12 +979,12 @@ Meeting scheduling is available from any company-visible active stage: pending_c
             ? {
                 scheduleInterview: {
                   description:
-                    "Set true only when the company explicitly asked Harper to arrange the meeting for this selected custom process stage.",
+                    "Set true only when the company asked Harper to arrange this meeting. A custom process stage is optional.",
                   type: "boolean",
                 },
                 meetingDurationMinutes: {
                   description:
-                    "For scheduleInterview only. Explicit stage meeting duration in 15-minute increments; omit to reuse the stage default.",
+                    "For scheduleInterview only. Duration in 15-minute increments. Omit to reuse a selected stage default or the normal 60-minute duration; do not ask for duration merely because no stage is configured.",
                   maximum: 240,
                   minimum: 15,
                   multipleOf: 15,
@@ -968,15 +997,15 @@ Meeting scheduling is available from any company-visible active stage: pending_c
                   type: "string",
                 },
                 meetingPurpose: nullableText(
-                  "For scheduleInterview only. Explicit candidate-friendly purpose for this process stage; omit to reuse the stage default.",
+                  "For scheduleInterview only. Candidate-friendly purpose grounded in the conversation. Omit to reuse a selected stage default or an existing meeting; ask only if the purpose is unresolved.",
                   600
                 ),
                 meetingCandidateMessage: nullableText(
-                  "For scheduleInterview only. Optional candidate-facing note saved on this process stage; omit rather than inventing one.",
+                  "For a new meeting only. Optional candidate-facing note. With a selected custom stage it becomes that stage default; otherwise it applies only to this meeting. For an existing invitation, use meetingAdditionalMessage instead. Omit rather than inventing one.",
                   2_000
                 ),
                 meetingAdditionalMessage: nullableText(
-                  "For scheduleInterview only. Optional one-off context for this candidate, not a stage default.",
+                  "For scheduleInterview only. Optional one-off context for this candidate, not a stage default. When revising an existing invitation, supply its complete revised candidate-facing note; internal-only revisions are not supported.",
                   2_000
                 ),
                 meetingAdditionalMessageVisibility: {
@@ -988,6 +1017,10 @@ Meeting scheduling is available from any company-visible active stage: pending_c
                   maxItems: 10,
                   type: "array",
                 },
+                meetingScheduleId: nullableText(
+                  "Exact existing meeting ID when resuming, revising the candidate-facing note, or expediting that invitation. Its saved purpose, duration, title, and attendees are retained and cannot be changed by this operation. Omit for a newly requested meeting. Read the current meeting before retrying uncertain delivery.",
+                  100
+                ),
                 meetingTitle: nullableText(
                   "For scheduleInterview only. Explicit override; omit to use the normal default title.",
                   200
@@ -1010,7 +1043,7 @@ Meeting scheduling is available from any company-visible active stage: pending_c
     function: {
       name: "move_candidate_to_role",
       description: `Move one exact company-visible candidate from one internal Role to an exact company-visible stage in another internal Role in the same Workspace.
-Call this once per exact candidate Role change and review the result before another action. Use it only after the company clearly authorizes the move. For an initial neutral move instruction where the conversation does not establish whether to proceed now, first offer that Harper can ask the candidate using the existing contact_talent flow, or can move them now. If the company says to move now, says the change was already discussed, or asks to move after receiving the candidate's relayed answer, do not ask again and call this tool. Read both Roles and their pipeline data first so sourceRoleId, targetRoleId, talentId, and targetStageId are exact. Use move_candidate_stage for a change within one Role. This operation preserves questions, resume requests, invitations, confirmed meetings, and email history under their original Role. On success it closes the source Position, activates the target Position at the requested stage, and records the Role change in both feeds. Existing unanswered requests or meetings never block this operation.`,
+Call this once per exact candidate Role change and review the result before another action. Use it only after the company clearly authorizes the move. For an initial neutral move instruction where the conversation does not establish whether to proceed now, first offer that Harper can ask the candidate using the existing contact_talent flow, or can move them now. If the company says to move now, says the change was already discussed, or previously delegated a conditional move and the delivered candidate contact now supplies the requested choice/consent, do not ask again and call this tool. Read both Roles and their pipeline data first so sourceRoleId, targetRoleId, talentId, and targetStageId are exact. Use move_candidate_stage for a change within one Role. This operation preserves contacts, invitations, confirmed meetings, and email history under their original Role. On success it closes the source Position, activates the target Position at the requested stage, and records the Role change in both feeds. Existing unanswered requests or meetings never block this operation.`,
       parameters: {
         additionalProperties: false,
         properties: {
@@ -1160,9 +1193,60 @@ Call this once per exact candidate Role change and review the result before anot
   {
     type: "function",
     function: {
+      name: "decide_company_intro",
+      description:
+        "Handle the company's decision for one exact candidate in 먼저 제안 가능한 후보. decision=request_intro asks Harper to present this Role to a candidate whose interest is not yet known; if the candidate accepts, Harper will immediately send a CC introduction to the confirmed company recipients and move the candidate to connected by default without another company approval. decision=pass removes the candidate from this company-first proposal flow without creating a candidate-visible opportunity or contacting the candidate. On an initial request_intro, provide only a companyAppeal the user actually supplied, confirmed company recipient emails; do not invent or broaden the company's reason. Omitted recipient emails may use the current requester's company email when available. The first complete call records no decision and returns confirmation_required. Call this tool again for the same candidate only when the immediately previous Harper message explained the exact candidate, Role, delivery recipients, and effects, and the current message clearly authorizes that proposal or pass. On that confirmation call, planning fields may be omitted because the server reuses the exact immediately presented plan. The server verifies adjacency and actor identity; otherwise it returns confirmation_required without changing state. Use this same tool in web chat and Slack instead of sending the user to the candidate card.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          companyAppeal: {
+            description:
+              "For an initial request_intro only: the company's grounded reason for wanting to meet this candidate, preserving the user's meaning without invention. Omit on the later short confirmation so the exact presented reason is reused.",
+            maxLength: 2_000,
+            minLength: 1,
+            type: "string",
+          },
+          decision: {
+            description:
+              "request_intro asks Harper to propose the Role on the company's behalf; pass declines to propose this Role and does not contact the candidate.",
+            enum: ["request_intro", "pass"],
+            type: "string",
+          },
+          introRecipientEmails: {
+            description:
+              "For an initial request_intro only: company recipients to CC if the candidate accepts. Omit to propose the current requester's company email when available, or on the later short confirmation to reuse the exact presented recipients.",
+            items: { type: "string" },
+            maxItems: 10,
+            minItems: 1,
+            type: "array",
+          },
+          nextStageId: {
+            description:
+              "Optional exact custom:<id> destination only if the company explicitly selected it. Normally omit: acceptance goes to connected without requiring any custom stage. Omit on a later confirmation to reuse the presented plan.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+          roleId: {
+            description: "Exact Role ID for this company-first proposal.",
+            type: "string",
+          },
+          talentId: {
+            description: "Exact Talent ID for this company-first proposal.",
+            type: "string",
+          },
+        },
+        required: ["decision", "roleId", "talentId"],
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "prepare_candidate_connection",
       description:
-        "Read authoritative context for an ordinary accept by CC introduction or direct company contact, or for a decline. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes state or sends email. A pending_connection candidate must select one custom stage; legacy connected is not a new next step. Meeting scheduling and explicit stage moves use move_candidate_stage. Set connectionMethod=direct_contact when the company first requests that method.",
+        "Read authoritative context for an ordinary accept by CC introduction or direct company contact, or for a decline. Decline supports a candidate awaiting connection or already in a company-active process, including immediately after acceptance. Accept also supports a previously company-stopped candidate whose earlier Talent acceptance is still authoritative. This never changes state or sends email. An accepted pending_connection candidate goes to connected by default; no process-stage setup is required. Meeting scheduling and explicit stage moves use move_candidate_stage. Set connectionMethod=direct_contact when the company first requests that method.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -1189,7 +1273,7 @@ Call this once per exact candidate Role change and review the result before anot
             ? {
                 processStageId: {
                   description:
-                    "For accept by introduction or direct company contact. Exact custom:<id> process stage ID from read_role. A candidate leaving pending_connection needs this next process stage. Omit only when the company has not yet chosen or created a process stage; the server will ask for one instead of using connected.",
+                    "Optional exact custom:<id> destination only when the company explicitly selected it. Normally omit: an accepted candidate goes to connected. Never ask for or create a stage just to accept.",
                   maxLength: 100,
                   minLength: 1,
                   type: "string",
@@ -1219,7 +1303,7 @@ Call this once per exact candidate Role change and review the result before anot
     function: {
       name: "decide_candidate_connection",
       description:
-        "Carry out an authorized ordinary connection accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process. An accept for a closed process_stopped candidate first returns candidate_reengagement_required without changing state; use move_candidate_stage for a closed accepted or archived candidate and for every explicit stage destination. If the company asks Harper to check, use contact_talent create_draft with resumeStageId. Call accept again with reengagementResolution=company_confirmed only when the company explicitly says renewed interest was already confirmed directly. Call this tool once per exact candidate decision and review the result before continuing. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. Meeting scheduling and explicit process-stage moves use move_candidate_stage instead. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
+        "Carry out an authorized ordinary connection accept or decline decision. Decline supports a candidate awaiting connection or already in a company-active process. An accept for a closed process_stopped candidate first returns candidate_reengagement_required without changing state; use move_candidate_stage for a closed accepted or archived candidate and for every explicit stage destination. If the company asks Harper to check, use contact_talent under its shared authorization policy to ask about the intended action. The contact itself does not reopen the process. Call accept again with reengagementResolution=company_confirmed only when the company explicitly says renewed interest was already confirmed directly. Call this tool once per exact candidate decision and review the result before continuing. Call it only when the immediately previous Harper message asked for approval of the exact candidate, delivery behavior, and recipients and the current message authorizes all of it; the server verifies that adjacency and otherwise returns confirmation_required without changing state. Do not infer authorization from isolated words or a generic acknowledgement. Meeting scheduling and explicit process-stage moves use move_candidate_stage instead. For accept, omitted connectionMethod defaults to intro_email, which sends a neutral warm introduction. Use direct_contact only after an explicit request. Never proactively offer direct_contact. Decline moves the candidate to process stopped.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -1252,7 +1336,7 @@ Call this once per exact candidate Role change and review the result before anot
             ? {
                 processStageId: {
                   description:
-                    "For accept by introduction or direct company contact. Repeat only when needed to identify the exact approved custom:<id> process stage; omit on a simple approval because the confirmed proposal retains it.",
+                    "Optional explicitly approved custom:<id> destination. Normally omit to use connected; on a simple approval the server retains the confirmed proposal.",
                   maxLength: 100,
                   minLength: 1,
                   type: "string",

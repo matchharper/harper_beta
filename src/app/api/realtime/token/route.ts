@@ -196,6 +196,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const {
       callSessionId: rawCallSessionId,
+      careerCoachingActivityMessageId: rawCareerCoachingActivityMessageId,
+      careerCoachingActivityRevision: rawCareerCoachingActivityRevision,
       conversationId: rawConversationId,
       conversationStarterId: rawConversationStarterId,
       initialResponseInstruction: rawInitialResponseInstruction,
@@ -205,6 +207,8 @@ export async function POST(req: NextRequest) {
       timeZone: rawTimeZone,
     } = body as {
       callSessionId?: string;
+      careerCoachingActivityMessageId?: number;
+      careerCoachingActivityRevision?: number;
       conversationId?: string;
       conversationStarterId?: string;
       initialResponseInstruction?: string;
@@ -218,6 +222,17 @@ export async function POST(req: NextRequest) {
     const callSessionId =
       typeof rawCallSessionId === "string" ? rawCallSessionId.trim() : "";
     const promptTimeZone = resolveCareerRequestTimeZone(req, rawTimeZone);
+    const careerCoachingActivityMessageId = Number(
+      rawCareerCoachingActivityMessageId
+    );
+    const careerCoachingActivityRevision = Number(
+      rawCareerCoachingActivityRevision
+    );
+    const hasCareerCoachingActivity =
+      Number.isSafeInteger(careerCoachingActivityMessageId) &&
+      careerCoachingActivityMessageId > 0 &&
+      Number.isSafeInteger(careerCoachingActivityRevision) &&
+      careerCoachingActivityRevision > 0;
     const conversationId = rawConversationId?.trim();
     const conversationStarterId =
       typeof rawConversationStarterId === "string"
@@ -229,9 +244,11 @@ export async function POST(req: NextRequest) {
         : "";
     const initialResponseInstruction = mockInterviewOpportunityId
       ? MOCK_INTERVIEW_OPENING_PROMPT
-      : typeof rawInitialResponseInstruction === "string"
-        ? rawInitialResponseInstruction
-        : "";
+      : hasCareerCoachingActivity
+        ? ""
+        : typeof rawInitialResponseInstruction === "string"
+          ? rawInitialResponseInstruction
+          : "";
     const resumeCallNoteId =
       typeof rawResumeCallNoteId === "string" ? rawResumeCallNoteId.trim() : "";
 
@@ -241,13 +258,39 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (
+      (rawCareerCoachingActivityMessageId !== undefined ||
+        rawCareerCoachingActivityRevision !== undefined) &&
+      !hasCareerCoachingActivity
+    ) {
+      return NextResponse.json(
+        { error: "Invalid career coaching call activity" },
+        { status: 400 }
+      );
+    }
+    if (
+      hasCareerCoachingActivity &&
+      (conversationStarterId ||
+        internalCallRequestId ||
+        mockInterviewOpportunityId)
+    ) {
+      return NextResponse.json(
+        { error: "A coaching call cannot use another call objective" },
+        { status: 400 }
+      );
+    }
     if (resumeCallNoteId && !isCallNoteId(resumeCallNoteId)) {
       return NextResponse.json(
         { error: "Invalid resumeCallNoteId" },
         { status: 400 }
       );
     }
-    if (resumeCallNoteId && (conversationStarterId || internalCallRequestId)) {
+    if (
+      resumeCallNoteId &&
+      (conversationStarterId ||
+        internalCallRequestId ||
+        hasCareerCoachingActivity)
+    ) {
       return NextResponse.json(
         { error: "A continued call note cannot use another call objective" },
         { status: 400 }
@@ -295,6 +338,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (conversationStarterId === "career_coaching") {
+      return NextResponse.json(
+        { error: "Career coaching calls require an active bound activity" },
+        { status: 409 }
+      );
+    }
     if (conversationStarterId === "career_check_in") {
       const careerCheckInCall = await touchOpenCareerCheckInCall({
         admin,
@@ -333,9 +382,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const realtimeToolCandidates =
-      getCareerRealtimeToolCandidates(responseLocale);
+    const realtimeToolCandidates = getCareerRealtimeToolCandidates(
+      responseLocale,
+      {
+        includeCareerCoachingActivity: hasCareerCoachingActivity,
+      }
+    );
     const realtimePromptPlan = await buildCareerRealtimeSessionInstructions({
+      careerCoachingActivityMessageId: hasCareerCoachingActivity
+        ? careerCoachingActivityMessageId
+        : null,
+      careerCoachingActivityRevision: hasCareerCoachingActivity
+        ? careerCoachingActivityRevision
+        : null,
       conversationId,
       conversationStarterId,
       mockInterviewOpportunityId,

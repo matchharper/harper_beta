@@ -1,0 +1,708 @@
+{
+  "captureAt": "2026-09-23T01:51:21.670669+00:00",
+  "cases": [
+    {
+      "caseId": "SAL3EC43ED85",
+      "gold": {
+        "currency": "USD",
+        "max": 219000,
+        "min": 183000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Sunnyvale, California, United States",
+        "seniority": "director",
+        "title": "Sr. Manager, Accounting"
+      }
+    },
+    {
+      "caseId": "SAL391213344",
+      "gold": {
+        "currency": "USD",
+        "max": 175000,
+        "min": 140000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "San Francisco, California, United States",
+        "seniority": "Mid",
+        "title": "Agent Operations"
+      }
+    },
+    {
+      "caseId": "SAL3E5E58D36",
+      "gold": {
+        "currency": "USD",
+        "max": 80000,
+        "min": 70000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Carneys Point, New Jersey, United States",
+        "seniority": "mid_senior",
+        "title": "Learning Coordinator"
+      }
+    },
+    {
+      "caseId": "SAL3CEA59E78",
+      "gold": {
+        "currency": "USD",
+        "max": 206000,
+        "min": 183340,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote - United States",
+        "seniority": "senior",
+        "title": "Senior Software Engineer II - Agentic Intelligence"
+      }
+    },
+    {
+      "caseId": "SAL3AA0685B0",
+      "gold": {
+        "currency": "USD",
+        "max": 411500,
+        "min": 175000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "All, Connecticut, United States of America · All, Massachusetts, United States of America · All, Tennessee, United States of America",
+        "seniority": "mid_senior",
+        "title": "SASE & Security Presales Specialist"
+      }
+    },
+    {
+      "caseId": "SAL3C2303974",
+      "gold": {
+        "currency": "GBP",
+        "max": 80000,
+        "min": 55000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "London, Greater London, United Kingdom",
+        "seniority": "mid_senior",
+        "title": "Dynamic Resource Operations"
+      }
+    },
+    {
+      "caseId": "SAL39B67688E",
+      "gold": {
+        "currency": "USD",
+        "max": 220000,
+        "min": 194000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote Position",
+        "seniority": "senior",
+        "title": "Staff Engineer, Applied AI"
+      }
+    },
+    {
+      "caseId": "SAL3413C0BE5",
+      "gold": {
+        "currency": "USD",
+        "max": 209588,
+        "min": 139725,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Atlanta, Georgia, United States",
+        "seniority": "senior",
+        "title": "Staff Software Engineer - Reporting, Data Platform & Observability"
+      }
+    },
+    {
+      "caseId": "SAL3550B0497",
+      "gold": {
+        "currency": "USD",
+        "max": 202320,
+        "min": 126450,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York, New York, United States",
+        "seniority": "mid_senior",
+        "title": "Compensation Business Partner"
+      }
+    },
+    {
+      "caseId": "SAL3105582F3",
+      "gold": {
+        "currency": "USD",
+        "max": 165000,
+        "min": 70000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "San Francisco, California, USA",
+        "seniority": "Mid",
+        "title": "Territory Account Executive-New York"
+      }
+    },
+    {
+      "caseId": "SAL3CDA67EC1",
+      "gold": {
+        "currency": "USD",
+        "max": 227325,
+        "min": 161925,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote",
+        "seniority": "senior",
+        "title": "Corporate Counsel"
+      }
+    },
+    {
+      "caseId": "SAL344CB1F93",
+      "gold": {
+        "currency": "USD",
+        "max": 230000,
+        "min": 230000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "United States",
+        "seniority": "mid_senior",
+        "title": "Agent Deployment Architect (Philadelphia, PA)"
+      }
+    },
+    {
+      "caseId": "SAL3ED0503BE",
+      "gold": {
+        "currency": "USD",
+        "max": 205000,
+        "min": 120000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Austin, Texas, United States",
+        "seniority": "Mid",
+        "title": "Embedded Software Engineer"
+      }
+    },
+    {
+      "caseId": "SAL32C558AD8",
+      "gold": {
+        "currency": "USD",
+        "max": 70000,
+        "min": 60000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Dallas, TX, United States",
+        "seniority": "mid_senior",
+        "title": "Performance Lead, Customer Experience"
+      }
+    },
+    {
+      "caseId": "SAL38DA1DE94",
+      "gold": {
+        "currency": "GBP",
+        "max": 93000,
+        "min": 85000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "United Kingdom",
+        "seniority": "senior",
+        "title": "Senior Product Manager - Trading"
+      }
+    },
+    {
+      "caseId": "SAL35B94B2F4",
+      "gold": {
+        "currency": "USD",
+        "max": 135000,
+        "min": 125000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "San Francisco, California, United States",
+        "seniority": "mid_senior",
+        "title": "Sr. Finance & Strategy Analyst"
+      }
+    },
+    {
+      "caseId": "SAL309E57D1D",
+      "gold": {
+        "currency": "USD",
+        "max": 207000,
+        "min": 176000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "USA",
+        "seniority": "Manager/Senior Manager",
+        "title": "Operations Manager, Signal Systems"
+      }
+    },
+    {
+      "caseId": "SAL39E162A46",
+      "gold": {
+        "currency": "USD",
+        "max": 180000,
+        "min": 70000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Dayton, Ohio, US · Houston, US",
+        "seniority": "Mid",
+        "title": "Sales Engineer (gn)"
+      }
+    },
+    {
+      "caseId": "SAL35FA8ED9D",
+      "gold": {
+        "currency": "USD",
+        "max": 210000,
+        "min": 145000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote Washington DC, United States of America",
+        "seniority": "Senior",
+        "title": "Senior AI Solutions Engineer - Federal"
+      }
+    },
+    {
+      "caseId": "SAL368D5E6F7",
+      "gold": {
+        "currency": "USD",
+        "max": 230000,
+        "min": 180000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York, United States",
+        "seniority": "Senior",
+        "title": "Senior Data Engineer"
+      }
+    },
+    {
+      "caseId": "SAL302E644D9",
+      "gold": {
+        "currency": "USD",
+        "max": 126500,
+        "min": 92000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Jackson, MS",
+        "seniority": "Not Applicable",
+        "title": "E & I Superintendent (Data Centers)"
+      }
+    },
+    {
+      "caseId": "SAL3364530DA",
+      "gold": {
+        "currency": "USD",
+        "max": 288000,
+        "min": 213000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "United States",
+        "seniority": "Senior",
+        "title": "Principal, Product Strategy (Commercial / Medical Affairs)"
+      }
+    },
+    {
+      "caseId": "SAL3110FF77F",
+      "gold": {
+        "currency": "USD",
+        "max": 160000,
+        "min": 130000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York City, New York, United States",
+        "seniority": "mid_senior",
+        "title": "People Operations Lead"
+      }
+    },
+    {
+      "caseId": "SAL31BF75F94",
+      "gold": {
+        "currency": "USD",
+        "max": 350000,
+        "min": 250000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Palo Alto, California, United States",
+        "seniority": "Mid",
+        "title": "Software Engineer, Product"
+      }
+    },
+    {
+      "caseId": "SAL30A081B5D",
+      "gold": {
+        "currency": "USD",
+        "max": 115000,
+        "min": 100000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Johnston, RI",
+        "seniority": "Manager/Senior Manager",
+        "title": "Location Manager"
+      }
+    },
+    {
+      "caseId": "SAL3F46AA7BB",
+      "gold": {
+        "currency": "USD",
+        "max": 200000,
+        "min": 150000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "United States",
+        "seniority": "Mid · Junior",
+        "title": "Research Assistant"
+      }
+    },
+    {
+      "caseId": "SAL39C627F22",
+      "gold": {
+        "currency": "USD",
+        "max": 145000,
+        "min": 90000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Singapore · Infoblox Singapore PTE Ltd., SINGAPORE, Singapore, SG",
+        "seniority": "Mid",
+        "title": "Product Sales Security Specialist - SEAK"
+      }
+    },
+    {
+      "caseId": "SAL3FFFCDA23",
+      "gold": {
+        "currency": "USD",
+        "max": 140000,
+        "min": 85000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote",
+        "seniority": "senior",
+        "title": "Enterprise Account Executive, Federal"
+      }
+    },
+    {
+      "caseId": "SAL3A0911230",
+      "gold": {
+        "currency": "USD",
+        "max": 220000,
+        "min": 175000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York, United States",
+        "seniority": "Senior · Mid",
+        "title": "Revenue Operations Lead"
+      }
+    },
+    {
+      "caseId": "SAL325E9A874",
+      "gold": {
+        "currency": "USD",
+        "max": 230000,
+        "min": 190000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote",
+        "seniority": "senior",
+        "title": "Lead Android Engineer"
+      }
+    },
+    {
+      "caseId": "SAL3E159D7FA",
+      "gold": {
+        "currency": "USD",
+        "max": 70000,
+        "min": 60000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Montgomery, Alabama, United States",
+        "seniority": "mid_senior",
+        "title": "People Specialist II"
+      }
+    },
+    {
+      "caseId": "SAL3A7124A96",
+      "gold": {
+        "currency": "USD",
+        "max": 255000,
+        "min": 190000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Hawthorne, CA, United States",
+        "seniority": "Mid",
+        "title": "Counsel, Global Trade Compliance"
+      }
+    },
+    {
+      "caseId": "SAL3AE90A3C0",
+      "gold": {
+        "currency": "USD",
+        "max": 145000,
+        "min": 123000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Austin | Chicago | New York City | Salt Lake City",
+        "seniority": "mid_senior",
+        "title": "Technical Account Manager"
+      }
+    },
+    {
+      "caseId": "SAL38E715EF3",
+      "gold": {
+        "currency": "USD",
+        "max": 220000,
+        "min": 135000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "San Francisco, California, USA",
+        "seniority": "Mid",
+        "title": "Product Manager"
+      }
+    },
+    {
+      "caseId": "SAL3541ECA93",
+      "gold": {
+        "currency": "USD",
+        "max": 220000,
+        "min": 140000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Austin, Texas, United States",
+        "seniority": "senior",
+        "title": "Senior Brand Designer"
+      }
+    },
+    {
+      "caseId": "SAL3260E73A9",
+      "gold": {
+        "currency": "GBP",
+        "max": 110000,
+        "min": 100000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote - United Kingdom",
+        "seniority": "senior",
+        "title": "Growth Product Manager"
+      }
+    },
+    {
+      "caseId": "SAL3C0C33DC9",
+      "gold": {
+        "currency": "USD",
+        "max": 240000,
+        "min": 180000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Washington, District of Columbia, United States",
+        "seniority": "mid_senior",
+        "title": "DevOps Engineer"
+      }
+    },
+    {
+      "caseId": "SAL38BFF0EA3",
+      "gold": {
+        "currency": "CAD",
+        "max": 280000,
+        "min": 220000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Canada, Remote",
+        "seniority": "senior",
+        "title": "Staff Applied ML Engineer"
+      }
+    },
+    {
+      "caseId": "SAL3E823C66C",
+      "gold": {
+        "currency": "USD",
+        "max": 130000,
+        "min": 100000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Atlanta (Remote Friendly), United States",
+        "seniority": "Mid · Junior",
+        "title": "Data Analyst II, Ecommerce"
+      }
+    },
+    {
+      "caseId": "SAL3F053B4D5",
+      "gold": {
+        "currency": "USD",
+        "max": 90000,
+        "min": 70000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote",
+        "seniority": "entry_level",
+        "title": "Sales Development Representative"
+      }
+    },
+    {
+      "caseId": "SAL3D5D8E4CD",
+      "gold": {
+        "currency": "USD",
+        "max": 125000,
+        "min": 115000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "San Diego, California, United States",
+        "seniority": "Mid · Junior",
+        "title": "Associate Technical Product Manager"
+      }
+    },
+    {
+      "caseId": "SAL3637F91CF",
+      "gold": {
+        "currency": "USD",
+        "max": 120000,
+        "min": 80000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York, US",
+        "seniority": "mid_senior",
+        "title": "US Category Manager, Strategic Sourcing"
+      }
+    },
+    {
+      "caseId": "SAL366DBB08C",
+      "gold": {
+        "currency": "USD",
+        "max": 185000,
+        "min": 150000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Austin, Texas, United States; Bozeman, Montana, United States; Denver, Colorado, United States; Kalispell, Montana, United States; Minneapolis, Minnesota, United States; Missoula, Montana, United States; Portland, Oregon, United States; Salt Lake City, Utah, United States; Seattle, Washington, United States",
+        "seniority": "Senior",
+        "title": "Senior Web Platform Manager"
+      }
+    },
+    {
+      "caseId": "SAL3DC05DBE5",
+      "gold": {
+        "currency": "USD",
+        "max": 175000,
+        "min": 175000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Oakland, California, United States",
+        "seniority": "Mid",
+        "title": "Strategic Account Executive - Legal"
+      }
+    },
+    {
+      "caseId": "SAL38443C862",
+      "gold": {
+        "currency": "USD",
+        "max": 210000,
+        "min": 160000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York City, New York, USA",
+        "seniority": "mid_senior",
+        "title": "Enterprise Implementation Manager"
+      }
+    },
+    {
+      "caseId": "SAL39D2CE877",
+      "gold": {
+        "currency": "USD",
+        "max": 320000,
+        "min": 220000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Remote",
+        "seniority": "senior",
+        "title": "Enterprise Account Executive"
+      }
+    },
+    {
+      "caseId": "SAL3B8F8026A",
+      "gold": {
+        "currency": "USD",
+        "max": 250000,
+        "min": 150000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Sunnyvale, California, United States",
+        "seniority": "Mid",
+        "title": "Product Designer"
+      }
+    },
+    {
+      "caseId": "SAL3F224A7A1",
+      "gold": {
+        "currency": "USD",
+        "max": 400000,
+        "min": 250000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "San Francisco, California, United States",
+        "seniority": "VP/SVP",
+        "title": "VP, Finance"
+      }
+    },
+    {
+      "caseId": "SAL3D336F5AF",
+      "gold": {
+        "currency": "USD",
+        "max": 85000,
+        "min": 50000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "Curitiba",
+        "seniority": "Mid",
+        "title": "Software Engineer, Full-Stack"
+      }
+    },
+    {
+      "caseId": "SAL3B66324B1",
+      "gold": {
+        "currency": "USD",
+        "max": 250000,
+        "min": 230000,
+        "period": "year"
+      },
+      "inputSummary": {
+        "location": "New York, New York, United States",
+        "seniority": "director",
+        "title": "Engineering Manager"
+      }
+    }
+  ],
+  "datasetVersion": "v3",
+  "labelSource": "numeric company_roles salary fields hidden from model input",
+  "task": "company-role-salary-estimation"
+}

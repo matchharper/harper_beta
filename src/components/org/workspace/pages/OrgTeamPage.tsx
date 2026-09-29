@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import Image from "next/image";
+import RichText from "@/components/ui/rich-text";
 import { useRouter } from "next/router";
 import { FormEvent, type ReactNode, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
@@ -548,10 +549,14 @@ function InviteMemberDialog({
 export function OrgTeamPage({
   companyOnly = false,
   readOnlyCompany = false,
+  hideEmptyDescription = false,
+  inlineDescription = false,
   section = "company",
 }: {
   companyOnly?: boolean;
   readOnlyCompany?: boolean;
+  hideEmptyDescription?: boolean;
+  inlineDescription?: boolean;
   section?: "company" | "members";
 } = {}) {
   const {
@@ -992,7 +997,7 @@ export function OrgTeamPage({
                 />
                 <CompanyInfoRow
                   icon={<Users className="size-4" strokeWidth={2} />}
-                  label="직원 수"
+                  label="팀원 수"
                   value={
                     companyInfoEditing ? (
                       <Select
@@ -1023,10 +1028,10 @@ export function OrgTeamPage({
                         }
                       >
                         <SelectTrigger
-                          aria-label="직원 수"
+                          aria-label="팀원 수"
                           className="w-full text-[13px]"
                         >
-                          <SelectValue placeholder="직원 수 범위" />
+                          <SelectValue placeholder="팀원 수 범위" />
                         </SelectTrigger>
                         <SelectContent
                           align="start"
@@ -1123,27 +1128,37 @@ export function OrgTeamPage({
             </table>
           </div>
 
-          <section>
-            <OrgSectionHeader title="Company Description" />
-            <DocumentEditor
-              aria-label="Company Description 수정"
-              className="mt-2 max-w-4xl"
-              disabled={updateWorkspace.isPending}
-              documentTitle="Company Description"
-              errorMessage={
-                companyEditingField === "pitch" ? companySaveError : ""
-              }
-              lastChangedAt={workspace.updatedAt}
-              onChange={(event) =>
-                changeCompanyDraft({ pitch: event.target.value }, "pitch")
-              }
-              placeholder="후보자에게 회사를 소개할 때 강조할 내용을 작성해 주세요."
-              readOnly={!canEditCompany}
-              rows={4}
-              savedValue={workspace.pitch ?? ""}
-              value={currentCompanyDraft.pitch}
-            />
-          </section>
+          {!hideEmptyDescription || currentCompanyDraft.pitch.trim() ? (
+            <section>
+              <OrgSectionHeader title="Company Description" />
+              {inlineDescription && readOnlyCompany ? (
+                <RichText
+                  content={currentCompanyDraft.pitch}
+                  className="mt-3 text-[13px] leading-6"
+                  referenceLinks
+                />
+              ) : (
+                <DocumentEditor
+                  aria-label="Company Description 수정"
+                  className="mt-2 max-w-4xl"
+                  disabled={updateWorkspace.isPending}
+                  documentTitle="Company Description"
+                  errorMessage={
+                    companyEditingField === "pitch" ? companySaveError : ""
+                  }
+                  lastChangedAt={workspace.updatedAt}
+                  onChange={(event) =>
+                    changeCompanyDraft({ pitch: event.target.value }, "pitch")
+                  }
+                  placeholder="후보자에게 회사를 소개할 때 강조할 내용을 작성해 주세요."
+                  readOnly={!canEditCompany}
+                  rows={4}
+                  savedValue={workspace.pitch ?? ""}
+                  value={currentCompanyDraft.pitch}
+                />
+              )}
+            </section>
+          ) : null}
 
           {companySaveError ? (
             <div

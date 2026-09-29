@@ -14,6 +14,48 @@ export type Database = {
   };
   public: {
     Tables: {
+      company_first_talent_scores: {
+        Row: {
+          talent_id: string;
+          role_id: string;
+          score: number;
+          role_fit: string;
+          candidate_fit: string;
+          company_fit: string;
+          reason: string;
+          criteria_evaluations: Json;
+          scored_at: string;
+          evaluation_as_of: string;
+          source_run_id: string;
+        };
+        Insert: {
+          talent_id: string;
+          role_id: string;
+          score: number;
+          role_fit: string;
+          candidate_fit: string;
+          company_fit: string;
+          reason: string;
+          criteria_evaluations?: Json;
+          scored_at: string;
+          evaluation_as_of: string;
+          source_run_id: string;
+        };
+        Update: {
+          talent_id?: string;
+          role_id?: string;
+          score?: number;
+          role_fit?: string;
+          candidate_fit?: string;
+          company_fit?: string;
+          reason?: string;
+          criteria_evaluations?: Json;
+          scored_at?: string;
+          evaluation_as_of?: string;
+          source_run_id?: string;
+        };
+        Relationships: [];
+      };
       billing_sessions: {
         Row: {
           amount_krw: number;
@@ -799,6 +841,119 @@ export type Database = {
         };
         Relationships: [];
       };
+      company_agent_web_action_jobs: {
+        Row: {
+          action_context: Json;
+          action_name: string;
+          actor_user_id: string;
+          anchor_message_id: number;
+          attempt_count: number;
+          company_workspace_id: string;
+          completed_at: string | null;
+          conversation_id: string;
+          created_at: string;
+          id: string;
+          idempotency_key: string;
+          last_error: string | null;
+          locked_at: string | null;
+          locked_by: string | null;
+          next_attempt_at: string;
+          progress_message_id: number | null;
+          queue_dispatch_attempt_count: number;
+          queue_dispatch_status: string;
+          queue_dispatched_at: string | null;
+          queue_last_error: string | null;
+          queue_next_attempt_at: string;
+          role_id: string | null;
+          status: string;
+          terminal_message_id: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          action_context?: Json;
+          action_name: string;
+          actor_user_id: string;
+          anchor_message_id: number;
+          attempt_count?: number;
+          company_workspace_id: string;
+          completed_at?: string | null;
+          conversation_id: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          next_attempt_at?: string;
+          progress_message_id?: number | null;
+          queue_dispatch_attempt_count?: number;
+          queue_dispatch_status?: string;
+          queue_dispatched_at?: string | null;
+          queue_last_error?: string | null;
+          queue_next_attempt_at?: string;
+          role_id?: string | null;
+          status?: string;
+          terminal_message_id?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          action_context?: Json;
+          action_name?: string;
+          actor_user_id?: string;
+          anchor_message_id?: number;
+          attempt_count?: number;
+          company_workspace_id?: string;
+          completed_at?: string | null;
+          conversation_id?: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          locked_by?: string | null;
+          next_attempt_at?: string;
+          progress_message_id?: number | null;
+          queue_dispatch_attempt_count?: number;
+          queue_dispatch_status?: string;
+          queue_dispatched_at?: string | null;
+          queue_last_error?: string | null;
+          queue_next_attempt_at?: string;
+          role_id?: string | null;
+          status?: string;
+          terminal_message_id?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "company_agent_web_action_jobs_anchor_message_id_fkey";
+            columns: ["anchor_message_id"];
+            isOneToOne: true;
+            referencedRelation: "company_messages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_agent_web_action_jobs_company_workspace_id_fkey";
+            columns: ["company_workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "company_workspace";
+            referencedColumns: ["company_workspace_id"];
+          },
+          {
+            foreignKeyName: "company_agent_web_action_jobs_conversation_id_fkey";
+            columns: ["conversation_id"];
+            isOneToOne: false;
+            referencedRelation: "company_conversations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_agent_web_action_jobs_role_id_fkey";
+            columns: ["role_id"];
+            isOneToOne: false;
+            referencedRelation: "company_roles";
+            referencedColumns: ["role_id"];
+          },
+        ];
+      };
       company_agent_update_proposals: {
         Row: {
           applied_at: string | null;
@@ -977,9 +1132,11 @@ export type Database = {
           lease_token: string | null;
           model_manifest: Json;
           query_plan: Json;
+          requested_role_ids: string[];
           result: Json;
           scheduled_slot: string;
           selection_committed_at: string | null;
+          source_calibration_id: string | null;
           source_cutoff: string | null;
           source_snapshot: Json;
           started_at: string | null;
@@ -1002,9 +1159,11 @@ export type Database = {
           lease_token?: string | null;
           model_manifest?: Json;
           query_plan?: Json;
+          requested_role_ids?: string[];
           result?: Json;
           scheduled_slot: string;
           selection_committed_at?: string | null;
+          source_calibration_id?: string | null;
           source_cutoff?: string | null;
           source_snapshot?: Json;
           started_at?: string | null;
@@ -1027,9 +1186,11 @@ export type Database = {
           lease_token?: string | null;
           model_manifest?: Json;
           query_plan?: Json;
+          requested_role_ids?: string[];
           result?: Json;
           scheduled_slot?: string;
           selection_committed_at?: string | null;
+          source_calibration_id?: string | null;
           source_cutoff?: string | null;
           source_snapshot?: Json;
           started_at?: string | null;
@@ -1044,6 +1205,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "company_workspace";
             referencedColumns: ["company_workspace_id"];
+          },
+          {
+            foreignKeyName: "company_first_search_runs_source_calibration_id_fkey";
+            columns: ["source_calibration_id"];
+            isOneToOne: false;
+            referencedRelation: "company_role_calibrations";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -2342,6 +2510,7 @@ export type Database = {
           expects_document: boolean;
           expires_at: string;
           id: string;
+          in_reply_to_company_talent_relay_id: string | null;
           intent: string;
           recommendation_id: string;
           response_disposition: string | null;
@@ -2366,6 +2535,7 @@ export type Database = {
           expects_document?: boolean;
           expires_at?: string;
           id?: string;
+          in_reply_to_company_talent_relay_id?: string | null;
           intent?: string;
           recommendation_id: string;
           response_disposition?: string | null;
@@ -2390,6 +2560,7 @@ export type Database = {
           expects_document?: boolean;
           expires_at?: string;
           id?: string;
+          in_reply_to_company_talent_relay_id?: string | null;
           intent?: string;
           recommendation_id?: string;
           response_disposition?: string | null;
@@ -2415,6 +2586,13 @@ export type Database = {
             columns: ["document_id"];
             isOneToOne: false;
             referencedRelation: "talent_documents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_talent_requests_in_reply_to_company_talent_relay_id_fkey";
+            columns: ["in_reply_to_company_talent_relay_id"];
+            isOneToOne: false;
+            referencedRelation: "company_talent_relays";
             referencedColumns: ["id"];
           },
           {
@@ -2456,27 +2634,30 @@ export type Database = {
       };
       company_talent_relays: {
         Row: {
-          company_talent_request_id: string;
+          company_talent_request_id: string | null;
           created_at: string;
           document_id: string | null;
           id: string;
           relay_content: string | null;
+          recommendation_id: string;
           source_talent_message_id: number;
         };
         Insert: {
-          company_talent_request_id: string;
+          company_talent_request_id?: string | null;
           created_at?: string;
           document_id?: string | null;
           id?: string;
           relay_content?: string | null;
+          recommendation_id: string;
           source_talent_message_id: number;
         };
         Update: {
-          company_talent_request_id?: string;
+          company_talent_request_id?: string | null;
           created_at?: string;
           document_id?: string | null;
           id?: string;
           relay_content?: string | null;
+          recommendation_id?: string;
           source_talent_message_id?: number;
         };
         Relationships: [
@@ -2492,6 +2673,13 @@ export type Database = {
             columns: ["document_id"];
             isOneToOne: false;
             referencedRelation: "talent_documents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "company_talent_relays_recommendation_id_fkey";
+            columns: ["recommendation_id"];
+            isOneToOne: false;
+            referencedRelation: "talent_opportunity_recommendation";
             referencedColumns: ["id"];
           },
           {
@@ -2641,6 +2829,7 @@ export type Database = {
       };
       company_users: {
         Row: {
+          onboarding_completed_at: string | null;
           company: string | null;
           company_description: string | null;
           created_at: string;
@@ -2654,6 +2843,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          onboarding_completed_at?: string | null;
           company?: string | null;
           company_description?: string | null;
           created_at?: string;
@@ -2667,6 +2857,7 @@ export type Database = {
           user_id?: string;
         };
         Update: {
+          onboarding_completed_at?: string | null;
           company?: string | null;
           company_description?: string | null;
           created_at?: string;
@@ -7036,6 +7227,7 @@ export type Database = {
       };
       talent_conversations: {
         Row: {
+          career_coaching_activity_message_id: number | null;
           created_at: string;
           id: string;
           profile_ingestion_error: string | null;
@@ -7047,6 +7239,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          career_coaching_activity_message_id?: number | null;
           created_at?: string;
           id?: string;
           profile_ingestion_error?: string | null;
@@ -7058,6 +7251,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          career_coaching_activity_message_id?: number | null;
           created_at?: string;
           id?: string;
           profile_ingestion_error?: string | null;
@@ -7069,6 +7263,13 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "talent_conversations_career_coaching_activity_message_id_fkey";
+            columns: ["career_coaching_activity_message_id"];
+            isOneToOne: false;
+            referencedRelation: "talent_messages";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "talent_conversations_user_id_fkey";
             columns: ["user_id"];
@@ -7383,6 +7584,7 @@ export type Database = {
           id: number;
           is_mobile: boolean | null;
           message_type: string;
+          payload: Json | null;
           role: string;
           thinking_logs: Json;
           user_id: string;
@@ -7394,6 +7596,7 @@ export type Database = {
           id?: number;
           is_mobile?: boolean | null;
           message_type?: string;
+          payload?: Json | null;
           role: string;
           thinking_logs?: Json;
           user_id: string;
@@ -7405,6 +7608,7 @@ export type Database = {
           id?: number;
           is_mobile?: boolean | null;
           message_type?: string;
+          payload?: Json | null;
           role?: string;
           thinking_logs?: Json;
           user_id?: string;
@@ -7699,84 +7903,49 @@ export type Database = {
       };
       talent_opportunity_matching_review: {
         Row: {
-          audit_reasoning: string;
-          candidate_acceptance_score: number | null;
-          candidate_fingerprint: string;
-          company_fit_score: number | null;
-          consideration_fingerprint: string;
-          core_candidate_acceptance_score: number | null;
-          core_company_fit_score: number | null;
-          created_at: string;
-          evaluator_version: string;
-          evidence_confidence: number | null;
-          excluded_until: string | null;
-          final_disposition: string;
+          criteria_evaluations: Json;
+          decision: string;
+          discovery_run_id: string | null;
           id: string;
-          kind: string;
-          metadata: Json;
-          mutual_score: number | null;
+          input_fingerprint: string;
           opportunity_id: string;
-          reason_codes: string[];
-          requested_by: string | null;
+          reason: string;
           reviewed_at: string;
-          role_fingerprint: string;
           run_id: string;
-          source_snapshot: Json;
           talent_id: string;
         };
         Insert: {
-          audit_reasoning?: string;
-          candidate_acceptance_score?: number | null;
-          candidate_fingerprint: string;
-          company_fit_score?: number | null;
-          consideration_fingerprint: string;
-          core_candidate_acceptance_score?: number | null;
-          core_company_fit_score?: number | null;
-          created_at?: string;
-          evaluator_version: string;
-          evidence_confidence?: number | null;
-          excluded_until?: string | null;
-          final_disposition: string;
+          criteria_evaluations?: Json;
+          decision: string;
+          discovery_run_id?: string | null;
           id?: string;
-          kind?: string;
-          metadata?: Json;
-          mutual_score?: number | null;
+          input_fingerprint: string;
           opportunity_id: string;
-          reason_codes?: string[];
-          requested_by?: string | null;
+          reason: string;
           reviewed_at?: string;
-          role_fingerprint: string;
           run_id: string;
-          source_snapshot?: Json;
           talent_id: string;
         };
         Update: {
-          audit_reasoning?: string;
-          candidate_acceptance_score?: number | null;
-          candidate_fingerprint?: string;
-          company_fit_score?: number | null;
-          consideration_fingerprint?: string;
-          core_candidate_acceptance_score?: number | null;
-          core_company_fit_score?: number | null;
-          created_at?: string;
-          evaluator_version?: string;
-          evidence_confidence?: number | null;
-          excluded_until?: string | null;
-          final_disposition?: string;
+          criteria_evaluations?: Json;
+          decision?: string;
+          discovery_run_id?: string | null;
           id?: string;
-          kind?: string;
-          metadata?: Json;
-          mutual_score?: number | null;
+          input_fingerprint?: string;
           opportunity_id?: string;
-          reason_codes?: string[];
-          requested_by?: string | null;
+          reason?: string;
           reviewed_at?: string;
-          role_fingerprint?: string;
           run_id?: string;
-          source_snapshot?: Json;
           talent_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "talent_opportunity_matching_review_discovery_run_id_fkey";
+            columns: ["discovery_run_id"];
+            isOneToOne: false;
+            referencedRelation: "opportunity_discovery_run";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "talent_opportunity_matching_review_opportunity_id_fkey";
             columns: ["opportunity_id"];
@@ -7790,6 +7959,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "talent_users";
             referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "talent_opportunity_matching_review_run_id_fkey";
+            columns: ["run_id"];
+            isOneToOne: false;
+            referencedRelation: "company_first_search_runs";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -8463,6 +8639,7 @@ export type Database = {
       };
       worker_runtime_settings: {
         Row: {
+          company_first: Json;
           created_at: string;
           found_threshold: number;
           name: string;
@@ -8473,6 +8650,7 @@ export type Database = {
           variant_candidate_limit: number;
         };
         Insert: {
+          company_first?: Json;
           created_at?: string;
           found_threshold: number;
           name: string;
@@ -8483,6 +8661,7 @@ export type Database = {
           variant_candidate_limit: number;
         };
         Update: {
+          company_first?: Json;
           created_at?: string;
           found_threshold?: number;
           name?: string;
@@ -8496,9 +8675,24 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      talent_effective_opportunity_recommendations_v1: {
+        Row: Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"];
+        Relationships: Database["public"]["Tables"]["talent_opportunity_recommendation"]["Relationships"];
+      };
     };
     Functions: {
+      company_first_pair_is_available_v1: {
+        Args: { p_talent_id: string; p_role_id: string };
+        Returns: boolean;
+      };
+      current_talent_recommendation_id_v1: {
+        Args: { p_recommendation_id: string };
+        Returns: string;
+      };
+      current_talent_recommendation_for_talent_v1: {
+        Args: { p_talent_id: string; p_recommendation_id: string };
+        Returns: string | null;
+      };
       accept_talent_internal_role_recommendation_v1: {
         Args: {
           p_context?: Json;
@@ -8538,6 +8732,18 @@ export type Database = {
           p_next_stage_id: string;
         };
         Returns: Json;
+      };
+      enqueue_company_matching_search_v1: {
+        Args: {
+          p_company_user_id: string;
+          p_company_workspace_id: string;
+          p_role_id: string;
+        };
+        Returns: Json;
+      };
+      enqueue_post_calibration_company_matching_run_v1: {
+        Args: { p_calibration_id: string };
+        Returns: string;
       };
       activate_slack_company_agent_update_proposal_v1: {
         Args: {
@@ -9106,6 +9312,14 @@ export type Database = {
         Args: { amount_to_deduct: number };
         Returns: number;
       };
+      expire_talent_career_coaching_activity: {
+        Args: {
+          p_activity_message_id: number;
+          p_conversation_id: string;
+          p_user_id: string;
+        };
+        Returns: Database["public"]["Tables"]["talent_messages"]["Row"];
+      };
       enqueue_career_job_posting_discovery_run: {
         Args: {
           p_conversation_id: string;
@@ -9123,6 +9337,17 @@ export type Database = {
           p_document_id?: string | null;
           p_relay_content: string | null;
           p_request_id: string;
+          p_source_message_id: number;
+          p_talent_id: string;
+        };
+        Returns: Json;
+      };
+      create_company_talent_relay_v2: {
+        Args: {
+          p_document_id?: string | null;
+          p_recommendation_id: string;
+          p_relay_content: string | null;
+          p_request_id?: string | null;
           p_source_message_id: number;
           p_talent_id: string;
         };
@@ -9604,6 +9829,22 @@ export type Database = {
         };
         Returns: Json;
       };
+      mutate_talent_career_coaching_activity: {
+        Args: {
+          p_action: string;
+          p_activity_message_id?: number | null;
+          p_agenda?: Json | null;
+          p_channel?: string | null;
+          p_conversation_id: string;
+          p_expected_revision?: number | null;
+          p_idempotency_key?: string | null;
+          p_planned_minutes?: number | null;
+          p_suggested_minutes?: number | null;
+          p_topic?: string | null;
+          p_user_id: string;
+        };
+        Returns: Database["public"]["Tables"]["talent_messages"]["Row"];
+      };
       mutate_talent_contexts: {
         Args: { p_changes: Json; p_request_id: string; p_talent_id: string };
         Returns: Json;
@@ -9746,6 +9987,15 @@ export type Database = {
           new_balance: number;
         }[];
       };
+      rollback_talent_career_coaching_call_start: {
+        Args: {
+          p_activity_message_id: number;
+          p_conversation_id: string;
+          p_expected_revision: number;
+          p_user_id: string;
+        };
+        Returns: Database["public"]["Tables"]["talent_messages"]["Row"];
+      };
       schedule_company_talent_request_v1: {
         Args: {
           p_delivery_mode: string;
@@ -9753,6 +10003,17 @@ export type Database = {
           p_request_id: string;
           p_role_id: string;
           p_talent_id: string;
+          p_workspace_id: string;
+        };
+        Returns: Json;
+      };
+      send_company_talent_relay_reply_v1: {
+        Args: {
+          p_body: string;
+          p_relay_id: string;
+          p_request_context: string;
+          p_source_company_message_id: number;
+          p_subject: string;
           p_workspace_id: string;
         };
         Returns: Json;

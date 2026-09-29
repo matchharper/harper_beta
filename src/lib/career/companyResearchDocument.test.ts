@@ -52,7 +52,7 @@ test("saves exact private Markdown, isolates readers and reuses identical report
     admin,
     userId: "reader-a",
     snapshotId: "shared-snapshot",
-    title: "합류 검토.md",
+    title: "리서치.md",
     markdown: "# 회사\n\n서연님의 선호기준\n\n- ⚠️ 온콜",
   };
   const first = await saveCompanyResearchDocument(args);

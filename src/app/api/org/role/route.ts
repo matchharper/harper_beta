@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { OrgHttpError, updateOrgRole } from "@/lib/org/server";
+import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
+
+function actionIdentity(value: unknown) {
+  return (
+    String(value ?? "")
+      .trim()
+      .slice(0, 200) || crypto.randomUUID()
+  );
+}
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
@@ -21,10 +30,12 @@ export async function PATCH(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
       criteria?: unknown;
+      agentActionId?: unknown;
       description?: string | null;
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
       expectedCriteria?: unknown;
+      isCompanyFirstSearch?: boolean;
       isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;
@@ -41,6 +52,7 @@ export async function PATCH(req: NextRequest) {
       employmentTypes: body.employmentTypes,
       externalJdUrl: body.externalJdUrl,
       expectedCriteria: body.expectedCriteria,
+      isCompanyFirstSearch: body.isCompanyFirstSearch,
       isExpired: body.isExpired,
       locationText: body.locationText,
       name: body.name,
@@ -52,7 +64,46 @@ export async function PATCH(req: NextRequest) {
       workMode: body.workMode,
       workspaceId: body.workspaceId ?? "",
     });
-    return NextResponse.json(payload);
+    let agentJobId: string | null = null;
+    const wakesCompanySideLlm =
+      body.status !== undefined || body.isExpired !== undefined;
+    if (wakesCompanySideLlm) {
+      try {
+        const changedFields = ["isExpired", "status"].filter(
+          (field) => body[field as keyof typeof body] !== undefined
+        );
+        const queued = await enqueueOrgAgentWebActionTurn({
+          actionContext: {
+            changedFields,
+            role: {
+              locationText: payload.role.locationText,
+              name: payload.role.name,
+              roleId: payload.role.roleId,
+              status: payload.role.status,
+              updatedAt: payload.role.updatedAt,
+              workMode: payload.role.workMode,
+            },
+            status: "completed",
+          },
+          actionName: "role_lifecycle_changed",
+          idempotencyKey: [
+            "org-web",
+            body.workspaceId ?? "",
+            user.id,
+            "role-lifecycle",
+            body.roleId ?? "",
+            actionIdentity(body.agentActionId),
+          ].join(":"),
+          roleId: body.roleId ?? "",
+          user,
+          workspaceId: body.workspaceId ?? "",
+        });
+        agentJobId = queued.jobId;
+      } catch (agentError) {
+        console.error("[org/role:agent-wake]", agentError);
+      }
+    }
+    return NextResponse.json({ ...payload, agentJobId });
   } catch (error) {
     return toErrorResponse(error);
   }

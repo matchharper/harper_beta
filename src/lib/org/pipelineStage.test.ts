@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   compactOrgProgressMetadata,
+  getOrgCompanyIntroBoardStage,
   getOrgAgentPipelineBucket,
   humanizeOrgCandidateActivity,
   humanizeOrgCandidateRequestKind,
@@ -18,6 +19,7 @@ test("company-side labels never expose common database enums", () => {
   assert.equal(humanizeOrgRoleStatus("top_priority"), "최우선 진행 중");
   assert.equal(humanizeOrgRoleStatus("paused"), "중단");
   assert.equal(humanizeOrgStage("pending_connection"), "연결 대기");
+  assert.equal(humanizeOrgStage("intro_requested"), "Intro Requested");
   assert.equal(humanizeOrgStage("final_offer"), "최종 오퍼 단계");
   assert.equal(humanizeOrgWorkMode("remote"), "원격 근무");
   assert.equal(humanizeOrgFeedback("positive"), "긍정 평가");
@@ -85,6 +87,7 @@ test("candidate progress metadata keeps review details without exposing raw enum
 
 test("company-side pipeline summary keeps Company-first intro separate", () => {
   assert.equal(getOrgAgentPipelineBucket("company_intro"), "intro");
+  assert.equal(getOrgAgentPipelineBucket("intro_requested"), "requested");
   assert.equal(getOrgAgentPipelineBucket("pending_connection"), "waiting");
   assert.equal(getOrgAgentPipelineBucket("connected"), "active");
   assert.equal(getOrgAgentPipelineBucket("custom:123"), "active");
@@ -92,6 +95,15 @@ test("company-side pipeline summary keeps Company-first intro separate", () => {
   assert.equal(getOrgAgentPipelineBucket("process_stopped"), "ended");
   assert.equal(getOrgAgentPipelineBucket("accepted"), "active");
   assert.equal(getOrgAgentPipelineBucket("archived"), null);
+});
+
+test("requested Company-first intros move into their own board stage", () => {
+  assert.equal(getOrgCompanyIntroBoardStage("ready"), "company_intro");
+  assert.equal(
+    getOrgCompanyIntroBoardStage("awaiting_talent"),
+    "intro_requested"
+  );
+  assert.equal(getOrgCompanyIntroBoardStage("connecting"), "intro_requested");
 });
 
 test("recommendation ID filters are normalized and strictly bounded", () => {

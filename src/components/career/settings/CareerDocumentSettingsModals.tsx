@@ -493,10 +493,7 @@ const CareerGmailHistoryEditPanelContent = ({
         "career.profile.documents.copy_failed",
         "문서 내용을 복사하지 못했습니다. 다시 시도해 주세요."
       )}
-      copyLabel={t(
-        "career.profile.documents.copy_content",
-        "문서 전체 내용 복사"
-      )}
+      copyLabel={t("career.profile.documents.copy_content", "복사")}
       copySuccessMessage={t(
         "career.profile.documents.copy_success",
         "문서 내용을 복사했습니다."

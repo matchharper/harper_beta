@@ -7,8 +7,13 @@ import {
   stripCareerMessageAttachmentMetadata,
   type CareerMessageAttachment,
 } from "@/lib/career/messageAttachments";
+import {
+  parseCareerCoachingActivity,
+  type CareerCoachingActivity,
+} from "@/lib/career/careerCoachingActivitySchema";
 
 export type TalentConversationRow = {
+  career_coaching_activity_message_id?: number | null;
   id: string;
   user_id: string;
   stage: "profile" | "chat" | "completed";
@@ -98,6 +103,7 @@ export type TalentMessageRow = {
   role: "user" | "assistant";
   content: string;
   message_type: string | null;
+  payload?: Database["public"]["Tables"]["talent_messages"]["Row"]["payload"];
   thinking_logs?: Database["public"]["Tables"]["talent_messages"]["Row"]["thinking_logs"];
   is_mobile?: boolean | null;
   created_at: string;
@@ -110,6 +116,7 @@ export type TalentMessageResponse = {
   role: "user" | "assistant";
   content: string;
   messageType: string;
+  coachingActivity?: CareerCoachingActivity;
   createdAt: string;
   thinkingLogs: string[];
 };
@@ -127,9 +134,15 @@ export function normalizeTalentMessageThinkingLogs(value: unknown): string[] {
 export function toTalentMessageResponse(
   item: TalentMessageRow
 ): TalentMessageResponse {
+  const coachingActivity =
+    item.message_type === "career_coaching_activity"
+      ? // Avoid importing the activity module here: that module already uses this serializer.
+        parseCareerCoachingActivity(item)
+      : null;
   const attachments = extractCareerMessageAttachments(item.content);
   return {
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(coachingActivity ? { coachingActivity } : {}),
     id: item.id,
     role: item.role,
     content: stripCareerMessageAttachmentMetadata(

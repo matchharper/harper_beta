@@ -50,6 +50,7 @@ export const OnboardingCompletionWrapup = memo(
         </div>
         <div className="px-4 py-4">
           <RichText
+            variant="career"
             content={content}
             className="text-[13px] leading-5 text-neutral-800 [&_li]:text-[13px] [&_li]:leading-5 [&_ol]:text-[13px] [&_p]:text-[13px] [&_p]:leading-6 [&_p]:text-neutral-800 [&_strong]:font-medium [&_strong]:text-neutral-primary [&_ul]:text-[13px] [&_ul]:leading-5"
           />

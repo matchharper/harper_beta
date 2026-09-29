@@ -3,6 +3,23 @@ import type {
   OrgAgentThinkingLogIcon,
 } from "@/lib/org/agent/types";
 
+const ORG_AGENT_THINKING_ONLY_LOG_IDS = new Set(["context", "response"]);
+
+export function hasOrgAgentToolWork(logs: OrgAgentThinkingLog[]) {
+  return logs.some((log) => {
+    const id = log.id?.trim();
+    return Boolean(id && !ORG_AGENT_THINKING_ONLY_LOG_IDS.has(id));
+  });
+}
+
+export function finalizeOrgAgentThinkingLogs(
+  logs: OrgAgentThinkingLog[],
+  usedTool: boolean
+) {
+  if (!usedTool) return [];
+  return logs.filter((log) => log.id !== "response");
+}
+
 export function getOrgAgentThinkingLogIcon(
   toolName: string
 ): OrgAgentThinkingLogIcon {

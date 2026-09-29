@@ -88,9 +88,11 @@ function ConclusionBadge({ experiment }: { experiment: OpsAbTestSummary }) {
   return (
     <Badge {...props} size="sm">
       {state === "leader"
-        ? "차이 확인"
+        ? "우세 확인"
         : state === "no_clear_difference"
-          ? "결론 보류"
+          ? experiment.conclusion.observedLeaderVariantId
+            ? "잠정 우세"
+            : "동률"
           : "수집 중"}
     </Badge>
   );
@@ -98,14 +100,11 @@ function ConclusionBadge({ experiment }: { experiment: OpsAbTestSummary }) {
 
 function getConclusionHeadline(experiment: OpsAbTestSummary) {
   if (experiment.conclusion.state === "collecting") return "표본 수집 중";
-  if (experiment.conclusion.state === "no_clear_difference") {
-    return "아직 뚜렷한 차이 없음";
-  }
-  return `${
-    experiment.variants.find(
-      (variant) => variant.id === experiment.conclusion.leaderVariantId
-    )?.label ?? "우세 그룹"
-  } 우세`;
+  const leader = experiment.variants.find(
+    (variant) => variant.id === experiment.conclusion.observedLeaderVariantId
+  );
+  if (!leader) return "현재 두 그룹의 성과가 같음";
+  return `현재는 ${leader.label}가 더 유리`;
 }
 
 function getConfidenceRange(experiment: OpsAbTestSummary) {
@@ -166,7 +165,7 @@ function ComparisonDonut({
               r={radius}
               strokeDasharray={`${firstLength} ${circumference - firstLength}`}
               strokeWidth="8"
-              transform="rotate(-90 50 50)"
+              transform="translate(100 0) scale(-1 1) rotate(-90 50 50)"
             />
             <circle
               className="fill-none stroke-primary transition-[stroke-dasharray,stroke-dashoffset] duration-500"
@@ -176,7 +175,7 @@ function ComparisonDonut({
               strokeDasharray={`${secondLength} ${circumference - secondLength}`}
               strokeDashoffset={-(firstShare * circumference)}
               strokeWidth="8"
-              transform="rotate(-90 50 50)"
+              transform="translate(100 0) scale(-1 1) rotate(-90 50 50)"
             />
           </>
         ) : null}
@@ -187,7 +186,7 @@ function ComparisonDonut({
       >
         <span
           className={cx(
-            "font-normal leading-[1.25] text-neutral-primary tabular-nums",
+            "break-keep font-normal leading-[1.25] text-neutral-primary tabular-nums",
             centerClass
           )}
         >
@@ -218,11 +217,17 @@ function VariantValue({
         <span
           aria-hidden="true"
           className={cx(
-            "size-2 rounded-full",
-            index === 0 ? "order-2 bg-action" : "bg-primary"
+            "size-2 shrink-0 rounded-full",
+            index === 0 ? "bg-action" : "bg-primary"
           )}
         />
-        <Text className="font-normal" tone="subtle" variant="subtle">
+        <Text
+          className={cx(
+            "font-normal",
+            index === 0 ? "text-action" : "text-primary"
+          )}
+          variant="subtle"
+        >
           {variant.label}
         </Text>
       </div>
@@ -264,6 +269,16 @@ function PrimaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
           <Text tone="muted" variant="subtle">
             1차 지표 · {experiment.primaryMetricLabel}
           </Text>
+          <Tooltips text={experiment.caveat}>
+            <MuteButton
+              aria-label={`${experiment.primaryMetricLabel} 집계 기준`}
+              size="sm"
+              type="button"
+              variant="transparent"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </MuteButton>
+          </Tooltips>
         </div>
       </div>
 
@@ -286,13 +301,21 @@ function PrimaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
         />
       </div>
 
-      <Text className="mt-4 text-center" tone="subtle" variant="subtle">
+      <Text className="mt-4 text-center font-medium" variant="body">
         {getConclusionHeadline(experiment)}
       </Text>
+      {experiment.conclusion.observedLeaderVariantId ? (
+        <Text className="mt-1 text-center" tone="muted" variant="subtle">
+          {experiment.primaryMetricLabel} 기준
+          {experiment.conclusion.state === "no_clear_difference"
+            ? " · 우세 확정에는 추가 표본 필요"
+            : " · 95% 구간에서 차이 확인"}
+        </Text>
+      ) : null}
 
       {confidenceRange ? (
         <Text
-          className="mt-4 text-center tabular-nums"
+          className="mt-2 text-center tabular-nums"
           tone="subtle"
           variant="subtle"
         >
@@ -405,17 +428,6 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
           <Badge size="sm" variant="subtle">
             {experiment.allocation}
           </Badge>
-          <Tooltips text={experiment.caveat} side="left">
-            <MuteButton
-              aria-label={`${experiment.title} 지표 설명`}
-              className="h-6 w-6 p-0 text-neutral-soft"
-              size="sm"
-              type="button"
-              variant="transparent"
-            >
-              <Info className="h-3.5 w-3.5" />
-            </MuteButton>
-          </Tooltips>
         </div>
       </div>
 
@@ -529,7 +541,7 @@ export default function OpsAbTestsPage() {
             </div>
             <div className={cx(opsTheme.panel, "p-4")}>
               <Text tone="subtle" variant="subtle">
-                차이 확인
+                우세 확인
               </Text>
               <div className="mt-2 text-2xl font-normal tabular-nums text-positive">
                 {clearResultCount}
@@ -537,7 +549,7 @@ export default function OpsAbTestsPage() {
             </div>
             <div className={cx(opsTheme.panel, "p-4")}>
               <Text tone="subtle" variant="subtle">
-                결론 보류
+                우세 미확정
               </Text>
               <div className="mt-2 text-2xl font-normal tabular-nums text-info">
                 {experiments.length - clearResultCount}

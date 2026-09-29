@@ -892,6 +892,10 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
             signal: abortController.signal,
             body: JSON.stringify({
               callSessionId: options?.callSessionId ?? undefined,
+              careerCoachingActivityMessageId:
+                options?.careerCoachingActivityMessageId ?? undefined,
+              careerCoachingActivityRevision:
+                options?.careerCoachingActivityRevision ?? undefined,
               conversationId,
               conversationStarterId:
                 options?.conversationStarterId ?? undefined,

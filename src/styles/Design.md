@@ -1,6 +1,6 @@
 # Harper Design Tokens
 
-이 문서는 `src/globals.css`의 `@theme` 토큰을 기준으로 한다. 새 UI는 토큰 이름만 보고 용도를 알 수 있어야 하므로, 화면 코드에서는 가능한 semantic token을 먼저 쓰고 palette token은 보조적으로만 쓴다.
+이 문서는 `src/globals.css`의 `@theme static` 토큰을 기준으로 한다. 전체 토큰을 CSS 변수로 유지해 직접 참조와 미리보기에서도 같은 값을 사용한다. 새 UI는 토큰 이름만 보고 용도를 알 수 있어야 하므로, 화면 코드에서는 가능한 semantic token을 먼저 쓰고 palette token은 보조적으로만 쓴다.
 
 ## 핵심 원칙
 
@@ -52,6 +52,19 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 
 `bg-bg-floating`은 가장 자주 쓰는 밝은 표면이다. 사용자가 클릭하거나 입력하는 요소는 기본적으로 이 색에서 시작하고, hover/active에서만 `bg-bg-weak`로 내려간다.
 
+기본 팔레트는 Dev Controls의 `2. 누런끼 조금 제거`를 전역 토큰에 반영한 색상이다.
+흰색 `bg-default`·`bg-floating` (`#ffffff`), 아주 옅은
+`bg-basement` (`neutral-100` 40% + 흰색 60%, 기본값은 약 `#fdfdfc`),
+약한 fill인 `bg-weak` (`#f5f4f3`)로 표면을 구분한다.
+본문은 `#1b1b1a`로 대비를 유지하고, 연한 강조·상태 배경의 채도만 낮춘다.
+`primary`의 원색은 유지한다.
+
+Career의 대화 영역과 composer 주변은 `bg-bg-basement`, 오른쪽 정보 패널은
+`bg-bg-default`를 쓴다. 데스크톱 왼쪽 메뉴는 대화 영역과 같은
+`bg-bg-basement`를 쓰고, `/org`의 메뉴 너비·행 간격·선택 상태를 따른다.
+모바일도 정보 화면은 `bg-bg-default`, 펼친 대화 영역은
+`bg-bg-basement`로 같은 구분을 유지한다.
+
 > Organization workspace 예외: `/org/*`의 shell과 일반 정보 section은
 > `bg-bg-default` 하나를 공유하고 카드 표면을 만들지 않는다.
 > `bg-bg-floating`은 dialog, dropdown, popover처럼 실제로 떠 있는 UI에만 쓴다.
@@ -64,6 +77,7 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 | `text-neutral-primary` | 제목, 본문, 주요 값 |
 | `text-neutral-muted` | 보조 설명, caption, metadata |
 | `text-neutral-soft` | 낮은 강조, hint, 덜 중요한 timestamp |
+| `text-faded` | `text-neutral-soft`와 같은 색의 옅은 label 텍스트 |
 | `text-neutral-placeholder` | input placeholder |
 | `text-neutral-disabled` | 비활성 UI |
 | `text-link` | 외부 링크, 문서 링크, 이동 링크 |
@@ -86,6 +100,21 @@ Palette token은 색상 자체를 정의한다. 직접 써도 되지만, 레이�
 | `critical-faded` | critical 상태의 연한 배경 |
 
 `info`를 파란색 정보 강조로 사용하지 않는다. 파란색이 필요하면 의미에 따라 `action`, `action-faded`, 또는 링크 전용 `text-link`를 쓴다. 상태 토큰은 실제 상태를 말할 때만 쓰고, 단순히 예쁜 강조가 필요하면 `primary` 또는 `primary-faded`를 쓴다.
+
+## Dev color previews
+
+`DevColorPaletteControls` (`src/components/common/DevColorPaletteControls.tsx`)는
+Career·Org의 기존 dev controls에서 공통으로 사용하는 브라우저 전용 색상 비교 도구다.
+현재 / 누런끼 조금 / 누런끼 거의 없음 / White·Black·Gray의 네 옵션을 제공한다.
+`현재`와 `누런끼 조금`은 `src/globals.css`의 기본 토큰을 그대로 사용한다.
+`src/styles/dev-color-palettes.css`에는 나머지 미리보기 값을 모으고, 앱의
+`DevColorPalettePreview`가 해당 화면과 기존 dev 권한에 한해 루트 속성을 적용한다.
+선택은 localStorage에만 저장하며 다른 화면이나 일반 사용자의 기본 팔레트를 바꾸지 않는다.
+`현재`는 모든 미리보기 override를 해제한다. 모든 옵션에서 `--color-primary`,
+`--primary`, 원본 `--color-accent-500`은 유지한다. 연한 강조 배경은 조정하며,
+흑백 옵션은 상태색도 회색으로 바꾼다. 사진·로고와 컴포넌트에 직접 지정한 색은 대상이 아니다.
+모든 미리보기는 기본 팔레트와 같은 밝은 표면 위계를 공유하며, 오른쪽 정보 패널은
+흰색으로 유지하고 대화 영역과 약한 fill의 온도만 단계적으로 줄인다.
 
 ## Shared Input And Textarea
 
@@ -229,19 +258,35 @@ Shared component catalog:
 | Clickable card | `CardButton` |
 | Existing card action migration | `InteractiveCard`, `ChoiceCard` |
 | Text | `Text` |
+| Career Markdown | `RichText variant="career"`: H1 uses 20px/medium; tables keep only horizontal separators with no outer border or edge padding. External HTTP(S) links use `ReferenceLink` (favicon + `text-action`, a user-requested Career link style). Shared chat content forwards the variant; other surfaces keep default Markdown styling. Copy/export always uses the unchanged Markdown. |
+| Inline source links | `ReferenceLink` from `src/components/ui/reference-link.tsx`; `RichText referenceLinks` opts in outside Career. Uses a hostname-only favicon request with a globe fallback, destination tooltip, and keyboard focus. |
+| Career message width | `CareerMessageBubble` limits both user and assistant bubbles to 740px (and the available mobile width). Keep the shared `ChatMessageBubbleFrame` defaults unchanged for other products. |
 | Labels/status chips | `Badge` |
 | Calibration 평가 상태 (목록·상세) | `OrgCalibrationReviewBadge` from `src/components/org/role-overview/OrgCalibrationReviewBadge.tsx` |
 | Form fields | `Input`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio` |
+| Career / company onboarding | `src/components/common/onboarding/Onboarding.tsx`: shared frame, progress, transition, header, footer, face ready state and conversation preview. Keep domain steps, copy, persistence and submissions in each domain. Career retains its original geometry by default; company may use flexible title height and place the mobile research preview after the title. |
+| Company Slack channel invitation | `OrgSlackChannelPicker` from `src/components/org/OrgSlackChannelPicker.tsx`: shared search, compact divider-free scrolling channel list, per-row `MuteButton dark / sm` invitation and primary create action. Use inline in onboarding and inside the shared `Dialog` in settings; domain callers own mutations and errors. |
 | Menu | `ActionDropdown`, `DropdownMenu` |
+| Tooltip with an arrow | `Tooltip`, `TooltipTrigger`, and `TooltipContent` from `src/components/ui/tooltip.tsx`; use `showArrow` for the current shadcn bubble style and `arrowClassName` to match the bubble background. Keep clipping and expansion animations inside the content so the arrow stays visible. |
 | Page section copy | `SectionHeader`, `SectionTitle`, `SectionDescription` |
+| Public landing demo video | `DemoVideo` from `src/components/landing/DemoVideo.tsx`; shared by `/demo` and `/company`, fills its container and preserves internal-view tracking exclusions |
+| Public 404 page | `NotFoundPage` from `src/components/landing/NotFoundPage.tsx`; shared by Pages Router and App Router, with the landing AppBar, centered message and home link, and landing Footer. Router entry points own authentication and metadata. |
 | Editable document preview and right-side editor | `DocumentEditor` from `src/components/ui/document-editor.tsx` |
 | Interview availability calendar, split panel, and time option | `MeetingAvailabilityCalendar`, `MeetingAvailabilitySplitLayout`, `MeetingAvailabilityTimeButton` from `src/components/meetings/MeetingAvailabilityLayout.tsx` |
 | Chat internal-role and mock interview call proposals | `CareerCallProposalCard` from `src/components/career/chat/CareerCallProposalCard.tsx`; use shared `src/components/career/MockInterviewStart.tsx` for mock interview confirmation and start behavior |
 | Career saved document preview: Markdown copy/export or generated resume paginated A4 HTML preview/on-demand PDF download | `CareerDocumentDetail` from `src/components/career/documents/CareerDocumentDetail.tsx`, opened at `/career/profile?profileSection=links&documentId=...` like call notes; chat links use `DocumentPreviewCards` with `CardButton`. Do not open saved documents in a modal. |
 | Career position actions | `HistoryOpportunityRoleActions`: use `variant="tags"` above the desktop composer for small white text-only actions without entrance animation; use the default list in mobile and detail content |
+| Career new positions | `NewOpportunityList` from `src/components/career/history/NewOpportunityList.tsx`: shared by desktop and mobile, with separate internal/external sections, a flat internal list with connection guidance, external recommendation-date groups, spaced collapsible cards, bounded role descriptions, and card-scoped feedback. Internal cards use a small Handshake `Badge` at `absolute left-1 top-[-2px]` with `bg-primary-faded text-faded`; Intro requests keep the direct-connection label. Collapsed positive actions reuse the opportunity type's icon. Use `OpportunityPreferenceFit variant="icons"` for colored fit icons with `Tooltips`. |
+| Career welcome | `CareerWelcomeHeader` from `src/components/career/CareerWelcomeHeader.tsx`: centered greeting and current network scan count at the top of Tasks. Reuse `useCareerWelcomeContent` in the existing Home layout so both surfaces use the same profile name, scan count, and translated description. |
+| Career tasks | `CareerTasksPanel` from `src/components/career/CareerTasksPanel.tsx`: shared by desktop and mobile, places `CareerWelcomeHeader` above the title and groups current decisions, Harper suggestions, and ongoing introductions. While onboarding, place `CareerHomePanel variant="onboarding"` above the task sections to reuse the existing interview progress, call/completion actions, and checklist. Hide it once onboarding is complete. Compose sections with `SectionHeader` and row actions with `MuteButton`; use the existing composer, position detail, and meeting invitation for actions. Navigation counts only current decisions. |
+| Career desktop navigation | `CareerWorkspaceNav` from `src/components/career/CareerWorkspaceNav.tsx`: left sidebar with tasks, new opportunities, saved opportunities, profile, and Search Brief (`/career/brief`). Reuses `MuteButton` and `CareerProfileMenu variant="sidebar"`; keep its background aligned with chat and its row geometry aligned with the Org sidebar. The header toggle switches between 244px and a 64px icon rail with shared tooltips and a 28px avatar; persist the collapsed state in `useCareerWorkspaceUiStore`. Reuse its exported `CareerNewOpportunityIcon` for the same new-opportunity icon in mobile navigation. |
 | Career job previews in chat and company details | `CareerOpportunityPreviewCard` shares the logo, metadata, posting status, and optional Recommended/Fit badges; `CareerOpportunityPreviewModal` opens the detail with a Save action |
 | Career company details and jobs | `CareerCompanyDetailDrawer` composes `CompanyDetailView` and `CompanyJobsList` inside `TalentCareerModal`; jobs use 20-item infinite pagination |
 | Career profile sources and documents | `CareerProfileSourceCard` from `src/components/career/settings/CareerProfileSourceCard.tsx`; use the 136×148 card for profile links, connected sources, resumes, documents, and add/upload actions |
+| Career source icons | `CareerProfileSourceIcon` from `src/components/career/settings/CareerProfileSourceIcon.tsx`; reuse the profile source-card logos. Source slots come from `src/lib/career/profileSources.ts`. The Tasks source reminder uses the Lucide `Link2` icon. |
+| Company logo previews | `CompanyLogo` from `src/components/career/watchlist/CompanyLogo.tsx`; use `size="xs"` for 16px logos in the Tasks 2×2 recommendation preview. Existing `sm/md/lg` sizes keep their original styles. |
+| Career blocked companies | `CareerBlockedCompaniesSettingsSection` from `src/components/career/CareerProfileSettingsSection.tsx`; reuses the existing blocked-company field and immediate add/remove save actions. Place it below the Search Brief at `/career/brief`, using `CareerProfileWorkspace view="brief"` without profile in-page tabs. |
+| Career profile visibility | `CareerProfileSharingSettingsSection` from `src/components/career/CareerProfileSettingsSection.tsx`; show it only in the profile subtab (`profileSection=profile`), below the in-page tabs and above the profile content, with `showBlockedCompanies`, `showEngagementTypes`, and `showLastUpdated` set to `false`. Reuse the existing confirmation and save flow. Compose option hints with shadcn `Tooltip` and `showArrow` as rounded black bubbles above the buttons; an unselected Open to matches option keeps a compact `65%` hint visible only while its scroll container is at the top. Hover or focus opens the full explanation at any scroll position. |
 | `/career` modal, confirmation, or bottom sheet | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx` |
 | Generic Radix dialog composition | `Dialog`, `DialogContent`, `DialogTitle`, and `DialogDescription` from `src/components/ui/dialog.tsx` |
 

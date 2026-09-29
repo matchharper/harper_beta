@@ -1,0 +1,39 @@
+{
+  "capturedAt": "2026-09-27T04:07:44.578804+00:00",
+  "cases": [
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C01",
+      "cohort": "requested account",
+      "contextVariant": "behavior",
+      "inputSha256": "3ea0d9c2bba830cba072868c8795262d441dd288f90abc0acb7519f7074254a0",
+      "roleCount": 30
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C02",
+      "cohort": "Korea earlier-career engineer",
+      "contextVariant": "behavior",
+      "inputSha256": "cd6799c98f0070ec178cd8a4963b0f6811a37cf4a194c1ecd6ce3adc703c1bd0",
+      "roleCount": 11
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C03",
+      "cohort": "Korea brand/PR professional",
+      "contextVariant": "behavior",
+      "inputSha256": "deeafae1648214005d3966907b338d5087147edf7f4f3e4a09adbc41727089aa",
+      "roleCount": 2
+    }
+  ],
+  "datasetVersion": "pilot-v1",
+  "fixtureSha256": "35cad522ac5bcfcf5fce09bf533a27dca175fe3f9c569fb49d8ce441d920bd21",
+  "goldVersion": "review-rubric-v1; no human outcome labels",
+  "privacy": "Raw data in ignored owner-only private/ and runs/",
+  "sampling": "First up to 30 eligible live roles from current retrieval using latest completed saved search plan; use all when fewer available; original order fixed.",
+  "source": {
+    "dirtyDiffSha256": "f4d742f201eb781006b5cb5c94909aa3df4ea2c5b52ceba340c374847bdd202a",
+    "revision": "bd98dd4ff6e16a66655f9a99e409d5d24b3907e5",
+    "runnerSha256": "eeb982c2080c79f96c53f56b735174760b74634406e0a7bac0216a1bb2f5519d"
+  }
+}

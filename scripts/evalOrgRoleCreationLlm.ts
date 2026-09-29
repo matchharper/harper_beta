@@ -137,6 +137,7 @@ async function main() {
       employmentTypes: [],
       externalJdUrl: null,
       hasMemory: false,
+      isCompanyFirstSearch: false,
       locationText: null,
       memory: null,
       name: "새 역할",
