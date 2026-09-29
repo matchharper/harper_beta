@@ -57,7 +57,7 @@ export function getOrgOnboardingRoleCopy(roles: OrgRole[]) {
     return {
       title: "미리 준비해 둔 역할이 있어요.",
       description:
-        "아직 채용을 진행하고 있지는 않아요. 시작한 뒤 원하는 인재의 기준을 더 자세히 알려주세요. 함께 다듬고, 준비되면 채용을 시작할 수 있어요.",
+        "아직 채용을 진행하고 있지는 않아요. 시작한 뒤 원하는 인재의 기준을 더 자세히 알려주세요. 함께 다듬고, 준비되면 채용을 시작할 수 있어요. Harper에게 채용 시작해라고 말해주세요.",
     };
   }
   return {
@@ -67,7 +67,7 @@ export function getOrgOnboardingRoleCopy(roles: OrgRole[]) {
       ? "현재 채용 중인 역할이 있어요."
       : "회사의 채용 역할을 확인해 보세요.",
     description:
-      "역할마다 현재 진행 상태를 표시했어요. 시작한 뒤 원하는 인재의 기준과 달라진 상황을 Harper에게 알려주세요.",
+      "언제든지 원하는 인재의 기준과 달라진 상황을 Harper에게 알려주세요. 바로 수정된 기준에 맞는 인재를 연결해드릴게요.",
   };
 }
 

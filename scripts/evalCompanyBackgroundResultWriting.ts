@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { config } from "dotenv";
+import { CLAUDE_MODEL } from "../src/lib/llm/modelConfig";
 
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -79,7 +80,7 @@ type ModelResult = {
 
 const MODELS = [
   { label: "GPT-5.6 Terra", model: "gpt-5.6-terra", provider: "OpenAI" },
-  { label: "Claude Sonnet 5", model: "claude-sonnet-5", provider: "Anthropic" },
+  { label: "Claude Sonnet 5.5", model: CLAUDE_MODEL, provider: "Anthropic" },
   {
     label: "GLM 5.3 Flash",
     model: "z-ai/glm-5.3-flash",

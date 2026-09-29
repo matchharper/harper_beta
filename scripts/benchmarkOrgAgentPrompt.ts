@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { CLAUDE_MODEL } from "../src/lib/llm/modelConfig";
 import { buildCompanySystemInput, buildCompanyConversationInput } from "../src/lib/org/agent/input";
 import { resolveCompanyCapabilities } from "../src/lib/org/agent/capabilities/resolver";
 import {
@@ -10,7 +11,7 @@ import type { OrgAgentPromptContext } from "../src/lib/org/agent/context";
 
 dotenv.config({ path: ".env.local", quiet: true });
 
-const MODEL = "claude-sonnet-5";
+const MODEL = CLAUDE_MODEL;
 const BASELINE = {
   firstCompletionInputTokens: 9_422,
   getTalentsResultInputTokens: 4_913,

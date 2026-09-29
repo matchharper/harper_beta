@@ -161,7 +161,9 @@ export default function CareerTasksPanel({
     callWrapUpPending,
   } = useCareerChatPanelContext();
   const completed = isOnboardingDone || stage === "completed";
+  const showCompletedState = completed || workspaceDataLoading;
   const actionLocked = Boolean(
+    workspaceDataLoading ||
     sessionPending ||
     chatPending ||
     assistantTyping ||
@@ -197,6 +199,7 @@ export default function CareerTasksPanel({
 
   const callAction = (action?: CareerPendingAction) => (
     <MuteButton
+      size="sm"
       disabled={
         action?.kind === "internal_opportunity_call"
           ? actionLocked || !onStartCallMode
@@ -226,6 +229,7 @@ export default function CareerTasksPanel({
           description={action.prompt}
           action={
             <MuteButton
+              size="sm"
               disabled={actionLocked}
               onClick={() => onOpenChatAction(action)}
             >
@@ -277,12 +281,12 @@ export default function CareerTasksPanel({
         key="check-in"
         icon={<PhoneCall className="h-4 w-4" />}
         title={
-          completed
+          showCompletedState
             ? t("career.tasks.check_in", "Harper와 5분 통화")
             : t("career.tasks.onboarding_call", "5분 커리어 인터뷰로 시작해요")
         }
         description={
-          completed
+          showCompletedState
             ? t(
                 "career.tasks.check_in_description",
                 "최근 상황이나 달라진 조건을 가볍게 이야기해요."
@@ -320,6 +324,7 @@ export default function CareerTasksPanel({
               action={
                 <MuteButton
                   variant="primary"
+                  size="sm"
                   onClick={() => void router.push(meeting.invitationPath)}
                 >
                   {t("career.tasks.schedule", "일정 선택하기")}
@@ -362,6 +367,7 @@ export default function CareerTasksPanel({
                     action={
                       <MuteButton
                         variant="primary"
+                        size="sm"
                         disabled={actionLocked}
                         onClick={() => onOpenChatAction(action)}
                       >
@@ -397,6 +403,7 @@ export default function CareerTasksPanel({
                   action={
                     <MuteButton
                       variant="primary"
+                      size="sm"
                       onClick={() => onOpenOpportunity(action.roleId, "new")}
                     >
                       <Handshake className="h-3.5 w-3.5" />
@@ -430,7 +437,7 @@ export default function CareerTasksPanel({
                 "추천 피드백 현황을 불러오지 못했어요"
               )}
               action={
-                <MuteButton onClick={taskSuggestions.retryExternal}>
+                <MuteButton size="sm" onClick={taskSuggestions.retryExternal}>
                   {t("career.tasks.retry", "다시 불러오기")}
                 </MuteButton>
               }
@@ -459,6 +466,7 @@ export default function CareerTasksPanel({
               )}
               action={
                 <MuteButton
+                  size="sm"
                   onClick={() =>
                     onOpenOpportunity(
                       taskSuggestions.externalFeedback[0].roleId,
@@ -487,7 +495,7 @@ export default function CareerTasksPanel({
                 "연결된 자료를 확인하지 못했어요"
               )}
               action={
-                <MuteButton onClick={openProfileLinks}>
+                <MuteButton size="sm" onClick={openProfileLinks}>
                   {t("career.tasks.check_sources", "연결 상태 확인하기")}
                 </MuteButton>
               }
@@ -504,7 +512,7 @@ export default function CareerTasksPanel({
                 "경험과 관심사를 볼 수 있는 자료를 조금 더 알려주세요. 맞는 기회를 찾고 소개하는 데 도움이 돼요."
               )}
               action={
-                <MuteButton onClick={openProfileLinks}>
+                <MuteButton size="sm" onClick={openProfileLinks}>
                   {taskSuggestions.sourceSuggestion.gmailMissing
                     ? t("career.tasks.add_sources", "추가 정보 제공하기")
                     : t("career.tasks.add_links", "추가 정보 제공하기")}
@@ -568,10 +576,11 @@ export default function CareerTasksPanel({
               }
               action={
                 <MuteButton
-                  variant="transparent"
+                  variant="neutral"
+                  size="sm"
                   onClick={() => onOpenOpportunity(connection.roleId, "saved")}
                 >
-                  {t("career.tasks.view_progress", "진행 상황 보기")}
+                  {t("career.tasks.view_progress", "자세히 보기")}
                   <ChevronRight className="h-3.5 w-3.5" />
                 </MuteButton>
               }
@@ -580,7 +589,7 @@ export default function CareerTasksPanel({
           <TaskRow
             icon={<Scan className="h-4 w-4" />}
             title={
-              !completed
+              !showCompletedState
                 ? t(
                     "career.tasks.learning",
                     "어떤 팀이 잘 맞을지 알아가고 있어요"
@@ -590,7 +599,7 @@ export default function CareerTasksPanel({
                       "career.tasks.search_error",
                       "찾기 현황을 불러오지 못했어요"
                     )
-                  : tasks.progressLoading
+                  : workspaceDataLoading || tasks.progressLoading
                     ? t(
                         "career.tasks.loading_search",
                         "찾기 현황을 확인하고 있어요"
@@ -608,12 +617,12 @@ export default function CareerTasksPanel({
                         : t("career.tasks.search_paused", "추천을 쉬고 있어요")
             }
             description={
-              !completed
+              !showCompletedState
                 ? t(
                     "career.tasks.learning_description",
                     "커리어 인터뷰를 마치면 경험과 조건에 맞는 기회를 찾기 시작해요."
                   )
-                : tasks.progressLoading || tasks.progressError
+                : workspaceDataLoading || tasks.progressLoading || tasks.progressError
                   ? null
                   : !externalEnabled && internalEnabled
                     ? t(

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import type { User } from "@supabase/supabase-js";
 import { renderEmailBodyHtml } from "@/lib/email/bodyFormat";
 import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
@@ -4274,7 +4275,7 @@ async function sendOrgIntroEmail(args: {
   const body = appendOrgIntroCaptureDisclosure(
     storedBody || generatedDraft?.body || ""
   );
-  const model = generatedDraft?.model ?? "claude-sonnet-5";
+  const model = generatedDraft?.model ?? CLAUDE_MODEL;
   const now = new Date().toISOString();
   const baseMetadata = {
     cc,

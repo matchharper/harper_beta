@@ -484,10 +484,7 @@ export default function NewOpportunityList({
       },
       {
         key: "external",
-        title: t(
-          "career.history.new_opportunity_list.open_positions",
-          "오픈된 포지션들"
-        ),
+        title: t("career.history.new_opportunity_list.open_positions", "Jobs"),
         empty: t(
           "career.history.new_opportunity_list.no_open_positions",
           "새로 추천된 포지션이 없습니다."

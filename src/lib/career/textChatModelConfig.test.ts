@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CLAUDE_MODEL,
   GPT_56_LUNA_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
@@ -20,10 +21,10 @@ test("allows only the Career dev-control text chat models", () => {
   assert.equal(isCareerTextChatModelId("grok-4.3"), false);
 });
 
-test("uses GLM 5.3 Flash high by default and maps model-specific reasoning effort", () => {
+test("uses Sonnet 5.5 by default and maps model-specific reasoning effort", () => {
+  assert.equal(DEFAULT_CAREER_TEXT_CHAT_MODEL, "claude-sonnet-5-5");
   assert.deepEqual(resolveCareerTextChatModel("unsupported"), {
-    chatCompletionReasoningEffort: "high",
-    model: DEFAULT_CAREER_TEXT_CHAT_MODEL,
+    model: CLAUDE_MODEL,
   });
   assert.deepEqual(resolveCareerTextChatModel(OPENROUTER_GLM_53_FLASH_MODEL), {
     chatCompletionReasoningEffort: "high",
@@ -43,8 +44,7 @@ test("ignores a per-request model override without dev-control access", () => {
   assert.deepEqual(
     resolveCareerTextChatModelForRequest(OPENROUTER_GLM_53_FLASH_MODEL, false),
     {
-      chatCompletionReasoningEffort: "high",
-      model: DEFAULT_CAREER_TEXT_CHAT_MODEL,
+      model: CLAUDE_MODEL,
     }
   );
   assert.equal(

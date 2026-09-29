@@ -216,9 +216,22 @@ type AnthropicToolResultBlock = {
   type: "tool_result";
 };
 
+type AnthropicThinkingBlock = {
+  signature: string;
+  thinking: string;
+  type: "thinking";
+};
+
+type AnthropicRedactedThinkingBlock = {
+  data: string;
+  type: "redacted_thinking";
+};
+
 type AnthropicAssistantContentBlock =
   | AnthropicTextBlock
-  | AnthropicToolUseBlock;
+  | AnthropicToolUseBlock
+  | AnthropicThinkingBlock
+  | AnthropicRedactedThinkingBlock;
 type AnthropicUserContentBlock = AnthropicTextBlock | AnthropicToolResultBlock;
 
 type AnthropicMessage = {
@@ -246,17 +259,22 @@ type AnthropicMessageResponse = {
 
 type AnthropicStreamEvent = {
   content_block?: {
+    data?: string;
     id?: string;
     input?: Record<string, unknown>;
     name?: string;
+    signature?: string;
     text?: string;
+    thinking?: string;
     type?: string;
   };
   delta?: {
     partial_json?: string;
+    signature?: string;
     stop_reason?: string | null;
     stop_sequence?: string | null;
     text?: string;
+    thinking?: string;
     type?: string;
   };
   error?: {
@@ -1061,6 +1079,23 @@ async function createAnthropicMessageStreamResponse(args: {
     if (parsed.type === "content_block_start") {
       const index = getEventIndex(parsed);
       const block = parsed.content_block;
+      if (block?.type === "thinking") {
+        contentBlocks[index] = {
+          ...block,
+          type: "thinking",
+          thinking: block.thinking ?? "",
+          signature: block.signature ?? "",
+        };
+        return;
+      }
+      if (block?.type === "redacted_thinking") {
+        contentBlocks[index] = {
+          ...block,
+          type: "redacted_thinking",
+          data: block.data ?? "",
+        };
+        return;
+      }
       if (block?.type === "text") {
         const text = typeof block.text === "string" ? block.text : "";
         contentBlocks[index] = {
@@ -1093,6 +1128,21 @@ async function createAnthropicMessageStreamResponse(args: {
         await args.onToolUseStart?.({ id, name });
       }
       return;
+    }
+
+    if (parsed.type === "content_block_delta") {
+      const index = getEventIndex(parsed);
+      const block = contentBlocks[index];
+      if (block?.type === "thinking") {
+        if (parsed.delta?.type === "thinking_delta") {
+          block.thinking += parsed.delta.thinking ?? "";
+          return;
+        }
+        if (parsed.delta?.type === "signature_delta") {
+          block.signature += parsed.delta.signature ?? "";
+          return;
+        }
+      }
     }
 
     if (

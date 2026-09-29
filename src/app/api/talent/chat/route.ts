@@ -146,7 +146,7 @@ import {
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 
-export const maxDuration = 180;
+export const maxDuration = 240;
 
 type Body = {
   allowedToolNames?: unknown;

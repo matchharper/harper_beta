@@ -33,5 +33,6 @@ export function buildHarperSlackWelcomeMessage(args: {
     "",
     `:bulb: 궁금한 점은 ${harperMention}를 태그해 물어보세요.`,
     `> ${harperMention} 지금 우선 검토해야 할 후보자를 알려줘`,
+    `> ${harperMention} 새로운 역할 하나 채용 시작해줘`,
   ].join("\n");
 }
