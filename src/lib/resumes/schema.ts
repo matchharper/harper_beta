@@ -1,9 +1,10 @@
+import { RESUME_RENDER_VERSION } from "./template";
 import Ajv from "ajv";
 import { randomUUID } from "node:crypto";
 
 export const GENERATED_RESUME_ORIGIN = "harper_generated_resume";
 export const RESUME_SCHEMA_VERSION = 1;
-export const RESUME_TEMPLATE_VERSION = "a4-single-column-v3";
+export const RESUME_TEMPLATE_VERSION = RESUME_RENDER_VERSION;
 
 export type ResumeEntry = {
   id?: string;
@@ -302,4 +303,16 @@ export function resumeFileName(name: string) {
   if (!base || /^\.+$/.test(base))
     throw new Error("A document name is required.");
   return `${base}.pdf`;
+}
+
+// Validate stored documents at the display/export boundary; never trust arbitrary saved JSON.
+export function readResumeContent(value: unknown): ResumeContent {
+  const structured = value as Partial<StructuredResume> | null;
+  if (structured?.schema_version !== RESUME_SCHEMA_VERSION)
+    throw new Error("Unsupported resume schema version.");
+  return parseResumeInput({
+    action: "create",
+    document_name: "resume",
+    content: structured.content,
+  }).content;
 }

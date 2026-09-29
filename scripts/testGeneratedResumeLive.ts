@@ -181,9 +181,9 @@ async function main() {
     assert.equal(docs.length, 1);
     assert.equal(docs[0].is_public, false);
     assert.equal(docs[0].is_primary, false);
-    assert.ok(docs[0].storage_path);
+    assert.equal(docs[0].storage_path, null);
     console.info(
-      "Direct document create/retry/update/retry passed with real Supabase and PDF."
+      "Direct document create/retry/update/retry passed with real Supabase and no stored files."
     );
     return;
   }
@@ -326,8 +326,11 @@ async function main() {
   );
   assert.equal(preview.status, 200);
   const details = await preview.json();
-  assert.equal(details.format, "pdf");
-  const pdf = await fetch(details.previewUrl);
+  assert.equal(details.format, "resume");
+  assert.equal(docs[0].storage_path, null);
+  const pdf = await fetch(`${base}/api/talent/documents/${state.documentId}/pdf`, {
+    method: "POST", headers, body: JSON.stringify({ expected_revision: details.revision, render_version: details.renderVersion })
+  });
   assert.equal(pdf.status, 200);
   const unauthorized = await fetch(
     `${base}/api/talent/documents/${state.documentId}/content`

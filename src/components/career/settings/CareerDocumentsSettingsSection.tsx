@@ -247,6 +247,7 @@ const CareerDocumentsSettingsSection = ({
               ? t("career.profile.documents.call_note_title", "Harper와의 통화")
               : document.fileName;
           const canOpen =
+            document.originType === "harper_generated_resume" ||
             document.kind === "call_note" ||
             isGmailCareerHistory ||
             document.contentType === "text/markdown" ||

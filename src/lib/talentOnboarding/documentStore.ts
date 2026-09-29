@@ -139,7 +139,7 @@ export async function serializeTalentDocuments(args: {
 
   return Promise.all(
     documents.map(async (document) => {
-      const signed = document.storage_path
+      const signed = document.origin_type !== GENERATED_RESUME_ORIGIN && document.storage_path
         ? await admin.storage
             .from(TALENT_RESUME_BUCKET)
             .createSignedUrl(document.storage_path, expiresIn)

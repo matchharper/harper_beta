@@ -2528,7 +2528,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   },
   [TALENT_TOOL_NAMES.GENERATE_RESUME]: {
     name: TALENT_TOOL_NAMES.GENERATE_RESUME,
-    description: "Create or update a private PDF resume from the complete structured content you authored using known user facts. Use only for explicit resume creation/editing requests, never for review or a suggestion alone. create requires document_name; update requires document_id and expected_revision from read_document(format=structured), preserves that document link, and cannot edit an uploaded original. It does not change Profile/Memory or submit/share the resume. Return to the conversation after execution.",
+    description: "Create or update a private saved resume document from the complete structured content you authored using known user facts. Use only for explicit resume creation/editing requests, never for review or a suggestion alone. create requires document_name; update requires document_id and expected_revision from read_document(format=structured), preserves that document link, and cannot edit an uploaded original. Saves JSON for an HTML preview; PDF is generated only when the user downloads it. It does not change Profile/Memory or submit/share the resume. Return to the conversation after execution.",
     parameters: GENERATE_RESUME_PARAMETERS,
     channels: ["chat"],
     async execute(input, context) {

@@ -1,4 +1,8 @@
-import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
+import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
+import {
+  GENERATED_RESUME_ORIGIN,
+  readResumeContent,
+} from "@/lib/resumes/schema";
 import { createHash } from "crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import {
@@ -51,19 +55,58 @@ export async function GET(req: NextRequest, context: RouteContext) {
       documentId: String(documentId ?? "").trim(),
       userId: user.id,
     });
-    if (!document || (document.kind !== "document" && document.kind !== "resume")) {
+    if (
+      !document ||
+      (document.kind !== "document" && document.kind !== "resume")
+    ) {
       return noStoreJson({ error: "Document not found" }, { status: 404 });
     }
 
     if (document.origin_type === GENERATED_RESUME_ORIGIN) {
-      if (!document.storage_path) return noStoreJson({ error: "PDF unavailable" }, { status: 404 });
+      try {
+        const resume = readResumeContent(document.structured_content);
+        console.info("[ResumeDocument]", { event: "open" });
+        return noStoreJson({
+          documentId: document.id,
+          fileName: document.file_name,
+          updatedAt: document.updated_at,
+          revision: document.revision,
+          format: "resume",
+          resume,
+          renderVersion: RESUME_RENDER_VERSION,
+        });
+      } catch {
+        // Preserve read access to legacy documents with unavailable editable JSON.
+        if (!document.storage_path)
+          return noStoreJson(
+            { error: "Resume content unavailable" },
+            { status: 422 }
+          );
+      }
+      if (!document.storage_path)
+        return noStoreJson({ error: "PDF unavailable" }, { status: 404 });
       const [preview, download] = await Promise.all([
-        admin.storage.from("talent-resumes").createSignedUrl(document.storage_path, 900),
-        admin.storage.from("talent-resumes").createSignedUrl(document.storage_path, 900, { download: document.file_name }),
+        admin.storage
+          .from("talent-resumes")
+          .createSignedUrl(document.storage_path, 900),
+        admin.storage
+          .from("talent-resumes")
+          .createSignedUrl(document.storage_path, 900, {
+            download: document.file_name,
+          }),
       ]);
-      if (preview.error || download.error) throw new Error("PDF URL unavailable");
+      if (preview.error || download.error)
+        throw new Error("PDF URL unavailable");
       console.info("[ResumeDocument]", { event: "open" });
-      return noStoreJson({ documentId: document.id, fileName: document.file_name, updatedAt: document.updated_at, revision: document.revision, format: "pdf", previewUrl: preview.data.signedUrl, downloadUrl: download.data.signedUrl });
+      return noStoreJson({
+        documentId: document.id,
+        fileName: document.file_name,
+        updatedAt: document.updated_at,
+        revision: document.revision,
+        format: "pdf",
+        previewUrl: preview.data.signedUrl,
+        downloadUrl: download.data.signedUrl,
+      });
     }
     return noStoreJson({
       content: document.extracted_text ?? "",
@@ -187,8 +230,28 @@ export async function POST(req: NextRequest, context: RouteContext) {
   const user = await getRequestUser(req);
   if (!user) return noStoreJson({ error: "Unauthorized" }, { status: 401 });
   const { documentId } = await context.params;
-  const document = await fetchTalentDocument({ admin: getTalentSupabaseAdmin(), userId: user.id, documentId });
-  if (!document || document.origin_type !== GENERATED_RESUME_ORIGIN) return noStoreJson({ error: "Document not found" }, { status: 404 });
-  console.info("[ResumeDocument]", { event: "download" });
+  const document = await fetchTalentDocument({
+    admin: getTalentSupabaseAdmin(),
+    userId: user.id,
+    documentId,
+  });
+  if (!document || document.origin_type !== GENERATED_RESUME_ORIGIN)
+    return noStoreJson({ error: "Document not found" }, { status: 404 });
+  const body = await req.json().catch(() => null);
+  if (
+    body?.event !== "preview" ||
+    !Number.isSafeInteger(body.pageCount) ||
+    body.pageCount < 1 ||
+    body.pageCount > 1000 ||
+    !Number.isFinite(body.durationMs) ||
+    body.durationMs < 0 ||
+    body.durationMs > 120_000
+  )
+    return noStoreJson({ error: "Invalid preview event" }, { status: 400 });
+  console.info("[ResumeDocument]", {
+    event: "preview",
+    pageCount: body.pageCount,
+    durationMs: Math.round(body.durationMs),
+  });
   return noStoreJson({ ok: true });
 }

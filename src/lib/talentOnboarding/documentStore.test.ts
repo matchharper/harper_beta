@@ -73,3 +73,9 @@ test("generated resumes are excluded from legacy primary selection", () => {
   assert.equal(pickLatestResumeDocument([generated]), null);
   assert.equal(pickLatestResumeDocument([generated, uploaded])?.id, "uploaded");
 });
+
+test("generated resumes never expose stale stored PDF URLs", async () => {
+  const admin = { storage: { from: () => { throw new Error("must not sign old generated PDF"); } } } as unknown as TalentAdminClient;
+  const [document] = await serializeTalentDocuments({ admin, documents: [documentRow({ origin_type: "harper_generated_resume" })] });
+  assert.equal(document.downloadUrl, null);
+});

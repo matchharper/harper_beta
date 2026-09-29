@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { TalentDocumentRow } from "@/lib/talentOnboarding/models";
@@ -14,7 +14,7 @@ import {
   structureResume,
   type StructuredResume,
 } from "./schema";
-import { renderResumePdf } from "./render";
+import { resumePlainText } from "./template";
 
 const hash = (s: string | Buffer) =>
   createHash("sha256").update(s).digest("hex");
@@ -32,7 +32,6 @@ export async function generateResume(args: {
   userMessageId: string | number;
   requestId?: string;
   input: unknown;
-  render?: typeof renderResumePdf;
 }) {
   const started = Date.now();
   const input = parseResumeInput(args.input);
@@ -70,9 +69,6 @@ export async function generateResume(args: {
       documentId: document.id,
       fileName: document.file_name,
       revision: document.revision,
-      pageCount:
-        (document.structured_content as { page_count?: number } | null)
-          ?.page_count ?? null,
       href: getCareerDocumentHref(document.id),
       documentLink: formatCareerDocumentLink({
         id: document.id,
@@ -158,8 +154,6 @@ export async function generateResume(args: {
     if (error || !data)
       throw new Error("Resume source reference is unavailable.");
   }
-  const storagePath = `${args.userId}/generated-resumes/${documentId}/${randomUUID()}.pdf`;
-  // Only remove an attempt after a definite rejection. An uncertain DB response may still commit.
   const discard = async (path: string) => {
     try {
       const { error } = await args.admin.storage
@@ -171,27 +165,15 @@ export async function generateResume(args: {
       console.info("[ResumeGeneration]", { outcome: "file_cleanup_failed" });
     }
   };
-  let uploaded = false;
-  let definitelyRejected = false;
-  let committed = false;
   try {
-    const artifact = await (args.render ?? renderResumePdf)(structured.content);
-    const { error: uploadError } = await args.admin.storage
-      .from("talent-resumes")
-      .upload(storagePath, artifact.pdf, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-    if (uploadError) throw new Error("Resume PDF upload failed.");
-    uploaded = true;
     const fields = {
       file_name: fileName,
-      storage_path: storagePath,
-      content_type: "application/pdf",
-      size_bytes: artifact.pdf.byteLength,
-      content_sha256: hash(artifact.pdf),
-      structured_content: { ...structured, page_count: artifact.pageCount },
-      extracted_text: artifact.text,
+      storage_path: null,
+      content_type: null,
+      size_bytes: null,
+      content_sha256: null,
+      structured_content: structured,
+      extracted_text: resumePlainText(structured.content),
       origin_id: requestKey,
       is_public: false,
       is_primary: false,
@@ -200,16 +182,14 @@ export async function generateResume(args: {
     // revision + owner + deletion predicates arbitrate edits, including concurrent deletion.
     const query =
       input.action === "create"
-        ? db
-            .from("talent_documents")
-            .insert({
-              ...fields,
-              id: documentId,
-              talent_id: args.userId,
-              kind: "resume",
-              origin_type: GENERATED_RESUME_ORIGIN,
-              revision: 1,
-            })
+        ? db.from("talent_documents").insert({
+            ...fields,
+            id: documentId,
+            talent_id: args.userId,
+            kind: "resume",
+            origin_type: GENERATED_RESUME_ORIGIN,
+            revision: 1,
+          })
         : db
             .from("talent_documents")
             .update(fields)
@@ -222,9 +202,6 @@ export async function generateResume(args: {
       .select("*")
       .maybeSingle();
     if (saveError || !saved) {
-      definitelyRejected =
-        !saveError ||
-        /^(?:[0-9A-Z]{5}|PGRST[0-9]+)$/.test(saveError.code ?? "");
       const current = await readCurrent();
       if (
         current &&
@@ -232,8 +209,6 @@ export async function generateResume(args: {
         current.origin_type === GENERATED_RESUME_ORIGIN &&
         (input.action === "create" || current.origin_id === requestKey)
       ) {
-        if (current.storage_path !== storagePath && definitelyRejected)
-          await discard(storagePath);
         return result(current);
       }
       throw new Error(
@@ -242,23 +217,23 @@ export async function generateResume(args: {
           : "Resume changed or was deleted. Read the current document before updating."
       );
     }
-    committed = true;
-    if (original?.storage_path && original.storage_path !== storagePath)
-      await discard(original.storage_path);
+    if (original?.storage_path) await discard(original.storage_path);
     console.info("[ResumeGeneration]", {
       outcome: "success",
       action: input.action,
       durationMs: Date.now() - started,
-      pageCount: artifact.pageCount,
     });
     return result(saved as TalentDocumentRow);
   } catch (error) {
-    if (uploaded && !committed) {
-      // Never erase a PDF just because the network lost the INSERT/UPDATE response.
-      const current = await readCurrent().catch(() => null);
-      if (current?.storage_path === storagePath) return result(current);
-      if (definitelyRejected) await discard(storagePath);
-    }
+    // A lost response may still have committed; retry only reads this request's result.
+    const current = await readCurrent().catch(() => null);
+    if (
+      current &&
+      !current.is_deleted &&
+      current.origin_type === GENERATED_RESUME_ORIGIN &&
+      current.origin_id === requestKey
+    )
+      return result(current);
     console.info("[ResumeGeneration]", {
       outcome: "failure",
       action: input.action,

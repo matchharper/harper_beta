@@ -1,15 +1,24 @@
+import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
+import { ResumePreview } from "./ResumePreview";
+import type { ResumeContent } from "@/lib/resumes/schema";
 import { ChevronRight, Copy, Download, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import RichText from "@/components/ui/rich-text";
 import { showToast } from "@/components/toast/toast";
 import { useCareerT } from "@/i18n/useCareerT";
-import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import {
+  fetchWithInternalAuth,
+  fetchResponseWithInternalAuth,
+} from "@/lib/internalApiClient";
 import type { CareerDocumentLink } from "@/lib/career/documentLinks";
 
 type DocumentContent = {
   content: string;
-  format?: "pdf";
+  format?: "pdf" | "resume";
+  resume?: ResumeContent;
+  revision?: number;
+  renderVersion?: string;
   previewUrl?: string;
   downloadUrl?: string;
   documentId: string;
@@ -32,6 +41,14 @@ export function CareerDocumentDetail({
   const result = loadedResult?.documentId === document.id ? loadedResult : null;
   const failed = failedDocumentId === document.id;
   const [attempt, setAttempt] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const downloadController = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      downloadController.current?.abort();
+    },
+    [document.id]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,6 +57,11 @@ export function CareerDocumentDetail({
       { cache: "no-store", signal: controller.signal }
     )
       .then((payload) => {
+        if (
+          payload.format === "resume" &&
+          payload.renderVersion !== RESUME_RENDER_VERSION
+        )
+          throw new Error("Resume preview version changed. Reload the page.");
         if (!controller.signal.aborted) {
           setFailedDocumentId(null);
           setResult(payload);
@@ -97,6 +119,69 @@ export function CareerDocumentDetail({
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   };
 
+  const downloadPdf = async () => {
+    if (!result || downloadController.current) return;
+    if (result.format === "pdf") {
+      window.open(result.downloadUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const controller = new AbortController();
+    downloadController.current = controller;
+    setDownloading(true);
+    try {
+      const response = await fetchResponseWithInternalAuth(
+        `/api/talent/documents/${encodeURIComponent(result.documentId)}/pdf`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            expected_revision: result.revision,
+            render_version: result.renderVersion,
+          }),
+        }
+      );
+      if (!response.ok) {
+        if (response.status === 409) {
+          setAttempt((value) => value + 1);
+          throw new Error("conflict");
+        }
+        throw new Error("download");
+      }
+      const blob = await response.blob();
+      if (controller.signal.aborted) return;
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.fileName.replace(
+        /[\\/:*?"<>|\u0000-\u001f]/g,
+        "_"
+      );
+      window.document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      if (!controller.signal.aborted)
+        showToast({
+          message:
+            error instanceof Error && error.message === "conflict"
+              ? t(
+                  "career.profile.documents.pdf_changed",
+                  "문서가 변경되었습니다. 최신 내용을 확인한 뒤 다시 다운로드해 주세요."
+                )
+              : t(
+                  "career.profile.documents.pdf_failed",
+                  "PDF를 만들지 못했습니다. 다시 시도해 주세요."
+                ),
+          variant: "error",
+        });
+    } finally {
+      downloadController.current = null;
+      setDownloading(false);
+    }
+  };
+
   const title = result?.fileName ?? document.title;
 
   return (
@@ -123,20 +208,12 @@ export function CareerDocumentDetail({
               {title}
             </h1>
             <div className="flex flex-wrap gap-2">
-              {result?.format === "pdf" ? (
+              {result?.format === "pdf" || result?.format === "resume" ? (
                 <MuteButton
-                  onClick={() => {
-                    void fetchWithInternalAuth(
-                      `/api/talent/documents/${encodeURIComponent(document.id)}/content`,
-                      { method: "POST" }
-                    ).catch(() => {});
-                    window.open(
-                      result.downloadUrl,
-                      "_blank",
-                      "noopener,noreferrer"
-                    );
-                  }}
+                  disabled={downloading || failed}
+                  onClick={() => void downloadPdf()}
                 >
+                  {downloading && <Loader2 className="h-4 w-4 animate-spin" />}
                   <Download className="h-4 w-4" />
                   {t("career.profile.documents.download_pdf", "PDF 다운로드")}
                 </MuteButton>
@@ -181,7 +258,15 @@ export function CareerDocumentDetail({
               </MuteButton>
             </div>
           ) : result ? (
-            result.format === "pdf" ? (
+            result.format === "resume" && result.resume ? (
+              <ResumePreview
+                key={`${result.documentId}:${result.revision}:${attempt}`}
+                content={result.resume}
+                title={title}
+                documentId={result.documentId}
+                onError={() => setFailedDocumentId(result.documentId)}
+              />
+            ) : result.format === "pdf" ? (
               <iframe
                 key={result.previewUrl}
                 src={`${result.previewUrl}#view=FitH&navpanes=0`}

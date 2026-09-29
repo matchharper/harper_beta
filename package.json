@@ -82,6 +82,7 @@
     "next": "^16.2.6",
     "ogl": "^1.0.11",
     "openai": "^5.15.0",
+    "pagedjs": "0.4.3",
     "pdf-parse": "^2.4.5",
     "pdf-parse-fork": "^1.2.0",
     "playwright-core": "1.63.0",

@@ -11,10 +11,10 @@ const other = "9a9f9944-e939-4d66-93e5-7f44f2655ba4";
 test("direct document storage: duplicates, revisions, deletion, lost responses and failures", async () => {
   const db = new PGlite();
   const files = new Set<string>();
-  let uploadFails = false;
+  let saveFails = false;
   let loseResponse = false;
   let removeFails = false;
-  let afterUpload: (() => Promise<void>) | undefined;
+  let beforeWrite: (() => Promise<void>) | undefined;
   class Query {
     filters: [string, unknown][] = [];
     fields?: Record<string, unknown>;
@@ -55,6 +55,16 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
         sql += ` where ${this.filters.map(([k, v]) => `${k}=${arg(v)}`).join(" and ")}`;
       if (this.operation !== "select") sql += " returning *";
       try {
+        if (this.operation !== "select") {
+          if (saveFails)
+            return {
+              data: null,
+              error: { code: "23514", message: "save failed" },
+            };
+          const hook = beforeWrite;
+          beforeWrite = undefined;
+          await hook?.();
+        }
         const r = await db.query(sql, values);
         if (loseResponse && this.operation !== "select") {
           loseResponse = false;
@@ -78,11 +88,8 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
     storage: {
       from() {
         return {
-          async upload(path: string) {
-            if (uploadFails) return { error: { message: "upload failed" } };
-            files.add(path);
-            await afterUpload?.();
-            return { error: null };
+          async upload() {
+            throw new Error("JSON saves must not upload files");
           },
           async remove(paths: string[]) {
             if (removeFails) return { error: { message: "remove failed" } };
@@ -100,11 +107,6 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
       userMessageId: "message",
       requestId,
       input,
-      render: async () => ({
-        pdf: Buffer.from("pdf"),
-        text: "Exact text",
-        pageCount: 1,
-      }),
     });
   const create = {
     action: "create",
@@ -133,8 +135,19 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
       run(create, "create"),
     ]);
     assert.equal(first.documentId, duplicate.documentId);
-    assert.equal(files.size, 1);
+    assert.equal(files.size, 0);
     assert.equal(first.revision, 1);
+    const saved = (
+      await db.query("select * from talent_documents where id=$1", [
+        first.documentId,
+      ])
+    ).rows[0] as Record<string, unknown>;
+    assert.equal(saved.storage_path, null);
+    assert.equal(saved.size_bytes, null);
+    assert.equal(saved.content_type, null);
+    assert.equal(saved.content_sha256, null);
+    assert.equal(saved.extracted_text, "김하늘");
+    assert.ok(saved.structured_content);
     assert.equal((await run(create, "create")).documentId, first.documentId);
     const second = await run(create, "separate");
     assert.notEqual(first.documentId, second.documentId);
@@ -146,12 +159,12 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
       content: create.content,
     };
     await assert.rejects(run(edit, "cross-owner", other), /not found/);
-    uploadFails = true;
-    await assert.rejects(run(edit, "upload-failure"), /upload/);
-    uploadFails = false;
+    saveFails = true;
+    await assert.rejects(run(edit, "save-failure"), /saved/);
+    saveFails = false;
     const edits = await Promise.allSettled([run(edit, "a"), run(edit, "b")]);
     assert.equal(edits.filter((x) => x.status === "fulfilled").length, 1);
-    assert.equal(files.size, 2);
+    assert.equal(files.size, 0);
     loseResponse = true;
     const updated = await run(
       { ...edit, expected_revision: 2 },
@@ -162,21 +175,27 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
       (await run({ ...edit, expected_revision: 2 }, "lost-response")).revision,
       3
     );
+    // A legacy file is detached only after a successful edit; cleanup failures do not undo it.
+    await db.query(
+      "update talent_documents set storage_path='legacy.pdf' where id=$1",
+      [first.documentId]
+    );
+    files.add("legacy.pdf");
     removeFails = true;
     const next = await run(
-      { ...edit, expected_revision: 3 },
+      { ...edit, expected_revision: 4 },
       "cleanup-failure"
     );
-    assert.equal(next.revision, 4); // Cleanup failure cannot roll back a published document.
+    assert.equal(next.revision, 5); // Cleanup failure cannot roll back a published document.
     removeFails = false;
-    afterUpload = async () => {
+    beforeWrite = async () => {
       await db.query(
         "update talent_documents set is_deleted=true where id=$1",
         [first.documentId]
       );
     };
     await assert.rejects(
-      run({ ...edit, expected_revision: 4 }, "deletion"),
+      run({ ...edit, expected_revision: 5 }, "deletion"),
       /deleted/
     );
     await assert.rejects(run(create, "create"), /no longer available/);
