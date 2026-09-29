@@ -1,6 +1,7 @@
 import { RESUME_RENDER_VERSION } from "./template";
 import Ajv from "ajv";
 import { randomUUID } from "node:crypto";
+import { applyResumeChanges, type ResumeChange } from "./changes";
 
 export const GENERATED_RESUME_ORIGIN = "harper_generated_resume";
 export const RESUME_SCHEMA_VERSION = 1;
@@ -42,16 +43,19 @@ export type SourceReference = {
   kind: "document" | "profile" | "memory" | "message";
   id: string;
 };
-export type GenerateResumeInput = {
-  action: "create" | "update";
+type ResumeInputMetadata = {
   document_name?: string;
   document_id?: string;
   expected_revision?: number;
   target_role?: { title: string; company?: string };
   source_document_ids?: string[];
-  content: ResumeContent;
   source_refs?: SourceReference[];
 };
+export type GenerateResumeInput = ResumeInputMetadata &
+  (
+    | { action: "create"; content: ResumeContent; changes?: never }
+    | { action: "update"; changes: ResumeChange[]; content?: never }
+  );
 export type StructuredResume = {
   schema_version: 1;
   template_version: string;
@@ -103,7 +107,7 @@ export const GENERATE_RESUME_PARAMETERS = obj(
       type: "string",
       enum: ["create", "update"],
       description:
-        "create requires document_name and forbids document_id/revision. update requires document_id and expected_revision from read_document(format=structured).",
+        "create requires document_name and full content. update requires document_id, expected_revision and changes from read_document(format=structured); never send full content for update.",
     },
     document_name: {
       ...str(200),
@@ -114,6 +118,27 @@ export const GENERATE_RESUME_PARAMETERS = obj(
     expected_revision: { type: "integer", minimum: 1 },
     target_role: obj({ title: str(300), company: str(300) }, ["title"]),
     source_document_ids: arr(id, 20),
+    changes: {
+      ...arr(
+        obj(
+          {
+            op: { type: "string", enum: ["set", "add", "remove"] },
+            path: {
+              ...str(500),
+              description:
+                "JSON pointer relative to content. Select existing entries by their exact id: /experience/<id>/description. Use numeric indices for bullets, skill items and contact links. set replaces only that field; remove deletes the exact field or entry. add appends one new item at a collection path (including a missing optional collection), or inserts before an existing item at its path. Never target id or replace existing entry collections; edit their fields. Escape ~ as ~0 and / as ~1.",
+            },
+            value: {
+              description:
+                "New JSON value for set/add; omit for remove. New entries must omit id.",
+            },
+          },
+          ["op", "path"]
+        ),
+        100
+      ),
+      minItems: 1,
+    },
     content: obj(
       {
         language: { type: "string", enum: ["ko", "en"] },
@@ -171,7 +196,7 @@ export const GENERATE_RESUME_PARAMETERS = obj(
       200
     ),
   },
-  ["action", "content"]
+  ["action"]
 );
 
 const validate = new Ajv({ allErrors: false }).compile(
@@ -198,6 +223,8 @@ function omitEmptyOptionalFields(value: unknown, schema: unknown): unknown {
   const normalized = { ...value } as Record<string, unknown>;
   for (const [key, childSchema] of Object.entries(rule.properties)) {
     if (!(key in normalized)) continue;
+    // Preserve edit commands exactly; normalize optional facts only after merging.
+    if (schema === GENERATE_RESUME_PARAMETERS && key === "changes") continue;
     const child = normalized[key];
     if (
       !rule.required?.includes(key) &&
@@ -224,7 +251,19 @@ export function parseResumeInput(value: unknown): GenerateResumeInput {
     throw new Error(
       `Invalid resume input at ${validate.errors?.[0]?.instancePath || "/"}: ${validate.errors?.[0]?.message}`
     );
-  const input = structuredClone(normalized) as GenerateResumeInput;
+  const input = structuredClone(normalized) as unknown as GenerateResumeInput;
+  if (
+    input.action === "create" &&
+    (!input.content || input.changes !== undefined)
+  )
+    throw new Error("create requires content and must not include changes.");
+  if (
+    input.action === "update" &&
+    (!input.changes || input.content !== undefined)
+  )
+    throw new Error(
+      "update requires changes and must not include full content."
+    );
   if (
     input.action === "create" &&
     (!input.document_name ||
@@ -239,6 +278,7 @@ export function parseResumeInput(value: unknown): GenerateResumeInput {
     (!input.document_id || input.expected_revision === undefined)
   )
     throw new Error("update requires document_id and expected_revision.");
+  if (input.action === "update") return input;
   const checkUrl = (url: string) => {
     const parsed = new URL(url);
     if (!["https:", "http:"].includes(parsed.protocol))
@@ -270,7 +310,15 @@ export function structureResume(
   input: GenerateResumeInput,
   previous?: StructuredResume
 ): StructuredResume {
-  const content = structuredClone(input.content);
+  if (input.action === "update" && !previous)
+    throw new Error("Partial resume edits require the current saved JSON.");
+  const content =
+    input.action === "create"
+      ? structuredClone(input.content)
+      : readResumeContent({
+          schema_version: RESUME_SCHEMA_VERSION,
+          content: applyResumeChanges(previous!.content, input.changes),
+        });
   const previousIds = new Set(
     previous ? resumeEntries(previous.content).map((x) => x.id) : []
   );
@@ -310,9 +358,11 @@ export function readResumeContent(value: unknown): ResumeContent {
   const structured = value as Partial<StructuredResume> | null;
   if (structured?.schema_version !== RESUME_SCHEMA_VERSION)
     throw new Error("Unsupported resume schema version.");
-  return parseResumeInput({
+  const input = parseResumeInput({
     action: "create",
     document_name: "resume",
     content: structured.content,
-  }).content;
+  });
+  if (input.action !== "create") throw new Error("Invalid resume content.");
+  return input.content;
 }

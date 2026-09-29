@@ -65,7 +65,20 @@ export function CareerDocumentDetail({
           throw new Error("Resume preview version changed. Reload the page.");
         if (!controller.signal.aborted) {
           setFailedDocumentId(null);
-          setResult(payload);
+          setResult((previous) => {
+            // A background resume refresh still checks access and revision, but
+            // unchanged content keeps its iframe and completed page layout.
+            if (
+              payload.format === "resume" &&
+              previous?.format === "resume" &&
+              previous.documentId === payload.documentId &&
+              previous.revision === payload.revision &&
+              previous.renderVersion === payload.renderVersion
+            ) {
+              return { ...payload, resume: previous.resume };
+            }
+            return payload;
+          });
         }
       })
       .catch(() => {
@@ -255,7 +268,7 @@ export function CareerDocumentDetail({
           ) : result ? (
             result.format === "resume" && result.resume ? (
               <ResumePreview
-                key={`${result.documentId}:${result.revision}:${attempt}`}
+                key={`${result.documentId}:${result.revision}:${result.renderVersion}`}
                 content={result.resume}
                 title={title}
                 documentId={result.documentId}

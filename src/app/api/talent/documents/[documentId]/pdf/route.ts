@@ -56,6 +56,9 @@ export async function POST(
     });
   } catch (error) {
     const status = error instanceof ResumeExportError ? error.status : 500;
+    if (status === 500 && process.env.NODE_ENV === "development") {
+      console.error("[ResumeDocument] PDF rendering error", error);
+    }
     console.info("[ResumeDocument]", {
       event: "download",
       outcome: "failure",

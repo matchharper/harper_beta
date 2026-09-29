@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { chromium } from "playwright-core";
 import { resumeAssets } from "./assets";
 import { resumePreviewHtml } from "./preview";
@@ -14,7 +15,11 @@ test(
     const browser = await chromium.launch({
       executablePath:
         process.env.RESUME_CHROMIUM_EXECUTABLE_PATH ||
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        (existsSync(
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        )
+          ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+          : chromium.executablePath()),
       headless: true,
     });
     try {
@@ -53,7 +58,18 @@ test(
       const errors: string[] = [];
       page.on("pageerror", (e) => errors.push(e.message));
       await page.setContent(
-        '<iframe sandbox="allow-scripts" style="width:800px;border:0"></iframe>'
+        `<div style="position:relative;width:800px">
+          <iframe sandbox="allow-scripts" style="display:block;width:800px;height:1200px;border:0"></iframe>
+          <div id="loading" style="position:absolute;inset:0;z-index:10;background:white">Loading</div>
+        </div>
+        <script>
+          window.addEventListener('message', (event) => {
+            const frame = document.querySelector('iframe');
+            if (event.source !== frame.contentWindow || event.data.type !== 'resume-layout' || event.data.error) return;
+            frame.style.height = event.data.height + 'px';
+            requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector('#loading')?.remove()));
+          });
+        </script>`
       );
       await page
         .locator("iframe")
@@ -74,6 +90,9 @@ test(
       );
       assert.ok(!ready.error);
       assert.ok(ready.pageCount > 1);
+      // A covered iframe must finish pagination; hiding the iframe itself can
+      // suspend the frame callbacks used by Paged.js in browsers.
+      await page.locator("#loading").waitFor({ state: "detached" });
       const compact = (s: string) => s.replace(/\s/g, "");
       const text = compact(await frame.locator(".pagedjs_pages").innerText());
       for (const block of resumeBlocks(content))

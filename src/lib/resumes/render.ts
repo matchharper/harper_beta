@@ -1,4 +1,5 @@
 import type { Browser } from "playwright-core";
+import { existsSync } from "node:fs";
 import type { ResumeContent } from "./schema";
 import { resumeAssets } from "./assets";
 import { resumePreviewHtml } from "./preview";
@@ -24,7 +25,12 @@ export async function renderResumePdf(
       process.env.RESUME_CHROMIUM_EXECUTABLE_PATH ||
       (serverless
         ? await serverless.executablePath()
-        : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+        : process.platform === "darwin" &&
+            existsSync(
+              "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            )
+          ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+          : playwright.executablePath());
     if (expired) throw new Error("PDF rendering timed out.");
     browser = await playwright.launch({
       executablePath,

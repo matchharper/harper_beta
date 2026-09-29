@@ -85,9 +85,10 @@ test("stable entry IDs survive revision, unknown IDs cannot be injected", () => 
   const original = structureResume(parseResumeInput(create()));
   const edited = structureResume(
     {
-      ...parseResumeInput(create()),
       action: "update",
-      content: structuredClone(original.content),
+      document_id: "c51c76d0-3a84-49b5-835a-dbc4c795980b",
+      expected_revision: 1,
+      changes: [{ op: "set", path: "/basics/name", value: "김하늘 수정" }],
     },
     original
   );
@@ -97,7 +98,8 @@ test("stable entry IDs survive revision, unknown IDs cannot be injected", () => 
   );
   assert.throws(() =>
     structureResume({
-      ...parseResumeInput(create()),
+      action: "create",
+      document_name: "resume",
       content: original.content,
     })
   );
@@ -188,6 +190,7 @@ test("optional empty facts are omitted but required facts remain validated", () 
     { title: "Project", period: "", location: "  ", description: "Known fact" },
   ];
   const parsed = parseResumeInput(input);
+  assert.ok(parsed.action === "create");
   assert.equal(parsed.content.projects![0].period, undefined);
   assert.equal(parsed.content.projects![0].location, undefined);
   assert.equal(input.content.projects[0].period, "");
@@ -208,6 +211,7 @@ test("optional empty facts are omitted but required facts remain validated", () 
 test("legacy summary is omitted from edited JSON, PDF HTML and plain text", () => {
   const content = { ...sample, summary: "Legacy summary text" };
   const parsed = parseResumeInput({ ...create(), content });
+  assert.ok(parsed.action === "create");
   assert.ok(!("summary" in parsed.content));
   assert.ok(!resumeHtml(content, "").includes("Legacy summary text"));
   assert.ok(!resumePlainText(content).includes("Legacy summary text"));

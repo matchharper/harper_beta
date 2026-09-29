@@ -47,6 +47,7 @@ export function ResumePreview({
     height: number;
     pageCount: number;
   } | null>(null);
+  const [ready, setReady] = useState(false);
   const fail = useRef(onError);
   useEffect(() => {
     fail.current = onError;
@@ -114,24 +115,32 @@ export function ResumePreview({
       window.removeEventListener("message", receive);
     };
   }, [documentId, trackOpen]);
+  useEffect(() => {
+    if (!layout || ready) return;
+    // Keep the cover until React has applied the measured height and the browser
+    // has had a paint opportunity. The iframe stays laid out while paginating.
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => setReady(true));
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [layout, ready]);
   return (
-    <div>
-      {!layout && (
+    <div className="relative min-h-[480px]" aria-busy={!ready}>
+      {!ready && (
         <div
           role="status"
-          className="flex items-center gap-2 py-8 text-sm text-neutral-primary"
+          className="absolute inset-0 z-10 flex items-start gap-2 bg-bg-floating py-8 text-sm text-neutral-primary"
         >
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin" />
           {t(
             "career.profile.documents.preview_loading",
             "문서를 불러오는 중입니다."
           )}
         </div>
-      )}
-      {layout && (
-        <p className="mb-3 text-xs text-neutral-muted">
-          A4 · {layout.pageCount}p
-        </p>
       )}
       {html && (
         <iframe
@@ -139,10 +148,11 @@ export function ResumePreview({
           srcDoc={html}
           sandbox="allow-scripts"
           title={title}
-          className="w-full border-0"
+          aria-hidden={!ready}
+          tabIndex={ready ? undefined : -1}
+          className="block w-full border-0"
           style={{
             height: layout?.height ?? 1200,
-            visibility: layout ? "visible" : "hidden",
           }}
         />
       )}
