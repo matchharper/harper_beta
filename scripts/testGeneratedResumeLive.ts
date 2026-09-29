@@ -194,13 +194,21 @@ async function main() {
   };
   if (process.argv.includes("--security-tests")) {
     const ownUrl = `${base}/api/talent/documents/${state.documentId}/content`;
-    for (const payload of [{ isPrimary: true }, { isPublic: true }]) {
+    for (const payload of [{ isPrimary: true }]) {
       const r = await fetch(`${base}/api/talent/documents`, {
         method: "PATCH",
         headers,
         body: JSON.stringify({ documentId: state.documentId, ...payload }),
       });
       assert.equal(r.status, 400, await r.text());
+    }
+    for (const isPublic of [true, false]) {
+      const r = await fetch(`${base}/api/talent/documents`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ documentId: state.documentId, isPublic }),
+      });
+      assert.equal(r.status, 200, await r.text());
     }
     const email = `resume-access-test-${randomUUID()}@example.invalid`;
     const password = randomUUID() + randomUUID();

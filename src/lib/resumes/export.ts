@@ -15,7 +15,8 @@ export class ResumeExportError extends Error {
 export async function exportResume(args: {
   expectedRevision: number;
   renderVersion: string;
-  // Must be scoped to the authenticated owner and exclude deleted documents.
+  // Must recheck owner access or company permissions/public visibility on each read,
+  // and exclude deleted documents.
   read: () => Promise<TalentDocumentRow | null>;
   render?: typeof renderResumePdf;
 }) {

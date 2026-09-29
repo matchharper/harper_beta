@@ -278,7 +278,7 @@ const CareerDocumentsSettingsSection = ({
                   }
                   variant="faded"
                 >
-                  {document.originType === "harper_generated_resume" ? t("career.profile.documents.private", "비공개") : document.isPrimary
+                  {document.originType === "harper_generated_resume" ? (document.isPublic ? t("career.profile.documents.public", "회사 공개") : t("career.profile.documents.private", "비공개")) : document.isPrimary
                     ? t(
                         "career.profile.documents.primary_resume",
                         "대표 이력서"
@@ -335,7 +335,7 @@ const CareerDocumentsSettingsSection = ({
                         "대표 이력서로 지정"
                       )}
                     </ActionDropdownItem>
-                  ) : document.kind === "document" && !isGmailCareerHistory ? (
+                  ) : (document.kind === "document" || document.originType === "harper_generated_resume") && !isGmailCareerHistory ? (
                     <ActionDropdownItem
                       onSelect={() =>
                         void onUpdateTalentDocument(document.id, {

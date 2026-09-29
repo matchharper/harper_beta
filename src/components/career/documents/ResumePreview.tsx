@@ -32,11 +32,13 @@ export function ResumePreview({
   title,
   documentId,
   onError,
+  trackOpen = true,
 }: {
   content: ResumeContent;
   title: string;
   documentId: string;
   onError: () => void;
+  trackOpen?: boolean;
 }) {
   const t = useCareerT();
   const frame = useRef<HTMLIFrameElement>(null);
@@ -90,7 +92,7 @@ export function ResumePreview({
         return;
       window.clearTimeout(timeout);
       setLayout({ height, pageCount });
-      if (!reported) {
+      if (!reported && trackOpen) {
         reported = true;
         void fetchWithInternalAuth(
           `/api/talent/documents/${encodeURIComponent(documentId)}/content`,
@@ -111,7 +113,7 @@ export function ResumePreview({
       window.clearTimeout(timeout);
       window.removeEventListener("message", receive);
     };
-  }, [documentId]);
+  }, [documentId, trackOpen]);
   return (
     <div>
       {!layout && (

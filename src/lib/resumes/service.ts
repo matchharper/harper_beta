@@ -74,7 +74,7 @@ export async function generateResume(args: {
         id: document.id,
         title: document.file_name,
       }),
-      isPrivate: true,
+      isPrivate: !document.is_public,
     };
   };
   const original = await readCurrent();
@@ -175,7 +175,7 @@ export async function generateResume(args: {
       structured_content: structured,
       extracted_text: resumePlainText(structured.content),
       origin_id: requestKey,
-      is_public: false,
+      is_public: original?.is_public ?? false,
       is_primary: false,
     };
     // One SQL statement publishes every field. The existing primary key arbitrates creates;

@@ -20,7 +20,7 @@ const nextConfig = {
       "./node_modules/@fontsource/noto-sans-kr/files/*-400-normal.woff2",
       "./node_modules/@fontsource/noto-sans-kr/files/*-700-normal.woff2",
     ],
-    "/api/talent/documents/*/pdf": [
+    "/api/{talent/documents/*/pdf,org/generated-resume}": [
       "./node_modules/pagedjs/dist/paged.min.js",
       "./node_modules/@sparticuz/chromium/bin/**",
       "./node_modules/pdf-parse/dist/worker/pdf.worker.mjs",

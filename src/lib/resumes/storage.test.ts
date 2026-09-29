@@ -152,6 +152,10 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
     const second = await run(create, "separate");
     assert.notEqual(first.documentId, second.documentId);
     assert.equal(first.fileName, second.fileName);
+    await db.query("update talent_documents set is_public=true where id=$1", [second.documentId]);
+    const publicEdit = await run({ action: "update", document_id: second.documentId, expected_revision: 2, content: create.content }, "public-edit");
+    assert.equal(publicEdit.isPrivate, false, "content edits preserve the owner's sharing choice");
+    await db.query("update talent_documents set is_public=false where id=$1", [second.documentId]);
     const edit = {
       action: "update",
       document_id: first.documentId,

@@ -89,13 +89,13 @@ test(
       await frame.waitForFunction(
         () =>
           document.querySelector(".pagedjs_page")!.getBoundingClientRect()
-            .width <= 361
+            .width <= 329
       );
       assert.equal(
         await frame.locator(".pagedjs_page").count(),
         ready.pageCount
       );
-      assert.ok(boundaries.every((w) => w > 790 && w < 800));
+      assert.ok(boundaries.every((w) => w > 640 && w < 660));
       assert.deepEqual(errors, []);
       await mkdir("output/resume-test", { recursive: true });
       await page.locator("iframe").evaluate((f) => {
@@ -108,7 +108,7 @@ test(
       await frame.waitForFunction(
         () =>
           document.querySelector(".pagedjs_page")!.getBoundingClientRect()
-            .width > 790
+            .width > 640
       );
       await page.screenshot({ path: "output/resume-test/html-desktop.png" });
     } finally {

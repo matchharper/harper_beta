@@ -41,6 +41,13 @@ function createDocumentAdmin(rows: TalentDocumentRow[]) {
   class Query {
     private filters: Filter[] = [];
     private selected = "";
+    private patch: Partial<TalentDocumentRow> = {};
+    update(patch: Partial<TalentDocumentRow>) { this.patch = patch; return this; }
+    single() {
+      const target = rows.find(row => this.filters.every(({column,value}) => row[column as keyof TalentDocumentRow] === value));
+      if (target) Object.assign(target, this.patch);
+      return Promise.resolve({ data: target ?? null, error: null });
+    }
 
     select(value: string) {
       this.selected = value;
@@ -179,7 +186,7 @@ test("document serialization signs only rows backed by Storage", async () => {
   assert.equal(serialized[1]?.downloadUrl, "signed:talent-a/portfolio.pdf");
 });
 
-test("generated resumes expose editable JSON/revision only to their owner and reject sharing", async () => {
+test("generated resumes expose editable JSON/revision only to their owner and reject primary selection", async () => {
   const structured = {
     schema_version: 1,
     content: { language: "ko", basics: { name: "김하늘" } },
@@ -207,14 +214,27 @@ test("generated resumes expose editable JSON/revision only to their owner and re
     }),
     /not found/
   );
-  for (const flag of ["is_public", "is_primary"]) {
+  for (const flag of ["is_primary"]) {
     await assert.rejects(
       updateTalentDocumentForTool({
         admin,
         userId: "talent-a",
         input: { document_id: document.id, [flag]: true },
       }),
-      /private/
+      /primary/
     );
   }
+});
+
+
+test("owners can publish and unpublish generated resumes without primary selection", async () => {
+  const document = createGmailDocument({ kind: "resume", origin_type: "harper_generated_resume", origin_id: null });
+  const { admin } = createDocumentAdmin([document]);
+  for (const value of [true, false]) {
+    const result = await updateTalentDocumentForTool({ admin, userId: "talent-a", input: { document_id: document.id, is_public: value } });
+    assert.equal(result.ok, true);
+    assert.equal(document.is_public, value);
+    assert.equal(document.is_primary, false);
+  }
+  await assert.rejects(updateTalentDocumentForTool({ admin, userId: "other", input: { document_id: document.id, is_public: true } }), /not found/);
 });

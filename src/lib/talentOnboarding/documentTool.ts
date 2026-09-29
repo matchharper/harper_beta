@@ -231,8 +231,8 @@ export async function updateTalentDocumentForTool(args: {
     throw new Error("At least one document change is required.");
   }
 
-  if (document.origin_type === GENERATED_RESUME_ORIGIN && (update.is_primary === true || update.is_public === true || (update.kind && update.kind !== "resume"))) {
-    throw new Error("Harper-generated resumes remain private and cannot be selected as primary or shared.");
+  if (document.origin_type === GENERATED_RESUME_ORIGIN && (update.is_primary === true || (update.kind && update.kind !== "resume"))) {
+    throw new Error("Harper-generated resumes cannot be selected as primary or changed to another kind.");
   }
   const effectiveKind = update.kind ?? document.kind;
   const willBeDeleted = update.is_deleted ?? document.is_deleted;
@@ -310,12 +310,12 @@ export async function updateTalentDocumentForTool(args: {
 
   const updated = updatedDocument as TalentDocumentMetadataRow &
     Pick<TalentDocumentRow, "is_deleted">;
-  if (
+  if (document.origin_type !== GENERATED_RESUME_ORIGIN && (
     document.kind === "resume" ||
     updated.kind === "resume" ||
     hasOwn(args.input, "is_primary") ||
     hasOwn(args.input, "is_deleted")
-  ) {
+  )) {
     await syncLegacyResumeFromDocuments({
       admin: args.admin,
       userId: args.userId,

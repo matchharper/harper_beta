@@ -1,6 +1,6 @@
 import type { ResumeContent, ResumeEntry } from "./schema";
 
-export const RESUME_RENDER_VERSION = "a4-single-column-v4";
+export const RESUME_RENDER_VERSION = "a4-single-column-v5";
 
 type Block = {
   kind: "name" | "section" | "heading" | "text" | "bullet";

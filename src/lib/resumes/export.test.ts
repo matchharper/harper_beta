@@ -19,6 +19,22 @@ const options = { expectedRevision: 2, renderVersion: RESUME_RENDER_VERSION };
 const status = (n: number) => (e: unknown) =>
   e instanceof ResumeExportError && e.status === n;
 
+test("revoking company access during rendering prevents returning the PDF", async () => {
+  let allowed = true;
+  const denied = new Error("Company access revoked");
+  await assert.rejects(exportResume({
+    ...options,
+    read: async () => {
+      if (!allowed) throw denied;
+      return row;
+    },
+    render: async () => {
+      allowed = false;
+      return { pdf: Buffer.from("private"), text: "", pageCount: 1 };
+    },
+  }), (error) => error === denied);
+});
+
 test("export reads the saved JSON, verifies again and never mutates its document", async () => {
   const before = structuredClone(row);
   let reads = 0;

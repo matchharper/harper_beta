@@ -103,8 +103,8 @@ export async function PATCH(req: NextRequest) {
       update.file_name = fileName;
     }
 
-    if (document.origin_type === GENERATED_RESUME_ORIGIN && (body.isPrimary === true || body.isPublic === true)) {
-      return NextResponse.json({ error: "Generated resumes remain private and cannot be selected as primary." }, { status: 400 });
+    if (document.origin_type === GENERATED_RESUME_ORIGIN && body.isPrimary === true) {
+      return NextResponse.json({ error: "Generated resumes cannot be selected as primary." }, { status: 400 });
     }
 
     if (body.isPublic !== undefined) {
@@ -114,7 +114,7 @@ export async function PATCH(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (document.kind !== "document") {
+      if (document.kind !== "document" && document.origin_type !== GENERATED_RESUME_ORIGIN) {
         return NextResponse.json(
           { error: "Only general documents can change visibility" },
           { status: 400 }

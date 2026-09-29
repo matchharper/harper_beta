@@ -24,13 +24,16 @@ export function resumePreviewHtml(
     if (!flow.total) throw new Error('empty');
     const pages = document.querySelector('.pagedjs_pages');
     const style = document.createElement('style');
-    style.textContent = '@media screen { html,body { background:#eee; } body { overflow:hidden; } .pagedjs_pages { transform-origin:top left; } .pagedjs_page { background:white; margin-bottom:16px; box-shadow:0 1px 4px #0002; } }';
+    style.textContent = '@media screen { html,body { background:#eee; } body { overflow:hidden; } .pagedjs_pages { transform-origin:top left; } .pagedjs_page { background:white; margin-bottom:24px; box-shadow:0 2px 8px #0002; outline:1px solid #0001; } }';
     document.head.appendChild(style);
     function fit() {
       const page = document.querySelector('.pagedjs_page');
-      const scale = Math.min(1, window.innerWidth / page.offsetWidth);
-      pages.style.transform = 'scale(' + scale + ')';
-      const height = Math.ceil(pages.offsetHeight * scale);
+      const gutter = window.innerWidth < 480 ? 16 : 28;
+      const scale = Math.min(0.82, (window.innerWidth - gutter * 2) / page.offsetWidth);
+      const left = (window.innerWidth - page.offsetWidth * scale) / 2;
+      pages.style.width = page.offsetWidth + 'px';
+      pages.style.transform = 'translate(' + left + 'px,' + gutter + 'px) scale(' + scale + ')';
+      const height = Math.ceil(pages.offsetHeight * scale + gutter * 2);
       document.body.style.height = height + 'px';
       parent.postMessage({ type:'resume-layout', pageCount:flow.total, height, durationMs:Math.round(performance.now()-started) }, '*');
     }

@@ -13,13 +13,13 @@
 
 원본은 기존 `talent_documents.structured_content`의 JSON이다. `extracted_text`에는 같은 내용에서 만든 일반 텍스트를 저장한다. HTML이나 PDF를 별도로 저장하지 않는다.
 
-`kind=resume`, `origin_type=harper_generated_resume`, `is_public=false`, `is_primary=false`를 유지한다. `file_name`은 호환성과 다운로드 이름으로 `.pdf`를 포함한다. 새 문서의 `storage_path`, `content_type`, `size_bytes`, `content_sha256`은 NULL이다.
+`kind=resume`, `origin_type=harper_generated_resume`, `is_primary=false`를 유지하며 생성 시 `is_public=false`로 저장한다. `file_name`은 호환성과 다운로드 이름으로 `.pdf`를 포함한다. 새 문서의 `storage_path`, `content_type`, `size_bytes`, `content_sha256`은 NULL이다.
 
 문서 생성은 요청에서 결정한 UUID와 기존 PK로 중복을 방지한다. 수정은 기존 revision·소유권·삭제 여부를 조건으로 한 UPDATE로 JSON·본문·파일 메타데이터를 함께 교체한다. 기존 trigger가 revision을 올린다. `origin_id`는 마지막 작업 재시도 판별에 사용한다. 작업/버전 테이블·큐·cron·PDF 캐시는 없다.
 
 기존 생성 PDF는 일괄 삭제하지 않는다. 정상적인 내용 수정으로 파일 참조가 비워진 뒤 이전 파일을 최선 노력으로 삭제한다. 삭제 실패는 저장을 되돌리지 않는다. 불확실한 DB 응답에서는 확인할 수 없는 파일을 삭제하지 않는다.
 
-새 스키마/버킷/RLS/Storage 정책 변경은 없다. 대표 지정·공개·회사 전달 제한을 유지한다.
+새 스키마/버킷/RLS/Storage 정책 변경은 없다. 새 문서는 비공개이며 사용자가 회사 공개를 선택할 수 있다. 내용 수정은 기존 공개 상태를 유지한다. 대표 지정과 자동 전달은 계속 제한한다. 회사 HTML 열람과 PDF 다운로드마다 기존 워크스페이스·후보자 접근 권한 및 공개 여부를 확인하며, PDF 출력 완료 시에도 재확인한다. 익명 공개 링크는 제공하지 않는다.
 
 ## HTML 미리보기
 
@@ -29,7 +29,7 @@
 
 공유 템플릿은 A4 세로 1열, 16mm 여백, 10.5pt 본문, Noto Sans KR 400/700이다. Paged.js 0.4.3이 실제 페이지 경계를 만든다. 폰트와 라이브러리는 번들에 포함되며 버전이 붙은 공개 assets API가 사용자 정보 없이 전달한다. iframe은 `sandbox=allow-scripts`로 격리하고 문서 필드는 HTML escape한다. CSP가 외부 네트워크·폼·임의 리소스를 차단한다.
 
-폰트를 로드한 후 배치한다. 좁은 화면에서는 A4 전체를 축소하며 내부 줄바꿈 폭을 바꾸지 않는다. revision이 바뀌면 새 iframe으로 이전 배치 결과를 버린다. Chrome/Edge를 기준으로 검증하며 브라우저 간 픽셀 단위 동일성은 보장하지 않는다.
+폰트를 로드한 후 배치한다. 화면은 최대 82% 배율로 중앙 정렬하며 회색 배경과 용지 그림자를 표시한다. 좌우 여백은 데스크톱 28px, 모바일 16px 이상 확보한다. 좁은 화면에서는 A4 전체를 축소하며 내부 줄바꿈 폭을 바꾸지 않는다. PDF에는 화면 배율을 적용하지 않는다. revision이 바뀌면 새 iframe으로 이전 배치 결과를 버린다. Chrome/Edge를 기준으로 검증하며 브라우저 간 픽셀 단위 동일성은 보장하지 않는다.
 
 ## 다운로드 API
 
