@@ -131,6 +131,15 @@ import { readCareerCoachingListText } from "@/lib/career/careerCoachingList";
 
 export type TalentToolChannel = "chat" | "voice";
 
+export type PendingProcessClosureNotice = {
+  companyName: string;
+  currentStage: string;
+  recommendationId: string;
+  roleId: string;
+  roleName: string;
+  closureKind: "role_ended" | "company_process_stopped";
+};
+
 export type TalentToolExecutionContext = {
   searchPurpose?: "mock_interview";
   admin?: unknown;
@@ -139,6 +148,7 @@ export type TalentToolExecutionContext = {
   conversationId?: string;
   isMobile?: boolean | null;
   responseLocale?: string | null;
+  registerProcessClosureNotices?: (notices: PendingProcessClosureNotice[]) => void;
   scheduleAfter?: (task: () => Promise<void>) => void;
   toolCallId?: string | null;
   userMessageId?: number | string | null;
@@ -716,6 +726,7 @@ function pickLatestRoleContextRecommendation(
 }
 
 async function runGetRoleContext(args: {
+  activityOffset: number;
   admin: any;
   includeJd: boolean;
   roleIds: string[];
@@ -848,8 +859,11 @@ async function runGetRoleContext(args: {
     const upcomingMeeting = formatUpcomingHarperMeetingForPrompt(
       detailedRecommendation?.upcomingMeeting?.startAt
     );
+    const allActivities = detailedRecommendation?.talentRoleActivities ?? [];
     const recentActivity = formatTalentRoleActivitiesForPrompt(
-      detailedRecommendation?.talentRoleActivities,
+      [...allActivities]
+        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+        .slice(args.activityOffset, args.activityOffset + 10),
       10
     );
     const workspaceCompanyName = optionalToolString(workspace?.company_name);
@@ -915,6 +929,11 @@ async function runGetRoleContext(args: {
             savedStage: optionalToolString(latestRecommendation.saved_stage),
             ...(upcomingMeeting ? { upcomingMeeting } : {}),
             ...(recentActivity ? { recentActivity } : {}),
+            activityPage: {
+              offset: args.activityOffset,
+              limit: 10,
+              hasMore: allActivities.length > args.activityOffset + 10,
+            },
           }
         : null,
       reconsiderationScheduled: hasPendingInternalRoleReconsideration(
@@ -2872,40 +2891,21 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           (item) => item.upcomingMeeting && !baseItemIds.has(item.id)
         ),
       ];
-      const itemsToClose = displayedItems.filter(
-        shouldCloseRecommendedOpportunityFromProgress
-      );
+      const itemsToClose = context?.registerProcessClosureNotices
+        ? displayedItems.filter(shouldCloseRecommendedOpportunityFromProgress)
+        : [];
       if (itemsToClose.length > 0) {
-        await Promise.all(
-          itemsToClose.map(async (item) => {
-            const { error: closureError } = await (admin as any).rpc(
-              "commit_internal_process_closure_notice_v1",
-              {
-                p_metadata: {
-                  closureKind: ["ended", "deleted"].includes(
-                    item.status.trim().toLowerCase()
-                  )
-                    ? "role_ended"
-                    : "company_process_stopped",
-                  companyName: item.companyName,
-                  currentStage: item.internalProgress?.stage ?? "accepted",
-                  deliveryState: "committed",
-                  roleName: item.title,
-                  sentChannel: "career_chat",
-                },
-                p_recommendation_id: item.id,
-                p_talent_id: userId,
-                p_text: `Harper가 ${item.companyName} - ${item.title} 역할의 프로세스 종료 안내를 Career 대화에 포함하고 종료 상태로 전환했습니다.`,
-                p_user_id: "harper",
-              }
-            );
-            if (closureError) {
-              throw new TalentToolError(
-                closureError.message ??
-                  "Failed to record the process closure notification."
-              );
-            }
-          })
+        context?.registerProcessClosureNotices?.(
+          itemsToClose.map((item) => ({
+            closureKind: ["ended", "deleted"].includes(
+              item.status.trim().toLowerCase()
+            ) ? "role_ended" : "company_process_stopped",
+            companyName: item.companyName,
+            currentStage: item.internalProgress?.stage ?? "accepted",
+            recommendationId: item.id,
+            roleId: item.roleId,
+            roleName: item.title,
+          }))
         );
       }
       const closedOpportunityIds = new Set(itemsToClose.map((item) => item.id));
@@ -3137,10 +3137,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.GET_ROLE_CONTEXT]: {
     name: TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
     description:
-      "Get detailed context for up to 3 specific roles by roleId. For an internal role, details are returned only after it has been formally recommended to this user; matched or reconsideration state alone is not enough. Use when the user asks about, recalls, compares, or gives feedback on a specific role and the current context is insufficient. Do not use while finding fresh external recommendations. Includes role details, public-safe company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat private company-side notes as reasoning-only context; never quote or expose their contents to the user.",
+      "Get detailed context for up to 3 specific roles by roleId. For an internal role, details are returned only after it has been formally recommended to this user; matched or reconsideration state alone is not enough. Use when the user asks about, recalls, compares, or gives feedback on a specific role and the current context is insufficient. Do not use while finding fresh external recommendations. Includes role details, public-safe company context, the latest user-specific recommendation context, up to 10 recent role activities as compact text, and any upcoming Harper-connected meeting. Use activityOffset to read older activity pages when activityPage.hasMore is true. Set include_jd true only when the job description/JD text is needed; when false, role.description is omitted. Treat private company-side notes as reasoning-only context; never quote or expose their contents to the user.",
     parameters: {
       type: "object",
       properties: {
+        activityOffset: {
+          type: "integer",
+          description: "Activity page offset for older role events; starts at 0 and advances by 10 when activityPage.hasMore is true.",
+          minimum: 0,
+          maximum: 100000,
+        },
         include_jd: {
           type: "boolean",
           description:
@@ -3176,6 +3182,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       return runGetRoleContext({
+        activityOffset: Math.min(100000, Math.max(0, Math.floor(Number(input.activityOffset) || 0))),
         admin: admin as any,
         includeJd: input.include_jd === true,
         roleIds,

@@ -182,20 +182,10 @@ type TestOnlyRoleRow = Pick<
   "information" | "role_id"
 >;
 
-type TalentRoleActivityRecommendationRow = Pick<
-  Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"],
-  "role_id" | "talent_id"
->;
-
 type TalentRoleActivityRow = Pick<
-  Database["public"]["Tables"]["talent_role_activity"]["Row"],
-  "created_at" | "kind" | "recommendation_id"
-> & {
-  talent_opportunity_recommendation:
-    | TalentRoleActivityRecommendationRow
-    | TalentRoleActivityRecommendationRow[]
-    | null;
-};
+  Database["public"]["Tables"]["talent_progress"]["Row"],
+  "created_at" | "kind" | "recommendation_id" | "role_id" | "talent_id"
+>;
 
 type FetchPageResult<T> = {
   data: T[] | null;
@@ -642,9 +632,7 @@ export function buildDailyUserStatsTestExclusions(args: {
 }
 
 function getTalentRoleActivityRecommendation(row: TalentRoleActivityRow) {
-  return Array.isArray(row.talent_opportunity_recommendation)
-    ? (row.talent_opportunity_recommendation[0] ?? null)
-    : row.talent_opportunity_recommendation;
+  return { role_id: row.role_id, talent_id: row.talent_id };
 }
 
 function isTalentLoginActivityLog(type: string | null | undefined) {
@@ -1674,11 +1662,11 @@ async function buildUserStatsReport(args: {
     fetchAllRows<TalentRoleActivityRow>(
       (from, to) =>
         supabaseServer
-          .from("talent_role_activity")
-          .select(
-            "recommendation_id,kind,created_at,talent_opportunity_recommendation!inner(talent_id,role_id)"
-          )
+          .from("talent_progress")
+          .select("recommendation_id,talent_id,role_id,kind,created_at")
           .eq("kind", "saved_stage_changed")
+          .eq("open_to_talent", true)
+          .not("recommendation_id", "is", null)
           .gte("created_at", startIso)
           .lt("created_at", endIso)
           .order("created_at", { ascending: true })

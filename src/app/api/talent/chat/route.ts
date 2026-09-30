@@ -52,6 +52,8 @@ import {
   withTalentToolAssistantInstruction,
 } from "@/lib/talentOnboarding/tools";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
+import { commitDeliveredProcessClosureNotices } from "@/lib/talentOnboarding/processClosureNotice";
+import type { PendingProcessClosureNotice } from "@/lib/talentOnboarding/tools";
 import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
@@ -1173,6 +1175,10 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let thinkingLogs: string[] = [];
     let pendingRecommendationPostingRoleIds: string[] = [];
+    const pendingProcessClosureNotices = new Map<string, PendingProcessClosureNotice>();
+    const registerProcessClosureNotices = (notices: PendingProcessClosureNotice[]) => {
+      for (const notice of notices) pendingProcessClosureNotices.set(notice.recommendationId, notice);
+    };
     const recommendationReceiptRef: {
       current: RecommendJobPostingsReceipt | null;
     } = { current: null };
@@ -1326,6 +1332,7 @@ export async function POST(req: NextRequest) {
           conversationId,
           isMobile,
           responseLocale,
+          registerProcessClosureNotices,
           scheduleAfter: (task) => after(task),
           userMessageId: insertedUserMessage.id,
           userId: user.id,
@@ -1849,6 +1856,12 @@ export async function POST(req: NextRequest) {
                 assistantError.message ?? "Failed to insert assistant message"
               );
             }
+
+            await commitDeliveredProcessClosureNotices({
+              admin,
+              notices: pendingProcessClosureNotices.values(),
+              talentId: user.id,
+            });
 
             await persistInsightExtractionForAssistantMessage({
               content: stripOpportunityRunMarkers(safeAssistantText),
@@ -2430,6 +2443,12 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    await commitDeliveredProcessClosureNotices({
+      admin,
+      notices: pendingProcessClosureNotices.values(),
+      talentId: user.id,
+    });
 
     await persistInsightExtractionForAssistantMessage({
       content: stripOpportunityRunMarkers(safeAssistantText),

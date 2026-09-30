@@ -51,6 +51,8 @@ import {
   withTalentToolAssistantInstruction,
 } from "@/lib/talentOnboarding/tools";
 import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
+import { commitDeliveredProcessClosureNotices } from "@/lib/talentOnboarding/processClosureNotice";
+import type { PendingProcessClosureNotice } from "@/lib/talentOnboarding/tools";
 import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
@@ -804,6 +806,10 @@ export async function runCareerChatTurn(
   let documentsChanged = false;
   let thinkingLogs: string[] = [];
   let pendingRecommendationPostingRoleIds: string[] = [];
+  const pendingProcessClosureNotices = new Map<string, PendingProcessClosureNotice>();
+  const registerProcessClosureNotices = (notices: PendingProcessClosureNotice[]) => {
+    for (const notice of notices) pendingProcessClosureNotices.set(notice.recommendationId, notice);
+  };
   const recommendationReceiptRef: {
     current: RecommendJobPostingsReceipt | null;
   } = { current: null };
@@ -899,6 +905,7 @@ export async function runCareerChatTurn(
         conversationId,
         isMobile,
         responseLocale,
+        registerProcessClosureNotices,
         scheduleAfter: (task) => after(task),
         userMessageId: insertedUserMessage?.id ?? null,
         userId,
@@ -1219,6 +1226,11 @@ export async function runCareerChatTurn(
         userId,
       });
     }
+    await commitDeliveredProcessClosureNotices({
+      admin,
+      notices: pendingProcessClosureNotices.values(),
+      talentId: userId,
+    });
     summarizeConversationInBackground();
     return buildResult(messagesWithThinkingLogs);
   }
@@ -1392,6 +1404,12 @@ export async function runCareerChatTurn(
       assistantError.message ?? "Failed to insert assistant message"
     );
   }
+
+  await commitDeliveredProcessClosureNotices({
+    admin,
+    notices: pendingProcessClosureNotices.values(),
+    talentId: userId,
+  });
 
   await persistInsightExtractionForAssistantMessage({
     content: stripCareerReengagementActions(

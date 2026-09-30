@@ -41,7 +41,6 @@ type RawRecommendationRow = {
   role_id: string;
   saved_stage: string | null;
   score: number | null;
-  talent_memo: string | null;
   tradeoffs: Json;
   viewed_at: string | null;
   company_role: {
@@ -112,7 +111,6 @@ type RawPostingRecommendationRow = {
   preference_fit: Json | null;
   fit_reasons: Json;
   saved_stage: string | null;
-  talent_memo: string | null;
   tradeoffs: Json;
   viewed_at: string | null;
 };
@@ -178,7 +176,6 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   feedback_at,
   feedback_reason,
   saved_stage,
-  talent_memo,
   viewed_at,
   clicked_at,
   company_role:company_roles!inner (
@@ -292,7 +289,6 @@ const TALENT_POSTING_ROLE_SELECT = `
     feedback_at,
     feedback_reason,
     saved_stage,
-    talent_memo,
     viewed_at,
     clicked_at,
     talent_id
@@ -1026,8 +1022,7 @@ export function formatTalentRoleActivitiesForPrompt(
           .join("→");
         return transition ? `${timestamp} stage: ${transition}` : "";
       }
-      const kind = item.kind.replace(/_/g, " ");
-      return `${timestamp} ${kind}${content ? `: ${content}` : ""}`;
+      return content ? `${timestamp} ${content}` : "";
     })
     .filter(Boolean)
     .join("\n");
@@ -1803,7 +1798,7 @@ function mapRecommendationRow(
     sourceProvider: role.source_provider ?? null,
     sourceType,
     status: String(role.status ?? "active"),
-    talentMemo: row.talent_memo ?? null,
+    talentMemo: null,
     title: String(role.name ?? ""),
     viewedAt: row.viewed_at ?? null,
     workMode: role.work_mode ?? null,
@@ -1932,7 +1927,7 @@ function mapPostingRoleRow(
     sourceProvider: row.source_provider ?? null,
     sourceType,
     status: String(row.status ?? "active"),
-    talentMemo: existingRecommendation?.talent_memo ?? null,
+    talentMemo: null,
     title: String(row.name ?? ""),
     viewedAt: existingRecommendation?.viewed_at ?? null,
     workMode: row.work_mode ?? null,
@@ -2007,6 +2002,7 @@ async function fetchInternalProgressEventsForHistoryItems(args: {
     .select("role_id, metadata, text, created_at")
     .eq("talent_id", args.userId)
     .in("role_id", roleIds)
+    .not("kind", "in", "(memo,saved_stage_changed)")
     .order("created_at", { ascending: false }) as any);
 
   if (error) {
@@ -2213,52 +2209,58 @@ function normalizeTalentOpportunitySavedStageValue(value: unknown) {
 async function fetchTalentRoleActivitiesForHistoryItems(args: {
   admin: AdminClient;
   items: TalentOpportunityHistoryItem[];
+  userId: string;
 }) {
-  const recommendationIds = Array.from(
-    new Set(args.items.map((item) => item.id).filter(Boolean))
+  const roleIds = Array.from(
+    new Set(args.items.map((item) => item.roleId).filter(Boolean))
   );
-  const activitiesByRecommendationId = new Map<
+  const activitiesByRoleId = new Map<
     string,
     TalentRoleActivityItem[]
   >();
-  if (recommendationIds.length === 0) return activitiesByRecommendationId;
+  if (roleIds.length === 0) return activitiesByRoleId;
 
-  const { data, error } = await ((
-    args.admin.from("talent_role_activity" as any) as any
-  )
-    .select("id,recommendation_id,kind,content,metadata,created_at")
-    .in("recommendation_id", recommendationIds)
-    .order("created_at", { ascending: false }) as any);
-
-  if (error) {
-    console.warn("[TalentOpportunity] failed to load talent role activities", {
-      error: error.message ?? "Unknown error",
-    });
-    return activitiesByRecommendationId;
-  }
-
-  for (const row of coerceJsonArray<{
-    content: string | null;
+  type PublicProgress = {
     created_at: string | null;
     id: string | null;
     kind: string | null;
     metadata: Json | null;
-    recommendation_id: string | null;
-  }>(data)) {
+    role_id: string | null;
+    talent_text: string | null;
+  };
+  const rows: PublicProgress[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await ((
+      args.admin.from("talent_progress" as any) as any
+    )
+      .select("id,role_id,kind,talent_text,metadata,created_at")
+      .eq("talent_id", args.userId)
+      .eq("open_to_talent", true)
+      .in("role_id", roleIds)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + 499) as any);
+    if (error) throw new Error(error.message ?? "Failed to load role activity");
+    const page = coerceJsonArray<PublicProgress>(data);
+    rows.push(...page);
+    if (page.length < 500) break;
+  }
+
+  for (const row of rows) {
     const id = String(row.id ?? "").trim();
-    const recommendationId = String(row.recommendation_id ?? "").trim();
+    const roleId = String(row.role_id ?? "").trim();
     const kind = String(row.kind ?? "").trim();
     const createdAt = String(row.created_at ?? "").trim();
-    if (!id || !recommendationId || !kind || !createdAt) continue;
+    if (!id || !roleId || !kind || !createdAt) continue;
     const metadata =
       row.metadata &&
       typeof row.metadata === "object" &&
       !Array.isArray(row.metadata)
         ? row.metadata
         : {};
-    const activities = activitiesByRecommendationId.get(recommendationId) ?? [];
+    const activities = activitiesByRoleId.get(roleId) ?? [];
     activities.push({
-      content: String(row.content ?? "").trim() || null,
+      content: String(row.talent_text ?? "").trim() || null,
       createdAt,
       id,
       kind,
@@ -2269,10 +2271,38 @@ async function fetchTalentRoleActivitiesForHistoryItems(args: {
         metadata.savedStage
       ),
     });
-    activitiesByRecommendationId.set(recommendationId, activities);
+    activitiesByRoleId.set(roleId, activities);
   }
 
-  return activitiesByRecommendationId;
+  return activitiesByRoleId;
+}
+
+async function fetchLatestTalentRoleMemos(args: {
+  admin: AdminClient;
+  items: TalentOpportunityHistoryItem[];
+  userId: string;
+}) {
+  const roleIds = Array.from(new Set(args.items.map((item) => item.roleId)));
+  const result = new Map<string, string>();
+  if (!roleIds.length) return result;
+  for (let offset = 0; result.size < roleIds.length; offset += 500) {
+    const { data, error } = await ((args.admin.from("talent_progress" as any) as any)
+      .select("id,role_id,talent_text")
+      .eq("talent_id", args.userId)
+      .eq("kind", "memo")
+      .eq("open_to_talent", true)
+      .in("role_id", roleIds)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + 499) as any);
+    if (error) throw new Error(error.message ?? "Failed to load role memos");
+    const page = coerceJsonArray<{ role_id: string; talent_text: string }>(data);
+    for (const row of page) {
+      if (!result.has(row.role_id)) result.set(row.role_id, row.talent_text);
+    }
+    if (page.length < 500) break;
+  }
+  return result;
 }
 
 function normalizeCompanyRequestIntroRelayStatus(value: unknown) {
@@ -2425,7 +2455,8 @@ async function enrichTalentOpportunityHistoryItems(args: {
     eventsByRoleId,
     meetingsByRecommendationId,
     confirmedMeetingsByRecommendationId,
-    activitiesByRecommendationId,
+    activitiesByRoleId,
+    latestMemoByRoleId,
     companyRequestIntroProgressByRecommendationId,
   ] = await Promise.all([
     fetchInternalProgressTagsForHistoryItems(args),
@@ -2437,6 +2468,7 @@ async function enrichTalentOpportunityHistoryItems(args: {
     args.includeActivityTimeline
       ? fetchTalentRoleActivitiesForHistoryItems(args)
       : Promise.resolve(new Map<string, TalentRoleActivityItem[]>()),
+    fetchLatestTalentRoleMemos(args),
     fetchCompanyRequestIntroProgressForHistoryItems(args),
   ]);
   if (tagsByRoleId.size === 0) {
@@ -2454,7 +2486,8 @@ async function enrichTalentOpportunityHistoryItems(args: {
               item,
               tags: [],
             }),
-      talentRoleActivities: activitiesByRecommendationId.get(item.id) ?? [],
+      talentRoleActivities: activitiesByRoleId.get(item.roleId) ?? [],
+      talentMemo: latestMemoByRoleId.get(item.roleId) ?? null,
       upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
     }));
   }
@@ -2473,7 +2506,8 @@ async function enrichTalentOpportunityHistoryItems(args: {
             item,
             tags: tagsByRoleId.get(item.roleId) ?? [],
           }),
-    talentRoleActivities: activitiesByRecommendationId.get(item.id) ?? [],
+    talentRoleActivities: activitiesByRoleId.get(item.roleId) ?? [],
+    talentMemo: latestMemoByRoleId.get(item.roleId) ?? null,
     upcomingMeeting: meetingsByRecommendationId.get(item.id) ?? null,
   }));
 }
