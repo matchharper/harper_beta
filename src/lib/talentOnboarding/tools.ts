@@ -8,6 +8,7 @@ import {
   COMPANY_RELAY_CONTENT_CONTRACT,
   COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT,
 } from "@/lib/companyTalentRequests/relayContract";
+import { formatRoleContextForModel } from "./roleContextFormat";
 import {
   fetchTalentOpportunityHistory,
   fetchTalentOpportunityHistoryByIds,
@@ -948,6 +949,7 @@ async function runGetRoleContext(args: {
       .filter((role) => !role.found)
       .map((role) => role.roleId),
     roles,
+    modelOutput: formatRoleContextForModel(roles),
   };
 }
 
