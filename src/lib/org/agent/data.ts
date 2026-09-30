@@ -115,7 +115,7 @@ type TalentRow = {
 };
 
 type ProgressRow = {
-  company_text: string | null;
+  text: string;
   created_at: string;
   kind: string;
   metadata: unknown;
@@ -138,8 +138,8 @@ function clip(value: unknown, maxLength: number) {
     : valueText;
 }
 
-function compactProgressText(row: Pick<ProgressRow, "kind" | "company_text">) {
-  return clip(row.company_text, row.kind === "org_candidate_activity" ? 2_000 : 700);
+function compactProgressText(row: Pick<ProgressRow, "kind" | "text">) {
+  return clip(row.text, row.kind === "org_candidate_activity" ? 2_000 : 700);
 }
 
 function companyProgressDetails(row: Pick<ProgressRow, "kind" | "metadata">) {
@@ -1440,7 +1440,7 @@ export async function readOrgAgentTalent(args: {
     const scopedRows = introRows.filter((row) => visibleIntroIds.has(row.id));
     const progress = scopedRows.some((row) => row.recommendation_id)
       ? await (args.admin.from("talent_progress" as any) as any)
-          .select("created_at, kind, recommendation_id, role_id, talent_id, company_text, metadata")
+          .select("created_at, kind, recommendation_id, role_id, talent_id, text, metadata")
           .eq("talent_id", talentId)
           .in("role_id", scopedRows.map((row) => row.role_id))
           .in("recommendation_id", scopedRows.flatMap((row) => row.recommendation_id ? [row.recommendation_id] : []))
@@ -1494,7 +1494,7 @@ export async function readOrgAgentTalent(args: {
       .map((row) => row.recommendation_id),
   ]);
   let progressQuery = (args.admin.from("talent_progress" as any) as any)
-    .select("created_at, kind, recommendation_id, role_id, talent_id, company_text, metadata")
+    .select("created_at, kind, recommendation_id, role_id, talent_id, text, metadata")
     .eq("talent_id", talentId)
     .in("role_id", visibleRoleIds)
     .eq("open_to_company", true);
@@ -1975,7 +1975,7 @@ export async function readOrgAgentRole(args: {
     recentUpdateLimit > 0 && visibleTalentIds.size > 0
       ? (args.admin.from("talent_progress" as any) as any)
           .select(
-            "created_at, kind, recommendation_id, role_id, talent_id, company_text, metadata"
+            "created_at, kind, recommendation_id, role_id, talent_id, text, metadata"
           )
           .eq("role_id", role.roleId)
           .eq("open_to_company", true)

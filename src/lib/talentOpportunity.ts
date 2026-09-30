@@ -2226,14 +2226,14 @@ async function fetchTalentRoleActivitiesForHistoryItems(args: {
     kind: string | null;
     metadata: Json | null;
     role_id: string | null;
-    talent_text: string | null;
+    text: string | null;
   };
   const rows: PublicProgress[] = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await ((
       args.admin.from("talent_progress" as any) as any
     )
-      .select("id,role_id,kind,talent_text,metadata,created_at")
+      .select("id,role_id,kind,text,metadata,created_at")
       .eq("talent_id", args.userId)
       .eq("open_to_talent", true)
       .in("role_id", roleIds)
@@ -2260,7 +2260,7 @@ async function fetchTalentRoleActivitiesForHistoryItems(args: {
         : {};
     const activities = activitiesByRoleId.get(roleId) ?? [];
     activities.push({
-      content: String(row.talent_text ?? "").trim() || null,
+      content: String(row.text ?? "").trim() || null,
       createdAt,
       id,
       kind,
@@ -2287,7 +2287,7 @@ async function fetchLatestTalentRoleMemos(args: {
   if (!roleIds.length) return result;
   for (let offset = 0; result.size < roleIds.length; offset += 500) {
     const { data, error } = await ((args.admin.from("talent_progress" as any) as any)
-      .select("id,role_id,talent_text")
+      .select("id,role_id,text")
       .eq("talent_id", args.userId)
       .eq("kind", "memo")
       .eq("open_to_talent", true)
@@ -2296,9 +2296,9 @@ async function fetchLatestTalentRoleMemos(args: {
       .order("id", { ascending: false })
       .range(offset, offset + 499) as any);
     if (error) throw new Error(error.message ?? "Failed to load role memos");
-    const page = coerceJsonArray<{ role_id: string; talent_text: string }>(data);
+    const page = coerceJsonArray<{ role_id: string; text: string }>(data);
     for (const row of page) {
-      if (!result.has(row.role_id)) result.set(row.role_id, row.talent_text);
+      if (!result.has(row.role_id)) result.set(row.role_id, row.text);
     }
     if (page.length < 500) break;
   }
