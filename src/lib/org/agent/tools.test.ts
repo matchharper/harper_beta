@@ -681,6 +681,7 @@ test("read_talent accepts up to ten IDs and keeps resume output availability-onl
   assert.deepEqual(Object.keys(properties).sort(), [
     "includeProfile",
     "progressLimit",
+    "progressOffset",
     "roleId",
     "talentId",
     "talentIds",

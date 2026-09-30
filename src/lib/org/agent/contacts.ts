@@ -1210,6 +1210,7 @@ async function readEmailNotices(args: {
       ? (args.admin.from("talent_progress" as any) as any)
           .select("company_user_id,role_id,talent_id,metadata")
           .eq("kind", "org_candidate_role_move")
+          .eq("open_to_company", true)
           .in("metadata->>transferId", transferIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
@@ -1287,6 +1288,7 @@ async function readProgressNotices(args: {
   )
     .select("id,talent_id,role_id,kind,created_at")
     .in("kind", [...PROGRESS_NOTICE_KINDS])
+    .eq("open_to_company", true)
     .in("id", args.ids);
   if (error) throw error;
   const progressRows = (data ?? []) as Array<Record<string, any>>;

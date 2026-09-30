@@ -671,6 +671,7 @@ async function executeReadTalent(args: {
     audience: args.audience,
     includeProfile: booleanField(args.input, "includeProfile", false),
     progressLimit: boundedInteger(args.input.progressLimit, 10, 1, 30),
+    progressOffset: boundedInteger(args.input.progressOffset, 0, 0, 100000),
     roleId: text(args.input.roleId) || null,
     talentIds,
     user: args.user,

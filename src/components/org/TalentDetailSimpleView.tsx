@@ -1143,7 +1143,7 @@ function FeedPanel({
         pendingDeleteId={deleteFeed.variables?.progressId ?? null}
         pendingEditId={updateFeed.variables?.progressId ?? null}
         pendingSubmit={createFeed.isPending}
-        placeholder="이 후보자에 대한 메모를 남겨주세요. 알려주신 피드백은 다음 연결에 반영됩니다."
+        placeholder="메모"
         submitError={
           createFeed.error instanceof Error ? createFeed.error : null
         }

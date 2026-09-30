@@ -187,6 +187,12 @@ export const ORG_AGENT_TOOLS = [
             minimum: 1,
             type: "integer",
           },
+          progressOffset: {
+            description: "Offset in company-visible role activity; use recentProgressPage.hasMore to read older events. Default 0.",
+            maximum: 100000,
+            minimum: 0,
+            type: "integer",
+          },
           roleId: {
             description: "Focus on one role; omit to read all visible roles.",
             type: "string",

@@ -5599,10 +5599,6 @@ function optionalRows<T>(
   return (result.data as T[]) ?? [];
 }
 
-function appendReason(text: string, reason: string | null) {
-  return reason ? `${text}\n이유: ${reason}` : text;
-}
-
 function getOrgStageChangeFeedKind(row: TalentProgressRow) {
   if (row.kind !== "org_stage_change") return row.kind;
   const metadata = getJsonRecord(row.metadata);
@@ -5616,26 +5612,7 @@ function getOrgStageChangeFeedKind(row: TalentProgressRow) {
 }
 
 function getOrgProgressFeedText(row: TalentProgressRow) {
-  if (row.kind === "internal_process_stopped_notified") {
-    return "Harper가 후보자에게 이 역할의 프로세스 종료 안내를 보냈습니다.";
-  }
-  if (row.kind !== "org_stage_change") return row.text;
-  const metadata = getJsonRecord(row.metadata);
-  const kind = getOrgStageChangeFeedKind(row);
-
-  if (kind === "org_acceptance") {
-    return appendReason(
-      "수락했습니다.",
-      normalizeNullableText(metadata.acceptReason)
-    );
-  }
-  if (kind === "org_rejection") {
-    return appendReason(
-      "거절했습니다.",
-      normalizeNullableText(metadata.stopNote)
-    );
-  }
-  return row.text;
+  return row.open_to_company ? row.company_text ?? "" : "";
 }
 
 function sortOrgFeedItems(items: OrgFeedItem[]) {
@@ -5760,18 +5737,11 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
   ] = await Promise.all([
     (admin.from("talent_progress" as any) as any)
       .select(
-        "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
+        "id, talent_id, role_id, recommendation_id, company_text, open_to_company, kind, metadata, company_user_id, user_id, created_at"
       )
       .eq("talent_id", talentId)
       .in("role_id", roleIds)
-      .in("kind", [
-        "org_stage_change",
-        "org_note",
-        "org_candidate_activity",
-        "org_candidate_role_move",
-        "company_request_followup_sent",
-        "internal_process_stopped_notified",
-      ])
+      .eq("open_to_company", true)
       .order("created_at", { ascending: false })
       .limit(200),
     (admin.from("company_talent_requests" as any) as any)
@@ -6253,6 +6223,7 @@ export async function fetchOrgTalentDetail(args: {
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
       .eq("kind", "intro_to_company")
+      .eq("open_to_company", true)
       .order("created_at", { ascending: false })
       .limit(10),
     (admin.from("talent_experiences" as any) as any)
@@ -6268,26 +6239,22 @@ export async function fetchOrgTalentDetail(args: {
       .eq("talent_id", talentId),
     (admin.from("talent_progress" as any) as any)
       .select(
-        "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
+        "id, talent_id, role_id, recommendation_id, company_text, open_to_company, kind, metadata, company_user_id, user_id, created_at"
       )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
-      .in("kind", [
-        "org_stage_change",
-        "org_note",
-        "org_candidate_role_move",
-        "company_request_followup_sent",
-        "internal_process_stopped_notified",
-      ])
+      .eq("open_to_company", true)
+      .neq("kind", "org_candidate_activity")
       .order("created_at", { ascending: false })
       .limit(50),
     (admin.from("talent_progress" as any) as any)
       .select(
-        "id, talent_id, role_id, recommendation_id, text, kind, metadata, company_user_id, user_id, created_at"
+        "id, talent_id, role_id, recommendation_id, company_text, open_to_company, kind, metadata, company_user_id, user_id, created_at"
       )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
       .eq("kind", "org_candidate_activity")
+      .eq("open_to_company", true)
       .in("metadata->>eventType", [
         "candidate_contact_sent",
         "candidate_message_delivered",
@@ -6389,14 +6356,14 @@ export async function fetchOrgTalentDetail(args: {
       sentMessage: null,
     };
     if (eventType === "candidate_contact_sent" && !current.sentMessage) {
-      current.sentMessage = progress.text;
+      current.sentMessage = progress.company_text;
     }
     if (
       (eventType === "candidate_response_received" ||
         eventType === "candidate_message_delivered") &&
       !current.responseMessage
     ) {
-      current.responseMessage = progress.text;
+      current.responseMessage = progress.company_text;
     }
     candidateActivityByRequestId.set(requestId, current);
   }
@@ -6662,7 +6629,7 @@ export async function fetchOrgTalentDetail(args: {
           companyUserId: row.company_user_id ?? null,
           createdAt: row.created_at,
           delivery: {
-            bodyText: normalizeNullableText(row.text),
+            bodyText: normalizeNullableText(row.company_text),
             disclosureLabel:
               eventType === "candidate_contact_sent"
                 ? "메일 내용"

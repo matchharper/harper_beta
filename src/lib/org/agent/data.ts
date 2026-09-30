@@ -8,7 +8,6 @@ import {
 import { fetchRoleForOrgAgent } from "@/lib/org/agent/store";
 import { buildReadTalentResponseGuide } from "@/lib/org/agent/talentResponseGuide";
 import {
-  compactOrgProgressMetadata,
   getOrgAgentPipelineBucket,
   humanizeOrgCompanyIntroStatus,
   humanizeOrgEmploymentType,
@@ -101,7 +100,6 @@ type RecommendationRow = {
   role_id: string;
   saved_stage: string | null;
   talent_id: string;
-  talent_memo: string | null;
   tradeoffs: unknown;
   updated_at: string;
 };
@@ -117,17 +115,17 @@ type TalentRow = {
 };
 
 type ProgressRow = {
+  company_text: string | null;
   created_at: string;
   kind: string;
   metadata: unknown;
   recommendation_id: string | null;
   role_id: string;
   talent_id: string;
-  text: string | null;
 };
 
 const RECOMMENDATION_FIELDS =
-  "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, opportunity_type, processed_stage, saved_stage, talent_memo, tradeoffs, rank, recommended_at, created_at, updated_at";
+  "id, talent_id, role_id, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, opportunity_type, processed_stage, saved_stage, tradeoffs, rank, recommended_at, created_at, updated_at";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -140,8 +138,14 @@ function clip(value: unknown, maxLength: number) {
     : valueText;
 }
 
-function compactProgressText(row: Pick<ProgressRow, "kind" | "text">) {
-  return clip(row.text, row.kind === "org_candidate_activity" ? 2_000 : 700);
+function compactProgressText(row: Pick<ProgressRow, "kind" | "company_text">) {
+  return clip(row.company_text, row.kind === "org_candidate_activity" ? 2_000 : 700);
+}
+
+function companyProgressDetails(row: Pick<ProgressRow, "kind" | "metadata">) {
+  if (row.kind !== "org_candidate_activity") return null;
+  const requestContext = clip(objectValue(row.metadata).requestContext, 500);
+  return requestContext ? { requestContext } : null;
 }
 
 function integer(value: unknown, fallback: number, min: number, max: number) {
@@ -449,6 +453,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
     (args.admin.from("talent_progress" as any) as any)
       .select("id, recommendation_id, role_id, talent_id, created_at")
       .in("role_id", roleIds)
+      .eq("open_to_company", true)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(1_000),
@@ -1347,9 +1352,9 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
     resumeAvailability: { available: false, guidance: "제안 수락 전에는 비공개 이력서를 조회할 수 없어요. 후보자가 직접 공유하도록 요청하는 연락과는 별개예요." },
     recentProgress: progress.filter((row) => row.talent_id === first.talentId && roleById.has(row.role_id) && row.kind === "internal_followup_sent").map((row) => ({
       at: row.created_at, kind: humanizeOrgProgressKind(row.kind),
-      metadata: compactOrgProgressMetadata(row.metadata), recommendationId: row.recommendation_id,
+      metadata: null, recommendationId: row.recommendation_id,
       roleId: row.role_id, roleName: roleById.get(row.role_id)!.roleName,
-      text: "Harper가 기존 제안의 응답을 확인하는 자동 팔로업을 발송했습니다.",
+      text: compactProgressText(row) || null,
     })),
   };
 }
@@ -1359,6 +1364,7 @@ export async function readOrgAgentTalent(args: {
   audience?: OrgAgentReadAudience;
   includeProfile?: boolean;
   progressLimit?: number;
+  progressOffset?: number;
   roleId?: string | null;
   talentId: string;
   user: User;
@@ -1389,6 +1395,7 @@ export async function readOrgAgentTalent(args: {
         .select("recommendation_id")
         .eq("talent_id", talentId)
         .in("role_id", relevantRoleIds)
+        .eq("open_to_company", true)
         .not("recommendation_id", "is", null)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -1433,11 +1440,12 @@ export async function readOrgAgentTalent(args: {
     const scopedRows = introRows.filter((row) => visibleIntroIds.has(row.id));
     const progress = scopedRows.some((row) => row.recommendation_id)
       ? await (args.admin.from("talent_progress" as any) as any)
-          .select("created_at, kind, recommendation_id, role_id, talent_id, text, metadata")
+          .select("created_at, kind, recommendation_id, role_id, talent_id, company_text, metadata")
           .eq("talent_id", talentId)
           .in("role_id", scopedRows.map((row) => row.role_id))
           .in("recommendation_id", scopedRows.flatMap((row) => row.recommendation_id ? [row.recommendation_id] : []))
           .eq("kind", "internal_followup_sent")
+          .eq("open_to_company", true)
           .order("created_at", { ascending: false })
           .limit(integer(args.progressLimit, 10, 1, 30))
       : { data: [], error: null };
@@ -1477,6 +1485,22 @@ export async function readOrgAgentTalent(args: {
   }
 
   const progressLimit = integer(args.progressLimit, 10, 1, 30);
+  const progressOffset = integer(args.progressOffset, 0, 0, 100000);
+  const visibleIntroIds = new Set(visibleIntroItems.map((item) => item.companyIntro!.id));
+  const progressRecommendationIds = unique([
+    ...recommendationIds,
+    ...introRows
+      .filter((row) => visibleIntroIds.has(row.id))
+      .map((row) => row.recommendation_id),
+  ]);
+  let progressQuery = (args.admin.from("talent_progress" as any) as any)
+    .select("created_at, kind, recommendation_id, role_id, talent_id, company_text, metadata")
+    .eq("talent_id", talentId)
+    .in("role_id", visibleRoleIds)
+    .eq("open_to_company", true);
+  progressQuery = progressRecommendationIds.length
+    ? progressQuery.or(`recommendation_id.is.null,recommendation_id.in.(${progressRecommendationIds.join(",")})`)
+    : progressQuery.is("recommendation_id", null);
   const [
     progressResult,
     requestProjection,
@@ -1484,14 +1508,10 @@ export async function readOrgAgentTalent(args: {
     harperSharedInformation,
     processClosureNotifications,
   ] = await Promise.all([
-    (args.admin.from("talent_progress" as any) as any)
-      .select(
-        "created_at, kind, recommendation_id, role_id, talent_id, text, metadata"
-      )
-      .eq("talent_id", talentId)
-      .in("role_id", visibleRoleIds)
+    progressQuery
       .order("created_at", { ascending: false })
-      .limit(Math.max(progressLimit * 5, 50)),
+      .order("id", { ascending: false })
+      .range(progressOffset, progressOffset + progressLimit),
     readCompanyTalentRequestProjection({
       admin: args.admin,
       roleById,
@@ -1518,13 +1538,13 @@ export async function readOrgAgentTalent(args: {
   const { data: progressData, error: progressError } = progressResult;
   if (progressError) throw progressError;
   const visibleProgress = ((progressData ?? []) as ProgressRow[])
+    .slice(0, progressLimit)
     .filter(
       (row) =>
         !row.recommendation_id ||
         visibleItemByRecommendationId.has(row.recommendation_id) ||
         (row.kind === "internal_followup_sent" && introRows.some((intro) => intro.recommendation_id === row.recommendation_id && visibleIntroItems.some((item) => item.companyIntro?.id === intro.id)))
-    )
-    .slice(0, progressLimit);
+    );
 
   let profile: Record<string, unknown> | null = null;
   if (args.includeProfile) {
@@ -1611,7 +1631,7 @@ export async function readOrgAgentTalent(args: {
           savedStage: text(row.saved_stage) || null,
           stage: visibleItem.stage,
           stageLabel: getBoardStageLabel(board, visibleItem),
-          talentMemo: clip(row.talent_memo, 700) || null,
+          talentMemo: null,
           tradeoffs: compactJson(row.tradeoffs, 1_000),
           updatedAt: row.updated_at,
         },
@@ -1628,12 +1648,17 @@ export async function readOrgAgentTalent(args: {
     recentProgress: visibleProgress.map((row) => ({
       at: row.created_at,
       kind: humanizeOrgProgressKind(row.kind),
-      metadata: compactOrgProgressMetadata(row.metadata),
+      metadata: companyProgressDetails(row),
       recommendationId: row.recommendation_id,
       roleId: row.role_id,
       roleName: roleById.get(row.role_id)?.name ?? null,
       text: compactProgressText(row) || null,
     })),
+    recentProgressPage: {
+      hasMore: ((progressData ?? []) as ProgressRow[]).length > progressLimit,
+      limit: progressLimit,
+      offset: progressOffset,
+    },
     requestHistory: requestProjection.requestHistory,
     resumeAvailability: requestProjection.resumeAvailability,
   };
@@ -1644,6 +1669,7 @@ export async function readOrgAgentTalents(args: {
   audience?: OrgAgentReadAudience;
   includeProfile?: boolean;
   progressLimit?: number;
+  progressOffset?: number;
   roleId?: string | null;
   talentIds: string[];
   user: User;
@@ -1946,12 +1972,14 @@ export async function readOrgAgentRole(args: {
   );
   const visibleTalentIds = new Set(allItems.map((item) => item.talentId));
   const [progressResult, stageMeetingDefaultsResult] = await Promise.all([
-    recentUpdateLimit > 0
+    recentUpdateLimit > 0 && visibleTalentIds.size > 0
       ? (args.admin.from("talent_progress" as any) as any)
           .select(
-            "created_at, kind, recommendation_id, role_id, talent_id, text, metadata"
+            "created_at, kind, recommendation_id, role_id, talent_id, company_text, metadata"
           )
           .eq("role_id", role.roleId)
+          .eq("open_to_company", true)
+          .in("talent_id", [...visibleTalentIds])
           .order("created_at", { ascending: false })
           .limit(Math.max(recentUpdateLimit * 5, 50))
       : Promise.resolve({ data: [], error: null }),
@@ -2058,7 +2086,7 @@ export async function readOrgAgentRole(args: {
         updateTalentById.get(row.talent_id)?.email ??
         row.talent_id,
       kind: humanizeOrgProgressKind(row.kind),
-      metadata: compactOrgProgressMetadata(row.metadata),
+      metadata: companyProgressDetails(row),
       talentId: row.talent_id,
       text: compactProgressText(row) || null,
     })),

@@ -620,6 +620,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
   const progress = Array.isArray(result.recentProgress)
     ? result.recentProgress
     : [];
+  const progressPage = asRecord(result.recentProgressPage);
   const profile = asRecord(result.profile);
   const resumeAvailability = asRecord(result.resumeAvailability);
   const harperSharedInformation = Array.isArray(result.harperSharedInformation)
@@ -633,6 +634,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
     : [];
   return [
     "status=ok",
+    `progress_offset=${Number(progressPage.offset ?? 0)} progress_limit=${Number(progressPage.limit ?? progress.length)} progress_has_more=${progressPage.hasMore === true}`,
     `candidate_preferred_language=${formatPromptCell(result.candidatePreferredLanguage, 40)}`,
     formatPromptSection(
       "candidate",
@@ -665,7 +667,6 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "fit_reasons",
           "feedback",
           "feedback_reason",
-          "memo",
           "tradeoffs",
           "recommended",
           "updated",
@@ -688,7 +689,6 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.fitReasons,
           humanizeOrgFeedback(item?.existingFeedback),
           item?.feedbackReason,
-          item?.talentMemo,
           item?.tradeoffs,
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
@@ -699,7 +699,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
           item?.recommendationOrigin,
         ]),
         [
-          100, 160, 100, 30, 10, 30, 10, 40, 700, 500, 300, 400, 700, 1_000, 10,
+          100, 160, 100, 30, 10, 30, 10, 40, 700, 500, 300, 400, 1_000, 10,
           10, 40, 40, 40, 40, 40,
         ]
       )

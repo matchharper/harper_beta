@@ -8157,38 +8157,50 @@ export type Database = {
       };
       talent_progress: {
         Row: {
+          company_text: string | null;
           company_user_id: string | null;
           created_at: string;
           id: string;
           kind: string;
           metadata: Json;
+          open_to_company: boolean;
+          open_to_talent: boolean;
           recommendation_id: string | null;
           role_id: string;
           talent_id: string;
+          talent_text: string | null;
           text: string;
           user_id: string | null;
         };
         Insert: {
+          company_text?: string | null;
           company_user_id?: string | null;
           created_at?: string;
           id?: string;
           kind?: string;
           metadata?: Json;
+          open_to_company?: boolean;
+          open_to_talent?: boolean;
           recommendation_id?: string | null;
           role_id: string;
           talent_id: string;
+          talent_text?: string | null;
           text: string;
           user_id?: string | null;
         };
         Update: {
+          company_text?: string | null;
           company_user_id?: string | null;
           created_at?: string;
           id?: string;
           kind?: string;
           metadata?: Json;
+          open_to_company?: boolean;
+          open_to_talent?: boolean;
           recommendation_id?: string | null;
           role_id?: string;
           talent_id?: string;
+          talent_text?: string | null;
           text?: string;
           user_id?: string | null;
         };
@@ -8380,41 +8392,6 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "talent_users";
             referencedColumns: ["user_id"];
-          },
-        ];
-      };
-      talent_role_activity: {
-        Row: {
-          content: string | null;
-          created_at: string;
-          id: string;
-          kind: string;
-          metadata: Json;
-          recommendation_id: string;
-        };
-        Insert: {
-          content?: string | null;
-          created_at?: string;
-          id?: string;
-          kind: string;
-          metadata?: Json;
-          recommendation_id: string;
-        };
-        Update: {
-          content?: string | null;
-          created_at?: string;
-          id?: string;
-          kind?: string;
-          metadata?: Json;
-          recommendation_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "talent_role_activity_recommendation_id_fkey";
-            columns: ["recommendation_id"];
-            isOneToOne: false;
-            referencedRelation: "talent_opportunity_recommendation";
-            referencedColumns: ["id"];
           },
         ];
       };
@@ -8669,6 +8646,17 @@ export type Database = {
       };
     };
     Views: {
+      talent_role_activity: {
+        Row: {
+          content: string | null;
+          created_at: string;
+          id: string;
+          kind: string;
+          metadata: Json;
+          recommendation_id: string;
+        };
+        Relationships: [];
+      };
       talent_effective_opportunity_recommendations_v1: {
         Row: Database["public"]["Tables"]["talent_opportunity_recommendation"]["Row"];
         Relationships: Database["public"]["Tables"]["talent_opportunity_recommendation"]["Relationships"];
