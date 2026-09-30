@@ -1,3 +1,4 @@
+import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -102,6 +103,10 @@ export async function PATCH(req: NextRequest) {
       update.file_name = fileName;
     }
 
+    if (document.origin_type === GENERATED_RESUME_ORIGIN && body.isPrimary === true) {
+      return NextResponse.json({ error: "Generated resumes cannot be selected as primary." }, { status: 400 });
+    }
+
     if (body.isPublic !== undefined) {
       if (isGmailCareerHistory) {
         return NextResponse.json(
@@ -109,7 +114,7 @@ export async function PATCH(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (document.kind !== "document") {
+      if (document.kind !== "document" && document.origin_type !== GENERATED_RESUME_ORIGIN) {
         return NextResponse.json(
           { error: "Only general documents can change visibility" },
           { status: 400 }

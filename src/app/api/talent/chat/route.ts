@@ -149,6 +149,7 @@ import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 export const maxDuration = 240;
 
 type Body = {
+  clientRequestId?: string;
   allowedToolNames?: unknown;
   channel?: string;
   coachingActivityAction?: unknown;
@@ -1178,6 +1179,13 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let opportunityRecommendationsChanged = false;
     let documentsChanged = uploadedDocuments.length > 0;
+    const generatedResumeLinks = new Map<string, string>();
+    const withResumeLinks = (text: string) => {
+      for (const [id, link] of generatedResumeLinks) {
+        if (!text.includes(`](documentId:${id})`)) text += `\n\n${link}`;
+      }
+      return text;
+    };
     let changedOpportunityRoleId: string | null = null;
     let careerCoachingActivityMessages: TalentMessageResponse[] =
       expiredCareerCoachingActivityMessage
@@ -1328,16 +1336,20 @@ export async function POST(req: NextRequest) {
           responseLocale,
           scheduleAfter: (task) => after(task),
           userMessageId: insertedUserMessage.id,
+          resumeRequestId: typeof body.clientRequestId === "string" && /^[0-9a-f-]{36}$/i.test(body.clientRequestId) ? `${conversationId}:${body.clientRequestId}` : undefined,
           userId: user.id,
         },
         logging: false,
         name: toolArgs.name,
         input: toolInput,
       });
+      if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && isRecord(result) && result.ok === true && typeof result.documentId === "string" && typeof result.documentLink === "string") {
+        generatedResumeLinks.set(result.documentId, result.documentLink);
+      }
       rememberCareerCoachingActivityMessage(result);
       rememberRecommendationPostingRoleIds(result);
 
-      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT) {
+      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT || toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME) {
         documentsChanged = true;
       }
 
@@ -1727,7 +1739,7 @@ export async function POST(req: NextRequest) {
               return;
             }
 
-            let assistantTextSource = assistantText.trim();
+            let assistantTextSource = withResumeLinks(assistantText.trim());
             if (recommendationReceiptRef.current) {
               assistantTextSource =
                 recommendationReceiptRef.current.answerDraft;
@@ -2308,9 +2320,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    logger.log("\n\nassistantText : ", assistantText, "\n\n");
+    if (generatedResumeLinks.size === 0) {
+      logger.log("\n\nassistantText : ", assistantText, "\n\n");
+    }
 
-    let assistantTextSource = assistantText.trim();
+    let assistantTextSource = withResumeLinks(assistantText.trim());
     if (recommendationReceiptRef.current) {
       assistantTextSource = recommendationReceiptRef.current.answerDraft;
     }

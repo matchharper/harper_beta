@@ -49,7 +49,7 @@ export type TalentExperienceRow =
 export type TalentEducationRow =
   Database["public"]["Tables"]["talent_educations"]["Row"];
 export type TalentDocumentRow =
-  Database["public"]["Tables"]["talent_documents"]["Row"];
+  Omit<Database["public"]["Tables"]["talent_documents"]["Row"], "structured_content" | "revision"> & { structured_content?: Database["public"]["Tables"]["talent_documents"]["Row"]["structured_content"]; revision?: number };
 export type TalentExtraRow =
   Database["public"]["Tables"]["talent_extras"]["Row"];
 

@@ -1702,6 +1702,8 @@ export const en = {
     "career.profile.documents.make_private": "Make private",
     "career.profile.documents.make_public": "Share with companies",
     "career.profile.documents.open_call_note": "Open call record",
+    "career.profile.documents.pdf_changed": "The document has changed. Review the latest version and download it again.",
+    "career.profile.documents.pdf_failed": "Could not create the PDF. Please try again.",
     "career.profile.documents.preview_failed": "Unable to load this document. It may have been deleted or you may not have access.",
     "career.profile.documents.preview_loading": "Loading document…",
     "career.profile.documents.primary_resume": "Primary resume",

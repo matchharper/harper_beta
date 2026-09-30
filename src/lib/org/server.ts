@@ -6297,6 +6297,7 @@ export async function fetchOrgTalentDetail(args: {
       .limit(100),
     (admin.from("talent_documents" as any) as any)
       .select("id, file_name, storage_path, is_public")
+      .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("talent_id", talentId)
       .eq("kind", "resume")
       .eq("is_primary", true)
@@ -6304,7 +6305,8 @@ export async function fetchOrgTalentDetail(args: {
     (admin.from("talent_documents" as any) as any)
       .select("id, file_name, content_type, created_at")
       .eq("talent_id", talentId)
-      .eq("kind", "document")
+      .or("kind.eq.document,and(kind.eq.resume,origin_type.eq.harper_generated_resume)")
+      .eq("is_deleted", false)
       .eq("is_public", true)
       .order("created_at", { ascending: false }),
     (admin.from("company_talent_requests" as any) as any)
@@ -6815,6 +6817,27 @@ export async function fetchOrgTalentDetail(args: {
   };
 }
 
+// Recheck company membership, candidate visibility and the owner's current sharing
+// choice on every HTML/PDF request. Generated files are never stored or signed.
+export async function readOrgSharedGeneratedResume(args: {
+  documentId: string; talentId: string; workspaceId: string; user: User;
+}): Promise<TalentDocumentRow> {
+  const admin = getSupabaseAdmin();
+  const workspaceId = normalizeText(args.workspaceId);
+  const talentId = normalizeText(args.talentId);
+  if (!workspaceId || !talentId || !normalizeText(args.documentId)) throw new OrgHttpError(400, "Missing required fields");
+  await assertOrgWorkspacePermission({ admin, permission: "view", user: args.user, workspaceId });
+  await assertOrgTalentVisibleInWorkspace({ admin, talentId, user: args.user, workspaceId });
+  await assertNoPendingCompanyIntroCompanyAction({ admin, talentId, workspaceId });
+  const { data, error } = await admin.from("talent_documents").select("*")
+    .eq("id", args.documentId).eq("talent_id", talentId)
+    .eq("kind", "resume").eq("origin_type", "harper_generated_resume")
+    .eq("is_public", true).eq("is_deleted", false).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new OrgHttpError(404, "Document not found");
+  return data as TalentDocumentRow;
+}
+
 export async function openOrgResume(args: {
   documentId?: string | null;
   kind?: "storage" | "link" | "document" | null;
@@ -6861,6 +6884,7 @@ export async function openOrgResume(args: {
     admin.from("talent_documents" as any) as any
   )
     .select("id, file_name, storage_path, is_public")
+    .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
     .eq("talent_id", talentId)
     .eq("kind", "resume")
     .eq("is_primary", true)
@@ -6894,18 +6918,22 @@ export async function openOrgResume(args: {
     const { data: documentData, error: documentError } = await (
       admin.from("talent_documents" as any) as any
     )
-      .select("id, file_name, storage_path")
+      .select("id, file_name, storage_path, origin_type")
       .eq("id", documentId)
       .eq("talent_id", talentId)
-      .eq("kind", "document")
+      .or("kind.eq.document,and(kind.eq.resume,origin_type.eq.harper_generated_resume)")
+      .eq("is_deleted", false)
       .eq("is_public", true)
       .maybeSingle();
     if (documentError) throw documentError;
     const document = documentData as Pick<
       TalentDocumentRow,
-      "id" | "file_name" | "storage_path"
+      "id" | "file_name" | "storage_path" | "origin_type"
     > | null;
     if (!document) throw new OrgHttpError(404, "Document not found");
+    if (document.origin_type === "harper_generated_resume") {
+      return { ok: true, url: `/org/resume?${new URLSearchParams({ documentId, talentId, workspaceId })}` };
+    }
     if (!document.storage_path) {
       throw new OrgHttpError(404, "Document file not found");
     }

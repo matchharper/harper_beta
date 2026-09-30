@@ -311,6 +311,7 @@ type LlmToolCostAttribution = {
 type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 const MAX_STREAMING_TOOL_CALLS_PER_TURN = 3;
+const RESUME_TOOL_CALL_LIMIT = 8;
 
 function cleanModelText(raw: string) {
   return raw
@@ -1541,6 +1542,9 @@ export async function runCareerChatAssistant(args: {
 
     if (args.tools.length > 0) {
       return runTalentAssistantToolLoop({
+        ...(args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume")
+          ? { maxToolLoops: RESUME_TOOL_CALL_LIMIT, maxTotalToolCalls: RESUME_TOOL_CALL_LIMIT }
+          : {}),
         executeTool: args.executeTool,
         messages: fallbackMessages,
         modelConfig: activeModelConfig,
@@ -1574,6 +1578,7 @@ export async function runCareerChatAssistant(args: {
         content: message.content,
       }));
     const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
+    const maxToolCalls = args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : 4;
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let executedToolNamesForPolicy: string[] = [];
@@ -1597,7 +1602,8 @@ export async function runCareerChatAssistant(args: {
       });
     }
 
-    for (let loop = 0; loop < 3; loop += 1) {
+    const maxToolLoops = args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : 3;
+    for (let loop = 0; loop < maxToolLoops; loop += 1) {
       const activeToolNames = args.tools.map(getTalentChatToolName);
       const systemBlocksForStep =
         executedToolNamesForPolicy.length > 0
@@ -1654,7 +1660,7 @@ export async function runCareerChatAssistant(args: {
         content: assistantBlocks,
       });
 
-      const remainingToolCalls = 4 - totalToolCalls;
+      const remainingToolCalls = maxToolCalls - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -1895,6 +1901,9 @@ export async function runCareerChatAssistantStream(args: {
   if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
     const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
     return runTalentAssistantToolLoop({
+      ...(args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume")
+        ? { maxToolLoops: RESUME_TOOL_CALL_LIMIT, maxTotalToolCalls: RESUME_TOOL_CALL_LIMIT }
+        : {}),
       executeTool: args.executeTool,
       messages: [{ role: "system", content: systemPrompt }, ...args.messages],
       modelConfig,
@@ -1963,6 +1972,7 @@ export async function runCareerChatAssistantStream(args: {
       });
     }
 
+    const maxToolCalls = args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : MAX_STREAMING_TOOL_CALLS_PER_TURN;
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let activeTools = args.tools;
@@ -2043,7 +2053,7 @@ export async function runCareerChatAssistantStream(args: {
       });
 
       const remainingToolCalls =
-        MAX_STREAMING_TOOL_CALLS_PER_TURN - totalToolCalls;
+        maxToolCalls - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -2141,7 +2151,7 @@ export async function runCareerChatAssistantStream(args: {
 
       const continuationTools =
         !shouldStopAfterTool &&
-        totalToolCalls < MAX_STREAMING_TOOL_CALLS_PER_TURN
+        totalToolCalls < maxToolCalls
           ? args.tools
           : [];
       const continuationToolNames = continuationTools.map(
