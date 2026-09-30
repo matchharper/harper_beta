@@ -11,6 +11,126 @@ const toAnthropicStream = (events: unknown[]) =>
     }
   );
 
+test("Sonnet 5.5 streaming preserves signed and redacted thinking through tool continuation", async () => {
+  const previousApiKey = process.env.ANTHROPIC_API_KEY;
+  const previousOpenAiApiKey = process.env.OPENAI_API_KEY;
+  const previousFetch = globalThis.fetch;
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.OPENAI_API_KEY = "test-key";
+  const requests: Record<string, any>[] = [];
+  const responses = [
+    toAnthropicStream([
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "thinking", thinking: "", signature: "" },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "signature_delta", signature: "signed-" },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "signature_delta", signature: "continuation" },
+      },
+      { type: "content_block_stop", index: 0 },
+      {
+        type: "content_block_start",
+        index: 1,
+        content_block: {
+          type: "redacted_thinking",
+          data: "encrypted-thinking",
+        },
+      },
+      { type: "content_block_stop", index: 1 },
+      {
+        type: "content_block_start",
+        index: 2,
+        content_block: {
+          type: "tool_use",
+          id: "tool-1",
+          name: "read_context",
+          input: {},
+        },
+      },
+      { type: "content_block_stop", index: 2 },
+      {
+        type: "message_delta",
+        delta: { stop_reason: "tool_use" },
+        usage: { output_tokens: 5 },
+      },
+      { type: "message_stop" },
+    ]),
+    toAnthropicStream([
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "확인했어요." },
+      },
+      { type: "content_block_stop", index: 0 },
+      {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn" },
+        usage: { output_tokens: 4 },
+      },
+      { type: "message_stop" },
+    ]),
+  ];
+  globalThis.fetch = async (_input, init) => {
+    requests.push(JSON.parse(String(init?.body ?? "{}")));
+    const response = responses.shift();
+    assert.ok(response, "unexpected Anthropic request");
+    return response;
+  };
+  let visibleText = "";
+  try {
+    const { runCareerChatAssistantStream } = await import("./llm");
+    const result = await runCareerChatAssistantStream({
+      executeTool: async () => ({ ok: true }),
+      messages: [{ role: "user", content: "저장된 내용을 확인해줘" }],
+      onTextDelta: (text) => {
+        visibleText += text;
+      },
+      primaryModel: "claude-sonnet-5-5",
+      systemBlocks: [
+        { text: "Use read_context to retrieve the saved context." },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "read_context",
+            description: "Read saved context.",
+            parameters: { type: "object", properties: {} },
+          },
+        },
+      ],
+      usageLabel: "test:sonnet-5-5-thinking-continuation",
+    });
+    assert.equal(result, "확인했어요.");
+    assert.equal(visibleText, "확인했어요.");
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].model, "claude-sonnet-5-5");
+    assert.equal("temperature" in requests[0], false);
+    assert.deepEqual(requests[0].tool_choice, { type: "auto" });
+    const assistantMessage = requests[1].messages.find(
+      (message: any) => message.role === "assistant"
+    );
+    assert.deepEqual(assistantMessage.content.slice(0, 2), [
+      { type: "thinking", thinking: "", signature: "signed-continuation" },
+      { type: "redacted_thinking", data: "encrypted-thinking" },
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = previousApiKey;
+    if (previousOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousOpenAiApiKey;
+  }
+});
+
 test("Career tool results prefer compact model-facing text when provided", async () => {
   const previousApiKey = process.env.ANTHROPIC_API_KEY;
   const previousOpenAiApiKey = process.env.OPENAI_API_KEY;

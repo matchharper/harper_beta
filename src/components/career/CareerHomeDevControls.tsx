@@ -56,7 +56,7 @@ const devTextChatModelOptions: Array<{
   label: string;
   value: CareerTextChatModelId;
 }> = [
-  { eventKey: "sonnet_5", label: "Sonnet 5", value: CLAUDE_MODEL },
+  { eventKey: "sonnet_5_5", label: "Sonnet 5.5", value: CLAUDE_MODEL },
   {
     eventKey: "glm_5_3_flash_high",
     label: "OpenRouter · GLM 5.3 Flash · high",

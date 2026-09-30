@@ -2040,7 +2040,7 @@ export const en = {
     "career.tasks.start_call": "Start a call",
     "career.tasks.suggestions": "Harper suggests",
     "career.tasks.suggestions_description": "Things you can do with Harper to find a better fit.",
-    "career.tasks.title": "To do",
+    "career.tasks.title": "Inbox",
     "career.tasks.view_offer": "View offer",
     "career.tasks.view_preferences": "View search preferences",
     "career.tasks.view_progress": "View progress",

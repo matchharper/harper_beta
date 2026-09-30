@@ -3,8 +3,8 @@
 - 적용 자동화: `Harper Daily Conversation QA`
 - 기준 시간대: KST (`Asia/Seoul`)
 - 결과 저장소: Notion `Debugging Logs`
-- 긴급 알림 채널: Slack `C0BULQ5K5EJ`
-- 마지막 개정: 2026-09-08
+- 실행 요약·긴급 알림 채널: Slack `C0BULQ5K5EJ`
+- 마지막 개정: 2026-09-29
 
 ## 1. 이 문서의 역할
 
@@ -64,7 +64,7 @@ QA 실행을 시작한 즉시 실행 시작 시각을 고정한다. 이후 조�
 7. 문제마다 영향, 시간순 사건, 첫 번째로 깨진 단계, 복구 여부와 현재 상태를 재구성한다.
 8. 심각한 문제는 원인을 끝까지 좁히고 가장 이상적인 해결책과 검증 방법을 작성한다. Scraping 코드 결함은 제8장의 범위 안에서 실제 코드 수정까지 수행한다.
 9. 최종 판단을 고정한 뒤 Notion 페이지를 한 번 생성하거나 동일 실행의 미완료 페이지를 이어서 완성한다.
-10. Slack 발송 조건을 만족하는 심각한 문제가 있을 때만 운영 채널에 한 번 알리고 전송 성공을 확인한다.
+10. 모든 실행의 마지막에 Slack 운영 채널로 짧은 결과 요약을 한 번 보내고 전송 성공을 확인한다. 정상·부분 완료·점검 실패를 모두 포함하며, 심각한 문제가 있으면 같은 메시지 맨 앞에 알린다.
 11. scheduled task의 최종 응답에는 Notion URL, Slack 발송 여부, 코드 수정 여부와 남은 제한사항을 짧게 적는다.
 
 ## 5. 증거, 확신도와 심각도
@@ -372,26 +372,38 @@ Company-side errors [괜찮음]
 - 핵심 데이터 소스에 접근하지 못해 결론을 낼 수 없으면 `점검 실패`로 한다.
 - 보지 못한 데이터에 대해 에러가 없다고 추정하지 않는다.
 - Notion 자체에 쓰지 못하면 scheduled task 최종 응답에 실패 원인, 보존된 결과와 재시도 방법을 남긴다.
-- Notion 작성 실패 때문에 실제로 확인된 S0/S1 Slack 알림을 생략하지 않는다. 대신 Notion 링크를 만들지 못했다고 알림에 명시한다.
+- Notion 작성 실패나 안전 중단 때문에 Slack 실행 요약을 생략하지 않는다. 확인한 결과와 미점검 범위, 필요한 다음 액션을 적고, Notion 링크를 만들지 못했으면 그 사실을 명시한다.
 
-## 10. Slack 알림
+## 10. Slack 실행 요약과 긴급 알림
 
-Notion 페이지는 매번 만들지만 Slack `C0BULQ5K5EJ`에는 심각한 문제가 있을 때만 보낸다. 정상 보고, S2/S3, 단순 관측 부족, 복구 완료된 일시 오류 때문에 일반 알림이나 self-DM을 보내지 않는다.
+매 실행의 마지막에는 Slack `C0BULQ5K5EJ`에 짧은 결과 요약을 한 번 보낸다. 정상·부분 완료·점검 실패, 안전 중단, Notion 작성 실패도 모두 발송 대상이다. 심각한 문제가 없다는 이유로 실행 요약을 생략하지 않는다. 별도 self-DM은 보내지 않는다.
 
-### 10.1 발송 기준
+### 10.1 실행 요약과 심각한 문제의 구분
 
-다음 중 하나면 Slack으로 알린다.
+실행 요약에는 실행 시각, 실행 상태, 핵심 결론, 중요한 문제나 미점검 범위, 필요한 다음 액션과 Notion 링크를 적는다. 충분히 점검하지 못한 실행은 서비스가 정상이라거나 문제가 없다고 표현하지 않는다.
+
+다음 중 하나면 같은 실행 요약의 맨 앞에 긴급 알림을 포함한다.
 
 - `S0 치명적`: 확인됨 또는 여러 직접 증거로 가능성이 높은 사건. 이미 복구됐어도 개인정보·잘못된 대상·신뢰 위험은 알린다.
 - `S1 심각`: 확인됐고 현재 영향이 남아 있거나, 여러 사용자·핵심 경로에 영향을 주었거나, 사람이 즉시 결정해야 하는 사건.
 
-단순 error log, 사용자 영향이 없는 정상 guard, 근거가 부족한 `확인 필요`, 단일 자동 복구 오류는 Slack 발송 근거가 아니다.
+단순 error log, 사용자 영향이 없는 정상 guard, 근거가 부족한 `확인 필요`, 단일 자동 복구 오류는 긴급 알림의 근거가 아니다. 필요하면 실행 요약에 짧게 적는다.
 
-같은 추적 키의 같은 사건을 매 실행마다 반복 전송하지 않는다. 처음 확인됐을 때, 영향이 뚜렷하게 악화됐을 때, 원인·필요 액션이 중요하게 바뀌었을 때 또는 복구를 반드시 알려야 할 때만 다시 보낸다.
+같은 추적 키의 같은 사건을 매 실행마다 새로운 긴급 알림으로 반복하지 않는다. 처음 확인됐을 때, 영향이 뚜렷하게 악화됐을 때, 원인·필요 액션이 중요하게 바뀌었을 때 또는 복구를 반드시 알려야 할 때만 다시 강조한다. 변동이 없는 기존 문제는 실행 요약에 현재 상태만 짧게 적는다. 같은 실행 키의 요약을 이미 전송했다면 재실행에서 중복 발송하지 않는다.
 
 ### 10.2 발송 형식
 
-한 QA에서 보낼 운영 알림은 기본 한 메시지로 합치고 S0부터 정렬한다. 세부 정보는 Notion에 두고 Slack은 최대한 짧고 쉬운 한글로 쓴다.
+한 QA의 실행 요약과 긴급 알림은 기본 한 메시지로 합친다. 세부 정보는 Notion에 두고 Slack은 최대한 짧고 쉬운 한글로 쓴다. 실행 요약에는 아래 내용을 상황에 맞게 담는다.
+
+```text
+Harper Daily QA · 실행 날짜와 시각
+결과: 완료 / 부분 완료 / 점검 실패
+요약: 확인한 핵심 결과와 중요한 문제 또는 미점검 범위
+다음 액션: 필요한 조치가 있을 때만
+Notion: 전체 QA 페이지 링크 또는 작성 실패 사유
+```
+
+긴급 알림이 있으면 S0부터 정렬해 메시지 맨 앞에 다음 내용을 담는다.
 
 ```text
 *[심각도] - 제목*
@@ -405,7 +417,7 @@ Notion 페이지는 매번 만들지만 Slack `C0BULQ5K5EJ`에는 심각한 문�
 Notion: 전체 QA 페이지 링크
 ```
 
-여러 심각한 문제가 있으면 같은 메시지 안에 문제별로 위 형식을 반복하되, 가장 중요한 내용부터 적고 불필요한 정상 수치를 넣지 않는다. PII, raw payload, secret과 긴 내부 ID는 포함하지 않는다.
+여러 심각한 문제가 있으면 같은 메시지 안에 가장 중요한 내용부터 적고 불필요한 정상 수치를 넣지 않는다. 형식 예시는 필수 문구가 아니며 실제 결과에 맞춰 자연스럽게 요약한다. PII, raw payload, secret과 긴 내부 ID는 포함하지 않는다.
 
 연결된 Slack 도구로 실제 전송 성공을 확인한다. 실패하면 같은 실행에서 무한 재시도하지 말고 오류와 안전한 재시도 방법을 Notion 및 scheduled task 최종 응답에 기록한다.
 
@@ -414,7 +426,7 @@ Notion: 전체 QA 페이지 링크
 이 QA가 기본적으로 허용하는 write는 다음뿐이다.
 
 - 실행당 Notion QA 페이지 한 개 생성 또는 동일 실행의 미완료 페이지 완성
-- 조건을 만족할 때 Slack 운영 알림 한 번
+- 매 실행마다 Slack 운영 채널 결과 요약 한 번. 조건을 만족하는 긴급 알림은 같은 메시지에 포함
 - 확인된 scraping 코드 결함의 로컬 최소 수정과 검증
 
 별도 명시적 요청 없이 다음 작업을 하지 않는다.
@@ -427,16 +439,17 @@ Notion: 전체 QA 페이지 링크
 
 문제 해결에 위 작업이 필요하면 정확한 대상, 이유, 예상 영향, 안전 절차와 검증 방법을 다음 액션으로 적는다.
 
-### 11.1 운영 DB read-only 조회 안전 규칙
+### 11.1 운영 DB 조회와 실패 처리
 
-Daily QA의 조회가 production 처리 경로를 바꾸면 안 된다. 특히 Supavisor transaction pool endpoint처럼 여러 client가 backend session을 재사용하는 연결에서는 session-level 설정이 다른 worker transaction으로 누출될 수 있다.
+운영 DB의 읽기 조회는 이 QA의 기본 권한에 포함된다. 매 실행마다 현재 데이터에 접근해 점검하며, 과거 보고서의 중단 사유를 그대로 이어받아 조회를 생략하지 않는다. 연결·조회 실패는 실제로 실패한 데이터 소스의 제한사항으로 기록하고 나머지 점검을 계속한다.
 
-1. Opportunity production DB 조회는 `harper_worker/opp/utils/new_runtime.py`의 `connect_read_only(load_config())`만 사용한다. 이 helper는 transaction pool URL을 전용 session endpoint로 바꾸고, 매 transaction의 첫 statement로 `SET TRANSACTION READ ONLY`를 적용·검증한다.
-2. canonical read-only helper를 import하거나 실행할 수 없으면 해당 DB 범위를 `부분 완료`로 남기고 중단한다. `psycopg.connect`, `psql`, worker의 일반 `connect()`, 임시 connection helper 또는 transaction pool endpoint로 우회하지 않는다.
-3. 조회 전에 실제로 선택된 DB URL의 host, port와 pool mode를 secret 없이 확인한다. opportunity runtime의 `load_config()`는 `DATABASE_URL`보다 `OPPORTUNITY_DATABASE_URL`을 우선할 수 있으므로 일반 `connect()`와 조합하지 않는다.
-4. pooled production connection에서 `SET default_transaction_read_only = on`, `ALTER ROLE ... SET default_transaction_read_only`, `conn.read_only = True`, session-level `SET`·`RESET`·`set_config(..., false)`를 절대 사용하지 않는다. read-only를 켠 뒤 `commit()`하고 연결을 닫는 방식도 금지한다.
-5. 평가·benchmark·QA 스크립트에서 `SET default_transaction_read_only`가 발견되면 실행하지 않는다. canonical helper로 고친 뒤 transaction-pooling regression test를 통과하기 전에는 production capture를 재개하지 않는다.
-6. session-level DB 설정을 잘못 실행했거나 worker에서 `cannot execute ... in a read-only transaction`이 나타나면 QA를 계속하지 않는다. 실행 시각·endpoint·명령 횟수를 보존하고, 모든 queue worker journal과 stuck run/delivery를 확인해 self-induced production incident로 보고한다. production reset, replay, worker restart는 별도 명시적 승인 없이는 하지 않는다.
+1. Opportunity production DB 조회는 `harper_worker/opp/utils/new_runtime.py`의 `connect_read_only(load_config())`를 사용한다. 이 helper는 transaction pool URL을 전용 session endpoint로 바꾸고, 매 transaction의 첫 statement로 `SET TRANSACTION READ ONLY`를 적용·검증한다. 정상 실행되는 helper로 SELECT 조회를 진행하는 데 별도 승인을 요구하지 않는다.
+2. 실행 시작 시 helper로 연결과 짧은 SELECT 조회를 실제 시도한다. import·연결·조회가 실패하면 그 실패와 해당 범위를 `부분 완료`로 기록하고 다른 접근 가능한 데이터 소스를 계속 확인한다. helper를 사용할 수 없는 경우 worker의 일반 `connect()`나 임시 연결로 우회하지 않는다.
+3. 실제 조회 endpoint의 host, port와 pool mode를 secret 없이 확인한다. `load_config()`는 `DATABASE_URL`보다 `OPPORTUNITY_DATABASE_URL`을 우선할 수 있다.
+4. QA에서 pooled production connection에 session-level `default_transaction_read_only`, `SET`·`RESET`·`set_config(..., false)`를 적용하지 않는다. transaction-scoped 설정은 helper가 처리한다. production DB 수정·재처리·restart는 조회 권한에 포함되지 않는다.
+5. 금지된 연결 설정이 있는 스크립트는 이번 실행에 사용하지 않고 canonical helper로 조회한다. 이번 QA에서 실행하지 않는 스크립트나 테스트용 금지 SQL 문자열이 저장소에 있다는 이유로 전체 DB 조회를 중단하지 않는다. 해당 코드의 실행 여부와 실제 영향이 확인되면 별도 문제로 기록한다.
+6. 과거 또는 현재 Worker의 `cannot execute ... in a read-only transaction` 오류는 원인·영향·복구를 조사할 대상이다. 오류 기록만으로 QA의 읽기 조회를 중단하거나 QA가 원인이라고 단정하지 않는다. 현재 run·delivery와 접근 가능한 journal을 조회해 재발·복구를 확인하고, 접근하지 못한 증거만 제한사항에 적는다.
+7. 이번 QA 자체가 잘못된 session-level 설정을 실제 실행했다면 그 실행 경로를 즉시 중단하고 시각·endpoint·명령 횟수를 보존한다. 별도 canonical read-only 연결과 다른 정상 데이터 소스로 영향을 조사한다. production reset, replay, worker restart는 별도 명시적 승인 없이는 하지 않는다.
 
 ## 12. 완료 조건
 
@@ -448,11 +461,12 @@ Daily QA의 조회가 production 처리 경로를 바꾸면 안 된다. 특히 S
 - 모든 S0/S1과 중요한 S2의 사용자 영향, 첫 broken stage, 복구와 원인·해결안을 기록했다.
 - 확인된 scraping 코드 결함은 안전한 범위에서 수정·검증했거나 수정할 수 없는 blocker를 분명히 적었다.
 - Notion에 중복 없이 한 페이지를 남기고 다시 읽어 필수 내용과 토글을 확인했다.
-- Slack 발송 조건을 판단했고, 발송했다면 성공을 확인했다.
+- Slack 실행 요약을 발송하고 성공을 확인했다. 실패하면 실패 원인과 재시도 방법을 Notion 및 최종 응답에 기록하고 전달 완료로 표시하지 않았다.
 - 확인하지 못한 범위와 다음 액션을 숨기지 않았다.
 
 ## 변경 이력
 
 | 날짜 | 주요 변경 |
 | --- | --- |
+| 2026-09-29 | 매 실행 Slack 요약을 추가하고, 과거 오류·미사용 스크립트로 전체 DB 조회를 중단하지 않도록 변경했다. 현재 연결을 실제 확인하고 실패한 범위만 제한한다. |
 | 2026-09-04 | 25시간 및 누락 기간 통합 기준, 필수 QA 토픽, Notion 토글 보고, 심각한 문제의 Slack 알림, scraping 로컬 코드 수정 규칙을 하나의 scheduled task 실행 계약으로 통합했다. |

@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import Head from "next/head";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BareButton, MuteButton } from "@/components/ui/button";
@@ -462,12 +463,16 @@ function Field({ children, label }: { children: ReactNode; label: ReactNode }) {
 }
 
 export default function OpsOfficialJobsPage() {
+  const router = useRouter();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const canFetchInternal = !authLoading && isInternalEmail(user?.email);
   const isDesktop = useIsDesktop();
   const prefersReducedMotion = usePrefersReducedMotion();
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const queryJobId = router.query.jobId;
+  const selectedJobId = router.isReady
+    ? (Array.isArray(queryJobId) ? queryJobId[0] : queryJobId) || null
+    : null;
   const filter = useOpsOfficialJobsFilterStore((state) => state.jobFilter);
   const linkedinFilter = useOpsOfficialJobsFilterStore(
     (state) => state.linkedinFilter
@@ -495,6 +500,7 @@ export default function OpsOfficialJobsPage() {
     useState<OfficialJobAutoSaveState | null>(null);
   const detailPanelRef = useRef<HTMLElement>(null);
   const saveRequestInFlightRef = useRef(false);
+  const activeDraftKeyRef = useRef<string | null>(null);
   const jobsQuery = useOpsOfficialJobs(canFetchInternal);
   const internalRolesQuery =
     useOpsOfficialJobInternalRoleOptions(canFetchInternal);
@@ -532,6 +538,28 @@ export default function OpsOfficialJobsPage() {
     canFetchInternal && Boolean(selectedJob) && !selectedJob?.isInternalCopy
   );
 
+  const setJobUrl = useCallback(
+    (jobId: string, method: "push" | "replace" = "push") =>
+      router[method](
+        {
+          pathname: router.pathname,
+          query: { ...router.query, jobId },
+        },
+        undefined,
+        { shallow: true, scroll: false }
+      ),
+    [router]
+  );
+
+  useEffect(() => {
+    activeDraftKeyRef.current = currentDraftKey;
+  }, [currentDraftKey]);
+
+  useEffect(() => {
+    if (!router.isReady || selectedJobId || !activeJobId) return;
+    void setJobUrl(activeJobId, "replace");
+  }, [activeJobId, router.isReady, selectedJobId, setJobUrl]);
+
   const filteredJobs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return jobs.filter(
@@ -556,9 +584,6 @@ export default function OpsOfficialJobsPage() {
     key: Key,
     value: OfficialJobDraft[Key]
   ) => {
-    if (selectedJobId === null && currentDraftKey !== NEW_JOB_ID) {
-      setSelectedJobId(currentDraftKey);
-    }
     setDraftState({
       draft: { ...draft, [key]: value },
       initialDraft,
@@ -577,9 +602,6 @@ export default function OpsOfficialJobsPage() {
         const result = await saveJob(draftToPayload(draftToSave));
         const savedDraft = jobToDraft(result.job);
 
-        setSelectedJobId((currentJobId) =>
-          currentJobId === draftKey ? result.job.id : currentJobId
-        );
         setDraftState((currentState) => {
           if (currentState.key !== draftKey) return currentState;
 
@@ -594,6 +616,9 @@ export default function OpsOfficialJobsPage() {
           };
         });
         setAutoSaveState({ key: result.job.id, status: "saved" });
+        if (draftKey === NEW_JOB_ID && activeDraftKeyRef.current === draftKey) {
+          await setJobUrl(result.job.id, "replace");
+        }
         return true;
       } catch (error) {
         const message =
@@ -605,8 +630,26 @@ export default function OpsOfficialJobsPage() {
         saveRequestInFlightRef.current = false;
       }
     },
-    [saveJob]
+    [saveJob, setJobUrl]
   );
+
+  useEffect(() => {
+    router.beforePopState(() => {
+      if (hasUnsavedChanges && !autoSaveBlockReason) {
+        void persistDraft(draft, currentDraftKey);
+      }
+      return true;
+    });
+
+    return () => router.beforePopState(() => true);
+  }, [
+    autoSaveBlockReason,
+    currentDraftKey,
+    draft,
+    hasUnsavedChanges,
+    persistDraft,
+    router,
+  ]);
 
   useEffect(() => {
     if (
@@ -668,12 +711,12 @@ export default function OpsOfficialJobsPage() {
       ...EMPTY_DRAFT,
       displayOrder: String(maxDisplayOrder + 10),
     };
-    setSelectedJobId(NEW_JOB_ID);
     setDraftState({
       draft: nextDraft,
       initialDraft: nextDraft,
       key: NEW_JOB_ID,
     });
+    await setJobUrl(NEW_JOB_ID);
   };
 
   const selectJob = async (job: OpsOfficialJobRecord) => {
@@ -685,12 +728,12 @@ export default function OpsOfficialJobsPage() {
     if (!(await saveBeforeChangingJob())) return;
 
     const nextDraft = jobToDraft(job);
-    setSelectedJobId(job.id);
     setDraftState({
       draft: nextDraft,
       initialDraft: nextDraft,
       key: job.id,
     });
+    await setJobUrl(job.id);
     scrollDetailPanelIntoView();
   };
 

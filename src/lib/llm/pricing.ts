@@ -32,6 +32,13 @@ export type RealtimeModelPricing = {
 };
 
 const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
+  "claude-sonnet-5-5": {
+    cacheReadUsdPerMtok: 0.2,
+    cacheWriteUsdPerMtok: 2.5,
+    inputUsdPerMtok: 2,
+    outputUsdPerMtok: 10,
+    pricingSource: "anthropic_api_pricing_2026_09",
+  },
   "claude-sonnet-5": {
     cacheReadUsdPerMtok: 0.2,
     cacheWriteUsdPerMtok: 2.5,

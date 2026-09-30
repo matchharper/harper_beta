@@ -12,7 +12,6 @@ import {
 import { getCareerLinkLabels } from "@/components/career/constants";
 import { useCareerChatPanelContext } from "@/components/career/CareerChatPanelContext";
 import {
-  ChatAssistantLabel,
   ChatDateDivider,
   ChatLoadOlderButton,
   getChatMessageDateKey,
@@ -145,12 +144,6 @@ const TimelinePanel = ({
   <InlinePanel className={cn("max-w-[980px]", className)}>
     {children}
   </InlinePanel>
-);
-
-const AssistantLabel = ({ children }: { children?: React.ReactNode }) => (
-  <ChatAssistantLabel className={careerTimelineMetaTextClassName}>
-    {children}
-  </ChatAssistantLabel>
 );
 
 const TimelineDateDivider = ({
@@ -381,7 +374,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
         const messageNode = (
           <div
             data-career-message-container="true"
-            className="group flex flex-col gap-2"
+            className={cn("group flex flex-col gap-2", !isUser && "mt-1")}
           >
             {!isUser && textLogs.length > 0 && (
               <ThinkingLogPanel
@@ -420,7 +413,6 @@ const TimelineMessageList = memo(function TimelineMessageList({
               />
             ) : shouldRenderSplitRecommendationSearch && latestStatus ? (
               <>
-                <AssistantLabel />
                 <CareerMessageBubble
                   message={recommendationSearchPreambleMessage}
                   isUser={false}
@@ -472,24 +464,21 @@ const TimelineMessageList = memo(function TimelineMessageList({
             ) : isOnboardingCompletionNotice ? (
               <OnboardingCompletionNotice content={message.content} />
             ) : shouldRenderChatBubble ? (
-              <>
-                {!isUser && <AssistantLabel />}
-                <CareerMessageBubble
-                  message={message}
-                  isUser={isUser}
-                  choiceActionsDisabled={disableAssistantChoiceActions}
-                  isCallStartPending={isStartingCall}
-                  onSelectAssistantChoice={onSelectAssistantChoice}
-                  onSelectReengagementAction={onSelectReengagementAction}
-                  onStartCallMode={
-                    onStartCallMode
-                      ? (openingText) => {
-                          return onStartCallMode(openingText);
-                        }
-                      : undefined
-                  }
-                />
-              </>
+              <CareerMessageBubble
+                message={message}
+                isUser={isUser}
+                choiceActionsDisabled={disableAssistantChoiceActions}
+                isCallStartPending={isStartingCall}
+                onSelectAssistantChoice={onSelectAssistantChoice}
+                onSelectReengagementAction={onSelectReengagementAction}
+                onStartCallMode={
+                  onStartCallMode
+                    ? (openingText) => {
+                        return onStartCallMode(openingText);
+                      }
+                    : undefined
+                }
+              />
             ) : null}
             {isUser &&
               latestStatus?.state === "stopped" &&
@@ -1022,8 +1011,7 @@ const CareerTimelineSection = ({
         style={TIMELINE_SCROLL_STYLE}
       >
         <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-5 py-1">
-          <div className="flex flex-col gap-2">
-            <AssistantLabel>Harper</AssistantLabel>
+          <div className="mt-1 flex flex-col gap-2">
             <CareerMessageBubble
               message={{
                 id: "login-greeting",

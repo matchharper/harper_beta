@@ -453,7 +453,7 @@ test("uses Anthropic native structured output instead of a JSON-only prompt", as
           },
         ],
         id: "msg-structured",
-        model: "claude-sonnet-5",
+        model: "claude-sonnet-5-5",
         stop_reason: "end_turn",
         usage: { input_tokens: 12, output_tokens: 8 },
       }),
@@ -470,7 +470,7 @@ test("uses Anthropic native structured output instead of a JSON-only prompt", as
           { content: "Current instruction", role: "user" },
         ],
       }),
-      model: "claude-sonnet-5",
+      model: "claude-sonnet-5-5",
       structuredOutput: {
         name: "candidate_contact_copy",
         schema: {
@@ -485,7 +485,7 @@ test("uses Anthropic native structured output instead of a JSON-only prompt", as
         },
       },
     });
-    assert.equal(result.model, "claude-sonnet-5");
+    assert.equal(result.model, "claude-sonnet-5-5");
     assert.match(result.response.choices[0].message.content, /"subject"/);
   } finally {
     globalThis.fetch = originalFetch;

@@ -1,4 +1,4 @@
-export const CLAUDE_MODEL = "claude-sonnet-5";
+export const CLAUDE_MODEL = "claude-sonnet-5-5";
 
 export const GPT_56_LUNA_MODEL = "gpt-5.6-luna" as const;
 

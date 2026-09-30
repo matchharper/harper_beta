@@ -129,7 +129,7 @@ function ModelSelector({
     },
     { label: "Luna · GPT-5.6", value: ORG_AGENT_LUNA_MODEL },
     { label: "Terra · GPT-5.6", value: ORG_AGENT_TERRA_MODEL },
-    { label: "Claude Sonnet 5", value: ORG_AGENT_CLAUDE_MODEL },
+    { label: "Claude Sonnet 5.5", value: ORG_AGENT_CLAUDE_MODEL },
   ];
 
   if (!visible) return null;

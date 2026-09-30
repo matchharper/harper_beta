@@ -436,7 +436,7 @@ export function OrgOnboardingFlow({
                   이렇게 이야기를 시작해 보세요
                 </p>
                 <OnboardingConversationPreview
-                  userMessage="우리 팀에 맞는 백엔드 엔지니어를 찾고 있어요."
+                  userMessage="뛰어난 엔지니어를 찾고 있어요."
                   assistantText={
                     "어떤 일을 맡을 분인가요? 지금 팀에서 가장 먼저 해결하고 싶은 문제부터 알려주세요.\n\n꼭 필요한 경험과 함께 일하는 방식을 듣고, 찾는 분의 기준을 같이 정리할게요."
                   }

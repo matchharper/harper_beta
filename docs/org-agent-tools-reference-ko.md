@@ -505,7 +505,7 @@ completion 경로로 `active` 전환을 완료한다.
 - Slack 전용 override: `SLACK_ORG_AGENT_MODEL` (`ORG_AGENT_MODEL`보다 우선)
 - 웹 내부 model selector는 요청마다 model을 지정하며 공통 기본값보다 우선한다.
 - 허용 model: `deepseek/deepseek-v4-flash-0731`, `gpt-5.6-luna`,
-  `gpt-5.6-terra`, `claude-sonnet-5`
+  `gpt-5.6-terra`, `claude-sonnet-5-5`
 - DeepSeek V4 Flash 0731은 OpenRouter Chat Completions endpoint와
   `OPENROUTER_API_KEY`를 사용한다. OpenRouter tool turn의 reasoning state는
   `reasoning_details`로 이어서 전달한다.
