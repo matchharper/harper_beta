@@ -52,8 +52,11 @@ begin
   elsif new.kind = 'org_stage_change' then
     -- A candidate's actual process stop is shared with both parties, unlike
     -- their private Career saved-stage changes.
-    new.open_to_talent := new.metadata ->> 'stage' = 'process_stopped'
-      and new.metadata ->> 'stopReason' = 'candidate';
+    new.open_to_talent := coalesce(
+      new.metadata ->> 'stage' = 'process_stopped'
+        and new.metadata ->> 'stopReason' = 'candidate',
+      false
+    );
     new.open_to_company := true;
     new.text := case
       when new.metadata ->> 'stage' = 'process_stopped'
