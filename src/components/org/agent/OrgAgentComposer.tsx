@@ -1,4 +1,5 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { ArrowUp, FileText, FileUp, LoaderCircle, Plus, X } from "lucide-react";
 import Image from "next/image";
 import {
@@ -208,6 +209,7 @@ export function OrgAgentComposer({
   workspaceId: string;
 }) {
   const t = useOrgT();
+  const { locale } = useOrgLocale();
   const mentionListId = useId();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const mentionHighlightRef = useRef<HTMLDivElement | null>(null);
@@ -478,11 +480,7 @@ export function OrgAgentComposer({
         message: serialized.text,
       });
     } catch (error) {
-      setAttachmentError(
-        error instanceof Error
-          ? error.message
-          : t("agent.OrgAgentComposer.0672e615", "파일을 읽지 못했습니다.")
-      );
+      setAttachmentError(localizedOrgErrorMessage(error, locale, t("agent.OrgAgentComposer.0672e615", "파일을 읽지 못했습니다.")));
     } finally {
       submissionPendingRef.current = false;
       setIsPreparingAttachments(false);
@@ -500,11 +498,7 @@ export function OrgAgentComposer({
       setAttachments(next);
       setAttachmentError("");
     } catch (error) {
-      setAttachmentError(
-        error instanceof Error
-          ? error.message
-          : t("agent.OrgAgentComposer.8aadbdab", "파일을 첨부하지 못했습니다.")
-      );
+      setAttachmentError(localizedOrgErrorMessage(error, locale, t("agent.OrgAgentComposer.8aadbdab", "파일을 첨부하지 못했습니다.")));
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };

@@ -66,7 +66,7 @@ import type { OrgRole } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 import {
-  getRoleOverviewErrorMessage,
+  useRoleOverviewErrorMessage,
   RoleSectionHeading,
 } from "./RoleOverviewShared";
 
@@ -91,6 +91,7 @@ export function OrgRoleSettingsContent({
   workspaceId: string;
 }) {
   const t = useOrgT();
+  const getRoleOverviewErrorMessage = useRoleOverviewErrorMessage();
   const router = useRouter();
   const {
     bootstrap: { members },

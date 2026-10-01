@@ -3,6 +3,7 @@ import {
   useOrgSourceT,
   useOrgT,
 } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
 import {
   ArrowRight,
@@ -422,6 +423,7 @@ export function OrgRoleTalentBoard({
 }) {
   const t = useOrgT();
   const sourceT = useOrgSourceT();
+  const { locale } = useOrgLocale();
   const { board, boardQuery } = useOrgJobsBoard();
   const {
     changeStage,
@@ -736,10 +738,7 @@ export function OrgRoleTalentBoard({
             });
           } catch (error) {
             addToast({
-              message:
-                error instanceof Error
-                  ? error.message
-                  : t("OrgRoleTalentBoard.7d2cc265", "제안을 처리하지 못했습니다."),
+              message: localizedOrgErrorMessage(error, locale, t("OrgRoleTalentBoard.7d2cc265", "제안을 처리하지 못했습니다.")),
               variant: "error",
             });
             throw error;

@@ -1,4 +1,5 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -33,6 +34,7 @@ export function OrgGoogleCalendarIntegration({
   workspaceId: string;
 }) {
   const t = useOrgT();
+  const { locale } = useOrgLocale();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const hasCallback =
@@ -76,10 +78,7 @@ export function OrgGoogleCalendarIntegration({
       });
       await clearCallback();
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t("workspace.OrgGoogleCalendarIntegration.7c8515ff", "Google Calendar 연결 결과를 저장하지 못했어요.");
+      const message = localizedOrgErrorMessage(error, locale, t("workspace.OrgGoogleCalendarIntegration.7c8515ff", "Google Calendar 연결 결과를 저장하지 못했어요."));
       setCallbackError(message);
       addToast({ message, variant: "error" });
       // Keep the callback on retryable failures, including a DB outage. Reload
@@ -119,10 +118,7 @@ export function OrgGoogleCalendarIntegration({
       }
     } catch (error) {
       addToast({
-        message:
-          error instanceof Error
-            ? error.message
-            : t("workspace.OrgGoogleCalendarIntegration.bd28fbec", "Google Calendar 연결을 시작하지 못했어요."),
+        message: localizedOrgErrorMessage(error, locale, t("workspace.OrgGoogleCalendarIntegration.bd28fbec", "Google Calendar 연결을 시작하지 못했어요.")),
         variant: "error",
       });
     }
@@ -140,10 +136,7 @@ export function OrgGoogleCalendarIntegration({
       });
     } catch (error) {
       addToast({
-        message:
-          error instanceof Error
-            ? error.message
-            : t("workspace.OrgGoogleCalendarIntegration.bec31b55", "Google Calendar 연결 해제를 완료하지 못했어요."),
+        message: localizedOrgErrorMessage(error, locale, t("workspace.OrgGoogleCalendarIntegration.bec31b55", "Google Calendar 연결 해제를 완료하지 못했어요.")),
         variant: "error",
       });
       // The refreshed status distinguishes blocked Harper access from a fully

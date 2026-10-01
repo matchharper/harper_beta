@@ -875,6 +875,10 @@ function FeedPanel({
     }),
     [t]
   );
+  const feedError = (error: unknown) =>
+    error instanceof Error
+      ? new Error(localizedOrgErrorMessage(error, locale, feedLabels.failure))
+      : null;
   const { detailQuery } = useOrgJobsDetail();
   const [draft, setDraft] = useState("");
   const [pollingQueueId, setPollingQueueId] = useState<string | null>(null);
@@ -1145,11 +1149,9 @@ function FeedPanel({
       <ProgressFeed
         actionsVariant="menu"
         deleteConfirmMessage={t("TalentDetailSimpleView.e3559795", "이 메모를 삭제할까요?")}
-        deleteError={
-          deleteFeed.error instanceof Error ? deleteFeed.error : null
-        }
+        deleteError={feedError(deleteFeed.error)}
         draft={draft}
-        editError={updateFeed.error instanceof Error ? updateFeed.error : null}
+        editError={feedError(updateFeed.error)}
         emptyLabel={t("TalentDetailSimpleView.2fc1c257", "아직 피드가 없습니다.")}
         items={feedItems}
         labels={feedLabels}
@@ -1199,9 +1201,7 @@ function FeedPanel({
         pendingEditId={updateFeed.variables?.progressId ?? null}
         pendingSubmit={createFeed.isPending}
         placeholder={t("TalentDetailSimpleView.1ea87077", "메모.")}
-        submitError={
-          createFeed.error instanceof Error ? createFeed.error : null
-        }
+        submitError={feedError(createFeed.error)}
         submitLabel={t("TalentDetailSimpleView.feed.submit", "메모 추가")}
       />
       <div className="pt-4">

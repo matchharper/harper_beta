@@ -4,6 +4,7 @@ import {
   useOrgT,
 } from "@/i18n/org/OrgLocaleProvider";
 import { formatOrgMeetingAvailabilitySummary } from "@/i18n/org/meetingSummary";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { CalendarClock, Check, LoaderCircle, Mail, Users } from "lucide-react";
 import { useRouter } from "next/router";
 import { FormEvent, useMemo, useState } from "react";
@@ -444,9 +445,7 @@ export function OrgMeetingScheduleDialog({
       ) : scheduleQuery.error ? (
         <div className="rounded-lg bg-bg-weak p-4">
           <p className="text-[13px] leading-5 text-critical">
-            {scheduleQuery.error instanceof Error
-              ? scheduleQuery.error.message
-              : t("meetings.OrgMeetingScheduleDialog.e6cba348", "일정 요청을 불러오지 못했어요.")}
+            {localizedOrgErrorMessage(scheduleQuery.error, locale, t("meetings.OrgMeetingScheduleDialog.e6cba348", "일정 요청을 불러오지 못했어요."))}
           </p>
           <MuteButton
             className="mt-3"

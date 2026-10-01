@@ -13,7 +13,7 @@ import { humanizeOrgEmploymentType } from "@/lib/org/pipelineStage";
 import type { OrgRole } from "@/lib/org/server";
 import { useToastStore } from "@/store/useToastStore";
 import {
-  getRoleOverviewErrorMessage,
+  useRoleOverviewErrorMessage,
   RoleSectionHeading,
 } from "./RoleOverviewShared";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,7 @@ export function OrgRoleDetailsContent({
   workspaceId: string;
 }) {
   const t = useOrgT();
+  const getRoleOverviewErrorMessage = useRoleOverviewErrorMessage();
   const sourceT = useOrgSourceT();
   const documentEditorCopy = useOrgDocumentEditorCopy();
   const { permissions } = useOrgWorkspace();

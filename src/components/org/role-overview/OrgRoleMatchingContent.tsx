@@ -22,7 +22,7 @@ import {
 import type { OrgRole } from "@/lib/org/server";
 import { useToastStore } from "@/store/useToastStore";
 import {
-  getRoleOverviewErrorMessage,
+  useRoleOverviewErrorMessage,
   RoleSectionHeading,
 } from "./RoleOverviewShared";
 import { OrgRoleCalibrationSection } from "./OrgRoleCalibrationSection";
@@ -58,6 +58,7 @@ export function OrgRoleMatchingContent({
   workspaceId: string;
 }) {
   const t = useOrgT();
+  const getRoleOverviewErrorMessage = useRoleOverviewErrorMessage();
   const documentEditorCopy = useOrgDocumentEditorCopy();
   const { permissions } = useOrgWorkspace();
   const canManage = permissions.canManageCandidates;

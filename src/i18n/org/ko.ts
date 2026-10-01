@@ -404,6 +404,7 @@ export const ko = {
   "TalentDetailSimpleView.7a4243fe": "발신자 정보 없음",
   "agent.OrgAgentMessage.actionComplete": "처리 완료",
   "workspace.OrgErrorState.failed": "정보를 불러오지 못했습니다.",
+  "meetings.OrgInterviewAvailabilityDialog.conflict": "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요.",
   "meetings.OrgMeetingScheduleDialog.d68b2f7e":
     "후보자에게 일정 선택 이메일을 보냈어요. 후보자가 가능한 시간을 제출하면 그중 하나로 바로 확정돼요.",
   "meetings.OrgMeetingScheduleDialog.c87db0e6":

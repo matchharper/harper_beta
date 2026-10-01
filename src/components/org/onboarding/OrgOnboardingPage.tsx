@@ -1,4 +1,5 @@
 import { useOrgLocale, useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -317,11 +318,7 @@ export function OrgOnboardingFlow({
       });
       await router.replace(nextHref);
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : t("onboarding.OrgOnboardingPage.9e9ab39e", "온보딩을 완료하지 못했어요. 다시 시도해 주세요.")
-      );
+      setError(localizedOrgErrorMessage(error, responseLocale, t("onboarding.OrgOnboardingPage.9e9ab39e", "온보딩을 완료하지 못했어요. 다시 시도해 주세요.")));
     } finally {
       submitting.current = false;
       setPending(false);
@@ -379,11 +376,7 @@ export function OrgOnboardingFlow({
         }
       }
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : t("onboarding.OrgOnboardingPage.9e63d497", "저장하지 못했어요. 다시 시도해 주세요.")
-      );
+      setError(localizedOrgErrorMessage(error, responseLocale, t("onboarding.OrgOnboardingPage.9e63d497", "저장하지 못했어요. 다시 시도해 주세요.")));
     } finally {
       submitting.current = false;
       setPending(false);

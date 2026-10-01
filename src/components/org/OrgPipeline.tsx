@@ -1,4 +1,5 @@
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { LoaderCircle } from "lucide-react";
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { opsTheme } from "@/components/ops/theme";
@@ -66,6 +67,7 @@ function getCustomStageDbId(stageId: OrgStageId) {
 export function OrgPipeline() {
   const t = useOrgT();
   const sourceT = useOrgSourceT();
+  const { locale } = useOrgLocale();
   const { board, boardQuery, profileLabelsError, profileLabelsLoading } =
     useOrgJobsBoard();
   const {
@@ -637,10 +639,7 @@ export function OrgPipeline() {
             });
           } catch (error) {
             addToast({
-              message:
-                error instanceof Error
-                  ? error.message
-                  : t("OrgPipeline.a60bc63f", "제안을 처리하지 못했습니다."),
+              message: localizedOrgErrorMessage(error, locale, t("OrgPipeline.a60bc63f", "제안을 처리하지 못했습니다.")),
               variant: "error",
             });
             throw error;

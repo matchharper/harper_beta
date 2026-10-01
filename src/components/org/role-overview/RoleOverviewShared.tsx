@@ -1,12 +1,15 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export function getRoleOverviewErrorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+export function useRoleOverviewErrorMessage() {
+  const { locale } = useOrgLocale();
+  return (error: unknown, fallback: string) =>
+    localizedOrgErrorMessage(error, locale, fallback);
 }
 
 export function RoleSectionHeading({

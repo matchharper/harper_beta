@@ -407,6 +407,7 @@ export const en: Record<OrgMessageKey, string> = {
   "TalentDetailSimpleView.7a4243fe": "No sender information",
   "agent.OrgAgentMessage.actionComplete": "Action complete",
   "workspace.OrgErrorState.failed": "Could not load information.",
+  "meetings.OrgInterviewAvailabilityDialog.conflict": "Availability changed in another window. Reload the latest settings.",
   "meetings.OrgMeetingScheduleDialog.d68b2f7e":
     "Sent scheduling email to candidate. When the candidate submits availability, one of the slots will be confirmed.",
   "meetings.OrgMeetingScheduleDialog.c87db0e6":

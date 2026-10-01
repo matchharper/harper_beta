@@ -1,4 +1,5 @@
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   ArrowLeft,
   Check,
@@ -819,6 +820,7 @@ export function OrgInterviewAvailabilityDialog({
   workspaceId: string;
 }) {
   const t = useOrgT();
+  const { locale } = useOrgLocale();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const availabilityQuery = useOrgMeetingAvailability({
@@ -920,11 +922,7 @@ export function OrgInterviewAvailabilityDialog({
     try {
       normalized = normalizeMeetingAvailabilityInput(draft);
     } catch (error) {
-      setEditorError(
-        error instanceof Error
-          ? error.message
-          : t("meetings.OrgInterviewAvailabilityDialog.8c287dac", "가능 시간 설정을 확인해 주세요.")
-      );
+      setEditorError(localizedOrgErrorMessage(error, locale, t("meetings.OrgInterviewAvailabilityDialog.8c287dac", "가능 시간 설정을 확인해 주세요.")));
       return;
     }
     try {
@@ -944,14 +942,11 @@ export function OrgInterviewAvailabilityDialog({
       });
       onRequestClose();
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : t("meetings.OrgInterviewAvailabilityDialog.e07606a0", "인터뷰 가능 시간을 저장하지 못했습니다.");
-      setConflict(
-        message.includes(t("meetings.OrgInterviewAvailabilityDialog.e2ac1a28", "다른 화면"))
-      );
-      setEditorError(message);
+      const conflict = error instanceof Error && error.message.includes("다른 화면");
+      setConflict(conflict);
+      setEditorError(conflict
+        ? t("meetings.OrgInterviewAvailabilityDialog.conflict", "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요.")
+        : localizedOrgErrorMessage(error, locale, t("meetings.OrgInterviewAvailabilityDialog.e07606a0", "인터뷰 가능 시간을 저장하지 못했습니다.")));
     }
   };
 
@@ -959,11 +954,7 @@ export function OrgInterviewAvailabilityDialog({
     setEditorError("");
     const result = await availabilityQuery.refetch();
     if (result.error) {
-      setEditorError(
-        result.error instanceof Error
-          ? result.error.message
-          : t("meetings.OrgInterviewAvailabilityDialog.63a2a753", "최신 가능 시간을 불러오지 못했어요.")
-      );
+      setEditorError(localizedOrgErrorMessage(result.error, locale, t("meetings.OrgInterviewAvailabilityDialog.63a2a753", "최신 가능 시간을 불러오지 못했어요.")));
       return;
     }
     const saved = result.data?.availability;
@@ -1002,10 +993,7 @@ export function OrgInterviewAvailabilityDialog({
       });
     } catch (error) {
       addToast({
-        message:
-          error instanceof Error
-            ? error.message
-            : t("meetings.OrgInterviewAvailabilityDialog.09b26d24", "Google Calendar 일정을 바꾸지 못했어요."),
+        message: localizedOrgErrorMessage(error, locale, t("meetings.OrgInterviewAvailabilityDialog.09b26d24", "Google Calendar 일정을 바꾸지 못했어요.")),
         variant: "error",
       });
     }
@@ -1078,9 +1066,7 @@ export function OrgInterviewAvailabilityDialog({
                 {t("meetings.OrgInterviewAvailabilityDialog.23285385", "인터뷰 가능 시간을 불러오지 못했어요.")}
               </p>
               <p className="max-w-sm text-[12px] text-neutral-muted">
-                {availabilityQuery.error instanceof Error
-                  ? availabilityQuery.error.message
-                  : t("meetings.OrgInterviewAvailabilityDialog.969e86f9", "잠시 후 다시 시도해 주세요.")}
+                {localizedOrgErrorMessage(availabilityQuery.error, locale, t("meetings.OrgInterviewAvailabilityDialog.969e86f9", "잠시 후 다시 시도해 주세요."))}
               </p>
               <MuteButton onClick={() => void availabilityQuery.refetch()}>
                 {t("meetings.OrgInterviewAvailabilityDialog.1a2ea03c", "다시 불러오기")}
