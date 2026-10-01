@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import { ChevronRight, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/router";
@@ -25,15 +26,19 @@ function CalibrationProfileRow({
   onOpen: () => void;
   profile: CompanyRoleCalibrationPublicProfile;
 }) {
+  const t = useOrgT();
   return (
     <CardButton
-      aria-label={`${profile.profileId} ${profile.display.name} 프로필 보기`}
+      aria-label={t("role.overview.OrgRoleCalibrationSection.ce6bb083", "{p0} {p1} 프로필 보기", {
+        p0: profile.profileId,
+        p1: profile.display.name,
+      })}
       className="group items-start gap-2 rounded-md border-neutral-1000-a05 bg-bg-floating p-3 font-normal hover:border-neutral-1000-a10 hover:bg-none"
       onClick={onOpen}
     >
       {profile.display.profilePicture ? (
         <Image
-          alt=""
+          alt={t("role.overview.OrgRoleCalibrationSection.9b5aeb2d", "")}
           className="size-7 shrink-0 rounded-full object-cover"
           height={28}
           src={profile.display.profilePicture}
@@ -72,6 +77,7 @@ function CalibrationProfiles({
 }: {
   calibration: NonNullable<CompanyRoleCalibrationResponse["calibration"]>;
 }) {
+  const t = useOrgT();
   const router = useRouter();
   const groups = reviewGroups
     .map((status) => ({
@@ -85,16 +91,26 @@ function CalibrationProfiles({
   if (groups.length === 0) {
     return (
       <p className="mt-5 py-6 text-center text-[13px] text-neutral-muted">
-        아직 예시 프로필이 없어요.
+        {t("role.overview.OrgRoleCalibrationSection.0abe009b", "아직 예시 프로필이 없어요.")}
       </p>
     );
   }
 
   return (
-    <div aria-label="Calibration 프로필 목록" className="mt-5 space-y-6">
+    <div
+      aria-label={t("role.overview.OrgRoleCalibrationSection.12aa70b1", "Calibration 프로필 목록")}
+      className="mt-5 space-y-6"
+    >
       {groups.map((group) => (
         <section
-          aria-label={`${group.status === "good" ? "Good" : group.status === "bad" ? "Bad" : "미평가"} 프로필 그룹`}
+          aria-label={t("role.overview.OrgRoleCalibrationSection.e0b67027", "{p0} 프로필 그룹", {
+            p0:
+              group.status === "good"
+                ? "Good"
+                : group.status === "bad"
+                  ? "Bad"
+                  : t("role.overview.OrgRoleCalibrationSection.f6fdf743", "미평가"),
+          })}
           key={group.status}
         >
           <div className="mb-2">
@@ -136,6 +152,7 @@ export function OrgRoleCalibrationSection({
   roleId: string;
   workspaceId: string;
 }) {
+  const t = useOrgT();
   const calibrationQuery = useOrgRoleCalibration({ roleId, workspaceId });
   const response = calibrationQuery.data;
 
@@ -148,19 +165,20 @@ export function OrgRoleCalibrationSection({
 
   return (
     <div className="mt-12 pb-6">
-      <RoleSectionHeading size="large" title="Calibration" />
+      <RoleSectionHeading
+        size="large"
+        title={t("role.overview.OrgRoleCalibrationSection.020aab99", "Calibration")}
+      />
       <p className="mt-1 text-[13px] leading-6 text-neutral-muted">
-        예시 프로필을 살펴보고, 우리 팀의 채용 기준과 맞는지 알려주세요.
+        {t("role.overview.OrgRoleCalibrationSection.7cb72836", "예시 프로필을 살펴보고, 우리 팀의 채용 기준과 맞는지 알려주세요.")}
       </p>
       <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
-        채팅에 <span className="text-neutral-muted">“A는 Good”</span>,{" "}
-        <span className="text-neutral-muted">“C는 경력이 짧아서 Bad”</span>처럼
-        이유와 함께 말씀해 주세요.
+        {t("role.overview.OrgRoleCalibrationSection.instruction", "채팅에“A는 Good”, “C는 경력이 짧아서 Bad”처럼 이유와 함께 말씀해 주세요.")}
       </p>
 
       {calibrationQuery.isLoading ? (
         <div
-          aria-label="예시 프로필을 불러오는 중"
+          aria-label={t("role.overview.OrgRoleCalibrationSection.35b7e63f", "예시 프로필을 불러오는 중")}
           className="mt-5 space-y-5"
           role="status"
         >
@@ -185,13 +203,13 @@ export function OrgRoleCalibrationSection({
           className="mt-5 text-[13px] leading-6 text-neutral-muted"
           role="alert"
         >
-          <p>예시 프로필을 불러오지 못했어요. 다시 시도해 주세요.</p>
+          <p>{t("role.overview.OrgRoleCalibrationSection.3e1dd459", "예시 프로필을 불러오지 못했어요. 다시 시도해 주세요.")}</p>
           <MuteButton
             className="mt-2"
             onClick={() => void calibrationQuery.refetch()}
             variant="transparent"
           >
-            다시 불러오기
+            {t("role.overview.OrgRoleCalibrationSection.fa54234e", "다시 불러오기")}
           </MuteButton>
         </div>
       ) : response?.state === "preparing" ? (
@@ -200,11 +218,11 @@ export function OrgRoleCalibrationSection({
           role="status"
         >
           <LoaderCircle aria-hidden className="size-4 animate-spin" />
-          Harper가 예시 프로필을 준비하고 있어요.
+          {t("role.overview.OrgRoleCalibrationSection.64798569", "Harper가 예시 프로필을 준비하고 있어요.")}
         </div>
       ) : response?.state === "unavailable" ? (
         <p className="mt-5 py-4 text-[13px] leading-5 text-neutral-muted">
-          이번에는 예시 프로필을 준비하지 못했어요.
+          {t("role.overview.OrgRoleCalibrationSection.f47e77d3", "이번에는 예시 프로필을 준비하지 못했어요.")}
         </p>
       ) : response?.calibration ? (
         <CalibrationProfiles

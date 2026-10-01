@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { en } from "@/i18n/org/en";
+import { ko } from "@/i18n/org/ko";
 import {
   getOrgRoleQuickAction,
   ORG_ROLE_CHAT_QUICK_ACTIONS,
@@ -18,7 +20,7 @@ test("role quick actions keep the exact user-facing prompts", () => {
     },
     {
       id: "pending_intros",
-      label: "Pending intros",
+      label: "Ready to connect",
       message: "지금 결정이 필요한 연결 대기 목록을 알려줘",
     },
   ]);
@@ -40,6 +42,26 @@ test("role chat quick actions append an immediate current-Brief search", () => {
     ORG_ROLE_RUN_SEARCH_ACTION,
   ]);
   assert.equal(getOrgRoleQuickAction("run_search"), null);
+});
+
+test("web quick actions use English prompts while Slack keeps its existing messages", () => {
+  assert.equal(
+    ko["agent.quickAction.pendingIntrosMessage"],
+    getOrgRoleQuickAction("pending_intros")?.message
+  );
+  assert.equal(en["agent.quickAction.pendingIntros"], "Ready to connect");
+  assert.equal(
+    en["agent.quickAction.pendingIntrosMessage"],
+    "Show candidates in Ready to connect who need our decision."
+  );
+  assert.equal(
+    en["agent.quickAction.pipelineSummaryMessage"],
+    "Summarize the current candidate pipeline for this role."
+  );
+  assert.equal(
+    en["agent.quickAction.runSearchMessage"],
+    "Search for candidates using the current Hiring Brief."
+  );
 });
 
 test("role quick actions appear only after one hour without a user message", () => {

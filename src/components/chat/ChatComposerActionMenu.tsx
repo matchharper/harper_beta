@@ -45,6 +45,7 @@ type ChatComposerActionMenuProps = {
   open?: boolean;
   sideOffset?: number;
   trigger?: ReactNode;
+  triggerAriaLabel?: string;
 };
 
 export function ChatComposerActionMenu({
@@ -59,6 +60,7 @@ export function ChatComposerActionMenu({
   open: controlledOpen,
   sideOffset = 10,
   trigger,
+  triggerAriaLabel = "추가 메뉴 열기",
 }: ChatComposerActionMenuProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const openedWithPointerRef = useRef(false);
@@ -74,7 +76,7 @@ export function ChatComposerActionMenu({
       <DropdownMenuTrigger asChild>
         {trigger ?? (
           <MuteButton
-            aria-label="추가 메뉴 열기"
+            aria-label={triggerAriaLabel}
             className={cn("rounded-full text-neutral-muted", className)}
             disabled={disabled}
             onPointerDown={() => {

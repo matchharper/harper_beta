@@ -1,3 +1,4 @@
+import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import {
   ArrowLeft,
   Blocks,
@@ -31,6 +32,7 @@ import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
+import { OrgLanguageMenu } from "@/components/org/OrgLanguageMenu";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import {
@@ -100,12 +102,13 @@ function WorkspaceAvatar({
   size?: "md" | "sm";
   workspace: OrgWorkspace;
 }) {
+  const t = useOrgT();
   const pixelSize = size === "sm" ? 24 : 28;
   const className = size === "sm" ? "size-6 rounded-md" : "size-7 rounded-md";
   if (workspace.logoUrl) {
     return (
       <Image
-        alt=""
+        alt={t("workspace.OrgWorkspaceSidebar.130f61dd", "")}
         className={cn(
           className,
           "shrink-0 border border-neutral-1000-a05 object-cover"
@@ -140,6 +143,7 @@ function WorkspaceControl({
   workspace: OrgWorkspace;
   workspaces: OrgWorkspace[];
 }) {
+  const t = useOrgT();
   if (workspaces.length <= 1) {
     return compact ? (
       <Tooltips side="right" text={workspace.companyName}>
@@ -164,7 +168,9 @@ function WorkspaceControl({
   const trigger = (
     <DropdownMenuTrigger asChild>
       <MuteButton
-        aria-label={`${workspace.companyName} Workspace 변경`}
+        aria-label={t("workspace.OrgWorkspaceSidebar.c32de3c9", "{p0} Workspace 변경", {
+          p0: workspace.companyName,
+        })}
         className={cn(
           "w-full",
           compact ? "justify-center px-0" : "justify-between"
@@ -197,7 +203,9 @@ function WorkspaceControl({
         trigger
       )}
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel>Workspace</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          {t("workspace.OrgWorkspaceSidebar.75e0c031", "Workspace")}
+        </DropdownMenuLabel>
         {workspaces.map((item) => (
           <DropdownMenuItem
             key={item.workspaceId}
@@ -285,9 +293,13 @@ function NavLink({
   pendingConnectionCount?: number;
   onBlocked?: () => void;
 }) {
+  const t = useOrgT();
   const tooltipText =
     pendingConnectionCount !== undefined
-      ? `${label} · 연결 대기 ${pendingConnectionCount}명`
+      ? t("workspace.OrgWorkspaceSidebar.3f669e7e", "{p0} · 연결 대기 {p1}명", {
+          p0: label,
+          p1: pendingConnectionCount,
+        })
       : label;
   const link = (
     <Link
@@ -388,11 +400,13 @@ function RecentRoleStatusFilter({
   onToggle: (status: OrgRoleStatus, checked: boolean) => void;
   visibleStatuses: ReadonlySet<OrgRoleStatus>;
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <MuteButton
-          aria-label="Recent 역할 상태 필터"
+          aria-label={t("workspace.OrgWorkspaceSidebar.08960a8a", "Recent 역할 상태 필터")}
           aria-pressed={active}
           size="sm"
           variant={active ? "neutral" : "transparent"}
@@ -402,7 +416,7 @@ function RecentRoleStatusFilter({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel className="text-[12px] font-normal">
-          표시할 상태
+          {t("workspace.OrgWorkspaceSidebar.cdaf4d25", "표시할 상태")}
         </DropdownMenuLabel>
         {ORG_ROLE_STATUS_FILTER_OPTIONS.map((option) => (
           <DropdownMenuCheckboxItem
@@ -416,12 +430,12 @@ function RecentRoleStatusFilter({
             onSelect={(event) => event.preventDefault()}
           >
             <OrgRoleStatusDot decorative status={option.status} />
-            <span>{option.label}</span>
+            <span>{sourceT(option.label)}</span>
           </DropdownMenuCheckboxItem>
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onReset} selected={!active}>
-          전체 상태
+          {t("workspace.OrgWorkspaceSidebar.d2aab2e3", "전체 상태")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -453,6 +467,7 @@ function RecentRolesSection({
   visibleStatuses: ReadonlySet<OrgRoleStatus>;
   workspaceId: string;
 }) {
+  const t = useOrgT();
   return (
     <section
       className={cn(
@@ -477,7 +492,7 @@ function RecentRolesSection({
         />
       </div>
       <nav
-        aria-label="Recent roles"
+        aria-label={t("workspace.OrgWorkspaceSidebar.001e565e", "Recent roles")}
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
           mobile ? "px-2" : "px-3"
@@ -524,7 +539,7 @@ function RecentRolesSection({
                 mobile ? "px-3" : "px-2.5"
               )}
             >
-              선택한 상태의 역할이 없습니다.
+              {t("workspace.OrgWorkspaceSidebar.2db0c774", "선택한 상태의 역할이 없습니다.")}
             </p>
           ) : null}
         </div>
@@ -534,6 +549,7 @@ function RecentRolesSection({
 }
 
 function OrgSlackConnectionCard() {
+  const t = useOrgT();
   const router = useRouter();
   const { permissions, workspace } = useOrgWorkspace();
   const statusQuery = useOrgSlackStatus({
@@ -546,13 +562,13 @@ function OrgSlackConnectionCard() {
 
   return (
     <section
-      aria-label="Slack 연결 안내"
+      aria-label={t("workspace.OrgWorkspaceSidebar.f5e2ee13", "Slack 연결 안내")}
       className="mb-2 rounded-lg border border-neutral-1000-a05 bg-bg-floating p-3 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
     >
       <div className="flex items-center gap-2">
         <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-neutral-1000-a05 bg-bg-weak">
           <Image
-            alt=""
+            alt={t("workspace.OrgWorkspaceSidebar.130f61dd", "")}
             aria-hidden="true"
             height={18}
             src="/images/logos/slack.svg"
@@ -560,12 +576,11 @@ function OrgSlackConnectionCard() {
           />
         </span>
         <p className="text-[12px] font-medium text-neutral-primary">
-          Slack을 연결해 주세요
+          {t("workspace.OrgWorkspaceSidebar.97a471ba", "Slack을 연결해 주세요")}
         </p>
       </div>
       <p className="mt-2 text-[11px] leading-[1.45] text-neutral-muted">
-        채용 진행 알림과 역할 생성, 기준 변경 등 모든 작업을 Slack으로 할 수
-        있어요.
+        {t("workspace.OrgWorkspaceSidebar.e32d503b", "채용 진행 알림과 역할 생성, 기준 변경 등 모든 작업을 Slack으로 할 수 있어요.")}
       </p>
       {permissions.canManageIntegrations ? (
         <MuteButton
@@ -582,13 +597,13 @@ function OrgSlackConnectionCard() {
           variant="dark"
         >
           <Image
-            alt=""
+            alt={t("workspace.OrgWorkspaceSidebar.130f61dd", "")}
             aria-hidden="true"
             height={12}
             src="/images/logos/slack.svg"
             width={12}
           />
-          Slack 연결하기
+          {t("workspace.OrgWorkspaceSidebar.83af8599", "Slack 연결하기")}
         </MuteButton>
       ) : (
         <></>
@@ -602,6 +617,7 @@ export function OrgWorkspaceSidebar({
 }: {
   compact?: boolean;
 }) {
+  const t = useOrgT();
   const router = useRouter();
   const {
     closeNavigation,
@@ -776,10 +792,13 @@ export function OrgWorkspaceSidebar({
                   active={false}
                   href={organizationReturnHref}
                   icon={ArrowLeft}
-                  label="돌아가기"
+                  label={t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
                 />
               </div>
-              <nav aria-label="Organization 설정" className="mx-3 space-y-1">
+              <nav
+                aria-label={t("workspace.OrgWorkspaceSidebar.d825bbe1", "Organization 설정")}
+                className="mx-3 space-y-1"
+              >
                 {organizationNav.map((item) => (
                   <NavLink key={item.label} {...item} />
                 ))}
@@ -803,7 +822,10 @@ export function OrgWorkspaceSidebar({
                 />
               </div>
               <div className="flex min-h-0 flex-1 flex-col">
-                <nav aria-label="Organization" className="mx-3 space-y-1">
+                <nav
+                  aria-label={t("workspace.OrgWorkspaceSidebar.5b4f72fc", "Organization")}
+                  className="mx-3 space-y-1"
+                >
                   {topNav.map((item) => (
                     <NavLink
                       key={item.id}
@@ -863,10 +885,13 @@ export function OrgWorkspaceSidebar({
         <div className="mx-3">
           <DropdownMenu>
             {compact ? (
-              <Tooltips side="right" text="프로필 메뉴">
+              <Tooltips
+                side="right"
+                text={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
+              >
                 <DropdownMenuTrigger asChild>
                   <MuteButton
-                    aria-label="프로필 메뉴"
+                    aria-label={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
                     className="w-full justify-center px-0"
                     size="md"
                     variant="transparent"
@@ -878,7 +903,7 @@ export function OrgWorkspaceSidebar({
             ) : (
               <DropdownMenuTrigger asChild>
                 <MuteButton
-                  aria-label="프로필 메뉴"
+                  aria-label={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
                   className="w-full justify-start"
                   size="md"
                   variant="transparent"
@@ -900,7 +925,8 @@ export function OrgWorkspaceSidebar({
             <DropdownMenuContent align="start" className="w-[224px]" side="top">
               <DropdownMenuLabel className="font-normal">
                 <span className="block truncate text-[13px] font-medium text-neutral-primary">
-                  {currentUser?.name || "이름 없음"}
+                  {currentUser?.name ||
+                    t("workspace.OrgWorkspaceSidebar.5100cfe8", "이름 없음")}
                 </span>
                 <span className="mt-0.5 block truncate text-[11px] font-light text-neutral-muted">
                   {currentUser?.email || "-"}
@@ -909,26 +935,27 @@ export function OrgWorkspaceSidebar({
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
                 <CircleHelp />
-                문의하기
+                {t("workspace.OrgWorkspaceSidebar.562916df", "문의하기")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => void router.push(navHref("documents"))}
               >
                 <BookOpenText />
-                Documents
+                {t("workspace.OrgWorkspaceSidebar.04ffd41a", "Documents")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => void router.push(calendarSettingsHref)}
               >
                 <Image
-                  alt=""
+                  alt={t("workspace.OrgWorkspaceSidebar.130f61dd", "")}
                   aria-hidden="true"
                   height={16}
                   src="/images/logos/calendar.png"
                   width={16}
                 />
-                일정 저장
+                {t("workspace.OrgWorkspaceSidebar.ec0a3091", "일정 저장")}
               </DropdownMenuItem>
+              <OrgLanguageMenu />
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={signOutPending}
@@ -936,7 +963,9 @@ export function OrgWorkspaceSidebar({
                 tone="danger"
               >
                 <LogOut />
-                {signOutPending ? "로그아웃 중" : "로그아웃"}
+                {signOutPending
+                  ? t("workspace.OrgWorkspaceSidebar.eb3ad908", "로그아웃 중")
+                  : t("workspace.OrgWorkspaceSidebar.0426880f", "로그아웃")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -946,7 +975,7 @@ export function OrgWorkspaceSidebar({
       {navigationTriggerHidden || activePage === "role" ? null : (
         <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
           <MuteButton
-            aria-label="메뉴 열기"
+            aria-label={t("workspace.OrgWorkspaceSidebar.44d8d4c9", "메뉴 열기")}
             className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
             onClick={handleOpenMobileNavigation}
             size="md"
@@ -966,7 +995,9 @@ export function OrgWorkspaceSidebar({
           hideCloseButton
           overlayClassName="z-[59] bg-transparent backdrop-blur-none md:hidden"
         >
-          <DialogTitle className="sr-only">Organization 메뉴</DialogTitle>
+          <DialogTitle className="sr-only">
+            {t("workspace.OrgWorkspaceSidebar.5fd5921b", "Organization 메뉴")}
+          </DialogTitle>
           <div className="flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
             <div className="flex h-14 shrink-0 items-center gap-2.5 px-3">
               <WorkspaceAvatar workspace={workspace} />
@@ -974,7 +1005,7 @@ export function OrgWorkspaceSidebar({
                 {workspace.companyName}
               </span>
               <MuteButton
-                aria-label="메뉴 닫기"
+                aria-label={t("workspace.OrgWorkspaceSidebar.cd244a4b", "메뉴 닫기")}
                 onClick={closeNavigation}
                 size="md"
                 variant="transparent"
@@ -995,9 +1026,12 @@ export function OrgWorkspaceSidebar({
                   variant="transparent"
                 >
                   <ArrowLeft className="size-4" strokeWidth={1.6} />
-                  돌아가기
+                  {t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
                 </MuteButton>
-                <nav aria-label="Organization 설정" className="space-y-1">
+                <nav
+                  aria-label={t("workspace.OrgWorkspaceSidebar.d825bbe1", "Organization 설정")}
+                  className="space-y-1"
+                >
                   {organizationNav.map((item) => (
                     <Link
                       aria-current={item.active ? "page" : undefined}
@@ -1020,7 +1054,7 @@ export function OrgWorkspaceSidebar({
             ) : (
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav
-                  aria-label="Organization"
+                  aria-label={t("workspace.OrgWorkspaceSidebar.5b4f72fc", "Organization")}
                   className="shrink-0 space-y-1 px-2 py-2"
                 >
                   {primaryNav.map((item) => {
@@ -1090,7 +1124,10 @@ export function OrgWorkspaceSidebar({
                         {item.id === "inbox" &&
                         pendingConnectionCount !== undefined ? (
                           <Badge
-                            aria-label={`연결 대기 ${pendingConnectionCount}명`}
+                            aria-label={t(
+                              "workspace.OrgWorkspaceSidebar.fad130e6", "연결 대기 {p0}명",
+                              { p0: pendingConnectionCount }
+                            )}
                             className="ml-auto min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
                             radius="full"
                             size="sm"
@@ -1125,7 +1162,7 @@ export function OrgWorkspaceSidebar({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <MuteButton
-                    aria-label="프로필 메뉴"
+                    aria-label={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
                     className="w-full justify-start"
                     size="md"
                     variant="transparent"
@@ -1150,26 +1187,27 @@ export function OrgWorkspaceSidebar({
                 >
                   <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
                     <CircleHelp />
-                    문의하기
+                    {t("workspace.OrgWorkspaceSidebar.562916df", "문의하기")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => void router.push(navHref("documents"))}
                   >
                     <BookOpenText />
-                    Documents
+                    {t("workspace.OrgWorkspaceSidebar.04ffd41a", "Documents")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => void router.push(calendarSettingsHref)}
                   >
                     <Image
-                      alt=""
+                      alt={t("workspace.OrgWorkspaceSidebar.130f61dd", "")}
                       aria-hidden="true"
                       height={16}
                       src="/images/logos/calendar.png"
                       width={16}
                     />
-                    일정 저장
+                    {t("workspace.OrgWorkspaceSidebar.ec0a3091", "일정 저장")}
                   </DropdownMenuItem>
+                  <OrgLanguageMenu />
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     disabled={signOutPending}
@@ -1177,7 +1215,9 @@ export function OrgWorkspaceSidebar({
                     tone="danger"
                   >
                     <LogOut />
-                    {signOutPending ? "로그아웃 중" : "로그아웃"}
+                    {signOutPending
+                      ? t("workspace.OrgWorkspaceSidebar.eb3ad908", "로그아웃 중")
+                      : t("workspace.OrgWorkspaceSidebar.0426880f", "로그아웃")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

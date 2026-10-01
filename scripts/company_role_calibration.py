@@ -164,6 +164,7 @@ def calibration_source_row(conn: psycopg.Connection, calibration_id: str) -> dic
           workspace.pitch as company_pitch,
           workspace.request as company_request,
           workspace.homepage_url as company_homepage_url,
+          headquarters.location as headquarters_location,
           workspace.updated_at as company_updated_at
         from public.company_role_calibrations calibration
         join public.company_roles role on role.role_id = calibration.role_id
@@ -171,6 +172,8 @@ def calibration_source_row(conn: psycopg.Connection, calibration_id: str) -> dic
           on internal_role.role_id = calibration.role_id
         join public.company_workspace workspace
           on workspace.company_workspace_id = calibration.company_workspace_id
+        left join public.company_db headquarters
+          on headquarters.id = workspace.company_db_id
         where calibration.id = %s::uuid
         """,
         (calibration_id,),
@@ -223,6 +226,7 @@ def command_start(args: argparse.Namespace) -> None:
             "brief": source["company_brief"],
             "description": source["company_description"],
             "homepageUrl": source["company_homepage_url"],
+            "headquarters": source["headquarters_location"],
             "name": source["company_name"],
             "pitch": source["company_pitch"],
             "request": source["company_request"],

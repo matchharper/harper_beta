@@ -1,4 +1,10 @@
 import {
+  useOrgLocale,
+  useOrgSourceT,
+  useOrgT,
+} from "@/i18n/org/OrgLocaleProvider";
+import { useOrgDocumentEditorCopy } from "@/i18n/org/useOrgDocumentEditorCopy";
+import {
   ArrowUpRight,
   Calendar,
   CircleDollarSign,
@@ -118,10 +124,10 @@ const EMPLOYEE_COUNT_RANGE_OPTIONS = [
   { end: null, label: "10,001명 이상", start: 10_001, value: "10001+" },
 ] as const;
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: "ko" | "en") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -129,11 +135,12 @@ function formatDate(value: string) {
 }
 
 function MemberAvatar({ member }: { member: OrgMember }) {
+  const t = useOrgT();
   const label = member.name || member.email || "User";
   if (member.profilePicture) {
     return (
       <Image
-        alt=""
+        alt={t("workspace.pages.OrgTeamPage.03919413", "")}
         className="size-6 shrink-0 rounded-full object-cover"
         height={24}
         src={member.profilePicture}
@@ -156,10 +163,11 @@ function CompanyBrandMark({
   logoUrl: string | null;
   name: string;
 }) {
+  const t = useOrgT();
   if (logoUrl) {
     return (
       <Image
-        alt=""
+        alt={t("workspace.pages.OrgTeamPage.03919413", "")}
         className="size-8 shrink-0 rounded-md object-contain"
         height={32}
         src={logoUrl}
@@ -201,6 +209,7 @@ function CompanyLinkPill({ href, label }: { href: string; label: string }) {
 }
 
 function CompanyLinkBadge({ href, label }: { href: string; label: string }) {
+  const t = useOrgT();
   const iconUrl = getFaviconUrl(href);
 
   return (
@@ -211,7 +220,7 @@ function CompanyLinkBadge({ href, label }: { href: string; label: string }) {
         iconUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            alt=""
+            alt={t("workspace.pages.OrgTeamPage.03919413", "")}
             aria-hidden="true"
             className="size-3.5 rounded-[3px] object-contain"
             src={iconUrl}
@@ -243,6 +252,7 @@ function CompanyEditableLink({
   onEdit: () => void;
   onValueChange: (value: string) => void;
 }) {
+  const t = useOrgT();
   const [open, setOpen] = useState(false);
 
   if (!editable) {
@@ -296,19 +306,19 @@ function CompanyEditableLink({
             disabled={disabled}
             id={fieldId}
             onChange={(event) => onValueChange(event.target.value)}
-            placeholder="https://"
+            placeholder={t("workspace.pages.OrgTeamPage.948045e5", "https://")}
             type="url"
             value={href}
           />
           <div className="mt-2 flex items-center justify-between gap-2">
             <span className="text-[11px] text-neutral-soft">
-              변경 후 저장 버튼을 눌러주세요.
+              {t("workspace.pages.OrgTeamPage.f3853baf", "변경 후 저장 버튼을 눌러주세요.")}
             </span>
             <div className="flex shrink-0 items-center gap-1">
               {href ? (
                 <MuteButton asChild size="sm" variant="transparent">
                   <a href={href} rel="noreferrer" target="_blank">
-                    열기
+                    {t("workspace.pages.OrgTeamPage.2b87ee2f", "열기")}
                     <ArrowUpRight className="size-3.5" />
                   </a>
                 </MuteButton>
@@ -318,7 +328,7 @@ function CompanyEditableLink({
                 size="sm"
                 variant="neutral"
               >
-                닫기
+                {t("workspace.pages.OrgTeamPage.0f78e79f", "닫기")}
               </MuteButton>
             </div>
           </div>
@@ -356,22 +366,35 @@ function CompanyInfoRow({
 }
 
 function CompanyInfoText({ value }: { value: string | null | undefined }) {
+  const t = useOrgT();
   const text = value?.trim();
 
   return text ? (
     <span className="whitespace-pre-wrap wrap-break-word">{text}</span>
   ) : (
-    <span className="text-neutral-soft">정보 없음</span>
+    <span className="text-neutral-soft">
+      {t("workspace.pages.OrgTeamPage.f1ba5e59", "정보 없음")}
+    </span>
   );
 }
 
-function formatEmployeeCount(start: number | null, end: number | null) {
+function formatEmployeeCount(
+  start: number | null,
+  end: number | null,
+  locale: "ko" | "en",
+  t: ReturnType<typeof useOrgT>
+) {
   const format = (value: number) =>
-    new Intl.NumberFormat("ko-KR").format(value);
+    new Intl.NumberFormat(locale === "ko" ? "ko-KR" : "en-US").format(value);
   if (start !== null && end !== null)
-    return `${format(start)}–${format(end)}명`;
-  if (start !== null) return `${format(start)}명 이상`;
-  if (end !== null) return `${format(end)}명 이하`;
+    return t("workspace.pages.OrgTeamPage.f0ee7157", "{p0}–{p1}명", {
+      p0: format(start),
+      p1: format(end),
+    });
+  if (start !== null)
+    return t("workspace.pages.OrgTeamPage.b3616b18", "{p0}명 이상", { p0: format(start) });
+  if (end !== null)
+    return t("workspace.pages.OrgTeamPage.493ee17e", "{p0}명 이하", { p0: format(end) });
   return null;
 }
 
@@ -397,6 +420,8 @@ function InviteMemberDialog({
   open: boolean;
   workspace: OrgWorkspace;
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const addToast = useToastStore((state) => state.add);
   const sendInvitations = useSendOrgInvitations();
   const [email, setEmail] = useState("");
@@ -416,7 +441,7 @@ function InviteMemberDialog({
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
-      setError("올바른 이메일을 입력해 주세요.");
+      setError(t("workspace.pages.OrgTeamPage.fd1593d1", "올바른 이메일을 입력해 주세요."));
       return;
     }
     if (
@@ -424,7 +449,7 @@ function InviteMemberDialog({
         (member) => member.email?.trim().toLowerCase() === normalizedEmail
       )
     ) {
-      setError("이미 참여 중인 멤버입니다.");
+      setError(t("workspace.pages.OrgTeamPage.2449ca63", "이미 참여 중인 멤버입니다."));
       return;
     }
     if (
@@ -433,9 +458,7 @@ function InviteMemberDialog({
           invitation.email.trim().toLowerCase() === normalizedEmail
       )
     ) {
-      setError(
-        "이미 초대 대기 중입니다. 멤버 목록의 더보기에서 다시 보내기를 선택해 주세요."
-      );
+      setError(t("workspace.pages.OrgTeamPage.f3f990ba", "이미 초대 대기 중입니다. 멤버 목록의 더보기에서 다시 보내기를 선택해 주세요."));
       return;
     }
     setError("");
@@ -447,11 +470,13 @@ function InviteMemberDialog({
       });
       const result = payload.results[0];
       if (!result || result.status !== "sent") {
-        setError(result?.message || "초대 메일을 보내지 못했습니다.");
+        setError(result?.message || t("workspace.pages.OrgTeamPage.73dc066c", "초대 메일을 보내지 못했습니다."));
         return;
       }
       addToast({
-        message: `${normalizedEmail}로 초대 메일을 보냈습니다.`,
+        message: t("workspace.pages.OrgTeamPage.80f1814b", "{p0}로 초대 메일을 보냈습니다.", {
+          p0: normalizedEmail,
+        }),
         variant: "success",
       });
       handleOpenChange(false);
@@ -459,7 +484,7 @@ function InviteMemberDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "초대 메일을 보내지 못했습니다."
+          : t("workspace.pages.OrgTeamPage.73dc066c", "초대 메일을 보내지 못했습니다.")
       );
     }
   };
@@ -468,21 +493,23 @@ function InviteMemberDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-[500px] gap-4 rounded-lg p-6">
         <DialogHeader>
-          <DialogTitle className="text-[18px]">멤버 초대</DialogTitle>
+          <DialogTitle className="text-[18px]">
+            {t("workspace.pages.OrgTeamPage.2fd8af36", "멤버 초대")}
+          </DialogTitle>
           <DialogDescription className="text-[13px] leading-5">
-            이메일과 Organization에서 사용할 권한을 선택하세요.
+            {t("workspace.pages.OrgTeamPage.d3f293e6", "이메일과 Organization에서 사용할 권한을 선택하세요.")}
           </DialogDescription>
         </DialogHeader>
         <form className="mt-1 space-y-4" onSubmit={submit}>
           <TextField
             autoFocus
             id="org-invite-email"
-            label="이메일"
+            label={t("workspace.pages.OrgTeamPage.511e7c42", "이메일")}
             onChange={(event) => {
               setEmail(event.target.value);
               if (error) setError("");
             }}
-            placeholder="name@company.com"
+            placeholder={t("workspace.pages.OrgTeamPage.c1a6e224", "name@company.com")}
             status={error ? "error" : "default"}
             type="email"
             value={email}
@@ -491,7 +518,7 @@ function InviteMemberDialog({
           />
           <fieldset>
             <legend className="text-[13px] font-medium text-neutral-primary">
-              권한
+              {t("workspace.pages.OrgTeamPage.c5b7908f", "권한")}
             </legend>
             <div className="mt-2 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
               {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
@@ -504,10 +531,10 @@ function InviteMemberDialog({
                   label={
                     <span className="block min-w-0">
                       <span className="block text-[14px] font-medium leading-5 text-neutral-primary">
-                        {option.label}
+                        {sourceT(option.label)}
                       </span>
                       <span className="mt-0.5 block text-[12px] font-light leading-5 text-neutral-muted">
-                        {option.description}
+                        {sourceT(option.description)}
                       </span>
                     </span>
                   }
@@ -526,7 +553,7 @@ function InviteMemberDialog({
               size="md"
               type="button"
             >
-              취소
+              {t("workspace.pages.OrgTeamPage.8af47b03", "취소")}
             </MuteButton>
             <MuteButton
               disabled={sendInvitations.isPending}
@@ -537,7 +564,7 @@ function InviteMemberDialog({
               {sendInvitations.isPending ? (
                 <LoaderCircle className="size-4 animate-spin" />
               ) : null}
-              초대 보내기
+              {t("workspace.pages.OrgTeamPage.483c50d9", "초대 보내기")}
             </MuteButton>
           </DialogFooter>
         </form>
@@ -559,6 +586,10 @@ export function OrgTeamPage({
   inlineDescription?: boolean;
   section?: "company" | "members";
 } = {}) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
+  const { locale } = useOrgLocale();
+  const documentEditorCopy = useOrgDocumentEditorCopy();
   const {
     bootstrap: { invitations, members },
     currentUser,
@@ -607,7 +638,9 @@ export function OrgTeamPage({
   const currentCompanyDraft = companyDraft ?? initialCompanyDraft;
   const employeeCountText = formatEmployeeCount(
     currentCompanyDraft.employeeCountStart,
-    currentCompanyDraft.employeeCountEnd
+    currentCompanyDraft.employeeCountEnd,
+    locale,
+    t
   );
   const companyEditing = companyInfoEditing || companyEditingField !== null;
   const canEditCompany = permissions.canManageWorkspace && !readOnlyCompany;
@@ -669,7 +702,7 @@ export function OrgTeamPage({
       return;
     const companyName = companyDraft.companyName.trim();
     if (!companyName) {
-      setCompanySaveError("회사명을 입력해 주세요.");
+      setCompanySaveError(t("workspace.pages.OrgTeamPage.b6ed6379", "회사명을 입력해 주세요."));
       return;
     }
     try {
@@ -690,7 +723,10 @@ export function OrgTeamPage({
         totalFundingRaised: companyDraft.totalFundingRaised.trim() || null,
         workspaceId: workspace.workspaceId,
       });
-      addToast({ message: "회사 정보를 저장했습니다.", variant: "success" });
+      addToast({
+        message: t("workspace.pages.OrgTeamPage.04c48139", "회사 정보를 저장했습니다."),
+        variant: "success",
+      });
       setCompanyDraft(null);
       setCompanyInfoEditing(false);
       setCompanyEditingField(null);
@@ -699,7 +735,7 @@ export function OrgTeamPage({
       setCompanySaveError(
         saveError instanceof Error
           ? saveError.message
-          : "회사 정보를 저장하지 못했습니다."
+          : t("workspace.pages.OrgTeamPage.7ec08c8b", "회사 정보를 저장하지 못했습니다.")
       );
     }
   };
@@ -713,15 +749,20 @@ export function OrgTeamPage({
       });
       const result = payload.results[0];
       if (!result || result.status !== "sent") {
-        throw new Error(result?.message || "초대 메일을 보내지 못했습니다.");
+        throw new Error(
+          result?.message || t("workspace.pages.OrgTeamPage.73dc066c", "초대 메일을 보내지 못했습니다.")
+        );
       }
-      addToast({ message: "초대 메일을 다시 보냈습니다.", variant: "success" });
+      addToast({
+        message: t("workspace.pages.OrgTeamPage.172e3632", "초대 메일을 다시 보냈습니다."),
+        variant: "success",
+      });
     } catch (resendError) {
       addToast({
         message:
           resendError instanceof Error
             ? resendError.message
-            : "초대 메일을 보내지 못했습니다.",
+            : t("workspace.pages.OrgTeamPage.73dc066c", "초대 메일을 보내지 못했습니다."),
         variant: "error",
       });
     }
@@ -735,14 +776,14 @@ export function OrgTeamPage({
         invitationId: invitation.invitationId,
         workspaceId: workspace.workspaceId,
       });
-      addToast({ message: "초대를 취소했습니다." });
+      addToast({ message: t("workspace.pages.OrgTeamPage.671916fe", "초대를 취소했습니다.") });
       setInvitationToCancel(null);
     } catch (cancelError) {
       addToast({
         message:
           cancelError instanceof Error
             ? cancelError.message
-            : "초대를 취소하지 못했습니다.",
+            : t("workspace.pages.OrgTeamPage.f306c439", "초대를 취소하지 못했습니다."),
         variant: "error",
       });
     }
@@ -760,7 +801,13 @@ export function OrgTeamPage({
         workspaceId: workspace.workspaceId,
       });
       addToast({
-        message: `${member.name || member.email || "멤버"}의 권한을 ${getOrgRoleLabel(authority)}로 변경했습니다.`,
+        message: t("workspace.pages.OrgTeamPage.02a46744", "{p0}의 권한을 {p1}로 변경했습니다.", {
+          p0:
+            member.name ||
+            member.email ||
+            t("workspace.pages.OrgTeamPage.e5a2f418", "멤버"),
+          p1: sourceT(getOrgRoleLabel(authority)),
+        }),
         variant: "success",
       });
     } catch (roleError) {
@@ -768,7 +815,7 @@ export function OrgTeamPage({
         message:
           roleError instanceof Error
             ? roleError.message
-            : "권한을 변경하지 못했습니다.",
+            : t("workspace.pages.OrgTeamPage.de5b63f1", "권한을 변경하지 못했습니다."),
         variant: "error",
       });
     }
@@ -785,7 +832,7 @@ export function OrgTeamPage({
     if (!memberRoleToEdit || updateMemberProfile.isPending) return;
     const role = memberRoleDraft.trim();
     if (!role) {
-      setMemberRoleError("직함을 입력해 주세요.");
+      setMemberRoleError(t("workspace.pages.OrgTeamPage.76baa3f3", "직함을 입력해 주세요."));
       return;
     }
 
@@ -795,13 +842,16 @@ export function OrgTeamPage({
         userId: memberRoleToEdit.userId,
         workspaceId: workspace.workspaceId,
       });
-      addToast({ message: "멤버 직함을 저장했습니다.", variant: "success" });
+      addToast({
+        message: t("workspace.pages.OrgTeamPage.5e9a93f3", "멤버 직함을 저장했습니다."),
+        variant: "success",
+      });
       setMemberRoleToEdit(null);
     } catch (roleError) {
       setMemberRoleError(
         roleError instanceof Error
           ? roleError.message
-          : "직함을 저장하지 못했습니다."
+          : t("workspace.pages.OrgTeamPage.81fd9e74", "직함을 저장하지 못했습니다.")
       );
     }
   };
@@ -816,7 +866,12 @@ export function OrgTeamPage({
       });
       setMemberToRemove(null);
       addToast({
-        message: `${member.name || member.email || "멤버"}를 Organization에서 제거했습니다.`,
+        message: t("workspace.pages.OrgTeamPage.e57b768c", "{p0}를 Organization에서 제거했습니다.", {
+          p0:
+            member.name ||
+            member.email ||
+            t("workspace.pages.OrgTeamPage.e5a2f418", "멤버"),
+        }),
         variant: "success",
       });
 
@@ -835,7 +890,7 @@ export function OrgTeamPage({
         message:
           removeError instanceof Error
             ? removeError.message
-            : "멤버를 제거하지 못했습니다.",
+            : t("workspace.pages.OrgTeamPage.1cd502ee", "멤버를 제거하지 못했습니다."),
         variant: "error",
       });
     }
@@ -856,7 +911,7 @@ export function OrgTeamPage({
                   editable={canEditCompany}
                   fieldId="org-company-homepage-url"
                   href={currentCompanyDraft.homepageUrl}
-                  label="웹사이트"
+                  label={t("workspace.pages.OrgTeamPage.6694247b", "웹사이트")}
                   onEdit={() => startCompanyEditing("homepageUrl")}
                   onValueChange={(homepageUrl) =>
                     changeCompanyDraft({ homepageUrl })
@@ -869,7 +924,7 @@ export function OrgTeamPage({
                   editable={canEditCompany}
                   fieldId="org-company-linkedin-url"
                   href={currentCompanyDraft.linkedinUrl}
-                  label="LinkedIn"
+                  label={t("workspace.pages.OrgTeamPage.790649a8", "LinkedIn")}
                   onEdit={() => startCompanyEditing("linkedinUrl")}
                   onValueChange={(linkedinUrl) =>
                     changeCompanyDraft({ linkedinUrl })
@@ -898,9 +953,7 @@ export function OrgTeamPage({
 
       <OrgSection hidden={!showCompany}>
         <div className="text-[13px] text-neutral-900 bg-neutral-100 rounded-lg p-3 mb-4">
-          Harper가 후보자에게 회사를 정확히 설명할 때 사용하는 정보예요. 모든
-          역할에 공통으로 적용되며, 후보자의 관심사와 질문에 맞춰 필요한 내용을
-          자연스럽게 활용해요.
+          {t("workspace.pages.OrgTeamPage.1ecd9e9f", "Harper가 후보자에게 회사를 정확히 설명할 때 사용하는 정보예요. 모든 역할에 공통으로 적용되며, 후보자의 관심사와 질문에 맞춰 필요한 내용을 자연스럽게 활용해요.")}
         </div>
         <form
           className="space-y-8 mt-8"
@@ -911,7 +964,7 @@ export function OrgTeamPage({
         >
           <OrgSectionHeader
             className="max-w-2xl"
-            title="Company"
+            title={t("workspace.pages.OrgTeamPage.3988b6dd", "Company")}
             actions={
               <>
                 {canEditCompany && !companyInfoEditing ? (
@@ -922,7 +975,7 @@ export function OrgTeamPage({
                     type="button"
                   >
                     <Pencil className="size-4" />
-                    수정하기
+                    {t("workspace.pages.OrgTeamPage.58662f23", "수정하기")}
                   </MuteButton>
                 ) : null}
               </>
@@ -938,12 +991,12 @@ export function OrgTeamPage({
               <tbody className="divide-y divide-neutral-1000-a05">
                 <CompanyInfoRow
                   icon={<MapPin className="size-4" strokeWidth={2} />}
-                  label="본사 위치"
+                  label={t("workspace.pages.OrgTeamPage.a0aa3e23", "본사 위치")}
                   value={
                     companyInfoEditing ? (
                       <Input
                         autoFocus
-                        aria-label="본사 위치"
+                        aria-label={t("workspace.pages.OrgTeamPage.a0aa3e23", "본사 위치")}
                         className="h-9 w-full text-[13px]"
                         disabled={updateWorkspace.isPending}
                         onChange={(event) =>
@@ -951,7 +1004,7 @@ export function OrgTeamPage({
                             locationText: event.target.value,
                           })
                         }
-                        placeholder="본사 위치"
+                        placeholder={t("workspace.pages.OrgTeamPage.a0aa3e23", "본사 위치")}
                         value={currentCompanyDraft.locationText}
                       />
                     ) : (
@@ -963,11 +1016,11 @@ export function OrgTeamPage({
                 />
                 <CompanyInfoRow
                   icon={<Calendar className="size-4" strokeWidth={2} />}
-                  label="설립 연도"
+                  label={t("workspace.pages.OrgTeamPage.b7428b09", "설립 연도")}
                   value={
                     companyInfoEditing ? (
                       <Input
-                        aria-label="설립 연도"
+                        aria-label={t("workspace.pages.OrgTeamPage.b7428b09", "설립 연도")}
                         className="h-9 w-full text-[13px]"
                         disabled={updateWorkspace.isPending}
                         inputMode="numeric"
@@ -980,7 +1033,7 @@ export function OrgTeamPage({
                               : null,
                           })
                         }
-                        placeholder="설립 연도"
+                        placeholder={t("workspace.pages.OrgTeamPage.b7428b09", "설립 연도")}
                         type="number"
                         value={currentCompanyDraft.foundedYear ?? ""}
                       />
@@ -988,7 +1041,9 @@ export function OrgTeamPage({
                       <CompanyInfoText
                         value={
                           currentCompanyDraft.foundedYear
-                            ? `${currentCompanyDraft.foundedYear}년`
+                            ? t("workspace.pages.OrgTeamPage.6bf42b2f", "{p0}년", {
+                                p0: currentCompanyDraft.foundedYear,
+                              })
                             : null
                         }
                       />
@@ -997,7 +1052,7 @@ export function OrgTeamPage({
                 />
                 <CompanyInfoRow
                   icon={<Users className="size-4" strokeWidth={2} />}
-                  label="팀원 수"
+                  label={t("workspace.pages.OrgTeamPage.05e031c6", "팀원 수")}
                   value={
                     companyInfoEditing ? (
                       <Select
@@ -1028,21 +1083,25 @@ export function OrgTeamPage({
                         }
                       >
                         <SelectTrigger
-                          aria-label="팀원 수"
+                          aria-label={t("workspace.pages.OrgTeamPage.05e031c6", "팀원 수")}
                           className="w-full text-[13px]"
                         >
-                          <SelectValue placeholder="팀원 수 범위" />
+                          <SelectValue
+                            placeholder={t(
+                              "workspace.pages.OrgTeamPage.4bac2d7a", "팀원 수 범위"
+                            )}
+                          />
                         </SelectTrigger>
                         <SelectContent
                           align="start"
                           data-inline-editable-interaction=""
                         >
                           <SelectItem value={EMPTY_EMPLOYEE_COUNT_RANGE}>
-                            정보 없음
+                            {t("workspace.pages.OrgTeamPage.f1ba5e59", "정보 없음")}
                           </SelectItem>
                           {EMPLOYEE_COUNT_RANGE_OPTIONS.map((option) => (
                             <SelectItem key={option.value} value={option.value}>
-                              {option.label}
+                              {sourceT(option.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1054,11 +1113,11 @@ export function OrgTeamPage({
                 />
                 <CompanyInfoRow
                   icon={<TrendingUp className="size-4" strokeWidth={2} />}
-                  label="최근 투자 단계"
+                  label={t("workspace.pages.OrgTeamPage.c196286e", "최근 투자 단계")}
                   value={
                     companyInfoEditing ? (
                       <Input
-                        aria-label="최근 투자 단계"
+                        aria-label={t("workspace.pages.OrgTeamPage.c196286e", "최근 투자 단계")}
                         className="h-9 w-full text-[13px]"
                         disabled={updateWorkspace.isPending}
                         onChange={(event) =>
@@ -1066,7 +1125,7 @@ export function OrgTeamPage({
                             lastFundingStage: event.target.value,
                           })
                         }
-                        placeholder="최근 투자 단계"
+                        placeholder={t("workspace.pages.OrgTeamPage.c196286e", "최근 투자 단계")}
                         value={currentCompanyDraft.lastFundingStage}
                       />
                     ) : (
@@ -1078,11 +1137,11 @@ export function OrgTeamPage({
                 />
                 <CompanyInfoRow
                   icon={<CircleDollarSign className="size-4" strokeWidth={2} />}
-                  label="누적 투자 유치액"
+                  label={t("workspace.pages.OrgTeamPage.e36c56d1", "누적 투자 유치액")}
                   value={
                     companyInfoEditing ? (
                       <Input
-                        aria-label="누적 투자 유치액"
+                        aria-label={t("workspace.pages.OrgTeamPage.e36c56d1", "누적 투자 유치액")}
                         className="h-9 w-full text-[13px]"
                         disabled={updateWorkspace.isPending}
                         onChange={(event) =>
@@ -1090,7 +1149,7 @@ export function OrgTeamPage({
                             totalFundingRaised: event.target.value,
                           })
                         }
-                        placeholder="누적 투자 유치액"
+                        placeholder={t("workspace.pages.OrgTeamPage.e36c56d1", "누적 투자 유치액")}
                         value={currentCompanyDraft.totalFundingRaised}
                       />
                     ) : (
@@ -1102,11 +1161,11 @@ export function OrgTeamPage({
                 />
                 <CompanyInfoRow
                   icon={<FileText className="size-4" strokeWidth={2} />}
-                  label="최근 투자 라운드"
+                  label={t("workspace.pages.OrgTeamPage.bf14c9c8", "최근 투자 라운드")}
                   value={
                     companyInfoEditing ? (
                       <Input
-                        aria-label="최근 투자 라운드"
+                        aria-label={t("workspace.pages.OrgTeamPage.bf14c9c8", "최근 투자 라운드")}
                         className="h-9 w-full text-[13px]"
                         disabled={updateWorkspace.isPending}
                         onChange={(event) =>
@@ -1114,7 +1173,7 @@ export function OrgTeamPage({
                             lastFundingRoundDescription: event.target.value,
                           })
                         }
-                        placeholder="최근 투자 라운드"
+                        placeholder={t("workspace.pages.OrgTeamPage.bf14c9c8", "최근 투자 라운드")}
                         value={currentCompanyDraft.lastFundingRoundDescription}
                       />
                     ) : (
@@ -1130,7 +1189,9 @@ export function OrgTeamPage({
 
           {!hideEmptyDescription || currentCompanyDraft.pitch.trim() ? (
             <section>
-              <OrgSectionHeader title="Company Description" />
+              <OrgSectionHeader
+                title={t("workspace.pages.OrgTeamPage.978a08f7", "Company Description")}
+              />
               {inlineDescription && readOnlyCompany ? (
                 <RichText
                   content={currentCompanyDraft.pitch}
@@ -1139,10 +1200,11 @@ export function OrgTeamPage({
                 />
               ) : (
                 <DocumentEditor
-                  aria-label="Company Description 수정"
+                  {...documentEditorCopy}
+                  aria-label={t("workspace.pages.OrgTeamPage.9c0a40e7", "Company Description 수정")}
                   className="mt-2 max-w-4xl"
                   disabled={updateWorkspace.isPending}
-                  documentTitle="Company Description"
+                  documentTitle={t("workspace.pages.OrgTeamPage.documentTitle", "Company Description")}
                   errorMessage={
                     companyEditingField === "pitch" ? companySaveError : ""
                   }
@@ -1150,7 +1212,7 @@ export function OrgTeamPage({
                   onChange={(event) =>
                     changeCompanyDraft({ pitch: event.target.value }, "pitch")
                   }
-                  placeholder="후보자에게 회사를 소개할 때 강조할 내용을 작성해 주세요."
+                  placeholder={t("workspace.pages.OrgTeamPage.c0151c95", "후보자에게 회사를 소개할 때 강조할 내용을 작성해 주세요.")}
                   readOnly={!canEditCompany}
                   rows={4}
                   savedValue={workspace.pitch ?? ""}
@@ -1181,24 +1243,38 @@ export function OrgTeamPage({
                   size="md"
                   variant="primary"
                 >
-                  초대하기
+                  {t("workspace.pages.OrgTeamPage.6f13b7a6", "초대하기")}
                 </MuteButton>
               ) : null
             }
-            description="함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요."
-            title={<span className="sr-only sm:not-sr-only">Members</span>}
+            description={t("workspace.pages.OrgTeamPage.3aa5e7cf", "함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요.")}
+            title={
+              <span className="sr-only sm:not-sr-only">
+                {t("workspace.pages.OrgTeamPage.ee2cb2dc", "Members")}
+              </span>
+            }
           />
 
           <div className="space-y-6">
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="text-[14px] font-medium text-neutral-primary">
-                  가입 멤버
+                  {t("workspace.pages.OrgTeamPage.8935c28b", "가입 멤버")}
                 </h3>
                 <span className="text-[12px] font-light text-neutral-soft">
-                  {members.length}명
+                  {t(
+                    members.length === 1
+                      ? "workspace.pages.OrgTeamPage.memberCountOne"
+                      : "workspace.pages.OrgTeamPage.memberCountOther",
+                    "{count}명",
+                    { count: members.length }
+                  )}
                   {invitations.length > 0
-                    ? ` · 수락 대기 ${invitations.length}명`
+                    ? t(invitations.length === 1
+                        ? "workspace.pages.OrgTeamPage.invitationCountOne"
+                        : "workspace.pages.OrgTeamPage.invitationCountOther", " · 수락 대기 {count}명", {
+                        count: invitations.length,
+                      })
                     : ""}
                 </span>
               </div>
@@ -1214,16 +1290,18 @@ export function OrgTeamPage({
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-1.5">
                             <h4 className="truncate text-[14px] font-medium text-neutral-primary">
-                              {member.name || "이름 없음"}
+                              {member.name ||
+                                t("workspace.pages.OrgTeamPage.fa9bbccf", "이름 없음")}
                             </h4>
                             {member.userId === currentUser?.userId ? (
                               <Badge radius="full" size="sm" variant="faded">
-                                나
+                                {t("workspace.pages.OrgTeamPage.abb8cc7a", "나")}
                               </Badge>
                             ) : null}
                           </div>
                           <p className="mt-0.5 truncate text-[12px] text-neutral-muted">
-                            {member.email || "이메일 없음"}
+                            {member.email ||
+                              t("workspace.pages.OrgTeamPage.a59ac604", "이메일 없음")}
                           </p>
                         </div>
                       </div>
@@ -1231,7 +1309,15 @@ export function OrgTeamPage({
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <MuteButton
-                              aria-label={`${member.name || member.email || "멤버"} 작업`}
+                              aria-label={t(
+                                "workspace.pages.OrgTeamPage.3833c612", "{p0} 작업",
+                                {
+                                  p0:
+                                    member.name ||
+                                    member.email ||
+                                    t("workspace.pages.OrgTeamPage.e5a2f418", "멤버"),
+                                }
+                              )}
                               className="-mr-1 -mt-1 rounded-full"
                               size="md"
                               variant="transparent"
@@ -1245,7 +1331,7 @@ export function OrgTeamPage({
                               onSelect={() => openMemberRoleEdit(member)}
                             >
                               <Pencil />
-                              직함 수정
+                              {t("workspace.pages.OrgTeamPage.02174dd7", "직함 수정")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={removeMember.isPending}
@@ -1253,7 +1339,7 @@ export function OrgTeamPage({
                               tone="danger"
                             >
                               <Trash2 />
-                              멤버 제거
+                              {t("workspace.pages.OrgTeamPage.e094f135", "멤버 제거")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1262,21 +1348,26 @@ export function OrgTeamPage({
 
                     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-bg-weak/70 px-3 py-3">
                       <div className="min-w-0">
-                        <dt className="text-[11px] text-neutral-soft">직함</dt>
+                        <dt className="text-[11px] text-neutral-soft">
+                          {t("workspace.pages.OrgTeamPage.c944f2f3", "직함")}
+                        </dt>
                         <dd className="mt-1 truncate text-[13px] text-neutral-primary">
-                          {member.role || "미입력"}
+                          {member.role ||
+                            t("workspace.pages.OrgTeamPage.165fe503", "미입력")}
                         </dd>
                       </div>
                       <div className="min-w-0">
                         <dt className="text-[11px] text-neutral-soft">
-                          가입 날짜
+                          {t("workspace.pages.OrgTeamPage.c6b5fec2", "가입 날짜")}
                         </dt>
                         <dd className="mt-1 truncate text-[13px] text-neutral-primary">
-                          {formatDate(member.joinedAt)}
+                          {formatDate(member.joinedAt, locale)}
                         </dd>
                       </div>
                       <div className="col-span-2 flex min-w-0 items-center justify-between gap-3 border-t border-neutral-1000-a05 pt-3">
-                        <dt className="text-[11px] text-neutral-soft">권한</dt>
+                        <dt className="text-[11px] text-neutral-soft">
+                          {t("workspace.pages.OrgTeamPage.c5b7908f", "권한")}
+                        </dt>
                         <dd className="shrink-0">
                           {permissions.canManageMembers ? (
                             <Select
@@ -1297,7 +1388,9 @@ export function OrgTeamPage({
                                 className="h-8 w-[116px] bg-bg-default text-[12px]"
                                 size="sm"
                               >
-                                <SelectValue />
+                                <SelectValue>
+                                  {sourceT(getOrgRoleLabel(member.authority))}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent align="end">
                                 {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
@@ -1305,14 +1398,14 @@ export function OrgTeamPage({
                                     key={option.value}
                                     value={option.value}
                                   >
-                                    {option.label}
+                                    {sourceT(option.label)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           ) : (
                             <span className="text-[12px] text-neutral-muted">
-                              {getOrgRoleLabel(member.authority)}
+                              {sourceT(getOrgRoleLabel(member.authority))}
                             </span>
                           )}
                         </dd>
@@ -1336,11 +1429,12 @@ export function OrgTeamPage({
                               {invitation.email}
                             </h4>
                             <Badge radius="full" size="sm" variant="faded">
-                              수락 대기
+                              {t("workspace.pages.OrgTeamPage.e2dcb5e4", "수락 대기")}
                             </Badge>
                           </div>
                           <p className="mt-1 text-[12px] text-neutral-muted">
-                            {getOrgRoleLabel(invitation.role)} 권한으로 초대됨
+                            {sourceT(getOrgRoleLabel(invitation.role))}{" "}
+                            {t("workspace.pages.OrgTeamPage.3c76bb96", "권한으로 초대됨")}
                           </p>
                         </div>
                       </div>
@@ -1348,7 +1442,10 @@ export function OrgTeamPage({
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <MuteButton
-                              aria-label={`${invitation.email} 초대 작업`}
+                              aria-label={t(
+                                "workspace.pages.OrgTeamPage.6c146095", "{p0} 초대 작업",
+                                { p0: invitation.email }
+                              )}
                               className="-mr-1 -mt-1 rounded-full"
                               size="md"
                               variant="transparent"
@@ -1361,14 +1458,14 @@ export function OrgTeamPage({
                               disabled={sendInvitations.isPending}
                               onSelect={() => void resendInvitation(invitation)}
                             >
-                              다시 보내기
+                              {t("workspace.pages.OrgTeamPage.f6a0553b", "다시 보내기")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={cancelInvitation.isPending}
                               onSelect={() => setInvitationToCancel(invitation)}
                               tone="danger"
                             >
-                              초대 취소
+                              {t("workspace.pages.OrgTeamPage.9d1096bd", "초대 취소")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1381,16 +1478,26 @@ export function OrgTeamPage({
                 <table className="w-full min-w-[860px] border-collapse text-left">
                   <thead className="bg-neutral-200/35">
                     <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
-                      <th className="px-4 py-2.5 font-normal">이메일</th>
-                      <th className="px-3 py-2.5 font-normal">이름</th>
-                      <th className="w-44 px-3 py-2.5 font-normal">직함</th>
-                      <th className="w-36 px-3 py-2.5 font-normal">권한</th>
+                      <th className="px-4 py-2.5 font-normal">
+                        {t("workspace.pages.OrgTeamPage.511e7c42", "이메일")}
+                      </th>
+                      <th className="px-3 py-2.5 font-normal">
+                        {t("workspace.pages.OrgTeamPage.beff575b", "이름")}
+                      </th>
+                      <th className="w-44 px-3 py-2.5 font-normal">
+                        {t("workspace.pages.OrgTeamPage.c944f2f3", "직함")}
+                      </th>
+                      <th className="w-36 px-3 py-2.5 font-normal">
+                        {t("workspace.pages.OrgTeamPage.c5b7908f", "권한")}
+                      </th>
                       <th className="w-40 px-3 py-2.5 font-normal">
-                        가입 날짜
+                        {t("workspace.pages.OrgTeamPage.c6b5fec2", "가입 날짜")}
                       </th>
                       {permissions.canManageMembers ? (
                         <th className="w-12 px-2 py-2.5 font-normal">
-                          <span className="sr-only">멤버 작업</span>
+                          <span className="sr-only">
+                            {t("workspace.pages.OrgTeamPage.6f9f8bcd", "멤버 작업")}
+                          </span>
                         </th>
                       ) : null}
                     </tr>
@@ -1409,11 +1516,12 @@ export function OrgTeamPage({
                             <MemberAvatar member={member} />
                             <span className="flex min-w-0 items-center gap-1.5">
                               <span className="truncate text-[13px] text-neutral-primary">
-                                {member.name || "이름 없음"}
+                                {member.name ||
+                                  t("workspace.pages.OrgTeamPage.fa9bbccf", "이름 없음")}
                               </span>
                               {member.userId === currentUser?.userId ? (
                                 <Badge radius="full" size="sm" variant="faded">
-                                  나
+                                  {t("workspace.pages.OrgTeamPage.abb8cc7a", "나")}
                                 </Badge>
                               ) : null}
                             </span>
@@ -1444,7 +1552,9 @@ export function OrgTeamPage({
                                 className="h-9 w-[112px] text-[12px]"
                                 size="sm"
                               >
-                                <SelectValue />
+                                <SelectValue>
+                                  {sourceT(getOrgRoleLabel(member.authority))}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent align="end">
                                 {ORG_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
@@ -1452,19 +1562,19 @@ export function OrgTeamPage({
                                     key={option.value}
                                     value={option.value}
                                   >
-                                    {option.label}
+                                    {sourceT(option.label)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           ) : (
                             <span className="text-[12px] font-normal text-neutral-muted">
-                              {getOrgRoleLabel(member.authority)}
+                              {sourceT(getOrgRoleLabel(member.authority))}
                             </span>
                           )}
                         </td>
                         <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
-                          {formatDate(member.joinedAt)}
+                          {formatDate(member.joinedAt, locale)}
                         </td>
                         {permissions.canManageMembers ? (
                           <td className="px-2 py-3 text-right">
@@ -1480,7 +1590,7 @@ export function OrgTeamPage({
                                   onSelect={() => openMemberRoleEdit(member)}
                                 >
                                   <Pencil />
-                                  직함 수정
+                                  {t("workspace.pages.OrgTeamPage.02174dd7", "직함 수정")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   disabled={removeMember.isPending}
@@ -1488,7 +1598,7 @@ export function OrgTeamPage({
                                   tone="danger"
                                 >
                                   <Trash2 />
-                                  멤버 제거
+                                  {t("workspace.pages.OrgTeamPage.e094f135", "멤버 제거")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1510,7 +1620,7 @@ export function OrgTeamPage({
                               {invitation.email.slice(0, 1).toUpperCase()}
                             </span>
                             <Badge radius="full" size="sm" variant="faded">
-                              수락 대기
+                              {t("workspace.pages.OrgTeamPage.e2dcb5e4", "수락 대기")}
                             </Badge>
                           </div>
                         </td>
@@ -1518,7 +1628,7 @@ export function OrgTeamPage({
                           -
                         </td>
                         <td className="px-3 py-3 text-[12px] font-normal text-neutral-muted">
-                          {getOrgRoleLabel(invitation.role)}
+                          {sourceT(getOrgRoleLabel(invitation.role))}
                         </td>
                         <td className="px-3 py-3 text-[12px] font-light text-neutral-muted">
                           -
@@ -1538,7 +1648,7 @@ export function OrgTeamPage({
                                     void resendInvitation(invitation)
                                   }
                                 >
-                                  다시 보내기
+                                  {t("workspace.pages.OrgTeamPage.f6a0553b", "다시 보내기")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   disabled={cancelInvitation.isPending}
@@ -1547,7 +1657,7 @@ export function OrgTeamPage({
                                   }
                                   tone="danger"
                                 >
-                                  초대 취소
+                                  {t("workspace.pages.OrgTeamPage.9d1096bd", "초대 취소")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1596,12 +1706,16 @@ export function OrgTeamPage({
           >
             <DialogContent className="max-w-sm gap-5 rounded-lg p-6">
               <DialogHeader>
-                <DialogTitle className="text-[17px]">직함 수정</DialogTitle>
+                <DialogTitle className="text-[17px]">
+                  {t("workspace.pages.OrgTeamPage.02174dd7", "직함 수정")}
+                </DialogTitle>
                 <DialogDescription className="text-[13px] leading-5">
-                  {memberRoleToEdit?.name ||
-                    memberRoleToEdit?.email ||
-                    "선택한 멤버"}
-                  의 팀 내 직함을 입력해 주세요.
+                  {t("workspace.pages.OrgTeamPage.352d7b74", "{memberName}의 팀 내 직함을 입력해 주세요.", {
+                    memberName:
+                      memberRoleToEdit?.name ||
+                      memberRoleToEdit?.email ||
+                      t("workspace.pages.OrgTeamPage.1f8abbb8", "선택한 멤버"),
+                  })}
                 </DialogDescription>
               </DialogHeader>
               <form
@@ -1611,13 +1725,13 @@ export function OrgTeamPage({
                 <TextField
                   autoFocus
                   id="org-member-role-edit"
-                  label="직함"
+                  label={t("workspace.pages.OrgTeamPage.c944f2f3", "직함")}
                   maxLength={160}
                   onChange={(event) => {
                     setMemberRoleDraft(event.target.value);
                     setMemberRoleError(null);
                   }}
-                  placeholder="예: 채용 매니저, VP of Engineering"
+                  placeholder={t("workspace.pages.OrgTeamPage.4b13652a", "예: 채용 매니저, VP of Engineering")}
                   required
                   value={memberRoleDraft}
                 />
@@ -1636,7 +1750,7 @@ export function OrgTeamPage({
                     size="md"
                     type="button"
                   >
-                    취소
+                    {t("workspace.pages.OrgTeamPage.8af47b03", "취소")}
                   </MuteButton>
                   <MuteButton
                     disabled={updateMemberProfile.isPending}
@@ -1647,7 +1761,7 @@ export function OrgTeamPage({
                     {updateMemberProfile.isPending ? (
                       <LoaderCircle className="size-4 animate-spin" />
                     ) : null}
-                    저장
+                    {t("workspace.pages.OrgTeamPage.981fd715", "저장")}
                   </MuteButton>
                 </DialogFooter>
               </form>
@@ -1660,10 +1774,13 @@ export function OrgTeamPage({
           >
             <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
               <DialogHeader>
-                <DialogTitle className="text-[17px]">초대 취소</DialogTitle>
+                <DialogTitle className="text-[17px]">
+                  {t("workspace.pages.OrgTeamPage.9d1096bd", "초대 취소")}
+                </DialogTitle>
                 <DialogDescription className="text-[13px] leading-5">
-                  {invitationToCancel?.email}에 부여한 Organization 초대 권한을
-                  취소합니다.
+                  {t("workspace.pages.OrgTeamPage.8010390b", "{email}에 부여한 Organization 초대 권한을 취소합니다.", {
+                    email: invitationToCancel?.email || "",
+                  })}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -1673,7 +1790,7 @@ export function OrgTeamPage({
                   size="md"
                   type="button"
                 >
-                  돌아가기
+                  {t("workspace.pages.OrgTeamPage.86366704", "돌아가기")}
                 </MuteButton>
                 <MuteButton
                   disabled={cancelInvitation.isPending}
@@ -1689,7 +1806,7 @@ export function OrgTeamPage({
                   {cancelInvitation.isPending ? (
                     <LoaderCircle className="size-4 animate-spin" />
                   ) : null}
-                  초대 취소
+                  {t("workspace.pages.OrgTeamPage.9d1096bd", "초대 취소")}
                 </MuteButton>
               </DialogFooter>
             </DialogContent>
@@ -1701,13 +1818,16 @@ export function OrgTeamPage({
           >
             <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
               <DialogHeader>
-                <DialogTitle className="text-[17px]">멤버 제거</DialogTitle>
+                <DialogTitle className="text-[17px]">
+                  {t("workspace.pages.OrgTeamPage.e094f135", "멤버 제거")}
+                </DialogTitle>
                 <DialogDescription className="text-[13px] leading-5">
-                  {memberToRemove?.name ||
-                    memberToRemove?.email ||
-                    "선택한 멤버"}
-                  를 Organization에서 제거합니다. 제거한 멤버는 더 이상 이
-                  Organization에 접근할 수 없습니다.
+                  {t("composed.removeMember", "{memberName}를 Organization에서 제거합니다. 제거한 멤버는 더 이상 이 Organization에 접근할 수 없습니다.", {
+                    memberName:
+                      memberToRemove?.name ||
+                      memberToRemove?.email ||
+                      t("workspace.pages.OrgTeamPage.1f8abbb8", "선택한 멤버"),
+                  })}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
@@ -1717,7 +1837,7 @@ export function OrgTeamPage({
                   size="md"
                   type="button"
                 >
-                  돌아가기
+                  {t("workspace.pages.OrgTeamPage.86366704", "돌아가기")}
                 </MuteButton>
                 <MuteButton
                   disabled={removeMember.isPending}
@@ -1729,7 +1849,7 @@ export function OrgTeamPage({
                   {removeMember.isPending ? (
                     <LoaderCircle className="size-4 animate-spin" />
                   ) : null}
-                  멤버 제거
+                  {t("workspace.pages.OrgTeamPage.e094f135", "멤버 제거")}
                 </MuteButton>
               </DialogFooter>
             </DialogContent>

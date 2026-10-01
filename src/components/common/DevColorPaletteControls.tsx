@@ -2,8 +2,16 @@ import { useEffect, useLayoutEffect } from "react";
 import { MuteButton } from "@/components/ui/button";
 import {
   DEV_COLOR_PALETTES,
+  type DevColorPalette,
   useDevColorPaletteStore,
 } from "@/store/useDevColorPaletteStore";
+
+export type DevColorPaletteCopy = {
+  title: string;
+  labels: Record<DevColorPalette, string>;
+  descriptions: Record<DevColorPalette, string>;
+  footnote: string;
+};
 
 const useClientLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -28,7 +36,7 @@ export function DevColorPalettePreview({ enabled }: { enabled: boolean }) {
   return null;
 }
 
-export function DevColorPaletteControls() {
+export function DevColorPaletteControls({ copy }: { copy?: DevColorPaletteCopy }) {
   const palette = useDevColorPaletteStore((state) => state.palette);
   const setPalette = useDevColorPaletteStore((state) => state.setPalette);
   const selected = DEV_COLOR_PALETTES.find((option) => option.id === palette)!;
@@ -36,7 +44,7 @@ export function DevColorPaletteControls() {
   return (
     <fieldset className="min-w-0 space-y-2" data-career-i18n-skip="true">
       <legend className="text-[13px] font-medium text-neutral-primary">
-        색상 미리보기
+        {copy?.title ?? "색상 미리보기"}
       </legend>
       <div className="flex flex-wrap gap-2">
         {DEV_COLOR_PALETTES.map((option) => (
@@ -46,16 +54,20 @@ export function DevColorPaletteControls() {
             onClick={() => setPalette(option.id)}
             variant={palette === option.id ? "dark" : "default"}
           >
-            {option.label}
+            {copy?.labels[option.id] ?? option.label}
           </MuteButton>
         ))}
       </div>
       <p aria-live="polite" className="text-[12px] leading-5 text-neutral-muted">
-        {selected.description}
+        {copy?.descriptions[selected.id] ?? selected.description}
       </p>
       <p className="text-[12px] leading-5 text-neutral-soft">
-        primary는 모든 옵션에서 유지돼요. 이 브라우저의 Career·Org 화면에만 적용되며,
-        ‘현재’를 누르면 원래 색상으로 돌아가요.
+        {copy?.footnote ?? (
+          <>
+            primary는 모든 옵션에서 유지돼요. 이 브라우저의 Career·Org 화면에만 적용되며,
+            ‘현재’를 누르면 원래 색상으로 돌아가요.
+          </>
+        )}
       </p>
     </fieldset>
   );

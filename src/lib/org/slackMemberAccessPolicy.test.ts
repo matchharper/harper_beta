@@ -59,3 +59,14 @@ test("escapes Slack control characters in account details", () => {
   assert.doesNotMatch(message, /<test>/);
   assert.match(message, /A&amp;B &lt;Team&gt;/);
 });
+
+test("English workspace access denial gives a usable next step", () => {
+  const message = buildHarperSlackAccessDeniedMessage({
+    email: "guest@example.com",
+    locale: "en",
+    reason: "not_member",
+    workspaceName: "Acme",
+  });
+  assert.match(message, /Ask a Workspace admin to invite this email/);
+  assert.doesNotMatch(message, /[가-힣]/);
+});

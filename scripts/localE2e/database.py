@@ -54,7 +54,7 @@ with conn, conn.cursor() as cur:
         candidate, company = f["candidateId"], f["companyUserId"]
         workspace, role = f["workspaceId"], f["roleId"]
         for value in [candidate, company, workspace, role, f["introId"], f["selectionRunId"]]: UUID(value)
-        cur.execute("insert into company_db(id,name,description,short_description,website_url) values (900001,'Harper Local','로컬 통합 테스트를 위한 합성 회사 데이터입니다.','로컬 테스트 Workspace','http://localhost:3200') on conflict do nothing")
+        cur.execute("insert into company_db(id,name,description,short_description,website_url) values (900001,'Harper Local','로컬 통합 테스트를 위한 합성 회사 데이터입니다.','로컬 테스트 Workspace','http://localhost:3000') on conflict do nothing")
         cur.execute("insert into company_workspace(company_workspace_id,company_name,is_internal,company_db_id,company_description,brief,published_name) values (%s,'Harper',true,900001,%s,%s,'Harper Local') on conflict do nothing", (workspace,"로컬 테스트용 합성 Workspace. 운영 회사에 영향을 주지 않습니다.","채용 담당자와 후보자의 소통을 돕는 소프트웨어를 만드는 합성 테스트 팀입니다."))
         for user, email, name in [(candidate,"khj605123@gmail.com","김하준"),(company,"daniel@matchharper.com","박서윤")]:
             cur.execute("insert into company_users(user_id,email,name,is_authenticated,onboarding_completed_at) values (%s,%s,%s,true,now()) on conflict do nothing",(user,email,name))

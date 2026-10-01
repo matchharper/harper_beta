@@ -4,6 +4,8 @@ export const GPT_56_LUNA_MODEL = "gpt-5.6-luna" as const;
 
 export const GPT_56_TERRA_MODEL = "gpt-5.6-terra" as const;
 
+export const GPT_61_SOL_MODEL = "gpt-6.1-sol" as const;
+
 export const OPENROUTER_DEEPSEEK_V4_FLASH_0731_MODEL =
   "deepseek/deepseek-v4-flash-0731" as const;
 

@@ -370,7 +370,7 @@ export const ORG_AGENT_TOOLS = [
           roleId: { description: "Exact role ID.", type: "string" },
           stage: {
             description:
-              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in values: company_intro=먼저 제안 가능한 후보, intro_requested=Intro Requested, pending_connection=연결 대기, connected=연결됨, process_stopped=프로세스 종료. For a custom stage, use custom:<id> only when that exact ID is already available.",
+              "Only filter people when one specific stage was requested. Omit for whole-pipeline status/count questions. Built-in IDs: company_intro (company may request an intro; candidate has not accepted), intro_requested (company requested the intro), pending_connection (candidate accepted and awaits the company's decision), connected, process_stopped. Use the response-language contract for UI labels. For a custom stage, use custom:<id> only when that exact ID is already available.",
             maxLength: 100,
             type: "string",
           },
@@ -628,7 +628,7 @@ export const ORG_AGENT_TOOLS = [
               properties: {
                 key: {
                   description:
-                    "role_is_company_first_search controls future periodic candidate searches for this Role: true enables, false disables. Use kind=rewrite with a boolean. Existing candidate cards, proposals, and connections are preserved. This does not change Role status or start a search now; a separate explicit search request uses request_matching_search.",
+                    "role_is_company_first_search enables or disables future periodic searches. role_intro_search_date sets one or more weekdays as an array of Mon, Tue, Wed, Thu, Fri, Sat, Sun; role_intro_search_time sets an integer hour from 0 to 23. These times use Asia/Seoul. Use kind=rewrite for these settings. Changing them does not start an immediate search or cancel an existing run; request_matching_search starts an explicit search.",
                   enum: COMPANY_SIDE_LLM_DATA_KEYS.filter(
                     (key) => key !== "role_status"
                   ),
@@ -782,6 +782,11 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
             type: "integer",
           },
           messageSubject: { description: "For send: final candidate-facing email subject, required.", type: "string", minLength: 1, maxLength: 180 },
+          contactPurpose: {
+            description: "For create_draft or send, choose request if the candidate is asked to answer or act (including a question, resume, proposal, or interview request); choose deliver for information only. Omission defaults to deliver. For revise_draft, supply it when the edit changes the purpose.",
+            enum: ["request", "deliver"],
+            type: "string",
+          },
           messageContent: {
             description:
               `${DIRECT_CONTACT_MESSAGE_CONTRACT} ${AUTHORIZED_MESSAGE_CONTENT_CONTRACT}`,
@@ -829,6 +834,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
                 },
                 expectedRevision: { minimum: 1, type: "integer" },
                 messageSubject: { type: "string", minLength: 1, maxLength: 180 },
+                contactPurpose: { enum: ["request", "deliver"], type: "string" },
                 messageContent: {
                   description: AUTHORIZED_MESSAGE_CONTENT_CONTRACT,
                   maxLength: 5000,
@@ -1201,7 +1207,7 @@ Call this once per exact candidate Role change and review the result before anot
     function: {
       name: "decide_company_intro",
       description:
-        "Handle the company's decision for one exact candidate in 먼저 제안 가능한 후보. decision=request_intro asks Harper to present this Role to a candidate whose interest is not yet known; if the candidate accepts, Harper will immediately send a CC introduction to the confirmed company recipients and move the candidate to connected by default without another company approval. decision=pass removes the candidate from this company-first proposal flow without creating a candidate-visible opportunity or contacting the candidate. On an initial request_intro, provide only a companyAppeal the user actually supplied, confirmed company recipient emails; do not invent or broaden the company's reason. Omitted recipient emails may use the current requester's company email when available. The first complete call records no decision and returns confirmation_required. Call this tool again for the same candidate only when the immediately previous Harper message explained the exact candidate, Role, delivery recipients, and effects, and the current message clearly authorizes that proposal or pass. On that confirmation call, planning fields may be omitted because the server reuses the exact immediately presented plan. The server verifies adjacency and actor identity; otherwise it returns confirmation_required without changing state. Use this same tool in web chat and Slack instead of sending the user to the candidate card.",
+        "Handle the company's decision for one exact candidate in company_intro. decision=request_intro asks Harper to present this Role to a candidate whose interest is not yet known; if the candidate accepts, Harper will immediately send a CC introduction to the confirmed company recipients and move the candidate to connected by default without another company approval. decision=pass removes the candidate from this company-first proposal flow without creating a candidate-visible opportunity or contacting the candidate. On an initial request_intro, provide only a companyAppeal the user actually supplied, confirmed company recipient emails; do not invent or broaden the company's reason. Omitted recipient emails may use the current requester's company email when available. The first complete call records no decision and returns confirmation_required. Call this tool again for the same candidate only when the immediately previous Harper message explained the exact candidate, Role, delivery recipients, and effects, and the current message clearly authorizes that proposal or pass. On that confirmation call, planning fields may be omitted because the server reuses the exact immediately presented plan. The server verifies adjacency and actor identity; otherwise it returns confirmation_required without changing state. Use this same tool in web chat and Slack instead of sending the user to the candidate card.",
       parameters: {
         additionalProperties: false,
         properties: {

@@ -9,10 +9,14 @@ import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
-import { canUseCareerDevControls, canUseOrgDevControls } from "@/lib/internalAccess";
+import {
+  canUseCareerDevControls,
+  canUseOrgDevControls,
+} from "@/lib/internalAccess";
 import dynamic from "next/dynamic";
 import CareerTranslationRuntime from "@/i18n/CareerTranslationRuntime";
 import CareerUtmCapture from "@/components/analytics/CareerUtmCapture";
+import { OrgLocaleProvider } from "@/i18n/org/OrgLocaleProvider";
 import {
   getCurrentCareerTranslationPath,
   isCareerTranslationRoute,
@@ -128,6 +132,10 @@ export default function App({ Component, pageProps }: AppProps) {
     <CareerTranslationRuntime>
       <Component {...pageProps} />
     </CareerTranslationRuntime>
+  ) : isOrgPage ? (
+    <OrgLocaleProvider>
+      <Component {...pageProps} />
+    </OrgLocaleProvider>
   ) : (
     <Component {...pageProps} />
   );
@@ -135,6 +143,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <MessagesProvider
       locale={isCareerLocalePage ? careerLocale : undefined}
+      manageDocumentLanguage={!isOrgPage}
       onLocaleChange={isCareerLocalePage ? setCareerLocale : undefined}
     >
       <ReactQueryProvider>

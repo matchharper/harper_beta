@@ -69,6 +69,34 @@ export type ProgressFeedItem = {
   title?: string | null;
 };
 
+export type ProgressFeedLabels = {
+  actorFallback: string;
+  body: string;
+  cancel: string;
+  delete: string;
+  deleteProgress: string;
+  edit: string;
+  failure: string;
+  feedActions: string;
+  save: string;
+  subject: string;
+  viewContent: string;
+};
+
+const DEFAULT_LABELS: ProgressFeedLabels = {
+  actorFallback: "팀원",
+  body: "본문",
+  cancel: "취소",
+  delete: "삭제",
+  deleteProgress: "Progress 삭제",
+  edit: "수정",
+  failure: "처리하지 못했습니다.",
+  feedActions: "피드 작업",
+  save: "저장",
+  subject: "제목",
+  viewContent: "내용 보기",
+};
+
 type ProgressFeedProps = {
   actionsVariant?: "inline" | "menu";
   deleteConfirmMessage?: string;
@@ -79,6 +107,7 @@ type ProgressFeedProps = {
   editError?: Error | null;
   isLoading?: boolean;
   items: ProgressFeedItem[];
+  labels?: ProgressFeedLabels;
   onDelete?: (item: ProgressFeedItem) => void;
   onDraftChange?: (value: string) => void;
   onEdit?: (item: ProgressFeedItem, text: string) => Promise<void> | void;
@@ -100,12 +129,18 @@ function ProgressIcon({ icon }: { icon?: ProgressFeedIcon }) {
   return <StickyNote className="h-3.5 w-3.5" />;
 }
 
-function DeliveryPreview({ delivery }: { delivery: ProgressFeedDelivery }) {
+function DeliveryPreview({
+  delivery,
+  labels,
+}: {
+  delivery: ProgressFeedDelivery;
+  labels: ProgressFeedLabels;
+}) {
   return (
     <div className="mt-2 space-y-3 rounded-md border border-neutral-1000-a05 bg-bg-default/70 p-3 text-xs leading-5 text-neutral-muted">
       {delivery.subject ? (
         <div>
-          <div className="text-[11px] text-neutral-soft">제목</div>
+          <div className="text-[11px] text-neutral-soft">{labels.subject}</div>
           <div className="mt-1 font-medium text-neutral-primary">
             {delivery.subject}
           </div>
@@ -114,7 +149,7 @@ function DeliveryPreview({ delivery }: { delivery: ProgressFeedDelivery }) {
       {delivery.bodyText ? (
         <div>
           {delivery.subject ? (
-            <div className="text-[11px] text-neutral-soft">본문</div>
+            <div className="text-[11px] text-neutral-soft">{labels.body}</div>
           ) : null}
           <div className="mt-1 whitespace-pre-wrap break-words text-neutral-primary">
             {delivery.bodyText}
@@ -125,19 +160,21 @@ function DeliveryPreview({ delivery }: { delivery: ProgressFeedDelivery }) {
   );
 }
 
-function getActorLabel(actor: ProgressFeedActor) {
-  return actor.name || actor.email || "멤버";
+function getActorLabel(actor: ProgressFeedActor, fallback: string) {
+  return actor.name || actor.email || fallback;
 }
 
 function ProgressActor({
   actor,
   fallbackLabel,
+  memberFallback,
 }: {
   actor?: ProgressFeedActor | null;
   fallbackLabel?: string | null;
+  memberFallback: string;
 }) {
   if (actor) {
-    const label = getActorLabel(actor);
+    const label = getActorLabel(actor, memberFallback);
     const initial = label.trim().slice(0, 1).toUpperCase() || "?";
 
     return (
@@ -183,6 +220,7 @@ type ProgressFeedItemRowProps = {
   isEditing: boolean;
   isEditPending: boolean;
   item: ProgressFeedItem;
+  labels: ProgressFeedLabels;
   onCancelEdit: () => void;
   onDeleteItem: (item: ProgressFeedItem) => void;
   onEditingTextChange: (value: string) => void;
@@ -255,6 +293,7 @@ function equalRowProps(
     left.onSaveEdit === right.onSaveEdit &&
     left.onStartEdit === right.onStartEdit &&
     left.onToggleDelivery === right.onToggleDelivery &&
+    left.labels === right.labels &&
     equalFeedItems(left.item, right.item)
   );
 }
@@ -271,6 +310,7 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
   isEditing,
   isEditPending,
   item,
+  labels,
   onCancelEdit,
   onDeleteItem,
   onEditingTextChange,
@@ -309,7 +349,11 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                 {formatKst(item.createdAt)}
               </div>
             </div>
-            <ProgressActor actor={item.actor} fallbackLabel={item.actorLabel} />
+            <ProgressActor
+              actor={item.actor}
+              fallbackLabel={item.actorLabel}
+              memberFallback={labels.actorFallback}
+            />
             {isEditing ? (
               <div className="mt-2 space-y-2">
                 <Textarea
@@ -327,7 +371,7 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                     disabled={isEditPending}
                     className="h-8 rounded-sm px-2.5 text-xs font-medium text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    취소
+                    {labels.cancel}
                   </BareButton>
                   <BareButton
                     type="button"
@@ -345,7 +389,7 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                     {isEditPending ? (
                       <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                     ) : null}
-                    저장
+                    {labels.save}
                   </BareButton>
                 </div>
               </div>
@@ -369,9 +413,9 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                     <ChevronRight className="h-3.5 w-3.5" />
                   )}
                   <Mail className="h-3.5 w-3.5" />
-                  {delivery.label || "내용 보기"}
+                  {delivery.label || labels.viewContent}
                 </MuteButton>
-                {expanded ? <DeliveryPreview delivery={delivery} /> : null}
+                {expanded ? <DeliveryPreview delivery={delivery} labels={labels} /> : null}
               </div>
             ) : null}
           </div>
@@ -381,8 +425,8 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                 <BareButton
                   type="button"
                   disabled={actionsDisabled}
-                  aria-label="피드 작업"
-                  title="피드 작업"
+                  aria-label={labels.feedActions}
+                  title={labels.feedActions}
                   className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
@@ -392,7 +436,7 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                 {canEdit ? (
                   <DropdownMenuItem onSelect={() => onStartEdit(item)}>
                     <Pencil className="h-3.5 w-3.5" />
-                    수정
+                    {labels.edit}
                   </DropdownMenuItem>
                 ) : null}
                 {canDelete ? (
@@ -401,7 +445,7 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                     onSelect={() => onDeleteItem(item)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    삭제
+                    {labels.delete}
                   </DropdownMenuItem>
                 ) : null}
               </DropdownMenuContent>
@@ -411,8 +455,8 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
               type="button"
               onClick={() => onDeleteItem(item)}
               disabled={deleteDisabled}
-              aria-label="Progress 삭제"
-              title="Progress 삭제"
+              aria-label={labels.deleteProgress}
+              title={labels.deleteProgress}
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-soft transition hover:bg-critical-faded hover:text-critical disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isDeleting ? (
@@ -446,6 +490,7 @@ export function ProgressFeed({
   editError,
   isLoading,
   items,
+  labels = DEFAULT_LABELS,
   onDelete,
   onDraftChange,
   onEdit,
@@ -549,7 +594,7 @@ export function ProgressFeed({
           {submitError?.message ??
             deleteError?.message ??
             editError?.message ??
-            "처리하지 못했습니다."}
+            labels.failure}
         </div>
       ) : null}
 
@@ -595,6 +640,7 @@ export function ProgressFeed({
                 isEditPending={pendingEditId === item.id}
                 item={item}
                 key={item.id}
+                labels={labels}
                 onCancelEdit={handleCancelEdit}
                 onDeleteItem={handleDeleteItem}
                 onEditingTextChange={handleEditingTextChange}

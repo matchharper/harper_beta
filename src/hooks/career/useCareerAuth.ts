@@ -1,3 +1,4 @@
+import { getCurrentOfficialJobsAbtestType } from "@/lib/officialJobs/experiment";
 import { useCallback, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -13,7 +14,6 @@ import {
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
 import {
-  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
   OFFICIAL_JOBS_LANDING_SOURCE,
 } from "@/lib/officialJobs/landingLogs";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
@@ -157,7 +157,7 @@ export const useCareerAuth = () => {
       currentUrl.searchParams.get("lid") || nextUrl.searchParams.get("lid");
     const abtestType =
       source === OFFICIAL_JOBS_LANDING_SOURCE
-        ? OFFICIAL_JOBS_LANDING_ABTEST_TYPE
+        ? getCurrentOfficialJobsAbtestType()
         : currentUrl.searchParams.get("ab") || nextUrl.searchParams.get("ab");
     const officialJobTitle = (
       currentUrl.searchParams.get(OFFICIAL_JOBS_ONBOARDING_JOB_PARAM) ||

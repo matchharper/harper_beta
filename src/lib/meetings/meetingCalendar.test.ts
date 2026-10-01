@@ -63,3 +63,20 @@ test("company confirmation includes only an actual Meet link and Calendar result
   assert.doesNotMatch(pending, /Google Meet: https/);
   assert.match(pending, /만들고 있으며/);
 });
+
+test("English company confirmation reports actual Calendar delivery", () => {
+  const delivered = buildMeetingCalendarDeliveryNotice({
+    calendar: {
+      calendarUrl: "https://calendar.google.com/calendar/event?eid=abc",
+      error: null,
+      meetUrl: "https://meet.google.com/abc-defg-hij",
+      status: "created",
+      updatedAt: "2026-08-28T01:00:00.000Z",
+    },
+    companyMessage: "Ito shared one available time. Harper selected Aug 28.",
+    locale: "en",
+  });
+  assert.match(delivered, /Calendar invitations were sent/);
+  assert.match(delivered, /https:\/\/meet\.google\.com\/abc-defg-hij/);
+  assert.doesNotMatch(delivered, /[가-힣]/);
+});

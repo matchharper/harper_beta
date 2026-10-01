@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ export function OrgRoleActionsMenu({
   pending?: boolean;
   role?: OrgRole | null;
 }) {
+  const t = useOrgT();
   const [lifecycleAction, setLifecycleAction] =
     useState<RoleLifecycleAction | null>(null);
   const isDisabled = disabled || pending || !role;
@@ -60,7 +62,7 @@ export function OrgRoleActionsMenu({
     return (
       <button
         type="button"
-        aria-label="Role actions unavailable"
+        aria-label={t("OrgRoleActionsMenu.44fb80c9", "Role actions unavailable")}
         disabled
         className={buttonClassName}
       >
@@ -73,10 +75,10 @@ export function OrgRoleActionsMenu({
 
   const actionLabel =
     lifecycleAction === "delete"
-      ? "삭제"
+      ? t("OrgRoleActionsMenu.afe7c956", "삭제")
       : lifecycleAction === "pause"
-        ? "일시 중지"
-        : "다시 시작";
+        ? t("OrgRoleActionsMenu.3daa9fe3", "일시 중지")
+        : t("OrgRoleActionsMenu.deabb863", "다시 시작");
 
   const confirmLifecycleAction = () => {
     if (!lifecycleAction) return;
@@ -93,7 +95,7 @@ export function OrgRoleActionsMenu({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={`${role.name} 역할 작업`}
+            aria-label={t("OrgRoleActionsMenu.31f058fc", "{p0} 역할 작업", { p0: role.name })}
             disabled={isDisabled}
             className={buttonClassName}
           >
@@ -110,14 +112,16 @@ export function OrgRoleActionsMenu({
             disabled={isDisabled}
             onSelect={() => onEdit(role)}
           >
-            역할 수정
+            {t("OrgRoleActionsMenu.9f7830df", "역할 수정")}
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="sm"
             disabled={isDisabled}
             onSelect={() => setLifecycleAction(paused ? "resume" : "pause")}
           >
-            {paused ? "다시 시작" : "일시 중지"}
+            {paused
+              ? t("OrgRoleActionsMenu.deabb863", "다시 시작")
+              : t("OrgRoleActionsMenu.3daa9fe3", "일시 중지")}
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="sm"
@@ -125,7 +129,7 @@ export function OrgRoleActionsMenu({
             tone="danger"
             onSelect={() => setLifecycleAction("delete")}
           >
-            역할 삭제
+            {t("OrgRoleActionsMenu.71e516b3", "역할 삭제")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -137,14 +141,15 @@ export function OrgRoleActionsMenu({
         <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
           <DialogHeader>
             <DialogTitle className="text-[17px]">
-              역할 {actionLabel}
+              {t("OrgRoleActionsMenu.98238b00", "역할")}
+              {actionLabel}
             </DialogTitle>
             <DialogDescription className="text-[13px] leading-5">
               {lifecycleAction === "delete"
-                ? `“${role.name}” 역할을 삭제합니다. 계속할까요?`
+                ? t("OrgRoleActionsMenu.881904c4", "“{p0}” 역할을 삭제합니다. 계속할까요?", { p0: role.name })
                 : lifecycleAction === "pause"
-                  ? `“${role.name}” 역할의 새 후보자 연결을 일시 중지할까요?`
-                  : `“${role.name}” 역할의 후보자 연결을 다시 시작할까요?`}
+                  ? t("OrgRoleActionsMenu.f0433675", "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?", { p0: role.name })
+                  : t("OrgRoleActionsMenu.11685c0d", "“{p0}” 역할의 후보자 연결을 다시 시작할까요?", { p0: role.name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -153,7 +158,7 @@ export function OrgRoleActionsMenu({
               size="md"
               type="button"
             >
-              취소
+              {t("OrgRoleActionsMenu.3c93b478", "취소")}
             </MuteButton>
             <MuteButton
               onClick={confirmLifecycleAction}

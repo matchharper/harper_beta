@@ -1,3 +1,4 @@
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import {
   Building2,
   CalendarClock,
@@ -27,7 +28,7 @@ import {
   convertSlackMrkdwnToWebMarkdown,
   renderOrgAgentWebLinks,
 } from "@/lib/org/agent/navigationMarkdown";
-import { hasOrgAgentToolWork } from "@/lib/org/agent/thinkingLogs";
+import { hasOrgAgentToolWork, localizeOrgAgentThinkingLogs } from "@/lib/org/agent/thinkingLogs";
 import type {
   OrgAgentMessage,
   OrgAgentMessageAction,
@@ -42,10 +43,10 @@ function parseDate(createdAt: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function formatDateLabel(createdAt: string) {
+function formatDateLabel(createdAt: string, locale: "ko" | "en") {
   const date = parseDate(createdAt);
   if (!date) return "";
-  return new Intl.DateTimeFormat("ko-KR", {
+  return new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
     day: "numeric",
     month: "long",
     weekday: "short",
@@ -54,10 +55,12 @@ function formatDateLabel(createdAt: string) {
 }
 
 export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
-  const label = formatDateLabel(createdAt);
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
+  const label = formatDateLabel(createdAt, locale);
   return (
     <ChatDateDivider
-      ariaLabel={`대화 날짜 ${label}`}
+      ariaLabel={t("agent.OrgAgentMessage.c92b2dd6", "대화 날짜 {p0}", { p0: label })}
       className="text-[13px] leading-[1.55]"
       label={label}
     />
@@ -65,20 +68,21 @@ export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
 }
 
 function OrgAssistantLabel({ fromSlack = false }: { fromSlack?: boolean }) {
+  const t = useOrgT();
   return (
     <ChatAssistantLabel>
       <div className="mt-2 mb-1 flex items-center gap-1.5 text-[12px] text-neutral-800 font-light">
         <Image
-          alt="Harper"
+          alt={t("agent.OrgAgentMessage.9cc8680f", "Harper")}
           className="rounded-full"
           height={18}
           src="/images/squareface.png"
           width={18}
         />
-        Harper
+        {t("agent.OrgAgentMessage.9cc8680f", "Harper")}
         {fromSlack ? (
           <Image
-            alt="Slack"
+            alt={t("agent.OrgAgentMessage.a1a13f44", "Slack")}
             className="size-3 shrink-0"
             height={12}
             src="/images/logos/slack.svg"
@@ -116,9 +120,10 @@ function OrgCompanyInfoCard({
   className?: string;
   onClick: () => void;
 }) {
+  const t = useOrgT();
   return (
     <CardButton
-      aria-label="역할 설명에 반영한 회사 정보 열기"
+      aria-label={t("agent.OrgAgentMessage.873302db", "역할 설명에 반영한 회사 정보 열기")}
       className={cn(
         "w-fit min-w-[min(360px,100%)] rounded-lg border-black/5 items-center gap-3 px-3 pr-6 py-4 mb-2 font-normal hover:bg-neutral-100 hover:border-black/5",
         className
@@ -130,10 +135,10 @@ function OrgCompanyInfoCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] text-black font-medium">
-          회사 정보
+          {t("agent.OrgAgentMessage.698ac66f", "회사 정보")}
         </span>
         <span className="block text-[13px] leading-4 text-black/50">
-          현재 후보자에게 소개되는 회사 정보를 확인해 보세요.
+          {t("agent.OrgAgentMessage.10586f43", "현재 후보자에게 소개되는 회사 정보를 확인해 보세요.")}
         </span>
       </span>
     </CardButton>
@@ -219,13 +224,17 @@ function MessageActionView({
   roleId?: string | null;
   workspaceId: string;
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
   const meetingRequest = useSendOrgAgentMeetingRequest();
 
   if (action.kind === "entity_updated" || action.kind === "request_updated") {
     return (
       <div className="inline-flex items-center gap-1.5 text-[12px] text-positive">
         <Check className="h-3.5 w-3.5" />
-        {action.label}
+        {locale === "en"
+          ? t("agent.OrgAgentMessage.actionComplete", "처리 완료")
+          : action.label}
       </div>
     );
   }
@@ -256,7 +265,7 @@ function MessageActionView({
         ) : (
           <CalendarClock className="h-3.5 w-3.5" />
         )}
-        {sent ? "요청 보냄" : action.label}
+        {sent ? t("agent.OrgAgentMessage.0c3e8d1b", "요청 보냄") : action.label}
       </MuteButton>
     </div>
   );
@@ -295,6 +304,8 @@ export function OrgAgentMessageBubble({
   workActive?: boolean;
   workspaceId: string;
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
   const isUser = message.role === "user";
   const fromSlack = message.sourceSurface === "slack";
   const visibleMessageContent = fromSlack
@@ -333,7 +344,7 @@ export function OrgAgentMessageBubble({
           active={workActive}
           completedAt={message.createdAt}
           hasToolWork={hasOrgAgentToolWork(message.thinkingLogs)}
-          logs={message.thinkingLogs}
+          logs={localizeOrgAgentThinkingLogs(message.thinkingLogs, locale)}
           startedAt={turnStartedAt}
           typographyClassName="text-[13px] leading-[1.65]"
         />
@@ -358,10 +369,13 @@ export function OrgAgentMessageBubble({
           )}
         >
           <span className="font-medium text-neutral-muted">
-            {authorName || (isOwnUserMessage ? "나" : "워크스페이스 멤버")}
+            {authorName ||
+              (isOwnUserMessage
+                ? t("agent.OrgAgentMessage.3ab7f8af", "나")
+                : t("agent.OrgAgentMessage.a64fe056", "워크스페이스 멤버"))}
             {fromSlack ? (
               <Image
-                alt="Slack"
+                alt={t("agent.OrgAgentMessage.a1a13f44", "Slack")}
                 className="ml-1 inline-block size-3 align-[-2px]"
                 height={12}
                 src="/images/logos/slack.svg"
@@ -497,6 +511,7 @@ export function OrgAgentStreamingBubble({
 }
 
 export function OrgAgentPendingBubble() {
+  const t = useOrgT();
   return (
     <div className="flex flex-col gap-2">
       <OrgAssistantLabel />
@@ -506,7 +521,7 @@ export function OrgAgentPendingBubble() {
       >
         <ChatAssistantPending
           className="text-[13px] leading-[1.55]"
-          label="답변 작성 중"
+          label={t("agent.OrgAgentMessage.e5934692", "답변 작성 중")}
         />
       </ChatMessageBubbleFrame>
     </div>

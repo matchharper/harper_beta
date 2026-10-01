@@ -1,11 +1,14 @@
+import {
+  OFFICIAL_JOBS_LAYOUT_ABTEST_A,
+  OFFICIAL_JOBS_LAYOUT_ABTEST_B,
+} from "./experiment";
 export const OFFICIAL_JOBS_LANDING_SOURCE = "official_jobs";
 export const OFFICIAL_JOBS_LANDING_ABTEST_TYPE = "official_jobs_landing_v1";
 export const OFFICIAL_JOBS_LANDING_LAST_VISIT_AT_KEY =
   "harper_official_jobs_last_visit_at_v1";
 export const OFFICIAL_JOBS_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 
-// Keep historical experiment rows in aggregate jobs reporting without assigning
-// any future traffic to a variant.
+// Retain historical experiments in aggregate Jobs reporting.
 const LEGACY_OFFICIAL_JOBS_APPLY_HELP_ABTEST_TYPES = new Set([
   "official_jobs_apply_help_v2_a",
   "official_jobs_apply_help_v2_b",
@@ -15,6 +18,8 @@ export function isOfficialJobsLandingAbtestType(value: unknown) {
   const normalized = String(value ?? "").trim();
   return (
     normalized === OFFICIAL_JOBS_LANDING_ABTEST_TYPE ||
+    normalized === OFFICIAL_JOBS_LAYOUT_ABTEST_A ||
+    normalized === OFFICIAL_JOBS_LAYOUT_ABTEST_B ||
     LEGACY_OFFICIAL_JOBS_APPLY_HELP_ABTEST_TYPES.has(normalized)
   );
 }

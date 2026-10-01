@@ -35,6 +35,7 @@ export type DocumentEditorProps = Omit<
   copyErrorMessage?: string;
   copyLabel?: string;
   copySuccessMessage?: string;
+  copy?: DocumentEditorCopy;
   dialogDescription?: string;
   documentTitle: string;
   editorClassName?: string;
@@ -51,6 +52,20 @@ export type DocumentEditorProps = Omit<
   open?: boolean;
   savedValue: string;
   value: string;
+};
+
+export type DocumentEditorCopy = {
+  openDocument: (title: string) => string;
+  documentContent: (title: string) => string;
+  showMore: string;
+  showLess: string;
+  emptyPreview: string;
+  meta: (changedAt: string, count: string) => string;
+  justNow: string;
+  minutesAgo: (count: number) => string;
+  hoursAgo: (count: number) => string;
+  daysAgo: (count: number) => string;
+  locale: "ko" | "en";
 };
 
 type DocumentEditorPanelContextValue = {
@@ -129,21 +144,36 @@ const RELATIVE_DATE_THRESHOLD_DAYS = 10;
 
 export function formatDocumentLastChangedAt(
   value: string | null | undefined,
-  now = new Date()
+  now = new Date(),
+  copy?: DocumentEditorCopy
 ) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
 
   const elapsedMs = Math.max(0, now.getTime() - date.getTime());
-  if (elapsedMs < MINUTE_MS) return "방금 전";
-  if (elapsedMs < HOUR_MS) return `${Math.floor(elapsedMs / MINUTE_MS)}분 전`;
-  if (elapsedMs < DAY_MS) return `${Math.floor(elapsedMs / HOUR_MS)}시간 전`;
+  if (elapsedMs < MINUTE_MS) return copy?.justNow ?? "방금 전";
+  if (elapsedMs < HOUR_MS) {
+    const count = Math.floor(elapsedMs / MINUTE_MS);
+    return copy?.minutesAgo(count) ?? `${count}분 전`;
+  }
+  if (elapsedMs < DAY_MS) {
+    const count = Math.floor(elapsedMs / HOUR_MS);
+    return copy?.hoursAgo(count) ?? `${count}시간 전`;
+  }
   if (elapsedMs < RELATIVE_DATE_THRESHOLD_DAYS * DAY_MS) {
-    return `${Math.floor(elapsedMs / DAY_MS)}일 전`;
+    const count = Math.floor(elapsedMs / DAY_MS);
+    return copy?.daysAgo(count) ?? `${count}일 전`;
   }
 
-  return LAST_CHANGED_DATE_FORMATTER.format(date);
+  return copy?.locale === "en"
+    ? new Intl.DateTimeFormat("en-US", {
+        day: "numeric",
+        month: "short",
+        timeZone: "Asia/Seoul",
+        year: "numeric",
+      }).format(date)
+    : LAST_CHANGED_DATE_FORMATTER.format(date);
 }
 
 export function isDocumentPreviewOverflowing(
@@ -180,9 +210,11 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
 function DocumentMeta({
   changedAt,
   characterCount,
+  copy,
 }: {
   changedAt: string;
   characterCount: number;
+  copy?: DocumentEditorCopy;
 }) {
   return (
     <div
@@ -190,7 +222,12 @@ function DocumentMeta({
       data-document-editor-meta=""
       suppressHydrationWarning
     >
-      마지막 변경: {changedAt}, {characterCount.toLocaleString("ko-KR")} 글자
+      {copy
+        ? copy.meta(
+            changedAt,
+            characterCount.toLocaleString(copy.locale === "en" ? "en-US" : "ko-KR")
+          )
+        : `마지막 변경: ${changedAt}, ${characterCount.toLocaleString("ko-KR")} 글자`}
     </div>
   );
 }
@@ -200,6 +237,7 @@ function DocumentEditingSurface({
   changedAt,
   characterCount,
   copyLabel,
+  copy,
   documentTitle,
   editorClassName,
   errorMessage,
@@ -220,6 +258,7 @@ function DocumentEditingSurface({
   changedAt: string;
   characterCount: number;
   copyLabel: string;
+  copy?: DocumentEditorCopy;
   documentTitle: string;
   editorClassName?: string;
   errorMessage?: string;
@@ -279,7 +318,9 @@ function DocumentEditingSurface({
         ) : format === "markdown" ? (
           <MarkdownRichTextEditor
             ariaLabel={
-              textareaProps["aria-label"] ?? `${documentTitle} 문서 내용`
+              textareaProps["aria-label"] ??
+              copy?.documentContent(documentTitle) ??
+              `${documentTitle} 문서 내용`
             }
             autoFocus={autoFocus}
             className={editorClassName}
@@ -294,7 +335,9 @@ function DocumentEditingSurface({
             {...textareaProps}
             ref={setRef}
             aria-label={
-              textareaProps["aria-label"] ?? `${documentTitle} 문서 내용`
+              textareaProps["aria-label"] ??
+              copy?.documentContent(documentTitle) ??
+              `${documentTitle} 문서 내용`
             }
             autoFocus={autoFocus}
             className={cn(
@@ -318,7 +361,7 @@ function DocumentEditingSurface({
         ) : null}
         {footer}
         {!hideMeta ? (
-          <DocumentMeta changedAt={changedAt} characterCount={characterCount} />
+          <DocumentMeta changedAt={changedAt} characterCount={characterCount} copy={copy} />
         ) : null}
       </footer>
     </div>
@@ -341,6 +384,7 @@ export const DocumentEditor = forwardRef<
       copyErrorMessage = "문서 내용을 복사하지 못했어요. 다시 시도해 주세요.",
       copyLabel = "복사",
       copySuccessMessage = "문서 내용을 복사했어요.",
+      copy,
       dialogDescription,
       disabled,
       documentTitle,
@@ -457,13 +501,14 @@ export const DocumentEditor = forwardRef<
     };
     const displayedChangedAt = formatDocumentLastChangedAt(
       value === savedValue ? lastChangedAt : (localChangedAt ?? lastChangedAt),
-      new Date(relativeTimeNow)
+      new Date(relativeTimeNow),
+      copy
     );
     const characterCount = Array.from(value).length;
     const hasPreviewContent = value.trim().length > 0;
     const previewContent = hasPreviewContent
       ? value
-      : placeholder?.trim() || "내용을 작성해 주세요.";
+      : placeholder?.trim() || copy?.emptyPreview || "내용을 작성해 주세요.";
 
     useEffect(() => {
       const preview = previewContentRef.current;
@@ -505,6 +550,7 @@ export const DocumentEditor = forwardRef<
         changedAt={displayedChangedAt}
         characterCount={characterCount}
         copyLabel={copyLabel}
+        copy={copy}
         documentTitle={documentTitle}
         editorClassName={editorClassName}
         errorMessage={errorMessage}
@@ -534,7 +580,7 @@ export const DocumentEditor = forwardRef<
             )}
           >
             <CardButton
-              aria-label={`${documentTitle} 문서 열기`}
+              aria-label={copy?.openDocument(documentTitle) ?? `${documentTitle} 문서 열기`}
               aria-haspopup="dialog"
               className="absolute inset-0 h-full min-h-0 cursor-pointer overflow-hidden border-neutral-1000-a05 bg-white p-0 hover:border-neutral-1000-a05 hover:bg-neutral-100 group-hover:border-neutral-1000-a05 group-hover:bg-neutral-100 disabled:cursor-not-allowed"
               data-document-editor-preview=""
@@ -584,7 +630,7 @@ export const DocumentEditor = forwardRef<
                         variant="transparent"
                       >
                         <ChevronDown className="size-3.5" />
-                        더보기
+                        {copy?.showMore ?? "더보기"}
                       </MuteButton>
                     </div>
                   ) : null}
@@ -603,13 +649,14 @@ export const DocumentEditor = forwardRef<
                       variant="transparent"
                     >
                       <ChevronUp className="size-3.5" />
-                      접기
+                      {copy?.showLess ?? "접기"}
                     </MuteButton>
                   </div>
                 ) : null}
                 <DocumentMeta
                   changedAt={displayedChangedAt}
                   characterCount={characterCount}
+                  copy={copy}
                 />
               </div>
             </div>

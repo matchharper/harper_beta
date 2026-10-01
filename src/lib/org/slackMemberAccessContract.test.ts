@@ -12,6 +12,7 @@ const slackTurnRoute = source(
 const interactivityRoute = source(
   "../../app/api/internal/slack/interactivity/route.ts"
 );
+const memberAccess = source("./slackMemberAccess.ts");
 
 test("Slack membership is checked before routing or company-side LLM execution", () => {
   const accessCheck = slackTurnRoute.indexOf(
@@ -27,6 +28,15 @@ test("Slack membership is checked before routing or company-side LLM execution",
   assert.match(
     slackTurnRoute,
     /lastError: `slack_access_denied:\$\{denialReason\}`/
+  );
+});
+
+test("Slack sends the matched company member's saved locale to every reply path", () => {
+  assert.match(memberAccess, /\.select\("user_id, email, locale"\)/);
+  assert.match(memberAccess, /locale: isOrgLocale\(user\?\.locale\)/);
+  assert.equal(
+    slackTurnRoute.match(/responseLocale: slackAccess\.member\.locale \?\? undefined/g)?.length,
+    3
   );
 });
 

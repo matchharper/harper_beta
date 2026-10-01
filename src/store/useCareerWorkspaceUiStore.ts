@@ -27,6 +27,7 @@ const normalizeSavedHistoryDisplayMode = (
 type CareerWorkspaceUiStoreState = {
   chatPanelWidthPct: number;
   desktopSidebarCollapsed: boolean;
+  devMessageActionsVisible: boolean;
   companyJobsOpportunity: CareerHistoryOpportunity | null;
   companyJobsOnOpenChat: (() => void) | null;
   setCompanyJobsOpportunity: (
@@ -38,6 +39,7 @@ type CareerWorkspaceUiStoreState = {
   savedHistoryDisplayMode: CareerSavedHistoryDisplayMode;
   setChatPanelWidthPct: (value: number) => void;
   setDesktopSidebarCollapsed: (collapsed: boolean) => void;
+  setDevMessageActionsVisible: (visible: boolean) => void;
   setDesktopRoleActionOpportunity: (
     opportunity: CareerHistoryOpportunity | null,
     scope?: "role" | "company"
@@ -50,6 +52,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
     (set) => ({
       chatPanelWidthPct: CAREER_CHAT_PANEL_DEFAULT_WIDTH_PCT,
       desktopSidebarCollapsed: false,
+      devMessageActionsVisible: false,
       companyJobsOpportunity: null,
       companyJobsOnOpenChat: null,
       setCompanyJobsOpportunity: (item, onOpenChat) =>
@@ -64,6 +67,8 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
         set({ chatPanelWidthPct: normalizeCareerChatPanelWidthPct(value) }),
       setDesktopSidebarCollapsed: (collapsed) =>
         set({ desktopSidebarCollapsed: collapsed }),
+      setDevMessageActionsVisible: (visible) =>
+        set({ devMessageActionsVisible: visible }),
       setDesktopRoleActionOpportunity: (opportunity, scope = "role") =>
         set({
           desktopRoleActionOpportunity: opportunity,
@@ -80,6 +85,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
       partialize: (state) => ({
         chatPanelWidthPct: state.chatPanelWidthPct,
         desktopSidebarCollapsed: state.desktopSidebarCollapsed,
+        devMessageActionsVisible: state.devMessageActionsVisible,
         savedHistoryDisplayMode: state.savedHistoryDisplayMode,
       }),
       merge: (persistedState, currentState) => {
@@ -92,6 +98,7 @@ export const useCareerWorkspaceUiStore = create<CareerWorkspaceUiStoreState>()(
             state?.chatPanelWidthPct
           ),
           desktopSidebarCollapsed: state?.desktopSidebarCollapsed === true,
+          devMessageActionsVisible: state?.devMessageActionsVisible === true,
           savedHistoryDisplayMode: normalizeSavedHistoryDisplayMode(
             state?.savedHistoryDisplayMode
           ),

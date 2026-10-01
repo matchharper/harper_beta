@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
           "Anonymous",
         profile_picture: user.user_metadata?.avatar_url ?? null,
       },
-      { onConflict: "user_id" }
+      { onConflict: "user_id", ignoreDuplicates: true }
     );
 
   if (upsertError) {

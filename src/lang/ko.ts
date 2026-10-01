@@ -710,6 +710,7 @@ export const ko = {
       "{companyName}의 요청",
     "career.chat.career_composer_section.pending_company_request_question":
       "질문",
+    "career.chat.career_composer_section.pending_company_request_general": "요청",
     "career.chat.career_composer_section.pending_company_request_resume":
       "이력서",
     "career.chat.career_composer_section.pending_internal_opportunity_subtext":
@@ -812,6 +813,7 @@ export const ko = {
       "아래 답변은 이 요청에 연결됩니다.",
     "career.chat.pending_action_context.company_question_label":
       "회사에서 온 질문",
+    "career.chat.pending_action_context.company_request_label": "회사에서 온 요청",
     "career.chat.pending_action_context.dismiss_aria": "선택한 항목 닫기",
     "career.chat.pending_action_context.expand_aria": "요청 내용 더 보기",
     "career.chat.pending_action_context.expanded_help":
@@ -2763,7 +2765,8 @@ export const ko = {
     "career.tasks.check_in_description":
       "최근 상황이나 달라진 조건을 가볍게 이야기해요.",
     "career.tasks.check_sources": "연결 상태 확인하기",
-    "career.tasks.company_question": "회사에서 확인하고 싶은 내용이 있어요",
+    "career.tasks.company_question": "회사에서 응답을 기다리고 있어요",
+    "career.tasks.company_update": "회사에서 소식을 전했어요",
     "career.tasks.connection_call": "연결 전에 짧게 이야기해요",
     "career.tasks.connection_call_description":
       "포지션에 대해 이야기하고, 회사에 소개할 경험을 함께 정리해요.",
@@ -2783,32 +2786,58 @@ export const ko = {
     "career.tasks.internal_search": "잘 맞는 내부 연결 기회를 살펴보고 있어요",
     "career.tasks.internal_search_description":
       "공개 포지션 추천은 쉬고, 내부 연결 기회를 살펴봐요.",
+    "career.tasks.internal_search_exceptional_description":
+      "공개 포지션 추천은 꺼두셨어요. 회사 소개는 허용하신 뒤에만 진행돼요.",
+    "career.tasks.internal_search_open": "회사 연결 기회를 살펴보고 있어요",
+    "career.tasks.internal_search_open_description":
+      "공개 포지션 추천은 꺼두셨어요. 잘 맞는 회사에는 먼저 제안할 수도 있어요.",
+    "career.tasks.internal_search_open_stopped_description":
+      "공개 포지션 추천은 현재 쉬고 있어요. 잘 맞는 회사에는 먼저 제안할 수도 있어요.",
+    "career.tasks.internal_search_stopped_description":
+      "공개 포지션 추천은 현재 쉬고 있어요. 회사 소개는 허용하신 뒤에만 진행돼요.",
     "career.tasks.intro_request": "회사의 Intro 요청",
     "career.tasks.learning": "어떤 팀이 잘 맞을지 알아가고 있어요",
     "career.tasks.learning_description":
       "커리어 인터뷰를 마치면 경험과 조건에 맞는 기회를 찾기 시작해요.",
     "career.tasks.loading": "할 일을 불러오고 있어요",
+    "career.tasks.loading_older": "지난 기록을 불러오고 있어요",
     "career.tasks.loading_feedback": "추천 피드백을 확인하고 있어요",
     "career.tasks.loading_progress": "진행 상황을 불러오고 있어요",
-    "career.tasks.loading_search": "찾기 현황을 확인하고 있어요",
+    "career.tasks.loading_search": "할 일을 확인하고 있어요",
     "career.tasks.loading_sources": "연결된 자료를 확인하고 있어요",
     "career.tasks.meeting": "인터뷰 가능한 시간을 알려주세요",
     "career.tasks.onboarding_call": "5분 커리어 인터뷰로 시작해요",
     "career.tasks.onboarding_call_description":
       "경험과 원하는 조건을 알려주시면 맞는 기회를 찾기 시작해요.",
-    "career.tasks.preparing_connection": "연결을 준비하고 있어요",
+    "career.tasks.older_error": "지난 기록을 불러오지 못했어요. 다시 시도해 주세요.",
+    "career.tasks.more_history": "지난 기록 더보기",
+    "career.tasks.preparing_connection": "연결을 준비하고 소개를 전달하고 있어요",
     "career.tasks.progress_error": "연결 진행 상황을 불러오지 못했어요.",
+    "career.tasks.process_ended": "이 포지션의 진행이 종료됐어요",
+    "career.tasks.recent_info": "최근 정보",
     "career.tasks.resume_call": "이어서 통화하기",
     "career.tasks.resume_request": "회사에서 최신 이력서를 요청했어요",
+    "career.tasks.review_request": "요청 확인하기",
     "career.tasks.retry": "다시 불러오기",
     "career.tasks.review_recommendations": "추천 확인하기",
     "career.tasks.schedule": "일정 선택하기",
-    "career.tasks.search_error": "찾기 현황을 불러오지 못했어요",
+    "career.tasks.search_error": "정보를 불러오지 못했어요",
     "career.tasks.search_paused": "추천을 쉬고 있어요",
+    "career.tasks.role_ended": "이 포지션의 채용이 종료됐어요",
+    "career.tasks.search_paused_all": "새 추천과 연결을 쉬고 있어요",
+    "career.tasks.search_paused_all_description":
+      "프로필 공개 범위를 바꾸면 내부 연결부터 다시 살펴볼 수 있어요.",
     "career.tasks.search_paused_description":
       "프로필에서 받고 싶은 추천을 다시 설정할 수 있어요.",
+    "career.tasks.search_paused_external_on_description":
+      "프로필 공개 범위를 바꾸면 적절한 기회를 다시 살펴볼게요.",
     "career.tasks.searching": "적합한 연결을 계속 찾고 있어요",
     "career.tasks.searching_description": "적절한 기회가 생기면 알려드릴게요.",
+    "career.tasks.searching_exceptional": "적합한 기회를 계속 찾고 있어요",
+    "career.tasks.searching_exceptional_description":
+      "공개 포지션과 내부 연결을 살펴봐요. 회사에는 허용하신 뒤에만 소개해요.",
+    "career.tasks.searching_open_description":
+      "적절한 기회를 찾고 연결해드릴게요.",
     "career.tasks.share_resume": "이력서 공유하기",
     "career.tasks.sources_error": "연결된 자료를 확인하지 못했어요",
     "career.tasks.sources_request": "어떤 일을 해왔는지 더 알려주세요",
@@ -2819,7 +2848,7 @@ export const ko = {
     "career.tasks.title": "할 일",
     "career.tasks.view_offer": "제안 보기",
     "career.tasks.view_preferences": "찾는 조건 보기",
-    "career.tasks.view_progress": "진행 상황 보기",
+    "career.tasks.view_progress": "자세히 보기",
     "career.tasks.working": "Harper가 하는 중",
     "career.tool_policy.acknowledgement_example":
       "알겠습니다. 앞으로 이 조건을 기준으로 맞는 기회를 찾아볼게요.",

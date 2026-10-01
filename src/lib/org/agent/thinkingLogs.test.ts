@@ -6,8 +6,22 @@ import {
   finalizeOrgAgentThinkingLogs,
   getOrgAgentThinkingLogIcon,
   hasOrgAgentToolWork,
+  localizeOrgAgentThinkingLogs,
   upsertOrgAgentThinkingLog,
 } from "@/lib/org/agent/thinkingLogs";
+
+test("English org screens localize saved tool progress without changing the record", () => {
+  const logs: OrgAgentThinkingLog[] = [{
+    at: "2026-09-28T00:00:00.000Z",
+    icon: "search",
+    id: "call-1",
+    label: "웹 검색 완료",
+    status: "done",
+  }];
+  assert.equal(localizeOrgAgentThinkingLogs(logs, "en")[0]?.label, "Search complete");
+  assert.equal(localizeOrgAgentThinkingLogs(logs, "ko"), logs);
+  assert.equal(logs[0]?.label, "웹 검색 완료");
+});
 
 test("removes response generation from the saved terminal working log", () => {
   const logs: OrgAgentThinkingLog[] = [

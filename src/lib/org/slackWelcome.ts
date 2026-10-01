@@ -1,5 +1,6 @@
-const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
+import type { OrgLocale } from "@/i18n/org/locale";
 
+const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 function publicSiteOrigin(value: string) {
   const normalized = value.trim() || DEFAULT_PUBLIC_SITE_URL;
   const withProtocol = /^https?:\/\//i.test(normalized)
@@ -15,12 +16,29 @@ function publicSiteOrigin(value: string) {
 
 export function buildHarperSlackWelcomeMessage(args: {
   botUserId: string;
+  locale?: OrgLocale;
   publicSiteUrl: string;
   workspaceId: string;
 }) {
   const harperUrl = new URL("/org", publicSiteOrigin(args.publicSiteUrl));
   harperUrl.searchParams.set("orgId", args.workspaceId);
   const harperMention = `<@${args.botUserId}>`;
+
+  if (args.locale === "en") {
+    return [
+      `:tada: This channel is connected to <${harperUrl.toString()}|Harper>!`,
+      "",
+      "Review candidates and hiring progress with Harper here.",
+      "",
+      "Updates in this channel:",
+      "• :bar_chart: Hiring activity and progress",
+      "• :red_circle: Items needing review or a decision",
+      "",
+      `:bulb: Tag ${harperMention} to ask a question.`,
+      `> ${harperMention} Who should we review first?`,
+      `> ${harperMention} Start hiring for a new role`,
+    ].join("\n");
+  }
 
   return [
     `:tada: 이 채널이 <${harperUrl.toString()}|Harper>와 연결됐어요!`,

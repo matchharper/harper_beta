@@ -70,7 +70,7 @@ export const OFFICIAL_JOBS_COPY = {
       empty:
         "아직 공개된 역할은 없어요. Harper는 계속 시장을 살펴보고 있습니다.",
       heroBody:
-        "충분히 흥미로운 기회만 소개시켜드리고 있어요.\n관심 있는 역할이 보이면 저에게 알려주세요.",
+        "충분히 흥미로운 기회만 소개시켜드리고 있어요. 관심 있는 역할이 보이면 저에게 알려주세요.\n한번의 대화로 모든 기회에 연결되실 수 있어요.",
       heroTitle: "안녕하세요 Harper입니다.\n제가 먼저 살펴보는 역할들이에요.",
       learnMore: "Harper 더 알아보기",
       tableHeaders: {

@@ -359,6 +359,27 @@ function normalizeList(args: {
 
 function normalizeRewriteValue(key: CompanyDataKey, value: unknown) {
   const catalog = COMPANY_DATA_CATALOG[key];
+  if (key === "role_intro_search_date") {
+    const days = normalizeList({
+      allowedValues: catalog.allowedValues,
+      key,
+      maxItems: 7,
+      nullable: false,
+      value,
+    });
+    if (!Array.isArray(value) || !Array.isArray(days) || days.length === 0 ||
+        days.length !== value.length) {
+      throw new CompanyDataMutationError("invalid_weekdays", "Choose one or more distinct weekdays");
+    }
+    return days;
+  }
+  if (key === "role_intro_search_time") {
+    const hour = normalizeInteger(value, false);
+    if (hour === null || hour > 23) {
+      throw new CompanyDataMutationError("invalid_hour", "Hour must be between 0 and 23");
+    }
+    return hour;
+  }
   if (catalog.type === "boolean") {
     if (typeof value !== "boolean") {
       throw new CompanyDataMutationError(
@@ -1136,7 +1157,7 @@ export async function fetchCompanyDataSnapshot(args: {
 
   const internalResult = roleIds.length
     ? await (args.admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, is_company_first_search")
+        .select("role_id, request, is_company_first_search, intro_search_date, intro_search_time")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -1241,6 +1262,8 @@ export async function fetchCompanyDataSnapshot(args: {
       salaryRange: role.salary_range ?? null,
       role_status: role.status,
       role_is_company_first_search: internal.is_company_first_search,
+      role_intro_search_date: internal.intro_search_date,
+      role_intro_search_time: internal.intro_search_time,
       role_work_mode: role.work_mode ?? null,
       role_employment_types: Array.isArray(role.type) ? role.type : [],
       role_request: internal.request ?? null,

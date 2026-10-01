@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   CLAUDE_MODEL,
   GPT_56_LUNA_MODEL,
+  GPT_61_SOL_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
 } from "@/lib/llm/modelConfig";
@@ -18,6 +19,7 @@ test("allows only the Career dev-control text chat models", () => {
   assert.equal(isCareerTextChatModelId(OPENROUTER_GLM_53_FLASH_MODEL), true);
   assert.equal(isCareerTextChatModelId(OPENROUTER_MUSE_SPARK_13_MODEL), true);
   assert.equal(isCareerTextChatModelId(GPT_56_LUNA_MODEL), true);
+  assert.equal(isCareerTextChatModelId(GPT_61_SOL_MODEL), true);
   assert.equal(isCareerTextChatModelId("grok-4.3"), false);
 });
 
@@ -37,6 +39,10 @@ test("uses Sonnet 5.5 by default and maps model-specific reasoning effort", () =
   assert.deepEqual(resolveCareerTextChatModel(GPT_56_LUNA_MODEL), {
     model: GPT_56_LUNA_MODEL,
     openAIResponsesReasoningEffort: "xhigh",
+  });
+  assert.deepEqual(resolveCareerTextChatModel(GPT_61_SOL_MODEL), {
+    model: GPT_61_SOL_MODEL,
+    openAIResponsesReasoningEffort: "high",
   });
 });
 

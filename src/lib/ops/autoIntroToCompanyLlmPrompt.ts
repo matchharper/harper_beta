@@ -106,6 +106,9 @@ Correct the complete payload and call submit_auto_intro again.`;
 export function buildAutoIntroLlmPrompt(group: DossierGroup) {
   assertSinglePairDossier(group);
   return [
+    group.workspaceLocale === "en"
+      ? "The company is headquartered outside South Korea. Write the candidate introduction and optional question to the company in natural English. The reference example illustrates structure only."
+      : "회사의 Headquarters가 한국입니다. 후보 소개 본문과 회사에 묻는 질문은 자연스러운 한국어로 작성하세요. 아래 예시의 영어 문장은 구조 참고용입니다.",
     `You write high-signal candidate introductions for Harper's company Slack channels.
 This request contains exactly one target role and one candidate. The candidate has already accepted the opportunity and is already in pending connection. Do not rescore, reject, or omit the candidate.
 Write like a trusted headhunter briefing a busy hiring manager, not like a model summarizing a resume. In one cohesive briefing, the reader should understand why this person is unusually worth meeting for this role, what evidence supports that view, and what the company should explore in conversation.
@@ -151,7 +154,7 @@ WRITING AND OUTPUT
 - Each work heading should normally be Role @ Company, optionally followed by (current), a supported employment relationship, location, or exact short tenure when useful. Never upgrade the candidate's function, seniority, employment relationship, scope, or ownership.
 - currentRole must faithfully reflect a stored current title and employer without upgrading or reclassifying the role. location may include only stored location and explicitly supported relocation context. education may include only stored education. Return null for any missing header value rather than guessing.
 - Preferences must contain 1-4 concise • bullets and only explicitly supported, decision-relevant preferences or constraints. Never include compensation, salary, pay, equity package, or other candidate compensation information anywhere in the user-facing Slack body, even when it is stored in the briefing; do not move compensation into another section. Preserve the direction and certainty of other preferences: minimums, targets, flexibility, willingness, and acceptance are not interchangeable. Never include citizenship or nationality; when supported and relevant, state only neutral work authorization. Candidate-volunteered family, marital, pregnancy, disability, health, or other sensitive personal context may be included only when it is necessary to understand a concrete role, location, availability, work-arrangement, or relocation constraint and omitting it would materially mislead the company. Never infer it, use neutral language, and include only the minimum detail needed for the decision. When the functional condition alone is sufficient, omit the diagnosis or private backstory; a family-accompanied relocation condition may be stated when that condition itself determines feasibility. Do not present qualifications, inferred interests, language ability, current location by itself, or generic employment facts as preferences. If no eligible preference is stored, include one bullet saying that no explicit role-related preferences are recorded, in the message's language.
-- Preserve the candidate's natural working language, company names, Role names, and proper nouns when translation would reduce precision. Write body in the dominant working language of the company and target-role context; if unclear, use natural Korean.
+- Write the body and followUpQuestion in the workspace language stated at the top of this prompt. Preserve company names, Role names, proper nouns, and quoted source text when translation would reduce precision.
 - Prevent wasteful repetition: a fact may be introduced in TL;DR and substantiated in Work Summary, but do not repeat the same wording, metric, or caveat across every section. The output must stay within the section budgets even for a long or senior career; never make body length proportional to the number of stored experiences.
 - The validated slackProfile.body is also saved verbatim as talent_opportunity_fit.reason, so the web candidate detail and the sent Slack introduction use the same recommendation copy. Do not return a second recommendation-reason field.
 - Before submitting, silently count and verify every hard budget: TL;DR <= 5 sentences, 100 words, and 700 characters; Harper Note <= 3 sentences, 60 words, and 320 characters; Work Summary <= 4 headings, <= 3 bullets per heading, <= 8 bullets total, and <= 180 characters per bullet; Preferences has 1-4 bullets; and the user-facing body contains no candidate compensation information. Also verify that body has all four required sections in the exact order and Slack format; excludes application-owned headers and CTA; contains no citizenship, nationality, unnecessary protected or private detail, unsupported ownership, changed preference meaning, or invented fact; and reads as one cohesive introduction rather than separately generated form fields.
@@ -168,12 +171,21 @@ trade-off, or candidate-facing reason to consider the opportunity.
 Do not restate responsibilities or ask for information the existing Role brief already makes actionable.
 
 example:
-- 이 역할에 맞는 분을 찾을 때, 먼저 살펴볼 만한 출신 회사·팀·직무가 있을까요?
+${
+  group.workspaceLocale === "en"
+    ? `- Which companies, teams, or roles tend to produce strong candidates for this role?
+- Is there someone you met recently whose background made you want to interview them immediately?
+- Have you passed on a candidate with a strong resume? What was missing?
+- Which unconventional backgrounds would you still consider?
+- What makes this opportunity compelling to someone doing well in their current role?
+- Are there companies or backgrounds you prefer not to approach?`
+    : `- 이 역할에 맞는 분을 찾을 때, 먼저 살펴볼 만한 출신 회사·팀·직무가 있을까요?
 - 최근 보셨던 분 중 ‘이런 경력이면 바로 만나보고 싶다’고 느낀 사례가 있나요?
 - 이력은 좋아 보였지만 선호하지 않았던 분이 있었다면, 그 때 이유가 무엇이었나요?
 - 경력이 정석과 조금 달라도, 이런 경우에는 만나볼 만하다고 보실 유형이 있을까요?
 - 지금 잘하고 있는 사람이 이 기회를 진지하게 검토할 만한, 회사가 자신 있게 말할 수 있는 이유는 무엇인가요? 혹은 외부에 공개되지 않은 내부의 좋은 정보가 있을까요?
-- 후보자를 찾을 때 피하고 싶은 출신 환경이나, 접촉을 원치 않는 회사 범위가 있을까요?
+- 후보자를 찾을 때 피하고 싶은 출신 환경이나, 접촉을 원치 않는 회사 범위가 있을까요?`
+}
 
 
 REFERENCE OUTPUT EXAMPLE — imitate its voice, detail, flow, and body layout only:

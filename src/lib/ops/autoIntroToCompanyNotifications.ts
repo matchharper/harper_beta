@@ -1,4 +1,7 @@
 import { createHash, randomUUID } from "crypto";
+import type { OrgLocale } from "@/i18n/org/locale";
+import { localeFromHeadquarters } from "@/lib/org/workspaceLocale";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
 import {
   AUTO_INTRO_MAX_PENDING_AGE_DAYS,
@@ -288,6 +291,7 @@ type WorkspaceNotificationGroup = {
 
 type GeneratedWorkspaceMessage = {
   body: string;
+  locale: OrgLocale;
   candidateCopyByCandidateKey: Record<string, string>;
   externalSourcesByCandidateKey: Record<
     string,
@@ -359,6 +363,7 @@ export type AutoIntroToCompanyCandidateDossiers = EligibilityStats & {
     candidateCount: number;
     companyName: string;
     companyContext: AutoIntroCompanyPromptContext;
+    workspaceLocale: OrgLocale;
     roles: Array<{
       candidateCount: number;
       candidates: Array<{
@@ -430,6 +435,10 @@ function normalizeText(value: unknown) {
   return String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function candidateDisplayName(value: string, locale: OrgLocale) {
+  return normalizeText(value) || (locale === "en" ? "Candidate" : "후보자");
 }
 
 function normalizeMultiline(value: unknown) {
@@ -661,10 +670,7 @@ async function fetchRoleSummaryTalentNames(
       .in("user_id", talentIdChunk);
     if (error) throw error;
     for (const row of data ?? []) {
-      names.set(
-        normalizeText(row.user_id),
-        normalizeText(row.name) || "후보자"
-      );
+      names.set(normalizeText(row.user_id), normalizeText(row.name));
     }
   }
   return names;
@@ -792,7 +798,7 @@ async function fetchCurrentRoleSummaries(
     const reminders =
       candidateRepliesByWorkspaceId.get(row.company_workspace_id) ?? [];
     reminders.push({
-      candidateName: talentNameById.get(row.talent_id) ?? "후보자",
+      candidateName: talentNameById.get(row.talent_id) ?? "",
       expectsDocument: row.expects_document,
       recommendationId: row.recommendation_id,
       roleId: row.role_id,
@@ -816,7 +822,7 @@ async function fetchCurrentRoleSummaries(
       upcomingMeetingsByWorkspaceId.get(row.company_workspace_id) ?? [];
     reminders.push({
       attendeeNames: meetingAttendeeNames(row.company_attendees),
-      candidateName: talentNameById.get(row.talent_id) ?? "후보자",
+      candidateName: talentNameById.get(row.talent_id) ?? "",
       confirmedStartAt: row.confirmed_start_at,
       recommendationId: row.recommendation_id,
       roleId: row.role_id,
@@ -1459,7 +1465,7 @@ async function buildEligibleCandidates(
       continue;
     }
     const talent = talentById.get(pair.talentId);
-    const talentName = normalizeText(talent?.name) || "후보자";
+    const talentName = normalizeText(talent?.name);
     candidates.push({
       candidateProfile: profiles.get(pair.talentId) ?? null,
       companyName: normalizeText(workspace.company_name) || "회사",
@@ -1611,6 +1617,7 @@ function buildWorkspaceMessageBody(args: {
   candidateCopyByCandidateKey: Record<string, string>;
   followUpQuestion: string | null;
   group: WorkspaceNotificationGroup;
+  locale: OrgLocale;
 }) {
   const roleBlocks = args.group.roleSections.map((section) => {
     const candidates = section.candidates.map((candidate) => {
@@ -1621,7 +1628,7 @@ function buildWorkspaceMessageBody(args: {
         );
       }
       return `*Candidate:* ${buildAutoIntroCandidateNameLink({
-        name: candidate.talentName,
+        name: candidateDisplayName(candidate.talentName, args.locale),
         recommendationId: candidate.recommendationId,
         roleId: candidate.roleId,
         talentId: candidate.talentId,
@@ -1631,13 +1638,25 @@ function buildWorkspaceMessageBody(args: {
     const roleTitle = escapeAutoIntroSlackHeading(section.roleTitle);
     return [`*${roleTitle}*`, ...candidates].join("\n\n");
   });
-  const postscript = buildAutoIntroFollowUpPostscript(args.followUpQuestion);
+  const postscript = buildAutoIntroFollowUpPostscript(
+    args.followUpQuestion,
+    args.locale
+  );
   return [
-    ...AUTO_INTRO_WORKSPACE_OPENING,
+    ...(args.locale === "en"
+      ? [
+          args.group.candidates.length === 1
+            ? "*A candidate is ready to connect.*"
+            : "*Candidates are ready to connect.*",
+        ]
+      : AUTO_INTRO_WORKSPACE_OPENING),
     ...roleBlocks,
     "----------",
-    AUTO_INTRO_RESPONSE_GUIDANCE,
+    args.locale === "en"
+      ? "Review each profile and Harper's notes, then decide whether to connect. Choose Email intro or Direct contact when connecting. If you choose Reject, Harper closes the process for that role and notifies the candidate. Feedback helps improve future recommendations."
+      : AUTO_INTRO_RESPONSE_GUIDANCE,
     buildAutoIntroWorkspaceActionGuidance({
+      locale: args.locale,
       workspaceId: args.group.workspaceId,
     }),
     ...(postscript ? [postscript] : []),
@@ -1646,7 +1665,8 @@ function buildWorkspaceMessageBody(args: {
 
 function parseCodexAuthoredMessage(
   authored: CodexAuthoredWorkspaceMessage,
-  group: WorkspaceNotificationGroup
+  group: WorkspaceNotificationGroup,
+  locale: OrgLocale = "ko"
 ): GeneratedWorkspaceMessage {
   if (normalizeText(authored.workspaceId) !== group.workspaceId) {
     throw new Error("Authored message workspace does not match");
@@ -1763,7 +1783,9 @@ function parseCodexAuthoredMessage(
       candidateCopyByCandidateKey,
       followUpQuestion,
       group,
+      locale,
     }),
+    locale,
     candidateCopyByCandidateKey,
     externalSourcesByCandidateKey,
     followUpQuestion,
@@ -1848,7 +1870,9 @@ async function claimCandidateProgressRows(args: {
       talent_id: candidate.talentId,
       text:
         args.message.candidateCopyByCandidateKey[candidateKey(candidate)] ||
-        `${candidate.talentName}님을 만나보시기를 제안드립니다.`,
+        (args.message.locale === "en"
+          ? `Consider meeting ${candidateDisplayName(candidate.talentName, "en")}.`
+          : `${candidateDisplayName(candidate.talentName, "ko")}님을 만나보시기를 제안드립니다.`),
       user_id: HARPER_WORKER_USER_ID,
     };
     const result = existing
@@ -1936,6 +1960,7 @@ function attachReviewActionToMessage(
       blocks: message.slackBlocks,
       candidateCount,
       messageBody: message.body,
+      locale: message.locale,
     }),
   };
 }
@@ -1985,7 +2010,7 @@ async function sendWorkspaceMessage(args: {
           source: args.message.source,
         },
         mentions: args.group.candidates.map((candidate) => ({
-          displayName: candidate.talentName,
+          displayName: candidateDisplayName(candidate.talentName, args.message.locale),
           recommendationId: candidate.recommendationId,
           roleId: candidate.roleId,
           talentId: candidate.talentId,
@@ -2012,6 +2037,7 @@ async function sendWorkspaceMessage(args: {
 
 async function sendRoleSummaryOnly(args: {
   dateKey: string;
+  locale: OrgLocale;
   slackConnected: boolean;
   summary: AutoIntroRoleSummary;
 }): Promise<DeliveryOutcome> {
@@ -2025,6 +2051,7 @@ async function sendRoleSummaryOnly(args: {
     try {
       slackSent = await sendHarperWorkspaceSlackMessage({
         blocks: buildAutoIntroRoleSummarySlackBlocks({
+          locale: args.locale,
           summary: args.summary,
         }),
         idempotencyKey,
@@ -2033,7 +2060,10 @@ async function sendRoleSummaryOnly(args: {
           source: "codex_scheduled_auto_intro_role_summary",
         },
         roleId: null,
-        text: buildAutoIntroRoleSummaryText({ summary: args.summary }),
+        text: buildAutoIntroRoleSummaryText({
+          locale: args.locale,
+          summary: args.summary,
+        }),
         unfurlLinks: false,
         unfurlMedia: false,
         workspaceId: args.summary.workspaceId,
@@ -2085,17 +2115,19 @@ function buildCandidateDossierGroup(args: {
       "Auto-intro LLM dossier must contain exactly one role and one candidate"
     );
   }
+  const workspaceLocale = localeFromHeadquarters(args.companyContext?.location);
   return {
     candidateCount: 1,
     companyContext:
       args.companyContext ?? defaultCompanyPromptContext(args.group),
     companyName: args.group.companyName,
+    workspaceLocale,
     roles: [
       {
         candidateCount: 1,
         candidates: [
           {
-            name: candidate.talentName,
+            name: candidateDisplayName(candidate.talentName, workspaceLocale),
             professionalProfile: candidate.candidateProfile,
             reasonMode: candidate.reasonMode,
             storedCompanyCriteriaEvaluations:
@@ -2177,7 +2209,7 @@ async function buildManualAutoIntroContext(args: {
     roleId,
     roleTitle: normalizeText(role.name) || "포지션",
     talentId,
-    talentName: normalizeText(talent.name) || "후보자",
+    talentName: normalizeText(talent.name),
     workspaceId,
   };
   const group: WorkspaceNotificationGroup = {
@@ -2230,7 +2262,11 @@ export async function sendManualAutoIntroToCompanyNotification(args: {
   workspaceId: string;
 }) {
   const context = await buildManualAutoIntroContext(args);
-  const parsedMessage = parseCodexAuthoredMessage(args.authored, context.group);
+  const parsedMessage = parseCodexAuthoredMessage(
+    args.authored,
+    context.group,
+    context.dossier.workspaceLocale
+  );
   const message = attachReviewActionToMessage(parsedMessage, 1);
   const delivery = await sendWorkspaceMessage({
     group: context.group,
@@ -2444,10 +2480,11 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   const recordRoleSummary = (
     summary: AutoIntroRoleSummary,
     slackConnected: boolean,
+    locale: OrgLocale,
     delivery?: DeliveryOutcome
   ) => {
     result.roleSummaries.push({
-      body: buildAutoIntroRoleSummaryText({ summary }),
+      body: buildAutoIntroRoleSummaryText({ locale, summary }),
       companyName: summary.companyName,
       roleCount: summary.roles.length,
       slackConnected,
@@ -2485,6 +2522,7 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
     if (!group)
       throw new Error(`No currently eligible workspace: ${workspaceId}`);
     const normalizedAuthored = { ...authored, workspaceId };
+    const workspaceLocale = await getOrgWorkspaceLocale(workspaceId, admin);
     const eligibleCandidateByKey = new Map(
       group.candidates.map((candidate) => [candidateKey(candidate), candidate])
     );
@@ -2517,7 +2555,8 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
     const authoredGroup = groupWithCandidates(group, authoredCandidates);
     const message = parseCodexAuthoredMessage(
       normalizedAuthored,
-      authoredGroup
+      authoredGroup,
+      workspaceLocale
     );
     const slackConnected = await candidateSlackConnectedFor(
       group.workspaceId,
@@ -2554,7 +2593,8 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
         ? message
         : parseCodexAuthoredMessage(
             filterAuthoredMessageToCandidates(normalizedAuthored, claimedKeys),
-            claimedGroup
+            claimedGroup,
+            workspaceLocale
           );
     await persistAutoIntroSlackBodiesAsFitReasons({
       admin,
@@ -2594,17 +2634,19 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   }
 
   for (const summary of roleSummaries) {
+    const locale = await getOrgWorkspaceLocale(summary.workspaceId, admin);
     const slackConnected = await summarySlackConnectedFor(summary.workspaceId);
     if (!slackConnected) {
-      recordRoleSummary(summary, false);
+      recordRoleSummary(summary, false, locale);
       continue;
     }
     const delivery = await sendRoleSummaryOnly({
       dateKey: roleSummaryDateKey,
+      locale,
       slackConnected,
       summary,
     });
-    recordRoleSummary(summary, slackConnected, delivery);
+    recordRoleSummary(summary, slackConnected, locale, delivery);
     result.sentSlackCount += delivery.slackSent ? 1 : 0;
   }
   return result;

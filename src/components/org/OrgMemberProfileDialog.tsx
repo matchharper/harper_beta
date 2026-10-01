@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
@@ -37,6 +38,7 @@ export function OrgMemberProfileDialog({
   member: OrgMember;
   workspace: OrgWorkspace;
 }) {
+  const t = useOrgT();
   const defaults = useMemo(() => getNameDefaults(member), [member]);
   const updateProfile = useUpdateOrgMemberProfile();
   const [firstName, setFirstName] = useState(defaults.firstName);
@@ -55,7 +57,7 @@ export function OrgMemberProfileDialog({
     const normalizedLastName = lastName.trim();
     const normalizedRole = role.trim();
     if (!normalizedFirstName || !normalizedLastName || !normalizedRole) {
-      setError("이름, 성, 직함을 모두 입력해 주세요.");
+      setError(t("OrgMemberProfileDialog.6344aaa8", "이름, 성, 직함을 모두 입력해 주세요."));
       return;
     }
 
@@ -72,7 +74,7 @@ export function OrgMemberProfileDialog({
       setError(
         profileError instanceof Error
           ? profileError.message
-          : "프로필을 저장하지 못했습니다."
+          : t("OrgMemberProfileDialog.4f8c874b", "프로필을 저장하지 못했습니다.")
       );
     }
   };
@@ -88,7 +90,7 @@ export function OrgMemberProfileDialog({
       >
         <DialogHeader className="gap-2">
           <DialogTitle className="text-[18px]">
-            프로필을 완성해 주세요
+            {t("OrgMemberProfileDialog.91fa967f", "프로필을 완성해 주세요")}
           </DialogTitle>
         </DialogHeader>
 
@@ -101,26 +103,26 @@ export function OrgMemberProfileDialog({
               autoComplete="given-name"
               autoFocus
               id="org-member-first-name"
-              label="이름"
+              label={t("OrgMemberProfileDialog.24d9371a", "이름")}
               maxLength={100}
               onChange={(event) => {
                 setError(null);
                 setFirstName(event.target.value);
               }}
-              placeholder="이름"
+              placeholder={t("OrgMemberProfileDialog.24d9371a", "이름")}
               required
               value={firstName}
             />
             <TextField
               autoComplete="family-name"
               id="org-member-last-name"
-              label="성"
+              label={t("OrgMemberProfileDialog.165b8c8f", "성")}
               maxLength={100}
               onChange={(event) => {
                 setError(null);
                 setLastName(event.target.value);
               }}
-              placeholder="성"
+              placeholder={t("OrgMemberProfileDialog.165b8c8f", "성")}
               required
               value={lastName}
             />
@@ -128,13 +130,13 @@ export function OrgMemberProfileDialog({
           <TextField
             autoComplete="organization-title"
             id="org-member-role"
-            label="직함"
+            label={t("OrgMemberProfileDialog.8a337ab3", "직함")}
             maxLength={160}
             onChange={(event) => {
               setError(null);
               setRole(event.target.value);
             }}
-            placeholder="예: 채용 매니저, CTO"
+            placeholder={t("OrgMemberProfileDialog.07c64625", "예: 채용 매니저, CTO")}
             required
             value={role}
           />
@@ -156,7 +158,7 @@ export function OrgMemberProfileDialog({
               {updateProfile.isPending ? (
                 <LoaderCircle className="size-4 animate-spin" />
               ) : null}
-              시작하기
+              {t("OrgMemberProfileDialog.d36d1676", "시작하기")}
             </MuteButton>
           </DialogFooter>
         </form>

@@ -1,4 +1,5 @@
 import { buildCompanyContactEventPrompt } from "@/lib/org/agent/contactEventPrompt";
+import type { OrgLocale } from "@/i18n/org/locale";
 import { loadCompanyContactEventContext } from "@/lib/org/agent/contactEvent.server";
 import type { User } from "@supabase/supabase-js";
 import { after } from "next/server";
@@ -35,10 +36,21 @@ import {
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
 import { buildOrgAgentBackgroundResultMessages } from "@/lib/org/agent/backgroundResultPrompt";
-import { buildCompanyConversationInput, buildCompanySystemInput } from "./input";
-import { companyCompletionTokenBudget, companyCompletionProviderHint, validateCompanyCompletion } from "./completionContract";
+import {
+  buildCompanyConversationInput,
+  buildCompanySystemInput,
+} from "./input";
+import {
+  companyCompletionTokenBudget,
+  companyCompletionProviderHint,
+  validateCompanyCompletion,
+} from "./completionContract";
 import { createOrgAgentTextStream } from "./textStream";
-import { continuationCapabilities, getCompanyCapabilityMode, resolveCompanyCapabilities } from "./capabilities/resolver";
+import {
+  continuationCapabilities,
+  getCompanyCapabilityMode,
+  resolveCompanyCapabilities,
+} from "./capabilities/resolver";
 import { loadCompanyCapabilities } from "./capabilities/loader";
 import { capabilityForTool } from "./capabilities/registry";
 import {
@@ -187,6 +199,8 @@ const TOOL_FREE_FINAL_MAX_TOKENS = 2_000;
 
 export async function generateOrgAgentBackgroundResultReply(args: {
   companyName: string;
+  firstCompanyFirstResultDelivery?: boolean;
+  responseLocale?: OrgLocale;
   resultText: string;
   roleId: string;
   roleName: string;
@@ -204,11 +218,17 @@ export async function generateOrgAgentBackgroundResultReply(args: {
     maxTokens: TOOL_FREE_FINAL_MAX_TOKENS,
     messages: buildOrgAgentBackgroundResultMessages({
       companyName: args.companyName,
+      firstCompanyFirstResultDelivery: args.firstCompanyFirstResultDelivery,
       requestMessage: args.userMessage,
       resultText,
       roleId: args.roleId,
       roleName: args.roleName,
-      systemPrompt: buildOrgAgentSystemPrompt({ surface, capabilityCatalogText: "", capabilityPolicyText: "" }),
+      systemPrompt: buildOrgAgentSystemPrompt({
+        surface,
+        responseLocale: args.responseLocale ?? "auto",
+        capabilityCatalogText: "",
+        capabilityPolicyText: "",
+      }),
     }),
     model: modelConfig.model,
     reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
@@ -415,8 +435,15 @@ export async function runOrgAgentCompletion(args: {
   tools?: ReturnType<typeof resolveCompanyCapabilities>["tools"];
   upstreamProvider?: string;
 }) {
-  if (args.allowTools && !args.tools?.length) throw new Error("Tool-enabled completion requires an explicit resolved tool snapshot");
-  const maxTokens = companyCompletionTokenBudget(args.model, args.maxTokens, args.reasoningEffort);
+  if (args.allowTools && !args.tools?.length)
+    throw new Error(
+      "Tool-enabled completion requires an explicit resolved tool snapshot"
+    );
+  const maxTokens = companyCompletionTokenBudget(
+    args.model,
+    args.maxTokens,
+    args.reasoningEffort
+  );
   const request: Parameters<typeof createChatCompletionWithFallback>[0] = {
     ...(args.strictModel
       ? {}
@@ -431,7 +458,9 @@ export async function runOrgAgentCompletion(args: {
       temperature: ORG_AGENT_TEMPERATURE,
       // Gemini thought signatures must not cross provider implementations.
       ...(args.model === ORG_AGENT_GEMINI_FLASH_MODEL && args.upstreamProvider
-        ? { provider: { only: [args.upstreamProvider], allow_fallbacks: false } }
+        ? {
+            provider: { only: [args.upstreamProvider], allow_fallbacks: false },
+          }
         : {}),
       ...(args.allowTools
         ? {
@@ -481,7 +510,8 @@ export async function runOrgAgentCompletion(args: {
       firstTextMs,
       outputTokens: result.response?.usage?.completion_tokens ?? null,
       reasoningTokens:
-        result.response?.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+        result.response?.usage?.completion_tokens_details?.reasoning_tokens ??
+        null,
     });
     return result;
   } catch (error) {
@@ -506,42 +536,46 @@ export type OrgAgentLoopDependencies = {
   requestTime?: Date;
 };
 
-export async function runOrgAgentToolLoop(args: {
-  allowSilentCompletion?: boolean;
-  actorId: string;
-  actorLabel: string;
-  admin: ReturnType<typeof getSupabaseAdmin>;
-  context: Awaited<ReturnType<typeof buildOrgAgentPromptContext>>;
-  conversation: Awaited<
-    ReturnType<typeof ensureOrgAgentConversation>
-  >["conversation"];
-  currentUserMessageId: number;
-  debug?: boolean;
-  emit?: OrgAgentChatEmitter;
-  onTextDelta?: (delta: string) => void | Promise<void>;
-  onTextReset?: () => void;
-  onToolStatus?: (log: OrgAgentThinkingLog) => void;
-  onVisibleProgress?: (args: {
-    model: string;
-    text: string;
-  }) => Promise<boolean>;
-  assertCanContinue?: () => Promise<void>;
-  mentions: OrgAgentMention[];
-  model: OrgAgentModelId;
-  readAudience: "caller" | "company_safe";
-  referenceAttachments?: ChatAttachmentPayload[];
-  imageInputs?: LlmImageInput[];
-  scopeKey: string;
-  serviceAnswerExamplesText?: string | null;
-  signal?: AbortSignal;
-  slackExecutionContext?: SlackRoleCreationExecutionContext | null;
-  slackThreadId: string | null;
-  source: "chat" | "slack";
-  user: User;
-  userLabel?: string | null;
-  userMessage: string;
-  visibleProgressPublished?: boolean;
-}, dependencies: OrgAgentLoopDependencies = {}) {
+export async function runOrgAgentToolLoop(
+  args: {
+    allowSilentCompletion?: boolean;
+    actorId: string;
+    actorLabel: string;
+    admin: ReturnType<typeof getSupabaseAdmin>;
+    context: Awaited<ReturnType<typeof buildOrgAgentPromptContext>>;
+    conversation: Awaited<
+      ReturnType<typeof ensureOrgAgentConversation>
+    >["conversation"];
+    currentUserMessageId: number;
+    debug?: boolean;
+    emit?: OrgAgentChatEmitter;
+    onTextDelta?: (delta: string) => void | Promise<void>;
+    onTextReset?: () => void;
+    onToolStatus?: (log: OrgAgentThinkingLog) => void;
+    onVisibleProgress?: (args: {
+      model: string;
+      text: string;
+    }) => Promise<boolean>;
+    assertCanContinue?: () => Promise<void>;
+    mentions: OrgAgentMention[];
+    model: OrgAgentModelId;
+    responseLocale?: OrgLocale | "auto";
+    readAudience: "caller" | "company_safe";
+    referenceAttachments?: ChatAttachmentPayload[];
+    imageInputs?: LlmImageInput[];
+    scopeKey: string;
+    serviceAnswerExamplesText?: string | null;
+    signal?: AbortSignal;
+    slackExecutionContext?: SlackRoleCreationExecutionContext | null;
+    slackThreadId: string | null;
+    source: "chat" | "slack";
+    user: User;
+    userLabel?: string | null;
+    userMessage: string;
+    visibleProgressPublished?: boolean;
+  },
+  dependencies: OrgAgentLoopDependencies = {}
+) {
   const companySideUserPrompt = buildOrgAgentUserPrompt({
     context: args.context,
     mentions: args.mentions,
@@ -557,15 +591,25 @@ export async function runOrgAgentToolLoop(args: {
     requestTime: dependencies.requestTime,
   });
   const capabilityMode = getCompanyCapabilityMode();
-  const loadedCapabilities = continuationCapabilities(args.context.conversationMessages);
+  const loadedCapabilities = continuationCapabilities(
+    args.context.conversationMessages
+  );
   const messages: OrgAgentLlmMessage[] = [
     { role: "system", content: "" },
     ...buildCompanyConversationInput({
-      context: args.context, mentions: args.mentions,
+      context: args.context,
+      mentions: args.mentions,
       serviceAnswerExamplesText: args.serviceAnswerExamplesText,
-      slackContext: args.slackExecutionContext ? { channelId: args.slackExecutionContext.channelId, channelName: args.slackExecutionContext.channelName } : null,
-      userLabel: args.userLabel, userMessage: args.userMessage,
-      currentUserMessageId: args.currentUserMessageId, imageInputs: args.imageInputs,
+      slackContext: args.slackExecutionContext
+        ? {
+            channelId: args.slackExecutionContext.channelId,
+            channelName: args.slackExecutionContext.channelName,
+          }
+        : null,
+      userLabel: args.userLabel,
+      userMessage: args.userMessage,
+      currentUserMessageId: args.currentUserMessageId,
+      imageInputs: args.imageInputs,
       requestTime: dependencies.requestTime,
     }),
   ];
@@ -584,9 +628,21 @@ export async function runOrgAgentToolLoop(args: {
   let upstreamProvider: string | undefined;
 
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
-    const resolved = resolveCompanyCapabilities({ surface: args.source, mode: capabilityMode, loaded: loadedCapabilities });
+    const resolved = resolveCompanyCapabilities({
+      surface: args.source,
+      mode: capabilityMode,
+      loaded: loadedCapabilities,
+    });
     const offeredTools = resolved.offeredToolNames;
-    messages[0] = { role: "system", content: buildCompanySystemInput({ resolved, surface: args.source, allowSilentCompletion: args.allowSilentCompletion }) };
+    messages[0] = {
+      role: "system",
+      content: buildCompanySystemInput({
+        resolved,
+        surface: args.source,
+        responseLocale: args.responseLocale,
+        allowSilentCompletion: args.allowSilentCompletion,
+      }),
+    };
     let completion: Awaited<ReturnType<typeof runCompletion>>;
     try {
       completion = await (dependencies.complete ?? runCompletion)({
@@ -605,7 +661,13 @@ export async function runOrgAgentToolLoop(args: {
     } catch (error) {
       args.signal?.throwIfAborted();
       if (args.allowSilentCompletion) throw error;
-      if (!state.fallbackReply && !state.stagedProposal && !state.requiredPresentationText && !state.requiredSlackContinuationLink && state.updateSummaries.length === 0)
+      if (
+        !state.fallbackReply &&
+        !state.stagedProposal &&
+        !state.requiredPresentationText &&
+        !state.requiredSlackContinuationLink &&
+        state.updateSummaries.length === 0
+      )
         throw error;
       console.error(
         "[org/agent:post-tool-completion]",
@@ -731,23 +793,71 @@ export async function runOrgAgentToolLoop(args: {
       // retroactively authorize another call before its policy was exposed.
       if (!offeredTools.has(toolName)) {
         const requiredCapability = capabilityForTool(toolName);
-        messages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName,
-          content: JSON.stringify({ ok: false, error: "tool_not_offered", requiredCapability: requiredCapability ?? null, message: "Load the relevant capability and use its tool in a later response; no action occurred." }) });
-        state.toolResults.push({ callId: toolCall.id, name: toolName, status: "error", summary: "이번 응답에 노출되지 않은 도구" });
-        emitToolDebug({ status: "skipped", summary: "tool not offered in completion snapshot" });
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          name: toolName,
+          content: JSON.stringify({
+            ok: false,
+            error: "tool_not_offered",
+            requiredCapability: requiredCapability ?? null,
+            message:
+              "Load the relevant capability and use its tool in a later response; no action occurred.",
+          }),
+        });
+        state.toolResults.push({
+          callId: toolCall.id,
+          name: toolName,
+          status: "error",
+          summary: "이번 응답에 노출되지 않은 도구",
+        });
+        emitToolDebug({
+          status: "skipped",
+          summary: "tool not offered in completion snapshot",
+        });
         continue;
       }
       if (toolName === "load_capabilities") {
         let result: ReturnType<typeof loadCompanyCapabilities>;
-        try { result = loadCompanyCapabilities(parseToolArguments(toolCall.function.arguments), loadedCapabilities, args.source); }
-        catch { result = { ok: false, error: "Invalid JSON; nothing was loaded.", validIds: [] }; }
-        const fitted = fitOrgAgentToolResultToBudget({ remainingChars: Math.max(0, ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars), serializedResult: JSON.stringify(result) });
+        try {
+          result = loadCompanyCapabilities(
+            parseToolArguments(toolCall.function.arguments),
+            loadedCapabilities,
+            args.source
+          );
+        } catch {
+          result = {
+            ok: false,
+            error: "Invalid JSON; nothing was loaded.",
+            validIds: [],
+          };
+        }
+        const fitted = fitOrgAgentToolResultToBudget({
+          remainingChars: Math.max(
+            0,
+            ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars
+          ),
+          serializedResult: JSON.stringify(result),
+        });
         const content = fitted.content;
         if (!fitted.complete) toolBudgetReached = true;
         totalToolResultChars += content.length;
-        messages.push({ role: "tool", tool_call_id: toolCall.id, name: toolName, content });
-        state.toolResults.push({ callId: toolCall.id, name: toolName, status: result.ok ? "success" : "error", summary: result.ok ? "필요한 기능 지침 로드" : "기능 지침 로드 실패" });
-        emitToolDebug({ status: result.ok ? "completed" : "failed", summary: "capability load" });
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          name: toolName,
+          content,
+        });
+        state.toolResults.push({
+          callId: toolCall.id,
+          name: toolName,
+          status: result.ok ? "success" : "error",
+          summary: result.ok ? "필요한 기능 지침 로드" : "기능 지침 로드 실패",
+        });
+        emitToolDebug({
+          status: result.ok ? "completed" : "failed",
+          summary: "capability load",
+        });
         continue;
       }
 
@@ -966,7 +1076,13 @@ export async function runOrgAgentToolLoop(args: {
   } catch (error) {
     args.signal?.throwIfAborted();
     if (args.allowSilentCompletion) throw error;
-    if (!state.fallbackReply && !state.stagedProposal && !state.requiredPresentationText && !state.requiredSlackContinuationLink && state.updateSummaries.length === 0)
+    if (
+      !state.fallbackReply &&
+      !state.stagedProposal &&
+      !state.requiredPresentationText &&
+      !state.requiredSlackContinuationLink &&
+      state.updateSummaries.length === 0
+    )
       throw error;
     console.error(
       "[org/agent:final-post-tool-completion]",
@@ -1272,6 +1388,7 @@ export async function runOrgAgentWebActionTurn(args: {
 
   const llmResult = await runOrgAgentToolLoop({
     allowSilentCompletion: true,
+    responseLocale: "auto",
     actorId: args.user.id,
     actorLabel: args.actorLabel,
     admin,
@@ -1446,6 +1563,7 @@ export async function runOrgAgentChat(args: {
   mentions?: OrgAgentMention[];
   message: string;
   model?: unknown;
+  responseLocale?: OrgLocale;
   onAssistantProgress?: (message: OrgAgentMessage) => Promise<boolean>;
   roleId?: string | null;
   slackAssistantUserId?: string | null;
@@ -1467,7 +1585,9 @@ export async function runOrgAgentChat(args: {
   const userMessageText =
     normalizeText(args.message) ||
     (referenceAttachments.length > 0 || args.imageInputs?.length
-      ? "첨부한 자료를 이 역할의 인재 기준에 반영해 주세요."
+      ? args.responseLocale === "en"
+        ? "Please use the attached materials when reviewing this role's hiring criteria."
+        : "첨부한 자료를 이 역할의 인재 기준에 반영해 주세요."
       : "");
   if (!userMessageText) {
     throw new OrgHttpError(400, "message or attachment is required");
@@ -1671,6 +1791,7 @@ export async function runOrgAgentChat(args: {
       emit: args.emit,
       mentions,
       model: modelConfig.model,
+      responseLocale: args.responseLocale,
       ...(!args.slackThreadId && args.emit
         ? {
             onTextDelta: textStream.append,
@@ -1873,8 +1994,9 @@ export async function runOrgAgentChat(args: {
     );
     const detail = getVisibleErrorMessage(error);
     textStream.replace("");
-    const message =
-      "지금은 에이전트 응답을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    const message = args.responseLocale === "en"
+      ? "I couldn't respond just now. Please try again shortly."
+      : "지금은 에이전트 응답을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.";
     const assistantMessage = await insertOrgAgentMessage({
       admin,
       content: message,

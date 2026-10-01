@@ -3,6 +3,7 @@ import React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/cn";
 import { useCareerT } from "@/i18n/useCareerT";
+import { useIsOrgLocaleProvided, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 
 type TalentCareerModalProps = {
   open: boolean;
@@ -57,11 +58,15 @@ const TalentCareerModal = ({
   closeButtonAriaLabel,
 }: TalentCareerModalProps) => {
   const t = useCareerT();
+  const orgT = useOrgT();
+  const isOrg = useIsOrgLocaleProvided();
   const hasTitle = title !== undefined && title !== null;
   const hasDescription = description !== undefined && description !== null;
   const resolvedCloseButtonAriaLabel =
     closeButtonAriaLabel ??
-    t("career.common.talent_career_modal.18ppi14", "모달 닫기");
+    (isOrg
+      ? orgT("modal.close", "모달 닫기")
+      : t("career.common.talent_career_modal.18ppi14", "모달 닫기"));
   const fallbackAccessibleTitle = ariaLabel ?? resolvedCloseButtonAriaLabel;
 
   return (

@@ -38,6 +38,7 @@ export type CompanyTalentRequestRow = {
   id: string;
   company_workspace_id: string;
   contact_kind: "contact" | "question" | "resume";
+  contact_purpose: "request" | "deliver";
   delivery_body: string | null;
   delivery_subject: string | null;
   role_id: string;
@@ -190,6 +191,7 @@ export async function fetchRequestedIntroContactTarget(args: {
 export async function createCompanyTalentContactDraft(args: {
   admin: UntypedAdmin;
   body: string;
+  contactPurpose: "request" | "deliver";
   id: string;
   recommendationId: string;
   requestContext: string;
@@ -211,6 +213,7 @@ export async function createCompanyTalentContactDraft(args: {
     .insert({
       company_workspace_id: args.workspaceId,
       contact_kind: "contact",
+      contact_purpose: args.contactPurpose,
       delivery_body: args.body.trim(),
       delivery_subject: normalizedText(args.subject, 180),
       draft_revision: 1,
@@ -263,6 +266,7 @@ export async function fetchCompanyTalentContact(args: {
 export async function reviseCompanyTalentContactDraft(args: {
   admin: UntypedAdmin;
   body: string;
+  contactPurpose?: "request" | "deliver";
   expectedRevision: number;
   requestContext: string;
   requestId: string;
@@ -277,6 +281,7 @@ export async function reviseCompanyTalentContactDraft(args: {
       delivery_subject: normalizedText(args.subject, 180),
       draft_revision: args.expectedRevision + 1,
       request_context: context,
+      ...(args.contactPurpose ? { contact_purpose: args.contactPurpose } : {}),
     })
     .eq("id", args.requestId)
     .eq("company_workspace_id", args.workspaceId)
@@ -366,6 +371,7 @@ export async function changeCompanyTalentRequest(args: {
 export async function fetchActiveCompanyTalentRequest(args: {
   admin: UntypedAdmin;
   awaitingTalentOnly?: boolean;
+  requestOnly?: boolean;
   requestId?: string | null;
   talentId: string;
 }) {
@@ -381,6 +387,7 @@ export async function fetchActiveCompanyTalentRequest(args: {
     .order("created_at", { ascending: false })
     .limit(args.requestId ? 1 : 30);
   if (!args.requestId) query = query.in("workflow_status", statuses);
+  if (args.requestOnly) query = query.eq("contact_purpose", "request");
   if (args.requestId) query = query.eq("id", args.requestId);
   const { data, error } = await query;
   if (error) throw error;
@@ -408,6 +415,7 @@ export async function fetchActiveCompanyTalentRequest(args: {
 export async function fetchActiveCompanyTalentRequests(args: {
   admin: UntypedAdmin;
   awaitingTalentOnly?: boolean;
+  requestOnly?: boolean;
   limit?: number;
   talentId: string;
 }) {
@@ -418,7 +426,7 @@ export async function fetchActiveCompanyTalentRequests(args: {
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(1, Math.min(Math.floor(args.limit), 30))
       : 20;
-  const { data, error } = await args.admin
+  let query = args.admin
     .from("company_talent_requests")
     .select(
       "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
@@ -427,6 +435,8 @@ export async function fetchActiveCompanyTalentRequests(args: {
     .in("workflow_status", statuses)
     .order("created_at", { ascending: false })
     .limit(Math.min(limit * 3, 90));
+  if (args.requestOnly) query = query.eq("contact_purpose", "request");
+  const { data, error } = await query;
   if (error) throw error;
   const rows = (
     Array.isArray(data) ? data : []
@@ -1169,14 +1179,16 @@ export async function fetchCompanyTalentContactBySource(args: {
 
 export async function sendCompanyTalentContact(args: {
   admin: UntypedAdmin; id: string; workspaceId: string; roleId: string; talentId: string;
+  contactPurpose: "request" | "deliver";
   recommendationId: string; sourceCompanyMessageId: number;
   subject: string; body: string; requestContext: string;
 }) {
-  const { data, error } = await args.admin.rpc("send_company_talent_contact_v1", {
+  const { data, error } = await args.admin.rpc("send_company_talent_contact_v2", {
     p_request_id: args.id, p_workspace_id: args.workspaceId, p_role_id: args.roleId,
     p_talent_id: args.talentId, p_recommendation_id: args.recommendationId,
     p_source_company_message_id: args.sourceCompanyMessageId,
     p_subject: args.subject, p_body: args.body, p_request_context: validateCompanyContactContext(args.requestContext),
+    p_contact_purpose: args.contactPurpose,
   });
   if (error) throw error;
   return data as { requestId: string; status: string; scheduledAt: string | null; idempotent: boolean };
@@ -1185,6 +1197,7 @@ export async function sendCompanyTalentContact(args: {
 export async function sendCompanyTalentRelayReply(args: {
   admin: UntypedAdmin;
   body: string;
+  contactPurpose: "request" | "deliver";
   relayId: string;
   requestContext: string;
   sourceCompanyMessageId: number;
@@ -1198,13 +1211,14 @@ export async function sendCompanyTalentRelayReply(args: {
     throw new Error("Company relay reply copy is empty");
   }
   const { data, error } = await args.admin.rpc(
-    "send_company_talent_relay_reply_v1",
+    "send_company_talent_relay_reply_v2",
     {
       p_body: body,
       p_relay_id: args.relayId,
       p_request_context: requestContext,
       p_source_company_message_id: args.sourceCompanyMessageId,
       p_subject: subject,
+      p_contact_purpose: args.contactPurpose,
       p_workspace_id: args.workspaceId,
     }
   );

@@ -29,6 +29,7 @@ import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 import { resolveTalentLocation } from "@/lib/talentLocation";
+import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour } from "@/lib/org/introSearchSchedule";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
 
@@ -232,7 +233,7 @@ export async function fetchOrgAgentRoles(args: {
   const [internalResult, memoryResult] = await Promise.all([
     roleIds.length > 0
       ? (args.admin.from("company_internal_roles" as any) as any)
-          .select("role_id, request, criteria")
+          .select("role_id, request, criteria, intro_search_date, intro_search_time")
           .in("role_id", roleIds)
       : Promise.resolve({ data: [], error: null }),
     roleIds.length > 0
@@ -260,6 +261,11 @@ export async function fetchOrgAgentRoles(args: {
       }>
     ).map((row) => [row.role_id, normalizeOrgRoleCriteria(row.criteria)])
   );
+  const scheduleByRoleId = new Map(
+    ((internalResult.data ?? []) as Array<{ role_id: string; intro_search_date: string[]; intro_search_time: number }>).map(
+      (row) => [row.role_id, row]
+    )
+  );
   const memoryRoleIds = new Set(
     (
       (memoryResult.data ?? []) as Array<{
@@ -276,6 +282,8 @@ export async function fetchOrgAgentRoles(args: {
         description: row.description ?? null,
         employmentTypes: Array.isArray(row.type) ? row.type : [],
         externalJdUrl: row.external_jd_url ?? null,
+        introSearchDate: parseIntroSearchDays(scheduleByRoleId.get(row.role_id)?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
+        introSearchTime: parseIntroSearchHour(scheduleByRoleId.get(row.role_id)?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
         hasMemory: memoryRoleIds.has(row.role_id),
         locationText: row.location_text ?? null,
         name: row.name,
@@ -1894,6 +1902,8 @@ export async function readOrgAgentRole(args: {
   const stage = validateStage(text(args.stage));
   const baseRole = {
     isCompanyFirstSearch: role.isCompanyFirstSearch,
+    introSearchDate: role.introSearchDate,
+    introSearchTime: role.introSearchTime,
     employmentTypes: role.employmentTypes.map(humanizeOrgEmploymentType),
     externalJdUrl: role.externalJdUrl,
     locationText: role.locationText,

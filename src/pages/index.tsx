@@ -1,3 +1,6 @@
+import CareerLandingClosingSection, {
+  CAREER_LANDING_CLOSING_COPY,
+} from "@/components/landing/CareerLandingClosingSection";
 import Reveal from "@/components/landing/Animation/Reveal";
 import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
 import CareerLandingEmailCaptureForm from "@/components/landing/career/CareerLandingEmailCaptureForm";
@@ -433,12 +436,7 @@ const LANDING_COPY = {
         },
       ],
     },
-    cta: {
-      title: ["새로운 팀에 합류할 준비가 되셨나요?"],
-      desc: "Harper가 다음 커리어로 적합한 역할을 찾고,<br />최종 합류까지 필요한 모든 과정을 도와드립니다.",
-      button: "Meet Harper",
-      note: "Takes less than 3 minutes to sync your context. 100% encrypted.",
-    },
+    cta: CAREER_LANDING_CLOSING_COPY.ko,
   },
   en: {
     meta: {
@@ -683,12 +681,7 @@ const LANDING_COPY = {
         },
       ],
     },
-    cta: {
-      title: ["Put your career", "on Autopilot."],
-      desc: "Harper finds your next job and helps you land it",
-      button: "Meet your Agent",
-      note: "Takes less than 3 minutes to sync your context. 100% encrypted.",
-    },
+    cta: CAREER_LANDING_CLOSING_COPY.en,
   },
 } satisfies Record<Locale, LandingCopy>;
 
@@ -2514,51 +2507,34 @@ export default function LandingKoVfPage({
 
           <AudienceSection audience={copy.audience} />
 
-          <section id="cta" className={`${ui.pageX} ${ui.sectionY}`}>
-            <div className={ui.shell}>
-              <Reveal once blur={0} distance={20}>
-                <div className="flex flex-col gap-4 items-center justify-center text-center">
-                  <h2 className={`${text.h2}`}>
-                    <Lines lines={copy.cta.title} />
-                  </h2>
-                  {copy.cta.desc && (
-                    <p
-                      className={cn(text.lg, "mt-2 text-neutral-800")}
-                      dangerouslySetInnerHTML={{ __html: copy.cta.desc }}
-                    />
-                  )}
-                  {isEmailFirstTreatment ? (
-                    <CareerLandingEmailCaptureForm
-                      abtestType={signupFlowExperiment.abtestType}
-                      addLandingLog={addLandingLog}
-                      className="mt-8"
-                      countryLang={countryLang}
-                      fieldClassName="bg-neutral-100"
-                      isMobile={isMobile}
-                      localId={landingId}
-                      locale={landingLocale}
-                      pagePath={router.asPath || "/"}
-                      source={marketingSource}
-                      variant={CAREER_EMAIL_ONBOARDING_VARIANT}
-                    />
-                  ) : (
-                    <Link
-                      href={effectiveCareerStartHref}
-                      onClick={effectiveCareerStartClick}
-                      className={cx(ui.btn, ui.btnPrimary, "mt-8")}
-                    >
-                      {copy.cta.button}
-                    </Link>
-                  )}
-                  <div
-                    className={cx("text-sm md:text-sm text-neutral-700 italic")}
-                  >
-                    {copy.cta.note}
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-          </section>
+          <CareerLandingClosingSection
+            copy={copy.cta}
+            action={
+              isEmailFirstTreatment ? (
+                <CareerLandingEmailCaptureForm
+                  abtestType={signupFlowExperiment.abtestType}
+                  addLandingLog={addLandingLog}
+                  className="mt-8"
+                  countryLang={countryLang}
+                  fieldClassName="bg-neutral-100"
+                  isMobile={isMobile}
+                  localId={landingId}
+                  locale={landingLocale}
+                  pagePath={router.asPath || "/"}
+                  source={marketingSource}
+                  variant={CAREER_EMAIL_ONBOARDING_VARIANT}
+                />
+              ) : (
+                <Link
+                  href={effectiveCareerStartHref}
+                  onClick={effectiveCareerStartClick}
+                  className={cx(ui.btn, ui.btnPrimary, "mt-8")}
+                >
+                  {copy.cta.button}
+                </Link>
+              )
+            }
+          />
         </main>
 
         <CareerLandingFooter

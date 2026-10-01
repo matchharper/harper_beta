@@ -1,5 +1,7 @@
 "use client";
 
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+
 import { LoaderCircle, TriangleAlert } from "lucide-react";
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -30,6 +32,7 @@ export function OrgUnsavedChangesBar({
   onSave: () => void;
   pending: boolean;
 }) {
+  const t = useOrgT();
   const portalTarget = useSyncExternalStore(
     subscribeToDocumentBody,
     getDocumentBody,
@@ -49,19 +52,19 @@ export function OrgUnsavedChangesBar({
           <div className="min-w-0">
             <div className="text-[13px] font-medium text-neutral-primary">
               {hasChanges
-                ? "저장하지 않은 변경사항이 있습니다."
-                : "정보를 수정하고 있습니다."}
+                ? t("workspace.OrgUnsavedChangesBar.3d21ca87", "저장하지 않은 변경사항이 있습니다.")
+                : t("workspace.OrgUnsavedChangesBar.5999985e", "정보를 수정하고 있습니다.")}
             </div>
             <div className="text-[12px] leading-5 text-neutral-muted">
               {hasChanges
-                ? "저장하지 않고 이동하면 변경사항이 반영되지 않습니다."
-                : "값을 변경한 뒤 저장해 주세요."}
+                ? t("workspace.OrgUnsavedChangesBar.706548cf", "저장하지 않고 이동하면 변경사항이 반영되지 않습니다.")
+                : t("workspace.OrgUnsavedChangesBar.fb3e0ddf", "값을 변경한 뒤 저장해 주세요.")}
             </div>
           </div>
         </div>
         <div className="flex shrink-0 justify-end gap-2">
           <MuteButton disabled={pending} onClick={onCancel} size="md">
-            수정 취소
+            {t("workspace.OrgUnsavedChangesBar.a19ec0e1", "수정 취소")}
           </MuteButton>
           <MuteButton
             disabled={!canSave || pending}
@@ -70,7 +73,7 @@ export function OrgUnsavedChangesBar({
             variant="primary"
           >
             {pending ? <LoaderCircle className="size-4 animate-spin" /> : null}
-            변경사항 저장
+            {t("workspace.OrgUnsavedChangesBar.470659ff", "변경사항 저장")}
           </MuteButton>
         </div>
       </div>

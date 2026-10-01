@@ -1,3 +1,5 @@
+import type { OrgLocale } from "@/i18n/org/locale";
+
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 
 export type OrgSlackWorkspace = {
@@ -130,11 +132,20 @@ export function formatOptional(value: unknown) {
 
 export function buildOrgRoleCreatedSlackMessage(args: {
   actor: OrgSlackUser;
+  locale?: OrgLocale;
   roleId: string;
   roleName: string;
   workspace: OrgSlackWorkspace;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
+  if (args.locale === "en")
+    return [
+      `Harper is starting to match candidates for *${formatSlackLink(roleUrl, args.roleName)}* at ${escapeSlackText(args.workspace.companyName)}.`,
+      "",
+      "Harper searches for candidates who fit this role. After confirming fit and interest, Harper adds them to Ready to connect for your decision. When Company-first suggestions are on, potential matches may also appear in Suggested candidates. They have not accepted the role; use Request intro if you want Harper to contact them.",
+      "",
+      "Review candidates in Ready to connect and decide whether to connect. If you choose Connect, select Email intro or Direct contact. If you choose Reject, Harper closes the process for that role and notifies the candidate. Feedback on candidates and role priorities helps improve future recommendations.",
+    ].join("\n");
   return [
     `지금부터 ${escapeSlackText(args.workspace.companyName)}의 *${formatSlackLink(roleUrl, args.roleName)}* 역할의 매칭을 시작합니다.`,
     "🔥 앞으로 Harper가 해당 역할의 기준과 팀의 선호도에 맞는 후보자를 찾아 추천할게요.",
@@ -147,6 +158,7 @@ export function buildOrgRoleCreatedSlackMessage(args: {
 
 export function buildOrgRoleCalibrationSlackMessage(args: {
   calibrationId: string;
+  locale?: OrgLocale;
   profiles: Array<{
     display: {
       headline: string | null;
@@ -161,6 +173,33 @@ export function buildOrgRoleCalibrationSlackMessage(args: {
   workspaceId: string;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspaceId, args.roleId);
+  if (args.locale === "en")
+    return [
+      `*Sample profiles for ${formatSlackLink(roleUrl, args.roleName)}*`,
+      "These are anonymized examples of people Harper may look for. They have not been matched or contacted. Let Harper know which profiles fit the role and why.",
+      "",
+      args.profiles
+        .map((profile) => {
+          const profileUrl = buildOrgRoleCalibrationProfileUrl({
+            calibrationId: args.calibrationId,
+            profileId: profile.profileId,
+            roleId: args.roleId,
+            workspaceId: args.workspaceId,
+          });
+          return [
+            `*Profile ${escapeSlackText(profile.profileId)}* — ${formatSlackLink(profileUrl, profile.display.name)}`,
+            profile.display.headline
+              ? escapeSlackText(profile.display.headline)
+              : null,
+            `*Why Harper selected this profile* ${escapeSlackText(profile.selection.reason)}`,
+          ]
+            .filter(Boolean)
+            .join("\n");
+        })
+        .join("\n\n———\n\n"),
+      "",
+      "Reply in this thread with what works or doesn't, and the reason. Harper will use that feedback for the next search.",
+    ].join("\n");
   const profileBlocks = args.profiles.map((profile) => {
     const profileUrl = buildOrgRoleCalibrationProfileUrl({
       calibrationId: args.calibrationId,
@@ -190,6 +229,7 @@ export function buildOrgRoleCalibrationSlackMessage(args: {
 
 export function buildOrgRoleCalibrationSlackBlocks(args: {
   calibrationId: string;
+  locale?: OrgLocale;
   profiles: Array<{
     display: {
       headline: string | null;
@@ -207,7 +247,10 @@ export function buildOrgRoleCalibrationSlackBlocks(args: {
   return [
     {
       text: {
-        text: `*${formatSlackLink(roleUrl, `${args.roleName} 역할의 예시 프로필을 골랐어요`)}*\n아직 실제로 매칭되거나 연락한 분들은 아니에요. 제가 이해한 기준이라면 이런 분들을 찾아보게 될 것 같아, 혹시 잘못 이해한 부분이 없는지 여쭤보려고 이름과 사진을 바꾼 예시 프로필을 준비했어요. 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.`,
+        text:
+          args.locale === "en"
+            ? `*${formatSlackLink(roleUrl, `Sample profiles for ${args.roleName}`)}*\nThese anonymized examples show the people Harper may look for. They have not been matched or contacted. Tell Harper which profiles fit the role and why.`
+            : `*${formatSlackLink(roleUrl, `${args.roleName} 역할의 예시 프로필을 골랐어요`)}*\n아직 실제로 매칭되거나 연락한 분들은 아니에요. 제가 이해한 기준이라면 이런 분들을 찾아보게 될 것 같아, 혹시 잘못 이해한 부분이 없는지 여쭤보려고 이름과 사진을 바꾼 예시 프로필을 준비했어요. 지금 생각한 매칭 기준이 맞는지 확인하고 싶어요.`,
         type: "mrkdwn",
       },
       type: "section",
@@ -224,7 +267,10 @@ export function buildOrgRoleCalibrationSlackBlocks(args: {
         ...(localPicture?.startsWith("/") && !localPicture.startsWith("//")
           ? {
               accessory: {
-                alt_text: `예시 프로필 ${profile.profileId}`,
+                alt_text:
+                  args.locale === "en"
+                    ? `Sample profile ${profile.profileId}`
+                    : `예시 프로필 ${profile.profileId}`,
                 image_url: new URL(
                   localPicture,
                   getOrgPublicSiteUrl()
@@ -239,7 +285,7 @@ export function buildOrgRoleCalibrationSlackBlocks(args: {
             profile.display.headline
               ? escapeSlackText(profile.display.headline)
               : null,
-            `*Harper가 고른 이유* ${escapeSlackText(profile.selection.reason)}`,
+            `${args.locale === "en" ? "*Why Harper selected this profile*" : "*Harper가 고른 이유*"} ${escapeSlackText(profile.selection.reason)}`,
           ]
             .filter(Boolean)
             .join("\n"),
@@ -253,7 +299,10 @@ export function buildOrgRoleCalibrationSlackBlocks(args: {
     }),
     {
       text: {
-        text: "이 스레드에서 `A는 Good`, `C는 경력이 짧아서 Bad`처럼 말씀해 주세요. 좋거나 아쉬운 이유를 함께 알려주시면 다음 추천 기준에도 반영할게요.",
+        text:
+          args.locale === "en"
+            ? "Reply in this thread with what works or doesn't, and why. Harper will use that feedback for the next search."
+            : "이 스레드에서 `A는 Good`, `C는 경력이 짧아서 Bad`처럼 말씀해 주세요. 좋거나 아쉬운 이유를 함께 알려주시면 다음 추천 기준에도 반영할게요.",
         type: "mrkdwn",
       },
       type: "section",
@@ -268,12 +317,44 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
   closureNotificationDelivered?: boolean;
   contactDirectly?: boolean;
   introEmails: string[];
+  locale?: OrgLocale;
   reactivated?: boolean;
   roleId: string;
   roleName: string;
   workspace: OrgSlackWorkspace;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
+  if (args.locale === "en") {
+    const candidateName = escapeSlackText(args.candidate.name || "the candidate");
+    const lines = [
+      args.contactDirectly
+        ? `*Direct contact selected for ${candidateName}*`
+        : `*Introduction email sent for ${candidateName}*`,
+      `- *Role*: ${formatSlackLink(roleUrl, args.roleName)}`,
+      `- *Candidate*: ${formatCandidate(args.candidate)}`,
+      `- *Connection method*: ${args.contactDirectly ? "Direct contact" : "Email intro"}`,
+      `- *Reason*: ${escapeSlackText(args.acceptReason) || "None provided"}`,
+    ];
+    if (!args.contactDirectly)
+      lines.splice(
+        4,
+        0,
+        `- *Company recipients*: ${args.introEmails.map(escapeSlackText).join(", ") || "None"}`
+      );
+    if (args.reactivated)
+      lines.push(
+        args.closureNotificationDelivered
+          ? "Harper already informed the candidate of the earlier decision. That notice cannot be recalled. Explain the change in circumstances openly when you speak with them."
+          : "Harper stopped the separate closure notice, but the earlier decision may already have appeared in the candidate's view. Explain the change in circumstances when you speak with them."
+      );
+    lines.push(
+      "",
+      args.contactDirectly
+        ? "Harper did not send an introduction email. Contact the candidate directly to introduce yourself and coordinate next steps."
+        : "Harper sent the introduction email. Both sides can continue the conversation and coordinate next steps in the same thread."
+    );
+    return lines.join("\n");
+  }
   const rawCandidateName = normalizeText(args.candidate.name) || "후보자";
   const politeCandidateName = rawCandidateName.endsWith("님")
     ? rawCandidateName
@@ -318,6 +399,7 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
 export function buildOrgCandidateRejectedSlackMessage(args: {
   actor: OrgSlackUser;
   candidate: OrgSlackCandidate;
+  locale?: OrgLocale;
   previousStage?: string | null;
   roleId: string;
   roleName: string;
@@ -327,6 +409,19 @@ export function buildOrgCandidateRejectedSlackMessage(args: {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
   const rejectingPendingConnection =
     !args.previousStage || args.previousStage === "pending_connection";
+  if (args.locale === "en")
+    return [
+      rejectingPendingConnection
+        ? `*Chose not to connect with ${escapeSlackText(args.candidate.name || "the candidate")}*`
+        : `*Ended the hiring process with ${escapeSlackText(args.candidate.name || "the candidate")}*`,
+      `- *Role*: ${formatSlackLink(roleUrl, args.roleName)}`,
+      `- *Candidate*: ${formatCandidate(args.candidate)}`,
+      `- *Decided by*: ${formatPerson(args.actor)}`,
+      `- *Reason*: ${escapeSlackText(args.stopNote) || "None provided"}`,
+      rejectingPendingConnection
+        ? "The decision appears in the candidate's view, and Harper will notify them that the company is not moving forward. Notices already shown or sent cannot be recalled."
+        : "Harper will notify the candidate that the process has ended. Earlier introductions, direct contact, and notices already shown or sent cannot be recalled.",
+    ].join("\n");
   const rawCandidateName = normalizeText(args.candidate.name) || "이 분";
   const politeCandidateName = rawCandidateName.endsWith("님")
     ? rawCandidateName

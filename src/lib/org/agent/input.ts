@@ -1,15 +1,18 @@
 import { buildOrgAgentSystemPrompt, buildOrgAgentUserPrompt } from "./prompts";
 import { buildLlmImageMessageContent, type LlmImageInput, type LlmMessageContent } from "@/lib/llm/imageInput";
 import type { resolveCompanyCapabilities } from "./capabilities/resolver";
+import type { CompanyResponseLocale } from "./uxWritingPrompt";
 
 export type CompanyInputMessage = { role: "system" | "user" | "assistant"; content: LlmMessageContent };
 export function buildCompanySystemInput(args: {
   resolved: ReturnType<typeof resolveCompanyCapabilities>;
   surface: "chat" | "slack";
+  responseLocale?: CompanyResponseLocale;
   allowSilentCompletion?: boolean;
 }) {
   return buildOrgAgentSystemPrompt({
     surface: args.surface,
+    responseLocale: args.responseLocale,
     enableSlackChoiceButtons: args.surface === "slack",
     allowSilentCompletion: args.allowSilentCompletion,
     capabilityCatalogText: args.resolved.catalogText,

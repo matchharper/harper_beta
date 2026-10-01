@@ -1,3 +1,8 @@
+import {
+  getOfficialJobsLayoutAbtestType,
+  parseOfficialJobsLayoutVariant,
+  OFFICIAL_JOBS_LAYOUT_COOKIE,
+} from "@/lib/officialJobs/experiment";
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
 import type { OfficialJobEventType } from "@/lib/officialJobs/events";
@@ -6,7 +11,6 @@ import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
 import {
   buildOfficialJobLandingLogType,
   mapOfficialJobEventToLandingEvent,
-  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
   OFFICIAL_JOBS_LANDING_SOURCE,
 } from "@/lib/officialJobs/landingLogs";
 
@@ -104,6 +108,11 @@ async function resolveOfficialJobId(jobSlug: string | null) {
 
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
+  const abtestType = getOfficialJobsLayoutAbtestType(
+    parseOfficialJobsLayoutVariant(
+      req.cookies.get(OFFICIAL_JOBS_LAYOUT_COOKIE)?.value
+    )
+  );
 
   let body: OfficialJobEventBody;
   try {
@@ -180,7 +189,7 @@ export async function POST(req: NextRequest) {
           landingEvent.event,
           landingEvent.jobSlug
         ),
-        abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+        abtest_type: abtestType,
         is_mobile: isMobileUserAgent(userAgent),
         country_lang: null,
       });
@@ -202,7 +211,7 @@ export async function POST(req: NextRequest) {
           user.email,
           OFFICIAL_JOBS_LANDING_SOURCE
         ),
-        abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+        abtest_type: abtestType,
         is_mobile: isMobileUserAgent(userAgent),
         country_lang: null,
       });

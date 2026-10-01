@@ -2,6 +2,7 @@ import "server-only";
 import { companyCompletionTokenBudget, companyCompletionProviderHint, validateCompanyCompletion } from "./completionContract";
 
 import type { User } from "@supabase/supabase-js";
+import type { OrgLocale } from "@/i18n/org/locale";
 import { after } from "next/server";
 import {
   createChatCompletionWithFallback,
@@ -370,6 +371,7 @@ export async function generateRoleCreationOutcomeReply(args: {
   model?: OrgAgentModelId | string | null;
   outcome: "completed" | "declined" | "revalidation_failed";
   surface?: "chat" | "slack";
+  responseLocale?: OrgLocale;
   state: RoleCreationState;
 }) {
   const selectedModel = isOrgAgentModelId(args.model)
@@ -383,7 +385,7 @@ export async function generateRoleCreationOutcomeReply(args: {
         : { max_tokens: companyCompletionTokenBudget(selectedModel, ROLE_CREATION_MAX_OUTPUT_TOKENS) }),
       messages: [
         {
-          content: buildRoleCreationOutcomeSystemPrompt(args.surface),
+          content: buildRoleCreationOutcomeSystemPrompt(args.surface, args.responseLocale),
           role: "system" as const,
         },
         {
@@ -426,6 +428,7 @@ export async function runOrgRoleCreationChat(args: {
   messageType?: string;
   messageUserId?: string | null;
   model?: OrgAgentModelId | string | null;
+  responseLocale?: OrgLocale;
   roleId?: string | null;
   slackAssistantUserId?: string | null;
   slackThreadId?: string | null;
@@ -442,8 +445,12 @@ export async function runOrgRoleCreationChat(args: {
     text(args.message) ||
     (attachments.length > 0 || args.imageInputs?.length
       ? requestedRoleId
-        ? "첨부한 자료를 바탕으로 역할 정보를 수정할게요."
-        : "첨부한 자료를 바탕으로 새 역할 등록을 시작할게요."
+        ? args.responseLocale === "en"
+          ? "Please update this role using the attached materials."
+          : "첨부한 자료를 바탕으로 역할 정보를 수정할게요."
+        : args.responseLocale === "en"
+          ? "Please start a new role using the attached materials."
+          : "첨부한 자료를 바탕으로 새 역할 등록을 시작할게요."
       : "");
   if (!persistedMessage) throw new Error("메시지 또는 첨부 파일이 필요합니다.");
   const message = text(args.llmUserMessage) || persistedMessage;
@@ -613,6 +620,7 @@ export async function runOrgRoleCreationChat(args: {
     {
       content: buildRoleCreationSystemPrompt({
         editingRegisteredRole: state.role.status !== "draft",
+        responseLocale: args.responseLocale,
         surface,
       }),
       role: "system",
@@ -871,6 +879,7 @@ export async function runOrgRoleCreationChat(args: {
       decision: "yes",
       messageId: pendingConfirmationMessage.id,
       messageType: surface === "slack" ? "slack" : "chat",
+      responseLocale: args.responseLocale,
       roleId,
       slackAssistantUserId: args.slackAssistantUserId,
       slackThreadId: args.slackThreadId,

@@ -13,6 +13,7 @@ import {
 } from "@/lib/companyTalentRequests/server";
 import { fetchTalentOpportunityHistory } from "@/lib/talentOpportunity";
 import { fetchCareerExternalFeedbackSuggestions } from "@/lib/career/taskSuggestions.server";
+import { fetchCareerRecentInfoPage } from "@/lib/career/recentTaskInfo.server";
 import type {
   CareerPendingAction,
   CareerReengagementPendingActionsSnapshot,
@@ -28,6 +29,7 @@ import {
   type CareerExternalFeedbackSnapshot,
   type CareerPendingActionsSnapshot,
   type CareerTaskProgressSnapshot,
+  type CareerRecentInfoPage,
 } from "@/lib/career/taskItems";
 
 const cleanText = (value: unknown, fallback: string, maxLength = 1000) => {
@@ -87,7 +89,11 @@ export async function GET(req: NextRequest) {
   const isReengagementScope =
     req.nextUrl.searchParams.get("scope") === "reengagement";
   const isProgressScope = req.nextUrl.searchParams.get("scope") === "progress";
+  const isRecentInfoScope = req.nextUrl.searchParams.get("scope") === "recent-info";
   if (!setting?.is_onboarding_done) {
+    if (isRecentInfoScope) {
+      return NextResponse.json({ items: [], nextCursor: null } satisfies CareerRecentInfoPage);
+    }
     if (isReengagementScope) {
       return NextResponse.json({
         actions: [],
@@ -109,6 +115,25 @@ export async function GET(req: NextRequest) {
 
   const locale =
     req.nextUrl.searchParams.get("locale") ?? setting.preferred_locale;
+  if (isRecentInfoScope) {
+    const beforeAt = req.nextUrl.searchParams.get("beforeAt");
+    const beforeId = req.nextUrl.searchParams.get("beforeId");
+    if ((beforeAt !== null || beforeId !== null) &&
+      (!beforeAt || beforeId === null || !Number.isFinite(Date.parse(beforeAt)) ||
+        (beforeId !== "" && !/^(contact|closed):[0-9a-f-]{36}$/.test(beforeId)))) {
+      return NextResponse.json({ error: "Invalid recent info cursor" }, { status: 400 });
+    }
+    try {
+      return NextResponse.json(await fetchCareerRecentInfoPage({
+        admin,
+        talentId: user.id,
+        before: beforeAt && beforeId !== null ? { at: beforeAt, id: beforeId } : undefined,
+      }));
+    } catch (error) {
+      console.error("[CareerRecentInfo] Failed to load", error);
+      return NextResponse.json({ error: "Failed to load recent info" }, { status: 500 });
+    }
+  }
   if (isProgressScope) {
     try {
       const opportunities = await fetchTalentOpportunityHistory({
@@ -198,6 +223,7 @@ export async function GET(req: NextRequest) {
       promise: fetchActiveCompanyTalentRequests({
         admin: admin as any,
         awaitingTalentOnly: true,
+        requestOnly: true,
         talentId: user.id,
       }),
       userId: user.id,

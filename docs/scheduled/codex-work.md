@@ -111,6 +111,7 @@ Slack 또는 /org에서 internal Role이 처음 active가 됨
 | 새 Role profile calibration | DB event + local listener | Role 최초 active 직후 | [Company Role Profile Calibration](./company-role-profile-calibration-ko.md) | calibration snapshot, Slack delivery receipt | claim할 Role 없음 |
 | Calibration 후 Company Matching 1회 실행 | Company Matching durable queue + Python Worker | calibration Slack `sentAt + 12h` | [Calibration 후 12시간 Company Matching](./company-role-post-calibration-review-ko.md) | matching review, route별 기존 ledger·delivery receipt | planner skip 또는 actionable 후보 없음 |
 | 활동 기반 Hiring Brief 갱신 | Codex Scheduled task 하나 | 48시간마다 | [48시간 Hiring Brief 갱신 런북](./company-role-request-refresh-48h-ko.md) | 승인된 `company_internal_roles.request` 변경 또는 확인 대기 proposal | 활동 또는 유효한 변경 없음 |
+| LinkedIn Jobs 수요 기반 GTM (운영 전) | Codex Scheduled task 예정 | 매일 08:00 KST 예정 | [LinkedIn Jobs GTM 운영 계약](./linkedin-jobs-marketplace-gtm-ko.md) | eligible Role의 공개 공고, 검증된 LinkedIn 게시 상태, Notion 행동 이력 | 신규·수정·교체 필요 없음 |
 
 공통 판단 문서:
 

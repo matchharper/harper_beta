@@ -28,6 +28,10 @@ const option = (name: string) => process.argv.find((v) => v.startsWith(`--${name
 const mode = option("mode") ?? "progressive";
 const streaming = option("stream") === "true";
 const copyMode = option("copy") ?? "synthetic";
+const responseLocale = option("response-locale") ?? null;
+if (responseLocale !== null && responseLocale !== "ko" && responseLocale !== "en") {
+  throw Error("response-locale must be ko or en");
+}
 if (!["synthetic", "real"].includes(copyMode)) throw Error("copy must be synthetic or real");
 if (mode !== "full" && mode !== "progressive") throw Error("mode must be full or progressive");
 const runId = option("run") ?? `${new Date().toISOString().replaceAll(":", "-")}-${mode}`;
@@ -77,14 +81,14 @@ const { parseOrgAgentContactRef } = await import("../src/lib/org/agent/contacts"
 const copy = copyMode === "real" ? await import("../src/lib/companyTalentRequests/copy") : null;
 const { candidateContactWritingEvidence } = await import("../src/lib/companyTalentRequests/writingEvidence");
 const { enforceOrgAgentReplyInvariants, getOrgAgentRequiredPresentationTexts, selectRecentlyPresentedContactDraftReferences, captureOrgAgentContactDraftState } = await import("../src/lib/org/agent/toolState");
-const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").sort();
+const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/org/slackMemberAccess.ts", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "src/i18n/org", "src/app/api/internal/org-agent/slack-turn/route.ts", "src/app/api/org/locale/route.ts", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").sort();
 const sourceFingerprint = sha(sourceFiles.map((file) => `${file}:${sha(readFileSync(path.join(root, file)))}`).join("\n"));
 const manifest: any = {
   task: "company-side-conversational-qa", datasetVersion: version, runId, createdAt: new Date().toISOString(),
   sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
   dirty: true, sourceFingerprint, datasetFiles: frozen.files,
   model: ORG_AGENT_GEMINI_FLASH_MODEL, provider: "OpenRouter", reasoning: DEFAULT_ORG_AGENT_REASONING_EFFORT, temperature: 0.5,
-  mode, streaming, timeoutMsPerTurn: 120_000, layer: "real-model-production-loop-synthetic-tools",
+  mode, streaming, responseLocale, timeoutMsPerTurn: 120_000, layer: "real-model-production-loop-synthetic-tools",
   copyMode, copyModelContract: "Direct send preserves main-agent final copy via production prepareDirectCandidateMessage. Review drafts use existing copy.ts (Claude, Luna fallback). No delivery or DB calls.",
   rawArtifactPath: runDir, metricSummary: "Pending manual semantic review; structural execution is not a quality pass.",
   selected: option("case") ?? "all", results: [],
@@ -376,7 +380,7 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         actorId, actorLabel: "팀원 A", admin: deadAdmin as any, context,
         conversation: { id: conversationId, company_workspace_id: workspaceId, role_id: variant.currentRoleId === null ? null : roles[0]?.roleId ?? null } as any,
         currentUserMessageId: currentId, mentions: [], model: ORG_AGENT_GEMINI_FLASH_MODEL,
-        readAudience: "company_safe", scopeKey: `synthetic-${version}`, source: variant.surface ?? "slack",
+        readAudience: "company_safe", scopeKey: `synthetic-${version}`, source: variant.surface ?? "slack", responseLocale: responseLocale ?? undefined,
         slackThreadId: null, user: { id: actorId, email: "user@example.invalid" } as any,
         userLabel: "팀원 A", userMessage, allowSilentCompletion: variant.allowSilentCompletion === true,
         signal: AbortSignal.timeout(120_000),

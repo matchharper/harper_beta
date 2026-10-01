@@ -977,7 +977,7 @@ export async function runCompanySnapshotResearch(args: {
       sources: reusableBaseSources,
       schema_version: COMPANY_SNAPSHOT_SCHEMA_VERSION,
       metadata: {
-        engine: "exa_terra_writer_v8",
+        engine: "exa_sol_writer_v8",
         generated_at: new Date().toISOString(),
         model: report.model,
         search_count: exaCalls.length,
@@ -990,7 +990,7 @@ export async function runCompanySnapshotResearch(args: {
         },
         latency_ms: {
           base_searches: baseSearchesCompletedAt - startedAt,
-          terra_agent: completedAt - baseSearchesCompletedAt,
+          sol_agent: completedAt - baseSearchesCompletedAt,
           total: completedAt - startedAt,
         },
       },
@@ -1053,14 +1053,14 @@ async function runCompanySnapshotReportAgent(args: {
           : {}),
       }),
       chatCompletionReasoning: { reasoningEffort },
-      debugLabel: "career_tool:research_company:terra_writer",
+      debugLabel: "career_tool:research_company:sol_writer",
       model,
       openAIResponses: { reasoningEffort },
     });
     const callMetadata = buildLlmCallMetadata({
       model: result.model,
       response: result.response,
-      stage: `terra_writer_turn_${turn + 1}`,
+      stage: `sol_writer_turn_${turn + 1}`,
     });
     llmCalls.push(callMetadata);
     const requestedCalls = getAssistantToolCalls(result.response).filter(
@@ -1383,7 +1383,7 @@ export async function runCompanySnapshotReportFromCachedResearch(args: {
       private_markdown: report.markdown,
       private_sources: Array.from(registry.byUrl.values()),
       metadata: {
-        engine: "exa_terra_writer_v8_cached_evidence",
+        engine: "exa_sol_writer_v8_cached_evidence",
         generated_at: new Date().toISOString(),
         model: report.model,
         search_count: report.exaCalls.length,
@@ -1394,7 +1394,7 @@ export async function runCompanySnapshotReportFromCachedResearch(args: {
           exa_calls: report.exaCalls,
           llm_calls: report.llmCalls,
         },
-        latency_ms: { terra_agent: Date.now() - startedAt },
+        latency_ms: { sol_agent: Date.now() - startedAt },
       },
     };
   } catch (error) {

@@ -40,6 +40,8 @@ export const WEBSITE_COMPANY_DATA_KEYS = [
   "role_employment_types",
   "role_request",
   "role_is_company_first_search",
+  "role_intro_search_date",
+  "role_intro_search_time",
   "role_is_expired",
   "role_source_type",
   "role_source_provider",
@@ -303,11 +305,13 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
   const needsInternalRoles = args.changes.some(
     (change) =>
       change.key === "role_request" ||
-      change.key === "role_is_company_first_search"
+      change.key === "role_is_company_first_search" ||
+      change.key === "role_intro_search_date" ||
+      change.key === "role_intro_search_time"
   );
   const internalResult = needsInternalRoles
     ? await (args.admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, is_company_first_search")
+        .select("role_id, request, is_company_first_search, intro_search_date, intro_search_time")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -403,7 +407,9 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
     const internal = internalByRoleId.get(roleId);
     if (
       (change.key === "role_request" ||
-        change.key === "role_is_company_first_search") &&
+        change.key === "role_is_company_first_search" ||
+        change.key === "role_intro_search_date" ||
+        change.key === "role_intro_search_time") &&
       singleLine(role.source_type) === "internal" &&
       !internal
     ) {
@@ -420,6 +426,8 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
       role_expires_at: utcMillisOrNull(role.expires_at),
       role_external_jd_url: role.external_jd_url ?? null,
       role_is_company_first_search: internal?.is_company_first_search ?? null,
+      role_intro_search_date: internal?.intro_search_date ?? null,
+      role_intro_search_time: internal?.intro_search_time ?? null,
       role_is_expired: role.is_expired ?? null,
       role_location: role.location_text ?? null,
       role_name: role.name,

@@ -1093,8 +1093,8 @@ export async function fetchRoleForOrgAgent(args: {
     (args.admin.from("company_internal_roles" as any) as any)
       .select(
         args.includeCriteria === false
-          ? "is_company_first_search"
-          : "request, criteria, is_company_first_search"
+          ? "is_company_first_search, intro_search_date, intro_search_time"
+          : "request, criteria, is_company_first_search, intro_search_date, intro_search_time"
       )
       .eq("role_id", args.roleId)
       .maybeSingle(),
@@ -1112,6 +1112,8 @@ export async function fetchRoleForOrgAgent(args: {
   return {
     criteria: normalizeOrgRoleCriteria(internalResult.data?.criteria),
     isCompanyFirstSearch: internalResult.data?.is_company_first_search === true,
+    introSearchDate: internalResult.data?.intro_search_date ?? ["Mon", "Wed", "Fri"],
+    introSearchTime: internalResult.data?.intro_search_time ?? 9,
     createdAt: row.created_at,
     description: row.description ?? null,
     employmentTypes: Array.isArray(row.type) ? row.type : [],

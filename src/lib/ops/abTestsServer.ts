@@ -1,4 +1,9 @@
 import "server-only";
+import { buildOfficialJobsExperiment } from "./officialJobsExperiment";
+import {
+  OFFICIAL_JOBS_LAYOUT_ABTEST_A,
+  OFFICIAL_JOBS_LAYOUT_ABTEST_B,
+} from "@/lib/officialJobs/experiment";
 
 import { isInternalEmail } from "@/lib/internalAccess";
 import {
@@ -173,7 +178,7 @@ async function fetchVoiceRows(startIso: string) {
   return rows;
 }
 
-async function fetchSearchRows(startIso: string) {
+async function fetchLandingRows(startIso: string, abtestTypes: string[]) {
   const admin = getTalentSupabaseAdmin();
   const rows: LandingLogRow[] = [];
   let from = 0;
@@ -182,15 +187,12 @@ async function fetchSearchRows(startIso: string) {
     const { data, error } = await admin
       .from("landing_logs")
       .select("id,local_id,type,created_at,abtest_type")
-      .in("abtest_type", [
-        SEARCH_LANDING_ABTEST_TYPE_A,
-        SEARCH_LANDING_ABTEST_TYPE_B,
-      ])
+      .in("abtest_type", abtestTypes)
       .gte("created_at", startIso)
       .order("id", { ascending: true })
       .range(from, from + BATCH_SIZE - 1);
 
-    if (error) throw new Error(error.message || "Search 실험 로그 조회 실패");
+    if (error) throw new Error(error.message || "랜딩 실험 로그 조회 실패");
     const page = (data ?? []) as LandingLogRow[];
     rows.push(...page);
     if (page.length < BATCH_SIZE) break;
@@ -540,13 +542,25 @@ export async function fetchOpsAbTests(args: {
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const startIso = new Date(Date.now() - days * DAY_MS).toISOString();
-  const [voiceRows, searchRows] = await Promise.all([
+  const [voiceRows, searchRows, jobsRows] = await Promise.all([
     fetchVoiceRows(startIso),
-    fetchSearchRows(startIso),
+    fetchLandingRows(startIso, [
+      SEARCH_LANDING_ABTEST_TYPE_A,
+      SEARCH_LANDING_ABTEST_TYPE_B,
+    ]),
+    fetchLandingRows(startIso, [
+      OFFICIAL_JOBS_LAYOUT_ABTEST_A,
+      OFFICIAL_JOBS_LAYOUT_ABTEST_B,
+    ]),
   ]);
   const experiments = await Promise.all([
     buildVoiceExperiment(voiceRows, exclusionTerms),
     Promise.resolve(buildSearchExperiment(searchRows, exclusionTerms)),
+    Promise.resolve(
+      buildOfficialJobsExperiment(jobsRows, (email) =>
+        shouldExcludeEmail(email, exclusionTerms)
+      )
+    ),
   ]);
   const value: OpsAbTestsResponse = {
     days,

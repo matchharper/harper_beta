@@ -1,3 +1,5 @@
+import type { OrgLocale } from "@/i18n/org/locale";
+
 export type HarperSlackAccessDenialReason =
   | "email_unavailable"
   | "insufficient_role"
@@ -6,6 +8,7 @@ export type HarperSlackAccessDenialReason =
 type HarperSlackAccessDeniedMessageArgs = {
   email?: string | null;
   hasPendingInvitation?: boolean;
+  locale?: OrgLocale;
   reason: HarperSlackAccessDenialReason;
   workspaceName?: string | null;
 };
@@ -23,8 +26,36 @@ function slackCode(value: unknown) {
 export function buildHarperSlackAccessDeniedMessage(
   args: HarperSlackAccessDeniedMessageArgs
 ) {
-  const workspaceName = slackCode(args.workspaceName) || "현재";
+  const workspaceName =
+    slackCode(args.workspaceName) ||
+    (args.locale === "en" ? "this workspace" : "현재");
   const email = slackCode(args.email);
+
+  if (args.locale === "en") {
+    if (args.reason === "email_unavailable")
+      return [
+        "🔒 *Couldn't verify Harper Workspace access.*",
+        `Slack didn't provide an email address, so access to “${workspaceName}” couldn't be verified.`,
+        "Ask a Workspace admin to verify your Slack email and workspace access.",
+      ].join("\n");
+    if (args.reason === "insufficient_role")
+      return [
+        "🔒 *You don't have permission to use Harper here.*",
+        `Your account${email ? ` (\`${email}\`)` : ""} has Viewer access to “${workspaceName}”.`,
+        "Ask a Workspace Owner or Admin to update your access, then try again.",
+      ].join("\n");
+    if (args.hasPendingInvitation)
+      return [
+        "🔒 *Join the Harper Workspace to continue.*",
+        `An invitation to “${workspaceName}” was sent to your Slack email${email ? ` (\`${email}\`)` : ""}.`,
+        "Finish signing up from the invitation email, then try again.",
+      ].join("\n");
+    return [
+      "🔒 *You don't have access to this Harper Workspace.*",
+      `No team member account in “${workspaceName}” matches your Slack email${email ? ` (\`${email}\`)` : ""}.`,
+      "Ask a Workspace admin to invite this email, then try again.",
+    ].join("\n");
+  }
 
   if (args.reason === "email_unavailable") {
     return [
@@ -52,7 +83,7 @@ export function buildHarperSlackAccessDeniedMessage(
 
   return [
     "🔒 *Harper Workspace 접근 권한이 없습니다.*",
-    `현재 Slack 계정${email ? ` (\`${email}\`)` : ""}은 “${workspaceName}” Harper Workspace 멤버로 등록되어 있지 않습니다.`,
+    `현재 Slack 계정${email ? ` (\`${email}\`)` : ""}은 “${workspaceName}” Harper Workspace 팀원으로 등록되어 있지 않습니다.`,
     "Workspace 관리자에게 이 이메일로 초대를 요청한 뒤 다시 시도해 주세요.",
   ].join("\n");
 }

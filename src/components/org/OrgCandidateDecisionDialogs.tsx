@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { FormEvent, useId, useState } from "react";
 import {
   CalendarClock,
@@ -26,7 +27,7 @@ import {
   buildDefaultInterviewTitle,
   DEFAULT_INTERVIEW_DURATION_MINUTES,
 } from "@/lib/meetings/scheduleDraft";
-import { formatMeetingAvailabilitySummary } from "@/lib/meetings/availability";
+import { formatOrgMeetingAvailabilitySummary } from "@/i18n/org/meetingSummary";
 import type { OrgMember } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -59,7 +60,7 @@ export function AcceptIntroDialog({
   companyContactName,
   defaultContactDirectly = false,
   defaultEmail,
-  destinationLabel = "연결됨",
+  destinationLabel,
   members = [],
   onClose,
   onSubmit,
@@ -93,6 +94,7 @@ export function AcceptIntroDialog({
   pending?: boolean;
   roleTitle: string;
 }) {
+  const t = useOrgT();
   const router = useRouter();
   const { currentUser, workspace } = useOrgWorkspace();
   const acceptFormId = useId();
@@ -113,8 +115,12 @@ export function AcceptIntroDialog({
   // Meeting scheduling is intentionally chat-only. This dialog only covers
   // direct contact and the existing email-introduction flow.
   const schedulesInterview = false;
-  const processDestinationLabel = destinationLabel;
-  const processDestinationDirection = `${destinationLabel} 단계로`;
+  const processDestinationLabel =
+    destinationLabel ?? t("OrgCandidateDecisionDialogs.4f3da836", "연결됨");
+  const processDestinationDirection = t(
+    "OrgCandidateDecisionDialogs.56d3f654", "{p0} 단계로",
+    { p0: processDestinationLabel }
+  );
   const availabilityQuery = useOrgMeetingAvailability({
     enabled: open && schedulesInterview,
     workspaceId: workspace.workspaceId,
@@ -186,25 +192,25 @@ export function AcceptIntroDialog({
     if (!usesDirectContact && !normalizedCandidateEmail) {
       setError(
         schedulesInterview
-          ? "후보자 이메일이 없어 일정 요청을 준비할 수 없어요."
-          : "후보자 이메일이 없어 소개 이메일을 보낼 수 없어요."
+          ? t("OrgCandidateDecisionDialogs.1a337777", "후보자 이메일이 없어 일정 요청을 준비할 수 없어요.")
+          : t("OrgCandidateDecisionDialogs.ea70bf61", "후보자 이메일이 없어 소개 이메일을 보낼 수 없어요.")
       );
       return;
     }
     if (!usesDirectContact && !schedulesInterview && introEmails.length === 0) {
-      setError("Email intro에는 회사 담당자 이메일이 1개 이상 필요해요.");
+      setError(t("OrgCandidateDecisionDialogs.19240f5a", "Email intro에는 회사 담당자 이메일이 1개 이상 필요해요."));
       return;
     }
     if (schedulesInterview && !availability) {
-      setError("인터뷰 가능 시간을 먼저 설정해 주세요.");
+      setError(t("OrgCandidateDecisionDialogs.91e20d1e", "인터뷰 가능 시간을 먼저 설정해 주세요."));
       return;
     }
     if (schedulesInterview && !meetingTitle.trim()) {
-      setError("인터뷰 제목을 입력해 주세요.");
+      setError(t("OrgCandidateDecisionDialogs.76556b18", "인터뷰 제목을 입력해 주세요."));
       return;
     }
     if (schedulesInterview && !meetingPurpose.trim()) {
-      setError("미팅에서 나눌 주제를 알려주세요.");
+      setError(t("OrgCandidateDecisionDialogs.b2acf2bb", "미팅에서 나눌 주제를 알려주세요."));
       return;
     }
     setError("");
@@ -232,7 +238,7 @@ export function AcceptIntroDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "후보자 연결 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 현재 상태와 메일을 먼저 확인해 주세요."
+          : t("OrgCandidateDecisionDialogs.34a3c453", "후보자 연결 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 현재 상태와 메일을 먼저 확인해 주세요.")
       );
     }
   };
@@ -274,10 +280,14 @@ export function AcceptIntroDialog({
       closeOnBackdrop={!pending}
       description={
         schedulesInterview
-          ? `${processDestinationDirection} 옮기기 전에 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요.`
+          ? t("OrgCandidateDecisionDialogs.2bb1794e", "{p0} 옮기기 전에 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요.", {
+              p0: processDestinationDirection,
+            })
           : usesDirectContact
-            ? `후보자를 ${processDestinationDirection} 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요.`
-            : "Harper가 후보자와 소개 이메일로 연결해요."
+            ? t("OrgCandidateDecisionDialogs.4c24987d", "후보자를 {p0} 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요.", {
+                p0: processDestinationDirection,
+              })
+            : t("OrgCandidateDecisionDialogs.95b48245", "Harper가 후보자와 소개 이메일로 연결해요.")
       }
       footer={
         <div className="flex items-center justify-end gap-2">
@@ -288,7 +298,7 @@ export function AcceptIntroDialog({
             onClick={handleClose}
             disabled={pending}
           >
-            취소
+            {t("OrgCandidateDecisionDialogs.91962053", "취소")}
           </MuteButton>
           <MuteButton
             disabled={
@@ -309,7 +319,7 @@ export function AcceptIntroDialog({
           >
             {pending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {schedulesInterview
-              ? "일정 초안 저장하고 연결하기"
+              ? t("OrgCandidateDecisionDialogs.665a8239", "일정 초안 저장하고 연결하기")
               : usesDirectContact
                 ? "Mark as connected"
                 : "Send intro & connect"}
@@ -325,7 +335,7 @@ export function AcceptIntroDialog({
       open={open}
       panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
       showCloseButton={!pending}
-      title="Connect candidate"
+      title={t("OrgCandidateDecisionDialogs.5d711ec4", "Connect candidate")}
     >
       <form
         className="mt-0 space-y-4"
@@ -334,7 +344,7 @@ export function AcceptIntroDialog({
       >
         {allowContactDirectly ? (
           <div
-            aria-label="연결 방식"
+            aria-label={t("OrgCandidateDecisionDialogs.406f15cd", "연결 방식")}
             className={cn(
               "relative grid h-10 rounded-full bg-neutral-1000-a05 p-1",
               "grid-cols-2"
@@ -365,7 +375,7 @@ export function AcceptIntroDialog({
               role="tab"
               type="button"
             >
-              Email intro
+              {t("OrgCandidateDecisionDialogs.a5ce18fd", "Email intro")}
             </button>
             <button
               aria-selected={usesDirectContact}
@@ -378,7 +388,7 @@ export function AcceptIntroDialog({
               role="tab"
               type="button"
             >
-              Direct contact
+              {t("OrgCandidateDecisionDialogs.747ee859", "Direct contact")}
             </button>
           </div>
         ) : null}
@@ -386,17 +396,16 @@ export function AcceptIntroDialog({
         {usesDirectContact ? (
           <div className="rounded-md bg-bg-weak p-3" role="tabpanel">
             <div className="text-[13px] font-medium text-neutral-primary">
-              Direct contact
+              {t("OrgCandidateDecisionDialogs.747ee859", "Direct contact")}
             </div>
             <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
-              {processDestinationLabel} 상태만 저장하고 Harper는 소개 이메일을
-              보내지 않아요. 회사 담당자가 후보자에게 직접 연락해 다음 단계를
-              진행해 주세요.
+              {processDestinationLabel}{" "}
+              {t("OrgCandidateDecisionDialogs.8bdb5734", "상태만 저장하고 Harper는 소개 이메일을 보내지 않아요. 회사 담당자가 후보자에게 직접 연락해 다음 단계를 진행해 주세요.")}
             </p>
           </div>
         ) : schedulesInterview ? (
           <section
-            aria-label="인터뷰 일정 조율"
+            aria-label={t("OrgCandidateDecisionDialogs.f431cd2f", "인터뷰 일정 조율")}
             className="space-y-4 rounded-lg border border-neutral-1000-a05 bg-bg-default p-4"
             role="tabpanel"
           >
@@ -406,16 +415,23 @@ export function AcceptIntroDialog({
               </span>
               <div className="min-w-0">
                 <div className="text-[13px] font-medium text-neutral-primary">
-                  {candidateName}님에게 제안할 일정
+                  {t("OrgCandidateDecisionDialogs.d89aae92", "{candidateName}님에게 제안할 일정", {
+                    candidateName,
+                  })}
                 </div>
                 <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
                   {availabilityQuery.isLoading
-                    ? "설정한 가능 시간을 확인하고 있어요."
+                    ? t("OrgCandidateDecisionDialogs.716750e7", "설정한 가능 시간을 확인하고 있어요.")
                     : availabilityQuery.error
-                      ? "가능 시간을 불러오지 못했어요. 잠시 후 다시 확인해 주세요."
+                      ? t("OrgCandidateDecisionDialogs.87e5859e", "가능 시간을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.")
                       : availability
-                        ? `${formatMeetingAvailabilitySummary(availability)} 사이에서 향후 2주 내의 일정을 제안해요.`
-                        : "먼저 평소에 미팅이 가능한 시간을 알려주세요."}
+                        ? t("OrgCandidateDecisionDialogs.5f6219d3", "{p0} 사이에서 향후 2주 내의 일정을 제안해요.", {
+                            p0: formatOrgMeetingAvailabilitySummary(
+                              availability,
+                              t
+                            ),
+                          })
+                        : t("OrgCandidateDecisionDialogs.80a4c3ba", "먼저 평소에 미팅이 가능한 시간을 알려주세요.")}
                 </p>
               </div>
             </div>
@@ -437,13 +453,15 @@ export function AcceptIntroDialog({
                 type="button"
                 variant="default"
               >
-                가능 시간 설정하기
+                {t("OrgCandidateDecisionDialogs.3f4e6e2a", "가능 시간 설정하기")}
               </MuteButton>
             ) : null}
 
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
               <label className="block">
-                <span className="text-[12px] text-neutral-soft">제목</span>
+                <span className="text-[12px] text-neutral-soft">
+                  {t("OrgCandidateDecisionDialogs.319831b5", "제목")}
+                </span>
                 <Input
                   className="mt-1 h-9 text-[13px]"
                   disabled={pending}
@@ -453,19 +471,25 @@ export function AcceptIntroDialog({
                 />
               </label>
               <label className="block">
-                <span className="text-[12px] text-neutral-soft">길이</span>
+                <span className="text-[12px] text-neutral-soft">
+                  {t("OrgCandidateDecisionDialogs.3c9ea26b", "길이")}
+                </span>
                 <Select
                   disabled={pending}
                   onValueChange={(value) => setDurationMinutes(Number(value))}
                   value={String(durationMinutes)}
                 >
                   <SelectTrigger className="mt-1 h-9">
-                    <SelectValue>{durationMinutes}분</SelectValue>
+                    <SelectValue>
+                      {durationMinutes}
+                      {t("OrgCandidateDecisionDialogs.42684022", "분")}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start">
                     {[30, 45, 60, 90, 120].map((duration) => (
                       <SelectItem key={duration} value={String(duration)}>
-                        {duration}분
+                        {duration}
+                        {t("OrgCandidateDecisionDialogs.42684022", "분")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -474,23 +498,28 @@ export function AcceptIntroDialog({
             </div>
 
             <label className="block">
-              <span className="text-[12px] text-neutral-soft">미팅 주제</span>
+              <span className="text-[12px] text-neutral-soft">
+                {t("OrgCandidateDecisionDialogs.096c8271", "미팅 주제")}
+              </span>
               <Input
                 className="mt-1 h-9 text-[13px]"
                 disabled={pending}
                 maxLength={600}
                 onChange={(event) => setMeetingPurpose(event.target.value)}
-                placeholder="예: 가벼운 기술적인 이야기와 서로의 기대 확인"
+                placeholder={t("OrgCandidateDecisionDialogs.53e34876", "예: 가벼운 기술적인 이야기와 서로의 기대 확인")}
                 value={meetingPurpose}
               />
               <span className="mt-1 block text-[12px] leading-5 text-neutral-soft">
-                후보자에게도 이 내용과 미팅 길이를 함께 안내해요.
+                {t("OrgCandidateDecisionDialogs.35259341", "후보자에게도 이 내용과 미팅 길이를 함께 안내해요.")}
               </span>
             </label>
 
             <label className="block">
               <span className="text-[12px] text-neutral-soft">
-                함께 전할 내용 <span className="font-normal">· 선택</span>
+                {t("OrgCandidateDecisionDialogs.abda8861", "함께 전할 내용")}
+                <span className="font-normal">
+                  {t("OrgCandidateDecisionDialogs.0de5f1b8", "· 선택")}
+                </span>
               </span>
               <Textarea
                 className="mt-1 min-h-[72px] text-[13px]"
@@ -499,14 +528,16 @@ export function AcceptIntroDialog({
                 onChange={(event) =>
                   setMeetingCandidateMessage(event.target.value)
                 }
-                placeholder="예: 팀과 현재 풀고 있는 문제를 가볍게 소개드리고 싶어요."
+                placeholder={t("OrgCandidateDecisionDialogs.7fd71359", "예: 팀과 현재 풀고 있는 문제를 가볍게 소개드리고 싶어요.")}
                 rows={3}
                 value={meetingCandidateMessage}
               />
             </label>
 
             <div>
-              <div className="text-[12px] text-neutral-soft">참석자</div>
+              <div className="text-[12px] text-neutral-soft">
+                {t("OrgCandidateDecisionDialogs.561f236a", "참석자")}
+              </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {selectableMembers.map((member) => {
                   const email = member.email.trim().toLowerCase();
@@ -538,36 +569,46 @@ export function AcceptIntroDialog({
           </section>
         ) : (
           <section
-            aria-label="Email intro"
+            aria-label={t("OrgCandidateDecisionDialogs.a5ce18fd", "Email intro")}
             className="overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-default"
             role="tabpanel"
           >
             <div className="border-b border-neutral-1000-a05 px-4 py-3 text-[13px] font-medium text-neutral-primary">
-              Email intro
+              {t("OrgCandidateDecisionDialogs.a5ce18fd", "Email intro")}
             </div>
             <div className="space-y-3 px-4 py-3">
               <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 text-[12px] leading-5 sm:grid-cols-[96px_minmax(0,1fr)]">
-                <div className="text-neutral-soft">받는 사람</div>
+                <div className="text-neutral-soft">
+                  {t("OrgCandidateDecisionDialogs.10f75496", "받는 사람")}
+                </div>
                 <div className="min-w-0 text-neutral-primary">
                   {normalizedCandidateEmail ? (
                     <>
                       <span>{candidateName}</span>{" "}
                       <span className="break-all text-neutral-muted">
-                        &lt;{normalizedCandidateEmail}&gt;
+                        {t("OrgCandidateDecisionDialogs.emailBracketed", "<{email}>", {
+                          email: normalizedCandidateEmail,
+                        })}
                       </span>
                     </>
                   ) : (
-                    <span className="text-critical">후보자 이메일 없음</span>
+                    <span className="text-critical">
+                      {t("OrgCandidateDecisionDialogs.5c25c9fa", "후보자 이메일 없음")}
+                    </span>
                   )}
                 </div>
               </div>
 
               <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 text-[12px] leading-5 sm:grid-cols-[96px_minmax(0,1fr)]">
-                <div className="text-neutral-soft">Recipients</div>
+                <div className="text-neutral-soft">
+                  {t("OrgCandidateDecisionDialogs.6c1cce40", "Recipients")}
+                </div>
                 <div className="flex min-w-0 flex-wrap gap-1.5">
                   {introEmails.map((email) => (
                     <MuteButton
-                      aria-label={`${memberNameByEmail.get(email) || email} 소개 메일에서 제외`}
+                      aria-label={t("OrgCandidateDecisionDialogs.c7ea9bc3", "{p0} 소개 메일에서 제외", {
+                        p0: memberNameByEmail.get(email) || email,
+                      })}
                       className="h-7 max-w-full gap-1 rounded-full"
                       disabled={pending}
                       key={email}
@@ -594,7 +635,10 @@ export function AcceptIntroDialog({
                       const email = member.email.trim().toLowerCase();
                       return (
                         <MuteButton
-                          aria-label={`${member.name || email} 소개 메일에 추가`}
+                          aria-label={t(
+                            "OrgCandidateDecisionDialogs.acd25265", "{p0} 소개 메일에 추가",
+                            { p0: member.name || email }
+                          )}
                           className="h-7 max-w-full gap-1 rounded-full border-dashed text-neutral-muted"
                           disabled={pending}
                           key={member.userId}
@@ -612,14 +656,16 @@ export function AcceptIntroDialog({
                     })}
                   {introEmails.length === 0 ? (
                     <span className="text-critical">
-                      담당자를 1명 이상 선택해 주세요.
+                      {t("OrgCandidateDecisionDialogs.3fd12ed0", "담당자를 1명 이상 선택해 주세요.")}
                     </span>
                   ) : null}
                 </div>
               </div>
 
               <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-3 text-[12px] leading-5 sm:grid-cols-[96px_minmax(0,1fr)]">
-                <div className="text-neutral-soft">제목</div>
+                <div className="text-neutral-soft">
+                  {t("OrgCandidateDecisionDialogs.319831b5", "제목")}
+                </div>
                 <div
                   className="line-clamp-2 min-w-0 text-neutral-primary"
                   title={introSubject}
@@ -633,8 +679,12 @@ export function AcceptIntroDialog({
 
         <label className="block">
           <span className="text-[12px] font-medium text-neutral-primary">
-            {schedulesInterview ? "추가 메시지" : "Connection note"}{" "}
-            <span className="font-normal text-neutral-soft">· 선택</span>
+            {schedulesInterview
+              ? t("OrgCandidateDecisionDialogs.c0ac9bcd", "추가 메시지")
+              : "Connection note"}{" "}
+            <span className="font-normal text-neutral-soft">
+              {t("OrgCandidateDecisionDialogs.0de5f1b8", "· 선택")}
+            </span>
           </span>
           <Textarea
             key={`${open}:acceptReason`}
@@ -642,18 +692,18 @@ export function AcceptIntroDialog({
             rows={3}
             placeholder={
               schedulesInterview
-                ? "예: 가능하면 가장 빠른 시간으로 부탁드려요."
-                : "예: ML infra 경험이 이번 역할과 특히 잘 맞아요."
+                ? t("OrgCandidateDecisionDialogs.a64960f6", "예: 가능하면 가장 빠른 시간으로 부탁드려요.")
+                : t("OrgCandidateDecisionDialogs.f2c84a61", "예: ML infra 경험이 이번 역할과 특히 잘 맞아요.")
             }
             className="mt-1.5 min-h-24 px-3 py-2 text-[13px] leading-5"
             disabled={pending}
           />
           <p className="mt-1 text-[12px] leading-5 text-neutral-soft">
             {schedulesInterview
-              ? "후보자에게 보낼 이메일에 자연스럽게 담을게요. 아직 메일이 보내지는 것은 아니에요."
+              ? t("OrgCandidateDecisionDialogs.59bfe85b", "후보자에게 보낼 이메일에 자연스럽게 담을게요. 아직 메일이 보내지는 것은 아니에요.")
               : usesDirectContact
-                ? "작성해주시면 다음 후보 추천에 반영됩니다."
-                : "소개 이메일이나 후보자에게는 공유되지 않으며, 이후 후보 추천 기준을 다듬는 데 참고합니다."}
+                ? t("OrgCandidateDecisionDialogs.5c5bb0de", "작성해주시면 다음 후보 추천에 반영됩니다.")
+                : t("OrgCandidateDecisionDialogs.df50283f", "소개 이메일이나 후보자에게는 공유되지 않으며, 이후 후보 추천 기준을 다듬는 데 참고합니다.")}
           </p>
         </label>
         {error ? (
@@ -681,6 +731,7 @@ export function StopCandidateDialog({
   open: boolean;
   pending?: boolean;
 }) {
+  const t = useOrgT();
   const stopNoteId = useId();
   const stopNoteHelpId = useId();
   const stopReasonLabelId = useId();
@@ -698,10 +749,15 @@ export function StopCandidateDialog({
       .map((line) => line.trim())
       .filter(Boolean)
   );
-  const normalizedCandidateName = candidateName.trim() || "후보자";
-  const politeCandidateName = normalizedCandidateName.endsWith("님")
+  const normalizedCandidateName =
+    candidateName.trim() || t("OrgCandidateDecisionDialogs.0456ab20", "후보자");
+  const politeCandidateName = normalizedCandidateName.endsWith(
+    t("OrgCandidateDecisionDialogs.5db6feff", "님")
+  )
     ? normalizedCandidateName
-    : `${normalizedCandidateName}님`;
+    : t("OrgCandidateDecisionDialogs.0911b33c", "{p0}님", {
+        p0: normalizedCandidateName,
+      });
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -719,7 +775,7 @@ export function StopCandidateDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "종료 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 후보자의 현재 상태를 먼저 확인해 주세요."
+          : t("OrgCandidateDecisionDialogs.9d6cab7b", "종료 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 후보자의 현재 상태를 먼저 확인해 주세요.")
       );
     }
   };
@@ -756,7 +812,7 @@ export function StopCandidateDialog({
             size="lg"
             type="button"
           >
-            취소
+            {t("OrgCandidateDecisionDialogs.91962053", "취소")}
           </MuteButton>
           <MuteButton
             disabled={pending}
@@ -784,8 +840,10 @@ export function StopCandidateDialog({
           <div className="font-medium">{normalizedCandidateName}</div>
           <div className="text-neutral-muted">
             {connectionStarted
-              ? "이미 보낸 소개 이메일이나 회사에서 시작한 연락은 회수할 수 없어요. 현재 연결을 종료하면 Harper가 후보자에게 회사가 프로세스를 종료했다는 안내를 보내요. 이미 보이거나 전달된 안내도 회수할 수 없어요."
-              : `${politeCandidateName}에게 회사가 이번 연결을 진행하지 않기로 했다는 종료 결정이 표시되고 Harper가 이를 안내해요. 실행 후 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.`}
+              ? t("OrgCandidateDecisionDialogs.6612d04a", "이미 보낸 소개 이메일이나 회사에서 시작한 연락은 회수할 수 없어요. 현재 연결을 종료하면 Harper가 후보자에게 회사가 프로세스를 종료했다는 안내를 보내요. 이미 보이거나 전달된 안내도 회수할 수 없어요.")
+              : t("OrgCandidateDecisionDialogs.025e0467", "{p0}에게 회사가 이번 연결을 진행하지 않기로 했다는 종료 결정이 표시되고 Harper가 이를 안내해요. 실행 후 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.", {
+                  p0: politeCandidateName,
+                })}
           </div>
         </div>
         <div className="space-y-2">
@@ -793,8 +851,10 @@ export function StopCandidateDialog({
             className="text-[12px] font-medium text-neutral-primary"
             id={stopReasonLabelId}
           >
-            연결을 거절하는 이유{" "}
-            <span className="font-normal text-neutral-soft">· 선택</span>
+            {t("OrgCandidateDecisionDialogs.12feaff5", "연결을 거절하는 이유")}{" "}
+            <span className="font-normal text-neutral-soft">
+              {t("OrgCandidateDecisionDialogs.0de5f1b8", "· 선택")}
+            </span>
           </div>
           <div
             aria-labelledby={stopReasonLabelId}
@@ -833,7 +893,7 @@ export function StopCandidateDialog({
               if (error) setError("");
             }}
             rows={4}
-            placeholder="예: 현재 찾는 역할보다 경력이 조금 주니어해요."
+            placeholder={t("OrgCandidateDecisionDialogs.3083a365", "예: 현재 찾는 역할보다 경력이 조금 주니어해요.")}
             className="min-h-24 px-3 py-2 text-[13px] leading-5"
             disabled={pending}
           />
@@ -841,7 +901,7 @@ export function StopCandidateDialog({
             className="text-[12px] leading-5 text-neutral-soft"
             id={stopNoteHelpId}
           >
-            다음 추천을 개선하는 데 참고합니다. 후보자에게는 공유되지 않아요.
+            {t("OrgCandidateDecisionDialogs.f8a7865a", "다음 추천을 개선하는 데 참고합니다. 후보자에게는 공유되지 않아요.")}
           </p>
         </div>
         {error ? (

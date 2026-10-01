@@ -65,8 +65,9 @@ export async function POST(request: NextRequest) {
       p_data: body.data,
     });
     if (error) {
+      const isConflict = error.code === "PT409" || error.code === "40001";
       const status =
-        error.code === "40001"
+        isConflict
           ? 409
           : error.code === "42501" || error.code === "28000"
             ? 403
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
           error:
             error.code === "PGRST202"
               ? "GTM 화면용 DB 설정이 아직 적용되지 않았습니다."
-              : error.code === "40001"
+              : isConflict
                 ? "다른 팀원이 수정했습니다. 최신 값을 확인한 뒤 다시 저장하세요."
                 : error.message,
         },

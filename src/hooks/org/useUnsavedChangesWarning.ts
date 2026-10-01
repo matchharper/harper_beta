@@ -1,17 +1,19 @@
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 
 export const ORG_UNSAVED_CHANGES_MESSAGE =
   "저장하지 않은 변경사항이 있습니다. 지금 이동하면 변경사항이 반영되지 않습니다. 그래도 이동할까요?";
 
 export function useUnsavedChangesWarning(hasUnsavedChanges: boolean) {
+  const t = useOrgT();
   const router = useRouter();
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
 
     let skipNextRouteConfirmation = false;
-    const confirmNavigation = () => window.confirm(ORG_UNSAVED_CHANGES_MESSAGE);
+    const confirmNavigation = () => window.confirm(t("hooks.unsavedChanges", "저장하지 않은 변경사항이 있습니다. 지금 이동하면 변경사항이 반영되지 않습니다. 그래도 이동할까요?"));
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
@@ -43,5 +45,5 @@ export function useUnsavedChangesWarning(hasUnsavedChanges: boolean) {
       router.beforePopState(() => true);
       router.events.off("routeChangeStart", handleRouteChangeStart);
     };
-  }, [hasUnsavedChanges, router]);
+  }, [hasUnsavedChanges, router, t]);
 }

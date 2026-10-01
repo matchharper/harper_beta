@@ -1,3 +1,9 @@
+import {
+  useOrgLocale,
+  useOrgSourceT,
+  useOrgT,
+} from "@/i18n/org/OrgLocaleProvider";
+import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
 import Image from "next/image";
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
@@ -22,7 +28,19 @@ export function getOrgCandidateDisplayName(item: OrgBoardItem) {
   return item.talent.name || item.talent.email || "이름 없음";
 }
 
-export function formatOrgUpcomingMeetingTime(startAt: string) {
+export function formatOrgUpcomingMeetingTime(
+  startAt: string,
+  locale: "ko" | "en" = "ko"
+) {
+  if (locale === "en") {
+    return new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      month: "short",
+      timeZone: "Asia/Seoul",
+    }).format(new Date(startAt));
+  }
   const parts = new Intl.DateTimeFormat("ko-KR", {
     day: "numeric",
     hour: "numeric",
@@ -69,6 +87,7 @@ export function OrgCandidateStageMenu({
   pending?: boolean;
   stages: OrgStage[];
 }) {
+  const t = useOrgT();
   const availableStages = stages.filter(
     (stage) =>
       canDropOrgCandidateToStage(item, stage) &&
@@ -85,7 +104,11 @@ export function OrgCandidateStageMenu({
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <MuteButton aria-label="후보자 이동" size="sm" variant="transparent">
+          <MuteButton
+            aria-label={t("OrgCandidateCard.11222a5c", "후보자 이동")}
+            size="sm"
+            variant="transparent"
+          >
             <MoreHorizontal className="h-4 w-4" />
           </MuteButton>
         </DropdownMenuTrigger>
@@ -143,7 +166,17 @@ export function OrgCandidateCard({
   stages?: OrgStage[];
   viewed?: boolean;
 }) {
-  const displayName = getOrgCandidateDisplayName(item);
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
+  const sourceT = useOrgSourceT();
+  const displayName = sourceT(getOrgCandidateDisplayName(item));
+  const recentCompanies = item.talent.recentCompanies.map((company) => ({
+    ...company,
+    period: localizeOrgProfilePeriod(
+      company.period,
+      t("profile.current", "현재")
+    ),
+  }));
   const profilePicture = getDisplayableProfileImageUrl(
     item.talent.profilePicture
   );
@@ -189,7 +222,7 @@ export function OrgCandidateCard({
         {showProfilePicture ? (
           <Image
             src={profilePicture}
-            alt=""
+            alt={t("OrgCandidateCard.9e88e552", "")}
             width={28}
             height={28}
             unoptimized
@@ -208,8 +241,8 @@ export function OrgCandidateCard({
             </div>
             {!viewed ? (
               <span
-                aria-label="아직 열람하지 않음"
-                title="아직 열람하지 않음"
+                aria-label={t("OrgCandidateCard.b9d63ba7", "아직 열람하지 않음")}
+                title={t("OrgCandidateCard.b9d63ba7", "아직 열람하지 않음")}
                 className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
               />
             ) : null}
@@ -232,15 +265,15 @@ export function OrgCandidateCard({
           </>
         ) : profileLabelsError ? (
           <div className="text-[12px] leading-5 text-neutral-soft">
-            경력·학력 정보를 불러오지 못했습니다.
+            {t("OrgCandidateCard.5e1edcf5", "경력·학력 정보를 불러오지 못했습니다.")}
           </div>
         ) : (
           <>
             <div className="min-w-0 mt-1">
               <ProfileLabelCell
                 isCompact={true}
-                emptyLabel="정보 없음"
-                labels={item.talent.recentCompanies}
+                emptyLabel={t("OrgCandidateCard.7f214f44", "정보 없음")}
+                labels={recentCompanies}
               />
             </div>
             {/* <div className="min-w-0">
@@ -254,16 +287,16 @@ export function OrgCandidateCard({
       </div>
       {item.processClosureNoticeUnresolved ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          프로세스 종료 안내됨
+          {t("OrgCandidateCard.c2bb3a3d", "프로세스 종료 안내됨")}
         </div>
       ) : item.upcomingMeeting ? (
         <div className="-mx-3 mt-3 bg-positive px-3 py-1 text-[12px] font-medium text-neutral-00">
-          {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt)} Interview
-          예정
+          {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt, locale)}{" "}
+          {t("OrgCandidateCard.8f93e58e", "Interview 예정")}
         </div>
       ) : item.stage === "pending_connection" ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          결정이 필요합니다
+          {t("OrgCandidateCard.b7d71d97", "결정이 필요합니다")}
         </div>
       ) : item.companyIntro && item.companyIntro.status !== "ready" ? (
         <div
@@ -274,13 +307,15 @@ export function OrgCandidateCard({
               : "bg-primary-faded text-primary"
           )}
         >
-          {humanizeOrgCompanyIntroStatus(item.companyIntro)}
+          {sourceT(humanizeOrgCompanyIntroStatus(item.companyIntro))}
         </div>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
-          {item.source === "company_intro" ? "회사에 제안" : "추천"}{" "}
-          {formatKstRelativeDate(item.recommendedAt)}
+          {item.source === "company_intro"
+            ? t("OrgCandidateCard.fbe6976f", "회사에 제안")
+            : t("OrgCandidateCard.d5014512", "추천")}{" "}
+          {formatKstRelativeDate(item.recommendedAt, { locale })}
         </span>
         {/* {item.roleName && (
           <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
@@ -300,7 +335,7 @@ export function OrgCandidateCard({
             }}
             size="sm"
           >
-            제안하지 않기
+            {t("OrgCandidateCard.ed540185", "제안하지 않기")}
           </MuteButton>
           <MuteButton
             disabled={pending}
@@ -311,7 +346,7 @@ export function OrgCandidateCard({
             size="sm"
             variant="dark"
           >
-            먼저 제안하기
+            {t("OrgCandidateCard.2b387928", "먼저 제안하기")}
           </MuteButton>
         </div>
       ) : null}

@@ -6,7 +6,7 @@ export const ORG_ROLE_QUICK_ACTIONS = [
   },
   {
     id: "pending_intros",
-    label: "Pending intros",
+    label: "Ready to connect",
     message: "지금 결정이 필요한 연결 대기 목록을 알려줘",
   },
 ] as const;

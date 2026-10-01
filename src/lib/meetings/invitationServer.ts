@@ -36,6 +36,7 @@ import {
 import { insertOrgAgentMessage } from "@/lib/org/agent/store";
 import { OrgHttpError } from "@/lib/org/server";
 import { sendHarperSlackThreadReply } from "@/lib/org/slackHarper";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
 
@@ -1002,6 +1003,7 @@ export async function submitPublicMeetingOptions(args: {
     );
   }
   let context = await loadInvitationContext(token);
+  const workspaceLocale = await getOrgWorkspaceLocale(context.workspaceId);
   if (context.submittedAt || context.scheduleStatus === "confirmed") {
     throw new MeetingInvitationHttpError(
       409,
@@ -1037,6 +1039,7 @@ export async function submitPublicMeetingOptions(args: {
       ? clean(context.additionalMessage.sourceText, 2_000) || null
       : null,
     candidateName: context.invitationSnapshot.candidate.name,
+    locale: workspaceLocale,
     options: selected,
     timezone: selectionTimezoneAtRead,
   });
@@ -1059,6 +1062,7 @@ export async function submitPublicMeetingOptions(args: {
   ) {
     selection = selectMeetingOptionDeterministically({
       candidateName: context.invitationSnapshot.candidate.name,
+      locale: workspaceLocale,
       reportedOptions: selected,
       timezone: available.timezone,
       validOptions: finalOptions,
@@ -1135,6 +1139,7 @@ export async function submitPublicMeetingOptions(args: {
       companyMessage: buildMeetingCalendarDeliveryNotice({
         calendar,
         companyMessage: selection.companyMessage,
+        locale: workspaceLocale,
       }),
       roundId: context.roundId,
       sourceCompanyMessageId: context.sourceCompanyMessageId,

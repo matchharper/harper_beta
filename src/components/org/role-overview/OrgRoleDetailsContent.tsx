@@ -1,3 +1,5 @@
+import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgDocumentEditorCopy } from "@/i18n/org/useOrgDocumentEditorCopy";
 import { useState } from "react";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
@@ -37,6 +39,9 @@ export function OrgRoleDetailsContent({
   role: OrgRole;
   workspaceId: string;
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
+  const documentEditorCopy = useOrgDocumentEditorCopy();
   const { permissions } = useOrgWorkspace();
   const canManage = permissions.canManageCandidates;
   const addToast = useToastStore((state) => state.add);
@@ -47,14 +52,25 @@ export function OrgRoleDetailsContent({
   const [saveError, setSaveError] = useState("");
   const currentDraft = draft ?? toRoleDetailsDraft(role);
   const roleDetails = [
-    { label: "역할명", value: role.name.trim() },
-    { label: "보상 정보", value: role.salaryRange?.trim() ?? "" },
-    { label: "근무 지역", value: role.locationText?.trim() ?? "" },
     {
-      label: "근무 형태",
+      label: t("role.overview.OrgRoleDetailsContent.e0017f75", "역할명"),
+      value: role.name.trim(),
+    },
+    {
+      label: t("role.overview.OrgRoleDetailsContent.72f68a7c", "보상 정보"),
+      value: role.salaryRange?.trim() ?? "",
+    },
+    {
+      label: t("role.overview.OrgRoleDetailsContent.f23cdd3e", "근무 지역"),
+      value: role.locationText?.trim() ?? "",
+    },
+    {
+      label: t("role.overview.OrgRoleDetailsContent.3586667d", "근무 형태"),
       value: role.employmentTypes
         .filter((employmentType) => employmentType.trim())
-        .map(humanizeOrgEmploymentType)
+        .map((employmentType) =>
+          sourceT(humanizeOrgEmploymentType(employmentType))
+        )
         .join(", "),
     },
   ];
@@ -96,11 +112,14 @@ export function OrgRoleDetailsContent({
       });
       setDraft(null);
       setEditingField(null);
-      addToast({ message: "정보를 저장했습니다.", variant: "success" });
+      addToast({
+        message: t("role.overview.OrgRoleDetailsContent.95fa4cf7", "정보를 저장했습니다."),
+        variant: "success",
+      });
     } catch (error) {
       const message = getRoleOverviewErrorMessage(
         error,
-        "정보를 저장하지 못했습니다."
+        t("role.overview.OrgRoleDetailsContent.23b78126", "정보를 저장하지 못했습니다.")
       );
       setSaveError(message);
       addToast({ message, variant: "error" });
@@ -118,7 +137,10 @@ export function OrgRoleDetailsContent({
     <div {...editingDismissHandlers}>
       <OrgSection>
         <div className="mb-5">
-          <RoleSectionHeading size="large" title="Description" />
+          <RoleSectionHeading
+            size="large"
+            title={t("role.overview.OrgRoleDetailsContent.4cfb6b66", "Description")}
+          />
         </div>
         <dl className="mb-8 grid grid-cols-2 gap-x-4 gap-y-4">
           {roleDetails.map(({ label, value }) => (
@@ -136,14 +158,15 @@ export function OrgRoleDetailsContent({
                     "text-[13px]"
                   )}
                 >
-                  {value || EMPTY_ROLE_DETAIL}
+                  {value || sourceT(EMPTY_ROLE_DETAIL)}
                 </Text>
               </dd>
             </div>
           ))}
         </dl>
         <DocumentEditor
-          aria-label="Description 수정"
+          {...documentEditorCopy}
+          aria-label={t("role.overview.OrgRoleDetailsContent.79548c5f", "Description 수정")}
           disabled={updateRole.isPending}
           documentTitle="Description"
           errorMessage={editingField === "description" ? saveError : ""}
@@ -152,7 +175,7 @@ export function OrgRoleDetailsContent({
           onValueChange={(description) =>
             changeDraft({ description }, "description")
           }
-          placeholder="후보자에게 보여줄 역할 설명을 문서처럼 작성해 주세요."
+          placeholder={t("role.overview.OrgRoleDetailsContent.5b8b3d0f", "후보자에게 보여줄 역할 설명을 문서처럼 작성해 주세요.")}
           readOnly={!canManage}
           rows={7}
           savedValue={role.description ?? ""}

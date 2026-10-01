@@ -9,9 +9,9 @@ const source = readFileSync(
 
 test("Calendar settings keep the interview availability entry point", () => {
   assert.match(source, /lg:grid-cols-2/);
-  assert.match(source, /인터뷰 일정\s*\{availability/);
-  assert.match(source, /aria-label="내 인터뷰 가능 시간 설정 열기"/);
-  assert.match(source, />\s*열기\s*</);
+  assert.match(source, /workspace\.pages\.OrgSettingsPage\.16c1f28c/);
+  assert.match(source, /workspace\.pages\.OrgSettingsPage\.500a2a19/);
+  assert.match(source, /workspace\.pages\.OrgSettingsPage\.d0572490/);
   assert.match(source, /onClick=\{\(\) => void openAvailability\(\)\}/);
   assert.match(source, /dialog: "interview-availability"/);
   assert.match(source, /useOrgMeetingAvailability/);

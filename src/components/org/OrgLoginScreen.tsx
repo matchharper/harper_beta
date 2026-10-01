@@ -1,3 +1,5 @@
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { ArrowRight, Check, LoaderCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Head from "next/head";
@@ -14,6 +16,7 @@ import { useRouter } from "next/navigation";
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const t = useOrgT();
   const router = useRouter();
   const signOut = useAuthStore((state) => state.signOut);
   const [signOutPending, setSignOutPending] = useState(false);
@@ -34,12 +37,12 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
       <div className="flex h-full items-center justify-between px-3 sm:px-8">
         <Link
           href="/org"
-          aria-label="Harper 회사 페이지로 이동"
+          aria-label={t("OrgLoginScreen.7eba3972", "Harper 회사 페이지로 이동")}
           className="inline-flex items-center rounded-md px-1 py-1 outline-none transition-opacity hover:opacity-65 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
         >
           <Image
             src="/svgs/logov2.svg"
-            alt="Harper"
+            alt={t("OrgLoginScreen.362a63ea", "Harper")}
             width={68}
             height={31}
             priority
@@ -48,12 +51,14 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
         <div className="flex items-center gap-2">
           {isAuthenticated && (
             <MuteButton
-              aria-label="로그아웃"
+              aria-label={t("OrgLoginScreen.39ffc282", "로그아웃")}
               disabled={signOutPending}
               onClick={() => void handleSignOut()}
               variant="transparent"
             >
-              {signOutPending ? "로그아웃 중" : "로그아웃"}
+              {signOutPending
+                ? t("OrgLoginScreen.86020d72", "로그아웃 중")
+                : t("OrgLoginScreen.39ffc282", "로그아웃")}
             </MuteButton>
           )}
           <MuteButton
@@ -61,7 +66,7 @@ function OrgEntryAppBar({ isAuthenticated }: { isAuthenticated: boolean }) {
             size="md"
             variant="default"
           >
-            Company
+            {t("OrgLoginScreen.5670ec7e", "Company")}
           </MuteButton>
         </div>
       </div>
@@ -76,11 +81,12 @@ function WorkspaceMark({
   companyName: string;
   logoUrl?: string | null;
 }) {
+  const t = useOrgT();
   if (logoUrl) {
     return (
       <Image
         src={logoUrl}
-        alt=""
+        alt={t("OrgLoginScreen.af0ba776", "")}
         width={24}
         height={24}
         unoptimized
@@ -103,6 +109,8 @@ export function OrgLoginScreen({
   authenticatedEmail?: string | null;
   orgId?: string | null;
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
   const normalizedOrgId = orgId?.trim() ?? "";
   const knownEmail = authenticatedEmail?.trim().toLowerCase() ?? "";
   const hasInvite = Boolean(normalizedOrgId);
@@ -155,7 +163,7 @@ export function OrgLoginScreen({
 
     const normalizedMessage = message.trim();
     if (!normalizedMessage) {
-      setRequestError("Harper 팀과 나눈 내용을 간단히 적어 주세요.");
+      setRequestError(t("OrgLoginScreen.8a25c44c", "Harper 팀과 나눈 내용을 간단히 적어 주세요."));
       return;
     }
 
@@ -167,11 +175,11 @@ export function OrgLoginScreen({
 
     const replyEmail = knownEmail || email.trim().toLowerCase();
     if (!replyEmail) {
-      setRequestError("답장받을 이메일을 입력해 주세요.");
+      setRequestError(t("OrgLoginScreen.bd40208e", "답장받을 이메일을 입력해 주세요."));
       return;
     }
     if (!EMAIL_PATTERN.test(replyEmail)) {
-      setRequestError("이메일 형식을 확인해 주세요.");
+      setRequestError(t("OrgLoginScreen.b08d8e8d", "이메일 형식을 확인해 주세요."));
       return;
     }
 
@@ -203,18 +211,12 @@ export function OrgLoginScreen({
           error?: string;
         };
         if (!response.ok) {
-          throw new Error(
-            responseBody.error ?? "초대 링크 요청을 보내지 못했습니다."
-          );
+          throw new Error(responseBody.error ?? t("OrgLoginScreen.c22028ec", "초대 링크 요청을 보내지 못했습니다."));
         }
       }
       setSubmitted(true);
     } catch (error) {
-      setRequestError(
-        error instanceof Error
-          ? error.message
-          : "초대 링크 요청을 보내지 못했습니다."
-      );
+      setRequestError(localizedOrgErrorMessage(error, locale, t("OrgLoginScreen.c22028ec", "초대 링크 요청을 보내지 못했습니다.")));
     } finally {
       setSubmitPending(false);
     }
@@ -226,6 +228,7 @@ export function OrgLoginScreen({
   };
 
   const LoginButton = () => {
+    const t = useOrgT();
     return (
       <button
         type="button"
@@ -238,12 +241,12 @@ export function OrgLoginScreen({
         ) : (
           <Image
             src="/images/logos/google.png"
-            alt="Google"
+            alt={t("OrgLoginScreen.d032699c", "Google")}
             width={18}
             height={18}
           />
         )}
-        Google로 로그인
+        {t("OrgLoginScreen.19ac59ac", "Google로 로그인")}
       </button>
     );
   };
@@ -253,7 +256,7 @@ export function OrgLoginScreen({
       return (
         <div className="flex items-center gap-2 text-sm font-normal text-neutral-muted">
           <LoaderCircle className="h-4 w-4 animate-spin" />
-          초대 정보를 확인하는 중입니다.
+          {t("OrgLoginScreen.4b4eecbc", "초대 정보를 확인하는 중입니다.")}
         </div>
       );
     }
@@ -262,20 +265,19 @@ export function OrgLoginScreen({
       return (
         <div>
           <div className="text-[12px] font-medium text-neutral-soft">
-            ORGANIZATION
+            {t("OrgLoginScreen.e8e75376", "ORGANIZATION")}
           </div>
           <h1 className="mt-2.5 text-[16px] font-medium leading-6 tracking-[-0.025em] text-neutral-primary">
-            초대 링크를 확인할 수 없습니다.
+            {t("OrgLoginScreen.cfa2774c", "초대 링크를 확인할 수 없습니다.")}
           </h1>
           <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
-            링크가 잘렸거나 더 이상 유효하지 않을 수 있습니다. 초대한 사람에게
-            새 링크를 요청해 주세요.
+            {t("OrgLoginScreen.2ece7000", "링크가 잘렸거나 더 이상 유효하지 않을 수 있습니다. 초대한 사람에게 새 링크를 요청해 주세요.")}
           </p>
           <Link
             href="/org"
             className="mt-4 inline-flex h-8 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating px-3 text-[12px] font-medium text-neutral-primary transition hover:bg-bg-weak"
           >
-            Organization으로 돌아가기
+            {t("OrgLoginScreen.09ce137c", "Organization으로 돌아가기")}
           </Link>
         </div>
       );
@@ -290,11 +292,11 @@ export function OrgLoginScreen({
             logoUrl={workspace.logoUrl}
           />
           <h1 className="text-[18px] font-normal leading-6 tracking-[-0.025em] text-neutral-primary">
-            {workspace.companyName} Workspace
+            {workspace.companyName} {t("OrgLoginScreen.01b16a8f", "Workspace")}
           </h1>
         </div>
         <p className="mt-2 text-[14px] font-normal text-center leading-5 text-neutral-muted">
-          초대를 받은 계정만 해당 워크스페이스에 접근할 수 있습니다.
+          {t("OrgLoginScreen.a2c2c7d0", "초대를 받은 계정만 해당 워크스페이스에 접근할 수 있습니다.")}
         </p>
         <br />
         {LoginButton()}
@@ -315,11 +317,12 @@ export function OrgLoginScreen({
             <Check className="h-4 w-4" />
           </div>
           <h1 className="mt-4 text-[16px] font-medium leading-6 tracking-[-0.025em] text-neutral-primary">
-            요청을 보냈습니다.
+            {t("OrgLoginScreen.e292ea20", "요청을 보냈습니다.")}
           </h1>
           <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
-            내용을 확인한 뒤 {knownEmail || email.trim()}로 초대 링크를
-            안내드리겠습니다.
+            {t("OrgLoginScreen.a1d70544", "내용을 확인한 뒤{email}로 초대 링크를 안내드리겠습니다.", {
+              email: knownEmail || email.trim(),
+            })}
           </p>
         </div>
       );
@@ -328,24 +331,22 @@ export function OrgLoginScreen({
     return (
       <div>
         <h1 className="text-center text-[18px] font-normal leading-6 tracking-[-0.025em] text-neutral-primary">
-          {isAuthenticated
-            ? "아직 가입된 Workspace가 없습니다."
-            : "Harper Workspace"}
+          {isAuthenticated ? t("OrgLoginScreen.f33114ed", "아직 가입된 Workspace가 없습니다.") : "Harper Workspace"}
         </h1>
         <p className="mt-3 text-center text-[14px] font-light leading-5 text-neutral-muted">
           {isAuthenticated ? (
             <>
-              받으신 초대 링크를 통해 접속해주세요.
+              {t("OrgLoginScreen.a8507ac0", "받으신 초대 링크를 통해 접속해주세요.")}
               <br />
-              미팅을 했지만 아직 초대 링크를 받지 못하셨다면
+              {t("OrgLoginScreen.062fd580", "미팅을 했지만 아직 초대 링크를 받지 못하셨다면")}
               <br />
-              아래를 통해 문의를 남겨주세요.
+              {t("OrgLoginScreen.77d4cd03", "아래를 통해 문의를 남겨주세요.")}
             </>
           ) : (
             <>
-              현재 초대받은 팀에 한해서 채용을 도와드리고 있습니다.
+              {t("OrgLoginScreen.8055386b", "현재 초대받은 팀에 한해서 채용을 도와드리고 있습니다.")}
               <br />
-              아래에서 회사이메일로 로그인해주세요.
+              {t("OrgLoginScreen.10a8920c", "아래에서 회사이메일로 로그인해주세요.")}
             </>
           )}
         </p>
@@ -363,12 +364,12 @@ export function OrgLoginScreen({
               ) : (
                 <Image
                   src="/images/logos/google.png"
-                  alt="Google"
+                  alt={t("OrgLoginScreen.d032699c", "Google")}
                   width={18}
                   height={18}
                 />
               )}
-              Google로 로그인
+              {t("OrgLoginScreen.19ac59ac", "Google로 로그인")}
             </button>
             {loginError ? (
               <p className="mt-3 text-[12px] font-normal leading-5 text-critical">
@@ -386,7 +387,7 @@ export function OrgLoginScreen({
               maxLength={800}
               value={message}
               onChange={(event) => updateMessage(event.target.value)}
-              placeholder="예: 지난주 AI 엔지니어 채용에 관해 미팅했습니다."
+              placeholder={t("OrgLoginScreen.ba9ea9bb", "예: 지난주 AI 엔지니어 채용에 관해 미팅했습니다.")}
               className="mt-1.5 h-20 w-full resize-none rounded-md bg-black/3 px-2.5 py-2 text-[14px] font-normal leading-5 text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
             />
             <AnimatePresence initial={false}>
@@ -403,7 +404,7 @@ export function OrgLoginScreen({
                     htmlFor="org-access-email"
                     className="mt-4 block text-[12px] font-medium text-neutral-primary"
                   >
-                    답장받을 이메일도 알려주세요.
+                    {t("OrgLoginScreen.6c83ad23", "답장받을 이메일도 알려주세요.")}
                   </label>
                   <input
                     ref={emailInputRef}
@@ -418,7 +419,7 @@ export function OrgLoginScreen({
                       setEmail(event.target.value);
                       setRequestError(null);
                     }}
-                    placeholder="name@company.com"
+                    placeholder={t("OrgLoginScreen.5346243f", "name@company.com")}
                     className="mt-1.5 h-8 w-full rounded-md border border-neutral-1000-a10 bg-bg-floating px-2.5 text-[14px] font-normal text-neutral-primary outline-none transition placeholder:text-neutral-placeholder focus:border-neutral-400 focus:ring-2 focus:ring-neutral-1000-a05"
                   />
                 </motion.div>
@@ -440,10 +441,10 @@ export function OrgLoginScreen({
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               )}
               {!isAuthenticated && !collectEmail
-                ? "확인"
+                ? t("OrgLoginScreen.2d2c8cf9", "확인")
                 : submitPending
-                  ? "제출 중"
-                  : "보내기"}
+                  ? t("OrgLoginScreen.ca1356e7", "제출 중")
+                  : t("OrgLoginScreen.e04a3165", "보내기")}
             </button>
           </form>
         )}
@@ -454,7 +455,7 @@ export function OrgLoginScreen({
   return (
     <>
       <Head>
-        <title>Harper · Organization</title>
+        <title>{t("OrgLoginScreen.2103aec7", "Harper · Organization")}</title>
       </Head>
       <div className="min-h-screen bg-bg-default text-neutral-primary">
         <OrgEntryAppBar isAuthenticated={isAuthenticated} />

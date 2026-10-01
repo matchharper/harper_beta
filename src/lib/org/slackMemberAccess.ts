@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isOrgLocale, type OrgLocale } from "@/i18n/org/locale";
 import {
   getOrgPermissions,
   normalizeOrgMembershipRole,
@@ -14,6 +15,7 @@ import {
   type HarperSlackAccessDenialReason,
 } from "@/lib/org/slackMemberAccessPolicy";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -22,6 +24,7 @@ export type HarperSlackWorkspaceMember = {
   canManageCandidates: boolean;
   companyUserId: string;
   email: string;
+  locale: OrgLocale | null;
 };
 
 export type HarperSlackWorkspaceAccess =
@@ -42,9 +45,7 @@ export type HarperSlackWorkspaceAccess =
 const clean = (value: unknown) => String(value ?? "").trim();
 
 async function loadWorkspaceName(admin: AdminClient, workspaceId: string) {
-  const { data, error } = await (
-    admin.from("company_workspace" as any) as any
-  )
+  const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select("company_name")
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -80,14 +81,14 @@ export async function findHarperSlackWorkspaceMember(args: {
   const { data: userData, error: userError } = await (
     admin.from("company_users" as any) as any
   )
-    .select("user_id, email")
+    .select("user_id, email, locale")
     .in("user_id", companyUserIds);
   if (userError) throw userError;
 
   const user = (userData ?? []).find(
     (row: { email?: unknown }) =>
       clean(row.email).toLowerCase() === normalizedEmail
-  ) as { email?: unknown; user_id?: unknown } | undefined;
+  ) as { email?: unknown; locale?: unknown; user_id?: unknown } | undefined;
   const companyUserId = clean(user?.user_id);
   if (!companyUserId) return null;
 
@@ -101,6 +102,7 @@ export async function findHarperSlackWorkspaceMember(args: {
     canManageCandidates: getOrgPermissions(authority).canManageCandidates,
     companyUserId,
     email: normalizedEmail,
+    locale: isOrgLocale(user?.locale) ? user.locale : null,
   };
 }
 
@@ -190,8 +192,10 @@ export async function postHarperSlackAccessDenied(args: {
   reason?: HarperSlackAccessDenialReason;
   slackUserId: string;
   token: string;
+  workspaceId: string;
 }) {
-  const reason = args.reason ?? (args.access.allowed ? null : args.access.reason);
+  const reason =
+    args.reason ?? (args.access.allowed ? null : args.access.reason);
   if (!reason) throw new Error("Slack access denial reason is required");
   await postHarperSlackEphemeralMessage({
     channelId: args.channelId,
@@ -199,6 +203,7 @@ export async function postHarperSlackAccessDenied(args: {
       email: args.access.email,
       hasPendingInvitation:
         !args.access.allowed && args.access.hasPendingInvitation,
+      locale: await getOrgWorkspaceLocale(args.workspaceId),
       reason,
       workspaceName: args.access.workspaceName,
     }),

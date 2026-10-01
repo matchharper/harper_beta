@@ -28,6 +28,7 @@ import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import {
   CLAUDE_MODEL,
   GPT_56_LUNA_MODEL,
+  GPT_61_SOL_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
 } from "@/lib/llm/modelConfig";
@@ -40,6 +41,7 @@ import {
   type CareerVoiceModelOverride,
 } from "@/lib/career/voiceModel";
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 
 const devVoiceModelOptions: Array<{
@@ -71,6 +73,11 @@ const devTextChatModelOptions: Array<{
     eventKey: "gpt_5_6_luna_xhigh",
     label: "GPT-5.6 Luna · xhigh",
     value: GPT_56_LUNA_MODEL,
+  },
+  {
+    eventKey: "gpt_6_1_sol_high",
+    label: "GPT-6.1 Sol · high",
+    value: GPT_61_SOL_MODEL,
   },
 ];
 
@@ -165,6 +172,12 @@ export default function CareerHomeDevControls({
   const textChatModel = useCareerTextChatModelStore((state) => state.model);
   const setTextChatModel = useCareerTextChatModelStore(
     (state) => state.setModel
+  );
+  const devMessageActionsVisible = useCareerWorkspaceUiStore(
+    (state) => state.devMessageActionsVisible
+  );
+  const setDevMessageActionsVisible = useCareerWorkspaceUiStore(
+    (state) => state.setDevMessageActionsVisible
   );
   const {
     user,
@@ -484,6 +497,21 @@ export default function CareerHomeDevControls({
       </div>
       <div className="mt-4">
         <DevColorPaletteControls />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Text as="span" type="subtle">
+          채팅 메시지 복사·삭제 버튼
+        </Text>
+        <MuteButton
+          aria-pressed={devMessageActionsVisible}
+          onClick={() => setDevMessageActionsVisible(!devMessageActionsVisible)}
+          variant={devMessageActionsVisible ? "dark" : "default"}
+        >
+          {devMessageActionsVisible ? "표시 중" : "숨김"}
+        </MuteButton>
+        <Text as="span" type="subtle">
+          기본값은 숨김이며, 일반 사용자와 같은 메시지 간격으로 보여요.
+        </Text>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">

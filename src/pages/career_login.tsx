@@ -1,3 +1,4 @@
+import { getCurrentOfficialJobsAbtestType } from "@/lib/officialJobs/experiment";
 import {
   useCallback,
   useEffect,
@@ -33,7 +34,6 @@ import {
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
 import {
-  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
   OFFICIAL_JOBS_LANDING_SOURCE,
 } from "@/lib/officialJobs/landingLogs";
 import { supabase } from "@/lib/supabase";
@@ -399,7 +399,7 @@ const CareerLoginContent = () => {
   const localIdParam = getSingleQueryValue(router.query.lid).trim();
   const abtestTypeParam =
     sourceParam === OFFICIAL_JOBS_LANDING_SOURCE
-      ? OFFICIAL_JOBS_LANDING_ABTEST_TYPE
+      ? getCurrentOfficialJobsAbtestType()
       : getSingleQueryValue(router.query.ab).trim();
   const buildResolvedNextPath = useCallback(() => {
     const origin =

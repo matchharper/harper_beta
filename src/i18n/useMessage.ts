@@ -49,7 +49,9 @@ export function getStoredLocale(): Locale | null {
   const cookieLocale = getLocaleFromCookie();
   if (cookieLocale) return cookieLocale;
 
-  const stored = normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
+  const stored = normalizeLocale(
+    window.localStorage.getItem(LOCALE_STORAGE_KEY)
+  );
   if (stored) return stored;
   return null;
 }
@@ -85,11 +87,13 @@ const MessagesContext = createContext<MessagesContextValue | null>(null);
 export function MessagesProvider({
   children,
   locale: controlledLocale,
+  manageDocumentLanguage = true,
   messages,
   onLocaleChange,
 }: {
   children: ReactNode;
   locale?: Locale;
+  manageDocumentLanguage?: boolean;
   messages?: MessageDictionary;
   onLocaleChange?: (locale: Locale) => void;
 }) {
@@ -150,9 +154,9 @@ export function MessagesProvider({
   }, [controlledLocale]);
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    if (!manageDocumentLanguage || typeof document === "undefined") return;
     document.documentElement.lang = locale;
-  }, [locale]);
+  }, [locale, manageDocumentLanguage]);
 
   const value = useMemo<MessagesContextValue>(
     () => ({

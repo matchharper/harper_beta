@@ -3,11 +3,14 @@
 Run `pnpm dev`, then open `/org/onboarding-preview` on the local server.
 
 - The toolbar jumps directly between all five steps, the Slack channel selector,
-  and the alternate-email invitation dialog. The role selector previews draft,
-  active, paused, and ended states.
+  and the alternate-email invitation dialog. The role selector previews no role,
+  draft, active, paused, and ended states.
 - `?screen=company` opens a specific screen. Other values: `profile`, `slack`,
   `slack-channel`, `slack-invite`, `roles`, `done`.
 - `?screen=roles&roleStatus=active` selects a role status.
+- `?screen=done&roleStatus=none` shows completion when no role is set. The role
+  step is skipped, as it is in the actual onboarding flow.
+- Add `&slack=off` to preview completion without a connected Slack channel.
 - Add `&clean=1` to hide the preview toolbar for screenshots.
 
 The preview renders the actual onboarding components with in-memory example

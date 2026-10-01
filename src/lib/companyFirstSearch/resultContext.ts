@@ -1,7 +1,11 @@
 type ResultRole = {
   automaticSearchEnabled: boolean;
   id: string;
+  introSearchDate?: string[];
+  introSearchTime?: number;
   name: string;
+  request?: string | null;
+  salary?: string | null;
 };
 
 type ResultCandidate = {
@@ -16,6 +20,7 @@ type ResultCandidate = {
 
 export type CompanyMatchingResultContextInput = {
   candidates: ResultCandidate[];
+  firstDelivery?: boolean;
   roles: ResultRole[];
   runStatus: string;
 };
@@ -54,7 +59,17 @@ export function buildCompanyMatchingResultContext(
           ]),
     ...(succeeded && input.roles.some((role) => role.automaticSearchEnabled)
       ? [
-          "- 이 채용은 이후 새로 들어오거나 정보가 달라진 사람도 다시 살펴보도록 설정되어 있다. 시점이나 결과를 약속할 수는 없다.",
+          ...input.roles.filter((role) => role.automaticSearchEnabled).map((role) =>
+            `- ${role.name}의 정기 후보 검색 설정: ${(role.introSearchDate ?? ["Mon", "Wed", "Fri"]).join(", ")} ${String(role.introSearchTime ?? 9).padStart(2, "0")}:00 Asia/Seoul. 이 시간에 검색을 시작하며 후보자 전달 시점이나 결과를 보장하지 않는다.`
+          ),
+        ]
+      : []),
+    ...(succeeded && input.firstDelivery
+      ? [
+          "- 이 결과는 이 회사에 전달하는 첫 후보 검색 결과다. 여기 나온 사람을 회사가 먼저 제안할지는 선택할 수 있다. Harper가 후보자에게 먼저 역할을 소개하고 의사를 확인하는 별도 추천 경로도 있다. 후보자 동의나 실제 회사 연결이 완료된 것은 아니다.",
+          ...input.roles.map((role) =>
+            `- ${role.name}의 확인된 보상 범위: ${role.salary?.trim() || "아직 확인되지 않음"}; 현재 채용 요청·인재 기준: ${role.request?.trim() || "아직 확인되지 않음"}`
+          ),
         ]
       : []),
   ];

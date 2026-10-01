@@ -1,3 +1,4 @@
+import { useOrgLocale, useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -100,6 +101,7 @@ function readDraft(key: string, fallback: Draft): Draft {
 }
 
 export function OrgOnboardingPage() {
+  const t = useOrgT();
   const { workspace, user } = useOrgWorkspace();
   const slack = useOrgSlackStatus({ workspaceId: workspace.workspaceId });
   if (!slack.data && !slack.isError)
@@ -109,7 +111,7 @@ export function OrgOnboardingPage() {
       >
         <LoaderCircle
           className="size-5 animate-spin text-neutral-muted"
-          aria-label="온보딩을 준비하고 있어요"
+          aria-label={t("onboarding.OrgOnboardingPage.88c4db4a", "온보딩을 준비하고 있어요")}
         />
       </main>
     );
@@ -136,6 +138,9 @@ export function OrgOnboardingFlow({
   initiallyConnected: boolean;
   preview?: OrgOnboardingPreviewOptions;
 }) {
+  const t = useOrgT();
+  const { locale: responseLocale } = useOrgLocale();
+  const sourceT = useOrgSourceT();
   const preview =
     process.env.NODE_ENV !== "production" ? previewOptions : undefined;
   const router = useRouter();
@@ -252,23 +257,29 @@ export function OrgOnboardingFlow({
     step === "profile"
       ? definition(
           ["Welcome to", "Harper"],
-          "Harper와 함께하게 되신 것을 환영합니다. 가벼운 정보를 알려주세요."
+          t("onboarding.OrgOnboardingPage.5707cfeb", "Harper와 함께하게 되신 것을 환영합니다. 가벼운 정보를 알려주세요.")
         )
       : step === "slack"
         ? definition(
-            ["Harper와 슬랙을 통해", "소통하세요."],
+            [
+              t("onboarding.OrgOnboardingPage.c88b931d", "Harper와 슬랙을 통해"),
+              t("onboarding.OrgOnboardingPage.ee3edc24", "소통하세요."),
+            ],
             slack.data?.connected &&
               !connectedChannel &&
               permissions.canManageIntegrations
-              ? ORG_SLACK_PRIVATE_CHANNEL_HELP
-              : "Slack을 통해 실제 리크루터처럼 소통하실 수 있어요."
+              ? ORG_SLACK_PRIVATE_CHANNEL_HELP.map(sourceT)
+              : t("onboarding.OrgOnboardingPage.6e73b3d2", "Slack을 통해 실제 리크루터처럼 소통하실 수 있어요.")
           )
         : step === "company"
           ? definition(
-              ["회사에 대해서 더 알려주세요."],
-              "인재에게 회사를 소개할 때 사용할 정보를 알려주세요. 외부에 공개되지 않은 특별한 포인트라면 더 좋아요. 직접적으로 공개되지 않고, Harper가 적절한 순간에 활용합니다."
+              [t("onboarding.OrgOnboardingPage.79481742", "회사에 대해서 더 알려주세요.")],
+              t("onboarding.OrgOnboardingPage.179e76c6", "인재에게 회사를 소개할 때 사용할 정보를 알려주세요. 외부에 공개되지 않은 특별한 포인트라면 더 좋아요. 직접적으로 공개되지 않고, Harper가 적절한 순간에 활용합니다.")
             )
-          : definition([roleCopy.title], roleCopy.description);
+          : definition(
+              [sourceT(roleCopy.title)],
+              sourceT(roleCopy.description)
+            );
 
   function go(nextStep: OrgOnboardingStep) {
     if (preview) {
@@ -309,7 +320,7 @@ export function OrgOnboardingFlow({
       setError(
         error instanceof Error
           ? error.message
-          : "온보딩을 완료하지 못했어요. 다시 시도해 주세요."
+          : t("onboarding.OrgOnboardingPage.9e9ab39e", "온보딩을 완료하지 못했어요. 다시 시도해 주세요.")
       );
     } finally {
       submitting.current = false;
@@ -355,6 +366,7 @@ export function OrgOnboardingFlow({
           : await postOrgOnboarding<{ reply: string }>(workspaceId, {
               action: "company",
               message: draft.companyText.trim(),
+              responseLocale,
             });
         patch({
           companyReply: result.reply,
@@ -370,7 +382,7 @@ export function OrgOnboardingFlow({
       setError(
         error instanceof Error
           ? error.message
-          : "저장하지 못했어요. 다시 시도해 주세요."
+          : t("onboarding.OrgOnboardingPage.9e63d497", "저장하지 못했어요. 다시 시도해 주세요.")
       );
     } finally {
       submitting.current = false;
@@ -385,7 +397,7 @@ export function OrgOnboardingFlow({
       >
         <LoaderCircle
           className="size-5 animate-spin text-neutral-muted"
-          aria-label="온보딩을 준비하고 있어요"
+          aria-label={t("onboarding.OrgOnboardingPage.88c4db4a", "온보딩을 준비하고 있어요")}
         />
       </main>
     );
@@ -398,7 +410,9 @@ export function OrgOnboardingFlow({
   return (
     <>
       <Head>
-        <title>{workspace.companyName} · Welcome to Harper</title>
+        <title>
+          {workspace.companyName} {t("onboarding.OrgOnboardingPage.393a9329", " · Welcome to Harper")}
+        </title>
       </Head>
       <main
         className={`min-h-svh font-sans text-neutral-primary ${ONBOARDING_BACKGROUND_CLASS}`}
@@ -433,13 +447,11 @@ export function OrgOnboardingFlow({
             ) : step === "done" ? (
               <div className="flex w-full flex-col gap-4">
                 <p className="text-center text-[12px] text-neutral-soft">
-                  이렇게 이야기를 시작해 보세요
+                  {t("onboarding.OrgOnboardingPage.c9aeaf34", "이렇게 이야기를 시작해 보세요")}
                 </p>
                 <OnboardingConversationPreview
-                  userMessage="뛰어난 엔지니어를 찾고 있어요."
-                  assistantText={
-                    "어떤 일을 맡을 분인가요? 지금 팀에서 가장 먼저 해결하고 싶은 문제부터 알려주세요.\n\n꼭 필요한 경험과 함께 일하는 방식을 듣고, 찾는 분의 기준을 같이 정리할게요."
-                  }
+                  userMessage={t("onboarding.OrgOnboardingPage.88c0c168", "뛰어난 엔지니어를 찾고 있어요.")}
+                  assistantText={t("onboarding.OrgOnboardingPage.03b11155", "어떤 일을 맡을 분인가요? 지금 팀에서 가장 먼저 해결하고 싶은 문제부터 알려주세요.\n\n꼭 필요한 경험과 함께 일하는 방식을 듣고, 찾는 분의 기준을 같이 정리할게요.")}
                 />
               </div>
             ) : undefined
@@ -462,12 +474,13 @@ export function OrgOnboardingFlow({
                     onClick={() => setInviteOpen(true)}
                     disabled={busy}
                   >
-                    혹시 Slack이 다른 계정에 연결되어 있으신가요?
+                    {t("onboarding.OrgOnboardingPage.1e11e063", "혹시 Slack이 다른 계정에 연결되어 있으신가요?")}
                   </MuteButton>
                 </div>
               ) : null}
               <OnboardingFooter
                 onNext={() => void next()}
+                previousLabel={t("onboarding.OrgOnboardingPage.previous", "이전")}
                 onPrev={
                   stepIndex > 0 && step !== "done"
                     ? () => go(steps[stepIndex - 1])
@@ -478,20 +491,23 @@ export function OrgOnboardingFlow({
                 nextLabel={
                   pending
                     ? step === "company"
-                      ? "회사 이야기를 읽고 있어요…"
-                      : "저장 중…"
+                      ? t("onboarding.OrgOnboardingPage.02f4532a", "회사 이야기를 읽고 있어요…")
+                      : t("onboarding.OrgOnboardingPage.aa00736d", "저장 중…")
                     : step === "profile"
-                      ? "시작하기"
+                      ? t("onboarding.OrgOnboardingPage.d14c40ea", "시작하기")
                       : step === "company" && !companySubmitted
-                        ? "회사 정보에 반영하기"
+                        ? t("onboarding.OrgOnboardingPage.62894398", "회사 정보에 반영하기")
                         : step === "done"
-                          ? "완료"
-                          : "다음"
+                          ? t("onboarding.OrgOnboardingPage.b99b64ae", "완료")
+                          : t("onboarding.OrgOnboardingPage.bb465a3e", "다음")
                 }
                 hint={
                   step === "profile" ? (
                     <>
-                      press <Badge>Enter</Badge>
+                      {t("onboarding.OrgOnboardingPage.0c35bf35", "press")}
+                      <Badge>
+                        {t("onboarding.OrgOnboardingPage.a5793d01", "Enter")}
+                      </Badge>
                     </>
                   ) : undefined
                 }
@@ -503,7 +519,7 @@ export function OrgOnboardingFlow({
                       onClick={advance}
                       disabled={busy}
                     >
-                      건너뛰기
+                      {t("onboarding.OrgOnboardingPage.0251370f", "건너뛰기")}
                     </MuteButton>
                   </div>
                 ) : null}
@@ -532,7 +548,7 @@ export function OrgOnboardingFlow({
               >
                 <div className="grid gap-2">
                   <OnboardingFieldLabel htmlFor="org-onboarding-name">
-                    이름
+                    {t("onboarding.OrgOnboardingPage.804ddd01", "이름")}
                   </OnboardingFieldLabel>
                   <Input
                     autoFocus
@@ -547,14 +563,14 @@ export function OrgOnboardingFlow({
                 </div>
                 <div className="grid gap-2">
                   <OnboardingFieldLabel htmlFor="org-onboarding-role">
-                    직함
+                    {t("onboarding.OrgOnboardingPage.0317c702", "직함")}
                   </OnboardingFieldLabel>
                   <Input
                     autoComplete="organization-title"
                     id="org-onboarding-role"
                     value={draft.role}
                     onChange={(event) => patch({ role: event.target.value })}
-                    placeholder="예: CEO, CTO, 채용 매니저"
+                    placeholder={t("onboarding.OrgOnboardingPage.d2ce6f77", "예: CEO, CTO, 채용 매니저")}
                     maxLength={160}
                     required
                     disabled={busy}
@@ -566,12 +582,12 @@ export function OrgOnboardingFlow({
               <>
                 {slack.isError ? (
                   <div className="mb-4 text-[13px] text-critical" role="alert">
-                    Slack 연결 정보를 불러오지 못했어요.{" "}
+                    {t("onboarding.OrgOnboardingPage.a0588f69", "Slack 연결 정보를 불러오지 못했어요.")}{" "}
                     <MuteButton
                       variant="transparent"
                       onClick={() => void slack.refetch()}
                     >
-                      다시 불러오기
+                      {t("onboarding.OrgOnboardingPage.c4d1e087", "다시 불러오기")}
                     </MuteButton>
                   </div>
                 ) : null}
@@ -600,7 +616,7 @@ export function OrgOnboardingFlow({
               >
                 <div className="grid gap-2">
                   <OnboardingFieldLabel htmlFor="org-onboarding-company">
-                    Pitch
+                    {t("onboarding.OrgOnboardingPage.4953a7e7", "Pitch")}
                   </OnboardingFieldLabel>
                   <Textarea
                     autoFocus
@@ -609,7 +625,7 @@ export function OrgOnboardingFlow({
                     onChange={(event) =>
                       patch({ companyText: event.target.value })
                     }
-                    placeholder="ex. 최근에 공격적으로 팀을 확장하고 있습니다. 미국 비자 Sponsorship 가능합니다. 등"
+                    placeholder={t("onboarding.OrgOnboardingPage.3f57e537", "ex. 최근에 공격적으로 팀을 확장하고 있습니다. 미국 비자 Sponsorship 가능합니다. 등")}
                     className="min-h-[220px]"
                     rows={8}
                     required
@@ -623,7 +639,7 @@ export function OrgOnboardingFlow({
                     role="status"
                   >
                     <Face status="closing" size={40} />
-                    회사 이야기를 읽고, 기존 정보와 함께 정리하고 있어요.
+                    {t("onboarding.OrgOnboardingPage.c7e72135", "회사 이야기를 읽고, 기존 정보와 함께 정리하고 있어요.")}
                   </div>
                 ) : null}
                 {draft.companyReply ? (
@@ -633,7 +649,9 @@ export function OrgOnboardingFlow({
                   >
                     <div className="mb-3 flex items-center gap-2">
                       <Face status="idle" size={32} />
-                      <span className="text-[13px]">Harper</span>
+                      <span className="text-[13px]">
+                        {t("onboarding.OrgOnboardingPage.9302739c", "Harper")}
+                      </span>
                     </div>
                     <RichText
                       content={draft.companyReply}
@@ -663,8 +681,8 @@ export function OrgOnboardingFlow({
                           radius="full"
                         >
                           {status.status === "draft"
-                            ? "준비된 초안"
-                            : status.label}
+                            ? t("onboarding.OrgOnboardingPage.59f8e5bf", "준비된 초안")
+                            : sourceT(status.label)}
                         </Badge>
                       </div>
                       <p className="mt-2 text-[12px] leading-5 text-neutral-soft">
@@ -688,11 +706,13 @@ export function OrgOnboardingFlow({
             ) : null}
             {step === "done" ? (
               <OnboardingReadyBody
-                title={`${draft.name.trim()}님, 환영합니다.`}
+                title={t("onboarding.OrgOnboardingPage.95fd5799", "{p0}님, 환영합니다.", {
+                  p0: draft.name.trim(),
+                })}
                 description={
                   slackLinks
-                    ? "이제 채용 이야기를 함께 시작해요.\n연결한 채널에서 @Harper를 불러주세요.\n찾는 인재, 후보자에 대한 의견, 궁금한 점까지 편하게 말씀해 주세요."
-                    : "이제 채용 이야기를 함께 시작해요.\n회사 화면에서 역할을 열고 Harper에게 말씀해 주세요.\n원하는 인재의 기준부터 함께 정리할 수 있어요."
+                    ? t("onboarding.OrgOnboardingPage.1a83ccc5", "이제 채용 이야기를 함께 시작해요.\n연결한 채널에서 @Harper를 불러주세요.\n찾는 인재, 후보자에 대한 의견, 궁금한 점까지 편하게 말씀해 주세요.")
+                    : t("onboarding.OrgOnboardingPage.3c2cd29f", "이제 채용 이야기를 함께 시작해요.\n회사 화면에서 역할을 열고 Harper에게 말씀해 주세요.\n원하는 인재의 기준부터 함께 정리할 수 있어요.")
                 }
               />
             ) : null}

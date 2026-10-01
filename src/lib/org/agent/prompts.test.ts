@@ -39,6 +39,22 @@ test("company prompt assembles common invariants and full capability policies wi
   assert.doesNotMatch(prompt, /김호진|E2E-MEET|workspaceId=/);
 });
 
+test("web response locale selects voice and exact stage names without changing lifecycle policy", () => {
+  const english = buildOrgAgentSystemPrompt({ responseLocale: "en" });
+  const korean = buildOrgAgentSystemPrompt({ responseLocale: "ko" });
+  const slack = buildOrgAgentSystemPrompt({ surface: "slack" });
+
+  assert.match(english, /<response_language locale="en">/);
+  assert.match(english, /pending_connection: Ready to connect/);
+  assert.match(english, /company_intro: Suggested candidates/);
+  assert.match(english, /intro_requested: Intro requested/);
+  assert.match(english, /candidate has actually been shared with the company/);
+  assert.match(korean, /<response_language locale="ko">/);
+  assert.match(korean, /pending_connection: 연결 대기/);
+  assert.match(korean, /company_intro: 먼저 제안 가능한 후보/);
+  assert.match(slack, /<response_language locale="conversation">/);
+});
+
 test("organization-agent Slack prompt enables sparse private choice markers", () => {
   const prompt = buildOrgAgentSystemPrompt({
     enableSlackChoiceButtons: true,

@@ -661,11 +661,11 @@ test("read_role documents built-in pipeline stage filter values", () => {
     "pipeline",
     "description",
   ]);
-  assert.match(stageDescription, /company_intro=먼저 제안 가능한 후보/);
-  assert.match(stageDescription, /intro_requested=Intro Requested/);
-  assert.match(stageDescription, /pending_connection=연결 대기/);
-  assert.match(stageDescription, /connected=연결됨/);
-  assert.match(stageDescription, /process_stopped=프로세스 종료/);
+  assert.match(stageDescription, /company_intro \(company may request an intro/);
+  assert.match(stageDescription, /intro_requested \(company requested the intro/);
+  assert.match(stageDescription, /pending_connection \(candidate accepted and awaits the company's decision/);
+  assert.match(stageDescription, /connected, process_stopped/);
+  assert.match(stageDescription, /response-language contract for UI labels/);
 });
 
 test("read_talent accepts up to ten IDs and keeps resume output availability-only", () => {

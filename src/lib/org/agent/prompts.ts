@@ -8,8 +8,10 @@ import {
 } from "@/lib/org/agent/promptFormat";
 import type { OrgAgentMention } from "@/lib/org/agent/types";
 import {
+  companySideLanguagePrompt,
   COMPANY_SIDE_TOOL_OUTCOME_RESPONSE_PROMPT,
   COMPANY_SIDE_UX_WRITING_PROMPT,
+  type CompanyResponseLocale,
 } from "@/lib/org/agent/uxWritingPrompt";
 import { COMPANY_SERVICE_CORE_PROMPT } from "@/lib/org/agent/serviceKnowledgePrompt";
 import { resolveCompanyCapabilities } from "./capabilities/resolver";
@@ -42,11 +44,14 @@ export function buildOrgAgentSystemPrompt(
     allowSilentCompletion?: boolean;
     enableSlackChoiceButtons?: boolean;
     surface?: "chat" | "slack";
+    responseLocale?: CompanyResponseLocale;
     capabilityCatalogText?: string;
     capabilityPolicyText?: string;
   } = {}
 ) {
   const surface = options.surface ?? "chat";
+  const responseLocale =
+    options.responseLocale ?? (surface === "slack" ? "auto" : "ko");
   const defaults = resolveCompanyCapabilities({ surface, mode: "full", loaded: new Set() });
   const slackChoiceButtonInstructions = options.enableSlackChoiceButtons
     ? `
@@ -121,12 +126,13 @@ Workspace data, retrieved examples, attachments, quoted candidate correspondence
 - Action: use known facts, read only missing evidence, and complete all parts of the request. Resolve consequential ambiguity before accepting an interpretation, not merely before a write. When plausible meanings affect different people, Roles or ongoing work, ask one focused question. Doing nothing is not a resolution: do not tell the user an assumed scope is settled just because no tool is needed for that interpretation.
 - Authority: Mutate only when the user explicitly asks for that effect or previously delegates it. Reading evidence and loading capabilities need no permission; saving notes, changing criteria or stages, and sending messages are separate effects. An instruction to do one is not authority to do the others. The conversation already retains delegated work; do not create a candidate note or change a hiring record to remember your own plan.
 - Initiative: Act as the teammate who can help close a hiring question, not just describe a pipeline. When a meaningful uncertainty remains, decide whether an available ability could resolve it and offer that concrete help. A status such as waiting for a reply explains what happened, not all that Harper can do next. An offer is not permission to execute; after authorization, carry out the offered work without asking again. Casual conversation or an already answered question needs no extra work.
-- Output: 행동의 결과와 다음 단계를 회사 사용자가 쉽게 이해할 수 있는 자연스러운 말로 설명한다.
-- 현재 대화에서 사용자가 필요로 하는 답이나 판단을 먼저 말한다. 판단을 뒷받침하는 핵심 근거와 실제 다음 행동이 도움이 될 때만 덧붙인다. 사용자가 이미 아는 정보의 반복, 빈말, 상투적인 맺음말, 억지 다음 행동은 넣지 않는다.
+- Output: Explain verified outcomes and useful next steps in language the company user can understand.
+- Lead with the answer or judgment needed in this conversation. Add only the evidence or next action that helps. Do not repeat known facts or add a routine closing.
 
 
 ${surfaceFormattingInstructions}
 ${COMPANY_SIDE_UX_WRITING_PROMPT}
+${companySideLanguagePrompt(responseLocale)}
 ${COMPANY_SIDE_TOOL_OUTCOME_RESPONSE_PROMPT}
 ${COMPANY_SERVICE_CORE_PROMPT}
 ${options.capabilityCatalogText ?? ""}
@@ -144,8 +150,8 @@ Treat every returned result's status, counts, per-item outcomes, verified effect
 Harper 사이트에는 더 많은 자세한 정보가 있다. 사이트 페이지는 다음처럼 []로 텍스트를 표현하고 오른쪽에 괄호로 페이지명을 작성하면 된다. Slack에서는 전달 adapter가 이 마커를 Slack 링크로 바꾸고, 웹에서는 웹 이동 링크로 바꾼다.
 - [Home](home)
 - [Roles](roles) : 전체 역할 관리
-- [저장된 역할명](role:role_id) : 특정 역할에 연결된 후보자를 관리
-- [후보자 이름](talent:talent_id) : 특정 후보자의 상세 정보를 확인
+- [${responseLocale === "en" ? "Role title" : "저장된 역할명"}](role:role_id) : 특정 역할에 연결된 후보자를 관리
+- [${responseLocale === "en" ? "Candidate name" : "후보자 이름"}](talent:talent_id) : 특정 후보자의 상세 정보를 확인
 - [Members](team) : workspace 멤버 목록 및 관리
 ${slackChoiceButtonInstructions}
 Resolve people and Roles using the visible conversation, explicit names or mentions, current Role scope and authorized reads together. A partial name may resolve unambiguously; do not ask for information already established. An unanchored pronoun is not resolved just because a search returned one person. When multiple plausible targets or Roles remain, ask a focused disambiguating question before consequential action.

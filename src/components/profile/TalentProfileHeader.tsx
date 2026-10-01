@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +125,7 @@ export function TalentProfileHeader({
   primaryResources?: TalentProfileResource[];
   secondaryResources?: TalentProfileResource[];
 }) {
+  const t = useOrgT();
   const hasResources =
     primaryResources.length > 0 || secondaryResources.length > 0;
 
@@ -150,7 +152,7 @@ export function TalentProfileHeader({
 
       {hasResources ? (
         <div
-          aria-label="등록 자료"
+          aria-label={t("profile.resources", "등록 자료")}
           className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:max-w-[55%] sm:items-end"
         >
           {primaryResources.length > 0 ? (

@@ -7,8 +7,10 @@ import {
   ORG_ROLE_CRITERIA_MIN_ITEMS,
 } from "@/lib/org/roleCriteria";
 import {
+  companySideLanguagePrompt,
   COMPANY_SIDE_TOOL_OUTCOME_RESPONSE_PROMPT,
   COMPANY_SIDE_UX_WRITING_PROMPT,
+  type CompanyResponseLocale,
 } from "@/lib/org/agent/uxWritingPrompt";
 import { COMPANY_SERVICE_CORE_PROMPT } from "@/lib/org/agent/serviceKnowledgePrompt";
 import { ROLE_SOURCE_AUTHORING_PROMPT } from "@/lib/org/agent/hiringBriefAuthoringPrompt";
@@ -22,7 +24,22 @@ function clip(value: unknown, max = 8_000) {
 export function buildRoleCreationSystemPrompt(args?: {
   editingRegisteredRole?: boolean;
   surface?: "chat" | "slack";
+  responseLocale?: CompanyResponseLocale;
 }) {
+  const responseLocale =
+    args?.responseLocale ?? (args?.surface === "slack" ? "auto" : "ko");
+  const workDefaultsGuidance =
+    responseLocale === "en"
+      ? "save onsite and present it as `Office`; save full_time and present it as `Full-time`"
+      : responseLocale === "auto"
+        ? "save onsite and full_time, then present their values using the matching Korean or English UI labels for the established conversation language"
+        : "save onsite and present it as `대면 근무`; save full_time and present it as `풀타임`";
+  const slackConnectLink =
+    responseLocale === "en"
+      ? "[Connect Slack](/org/settings)"
+      : responseLocale === "auto"
+        ? "[Slack 연결하기](/org/settings) in Korean or [Connect Slack](/org/settings) in English, matching the conversation language"
+        : "[Slack 연결하기](/org/settings)";
   const registeredRoleGuidance = args?.editingRegisteredRole
     ? `
 REGISTERED ROLE EDITING
@@ -46,6 +63,7 @@ WEB SURFACE
 ${registeredRoleGuidance}
 ${surfaceGuidance}
 ${COMPANY_SIDE_UX_WRITING_PROMPT}
+${companySideLanguagePrompt(responseLocale, { compact: true })}
 ${COMPANY_SIDE_TOOL_OUTCOME_RESPONSE_PROMPT}
 ${COMPANY_SERVICE_CORE_PROMPT}
 ${ROLE_SOURCE_AUTHORING_PROMPT}
@@ -60,7 +78,7 @@ ROLE AUTHORING
 
 NEW-DRAFT DISCOVERY
 - Use saved state and the conversation, skip answered or intentionally open areas, and ask the smallest high-value question. Registered Roles need no creation interview or confirmation.
-- After first saving a usable Description, make work defaults transparent before private discovery: if unspecified, save onsite and present it as \`대면 근무\`; save full_time and present it as \`풀타임\`. Show supplied values instead when known. Briefly invite correction/continuation in a distinct block. Do not combine this checkpoint with all later questions unless the user already supplied or requested those decisions.
+- After first saving a usable Description, make work defaults transparent before private discovery: if unspecified, ${workDefaultsGuidance}. Show supplied values instead when known. Briefly invite correction/continuation in a distinct block. Do not combine this checkpoint with all later questions unless the user already supplied or requested those decisions.
 - Before confirmation offer at least two distinct substantive opportunities for team preference: an open invitation about private preferences/avoidances, and a different focused judgment relevant to this team. JD facts, technical requirements, location, compensation and notifications do not count. They may already be answered proactively; never repeat to satisfy a count. Accept no additional preference.
 - One opportunity invites real professional references, including current team members, and why they represent the desired level. Accept LinkedIn/GitHub, portfolios, CVs, articles, pasted background or a resolved internal mention. If caliber is unknown, prioritize this over another generic trait question. Call calibrate_role_hiring_brief for a supplied reference; treat the person as caliber evidence, not a candidate. User-stated reasons are strongest; derive non-exclusive professional peer-group signals, not copied biography. Ask at most one follow-up when materially useful.
 - Before the first Brief/criteria, reuse or call read_other_roles once. Analogous Roles supply hypotheses to confirm, never inherited requirements.
@@ -71,7 +89,7 @@ NEW-DRAFT DISCOVERY
 
 NOTIFICATIONS AND CONFIRMATION
 - Slack channel and assignee belong at the end, after public facts and private matching judgment. With exactly one channel and the current author an active member, set_role_notification saves those transparent defaults. Then call request_role_creation_confirmation in the same turn. Show a separate brief settings block, not another preliminary confirmation.
-- With several plausible channels or unclear assignee, ask one short choice. Never mention the raw channel count. If availableSlackChannels is empty, do not imply that Slack is optional: the role cannot be registered until Slack is connected. Include [Slack 연결하기](/org/settings) and ask the user to return once Slack and a channel are connected. Do not request final role-creation confirmation yet.
+- With several plausible channels or unclear assignee, ask one short choice. Never mention the raw channel count. If availableSlackChannels is empty, do not imply that Slack is optional: the role cannot be registered until Slack is connected. Include ${slackConnectLink} and ask the user to return once Slack and a channel are connected. Do not request final role-creation confirmation yet.
 - request_role_creation_confirmation validates readiness and adds actual Create role / Keep editing choices. It prepares review, never activates. Once presented, a short contextual “응” or another clear immediately following authorization calls confirm_pending_role_creation; do not merely acknowledge or restart discovery. Ambiguity or changed details require clarification/update and a fresh confirmation. Buttons use the same guarded server path.
 
 EXECUTION
@@ -81,9 +99,13 @@ EXECUTION
 `;
 }
 
-export function buildRoleCreationOutcomeSystemPrompt(surface?: "chat" | "slack") {
+export function buildRoleCreationOutcomeSystemPrompt(
+  surface?: "chat" | "slack",
+  responseLocale?: CompanyResponseLocale
+) {
   return `You are Harper reporting a verified Role registration result, not conducting discovery.
 ${COMPANY_SIDE_UX_WRITING_PROMPT}
+${companySideLanguagePrompt(responseLocale ?? (surface === "slack" ? "auto" : "ko"), { compact: true })}
 ${COMPANY_SIDE_TOOL_OUTCOME_RESPONSE_PROMPT}
 ${surface === "slack" ? "Use Slack mrkdwn: *bold*, • bullets, <url|label> links; no GFM tables or headings." : "Use web Markdown."}
 Use only the supplied outcome facts. Keep the reply proportionate; do not add a service tutorial or an obligatory question.`;

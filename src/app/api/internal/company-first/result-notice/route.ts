@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { buildCompanyMatchingResultContext } from "@/lib/companyFirstSearch/resultContext";
+import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour } from "@/lib/org/introSearchSchedule";
 import {
   InternalApiError,
   requireInternalWorkerSecret,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/org/slackMessages";
 import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +36,41 @@ function record(value: unknown): Record<string, any> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, any>)
     : {};
+}
+
+function roleSalary(row: Record<string, any>) {
+  const explicit = text(row.salary_range, 300);
+  if (explicit) return explicit;
+  const bounds = [row.salary_min, row.salary_max]
+    .filter((value) => value !== null && value !== undefined && text(value, 50) !== "")
+    .map((value) => text(value, 50));
+  if (!bounds.length) return null;
+  return `${bounds.join(" ~ ")}${text(row.salary_currency, 20) ? ` ${text(row.salary_currency, 20)}` : ""}${text(row.salary_period, 40) ? ` / ${text(row.salary_period, 40)}` : ""}`;
+}
+
+async function hasPriorDeliveredCompanyFirstResult(args: {
+  admin: ReturnType<typeof getSupabaseAdmin>;
+  workspaceId: string;
+}) {
+  const [outbox, messages] = await Promise.all([
+    (args.admin.from("company_first_slack_outbox" as any) as any)
+      .select("id")
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("status", "sent")
+      .limit(1),
+    (args.admin.from("company_messages" as any) as any)
+      .select("id")
+      .eq("company_workspace_id", args.workspaceId)
+      .eq("role", "assistant")
+      .in("metadata->>source", [
+        "company_matching_search_result",
+        "company_first_candidate_result",
+      ])
+      .limit(1),
+  ]);
+  if (outbox.error) throw outbox.error;
+  if (messages.error) throw messages.error;
+  return Boolean(outbox.data?.length || messages.data?.length);
 }
 
 function candidateProfileUrl(args: {
@@ -162,7 +199,7 @@ export async function POST(req: NextRequest) {
     ] = await Promise.all([
       (admin.from("company_roles" as any) as any)
         .select(
-          "role_id, name, internal_role:company_internal_roles(is_company_first_search)"
+          "role_id, name, salary_range, salary_min, salary_max, salary_currency, salary_period, internal_role:company_internal_roles(is_company_first_search, intro_search_date, intro_search_time, request)"
         )
         .eq("company_workspace_id", workspaceId)
         .in("role_id", roleIds),
@@ -183,8 +220,12 @@ export async function POST(req: NextRequest) {
         return {
           automaticSearchEnabled:
             internalRole?.is_company_first_search === true,
+          introSearchDate: parseIntroSearchDays(internalRole?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
+          introSearchTime: parseIntroSearchHour(internalRole?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
           id: text(row.role_id, 100),
           name: text(row.name, 300) || "이름 없는 Role",
+          request: text(internalRole?.request, 2_000) || null,
+          salary: roleSalary(row),
         };
       })
       .sort(
@@ -214,11 +255,6 @@ export async function POST(req: NextRequest) {
         roleName: text(role?.name, 300) || roleNameById.get(roleId) || "Role",
         summary: text(presentation.summary, 2_000) || null,
       };
-    });
-    const resultContext = buildCompanyMatchingResultContext({
-      candidates,
-      roles: roleRows,
-      runStatus: text(run.status, 40),
     });
     const workspace = Array.isArray(run.workspace)
       ? run.workspace[0]
@@ -269,6 +305,15 @@ export async function POST(req: NextRequest) {
     let model = text(existingMessage?.model, 200) || null;
     let companyMessageId = Number(existingMessage?.id) || null;
     if (!message) {
+      const firstCompanyFirstResultDelivery =
+        run.status === "succeeded" &&
+        !(await hasPriorDeliveredCompanyFirstResult({ admin, workspaceId }));
+      const firstResultContext = buildCompanyMatchingResultContext({
+        candidates,
+        firstDelivery: firstCompanyFirstResultDelivery,
+        roles: roleRows,
+        runStatus: text(run.status, 40),
+      });
       const scheduledSlot = text(run.scheduled_slot, 100);
       const recentQuery = (admin.from("company_messages" as any) as any)
         .select("id, role, content")
@@ -292,7 +337,9 @@ export async function POST(req: NextRequest) {
       const requestMessage = conversationMessages[0]?.content || "";
       const generated = await generateOrgAgentBackgroundResultReply({
         companyName,
-        resultText: resultContext,
+        firstCompanyFirstResultDelivery,
+        responseLocale: await getOrgWorkspaceLocale(workspaceId, admin),
+        resultText: firstResultContext,
         roleId: primaryRoleId,
         roleName: roleNameById.get(primaryRoleId) || "현재 채용",
         surface: "chat",

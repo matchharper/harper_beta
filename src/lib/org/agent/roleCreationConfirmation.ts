@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import type { OrgLocale } from "@/i18n/org/locale";
 import { generateRoleCreationOutcomeReply } from "@/lib/org/agent/roleCreationChat";
 import {
   canReclaimRoleCreationConfirmation,
@@ -241,6 +242,7 @@ export async function confirmRoleCreationChoice(args: {
   decision: "no" | "yes";
   messageId: number;
   messageType?: "chat" | "slack";
+  responseLocale?: OrgLocale;
   roleId: string;
   slackAssistantUserId?: string | null;
   slackThreadId?: string | null;
@@ -472,6 +474,7 @@ export async function confirmRoleCreationChoice(args: {
       outcome,
       slackNotificationDelivered,
       surface: args.messageType === "slack" ? "slack" : "chat",
+      responseLocale: args.responseLocale,
       state: outcomeState,
     })).content;
     assistantMessage = await persistConfirmationMessages({

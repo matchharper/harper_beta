@@ -35,6 +35,7 @@ export async function resolveCareerPendingAction(args: {
     const request = await fetchActiveCompanyTalentRequest({
       admin: args.admin as any,
       awaitingTalentOnly: true,
+      requestOnly: true,
       requestId: args.reference.id,
       talentId: args.talentId,
     });

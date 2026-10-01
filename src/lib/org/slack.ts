@@ -2,6 +2,7 @@ import {
   sendHarperWorkspaceSlackMessage,
   type HarperSlackNotificationKey,
 } from "@/lib/org/slackHarper";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 import {
   buildOrgCandidateAcceptedSlackMessage,
   buildOrgCandidateRejectedSlackMessage,
@@ -65,15 +66,17 @@ async function postWorkspaceScopedOrgSlackMessage(
   workspaceId: string,
   notificationKey?: HarperSlackNotificationKey,
   roleId?: string | null,
-  idempotencyKey?: string
+  idempotencyKey?: string,
+  englishText?: string
 ) {
+  const locale = await getOrgWorkspaceLocale(workspaceId);
   const [internalResult, workspaceResult] = await Promise.allSettled([
     postOrgSlackMessage(text),
     sendHarperWorkspaceSlackMessage({
       idempotencyKey,
       notificationKey,
       roleId,
-      text,
+      text: locale === "en" ? (englishText ?? text) : text,
       workspaceId,
     }),
   ]);
@@ -112,7 +115,8 @@ export async function notifyOrgRoleCreatedSlack(args: {
     args.workspace.workspaceId,
     undefined,
     args.roleId,
-    `org-role-created/${args.roleId}`
+    `org-role-created/${args.roleId}`,
+    buildOrgRoleCreatedSlackMessage({ ...args, locale: "en" })
   );
 }
 
@@ -131,8 +135,9 @@ export async function notifyOrgRoleCalibrationSlack(args: {
   roleName: string;
   workspaceId: string;
 }) {
+  const locale = await getOrgWorkspaceLocale(args.workspaceId);
   return sendHarperWorkspaceSlackMessage({
-    blocks: buildOrgRoleCalibrationSlackBlocks(args),
+    blocks: buildOrgRoleCalibrationSlackBlocks({ ...args, locale }),
     idempotencyKey: `org-role-calibration/${args.calibrationId}`,
     messageMetadata: {
       roleCalibration: {
@@ -142,7 +147,7 @@ export async function notifyOrgRoleCalibrationSlack(args: {
       source: "company_role_calibration",
     },
     roleId: args.roleId,
-    text: buildOrgRoleCalibrationSlackMessage(args),
+    text: buildOrgRoleCalibrationSlackMessage({ ...args, locale }),
     unfurlLinks: false,
     unfurlMedia: false,
     workspaceId: args.workspaceId,
@@ -165,7 +170,9 @@ export async function notifyOrgCandidateAcceptedSlack(args: {
     buildOrgCandidateAcceptedSlackMessage(args),
     args.workspace.workspaceId,
     "candidateAccepted",
-    args.roleId
+    args.roleId,
+    undefined,
+    buildOrgCandidateAcceptedSlackMessage({ ...args, locale: "en" })
   );
 }
 
@@ -182,7 +189,9 @@ export async function notifyOrgCandidateRejectedSlack(args: {
     buildOrgCandidateRejectedSlackMessage(args),
     args.workspace.workspaceId,
     "candidateRejected",
-    args.roleId
+    args.roleId,
+    undefined,
+    buildOrgCandidateRejectedSlackMessage({ ...args, locale: "en" })
   );
 }
 
@@ -203,7 +212,12 @@ export async function notifyCompanyIntroTalentDeclinedSlack(args: {
     args.workspaceId,
     undefined,
     args.roleId,
-    `company-intro-decision/${args.introCandidateId}/declined`
+    `company-intro-decision/${args.introCandidateId}/declined`,
+    [
+      `*${escapeSlackText(args.candidateName)} declined the intro request.*`,
+      `- *Role*: ${escapeSlackText(args.roleName)}`,
+      "This request is closed. No action is needed from your team.",
+    ].join("\n")
   );
 }
 
@@ -212,13 +226,16 @@ export async function notifyOrgMemberJoinedSlack(args: {
   workspace: OrgSlackWorkspace;
 }) {
   const lines = [
-    `*새로운 멤버 가입* : ${escapeSlackText(args.user.name) || "Unknown"}`,
+    `*새로운 팀원 가입* : ${escapeSlackText(args.user.name) || "Unknown"}`,
   ];
 
   await postWorkspaceScopedOrgSlackMessage(
     lines.join("\n"),
     args.workspace.workspaceId,
-    "memberJoined"
+    "memberJoined",
+    undefined,
+    undefined,
+    `*New team member joined*: ${escapeSlackText(args.user.name) || "Unknown"}`
   );
 }
 
@@ -242,6 +259,17 @@ export async function notifyOrgAgentMeetingRequestedSlack(args: {
 
   await postWorkspaceScopedOrgSlackMessage(
     lines.join("\n"),
-    args.workspace.workspaceId
+    args.workspace.workspaceId,
+    undefined,
+    undefined,
+    undefined,
+    [
+      "*Harper meeting request*",
+      `- *Workspace*: ${formatSlackLink(roleUrl, args.workspace.companyName)}`,
+      `- *Role*: ${escapeSlackText(args.roleName)}`,
+      `- *Requested by*: ${formatPerson(args.actor)}`,
+      `- *Topic*: ${escapeSlackText(args.topic) || "None"}`,
+      `- *Reason*: ${escapeSlackText(args.reason) || "None"}`,
+    ].join("\n")
   );
 }

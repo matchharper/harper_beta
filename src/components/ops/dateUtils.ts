@@ -38,8 +38,8 @@ export function formatKstDateOnly(value: Date) {
   ].join(".");
 }
 
-export function formatKstDateTime(value: Date) {
-  return value.toLocaleString("ko-KR", {
+export function formatKstDateTime(value: Date, locale: "ko" | "en" = "ko") {
+  return value.toLocaleString(locale === "ko" ? "ko-KR" : "en-US", {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
@@ -49,17 +49,24 @@ export function formatKstDateTime(value: Date) {
   });
 }
 
-function formatRelativeDayLabel(value: Date, maxRelativeDays: number) {
+function formatRelativeDayLabel(
+  value: Date,
+  maxRelativeDays: number,
+  locale: "ko" | "en"
+) {
   const dayDiff = getKstDayDiff(value);
   if (dayDiff < 0) return null;
-  if (dayDiff === 0) return "오늘";
-  if (dayDiff <= maxRelativeDays) return `${dayDiff}일전`;
+  if (dayDiff === 0) return locale === "ko" ? "오늘" : "Today";
+  if (dayDiff <= maxRelativeDays)
+    return locale === "ko"
+      ? `${dayDiff}일전`
+      : `${dayDiff} ${dayDiff === 1 ? "day" : "days"} ago`;
   return null;
 }
 
 export function formatKstRelativeDateTime(
   value: string | null | undefined,
-  options?: { maxRelativeDays?: number }
+  options?: { maxRelativeDays?: number; locale?: "ko" | "en" }
 ) {
   if (!value) return "-";
   const date = new Date(value);
@@ -67,14 +74,15 @@ export function formatKstRelativeDateTime(
 
   const relativeLabel = formatRelativeDayLabel(
     date,
-    options?.maxRelativeDays ?? DEFAULT_RELATIVE_DAY_LIMIT
+    options?.maxRelativeDays ?? DEFAULT_RELATIVE_DAY_LIMIT,
+    options?.locale ?? "ko"
   );
-  return relativeLabel ?? formatKstDateTime(date);
+  return relativeLabel ?? formatKstDateTime(date, options?.locale);
 }
 
 export function formatKstRelativeDate(
   value: string | null | undefined,
-  options?: { maxRelativeDays?: number }
+  options?: { maxRelativeDays?: number; locale?: "ko" | "en" }
 ) {
   if (!value) return "-";
   const date = new Date(value);
@@ -82,7 +90,18 @@ export function formatKstRelativeDate(
 
   const relativeLabel = formatRelativeDayLabel(
     date,
-    options?.maxRelativeDays ?? DEFAULT_RELATIVE_DAY_LIMIT
+    options?.maxRelativeDays ?? DEFAULT_RELATIVE_DAY_LIMIT,
+    options?.locale ?? "ko"
   );
-  return relativeLabel ?? formatKstDateOnly(date);
+  return (
+    relativeLabel ??
+    (options?.locale === "en"
+      ? new Intl.DateTimeFormat("en-US", {
+          day: "numeric",
+          month: "short",
+          timeZone: "Asia/Seoul",
+          year: "numeric",
+        }).format(date)
+      : formatKstDateOnly(date))
+  );
 }

@@ -33,7 +33,7 @@ export function CareerPendingActionContextCard({
   const t = useCareerT();
   const canUploadResume =
     action.kind === "company_request" && action.requestMode === "resume";
-  const isCompanyQuestion =
+  const isCompanyRequest =
     action.kind === "company_request" && action.requestMode === "question";
   const eyebrow =
     action.kind === "internal_fit_question"
@@ -47,8 +47,8 @@ export function CareerPendingActionContextCard({
             "회사 요청 · 이력서"
           )
         : t(
-            "career.chat.pending_action_context.company_question_label",
-            "회사에서 온 질문"
+            "career.chat.pending_action_context.company_request_label",
+            "회사에서 온 요청"
           );
   const Icon = action.kind === "internal_fit_question" ? CircleHelp : FileText;
 
@@ -74,7 +74,7 @@ export function CareerPendingActionContextCard({
         )}
       >
         <span className="flex min-w-0 flex-1 items-start gap-3">
-          {isCompanyQuestion ? (
+          {isCompanyRequest ? (
             <CompanyLogo
               logoUrl={getDisplayableCompanyLogoUrl(action.companyLogoUrl)}
               name={action.companyName}

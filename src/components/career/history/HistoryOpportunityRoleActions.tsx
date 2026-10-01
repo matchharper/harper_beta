@@ -192,7 +192,7 @@ export default function HistoryOpportunityRoleActions({
             : "flex flex-col gap-0"
         }
       >
-        {showsAction("similar") ? (
+        {/* {showsAction("similar") ? (
           <motion.div {...entrance(0.02)}>
             <RoleActionButton
               variant={variant}
@@ -214,7 +214,7 @@ export default function HistoryOpportunityRoleActions({
               {t("career.history.job_actions.similar", "비슷한 포지션 찾아줘.")}
             </RoleActionButton>
           </motion.div>
-        ) : null}
+        ) : null} */}
 
         {showsAction("same_company") ? (
           <motion.div {...entrance(0.06)}>

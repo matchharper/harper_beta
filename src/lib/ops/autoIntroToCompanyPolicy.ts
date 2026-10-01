@@ -1,3 +1,5 @@
+import type { OrgLocale } from "@/i18n/org/locale";
+
 export const AUTO_INTRO_PENDING_TAG = "내부:연결대기";
 export const AUTO_INTRO_MAX_PENDING_AGE_DAYS = 14;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
@@ -109,11 +111,17 @@ export function isAutoIntroRoleSummaryDay(now = new Date()) {
   return day === 1 || day === 3 || day === 5;
 }
 
-export function buildAutoIntroFollowUpPostscript(question: unknown) {
+export function buildAutoIntroFollowUpPostscript(
+  question: unknown,
+  locale: OrgLocale = "ko"
+) {
   const normalized = normalizeText(question);
   if (!normalized) return null;
   const questionText = /[?？]$/.test(normalized)
     ? normalized
     : `${normalized.replace(/[.!。！]+$/, "")}?`;
-  return ["*알려주시면 좋은 질문*", questionText].join(" ");
+  return [
+    locale === "en" ? "*Question for your team*" : "*알려주시면 좋은 질문*",
+    questionText,
+  ].join(" ");
 }

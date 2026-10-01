@@ -325,6 +325,7 @@ export type OrgAgentChatBody = {
   message?: string;
   mode?: OrgAgentMode;
   model?: OrgAgentModelId | string | null;
+  responseLocale?: "ko" | "en";
   /** Required for role and role_creation conversations. */
   roleId?: string;
   workspaceId?: string;
@@ -335,6 +336,7 @@ export type OrgRoleCreationConfirmationBody = {
   decision?: "no" | "yes";
   messageId?: number;
   roleId?: string;
+  responseLocale?: "ko" | "en";
   workspaceId?: string;
 };
 

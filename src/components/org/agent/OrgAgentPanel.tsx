@@ -1,3 +1,5 @@
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Info, LoaderCircle, Search } from "lucide-react";
 import {
   type ReactNode,
@@ -40,7 +42,7 @@ import {
   shouldShowOrgRoleQuickActions,
 } from "@/lib/org/roleQuickActions";
 import { splitRoleCreationCompletionSentences } from "@/lib/org/agent/roleCreationCompletionMessage";
-import { hasOrgAgentToolWork } from "@/lib/org/agent/thinkingLogs";
+import { hasOrgAgentToolWork, localizeOrgAgentThinkingLogs } from "@/lib/org/agent/thinkingLogs";
 import {
   hasReachedOrgActiveRoleLimit,
   ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
@@ -54,11 +56,12 @@ const ORG_AGENT_BOTTOM_THRESHOLD_PX = 120;
 const ROLE_CREATION_COMPLETION_SENTENCE_INTERVAL_MS = 240;
 
 function OrgAgentInfo() {
+  const t = useOrgT();
   return (
     <div className="group relative">
       <MuteButton
         type="button"
-        aria-label="채팅 안내"
+        aria-label={t("agent.OrgAgentPanel.77d8bedb", "채팅 안내")}
         size="sm"
         variant="transparent"
       >
@@ -71,13 +74,8 @@ function OrgAgentInfo() {
       >
         <div className="absolute -top-1.5 right-2.5 h-3 w-3 rotate-45 border-l border-t border-neutral-1000-a10 bg-neutral-1000" />
         <div className="relative space-y-2">
-          <p>
-            후보자와 역할을 찾고, 회사 정보와 채용 기준을 확인하거나 바꿀 수
-            있어요. 후보자는 이름이나 @로 지정해 주세요.
-          </p>
-          <p>
-            외부 연락과 중요한 상태 변경은 대상과 결과를 설명한 뒤 확인받아요.
-          </p>
+          <p>{t("agent.OrgAgentPanel.e9f9aabc", "후보자와 역할을 찾고, 회사 정보와 채용 기준을 확인하거나 바꿀 수 있어요. 후보자는 이름이나 @로 지정해 주세요.")}</p>
+          <p>{t("agent.OrgAgentPanel.f859b023", "외부 연락과 중요한 상태 변경은 대상과 결과를 설명한 뒤 확인받아요.")}</p>
         </div>
       </div>
     </div>
@@ -105,6 +103,8 @@ export function OrgAgentChatSurface({
   roleId?: string | null;
   header?: ReactNode;
 }) {
+  const t = useOrgT();
+  const { locale: responseLocale } = useOrgLocale();
   const { bootstrap, currentUser, user, workspace } = useOrgWorkspace();
   const addToast = useToastStore((state) => state.add);
   const workspaceId = workspace.workspaceId;
@@ -183,6 +183,20 @@ export function OrgAgentChatSurface({
     : isRunSearchActive
       ? [ORG_ROLE_RUN_SEARCH_ACTION]
       : [];
+  const roleQuickActionCopy = {
+    pipeline_summary: {
+      label: t("agent.quickAction.pipelineSummary", "Pipeline summary"),
+      message: t("agent.quickAction.pipelineSummaryMessage", "현재 연결된 후보자 파이프라인을 요약해서 설명해줘"),
+    },
+    pending_intros: {
+      label: t("agent.quickAction.pendingIntros", "Pending intros"),
+      message: t("agent.quickAction.pendingIntrosMessage", "지금 결정이 필요한 연결 대기 목록을 알려줘"),
+    },
+    run_search: {
+      label: t("agent.quickAction.runSearch", "Run Search"),
+      message: t("agent.quickAction.runSearchMessage", "Run a search based on the current brief"),
+    },
+  };
 
   const handleModelChange = (nextModel: OrgAgentModelId) => {
     setModel(nextModel);
@@ -354,9 +368,9 @@ export function OrgAgentChatSurface({
           {history.hasOlderMessages && (
             <div className="sticky top-0 z-10 flex justify-center pb-2">
               <ChatLoadOlderButton
-                label="이전 대화 더 보기"
+                label={t("agent.OrgAgentPanel.83f5617e", "이전 대화 더 보기")}
                 loading={history.loadingOlderMessages}
-                loadingLabel="불러오는 중..."
+                loadingLabel={t("agent.OrgAgentPanel.681bf4b1", "불러오는 중...")}
                 onClick={() => {
                   void history.loadOlderMessages();
                 }}
@@ -367,14 +381,14 @@ export function OrgAgentChatSurface({
           {history.isLoading ? (
             <div className="flex items-center justify-center py-12 text-neutral-muted">
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              대화 불러오는 중
+              {t("agent.OrgAgentPanel.bfaf2f40", "대화 불러오는 중")}
             </div>
           ) : history.messages.length === 0 &&
             !chat.optimisticUserMessage &&
             purpose !== "role-creation" ? (
             <div className="flex min-h-[260px] items-center justify-center px-8">
               <p className="max-w-[320px] text-center leading-5 text-neutral-muted text-base text-normal">
-                역할이나 후보자에 대해 물어보거나 원하시는 사항을 요청해주세요.
+                {t("agent.OrgAgentPanel.670ef3b7", "역할이나 후보자에 대해 물어보거나 원하시는 사항을 요청해주세요.")}
               </p>
             </div>
           ) : (
@@ -492,7 +506,7 @@ export function OrgAgentChatSurface({
           <ChatThinkingLogPanel
             active={chat.isStreaming}
             hasToolWork={hasOrgAgentToolWork(chat.thinkingLogs)}
-            logs={chat.thinkingLogs}
+            logs={localizeOrgAgentThinkingLogs(chat.thinkingLogs, responseLocale)}
             typographyClassName="text-[13px] leading-[1.65]"
           />
           {chat.assistantStatus === "pending" ? (
@@ -505,7 +519,7 @@ export function OrgAgentChatSurface({
           />
           {(chat.error || confirmRoleCreation.error) && (
             <div className="rounded-md bg-critical-faded px-3 py-2 text-[12px] text-critical">
-              {chat.error || confirmRoleCreation.error?.message}
+              {chat.error || localizedOrgErrorMessage(confirmRoleCreation.error, responseLocale, t("hooks.agent.replyFailed", "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."))}
             </div>
           )}
         </div>
@@ -528,15 +542,16 @@ export function OrgAgentChatSurface({
         >
           {initialRoleCreation ? (
             <p className="mx-auto mb-5 max-w-[760px] px-5 text-center text-xl font-normal leading-7 text-neutral-primary">
-              안녕하세요. 새롭게 채용을 원하는 역할에 대해 알려주세요.
+              {t("agent.OrgAgentPanel.6d053126", "안녕하세요. 새롭게 채용을 원하는 역할에 대해 알려주세요.")}
               <br />
-              JD 링크 혹은 파일로 시작하거나, 편하게 설명해주셔도 좋습니다.
+              {t("agent.OrgAgentPanel.3f50e521", "JD 링크 혹은 파일로 시작하거나, 편하게 설명해주셔도 좋습니다.")}
             </p>
           ) : null}
           {visibleRoleQuickActions.length > 0 ? (
             <div className="mx-auto mb-3 flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:px-5 md:pt-0">
               {visibleRoleQuickActions.map((action) => {
                 const isRunSearchAction = action.id === "run_search";
+                const actionCopy = roleQuickActionCopy[action.id];
                 return (
                   <MuteButton
                     aria-busy={
@@ -554,7 +569,7 @@ export function OrgAgentChatSurface({
                       const input = {
                         attachments: [],
                         mentions: [],
-                        message: action.message,
+                        message: actionCopy.message,
                         model,
                       };
                       if (!isRunSearchAction) {
@@ -589,7 +604,7 @@ export function OrgAgentChatSurface({
                         <Search aria-hidden="true" className="h-3.5 w-3.5" />
                       )
                     ) : null}
-                    {action.label}
+                    {actionCopy.label}
                   </MuteButton>
                 );
               })}

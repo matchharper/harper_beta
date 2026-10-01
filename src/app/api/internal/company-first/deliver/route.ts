@@ -234,6 +234,7 @@ export async function POST(req: NextRequest) {
         blocks: blocks(row.blocks),
         channelId: channel.slack_channel_id,
         idempotencyKey: row.idempotency_key,
+        messageMetadata: { source: "company_first_candidate_result" },
         onPosted: (receipt) => {
           slackMessageTs = receipt.slackMessageTs;
         },

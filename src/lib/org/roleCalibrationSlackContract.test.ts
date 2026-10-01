@@ -67,3 +67,29 @@ test("calibration Slack root links profiles and asks for thread text feedback", 
   assert.match(serialized, /아직 실제로 매칭되거나 연락한 분들은 아니에요/);
   assert.doesNotMatch(serialized, /"type":"actions"|"type":"button"/);
 });
+
+test("English calibration blocks keep profile images and English guidance", () => {
+  const args = {
+    calibrationId: "calibration-id",
+    locale: "en" as const,
+    profiles: [
+      {
+        display: {
+          headline: "Backend Engineer",
+          name: "Alex",
+          profilePicture: "/images/profiles/avatar1.png",
+        },
+        profileId: "A",
+        selection: { reason: "Relevant product experience." },
+      },
+    ],
+    roleId: "role-id",
+    roleName: "Backend Engineer",
+    workspaceId: "workspace-id",
+  };
+  const blocks = JSON.stringify(buildOrgRoleCalibrationSlackBlocks(args));
+  const message = buildOrgRoleCalibrationSlackMessage(args);
+  assert.match(blocks, /images\/profiles\/avatar1\.png/);
+  assert.match(message, /Sample profiles/);
+  assert.doesNotMatch(`${blocks}\n${message}`, /[가-힣]/);
+});

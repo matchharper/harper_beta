@@ -1,3 +1,9 @@
+import OfficialJobsExperience from "@/components/jobs/OfficialJobsExperience";
+import OfficialJobsGrid from "@/components/jobs/OfficialJobsGrid";
+import OfficialJobsPagination from "@/components/jobs/OfficialJobsPagination";
+import { assignOfficialJobsLayoutVariant } from "@/lib/officialJobs/experiment.server";
+import type { OfficialJobsLayoutVariant } from "@/lib/officialJobs/experiment";
+import type { OfficialJobsPage } from "@/lib/officialJobs/pagination";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import OfficialJobsEventTracker from "@/components/jobs/OfficialJobsEventTracker";
@@ -18,21 +24,24 @@ import {
   getOfficialJobsListSeo,
 } from "@/lib/officialJobs/seo";
 import {
-  formatOfficialJobsCopy,
   getOfficialJobsCopy,
   type OfficialJobsLocale,
 } from "@/lib/officialJobs/copy";
-import { getPublicOfficialJobListItems } from "@/lib/officialJobs/server";
+import {
+  getPublicOfficialJobsPage,
+  getPublicOfficialJobByAshbyId,
+} from "@/lib/officialJobs/server";
 import { ArrowRight, Building2, MapPin } from "lucide-react";
-import type { GetStaticProps } from "next";
+import type { GetServerSideProps } from "next";
 import Head from "next/head";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
 type OfficialJobsPageProps = {
-  jobs: OfficialJobListItem[];
+  initialPage: OfficialJobsPage;
   locale: OfficialJobsLocale;
+  layoutVariant: OfficialJobsLayoutVariant;
 };
 
 function getSingleQueryParam(value: string | string[] | undefined) {
@@ -79,27 +88,6 @@ function useOfficialJobsLocale(serverLocale: OfficialJobsLocale) {
     getInitialClientLocalePreference,
     () => serverLocale
   );
-}
-
-function useAshbyJobRedirect(jobs: OfficialJobListItem[]) {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!router.isReady) return;
-
-    const ashbyJobPostingId =
-      getSingleQueryParam(router.query.ashby_jid) ??
-      getSingleQueryParam(router.query.jid);
-    const normalizedAshbyId = ashbyJobPostingId?.trim();
-    if (!normalizedAshbyId) return;
-
-    const job = jobs.find(
-      (item) => item.ashbyJobPostingId?.trim() === normalizedAshbyId
-    );
-    if (!job) return;
-
-    void router.replace(buildRedirectDestination(job.slug, router.query));
-  }, [jobs, router]);
 }
 
 function OfficialJobsTable({
@@ -257,13 +245,19 @@ function OfficialJobsTable({
 }
 
 export default function OfficialJobsPage({
-  jobs,
+  initialPage,
   locale,
+  layoutVariant,
 }: OfficialJobsPageProps) {
-  const jobsQuery = useOfficialJobs(jobs);
-  const visibleJobs = jobsQuery.data ?? jobs;
+  const jobsQuery = useOfficialJobs(initialPage);
+  const visibleJobs = Array.from(
+    new Map(
+      jobsQuery.data.pages
+        .flatMap((page) => page.jobs)
+        .map((job) => [job.id, job])
+    ).values()
+  );
   const resolvedLocale = useOfficialJobsLocale(locale);
-  useAshbyJobRedirect(visibleJobs);
 
   const copy = getOfficialJobsCopy(resolvedLocale);
   const seo = getOfficialJobsListSeo(resolvedLocale);
@@ -278,7 +272,7 @@ export default function OfficialJobsPage({
     <>
       <OfficialJobsEventTracker
         eventType="jobs_list_view"
-        metadata={{ jobCount: visibleJobs.length }}
+        metadata={{ layoutVariant }}
       />
       <Head>
         <title>{seo.listTitle}</title>
@@ -348,9 +342,9 @@ export default function OfficialJobsPage({
                 </p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <OfficialJobsCtaLink
-                    className="bg-primary border-none"
                     locale={resolvedLocale}
                     size="lg"
+                    variant="primary"
                     onClick={() => {
                       void postOfficialJobEvent({
                         eventType: "jobs_cta_click",
@@ -369,12 +363,29 @@ export default function OfficialJobsPage({
             </div>
 
             <div className="mt-10">
-              <OfficialJobsTable jobs={visibleJobs} locale={resolvedLocale} />
+              {layoutVariant === "B" ? (
+                <OfficialJobsGrid jobs={visibleJobs} locale={resolvedLocale} />
+              ) : (
+                <OfficialJobsTable jobs={visibleJobs} locale={resolvedLocale} />
+              )}
+              <OfficialJobsPagination
+                query={jobsQuery}
+                locale={resolvedLocale}
+              />
             </div>
           </PageContainer>
+          {layoutVariant === "B" && (
+            <OfficialJobsExperience locale={resolvedLocale} showAbout />
+          )}
         </main>
         <CareerLandingFooter
           careerStartHref={OFFICIAL_JOBS_LOGIN_HREF}
+          onCareerStartClick={() => {
+            void postOfficialJobEvent({
+              eventType: "jobs_cta_click",
+              metadata: { source: "jobs_footer" },
+            });
+          }}
           locale={resolvedLocale}
         />
       </Page>
@@ -382,16 +393,30 @@ export default function OfficialJobsPage({
   );
 }
 
-export const getStaticProps: GetStaticProps<
+export const getServerSideProps: GetServerSideProps<
   OfficialJobsPageProps
-> = async () => {
-  const jobs = await getPublicOfficialJobListItems();
+> = async (context) => {
+  const layoutVariant = assignOfficialJobsLayoutVariant(context);
+  const ashbyId =
+    getSingleQueryParam(context.query.ashby_jid) ??
+    getSingleQueryParam(context.query.jid);
+  if (ashbyId?.trim()) {
+    const job = await getPublicOfficialJobByAshbyId(ashbyId);
+    if (job)
+      return {
+        redirect: {
+          destination: buildRedirectDestination(job.slug, context.query),
+          permanent: false,
+        },
+      };
+  }
+  const initialPage = await getPublicOfficialJobsPage();
 
   return {
     props: {
-      jobs,
+      initialPage,
+      layoutVariant,
       locale: "ko",
     },
-    revalidate: 60,
   };
 };

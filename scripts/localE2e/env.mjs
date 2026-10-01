@@ -50,7 +50,7 @@ export function stackEnv() {
     DATABASE_URL: supabase.DB_URL, OPPORTUNITY_DATABASE_URL: supabase.DB_URL, CAREER_ROLE_SEARCH_DATABASE_URL: supabase.DB_URL,
     NEXT_PUBLIC_SUPABASE_URL: supabase.API_URL, SUPABASE_URL: supabase.API_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: supabase.ANON_KEY, SUPABASE_SERVICE_ROLE_KEY: supabase.SERVICE_ROLE_KEY,
-    APP_BASE_URL: "http://localhost:3200", NEXT_PUBLIC_APP_URL: "http://localhost:3200", NEXT_PUBLIC_SITE_URL: "http://localhost:3200", HARPER_LOCAL_APP_ORIGIN: "http://localhost:3200",
+    APP_BASE_URL: "http://localhost:3000", NEXT_PUBLIC_APP_URL: "http://localhost:3000", NEXT_PUBLIC_SITE_URL: "http://localhost:3000", HARPER_LOCAL_APP_ORIGIN: "http://localhost:3000",
     HARPER_LOCAL_MAIL_URL: "http://127.0.0.1:3211", RESEND_API_KEY: `local-e2e-${config.secret}`,
     EMAIL_REPLY_TOKEN_SECRET: config.secret, COMPANY_TALENT_REQUEST_TOKEN_SECRET: config.secret,
     INTERNAL_WORKER_API_SECRET: config.secret, RESEND_WEBHOOK_SECRET: `whsec_${config.webhook}`,

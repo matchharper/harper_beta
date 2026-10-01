@@ -1,3 +1,4 @@
+import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { opsTheme } from "@/components/ops/theme";
@@ -63,6 +64,8 @@ function getCustomStageDbId(stageId: OrgStageId) {
 }
 
 export function OrgPipeline() {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const { board, boardQuery, profileLabelsError, profileLabelsLoading } =
     useOrgJobsBoard();
   const {
@@ -262,7 +265,7 @@ export function OrgPipeline() {
     event.preventDefault();
     const label = customStageLabel.trim();
     if (!label) {
-      setCustomStageError("칼럼 이름을 입력해 주세요.");
+      setCustomStageError(t("OrgPipeline.6b47dbef", "칼럼 이름을 입력해 주세요."));
       return;
     }
     if (activeRoleId === "all") return;
@@ -289,7 +292,7 @@ export function OrgPipeline() {
       setCustomStageActionError(
         submitError instanceof Error
           ? submitError.message
-          : "칼럼을 저장하지 못했습니다."
+          : t("OrgPipeline.73b69cb3", "칼럼을 저장하지 못했습니다.")
       );
     }
   };
@@ -318,7 +321,7 @@ export function OrgPipeline() {
       setCustomStageActionError(
         deleteError instanceof Error
           ? deleteError.message
-          : "칼럼을 삭제하지 못했습니다."
+          : t("OrgPipeline.50f5036c", "칼럼을 삭제하지 못했습니다.")
       );
     }
   };
@@ -375,8 +378,8 @@ export function OrgPipeline() {
           className="shrink-0 !border-x-0"
           count={items.length}
           countPlacement="end"
-          description={ORG_STAGE_DESCRIPTIONS[stage.id]}
-          label={stage.label}
+          description={sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? "")}
+          label={sourceT(stage.label)}
           onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
           onEdit={
             isEditableCustomStage
@@ -454,7 +457,7 @@ export function OrgPipeline() {
       {isLoading ? (
         <div className="flex h-48 items-center justify-center text-[13px] text-neutral-muted">
           <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-          불러오는 중
+          {t("OrgPipeline.97ce8c8a", "불러오는 중")}
         </div>
       ) : (
         <div
@@ -494,10 +497,13 @@ export function OrgPipeline() {
       >
         <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
           <DialogHeader>
-            <DialogTitle className="text-[17px]">칼럼 삭제</DialogTitle>
+            <DialogTitle className="text-[17px]">
+              {t("OrgPipeline.5bcdc5fb", "칼럼 삭제")}
+            </DialogTitle>
             <DialogDescription className="text-[13px] leading-5">
-              “{stageToDelete?.label}” 칼럼을 삭제합니다. 후보자가 남아 있다면
-              먼저 다른 칼럼으로 이동해 주세요.
+              {t("composed.deletePipelineColumn", "“{stageLabel}” 칼럼을 삭제합니다. 후보자가 남아 있다면 먼저 다른 칼럼으로 이동해 주세요.", {
+                stageLabel: stageToDelete?.label ?? "",
+              })}
             </DialogDescription>
           </DialogHeader>
           {customStageActionError ? (
@@ -512,7 +518,7 @@ export function OrgPipeline() {
               size="md"
               type="button"
             >
-              취소
+              {t("OrgPipeline.15403e87", "취소")}
             </MuteButton>
             <MuteButton
               disabled={deleteCustomStage.isPending}
@@ -524,7 +530,7 @@ export function OrgPipeline() {
               {deleteCustomStage.isPending ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
-              삭제
+              {t("OrgPipeline.5a1f1bb5", "삭제")}
             </MuteButton>
           </DialogFooter>
         </DialogContent>
@@ -535,13 +541,16 @@ export function OrgPipeline() {
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
-          acceptRequest ? getOrgCandidateDisplayName(acceptRequest.item) : ""
+          acceptRequest
+            ? sourceT(getOrgCandidateDisplayName(acceptRequest.item))
+            : ""
         }
         companyContactName={currentUser?.name}
         defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
         defaultEmail={currentUserEmail}
         destinationLabel={
-          board?.stages.find((stage) => stage.id === acceptRequest?.stage)?.label
+          board?.stages.find((stage) => stage.id === acceptRequest?.stage)
+            ?.label
         }
         members={members}
         open={Boolean(acceptRequest)}
@@ -585,7 +594,9 @@ export function OrgPipeline() {
       />
 
       <StopCandidateDialog
-        candidateName={stopItem ? getOrgCandidateDisplayName(stopItem) : ""}
+        candidateName={
+          stopItem ? sourceT(getOrgCandidateDisplayName(stopItem)) : ""
+        }
         connectionStarted={Boolean(
           stopItem && stopItem.stage !== "pending_connection"
         )}
@@ -605,7 +616,7 @@ export function OrgPipeline() {
         key={companyIntroRequest?.item.companyIntro?.id ?? "closed"}
         candidateName={
           companyIntroRequest
-            ? getOrgCandidateDisplayName(companyIntroRequest.item)
+            ? sourceT(getOrgCandidateDisplayName(companyIntroRequest.item))
             : ""
         }
         defaultEmail={currentUserEmail}
@@ -621,8 +632,7 @@ export function OrgPipeline() {
             });
             setCompanyIntroRequest(null);
             addToast({
-              message:
-                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
+              message: t("OrgPipeline.996bc47c", "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."),
               variant: "success",
             });
           } catch (error) {
@@ -630,7 +640,7 @@ export function OrgPipeline() {
               message:
                 error instanceof Error
                   ? error.message
-                  : "제안을 처리하지 못했습니다.",
+                  : t("OrgPipeline.a60bc63f", "제안을 처리하지 못했습니다."),
               variant: "error",
             });
             throw error;
@@ -642,7 +652,9 @@ export function OrgPipeline() {
 
       <CompanyIntroPassDialog
         candidateName={
-          companyIntroPass ? getOrgCandidateDisplayName(companyIntroPass) : ""
+          companyIntroPass
+            ? sourceT(getOrgCandidateDisplayName(companyIntroPass))
+            : ""
         }
         onClose={() => setCompanyIntroPass(null)}
         onConfirm={async () => {
@@ -653,7 +665,7 @@ export function OrgPipeline() {
           });
           setCompanyIntroPass(null);
           addToast({
-            message: "후보자에게 제안하지 않고 목록에서 제외했습니다.",
+            message: t("OrgPipeline.ddb7afc1", "후보자에게 제안하지 않고 목록에서 제외했습니다."),
             variant: "success",
           });
         }}

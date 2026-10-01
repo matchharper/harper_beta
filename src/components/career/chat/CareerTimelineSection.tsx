@@ -83,6 +83,7 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import { showToast } from "@/components/toast/toast";
 import { MAX_TALENT_DOCUMENT_FILE_SIZE_BYTES } from "@/lib/talentOnboarding/documentUploadLimits";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
+import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 
 const BOTTOM_THRESHOLD_PX = 120;
 const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
@@ -631,7 +632,11 @@ const CareerTimelineSection = ({
     onContinueOnboardingConversation,
     inputMode,
   } = useCareerChatPanelContext();
-  const showDevMessageActions = canUseCareerDevControls(user?.email);
+  const devMessageActionsVisible = useCareerWorkspaceUiStore(
+    (state) => state.devMessageActionsVisible
+  );
+  const showDevMessageActions =
+    canUseCareerDevControls(user?.email) && devMessageActionsVisible;
 
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
   const [authEmail, setAuthEmail] = useState("");

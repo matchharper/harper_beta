@@ -1,3 +1,4 @@
+import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, ChevronDown, List } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
@@ -34,6 +35,7 @@ function SectionNavigation({
   mobile?: boolean;
   onNavigate: (id: string) => void;
 }) {
+  const t = useOrgT();
   const activeItemIndex = items.findIndex((item) => item.id === activeSection);
   let activePrimarySectionId = items[0]?.id;
   for (let index = Math.max(0, activeItemIndex); index >= 0; index -= 1) {
@@ -85,7 +87,7 @@ function SectionNavigation({
 
   return (
     <nav
-      aria-label="Documents 목차"
+      aria-label={t("workspace.pages.OrgDocumentsPage.04177e0b", "Documents 목차")}
       className={cn(
         mobile
           ? "flex gap-5 overflow-x-auto border-y border-[#ebe7e4] bg-white/95 px-4 py-3 backdrop-blur scrollbar-none"
@@ -96,7 +98,7 @@ function SectionNavigation({
       {mobile ? null : (
         <div className="mb-4 flex items-center gap-2 text-[13px] font-medium leading-5 text-[#403f3f]">
           <List aria-hidden="true" className="size-3.5" strokeWidth={2} />
-          <span>문서 내용</span>
+          <span>{t("workspace.pages.OrgDocumentsPage.51aa3f5e", "문서 내용")}</span>
         </div>
       )}
       <div className={cn(mobile ? "contents" : "space-y-1")}>
@@ -120,6 +122,8 @@ function SectionNavigation({
 }
 
 export function OrgDocumentsPage({ markdown }: { markdown: string }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const { workspace } = useOrgWorkspace();
   const headings = useMemo(
     () => extractOrgDocumentsHeadings(markdown),
@@ -129,10 +133,10 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
     () => [
       ...headings
         .filter((heading) => heading.level !== 1)
-        .map((heading) => ({ ...heading, label: heading.text })),
-      FAQ_NAVIGATION_ITEM,
+        .map((heading) => ({ ...heading, label: sourceT(heading.text) })),
+      { ...FAQ_NAVIGATION_ITEM, label: sourceT(FAQ_NAVIGATION_ITEM.label) },
     ],
-    [headings]
+    [headings, sourceT]
   );
   const [activeSection, setActiveSection] = useState(
     navigationItems[0]?.id ?? FAQ_NAVIGATION_ITEM.id
@@ -321,7 +325,7 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
 
           <section className="scroll-mt-36 mt-20 xl:scroll-mt-12" id="faq">
             <h2 className="mt-2 text-[23px] font-medium leading-8 tracking-[-0.025em] text-[#181717] sm:text-[24px]">
-              자주 묻는 질문
+              {t("workspace.pages.OrgDocumentsPage.bd6b70f0", "자주 묻는 질문")}
             </h2>
             <div className="mt-6 divide-y divide-[#e9e6e4] border-y border-neutral-100">
               {COMPANY_SERVICE_FAQ_ITEMS.filter(
@@ -332,11 +336,11 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
                   key={item.question}
                 >
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[15px] font-normal leading-7 text-[#272321] outline-none marker:hidden focus-visible:underline">
-                    {item.question}
+                    {sourceT(item.question)}
                     <ChevronDown className="size-4 shrink-0 text-[#8d8580] transition-transform group-open:rotate-180 motion-reduce:transition-none" />
                   </summary>
                   <p className="mt-3 mr-8 text-[15px] font-normal leading-[1.7] text-black/70">
-                    {item.answer}
+                    {sourceT(item.answer)}
                   </p>
                 </details>
               ))}
@@ -344,9 +348,7 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
 
             <div className="mt-10">
               <p className="text-[16px] font-normal leading-7 text-[#504a46]">
-                문의하기를 통해 Harper 팀에 직접 문의를 남겨주시면 최대한 빠르게
-                응답드리겠습니다. 보고 있던 역할이나 후보자 이름, 궁금한 내용을
-                함께 남겨주시면 더 정확하게 확인할 수 있습니다.
+                {t("workspace.pages.OrgDocumentsPage.75a8a0b9", "문의하기를 통해 Harper 팀에 직접 문의를 남겨주시면 최대한 빠르게 응답드리겠습니다. 보고 있던 역할이나 후보자 이름, 궁금한 내용을 함께 남겨주시면 더 정확하게 확인할 수 있습니다.")}
               </p>
               <MuteButton
                 className="mt-5 font-normal focus-visible:ring-black/10 focus-visible:ring-offset-white"
@@ -354,7 +356,7 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
                 size="md"
                 variant="dark"
               >
-                문의하기
+                {t("workspace.pages.OrgDocumentsPage.b9dd1d00", "문의하기")}
                 <ArrowRight className="size-4" />
               </MuteButton>
             </div>

@@ -1,3 +1,5 @@
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { useEffect, useState } from "react";
 import { Check, LoaderCircle, Plus } from "lucide-react";
 import { OrgSlackChannelPicker } from "@/components/org/OrgSlackChannelPicker";
@@ -48,6 +50,8 @@ export function OrgOnboardingSlack({
   onInviteOpenChange: (open: boolean) => void;
   preview?: OrgOnboardingSlackPreview;
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
   const preview =
     process.env.NODE_ENV !== "production" ? previewOptions : undefined;
   const { workspace, permissions } = useOrgWorkspace();
@@ -80,11 +84,7 @@ export function OrgOnboardingSlack({
       const result = await connect.mutateAsync({ returnTo, workspaceId });
       window.location.assign(result.authorizeUrl);
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Slack 연결을 시작하지 못했어요."
-      );
+      setError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.b1845655", "Slack 연결을 시작하지 못했어요.")));
     }
   };
   const inviteChannel = async (channelId: string) => {
@@ -97,9 +97,7 @@ export function OrgOnboardingSlack({
     try {
       await add.mutateAsync({ channelId });
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "채널을 연결하지 못했어요."
-      );
+      setError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.43672e3f", "채널을 연결하지 못했어요.")));
     }
   };
   const createChannel = async () => {
@@ -112,9 +110,7 @@ export function OrgOnboardingSlack({
     try {
       await create.mutateAsync({ channelName: channelName.trim(), isPrivate });
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "채널을 연결하지 못했어요."
-      );
+      setError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.43672e3f", "채널을 연결하지 못했어요.")));
     }
   };
   const invite = async () => {
@@ -132,12 +128,12 @@ export function OrgOnboardingSlack({
       );
       const delivery = result.results[0];
       if (delivery?.status !== "sent")
-        throw new Error(delivery?.message || "초대 메일을 보내지 못했어요.");
+        throw new Error(
+          delivery?.message || t("onboarding.OrgOnboardingSlack.50a5d55c", "초대 메일을 보내지 못했어요.")
+        );
       setInvitedEmail(delivery.email);
     } catch (error) {
-      setInviteError(
-        error instanceof Error ? error.message : "초대 메일을 보내지 못했어요."
-      );
+      setInviteError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.50a5d55c", "초대 메일을 보내지 못했어요.")));
     } finally {
       setInvitePending(false);
     }
@@ -149,8 +145,7 @@ export function OrgOnboardingSlack({
     <div className="flex h-full min-h-0 flex-col gap-6">
       {!permissions.canManageIntegrations ? (
         <p className="text-[13px] leading-6 text-neutral-muted">
-          Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은
-          건너뛰고 Harper를 둘러보세요.
+          {t("onboarding.OrgOnboardingSlack.9b3e78dc", "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요.")}
         </p>
       ) : !status?.connected ? (
         <MuteButton
@@ -161,11 +156,13 @@ export function OrgOnboardingSlack({
         >
           <Image
             src="/images/logos/slack.svg"
-            alt="Slack"
+            alt={t("onboarding.OrgOnboardingSlack.eba14c55", "Slack")}
             width={16}
             height={16}
           />
-          {connect.isPending ? "Slack으로 이동 중…" : "Slack 연결하기"}
+          {connect.isPending
+            ? t("onboarding.OrgOnboardingSlack.9121da14", "Slack으로 이동 중…")
+            : t("onboarding.OrgOnboardingSlack.af9cd0e0", "Slack 연결하기")}
         </MuteButton>
       ) : connectedChannels.length ? (
         <div className="space-y-3">
@@ -179,7 +176,7 @@ export function OrgOnboardingSlack({
             </div>
           ))}
           <p className="text-[13px] leading-6 text-neutral-muted">
-            채널에서 @Harper를 불러 대화를 시작할 수 있어요.
+            {t("onboarding.OrgOnboardingSlack.f70b7d30", "채널에서 @Harper를 불러 대화를 시작할 수 있어요.")}
           </p>
         </div>
       ) : (
@@ -203,7 +200,7 @@ export function OrgOnboardingSlack({
               />
               {!status.canCreateChannels ? (
                 <MuteButton onClick={() => void connectSlack()} disabled={busy}>
-                  채널 생성 권한 추가하기
+                  {t("onboarding.OrgOnboardingSlack.f2cd61bc", "채널 생성 권한 추가하기")}
                 </MuteButton>
               ) : null}
             </>
@@ -219,7 +216,7 @@ export function OrgOnboardingSlack({
                 className="grid gap-2 text-[13px]"
                 htmlFor="org-onboarding-new-channel"
               >
-                새 채널 이름
+                {t("onboarding.OrgOnboardingSlack.179a29d2", "새 채널 이름")}
                 <Input
                   id="org-onboarding-new-channel"
                   value={channelName}
@@ -233,7 +230,7 @@ export function OrgOnboardingSlack({
                   checked={isPrivate}
                   onChange={(event) => setIsPrivate(event.target.checked)}
                 />
-                비공개 채널로 만들기
+                {t("onboarding.OrgOnboardingSlack.8c703d6f", "비공개 채널로 만들기")}
               </label>
               <MuteButton
                 type="submit"
@@ -247,19 +244,19 @@ export function OrgOnboardingSlack({
                 ) : (
                   <Plus className="size-4" />
                 )}
-                채널 만들고 연결하기
+                {t("onboarding.OrgOnboardingSlack.78e40040", "채널 만들고 연결하기")}
               </MuteButton>
               <MuteButton
                 variant="transparent"
                 onClick={() => setCreateMode(false)}
                 disabled={busy}
               >
-                기존 채널 보기
+                {t("onboarding.OrgOnboardingSlack.9042181e", "기존 채널 보기")}
               </MuteButton>
             </form>
           ) : (
             <MuteButton onClick={() => void connectSlack()} disabled={busy}>
-              채널 생성 권한 추가하기
+              {t("onboarding.OrgOnboardingSlack.f2cd61bc", "채널 생성 권한 추가하기")}
             </MuteButton>
           )}
         </div>
@@ -277,21 +274,22 @@ export function OrgOnboardingSlack({
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>회사 이메일로 초대 보내기</DialogTitle>
+            <DialogTitle>
+              {t("onboarding.OrgOnboardingSlack.83480060", "회사 이메일로 초대 보내기")}
+            </DialogTitle>
             <DialogDescription>
-              Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재
-              계정과 같은 권한으로 참여할 수 있어요.
+              {t("onboarding.OrgOnboardingSlack.f6ca7fef", "Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재 계정과 같은 권한으로 참여할 수 있어요.")}
             </DialogDescription>
           </DialogHeader>
           {invitedEmail ? (
             <>
               <p role="status" className="text-[14px] leading-6">
-                {invitedEmail}로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤
-                Slack을 연결해 주세요.
+                {invitedEmail}
+                {t("onboarding.OrgOnboardingSlack.317d1a3c", "로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤 Slack을 연결해 주세요.")}
               </p>
               <DialogFooter>
                 <MuteButton onClick={() => onInviteOpenChange(false)}>
-                  확인
+                  {t("onboarding.OrgOnboardingSlack.1bf3f5aa", "확인")}
                 </MuteButton>
               </DialogFooter>
             </>
@@ -307,7 +305,7 @@ export function OrgOnboardingSlack({
                 htmlFor="org-onboarding-invite-email"
                 className="grid gap-2 text-[13px]"
               >
-                회사 이메일
+                {t("onboarding.OrgOnboardingSlack.be15f47f", "회사 이메일")}
                 <Input
                   autoFocus
                   id="org-onboarding-invite-email"
@@ -330,7 +328,9 @@ export function OrgOnboardingSlack({
                   variant="primary"
                   disabled={invitePending}
                 >
-                  {invitePending ? "초대 보내는 중…" : "초대 메일 보내기"}
+                  {invitePending
+                    ? t("onboarding.OrgOnboardingSlack.9eaf444d", "초대 보내는 중…")
+                    : t("onboarding.OrgOnboardingSlack.63966ac6", "초대 메일 보내기")}
                 </MuteButton>
               </DialogFooter>
             </form>

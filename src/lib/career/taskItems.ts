@@ -29,6 +29,23 @@ export type CareerTaskProgressSnapshot = {
   searchStatus: string | null;
 };
 
+export type CareerRecentInfoItem = {
+  id: string;
+  kind: "company_deliver" | "process_ended" | "role_ended";
+  occurredAt: string;
+  roleId: string;
+  companyName: string;
+  roleName: string;
+  body: string | null;
+};
+
+export type CareerRecentInfoCursor = { at: string; id: string };
+
+export type CareerRecentInfoPage = {
+  items: CareerRecentInfoItem[];
+  nextCursor: CareerRecentInfoCursor | null;
+};
+
 export type CareerExternalFeedbackOpportunity = {
   id: string;
   roleId: string;

@@ -1,4 +1,10 @@
 import {
+  useOrgLocale,
+  useOrgSourceT,
+  useOrgT,
+} from "@/i18n/org/OrgLocaleProvider";
+import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
+import {
   ArrowRight,
   ChartNoAxesColumnIncreasing,
   Info,
@@ -62,8 +68,12 @@ function getStageLabel(stage: OrgStage, roleName: string | null) {
     : stage.label;
 }
 
-function getBoardStageLabel(stage: OrgStage, roleName: string | null) {
-  const label = getStageLabel(stage, roleName);
+function getBoardStageLabel(
+  stage: OrgStage,
+  roleName: string | null,
+  sourceT: (source: string) => string
+) {
+  const label = sourceT(getStageLabel(stage, roleName));
   if (ORG_STAGE_DESCRIPTIONS[stage.id]) {
     return (
       <span className="inline-flex items-center gap-1.5">
@@ -83,7 +93,9 @@ function getBoardStageLabel(stage: OrgStage, roleName: string | null) {
 }
 
 function BoardTalentAvatar({ item }: { item: OrgBoardItem }) {
-  const name = item.talent.name || item.talent.email || "이름 없음";
+  const t = useOrgT();
+  const name =
+    item.talent.name || item.talent.email || t("OrgRoleTalentBoard.f227651c", "이름 없음");
   const profilePicture = getDisplayableProfileImageUrl(
     item.talent.profilePicture
   );
@@ -92,7 +104,7 @@ function BoardTalentAvatar({ item }: { item: OrgBoardItem }) {
   if (profilePicture && profilePicture !== failedImage) {
     return (
       <Image
-        alt=""
+        alt={t("OrgRoleTalentBoard.361dc090", "")}
         className="size-9 shrink-0 rounded-full object-cover"
         height={36}
         onError={() => setFailedImage(profilePicture)}
@@ -137,6 +149,7 @@ function CriteriaEvaluation({
 }: {
   evaluation: OrgBoardItem["criteriaEvaluations"][number];
 }) {
+  const t = useOrgT();
   const presentation = CRITERIA_FITNESS_PRESENTATION[evaluation.fitness];
 
   return (
@@ -144,7 +157,7 @@ function CriteriaEvaluation({
       <div className={cn("min-w-0 flex flex-row gap-2 items-center")}>
         <Image
           src={`/svgs/${evaluation.fitness}.svg`}
-          alt=""
+          alt={t("OrgRoleTalentBoard.361dc090", "")}
           width={16}
           height={16}
         />
@@ -171,6 +184,7 @@ function CompanyMark({
   label: string;
   logoUrl?: string | null;
 }) {
+  const t = useOrgT();
   const logoUrl = getDisplayableCompanyLogoUrl(rawLogoUrl);
   const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
   const showLogo = Boolean(logoUrl && logoUrl !== failedLogoUrl);
@@ -180,7 +194,7 @@ function CompanyMark({
       {label.slice(0, 1).toUpperCase()}
       {showLogo && logoUrl ? (
         <Image
-          alt=""
+          alt={t("OrgRoleTalentBoard.361dc090", "")}
           className="absolute inset-0 size-full bg-bg-floating object-contain p-0.5 md:p-1"
           height={28}
           onError={() => setFailedLogoUrl(logoUrl)}
@@ -210,12 +224,13 @@ function formatExperienceYearPeriod(period: string) {
 }
 
 function TalentExperienceList({ item }: { item: OrgBoardItem }) {
+  const t = useOrgT();
   const recentCompanies = item.talent.recentCompanies.slice(0, 4);
   if (recentCompanies.length === 0) return null;
 
   return (
     <section
-      aria-label="최근 경력"
+      aria-label={t("OrgRoleTalentBoard.7d253420", "최근 경력")}
       className="mt-6 grid grid-cols-1 gap-x-5 gap-y-3 @sm/talent-card:grid-cols-2 @sm/talent-card:gap-y-5 @3xl/talent-card:grid-cols-4"
     >
       {recentCompanies.map((company) => (
@@ -238,7 +253,12 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
             ) : null}
             {company.period ? (
               <div className="mt-0.5 truncate text-[11px] text-neutral-soft">
-                {formatExperienceYearPeriod(company.period)}
+                {formatExperienceYearPeriod(
+                  localizeOrgProfilePeriod(
+                    company.period,
+                    t("profile.current", "현재")
+                  ) ?? ""
+                )}
               </div>
             ) : null}
           </div>
@@ -269,7 +289,11 @@ export function OrgRoleTalentBoardCard({
   pending?: boolean;
   stages: OrgStage[];
 }) {
-  const name = item.talent.name || item.talent.email || "이름 없음";
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
+  const { locale } = useOrgLocale();
+  const name =
+    item.talent.name || item.talent.email || t("OrgRoleTalentBoard.f227651c", "이름 없음");
   const isDecisionStage =
     item.stage === "pending_connection" ||
     (item.source === "company_intro" && item.companyIntro?.status === "ready");
@@ -279,11 +303,13 @@ export function OrgRoleTalentBoardCard({
   return (
     <article className="@container/talent-card relative isolate min-w-0 overflow-hidden rounded-lg">
       <CardButton
-        aria-label={`${name} 후보자 상세 보기`}
+        aria-label={t("OrgRoleTalentBoard.f15e21d3", "{p0} 후보자 상세 보기", { p0: name })}
         className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05"
         onClick={onOpen}
       >
-        <span className="sr-only">{name} 후보자 상세 보기</span>
+        <span className="sr-only">
+          {t("composed.viewCandidateDetails", "{name} 후보자 상세 보기", { name })}
+        </span>
       </CardButton>
       <div className="pointer-events-none relative z-10 p-4 sm:p-5">
         <header className="flex items-start gap-3">
@@ -302,7 +328,7 @@ export function OrgRoleTalentBoardCard({
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <time className="pt-0.5 text-[11px] font-normal text-neutral-soft">
-                  {formatKstRelativeDate(item.recommendedAt)}
+                  {formatKstRelativeDate(item.recommendedAt, { locale })}
                 </time>
                 {!isDecisionStage &&
                 item.capabilities.moveStage &&
@@ -325,7 +351,7 @@ export function OrgRoleTalentBoardCard({
 
         {item.criteriaEvaluations.length > 0 ? (
           <section
-            aria-label="평가 기준별 적합도"
+            aria-label={t("OrgRoleTalentBoard.74a26c33", "평가 기준별 적합도")}
             className="mt-6 grid grid-cols-1 gap-2 @sm/talent-card:grid-cols-2 @xl/talent-card:grid-cols-3"
           >
             {item.criteriaEvaluations.map((evaluation, index) => (
@@ -341,18 +367,18 @@ export function OrgRoleTalentBoardCard({
 
         {item.companyIntro ? (
           <p className="mt-4 text-[13px] text-neutral-muted">
-            {humanizeOrgCompanyIntroStatus(item.companyIntro)}
+            {sourceT(humanizeOrgCompanyIntroStatus(item.companyIntro))}
           </p>
         ) : null}
 
         {item.processClosureNoticeUnresolved ? (
           <div className="-mx-4 mt-5 bg-critical px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:px-5">
-            프로세스 종료 안내됨
+            {t("OrgRoleTalentBoard.5c285374", "프로세스 종료 안내됨")}
           </div>
         ) : item.upcomingMeeting ? (
           <div className="-mx-4 -mb-4 mt-5 bg-positive px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:-mb-5 sm:px-5">
-            {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt)}{" "}
-            Interview 예정
+            {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt, locale)}{" "}
+            {t("OrgRoleTalentBoard.7720ce33", "Interview 예정")}
           </div>
         ) : null}
 
@@ -376,7 +402,7 @@ export function OrgRoleTalentBoardCard({
               variant="dark"
             >
               {item.source === "company_intro"
-                ? "Intro 요청"
+                ? t("OrgRoleTalentBoard.f4e85c84", "Intro 요청")
                 : CANDIDATE_DECISION_LABELS.connect}
               <ArrowRight className="size-4" />
             </MuteButton>
@@ -394,6 +420,8 @@ export function OrgRoleTalentBoard({
   displayControl?: ReactNode;
   section?: "inbox" | "pipeline";
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const { board, boardQuery } = useOrgJobsBoard();
   const {
     changeStage,
@@ -513,7 +541,7 @@ export function OrgRoleTalentBoard({
     return (
       <div className="flex min-h-56 items-center justify-center text-[13px] text-neutral-muted">
         <LoaderCircle className="mr-2 size-4 animate-spin" />
-        후보자를 불러오는 중입니다.
+        {t("OrgRoleTalentBoard.8a6c6d35", "후보자를 불러오는 중입니다.")}
       </div>
     );
   }
@@ -521,23 +549,26 @@ export function OrgRoleTalentBoard({
   if (visibleStages.length === 0) {
     return (
       <div className="px-4 py-10 text-center text-[13px] text-neutral-muted">
-        표시할 단계가 없습니다.
+        {t("OrgRoleTalentBoard.3f651826", "표시할 단계가 없습니다.")}
       </div>
     );
   }
 
   return (
-    <section aria-label="후보자 보드" className="@container/talent-board min-w-0">
+    <section
+      aria-label={t("OrgRoleTalentBoard.3767a293", "후보자 보드")}
+      className="@container/talent-board min-w-0"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 overflow-x-auto pb-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
           <Tabs
             activeValue={selectedStageId}
-            aria-label="보드 단계 선택"
+            aria-label={t("OrgRoleTalentBoard.4458527b", "보드 단계 선택")}
             className="min-w-max w-fit gap-0.5"
             items={visibleStages.map((stage) => ({
               label: (
                 <span className="inline-flex items-center gap-2">
-                  {getBoardStageLabel(stage, activeRole?.name ?? null)}
+                  {getBoardStageLabel(stage, activeRole?.name ?? null, sourceT)}
                   <span
                     className={cn(
                       "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
@@ -547,7 +578,7 @@ export function OrgRoleTalentBoard({
                   </span>
                 </span>
               ),
-              tooltip: ORG_STAGE_DESCRIPTIONS[stage.id],
+              tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
               value: stage.id,
             }))}
             onValueChange={setActiveStageId}
@@ -585,7 +616,7 @@ export function OrgRoleTalentBoard({
                 items,
                 selectedStage
                   ? getStageLabel(selectedStage, activeRole?.name ?? null)
-                  : "후보자 보드"
+                  : t("OrgRoleTalentBoard.3767a293", "후보자 보드")
               )
             }
             onReject={() =>
@@ -599,7 +630,7 @@ export function OrgRoleTalentBoard({
         ))}
         {items.length === 0 ? (
           <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted">
-            이 단계에는 아직 후보자가 없습니다.
+            {t("OrgRoleTalentBoard.964b74fd", "이 단계에는 아직 후보자가 없습니다.")}
           </div>
         ) : null}
       </div>
@@ -609,13 +640,16 @@ export function OrgRoleTalentBoard({
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
         candidateEmail={acceptRequest?.item.talent.email}
         candidateName={
-          acceptRequest ? getOrgCandidateDisplayName(acceptRequest.item) : ""
+          acceptRequest
+            ? sourceT(getOrgCandidateDisplayName(acceptRequest.item))
+            : ""
         }
         companyContactName={currentUser?.name}
         defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
         defaultEmail={currentUserEmail}
         destinationLabel={
-          board?.stages.find((stage) => stage.id === acceptRequest?.stage)?.label
+          board?.stages.find((stage) => stage.id === acceptRequest?.stage)
+            ?.label
         }
         members={members}
         onClose={() => setAcceptRequest(null)}
@@ -660,7 +694,9 @@ export function OrgRoleTalentBoard({
 
       <StopCandidateDialog
         candidateName={
-          stopItem?.talent.name || stopItem?.talent.email || "이 후보자"
+          stopItem?.talent.name ||
+          stopItem?.talent.email ||
+          t("OrgRoleTalentBoard.c6d68c5d", "이 후보자")
         }
         connectionStarted={Boolean(
           stopItem && stopItem.stage !== "pending_connection"
@@ -679,7 +715,7 @@ export function OrgRoleTalentBoard({
         key={companyIntroRequest?.item.companyIntro?.id ?? "closed"}
         candidateName={
           companyIntroRequest
-            ? getOrgCandidateDisplayName(companyIntroRequest.item)
+            ? sourceT(getOrgCandidateDisplayName(companyIntroRequest.item))
             : ""
         }
         defaultEmail={currentUserEmail}
@@ -695,8 +731,7 @@ export function OrgRoleTalentBoard({
             });
             setCompanyIntroRequest(null);
             addToast({
-              message:
-                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
+              message: t("OrgRoleTalentBoard.2e9b2805", "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."),
               variant: "success",
             });
           } catch (error) {
@@ -704,7 +739,7 @@ export function OrgRoleTalentBoard({
               message:
                 error instanceof Error
                   ? error.message
-                  : "제안을 처리하지 못했습니다.",
+                  : t("OrgRoleTalentBoard.7d2cc265", "제안을 처리하지 못했습니다."),
               variant: "error",
             });
             throw error;
@@ -716,7 +751,9 @@ export function OrgRoleTalentBoard({
 
       <CompanyIntroPassDialog
         candidateName={
-          companyIntroPass ? getOrgCandidateDisplayName(companyIntroPass) : ""
+          companyIntroPass
+            ? sourceT(getOrgCandidateDisplayName(companyIntroPass))
+            : ""
         }
         onClose={() => setCompanyIntroPass(null)}
         onConfirm={async () => {
@@ -727,7 +764,7 @@ export function OrgRoleTalentBoard({
           });
           setCompanyIntroPass(null);
           addToast({
-            message: "후보자에게 제안하지 않고 목록에서 제외했습니다.",
+            message: t("OrgRoleTalentBoard.ce127878", "후보자에게 제안하지 않고 목록에서 제외했습니다."),
             variant: "success",
           });
         }}

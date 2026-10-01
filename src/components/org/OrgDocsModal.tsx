@@ -1,3 +1,4 @@
+import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { MoreHorizontal, Pencil, Plus } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,8 @@ export function OrgDocsModal({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeSection, setActiveSection] = useState<DocsSectionId>("review");
 
@@ -110,15 +113,15 @@ export function OrgDocsModal({
       <DialogContent className="h-[min(680px,calc(100svh-24px))] max-w-[720px] grid-rows-[auto_auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-lg p-0 sm:h-[min(680px,calc(100svh-48px))]">
         <DialogHeader className="border-b border-neutral-1000-a05 px-4 py-3 pr-12 sm:px-5">
           <DialogTitle className="text-[16px] font-medium">
-            Harper Docs
+            {t("OrgDocsModal.dd1b62dc", "Harper Docs")}
           </DialogTitle>
           <DialogDescription className="mt-0.5 text-[12px] font-normal leading-4">
-            후보자를 검토하고 관리하는 방법입니다.
+            {t("OrgDocsModal.dd283c89", "후보자를 검토하고 관리하는 방법입니다.")}
           </DialogDescription>
         </DialogHeader>
 
         <nav
-          aria-label="Docs 목차"
+          aria-label={t("OrgDocsModal.0be10b10", "Docs 목차")}
           className="flex shrink-0 gap-4 overflow-x-auto border-b border-neutral-1000-a05 px-4 sm:px-5 scrollbar-none"
         >
           {DOCS_SECTIONS.map((section) => {
@@ -136,7 +139,7 @@ export function OrgDocsModal({
                     : "border-transparent text-neutral-muted hover:text-neutral-primary"
                 )}
               >
-                {section.label}
+                {sourceT(section.label)}
               </button>
             );
           })}
@@ -150,35 +153,35 @@ export function OrgDocsModal({
           <div className="mx-auto max-w-[620px]">
             <DocsSection
               id="review"
-              title="후보자 검토"
-              description="Role 탭에서 후보자 카드를 누르세요. 상세 화면에서 추천 이유, 경력, 이력서와 링크, 이전 피드를 확인할 수 있습니다."
+              title={t("OrgDocsModal.0c126027", "후보자 검토")}
+              description={t("OrgDocsModal.e09fb8d8", "Role 탭에서 후보자 카드를 누르세요. 상세 화면에서 추천 이유, 경력, 이력서와 링크, 이전 피드를 확인할 수 있습니다.")}
             >
               <ol className="space-y-1.5 text-[12px] font-normal leading-5 text-neutral-muted">
                 <li>
                   <span className="mr-2 font-medium text-neutral-primary">
-                    1.
+                    {t("OrgDocsModal.9ff5b96b", "1.")}
                   </span>
-                  추천 이유와 경력을 확인합니다.
+                  {t("OrgDocsModal.830ec95e", "추천 이유와 경력을 확인합니다.")}
                 </li>
                 <li>
                   <span className="mr-2 font-medium text-neutral-primary">
-                    2.
+                    {t("OrgDocsModal.34114b8f", "2.")}
                   </span>
-                  이력서와 등록 링크를 확인합니다.
+                  {t("OrgDocsModal.49f85501", "이력서와 등록 링크를 확인합니다.")}
                 </li>
                 <li>
                   <span className="mr-2 font-medium text-neutral-primary">
-                    3.
+                    {t("OrgDocsModal.0c99ff6a", "3.")}
                   </span>
-                  피드에서 이전 판단과 메모를 확인합니다.
+                  {t("OrgDocsModal.df0aeddf", "피드에서 이전 판단과 메모를 확인합니다.")}
                 </li>
               </ol>
             </DocsSection>
 
             <DocsSection
               id="decision"
-              title="연결 수락과 연결 거절"
-              description="웹에서는 Connect와 Reject 버튼으로 표시됩니다. 연결을 수락하면 대화를 시작하고, 연결을 거절하면 회사의 종료 결정을 후보자에게 안내합니다. 이유는 선택 사항이며 다음 추천에 참고합니다."
+              title={t("OrgDocsModal.02077a44", "연결 수락과 연결 거절")}
+              description={t("OrgDocsModal.3d89a437", "웹에서는 Connect와 Reject 버튼으로 표시됩니다. 연결을 수락하면 대화를 시작하고, 연결을 거절하면 회사의 종료 결정을 후보자에게 안내합니다. 이유는 선택 사항이며 다음 추천에 참고합니다.")}
             >
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
@@ -187,7 +190,7 @@ export function OrgDocsModal({
                   tabIndex={-1}
                   className="pointer-events-none w-full bg-primary text-white sm:w-auto"
                 >
-                  Connect
+                  {t("OrgDocsModal.538214a1", "Connect")}
                 </Button>
                 <Button
                   type="button"
@@ -195,28 +198,27 @@ export function OrgDocsModal({
                   tabIndex={-1}
                   className="pointer-events-none w-full border-red-500 sm:w-auto"
                 >
-                  Reject
+                  {t("OrgDocsModal.a9f86905", "Reject")}
                 </Button>
               </div>
               <p className="mt-3 text-xs font-normal leading-5 text-neutral-muted">
-                연결 거절은 임시 보류가 아니에요. 후보자에게 회사의 종료
-                결정이 안내되며 이미 보이거나 전달된 안내는 회수할 수 없어요.
+                {t("OrgDocsModal.a8553543", "연결 거절은 임시 보류가 아니에요. 후보자에게 회사의 종료 결정이 안내되며 이미 보이거나 전달된 안내는 회수할 수 없어요.")}
               </p>
             </DocsSection>
 
             <DocsSection
               id="feedback"
-              title="메모"
-              description="피드에는 상태 변경, 연결 시작·거절과 이유, 회사 멤버가 남긴 메모만 표시됩니다. 자신이 남긴 메모는 수정하거나 삭제할 수 있습니다."
+              title={t("OrgDocsModal.c7cb6f49", "메모")}
+              description={t("OrgDocsModal.ae627760", "피드에는 상태 변경, 연결 시작·거절과 이유, 회사 멤버가 남긴 메모만 표시됩니다. 자신이 남긴 메모는 수정하거나 삭제할 수 있습니다.")}
             >
               <div className="max-w-[440px] overflow-hidden rounded-md border border-neutral-1000-a10">
                 <div className="min-h-[64px] px-3 py-2.5 text-xs font-normal leading-5 text-neutral-muted">
-                  다음 인터뷰에서는 0-1 제품 의사결정 사례를 확인해 주세요.
+                  {t("OrgDocsModal.f7031253", "다음 인터뷰에서는 0-1 제품 의사결정 사례를 확인해 주세요.")}
                 </div>
                 <div className="flex justify-end border-t border-neutral-1000-a05 px-2 py-2">
                   <span className="inline-flex h-8 items-center gap-1 rounded-sm bg-neutral-1000 px-2.5 text-xs font-medium text-neutral-00">
                     <Plus className="h-3.5 w-3.5" />
-                    메모 추가
+                    {t("OrgDocsModal.784f10ba", "메모 추가")}
                   </span>
                 </div>
               </div>
@@ -224,26 +226,26 @@ export function OrgDocsModal({
 
             <DocsSection
               id="pipeline"
-              title="파이프라인"
-              description="후보자 카드를 실제 진행 상태에 맞게 옮기세요. Role별 인터뷰 단계가 더 필요하면 + 버튼으로 추가할 수 있습니다."
+              title={t("OrgDocsModal.f26705aa", "파이프라인")}
+              description={t("OrgDocsModal.dab18874", "후보자 카드를 실제 진행 상태에 맞게 옮기세요. Role별 인터뷰 단계가 더 필요하면 + 버튼으로 추가할 수 있습니다.")}
             >
               <div className="overflow-x-auto text-[12px] font-normal text-neutral-primary">
                 <div className="flex min-w-max items-center gap-3">
-                  <span>연결 대기</span>
+                  <span>{t("OrgDocsModal.57cb564e", "연결 대기")}</span>
                   <span className="text-neutral-soft">→</span>
-                  <span>연결됨</span>
+                  <span>{t("OrgDocsModal.1ffcf7e5", "연결됨")}</span>
                   <span className="text-neutral-soft">→</span>
-                  <span>최종 오퍼</span>
+                  <span>{t("OrgDocsModal.1a172f6f", "최종 오퍼")}</span>
                   <span className="text-neutral-soft">/</span>
-                  <span>프로세스 중단</span>
+                  <span>{t("OrgDocsModal.cb0b11bc", "프로세스 중단")}</span>
                 </div>
               </div>
             </DocsSection>
 
             <DocsSection
               id="settings"
-              title="회사와 Role"
-              description="회사 정보와 채용 기준이 바뀌면 바로 수정하세요. Harper는 최신 내용을 추천과 후보자 안내에 사용합니다."
+              title={t("OrgDocsModal.c387abc5", "회사와 Role")}
+              description={t("OrgDocsModal.d836cb4a", "회사 정보와 채용 기준이 바뀌면 바로 수정하세요. Harper는 최신 내용을 추천과 후보자 안내에 사용합니다.")}
             >
               <div className="flex flex-wrap items-center gap-3">
                 <Button
@@ -254,20 +256,19 @@ export function OrgDocsModal({
                   className="pointer-events-none"
                 >
                   <Pencil className="h-4 w-4" />
-                  회사
+                  {t("OrgDocsModal.90f06ed4", "회사")}
                 </Button>
                 <span className="inline-flex h-8 items-center gap-2 rounded-md border border-neutral-1000-a10 px-3 text-xs font-medium">
-                  Product Lead
+                  {t("OrgDocsModal.2f7f843d", "Product Lead")}
                   <MoreHorizontal className="h-4 w-4" />
                 </span>
                 <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-1000-a10 px-2.5 text-xs font-medium">
                   <Pencil className="h-3.5 w-3.5" />
-                  역할 수정
+                  {t("OrgDocsModal.2051a73c", "역할 수정")}
                 </span>
               </div>
               <p className="mt-3 text-xs font-normal leading-5 text-neutral-muted">
-                Pitch에는 후보자에게 어필할 내용을, Role에는 원하는 인재의
-                조건을 적습니다.
+                {t("OrgDocsModal.5037e079", "Pitch에는 후보자에게 어필할 내용을, Role에는 원하는 인재의 조건을 적습니다.")}
               </p>
             </DocsSection>
           </div>

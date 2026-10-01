@@ -669,6 +669,7 @@ export async function POST(req: NextRequest) {
         reason: denialReason,
         slackUserId,
         token: context.token,
+        workspaceId: context.workspaceId,
       }).catch((error) =>
         console.warn(
           "[harper-slack/interactivity:role-quick-action-access]",
@@ -728,7 +729,8 @@ export async function POST(req: NextRequest) {
     const result =
       data && typeof data === "object" ? (data as Record<string, unknown>) : {};
     const jobId = clean(result.job_id);
-    if (!jobId) throw new Error("Slack role quick action did not create a reply job");
+    if (!jobId)
+      throw new Error("Slack role quick action did not create a reply job");
     // Slack expects this interaction endpoint to ACK within three seconds.
     // The job and its durable outbox state are already committed, so publish
     // just after the ACK rather than making Queue latency part of that SLA.
@@ -741,7 +743,10 @@ export async function POST(req: NextRequest) {
         // The job-row outbox is now marked retry and the Cron reconciler will
         // republish it. Do not turn a committed Slack button action into a
         // client-visible retry solely because Queue publish is transiently down.
-        console.error("[harper-slack/interactivity:queue-dispatch]", dispatchError);
+        console.error(
+          "[harper-slack/interactivity:queue-dispatch]",
+          dispatchError
+        );
       });
     });
     const originalText = clean(payload.message?.text);
@@ -1005,6 +1010,7 @@ export async function POST(req: NextRequest) {
         reason: denialReason,
         slackUserId,
         token: context.token,
+        workspaceId: context.workspaceId,
       });
     } catch (error) {
       console.warn("[harper-slack/interactivity:access-denied-message]", error);
@@ -1064,7 +1070,10 @@ export async function POST(req: NextRequest) {
       source: "interactivity",
     }).catch((dispatchError) => {
       // The committed job is durable and will be recovered by the dispatch Cron.
-      console.error("[harper-slack/interactivity:queue-dispatch]", dispatchError);
+      console.error(
+        "[harper-slack/interactivity:queue-dispatch]",
+        dispatchError
+      );
     });
   });
 

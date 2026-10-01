@@ -1,3 +1,6 @@
+import OfficialJobsExperience from "@/components/jobs/OfficialJobsExperience";
+import { assignOfficialJobsLayoutVariant } from "@/lib/officialJobs/experiment.server";
+import type { OfficialJobsLayoutVariant } from "@/lib/officialJobs/experiment";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import OfficialJobMarkdown from "@/components/jobs/OfficialJobMarkdown";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
@@ -6,11 +9,7 @@ import OfficialJobsHeader from "@/components/jobs/OfficialJobsHeader";
 import OfficialJobsReferralCta from "@/components/jobs/OfficialJobsReferralCta";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
-import {
-  fetchOfficialJobs,
-  officialJobsQueryKey,
-  OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
-} from "@/hooks/officialJobs/useOfficialJobs";
+import { officialJobsInfiniteOptions } from "@/hooks/officialJobs/useOfficialJobs";
 import { postOfficialJobEvent } from "@/lib/officialJobs/events";
 import {
   buildOfficialJobsCareerHref,
@@ -54,6 +53,7 @@ import { useEffect, type ReactNode } from "react";
 type OfficialJobDetailPageProps = {
   job: OfficialJob;
   locale: OfficialJobsLocale;
+  layoutVariant: OfficialJobsLayoutVariant;
 };
 
 function JobFact({
@@ -83,6 +83,7 @@ function JobFact({
 export default function OfficialJobDetailPage({
   job,
   locale,
+  layoutVariant,
 }: OfficialJobDetailPageProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -111,11 +112,7 @@ export default function OfficialJobDetailPage({
 
   useEffect(() => {
     void router.prefetch("/jobs");
-    void queryClient.prefetchQuery({
-      queryKey: officialJobsQueryKey,
-      queryFn: fetchOfficialJobs,
-      staleTime: OFFICIAL_JOBS_QUERY_STALE_TIME_MS,
-    });
+    void queryClient.prefetchInfiniteQuery(officialJobsInfiniteOptions);
   }, [queryClient, router]);
 
   return (
@@ -124,6 +121,7 @@ export default function OfficialJobDetailPage({
         eventType="job_detail_view"
         jobSlug={job.slug}
         metadata={{
+          layoutVariant,
           companyName: job.companyName,
           roleTitle: job.roleTitle,
         }}
@@ -229,10 +227,10 @@ export default function OfficialJobDetailPage({
                 </p>
                 <div className="mt-8 flex flex-col gap-2 w-full md:w-fit">
                   <OfficialJobsCtaLink
-                    className="bg-primary border-none"
                     job={job}
                     locale={locale}
                     size="lg"
+                    variant="primary"
                     onClick={() => trackApplyClick("detail_primary")}
                   />
                 </div>
@@ -308,8 +306,15 @@ export default function OfficialJobDetailPage({
               </aside>
             </div>
           </PageContainer>
+          {layoutVariant === "B" && (
+            <OfficialJobsExperience locale={locale} job={job} />
+          )}
         </main>
-        <CareerLandingFooter careerStartHref={jobLoginHref} locale={locale} />
+        <CareerLandingFooter
+          careerStartHref={jobLoginHref}
+          locale={locale}
+          onCareerStartClick={() => trackApplyClick("jobs_footer")}
+        />
       </Page>
     </>
   );
@@ -318,6 +323,7 @@ export default function OfficialJobDetailPage({
 export const getServerSideProps: GetServerSideProps<
   OfficialJobDetailPageProps
 > = async (context) => {
+  const layoutVariant = assignOfficialJobsLayoutVariant(context);
   const slug = context.params?.slug;
 
   if (typeof slug !== "string") {
@@ -344,6 +350,7 @@ export const getServerSideProps: GetServerSideProps<
   return {
     props: {
       job,
+      layoutVariant,
       locale: resolveOfficialJobsLocaleFromRequest(context.req),
     },
   };

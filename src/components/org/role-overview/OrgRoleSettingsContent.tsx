@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -34,6 +35,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import RichText from "@/components/ui/rich-text";
 import { AppleSwitch, Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useUpdateOrgRole } from "@/hooks/org/useOrg";
 import {
   useOrgRoleNotificationSettings,
@@ -43,6 +51,12 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useUnsavedChangesWarning } from "@/hooks/org/useUnsavedChangesWarning";
 import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
 import { buildOrgHref } from "@/lib/org/routes";
+import {
+  DEFAULT_INTRO_SEARCH_DAYS,
+  DEFAULT_INTRO_SEARCH_HOUR,
+  INTRO_SEARCH_DAYS,
+  type IntroSearchDay,
+} from "@/lib/org/introSearchSchedule";
 import {
   getOrgRoleLifecycleUpdate,
   normalizeOrgRoleStatus,
@@ -61,6 +75,10 @@ function formatChannelName(name: string | null, channelId: string) {
   return value.startsWith("#") ? value : `#${value}`;
 }
 
+function formatHour(hour: number) {
+  return `${hour % 12 || 12}:00 ${hour < 12 ? "AM" : "PM"}`;
+}
+
 export function OrgRoleSettingsContent({
   layout = "overview",
   role,
@@ -72,6 +90,7 @@ export function OrgRoleSettingsContent({
   roleCreation?: boolean;
   workspaceId: string;
 }) {
+  const t = useOrgT();
   const router = useRouter();
   const {
     bootstrap: { members },
@@ -100,9 +119,29 @@ export function OrgRoleSettingsContent({
   const [roleDeleteConfirmOpen, setRoleDeleteConfirmOpen] = useState(false);
   const [settingsSaveError, setSettingsSaveError] = useState("");
   const [companyFirstSearchError, setCompanyFirstSearchError] = useState("");
-  const companyFirstSearchEnabled = updateCompanyFirstSearch.isPending
-    ? updateCompanyFirstSearch.variables?.isCompanyFirstSearch === true
-    : role.isCompanyFirstSearch === true;
+  const [scheduleDaysOverride, setScheduleDaysOverride] = useState<
+    IntroSearchDay[] | null
+  >(null);
+  const [scheduleHourOverride, setScheduleHourOverride] = useState<
+    number | null
+  >(null);
+  const savedScheduleDays = role.introSearchDate ?? DEFAULT_INTRO_SEARCH_DAYS;
+  const savedScheduleHour = role.introSearchTime ?? DEFAULT_INTRO_SEARCH_HOUR;
+  const scheduleDays = scheduleDaysOverride ?? savedScheduleDays;
+  const scheduleHour = scheduleHourOverride ?? savedScheduleHour;
+  const scheduleChanged =
+    scheduleDays.join(",") !== savedScheduleDays.join(",") ||
+    scheduleHour !== savedScheduleHour;
+  const companyFirstSearchEnabled =
+    updateCompanyFirstSearch.isPending &&
+    typeof updateCompanyFirstSearch.variables?.isCompanyFirstSearch ===
+      "boolean"
+      ? updateCompanyFirstSearch.variables.isCompanyFirstSearch
+      : role.isCompanyFirstSearch === true;
+  const scheduleDisabled =
+    !companyFirstSearchEnabled ||
+    !canManage ||
+    updateCompanyFirstSearch.isPending;
   const channels = useMemo(
     () =>
       settingsQuery.data?.channels.map((channel) => ({
@@ -121,7 +160,7 @@ export function OrgRoleSettingsContent({
   const hasChanges = notificationChanged || assigneeChanged;
   const settingsPending = updateNotifications.isPending;
 
-  useUnsavedChangesWarning(hasChanges);
+  useUnsavedChangesWarning(hasChanges || scheduleChanged);
 
   const assignedMembers = assigneeUserIds.flatMap((userId) => {
     const member = members.find((item) => item.userId === userId);
@@ -137,45 +176,87 @@ export function OrgRoleSettingsContent({
     layout === "panel" && (roleCreation || lifecycleStatus === "ended");
   const statusMeta = roleCreation
     ? {
-        description: "아직 채용을 시작하지 않았습니다.",
-        label: "작성 중",
+        description: t(
+          "role.overview.OrgRoleSettingsContent.19cfb822",
+          "아직 채용을 시작하지 않았습니다."
+        ),
+        label: t("role.overview.OrgRoleSettingsContent.85160f6c", "작성 중"),
       }
     : lifecycleStatus === "active"
       ? {
-          description: "현재 후보자를 추천받고 채용을 진행하고 있습니다.",
-          label: "채용 진행 중",
+          description: t(
+            "role.overview.OrgRoleSettingsContent.69ab4392",
+            "현재 후보자를 추천받고 채용을 진행하고 있습니다."
+          ),
+          label: t(
+            "role.overview.OrgRoleSettingsContent.1ac8fc2c",
+            "채용 진행 중"
+          ),
         }
       : lifecycleStatus === "paused"
         ? {
-            description: "후보자 추천을 잠시 멈춘 상태입니다.",
-            label: "채용 일시정지",
+            description: t(
+              "role.overview.OrgRoleSettingsContent.1f56c008",
+              "후보자 추천을 잠시 멈춘 상태입니다."
+            ),
+            label: t(
+              "role.overview.OrgRoleSettingsContent.4aa053f3",
+              "채용 일시정지"
+            ),
           }
         : {
-            description: "채용이 종료되어 후보자를 추천받지 않습니다.",
-            label: "채용 종료",
+            description: t(
+              "role.overview.OrgRoleSettingsContent.ae41dfab",
+              "채용이 종료되어 후보자를 추천받지 않습니다."
+            ),
+            label: t(
+              "role.overview.OrgRoleSettingsContent.56fe698d",
+              "채용 종료"
+            ),
           };
   const statusConfirmCopy =
     statusToConfirm === "active"
       ? roleCreation
         ? {
-            description:
-              "Slack 알림 채널과 담당자는 나중에 설정할 수 있습니다. 이 역할의 채용을 진행할까요?",
-            title: "채용을 진행할까요?",
+            description: t(
+              "role.overview.OrgRoleSettingsContent.682ff28c",
+              "Slack 알림 채널과 담당자는 나중에 설정할 수 있습니다. 이 역할의 채용을 진행할까요?"
+            ),
+            title: t(
+              "role.overview.OrgRoleSettingsContent.6b1d3baa",
+              "채용을 진행할까요?"
+            ),
           }
         : {
-            description: "후보자 추천을 다시 시작하고 채용을 진행합니다.",
-            title: "채용을 다시 진행할까요?",
+            description: t(
+              "role.overview.OrgRoleSettingsContent.3408aeeb",
+              "후보자 추천을 다시 시작하고 채용을 진행합니다."
+            ),
+            title: t(
+              "role.overview.OrgRoleSettingsContent.42d8e7d8",
+              "채용을 다시 진행할까요?"
+            ),
           }
       : statusToConfirm === "paused"
         ? {
-            description:
-              "후보자 추천을 일시정지합니다. 언제든 다시 진행할 수 있습니다.",
-            title: "채용을 일시정지할까요?",
+            description: t(
+              "role.overview.OrgRoleSettingsContent.e8766b1d",
+              "후보자 추천을 일시정지합니다. 언제든 다시 진행할 수 있습니다."
+            ),
+            title: t(
+              "role.overview.OrgRoleSettingsContent.1012c29a",
+              "채용을 일시정지할까요?"
+            ),
           }
         : {
-            description:
-              "후보자 추천을 종료하고, 현재 연결된 후보자들에게 채용 종료 알림을 보냅니다. 이미 전달된 알림은 다시 채용을 진행해도 되돌릴 수 없습니다.",
-            title: "채용을 종료할까요?",
+            description: t(
+              "role.overview.OrgRoleSettingsContent.68a6ae1d",
+              "후보자 추천을 종료하고, 현재 연결된 후보자들에게 채용 종료 알림을 보냅니다. 이미 전달된 알림은 다시 채용을 진행해도 되돌릴 수 없습니다."
+            ),
+            title: t(
+              "role.overview.OrgRoleSettingsContent.44a852d9",
+              "채용을 종료할까요?"
+            ),
           };
 
   const changeAssignees = (nextUserIds: string[]) => {
@@ -211,10 +292,22 @@ export function OrgRoleSettingsContent({
       setChannelOverrides({});
       setAssigneeOverride(null);
       setSettingsEditing(false);
-      addToast({ message: "Role 설정을 저장했습니다.", variant: "success" });
+      addToast({
+        message: t(
+          "role.overview.OrgRoleSettingsContent.99c692d0",
+          "Role 설정을 저장했습니다."
+        ),
+        variant: "success",
+      });
     } catch (error) {
       setSettingsSaveError(
-        getRoleOverviewErrorMessage(error, "Role 설정을 저장하지 못했습니다.")
+        getRoleOverviewErrorMessage(
+          error,
+          t(
+            "role.overview.OrgRoleSettingsContent.a5f6aa4e",
+            "Role 설정을 저장하지 못했습니다."
+          )
+        )
       );
     }
   };
@@ -227,13 +320,22 @@ export function OrgRoleSettingsContent({
         status: statusToConfirm,
         workspaceId,
       });
-      addToast({ message: "채용 상태를 변경했습니다.", variant: "success" });
+      addToast({
+        message: t(
+          "role.overview.OrgRoleSettingsContent.4970de57",
+          "채용 상태를 변경했습니다."
+        ),
+        variant: "success",
+      });
       setStatusToConfirm(null);
     } catch (error) {
       addToast({
         message: getRoleOverviewErrorMessage(
           error,
-          "채용 상태를 변경하지 못했습니다."
+          t(
+            "role.overview.OrgRoleSettingsContent.604bd6ec",
+            "채용 상태를 변경하지 못했습니다."
+          )
         ),
         variant: "error",
       });
@@ -252,7 +354,10 @@ export function OrgRoleSettingsContent({
       addToast({
         message: getRoleOverviewErrorMessage(
           error,
-          "역할을 삭제하지 못했습니다."
+          t(
+            "role.overview.OrgRoleSettingsContent.985456b6",
+            "역할을 삭제하지 못했습니다."
+          )
         ),
         variant: "error",
       });
@@ -260,7 +365,13 @@ export function OrgRoleSettingsContent({
     }
 
     setRoleDeleteConfirmOpen(false);
-    addToast({ message: "역할을 삭제했습니다.", variant: "success" });
+    addToast({
+      message: t(
+        "role.overview.OrgRoleSettingsContent.478c7aff",
+        "역할을 삭제했습니다."
+      ),
+      variant: "success",
+    });
     void router.push(
       buildOrgHref({ orgId: workspaceId, page: "jobs", roleId: "all" })
     );
@@ -281,17 +392,68 @@ export function OrgRoleSettingsContent({
         roleId: role.roleId,
         workspaceId,
       });
+      if (!enabled) {
+        setScheduleDaysOverride(null);
+        setScheduleHourOverride(null);
+      }
       addToast({
         message: enabled
-          ? "정기 후보 검색을 켰습니다."
-          : "정기 후보 검색을 껐습니다.",
+          ? t(
+              "role.overview.OrgRoleSettingsContent.18b90ff6",
+              "정기 후보 검색을 켰습니다."
+            )
+          : t(
+              "role.overview.OrgRoleSettingsContent.52a0084f",
+              "정기 후보 검색을 껐습니다."
+            ),
         variant: "success",
       });
     } catch (error) {
       setCompanyFirstSearchError(
         getRoleOverviewErrorMessage(
           error,
-          "정기 후보 검색 설정을 저장하지 못했습니다. 다시 시도해 주세요."
+          t(
+            "role.overview.OrgRoleSettingsContent.7e825e96",
+            "정기 후보 검색 설정을 저장하지 못했습니다. 다시 시도해 주세요."
+          )
+        )
+      );
+    }
+  };
+
+  const saveSchedule = async () => {
+    if (
+      !companyFirstSearchEnabled ||
+      !canManage ||
+      !scheduleChanged ||
+      updateCompanyFirstSearch.isPending
+    )
+      return;
+    setCompanyFirstSearchError("");
+    try {
+      await updateCompanyFirstSearch.mutateAsync({
+        introSearchDate: scheduleDays,
+        introSearchTime: scheduleHour,
+        roleId: role.roleId,
+        workspaceId,
+      });
+      setScheduleDaysOverride(null);
+      setScheduleHourOverride(null);
+      addToast({
+        message: t(
+          "role.overview.OrgRoleSettingsContent.scheduleSaved",
+          "검색 일정을 저장했습니다."
+        ),
+        variant: "success",
+      });
+    } catch (error) {
+      setCompanyFirstSearchError(
+        getRoleOverviewErrorMessage(
+          error,
+          t(
+            "role.overview.OrgRoleSettingsContent.scheduleSaveError",
+            "검색 일정을 저장하지 못했습니다. 다시 시도해 주세요."
+          )
         )
       );
     }
@@ -317,7 +479,12 @@ export function OrgRoleSettingsContent({
           )}
         >
           <section className="min-w-0 space-y-2">
-            <RoleSectionHeading title="Status" />
+            <RoleSectionHeading
+              title={t(
+                "role.overview.OrgRoleSettingsContent.9b8461a2",
+                "Status"
+              )}
+            />
             <div className="rounded-md bg-bg-basement px-3 py-3 text-sm">
               {statusMeta.label}
               <p className="mt-2 text-[13px] leading-5 text-neutral-muted">
@@ -332,7 +499,10 @@ export function OrgRoleSettingsContent({
                   variant="default"
                 >
                   <Play className="size-4" />
-                  채용 진행하기
+                  {t(
+                    "role.overview.OrgRoleSettingsContent.ba0dad4c",
+                    "채용 진행하기"
+                  )}
                 </MuteButton>
               ) : null
             ) : (
@@ -343,7 +513,10 @@ export function OrgRoleSettingsContent({
                     onClick={() => setStatusToConfirm("paused")}
                   >
                     <Pause className="size-4" />
-                    채용 일시정지
+                    {t(
+                      "role.overview.OrgRoleSettingsContent.4aa053f3",
+                      "채용 일시정지"
+                    )}
                   </MuteButton>
                 ) : (
                   <MuteButton
@@ -352,7 +525,10 @@ export function OrgRoleSettingsContent({
                     variant="default"
                   >
                     <Play className="size-4" />
-                    채용 진행하기
+                    {t(
+                      "role.overview.OrgRoleSettingsContent.ba0dad4c",
+                      "채용 진행하기"
+                    )}
                   </MuteButton>
                 )}
                 {lifecycleStatus !== "ended" ? (
@@ -362,7 +538,10 @@ export function OrgRoleSettingsContent({
                     variant="warn"
                   >
                     <CircleStop className="size-4" />
-                    채용 종료하기
+                    {t(
+                      "role.overview.OrgRoleSettingsContent.ac0ccdc8",
+                      "채용 종료하기"
+                    )}
                   </MuteButton>
                 ) : null}
               </div>
@@ -374,11 +553,17 @@ export function OrgRoleSettingsContent({
               <div className="rounded-md border border-critical/20 bg-critical-faded px-3 py-3 text-[13px] text-critical">
                 {getRoleOverviewErrorMessage(
                   settingsQuery.error,
-                  "Role 설정을 불러오지 못했습니다."
+                  t(
+                    "role.overview.OrgRoleSettingsContent.b9f19f4c",
+                    "Role 설정을 불러오지 못했습니다."
+                  )
                 )}
               </div>
               <MuteButton onClick={() => void settingsQuery.refetch()}>
-                다시 시도
+                {t(
+                  "role.overview.OrgRoleSettingsContent.c2142493",
+                  "다시 시도"
+                )}
               </MuteButton>
             </section>
           ) : settingsQuery.isLoading || !channels ? (
@@ -389,8 +574,14 @@ export function OrgRoleSettingsContent({
             <section className="min-w-0 space-y-7">
               <div className="space-y-2">
                 <RoleSectionHeading
-                  description="이 역할의 새로운 연결 소식을 받을 Slack 채널을 선택하세요."
-                  title="알림 채널"
+                  description={t(
+                    "role.overview.OrgRoleSettingsContent.6a0f98e8",
+                    "이 역할의 새로운 연결 소식을 받을 Slack 채널을 선택하세요."
+                  )}
+                  title={t(
+                    "role.overview.OrgRoleSettingsContent.9622450d",
+                    "알림 채널"
+                  )}
                 />
                 {channels.length > 0 ? (
                   <div className="divide-y divide-neutral-1000-a05 bg-bg-default">
@@ -413,7 +604,16 @@ export function OrgRoleSettingsContent({
                           )}
                         </div>
                         <Switch
-                          aria-label={`${formatChannelName(channel.channelName, channel.channelId)} 알림`}
+                          aria-label={t(
+                            "role.overview.OrgRoleSettingsContent.2e05f635",
+                            "{p0} 알림",
+                            {
+                              p0: formatChannelName(
+                                channel.channelName,
+                                channel.channelId
+                              ),
+                            }
+                          )}
                           checked={channel.enabled}
                           className="data-[state=checked]:bg-positive"
                           disabled={!canManage || settingsPending}
@@ -447,7 +647,10 @@ export function OrgRoleSettingsContent({
                           page: "settings",
                         })}
                       >
-                        Slack 연결
+                        {t(
+                          "role.overview.OrgRoleSettingsContent.a48f4536",
+                          "Slack 연결"
+                        )}
                         <ArrowRight className="size-4" />
                       </Link>
                     </MuteButton>
@@ -459,11 +662,23 @@ export function OrgRoleSettingsContent({
                 <RoleSectionHeading
                   description={
                     roleCreation
-                      ? "이 역할의 알림과 후보자 진행을 맡을 담당자를 선택하세요."
-                      : "이 역할의 후보자 연결을 함께 담당할 멤버를 선택하세요."
+                      ? t(
+                          "role.overview.OrgRoleSettingsContent.2a42cf23",
+                          "이 역할의 알림과 후보자 진행을 맡을 담당자를 선택하세요."
+                        )
+                      : t(
+                          "role.overview.OrgRoleSettingsContent.ef5ded84",
+                          "이 역할의 후보자 연결을 함께 담당할 멤버를 선택하세요."
+                        )
                   }
-                  info="담당자로 설정한 멤버는 이 역할의 후보자와 연결될 때 소개 이메일 CC에 자동으로 포함됩니다."
-                  title="담당자"
+                  info={t(
+                    "role.overview.OrgRoleSettingsContent.d8ef567b",
+                    "담당자로 설정한 멤버는 이 역할의 후보자와 연결될 때 소개 이메일 CC에 자동으로 포함됩니다."
+                  )}
+                  title={t(
+                    "role.overview.OrgRoleSettingsContent.9c01f9cd",
+                    "담당자"
+                  )}
                 />
                 <div className="flex items-start gap-3 pt-1">
                   <div className="flex min-w-0 flex-1 flex-wrap gap-2">
@@ -473,10 +688,18 @@ export function OrgRoleSettingsContent({
                         key={member.userId}
                       >
                         <span className="max-w-36 truncate text-[13px] font-medium text-neutral-primary">
-                          {member.name || "이름 없음"}
+                          {member.name ||
+                            t(
+                              "role.overview.OrgRoleSettingsContent.439dfda4",
+                              "이름 없음"
+                            )}
                         </span>
                         <span className="max-w-52 truncate text-[12px] text-neutral-muted">
-                          {member.email || "이메일 없음"}
+                          {member.email ||
+                            t(
+                              "role.overview.OrgRoleSettingsContent.f3674383",
+                              "이메일 없음"
+                            )}
                         </span>
                         {member.role ? (
                           <span className="max-w-32 truncate text-[12px] text-neutral-soft">
@@ -484,7 +707,19 @@ export function OrgRoleSettingsContent({
                           </span>
                         ) : null}
                         <MuteButton
-                          aria-label={`${member.name || member.email || "담당자"} 제외`}
+                          aria-label={t(
+                            "role.overview.OrgRoleSettingsContent.4aea62bd",
+                            "{p0} 제외",
+                            {
+                              p0:
+                                member.name ||
+                                member.email ||
+                                t(
+                                  "role.overview.OrgRoleSettingsContent.9c01f9cd",
+                                  "담당자"
+                                ),
+                            }
+                          )}
                           className="ml-0.5 rounded-full"
                           disabled={!canManage || settingsPending}
                           onClick={() =>
@@ -510,8 +745,14 @@ export function OrgRoleSettingsContent({
                         >
                           <Plus className="size-4" />
                           {roleCreation && assignedMembers.length > 0
-                            ? "담당자 변경"
-                            : "담당자 추가"}
+                            ? t(
+                                "role.overview.OrgRoleSettingsContent.161cc7fa",
+                                "담당자 변경"
+                              )
+                            : t(
+                                "role.overview.OrgRoleSettingsContent.3685bc8a",
+                                "담당자 추가"
+                              )}
                         </MuteButton>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -532,7 +773,12 @@ export function OrgRoleSettingsContent({
                             >
                               <div className="min-w-0">
                                 <div className="truncate text-[13px] font-medium text-neutral-primary">
-                                  {member.name || member.email || "이름 없음"}
+                                  {member.name ||
+                                    member.email ||
+                                    t(
+                                      "role.overview.OrgRoleSettingsContent.439dfda4",
+                                      "이름 없음"
+                                    )}
                                 </div>
                                 <div className="mt-0.5 truncate text-[11px] text-neutral-muted">
                                   {[member.email, member.role]
@@ -544,7 +790,10 @@ export function OrgRoleSettingsContent({
                           ))
                         ) : (
                           <DropdownMenuItem disabled>
-                            추가할 수 있는 멤버가 없습니다.
+                            {t(
+                              "role.overview.OrgRoleSettingsContent.85c9b083",
+                              "추가할 수 있는 멤버가 없습니다."
+                            )}
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
@@ -586,59 +835,239 @@ export function OrgRoleSettingsContent({
 
       {showRoleDeletion ? (
         <OrgSection>
-          <OrgSectionHeader title="역할 삭제" />
+          <OrgSectionHeader
+            title={t(
+              "role.overview.OrgRoleSettingsContent.2c72320b",
+              "역할 삭제"
+            )}
+          />
           <MuteButton
             disabled={!canManage || hasChanges || updateRoleStatus.isPending}
             onClick={() => setRoleDeleteConfirmOpen(true)}
             title={
               hasChanges
-                ? "변경사항을 저장하거나 취소한 후 삭제할 수 있습니다."
+                ? t(
+                    "role.overview.OrgRoleSettingsContent.9a9afcd0",
+                    "변경사항을 저장하거나 취소한 후 삭제할 수 있습니다."
+                  )
                 : undefined
             }
             variant="warn"
           >
             <Trash2 className="size-3" />
-            역할 삭제하기
+            {t(
+              "role.overview.OrgRoleSettingsContent.4d1f132d",
+              "역할 삭제하기"
+            )}
           </MuteButton>
           {hasChanges ? (
             <p className="mt-2 text-[12px] leading-5 text-neutral-muted">
-              변경사항을 저장하거나 취소한 후 삭제할 수 있습니다.
+              {t(
+                "role.overview.OrgRoleSettingsContent.9a9afcd0",
+                "변경사항을 저장하거나 취소한 후 삭제할 수 있습니다."
+              )}
             </p>
           ) : null}
         </OrgSection>
       ) : null}
 
       <OrgSection>
-        <div className="flex items-start justify-between gap-6">
-          <RoleSectionHeading
-            description="Harper가 회사에게 먼저 추천할 후보를 주기적으로 찾아요."
-            info="회사에게 먼저 추천할 후보자를 정기적으로 찾아서 전달드려요. ‘먼저 제안 가능한 후보’에 표시되며, ‘Intro 요청’을 하면 후보자에게 제안이 전달돼요. off라면 후보자에게 먼저 역할을 추천하고, 수락한 후보자만 Harper가 연결해드려요."
-            title="추천 후보 검색"
-          />
-          <div className="flex min-h-6 shrink-0 items-center gap-2">
-            {updateCompanyFirstSearch.isPending ? (
-              <LoaderCircle
-                aria-hidden="true"
-                className="size-3.5 animate-spin text-neutral-muted"
-              />
-            ) : null}
-            <span className="text-[12px] text-neutral-muted">
-              {companyFirstSearchEnabled ? "켜짐" : "꺼짐"}
-            </span>
-            <AppleSwitch
-              aria-label="추천 후보 검색"
-              checked={companyFirstSearchEnabled}
-              disabled={
-                !canManage ||
-                updateCompanyFirstSearch.isPending ||
-                updateRoleStatus.isPending
-              }
-              onCheckedChange={(enabled) =>
-                void changeCompanyFirstSearch(enabled)
-              }
+        <div className="mt-6 divide-y divide-neutral-1000-a05 px-4 rounded-md bg-neutral-100">
+          <div className="flex items-start justify-between gap-6 py-5">
+            <RoleSectionHeading
+              description={t(
+                "role.overview.OrgRoleSettingsContent.33d36939",
+                "Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. 연락하고 싶은 후보자가 있다면 ‘Intro 요청’을 눌러 주세요. 이 설정을 꺼도 Harper는 후보자에게 역할을 추천할 수 있으며, 회사에는 수락한 후보자만 보여드려요."
+              )}
+              info={t(
+                "role.overview.OrgRoleSettingsContent.822f041c",
+                "켜짐: Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. ‘Intro 요청’을 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요."
+              )}
+              title={t(
+                "role.overview.OrgRoleSettingsContent.adbf70e1",
+                "추천 후보 검색"
+              )}
             />
+            <div className="flex min-h-6 shrink-0 items-center gap-2">
+              {updateCompanyFirstSearch.isPending ? (
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="size-3.5 animate-spin text-neutral-muted"
+                />
+              ) : null}
+              <span className="text-[12px] text-neutral-muted">
+                {companyFirstSearchEnabled
+                  ? t("role.overview.OrgRoleSettingsContent.9a89d1f5", "켜짐")
+                  : t("role.overview.OrgRoleSettingsContent.60895fe9", "꺼짐")}
+              </span>
+              <AppleSwitch
+                aria-label={t(
+                  "role.overview.OrgRoleSettingsContent.adbf70e1",
+                  "추천 후보 검색"
+                )}
+                checked={companyFirstSearchEnabled}
+                disabled={
+                  !canManage ||
+                  updateCompanyFirstSearch.isPending ||
+                  updateRoleStatus.isPending
+                }
+                onCheckedChange={(enabled) =>
+                  void changeCompanyFirstSearch(enabled)
+                }
+              />
+            </div>
+          </div>
+          <div className="grid gap-3 py-5 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center">
+            <div>
+              <div
+                className={cn(
+                  "text-sm font-medium",
+                  companyFirstSearchEnabled
+                    ? "text-neutral-primary"
+                    : "text-neutral-disabled"
+                )}
+              >
+                {t(
+                  "role.overview.OrgRoleSettingsContent.scheduleDays",
+                  "검색 요일"
+                )}
+              </div>
+              <p className="mt-1 text-[13px] text-neutral-muted">
+                {companyFirstSearchEnabled
+                  ? t(
+                      "role.overview.OrgRoleSettingsContent.scheduleDaysDescription",
+                      "이 요일에 새 후보자를 검색합니다."
+                    )
+                  : t(
+                      "role.overview.OrgRoleSettingsContent.scheduleDaysDisabledDescription",
+                      "검색을 켜면 이 요일에 다시 검색합니다."
+                    )}
+              </p>
+            </div>
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label={t(
+                "role.overview.OrgRoleSettingsContent.scheduleDays",
+                "검색 요일"
+              )}
+            >
+              {INTRO_SEARCH_DAYS.map((day) => {
+                const selected = scheduleDays.includes(day);
+                return (
+                  <MuteButton
+                    key={day}
+                    aria-pressed={selected}
+                    disabled={scheduleDisabled}
+                    onClick={() => {
+                      const next = selected
+                        ? scheduleDays.filter((value) => value !== day)
+                        : INTRO_SEARCH_DAYS.filter(
+                            (value) =>
+                              value === day || scheduleDays.includes(value)
+                          );
+                      if (next.length) setScheduleDaysOverride(next);
+                    }}
+                    size="sm"
+                    variant={selected ? "dark" : "default"}
+                  >
+                    {day}
+                  </MuteButton>
+                );
+              })}
+            </div>
+          </div>
+          <div className="grid gap-3 py-5 sm:grid-cols-[minmax(180px,1fr)_auto] sm:items-center">
+            <div>
+              <div
+                className={cn(
+                  "text-sm font-medium",
+                  companyFirstSearchEnabled
+                    ? "text-neutral-primary"
+                    : "text-neutral-disabled"
+                )}
+              >
+                {t(
+                  "role.overview.OrgRoleSettingsContent.scheduleTime",
+                  "검색 시간"
+                )}
+              </div>
+              <p className="mt-1 text-[13px] text-neutral-muted">
+                {companyFirstSearchEnabled
+                  ? t(
+                      "role.overview.OrgRoleSettingsContent.scheduleTimeDescription",
+                      "설정한 요일의 이 시간에 검색을 시작합니다."
+                    )
+                  : t(
+                      "role.overview.OrgRoleSettingsContent.scheduleTimeDisabledDescription",
+                      "검색을 켜면 이 시간에 다시 검색합니다."
+                    )}
+              </p>
+            </div>
+            <div className="w-40 sm:text-right">
+              <Select
+                disabled={scheduleDisabled}
+                items={Array.from({ length: 24 }, (_, hour) => ({
+                  label: formatHour(hour),
+                  value: String(hour),
+                }))}
+                value={String(scheduleHour)}
+                onValueChange={(value) => {
+                  if (value != null) setScheduleHourOverride(Number(value));
+                }}
+              >
+                <SelectTrigger
+                  aria-label={t(
+                    "role.overview.OrgRoleSettingsContent.scheduleTime",
+                    "검색 시간"
+                  )}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, hour) => (
+                    <SelectItem key={hour} value={String(hour)}>
+                      {formatHour(hour)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p
+                className={cn(
+                  "mt-1 text-[12px]",
+                  companyFirstSearchEnabled
+                    ? "text-neutral-muted"
+                    : "text-neutral-disabled"
+                )}
+              >
+                GMT+9 (Asia/Seoul)
+              </p>
+            </div>
           </div>
         </div>
+        {canManage && companyFirstSearchEnabled && scheduleChanged ? (
+          <div className="flex justify-end gap-2">
+            <MuteButton
+              disabled={updateCompanyFirstSearch.isPending}
+              onClick={() => {
+                setScheduleDaysOverride(null);
+                setScheduleHourOverride(null);
+              }}
+            >
+              {t("role.overview.OrgRoleSettingsContent.scheduleCancel", "취소")}
+            </MuteButton>
+            <MuteButton
+              disabled={updateCompanyFirstSearch.isPending}
+              onClick={() => void saveSchedule()}
+              variant="dark"
+            >
+              {t(
+                "role.overview.OrgRoleSettingsContent.scheduleSave",
+                "일정 저장"
+              )}
+            </MuteButton>
+          </div>
+        ) : null}
         {companyFirstSearchError ? (
           <p className="mt-3 text-[13px] text-critical" role="alert">
             {companyFirstSearchError}
@@ -677,7 +1106,7 @@ export function OrgRoleSettingsContent({
               onClick={() => setStatusToConfirm(null)}
               size="lg"
             >
-              취소
+              {t("role.overview.OrgRoleSettingsContent.72b94fe1", "취소")}
             </MuteButton>
             <MuteButton
               disabled={updateRoleStatus.isPending}
@@ -695,10 +1124,19 @@ export function OrgRoleSettingsContent({
                 <CircleStop className="size-4" />
               )}
               {statusToConfirm === "active"
-                ? "채용 진행하기"
+                ? t(
+                    "role.overview.OrgRoleSettingsContent.ba0dad4c",
+                    "채용 진행하기"
+                  )
                 : statusToConfirm === "paused"
-                  ? "일시정지"
-                  : "채용 종료하기"}
+                  ? t(
+                      "role.overview.OrgRoleSettingsContent.1da82cc0",
+                      "일시정지"
+                    )
+                  : t(
+                      "role.overview.OrgRoleSettingsContent.ac0ccdc8",
+                      "채용 종료하기"
+                    )}
             </MuteButton>
           </DialogFooter>
         </DialogContent>
@@ -714,9 +1152,15 @@ export function OrgRoleSettingsContent({
       >
         <DialogContent className="max-w-sm gap-5 rounded-lg p-6">
           <DialogHeader>
-            <DialogTitle className="text-[17px]">역할 삭제</DialogTitle>
+            <DialogTitle className="text-[17px]">
+              {t("role.overview.OrgRoleSettingsContent.2c72320b", "역할 삭제")}
+            </DialogTitle>
             <DialogDescription className="text-[13px] leading-5">
-              “{role.name}” 역할을 삭제합니다. 계속할까요?
+              {t(
+                "composed.deleteRole",
+                "“{roleName}” 역할을 삭제합니다. 계속할까요?",
+                { roleName: role.name }
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -725,7 +1169,7 @@ export function OrgRoleSettingsContent({
               onClick={() => setRoleDeleteConfirmOpen(false)}
               size="lg"
             >
-              취소
+              {t("role.overview.OrgRoleSettingsContent.72b94fe1", "취소")}
             </MuteButton>
             <MuteButton
               disabled={updateRoleStatus.isPending}
@@ -738,7 +1182,7 @@ export function OrgRoleSettingsContent({
               ) : (
                 <Trash2 className="size-4" />
               )}
-              삭제
+              {t("role.overview.OrgRoleSettingsContent.159f1f79", "삭제")}
             </MuteButton>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isOrgLocale } from "@/i18n/org/locale";
 import { runOrgAgentChat } from "@/lib/org/agent/chat";
 import { buildOrgOnboardingCompanyPrompt } from "@/lib/org/agent/onboardingPrompt";
 import { canProvideOrgCompanyContext } from "@/lib/org/onboarding";
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
       action?: unknown;
       workspaceId?: unknown;
       message?: unknown;
+      responseLocale?: unknown;
       email?: unknown;
     };
     if (typeof body.workspaceId !== "string" || !body.workspaceId.trim()) {
@@ -88,6 +90,9 @@ export async function POST(req: NextRequest) {
       );
     }
     if (body.action === "company") {
+      if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
+        throw new OrgHttpError(400, "Invalid response locale");
+      }
       if (!canProvideOrgCompanyContext(bootstrap.members, member)) {
         throw new OrgHttpError(
           403,
@@ -103,6 +108,7 @@ export async function POST(req: NextRequest) {
         );
       const result = await runOrgAgentChat({
         message,
+        responseLocale: isOrgLocale(body.responseLocale) ? body.responseLocale : undefined,
         llmUserMessage: buildOrgOnboardingCompanyPrompt(message),
         userMessageMetadata: { source: "org_onboarding_company" },
         assistantMessageMetadata: { source: "org_onboarding_company" },

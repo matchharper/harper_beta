@@ -60,7 +60,7 @@ test("synced Google Calendar blocks are shown inline and can be made available a
   assert.match(timeline, /calendarBusyBlockOverlapsTimeRange/);
   assert.match(timeline, /bg-action-faded/);
   assert.match(timeline, /src="\/images\/logos\/calendar\.png"/);
-  assert.match(timeline, /자동 불가 처리/);
+  assert.match(timeline, /meetings\.OrgInterviewAvailabilityDialog\.ad77ed75/);
   assert.match(timeline, /onMakeCalendarBusyBlocksAvailable/);
   assert.match(source, /useUpdateOrgGoogleCalendarBusyBlock/);
   assert.doesNotMatch(source, /Google Calendar에서 가져온 일정/);

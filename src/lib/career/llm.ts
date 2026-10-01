@@ -15,6 +15,7 @@ import {
   CLAUDE_MODEL,
   GPT_56_LUNA_MODEL,
   GPT_56_TERRA_MODEL,
+  GPT_61_SOL_MODEL,
 } from "@/lib/llm/modelConfig";
 import {
   runTalentAssistantCompletion,
@@ -58,8 +59,8 @@ export const CAREER_LLM_CONFIG = {
       reasoningEffort: "high" as const,
     },
     opportunityFeedbackFollowUp: {
-      model: GPT_56_LUNA_MODEL,
-      reasoningEffort: "high" as const,
+      model: GPT_61_SOL_MODEL,
+      reasoningEffort: "medium" as const,
     },
     recommendationFinalizer: {
       model: GPT_56_LUNA_MODEL,
@@ -114,7 +115,8 @@ export const CAREER_LLM_CONFIG = {
     finalSelectionModel: GPT_56_LUNA_MODEL,
     finalSelectionReasoningEffort: "high" as const,
     finalSelectionTemperature: 0.2,
-    planModel: CLAUDE_MODEL,
+    planModel: GPT_61_SOL_MODEL,
+    planReasoningEffort: "high" as const,
     planTemperature: 0.2,
     shortlistModel: GPT_56_LUNA_MODEL,
     shortlistReasoningEffort: "high" as const,
@@ -142,15 +144,15 @@ export const CAREER_LLM_CONFIG = {
   // GPT Live는 음성 프런트엔드와 Responses 기반 판단 모델을 분리한다.
   // 기존 Realtime 경로와 섞지 않고 /api/live/session에서만 사용한다.
   live: {
-    delegationModel: GPT_56_TERRA_MODEL,
+    delegationModel: GPT_61_SOL_MODEL,
     model: "gpt-live-1",
     voice: "cedar",
   },
-  // 기본 Exa 검색 자료와 개인 맥락을 한 번에 받은 Terra가 필요할 때 직접
+  // 기본 Exa 검색 자료와 개인 맥락을 받은 모델이 필요할 때 직접
   // 검색 도구를 사용하면서 회사 조사 글 전체를 완성한다.
   // 사용처: src/lib/career/companySnapshot.ts 의 runCompanySnapshotResearch.
   companySnapshotResearch: {
-    primaryModel: GPT_56_TERRA_MODEL,
+    primaryModel: GPT_61_SOL_MODEL,
     reasoningEffort: "high" as const,
   },
   // 기존 프로필/대화에서 비어 있는 insight key만 채우는 내부 refresh 작업.

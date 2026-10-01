@@ -1,14 +1,30 @@
-import { NextResponse } from "next/server";
-import { getPublicOfficialJobListItems } from "@/lib/officialJobs/server";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  getPublicOfficialJobsPage,
+  getPublicOfficialJobListItems,
+} from "@/lib/officialJobs/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const PUBLIC_OFFICIAL_JOBS_CACHE_CONTROL =
-  "public, s-maxage=60, stale-while-revalidate=300";
-
-export async function GET() {
-  const jobs = await getPublicOfficialJobListItems();
-  const response = NextResponse.json({ jobs });
-  response.headers.set("Cache-Control", PUBLIC_OFFICIAL_JOBS_CACHE_CONTROL);
-  return response;
+export async function GET(req: NextRequest) {
+  const rawOffset = req.nextUrl.searchParams.get("offset") ?? "0";
+  const offset = Number(rawOffset);
+  if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset < 0) {
+    return NextResponse.json({ error: "Invalid offset" }, { status: 400 });
+  }
+  try {
+    const page = req.nextUrl.searchParams.has("offset")
+      ? await getPublicOfficialJobsPage(offset)
+      : { jobs: await getPublicOfficialJobListItems() };
+    return NextResponse.json(page, {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (error) {
+    console.warn("official jobs page query failed:", error);
+    return NextResponse.json(
+      { error: "Failed to load official jobs" },
+      { status: 500 }
+    );
+  }
 }

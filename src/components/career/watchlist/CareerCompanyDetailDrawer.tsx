@@ -193,7 +193,6 @@ const CareerCompanyDetailDrawer = ({
     <TalentCareerModal
       open={open}
       modal={mobileLayout}
-      closeOnBackdrop={mobileLayout}
       onClose={handleClose}
       ariaLabel={t("career.company.jobs.company_detail", "회사 상세 정보")}
       overlayClassName="z-[81] items-stretch justify-end p-0 sm:p-0"

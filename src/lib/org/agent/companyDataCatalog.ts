@@ -1,5 +1,6 @@
 import { ORG_ROLE_MUTATION_STATUS_VALUES } from "@/lib/org/roleStatus";
 import { ORG_ROLE_WORK_MODE_VALUES } from "@/lib/org/roleFieldValues";
+import { INTRO_SEARCH_DAYS } from "@/lib/org/introSearchSchedule";
 
 /**
  * Logical fields understood by the shared mutation machinery. Some legacy
@@ -36,6 +37,8 @@ export const COMPANY_DATA_KEYS = [
   "salaryRange",
   "role_status",
   "role_is_company_first_search",
+  "role_intro_search_date",
+  "role_intro_search_time",
   "role_work_mode",
   "role_employment_types",
   "role_request",
@@ -73,6 +76,8 @@ export const COMPANY_SIDE_LLM_DATA_KEYS = [
   "salaryRange",
   "role_status",
   "role_is_company_first_search",
+  "role_intro_search_date",
+  "role_intro_search_time",
   "role_work_mode",
   "role_employment_types",
   "role_request",
@@ -228,6 +233,22 @@ export const COMPANY_DATA_CATALOG: Record<
     roleScoped: true,
     type: "boolean",
   },
+  role_intro_search_date: {
+    allowedValues: INTRO_SEARCH_DAYS,
+    confirmationRequired: false,
+    longText: false,
+    maxItems: 7,
+    nullable: false,
+    roleScoped: true,
+    type: "string_list",
+  },
+  role_intro_search_time: {
+    confirmationRequired: false,
+    longText: false,
+    nullable: false,
+    roleScoped: true,
+    type: "integer",
+  },
   role_work_mode: {
     allowedValues: ORG_ROLE_WORK_MODE_VALUES,
     confirmationRequired: false,
@@ -316,6 +337,8 @@ const COMPANY_DATA_LABELS: Record<CompanyDataKey, string> = {
   salaryRange: "보상 범위",
   role_status: "포지션 상태",
   role_is_company_first_search: "정기 후보 검색",
+  role_intro_search_date: "정기 후보 검색 요일",
+  role_intro_search_time: "정기 후보 검색 시간",
   role_work_mode: "근무 방식",
   role_employment_types: "고용 형태",
   role_request: "채용 기준",

@@ -2,8 +2,32 @@ import type {
   OrgAgentThinkingLog,
   OrgAgentThinkingLogIcon,
 } from "@/lib/org/agent/types";
+import type { OrgLocale } from "@/i18n/org/locale";
 
 const ORG_AGENT_THINKING_ONLY_LOG_IDS = new Set(["context", "response"]);
+
+const ENGLISH_STATUS_LABELS: Record<
+  OrgAgentThinkingLogIcon,
+  Record<"done" | "error" | "running", string>
+> = {
+  link: { running: "Opening link", done: "Link checked", error: "Could not open link" },
+  read: { running: "Reading information", done: "Information checked", error: "Could not read information" },
+  run: { running: "Working", done: "Completed", error: "Could not complete" },
+  search: { running: "Searching", done: "Search complete", error: "Search failed" },
+  send: { running: "Handling contact", done: "Contact step complete", error: "Contact step failed" },
+  write: { running: "Updating", done: "Update complete", error: "Update failed" },
+};
+
+export function localizeOrgAgentThinkingLogs(
+  logs: OrgAgentThinkingLog[],
+  locale: OrgLocale
+): OrgAgentThinkingLog[] {
+  if (locale === "ko") return logs;
+  return logs.map((log) => ({
+    ...log,
+    label: ENGLISH_STATUS_LABELS[log.icon ?? "run"][log.status ?? "running"],
+  }));
+}
 
 export function hasOrgAgentToolWork(logs: OrgAgentThinkingLog[]) {
   return logs.some((log) => {

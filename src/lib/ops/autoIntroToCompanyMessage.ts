@@ -195,8 +195,24 @@ export function buildAutoIntroRoleJobsUrl(args: {
   ).toString();
 }
 
-export function autoIntroRoleStatusLabel(value: unknown) {
-  return getOrgRoleStatusPresentation(value).label;
+export function autoIntroRoleStatusLabel(
+  value: unknown,
+  locale: "ko" | "en" = "ko"
+) {
+  const presentation = getOrgRoleStatusPresentation(value);
+  if (locale === "ko") return presentation.label;
+  return (
+    (
+      {
+        draft: "Draft",
+        top_priority: "Top priority",
+        active: "Active",
+        paused: "Paused",
+        ended: "Ended",
+        deleted: "Deleted",
+      } as Record<string, string>
+    )[presentation.status] ?? "Draft"
+  );
 }
 
 function honorificName(value: unknown, fallback: string) {
@@ -217,6 +233,7 @@ function autoIntroReminderRoleLink(args: {
 
 function autoIntroReminderCandidateLink(args: {
   candidateName: string;
+  locale?: "ko" | "en";
   publicSiteUrl?: string | null;
   recommendationId: string | null;
   roleId: string;
@@ -225,13 +242,28 @@ function autoIntroReminderCandidateLink(args: {
 }) {
   return buildAutoIntroCandidateNameLink({
     ...args,
-    name: honorificName(args.candidateName, "후보자"),
+    name:
+      args.locale === "en"
+        ? args.candidateName || "Candidate"
+        : honorificName(args.candidateName, "후보자"),
   });
 }
 
-export function formatAutoIntroReminderKstDateTime(value: unknown) {
+export function formatAutoIntroReminderKstDateTime(
+  value: unknown,
+  locale: "ko" | "en" = "ko"
+) {
   const date = new Date(String(value ?? "").trim());
   if (!Number.isFinite(date.getTime())) return null;
+  if (locale === "en")
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
   const parts = new Intl.DateTimeFormat("ko-KR", {
     day: "numeric",
     hour: "2-digit",
@@ -252,6 +284,7 @@ export function formatAutoIntroReminderKstDateTime(value: unknown) {
 }
 
 export function buildAutoIntroRoleSummaryReminderText(args: {
+  locale?: "ko" | "en";
   publicSiteUrl?: string | null;
   summary: AutoIntroRoleSummary;
 }) {
@@ -263,8 +296,13 @@ export function buildAutoIntroRoleSummaryReminderText(args: {
       });
       const candidateLink = autoIntroReminderCandidateLink({
         ...reminder,
+        locale: args.locale,
         publicSiteUrl: args.publicSiteUrl,
       });
+      if (args.locale === "en")
+        return reminder.expectsDocument
+          ? `• ${candidateLink} sent the requested material for ${roleLink}. Review it and decide whether to connect.`
+          : `• ${candidateLink} answered your question about ${roleLink}. Review the reply and decide whether to connect.`;
       const receivedCopy = reminder.expectsDocument
         ? `${candidateLink}께 이력서를 요청했고, 자료를 받았어요.`
         : `질문하신 내용을 ${candidateLink}께 전달했고 답변을 받았어요.`;
@@ -274,7 +312,8 @@ export function buildAutoIntroRoleSummaryReminderText(args: {
   const meetingLines = (args.summary.reminders?.upcomingMeetings ?? []).flatMap(
     (reminder) => {
       const scheduledAt = formatAutoIntroReminderKstDateTime(
-        reminder.confirmedStartAt
+        reminder.confirmedStartAt,
+        args.locale
       );
       if (!scheduledAt) return [];
       const roleLink = autoIntroReminderRoleLink({
@@ -283,8 +322,19 @@ export function buildAutoIntroRoleSummaryReminderText(args: {
       });
       const candidateLink = autoIntroReminderCandidateLink({
         ...reminder,
+        locale: args.locale,
         publicSiteUrl: args.publicSiteUrl,
       });
+      if (args.locale === "en") {
+        const attendees =
+          reminder.attendeeNames
+            .map(escapeSlackText)
+            .filter(Boolean)
+            .join(", ") || "Meeting host";
+        return [
+          `• Meeting with ${candidateLink} for ${roleLink}: ${scheduledAt} KST. Attendees: ${attendees}`,
+        ];
+      }
       const attendeeNames = Array.from(
         new Set(
           reminder.attendeeNames
@@ -301,12 +351,23 @@ export function buildAutoIntroRoleSummaryReminderText(args: {
     }
   );
   const lines = [...replyLines, ...meetingLines];
+  const englishHeading = replyLines.length
+    ? meetingLines.length
+      ? "*Candidate replies and upcoming meetings*"
+      : "*Candidate replies*"
+    : "*Upcoming meetings*";
   return lines.length
-    ? ["*확인이 필요한 항목이 있습니다.*", ...lines].join("\n")
+    ? [
+        args.locale === "en"
+          ? englishHeading
+          : "*확인이 필요한 항목이 있습니다.*",
+        ...lines,
+      ].join("\n")
     : null;
 }
 
 export function buildAutoIntroRoleSummaryText(args: {
+  locale?: "ko" | "en";
   introBody?: string | null;
   publicSiteUrl?: string | null;
   summary: AutoIntroRoleSummary;
@@ -318,15 +379,19 @@ export function buildAutoIntroRoleSummaryText(args: {
         roleId: role.roleId,
         workspaceId: role.workspaceId,
       })}|${escapeSlackLinkLabel(role.roleTitle)}> | ${autoIntroRoleStatusLabel(
-        role.status
-      )} | ${role.pendingDecisionCount}명`
+        role.status,
+        args.locale
+      )} | ${args.locale === "en" ? `${role.pendingDecisionCount} ready to connect` : `${role.pendingDecisionCount}명`}`
   );
   const reminderText = buildAutoIntroRoleSummaryReminderText(args);
   return [
     ...(String(args.introBody ?? "").trim()
       ? [String(args.introBody).trim()]
       : []),
-    ["*현재 채용 현황*", ...rows].join("\n"),
+    [
+      args.locale === "en" ? "*Hiring overview*" : "*현재 채용 현황*",
+      ...rows,
+    ].join("\n"),
     ...(reminderText ? [reminderText] : []),
   ].join("\n\n");
 }
@@ -354,6 +419,7 @@ function splitSlackSectionText(value: string, maxLength = 2_900) {
 export function attachAutoIntroSlackReviewAction(args: {
   blocks?: Array<Record<string, unknown>>;
   candidateCount: number;
+  locale?: "ko" | "en";
   messageBody: string;
 }) {
   if (!Number.isSafeInteger(args.candidateCount) || args.candidateCount <= 0) {
@@ -375,7 +441,10 @@ export function attachAutoIntroSlackReviewAction(args: {
           action_id: AUTO_INTRO_SLACK_REVIEW_ACTION_ID,
           style: "primary",
           text: {
-            text: `후보자 ${args.candidateCount}명 검토하기`,
+            text:
+              args.locale === "en"
+                ? `Review ${args.candidateCount} ${args.candidateCount === 1 ? "candidate" : "candidates"}`
+                : `후보자 ${args.candidateCount}명 검토하기`,
             type: "plain_text",
           },
           type: "button",
@@ -388,6 +457,7 @@ export function attachAutoIntroSlackReviewAction(args: {
 }
 
 export function buildAutoIntroRoleSummarySlackBlocks(args: {
+  locale?: "ko" | "en";
   introBody?: string | null;
   publicSiteUrl?: string | null;
   summary: AutoIntroRoleSummary;
@@ -402,9 +472,12 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
     (total, role) =>
       total +
       role.roleTitle.length +
-      autoIntroRoleStatusLabel(role.status).length +
+      autoIntroRoleStatusLabel(role.status, args.locale).length +
       String(role.pendingDecisionCount).length,
-    "Role상태연결 결정 대기".length
+    (args.locale === "en"
+      ? "RoleStatusReady to connect"
+      : "Role상태연결 결정 대기"
+    ).length
   );
   if (tableCharacterCount > 10_000) {
     throw new Error("Role summary exceeds the Slack table character limit");
@@ -427,7 +500,7 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
     ...(introBlocks.length > 0 ? [{ type: "divider" }] : []),
     {
       text: {
-        text: "*현재 채용 현황*",
+        text: args.locale === "en" ? "*Hiring overview*" : "*현재 채용 현황*",
         type: "mrkdwn",
       },
       type: "section",
@@ -441,8 +514,11 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
       rows: [
         [
           { text: "Role", type: "raw_text" },
-          { text: "상태", type: "raw_text" },
-          { text: "연결 결정 대기", type: "raw_text" },
+          { text: args.locale === "en" ? "Status" : "상태", type: "raw_text" },
+          {
+            text: args.locale === "en" ? "Ready to connect" : "연결 결정 대기",
+            type: "raw_text",
+          },
         ],
         ...args.summary.roles.map((role) => [
           {
@@ -465,10 +541,16 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
             type: "rich_text",
           },
           {
-            text: autoIntroRoleStatusLabel(role.status),
+            text: autoIntroRoleStatusLabel(role.status, args.locale),
             type: "raw_text",
           },
-          { text: `${role.pendingDecisionCount}명`, type: "raw_text" },
+          {
+            text:
+              args.locale === "en"
+                ? String(role.pendingDecisionCount)
+                : `${role.pendingDecisionCount}명`,
+            type: "raw_text",
+          },
         ]),
       ],
       type: "table",
@@ -490,12 +572,14 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
 }
 
 export function buildAutoIntroWorkspaceActionGuidance(args: {
+  locale?: "ko" | "en";
   publicSiteUrl?: string | null;
   workspaceId: string;
 }) {
-  return `후보자에 대한 더 자세한 정보는 <${buildAutoIntroWorkspaceJobsUrl(
-    args
-  )}|Harper 웹에서 확인해 주세요>.`;
+  const link = buildAutoIntroWorkspaceJobsUrl(args);
+  return args.locale === "en"
+    ? `View candidate details in <${link}|Harper>.`
+    : `후보자에 대한 더 자세한 정보는 <${link}|Harper 웹에서 확인해 주세요>.`;
 }
 
 export function renderAutoIntroCandidateCopy(

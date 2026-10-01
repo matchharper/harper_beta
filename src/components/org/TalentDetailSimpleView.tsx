@@ -1,3 +1,9 @@
+import {
+  useOrgLocale,
+  useOrgSourceT,
+  useOrgT,
+} from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
@@ -18,6 +24,7 @@ import {
   ProgressFeed,
   type ProgressFeedIcon,
   type ProgressFeedItem,
+  type ProgressFeedLabels,
 } from "@/components/progress-feed/ProgressFeed";
 import { ConnectionConfirmationEmailFeedCard } from "@/components/progress-feed/ConnectionConfirmationEmailFeedCard";
 import { CompanyTalentRequestFeedCard } from "@/components/progress-feed/CompanyTalentRequestFeedCard";
@@ -114,20 +121,26 @@ const RESOURCE_LINK_KIND_ORDER: Record<ResourceLinkKind, number> = {
   other: 4,
 };
 
+function OrgInternalTalentLoading() {
+  const t = useOrgT();
+  return (
+    <div className="flex min-h-56 items-center justify-center text-[13px] font-light text-neutral-muted">
+      <LoaderCircle className="mr-2 size-4 animate-spin" />
+      {t("TalentDetailSimpleView.de36fc91", "내부 데이터를 불러오는 중")}
+    </div>
+  );
+}
+
 const OrgInternalTalentPanel = dynamic(
   () => import("@/components/org/internal/OrgInternalTalentPanel"),
   {
-    loading: () => (
-      <div className="flex min-h-56 items-center justify-center text-[13px] font-light text-neutral-muted">
-        <LoaderCircle className="mr-2 size-4 animate-spin" />
-        내부 데이터를 불러오는 중
-      </div>
-    ),
+    loading: () => <OrgInternalTalentLoading />,
     ssr: false,
   }
 );
 
 function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
+  const t = useOrgT();
   const profilePicture = getDisplayableProfileImageUrl(src);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
 
@@ -135,7 +148,7 @@ function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
     return (
       <Image
         src={profilePicture}
-        alt=""
+        alt={t("TalentDetailSimpleView.afa4d0e2", "")}
         width={64}
         height={64}
         unoptimized
@@ -272,6 +285,8 @@ function HarperMemoSection({
   isLoading: boolean;
   memos: CareerTalentOpsProfileMemo[];
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
   const sortedMemos = [...memos].sort((left, right) =>
     (right.updatedAt ?? right.createdAt ?? "").localeCompare(
       left.updatedAt ?? left.createdAt ?? ""
@@ -285,12 +300,12 @@ function HarperMemoSection({
     >
       <div className="relative z-20">
         <div className="text-[14px] font-medium text-neutral-primary">
-          Harper 메모
+          {t("TalentDetailSimpleView.ce7acd4f", "Harper 메모")}
         </div>
         {isLoading ? (
           <div className="mt-3 flex items-center text-[13px] text-neutral-muted">
             <LoaderCircle className="mr-2 size-4 animate-spin" />
-            메모를 불러오는 중
+            {t("TalentDetailSimpleView.32ae6476", "메모를 불러오는 중")}
           </div>
         ) : error ? (
           <div className="mt-3 text-[13px] leading-5 text-critical">
@@ -304,7 +319,7 @@ function HarperMemoSection({
                   {memo.content}
                 </div>
                 <div className="mt-1 text-[12px] text-neutral-muted">
-                  {formatKst(memo.updatedAt ?? memo.createdAt)}
+                  {formatKst(memo.updatedAt ?? memo.createdAt, { locale })}
                   {memo.updatedBy ? ` · ${memo.updatedBy}` : ""}
                 </div>
               </div>
@@ -312,7 +327,7 @@ function HarperMemoSection({
           </div>
         ) : (
           <div className="mt-2 text-[13px] text-neutral-muted">
-            등록된 Harper 메모가 없습니다.
+            {t("TalentDetailSimpleView.b0d573bb", "등록된 Harper 메모가 없습니다.")}
           </div>
         )}
       </div>
@@ -329,10 +344,18 @@ function SystemActivitySummary({
   error: Error | null;
   isLoading: boolean;
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
   const metrics = [
-    { label: "가입 날짜", value: account?.createdAt },
-    { label: "최근 로그인", value: account?.lastLoginAt },
-    { label: "최근 사용", value: account?.lastActiveAt },
+    { label: t("TalentDetailSimpleView.556631d5", "가입 날짜"), value: account?.createdAt },
+    {
+      label: t("TalentDetailSimpleView.f49011b1", "최근 로그인"),
+      value: account?.lastLoginAt,
+    },
+    {
+      label: t("TalentDetailSimpleView.dc2ed073", "최근 사용"),
+      value: account?.lastActiveAt,
+    },
   ];
 
   return (
@@ -344,11 +367,11 @@ function SystemActivitySummary({
         {isLoading ? (
           <div className="flex items-center text-[11px] text-neutral-soft">
             <LoaderCircle className="mr-1.5 size-3 animate-spin" />
-            시스템 활동을 불러오는 중
+            {t("TalentDetailSimpleView.4c426b79", "시스템 활동을 불러오는 중")}
           </div>
         ) : error ? (
           <div className="text-[11px] text-neutral-soft">
-            시스템 활동을 불러오지 못했습니다.
+            {t("TalentDetailSimpleView.5899dd6e", "시스템 활동을 불러오지 못했습니다.")}
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] leading-4 text-neutral-muted">
@@ -357,7 +380,7 @@ function SystemActivitySummary({
                 <span className="font-medium text-neutral-primary">
                   {metric.label}
                 </span>{" "}
-                {formatKstRelativeDate(metric.value)}
+                {formatKstRelativeDate(metric.value, { locale })}
               </span>
             ))}
           </div>
@@ -390,7 +413,12 @@ function ProfilePane({
     documentId?: string | null
   ) => void;
 }) {
-  const name = detail.talent.name || detail.talent.email || "이름 없음";
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
+  const name =
+    detail.talent.name ||
+    detail.talent.email ||
+    t("TalentDetailSimpleView.cb05015b", "이름 없음");
   const registeredLinks = detail.profile.registeredLinks.length
     ? detail.profile.registeredLinks
     : detail.resume.links;
@@ -414,15 +442,15 @@ function ProfilePane({
     primaryResources.push({
       key: "stored-resume",
       kind: "resume",
-      label: "이력서",
+      label: t("TalentDetailSimpleView.65bec4e3", "이력서"),
       onClick: () => onResumeClick("storage"),
-      title: detail.resume.fileName ?? "저장된 이력서 파일",
+      title: detail.resume.fileName ?? t("TalentDetailSimpleView.c40f8d91", "저장된 이력서 파일"),
     });
   } else if (primaryResumeLink) {
     primaryResources.push({
       key: `primary:${primaryResumeLink}`,
       kind: "resume",
-      label: "이력서",
+      label: t("TalentDetailSimpleView.65bec4e3", "이력서"),
       onClick: () => onResumeClick("link", primaryResumeLink),
       title: formatLinkLabel(primaryResumeLink),
     });
@@ -434,7 +462,7 @@ function ProfilePane({
       key: `primary:${primaryLinkedinLink}`,
       imageSrc: getTalentProfileLinkImageSrc(primaryLinkedinLink),
       kind: "linkedin",
-      label: "LinkedIn",
+      label: t("TalentDetailSimpleView.452acc9c", "LinkedIn"),
       title: formatLinkLabel(primaryLinkedinLink),
     });
   }
@@ -443,7 +471,7 @@ function ProfilePane({
     ...detail.profile.documents.map((document) => ({
       key: `document:${document.id}`,
       kind: "document" as const,
-      label: document.fileName || "공개 문서",
+      label: document.fileName || t("TalentDetailSimpleView.b81cd952", "공개 문서"),
       onClick: () => onResumeClick("document", null, document.id),
       title: document.fileName,
     })),
@@ -463,7 +491,7 @@ function ProfilePane({
             : getTalentProfileLinkImageSrc(link),
           key: `secondary:${link}`,
           kind: kind === "linkedin" || kind === "resume" ? kind : "link",
-          label: getResourceLinkLabel(kind),
+          label: sourceT(getResourceLinkLabel(kind)),
           onClick: isResumeLink ? () => onResumeClick("link", link) : undefined,
           title: formatLinkLabel(link),
         } satisfies TalentProfileResource;
@@ -502,10 +530,10 @@ function ProfilePane({
       )}
 
       {detail.recommendation.fitReason ? (
-        <ProfileSection title="">
+        <ProfileSection title={t("TalentDetailSimpleView.afa4d0e2", "")}>
           <div className="flex items-center gap-2 pt-2 text-[15px] text-neutral-900">
             <Face size={24} />
-            Harper의 추천 이유
+            {t("TalentDetailSimpleView.3b1be38f", "Harper의 추천 이유")}
           </div>
           <div className="mt-4 mb-10 border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
             <MarkdownProfile
@@ -518,7 +546,7 @@ function ProfilePane({
       ) : null}
 
       {detail.profile.bio ? (
-        <ProfileSection title="소개">
+        <ProfileSection title={t("TalentDetailSimpleView.83eac800", "소개")}>
           <div className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
             {detail.profile.bio.trim()}
           </div>
@@ -532,7 +560,7 @@ function ProfilePane({
       <TalentExtraSection extras={detail.profile.extras} />
 
       {!hasProfileContent && detail.profileMarkdown ? (
-        <ProfileSection title="프로필">
+        <ProfileSection title={t("TalentDetailSimpleView.992961fa", "프로필")}>
           <MarkdownProfile value={detail.profileMarkdown} />
         </ProfileSection>
       ) : null}
@@ -559,21 +587,21 @@ function CandidateDecisionActions({
   onMoveToPendingConnection?: () => void;
   onRejectClick?: () => void;
 }) {
+  const t = useOrgT();
   if (currentStage === "process_stopped") return null;
 
   if (currentStage === "accepted") {
     if (!onMoveToPendingConnection) return null;
     return (
       <section
-        aria-label="연결 대기 상태로 이동"
+        aria-label={t("TalentDetailSimpleView.c702a21a", "연결 대기 상태로 이동")}
         className={cn("rounded-md bg-bg-weak px-4 py-4", className)}
       >
         <div className="text-[16px] font-medium text-neutral-primary">
-          연결 대기 상태로 옮기시겠습니까?
+          {t("TalentDetailSimpleView.37609523", "연결 대기 상태로 옮기시겠습니까?")}
         </div>
         <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-          회사 측의 페이지에 현재 후보자가 표시되며, 회사 측에서 연결을 받을지
-          결정하는 단계로 넘어갑니다.
+          {t("TalentDetailSimpleView.26440e1f", "회사 측의 페이지에 현재 후보자가 표시되며, 회사 측에서 연결을 받을지 결정하는 단계로 넘어갑니다.")}
         </p>
         <MuteButton
           className="mt-4"
@@ -583,7 +611,7 @@ function CandidateDecisionActions({
           type="button"
           variant="primary"
         >
-          연결 대기로 이동
+          {t("TalentDetailSimpleView.f5eaedc4", "연결 대기로 이동")}
         </MuteButton>
       </section>
     );
@@ -596,15 +624,14 @@ function CandidateDecisionActions({
     if (!onRejectClick) return null;
     return (
       <section
-        aria-label="진행 중인 후보자 연결 종료"
+        aria-label={t("TalentDetailSimpleView.a291badd", "진행 중인 후보자 연결 종료")}
         className={cn("rounded-md bg-critical-faded px-4 py-4", className)}
       >
         <div className="text-[15px] font-medium text-critical">
-          진행 중인 프로세스를 종료하시겠습니까?
+          {t("TalentDetailSimpleView.102a021b", "진행 중인 프로세스를 종료하시겠습니까?")}
         </div>
         <p className="mt-1 text-[13px] font-normal leading-5">
-          연결을 종료하면 Harper가 후보자에게 회사의 종료 결정을 안내해요. 이미
-          보이거나 전달된 안내는 회수할 수 없어요.
+          {t("TalentDetailSimpleView.e12d499e", "연결을 종료하면 Harper가 후보자에게 회사의 종료 결정을 안내해요. 이미 보이거나 전달된 안내는 회수할 수 없어요.")}
         </p>
         <MuteButton
           className="mt-4"
@@ -614,7 +641,7 @@ function CandidateDecisionActions({
           type="button"
           variant="warn"
         >
-          연결 종료하기
+          {t("TalentDetailSimpleView.7fd07122", "연결 종료하기")}
         </MuteButton>
       </section>
     );
@@ -629,17 +656,17 @@ function CandidateDecisionActions({
 
   return (
     <section
-      aria-label="후보자 연결 결정"
+      aria-label={t("TalentDetailSimpleView.373d26fb", "후보자 연결 결정")}
       className={cn(
         "rounded-lg border border-neutral-1000-a05 bg-bg-default px-4 py-4",
         className
       )}
     >
       <div className="text-[16px] font-medium text-neutral-primary">
-        연결 여부를 결정해 주세요
+        {t("TalentDetailSimpleView.35f9d8c1", "연결 여부를 결정해 주세요")}
       </div>
       <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-        {candidateName}님과 연결을 진행할까요?
+        {t("TalentDetailSimpleView.1fdb022f", "{name}님과 연결을 진행할까요?", { name: candidateName })}
       </p>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <MuteButton
@@ -680,18 +707,20 @@ function CompanyIntroDecisionActions({
   onRequest: () => void;
   pending: boolean;
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   if (!detail.companyIntro) return null;
   if (detail.companyIntro.status !== "ready") {
     return (
       <section className="rounded-md bg-primary-faded px-4 py-4">
         <div className="text-[15px] font-medium text-primary">
-          {humanizeOrgCompanyIntroStatus(detail.companyIntro)}
+          {sourceT(humanizeOrgCompanyIntroStatus(detail.companyIntro))}
         </div>
         <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
           {detail.companyIntro.status === "connecting"
-            ? "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다."
-            : "회사가 먼저 제안을 요청한 후보입니다. 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다."}{" "}
-          연결 전에는 추가 연락이나 인터뷰 요청을 할 수 없습니다.
+            ? t("TalentDetailSimpleView.4fc3f9f9", "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다.")
+            : t("TalentDetailSimpleView.78af6bc0", "회사가 먼저 제안을 요청한 후보입니다. 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다.")}{" "}
+          {t("TalentDetailSimpleView.dd04379c", "연결 전에는 추가 연락이나 인터뷰 요청을 할 수 없습니다.")}
         </p>
       </section>
     );
@@ -699,7 +728,9 @@ function CompanyIntroDecisionActions({
   return (
     <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
       <div className="text-[16px] font-medium text-neutral-primary">
-        Request Intro: {candidateName}
+        {t("TalentDetailSimpleView.requestIntroHeading", "Request Intro:{candidateName}", {
+          candidateName,
+        })}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <MuteButton
@@ -708,7 +739,7 @@ function CompanyIntroDecisionActions({
           size="md"
           variant="critical"
         >
-          Pass
+          {t("TalentDetailSimpleView.9e543b47", "Pass")}
         </MuteButton>
         <MuteButton
           disabled={pending}
@@ -716,7 +747,7 @@ function CompanyIntroDecisionActions({
           size="md"
           variant="dark"
         >
-          Request Intro
+          {t("TalentDetailSimpleView.80752f3e", "Request Intro")}
         </MuteButton>
       </div>
     </section>
@@ -825,6 +856,25 @@ function FeedPanel({
   talentId?: string | null;
   workspaceId: string;
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
+  const { locale } = useOrgLocale();
+  const feedLabels = useMemo<ProgressFeedLabels>(
+    () => ({
+      actorFallback: t("TalentDetailSimpleView.feed.actorFallback", "팀원"),
+      body: t("TalentDetailSimpleView.feed.body", "본문"),
+      cancel: t("TalentDetailSimpleView.feed.cancel", "취소"),
+      delete: t("TalentDetailSimpleView.feed.delete", "삭제"),
+      deleteProgress: t("TalentDetailSimpleView.feed.deleteProgress", "Progress 삭제"),
+      edit: t("TalentDetailSimpleView.feed.edit", "수정"),
+      failure: t("TalentDetailSimpleView.feed.failure", "처리하지 못했습니다."),
+      feedActions: t("TalentDetailSimpleView.feed.actions", "피드 작업"),
+      save: t("TalentDetailSimpleView.feed.save", "저장"),
+      subject: t("TalentDetailSimpleView.feed.subject", "제목"),
+      viewContent: t("TalentDetailSimpleView.feed.viewContent", "내용 보기"),
+    }),
+    [t]
+  );
   const { detailQuery } = useOrgJobsDetail();
   const [draft, setDraft] = useState("");
   const [pollingQueueId, setPollingQueueId] = useState<string | null>(null);
@@ -909,10 +959,7 @@ function FeedPanel({
       setOtherRoleFeed({ payload, scope: requestedScope });
     } catch (error) {
       setOtherRoleFeedError({
-        message:
-          error instanceof Error
-            ? error.message
-            : "다른 역할의 기록을 불러오지 못했습니다.",
+        message: localizedOrgErrorMessage(error, locale, t("TalentDetailSimpleView.5a6a678e", "다른 역할의 기록을 불러오지 못했습니다.")),
         scope: requestedScope,
       });
     } finally {
@@ -952,7 +999,7 @@ function FeedPanel({
         icon: getOrgFeedIcon(item),
         id: item.id,
         text: item.text,
-        title: getOrgFeedTitle(item),
+        title: sourceT(getOrgFeedTitle(item)),
       })),
       ...detail.meetingEvents.map((item) => ({
         createdAt: item.createdAt,
@@ -962,7 +1009,7 @@ function FeedPanel({
             : ("note" as const),
         id: item.id,
         text: item.scheduledAt
-          ? `${formatKst(item.scheduledAt)} · ${item.text}`
+          ? `${formatKst(item.scheduledAt, { locale })} · ${item.text}`
           : item.text,
         title: item.title,
       })),
@@ -1010,7 +1057,7 @@ function FeedPanel({
             />
           ),
           id: `connection-email:${item.id}`,
-          text: "",
+          text: t("TalentDetailSimpleView.afa4d0e2", ""),
         };
       }),
       ...detail.companyRequestHistory
@@ -1038,7 +1085,7 @@ function FeedPanel({
             />
           ),
           id: `company-request:${item.id}`,
-          text: "",
+          text: t("TalentDetailSimpleView.afa4d0e2", ""),
         })),
       ...(internalOpsAccess
         ? detail.introEmails.map((item) => ({
@@ -1047,13 +1094,15 @@ function FeedPanel({
               <OrgIntroEmailFeedCard
                 item={item}
                 recipientLabels={item.toEmails.map((email) =>
-                  getOrgEmailAddressLabel(email, detail)
+                  sourceT(getOrgEmailAddressLabel(email, detail))
                 )}
-                senderLabel={getOrgEmailAddressLabel(item.fromEmail, detail)}
+                senderLabel={sourceT(
+                  getOrgEmailAddressLabel(item.fromEmail, detail)
+                )}
               />
             ),
             id: `org-intro-email:${item.id}`,
-            text: "",
+            text: t("TalentDetailSimpleView.afa4d0e2", ""),
           }))
         : []),
     ].sort((left, right) => {
@@ -1071,9 +1120,12 @@ function FeedPanel({
     currentUserId,
     detail,
     internalOpsAccess,
+    locale,
     pendingCompanyRequestId,
     pendingConnectionAction,
     pendingConnectionQueueId,
+    sourceT,
+    t,
     updateConnectionEmail.isPending,
     updateConnectionEmailMutate,
     talentId,
@@ -1087,17 +1139,20 @@ function FeedPanel({
           {decisionActions}
         </div>
       ) : null}
-      <div className="text-[14px] font-medium text-neutral-primary">피드</div>
+      <div className="text-[14px] font-medium text-neutral-primary">
+        {t("TalentDetailSimpleView.d90be781", "피드")}
+      </div>
       <ProgressFeed
         actionsVariant="menu"
-        deleteConfirmMessage="이 메모를 삭제할까요?"
+        deleteConfirmMessage={t("TalentDetailSimpleView.e3559795", "이 메모를 삭제할까요?")}
         deleteError={
           deleteFeed.error instanceof Error ? deleteFeed.error : null
         }
         draft={draft}
         editError={updateFeed.error instanceof Error ? updateFeed.error : null}
-        emptyLabel="아직 피드가 없습니다."
+        emptyLabel={t("TalentDetailSimpleView.2fc1c257", "아직 피드가 없습니다.")}
         items={feedItems}
+        labels={feedLabels}
         onDelete={
           canManageCandidates
             ? (item) => {
@@ -1143,10 +1198,11 @@ function FeedPanel({
         pendingDeleteId={deleteFeed.variables?.progressId ?? null}
         pendingEditId={updateFeed.variables?.progressId ?? null}
         pendingSubmit={createFeed.isPending}
-        placeholder="메모"
+        placeholder={t("TalentDetailSimpleView.1ea87077", "메모.")}
         submitError={
           createFeed.error instanceof Error ? createFeed.error : null
         }
+        submitLabel={t("TalentDetailSimpleView.feed.submit", "메모 추가")}
       />
       <div className="pt-4">
         <MuteButton
@@ -1162,7 +1218,7 @@ function FeedPanel({
           type="button"
           variant="transparent"
         >
-          다른 역할에서 기록된 내용 보기
+          {t("TalentDetailSimpleView.e7aa5c7b", "다른 역할에서 기록된 내용 보기")}
           <ChevronDown
             aria-hidden
             className={cn(
@@ -1176,7 +1232,7 @@ function FeedPanel({
             {otherRoleFeedLoading ? (
               <div className="flex items-center gap-2 py-4 text-[12px] text-neutral-muted">
                 <LoaderCircle aria-hidden className="size-4 animate-spin" />
-                다른 역할의 기록을 불러오는 중
+                {t("TalentDetailSimpleView.c6e14e96", "다른 역할의 기록을 불러오는 중")}
               </div>
             ) : scopedOtherRoleFeedError ? (
               <div className="rounded-md bg-critical-faded p-3 text-[12px] text-critical">
@@ -1192,12 +1248,12 @@ function FeedPanel({
                   type="button"
                   variant="transparent"
                 >
-                  다시 시도
+                  {t("TalentDetailSimpleView.ccd83f11", "다시 시도")}
                 </MuteButton>
               </div>
             ) : scopedOtherRoleFeed && scopedOtherRoleFeed.items.length > 0 ? (
               <ProgressFeed
-                emptyLabel="다른 역할에서 기록된 내용이 없어요."
+                emptyLabel={t("TalentDetailSimpleView.2ae3bc51", "다른 역할에서 기록된 내용이 없어요.")}
                 items={scopedOtherRoleFeed.items.map((item) => ({
                   createdAt: item.createdAt,
                   icon:
@@ -1211,10 +1267,11 @@ function FeedPanel({
                   text: item.text,
                   title: item.title,
                 }))}
+                labels={feedLabels}
               />
             ) : (
               <div className="py-4 text-[12px] text-neutral-muted">
-                다른 역할에서 기록된 내용이 없어요.
+                {t("TalentDetailSimpleView.2ae3bc51", "다른 역할에서 기록된 내용이 없어요.")}
               </div>
             )}
           </div>
@@ -1222,16 +1279,12 @@ function FeedPanel({
       </div>
       {updateConnectionEmail.error ? (
         <div className={opsTheme.errorNotice}>
-          {updateConnectionEmail.error instanceof Error
-            ? updateConnectionEmail.error.message
-            : "메일 상태를 변경하지 못했습니다."}
+          {localizedOrgErrorMessage(updateConnectionEmail.error, locale, t("TalentDetailSimpleView.465bd72b", "메일 상태를 변경하지 못했습니다."))}
         </div>
       ) : null}
       {cancelCompanyRequest.error ? (
         <div className={opsTheme.errorNotice}>
-          {cancelCompanyRequest.error instanceof Error
-            ? cancelCompanyRequest.error.message
-            : "후보자 문의를 취소하지 못했습니다."}
+          {localizedOrgErrorMessage(cancelCompanyRequest.error, locale, t("TalentDetailSimpleView.1d2364f2", "후보자 문의를 취소하지 못했습니다."))}
         </div>
       ) : null}
     </div>
@@ -1261,9 +1314,13 @@ function TalentDetailPager({
   navigation: TalentDetailNavigationState;
   onNavigate: (target: TalentDetailNavigationState["next"] | null) => void;
 }) {
+  const t = useOrgT();
   return (
     <div
-      aria-label={`후보자 ${navigation.position} / ${navigation.total}`}
+      aria-label={t("TalentDetailSimpleView.90c95e18", "후보자 {p0} / {p1}", {
+        p0: navigation.position,
+        p1: navigation.total,
+      })}
       className={cn(
         "inline-flex shrink-0 overflow-hidden bg-bg-weak font-normal",
         compact ? "rounded-full" : "rounded-sm"
@@ -1271,7 +1328,7 @@ function TalentDetailPager({
       role="group"
     >
       <MuteButton
-        aria-label="이전 후보자"
+        aria-label={t("TalentDetailSimpleView.b5c85132", "이전 후보자")}
         className="rounded-none border-0 border-r border-neutral-1000-a10 shadow-none"
         disabled={!navigation.previous}
         onClick={() => onNavigate(navigation.previous)}
@@ -1290,7 +1347,7 @@ function TalentDetailPager({
         {navigation.position} / {navigation.total}
       </div>
       <MuteButton
-        aria-label="다음 후보자"
+        aria-label={t("TalentDetailSimpleView.56b436f3", "다음 후보자")}
         className="rounded-none border-0 border-l border-neutral-1000-a10 shadow-none"
         disabled={!navigation.next}
         onClick={() => onNavigate(navigation.next)}
@@ -1304,6 +1361,9 @@ function TalentDetailPager({
 }
 
 export function TalentDetailSimpleView() {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
+  const { locale } = useOrgLocale();
   const {
     closeTalentDetail,
     selectTalent,
@@ -1419,9 +1479,7 @@ export function TalentDetailSimpleView() {
     if (!resumeRequest || !talentId) return;
     const popup = window.open("about:blank", "_blank");
     if (!popup) {
-      setResumeError(
-        "새 창을 열지 못했습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요."
-      );
+      setResumeError(t("TalentDetailSimpleView.058c3864", "새 창을 열지 못했습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요."));
       return;
     }
     popup.opener = null;
@@ -1440,7 +1498,7 @@ export function TalentDetailSimpleView() {
           setResumeError(
             requestError instanceof Error
               ? requestError.message
-              : "이력서를 열지 못했습니다. 다시 시도해 주세요."
+              : t("TalentDetailSimpleView.8dc293e8", "이력서를 열지 못했습니다. 다시 시도해 주세요.")
           );
         },
         onSuccess: (payload) => {
@@ -1480,11 +1538,13 @@ export function TalentDetailSimpleView() {
     (stage) => stage.id === detail?.recommendation.stage
   );
   const resolvedTalentNavigationLabel = detail
-    ? getTalentNavigationStageLabel(
-        talentNavigationLabel ||
-          currentBoardStage?.label ||
-          humanizeOrgStage(detail.recommendation.stage),
-        detail.role.name
+    ? sourceT(
+        getTalentNavigationStageLabel(
+          talentNavigationLabel ||
+            currentBoardStage?.label ||
+            humanizeOrgStage(detail.recommendation.stage),
+          detail.role.name
+        )
       )
     : talentNavigationLabel;
   const detailNavigation = getOrgTalentDetailNavigationState(
@@ -1519,7 +1579,7 @@ export function TalentDetailSimpleView() {
       <div className="fixed inset-0 z-[70]">
         <BareButton
           type="button"
-          aria-label="닫기"
+          aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
           onClick={handleClose}
           className="absolute inset-0 h-full w-full cursor-default bg-black/35"
         />
@@ -1532,7 +1592,7 @@ export function TalentDetailSimpleView() {
             <div className="flex h-12 items-center w-full justify-between gap-2 px-2">
               <div className="flex items-center gap-2">
                 <MuteButton
-                  aria-label="닫기"
+                  aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
                   className="rounded-full"
                   onClick={handleClose}
                   size="md"
@@ -1570,7 +1630,7 @@ export function TalentDetailSimpleView() {
                     variant="transparent"
                   >
                     {detail?.recommendation.stage === "company_intro"
-                      ? "제안하지 않기"
+                      ? t("TalentDetailSimpleView.a35ca647", "제안하지 않기")
                       : CANDIDATE_DECISION_LABELS.reject}
                   </MuteButton>
                   <MuteButton
@@ -1590,7 +1650,7 @@ export function TalentDetailSimpleView() {
                     variant="transparent"
                   >
                     {detail?.recommendation.stage === "company_intro"
-                      ? "먼저 제안하기"
+                      ? t("TalentDetailSimpleView.690647f9", "먼저 제안하기")
                       : CANDIDATE_DECISION_LABELS.connect}
                   </MuteButton>
                 </div>
@@ -1625,7 +1685,7 @@ export function TalentDetailSimpleView() {
               </div>
             )}
             <MuteButton
-              aria-label="닫기"
+              aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
               onClick={handleClose}
               size="md"
               type="button"
@@ -1638,7 +1698,7 @@ export function TalentDetailSimpleView() {
           {isLoading ? (
             <div className="flex flex-1 items-center justify-center text-[13px] text-neutral-muted">
               <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              불러오는 중
+              {t("TalentDetailSimpleView.d0a09857", "불러오는 중")}
             </div>
           ) : error ? (
             <OrgErrorState
@@ -1652,11 +1712,17 @@ export function TalentDetailSimpleView() {
                 <div className="bg-bg-default px-4 py-2 md:hidden">
                   <Tabs
                     activeValue={mobileTab}
-                    aria-label="후보자 상세 보기"
+                    aria-label={t("TalentDetailSimpleView.91f8ef14", "후보자 상세 보기")}
                     className="w-fit"
                     items={[
-                      { label: "프로필", value: "profile" },
-                      { label: "피드", value: "feed" },
+                      {
+                        label: t("TalentDetailSimpleView.992961fa", "프로필"),
+                        value: "profile",
+                      },
+                      {
+                        label: t("TalentDetailSimpleView.d90be781", "피드"),
+                        value: "feed",
+                      },
                     ]}
                     onValueChange={(value) => {
                       if (value === "profile" || value === "feed") {
@@ -1686,7 +1752,7 @@ export function TalentDetailSimpleView() {
                         size="sm"
                         variant="transparent"
                       >
-                        회사 공개 프로필
+                        {t("TalentDetailSimpleView.a63c3d92", "회사 공개 프로필")}
                       </MuteButton>
                       <MuteButton
                         className={cn(
@@ -1699,7 +1765,7 @@ export function TalentDetailSimpleView() {
                         size="sm"
                         variant="transparent"
                       >
-                        Harper 내부 정보
+                        {t("TalentDetailSimpleView.84d7bc3b", "Harper 내부 정보")}
                       </MuteButton>
                     </div>
                   </div>
@@ -1828,11 +1894,13 @@ export function TalentDetailSimpleView() {
         >
           <DialogHeader>
             <DialogTitle className="text-[18px]">
-              {resumeRequest?.kind === "document" ? "문서 열기" : "이력서 열기"}
+              {resumeRequest?.kind === "document"
+                ? t("TalentDetailSimpleView.48c8a063", "문서 열기")
+                : t("TalentDetailSimpleView.5a0204aa", "이력서 열기")}
             </DialogTitle>
           </DialogHeader>
           <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
-            이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요.
+            {t("TalentDetailSimpleView.cc49f754", "이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요.")}
           </div>
           {resumeError ? (
             <div className="text-[12px] text-critical" role="alert">
@@ -1847,7 +1915,7 @@ export function TalentDetailSimpleView() {
               onClick={closeResumeDialog}
               disabled={openResume.isPending}
             >
-              취소
+              {t("TalentDetailSimpleView.d1850640", "취소")}
             </Button>
             <Button
               type="button"
@@ -1859,7 +1927,7 @@ export function TalentDetailSimpleView() {
               {openResume.isPending ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
-              확인 후 열기
+              {t("TalentDetailSimpleView.a0865986", "확인 후 열기")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1941,16 +2009,12 @@ export function TalentDetailSimpleView() {
             });
             setCompanyIntroRequestOpen(false);
             addToast({
-              message:
-                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
+              message: t("TalentDetailSimpleView.d685802e", "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."),
               variant: "success",
             });
           } catch (error) {
             addToast({
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "제안을 처리하지 못했습니다.",
+              message: localizedOrgErrorMessage(error, locale, t("TalentDetailSimpleView.c88fdf18", "제안을 처리하지 못했습니다.")),
               variant: "error",
             });
             throw error;
@@ -1971,7 +2035,7 @@ export function TalentDetailSimpleView() {
           });
           setCompanyIntroPassOpen(false);
           addToast({
-            message: "후보자에게 제안하지 않고 목록에서 제외했습니다.",
+            message: t("TalentDetailSimpleView.4034123e", "후보자에게 제안하지 않고 목록에서 제외했습니다."),
             variant: "success",
           });
           handleClose();

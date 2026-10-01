@@ -15,11 +15,13 @@ pnpm local:e2e down
 
 `down`은 먼저 Socket Mode와 Worker의 새 작업 수신을 멈춘다. 실행 중 작업이 있으면 앱·메일·DB는 유지한 채 drain 상태를 알려준다. Worker가 종료된 후 `down`을 한 번 더 실행한다. 강제 종료와 운영으로의 자동 전환은 없다. DB와 메일함은 보존된다. `up`은 이미 살아 있는 프로세스를 중복 실행하지 않는다.
 
+웹 앱은 3000 포트 하나에서 실행한다. 일반 `pnpm dev`가 이미 3000을 사용 중이면 종료한 뒤 `pnpm local:e2e up`을 실행한다. 이 명령은 다른 앱이 3000을 점유하면 오류를 내며, 로컬 DB를 연결한 앱으로 조용히 대체하지 않는다.
+
 | 구성 | 위치 |
 |---|---|
 | 테스트 로그인·메일함·회신 | http://127.0.0.1:3211 |
-| 회사 웹 | http://localhost:3200/org |
-| 후보자 웹 | http://localhost:3200/career |
+| 회사 웹 | http://localhost:3000/org |
+| 후보자 웹 | http://localhost:3000/career |
 | 로컬 Supabase Studio | http://127.0.0.1:55433 |
 | Auth 개발 메일함 | http://127.0.0.1:55434 |
 | Slack | `z-test-harper` 채널의 **Harper Local** 앱 |

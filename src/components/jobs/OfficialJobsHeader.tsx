@@ -1,3 +1,4 @@
+import { postOfficialJobEvent } from "@/lib/officialJobs/events";
 import OfficialJobsCtaLink from "@/components/jobs/OfficialJobsCtaLink";
 import {
   getOfficialJobsCopy,
@@ -29,7 +30,7 @@ export default function OfficialJobsHeader({
             priority
           />
         </Link>
-        <nav className="flex items-center gap-4 text-[13px] font-medium text-neutral-primary/58 sm:gap-6">
+        <div className="flex items-center gap-6 text-[14px] text-neutral-700 font-normal">
           <Link
             href="/jobs"
             className="hidden transition hover:text-neutral-primary sm:block"
@@ -42,11 +43,20 @@ export default function OfficialJobsHeader({
           >
             {copy.header.forCompanies}
           </Link>
+        </div>
+        <nav className="flex items-center gap-4 text-[13px]  text-neutral-primary/58 sm:gap-6">
           <OfficialJobsCtaLink
             job={job}
-            variant="secondary"
+            onClick={() => {
+              void postOfficialJobEvent({
+                eventType: job ? "job_apply_click" : "jobs_cta_click",
+                jobSlug: job?.slug,
+                metadata: { source: "jobs_header" },
+              });
+            }}
+            variant="dark"
             className="hidden md:flex"
-            size="sm"
+            size="md"
             locale={locale}
           />
         </nav>

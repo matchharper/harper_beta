@@ -1,7 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { convertSlackMrkdwnToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import RichText from "./rich-text";
+
+test("Slack candidate introductions keep divider lines from turning full sections into headings", () => {
+  const html = renderToStaticMarkup(
+    <RichText
+      content={convertSlackMrkdwnToWebMarkdown(
+        [
+          "*TL;DR* - 후보자의 핵심 요약입니다.",
+          "",
+          "*Harper Note* - 팀과 이해관계자를 조율해 온 경험이 있습니다.",
+          "--------",
+          "Work Summary:",
+          "*Communication Specialist @ Company*",
+          "• 출시 커뮤니케이션을 담당했습니다.",
+          "------------",
+          "",
+          "*Preferences:*",
+          "• Seoul",
+        ].join("\n")
+      )}
+    />
+  );
+
+  assert.doesNotMatch(html, /<h[1-6]\b/);
+  assert.equal(html.match(/<hr\b/g)?.length, 2);
+  assert.match(html, /<p[^>]*><strong[^>]*>Harper Note<\/strong> - 팀과 이해관계자를 조율해 온 경험이 있습니다\.<\/p>/);
+  assert.match(html, /<li[^>]*>출시 커뮤니케이션을 담당했습니다\.<\/li>/);
+});
 
 test("does not render a preserved formatting newline after a markdown hard break", () => {
   const html = renderToStaticMarkup(

@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import type { ReactNode } from "react";
@@ -26,6 +27,7 @@ export function OrgWorkspaceApp({
   legacyEntry?: boolean;
   page: OrgWorkspacePageId;
 }) {
+  const t = useOrgT();
   const router = useRouter();
   const {
     authLoading,
@@ -80,7 +82,7 @@ export function OrgWorkspaceApp({
           message={
             bootstrapQuery.error instanceof Error
               ? bootstrapQuery.error.message
-              : "Organization을 불러오지 못했습니다."
+              : t("workspace.OrgWorkspaceApp.dbaaaa1c", "Organization을 불러오지 못했습니다.")
           }
           onRetry={() => void bootstrapQuery.refetch()}
         />
@@ -100,7 +102,7 @@ export function OrgWorkspaceApp({
   }
 
   const pageTitle = isRoleWorkspacePage
-    ? `${workspace.companyName} · ${page === "new-role" ? "새 역할 등록" : "역할"}`
+    ? `${workspace.companyName} · ${page === "new-role" ? t("workspace.OrgWorkspaceApp.5fd3ee91", "새 역할 등록") : t("workspace.OrgWorkspaceApp.2842e7f1", "역할")}`
     : `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
   const requiresOnboarding =
     !contextValue.internalOpsAccess &&

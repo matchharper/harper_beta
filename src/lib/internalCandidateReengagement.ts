@@ -417,6 +417,7 @@ export async function requestCandidateReengagement(args: {
   const draft = await createCompanyTalentContactDraft({
     admin: args.admin,
     body: draftCopy.body,
+    contactPurpose: "request",
     id: requestId,
     recommendationId: args.recommendationId,
     requestContext: draftCopy.requestContext,

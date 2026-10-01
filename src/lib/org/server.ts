@@ -21,6 +21,7 @@ import {
   shouldSendOrgIntroEmail,
 } from "@/lib/org/candidateDecision";
 import { buildOrgInviteEmail } from "@/lib/org/inviteEmail";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 import {
   buildCompanyEventContent,
   getCompanyEventActorLabelFromUser,
@@ -86,6 +87,7 @@ import {
 } from "@/lib/companyTalentRequests/server";
 import type { Database, Json } from "@/types/database.types";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
+import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour, type IntroSearchDay } from "@/lib/org/introSearchSchedule";
 import {
   fetchOrgProcessClosureNotifications,
   isOrgProcessClosureNoticeUnresolved,
@@ -123,11 +125,15 @@ type CompanyRoleWithInternalRow = CompanyRoleRow & {
     | {
         criteria?: unknown;
         is_company_first_search?: boolean | null;
+        intro_search_date?: string[] | null;
+        intro_search_time?: number | null;
         request?: string | null;
       }
     | Array<{
         criteria?: unknown;
         is_company_first_search?: boolean | null;
+        intro_search_date?: string[] | null;
+        intro_search_time?: number | null;
         request?: string | null;
       }>
     | null;
@@ -225,6 +231,8 @@ export type OrgRole = {
   employmentTypes: string[];
   externalJdUrl: string | null;
   isCompanyFirstSearch?: boolean;
+  introSearchDate?: IntroSearchDay[];
+  introSearchTime?: number;
   lastConversationAt?: string | null;
   locationText: string | null;
   memory?: string | null;
@@ -961,6 +969,8 @@ function toRole(
   internal?: {
     criteria?: unknown;
     is_company_first_search?: boolean | null;
+    intro_search_date?: string[] | null;
+    intro_search_time?: number | null;
     request?: string | null;
   } | null
 ): OrgRole {
@@ -975,6 +985,8 @@ function toRole(
     employmentTypes: normalizeOrgRoleEmploymentTypes(row.type),
     externalJdUrl: row.external_jd_url ?? null,
     isCompanyFirstSearch: canonicalInternal?.is_company_first_search === true,
+    introSearchDate: parseIntroSearchDays(canonicalInternal?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
+    introSearchTime: parseIntroSearchHour(canonicalInternal?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
     lastConversationAt: lastConversationAt ?? null,
     locationText: row.location_text ?? null,
     memory: normalizeNullableText(memory?.content) ?? null,
@@ -1377,18 +1389,33 @@ export async function upsertOrgCompanyUser(
     .maybeSingle();
   if (existingUserError) throw existingUserError;
 
-  const { error } = await (admin.from("company_users" as any) as any).upsert(
-    {
-      email: user.email ?? null,
-      is_authenticated: true,
-      name: normalizeNullableText(existingUser?.name) ?? getUserName(user),
-      profile_picture: user.user_metadata?.avatar_url ?? null,
-      user_id: user.id,
-    },
-    { onConflict: "user_id" }
-  );
+  const values = {
+    email: user.email ?? null,
+    is_authenticated: true,
+    name: normalizeNullableText(existingUser?.name) ?? getUserName(user),
+    profile_picture: user.user_metadata?.avatar_url ?? null,
+  };
+  if (existingUser) {
+    const { error } = await (admin.from("company_users" as any) as any)
+      .update(values)
+      .eq("user_id", user.id);
+    if (error) throw error;
+    return;
+  }
 
+  const { error } = await (admin.from("company_users" as any) as any).upsert(
+    { ...values, user_id: user.id },
+    { onConflict: "user_id", ignoreDuplicates: true }
+  );
   if (error) throw error;
+  // A concurrent request may have inserted the row first; refresh only profile
+  // fields so a separately saved locale is never overwritten.
+  const { error: updateError } = await (
+    admin.from("company_users" as any) as any
+  )
+    .update(values)
+    .eq("user_id", user.id);
+  if (updateError) throw updateError;
 }
 
 async function fetchWorkspaceById(
@@ -1876,7 +1903,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const roleIds = roleRows.map((role) => role.role_id);
   const internalResult = roleIds.length
     ? await (admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, criteria, is_company_first_search")
+        .select("role_id, request, criteria, is_company_first_search, intro_search_date, intro_search_time")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -1885,6 +1912,8 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
       (internalResult.data ?? []) as Array<{
         criteria: unknown;
         is_company_first_search: boolean | null;
+        intro_search_date: string[] | null;
+        intro_search_time: number | null;
         request: string | null;
         role_id: string;
       }>
@@ -2114,6 +2143,7 @@ export async function sendOrgWorkspaceInvitations(args: {
     inviteUrl: inviteUrl.toString(),
     inviterEmail,
     inviterName,
+    locale: await getOrgWorkspaceLocale(workspaceId, admin),
   });
 
   const results = await Promise.all(
@@ -2375,7 +2405,7 @@ async function fetchRoleRowsForWorkspace(
 ) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_internal_roles(request, criteria, is_company_first_search)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_internal_roles(request, criteria, is_company_first_search, intro_search_date, intro_search_time)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("source_type", "internal")
@@ -2640,7 +2670,9 @@ async function assertOrgTalentVisibleInWorkspace(args: {
   }
 
   let recommendationQuery = (
-    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
+    args.admin.from(
+      "talent_effective_opportunity_recommendations_v1" as any
+    ) as any
   )
     .select(
       "id, talent_id, role_id, fit_summary, fit_reasons, feedback, saved_stage, recommended_at, created_at, updated_at"
@@ -3612,7 +3644,10 @@ export async function requestOrgCompanyIntro(args: {
   if (error) {
     const message = normalizeText(error.message);
     if (message.includes("company_intro_appeal_required")) {
-      throw new OrgHttpError(400, "후보자에게 전할 회사의 관심 이유를 입력해 주세요.");
+      throw new OrgHttpError(
+        400,
+        "후보자에게 전할 회사의 관심 이유를 입력해 주세요."
+      );
     }
     if (message.includes("company_intro_invalid_recipients")) {
       throw new OrgHttpError(400, "CC로 연결할 회사 이메일을 확인해 주세요.");
@@ -5530,7 +5565,9 @@ async function fetchRecommendationForDetail(args: {
   talentId: string;
 }) {
   let query = (
-    args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any
+    args.admin.from(
+      "talent_effective_opportunity_recommendations_v1" as any
+    ) as any
   )
     .select(
       "id, talent_id, role_id, opportunity_type, fit_summary, fit_reasons, feedback, feedback_at, feedback_reason, saved_stage, recommended_at, created_at, updated_at"
@@ -5606,13 +5643,16 @@ function getOrgStageChangeFeedKind(row: TalentProgressRow) {
   const acceptReason = normalizeNullableText(metadata.acceptReason);
   const stopNote = normalizeNullableText(metadata.stopNote);
 
+  if (stage === "process_stopped" && metadata.stopReason === "candidate") {
+    return row.kind;
+  }
   if (stage === "connected" || acceptReason) return "org_acceptance";
   if (stage === "process_stopped" || stopNote) return "org_rejection";
   return row.kind;
 }
 
 function getOrgProgressFeedText(row: TalentProgressRow) {
-  return row.open_to_company ? row.text ?? "" : "";
+  return row.open_to_company ? (row.text ?? "") : "";
 }
 
 function sortOrgFeedItems(items: OrgFeedItem[]) {
@@ -5991,9 +6031,7 @@ export async function fetchOrgTalentDetail(args: {
     user: args.user,
     workspaceId,
   });
-  let requestedRecommendationId = normalizeNullableText(
-    args.recommendationId
-  );
+  let requestedRecommendationId = normalizeNullableText(args.recommendationId);
   let requestedRoleId = normalizeNullableText(args.roleId);
   const companyIntroId = requestedRecommendationId?.startsWith(
     COMPANY_INTRO_RECOMMENDATION_PREFIX
@@ -6052,11 +6090,19 @@ export async function fetchOrgTalentDetail(args: {
     if (companyIntroId && !companyIntro) {
       const { data: replaced, error: replacedError } = await (
         admin.from("company_intro_candidates" as any) as any
-      ).select("role_id").eq("id", companyIntroId)
-        .eq("company_workspace_id", workspaceId).eq("talent_id", talentId)
-        .eq("status", "closed").eq("close_reason", "route_replaced").maybeSingle();
+      )
+        .select("role_id")
+        .eq("id", companyIntroId)
+        .eq("company_workspace_id", workspaceId)
+        .eq("talent_id", talentId)
+        .eq("status", "closed")
+        .eq("close_reason", "route_replaced")
+        .maybeSingle();
       if (replacedError) throw replacedError;
-      if (!replaced || (requestedRoleId && requestedRoleId !== replaced.role_id)) {
+      if (
+        !replaced ||
+        (requestedRoleId && requestedRoleId !== replaced.role_id)
+      ) {
         throw new OrgHttpError(404, "Talent not found");
       }
       // The existing pipeline permission checks below still apply to old links.
@@ -6740,7 +6786,8 @@ export async function fetchOrgTalentDetail(args: {
           : talent,
     }),
     recommendation: {
-      candidateAcceptedAt: recommendation.feedback === "like" ? recommendation.feedback_at : null,
+      candidateAcceptedAt:
+        recommendation.feedback === "like" ? recommendation.feedback_at : null,
       opportunityType: recommendation.opportunity_type ?? null,
       fitReason:
         companyIntro?.selection_reason ??
@@ -7367,6 +7414,8 @@ export async function updateOrgRole(args: {
   externalJdUrl?: string | null;
   expectedCriteria?: unknown;
   isCompanyFirstSearch?: boolean;
+  introSearchDate?: unknown;
+  introSearchTime?: unknown;
   isExpired?: boolean | null;
   locationText?: string | null;
   name?: string | null;
@@ -7397,6 +7446,12 @@ export async function updateOrgRole(args: {
     typeof args.isCompanyFirstSearch !== "boolean"
   ) {
     throw new OrgHttpError(400, "정기 후보 검색 설정이 올바르지 않습니다.");
+  }
+  const introSearchDate = args.introSearchDate === undefined ? undefined : parseIntroSearchDays(args.introSearchDate);
+  const introSearchTime = args.introSearchTime === undefined ? undefined : parseIntroSearchHour(args.introSearchTime);
+  if ((args.introSearchDate !== undefined && !introSearchDate) ||
+      (args.introSearchTime !== undefined && introSearchTime === null)) {
+    throw new OrgHttpError(400, "정기 후보 검색 요일·시간이 올바르지 않습니다.");
   }
 
   const requestedStatus =
@@ -7490,6 +7545,12 @@ export async function updateOrgRole(args: {
       value: args.isCompanyFirstSearch,
     });
   }
+  if (introSearchDate !== undefined) {
+    changes.push({ key: "role_intro_search_date", roleId, value: introSearchDate });
+  }
+  if (introSearchTime !== undefined && introSearchTime !== null) {
+    changes.push({ key: "role_intro_search_time", roleId, value: introSearchTime });
+  }
   if (requestedStatus && !activatedDraftRole) {
     changes.push({
       key: "role_status",
@@ -7574,7 +7635,7 @@ export async function updateOrgRole(args: {
   const { data: internalRole, error: internalError } = await (
     admin.from("company_internal_roles" as any) as any
   )
-    .select("request, criteria, is_company_first_search")
+    .select("request, criteria, is_company_first_search, intro_search_date, intro_search_time")
     .eq("role_id", roleId)
     .maybeSingle();
   if (internalError) throw internalError;
@@ -7675,7 +7736,7 @@ export async function updateOrgRoleRequestOnly(args: {
   }
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria, is_company_first_search)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria, is_company_first_search, intro_search_date, intro_search_time)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)

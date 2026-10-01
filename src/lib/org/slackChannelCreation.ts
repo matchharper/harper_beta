@@ -11,14 +11,18 @@ export function normalizeSlackChannelName(value: unknown) {
     .replace(/^#+/, "");
 }
 
-export function getSlackChannelNameError(value: unknown) {
+export function getSlackChannelNameError(value: unknown, locale: "ko" | "en" = "ko") {
   const channelName = normalizeSlackChannelName(value);
-  if (!channelName) return "채널 이름을 입력해 주세요.";
+  if (!channelName) return locale === "en" ? "Enter a channel name." : "채널 이름을 입력해 주세요.";
   if (channelName.length > SLACK_CHANNEL_NAME_MAX_LENGTH) {
-    return `채널 이름은 ${SLACK_CHANNEL_NAME_MAX_LENGTH}자 이하로 입력해 주세요.`;
+    return locale === "en"
+      ? `Use ${SLACK_CHANNEL_NAME_MAX_LENGTH} characters or fewer for the channel name.`
+      : `채널 이름은 ${SLACK_CHANNEL_NAME_MAX_LENGTH}자 이하로 입력해 주세요.`;
   }
   if (!/^[a-z0-9_-]+$/.test(channelName)) {
-    return "영문 소문자, 숫자, 하이픈(-), 밑줄(_)만 사용할 수 있어요.";
+    return locale === "en"
+      ? "Use only lowercase letters, numbers, hyphens, or underscores."
+      : "영문 소문자, 숫자, 하이픈(-), 밑줄(_)만 사용할 수 있어요.";
   }
   return null;
 }

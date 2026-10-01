@@ -45,3 +45,25 @@ test("background results preserve the original user turn and arrive as a fresh t
   assert.match(messages[3]?.content ?? "", /verified facts, not a draft/);
   assert.match(messages[3]?.content ?? "", /잘 맞는 사람이 전혀 없다는 뜻/);
 });
+
+test("only the first delivered company-first result receives onboarding writing guidance", () => {
+  const first = buildOrgAgentBackgroundResultMessages({
+    companyName: "Example",
+    firstCompanyFirstResultDelivery: true,
+    requestMessage: "후보를 찾아줘",
+    resultText: "- 확인된 결과",
+    roleId: "role-1",
+    roleName: "Engineer",
+    systemPrompt: "base instructions",
+  });
+  const later = buildOrgAgentBackgroundResultMessages({
+    companyName: "Example",
+    requestMessage: "후보를 찾아줘",
+    resultText: "- 확인된 결과",
+    roleId: "role-1",
+    roleName: "Engineer",
+    systemPrompt: "base instructions",
+  });
+  assert.match(first[0]?.content ?? "", /Prioritize compensation/);
+  assert.equal(later[0]?.content, "base instructions");
+});

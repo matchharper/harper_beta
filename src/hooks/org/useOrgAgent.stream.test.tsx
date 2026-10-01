@@ -5,11 +5,13 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { OrgLocaleProvider } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgAgentChat } from "./useOrgAgent";
 import { getOrgAgentLiveChatKey, useOrgAgentLiveChatStore } from "@/store/useOrgAgentLiveChatStore";
 
 test("SSE text renders before completion, reconciles once, and old cleanup cannot clear the next turn", async () => {
   const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+  dom.window.localStorage.setItem("harper:org-locale", "en");
   const originalWindow = globalThis.window;
   const originalDocument = globalThis.document;
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
@@ -21,8 +23,9 @@ test("SSE text renders before completion, reconciles once, and old cleanup canno
   client.invalidateQueries = () => invalidation;
   (supabase.auth as any).getSession = async () => ({ data: { session: { access_token: "test-token" } } });
   const streams: ReadableStreamDefaultController<Uint8Array>[] = [];
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = async (input, init) => {
     assert.equal(input, "/api/org/agent/chat");
+    assert.equal(JSON.parse(String(init?.body)).responseLocale, "en");
     return new Response(new ReadableStream<Uint8Array>({ start(controller) { streams.push(controller); } }), {
       headers: { "Content-Type": "text/event-stream" },
     });
@@ -46,7 +49,7 @@ test("SSE text renders before completion, reconciles once, and old cleanup canno
   let first!: Promise<void>;
   let second!: Promise<void>;
   try {
-    await act(async () => { root.render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>); });
+    await act(async () => { root.render(<QueryClientProvider client={client}><OrgLocaleProvider><Harness /></OrgLocaleProvider></QueryClientProvider>); });
     await act(async () => { first = chat.sendMessage({ message: "첫 요청" }); });
     await emit(0, "text_delta", { delta: "먼저 도착한 문장" });
     assert.equal(dom.window.document.getElementById("root")!.textContent, "먼저 도착한 문장");

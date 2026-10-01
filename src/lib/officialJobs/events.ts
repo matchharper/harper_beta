@@ -1,6 +1,10 @@
+import {
+  getCurrentOfficialJobsAbtestType,
+  readOfficialJobsLayoutVariant,
+  OFFICIAL_JOBS_LAYOUT_EXPERIMENT,
+} from "@/lib/officialJobs/experiment";
 import { supabase } from "@/lib/supabase";
 import {
-  OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
   OFFICIAL_JOBS_LANDING_LAST_VISIT_AT_KEY,
   OFFICIAL_JOBS_LANDING_SESSION_GAP_MS,
   OFFICIAL_JOBS_LANDING_SOURCE,
@@ -86,7 +90,7 @@ async function insertOfficialJobsLandingEntry(
   const { error } = await supabase.from("landing_logs").insert({
     local_id: anonymousId,
     type: withLandingLogSource(type, OFFICIAL_JOBS_LANDING_SOURCE),
-    abtest_type: OFFICIAL_JOBS_LANDING_ABTEST_TYPE,
+    abtest_type: getCurrentOfficialJobsAbtestType(),
     is_mobile: isMobileBrowser(),
     country_lang:
       typeof navigator !== "undefined" ? navigator.language || null : null,
@@ -161,6 +165,8 @@ export async function postOfficialJobEvent({
         eventType,
         jobSlug: jobSlug ?? null,
         metadata: {
+          experiment: OFFICIAL_JOBS_LAYOUT_EXPERIMENT,
+          layoutVariant: readOfficialJobsLayoutVariant(document.cookie),
           ...(metadata ?? {}),
         },
         path: getCurrentPath(),

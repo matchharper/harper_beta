@@ -111,14 +111,14 @@ export default function OrgOnboardingPreview() {
   if (process.env.NODE_ENV === "production" || !router.isReady) return null;
   const screen =
     screens.find((item) => item.id === router.query.screen) ?? screens[0];
-  const status = ["active", "paused", "ended"].includes(
+  const status = ["none", "active", "paused", "ended"].includes(
     String(router.query.roleStatus)
   )
     ? String(router.query.roleStatus)
     : "draft";
   return (
     <PreviewSession
-      key={`${screen.id}:${status}`}
+      key={`${screen.id}:${status}:${String(router.query.slack)}`}
       screen={screen}
       status={status}
     />
@@ -138,7 +138,9 @@ function PreviewSession({
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, enabled: false } },
     });
-    const connected = screen.id === "slack-channel" || screen.step === "done";
+    const connected =
+      router.query.slack !== "off" &&
+      (screen.id === "slack-channel" || screen.step === "done");
     client.setQueryData<OrgSlackStatus>(
       queryKeys.org.slack(workspace.workspaceId),
       {
@@ -147,30 +149,33 @@ function PreviewSession({
         teamName: connected ? workspace.companyName : null,
         needsReinstall: false,
         canCreateChannels: true,
-        channels: screen.step === "done" ? [channel] : [],
+        channels: screen.step === "done" && connected ? [channel] : [],
         availableChannels,
       }
     );
     return client;
   });
-  const roles: OrgRole[] = [
-    {
-      roleId: "onboarding-preview-role",
-      workspaceId: workspace.workspaceId,
-      name: "Backend Engineer",
-      status,
-      description:
-        "제품의 핵심 서비스를 설계하고, 동료들과 함께 더 나은 사용자 경험을 만들어갈 분을 찾고 있어요.",
-      request: null,
-      criteria: [],
-      employmentTypes: ["정규직"],
-      workMode: "하이브리드",
-      locationText: "서울 성수",
-      createdAt: workspace.updatedAt,
-      updatedAt: workspace.updatedAt,
-      externalJdUrl: null,
-    },
-  ];
+  const roles: OrgRole[] =
+    status === "none"
+      ? []
+      : [
+          {
+            roleId: "onboarding-preview-role",
+            workspaceId: workspace.workspaceId,
+            name: "Backend Engineer",
+            status,
+            description:
+              "제품의 핵심 서비스를 설계하고, 동료들과 함께 더 나은 사용자 경험을 만들어갈 분을 찾고 있어요.",
+            request: null,
+            criteria: [],
+            employmentTypes: ["정규직"],
+            workMode: "하이브리드",
+            locationText: "서울 성수",
+            createdAt: workspace.updatedAt,
+            updatedAt: workspace.updatedAt,
+            externalJdUrl: null,
+          },
+        ];
   const context: OrgWorkspaceContextValue = {
     bootstrap: {
       ok: true,
@@ -237,20 +242,28 @@ function PreviewSession({
               ))}
               <Select
                 value={status}
-                onValueChange={(value) => navigate("roles", value ?? "draft")}
+                onValueChange={(value) =>
+                  navigate(
+                    value === "none" ? "done" : "roles",
+                    value ?? "draft"
+                  )
+                }
               >
                 <SelectTrigger aria-label="미리보기 역할 상태" className="w-32">
                   <SelectValue>
-                    {status === "active"
-                      ? "역할: 채용 중"
-                      : status === "paused"
-                        ? "역할: 중단"
-                        : status === "ended"
-                          ? "역할: 종료"
-                          : "역할: 초안"}
+                    {status === "none"
+                      ? "역할: 없음"
+                      : status === "active"
+                        ? "역할: 채용 중"
+                        : status === "paused"
+                          ? "역할: 중단"
+                          : status === "ended"
+                            ? "역할: 종료"
+                            : "역할: 초안"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">역할: 없음</SelectItem>
                   <SelectItem value="draft">역할: 초안</SelectItem>
                   <SelectItem value="active">역할: 채용 중</SelectItem>
                   <SelectItem value="paused">역할: 중단</SelectItem>

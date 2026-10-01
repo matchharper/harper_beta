@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildRoleCreationOutcomeSystemPrompt,
   buildRoleCreationSystemPrompt,
   buildRoleCreationUserPrompt,
 } from "@/lib/org/agent/roleCreationPrompt";
@@ -30,7 +31,7 @@ test("Slack role creation keeps the thread linked and uses Slack mrkdwn", () => 
 
 test("one compact authoring contract retains discovery and confirmation boundaries", () => {
   const prompt = buildRoleCreationSystemPrompt();
-  assert.ok(prompt.length < 16_000);
+  assert.ok(prompt.length < 17_000);
   for (const required of [
     "<company_service_core>", "<tool_outcome_response_contract>", "<hiring_brief_authoring_contract>",
     "source-preserving editing", "not a questionnaire", "actual blockers",
@@ -47,6 +48,20 @@ test("one compact authoring contract retains discovery and confirmation boundari
   ]) assert.ok(prompt.includes(required), required);
   assert.doesNotMatch(prompt, /<professional_reference_calibration_contract>/);
   assert.doesNotMatch(prompt, /\*먼저 이렇게 등록했어요\*|\*마지막 설정\*/);
+});
+
+test("role creation and its confirmation reply use the selected web response language", () => {
+  const english = buildRoleCreationSystemPrompt({ responseLocale: "en" });
+  const korean = buildRoleCreationSystemPrompt({ responseLocale: "ko" });
+  const outcome = buildRoleCreationOutcomeSystemPrompt("chat", "en");
+
+  assert.match(english, /<response_language locale="en">/);
+  assert.match(english, /present it as `Office`/);
+  assert.match(english, /present it as `Full-time`/);
+  assert.match(english, /\[Connect Slack\]\(\/org\/settings\)/);
+  assert.match(korean, /present it as `대면 근무`/);
+  assert.match(korean, /\[Slack 연결하기\]\(\/org\/settings\)/);
+  assert.match(outcome, /<response_language locale="en">/);
 });
 
 test("includes the durable one-attempt source-research marker in role state", () => {

@@ -102,6 +102,7 @@ export async function fetchCareerReengagementPendingActions(args: {
       promise: fetchActiveCompanyTalentRequests({
         admin: args.admin as any,
         awaitingTalentOnly: true,
+        requestOnly: true,
         limit: sourceLimit,
         talentId: args.userId,
       }),

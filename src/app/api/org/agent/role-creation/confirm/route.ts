@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { confirmRoleCreationChoice } from "@/lib/org/agent/roleCreationConfirmation";
 import type { OrgRoleCreationConfirmationBody } from "@/lib/org/agent/types";
+import { isOrgLocale } from "@/i18n/org/locale";
 import { OrgHttpError } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
@@ -29,11 +30,15 @@ export async function POST(req: NextRequest) {
     if (body.decision !== "yes" && body.decision !== "no") {
       return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
     }
+    if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
+      return NextResponse.json({ error: "Invalid response locale" }, { status: 400 });
+    }
     const result = await confirmRoleCreationChoice({
       actionId: body.actionId ?? "",
       decision: body.decision,
       messageId: Number(body.messageId),
       roleId: body.roleId ?? "",
+      responseLocale: body.responseLocale,
       user,
       workspaceId: body.workspaceId ?? "",
     });

@@ -1168,8 +1168,8 @@ const CareerComposerSection = ({
                         "이력서"
                       )
                     : t(
-                        "career.chat.career_composer_section.pending_company_request_question",
-                        "질문"
+                        "career.chat.career_composer_section.pending_company_request_general",
+                        "요청"
                       ),
               };
             }

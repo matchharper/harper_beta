@@ -1,3 +1,4 @@
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
@@ -41,9 +42,16 @@ export type OrgTalentTableRow<Item> = {
   viewed: boolean;
 };
 
-function formatTableDate(value: string) {
+function formatTableDate(value: string, locale: "ko" | "en") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
+  if (locale === "en") {
+    return new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "short",
+      timeZone: "Asia/Seoul",
+    }).format(date);
+  }
   return formatKstDateOnly(date).slice(2);
 }
 
@@ -56,6 +64,7 @@ function TalentAvatar({
   name: string;
   src?: string | null;
 }) {
+  const t = useOrgT();
   const profilePicture = getDisplayableProfileImageUrl(src);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
   const size = mobile ? 40 : 28;
@@ -63,7 +72,7 @@ function TalentAvatar({
   if (profilePicture && failedImageSrc !== profilePicture) {
     return (
       <Image
-        alt=""
+        alt={t("workspace.OrgTalentTable.1d75cba8", "")}
         className={cn(
           "rounded-full object-cover",
           mobile ? "size-10" : "size-7"
@@ -137,11 +146,13 @@ function OrgTalentMobileList<Item>({
   roleHeader: string;
   rows: readonly OrgTalentTableRow<Item>[];
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
   return (
     <div className="border-y border-neutral-1000-a05 bg-bg-default md:hidden">
       {rows.map((row) => (
         <div
-          aria-label={`${row.name} 상세 열기`}
+          aria-label={t("workspace.OrgTalentTable.091ee7f9", "{p0} 상세 열기", { p0: row.name })}
           className="group flex cursor-pointer items-start gap-3 border-b border-neutral-1000-a05 px-1 py-4 outline-none transition last:border-b-0 hover:bg-bg-weak focus-visible:bg-bg-weak"
           key={row.key}
           onClick={() => onSelect(row.item)}
@@ -162,10 +173,10 @@ function OrgTalentMobileList<Item>({
               </span>
               {middleColumn === "memo" && !row.viewed ? (
                 <span
-                  aria-label="미검토"
+                  aria-label={t("workspace.OrgTalentTable.bd192d45", "미검토")}
                   className="size-1.5 shrink-0 rounded-full bg-primary"
                   role="status"
-                  title="미검토"
+                  title={t("workspace.OrgTalentTable.bd192d45", "미검토")}
                 />
               ) : null}
             </div>
@@ -206,7 +217,7 @@ function OrgTalentMobileList<Item>({
                   </div>
                 ) : null}
                 <div className="truncate text-[12px]">
-                  {row.memoPreview || "메모 없음"}
+                  {row.memoPreview || t("workspace.OrgTalentTable.b217f440", "메모 없음")}
                 </div>
               </div>
             ) : null}
@@ -214,11 +225,13 @@ function OrgTalentMobileList<Item>({
               <StatusLabel tone={row.statusTone}>{row.statusLabel}</StatusLabel>
               <span className="text-[11px] tabular-nums text-neutral-soft">
                 <span className="sr-only">{dateHeader}: </span>
-                {formatTableDate(row.date)}
+                {formatTableDate(row.date, locale)}
               </span>
               {middleColumn === "viewed" ? (
                 <span className="text-[11px] text-neutral-soft">
-                  {row.viewed ? "검토" : "미검토"}
+                  {row.viewed
+                    ? t("workspace.OrgTalentTable.0d494035", "검토")
+                    : t("workspace.OrgTalentTable.bd192d45", "미검토")}
                 </span>
               ) : null}
             </div>
@@ -235,13 +248,13 @@ function OrgTalentMobileList<Item>({
 }
 
 export function OrgTalentTable<Item>({
-  companyHeader = "회사",
+  companyHeader,
   compactRoleCompanyColumns = false,
   dateHeader,
   middleColumn = "viewed",
   onSelect,
   onSelectRole,
-  roleHeader = "포지션",
+  roleHeader,
   rows,
   statusHeader,
 }: {
@@ -255,6 +268,12 @@ export function OrgTalentTable<Item>({
   rows: readonly OrgTalentTableRow<Item>[];
   statusHeader: string;
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
+  if (companyHeader === undefined) {
+    companyHeader = t("workspace.OrgTalentTable.e53ac65b", "회사");
+  }
+  roleHeader ??= t("workspace.OrgTalentTable.1e4b7d53", "포지션");
   const showCompany = companyHeader !== null;
   const desktopColumnWidths = {
     company: compactRoleCompanyColumns
@@ -311,16 +330,24 @@ export function OrgTalentTable<Item>({
           </colgroup>
           <thead className="bg-neutral-200/35">
             <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
-              <th className="py-2.5 pl-4 pr-2 font-normal">사진</th>
-              <th className="px-3 py-2.5 font-normal">이름</th>
+              <th className="py-2.5 pl-4 pr-2 font-normal">
+                {t("workspace.OrgTalentTable.0f2af15f", "사진")}
+              </th>
+              <th className="px-3 py-2.5 font-normal">
+                {t("workspace.OrgTalentTable.473feb66", "이름")}
+              </th>
               <th className="px-3 py-2.5 font-normal">{roleHeader}</th>
               {showCompany ? (
                 <th className="px-3 py-2.5 font-normal">{companyHeader}</th>
               ) : null}
               {middleColumn === "memo" ? (
-                <th className="px-3 py-2.5 font-normal">메모</th>
+                <th className="px-3 py-2.5 font-normal">
+                  {t("workspace.OrgTalentTable.bd4209d5", "메모")}
+                </th>
               ) : (
-                <th className="px-3 py-2.5 font-normal">검토 여부</th>
+                <th className="px-3 py-2.5 font-normal">
+                  {t("workspace.OrgTalentTable.c3139196", "검토 여부")}
+                </th>
               )}
               <th className="px-3 py-2.5 font-normal">{statusHeader}</th>
               <th className="px-3 py-2.5 pr-4 text-right font-normal">
@@ -331,7 +358,9 @@ export function OrgTalentTable<Item>({
           <tbody>
             {rows.map((row) => (
               <tr
-                aria-label={`${row.name} 상세 열기`}
+                aria-label={t("workspace.OrgTalentTable.091ee7f9", "{p0} 상세 열기", {
+                  p0: row.name,
+                })}
                 className="group cursor-pointer border-b border-neutral-1000-a05 outline-none transition last:border-b-0 hover:bg-neutral-1000-a03 focus-visible:bg-neutral-1000-a05"
                 key={row.key}
                 onClick={() => onSelect(row.item)}
@@ -354,10 +383,10 @@ export function OrgTalentTable<Item>({
                     </span>
                     {middleColumn === "memo" && !row.viewed ? (
                       <span
-                        aria-label="미검토"
+                        aria-label={t("workspace.OrgTalentTable.bd192d45", "미검토")}
                         className="size-1.5 shrink-0 rounded-full bg-primary"
                         role="status"
-                        title="미검토"
+                        title={t("workspace.OrgTalentTable.bd192d45", "미검토")}
                       />
                     ) : null}
                   </div>
@@ -411,7 +440,9 @@ export function OrgTalentTable<Item>({
                 ) : (
                   <td className="px-3 py-3">
                     <StatusLabel tone={row.viewed ? "muted" : "primary"}>
-                      {row.viewed ? "검토" : "미검토"}
+                      {row.viewed
+                        ? t("workspace.OrgTalentTable.0d494035", "검토")
+                        : t("workspace.OrgTalentTable.bd192d45", "미검토")}
                     </StatusLabel>
                   </td>
                 )}
@@ -421,7 +452,7 @@ export function OrgTalentTable<Item>({
                   </StatusLabel>
                 </td>
                 <td className="px-3 py-3 pr-4 text-right text-[13px] tabular-nums text-neutral-muted">
-                  {formatTableDate(row.date)}
+                  {formatTableDate(row.date, locale)}
                 </td>
               </tr>
             ))}

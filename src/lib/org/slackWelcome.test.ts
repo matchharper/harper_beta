@@ -22,8 +22,21 @@ test("builds the Korean channel welcome message with workspace and bot links", (
       "",
       ":bulb: 궁금한 점은 <@U123HARPER>를 태그해 물어보세요.",
       "> <@U123HARPER> 지금 우선 검토해야 할 후보자를 알려줘",
+      "> <@U123HARPER> 새로운 역할 하나 채용 시작해줘",
     ].join("\n")
   );
+});
+
+test("English workspace welcome keeps the channel guidance in English", () => {
+  const message = buildHarperSlackWelcomeMessage({
+    botUserId: "U123HARPER",
+    locale: "en",
+    publicSiteUrl: "https://app.matchharper.com",
+    workspaceId: "workspace-id",
+  });
+  assert.match(message, /This channel is connected/);
+  assert.match(message, /Tag <@U123HARPER>/);
+  assert.doesNotMatch(message, /[가-힣]/);
 });
 
 test("falls back to the public Harper site for an invalid configured URL", () => {

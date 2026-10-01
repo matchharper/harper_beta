@@ -398,7 +398,14 @@ function formatIntervals(intervals: MeetingAvailabilityInterval[]) {
 }
 
 export function formatMeetingAvailabilitySummary(
-  availability: MeetingAvailabilityDocument
+  availability: MeetingAvailabilityDocument,
+  copy?: {
+    none: string;
+    daily: (intervals: string) => string;
+    weekdays: (intervals: string) => string;
+    weekly: (days: number) => string;
+    exceptions: (days: number) => string;
+  }
 ) {
   const weekdayKeys: IsoWeekdayKey[] = ["1", "2", "3", "4", "5"];
   const weekendKeys: IsoWeekdayKey[] = ["6", "7"];
@@ -414,24 +421,29 @@ export function formatMeetingAvailabilitySummary(
     (key) => intervalListKey(availability.weeklyRules[key]) === weekdayValue
   );
 
-  let recurringSummary = "반복 시간 없음";
+  let recurringSummary = copy?.none ?? "반복 시간 없음";
   if (weekdayValue && allDaysMatch) {
-    recurringSummary = `매일 ${formatIntervals(availability.weeklyRules["1"])}`;
+    const intervals = formatIntervals(availability.weeklyRules["1"]);
+    recurringSummary = copy?.daily(intervals) ?? `매일 ${intervals}`;
   } else if (weekdayValue && allWeekdaysMatch && weekendsEmpty) {
-    recurringSummary = `평일 ${formatIntervals(availability.weeklyRules["1"])}`;
+    const intervals = formatIntervals(availability.weeklyRules["1"]);
+    recurringSummary = copy?.weekdays(intervals) ?? `평일 ${intervals}`;
   } else {
     const availableDayCount = allKeys.filter(
       (key) => availability.weeklyRules[key].length > 0
     ).length;
     if (availableDayCount > 0)
-      recurringSummary = `주 ${availableDayCount}일 설정`;
+      recurringSummary =
+        copy?.weekly(availableDayCount) ?? `주 ${availableDayCount}일 설정`;
   }
 
   const overrideCount = Object.keys(availability.dateOverrides).length;
   return [
     availability.timezone,
     recurringSummary,
-    overrideCount > 0 ? `예외 ${overrideCount}일` : null,
+    overrideCount > 0
+      ? (copy?.exceptions(overrideCount) ?? `예외 ${overrideCount}일`)
+      : null,
   ]
     .filter(Boolean)
     .join(" · ");

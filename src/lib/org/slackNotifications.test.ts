@@ -112,3 +112,29 @@ test("connection rejection Slack guidance names the person without raw labels", 
   assert.match(connected, /이후보님과의 연결을 종료했어요/);
   assert.match(connected, /이미 보낸 소개 이메일/);
 });
+
+test("English workspace notifications use clear connection terms", () => {
+  const englishWorkspace = { companyName: "Acme", workspaceId: "workspace-1" };
+  const common = {
+    actor: { email: "sam@acme.com", name: "Sam" },
+    locale: "en" as const,
+    roleId: "role-1",
+    roleName: "Backend Engineer",
+    workspace: englishWorkspace,
+  };
+  const created = buildOrgRoleCreatedSlackMessage(common);
+  const accepted = buildOrgCandidateAcceptedSlackMessage({
+    ...common,
+    candidate: { name: "Alex", talentId: "talent-1" },
+    introEmails: ["sam@acme.com"],
+  });
+  const rejected = buildOrgCandidateRejectedSlackMessage({
+    ...common,
+    candidate: { name: "Alex", talentId: "talent-1" },
+    previousStage: "pending_connection",
+  });
+  assert.match(created, /Ready to connect/);
+  assert.match(accepted, /Introduction email/);
+  assert.match(rejected, /Alex/);
+  assert.doesNotMatch(`${created}\n${accepted}\n${rejected}`, /[가-힣]/);
+});

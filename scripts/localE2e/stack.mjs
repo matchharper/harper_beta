@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawn, execFileSync } from "node:child_process";
 import { root, state, worker, privateDir, sourceEnv, readJson, writeJson, dockerEnv, stackEnv } from "./env.mjs";
 import crypto from "node:crypto";
+import net from "node:net";
 
 const command = process.argv[2] || "status";
 const pidFile = path.join(privateDir, "processes.json");
@@ -27,7 +28,18 @@ function start(name, bin, args, env, cwd = root) {
 async function health(url) {
   try { return (await fetch(url, { signal: AbortSignal.timeout(2500) })).status; } catch { return "unavailable"; }
 }
+async function portInUse(port) {
+  return new Promise(resolve => {
+    const socket = net.connect({ host: "127.0.0.1", port });
+    socket.once("connect", () => { socket.destroy(); resolve(true); });
+    socket.once("error", () => resolve(false));
+    socket.setTimeout(1000, () => { socket.destroy(); resolve(false); });
+  });
+}
 if (command === "up") {
+  if (!alive(processes.app) && await portInUse(3000)) {
+    throw Error("Port 3000 is already in use. Stop the other app before starting the local E2E stack.");
+  }
   fs.mkdirSync(privateDir, { recursive: true, mode: 0o700 });
   fs.mkdirSync(path.join(state, "docker"), { recursive: true });
   fs.writeFileSync(path.join(state, "docker/config.json"), "{}");
@@ -46,7 +58,7 @@ if (command === "up") {
   const python = path.join(state, "venv/bin/python");
   execFileSync(python, [path.join(root, "scripts/localE2e/database.py"), "check"], { env, stdio: "inherit" });
   start("mail", process.execPath, [path.join(root, "scripts/localE2e/mail.mjs")], env);
-  start("app", process.execPath, [path.join(root, "node_modules/next/dist/bin/next"), "dev", "--hostname", "127.0.0.1", "--port", "3200"], env);
+  start("app", process.execPath, [path.join(root, "node_modules/next/dist/bin/next"), "dev", "--hostname", "127.0.0.1", "--port", "3000"], env);
   start("opportunity", python, [path.join(worker, "opportunity_worker.py"), "poll", "--disable-scheduler"], env, worker);
   start("email", python, [path.join(worker, "email_reply_worker.py")], env, worker);
   start("slack", python, [path.join(worker, "slack_agent_worker.py"), "poll", "--target", "local-e2e"], env, worker);
@@ -65,7 +77,7 @@ if (command === "up") {
   }
 } else if (command === "status" || command === "doctor") {
   const result = Object.fromEntries(Object.entries(processes).map(([key,p]) => [key, alive(p) ? "running" : "stopped"]));
-  console.log(JSON.stringify({ processes: result, app: await health("http://127.0.0.1:3200"), mail: await health("http://127.0.0.1:3211/health"), database: "127.0.0.1:55432", productionFallback: false }, null, 2));
+  console.log(JSON.stringify({ processes: result, app: await health("http://127.0.0.1:3000"), mail: await health("http://127.0.0.1:3211/health"), database: "127.0.0.1:55432", productionFallback: false }, null, 2));
   if (command === "doctor") {
     const { env } = stackEnv();
     execFileSync(path.join(state, "venv/bin/python"), [path.join(root, "scripts/localE2e/database.py"), "check"], { env, stdio: "inherit" });

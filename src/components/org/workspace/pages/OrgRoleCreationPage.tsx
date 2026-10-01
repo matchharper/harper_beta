@@ -1,3 +1,4 @@
+import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import {
   BriefcaseBusiness,
   ChevronsLeftRight,
@@ -122,6 +123,7 @@ function OrgRolePipelineWorkspace({
   mobile?: boolean;
   onDisplayChange: (display: RolePipelineDisplay) => void;
 }) {
+  const t = useOrgT();
   const resolvedDisplay = mobile ? "board" : display;
 
   const displayControl = mobile ? null : (
@@ -143,7 +145,7 @@ function OrgRolePipelineWorkspace({
         <>
           <div className="flex w-full shrink-0 flex-row justify-between">
             <div className="text-[16px] font-normal text-neutral-primary">
-              Pipeline
+              {t("workspace.pages.OrgRoleCreationPage.ceed6860", "Pipeline")}
             </div>
             <div className="flex justify-end">{displayControl}</div>
           </div>
@@ -163,15 +165,19 @@ function RolePipelineDisplayMenu({
   display: RolePipelineDisplay;
   onDisplayChange: (display: RolePipelineDisplay) => void;
 }) {
+  const t = useOrgT();
   const DisplayIcon = display === "pipeline" ? Columns3 : Rows3;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <MuteButton
-          aria-label={`표시 방식: ${
-            display === "pipeline" ? "파이프라인" : "보드"
-          }`}
+          aria-label={t("workspace.pages.OrgRoleCreationPage.1e8c9520", "표시 방식: {p0}", {
+            p0:
+              display === "pipeline"
+                ? t("workspace.pages.OrgRoleCreationPage.bc7ac4c7", "파이프라인")
+                : t("workspace.pages.OrgRoleCreationPage.66151d3c", "보드"),
+          })}
           size="sm"
           variant="transparent"
         >
@@ -185,7 +191,7 @@ function RolePipelineDisplayMenu({
           variant="sm"
         >
           <Columns3 />
-          파이프라인
+          {t("workspace.pages.OrgRoleCreationPage.bc7ac4c7", "파이프라인")}
         </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => onDisplayChange("board")}
@@ -193,7 +199,7 @@ function RolePipelineDisplayMenu({
           variant="sm"
         >
           <Rows3 />
-          보드
+          {t("workspace.pages.OrgRoleCreationPage.66151d3c", "보드")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -250,6 +256,8 @@ function OrgRoleCreationDetails({
   onToggleExpanded?: () => void;
   role: OrgRole | null;
 }) {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const router = useRouter();
   const { workspace } = useOrgWorkspace();
   const roleCreation =
@@ -323,7 +331,11 @@ function OrgRoleCreationDetails({
 
   return (
     <section
-      aria-label={companyInfoOpen ? "회사 정보 상세" : "새 역할 등록 상세"}
+      aria-label={
+        companyInfoOpen
+          ? t("workspace.pages.OrgRoleCreationPage.df1ae4cb", "회사 정보 상세")
+          : t("workspace.pages.OrgRoleCreationPage.cf791d49", "새 역할 등록 상세")
+      }
       className={cn(
         mobile
           ? "relative flex h-full min-h-0 min-w-0 flex-1 flex-col bg-bg-default"
@@ -344,19 +356,20 @@ function OrgRoleCreationDetails({
                 <OrgRoleStatusDot decorative status={role.status} />
               ) : null}
               <h1 className="truncate text-[14px] font-normal text-neutral-primary">
-                {role?.name || "역할 불러오는 중"}
+                {role?.name ||
+                  t("workspace.pages.OrgRoleCreationPage.c5bb73aa", "역할 불러오는 중")}
               </h1>
               {roleStatus ? (
                 <span className="shrink-0 text-[14px] font-normal text-neutral-muted">
                   <span aria-hidden="true">- </span>
-                  {roleStatus.label}
+                  {sourceT(roleStatus.label)}
                 </span>
               ) : null}
             </div>
           ) : null}
           {mobile ? (
             <MuteButton
-              aria-label="역할 상세 닫기"
+              aria-label={t("workspace.pages.OrgRoleCreationPage.0ba669d2", "역할 상세 닫기")}
               className="ml-1 rounded-full"
               onClick={onClose}
               size="md"
@@ -370,7 +383,7 @@ function OrgRoleCreationDetails({
             </MuteButton>
           ) : null}
           <div
-            aria-label="새 역할 정보"
+            aria-label={t("workspace.pages.OrgRoleCreationPage.3ea2c40a", "새 역할 정보")}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-3 scrollbar-none",
               mobile && "pl-1",
@@ -409,7 +422,7 @@ function OrgRoleCreationDetails({
                   type="button"
                 >
                   {tab.icon}
-                  <span className="truncate">{tab.label}</span>
+                  <span className="truncate">{sourceT(tab.label)}</span>
                   {tab.value === "inbox" && inboxCount !== undefined ? (
                     <Badge
                       className="h-4 bg-action px-[5px] py-[1px] text-white tabular-nums font-normal text-[11px]"
@@ -428,12 +441,18 @@ function OrgRoleCreationDetails({
                 aria-controls="role-creation-details-panel"
                 aria-expanded={expanded}
                 aria-label={
-                  expanded ? "분할 화면으로 보기" : "전체 화면으로 보기"
+                  expanded
+                    ? t("workspace.pages.OrgRoleCreationPage.2ce1419d", "분할 화면으로 보기")
+                    : t("workspace.pages.OrgRoleCreationPage.3a073344", "전체 화면으로 보기")
                 }
                 className="pointer-events-auto shrink-0"
                 onClick={onToggleExpanded}
                 size="md"
-                title={expanded ? "분할 화면으로 보기" : "전체 화면으로 보기"}
+                title={
+                  expanded
+                    ? t("workspace.pages.OrgRoleCreationPage.2ce1419d", "분할 화면으로 보기")
+                    : t("workspace.pages.OrgRoleCreationPage.3a073344", "전체 화면으로 보기")
+                }
                 variant="transparent"
               >
                 {expanded ? (
@@ -464,12 +483,12 @@ function OrgRoleCreationDetails({
           }`}
         >
           {companyInfoOpen ? (
-            <div aria-label="회사 정보 상세 내용">
+            <div aria-label={t("workspace.pages.OrgRoleCreationPage.c0fac685", "회사 정보 상세 내용")}>
               <OrgTeamPage companyOnly readOnlyCompany />
             </div>
           ) : null}
           <div
-            aria-label="인박스 탭 내용"
+            aria-label={t("workspace.pages.OrgRoleCreationPage.2320cf8f", "인박스 탭 내용")}
             aria-labelledby="role-creation-inbox-tab"
             hidden={companyInfoOpen || activeTab !== "inbox"}
             id="role-creation-inbox-panel"
@@ -488,7 +507,7 @@ function OrgRoleCreationDetails({
             ) : null}
           </div>
           <div
-            aria-label="파이프라인 탭 내용"
+            aria-label={t("workspace.pages.OrgRoleCreationPage.75d1f1fb", "파이프라인 탭 내용")}
             aria-labelledby="role-creation-pipeline-tab"
             className={activeTab === "pipeline" ? "h-full min-h-0" : undefined}
             hidden={companyInfoOpen || activeTab !== "pipeline"}
@@ -508,7 +527,7 @@ function OrgRoleCreationDetails({
             ) : null}
           </div>
           <div
-            aria-label="매칭 기준 탭 내용"
+            aria-label={t("workspace.pages.OrgRoleCreationPage.6ded0155", "매칭 기준 탭 내용")}
             aria-labelledby="role-creation-matching-tab"
             hidden={companyInfoOpen || activeTab !== "matching"}
             id="role-creation-matching-panel"
@@ -522,12 +541,12 @@ function OrgRoleCreationDetails({
               />
             ) : (
               <div className="py-12 text-center text-sm text-neutral-muted">
-                역할 정보를 불러오는 중입니다.
+                {t("workspace.pages.OrgRoleCreationPage.548f7898", "역할 정보를 불러오는 중입니다.")}
               </div>
             )}
           </div>
           <div
-            aria-label="역할 정보 탭 내용"
+            aria-label={t("workspace.pages.OrgRoleCreationPage.af3ffc67", "역할 정보 탭 내용")}
             aria-labelledby="role-creation-role-tab"
             hidden={companyInfoOpen || activeTab !== "role"}
             id="role-creation-role-panel"
@@ -541,12 +560,12 @@ function OrgRoleCreationDetails({
               />
             ) : (
               <div className="py-12 text-center text-sm text-neutral-muted">
-                역할 정보를 불러오는 중입니다.
+                {t("workspace.pages.OrgRoleCreationPage.548f7898", "역할 정보를 불러오는 중입니다.")}
               </div>
             )}
           </div>
           <div
-            aria-label="Setting 탭 내용"
+            aria-label={t("workspace.pages.OrgRoleCreationPage.012479bc", "Setting 탭 내용")}
             aria-labelledby="role-creation-settings-tab"
             hidden={companyInfoOpen || activeTab !== "settings"}
             id="role-creation-settings-panel"
@@ -579,6 +598,8 @@ function OrgRoleCreationDetails({
 }
 
 export function OrgRoleCreationPage() {
+  const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const router = useRouter();
   const { openNavigation, setNavigationTriggerHidden } =
     useOrgMobileNavigation();
@@ -626,7 +647,7 @@ export function OrgRoleCreationPage() {
   if (isNewRolePage && !permissions.canManageCandidates) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-neutral-muted">
-        역할을 등록할 권한이 없습니다.
+        {t("workspace.pages.OrgRoleCreationPage.7c332120", "역할을 등록할 권한이 없습니다.")}
       </div>
     );
   }
@@ -642,7 +663,11 @@ export function OrgRoleCreationPage() {
       )}
     >
       <section
-        aria-label={isNewRolePage ? "새 역할 등록 대화" : "역할 대화"}
+        aria-label={
+          isNewRolePage
+            ? t("workspace.pages.OrgRoleCreationPage.fb3f0cac", "새 역할 등록 대화")
+            : t("workspace.pages.OrgRoleCreationPage.7df56925", "역할 대화")
+        }
         aria-labelledby={chatTabActive ? "role-creation-chat-tab" : undefined}
         className={cn(
           "relative flex h-full w-full shrink-0 min-w-0 flex-col overflow-hidden md:w-auto md:flex-none md:basis-[42%]",
@@ -671,7 +696,9 @@ export function OrgRoleCreationPage() {
                     <span aria-hidden className="size-8 shrink-0" />
                   ) : (
                     <MuteButton
-                      aria-label="메뉴 열기"
+                      aria-label={t(
+                        "workspace.pages.OrgRoleCreationPage.3bb985b9", "메뉴 열기"
+                      )}
                       className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
                       onClick={openNavigation}
                       size="md"
@@ -687,13 +714,16 @@ export function OrgRoleCreationPage() {
                   <div className="min-w-0 flex-1 px-1 text-left">
                     <h1 className="truncate whitespace-nowrap text-[13px] font-medium text-neutral-primary">
                       {roleId
-                        ? role?.name || "역할 불러오는 중"
-                        : "새 역할 등록"}
+                        ? role?.name ||
+                          t("workspace.pages.OrgRoleCreationPage.c5bb73aa", "역할 불러오는 중")
+                        : t("workspace.pages.OrgRoleCreationPage.d9d673d2", "새 역할 등록")}
                     </h1>
                   </div>
                   {roleId ? (
                     <MuteButton
-                      aria-label="역할 상세 열기"
+                      aria-label={t(
+                        "workspace.pages.OrgRoleCreationPage.6034f8df", "역할 상세 열기"
+                      )}
                       className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
                       onClick={() => setMobileDetailsOpen(true)}
                       size="md"
@@ -715,12 +745,13 @@ export function OrgRoleCreationPage() {
                       <OrgRoleStatusDot decorative status={role.status} />
                     ) : null}
                     <h1 className="truncate text-[14px] font-normal text-neutral-primary">
-                      {role?.name || "역할 불러오는 중"}
+                      {role?.name ||
+                        t("workspace.pages.OrgRoleCreationPage.c5bb73aa", "역할 불러오는 중")}
                     </h1>
                     {roleStatus ? (
                       <span className="shrink-0 text-[14px] font-normal text-neutral-muted">
                         <span aria-hidden="true">- </span>
-                        {roleStatus.label}
+                        {sourceT(roleStatus.label)}
                       </span>
                     ) : null}
                   </header>
@@ -758,7 +789,7 @@ export function OrgRoleCreationPage() {
       {roleId ? (
         <>
           <div
-            aria-label="역할 대화 패널 너비 조절"
+            aria-label={t("workspace.pages.OrgRoleCreationPage.2ee10b6b", "역할 대화 패널 너비 조절")}
             aria-orientation="vertical"
             aria-valuemax={ORG_ROLE_CHAT_PANEL_MAX_WIDTH_PCT}
             aria-valuemin={ORG_ROLE_CHAT_PANEL_MIN_WIDTH_PCT}

@@ -118,9 +118,20 @@ Raw artifact를 공유하거나 commit하지 않는다.
 - 한 case의 더 자연스러운 문구가 다른 Role·회사에서 더 좋은 production 품질을 보장하지 않는다.
 - Recent conversation 자체에 운영 어휘가 있으면 모델이 그것을 자연스럽게 이어 쓸 수 있다. 이는 별도 review가
   필요한 input sensitivity이지 특정 단어를 runtime에서 금지할 이유가 아니다.
+- `v1`에는 첫 후보 검색 결과 전달 여부와 추천 후보 카드가 없으므로, 첫 결과 안내·일정 설명·정보 확인 질문의
+  품질을 검증하지 못한다. 해당 변화는 별도 비식별 positive/zero-result 입력과 사람 검토가 필요하다.
+
+## 2026-10-01 회귀 실행
+
+- 기존 frozen `v1` 입력을 그대로 사용한 새 run `2026-10-01T07-24-46-718Z`를 `runs/`에 기록했다.
+  이 입력은 첫 결과 표시가 없어 종전 후속 답변 경로만 검사한다.
+- 5개 모델 중 4개가 응답했고 Muse Spark는 provider의 연령 확인 요구로 403 실패했다. MiMo 응답에는
+  확인되지 않은 역할 링크와 재검색 선택지가 포함돼 release gate를 통과하지 못했다. 출력 원문과 비용은
+  ignored run artifact에만 보관한다. 이 실행으로 첫 결과 문구의 품질을 주장하지 않는다.
 
 ## 변경 이력
 
 | 날짜 | 주요 변경 |
 | --- | --- |
+| 2026-10-01 | 기존 v1 후속 답변 회귀 실행, provider 실패와 첫 결과 coverage 한계 기록 |
 | 2026-09-22 | 실제 0명 결과용 focused prompt, read-only capture와 5-model 동일-input 비교 계약 등록 |

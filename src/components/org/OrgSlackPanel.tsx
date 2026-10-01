@@ -1,3 +1,5 @@
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Check, LoaderCircle, RefreshCw, Slack, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,12 +18,6 @@ import type { OrgWorkspace } from "@/lib/org/server";
 import { useToastStore } from "@/store/useToastStore";
 import Image from "next/image";
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : "Slack 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.";
-}
-
 export function OrgSlackPanel({
   onOpenChange,
   open,
@@ -33,6 +29,9 @@ export function OrgSlackPanel({
   returnTo: string;
   workspace: OrgWorkspace;
 }) {
+  const t = useOrgT();
+  const { locale } = useOrgLocale();
+  const errorFallback = t("OrgSlackPanel.0b596162", "Slack 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.");
   const addToast = useToastStore((state) => state.add);
   const statusQuery = useOrgSlackStatus({
     enabled: open,
@@ -52,9 +51,9 @@ export function OrgSlackPanel({
   };
 
   const handleDisconnect = async () => {
-    if (!window.confirm("이 Workspace의 Slack 연결을 해제할까요?")) return;
+    if (!window.confirm(t("OrgSlackPanel.1813e57c", "이 Workspace의 Slack 연결을 해제할까요?"))) return;
     await disconnectSlack.mutateAsync();
-    addToast({ message: "Slack 연결을 해제했어요." });
+    addToast({ message: t("OrgSlackPanel.f1d157b7", "Slack 연결을 해제했어요.") });
   };
 
   return (
@@ -68,14 +67,18 @@ export function OrgSlackPanel({
             <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating">
               <Image
                 src="/images/logos/slack.svg"
-                alt="Slack"
+                alt={t("OrgSlackPanel.c1f9301b", "Slack")}
                 width={20}
                 height={20}
               />
             </div>
-            <DialogTitle className="text-[16px]">Slack</DialogTitle>
+            <DialogTitle className="text-[16px]">
+              {t("OrgSlackPanel.c1f9301b", "Slack")}
+            </DialogTitle>
             <DialogDescription className="text-[12px]">
-              {workspace.companyName}의 Organization 알림 채널
+              {t("OrgSlackPanel.c966e0e1", "{companyName}의 Organization 알림 채널", {
+                companyName: workspace.companyName,
+              })}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -87,7 +90,7 @@ export function OrgSlackPanel({
             </div>
           ) : statusQuery.error ? (
             <div className="rounded-md border border-critical/20 bg-critical/5 px-3 py-3 text-sm text-critical">
-              {getErrorMessage(statusQuery.error)}
+              {localizedOrgErrorMessage(statusQuery.error, locale, errorFallback)}
             </div>
           ) : status?.connected ? (
             <div className="space-y-4">
@@ -98,11 +101,13 @@ export function OrgSlackPanel({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-[12px] font-medium text-neutral-primary">
-                      연결됨
+                      {t("OrgSlackPanel.71413681", "연결됨")}
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-neutral-muted">
-                      {status.teamName || "Slack"} · {status.channels.length}개
-                      채널
+                      {t("OrgSlackPanel.connectedChannelCount", "{teamName} · {count}개 채널", {
+                        teamName: status.teamName || "Slack",
+                        count: status.channels.length,
+                      })}
                     </div>
                   </div>
                 </div>
@@ -110,29 +115,30 @@ export function OrgSlackPanel({
 
               {status.needsReinstall ? (
                 <div className="rounded-md border border-info/30 bg-info-faded px-3 py-3 text-[12px] leading-5 text-neutral-primary">
-                  <div className="font-medium">Slack을 다시 연결해 주세요</div>
+                  <div className="font-medium">
+                    {t("OrgSlackPanel.9f3a7347", "Slack을 다시 연결해 주세요")}
+                  </div>
                   <p className="mt-1 text-neutral-muted">
-                    Harper 멤버 확인과 PDF, DOCX, TXT 파일 읽기를 사용하려면
-                    아래 다시 연결을 눌러 새 권한을 승인해 주세요.
+                    {t("OrgSlackPanel.7aa46fa0", "Harper 멤버 확인과 PDF, DOCX, TXT 파일 읽기를 사용하려면 아래 다시 연결을 눌러 새 권한을 승인해 주세요.")}
                   </p>
                 </div>
               ) : null}
 
               <section>
                 <h3 className="text-[12px] font-medium text-neutral-primary">
-                  Slack notifications
+                  {t("OrgSlackPanel.b8066e27", "Slack notifications")}
                 </h3>
                 <div className="mt-2 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05 text-[11px] text-neutral-muted">
-                  <div className="py-2.5">역할 등록과 후보자 탐색 시작</div>
-                  <div className="py-2.5">후보자 연결 시작</div>
-                  <div className="py-2.5">후보자 연결 거절</div>
-                  <div className="py-2.5">Organization 멤버 합류</div>
+                  <div className="py-2.5">{t("OrgSlackPanel.06e3e327", "역할 등록과 후보자 탐색 시작")}</div>
+                  <div className="py-2.5">{t("OrgSlackPanel.db644a28", "후보자 연결 시작")}</div>
+                  <div className="py-2.5">{t("OrgSlackPanel.8687b3bd", "후보자 연결 거절")}</div>
+                  <div className="py-2.5">{t("OrgSlackPanel.1c4d61cb", "Organization 멤버 합류")}</div>
                 </div>
               </section>
 
               {mutationError ? (
                 <div className="rounded-md border border-critical/20 bg-critical/5 px-3 py-3 text-sm text-critical">
-                  {getErrorMessage(mutationError)}
+                  {localizedOrgErrorMessage(mutationError, locale, errorFallback)}
                 </div>
               ) : null}
 
@@ -149,7 +155,7 @@ export function OrgSlackPanel({
                   ) : (
                     <RefreshCw />
                   )}
-                  다시 연결
+                  {t("OrgSlackPanel.d93fc452", "다시 연결")}
                 </Button>
               </div>
             </div>
@@ -157,17 +163,16 @@ export function OrgSlackPanel({
             <div className="space-y-4">
               <div>
                 <h3 className="text-[14px] font-medium text-neutral-primary">
-                  Slack에서 바로 확인하세요
+                  {t("OrgSlackPanel.cb72f2f9", "Slack에서 바로 확인하세요")}
                 </h3>
                 <p className="mt-1.5 text-[12px] leading-5 text-neutral-muted">
-                  역할과 후보자 진행 상황, 멤버 변경 알림을 선택한 채널로
-                  보내요.
+                  {t("OrgSlackPanel.24ebaded", "역할과 후보자 진행 상황, 멤버 변경 알림을 선택한 채널로 보내요.")}
                 </p>
               </div>
 
               {mutationError ? (
                 <div className="rounded-md border border-critical/20 bg-critical/5 px-3 py-3 text-sm text-critical">
-                  {getErrorMessage(mutationError)}
+                  {localizedOrgErrorMessage(mutationError, locale, errorFallback)}
                 </div>
               ) : null}
 
@@ -184,12 +189,12 @@ export function OrgSlackPanel({
                 ) : (
                   <Image
                     src="/images/logos/slack.svg"
-                    alt="Slack"
+                    alt={t("OrgSlackPanel.c1f9301b", "Slack")}
                     width={16}
                     height={16}
                   />
                 )}
-                Slack에 연결
+                {t("OrgSlackPanel.ba56a582", "Slack에 연결")}
               </Button>
             </div>
           )}
@@ -210,7 +215,7 @@ export function OrgSlackPanel({
               ) : (
                 <Unplug />
               )}
-              연결 해제
+              {t("OrgSlackPanel.adcf7319", "연결 해제")}
             </Button>
           </div>
         ) : null}

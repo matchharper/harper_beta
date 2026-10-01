@@ -249,7 +249,7 @@ test("formats the complete decision brief instead of only the summary", async ()
   assert.match(message, /서연님/);
 });
 
-test("research prompt gives Terra one autonomous writing task with light format guidance", async () => {
+test("research prompt gives the model one autonomous writing task with light format guidance", async () => {
   const {
     buildCompanyResearchPrompt,
     COMPANY_RESEARCH_MAX_OUTPUT_TOKENS,
@@ -286,7 +286,7 @@ test("research prompt gives Terra one autonomous writing task with light format 
   assert.equal(COMPANY_SNAPSHOT_SCHEMA_VERSION, 8);
   assert.equal(
     CAREER_LLM_CONFIG.companySnapshotResearch.primaryModel,
-    "gpt-5.6-terra"
+    "gpt-6.1-sol"
   );
   assert.equal(
     CAREER_LLM_CONFIG.companySnapshotResearch.reasoningEffort,
@@ -304,7 +304,7 @@ test("research prompt gives Terra one autonomous writing task with light format 
   assert.doesNotMatch(noContextPrompt, /empty strings|personalized\./);
 });
 
-test("returns Terra-authored Markdown without imposing renderer sections", async () => {
+test("returns model-authored Markdown without imposing renderer sections", async () => {
   const { buildCompanySnapshotMarkdown } = await companySnapshotModule;
   const authored = [
     "테스트코는 지금 제품보다 영업 구조를 먼저 봐야 합니다.",

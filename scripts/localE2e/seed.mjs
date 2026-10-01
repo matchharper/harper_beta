@@ -30,7 +30,7 @@ f.slack.scopes=auth.grantedScopes;f.slack.is_private=channel.is_private;writeJso
 if(channel.is_private&&!auth.grantedScopes.includes('groups:history'))console.warn('Slack private-channel replies need groups:history + message.groups on Harper Local; mentions alone are available.');
 execFileSync(path.join(state,"venv/bin/python"),[path.join(root,"scripts/localE2e/database.py"),"seed"],{env,stdio:"inherit"});
 const links={};for(const [name,email,next] of [["company","daniel@matchharper.com","/org"],["candidate","khj605123@gmail.com","/career"]]){
-  const {data,error}=await admin.auth.admin.generateLink({type:"magiclink",email,options:{redirectTo:`http://localhost:3200/auths/callback?next=${next}`}});if(error)throw error;links[name]=data.properties.action_link;
+  const {data,error}=await admin.auth.admin.generateLink({type:"magiclink",email,options:{redirectTo:`http://localhost:3000/auths/callback?next=${next}`}});if(error)throw error;links[name]=data.properties.action_link;
 }
 writeJson(path.join(privateDir,"login-links.json"),links);
 console.log(JSON.stringify({roleId:f.roleId,introId:f.introId,slackChannel:channel.name,loginLinks:".local/full-stack/private/login-links.json",syntheticProfile:true},null,2));

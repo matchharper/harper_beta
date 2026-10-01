@@ -10,6 +10,11 @@
   **company-side LLM**. Use this term consistently in code comments,
   documentation, and implementation discussions.
 
+## LinkedIn Jobs marketplace GTM
+
+- Before creating or updating an internal Role's public `official_jobs` entry, changing its LinkedIn posting, or planning/running the scheduled LinkedIn Jobs GTM task, read `docs/scheduled/linkedin-jobs-marketplace-gtm-ko.md` and `docs/scheduled/linkedin-jobs-marketplace-learnings-ko.md` in full.
+- Treat the Recruiter UI as the source of truth for live slots and posting status. Record verified actions in the designated Notion `Data & Logs` database and send change summaries through Harper Scouter as specified in the runbook.
+
 ## Company Role Hiring Brief authoring
 
 - Before creating, changing, reviewing, or directly writing a Role Hiring Brief

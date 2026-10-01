@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import { ChevronLeft, LoaderCircle } from "lucide-react";
 import {
@@ -26,6 +27,7 @@ export function OrgCalibrationProfilePanel({
   roleName: string;
   workspaceId: string;
 }) {
+  const t = useOrgT();
   const query = useOrgRoleCalibration({
     calibrationId,
     profileId,
@@ -38,7 +40,7 @@ export function OrgCalibrationProfilePanel({
     <div className="absolute inset-0 z-40 flex min-h-0 flex-col bg-bg-default">
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-neutral-1000-a05 px-2">
         <MuteButton
-          aria-label="Calibration 목록으로 돌아가기"
+          aria-label={t("role.overview.OrgCalibrationProfilePanel.e03824fa", "Calibration 목록으로 돌아가기")}
           onClick={onClose}
           size="md"
           variant="transparent"
@@ -47,10 +49,11 @@ export function OrgCalibrationProfilePanel({
         </MuteButton>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-medium text-neutral-primary">
-            Profile {profileId}
+            {t("role.overview.OrgCalibrationProfilePanel.661560b3", "Profile")}
+            {profileId}
           </div>
           <div className="truncate text-[11px] text-neutral-muted">
-            {roleName} Calibration
+            {roleName} {t("role.overview.OrgCalibrationProfilePanel.49517b93", "Calibration")}
           </div>
         </div>
         {profile ? (
@@ -65,31 +68,31 @@ export function OrgCalibrationProfilePanel({
             role="status"
           >
             <LoaderCircle aria-hidden className="mr-2 size-4 animate-spin" />
-            프로필을 불러오는 중
+            {t("role.overview.OrgCalibrationProfilePanel.dfe4b1d8", "프로필을 불러오는 중")}
           </div>
         ) : query.isError ? (
           <div
             className="py-12 text-center text-[13px] leading-6 text-neutral-muted"
             role="alert"
           >
-            <p>프로필을 불러오지 못했어요. 다시 시도해 주세요.</p>
+            <p>{t("role.overview.OrgCalibrationProfilePanel.45608d4a", "프로필을 불러오지 못했어요. 다시 시도해 주세요.")}</p>
             <MuteButton
               className="mt-3"
               onClick={() => void query.refetch()}
               variant="transparent"
             >
-              다시 불러오기
+              {t("role.overview.OrgCalibrationProfilePanel.cebdb33e", "다시 불러오기")}
             </MuteButton>
           </div>
         ) : !profile ? (
           <div className="py-12 text-center text-[13px] leading-6 text-neutral-muted">
-            <p>이 프로필을 찾을 수 없어요. 목록에서 다시 선택해 주세요.</p>
+            <p>{t("role.overview.OrgCalibrationProfilePanel.da1217c9", "이 프로필을 찾을 수 없어요. 목록에서 다시 선택해 주세요.")}</p>
             <MuteButton
               className="mt-3"
               onClick={onClose}
               variant="transparent"
             >
-              목록으로 돌아가기
+              {t("role.overview.OrgCalibrationProfilePanel.0a1ad8d2", "목록으로 돌아가기")}
             </MuteButton>
           </div>
         ) : (
@@ -98,7 +101,7 @@ export function OrgCalibrationProfilePanel({
               avatar={
                 profile.display.profilePicture ? (
                   <Image
-                    alt=""
+                    alt={t("role.overview.OrgCalibrationProfilePanel.89c99106", "")}
                     className="size-12 rounded-full object-cover"
                     height={48}
                     src={profile.display.profilePicture}
@@ -118,13 +121,15 @@ export function OrgCalibrationProfilePanel({
             <section className="border border-neutral-1000-a05 p-4 rounded-md">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-[13px] font-medium text-neutral-primary">
-                  평가
+                  {t("role.overview.OrgCalibrationProfilePanel.b58f6a82", "평가")}
                 </h3>
                 <OrgCalibrationReviewBadge status={profile.review.status} />
               </div>
               {profile.review.status === "unreviewed" ? (
                 <p className="mt-2 text-[13px] leading-6 text-neutral-muted">
-                  채팅에 {profileId}의 Good / Bad 평가와 이유를 알려주세요.
+                  {t("role.overview.OrgCalibrationProfilePanel.0fea2d83", "채팅에")}
+                  {profileId}
+                  {t("role.overview.OrgCalibrationProfilePanel.eefd8d25", "의 Good / Bad 평가와 이유를 알려주세요.")}
                 </p>
               ) : profile.review.reason ? (
                 <p className="mt-3 whitespace-pre-wrap break-words border-l-2 border-neutral-1000-a10 pl-3 text-[13px] leading-6 text-neutral-primary">
@@ -132,28 +137,31 @@ export function OrgCalibrationProfilePanel({
                 </p>
               ) : (
                 <p className="mt-2 text-[13px] leading-6 text-neutral-muted">
-                  평가 이유는 아직 없어요. 채팅에서 덧붙일 수 있어요.
+                  {t("role.overview.OrgCalibrationProfilePanel.7d2e2882", "평가 이유는 아직 없어요. 채팅에서 덧붙일 수 있어요.")}
                 </p>
               )}
             </section>
 
             <section>
               <div className="text-[15px] font-medium text-neutral-primary">
-                Harper가 고른 이유
+                {t("role.overview.OrgCalibrationProfilePanel.7d3979d0", "Harper가 고른 이유")}
               </div>
               <p className="mt-2 whitespace-pre-wrap border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
                 {profile.selection.reason}
               </p>
               {profile.selection.hypothesis ? (
                 <p className="mt-2 text-[12px] leading-5 text-neutral-muted">
-                  확인하고 싶은 점: {profile.selection.hypothesis}
+                  {t("role.overview.OrgCalibrationProfilePanel.95985cb0", "확인하고 싶은 점:")}
+                  {profile.selection.hypothesis}
                 </p>
               ) : null}
             </section>
 
             {profile.display.bio ? (
               <section>
-                <div className="mb-2 text-[12px] text-neutral-muted">소개</div>
+                <div className="mb-2 text-[12px] text-neutral-muted">
+                  {t("role.overview.OrgCalibrationProfilePanel.62a398da", "소개")}
+                </div>
                 <p className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
                   {profile.display.bio}
                 </p>
@@ -173,7 +181,7 @@ export function OrgCalibrationProfilePanel({
             profile.display.extras.length === 0 ? (
               <section>
                 <div className="mb-2 text-[12px] text-neutral-muted">
-                  프로필
+                  {t("role.overview.OrgCalibrationProfilePanel.acf37716", "프로필")}
                 </div>
                 <TalentProfileDescriptionMarkdown
                   value={profile.display.profileMarkdown}

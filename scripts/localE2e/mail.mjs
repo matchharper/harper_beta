@@ -130,7 +130,7 @@ const server = http.createServer(async (req,res) => {
     const json = (code, data) => {res.writeHead(code,{"content-type":"application/json"}); res.end(JSON.stringify(data));};
     if (req.method === "GET" && ["/login/candidate","/login/company"].includes(pathname)) {
       const candidate=pathname.endsWith("candidate");
-      const {data,error}=await admin.auth.admin.generateLink({type:"magiclink",email:candidate?"khj605123@gmail.com":"daniel@matchharper.com",options:{redirectTo:`http://localhost:3200/auths/callback?next=${candidate?"/career":"/org"}`}});
+      const {data,error}=await admin.auth.admin.generateLink({type:"magiclink",email:candidate?"khj605123@gmail.com":"daniel@matchharper.com",options:{redirectTo:`http://localhost:3000/auths/callback?next=${candidate?"/career":"/org"}`}});
       if(error)throw error;res.writeHead(303,{location:data.properties.action_link,"cache-control":"no-store"});return res.end();
     }
     if (req.method === "GET" && pathname === "/health") return json(200,{ok:true,mode:config().mailMode,gmail:gmailState,outgoing:Object.keys(box.outgoing).length,incoming:Object.keys(box.incoming).length});

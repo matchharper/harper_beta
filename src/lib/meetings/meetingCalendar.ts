@@ -1,3 +1,5 @@
+import type { OrgLocale } from "@/i18n/org/locale";
+
 export type MeetingCalendarDeliveryStatus =
   | "pending"
   | "creating"
@@ -39,13 +41,36 @@ function safeHttpsUrl(value: unknown) {
 export function buildMeetingCalendarDeliveryNotice(args: {
   calendar: MeetingCalendarDelivery;
   companyMessage: string;
+  locale?: OrgLocale;
 }) {
   const companyMessage = clean(args.companyMessage, 800);
   const meetUrl = safeHttpsUrl(args.calendar.meetUrl);
   const calendarUrl = safeHttpsUrl(args.calendar.calendarUrl);
   let deliveryMessage: string;
 
-  if (args.calendar.status === "created" && meetUrl) {
+  if (args.locale === "en" && args.calendar.status === "created" && meetUrl) {
+    deliveryMessage = [
+      "Calendar invitations were sent to the candidate and company attendees, with a Google Meet link.",
+      `Google Meet: ${meetUrl}`,
+      ...(calendarUrl ? [`Calendar event: ${calendarUrl}`] : []),
+    ].join("\n");
+  } else if (
+    args.locale === "en" &&
+    args.calendar.status === "created_without_meet"
+  ) {
+    deliveryMessage = [
+      "Calendar invitations were sent to the candidate and company attendees, but a Google Meet link could not be created.",
+      ...(calendarUrl
+        ? [`Add a video link to the Calendar event: ${calendarUrl}`]
+        : ["Add a video link to the Calendar event."]),
+    ].join("\n");
+  } else if (args.locale === "en" && args.calendar.status === "creating") {
+    deliveryMessage =
+      "The meeting time is confirmed. Calendar invitations and a Google Meet link are being created and will be sent when ready.";
+  } else if (args.locale === "en") {
+    deliveryMessage =
+      "The meeting time is confirmed, but Calendar invitations and a Google Meet link could not be created yet. Retry the Calendar invitation from the meeting details in Harper.";
+  } else if (args.calendar.status === "created" && meetUrl) {
     deliveryMessage = [
       "후보자와 회사 참석자에게 Calendar 초대를 보냈고 Google Meet 링크도 함께 전달했어요.",
       `Google Meet: ${meetUrl}`,

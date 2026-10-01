@@ -10,6 +10,7 @@ import { ArrowRight, Check, Copy, Info } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import { Code } from "@/components/ui/code";
 import { Text } from "@/components/ui/text";
+import { useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 
 export type OrgDocumentsHeading = {
   id: string;
@@ -204,10 +205,11 @@ function createMarkdownComponents({
   headings,
   linkTargets,
   onCopy,
+  sourceT,
 }: Pick<
   OrgDocumentsMarkdownProps,
   "copied" | "headings" | "linkTargets" | "onCopy"
->) {
+> & { sourceT: (source: string) => string }) {
   let renderedHeadingIndex = 0;
   let renderedH2Index = 0;
   let renderedParagraphIndex = 0;
@@ -300,7 +302,7 @@ function createMarkdownComponents({
               data-documents-copy-exclude
               type="eyebrow"
             >
-              {eyebrow}
+              {sourceT(eyebrow)}
             </Text>
           ) : null}
           <h2 className={ORG_DOCUMENTS_MARKDOWN_STYLES.h2}>{children}</h2>
@@ -351,7 +353,7 @@ function createMarkdownComponents({
                 <Copy aria-hidden="true" className="size-4" />
               )}
               <span aria-live="polite">
-                {copied ? "복사됨" : "페이지 복사"}
+                {sourceT(copied ? "복사됨" : "페이지 복사")}
               </span>
             </MuteButton>
           </>
@@ -498,11 +500,13 @@ export function OrgDocumentsMarkdown({
   markdown,
   onCopy,
 }: OrgDocumentsMarkdownProps) {
+  const sourceT = useOrgSourceT();
   const components = createMarkdownComponents({
     copied,
     headings,
     linkTargets,
     onCopy,
+    sourceT,
   });
 
   return (

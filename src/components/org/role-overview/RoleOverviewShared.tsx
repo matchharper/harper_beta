@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
 import { MuteButton } from "@/components/ui/button";
@@ -19,6 +20,7 @@ export function RoleSectionHeading({
   size?: "default" | "large";
   title: string;
 }) {
+  const t = useOrgT();
   return (
     <div>
       <div className="flex items-center gap-1.5">
@@ -33,7 +35,9 @@ export function RoleSectionHeading({
         {info ? (
           <Tooltips side="right" text={info}>
             <span
-              aria-label={`${title} 안내`}
+              aria-label={t("role.overview.RoleOverviewShared.755ae33b", "{p0} 안내", {
+                p0: title,
+              })}
               className="inline-flex cursor-help text-neutral-soft hover:text-neutral-primary"
               role="img"
               tabIndex={0}

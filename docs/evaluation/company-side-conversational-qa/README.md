@@ -1,5 +1,13 @@
 # Company-side conversational QA
 
+## /org 응답 언어 검증: 기존 v8·v10 선택 사례 (2026-09-30)
+
+기존 고정 입력을 유지하고 canonical runner에 `--response-locale=ko|en`을 지정해 웹 UI 또는
+팀원별 Slack 언어 설정에 따른 회사 채팅 응답을 검토한다. 언어 설정은 run manifest에 기록하고
+`src/i18n/org` 및 Slack 연결 코드도 source snapshot에 포함한다.
+웹 역할 생성 안내, 기존 추천 수락 후 연결 결정, Slack의 언어 설정 유무 사례의 실제 모델 원문, timeout과 한계는
+[검증 보고서](reports/2026-09-30-org-response-locale.md)에 기록했다. 전체 회귀나 전달 E2E의 증거는 아니다.
+
 ## 가벼운 연락 요청의 도구 선택·메일 작성: v12 (2026-09-28)
 
 [입력](cases-v12.json)·[사전 기대 의미](gold-v12.md)·[동결 manifest](manifest-v12.json)는 전화번호,

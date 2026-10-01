@@ -1,8 +1,11 @@
+import type { OrgLocale } from "@/i18n/org/locale";
+
 type OrgInviteEmailArgs = {
   companyName: string;
   inviteUrl: string;
   inviterEmail: string | null;
   inviterName: string;
+  locale?: OrgLocale;
 };
 
 function escapeHtml(value: string) {
@@ -19,13 +22,26 @@ function escapeHtml(value: string) {
 }
 
 export function buildOrgInviteEmail(args: OrgInviteEmailArgs) {
-  const companyName = args.companyName.replace(/\s+/g, " ").trim() || "회사";
-  const inviterName = args.inviterName.replace(/\s+/g, " ").trim() || "팀 멤버";
+  const companyName =
+    args.companyName.replace(/\s+/g, " ").trim() ||
+    (args.locale === "en" ? "your company" : "회사");
+  const inviterName =
+    args.inviterName.replace(/\s+/g, " ").trim() ||
+    (args.locale === "en" ? "A team member" : "팀 멤버");
   const inviterEmail = args.inviterEmail?.trim() || null;
   const inviterLabel =
     inviterEmail && inviterEmail.toLowerCase() !== inviterName.toLowerCase()
       ? `${inviterName} (${inviterEmail})`
       : inviterName;
+  if (args.locale === "en") {
+    const subject = `Join ${companyName} on Harper`;
+    const text = `Hi,\n\n${inviterLabel} invited you to ${companyName}'s Harper workspace.\n\nReview recommended candidates and track hiring progress with your team.\n\nJoin workspace\n${args.inviteUrl}\n\nIf you weren't expecting this invitation, you can ignore this email.`;
+    const safeCompanyName = escapeHtml(companyName);
+    const safeInviterLabel = escapeHtml(inviterLabel);
+    const safeInviteUrl = escapeHtml(args.inviteUrl);
+    const html = `<!doctype html><html lang="en"><body style="margin:0;background:#f5f5f3;color:#171717;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f5f3;padding:32px 16px;"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e8e8e5;border-radius:16px;overflow:hidden;"><tr><td style="padding:32px 32px 12px;font-size:18px;font-weight:500;">Harper</td></tr><tr><td style="padding:12px 32px 36px;"><h1 style="margin:0 0 18px;font-size:20px;font-weight:600;">Join ${safeCompanyName} on Harper</h1><p style="margin:0 0 10px;font-size:15px;line-height:1.7;color:#454542;">${safeInviterLabel} invited you to the workspace.</p><p style="margin:0 0 26px;font-size:15px;line-height:1.7;color:#73736f;">Review recommended candidates and track hiring progress with your team.</p><a href="${safeInviteUrl}" style="display:inline-block;padding:13px 20px;border-radius:8px;background:#171717;color:#ffffff;font-size:14px;text-decoration:none;">Join workspace</a><p style="margin:26px 0 0;font-size:12px;color:#9a9a95;">If the button doesn't work, open this link:</p><p style="margin:4px 0 0;font-size:12px;word-break:break-all;"><a href="${safeInviteUrl}" style="color:#73736f;">${safeInviteUrl}</a></p></td></tr></table></td></tr></table></body></html>`;
+    return { html, subject, text };
+  }
   const subject = `${companyName}의 Harper Workspace에 초대되었어요`;
   const text = `안녕하세요.
 

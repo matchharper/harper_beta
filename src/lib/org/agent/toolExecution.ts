@@ -2584,6 +2584,8 @@ async function executeCandidateContactLifecycleItem(args: {
   userMessage?: string;
   workspaceId: string;
 }) {
+  const contactPurpose =
+    args.input.contactPurpose === "request" ? "request" : "deliver";
   let action = requiredText(
     args.input.action,
     "action",
@@ -2648,6 +2650,7 @@ async function executeCandidateContactLifecycleItem(args: {
     const sent = await sendCompanyTalentRelayReply({
       admin: args.admin as any,
       body: replyCopy.body,
+      contactPurpose,
       relayId,
       requestContext: replyCopy.requestContext,
       sourceCompanyMessageId: args.currentUserMessageId,
@@ -2825,6 +2828,7 @@ async function executeCandidateContactLifecycleItem(args: {
     if (directSend) {
       const sent = await sendCompanyTalentContact({
         admin: args.admin as any, id: requestId, workspaceId: args.workspaceId,
+        contactPurpose,
         roleId: role.roleId, talentId, recommendationId: requestPosition.recommendationId,
         sourceCompanyMessageId: args.currentUserMessageId,
         subject: draftCopy.subject, body: draftCopy.body, requestContext: draftCopy.requestContext,
@@ -2843,6 +2847,7 @@ async function executeCandidateContactLifecycleItem(args: {
     const draft = await createCompanyTalentContactDraft({
       admin: args.admin as any,
       body: draftCopy.body,
+      contactPurpose,
       id: requestId,
       recommendationId: requestPosition.recommendationId,
       requestContext: draftCopy.requestContext,
@@ -2971,6 +2976,8 @@ async function executeCandidateContactLifecycleItem(args: {
     const revised = await reviseCompanyTalentContactDraft({
       admin: args.admin as any,
       body: revisedCopy.body,
+      contactPurpose: args.input.contactPurpose === "request" || args.input.contactPurpose === "deliver"
+        ? args.input.contactPurpose : undefined,
       expectedRevision,
       requestContext: revisedCopy.requestContext,
       requestId: contact.id,

@@ -190,12 +190,15 @@ function normalizeOfficialJobEmploymentType(value: unknown) {
     : "Full-time";
 }
 
-async function validateOfficialJobInternalRoleId(value: unknown) {
+async function validateOfficialJobInternalRoleId(
+  value: unknown,
+  isPublished: boolean
+) {
   const roleId = normalizeOptionalString(value);
-  if (!roleId) return null;
+  if (!roleId) return { roleId: null, isAnonymous: false };
 
   const { data, error } = await (supabaseServer.from("company_roles") as any)
-    .select("role_id,source_type,status,is_expired,expires_at")
+    .select("role_id,source_type,status,is_expired,expires_at,information")
     .eq("role_id", roleId)
     .maybeSingle();
 
@@ -215,7 +218,31 @@ async function validateOfficialJobInternalRoleId(value: unknown) {
     );
   }
 
-  return roleId;
+  if (isPublished) {
+    if (
+      data.information &&
+      typeof data.information === "object" &&
+      !Array.isArray(data.information) &&
+      data.information.testOnly === true
+    ) {
+      throw new Error("테스트 role은 공개할 수 없습니다.");
+    }
+
+    const { data: setting, error: settingError } = await supabaseServer
+      .from("company_internal_roles")
+      .select("is_promote,is_anonymous")
+      .eq("role_id", roleId)
+      .maybeSingle();
+    if (settingError) {
+      throw new Error(settingError.message ?? "Failed to verify role promotion setting");
+    }
+    if (!setting?.is_promote) {
+      throw new Error("홍보가 허용된 internal role만 공개할 수 있습니다.");
+    }
+    return { roleId, isAnonymous: setting.is_anonymous };
+  }
+
+  return { roleId, isAnonymous: false };
 }
 
 function createOfficialJobSlug(value: string) {
@@ -543,13 +570,31 @@ export async function saveOpsOfficialJob(
       slug: input.slug,
     });
   const isPublished = isInternalCopy ? false : Boolean(input.isPublished);
-  const roleId = isInternalCopy
-    ? null
+  const validatedRole = isInternalCopy
+    ? { roleId: null, isAnonymous: false }
     : await validateOfficialJobInternalRoleId(
-        input.roleId === undefined ? existing?.role_id : input.roleId
+        input.roleId === undefined ? existing?.role_id : input.roleId,
+        isPublished
       );
+  const { roleId } = validatedRole;
   if (isPublished && !roleId) {
     throw new Error("공개하려면 연결할 internal role을 선택해주세요.");
+  }
+  if (
+    isPublished &&
+    validatedRole.isAnonymous &&
+    (normalizeOptionalString(input.companyLogoUrl) ||
+      normalizeOptionalString(input.companyWebsiteUrl) ||
+      normalizeOptionalString(input.ashbyJobPostingId) ||
+      normalizeOptionalString(
+        input.sourceCompanyName === undefined
+          ? existing?.source_company_name
+          : input.sourceCompanyName
+      ))
+  ) {
+    throw new Error(
+      "익명 공고에는 회사 로고·웹사이트·원본 회사명·외부 공고 ID를 공개할 수 없습니다."
+    );
   }
   const publishedAt = isInternalCopy
     ? null

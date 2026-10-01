@@ -5,6 +5,12 @@ import {
   sendHarperSlackThreadReply,
   sendHarperWorkspaceSlackMessage,
 } from "@/lib/org/slackHarper";
+import { loadSlackOrgLinkTargets } from "@/lib/org/slackOrgLinkTargets.server";
+import { renderSlackOrgLinks } from "@/lib/org/slackTalentLinks";
+import {
+  convertMarkdownLinksToSlackMrkdwn,
+  getOrgPublicSiteUrl,
+} from "@/lib/org/slackMessages";
 
 /** Read durable contacts on demand; never persist an intermediate model judgment. */
 export async function loadCompanyContactEventContext(args: {
@@ -155,9 +161,29 @@ export async function deliverCompanyContactEventMessages(args: {
   if (error) throw error;
   for (const message of data ?? []) {
     if (message.metadata?.contactEventSlackDelivered === true) continue;
+    let targets;
+    try {
+      targets = await loadSlackOrgLinkTargets({
+        admin,
+        message: message.content,
+        preferredRoleId: args.roleId,
+        workspaceId: args.workspaceId,
+      });
+    } catch (error) {
+      console.warn("[org-agent/contact-event:org-links]", error);
+      targets = { roleTargets: [], talentTargets: [] };
+    }
+    const slackText = convertMarkdownLinksToSlackMrkdwn(
+      renderSlackOrgLinks({
+        message: message.content,
+        publicSiteUrl: getOrgPublicSiteUrl(),
+        ...targets,
+        workspaceId: args.workspaceId,
+      })
+    );
     const common = {
       idempotencyKey: `candidate-contact-turn:${args.jobId}:${message.id}`,
-      text: message.content,
+      text: slackText,
       workspaceId: args.workspaceId,
     };
     if (args.slackThreadId) {

@@ -1133,6 +1133,7 @@ export type Database = {
           model_manifest: Json;
           query_plan: Json;
           requested_role_ids: string[];
+          scheduled_role_ids: string[];
           result: Json;
           scheduled_slot: string;
           selection_committed_at: string | null;
@@ -1160,6 +1161,7 @@ export type Database = {
           model_manifest?: Json;
           query_plan?: Json;
           requested_role_ids?: string[];
+          scheduled_role_ids?: string[];
           result?: Json;
           scheduled_slot: string;
           selection_committed_at?: string | null;
@@ -1187,6 +1189,7 @@ export type Database = {
           model_manifest?: Json;
           query_plan?: Json;
           requested_role_ids?: string[];
+          scheduled_role_ids?: string[];
           result?: Json;
           scheduled_slot?: string;
           selection_committed_at?: string | null;
@@ -1732,7 +1735,11 @@ export type Database = {
           created_at: string;
           criteria: Json;
           is_auto: boolean;
+          is_anonymous: boolean;
           is_company_first_search: boolean;
+          intro_search_date: string[];
+          intro_search_time: number;
+          is_promote: boolean;
           is_require_linkedin: boolean | null;
           is_require_resume: boolean | null;
           max_pending_talents: number | null;
@@ -1748,7 +1755,11 @@ export type Database = {
           created_at?: string;
           criteria?: Json;
           is_auto?: boolean;
+          is_anonymous?: boolean;
           is_company_first_search?: boolean;
+          intro_search_date?: string[];
+          intro_search_time?: number;
+          is_promote?: boolean;
           is_require_linkedin?: boolean | null;
           is_require_resume?: boolean | null;
           max_pending_talents?: number | null;
@@ -1764,7 +1775,11 @@ export type Database = {
           created_at?: string;
           criteria?: Json;
           is_auto?: boolean;
+          is_anonymous?: boolean;
           is_company_first_search?: boolean;
+          intro_search_date?: string[];
+          intro_search_time?: number;
+          is_promote?: boolean;
           is_require_linkedin?: boolean | null;
           is_require_resume?: boolean | null;
           max_pending_talents?: number | null;
@@ -2501,6 +2516,7 @@ export type Database = {
         Row: {
           approved_at: string | null;
           contact_kind: string;
+          contact_purpose: "request" | "deliver";
           company_workspace_id: string;
           created_at: string;
           delivery_body: string | null;
@@ -2526,6 +2542,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null;
           contact_kind?: string;
+          contact_purpose?: "request" | "deliver";
           company_workspace_id: string;
           created_at?: string;
           delivery_body?: string | null;
@@ -2551,6 +2568,7 @@ export type Database = {
         Update: {
           approved_at?: string | null;
           contact_kind?: string;
+          contact_purpose?: "request" | "deliver";
           company_workspace_id?: string;
           created_at?: string;
           delivery_body?: string | null;
@@ -2836,6 +2854,7 @@ export type Database = {
           email: string | null;
           is_authenticated: boolean;
           is_custom: boolean;
+          locale: string | null;
           location: string | null;
           name: string | null;
           profile_picture: string | null;
@@ -2850,6 +2869,7 @@ export type Database = {
           email?: string | null;
           is_authenticated?: boolean;
           is_custom?: boolean;
+          locale?: string | null;
           location?: string | null;
           name?: string | null;
           profile_picture?: string | null;
@@ -2864,6 +2884,7 @@ export type Database = {
           email?: string | null;
           is_authenticated?: boolean;
           is_custom?: boolean;
+          locale?: string | null;
           location?: string | null;
           name?: string | null;
           profile_picture?: string | null;

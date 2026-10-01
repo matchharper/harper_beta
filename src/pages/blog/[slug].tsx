@@ -49,7 +49,7 @@ const BLOG_DETAIL_COPY = {
     copyFailed: "링크 복사에 실패했습니다.",
     copyLink: "링크 복사",
     jobsDescription:
-      "Harper가 지금 살펴보고 있는 자리입니다. 관심 있는 자리가 보이면 알려주세요.",
+      "Harper가 지금 연결을 도와드리고 있는 자리입니다. 관심 있는 자리가 보이면 알려주세요.",
     jobsEmpty:
       "지금 공개된 자리가 없습니다. 관심 있는 방향을 Harper에게 남겨주세요.",
     jobsTitle: "Harper가 살펴보고 있는 자리",

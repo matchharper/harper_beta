@@ -1,5 +1,9 @@
 # Harper Daily Conversation QA Rubric
 
+> Historical background only. The current execution and Slack delivery contract is
+> [`docs/scheduled/career_qa.md`](./scheduled/career_qa.md), which supersedes
+> conflicting instructions below.
+
 - Version: 2.0
 - Last updated: 2026-08-31
 - Applies to: `Harper Daily Conversation QA`
@@ -7,9 +11,9 @@
 
 ## 1. Purpose
 
-This document is the stable source of truth for Harper's daily user-experience
-QA. The daily automation must read this document before each audit and use the
-same definitions, severity levels, sampling rules, and output structure.
+This document records an earlier daily QA workflow. The daily automation follows
+`docs/scheduled/career_qa.md` for its current definitions, audit window,
+output structure, and Slack delivery.
 
 The audit has two distinct goals:
 
@@ -48,16 +52,12 @@ the five report sections:
    `P0`/`P1`, `S0`/`S1`, or a repeated material `S2` issue, and state the
    current confidence rather than converting uncertainty into a fact.
 
-After the Notion page is created, it must send exactly one compact summary DM
-through Codex's connected Slack workspace. Use the signed-in workspace user's
-self-DM by default (currently `Daniel(나)`), unless the operator explicitly
-selects another DM. Do not use the legacy Harper bot token, a configured
-channel ID, or `harper_worker/scripts/send_daily_conversation_qa_slack.py` for
-the daily delivery. Confirm that the intended DM is visibly open before
-sending. These are the only permitted external writes: no channel post, reply,
-follow-up message, or raw data export is allowed.
+The historical self-DM delivery path below is superseded. The current QA sends
+one summary to the QA channel as Harper Scouter through
+`harper_worker/scripts/send_daily_conversation_qa_slack.py`, as specified in
+`docs/scheduled/career_qa.md`.
 
-The Slack DM is a concise alert, not a second report:
+The historical Slack summary format was a concise alert:
 
 - order findings by `S0` → `S3`, then `P0` → `P3`;
 - include at most three findings, each as `P# · S# | confidence` plus one short

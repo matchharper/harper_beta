@@ -52,6 +52,8 @@ migration, application source, 문서나 테스트를 수정하지 않는다.
 4. 두 언어 summary를 확인한 뒤 claim된 Role 하나에 대해 canonical 실행 계약의 retrieval, 검토,
    익명화와 최종 선택을 끝까지 수행한다. 검색 SQL과 선택 JSON은 helper가 지정한 owner-only
    ignored run directory 안에만 둔다.
+   `run.json`의 `company.headquarters`가 한국이면 공개되는 프로필의 선정 이유와 가설을
+   자연스러운 한국어로, 그 외에는 영어로 작성한다. 회사명·Role명·원문 고유명사는 보존한다.
 5. `run-sql`, `candidate-packet`, `finish` 순서로 실행한다. `finish` 성공은 프로필 snapshot이
    DB에 저장되어 웹에서 볼 수 있는 `ready` 상태가 됐다는 뜻이다.
 6. `finish`가 성공한 정확한 calibration ID에 즉시 `deliver`를 실행한다. Slack 성공 여부와

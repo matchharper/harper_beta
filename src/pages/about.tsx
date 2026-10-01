@@ -174,7 +174,7 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
                       <OfficialJobsCtaLink
                         job={job}
                         locale={aboutLocale}
-                        variant="secondary"
+                        variant="transparent"
                         className="min-h-0 justify-start text-left text-[15px] p-0 font-light leading-6 text-blue-600 hover:bg-transparent hover:text-primary md:border-0 md:bg-transparent"
                       >
                         <div className="flex flex-row items-center justify-start gap-1.5">

@@ -3,6 +3,7 @@ import { Building2 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 
 export type TalentExperienceItem = {
   companyLogo?: string | null;
@@ -33,23 +34,26 @@ export type TalentExtraItem = {
   title?: string | null;
 };
 
-function formatExperiencePeriod({
-  endDate,
-  startDate,
-}: Pick<TalentExperienceItem, "endDate" | "startDate">) {
-  return startDate ? `${startDate} ~ ${endDate ?? "현재"}` : null;
+function formatExperiencePeriod(
+  { endDate, startDate }: Pick<TalentExperienceItem, "endDate" | "startDate">,
+  currentLabel: string
+) {
+  return startDate ? `${startDate} ~ ${endDate ?? currentLabel}` : null;
 }
 
-function formatProfilePeriod({
-  endDate,
-  startDate,
-}: {
-  endDate?: string | null;
-  startDate?: string | null;
-}) {
+function formatProfilePeriod(
+  {
+    endDate,
+    startDate,
+  }: {
+    endDate?: string | null;
+    startDate?: string | null;
+  },
+  currentLabel: string
+) {
   if (!startDate && !endDate) return null;
   if (startDate && endDate) return `${startDate} ~ ${endDate}`;
-  if (startDate) return `${startDate} ~ 현재`;
+  if (startDate) return `${startDate} ~ ${currentLabel}`;
   return endDate ?? null;
 }
 
@@ -131,12 +135,13 @@ export function TalentProfileDescriptionMarkdown({
 }
 
 export function TalentProfileMemo({ value }: { value?: string | null }) {
+  const t = useOrgT();
   const trimmedValue = value?.trim();
   if (!trimmedValue) return null;
 
   return (
     <div className="mt-3 px-1 py-2">
-      <div className="mb-1 text-[12px] text-primary">Harper 메모</div>
+      <div className="mb-1 text-[12px] text-primary">{t("profile.note", "Harper 메모")}</div>
       <div className="whitespace-pre-wrap break-words text-[13px] leading-5 text-neutral-primary">
         {trimmedValue}
       </div>
@@ -151,6 +156,7 @@ function ExperienceCompanyLogo({
   companyName?: string | null;
   logoUrl?: string | null;
 }) {
+  const t = useOrgT();
   const normalizedLogoUrl = logoUrl?.trim();
 
   return (
@@ -160,7 +166,11 @@ function ExperienceCompanyLogo({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={normalizedLogoUrl}
-          alt={companyName ? `${companyName} 로고` : "회사 로고"}
+          alt={
+            companyName
+              ? t("profile.companyLogoNamed", "{companyName} 로고", { companyName })
+              : t("profile.companyLogo", "회사 로고")
+          }
           className="absolute inset-0 h-full w-full bg-bg-floating object-contain"
           onError={(event) => {
             event.currentTarget.style.display = "none";
@@ -176,14 +186,17 @@ export function TalentEducationSection({
 }: {
   educations: TalentEducationItem[];
 }) {
+  const t = useOrgT();
   if (educations.length === 0) return null;
 
   return (
     <div>
-      <div className={cx(opsTheme.eyebrow, "mb-2")}>학력</div>
+      <div className={cx(opsTheme.eyebrow, "mb-2")}>
+        {t("profile.education", "학력")}
+      </div>
       <div className="space-y-2">
         {educations.map((education, index) => {
-          const period = formatProfilePeriod(education);
+          const period = formatProfilePeriod(education, t("profile.current", "현재"));
           const educationMeta = [education.degree, education.field]
             .map((value) => value?.trim())
             .filter(Boolean)
@@ -195,7 +208,7 @@ export function TalentEducationSection({
               className={cx(opsTheme.panelSoft, "py-2 font-normal")}
             >
               <div className="min-w-0 text-[15px] text-neutral-primary">
-                {education.school?.trim() || "학교 미상"}
+                {education.school?.trim() || t("profile.unknownSchool", "학교 미상")}
               </div>
               {educationMeta ? (
                 <div className="mt-1 text-[13px] text-neutral-muted">
@@ -218,17 +231,18 @@ export function TalentEducationSection({
 }
 
 export function TalentExtraSection({ extras }: { extras: TalentExtraItem[] }) {
+  const t = useOrgT();
   if (extras.length === 0) return null;
 
   return (
     <div>
-      <div className={cx(opsTheme.eyebrow, "mb-2")}>기타</div>
+      <div className={cx(opsTheme.eyebrow, "mb-2")}>{t("profile.other", "기타")}</div>
       <div className="space-y-2">
         {extras.map((extra, index) => (
           <div key={index} className={cx(opsTheme.panelSoft, "py-2")}>
             <div className="flex flex-col items-start justify-between gap-1 font-normal">
               <div className="min-w-0 text-[15px] text-neutral-primary">
-                {extra.title?.trim() || "제목 없음"}
+                {extra.title?.trim() || t("profile.untitled", "제목 없음")}
               </div>
               {extra.date ? (
                 <div className="shrink-0 text-[12px] text-neutral-soft">
@@ -250,14 +264,20 @@ export function TalentExperienceSection({
 }: {
   experiences: TalentExperienceItem[];
 }) {
+  const t = useOrgT();
   if (experiences.length === 0) return null;
 
   return (
     <div>
-      <div className={cx(opsTheme.eyebrow, "mb-2")}>경력</div>
+      <div className={cx(opsTheme.eyebrow, "mb-2")}>
+        {t("profile.experience", "경력")}
+      </div>
       <div className="space-y-2">
         {experiences.map((experience, index) => {
-          const period = formatExperiencePeriod(experience);
+          const period = formatExperiencePeriod(
+            experience,
+            t("profile.current", "현재")
+          );
           const location = experience.companyLocation?.trim();
           const companyName = experience.companyName?.trim();
           const companyMeta = [companyName, experience.employmentType?.trim()]
@@ -273,7 +293,7 @@ export function TalentExperienceSection({
                 />
                 <div className="min-w-0 flex-1 font-normal">
                   <div className="text-[15px] font-medium text-neutral-primary">
-                    {experience.role?.trim() || "역할 미상"}
+                    {experience.role?.trim() || t("profile.unknownRole", "역할 미상")}
                   </div>
                   {companyMeta ? (
                     <div className="mt-1 text-[14px] text-neutral-primary">

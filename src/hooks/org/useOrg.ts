@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { OpsMatchingConnectionConfirmationEmailActionResponse } from "@/lib/ops/connectionConfirmationEmail";
 import type {
@@ -140,6 +141,7 @@ export function useOrgBootstrap(args: {
 
 export function orgInvitePreviewQueryOptions(args: {
   enabled?: boolean;
+  errorMessage?: string;
   orgId?: string | null;
 }) {
   const orgId = args.orgId?.trim() ?? "";
@@ -153,7 +155,11 @@ export function orgInvitePreviewQueryOptions(args: {
         OrgInvitePreviewResponse & { error: string }
       >;
       if (!response.ok || !payload.workspace) {
-        throw new Error(payload.error ?? "초대 정보를 불러오지 못했습니다.");
+        throw new Error(
+          payload.error ??
+            args.errorMessage ??
+            "초대 정보를 불러오지 못했습니다."
+        );
       }
       return payload as OrgInvitePreviewResponse;
     },
@@ -167,7 +173,13 @@ export function useOrgInvitePreview(args: {
   enabled?: boolean;
   orgId?: string | null;
 }) {
-  return useQuery(orgInvitePreviewQueryOptions(args));
+  const t = useOrgT();
+  return useQuery(
+    orgInvitePreviewQueryOptions({
+      ...args,
+      errorMessage: t("hooks.invite.previewFailed", "초대 정보를 불러오지 못했습니다."),
+    })
+  );
 }
 
 export function useSendOrgInvitations() {
@@ -786,6 +798,8 @@ export function useUpdateOrgRole() {
       externalJdUrl?: string | null;
       expectedCriteria?: OrgRoleCriterion[];
       isCompanyFirstSearch?: boolean;
+      introSearchDate?: string[];
+      introSearchTime?: number;
       isExpired?: boolean | null;
       locationText?: string | null;
       name?: string | null;

@@ -7,11 +7,48 @@ import {
   type OfficialJobListItem,
 } from "@/lib/officialJobs";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { filterPublicOfficialJobRows } from "@/lib/officialJobs/visibility";
+import {
+  readVisibleOfficialJobsPage,
+  type OfficialJobsPage,
+} from "./pagination";
 
-export async function getPublicOfficialJobListItems(): Promise<
-  OfficialJobListItem[]
-> {
-  const { data, error } = await supabaseServer
+async function applyLinkedRoleVisibility<T extends { role_id: string | null }>(
+  rows: T[]
+): Promise<T[]> {
+  const roleIds = [
+    ...new Set(rows.flatMap((row) => (row.role_id ? [row.role_id] : []))),
+  ];
+  if (roleIds.length === 0) return rows;
+
+  const [rolesResult, settingsResult] = await Promise.all([
+    supabaseServer
+      .from("company_roles")
+      .select("role_id,source_type,status,is_expired,expires_at,information")
+      .in("role_id", roleIds),
+    supabaseServer
+      .from("company_internal_roles")
+      .select("role_id,is_promote,is_anonymous")
+      .in("role_id", roleIds),
+  ]);
+
+  if (rolesResult.error || settingsResult.error) {
+    console.warn(
+      "official_jobs linked role visibility query failed:",
+      rolesResult.error?.message ?? settingsResult.error?.message
+    );
+    return rows.filter((row) => !row.role_id);
+  }
+
+  return filterPublicOfficialJobRows(
+    rows,
+    rolesResult.data ?? [],
+    settingsResult.data ?? []
+  );
+}
+
+function publicOfficialJobListQuery() {
+  return supabaseServer
     .from("official_jobs")
     .select(
       "ashby_job_posting_id,id,slug,company_name,role_title,location,vertical,role_id"
@@ -20,14 +57,45 @@ export async function getPublicOfficialJobListItems(): Promise<
     .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
     .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG)
     .order("display_order", { ascending: true })
-    .order("published_at", { ascending: false, nullsFirst: false });
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true });
+}
+
+export async function getPublicOfficialJobsPage(
+  offset = 0
+): Promise<OfficialJobsPage> {
+  const page = await readVisibleOfficialJobsPage(
+    offset,
+    async (from, size) => {
+      const { data, error } = await publicOfficialJobListQuery().range(
+        from,
+        from + size - 1
+      );
+      if (error)
+        throw new Error("Failed to load official jobs", { cause: error });
+      return data ?? [];
+    },
+    applyLinkedRoleVisibility
+  );
+  return {
+    jobs: page.rows.map(mapOfficialJobListRow),
+    nextOffset: page.nextOffset,
+  };
+}
+
+export async function getPublicOfficialJobListItems(): Promise<
+  OfficialJobListItem[]
+> {
+  const { data, error } = await publicOfficialJobListQuery();
 
   if (error) {
     console.warn("official_jobs list query failed:", error.message);
     return [];
   }
 
-  return (data ?? []).map((row) => mapOfficialJobListRow(row));
+  return (await applyLinkedRoleVisibility(data ?? [])).map((row) =>
+    mapOfficialJobListRow(row)
+  );
 }
 
 export async function getPublicOfficialJobs(): Promise<OfficialJob[]> {
@@ -45,7 +113,9 @@ export async function getPublicOfficialJobs(): Promise<OfficialJob[]> {
     return [];
   }
 
-  return (data ?? []).map((row) => mapOfficialJobRow(row));
+  return (await applyLinkedRoleVisibility(data ?? [])).map((row) =>
+    mapOfficialJobRow(row)
+  );
 }
 
 export async function getPublicOfficialJobBySlug(
@@ -70,15 +140,17 @@ export async function getPublicOfficialJobBySlug(
 
   if (!data) return null;
 
-  return mapOfficialJobRow(data);
+  const [visible] = await applyLinkedRoleVisibility([data]);
+  return visible ? mapOfficialJobRow(visible) : null;
 }
 
 export async function getPublicOfficialJobById(
   id: string
 ): Promise<OfficialJob | null> {
   const normalizedId = id.trim();
-  const isUuid =
-    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(normalizedId);
+  const isUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(
+    normalizedId
+  );
   if (!isUuid) return null;
 
   const { data, error } = await supabaseServer
@@ -97,7 +169,8 @@ export async function getPublicOfficialJobById(
 
   if (!data) return null;
 
-  return mapOfficialJobRow(data);
+  const [visible] = await applyLinkedRoleVisibility([data]);
+  return visible ? mapOfficialJobRow(visible) : null;
 }
 
 export async function getPublicOfficialJobByAshbyId(
@@ -122,5 +195,6 @@ export async function getPublicOfficialJobByAshbyId(
 
   if (!data) return null;
 
-  return mapOfficialJobRow(data);
+  const [visible] = await applyLinkedRoleVisibility([data]);
+  return visible ? mapOfficialJobRow(visible) : null;
 }

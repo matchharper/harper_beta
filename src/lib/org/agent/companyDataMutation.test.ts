@@ -763,6 +763,36 @@ test("periodic search rejects coercion, missing scope and text operations", () =
   assert.throws(() => resolve({ ...change, kind: "replace", oldValue: "true" }), /replace is only/);
 });
 
+test("periodic search schedule accepts weekdays and a KST hour", () => {
+  const parsed = parseCompanyDataChanges({
+    changes: [
+      { key: "role_intro_search_date", kind: "rewrite", roleId: "role-1", value: ["Mon", "Sun"] },
+      { key: "role_intro_search_time", kind: "rewrite", roleId: "role-1", value: 0 },
+    ],
+    summary: "정기 검색 일정 변경",
+  });
+  const result = resolveCompanyDataMutation({
+    ...parsed,
+    isComplete: () => false,
+    snapshot: snapshot({ "role_intro_search_date:role-1": ["Mon", "Wed", "Fri"], "role_intro_search_time:role-1": 9 }),
+  });
+  assert.deepEqual(result.changes.map((change) => change.value), [["Mon", "Sun"], 0]);
+  assert.equal(result.confirmationRequired, false);
+  for (const [key, value] of [
+    ["role_intro_search_date", []],
+    ["role_intro_search_date", ["Mon", "Mon"]],
+    ["role_intro_search_date", ["Monday"]],
+    ["role_intro_search_time", 24],
+    ["role_intro_search_time", -1],
+  ] as const) {
+    assert.throws(() => resolveCompanyDataMutation({
+      ...parseCompanyDataChanges({ changes: [{ key, kind: "rewrite", roleId: "role-1", value }], summary: "잘못된 일정" }),
+      isComplete: () => false,
+      snapshot: snapshot({ [`${key}:role-1`]: null }),
+    }));
+  }
+});
+
 test("mutation snapshot reads the canonical search setting without losing false", async () => {
   const seen: Array<{ table: string; fields?: string; filters: unknown[] }> = [];
   const rows: Record<string, any> = {

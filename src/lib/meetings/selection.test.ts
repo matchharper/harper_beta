@@ -56,6 +56,25 @@ test("a stale LLM choice falls back without hiding the candidate's original opti
   assert.match(result.companyMessage, /Ito님이 2개의 가능 시간/);
 });
 
+test("an English workspace gets an English scheduling notice on the deterministic path", async () => {
+  const { selectMeetingOptionDeterministically } = await import("./selection");
+  const result = selectMeetingOptionDeterministically({
+    candidateName: "Ito",
+    locale: "en",
+    timezone: "America/Los_Angeles",
+    validOptions: [
+      {
+        dateKey: "2026-08-28",
+        endAt: "2026-08-28T02:00:00.000Z",
+        slotId: "slot-1",
+        startAt: "2026-08-28T01:00:00.000Z",
+      },
+    ],
+  });
+  assert.match(result.companyMessage, /Ito shared 1 available time/);
+  assert.doesNotMatch(result.companyMessage, /[가-힣]/);
+});
+
 test("public submission calls the LLM selector at most once", () => {
   const invitationServer = readFileSync(
     resolve(process.cwd(), "src/lib/meetings/invitationServer.ts"),

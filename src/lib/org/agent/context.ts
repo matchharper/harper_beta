@@ -165,6 +165,9 @@ function formatRoles(
         "has_structured_criteria",
         "has_memory",
         "has_description",
+        "periodic_search",
+        "search_days_kst",
+        "search_hour_kst",
       ],
       candidate.map((item) => {
         const counts = countsByRoleId?.get(item.roleId);
@@ -184,9 +187,12 @@ function formatRoles(
           item.criteria.length >= 3,
           Boolean(item.hasMemory),
           Boolean(text(item.description)),
+          item.isCompanyFirstSearch === true,
+          item.introSearchDate?.join(",") ?? "Mon,Wed,Fri",
+          item.introSearchTime ?? 9,
         ];
       }),
-      [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8]
+      [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 30, 3]
     );
     if (table.length > DEFAULT_ROLE_INDEX_MAX_CHARS) break;
     selected.push(role);
@@ -208,6 +214,9 @@ function formatRoles(
       "has_structured_criteria",
       "has_memory",
       "has_description",
+      "periodic_search",
+      "search_days_kst",
+      "search_hour_kst",
     ],
     selected.map((role) => {
       const counts = countsByRoleId?.get(role.roleId);
@@ -227,9 +236,12 @@ function formatRoles(
         role.criteria.length >= 3,
         Boolean(role.hasMemory),
         Boolean(text(role.description)),
+        role.isCompanyFirstSearch === true,
+        role.introSearchDate?.join(",") ?? "Mon,Wed,Fri",
+        role.introSearchTime ?? 9,
       ];
     }),
-    [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8]
+    [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 30, 3]
   );
   return {
     completeRoleRequestIds: selected

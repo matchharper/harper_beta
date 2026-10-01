@@ -1,3 +1,4 @@
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { ArrowUp, FileText, FileUp, LoaderCircle, Plus, X } from "lucide-react";
 import Image from "next/image";
 import {
@@ -88,13 +89,14 @@ function TalentMentionAvatar({
   name: string;
   src?: string | null;
 }) {
+  const t = useOrgT();
   const profilePicture = getDisplayableProfileImageUrl(src);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
 
   if (profilePicture && failedImageSrc !== profilePicture) {
     return (
       <Image
-        alt=""
+        alt={t("agent.OrgAgentComposer.94a1593a", "")}
         className="size-6 shrink-0 rounded-full object-cover"
         height={24}
         onError={() => setFailedImageSrc(profilePicture)}
@@ -121,15 +123,28 @@ function ModelSelector({
   onChange: (model: OrgAgentModelId) => void;
   visible: boolean;
 }) {
+  const t = useOrgT();
   const options: Array<{ label: string; value: OrgAgentModelId }> = [
-    { label: "Gemini 3.8 Flash · OpenRouter", value: ORG_AGENT_GEMINI_FLASH_MODEL },
     {
-      label: "DeepSeek V4 Flash 0731 · OpenRouter",
+      label: t("agent.OrgAgentComposer.477bbe8b", "Gemini 3.8 Flash · OpenRouter"),
+      value: ORG_AGENT_GEMINI_FLASH_MODEL,
+    },
+    {
+      label: t("agent.OrgAgentComposer.494ba81d", "DeepSeek V4 Flash 0731 · OpenRouter"),
       value: ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
     },
-    { label: "Luna · GPT-5.6", value: ORG_AGENT_LUNA_MODEL },
-    { label: "Terra · GPT-5.6", value: ORG_AGENT_TERRA_MODEL },
-    { label: "Claude Sonnet 5.5", value: ORG_AGENT_CLAUDE_MODEL },
+    {
+      label: t("agent.OrgAgentComposer.a6732deb", "Luna · GPT-5.6"),
+      value: ORG_AGENT_LUNA_MODEL,
+    },
+    {
+      label: t("agent.OrgAgentComposer.06624003", "Terra · GPT-5.6"),
+      value: ORG_AGENT_TERRA_MODEL,
+    },
+    {
+      label: t("agent.OrgAgentComposer.dce4f9ef", "Claude Sonnet 5.5"),
+      value: ORG_AGENT_CLAUDE_MODEL,
+    },
   ];
 
   if (!visible) return null;
@@ -142,7 +157,7 @@ function ModelSelector({
       }}
     >
       <SelectTrigger
-        aria-label="Harper 모델 선택"
+        aria-label={t("agent.OrgAgentComposer.99dd37af", "Harper 모델 선택")}
         className="w-56 text-xs"
         size="sm"
       >
@@ -192,6 +207,7 @@ export function OrgAgentComposer({
   submitBlocked?: boolean;
   workspaceId: string;
 }) {
+  const t = useOrgT();
   const mentionListId = useId();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const mentionHighlightRef = useRef<HTMLDivElement | null>(null);
@@ -289,15 +305,18 @@ export function OrgAgentComposer({
   );
   const mentionPickerCountLabel =
     mentionCandidates.totalCount > candidates.length
-      ? `${candidates.length}/${mentionCandidates.totalCount}명`
+      ? t("agent.OrgAgentComposer.d014d059", "{p0}/{p1}명", {
+          p0: candidates.length,
+          p1: mentionCandidates.totalCount,
+        })
       : candidates.length > 0
-        ? `${candidates.length}명`
+        ? t("agent.OrgAgentComposer.e5ebe876", "{p0}명", { p0: candidates.length })
         : undefined;
   const normalizedRoleId = roleId?.trim() ?? "";
   const mentionPickerItems: ChatComposerPickerItem[] = [
     {
       id: "title",
-      text: "연결 목록",
+      text: t("agent.OrgAgentComposer.8eb292db", "연결 목록"),
       trailingText: mentionPickerCountLabel,
       type: "text",
     },
@@ -306,7 +325,7 @@ export function OrgAgentComposer({
           {
             announcement: "status" as const,
             id: "loading",
-            text: "Searching...",
+            text: t("agent.OrgAgentComposer.2644bab0", "Searching..."),
             type: "text" as const,
           },
         ]
@@ -315,7 +334,7 @@ export function OrgAgentComposer({
             {
               announcement: "alert" as const,
               id: "error",
-              text: "후보자를 불러오지 못했어요.",
+              text: t("agent.OrgAgentComposer.7b559de8", "후보자를 불러오지 못했어요."),
               type: "text" as const,
             },
           ]
@@ -323,7 +342,7 @@ export function OrgAgentComposer({
           ? [
               {
                 id: "empty",
-                text: "아직 연결된 후보자가 없어요.",
+                text: t("agent.OrgAgentComposer.dcd8f2dc", "아직 연결된 후보자가 없어요."),
                 type: "text" as const,
               },
             ]
@@ -357,7 +376,7 @@ export function OrgAgentComposer({
             onSelect: () => {
               void mentionCandidates.fetchNextPage();
             },
-            text: "더 불러오기",
+            text: t("agent.OrgAgentComposer.345609ca", "더 불러오기"),
             type: "action" as const,
           },
         ]
@@ -460,7 +479,9 @@ export function OrgAgentComposer({
       });
     } catch (error) {
       setAttachmentError(
-        error instanceof Error ? error.message : "파일을 읽지 못했습니다."
+        error instanceof Error
+          ? error.message
+          : t("agent.OrgAgentComposer.0672e615", "파일을 읽지 못했습니다.")
       );
     } finally {
       submissionPendingRef.current = false;
@@ -480,7 +501,9 @@ export function OrgAgentComposer({
       setAttachmentError("");
     } catch (error) {
       setAttachmentError(
-        error instanceof Error ? error.message : "파일을 첨부하지 못했습니다."
+        error instanceof Error
+          ? error.message
+          : t("agent.OrgAgentComposer.8aadbdab", "파일을 첨부하지 못했습니다.")
       );
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -490,10 +513,10 @@ export function OrgAgentComposer({
       disabled: disabled || isPreparingAttachments || isStreaming,
       icon: <FileUp />,
       id: "upload-file",
-      label: "파일 업로드",
+      label: t("agent.OrgAgentComposer.37d8f362", "파일 업로드"),
       loading: isPreparingAttachments,
       onSelect: () => fileInputRef.current?.click(),
-      sectionLabel: "도구",
+      sectionLabel: t("agent.OrgAgentComposer.53ee5ea2", "도구"),
       trailingText: "PDF, DOCX",
     },
   ];
@@ -508,7 +531,9 @@ export function OrgAgentComposer({
             <FileText className="size-3.5 shrink-0 text-neutral-muted" />
             <span className="max-w-56 truncate">{attachment.name}</span>
             <MuteButton
-              aria-label={`${attachment.name} 제거`}
+              aria-label={t("agent.OrgAgentComposer.0213338a", "{p0} 제거", {
+                p0: attachment.name,
+              })}
               disabled={isPreparingAttachments || isStreaming}
               onClick={() =>
                 setAttachments((current) =>
@@ -560,12 +585,13 @@ export function OrgAgentComposer({
           aria-autocomplete="list"
           aria-controls={mentionSearch ? mentionListId : undefined}
           aria-expanded={Boolean(mentionSearch)}
-          placeholder="Ask anything, @ for choosing talent"
+          placeholder={t("agent.OrgAgentComposer.3e1ad435", "Ask anything, @ for choosing talent")}
           mobileLeadingAction={
             allowAttachments ? (
               <ChatComposerActionMenu
                 disabled={disabled || isPreparingAttachments || isStreaming}
                 items={attachmentMenuItems}
+                triggerAriaLabel={t("agent.OrgAgentComposer.actionMenu", "추가 메뉴 열기")}
               />
             ) : undefined
           }
@@ -610,11 +636,12 @@ export function OrgAgentComposer({
                   className="hidden md:inline-flex"
                   disabled={disabled || isPreparingAttachments || isStreaming}
                   items={attachmentMenuItems}
+                  triggerAriaLabel={t("agent.OrgAgentComposer.actionMenu", "추가 메뉴 열기")}
                 />
               ) : null}
               <MuteButton
                 type="submit"
-                aria-label="메시지 보내기"
+                aria-label={t("agent.OrgAgentComposer.d343e2d9", "메시지 보내기")}
                 aria-disabled={submitBlocked || undefined}
                 variant="primary"
                 className={cn(

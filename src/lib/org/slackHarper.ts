@@ -33,6 +33,7 @@ import {
   type HarperSlackFile,
 } from "@/lib/org/slackFiles";
 import { buildHarperSlackWelcomeMessage } from "@/lib/org/slackWelcome";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
@@ -707,6 +708,7 @@ export async function addHarperSlackChannel(args: {
     channelId: args.channelId,
     text: buildHarperSlackWelcomeMessage({
       botUserId: row.slack_bot_user_id,
+      locale: await getOrgWorkspaceLocale(args.workspaceId),
       publicSiteUrl:
         text(process.env.NEXT_PUBLIC_SITE_URL) ||
         text(process.env.NEXT_PUBLIC_APP_URL) ||
@@ -860,6 +862,7 @@ export async function createHarperSlackChannel(args: {
       channelId,
       text: buildHarperSlackWelcomeMessage({
         botUserId: row.slack_bot_user_id,
+        locale: await getOrgWorkspaceLocale(args.workspaceId),
         publicSiteUrl:
           text(process.env.NEXT_PUBLIC_SITE_URL) ||
           text(process.env.NEXT_PUBLIC_APP_URL) ||
@@ -1478,9 +1481,7 @@ export async function storeHarperWorkspaceConversationMessage(args: {
     source: "post_calibration_review",
   } satisfies OrgAgentMessageMetadata;
   const findExisting = async () => {
-    const { data, error } = await (
-      admin.from("company_messages" as any) as any
-    )
+    const { data, error } = await (admin.from("company_messages" as any) as any)
       .select("id, content, created_at")
       .eq("company_workspace_id", args.workspaceId)
       .eq("role_id", args.roleId)

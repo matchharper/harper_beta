@@ -5,6 +5,7 @@ import {
   CircleHelp,
   FileText,
   Handshake,
+  Info,
   Link2,
   Loader2,
   MessageSquareText,
@@ -27,6 +28,8 @@ import { Text } from "@/components/ui/text";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerTasks } from "@/hooks/career/useCareerTasks";
 import { useCareerTaskSuggestions } from "@/hooks/career/useCareerTaskSuggestions";
+import { useCareerRecentInfo } from "@/hooks/career/useCareerRecentInfo";
+import { useMessages } from "@/i18n/useMessage";
 import { useCareerChatPanelContext } from "./CareerChatPanelContext";
 import CareerHomeDevControls from "./CareerHomeDevControls";
 import CareerHomePanel from "./CareerHomePanel";
@@ -56,6 +59,7 @@ function TaskRow({
   title,
   description,
   action,
+  align = "col",
   emphasized = false,
 }: {
   icon: ReactNode;
@@ -63,6 +67,7 @@ function TaskRow({
   title: string;
   description?: string | null;
   action?: ReactNode;
+  align?: "row" | "col";
   emphasized?: boolean;
 }) {
   return (
@@ -93,10 +98,13 @@ function TaskRow({
             {description}
           </Text>
         ) : null}
-        {action ? (
+        {action && align === "col" ? (
           <div className="mt-3 flex flex-wrap items-center gap-2">{action}</div>
         ) : null}
       </div>
+      {action && align === "row" ? (
+        <div className="flex flex-wrap items-center gap-2">{action}</div>
+      ) : null}
     </article>
   );
 }
@@ -126,6 +134,7 @@ export default function CareerTasksPanel({
   showTitle = true,
 }: CareerTasksPanelProps) {
   const t = useCareerT();
+  const { locale } = useMessages();
   const router = useRouter();
   const tasks = useCareerTasks(true);
   const taskSuggestions = useCareerTaskSuggestions();
@@ -143,6 +152,7 @@ export default function CareerTasksPanel({
     );
   };
   const {
+    user,
     isOnboardingDone,
     stage,
     workspaceDataLoading,
@@ -161,6 +171,12 @@ export default function CareerTasksPanel({
     callWrapUpPending,
   } = useCareerChatPanelContext();
   const completed = isOnboardingDone || stage === "completed";
+  const recentInfo = useCareerRecentInfo({
+    enabled: completed && router.pathname !== "/career/preview",
+    userId: user?.id,
+  });
+  const recentItems =
+    recentInfo.data?.pages.flatMap((page) => page.items) ?? [];
   const showCompletedState = completed || workspaceDataLoading;
   const actionLocked = Boolean(
     workspaceDataLoading ||
@@ -180,8 +196,11 @@ export default function CareerTasksPanel({
     talentPreferences?.getInternalRecommendation !== false &&
     profileVisibility !== "dont_share";
   const externalEnabled =
+    profileVisibility !== "dont_share" &&
     talentPreferences?.getExternalRecommendation !== false &&
     tasks.searchStatus !== "stopped";
+  const externalPausedBySetting =
+    talentPreferences?.getExternalRecommendation === false;
 
   const startCall = (action?: CareerPendingAction) => {
     onOpenChat();
@@ -301,6 +320,115 @@ export default function CareerTasksPanel({
     );
   }
 
+  const searchActivity = (() => {
+    if (!showCompletedState) {
+      return {
+        title: t(
+          "career.tasks.learning",
+          "어떤 팀이 잘 맞을지 알아가고 있어요"
+        ),
+        description: t(
+          "career.tasks.learning_description",
+          "커리어 인터뷰를 마치면 경험과 조건에 맞는 기회를 찾기 시작해요."
+        ),
+      };
+    }
+    if (tasks.progressError) {
+      return {
+        title: t("career.tasks.search_error", "정보를 불러오지 못했어요"),
+        description: null,
+      };
+    }
+    if (workspaceDataLoading || tasks.progressLoading) {
+      return {
+        title: t("career.tasks.loading_search", "할 일을 확인하고 있어요"),
+        description: null,
+      };
+    }
+    if (profileVisibility === "dont_share") {
+      return {
+        title: t(
+          "career.tasks.search_paused_all",
+          "새 추천과 연결을 쉬고 있어요"
+        ),
+        description:
+          externalPausedBySetting || tasks.searchStatus === "stopped"
+            ? t(
+                "career.tasks.search_paused_all_description",
+                "프로필 공개 범위를 바꾸면 내부 연결부터 다시 살펴볼 수 있어요."
+              )
+            : t(
+                "career.tasks.search_paused_external_on_description",
+                "프로필 공개 범위를 바꾸면 적절한 기회를 다시 살펴볼게요."
+              ),
+      };
+    }
+    if (externalEnabled) {
+      return profileVisibility === "open_to_matches"
+        ? {
+            title: t(
+              "career.tasks.searching",
+              "적합한 연결을 계속 찾고 있어요"
+            ),
+            description: t(
+              "career.tasks.searching_open_description",
+              "적절한 기회를 찾고 연결해드릴게요."
+            ),
+          }
+        : {
+            title: t(
+              "career.tasks.searching_exceptional",
+              "적합한 기회를 계속 찾고 있어요"
+            ),
+            description: t(
+              "career.tasks.searching_exceptional_description",
+              "공개 포지션과 내부 연결을 살펴봐요. 회사에는 허용하신 뒤에만 소개해요."
+            ),
+          };
+    }
+    if (internalEnabled && profileVisibility === "open_to_matches") {
+      return {
+        title: t(
+          "career.tasks.internal_search_open",
+          "회사 연결 기회를 살펴보고 있어요"
+        ),
+        description: externalPausedBySetting
+          ? t(
+              "career.tasks.internal_search_open_description",
+              "공개 포지션 추천은 꺼두셨어요. 잘 맞는 회사에는 먼저 제안할 수도 있어요."
+            )
+          : t(
+              "career.tasks.internal_search_open_stopped_description",
+              "공개 포지션 추천은 현재 쉬고 있어요. 잘 맞는 회사에는 먼저 제안할 수도 있어요."
+            ),
+      };
+    }
+    if (internalEnabled) {
+      return {
+        title: t(
+          "career.tasks.internal_search",
+          "잘 맞는 내부 연결 기회를 살펴보고 있어요"
+        ),
+        description: externalPausedBySetting
+          ? t(
+              "career.tasks.internal_search_exceptional_description",
+              "공개 포지션 추천은 꺼두셨어요. 회사 소개는 허용하신 뒤에만 진행돼요."
+            )
+          : t(
+              "career.tasks.internal_search_stopped_description",
+              "공개 포지션 추천은 현재 쉬고 있어요. 회사 소개는 허용하신 뒤에만 진행돼요."
+            ),
+      };
+    }
+    return {
+      title: t("career.tasks.search_paused", "추천을 쉬고 있어요"),
+      description: t(
+        "career.tasks.search_paused_description",
+        "프로필에서 받고 싶은 추천을 다시 설정할 수 있어요."
+      ),
+    };
+  })();
+
   const sections = {
     decisions: {
       title: t("career.tasks.decisions", "지금 결정"),
@@ -360,7 +488,7 @@ export default function CareerTasksPanel({
                           )
                         : t(
                             "career.tasks.company_question",
-                            "회사에서 확인하고 싶은 내용이 있어요"
+                            "회사에서 응답을 기다리고 있어요"
                           )
                     }
                     description={action.prompt}
@@ -373,7 +501,7 @@ export default function CareerTasksPanel({
                       >
                         {action.requestMode === "resume"
                           ? t("career.tasks.share_resume", "이력서 공유하기")
-                          : t("career.tasks.answer", "답변하기")}
+                          : t("career.tasks.review_request", "요청 확인하기")}
                       </MuteButton>
                     }
                   />
@@ -567,11 +695,11 @@ export default function CareerTasksPanel({
                 connection.stage === "awaiting_company"
                   ? t(
                       "career.tasks.awaiting_company",
-                      "회사 답변을 기다리고 있어요"
+                      "회사 답변을 기다리고 있어요. 필요할 때 팔로업까지 제가 진행해요."
                     )
                   : t(
                       "career.tasks.preparing_connection",
-                      "연결을 준비하고 있어요"
+                      "기회를 검토하셨고, 회사 측에 소개를 전달하고 있어요"
                     )
               }
               action={
@@ -588,57 +716,8 @@ export default function CareerTasksPanel({
           ))}
           <TaskRow
             icon={<Scan className="h-4 w-4" />}
-            title={
-              !showCompletedState
-                ? t(
-                    "career.tasks.learning",
-                    "어떤 팀이 잘 맞을지 알아가고 있어요"
-                  )
-                : tasks.progressError
-                  ? t(
-                      "career.tasks.search_error",
-                      "찾기 현황을 불러오지 못했어요"
-                    )
-                  : workspaceDataLoading || tasks.progressLoading
-                    ? t(
-                        "career.tasks.loading_search",
-                        "찾기 현황을 확인하고 있어요"
-                      )
-                    : externalEnabled
-                      ? t(
-                          "career.tasks.searching",
-                          "적합한 연결을 계속 찾고 있어요"
-                        )
-                      : internalEnabled
-                        ? t(
-                            "career.tasks.internal_search",
-                            "잘 맞는 내부 연결 기회를 살펴보고 있어요"
-                          )
-                        : t("career.tasks.search_paused", "추천을 쉬고 있어요")
-            }
-            description={
-              !showCompletedState
-                ? t(
-                    "career.tasks.learning_description",
-                    "커리어 인터뷰를 마치면 경험과 조건에 맞는 기회를 찾기 시작해요."
-                  )
-                : workspaceDataLoading || tasks.progressLoading || tasks.progressError
-                  ? null
-                  : !externalEnabled && internalEnabled
-                    ? t(
-                        "career.tasks.internal_search_description",
-                        "공개 포지션 추천은 쉬고, 내부 연결 기회를 살펴봐요."
-                      )
-                    : externalEnabled || internalEnabled
-                      ? t(
-                          "career.tasks.searching_description",
-                          "적절한 기회가 생기면 알려드릴게요."
-                        )
-                      : t(
-                          "career.tasks.search_paused_description",
-                          "프로필에서 받고 싶은 추천을 다시 설정할 수 있어요."
-                        )
-            }
+            title={searchActivity.title}
+            description={searchActivity.description}
             action={<></>}
           />
         </>
@@ -716,6 +795,87 @@ export default function CareerTasksPanel({
             </section>
           );
         })}
+        {recentItems.length > 0 || recentInfo.hasNextPage ? (
+          <section
+            aria-labelledby="career-tasks-recent"
+            data-career-task-section="recent"
+          >
+            <SectionHeader className="gap-1.5">
+              <SectionTitle id="career-tasks-recent">
+                {t("career.tasks.recent_info", "최근 정보")}
+              </SectionTitle>
+            </SectionHeader>
+            <div>
+              {recentItems.map((item) => (
+                <TaskRow
+                  key={item.id}
+                  icon={
+                    item.kind === "company_deliver" ? (
+                      <MessageSquareText className="h-4 w-4" />
+                    ) : (
+                      <Info className="h-4 w-4" />
+                    )
+                  }
+                  meta={`${item.companyName} · ${item.roleName} · ${new Intl.DateTimeFormat(locale || "ko", { year: "numeric", month: "short", day: "numeric" }).format(new Date(item.occurredAt))}`}
+                  title={
+                    item.kind === "company_deliver"
+                      ? t(
+                          "career.tasks.company_update",
+                          "회사에서 소식을 전했어요"
+                        )
+                      : item.kind === "role_ended"
+                        ? t(
+                            "career.tasks.role_ended",
+                            "이 포지션의 채용이 종료되어 프로세스가 종료됐어요"
+                          )
+                        : t(
+                            "career.tasks.process_ended",
+                            "이 포지션의 프로세스가 종료됐어요"
+                          )
+                  }
+                  description={item.body}
+                  action={
+                    item.kind === "company_deliver" ? undefined : (
+                      <MuteButton
+                        variant="neutral"
+                        size="sm"
+                        onClick={() => onOpenOpportunity(item.roleId, "saved")}
+                      >
+                        {t("career.tasks.view_progress", "자세히 보기")}
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </MuteButton>
+                    )
+                  }
+                />
+              ))}
+              {recentInfo.hasNextPage ? (
+                <div className="pt-3">
+                  <MuteButton
+                    size="sm"
+                    variant="transparent"
+                    disabled={recentInfo.isFetchingNextPage}
+                    onClick={() => void recentInfo.fetchNextPage()}
+                  >
+                    {recentInfo.isFetchingNextPage
+                      ? t(
+                          "career.tasks.loading_older",
+                          "지난 기록을 불러오고 있어요"
+                        )
+                      : t("career.tasks.more_history", "지난 기록 더보기")}
+                  </MuteButton>
+                </div>
+              ) : null}
+              {recentInfo.isFetchNextPageError ? (
+                <Text as="p" type="caption" tone="muted" className="pt-2">
+                  {t(
+                    "career.tasks.older_error",
+                    "지난 기록을 불러오지 못했어요. 다시 시도해 주세요."
+                  )}
+                </Text>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
       </div>
       <CareerHomeDevControls onOpenChat={onOpenChat} />
     </div>

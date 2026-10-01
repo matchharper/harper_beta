@@ -1807,6 +1807,8 @@ async function buildSearchPlan(args: {
       },
     ],
     primaryModel: RECOMMEND_JOB_POSTINGS_PLAN_MODEL,
+    openAIResponsesReasoningEffort:
+      CAREER_LLM_CONFIG.recommendJobPostings.planReasoningEffort,
     temperature: CAREER_LLM_CONFIG.recommendJobPostings.planTemperature,
     usageLabel: args.usageLabel ?? "career_tool:recommend_job_postings:plan",
   });

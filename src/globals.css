@@ -1,8 +1,8 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 @import "tw-animate-css";
 @import "./styles/dev-color-palettes.css";
 
-@source not "../.next-e2e";
+@source ".";
 
 @plugin 'tailwind-scrollbar';
 

@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
+import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 
 type PendingConnectionDialogProps = {
   candidateName: string;
@@ -35,6 +36,7 @@ function PendingConnectionDialogContent({
   pending = false,
   recipientEmail,
 }: PendingConnectionDialogProps) {
+  const t = useOrgT();
   const [error, setError] = useState("");
   const [sendEmail, setSendEmail] = useState(true);
   const [sendNow, setSendNow] = useState(false);
@@ -54,7 +56,7 @@ function PendingConnectionDialogContent({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "연결 대기 상태로 옮기지 못했습니다."
+          : t("pendingConnection.failed", "연결 대기 상태로 옮기지 못했습니다.")
       );
     }
   };
@@ -68,9 +70,11 @@ function PendingConnectionDialogContent({
       >
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="text-[18px]">연결 대기로 이동</DialogTitle>
+            <DialogTitle className="text-[18px]">
+              {t("pendingConnection.title", "연결 대기로 이동")}
+            </DialogTitle>
             <DialogDescription className="text-[13px] leading-5">
-              {candidateName} 후보자를 연결 대기로 옮기시겠습니까?
+              {t("pendingConnection.confirm", "{candidateName} 후보자를 연결 대기로 옮기시겠습니까?", { candidateName })}
             </DialogDescription>
           </DialogHeader>
 
@@ -78,10 +82,10 @@ function PendingConnectionDialogContent({
             <div className="flex items-start gap-2.5">
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-neutral-muted" />
               <div className="min-w-0 text-[13px] leading-5 text-neutral-muted">
-                <span className="font-medium text-neutral-primary">
-                  {recipientEmail?.trim() || "사용자 이메일"}
-                </span>
-                로 연결 확정 안내 메일이 발송됩니다.
+                {t("pendingConnection.emailNotice", "{recipientEmail}로 연결 확정 안내 메일이 발송됩니다.", {
+                  recipientEmail:
+                    recipientEmail?.trim() || t("pendingConnection.userEmail", "사용자 이메일"),
+                })}
               </div>
             </div>
           </div>
@@ -90,8 +94,8 @@ function PendingConnectionDialogContent({
             <Checkbox
               checked={sendEmail}
               disabled={pending}
-              helperText="유저의 수락 후 최소 24시간이 지난 후, 한국시간 08:00~19:00 사이에 발송합니다."
-              label="안내 메일 발송"
+              helperText={t("pendingConnection.scheduledHelp", "유저의 수락 후 최소 24시간이 지난 후, 한국시간 08:00~19:00 사이에 발송합니다.")}
+              label={t("pendingConnection.sendEmail", "안내 메일 발송")}
               onChange={(event) => {
                 const checked = event.target.checked;
                 setSendEmail(checked);
@@ -102,8 +106,8 @@ function PendingConnectionDialogContent({
             <Checkbox
               checked={sendNow}
               disabled={pending || !sendEmail}
-              helperText="자동 발송 일정을 기다리지 않고 이동 직후 발송을 요청합니다."
-              label="즉시 보내기"
+              helperText={t("pendingConnection.sendNowHelp", "자동 발송 일정을 기다리지 않고 이동 직후 발송을 요청합니다.")}
+              label={t("pendingConnection.sendNow", "즉시 보내기")}
               onChange={(event) => setSendNow(event.target.checked)}
               size="small"
             />
@@ -123,7 +127,7 @@ function PendingConnectionDialogContent({
               type="button"
               variant="secondary"
             >
-              취소
+              {t("pendingConnection.cancel", "취소")}
             </Button>
             <Button
               disabled={pending}
@@ -134,7 +138,7 @@ function PendingConnectionDialogContent({
               {pending ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
-              확인
+              {t("pendingConnection.submit", "확인")}
             </Button>
           </DialogFooter>
         </form>
