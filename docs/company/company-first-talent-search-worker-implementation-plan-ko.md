@@ -1,5 +1,7 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+> 2026-10-01 운영 변경: scheduler는 각 Role의 정기 검색 요일·시각(Asia/Seoul)을 매분 읽고 같은 회사·같은 시각의 대상 Role을 한 run으로 묶는다. 기본은 월·수·금 09:00이다. 예약된 Role 범위는 run에 고정한다. 아래 월요일 09:00·전역 cron·시간대 변경 설명은 이전 계약의 이력이며 현재 기준은 [운영 설정 계약](./company-first-runtime-settings-ko.md)이다.
+
 > 2026-09-29 운영 반영: beta `dc52b832`, Worker `8b355199`와 관련 DB 변경을 반영했고 Company-first 실행기·예약 실행기를 활성화했다. [운영 설정 계약](./company-first-runtime-settings-ko.md)에 따라 예약 주기·시간대·Role별 상한·미처리 한도를 DB에서 읽는다. 아래 월요일 09:00, 3명/6명, 30명은 재배포 없이 수정 가능한 기본값이다. 정기는 `is_company_first_search = true`, calibration 후 첫 검색은 기존 자동 실행 설정, 직접 요청은 명시적으로 지정한 Role을 따른다.
 
 > 아래 2026-09-24~28의 미배포 표기는 당시 구현 이력이다. 현재 출시 상태는 위 운영 반영 기록을 따른다. 모델의 정성적 품질 개선과 미완료된 평가 gate는 이번 배포에서 완료로 처리하지 않는다.
@@ -10,7 +12,7 @@
 
 > 2026-09-24 로컬 계약 보완: 전달된 제안의 답변 대기 중 회사가 승인한 메시지는 기존 연락 경로로 허용한다. 별도 follow-up worker나 분류기는 추가하지 않는다. 후보 선정·수락·공유 상태는 변하지 않는다. [현재 연락 계약](../company-talent-contacts-ko.md) 참고. 운영 배포를 뜻하지 않는다.
 
-- 문서 기준: 2026-09-29
+- 문서 기준: 2026-10-01
 - 상태: candidate-first/company-first route 결정과 matching review persistence를 운영 반영했다. 실행기 활성화와 실제 대기 작업 claim을 확인했다. 기존 route-aware frozen gold·회사/직군별 shadow gate의 완료 여부와 정성적 품질 과제는 배포 성공과 별도로 유지한다.
 - 범위: 회사 단위 예약 실행, search 여부 판단, 동적 SQL retrieval, scoring, 회사 전체 reranking,
   candidate-first/company-first/no-action route 결정, 결과 기록, candidate-first 기존 delivery queue 연계,
@@ -22,7 +24,7 @@
 ## 1. 결론
 
 회사 단위 후보 탐색은 더 이상 Codex Scheduled task가 문서를 읽고 매번 직접 수행하는 작업으로
-설계하지 않는다. `harper_worker`의 Python runtime이 매주 월요일 오전 9시 KST에 회사를 queue에 넣고,
+설계하지 않는다. `harper_worker`의 Python runtime이 Role별 지정 요일·시각(KST)에 회사를 queue에 넣고,
 회사 사용자가 `/org` 또는 Slack에서 현재 Hiring Brief 기반 검색을 명시적으로 요청해도 같은 durable
 queue에 넣는다. 새 Role calibration이 Slack에 처음 전달된 12시간 뒤에도 같은 queue에 정기 계약의
 1회 run을 넣는다. 세 trigger 모두 회사 하나를 한 실행 단위로 처리한다.
@@ -30,7 +32,7 @@ queue에 넣는다. 새 Role calibration이 Slack에 처음 전달된 12시간 �
 한 번의 실행은 다음 순서다.
 
 ```text
-월요일 09:00 KST scheduler, company-side LLM의 명시적 검색 요청,
+Role별 예약 시각(KST)의 scheduler, company-side LLM의 명시적 검색 요청,
 또는 calibration 최초 Slack sentAt + 12시간
   → 대상 회사와 Role을 deterministic하게 확정
   → 회사 단위 run enqueue
@@ -183,21 +185,21 @@ evaluation, 입력 fingerprint와 candidate-first discovery run 연결만 보존
 ### 4.1 시각과 enqueue
 
 - 기준 timezone: `Asia/Seoul`
-- 정기 실행 기본값: 매주 월요일 오전 9시 KST. 실행 시각·주기·시간대는 Ops 운영 설정에서 변경한다.
+- 정기 실행 기본값: Role별 월·수·금 09:00 KST. 요일과 시각은 회사 Workspace의 Role Settings에서, 전체 예약 스위치와 인원 한도는 Ops에서 변경한다.
 - 별도 `harper-company-first-scheduler` process가 이 queue의 enqueue만 담당한다.
 - 실제 company run은 별도 `harper-company-first-worker` Python process가 claim한다.
 - Worker process는 작은 고정 consumer pool을 유지한다. 기본은 2개이고 환경 설정으로 1~8개 안에서
   조정한다. Queue는 `FOR UPDATE SKIP LOCKED`, workspace 단위 claim lock과 lease를 함께 사용해 같은 회사
   run을 동시에 처리하지 않으면서 서로 다른 회사 run은 병렬로 처리한다.
 
-Company-first run을 기존 여섯 Opportunity Worker가 직접 소비하게 하지 않는 이유는 월요일 burst와 한
+Company-first run을 기존 여섯 Opportunity Worker가 직접 소비하게 하지 않는 이유는 같은 시각의 예약 집중과 한
 회사 내부의 병렬 scoring이 Talent 단위 discovery queue를 굶기지 않게 하기 위해서다. LLM client,
 config, context loader, usage logging, shutdown·heartbeat 방식은 재사용한다.
 
 Scheduler는 매 분 DB의 최신 운영 설정을 읽고 due slot을 확인한다. `scheduled_slot`은 설정한 시간대에서
-현재 날짜 안의 가장 최근 실행 시각이다. `(company_workspace_id, scheduled_slot, contract_version)` unique key로
-중복 enqueue를 막는다. 기본 설정의 catch-up window는 **월요일 09:00 이상, 화요일 00:00 KST 미만**이다.
-실행기에 장애가 있어도 같은 날짜 안에서는 가장 최근 slot을 한 번 복구하며, 전날이나 여러 번 놓친 slot을
+각 Role의 해당 날짜 지정 시각이다. `(company_workspace_id, scheduled_slot, contract_version)` unique key로
+중복 enqueue를 막는다. Role별 catch-up window는 **설정 요일의 지정 시각 이상, 다음 날 00:00 KST 미만**이다.
+실행기에 장애가 있어도 같은 날짜 안에서는 놓친 Role별 slot을 한 번씩 복구하며, 전날의 slot은
 소급하지 않는다. 운영자가 실패 run을 수동 재실행하는 경우에는 새 `trigger=manual`과
 `retry_of_run_id`를 쓰고 정기 slot의 unique key를 우회하지 않는다. 회사 사용자의 새 검색 요청은
 `trigger=company_requested`로 구분한다.
@@ -1253,7 +1255,7 @@ non-selected packet을 사람이 검토한다. Shadow 결과를 production ready
 
 ### 20.1 Python unit
 
-- schedule slot, 월요일 09:00~화요일 00:00 catch-up window와 KST DST 비영향
+- schedule slot, Role별 예약 시각~다음 날 00:00 catch-up window와 KST DST 비영향
 - calibration `sentAt + 12h`, `source_calibration_id` idempotency와 regular mixed-route 분기
 - eligible Role, exact exclusion workspace ids, 30 backlog, pending `>= max`
 - previous terminal/search 두 cursor, 누적 skip inventory, text serializer와 date format
@@ -1362,8 +1364,8 @@ Read-only executor는 Supabase transaction pool이 아니라 기존 dedicated se
 
 다음을 모두 만족하기 전에는 “Company-first Worker가 구현됐다”고 하지 않는다.
 
-- 월요일 09:00 KST slot이 Python scheduler에서 멱등 enqueue된다.
-- 09:00 장애는 월요일 안에 한 번만 catch-up하고 오래된 주차는 소급하지 않는다.
+- Role별 KST slot이 Python scheduler에서 멱등 enqueue된다.
+- 예약 시각의 장애는 같은 요일 안에 한 번만 catch-up하고 오래된 주차는 소급하지 않는다.
 - 새 Role calibration 최초 Slack `sentAt + 12h`에 `post_calibration` run이 한 번 enqueue되고,
   calibration Role이 `requested_role_ids`에 들어간다.
 - `post_calibration`은 local Codex listener가 아니라 같은 Company Matching Worker가 정기 mixed-route

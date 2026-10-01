@@ -1,5 +1,7 @@
 # 회사 선확인 후보자 추천 · 먼저 제안하기 구현 기획
 
+> 2026-10-01 운영 변경: 정기 Company-first 검색은 각 Role의 설정 요일·시각(한국 시간)에 실행한다. 기본은 월·수·금 09:00이며, 같은 회사·같은 시각의 Role을 묶어 처리한다. 전체 예약 스위치와 인원 한도는 Ops에서, 요일·시각은 회사 Workspace의 Role Settings에서 바꾼다. 아래 월요일 09:00 및 전역 cron 설명은 이전 운영 계약의 이력이며 현재 기준은 [운영 설정 계약](./company-first-runtime-settings-ko.md)이다.
+
 > 2026-09-29 운영 반영: beta `dc52b832`, Worker `8b355199`와 관련 DB 변경을 반영했고 Company-first 실행기·예약 실행기를 활성화했다. [운영 설정 계약](./company-first-runtime-settings-ko.md)의 월요일 09:00, 정기 3명·직접 요청 6명, 미처리 30명은 재배포 없이 수정 가능한 기본값이다. 정기는 `is_company_first_search = true`인 유효한 Role만 대상으로 하며 직접 요청·calibration 후 첫 검색은 별도다.
 
 > 아래 2026-09-24~28의 미배포 표기는 당시 구현 이력이다. 현재 출시 상태는 위 운영 반영 기록을 따른다. 과거 설계와 현재 연락·운영 설정 계약이 다르면 최신 계약을 우선한다.
@@ -10,7 +12,7 @@
 
 > 2026-09-24 로컬 계약 보완: 제안이 실제 전달되고 `awaiting_talent`인 동안 회사가 승인한 일반 메시지는 `contact_talent`로 보낼 수 있다. 준비 중 최초 접근, 후보자 수락, 비공개 정보 공유, 인터뷰·단계 이동의 기존 경계는 그대로다. 아래의 수락 전 일반 연락 금지 설명보다 [현재 연락 계약](../company-talent-contacts-ko.md)이 우선한다. 운영 배포를 뜻하지 않는다.
 
-- 문서 기준: 2026-09-29
+- 문서 기준: 2026-10-01
 - 상태: 제품 lifecycle과 shared matching route를 운영 반영했다. 실행기 활성화와 실제 대기 작업의 claim을 확인했으며, 새 검색의 결과·전달 성공은 각 실행 기록으로 확인한다.
 - 범위: 후보 선정, 회사 노출, `먼저 제안하기`, 후보자 전달, 응답, 연결, 철회까지의 제품·상태 계약
 
@@ -65,7 +67,7 @@ Worker 구현 계약:
    선택하되, 명시적 충돌이나 핵심 수행 근거 부족이 있는 후보를 숫자 때문에 포함하지 않는다. 두 경우 모두
    같은 Talent는 회사 전체에서 한 번만 선택한다.
    기존 미결정 `ready` 카드가 30명이면 새 run을 시작하지 않는다.
-10. Python Worker scheduler가 매주 월요일 오전 9시 KST에 회사 단위 run을 enqueue한다. 회사가 `/org`나
+10. Python Worker scheduler가 Role별 지정 요일·시각(KST)에 회사 단위 run을 enqueue한다. 회사가 `/org`나
     Slack에서 저장된 현재 Hiring Brief로 새 검색을 명시적으로 요청해도 같은 queue에 즉시 회사 단위 run을
     넣는다. 새 Role calibration이 Slack에 처음 전달된 12시간 뒤에도 같은 queue에 정기 계약의 1회 run을
     넣는다. Query plan, retrieval, scoring, 회사 전체 reranking, route persistence와 전달의 자세한 계약은
@@ -338,7 +340,7 @@ Strong anchor를 company-first로 보내려면 “좋은 후보”라는 사실 
 
 ### 6.5 Candidate-first와의 동시성
 
-Company-first는 매주 월요일 오전 9시 KST, 회사의 명시적 요청, 또는 새 Role calibration 전달 12시간 뒤의
+Company-first는 Role별 지정 요일·시각(KST), 회사의 명시적 요청, 또는 새 Role calibration 전달 12시간 뒤의
 1회 run으로 회사 단위 Worker에서 실행되므로 모든 candidate-first 추천보다 항상 먼저 실행된다고 가정하지
 않는다. 대신 fit 판단값과 실제 route를 분리한다.
 
@@ -947,7 +949,7 @@ web, Slack, company-side LLM의 의미를 맞춘다.
 
 ### Phase 2. Selection Worker shadow
 
-- Python scheduler의 월요일 09:00 KST company run enqueue
+- Python scheduler의 Role별 예약 시각(KST)의 company run enqueue
 - Calibration 최초 Slack `sentAt + 12h`의 regular company run enqueue
 - query planner, safe SQL retrieval, parallel scoring, company-wide reranking
 - reply confidence와 candidate-first route guard
@@ -1074,7 +1076,7 @@ privacy guard가 함께 좋아져야 한다.
 | 공개 범위가 바뀌면 | company read 즉시 숨김 + outbox/follow-up durable cleanup |
 | 최대 몇 명인가 | 정기 run은 두 actionable route 합산 Role별 최대 3명. 명시적 `Run Search`는 company-first만 Role별 최대 6명을 목표로 하되 hard conflict·핵심 수행 근거 부족 후보는 포함하지 않음. 회사 내 Talent 중복 금지, unresolved ready 30명 hard gate |
 | candidate-first와 어느 쪽이 먼저인가 | 새 run은 한 경로를 선택한다. 이전 미응답·거절 추천과 회사 ready는 공존하며, Intro가 기존 카드를 대체하고 기존 추천 수락은 ready를 연결 대기로 전환 |
-| 언제 실행하는가 | 매주 월요일 오전 9시 KST 정기 enqueue, `/org`·Slack의 명시적 현재-Brief 검색 요청 직후, 또는 새 Role calibration 최초 Slack `sentAt + 12h`에 같은 회사 단위 queue로 enqueue |
+| 언제 실행하는가 | Role별 지정 요일·시각(KST) 정기 enqueue, `/org`·Slack의 명시적 현재-Brief 검색 요청 직후, 또는 새 Role calibration 최초 Slack `sentAt + 12h`에 같은 회사 단위 queue로 enqueue |
 
 ### 22.2 나중에 정할 것
 
