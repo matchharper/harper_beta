@@ -12,6 +12,8 @@ export type LlmModelPricing = {
   effectiveModel?: string;
   inputUsdPerMtok: number;
   longContextInputUsdPerMtok?: number;
+  longContextCacheReadUsdPerMtok?: number;
+  longContextCacheWriteUsdPerMtok?: number;
   longContextOutputUsdPerMtok?: number;
   longContextThresholdTokens?: number;
   outputUsdPerMtok: number;
@@ -65,6 +67,18 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     outputUsdPerMtok: 1.2,
     pricingSource: "openai_api_pricing_2026_09",
   },
+  "gpt-6-luna": {
+    cacheReadUsdPerMtok: 0.01,
+    cacheWriteUsdPerMtok: 0.125,
+    inputUsdPerMtok: 0.1,
+    longContextCacheReadUsdPerMtok: 0.02,
+    longContextCacheWriteUsdPerMtok: 0.25,
+    longContextInputUsdPerMtok: 0.2,
+    longContextOutputUsdPerMtok: 0.75,
+    longContextThresholdTokens: 272_000,
+    outputUsdPerMtok: 0.5,
+    pricingSource: "openai_api_pricing_2026_10",
+  },
   "gpt-5.6-terra": {
     cacheReadUsdPerMtok: 0.2,
     cacheWriteUsdPerMtok: 2.5,
@@ -112,10 +126,10 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     pricingSource: "openrouter_pricing_2026_10_02",
   },
   "z-ai/glm-5.3-flash": {
-    cacheReadUsdPerMtok: 0.015,
-    inputUsdPerMtok: 0.075,
-    outputUsdPerMtok: 0.25,
-    pricingSource: "openrouter_pricing_2026_09_01",
+    cacheReadUsdPerMtok: 0.03,
+    inputUsdPerMtok: 0.15,
+    outputUsdPerMtok: 0.5,
+    pricingSource: "openrouter_zai_pricing_2026_10_02",
   },
   "meta/muse-spark-1.3": {
     cacheReadUsdPerMtok: 0.15,

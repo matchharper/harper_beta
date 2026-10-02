@@ -2,7 +2,6 @@ import {
   ONBOARDING_FINAL_CONFIRMATION_KEY,
   ONBOARDING_QUESTION_MIN_COVERED_COUNT,
   getInsightChecklist,
-  getOnboardingAdditionalQuestionKeys,
   getOnboardingQuestionInsightKeys,
   getOnboardingQuestionChecklist,
   getOnboardingRequiredQuestionKeys,
@@ -83,37 +82,33 @@ export function buildOnboardingRuntimeStateSection(args: {
   const { checklistContext, checklistCoverage, quoteKeys = false } = args;
   const coverage = normalizePromptChecklistCoverage(checklistCoverage);
   const onboardingChecklist = getOnboardingQuestionChecklist(checklistContext);
-  const requiredAdditionalQuestionKeys =
-    getOnboardingAdditionalQuestionKeys(checklistContext);
-  const requiredAdditionalQuestionKeysText =
-    requiredAdditionalQuestionKeys.length > 0
-      ? requiredAdditionalQuestionKeys.join(", ")
-      : "(none)";
   const requiredQuestionKeys =
     getOnboardingRequiredQuestionKeys(checklistContext);
-  const coveredChecklistItems = onboardingChecklist.filter(
-    (item) => coverage[item.key] === "covered"
-  );
-  const missingRequiredAdditionalQuestionKeys =
-    requiredAdditionalQuestionKeys.filter((key) => coverage[key] !== "covered");
+  const requiredQuestionKeySet = new Set<string>(requiredQuestionKeys);
   const missingRequiredQuestionKeys = requiredQuestionKeys.filter(
     (key) => coverage[key] !== "covered"
   );
-  const isMinimumCoverageMet =
-    coveredChecklistItems.length >= ONBOARDING_QUESTION_MIN_COVERED_COUNT;
-  const isLanguageCovered = coverage.language === "covered";
   const isFinalPriorityConfirmationCovered =
     coverage[ONBOARDING_FINAL_CONFIRMATION_KEY] === "covered";
+  const requiredCoveredCount =
+    requiredQuestionKeys.length - missingRequiredQuestionKeys.length +
+    (isFinalPriorityConfirmationCovered ? 1 : 0);
+  const isMinimumCoverageMet =
+    requiredCoveredCount >= ONBOARDING_QUESTION_MIN_COVERED_COUNT;
 
   const checklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
+      const required =
+        requiredQuestionKeySet.has(item.key) ||
+        item.key === ONBOARDING_FINAL_CONFIRMATION_KEY;
       return [
         `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
+        `  - priority: ${required ? "required" : "optional"}`,
         `  - status: ${coverage[item.key] === "covered" ? "covered" : "missing"}`,
-        coverage[item.key] !== "covered" &&
+        required && coverage[item.key] !== "covered" &&
           `  - promptHint: ${item.promptHint}`,
-      ].join("\n");
+      ].filter(Boolean).join("\n");
     });
 
   const onboardingSummary = [
@@ -124,8 +119,7 @@ export function buildOnboardingRuntimeStateSection(args: {
     "- If a checklist key is covered, do not ask that topic again even if the corresponding insight value is empty or terse.",
     "- The latest user reply may not yet be reflected in checklist coverage. If recent conversation clearly shows Harper already asked final_priority_confirmation and the latest user reply answered it, you may treat final_priority_confirmation as effectively satisfied for this response.",
     "### Closing conditions",
-    `- Minimum covered checklist items: ${coveredChecklistItems.length}/${ONBOARDING_QUESTION_MIN_COVERED_COUNT} (${isMinimumCoverageMet ? "satisfied" : "not yet"})`,
-    `- Language checklist key: ${isLanguageCovered ? "covered" : "missing"}`,
+    `- Required checklist items covered: ${requiredCoveredCount}/${ONBOARDING_QUESTION_MIN_COVERED_COUNT} (${isMinimumCoverageMet ? "satisfied" : "not yet"})`,
     `- Required checklist keys: ${
       requiredQuestionKeys.length > 0
         ? requiredQuestionKeys.join(", ")
@@ -136,16 +130,10 @@ export function buildOnboardingRuntimeStateSection(args: {
         ? missingRequiredQuestionKeys.join(", ")
         : "(none)"
     }`,
-    `- Required additional_question keys: ${requiredAdditionalQuestionKeysText}`,
-    `- Missing additional_question keys: ${
-      missingRequiredAdditionalQuestionKeys.length > 0
-        ? missingRequiredAdditionalQuestionKeys.join(", ")
-        : "(none)"
-    }`,
     `- Final priority confirmation: ${isFinalPriorityConfirmationCovered ? "covered" : "missing"}`,
     "### Choosing the next response",
     "- Use the checklist and recent conversation to choose one natural next question or closing move.",
-    "- Prefer a missing checklist item that fits the user's latest answer and the conversation flow; do not mechanically follow list order when another missing item is clearly more natural.",
+    "- Prefer a missing required item that fits the user's latest answer. Optional items are not prerequisites and must not prolong the first conversation.",
     "- Ask at most one question.",
     "- Do not close until all closing conditions above are satisfied, except that a latest reply that clearly answered final_priority_confirmation may count for this response.",
     "- If all closing conditions are satisfied, close onboarding with the required completion marker instead of asking another question.",
@@ -156,7 +144,7 @@ export function buildOnboardingRuntimeStateSection(args: {
   const dynamicPrompt = [
     onboardingSummary,
     "## Onboarding Question Checklist",
-    "Use missing items and their promptHint as options for the next natural question.",
+    "Use missing required items and their promptHint for the next natural question.",
     checklistLines.join("\n"),
   ]
     .filter((line) => line.trim().length > 0)
@@ -164,20 +152,8 @@ export function buildOnboardingRuntimeStateSection(args: {
 
   return [
     dynamicPrompt,
-    "## Additional question policy",
-    "- Additional questions are checklist items, not a separate progress system.",
-    "- Ask only required additional_question keys shown in the checklist. Never invent an additional_question key that is not listed.",
-    "- When the next missing checklist item is an additional_question item, ask one concise additional question directly. Do not call a selector tool or mention internal checklist keys.",
-    '- Choose the additional question by asking: "What gap would most improve future opportunity matching for this person right now?"',
-    "Selection priority:",
-    "1. Substantial experience exists but its description is empty, especially around 6+ months or roughly a year. Ask what they actually did in that period once, using the company/role/date context.",
-    "2. Recent or important experience exists but direct contribution is unclear.",
-    "3. Short tenure, career transition, gap, or role/domain change needs interpretation.",
-    "4. The profile strengths and the desired next opportunity have a mismatch or unresolved gap.",
-    "5. Role-specific depth is unclear.",
-    "6. Role-specific preference would improve matching, such as paid channel depth, B2C vs B2B product preference, or AI application layer vs foundation/infrastructure direction.",
-    "Do not repeatedly ask broad desired role or tech-stack preference questions. If those were already asked or answered in recent conversation, choose a concrete profile-gap question instead.",
-    "Fallback examples: 최근 역할이나 대표 경험 중에서 실제로 본인이 더 많이 맡았던 부분은 어디였어요? / 최근 경험에서 본인이 직접 만든 변화나 결과를 하나만 꼽으면 뭐가 있을까요?",
+    "## Optional detail",
+    "- Ask a single additional question only when an important profile gap prevents a useful first search. Otherwise leave optional items for later conversation.",
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");

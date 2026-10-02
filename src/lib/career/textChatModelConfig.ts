@@ -1,6 +1,6 @@
 import {
   CLAUDE_MODEL,
-  GPT_56_LUNA_MODEL,
+  GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
@@ -12,7 +12,7 @@ export const CAREER_TEXT_CHAT_MODEL_IDS = [
   CLAUDE_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
-  GPT_56_LUNA_MODEL,
+  GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
 ] as const;
 
@@ -51,7 +51,7 @@ export function resolveCareerTextChatModel(value: unknown): {
       model,
     };
   }
-  if (model === GPT_56_LUNA_MODEL) {
+  if (model === GPT_6_LUNA_MODEL) {
     return {
       model,
       openAIResponsesReasoningEffort: "xhigh",

@@ -19,8 +19,8 @@ test("serializes checklist coverage into the canonical client progress shape", (
   );
 
   assert.equal(progress.coveredCount, 3);
-  assert.equal(progress.totalCount, 9);
-  assert.equal(progress.percent, 33);
+  assert.equal(progress.totalCount, 5);
+  assert.equal(progress.percent, 60);
   assert.equal(progress.completed, false);
 });
 
@@ -36,13 +36,13 @@ test("excludes final confirmation from both sides of displayed progress", () => 
   );
 
   assert.equal(afterFinalConfirmation.coveredCount, 1);
-  assert.equal(afterFinalConfirmation.totalCount, 9);
-  assert.equal(afterFinalConfirmation.percent, 11);
+  assert.equal(afterFinalConfirmation.totalCount, 5);
+  assert.equal(afterFinalConfirmation.percent, 20);
   assert.equal(afterFinalConfirmation.finalConfirmationCovered, true);
   assert.equal(afterFinalConfirmation.percent, beforeFinalConfirmation.percent);
 });
 
-test("requires every common checklist item for completion", () => {
+test("completes with core context even when optional details are missing", () => {
   const completeCoverage = Object.fromEntries(
     ONBOARDING_QUESTION_CHECKLIST.map((item) => [item.key, "covered" as const])
   );
@@ -51,10 +51,24 @@ test("requires every common checklist item for completion", () => {
     true
   );
 
-  const withoutTeamStyle = { ...completeCoverage };
-  delete withoutTeamStyle.team_style_fit;
+  const withoutOptionalDetails = { ...completeCoverage };
+  delete withoutOptionalDetails.team_style_fit;
+  delete withoutOptionalDetails.deal_breakers;
+  delete withoutOptionalDetails.additional_question_one;
+  delete withoutOptionalDetails.cross_border_work_authorization;
   assert.equal(
-    getOnboardingChecklistCoverageStats(withoutTeamStyle).isComplete,
+    getOnboardingChecklistCoverageStats(withoutOptionalDetails).isComplete,
+    true
+  );
+  const readyProgress = serializeOnboardingChecklistProgress(
+    getOnboardingChecklistCoverageStats(withoutOptionalDetails)
+  );
+  assert.equal(readyProgress.percent, 100);
+
+  const withoutLanguage = { ...withoutOptionalDetails };
+  delete withoutLanguage.language;
+  assert.equal(
+    getOnboardingChecklistCoverageStats(withoutLanguage).isComplete,
     false
   );
 });

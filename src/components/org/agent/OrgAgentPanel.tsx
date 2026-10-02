@@ -32,7 +32,7 @@ import {
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import {
   DEFAULT_ORG_AGENT_MODEL,
-  isOrgAgentModelId,
+  migrateOrgAgentModel,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import {
@@ -205,8 +205,11 @@ export function OrgAgentChatSurface({
 
   useEffect(() => {
     const savedModel = window.localStorage.getItem("harper:org-agent:model");
-    if (!isOrgAgentModelId(savedModel)) return;
-    const frame = window.requestAnimationFrame(() => setModel(savedModel));
+    const resolvedModel = migrateOrgAgentModel(savedModel);
+    if (!resolvedModel) return;
+    if (savedModel !== resolvedModel)
+      window.localStorage.setItem("harper:org-agent:model", resolvedModel);
+    const frame = window.requestAnimationFrame(() => setModel(resolvedModel));
     return () => window.cancelAnimationFrame(frame);
   }, []);
 

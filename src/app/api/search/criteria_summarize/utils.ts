@@ -1,5 +1,5 @@
 import { lunaInference } from "@/lib/llm/llm";
-import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { logger } from "@/utils/logger";
 import { buildSummary } from "@/utils/textprocess";
 
@@ -47,7 +47,7 @@ Output:
 `;
 
   const summary = await lunaInference(
-    GPT_56_LUNA_MODEL,
+    GPT_6_LUNA_MODEL,
     systemPrompt,
     userPrompt
   );
@@ -172,7 +172,7 @@ Output:
   // `;
 
   const summary = await lunaInference(
-    GPT_56_LUNA_MODEL,
+    GPT_6_LUNA_MODEL,
     systemPrompt,
     userPrompt
   );

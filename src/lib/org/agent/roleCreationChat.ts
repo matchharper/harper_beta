@@ -12,9 +12,10 @@ import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
+  getOrgAgentReasoningEffort,
   ORG_AGENT_TEMPERATURE,
   ORG_AGENT_GEMINI_FLASH_MODEL,
-  isOrgAgentModelId,
+  migrateOrgAgentModel,
   resolveOrgAgentModel,
   type OrgAgentModelId,
   type OrgAgentReasoningEffort,
@@ -374,9 +375,9 @@ export async function generateRoleCreationOutcomeReply(args: {
   responseLocale?: OrgLocale;
   state: RoleCreationState;
 }) {
-  const selectedModel = isOrgAgentModelId(args.model)
-    ? args.model
-    : resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
+  const selectedModel =
+    migrateOrgAgentModel(args.model) ??
+    resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
   const result = await createChatCompletionWithFallback({
     anthropicOverloadFallbackModel: getOrgAgentFallbackModel(selectedModel),
     buildRequest: (model) => ({
@@ -402,11 +403,11 @@ export async function generateRoleCreationOutcomeReply(args: {
     }),
     debugLabel: "org/agent:role-creation-outcome",
     validateResponse: validateCompanyCompletion,
-    chatCompletionReasoning: { reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT },
+    chatCompletionReasoning: { reasoningEffort: getOrgAgentReasoningEffort(selectedModel) },
     fallbackModel: getOrgAgentFallbackModel(selectedModel),
     model: selectedModel,
     openAIResponses: {
-      reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
+      reasoningEffort: getOrgAgentReasoningEffort(selectedModel),
     },
   });
   const content = assistantText(getResponseMessage(result.response));
@@ -491,9 +492,9 @@ export async function runOrgRoleCreationChat(args: {
     console.warn("[org/agent:role-creation-mention-filter]", error);
   }
 
-  const selectedModel = isOrgAgentModelId(args.model)
-    ? args.model
-    : resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
+  const selectedModel =
+    migrateOrgAgentModel(args.model) ??
+    resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
   const userMetadata: OrgAgentMessageMetadata = {
     attachments: referenceAttachmentMetadata(attachments),
     roleCreationAttachments: attachments,
@@ -639,7 +640,7 @@ export async function runOrgRoleCreationChat(args: {
   let activeModel = selectedModel;
   let upstreamProvider: string | undefined;
   let activeReasoningEffort: OrgAgentReasoningEffort =
-    DEFAULT_ORG_AGENT_REASONING_EFFORT;
+    getOrgAgentReasoningEffort(activeModel);
   let calibrationCompleted = false;
   let totalCalls = 0;
   let reply = "";

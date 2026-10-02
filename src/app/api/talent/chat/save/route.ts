@@ -555,7 +555,7 @@ export async function POST(req: NextRequest) {
       opportunityDiscoveryQueued: Boolean(opportunityRun),
       opportunityRun: serializeOpportunityRun(opportunityRun),
       searchStatusMessage: null,
-      shouldEndCall: false,
+      shouldEndCall: isCallMode && shouldApplyCompletion,
       insightUpdatedAt: responseInsightUpdatedAt,
       nextStepInstructions,
       onboardingChecklistProgress,

@@ -27,7 +27,7 @@ import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import {
   CLAUDE_MODEL,
-  GPT_56_LUNA_MODEL,
+  GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
@@ -70,9 +70,9 @@ const devTextChatModelOptions: Array<{
     value: OPENROUTER_MUSE_SPARK_13_MODEL,
   },
   {
-    eventKey: "gpt_5_6_luna_xhigh",
-    label: "GPT-5.6 Luna · xhigh",
-    value: GPT_56_LUNA_MODEL,
+    eventKey: "gpt_6_luna_xhigh",
+    label: "GPT-6 Luna · xhigh",
+    value: GPT_6_LUNA_MODEL,
   },
   {
     eventKey: "gpt_6_1_sol_high",

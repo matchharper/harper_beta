@@ -25,7 +25,7 @@ import {
 } from "@/lib/career/reengagementHistory.server";
 import { resolveCareerReengagementActionKeys } from "@/lib/career/reengagementActions";
 import { createCareerPendingActionRef } from "@/lib/career/pendingActionRef.server";
-import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -459,7 +459,7 @@ export async function POST(req: NextRequest) {
             const result = await runCareerChatTurn({
               allowedToolNames: [],
               admin,
-              assistantModel: GPT_56_LUNA_MODEL,
+              assistantModel: GPT_6_LUNA_MODEL,
               assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
               assistantMessagePrefix,
               assistantTemperature: REENGAGEMENT_TEMPERATURE,
@@ -512,7 +512,7 @@ export async function POST(req: NextRequest) {
     const result = await runCareerChatTurn({
       allowedToolNames: [],
       admin,
-      assistantModel: GPT_56_LUNA_MODEL,
+      assistantModel: GPT_6_LUNA_MODEL,
       assistantMessagePayload: CAREER_REENGAGEMENT_MESSAGE_PAYLOAD,
       assistantMessagePrefix,
       assistantTemperature: REENGAGEMENT_TEMPERATURE,

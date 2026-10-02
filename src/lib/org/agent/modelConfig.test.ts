@@ -5,11 +5,13 @@ import {
   DEFAULT_ORG_AGENT_MODEL,
   DEFAULT_SLACK_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
+  getOrgAgentReasoningEffort,
   getSlackOrgAgentModel,
+  migrateOrgAgentModel,
   ORG_AGENT_GEMINI_FLASH_MODEL,
   ORG_AGENT_TEMPERATURE,
   ORG_AGENT_CLAUDE_MODEL,
-  ORG_AGENT_DEEPSEEK_V4_1_FLASH_MODEL,
+  ORG_AGENT_GLM_53_FLASH_MODEL,
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_MODEL_IDS,
   ORG_AGENT_TERRA_MODEL,
@@ -19,7 +21,7 @@ import {
 test("exposes every supported company-side LLM", () => {
   assert.deepEqual(ORG_AGENT_MODEL_IDS, [
     ORG_AGENT_GEMINI_FLASH_MODEL,
-    ORG_AGENT_DEEPSEEK_V4_1_FLASH_MODEL,
+    ORG_AGENT_GLM_53_FLASH_MODEL,
     ORG_AGENT_LUNA_MODEL,
     ORG_AGENT_TERRA_MODEL,
     ORG_AGENT_CLAUDE_MODEL,
@@ -38,10 +40,23 @@ test("uses Luna as the only company-agent fallback", () => {
   assert.equal(getOrgAgentFallbackModel(ORG_AGENT_LUNA_MODEL), null);
 });
 
+test("maps the previous DeepSeek selection to GLM", () => {
+  assert.equal(
+    migrateOrgAgentModel("deepseek/deepseek-v4.1-flash"),
+    ORG_AGENT_GLM_53_FLASH_MODEL
+  );
+  assert.equal(
+    resolveOrgAgentModel("deepseek/deepseek-v4.1-flash").model,
+    ORG_AGENT_GLM_53_FLASH_MODEL
+  );
+});
+
 test("uses Gemini 3.8 Flash with medium reasoning for web and Slack by default", () => {
   assert.equal(DEFAULT_ORG_AGENT_MODEL, ORG_AGENT_GEMINI_FLASH_MODEL);
   assert.equal(DEFAULT_SLACK_ORG_AGENT_MODEL, ORG_AGENT_GEMINI_FLASH_MODEL);
   assert.equal(DEFAULT_ORG_AGENT_REASONING_EFFORT, "medium");
+  assert.equal(getOrgAgentReasoningEffort(ORG_AGENT_GLM_53_FLASH_MODEL), "high");
+  assert.equal(getOrgAgentReasoningEffort(ORG_AGENT_GEMINI_FLASH_MODEL), "medium");
   assert.equal(ORG_AGENT_TEMPERATURE, 0.5);
   assert.equal(getOrgAgentFallbackModel(ORG_AGENT_GEMINI_FLASH_MODEL), null);
 

@@ -13,7 +13,7 @@ import {
 } from "@/lib/llm/usageLogging";
 import {
   CLAUDE_MODEL,
-  GPT_56_LUNA_MODEL,
+  GPT_6_LUNA_MODEL,
   GPT_56_TERRA_MODEL,
   GPT_61_SOL_MODEL,
 } from "@/lib/llm/modelConfig";
@@ -55,7 +55,7 @@ export const CAREER_LLM_CONFIG = {
   chat: {
     maxTokens: 4096,
     gmailCareerHistoryFollowUp: {
-      model: GPT_56_LUNA_MODEL,
+      model: GPT_6_LUNA_MODEL,
       reasoningEffort: "high" as const,
     },
     opportunityFeedbackFollowUp: {
@@ -63,7 +63,7 @@ export const CAREER_LLM_CONFIG = {
       reasoningEffort: "medium" as const,
     },
     recommendationFinalizer: {
-      model: GPT_56_LUNA_MODEL,
+      model: GPT_6_LUNA_MODEL,
       reasoningEffort: "high" as const,
     },
     temperature: 0.7,
@@ -72,14 +72,14 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: /api/talent/chat, /api/talent/chat/save.
   insightExtraction: {
     fallbackModel: CLAUDE_MODEL,
-    model: GPT_56_LUNA_MODEL,
+    model: GPT_6_LUNA_MODEL,
     reasoningEffort: "high" as const,
     temperature: 0.2,
   },
   // 긴 talent chat history를 rolling summary로 압축할 때.
   // 사용처: maybeSummarizeTalentConversation.
   conversationSummary: {
-    model: GPT_56_LUNA_MODEL,
+    model: GPT_6_LUNA_MODEL,
     reasoningEffort: "high" as const,
     temperature: 0.2,
   },
@@ -88,7 +88,7 @@ export const CAREER_LLM_CONFIG = {
   callNoteAnalysis: {
     fallbackModel: CLAUDE_MODEL,
     maxTokens: 600,
-    model: GPT_56_LUNA_MODEL,
+    model: GPT_6_LUNA_MODEL,
     reasoningEffort: "low" as const,
     temperature: 0.1,
   },
@@ -110,21 +110,21 @@ export const CAREER_LLM_CONFIG = {
   // finalSelection: 상세 후보 중 최종 추천과 fit reason JSON 생성.
   // 사용처: src/lib/talentOnboarding/jobPostingRecommendations.ts.
   recommendJobPostings: {
-    anthropicOverloadFallbackModel: GPT_56_LUNA_MODEL,
-    fallbackModel: GPT_56_LUNA_MODEL,
-    finalSelectionModel: GPT_56_LUNA_MODEL,
+    anthropicOverloadFallbackModel: GPT_6_LUNA_MODEL,
+    fallbackModel: GPT_6_LUNA_MODEL,
+    finalSelectionModel: GPT_6_LUNA_MODEL,
     finalSelectionReasoningEffort: "high" as const,
     finalSelectionTemperature: 0.2,
     planModel: GPT_61_SOL_MODEL,
     planReasoningEffort: "high" as const,
     planTemperature: 0.2,
-    shortlistModel: GPT_56_LUNA_MODEL,
+    shortlistModel: GPT_6_LUNA_MODEL,
     shortlistReasoningEffort: "high" as const,
     shortlistTemperature: 0.1,
-    fullJdPlanModel: GPT_56_LUNA_MODEL,
+    fullJdPlanModel: GPT_6_LUNA_MODEL,
     fullJdPlanReasoningEffort: "high" as const,
     fullJdPlanTemperature: 0.2,
-    fullJdScoringModel: GPT_56_LUNA_MODEL,
+    fullJdScoringModel: GPT_6_LUNA_MODEL,
     fullJdScoringReasoningEffort: "high" as const,
   },
   // LinkedIn/이력서/입력 링크에서 가져온 profile raw data를 정규화/보강할 때.
@@ -145,6 +145,7 @@ export const CAREER_LLM_CONFIG = {
   // 기존 Realtime 경로와 섞지 않고 /api/live/session에서만 사용한다.
   live: {
     delegationModel: GPT_61_SOL_MODEL,
+    delegationReasoningEffort: "xhigh" as const,
     model: "gpt-live-1",
     voice: "cedar",
   },

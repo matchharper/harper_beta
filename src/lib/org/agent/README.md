@@ -87,7 +87,7 @@ DB를 읽기만 하며 LLM을 호출하거나 tool을 실행하지 않는다. �
 - 첫 텍스트까지의 시간·전체 호출 시간·provider generation ID·출력/추론 토큰은 `[org/agent:completion]`에 기록한다. 원문 prompt·답변·추론은 이 로그에 기록하지 않는다. 스트리밍은 첫 텍스트 이전의 추론 시간을 줄인다는 보장이 아니며, 전용 신규 Role 작성과 Slack 전달 방식은 그대로다.
 
 - 기본값은 웹과 Slack 모두 OpenRouter `google/gemini-3.8-flash`, temperature `0.5`, reasoning `medium`이다. Gemini 출력 예산은 추론을 포함해 최소 8192이며 다른 모델로 조용히 fallback하지 않는다.
-- DeepSeek 선택지는 OpenRouter의 `deepseek/deepseek-v4.1-flash` 한 종류다.
+- GLM 선택지는 OpenRouter의 `z-ai/glm-5.3-flash`이며 reasoning `high`를 사용한다.
 - 내부 웹 사용자는 composer의 model selector에서 턴별 model을 바꿀 수 있고,
   마지막 선택은 브라우저에 저장된다.
 - 서버 공통 기본값은 `ORG_AGENT_MODEL`, Slack 전용 override는

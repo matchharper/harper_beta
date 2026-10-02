@@ -10,6 +10,10 @@ import type {
   UseRealtimeSessionArgs,
 } from "./useRealtimeSession";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
+import {
+  getLiveCallTimeoutAction,
+  LIVE_MAX_DURATION_MS,
+} from "@/lib/career/liveCallTimeout";
 
 type LiveFunctionCall = {
   arguments: string;
@@ -125,6 +129,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isAssistantSpeaking, setIsAssistantSpeaking] = useState(false);
   const [isToolExecuting, setIsToolExecuting] = useState(false);
+  const [idleWarningVisible, setIdleWarningVisible] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "reconnecting" | "disconnected"
@@ -169,6 +174,17 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   const latestAudioSecondsRef = useRef<number | null>(null);
   const audioUsageLoggedRef = useRef(false);
   const sessionClosedRef = useRef(false);
+  const connectedAtRef = useRef<number | null>(null);
+  const lastActivityAtRef = useRef<number | null>(null);
+  const idleWarningAtRef = useRef<number | null>(null);
+  const idleCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hardCapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const automaticEndFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const automaticEndRequestedRef = useRef(false);
+  const assistantSpeakingRef = useRef(false);
+  const toolExecutingRef = useRef(false);
 
   const onAssistantDeltaRef = useRef(onAssistantDelta);
   const onAssistantDoneRef = useRef(onAssistantDone);
@@ -203,6 +219,39 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   useEffect(() => {
     onUserSpeechStoppedRef.current = onUserSpeechStopped;
   }, [onUserSpeechStopped]);
+
+  const markActivity = useCallback(() => {
+    if (connectedAtRef.current === null || automaticEndRequestedRef.current)
+      return;
+    lastActivityAtRef.current = Date.now();
+    idleWarningAtRef.current = null;
+    setIdleWarningVisible(false);
+  }, []);
+
+  useEffect(() => {
+    assistantSpeakingRef.current = isAssistantSpeaking;
+    markActivity();
+  }, [isAssistantSpeaking, markActivity]);
+
+  useEffect(() => {
+    toolExecutingRef.current = isToolExecuting;
+    markActivity();
+  }, [isToolExecuting, markActivity]);
+
+  const clearCallTimeouts = useCallback(() => {
+    if (idleCheckTimerRef.current) clearInterval(idleCheckTimerRef.current);
+    if (hardCapTimerRef.current) clearTimeout(hardCapTimerRef.current);
+    if (automaticEndFallbackRef.current) {
+      clearTimeout(automaticEndFallbackRef.current);
+    }
+    idleCheckTimerRef.current = null;
+    hardCapTimerRef.current = null;
+    automaticEndFallbackRef.current = null;
+    connectedAtRef.current = null;
+    lastActivityAtRef.current = null;
+    idleWarningAtRef.current = null;
+    setIdleWarningVisible(false);
+  }, []);
 
   const ensureRemoteAudioElement = useCallback(() => {
     if (typeof document === "undefined") return null;
@@ -545,6 +594,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         if (type === "session.input_transcript.delta") {
           const delta = typeof message.delta === "string" ? message.delta : "";
           if (!delta) return;
+          markActivity();
           if (assistantTranscriptRef.current) {
             flushAssistantTranscript({ interrupted: true });
           }
@@ -561,6 +611,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         if (type === "session.output_transcript.delta") {
           const delta = typeof message.delta === "string" ? message.delta : "";
           if (!delta) return;
+          markActivity();
           flushUserTranscript();
           if (assistantPlaybackStartedAtRef.current === null) {
             assistantPlaybackStartedAtRef.current = getNow();
@@ -572,6 +623,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           return;
         }
         if (type === "session.delegation.created") {
+          markActivity();
           // Live transcripts have no done event. Delegation is the reliable
           // boundary that says the user's current utterance is ready for work.
           flushUserTranscript();
@@ -663,12 +715,14 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       flushUserTranscript,
       handleDelegatedResponseEvent,
       logAudioUsage,
+      markActivity,
       scheduleAssistantTranscriptFlush,
       sendEvent,
     ]
   );
 
   const cleanupTransport = useCallback(() => {
+    clearCallTimeouts();
     mockInterviewOpportunityIdRef.current = null;
     sessionStartedResolverRef.current?.(false);
     sessionStartedResolverRef.current = null;
@@ -709,7 +763,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       remoteAudioRef.current.srcObject = null;
     }
     remoteAudioRef.current = null;
-  }, [clearPlaybackTimers]);
+  }, [clearCallTimeouts, clearPlaybackTimers]);
 
   const disconnect = useCallback(() => {
     const wasConnected = dataChannelRef.current?.readyState === "open";
@@ -745,6 +799,55 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     logAudioUsage,
     sendEvent,
   ]);
+
+  const requestAutomaticEnd = useCallback(() => {
+    if (automaticEndRequestedRef.current || connectedAtRef.current === null)
+      return;
+    automaticEndRequestedRef.current = true;
+    setIdleWarningVisible(false);
+    try {
+      onEndCallToolRef.current?.();
+    } catch (error) {
+      console.error("[LiveSession] Automatic call end failed:", error);
+    }
+    if (connectedAtRef.current === null) return;
+    // The normal end-call path saves the transcript and disconnects. Release
+    // the billable Live transport even if that UI path fails unexpectedly.
+    automaticEndFallbackRef.current = setTimeout(() => disconnect(), 1_000);
+  }, [disconnect]);
+
+  const checkIdleTimeout = useCallback(() => {
+    const connectedAt = connectedAtRef.current;
+    if (connectedAt === null || automaticEndRequestedRef.current) return;
+    const now = Date.now();
+    const action = getLiveCallTimeoutAction({
+      now,
+      connectedAt,
+      lastActivityAt: lastActivityAtRef.current ?? connectedAt,
+      warningAt: idleWarningAtRef.current,
+      busy:
+        assistantSpeakingRef.current ||
+        toolExecutingRef.current ||
+        getNow() < playbackDrainUntilRef.current,
+    });
+    if (action === "end") {
+      requestAutomaticEnd();
+      return;
+    }
+    if (action === "active") {
+      markActivity();
+      return;
+    }
+    if (action === "warn") {
+      idleWarningAtRef.current = now;
+      setIdleWarningVisible(true);
+    }
+  }, [markActivity, requestAutomaticEnd]);
+
+  const acknowledgeIdleWarning = useCallback(() => {
+    if (idleWarningAtRef.current === null) return;
+    markActivity();
+  }, [markActivity]);
 
   const connect = useCallback(
     (options?: RealtimeConnectOptions): Promise<boolean> => {
@@ -962,6 +1065,16 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           }
 
           connectedSuccessfully = true;
+          const connectedAt = Date.now();
+          connectedAtRef.current = connectedAt;
+          lastActivityAtRef.current = connectedAt;
+          idleWarningAtRef.current = null;
+          automaticEndRequestedRef.current = false;
+          idleCheckTimerRef.current = setInterval(checkIdleTimeout, 1_000);
+          hardCapTimerRef.current = setTimeout(
+            requestAutomaticEnd,
+            LIVE_MAX_DURATION_MS
+          );
           setIsConnected(true);
           setConnectionStatus("connected");
           onConnectionChangeRef.current(true);
@@ -1003,6 +1116,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     },
     [
       cleanupTransport,
+      checkIdleTimeout,
       conversationId,
       ensureRemoteAudioElement,
       fetchWithAuth,
@@ -1011,6 +1125,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       handleMessage,
       locale,
       logAudioUsage,
+      requestAutomaticEnd,
       tCareer,
     ]
   );
@@ -1091,11 +1206,29 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
 
   useEffect(() => disconnect, [disconnect]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.addEventListener("visibilitychange", checkIdleTimeout);
+    window.addEventListener("pageshow", checkIdleTimeout);
+    return () => {
+      document.removeEventListener("visibilitychange", checkIdleTimeout);
+      window.removeEventListener("pageshow", checkIdleTimeout);
+    };
+  }, [checkIdleTimeout]);
+
+  useEffect(() => {
+    if (!idleWarningVisible || typeof document === "undefined") return;
+    document.addEventListener("click", acknowledgeIdleWarning);
+    return () => document.removeEventListener("click", acknowledgeIdleWarning);
+  }, [acknowledgeIdleWarning, idleWarningVisible]);
+
   return {
     isConnected,
     isConnecting,
     isAssistantSpeaking,
     isToolExecuting,
+    idleWarningVisible,
+    acknowledgeIdleWarning,
     activeToolNames: [] as string[],
     partialTranscript,
     connectionStatus,

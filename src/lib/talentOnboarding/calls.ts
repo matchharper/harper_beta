@@ -389,7 +389,6 @@ export function getOnboardingChecklistCoverageStats(
     finalConfirmationCovered,
     isComplete:
       coveredCount >= ONBOARDING_QUESTION_MIN_COVERED_COUNT &&
-      additionalCoveredCount >= additionalQuestionKeys.length &&
       finalConfirmationCovered &&
       requiredQuestionsCovered,
     minCoveredCount: ONBOARDING_QUESTION_MIN_COVERED_COUNT,
@@ -405,11 +404,10 @@ export function getOnboardingChecklistCoverageStats(
 export function serializeOnboardingChecklistProgress(
   stats: ReturnType<typeof getOnboardingChecklistCoverageStats>
 ): OnboardingChecklistProgress {
-  const coveredCount = Math.max(
-    0,
-    stats.coveredCount - (stats.finalConfirmationCovered ? 1 : 0)
-  );
-  const totalCount = Math.max(0, stats.totalCount - 1);
+  const totalCount = stats.requiredQuestionKeys.length;
+  const coveredCount = totalCount - stats.requiredQuestionKeys.filter(
+    (key) => stats.missingItems.some((item) => item.key === key)
+  ).length;
   const percent =
     totalCount > 0
       ? Math.min(100, Math.round((coveredCount / totalCount) * 100))

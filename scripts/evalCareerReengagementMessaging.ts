@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
-import { GPT_56_LUNA_MODEL, GPT_56_TERRA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL, GPT_56_TERRA_MODEL } from "@/lib/llm/modelConfig";
 import {
   buildCareerConversationPromptPlan,
   buildCareerSessionStartTurnInstruction,
@@ -133,7 +133,7 @@ async function main() {
       maxTokens: 4096,
       messages,
       openAIResponsesReasoningEffort: "xhigh",
-      primaryModel: GPT_56_LUNA_MODEL,
+      primaryModel: GPT_6_LUNA_MODEL,
       temperature: 0.8,
     });
     const resolvedOutput = resolveCareerReengagementActionKeys({
@@ -174,7 +174,7 @@ async function main() {
     datasetVersion: fixture.datasetVersion,
     fixtureHash: createHash("sha256").update(inputBytes).digest("hex"),
     humanReview: "pending",
-    model: GPT_56_LUNA_MODEL,
+    model: GPT_6_LUNA_MODEL,
     openAIResponsesReasoningEffort: "xhigh",
     outputCount: outputs.length,
     outputPath,

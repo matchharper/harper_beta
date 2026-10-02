@@ -6,7 +6,7 @@ import {
   createChatCompletionWithFallback,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
-import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { CLAUDE_MODEL, GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { generateMeetingInvitationEmail } from "@/lib/meetings/invitationCopy";
 import {
   formatPreparedMeetingScheduleConfirmation,
@@ -366,7 +366,7 @@ async function runCompanyCase(item: CompanyCase) {
 
 async function runInvitationCase(
   item: InvitationCase,
-  model: string = GPT_56_LUNA_MODEL
+  model: string = GPT_6_LUNA_MODEL
 ) {
   const { id, ...args } = item;
   return {
@@ -400,7 +400,7 @@ async function main() {
   };
   if (process.argv.includes("--compare-invitation-models")) {
     for (const item of invitationCases.slice(0, 3)) {
-      print(await runInvitationCase(item, GPT_56_LUNA_MODEL));
+      print(await runInvitationCase(item, GPT_6_LUNA_MODEL));
       print(await runInvitationCase(item, CLAUDE_MODEL));
     }
     return;

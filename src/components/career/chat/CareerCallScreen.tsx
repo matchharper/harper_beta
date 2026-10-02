@@ -16,6 +16,7 @@ import { BareButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
+import { CareerCallIdlePrompt } from "./CareerCallIdlePrompt";
 
 /* ─── Waveform Dots ─── */
 
@@ -199,6 +200,8 @@ const CareerCallScreen = () => {
     isVoiceToolExecuting,
     voiceActiveToolNames = [],
     mockInterviewDisplay,
+    idleWarningVisible,
+    onAcknowledgeIdleWarning,
   } = useCareerCallContext();
 
   const getToolStatus = (toolName: string) => {
@@ -318,6 +321,9 @@ const CareerCallScreen = () => {
       )}
     >
       <div className="absolute inset-x-4 top-4 z-20 flex flex-col items-center">
+        {idleWarningVisible && onAcknowledgeIdleWarning ? (
+          <CareerCallIdlePrompt onContinue={onAcknowledgeIdleWarning} />
+        ) : null}
         {callConnectionStatus === "reconnecting" && (
           <div className="flex items-center gap-2 rounded-full border border-neutral-1000-a05 bg-bg-floating px-3 py-2 text-sm text-neutral-muted shadow-[0_10px_24px_color-mix(in_srgb,var(--color-neutral-1000)_10%,transparent)] backdrop-blur">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

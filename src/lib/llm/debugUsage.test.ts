@@ -4,7 +4,7 @@ import { createLlmDebugCall, summarizeLlmDebugCalls } from "./debugUsage";
 
 test("calculates cached and uncached Luna cost per completion", () => {
   const call = createLlmDebugCall({
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     response: {
       usage: {
         completion_tokens: 1_000,
@@ -19,9 +19,9 @@ test("calculates cached and uncached Luna cost per completion", () => {
   assert.deepEqual(call, {
     cacheCreationInputTokens: 0,
     cacheReadInputTokens: 4_000,
-    estimatedCostUsd: 0.00248,
+    estimatedCostUsd: 0.00114,
     inputTokens: 10_000,
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     outputTokens: 1_000,
     pricingStatus: "estimated",
     processedInputTokens: 10_000,
@@ -33,7 +33,7 @@ test("calculates cached and uncached Luna cost per completion", () => {
 test("sums priced calls and reports partial pricing", () => {
   const summary = summarizeLlmDebugCalls([
     createLlmDebugCall({
-      model: "gpt-5.6-luna",
+      model: "gpt-6-luna",
       response: {
         usage: {
           completion_tokens: 100,
@@ -57,16 +57,16 @@ test("sums priced calls and reports partial pricing", () => {
   ]);
 
   assert.equal(summary.completionCount, 2);
-  assert.equal(summary.estimatedCostUsd, 0.00032);
+  assert.equal(summary.estimatedCostUsd, 0.00015);
   assert.equal(summary.pricingStatus, "partial");
-  assert.deepEqual(summary.models, ["gpt-5.6-luna", "unknown-model"]);
+  assert.deepEqual(summary.models, ["gpt-6-luna", "unknown-model"]);
   assert.equal(summary.inputTokens, 1_500);
   assert.equal(summary.outputTokens, 150);
 });
 
 test("does not report zero cost when a provider omits usage", () => {
   const call = createLlmDebugCall({
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     response: { choices: [] },
     step: "final_response",
   });

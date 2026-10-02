@@ -965,7 +965,7 @@ export const ko = {
   "agent.OrgAgentComposer.37d8f362": "파일 업로드",
   "agent.OrgAgentComposer.3e1ad435": "Ask anything, @ for choosing talent",
   "agent.OrgAgentComposer.477bbe8b": "Gemini 3.8 Flash · OpenRouter",
-  "agent.OrgAgentComposer.494ba81d": "DeepSeek V4.1 Flash · OpenRouter",
+  "agent.OrgAgentComposer.494ba81d": "GLM 5.3 Flash · OpenRouter",
   "agent.OrgAgentComposer.53ee5ea2": "도구",
   "agent.OrgAgentComposer.7b559de8": "후보자를 불러오지 못했어요.",
   "agent.OrgAgentComposer.8aadbdab": "파일을 첨부하지 못했습니다.",

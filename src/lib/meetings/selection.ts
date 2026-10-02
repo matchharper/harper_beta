@@ -3,7 +3,7 @@ import {
   getLlmErrorMessage,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
-import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import type { OrgLocale } from "@/i18n/org/locale";
 import type { PublicMeetingSlot } from "@/lib/meetings/invitation";
 
@@ -149,7 +149,7 @@ export async function selectMeetingOption(args: {
         response_format: { type: "json_object" },
       }),
       debugLabel: "meetings:auto-selection",
-      model: GPT_56_LUNA_MODEL,
+      model: GPT_6_LUNA_MODEL,
       openAIResponses: { reasoningEffort: "low" },
     });
     const parsed = JSON.parse(
