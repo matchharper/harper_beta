@@ -8,6 +8,8 @@ export const GPT_61_SOL_MODEL = "gpt-6.1-sol" as const;
 
 export const OPENROUTER_DEEPSEEK_V4_FLASH_0731_MODEL =
   "deepseek/deepseek-v4-flash-0731" as const;
+export const OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL =
+  "deepseek/deepseek-v4.1-flash" as const;
 
 export const OPENROUTER_GLM_53_FLASH_MODEL = "z-ai/glm-5.3-flash" as const;
 export const OPENROUTER_MIMO_V26_PRO_MODEL = "xiaomi/mimo-v2.6-pro" as const;

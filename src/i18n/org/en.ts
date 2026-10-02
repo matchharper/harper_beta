@@ -969,7 +969,7 @@ export const en: Record<OrgMessageKey, string> = {
   "agent.OrgAgentComposer.3e1ad435":
     "Ask Harper anything. Use @ to mention a candidate.",
   "agent.OrgAgentComposer.477bbe8b": "Gemini 3.8 Flash · OpenRouter",
-  "agent.OrgAgentComposer.494ba81d": "DeepSeek V4 Flash 0731 · OpenRouter",
+  "agent.OrgAgentComposer.494ba81d": "DeepSeek V4.1 Flash · OpenRouter",
   "agent.OrgAgentComposer.53ee5ea2": "Tools",
   "agent.OrgAgentComposer.7b559de8": "Failed to load candidates.",
   "agent.OrgAgentComposer.8aadbdab": "Failed to attach file.",

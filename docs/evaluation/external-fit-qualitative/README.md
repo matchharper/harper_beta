@@ -16,7 +16,7 @@ Canonical runner: `harper_worker/llm_evals/external_fit_qualitative/eval.py`. It
 
 ## Model and output contract
 
-- A: `configured_llm_call(EXTERNAL_FIT_SCORING_CALL)` including environment override. Current default is OpenRouter `deepseek/deepseek-v4-flash-0731`, pinned Relace, medium reasoning. Production batches of 10, unchanged score and neutral role-summary output. No extra dimensions are requested from A because that would change the control.
+- A: `configured_llm_call(EXTERNAL_FIT_SCORING_CALL)` including environment override. Current default is OpenRouter `deepseek/deepseek-v4.1-flash`, provider chosen by OpenRouter price routing, medium reasoning. Production batches of 10, unchanged score and neutral role-summary output. Historical pilot-v4 calls used `deepseek/deepseek-v4-flash-0731` pinned to Relace; new model runs require a new run ID against the same frozen input. No extra dimensions are requested from A because that would change the control.
 - B: OpenRouter Decisions API `https://openrouter.ai/api/alpha/decisions`, pinned `typesafe/jev-1.13`; record resolved dated model in each response. Six questions per candidate-role, one call per pair, no repetitions or result-driven tuning. Native API has no chat explanation, reasoning effort or temperature setting. 180-second response timeout.
 - B `roleFit`, `talentPreferenceFit`, `companyPreferenceFit`, `overallRecommendationFit`: five anchored ordinal levels 0–4, returned expectation scaled to 0–100. These are rubric scores, not hiring probabilities. Company preference means documented employer-side qualification match; private employer preferences are unavailable.
 - B `passHardConstraint`: native Noul probability of **no demonstrated violation** of explicit nonnegotiable candidate constraints. Missing facts alone are not a failure unless confirmed terms are explicitly required. Preserve the probability; do not turn it into an arbitrary boolean threshold.
@@ -35,7 +35,7 @@ Structural checks: the captured pair count per arm, no unknown or missing role I
 
 ## Privacy and execution
 
-The user explicitly requested these three real-user model calls. Production is accessed only with canonical `connect_read_only(load_config())`, verifying `transaction_read_only=on`. Raw profile, Brief, Behavior Context, role/company data, IDs and model output are confined to ignored `private/` / `runs/`, directories 0700/files 0600. No secrets in manifests. Model requests transmit the matching projection and public role facts through OpenRouter to Relace/DeepSeek and TypeSafe/Jev, with `data_collection=deny`. No production cache, fit, recommendation, message or status writes.
+The user explicitly requested these three real-user model calls. Production is accessed only with canonical `connect_read_only(load_config())`, verifying `transaction_read_only=on`. Raw profile, Brief, Behavior Context, role/company data, IDs and model output are confined to ignored `private/` / `runs/`, directories 0700/files 0600. No secrets in manifests. Model requests transmit the matching projection and public role facts through OpenRouter to its selected DeepSeek provider and TypeSafe/Jev, with `data_collection=deny`. Historical pilot-v4 DeepSeek requests used Relace. No production cache, fit, recommendation, message or status writes.
 
 From workspace root:
 

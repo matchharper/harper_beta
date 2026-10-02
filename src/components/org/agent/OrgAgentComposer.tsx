@@ -40,7 +40,7 @@ import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import {
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_GEMINI_FLASH_MODEL,
-  ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
+  ORG_AGENT_DEEPSEEK_V4_1_FLASH_MODEL,
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_TERRA_MODEL,
   isOrgAgentModelId,
@@ -131,8 +131,8 @@ function ModelSelector({
       value: ORG_AGENT_GEMINI_FLASH_MODEL,
     },
     {
-      label: t("agent.OrgAgentComposer.494ba81d", "DeepSeek V4 Flash 0731 · OpenRouter"),
-      value: ORG_AGENT_DEEPSEEK_FLASH_0731_MODEL,
+      label: t("agent.OrgAgentComposer.494ba81d", "DeepSeek V4.1 Flash · OpenRouter"),
+      value: ORG_AGENT_DEEPSEEK_V4_1_FLASH_MODEL,
     },
     {
       label: t("agent.OrgAgentComposer.a6732deb", "Luna · GPT-5.6"),

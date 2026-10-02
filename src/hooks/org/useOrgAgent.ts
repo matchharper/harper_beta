@@ -178,7 +178,7 @@ function toThinkingLog(value: unknown): OrgAgentThinkingLog | null {
 function sanitizeVisibleAgentError(value: unknown, modelLabel: string) {
   return String(value ?? "")
     .replace(/claude-sonnet-5(?:-[\w.-]+)?/gi, modelLabel)
-    .replace(/(?:deepseek\/)?deepseek-v4-flash-0731(?:-[\w.-]+)?/gi, modelLabel)
+    .replace(/(?:deepseek\/)?deepseek-v4(?:\.1)?-flash(?:-0731)?(?:-[\w.-]+)?/gi, modelLabel)
     .replace(/gpt-5\.6-luna(?:-[\w.-]+)?/gi, modelLabel)
     .replace(/gpt-5\.6-terra(?:-[\w.-]+)?/gi, modelLabel)
     .trim();

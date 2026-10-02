@@ -105,6 +105,12 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     outputUsdPerMtok: 0.16,
     pricingSource: "openrouter_pricing_2026_09_13",
   },
+  "deepseek/deepseek-v4.1-flash": {
+    cacheReadUsdPerMtok: 0.027,
+    inputUsdPerMtok: 0.027,
+    outputUsdPerMtok: 0.6,
+    pricingSource: "openrouter_pricing_2026_10_02",
+  },
   "z-ai/glm-5.3-flash": {
     cacheReadUsdPerMtok: 0.015,
     inputUsdPerMtok: 0.075,

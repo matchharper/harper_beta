@@ -61,16 +61,16 @@ test("prices retired Grok Fast slugs as redirected Grok 4.3", () => {
   assert.equal(cost?.estimatedCostUsd, 0.0025);
 });
 
-test("prices OpenRouter DeepSeek V4 Flash 0731", () => {
+test("prices OpenRouter DeepSeek V4.1 Flash", () => {
   const usage = extractLlmTokenUsage({
     usage: { input_tokens: 1_000, output_tokens: 500 },
   });
 
-  const cost = estimateLlmUsageCost("deepseek/deepseek-v4-flash-0731", usage);
-  assert.equal(cost?.inputUsdPerMtok, 0.05);
-  assert.equal(cost?.outputUsdPerMtok, 0.16);
-  assert.equal(cost?.pricingSource, "openrouter_pricing_2026_09_13");
-  assert.equal(cost?.estimatedCostUsd, 0.00013);
+  const cost = estimateLlmUsageCost("deepseek/deepseek-v4.1-flash", usage);
+  assert.equal(cost?.inputUsdPerMtok, 0.027);
+  assert.equal(cost?.outputUsdPerMtok, 0.6);
+  assert.equal(cost?.pricingSource, "openrouter_pricing_2026_10_02");
+  assert.equal(cost?.estimatedCostUsd, 0.000327);
 });
 
 test("prices OpenRouter Muse Spark 1.3", () => {
