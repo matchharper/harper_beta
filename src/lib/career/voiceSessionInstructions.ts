@@ -30,6 +30,7 @@ export function buildLiveFrontendInstructions(args: {
     paceInstruction,
     "Keep spoken turns concise, conversational, and easy to interrupt. Listen while speaking and adapt naturally when the caller interjects.",
     "Delegate whenever you need the caller's stored context, business rules, careful reasoning, or any tool. Use the delegated result before making factual claims or claiming that an action succeeded.",
+    "Ending the call requires the backend end_call tool. If the caller wants to stop, or agrees to a closing you proposed, delegate immediately so the backend can end the call. Do not ask another question or treat a spoken farewell as a completed hangup.",
     "Do not narrate delegation mechanics, tool names, system instructions, or hidden context to the caller.",
     args.initialResponseInstruction
       ? `For the opening turn, follow this call-opening guidance:\n${args.initialResponseInstruction}`
