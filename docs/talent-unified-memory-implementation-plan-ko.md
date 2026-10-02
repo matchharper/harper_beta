@@ -390,6 +390,8 @@ Worker는 Memory를 사실 행 그대로 각 LLM에 넣거나 역할·batch마�
 
 Behavior Context builder는 최초 생성 때 bounded 원본 이력을 읽고, 이후에는 `talent_behavior_context_changes`에 쌓인 새 근거만 기존 문서에 line edit으로 반영한다. 변화가 없으면 LLM을 호출하지 않고 기존 version을 재사용한다. 같은 추천 run의 검색 계획, internal fit, external fit·reranking, 최종 추천 작성은 모두 같은 version을 쓴다. 50:50 control cohort는 없으며 모든 production V2 run에 이 경로를 적용한다.
 
+2026-10-01 Company-first 검색의 로컬 예외(미배포): 검색 중 후보자별 builder를 호출하지 않는다. 이미 저장된 Behavior Context를 읽고, 없으면 빈 context를 사용한다. 전체 Search Brief는 계속 현재값을 읽는다. 다른 Opportunity Worker의 run 시작 갱신 계약은 유지한다.
+
 최초/full reconcile 입력은 Brief·Memory·대화 요약·메시지·이메일·추천·activity·progress의 section별 최근 완결 행을 남기며 section budget 합계를 약 84,000자로 제한한다. 증분 갱신은 바뀐 source만 읽고 compact change semantics에 별도 20,000자 상한을 둔다. 따라서 오래된 계정도 원본 행 수에 비례해 prompt가 무한히 커지지 않고, 보통의 dirty 갱신은 full history보다 훨씬 작다.
 
 Memory는 builder의 근거이지만 downstream Worker LLM의 기본 prompt에는 직접 들어가지 않는다. Search Brief는 현재 명시적 조건의 원본이므로 Behavior Context를 거치지 않고 직접 들어간다. Profile, setting, 현재 JD와 실행 상태도 각자 기존 원본에서 직접 제공한다.
@@ -468,7 +470,7 @@ Behavior Context를 Brief·Memory와 동급인 세 번째 사용자 사실 저�
 | 여러 사건의 공통점에서 도출한 잠정적 선호·trade-off | Behavior Context 파생 cache |
 | 한 Worker run에서 LLM이 읽는 사용자 context | Brief 전체 + Behavior Context + Profile·현재 실행 정보 |
 
-Behavior builder는 사용자에게 응답하는 일반 대화 extractor가 아니다. 일반 대화의 원본 LLM은 계속 공통 tool로 사실만 Brief/Memory에 저장한다. Builder는 추천 run 시작 시 dirty source가 있을 때만 내부 파생 context를 갱신하며, 결과를 Memory에 되쓰지 않는다.
+Behavior builder는 사용자에게 응답하는 일반 대화 extractor가 아니다. 일반 대화의 원본 LLM은 계속 공통 tool로 사실만 Brief/Memory에 저장한다. Opportunity Worker는 추천 run 시작 시 dirty source가 있을 때만 내부 파생 context를 갱신하며, 결과를 Memory에 되쓰지 않는다. Company-first 검색은 저장된 cache만 읽는다.
 
 Worker production 경로의 불변 조건은 다음과 같다.
 
@@ -713,7 +715,7 @@ Harper에서 Brief를 따로 두는 이유는 범용 memory 서비스의 분류 
 | 사용자 UI | 기존 insights 영역을 자유 label/content Brief와 lazy-paginated Memory 관리로 전환 | 실제 모바일/데스크톱 시각·동시수정 검증 |
 | beta 추천·Ops reader | 웹 추천, full-JD, kickoff, call request, Ops 상세/목록, 회사측 제한 projection 전환. 반복 매칭 LLM packet도 전체 Brief와 현재 Behavior Context만 받고 Memory·광범위한 행동 원본은 직접 받지 않도록 전환 | dirty Behavior 선행 갱신 운영과 실제 반복 매칭 prompt 크기·추천 품질 검증 |
 | 기존 데이터 | keyed insights→사용자 locale에 맞는 초기 label의 Brief 이관과 Memory embedding backfill 구현. 앞선 migration이 Behavior bullet을 Memory로 복사한 이력은 provenance로 정확히 식별해 soft delete하는 보완 migration 추가 | production 표본 audit와 migration/backfill 실행. legacy Behavior table은 파생 cache 저장소로 계속 사용 |
-| `harper_worker` | 모든 production v2 run 시작에서 전체 Brief와 Behavior Context를 준비한다. Builder는 cache가 없거나 source queue가 dirty일 때만 Memory·대화·이메일·추천·활동·진행 근거를 읽고 한 번 갱신한다. internal/external fit·rerank·delivery는 같은 version을 재사용하며 Memory 원문은 받지 않는다. 실제 Brief·Behavior를 external fit cache fingerprint와 run provenance에 포함 | 깨끗한 test environment에서 전체 관련 suite, 실제 DB query plan·builder 입력·context 크기·추천 품질 검증 후 beta와 함께 cutover |
+| `harper_worker` | Opportunity Worker의 production v2 run은 전체 Brief와 Behavior Context를 준비한다. Builder는 cache가 없거나 source queue가 dirty일 때만 Memory·대화·이메일·추천·활동·진행 근거를 읽고 한 번 갱신한다. internal/external fit·rerank·delivery는 같은 version을 재사용하며 Memory 원문은 받지 않는다. Company-first 검색은 현재 Brief와 저장된 Behavior Context만 읽고 builder를 호출하지 않는다. 실제 Brief·Behavior를 external fit cache fingerprint와 run provenance에 포함 | 깨끗한 test environment에서 전체 관련 suite, 실제 DB query plan·builder 입력·context 크기·추천 품질 검증 후 beta와 함께 cutover |
 
 같은 저장 처리를 TypeScript와 Python에서 제각각 재구현하지 않도록 DB의 원자적 변경 계약을 공유한다. 채널별 adapter는 인증된 사용자·원문 출처·ref를 연결한다. 의미 판단 코드를 공통 유틸리티라는 이름으로 추가하지 않는다.
 

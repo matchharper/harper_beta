@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Ellipsis,
   LoaderCircle,
-  Lock,
   Plus,
   SlackIcon,
   Trash2,
@@ -19,6 +18,7 @@ import {
   ORG_SLACK_PRIVATE_CHANNEL_HELP,
   OrgSlackChannelPicker,
 } from "@/components/org/OrgSlackChannelPicker";
+import { OrgSlackCreateChannelDialog } from "@/components/org/OrgSlackCreateChannelDialog";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { OrgGoogleCalendarIntegration } from "@/components/org/workspace/OrgGoogleCalendarIntegration";
@@ -42,13 +42,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
   useAddOrgSlackChannel,
   useConnectOrgSlack,
-  useCreateOrgSlackChannel,
   useDisconnectOrgSlack,
   useOrgSlackStatus,
   useRemoveOrgSlackChannel,
@@ -56,11 +54,6 @@ import {
 import { useOrgMeetingAvailability } from "@/hooks/org/useOrgMeetingAvailability";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { ISO_WEEKDAYS } from "@/lib/meetings/availability";
-import {
-  getSlackChannelNameError,
-  normalizeSlackChannelName,
-  SLACK_CHANNEL_NAME_MAX_LENGTH,
-} from "@/lib/org/slackChannelCreation";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 
@@ -105,12 +98,7 @@ export function OrgSettingsPage() {
   const addToast = useToastStore((state) => state.add);
   const handledSlackResult = useRef("");
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
-  const [creatingChannelIsPrivate, setCreatingChannelIsPrivate] =
-    useState(false);
-  const [creatingChannelName, setCreatingChannelName] = useState("");
-  const [creatingChannelNameError, setCreatingChannelNameError] = useState<
-    string | null
-  >(null);
+  const [createChannelInitialName, setCreateChannelInitialName] = useState("");
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
   const [addChannelOpen, setAddChannelOpen] = useState(false);
@@ -120,7 +108,6 @@ export function OrgSettingsPage() {
   });
   const connectSlack = useConnectOrgSlack();
   const addSlackChannel = useAddOrgSlackChannel(workspace.workspaceId);
-  const createSlackChannel = useCreateOrgSlackChannel(workspace.workspaceId);
   const disconnectSlack = useDisconnectOrgSlack(workspace.workspaceId);
   const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
@@ -200,54 +187,6 @@ export function OrgSettingsPage() {
     }
   };
 
-  const handleCreateChannelOpenChange = (open: boolean) => {
-    if (!open && createSlackChannel.isPending) return;
-    setCreateChannelOpen(open);
-    if (!open) {
-      setCreatingChannelIsPrivate(false);
-      setCreatingChannelName("");
-      setCreatingChannelNameError(null);
-    }
-  };
-
-  const createChannel = async () => {
-    const channelName = normalizeSlackChannelName(creatingChannelName);
-    const nameError = getSlackChannelNameError(channelName, locale);
-    if (nameError) {
-      setCreatingChannelNameError(nameError);
-      return;
-    }
-    try {
-      const payload = await createSlackChannel.mutateAsync({
-        channelName,
-        isPrivate: creatingChannelIsPrivate,
-      });
-      handleCreateChannelOpenChange(false);
-      const formattedChannel = formatChannel(
-        t,
-        payload.channel.channelName,
-        payload.channel.channelId
-      );
-      const followUp = !payload.creatingUserInvited
-        ? t("workspace.pages.OrgSettingsPage.fcfadfe7", " Slack 계정을 찾지 못해 본인은 자동으로 초대하지 못했어요. Slack 관리자에게 채널 초대를 요청해 주세요.")
-        : !payload.welcomeMessageSent
-          ? t("workspace.pages.OrgSettingsPage.35d14bc9", " Harper의 첫 안내 메시지는 보내지 못했지만 채널 연결은 유지돼요.")
-          : "";
-      addToast({
-        message: t("workspace.pages.OrgSettingsPage.7ea9391f", "{p0} 채널을 만들고 Harper에 연결했어요.{p1}", {
-          p0: formattedChannel,
-          p1: followUp,
-        }),
-        variant: "success",
-      });
-    } catch (error) {
-      addToast({
-        message: localizedOrgErrorMessage(error, locale, t("workspace.pages.OrgSettingsPage.86b4038a", "Slack 채널을 만들지 못했어요. 잠시 후 다시 시도해 주세요.")),
-        variant: "error",
-      });
-    }
-  };
-
   const removeChannel = async () => {
     if (!removeChannelId) return;
     try {
@@ -282,7 +221,6 @@ export function OrgSettingsPage() {
   const mutationError =
     connectSlack.error ??
     addSlackChannel.error ??
-    createSlackChannel.error ??
     removeSlackChannel.error ??
     disconnectSlack.error;
 
@@ -496,10 +434,7 @@ export function OrgSettingsPage() {
                   {permissions.canManageIntegrations ? (
                     <MuteButton
                       size="sm"
-                      disabled={
-                        addSlackChannel.isPending ||
-                        createSlackChannel.isPending
-                      }
+                      disabled={addSlackChannel.isPending || createChannelOpen}
                       onClick={() => {
                         addSlackChannel.reset();
                         setAddChannelOpen(true);
@@ -747,7 +682,7 @@ export function OrgSettingsPage() {
               status?.canCreateChannels
                 ? () => {
                     setAddChannelOpen(false);
-                    setCreatingChannelName("harper");
+                    setCreateChannelInitialName("harper");
                     setCreateChannelOpen(true);
                   }
                 : undefined
@@ -761,116 +696,14 @@ export function OrgSettingsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={createChannelOpen}
-        onOpenChange={handleCreateChannelOpenChange}
-      >
-        <DialogContent className="max-w-md gap-0 rounded-lg p-6">
-          <form
-            className="space-y-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void createChannel();
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="text-[18px]">
-                {t("workspace.pages.OrgSettingsPage.950b7834", "Slack 채널 만들기")}
-              </DialogTitle>
-              <DialogDescription className="text-[13px] leading-5">
-                {t("workspace.pages.OrgSettingsPage.0d89bd18", "채널을 만들면 Harper가 바로 참여하고 연결돼요.")}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-2">
-              <label
-                className="text-[13px] font-medium text-neutral-primary"
-                htmlFor="slack-channel-name"
-              >
-                {t("workspace.pages.OrgSettingsPage.68d018f6", "채널 이름")}
-              </label>
-              <Input
-                aria-describedby="slack-channel-name-message"
-                aria-invalid={Boolean(creatingChannelNameError)}
-                autoCapitalize="none"
-                autoComplete="off"
-                autoFocus
-                disabled={createSlackChannel.isPending}
-                id="slack-channel-name"
-                maxLength={SLACK_CHANNEL_NAME_MAX_LENGTH}
-                onChange={(event) => {
-                  setCreatingChannelName(event.target.value);
-                  setCreatingChannelNameError(null);
-                }}
-                placeholder={t("workspace.pages.OrgSettingsPage.d2073417", "예: hiring-team")}
-                spellCheck={false}
-                value={creatingChannelName}
-              />
-              <p
-                className={cn(
-                  "text-[12px] font-light leading-5",
-                  creatingChannelNameError
-                    ? "text-critical"
-                    : "text-neutral-muted"
-                )}
-                id="slack-channel-name-message"
-              >
-                {creatingChannelNameError ??
-                  t("workspace.pages.OrgSettingsPage.5ae0f4ac", "영문 소문자, 숫자, 하이픈(-), 밑줄(_)을 사용할 수 있어요.")}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 rounded-md bg-neutral-100 px-3 py-3">
-              <div>
-                <div
-                  className="text-[13px] font-medium text-neutral-primary flex flex-row items-center gap-1"
-                  id="slack-channel-private-label"
-                >
-                  <Lock className="size-3" />
-                  {t("workspace.pages.OrgSettingsPage.cbcc58af", "비공개 채널")}
-                </div>
-                <p
-                  className="mt-1 text-[12px] font-light leading-5 text-neutral-muted"
-                  id="slack-channel-private-description"
-                >
-                  {t("workspace.pages.OrgSettingsPage.ad77d0ac", "제한된 Slack 멤버만 참여를 허용합니다.")}
-                </p>
-              </div>
-              <Switch
-                aria-describedby="slack-channel-private-description"
-                aria-labelledby="slack-channel-private-label"
-                checked={creatingChannelIsPrivate}
-                disabled={createSlackChannel.isPending}
-                onCheckedChange={setCreatingChannelIsPrivate}
-              />
-            </div>
-
-            <DialogFooter>
-              <MuteButton
-                disabled={createSlackChannel.isPending}
-                onClick={() => handleCreateChannelOpenChange(false)}
-                size="md"
-                type="button"
-              >
-                {t("workspace.pages.OrgSettingsPage.084f2f6a", "취소")}
-              </MuteButton>
-              <MuteButton
-                disabled={
-                  createSlackChannel.isPending || !creatingChannelName.trim()
-                }
-                size="md"
-                type="submit"
-                variant="primary"
-              >
-                {createSlackChannel.isPending ? (
-                  <LoaderCircle className="size-4 animate-spin" />
-                ) : null}
-                {t("workspace.pages.OrgSettingsPage.67b22260", "채널 만들고 연결하기")}
-              </MuteButton>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {createChannelOpen ? (
+        <OrgSlackCreateChannelDialog
+          initialName={createChannelInitialName}
+          onOpenChange={setCreateChannelOpen}
+          open
+          workspaceId={workspace.workspaceId}
+        />
+      ) : null}
 
       <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
         <DialogContent className="max-w-md gap-4 rounded-lg p-6">

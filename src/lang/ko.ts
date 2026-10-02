@@ -1684,6 +1684,8 @@ export const ko = {
       "대화는 일반 통화와 동일하게 기록과 콜노트로 저장됩니다.",
     "career.history.mock_interview.start": "시작하기",
     "career.history.mock_interview.title": "모의 인터뷰를 시작할까요?",
+    "career.history.new_opportunity_list.external_recommendations_off":
+      "현재 외부 포지션의 추천이 꺼져있습니다. Harper에게 요청하시면, 주기적으로 직접 지원하실만한 외부 공고를 찾아서 전달드립니다.",
     "career.history.new_opportunity_list.harper_suggestions": "Harper의 연결",
     "career.history.new_opportunity_list.internal_connection_description":
       "Harper가 회사와의 연결을 도와드리는 기회입니다. 최대한 수락/거절 의사를 표시해 주세요.",

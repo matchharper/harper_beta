@@ -1,0 +1,90 @@
+{
+  "actual": {
+    "a": "ambiguous",
+    "b": "fit",
+    "c": "ambiguous",
+    "label": "ambiguous",
+    "recommend": false,
+    "score": 62
+  },
+  "caseId": "ABC09",
+  "companyCriteriaInputAudit": {
+    "anchorCaliberRuleIncluded": false,
+    "anchorCompanyRoleRequestChars": 873,
+    "anchorCompanyRoleRequestIncluded": true,
+    "companyCriteriaPromptIncluded": true,
+    "companyDescriptionIncluded": true,
+    "companyRoleCriteriaCount": 4,
+    "companyRoleCriteriaIncluded": true,
+    "companyRoleRequestIncluded": true,
+    "secondStageRoleCount": 1
+  },
+  "databaseReads": 0,
+  "databaseWrites": 0,
+  "datasetVersion": "recommendation-v1",
+  "elapsedSec": 11.368,
+  "errors": [],
+  "finishedAt": "2026-10-01T08:28:39.567799+00:00",
+  "gold": {
+    "a": "fit",
+    "b": "fit",
+    "c": "ambiguous",
+    "recommend": true
+  },
+  "maxTokens": 32768,
+  "model": "claude-sonnet-5-5",
+  "payloadSha256": "b6c4367b510f35dcc85d1d87f3ec2e5eab3f42033d651ffb3e146ae06d5da4d0",
+  "promptSha256": "34c7bfa418adc24a6e15609bf345acd6430202a506915879e4691d4a1558f7c3",
+  "provider": "anthropic-direct",
+  "reasoningEffort": null,
+  "roleCoverage": {
+    "expected": 1,
+    "returned": 1
+  },
+  "runId": "20261001T082828.198546Z_second-stage_ABC09_claude-sonnet-5-5",
+  "sourceRevision": "0b36f10a4a42bb11acb1be25687fdd685939b3ae",
+  "sourceRunId": "20261001T082120.752157Z_recommendation-v1_glm-5.3-flash_high",
+  "startedAt": "2026-10-01T08:28:28.199183+00:00",
+  "task": "internal-fit-second-stage-case",
+  "temperatureConfigured": 0.4,
+  "temperatureSent": false,
+  "usage": {
+    "cacheCreationInputTokens": 6018,
+    "cacheReadInputTokens": 0,
+    "costRecords": [
+      {
+        "cacheCreationInputTokens": 6018,
+        "cacheReadInputTokens": 0,
+        "cacheReadPriceUsdPerMTok": 0.2,
+        "cacheWritePriceUsdPerMTok": 2.5,
+        "cachedInputPriceUsdPerMTok": 0.2,
+        "costMode": "anthropic_prompt_cache",
+        "effectiveModel": "claude-sonnet-5-5",
+        "estimatedCostUsd": 0.040353,
+        "inputPriceUsdPerMTok": 2.0,
+        "inputTokens": 6594,
+        "longContextPricing": false,
+        "model": "claude-sonnet-5-5",
+        "nonCachedInputTokens": 6594,
+        "outputPriceUsdPerMTok": 10.0,
+        "outputTokens": 1212,
+        "pricingAtUtc": null,
+        "pricingAvailable": true,
+        "pricingModel": "claude-sonnet-5-5",
+        "pricingSource": "anthropic_api_pricing_2026_09",
+        "pricingTier": null,
+        "provider": "anthropic",
+        "reasoningTokens": 0,
+        "responseModel": "claude-sonnet-5-5",
+        "step": "internal_fit_evaluation"
+      }
+    ],
+    "estimatedCostUsd": 0.040353,
+    "inputTokens": 6594,
+    "nonCachedInputTokens": 6594,
+    "note": "Estimated LLM API token cost only. Provider cache reads/writes and long-context tiers are included when applicable usage fields are returned.",
+    "outputTokens": 1212,
+    "reasoningTokens": 0,
+    "unpricedCalls": 0
+  }
+}

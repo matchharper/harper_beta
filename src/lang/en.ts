@@ -1251,6 +1251,7 @@ export const en = {
     "career.history.mock_interview.recording": "Your conversation is saved in your history and call notes, just like a regular call.",
     "career.history.mock_interview.start": "Start",
     "career.history.mock_interview.title": "Start a mock interview?",
+    "career.history.new_opportunity_list.external_recommendations_off": "Recommendations for external positions are currently turned off. Ask Harper to turn them on, and Harper will regularly find and share external job postings you can apply to directly.",
     "career.history.new_opportunity_list.harper_suggestions": "Connections through Harper",
     "career.history.new_opportunity_list.internal_connection_description": "These are opportunities Harper helps connect you with. Please accept or decline when you can.",
     "career.history.new_opportunity_list.internal_connection_label": "Harper connection proposal",

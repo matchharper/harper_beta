@@ -20,8 +20,17 @@ export const ko = {
   "agent.quickAction.pendingIntrosMessage":
     "지금 결정이 필요한 연결 대기 목록을 알려줘",
   "agent.quickAction.runSearchMessage":
-    "Run a search based on the current brief",
+    "이 역할에 대해 우리가 먼저 Intro를 요청해볼 만한 후보자를 찾아줘.",
   "shared.introRequested": "Intro Requested",
+  "OrgRoleTalentBoard.recommendationActive": "Harper가 소개하고 있어요",
+  "OrgRoleTalentBoard.recommendationPaused": "후보자 추천 중단",
+  "OrgRoleTalentBoard.recommendationEnded": "후보자 추천 종료",
+  "OrgRoleTalentBoard.recommendationActiveDescription":
+    "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하고 Harper가 최종 확인한 뒤 ‘연결 대기’에 추천해 드려요.",
+  "OrgRoleTalentBoard.recommendationPausedDescription":
+    "역할이 중단되어 새로운 후보자 추천도 쉬고 있어요. 역할을 다시 진행하면 추천도 이어집니다.",
+  "OrgRoleTalentBoard.recommendationEndedDescription":
+    "이 역할의 채용이 종료되어 새로운 후보자를 추천하지 않아요.",
   "OrgAllRolesOverview.candidateCountOne": "{count}명",
   "OrgAllRolesOverview.candidateCountOther": "{count}명",
   "composed.memberCountOne": "{members}명",
@@ -404,7 +413,8 @@ export const ko = {
   "TalentDetailSimpleView.7a4243fe": "발신자 정보 없음",
   "agent.OrgAgentMessage.actionComplete": "처리 완료",
   "workspace.OrgErrorState.failed": "정보를 불러오지 못했습니다.",
-  "meetings.OrgInterviewAvailabilityDialog.conflict": "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요.",
+  "meetings.OrgInterviewAvailabilityDialog.conflict":
+    "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요.",
   "meetings.OrgMeetingScheduleDialog.d68b2f7e":
     "후보자에게 일정 선택 이메일을 보냈어요. 후보자가 가능한 시간을 제출하면 그중 하나로 바로 확정돼요.",
   "meetings.OrgMeetingScheduleDialog.c87db0e6":
@@ -541,7 +551,8 @@ export const ko = {
   "profile.language": "언어",
   "profile.korean": "한국어",
   "profile.english": "English",
-  "profile.languageSaveFailed": "언어 설정을 저장하지 못했어요. 다시 시도해 주세요.",
+  "profile.languageSaveFailed":
+    "언어 설정을 저장하지 못했어요. 다시 시도해 주세요.",
   "CompanyIntroDecisionDialogs.2ab81060": "취소",
   "CompanyIntroDecisionDialogs.3afcab0e": "제안하지 않기",
   "CompanyIntroDecisionDialogs.5e461bbe": "Request Intro: {candidateName}",
@@ -1243,7 +1254,8 @@ export const ko = {
   "role.overview.OrgRoleCalibrationSection.7cb72836":
     "예시 프로필을 살펴보고, 우리 팀의 채용 기준과 맞는지 알려주세요.",
   "role.overview.OrgRoleCalibrationSection.8aecae80": "“A는 Good”",
-  "role.overview.OrgRoleCalibrationSection.instruction": "채팅에“A는 Good”, “C는 경력이 짧아서 Bad”처럼 이유와 함께 말씀해 주세요.",
+  "role.overview.OrgRoleCalibrationSection.instruction":
+    "채팅에“A는 Good”, “C는 경력이 짧아서 Bad”처럼 이유와 함께 말씀해 주세요.",
   "role.overview.OrgRoleCalibrationSection.9b5aeb2d": "",
   "role.overview.OrgRoleCalibrationSection.b77626b4": "채팅에",
   "role.overview.OrgRoleCalibrationSection.c2f15f14": "“C는 경력이 짧아서 Bad”",
@@ -1338,6 +1350,16 @@ export const ko = {
     "역할을 삭제하지 못했습니다.",
   "role.overview.OrgRoleSettingsContent.99c692d0": "Role 설정을 저장했습니다.",
   "role.overview.OrgRoleSettingsContent.9a89d1f5": "켜짐",
+  "role.overview.OrgRoleSettingsContent.promotionTitle": "외부 공고 노출",
+  "role.overview.OrgRoleSettingsContent.promotionDescription":
+    "Harper가 이 역할에 더 적합한 인재를 찾기 위해 LinkedIn 등 외부에 채용 정보를 소개할 수 있어요.",
+  "role.overview.OrgRoleSettingsContent.promotionExample": "예시",
+  "role.overview.OrgRoleSettingsContent.linkedinJob": "LinkedIn 채용 공고",
+  "role.overview.OrgRoleSettingsContent.harperJob": "지원하기",
+  "role.overview.OrgRoleSettingsContent.promotionSaved":
+    "공개 공고 설정을 저장했습니다.",
+  "role.overview.OrgRoleSettingsContent.promotionSaveError":
+    "공개 공고 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
   "role.overview.OrgRoleSettingsContent.9a9afcd0":
     "변경사항을 저장하거나 취소한 후 삭제할 수 있습니다.",
   "role.overview.OrgRoleSettingsContent.9b8461a2": "Status",
@@ -1696,8 +1718,10 @@ export const ko = {
     "검색을 켜면 이 시간에 다시 검색합니다.",
   "role.overview.OrgRoleSettingsContent.scheduleCancel": "취소",
   "role.overview.OrgRoleSettingsContent.scheduleSave": "일정 저장",
-  "role.overview.OrgRoleSettingsContent.scheduleSaved": "검색 일정을 저장했습니다.",
-  "role.overview.OrgRoleSettingsContent.scheduleSaveError": "검색 일정을 저장하지 못했습니다. 다시 시도해 주세요.",
+  "role.overview.OrgRoleSettingsContent.scheduleSaved":
+    "검색 일정을 저장했습니다.",
+  "role.overview.OrgRoleSettingsContent.scheduleSaveError":
+    "검색 일정을 저장하지 못했습니다. 다시 시도해 주세요.",
 } as const;
 
 export type OrgMessageKey = keyof typeof ko;

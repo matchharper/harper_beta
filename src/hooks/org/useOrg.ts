@@ -798,6 +798,7 @@ export function useUpdateOrgRole() {
       externalJdUrl?: string | null;
       expectedCriteria?: OrgRoleCriterion[];
       isCompanyFirstSearch?: boolean;
+      isPromote?: boolean;
       introSearchDate?: string[];
       introSearchTime?: number;
       isExpired?: boolean | null;

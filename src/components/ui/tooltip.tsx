@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ export function ResponsiveLightTooltip({
   children,
   className,
   contentClassName,
+  mobileAriaLabel,
   side = "bottom",
   trigger,
   triggerClassName,
@@ -100,6 +102,7 @@ export function ResponsiveLightTooltip({
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  mobileAriaLabel?: string;
   side?: TooltipSide;
   trigger: React.ReactNode;
   triggerClassName?: string;
@@ -150,6 +153,40 @@ export function ResponsiveLightTooltip({
     closeTooltip();
   };
 
+  if (isMobile) {
+    return (
+      <div className={cn("relative w-full", className)}>
+        <PopoverPrimitive.Root>
+          <PopoverPrimitive.Trigger asChild>
+            <button
+              className={cn(triggerBaseClassName, triggerClassName)}
+              type="button"
+            >
+              {trigger}
+            </button>
+          </PopoverPrimitive.Trigger>
+          <PopoverPrimitive.Portal>
+            <PopoverPrimitive.Content
+              align={align}
+              aria-label={mobileAriaLabel}
+              className={cn(
+                "z-10050 max-w-[min(520px,calc(100vw-32px))] whitespace-pre-wrap wrap-break-word rounded-lg border border-black/5 bg-white/80 px-5 py-5 text-[13px] font-normal leading-5 text-black shadow-[0_14px_36px_rgba(0,0,0,0.12)] outline-none backdrop-blur-sm",
+                contentClassName
+              )}
+              collisionPadding={16}
+              onCloseAutoFocus={(event) => event.preventDefault()}
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              side="bottom"
+              sideOffset={4}
+            >
+              {children}
+            </PopoverPrimitive.Content>
+          </PopoverPrimitive.Portal>
+        </PopoverPrimitive.Root>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("relative w-full", className)}>
       <TooltipProvider delayDuration={100}>
@@ -181,8 +218,8 @@ export function ResponsiveLightTooltip({
           <TooltipContent
             ref={contentRef}
             id={tooltipId}
-            side={isMobile ? "bottom" : side}
-            align={isMobile ? "center" : align}
+            side={side}
+            align={align}
             className={cn(
               "max-w-[min(520px,calc(100vw-32px))] text-[13px] md:text-[14px] font-normal whitespace-pre-wrap wrap-break-word rounded-lg border border-black/5 bg-white/80 px-5 py-5 leading-5 text-black shadow-[0_14px_36px_rgba(0,0,0,0.12)] backdrop-blur-sm",
               contentClassName

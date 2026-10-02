@@ -13,7 +13,8 @@ export const en: Record<OrgMessageKey, string> = {
   "TalentDetailSimpleView.feed.subject": "Subject",
   "TalentDetailSimpleView.feed.viewContent": "View message",
   "TalentDetailSimpleView.feed.submit": "Add note",
-  "TalentDetailSimpleView.requestIntroHeading": "Request intro for {candidateName}",
+  "TalentDetailSimpleView.requestIntroHeading":
+    "Request intro for {candidateName}",
   "agent.quickAction.pipelineSummary": "Pipeline summary",
   "agent.quickAction.pipelineSummaryMessage":
     "Summarize the current candidate pipeline for this role.",
@@ -21,8 +22,17 @@ export const en: Record<OrgMessageKey, string> = {
   "agent.quickAction.pendingIntrosMessage":
     "Show candidates in Ready to connect who need our decision.",
   "agent.quickAction.runSearchMessage":
-    "Search for candidates using the current Hiring Brief.",
+    "Find candidates we might want to send an intro request.",
   "shared.introRequested": "Intro requested",
+  "OrgRoleTalentBoard.recommendationActive": "Harper is introducing your role",
+  "OrgRoleTalentBoard.recommendationPaused": "Recommendations paused",
+  "OrgRoleTalentBoard.recommendationEnded": "Recommendations ended",
+  "OrgRoleTalentBoard.recommendationActiveDescription":
+    "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role and Harper completes a final review, we recommend them in Ready to connect.",
+  "OrgRoleTalentBoard.recommendationPausedDescription":
+    "New candidate recommendations are paused with this role. They'll resume when the role is active again.",
+  "OrgRoleTalentBoard.recommendationEndedDescription":
+    "Hiring for this role has ended, so Harper is no longer recommending new candidates.",
   "OrgAllRolesOverview.candidateCountOne": "{count} candidate",
   "OrgAllRolesOverview.candidateCountOther": "{count} candidates",
   "composed.memberCountOne": "{members} member",
@@ -407,7 +417,8 @@ export const en: Record<OrgMessageKey, string> = {
   "TalentDetailSimpleView.7a4243fe": "No sender information",
   "agent.OrgAgentMessage.actionComplete": "Action complete",
   "workspace.OrgErrorState.failed": "Could not load information.",
-  "meetings.OrgInterviewAvailabilityDialog.conflict": "Availability changed in another window. Reload the latest settings.",
+  "meetings.OrgInterviewAvailabilityDialog.conflict":
+    "Availability changed in another window. Reload the latest settings.",
   "meetings.OrgMeetingScheduleDialog.d68b2f7e":
     "Sent scheduling email to candidate. When the candidate submits availability, one of the slots will be confirmed.",
   "meetings.OrgMeetingScheduleDialog.c87db0e6":
@@ -1344,6 +1355,16 @@ export const en: Record<OrgMessageKey, string> = {
   "role.overview.OrgRoleSettingsContent.985456b6": "Failed to delete role.",
   "role.overview.OrgRoleSettingsContent.99c692d0": "Role settings saved.",
   "role.overview.OrgRoleSettingsContent.9a89d1f5": "On",
+  "role.overview.OrgRoleSettingsContent.promotionTitle": "Public job promotion",
+  "role.overview.OrgRoleSettingsContent.promotionDescription":
+    "Harper may share this role on LinkedIn and other public channels to find more suitable candidates.",
+  "role.overview.OrgRoleSettingsContent.promotionExample": "Example",
+  "role.overview.OrgRoleSettingsContent.linkedinJob": "LinkedIn job post",
+  "role.overview.OrgRoleSettingsContent.harperJob": "Apply",
+  "role.overview.OrgRoleSettingsContent.promotionSaved":
+    "Public job setting saved.",
+  "role.overview.OrgRoleSettingsContent.promotionSaveError":
+    "Couldn't save the public job setting. Try again.",
   "role.overview.OrgRoleSettingsContent.9a9afcd0":
     "Save or cancel changes before deleting.",
   "role.overview.OrgRoleSettingsContent.9b8461a2": "Status",
@@ -1698,6 +1719,8 @@ export const en: Record<OrgMessageKey, string> = {
     "Turn on company-first suggestions to search at this time again.",
   "role.overview.OrgRoleSettingsContent.scheduleCancel": "Cancel",
   "role.overview.OrgRoleSettingsContent.scheduleSave": "Save schedule",
-  "role.overview.OrgRoleSettingsContent.scheduleSaved": "Search schedule saved.",
-  "role.overview.OrgRoleSettingsContent.scheduleSaveError": "Could not save the search schedule. Please try again.",
+  "role.overview.OrgRoleSettingsContent.scheduleSaved":
+    "Search schedule saved.",
+  "role.overview.OrgRoleSettingsContent.scheduleSaveError":
+    "Could not save the search schedule. Please try again.",
 };

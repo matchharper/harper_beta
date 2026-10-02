@@ -159,6 +159,24 @@ test("renders Slack links and removes unresolved private talent markers", () => 
   assert.doesNotMatch(rendered, new RegExp(TALENT_B));
 });
 
+test("links a company-first search candidate without a recommendation record", () => {
+  const profileUrl =
+    `https://matchharper.com/org/role?orgId=workspace-id&roleId=${ROLE_A}` +
+    `&tab=pipeline&view=pipeline&talentId=${TALENT_A}`;
+  const rendered = renderSlackOrgLinks({
+    message:
+      `먼저 제안 가능한 후보로 [김하퍼](talent:${TALENT_A})님을 확인했습니다. ` +
+      `[미확인 후보](talent:${TALENT_B})는 링크하지 않습니다.`,
+    roleTargets: [{ roleId: ROLE_A }],
+    talentTargets: [{ profileUrl, talentId: TALENT_A }],
+    workspaceId: "workspace-id",
+  });
+
+  assert.ok(rendered.includes(`<${profileUrl}|김하퍼>`));
+  assert.match(rendered, /미확인 후보는 링크하지 않습니다\./);
+  assert.doesNotMatch(rendered, /talent:/);
+});
+
 test("renders all company-side LLM navigation markers as Slack links", () => {
   const rendered = renderSlackOrgLinks({
     message:

@@ -194,7 +194,7 @@ export function OrgAgentChatSurface({
     },
     run_search: {
       label: t("agent.quickAction.runSearch", "Run Search"),
-      message: t("agent.quickAction.runSearchMessage", "Run a search based on the current brief"),
+      message: t("agent.quickAction.runSearchMessage", ORG_ROLE_RUN_SEARCH_ACTION.message),
     },
   };
 
