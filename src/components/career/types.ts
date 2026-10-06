@@ -1,3 +1,4 @@
+import type { ApplicationSimulation } from "@/lib/career/simulation/types";
 import type { MockInterviewOffer } from "@/lib/career/mockInterviewOffers";
 import { OpportunityType } from "@/lib/opportunityType";
 import type {
@@ -468,6 +469,7 @@ export type CareerHistoryItem = {
 };
 
 export type CareerMessage = {
+  simulation?: ApplicationSimulation;
   attachments?: CareerMessageAttachment[];
   coachingActivity?: CareerCoachingActivity;
   id: string | number;
@@ -486,6 +488,7 @@ export type CareerMessage = {
 };
 
 export type CareerMessagePayload = {
+  simulation?: ApplicationSimulation;
   attachments?: CareerMessageAttachment[];
   coachingActivity?: CareerCoachingActivity;
   id: number;

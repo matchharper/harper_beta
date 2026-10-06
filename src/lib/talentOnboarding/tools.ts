@@ -130,6 +130,9 @@ import {
 } from "@/lib/career/careerCoachingActivity";
 import { readCareerCoachingListText } from "@/lib/career/careerCoachingList";
 
+import { executeApplicationSimulation } from "@/lib/career/simulation/server";
+import type { TalentMessageResponse } from "./models";
+
 export type TalentToolChannel = "chat" | "voice";
 
 export type PendingProcessClosureNotice = {
@@ -142,6 +145,7 @@ export type PendingProcessClosureNotice = {
 };
 
 export type TalentToolExecutionContext = {
+  onSimulationMessage?: (message: TalentMessageResponse) => void;
   searchPurpose?: "mock_interview";
   admin?: unknown;
   abortSignal?: AbortSignal;
@@ -218,6 +222,7 @@ export class TalentToolError extends Error {
 }
 
 export const TALENT_TOOL_NAMES = {
+  SIMULATE_APPLICATION: "simulate_application",
   END_CALL: "end_call",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
@@ -253,6 +258,7 @@ export type TalentToolName =
   (typeof TALENT_TOOL_NAMES)[keyof typeof TALENT_TOOL_NAMES];
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
   TALENT_TOOL_NAMES.END_CALL,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
@@ -3133,6 +3139,50 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         source: "career_chat",
         userId,
         userMessageId: context?.userMessageId ?? null,
+      });
+    },
+  },
+  [TALENT_TOOL_NAMES.SIMULATE_APPLICATION]: {
+    name: TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
+    description: "Analyze one Harper role against the user's resume/profile and suggest evidence-backed resume improvements. Use when the user requests application simulation, a detailed role-fit assessment, or role-specific resume feedback. Runs three sequential stages and shows their results in the chat. Does not change documents, matching decisions, recommendations or applications. Requires a known roleId or public /jobs slug; resolve an ambiguous role first. document_id is optional: otherwise use the primary/latest resume, or the profile if no resume exists. Use profile_only only when the user explicitly requests profile-only analysis. Uses saved role/company data, not live web research.",
+    channels: ["chat"],
+    parameters: {
+      type: "object", additionalProperties: false,
+      properties: {
+        roleId: { type: "string", description: "Exact Harper role ID from context or prior lookup." },
+        official_job_slug: { type: "string", description: "Public /jobs slug when the user selected a marketplace posting." },
+        document_id: { type: "string", description: "Exact document ID if the user selected a specific resume." },
+        profile_only: { type: "boolean", description: "Use only the structured profile when explicitly requested by the user." },
+      },
+    },
+    async execute(input, context) {
+      if (!context?.admin || !context.userId || !context.conversationId) throw new TalentToolError("Simulation requires an authenticated conversation.");
+      let role: Record<string, unknown> | null = null;
+      let roleName = "";
+      if (typeof input.official_job_slug === "string" && input.official_job_slug.trim()) {
+        const { getPublicOfficialJobBySlug } = await import("@/lib/officialJobs/server");
+        const job = await getPublicOfficialJobBySlug(input.official_job_slug.trim());
+        if (job) {
+          roleName = `${job.companyName} · ${job.roleTitle}`;
+          role = { name: job.roleTitle, company: job.companyName, description: job.roleDescriptionMarkdown, companyDescription: job.shortDescription, location: job.location, compensation: job.compensation, seniority: job.seniority };
+        }
+      } else {
+        const roleIds = normalizeRoleContextRoleIds([input.roleId]);
+        if (roleIds.length !== 1) throw new TalentToolError("Select one valid role before simulation.");
+        const lookup = await runGetRoleContext({ admin: context.admin, userId: context.userId, roleIds, includeJd: true, activityOffset: 0 });
+        const item = lookup.roles[0];
+        if (item?.found && item.role) {
+          // Explicit allowlist: never forward internalRequest, stored fit decisions or company feedback.
+          const r = item.role;
+          roleName = [item.companyDb?.name, r.name].filter(Boolean).join(" · ");
+          role = { name: r.name, description: r.description, location: r.locationText, workMode: r.workMode, seniority: r.seniorityLevel, compensation: r.salaryRange, company: item.companyDb };
+        }
+      }
+      if (!role || !String(role.description ?? "").trim()) return { ok: false, reason: "A readable role description is unavailable. Ask the user to select a visible Harper role or its public /jobs posting." };
+      return executeApplicationSimulation({
+        admin: context.admin as TalentAdminClient, userId: context.userId, conversationId: context.conversationId,
+        role, roleName, documentId: typeof input.document_id === "string" ? input.document_id : undefined, profileOnly: input.profile_only === true,
+        locale: context.responseLocale, signal: context.abortSignal, onMessage: context.onSimulationMessage,
       });
     },
   },

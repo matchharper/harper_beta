@@ -51,6 +51,7 @@ const normalizeThinkingLogs = (value: unknown) =>
     : [];
 
 export const toUiMessage = (message: {
+  simulation?: CareerMessage["simulation"];
   attachments?: CareerMessage["attachments"];
   coachingActivity?: CareerMessage["coachingActivity"];
   id: string | number;
@@ -65,6 +66,7 @@ export const toUiMessage = (message: {
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: unknown;
 }): CareerMessage => ({
+  simulation: message.simulation,
   attachments: message.attachments,
   coachingActivity: message.coachingActivity,
   id: message.id,

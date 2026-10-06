@@ -18,6 +18,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? "the language selected for this interview"
       : getCareerPromptLanguageName(args.preferredLocale);
   const toolNameText = toolNames.join(", ");
+  const simulationPolicy = toolNames.includes("simulate_application") ? "For an explicit application simulation or detailed role-specific resume analysis, use simulate_application after resolving the target role. Its advisory analysis does not trigger formal matching, reconsideration, recommendation, introduction or document edits. The card displays all three stage results; explain the main takeaway and remaining uncertainty without duplicating the report or claiming edits were applied. A failure or cancellation leaves only the completed stages available." : "";
   const hasEndCallTool = toolNames.includes("end_call");
   const hasStatusMessageTools = toolNames.some(
     (name) => name !== "end_call" && name !== "update_language_setting"
@@ -86,6 +87,7 @@ export function buildCareerToolPolicyPrompt(args: {
     : "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context.";
 
   return [
+    simulationPolicy,
     "## Tool Use Policy",
     `Available tools: ${toolNameText}`,
     hasStatusMessageTools

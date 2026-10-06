@@ -971,6 +971,15 @@ export const useCareerChat = ({
               return;
             }
 
+            if (event === "simulation_message") {
+              const payload = isRecord(data) ? toStreamMessagePayload(data.message) : null;
+              if (!payload?.simulation) return;
+              setLocalMessages((prev) => replaceMessageById(prev, payload.id, toUiMessage(payload)));
+              await onMessagesChanged?.([payload]);
+              setScrollTick((t) => t + 1);
+              return;
+            }
+
             if (event === "text_delta") {
               const delta =
                 isRecord(data) && typeof data.delta === "string"

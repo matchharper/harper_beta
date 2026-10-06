@@ -1185,11 +1185,18 @@ export async function POST(req: NextRequest) {
     let opportunityRecommendationsChanged = false;
     let documentsChanged = uploadedDocuments.length > 0;
     let changedOpportunityRoleId: string | null = null;
-    let careerCoachingActivityMessages: TalentMessageResponse[] =
+    let auxiliaryAssistantMessages: TalentMessageResponse[] =
       expiredCareerCoachingActivityMessage
         ? [expiredCareerCoachingActivityMessage]
         : [];
     let careerCoachingCallReady: CareerCoachingActivity | null = null;
+    let emitSimulationMessage: ((message: TalentMessageResponse) => void) | null = null;
+    let simulationResult: Promise<unknown> | null = null;
+    let simulationInputKey: string | null = null;
+    const onSimulationMessage = (message: TalentMessageResponse) => {
+      auxiliaryAssistantMessages = [...auxiliaryAssistantMessages.filter((item) => item.id !== message.id), message];
+      emitSimulationMessage?.(message);
+    };
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
       | ((status: RecommendJobPostingStatus) => void)
@@ -1245,8 +1252,8 @@ export async function POST(req: NextRequest) {
       if (!activityMessage || !Number.isFinite(Number(activityMessage.id))) {
         return;
       }
-      careerCoachingActivityMessages = [
-        ...careerCoachingActivityMessages.filter(
+      auxiliaryAssistantMessages = [
+        ...auxiliaryAssistantMessages.filter(
           (message) => message.id !== activityMessage.id
         ),
         activityMessage,
@@ -1325,6 +1332,19 @@ export async function POST(req: NextRequest) {
         return executeRecommendJobPostings(toolInput);
       }
 
+      if (toolArgs.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) {
+        const key = JSON.stringify([toolInput.roleId, toolInput.official_job_slug, toolInput.document_id, toolInput.profile_only === true]);
+        if (simulationInputKey !== null && simulationInputKey !== key) {
+          return { ok: false, reason: "One role and source can be simulated per chat turn. The existing card belongs to the first selected role. Ask the user to request the other analysis in the next turn." };
+        }
+        simulationInputKey = key;
+        simulationResult ??= executeTalentTool({
+          context: { admin, abortSignal: req.signal, conversationId, isMobile, responseLocale, userMessageId: insertedUserMessage.id, userId: user.id, onSimulationMessage },
+          logging: false, name: toolArgs.name, input: toolInput,
+        });
+        return simulationResult;
+      }
+
       const result = await executeTalentTool({
         context: {
           admin,
@@ -1395,6 +1415,7 @@ export async function POST(req: NextRequest) {
               // Client disconnected while a tool or model call was still resolving.
             }
           };
+          emitSimulationMessage = (message) => send("simulation_message", { message });
           emitToolStatus = (message) => send("tool_status", { message });
           emitRecommendationStatus = (status) =>
             send("recommendation_search_status", status);
@@ -1947,7 +1968,7 @@ export async function POST(req: NextRequest) {
               await attachPostingPreviewsToMessages({
                 admin,
                 messages: [
-                  ...careerCoachingActivityMessages,
+                  ...auxiliaryAssistantMessages,
                   withRecommendationStatusAnchor({
                     ...toResponseMessage(
                       insertedAssistantMessage as TalentMessageRow
@@ -2053,6 +2074,7 @@ export async function POST(req: NextRequest) {
                 : "Failed to process talent chat";
             send("error", { error: errorMessage });
           } finally {
+            emitSimulationMessage = null;
             emitToolStatus = null;
             emitRecommendationStatus = null;
             emitOpportunityRecommendationsChanged = null;
@@ -2520,7 +2542,7 @@ export async function POST(req: NextRequest) {
     const assistantResponseMessages = await attachPostingPreviewsToMessages({
       admin,
       messages: [
-        ...careerCoachingActivityMessages,
+        ...auxiliaryAssistantMessages,
         {
           ...toResponseMessage(insertedAssistantMessage as TalentMessageRow),
           thinkingLogs: finalAssistantThinkingLogs,

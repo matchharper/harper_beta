@@ -116,3 +116,11 @@ test("exposes the input-free coaching list after onboarding as plain text", asyn
   assert.match(text, /면접 연습과 스토리텔링/);
   assert.match(text, /연봉 협상 연습하기/);
 });
+
+test("simulation is available in text chat and excluded from voice", () => {
+  for (const isOnboardingDone of [false, true]) {
+    const chat = resolveCareerChatTools({ channel: "chat", isOnboardingDone, responseLocale: "ko" });
+    assert.ok(chat.toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
+  }
+  assert.ok(!getCareerRealtimeToolCandidates("ko").some(tool => tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
+});

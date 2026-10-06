@@ -706,11 +706,12 @@ export const ko = {
       "통화 시작",
     "career.chat.career_composer_section.pending_career_check_in_subtext":
       "최근 상황과 앞으로 보고 싶은 기회를 Harper와 가볍게 이야기해요.",
+    "career.chat.career_composer_section.pending_company_request_general":
+      "요청",
     "career.chat.career_composer_section.pending_company_request_label":
       "{companyName}의 요청",
     "career.chat.career_composer_section.pending_company_request_question":
       "질문",
-    "career.chat.career_composer_section.pending_company_request_general": "요청",
     "career.chat.career_composer_section.pending_company_request_resume":
       "이력서",
     "career.chat.career_composer_section.pending_internal_opportunity_subtext":
@@ -813,7 +814,8 @@ export const ko = {
       "아래 답변은 이 요청에 연결됩니다.",
     "career.chat.pending_action_context.company_question_label":
       "회사에서 온 질문",
-    "career.chat.pending_action_context.company_request_label": "회사에서 온 요청",
+    "career.chat.pending_action_context.company_request_label":
+      "회사에서 온 요청",
     "career.chat.pending_action_context.dismiss_aria": "선택한 항목 닫기",
     "career.chat.pending_action_context.expand_aria": "요청 내용 더 보기",
     "career.chat.pending_action_context.expanded_help":
@@ -1684,6 +1686,8 @@ export const ko = {
       "대화는 일반 통화와 동일하게 기록과 콜노트로 저장됩니다.",
     "career.history.mock_interview.start": "시작하기",
     "career.history.mock_interview.title": "모의 인터뷰를 시작할까요?",
+    "career.history.new_opportunity_list.external_recommendations_off":
+      "현재 외부 포지션의 추천이 꺼져있습니다. Harper에게 요청하시면, 주기적으로 직접 지원하실만한 외부 공고를 찾아서 전달드립니다.",
     "career.history.new_opportunity_list.harper_suggestions": "Harper의 연결",
     "career.history.new_opportunity_list.internal_connection_description":
       "Harper가 회사와의 연결을 도와드리는 기회입니다. 최대한 수락/거절 의사를 표시해 주세요.",
@@ -1693,7 +1697,7 @@ export const ko = {
       "새로 추천된 포지션이 없습니다.",
     "career.history.new_opportunity_list.no_suggestions":
       "Harper를 통해서 연결되는 기회입니다.",
-    "career.history.new_opportunity_list.open_positions": "Jobs",
+    "career.history.new_opportunity_list.open_positions": "오픈된 포지션들",
     "career.history.opportunity_detail_content.add_memo": "메모 추가하기",
     "career.history.opportunity_detail_content.company_source": "회사 / 출처",
     "career.history.opportunity_detail_content.edit_memo": "메모 수정",
@@ -2354,6 +2358,10 @@ export const ko = {
     "career.profile.documents.make_private": "비공개로 전환",
     "career.profile.documents.make_public": "공개하기",
     "career.profile.documents.open_call_note": "통화 기록 열기",
+    "career.profile.documents.pdf_changed":
+      "문서가 변경되었습니다. 최신 내용을 확인한 뒤 다시 다운로드해 주세요.",
+    "career.profile.documents.pdf_failed":
+      "PDF를 만들지 못했습니다. 다시 시도해 주세요.",
     "career.profile.documents.preview_failed":
       "문서를 불러오지 못했습니다. 삭제되었거나 접근할 수 없는 문서일 수 있습니다.",
     "career.profile.documents.preview_loading": "문서를 불러오는 중입니다.",
@@ -2757,6 +2765,52 @@ export const ko = {
       "새 이메일로 받은 인증 링크를 확인해주세요.",
     "career.settings.email_change.title": "이메일 변경",
     "career.settings.email_change.use_another": "다른 이메일 입력",
+    "career.simulation.absent": "이력서에 빠져 있음",
+    "career.simulation.actionConsistency": "표현·일관성 정리",
+    "career.simulation.actionContent": "경험·내용 보강",
+    "career.simulation.actionStructure": "구성·분량 조정",
+    "career.simulation.actionWording": "문구·강조 개선",
+    "career.simulation.actions": "추천 액션",
+    "career.simulation.basis": "판단 근거",
+    "career.simulation.bonus": "추가 강점",
+    "career.simulation.cancelled": "취소됨",
+    "career.simulation.clear": "충분히 드러남",
+    "career.simulation.comparison": "근거 대조·진단",
+    "career.simulation.completed": "완료",
+    "career.simulation.decisive": "결정적 요건",
+    "career.simulation.diagnosis": "진단·이력서 반영 상태",
+    "career.simulation.evidence": "근거·출처",
+    "career.simulation.evidenceNeeded": "필요한 입증 자료",
+    "career.simulation.failed": "분석 중단",
+    "career.simulation.importance": "중요도",
+    "career.simulation.incomplete":
+      "분석이 끝나지 않았습니다. 완료된 단계의 결과는 위에서 확인할 수 있으며, 채팅에서 다시 분석을 요청할 수 있습니다.",
+    "career.simulation.json": "원본 JSON 보기",
+    "career.simulation.major": "주요 역량",
+    "career.simulation.mandatory": "공고에 명시된 필수 조건",
+    "career.simulation.met": "충족",
+    "career.simulation.notMandatory": "명시적 필수 조건 아님",
+    "career.simulation.overstated": "실제 근거보다 과장됨",
+    "career.simulation.partial": "부분 충족",
+    "career.simulation.pending": "대기 중",
+    "career.simulation.profileOnly":
+      "선택된 이력서 없이 프로필을 기준으로 분석합니다.",
+    "career.simulation.profileSource": "프로필",
+    "career.simulation.questions": "확인할 사항",
+    "career.simulation.requirement": "요구사항",
+    "career.simulation.result": "단계 결과",
+    "career.simulation.resumeSource": "이력서",
+    "career.simulation.review": "검증·액션 제안",
+    "career.simulation.role": "Role·기업 분석",
+    "career.simulation.running": "분석 중",
+    "career.simulation.sources":
+      "저장된 공고·기업 자료와 프로필을 분석합니다. 이력서는 자동으로 수정하지 않습니다.",
+    "career.simulation.strong": "강하게 충족",
+    "career.simulation.target": "대상",
+    "career.simulation.unavailable": "이력서 표현 평가 불가",
+    "career.simulation.unknown": "정보 부족",
+    "career.simulation.unmet": "확인된 미충족",
+    "career.simulation.weak": "약하게 드러남",
     "career.tasks.add_links": "추가 정보 제공하기",
     "career.tasks.add_sources": "추가 정보 제공하기",
     "career.tasks.answer": "답변하기",
@@ -2800,30 +2854,32 @@ export const ko = {
     "career.tasks.learning_description":
       "커리어 인터뷰를 마치면 경험과 조건에 맞는 기회를 찾기 시작해요.",
     "career.tasks.loading": "할 일을 불러오고 있어요",
-    "career.tasks.loading_older": "지난 기록을 불러오고 있어요",
     "career.tasks.loading_feedback": "추천 피드백을 확인하고 있어요",
+    "career.tasks.loading_older": "지난 기록을 불러오고 있어요",
     "career.tasks.loading_progress": "진행 상황을 불러오고 있어요",
     "career.tasks.loading_search": "할 일을 확인하고 있어요",
     "career.tasks.loading_sources": "연결된 자료를 확인하고 있어요",
     "career.tasks.meeting": "인터뷰 가능한 시간을 알려주세요",
+    "career.tasks.more_history": "지난 기록 더보기",
+    "career.tasks.older_error":
+      "지난 기록을 불러오지 못했어요. 다시 시도해 주세요.",
     "career.tasks.onboarding_call": "5분 커리어 인터뷰로 시작해요",
     "career.tasks.onboarding_call_description":
       "경험과 원하는 조건을 알려주시면 맞는 기회를 찾기 시작해요.",
-    "career.tasks.older_error": "지난 기록을 불러오지 못했어요. 다시 시도해 주세요.",
-    "career.tasks.more_history": "지난 기록 더보기",
-    "career.tasks.preparing_connection": "연결을 준비하고 소개를 전달하고 있어요",
-    "career.tasks.progress_error": "연결 진행 상황을 불러오지 못했어요.",
+    "career.tasks.preparing_connection":
+      "연결을 준비하고 소개를 전달하고 있어요",
     "career.tasks.process_ended": "이 포지션의 진행이 종료됐어요",
+    "career.tasks.progress_error": "연결 진행 상황을 불러오지 못했어요.",
     "career.tasks.recent_info": "최근 정보",
     "career.tasks.resume_call": "이어서 통화하기",
     "career.tasks.resume_request": "회사에서 최신 이력서를 요청했어요",
-    "career.tasks.review_request": "요청 확인하기",
     "career.tasks.retry": "다시 불러오기",
     "career.tasks.review_recommendations": "추천 확인하기",
+    "career.tasks.review_request": "요청 확인하기",
+    "career.tasks.role_ended": "이 포지션의 채용이 종료됐어요",
     "career.tasks.schedule": "일정 선택하기",
     "career.tasks.search_error": "정보를 불러오지 못했어요",
     "career.tasks.search_paused": "추천을 쉬고 있어요",
-    "career.tasks.role_ended": "이 포지션의 채용이 종료됐어요",
     "career.tasks.search_paused_all": "새 추천과 연결을 쉬고 있어요",
     "career.tasks.search_paused_all_description":
       "프로필 공개 범위를 바꾸면 내부 연결부터 다시 살펴볼 수 있어요.",

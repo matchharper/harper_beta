@@ -1,3 +1,4 @@
+import { parseApplicationSimulation, SIMULATION_MESSAGE_TYPE, type ApplicationSimulation } from "@/lib/career/simulation/types";
 import type { MockInterviewOffer } from "@/lib/career/mockInterviewOffers";
 import type { Database } from "@/types/database.types";
 import type { TalentNetworkEngagementOptionId } from "@/lib/talentNetworkOptions";
@@ -110,6 +111,7 @@ export type TalentMessageRow = {
 };
 
 export type TalentMessageResponse = {
+  simulation?: ApplicationSimulation;
   mockInterviewOffers?: MockInterviewOffer[];
   attachments?: CareerMessageAttachment[];
   id: number;
@@ -143,6 +145,7 @@ export function toTalentMessageResponse(
   return {
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(coachingActivity ? { coachingActivity } : {}),
+    ...(item.message_type === SIMULATION_MESSAGE_TYPE ? { simulation: parseApplicationSimulation(item.payload) } : {}),
     id: item.id,
     role: item.role,
     content: stripCareerMessageAttachmentMetadata(

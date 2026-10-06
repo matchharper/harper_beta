@@ -1,3 +1,4 @@
+import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
 import CareerCallProposalCard from "./CareerCallProposalCard";
 import { DocumentPreviewCards } from "./elements/DocumentPreviewCards";
 import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
@@ -427,6 +428,8 @@ const CareerMessageBubble = ({
         stripMockInterviewMarkers(documentLinks.content)
       )
     : displayContent;
+  if (!isUser && message.simulation) return <ApplicationSimulationCard messageId={message.id} simulation={message.simulation} />;
+
   return (
     <>
       {isUser && (message.attachments?.length ?? 0) > 0 ? (
