@@ -41,6 +41,7 @@ type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
 export type OrgAgentConversationRow = {
   company_workspace_id: string;
   created_at: string;
+  hidden_through_message_id?: number | null;
   id: string;
   last_message_at: string | null;
   last_message_id: number | null;
@@ -492,7 +493,7 @@ async function findOrgRoleConversationForRead(args: {
     admin.from("company_conversations" as any) as any
   )
     .select(
-      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, hidden_through_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
@@ -540,6 +541,9 @@ export async function fetchOrgAgentMessages(args: {
     };
   }
   const limit = Math.min(Math.max(args.limit ?? 30, 1), 80);
+  const hiddenThroughMessageId = roleScoped
+    ? conversation.hidden_through_message_id
+    : null;
   let query = (admin.from("company_messages" as any) as any)
     .select(
       "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
@@ -547,6 +551,10 @@ export async function fetchOrgAgentMessages(args: {
     .eq("conversation_id", conversation.id)
     .order("id", { ascending: false })
     .limit(limit + 1);
+
+  if (hiddenThroughMessageId != null) {
+    query = query.gt("id", hiddenThroughMessageId);
+  }
 
   query =
     args.mode === "role_creation" || args.mode === "role"
@@ -565,6 +573,12 @@ export async function fetchOrgAgentMessages(args: {
     .eq("role", "user")
     .order("id", { ascending: false })
     .limit(1);
+  if (hiddenThroughMessageId != null) {
+    latestUserMessageQuery = latestUserMessageQuery.gt(
+      "id",
+      hiddenThroughMessageId
+    );
+  }
   latestUserMessageQuery =
     args.mode === "role_creation" || args.mode === "role"
       ? latestUserMessageQuery.in("message_type", ["chat", "slack"])

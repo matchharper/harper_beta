@@ -1894,7 +1894,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
       .eq("company_workspace_id", workspaceId)
       .not("role_id", "is", null),
     (admin.from("company_conversations" as any) as any)
-      .select("role_id, last_message_at")
+      .select("role_id, last_message_at, last_message_id, hidden_through_message_id")
       .eq("company_workspace_id", workspaceId)
       .not("role_id", "is", null)
       .not("last_message_at", "is", null),
@@ -1940,10 +1940,19 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
 
   const lastConversationByRoleId = new Map<string, string>();
   for (const conversation of (conversationsResult.data ?? []) as Array<{
+    hidden_through_message_id: number | null;
     last_message_at: string | null;
+    last_message_id: number | null;
     role_id: string | null;
   }>) {
     if (!conversation.role_id || !conversation.last_message_at) continue;
+    if (
+      conversation.hidden_through_message_id !== null &&
+      (conversation.last_message_id === null ||
+        conversation.last_message_id <= conversation.hidden_through_message_id)
+    ) {
+      continue;
+    }
     const previous = lastConversationByRoleId.get(conversation.role_id);
     if (!previous || conversation.last_message_at > previous) {
       lastConversationByRoleId.set(
