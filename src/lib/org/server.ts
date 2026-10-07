@@ -6965,19 +6965,25 @@ export async function openOrgResume(args: {
   }
   if (!url) throw new OrgHttpError(404, "Resume not found");
 
-  const { error: logError } = await (admin.from("logs" as any) as any).insert({
-    is_mobile: null,
-    meta_data: {
-      kind,
-      documentId: kind === "document" ? normalizeText(args.documentId) : null,
-      resumeFileName: openedFileName,
-      talentId,
-      workspaceId,
-    } satisfies Record<string, unknown>,
-    type: "org_resume_opened",
-    user_id: getUserEmail(args.user),
-  });
-  if (logError) throw logError;
+  try {
+    const { error: logError } = await (admin.from("logs" as any) as any).insert({
+      is_mobile: null,
+      meta_data: {
+        kind,
+        documentId: kind === "document" ? normalizeText(args.documentId) : null,
+        resumeFileName: openedFileName,
+        talentId,
+        workspaceId,
+      } satisfies Record<string, unknown>,
+      type: "org_resume_opened",
+      user_id: args.user.id,
+    });
+    if (logError) {
+      console.error("[org/resume-access] Failed to record resume access", logError);
+    }
+  } catch (logError) {
+    console.error("[org/resume-access] Failed to record resume access", logError);
+  }
 
   return { ok: true, url };
 }
