@@ -20,6 +20,18 @@ export type OrgRoleTab =
 export type OrgSettingsTab = "calendar";
 export type OrgPipelineDisplay = "pipeline" | "board";
 
+export function resolveOrgRoleTab({
+  isDraft,
+  tab,
+}: {
+  isDraft: boolean;
+  tab: string;
+}): OrgRoleTab {
+  if (!isDraft && (tab === "inbox" || tab === "pipeline")) return tab;
+  if (tab === "matching" || tab === "role" || tab === "settings") return tab;
+  return isDraft ? "matching" : "inbox";
+}
+
 const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
   onboarding: "/org/onboarding",
   documents: "/org/documents",

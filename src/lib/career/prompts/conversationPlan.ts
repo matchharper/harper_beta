@@ -304,7 +304,7 @@ export function buildCareerConversationPromptPlan(args: {
   // 통화중일 때
   if (isVoiceCall) {
     const voiceRules = [
-      conversationMode === "career_coaching"
+      isOnboardingActive || conversationMode === "career_coaching"
         ? CAREER_FOCUSED_VOICE_CALL_PROMPT
         : CAREER_VOICE_CALL_MODE_PROMPT,
       getCareerInterruptHandlingPrompt(

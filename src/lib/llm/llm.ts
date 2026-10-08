@@ -6,7 +6,7 @@ import {
   type OpenAIResponsesReasoningEffort,
 } from "@/lib/llm/responsesChatAdapter";
 import {
-  GPT_56_LUNA_MODEL,
+  GPT_6_LUNA_MODEL,
   isOpenRouterModel,
   isOpenRouterGlm53FlashModel,
   OPENROUTER_ZAI_PROVIDER_SLUG,
@@ -93,7 +93,7 @@ export type ChatCompletionStructuredOutput = {
 export function getLlmChatProviderForModel(model: string): LlmChatProvider {
   const normalized = model.trim().toLowerCase();
   if (normalized.startsWith("grok-")) {
-    throw new Error("Grok models are disabled. Use gpt-5.6-luna instead.");
+    throw new Error("Grok models are disabled. Use gpt-6-luna instead.");
   }
   if (normalized.startsWith("claude-")) return "anthropic";
   if (isOpenRouterModel(normalized)) return "openrouter";
@@ -116,7 +116,9 @@ export function supportsSamplingParametersForModel(model: string) {
   const normalized = model.trim().toLowerCase();
   if (
     getLlmChatProviderForModel(normalized) === "openai" &&
-    (normalized === "gpt-5.6" || normalized.startsWith("gpt-5.6-"))
+    (normalized === GPT_6_LUNA_MODEL ||
+      normalized === "gpt-5.6" ||
+      normalized.startsWith("gpt-5.6-"))
   ) {
     return false;
   }
@@ -142,7 +144,9 @@ export function usesMaxCompletionTokensForModel(model: string) {
   const normalized = model.trim().toLowerCase();
   return (
     getLlmChatProviderForModel(normalized) === "openai" &&
-    (normalized === "gpt-5.6" || normalized.startsWith("gpt-5.6-"))
+    (normalized === GPT_6_LUNA_MODEL ||
+      normalized === "gpt-5.6" ||
+      normalized.startsWith("gpt-5.6-"))
   );
 }
 
@@ -1003,7 +1007,7 @@ export async function createChatCompletionStreamWithFallback(args: {
 export type OnToken = (token: string) => void;
 
 export const lunaInference = async (
-  model: typeof GPT_56_LUNA_MODEL,
+  model: typeof GPT_6_LUNA_MODEL,
   systemPrompt: string,
   userPrompt: string,
   temperature: number = 0.7,
@@ -1071,7 +1075,7 @@ export async function geminiInference(
   void model;
   void thinkingLevel;
   return lunaInference(
-    GPT_56_LUNA_MODEL,
+    GPT_6_LUNA_MODEL,
     systemPrompt,
     userPrompt,
     temperature,
@@ -1285,7 +1289,7 @@ export async function queryKeyword(input_query: string): Promise<any> {
   if (input_query.length < 10) return input_query;
 
   return lunaInference(
-    GPT_56_LUNA_MODEL,
+    GPT_6_LUNA_MODEL,
     "You are a helpful assistant.",
     `
 Below is the input query of a user. Who is trying to search candidates for a job.

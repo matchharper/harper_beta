@@ -20,6 +20,7 @@ import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
+  getOrgAgentReasoningEffort,
   ORG_AGENT_TEMPERATURE,
   ORG_AGENT_GEMINI_FLASH_MODEL,
   isOrgAgentModelId,
@@ -231,7 +232,7 @@ export async function generateOrgAgentBackgroundResultReply(args: {
       }),
     }),
     model: modelConfig.model,
-    reasoningEffort: DEFAULT_ORG_AGENT_REASONING_EFFORT,
+    reasoningEffort: getOrgAgentReasoningEffort(modelConfig.model),
     surface,
   });
   const reply = extractAssistantText(
@@ -616,7 +617,7 @@ export async function runOrgAgentToolLoop(
   const state = createOrgAgentToolExecutionState(args.context);
   let activeModel = args.model;
   let activeReasoningEffort: OrgAgentReasoningEffort =
-    DEFAULT_ORG_AGENT_REASONING_EFFORT;
+    getOrgAgentReasoningEffort(activeModel);
   let calibrationCompleted = false;
   let fallbackReason: ChatCompletionFallbackReason | null = null;
   let totalToolCalls = 0;

@@ -32,6 +32,7 @@ import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
+import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocumentsMarkdown";
 import { OrgLanguageMenu } from "@/components/org/OrgLanguageMenu";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -56,12 +57,19 @@ import { ORG_PRODUCT_LABELS } from "@/lib/org/productVocabulary";
 import {
   getOrgRoleStatusFilterValue,
   hasReachedOrgActiveRoleLimit,
+  normalizeOrgRoleStatus,
   ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
   ORG_ROLE_STATUS_FILTER_OPTIONS,
   type OrgRoleStatus,
 } from "@/lib/org/roleStatus";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
-import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
+import {
+  buildOrgHref,
+  resolveOrgRoleTab,
+  type OrgPipelineDisplay,
+  type OrgRoleTab,
+  type OrgWorkspacePageId,
+} from "@/lib/org/routes";
 import { shouldAnimateOrganizationSidebarEntry } from "@/lib/org/sidebarTransition";
 import type { OrgMember, OrgRole, OrgWorkspace } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
@@ -450,6 +458,8 @@ function RecentRolesSection({
   onNavigate,
   onResetStatusFilter,
   onToggleStatus,
+  pipelineView,
+  roleTab,
   recentRoleCount,
   statusFilterActive,
   visibleStatuses,
@@ -462,6 +472,8 @@ function RecentRolesSection({
   onNavigate?: () => void;
   onResetStatusFilter: () => void;
   onToggleStatus: (status: OrgRoleStatus, checked: boolean) => void;
+  pipelineView: OrgPipelineDisplay | null;
+  roleTab: OrgRoleTab | null;
   recentRoleCount: number;
   statusFilterActive: boolean;
   visibleStatuses: ReadonlySet<OrgRoleStatus>;
@@ -502,6 +514,12 @@ function RecentRolesSection({
           {filteredRoles.map((role) => {
             const active =
               activePage === "role" && activeRoleId === role.roleId;
+            const nextTab = roleTab
+              ? resolveOrgRoleTab({
+                  isDraft: normalizeOrgRoleStatus(role.status) === "draft",
+                  tab: roleTab,
+                })
+              : null;
             return (
               <Link
                 key={role.roleId}
@@ -524,6 +542,8 @@ function RecentRolesSection({
                   orgId: workspaceId,
                   page: "role",
                   roleId: role.roleId,
+                  tab: nextTab,
+                  view: pipelineView,
                 })}
                 onClick={onNavigate}
               >
@@ -614,10 +634,13 @@ function OrgSlackConnectionCard() {
 
 export function OrgWorkspaceSidebar({
   compact = false,
+  documentSections = [],
 }: {
   compact?: boolean;
+  documentSections?: readonly OrgDocumentsHeading[];
 }) {
   const t = useOrgT();
+  const sourceT = useOrgSourceT();
   const router = useRouter();
   const {
     closeNavigation,
@@ -632,6 +655,7 @@ export function OrgWorkspaceSidebar({
   const [signOutPending, setSignOutPending] = useState(false);
   const [mobileOrganizationMenuOpen, setMobileOrganizationMenuOpen] =
     useState(false);
+  const [mobileDocumentsMenuOpen, setMobileDocumentsMenuOpen] = useState(false);
   const [visibleRecentRoleStatuses, setVisibleRecentRoleStatuses] = useState<
     OrgRoleStatus[]
   >(() => [...ALL_ROLE_STATUSES]);
@@ -678,6 +702,19 @@ export function OrgWorkspaceSidebar({
     visibleRecentRoleStatuses.length !== ORG_ROLE_STATUS_FILTER_OPTIONS.length;
   const activeRoleId =
     typeof router.query.roleId === "string" ? router.query.roleId.trim() : "";
+  const activeRole = roles.find((role) => role.roleId === activeRoleId);
+  const recentRoleTab =
+    activePage === "role"
+      ? resolveOrgRoleTab({
+          isDraft: normalizeOrgRoleStatus(activeRole?.status) === "draft",
+          tab: typeof router.query.tab === "string" ? router.query.tab : "",
+        })
+      : null;
+  const recentPipelineView: OrgPipelineDisplay | null =
+    recentRoleTab === "pipeline" &&
+    (router.query.view === "pipeline" || router.query.view === "board")
+      ? router.query.view
+      : null;
   const navHref = (page: OrgWorkspacePageId) =>
     buildOrgHref({ orgId: workspace.workspaceId, page });
   const calendarSettingsHref = buildOrgHref({
@@ -689,6 +726,12 @@ export function OrgWorkspaceSidebar({
     activePage === "team" ||
     activePage === "member" ||
     activePage === "settings";
+  const documentsMode = activePage === "documents";
+  const activeDocumentSection =
+    typeof router.query.section === "string" &&
+    documentSections.some((section) => section.id === router.query.section)
+      ? router.query.section
+      : "";
   const animateOrganizationSidebarEntry =
     shouldAnimateOrganizationSidebarEntry(previousPathname);
   const organizationSection =
@@ -721,12 +764,19 @@ export function OrgWorkspaceSidebar({
     orgId: workspace.workspaceId,
     page: "home",
   });
+  const documentsHref = navHref("documents");
+  const documentSectionHref = (id: string) =>
+    `${documentsHref}${documentsHref.includes("?") ? "&" : "?"}section=${encodeURIComponent(id)}`;
   const handleOpenMobileNavigation = () => {
     setMobileOrganizationMenuOpen(organizationMode);
+    setMobileDocumentsMenuOpen(documentsMode);
     openNavigation();
   };
   const handleMobileNavigationOpenChange = (open: boolean) => {
-    if (open) setMobileOrganizationMenuOpen(organizationMode);
+    if (open) {
+      setMobileOrganizationMenuOpen(organizationMode);
+      setMobileDocumentsMenuOpen(documentsMode);
+    }
     setNavigationOpen(open);
   };
   const toggleRecentRoleStatus = (status: OrgRoleStatus, checked: boolean) => {
@@ -804,6 +854,50 @@ export function OrgWorkspaceSidebar({
                 ))}
               </nav>
             </motion.div>
+          ) : documentsMode ? (
+            <motion.div
+              animate={{ opacity: 1, x: 0 }}
+              className="flex min-h-0 flex-1 flex-col"
+              exit={{ opacity: 0, x: -28 }}
+              initial={false}
+              key="documents-sidebar"
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="mx-3 mb-3 border-b border-neutral-1000-a05 pb-3">
+                <NavLink
+                  active={false}
+                  href={organizationReturnHref}
+                  icon={ArrowLeft}
+                  label={t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
+                />
+              </div>
+              <nav aria-label="Documents" className="mx-3 min-h-0 space-y-1 overflow-y-auto">
+                <NavLink
+                  active={!activeDocumentSection}
+                  href={documentsHref}
+                  icon={BookOpenText}
+                  label={t("workspace.OrgWorkspaceSidebar.04ffd41a", "Documents")}
+                />
+                <div className="space-y-1 pt-2">
+                  {documentSections.map((section) => (
+                    <Link
+                      aria-current={activeDocumentSection === section.id ? "page" : undefined}
+                      className={cn(
+                        "flex min-h-9 items-center rounded-md px-2.5 py-1.5 text-[14px] leading-5 outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                        activeDocumentSection === section.id
+                          ? "bg-neutral-200/80 text-black"
+                          : "text-neutral-primary hover:bg-neutral-100"
+                      )}
+                      href={documentSectionHref(section.id)}
+                      key={section.id}
+                      scroll={false}
+                    >
+                      {sourceT(section.text)}
+                    </Link>
+                  ))}
+                </div>
+              </nav>
+            </motion.div>
           ) : (
             <motion.div
               animate={{ opacity: 1, x: 0 }}
@@ -851,7 +945,9 @@ export function OrgWorkspaceSidebar({
                     filteredRoles={filteredRecentRoles}
                     onResetStatusFilter={resetRecentRoleStatusFilter}
                     onToggleStatus={toggleRecentRoleStatus}
+                    pipelineView={recentPipelineView}
                     recentRoleCount={recentRoles.length}
+                    roleTab={recentRoleTab}
                     statusFilterActive={recentStatusFilterActive}
                     visibleStatuses={visibleRecentRoleStatusSet}
                     workspaceId={workspace.workspaceId}
@@ -1051,6 +1147,51 @@ export function OrgWorkspaceSidebar({
                   ))}
                 </nav>
               </div>
+            ) : mobileDocumentsMenuOpen ? (
+              <div className="flex min-h-0 flex-1 flex-col px-2 py-2">
+                <MuteButton
+                  className="mb-2 h-9 w-full justify-start gap-2 px-2 text-[13px]"
+                  onClick={() => setMobileDocumentsMenuOpen(false)}
+                  size="md"
+                  variant="transparent"
+                >
+                  <ArrowLeft className="size-4" strokeWidth={1.6} />
+                  {t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
+                </MuteButton>
+                <nav aria-label="Documents" className="min-h-0 space-y-1 overflow-y-auto">
+                  <Link
+                    aria-current={!activeDocumentSection ? "page" : undefined}
+                    className={cn(
+                      "flex h-9 items-center gap-2 rounded-md px-2 text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                      !activeDocumentSection
+                        ? "bg-bg-weak text-neutral-primary"
+                        : "text-neutral-muted hover:bg-bg-weak"
+                    )}
+                    href={documentsHref}
+                    onClick={closeNavigation}
+                  >
+                    <BookOpenText className="size-4" strokeWidth={1.55} />
+                    {t("workspace.OrgWorkspaceSidebar.04ffd41a", "Documents")}
+                  </Link>
+                  {documentSections.map((section) => (
+                    <Link
+                      aria-current={activeDocumentSection === section.id ? "page" : undefined}
+                      className={cn(
+                        "flex min-h-9 items-center rounded-md px-2 py-1.5 text-[14px] leading-5 outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                        activeDocumentSection === section.id
+                          ? "bg-bg-weak text-neutral-primary"
+                          : "text-neutral-muted hover:bg-bg-weak"
+                      )}
+                      href={documentSectionHref(section.id)}
+                      key={section.id}
+                      onClick={closeNavigation}
+                      scroll={false}
+                    >
+                      {sourceT(section.text)}
+                    </Link>
+                  ))}
+                </nav>
+              </div>
             ) : (
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav
@@ -1149,7 +1290,9 @@ export function OrgWorkspaceSidebar({
                     onNavigate={closeNavigation}
                     onResetStatusFilter={resetRecentRoleStatusFilter}
                     onToggleStatus={toggleRecentRoleStatus}
+                    pipelineView={recentPipelineView}
                     recentRoleCount={recentRoles.length}
+                    roleTab={recentRoleTab}
                     statusFilterActive={recentStatusFilterActive}
                     visibleStatuses={visibleRecentRoleStatusSet}
                     workspaceId={workspace.workspaceId}

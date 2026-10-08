@@ -5,7 +5,7 @@ import {
   extractLlmTokenUsage,
 } from "@/lib/llm/usageLogging";
 
-test("accounts for GPT-5.6 cache writes included in input tokens", () => {
+test("accounts for GPT-6 Luna cache writes included in input tokens", () => {
   const usage = extractLlmTokenUsage({
     usage: {
       input_tokens: 2_000,
@@ -28,10 +28,29 @@ test("accounts for GPT-5.6 cache writes included in input tokens", () => {
     totalProcessedInputTokens: 2_000,
     totalTokens: 2_100,
   });
-  const cost = estimateLlmUsageCost("gpt-5.6-luna", usage);
+  const cost = estimateLlmUsageCost("gpt-6-luna", usage);
   assert.equal(cost?.inputTokens, 500);
   assert.equal(cost?.cacheWriteInputTokens, 1_200);
   assert.equal(cost?.cacheReadInputTokens, 300);
+});
+
+test("prices GPT-6 Luna long context cache and output tokens", () => {
+  const usage = extractLlmTokenUsage({
+    usage: {
+      input_tokens: 273_000,
+      input_tokens_details: {
+        cached_tokens: 1_000,
+        cache_write_tokens: 1_000,
+      },
+      output_tokens: 1_000,
+    },
+  });
+  const cost = estimateLlmUsageCost("gpt-6-luna", usage);
+  assert.equal(cost?.inputUsdPerMtok, 0.2);
+  assert.equal(cost?.cacheReadUsdPerMtok, 0.02);
+  assert.equal(cost?.cacheWriteUsdPerMtok, 0.25);
+  assert.equal(cost?.outputUsdPerMtok, 0.75);
+  assert.equal(cost?.estimatedCostUsd, 0.05522);
 });
 
 test("prices GPT-5.6 Terra fallback usage", () => {
@@ -61,16 +80,16 @@ test("prices retired Grok Fast slugs as redirected Grok 4.3", () => {
   assert.equal(cost?.estimatedCostUsd, 0.0025);
 });
 
-test("prices OpenRouter DeepSeek V4 Flash 0731", () => {
+test("prices OpenRouter DeepSeek V4.1 Flash", () => {
   const usage = extractLlmTokenUsage({
     usage: { input_tokens: 1_000, output_tokens: 500 },
   });
 
-  const cost = estimateLlmUsageCost("deepseek/deepseek-v4-flash-0731", usage);
-  assert.equal(cost?.inputUsdPerMtok, 0.05);
-  assert.equal(cost?.outputUsdPerMtok, 0.16);
-  assert.equal(cost?.pricingSource, "openrouter_pricing_2026_09_13");
-  assert.equal(cost?.estimatedCostUsd, 0.00013);
+  const cost = estimateLlmUsageCost("deepseek/deepseek-v4.1-flash", usage);
+  assert.equal(cost?.inputUsdPerMtok, 0.027);
+  assert.equal(cost?.outputUsdPerMtok, 0.6);
+  assert.equal(cost?.pricingSource, "openrouter_pricing_2026_10_02");
+  assert.equal(cost?.estimatedCostUsd, 0.000327);
 });
 
 test("prices OpenRouter Muse Spark 1.3", () => {

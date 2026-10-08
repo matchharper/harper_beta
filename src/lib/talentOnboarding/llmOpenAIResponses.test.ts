@@ -12,7 +12,7 @@ function asyncStream(items: unknown[]) {
 
 test("builds Luna Responses requests with high reasoning and JSON mode", () => {
   const requestBody = buildOpenAIResponsesRequest({
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     reasoningEffort: "high",
     requestBody: {
       messages: [{ content: "Return JSON", role: "user" }],
@@ -40,7 +40,7 @@ test("runs career insight extraction and conversation summaries through Luna hig
   responsesPrototype.create = async (body: Record<string, any>) => {
     requests.push(body);
     return {
-      model: "gpt-5.6-luna",
+      model: "gpt-6-luna",
       output: [
         {
           content: [{ text: '{"ok":true}', type: "output_text" }],
@@ -65,7 +65,7 @@ test("runs career insight extraction and conversation summaries through Luna hig
 
     assert.equal(requests.length, 2);
     for (const request of requests) {
-      assert.equal(request.model, "gpt-5.6-luna");
+      assert.equal(request.model, "gpt-6-luna");
       assert.deepEqual(request.reasoning, { effort: "high" });
       assert.deepEqual(request.text, { format: { type: "json_object" } });
     }
@@ -85,7 +85,7 @@ test("runs call note analysis through Luna low with a strict schema", async () =
   responsesPrototype.create = async (body: Record<string, any>) => {
     captured.request = body;
     return {
-      model: "gpt-5.6-luna",
+      model: "gpt-6-luna",
       output: [
         {
           content: [
@@ -115,7 +115,7 @@ test("runs call note analysis through Luna low with a strict schema", async () =
 
     assert.match(result, /보상 기준 정리/);
     assert.ok(captured.request);
-    assert.equal(captured.request.model, "gpt-5.6-luna");
+    assert.equal(captured.request.model, "gpt-6-luna");
     assert.deepEqual(captured.request.reasoning, { effort: "low" });
     assert.equal(captured.request.text?.format?.type, "json_schema");
     assert.equal(
@@ -128,14 +128,14 @@ test("runs call note analysis through Luna low with a strict schema", async () =
   }
 });
 
-test("preserves GPT-5.6 explicit cache breakpoints and structured output", () => {
+test("preserves GPT-6 Luna explicit cache breakpoints and structured output", () => {
   const schema = {
     properties: { evaluations: { items: {}, type: "array" } },
     required: ["evaluations"],
     type: "object",
   };
   const requestBody = buildOpenAIResponsesRequest({
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     reasoningEffort: "high",
     requestBody: {
       messages: [
@@ -197,7 +197,7 @@ test("runs the talent tool loop through Luna Responses with high reasoning", asy
     if (requests.length === 1) {
       return {
         id: "resp-tool-call",
-        model: "gpt-5.6-luna",
+        model: "gpt-6-luna",
         output: [
           { encrypted_content: "opaque", type: "reasoning" },
           {
@@ -213,7 +213,7 @@ test("runs the talent tool loop through Luna Responses with high reasoning", asy
     }
     return {
       id: "resp-final",
-      model: "gpt-5.6-luna",
+      model: "gpt-6-luna",
       output: [
         {
           content: [{ text: "새 기회를 찾아봤어요.", type: "output_text" }],
@@ -235,7 +235,7 @@ test("runs the talent tool loop through Luna Responses with high reasoning", asy
       ],
       modelConfig: {
         fallbackModel: "gpt-4.1-mini",
-        primaryModel: "gpt-5.6-luna",
+        primaryModel: "gpt-6-luna",
       },
       openAIResponsesReasoningEffort: "high",
       temperature: 0.55,
@@ -308,7 +308,7 @@ test("streams Luna text while preserving Responses tool and reasoning output", a
         {
           response: {
             id: "resp-tool-call",
-            model: "gpt-5.6-luna",
+            model: "gpt-6-luna",
             output: [
               {
                 encrypted_content: "opaque",
@@ -336,7 +336,7 @@ test("streams Luna text while preserving Responses tool and reasoning output", a
       {
         response: {
           id: "resp-final",
-          model: "gpt-5.6-luna",
+          model: "gpt-6-luna",
           output: [
             {
               content: [{ text: "새 기회를 찾았어요.", type: "output_text" }],
@@ -358,7 +358,7 @@ test("streams Luna text while preserving Responses tool and reasoning output", a
       executeTool: async () => ({ recommendationCount: 5 }),
       messages: [{ content: "Find roles.", role: "user" }],
       modelConfig: {
-        primaryModel: "gpt-5.6-luna",
+        primaryModel: "gpt-6-luna",
       },
       onTextDelta: (delta) => {
         textDeltas.push(delta);

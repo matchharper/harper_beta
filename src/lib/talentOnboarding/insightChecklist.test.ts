@@ -44,7 +44,11 @@ test("uses one onboarding checklist for every profile location", () => {
       "additional_question_one",
     ]);
     assert.deepEqual(getOnboardingRequiredQuestionKeys(context), [
-      "cross_border_work_authorization",
+      "search_intensity",
+      "location",
+      "next_scope",
+      "compensation",
+      "language",
     ]);
   }
 });
@@ -61,13 +65,13 @@ test("combines next role and must-haves into one checklist question", () => {
   assert.match(item.promptHint, /one natural question/);
 });
 
-test("requires all ten common checklist items before completion", () => {
+test("requires five core questions and a final confirmation", () => {
   assert.equal(ONBOARDING_QUESTION_CHECKLIST.length, 10);
-  assert.equal(ONBOARDING_QUESTION_MIN_COVERED_COUNT, 10);
-  assert.equal(TALENT_INTERVIEW_FINAL_STEP, 9);
+  assert.equal(ONBOARDING_QUESTION_MIN_COVERED_COUNT, 6);
+  assert.equal(TALENT_INTERVIEW_FINAL_STEP, 5);
   assert.equal(
     TALENT_INTERVIEW_FINAL_STEP,
-    ONBOARDING_QUESTION_CHECKLIST.length - 1
+    getOnboardingRequiredQuestionKeys().length
   );
 });
 

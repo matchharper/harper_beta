@@ -19,6 +19,7 @@ import {
 import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useMessages, type Locale } from "@/i18n/useMessage";
+import { useCareerProfileContext } from "../CareerSidebarContext";
 import { formatCareerDate } from "@/lib/career/dateFormat";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import { OpportunityType } from "@/lib/opportunityType";
@@ -439,6 +440,7 @@ export default function NewOpportunityList({
 }: NewOpportunityListProps) {
   const t = useCareerT();
   const { locale } = useMessages();
+  const { talentPreferences } = useCareerProfileContext();
   const listId = useId();
   const sentinelRef = useRef<HTMLDivElement>(null);
   const sections = useMemo(() => {
@@ -563,12 +565,25 @@ export default function NewOpportunityList({
             ))
           ) : (
             <p className="text-[14px] leading-6 text-neutral-muted">
-              {section.count > 0
-                ? t(
-                    "career.common.career_history_panel.0s3czqf",
-                    "저장된 정보를 불러오는 중입니다..."
-                  )
-                : section.empty}
+              {section.count > 0 ? (
+                t(
+                  "career.common.career_history_panel.0s3czqf",
+                  "저장된 정보를 불러오는 중입니다..."
+                )
+              ) : (
+                <>
+                  {section.empty}
+                  {section.key === "external" &&
+                  talentPreferences?.getExternalRecommendation === false ? (
+                    <span className="mt-2 block">
+                      {t(
+                        "career.history.new_opportunity_list.external_recommendations_off",
+                        "현재 외부 포지션의 추천이 꺼져있습니다. Harper에게 요청하시면, 주기적으로 직접 지원하실만한 외부 공고를 찾아서 전달드립니다."
+                      )}
+                    </span>
+                  ) : null}
+                </>
+              )}
             </p>
           )}
         </section>

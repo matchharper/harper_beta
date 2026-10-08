@@ -17,7 +17,7 @@ function asyncStream(items: unknown[]) {
 test("routes OpenRouter catalog models to OpenRouter", async () => {
   const { getLlmChatProviderForModel, supportsSamplingParametersForModel } =
     await loadLlm();
-  const model = "deepseek/deepseek-v4-flash-0731";
+  const model = "deepseek/deepseek-v4.1-flash";
   assert.equal(getLlmChatProviderForModel(model), "openrouter");
   assert.equal(
     getLlmChatProviderForModel("meta/muse-spark-1.3"),
@@ -356,7 +356,7 @@ test("forwards OpenRouter deltas through the Career chat stream", async () => {
   assert.equal((receivedBody as Record<string, any>).stream, true);
 });
 
-test("enables OpenRouter reasoning for DeepSeek V4 Flash 0731", async () => {
+test("enables OpenRouter reasoning for DeepSeek V4.1 Flash", async () => {
   const { createChatCompletionWithFallback, openrouterClient } =
     await loadLlm();
   const completions = openrouterClient.chat.completions as any;
@@ -382,7 +382,7 @@ test("enables OpenRouter reasoning for DeepSeek V4 Flash 0731", async () => {
         temperature: 0.1,
       }),
       chatCompletionReasoning: { reasoningEffort: "high" },
-      model: "deepseek/deepseek-v4-flash-0731",
+      model: "deepseek/deepseek-v4.1-flash",
     });
   } finally {
     completions.create = originalCreate;
@@ -423,7 +423,7 @@ test("aborts an in-flight OpenRouter completion without retrying", async () => {
   try {
     const completion = createChatCompletionWithFallback({
       buildRequest: () => ({ messages: [] }),
-      model: "deepseek/deepseek-v4-flash-0731",
+      model: "deepseek/deepseek-v4.1-flash",
       signal: controller.signal,
     });
     controller.abort(reason);
@@ -528,7 +528,7 @@ test("falls back to Luna xhigh when structured-output validation fails", async (
     fallbackRequest = body;
     return {
       id: "resp-luna-fallback",
-      model: "gpt-5.6-luna",
+      model: "gpt-6-luna",
       output: [
         {
           content: [
@@ -551,8 +551,8 @@ test("falls back to Luna xhigh when structured-output validation fails", async (
       buildRequest: () => ({
         messages: [{ content: "Write JSON", role: "user" }],
       }),
-      fallbackModel: "gpt-5.6-luna",
-      model: "deepseek/deepseek-v4-flash-0731",
+      fallbackModel: "gpt-6-luna",
+      model: "deepseek/deepseek-v4.1-flash",
       openAIResponses: { reasoningEffort: "xhigh" },
       structuredOutput: {
         name: "candidate_contact_copy",
@@ -568,7 +568,7 @@ test("falls back to Luna xhigh when structured-output validation fails", async (
       },
     });
 
-    assert.equal(result.model, "gpt-5.6-luna");
+    assert.equal(result.model, "gpt-6-luna");
     assert.equal(result.fallbackReason, "primary_failed");
   } finally {
     openrouterCompletions.create = originalOpenrouterCreate;

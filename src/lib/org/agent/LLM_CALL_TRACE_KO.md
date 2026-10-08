@@ -149,13 +149,13 @@ speaker  message
 - request/memory는 immutable preview를 보여주고 다음 확인 후 적용한다.
 - 후보 stage 변경과 outbound introduction은 여기서 실행하지 않는다.
 
-## DeepSeek V4 Flash 0731을 선택한 첫 model request
+## DeepSeek V4.1 Flash를 선택한 첫 model request
 
 웹 model selector 또는 서버 override로 DeepSeek를 선택한 첫 호출은 개념적으로 다음과 같다.
 
 ```jsonc
 {
-  "model": "deepseek/deepseek-v4-flash-0731",
+  "model": "deepseek/deepseek-v4.1-flash",
   "max_tokens": 4000,
   "reasoning": { "effort": "xhigh" },
   "messages": [

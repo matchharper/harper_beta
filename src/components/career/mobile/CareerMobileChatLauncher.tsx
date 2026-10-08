@@ -32,6 +32,7 @@ import CareerMobileNavigationMenu, {
   type CareerMobileNavigationOption,
   type CareerMobileNavigationOptionId,
 } from "@/components/career/mobile/CareerMobileNavigationMenu";
+import { CareerCallIdlePrompt } from "@/components/career/chat/CareerCallIdlePrompt";
 
 type CareerMobileChatNavigation = {
   activeTab: CareerMobileNavigationOptionId;
@@ -205,8 +206,14 @@ function CareerMobileChatLauncher({
     sessionReengagementPending,
     stage,
   } = useCareerChatPanelContext();
-  const { callConnectionStatus, voiceMuted, onToggleVoiceMute, onEndCallMode } =
-    useCareerCallContext();
+  const {
+    callConnectionStatus,
+    voiceMuted,
+    onToggleVoiceMute,
+    onEndCallMode,
+    idleWarningVisible,
+    onAcknowledgeIdleWarning,
+  } = useCareerCallContext();
   const isCallActive =
     callConnectionStatus === "connected" ||
     callConnectionStatus === "reconnecting";
@@ -349,6 +356,14 @@ function CareerMobileChatLauncher({
           </div>
           {actionBar && !showMinimizedCall ? (
             <div className="px-4 pt-1 pb-0.5">{actionBar}</div>
+          ) : null}
+          {showMinimizedCall &&
+          idleWarningVisible &&
+          onAcknowledgeIdleWarning ? (
+            <CareerCallIdlePrompt
+              compact
+              onContinue={onAcknowledgeIdleWarning}
+            />
           ) : null}
           <div className="flex items-center gap-2 px-4 pb-3 pt-1">
             {showMinimizedCall ? (

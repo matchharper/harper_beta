@@ -36,6 +36,7 @@ export async function PATCH(req: NextRequest) {
       externalJdUrl?: string | null;
       expectedCriteria?: unknown;
       isCompanyFirstSearch?: boolean;
+      isPromote?: boolean;
       introSearchDate?: unknown;
       introSearchTime?: unknown;
       isExpired?: boolean | null;
@@ -55,6 +56,7 @@ export async function PATCH(req: NextRequest) {
       externalJdUrl: body.externalJdUrl,
       expectedCriteria: body.expectedCriteria,
       isCompanyFirstSearch: body.isCompanyFirstSearch,
+      isPromote: body.isPromote,
       introSearchDate: body.introSearchDate,
       introSearchTime: body.introSearchTime,
       isExpired: body.isExpired,

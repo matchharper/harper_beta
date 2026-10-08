@@ -125,6 +125,7 @@ type CompanyRoleWithInternalRow = CompanyRoleRow & {
     | {
         criteria?: unknown;
         is_company_first_search?: boolean | null;
+        is_promote?: boolean | null;
         intro_search_date?: string[] | null;
         intro_search_time?: number | null;
         request?: string | null;
@@ -132,6 +133,7 @@ type CompanyRoleWithInternalRow = CompanyRoleRow & {
     | Array<{
         criteria?: unknown;
         is_company_first_search?: boolean | null;
+        is_promote?: boolean | null;
         intro_search_date?: string[] | null;
         intro_search_time?: number | null;
         request?: string | null;
@@ -231,6 +233,7 @@ export type OrgRole = {
   employmentTypes: string[];
   externalJdUrl: string | null;
   isCompanyFirstSearch?: boolean;
+  isPromote?: boolean;
   introSearchDate?: IntroSearchDay[];
   introSearchTime?: number;
   lastConversationAt?: string | null;
@@ -969,6 +972,7 @@ function toRole(
   internal?: {
     criteria?: unknown;
     is_company_first_search?: boolean | null;
+    is_promote?: boolean | null;
     intro_search_date?: string[] | null;
     intro_search_time?: number | null;
     request?: string | null;
@@ -985,6 +989,7 @@ function toRole(
     employmentTypes: normalizeOrgRoleEmploymentTypes(row.type),
     externalJdUrl: row.external_jd_url ?? null,
     isCompanyFirstSearch: canonicalInternal?.is_company_first_search === true,
+    isPromote: canonicalInternal?.is_promote === true,
     introSearchDate: parseIntroSearchDays(canonicalInternal?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
     introSearchTime: parseIntroSearchHour(canonicalInternal?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
     lastConversationAt: lastConversationAt ?? null,
@@ -1889,7 +1894,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
       .eq("company_workspace_id", workspaceId)
       .not("role_id", "is", null),
     (admin.from("company_conversations" as any) as any)
-      .select("role_id, last_message_at")
+      .select("role_id, last_message_at, last_message_id, hidden_through_message_id")
       .eq("company_workspace_id", workspaceId)
       .not("role_id", "is", null)
       .not("last_message_at", "is", null),
@@ -1903,7 +1908,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const roleIds = roleRows.map((role) => role.role_id);
   const internalResult = roleIds.length
     ? await (admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, criteria, is_company_first_search, intro_search_date, intro_search_time")
+        .select("role_id, request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -1912,6 +1917,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
       (internalResult.data ?? []) as Array<{
         criteria: unknown;
         is_company_first_search: boolean | null;
+        is_promote: boolean | null;
         intro_search_date: string[] | null;
         intro_search_time: number | null;
         request: string | null;
@@ -1934,10 +1940,19 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
 
   const lastConversationByRoleId = new Map<string, string>();
   for (const conversation of (conversationsResult.data ?? []) as Array<{
+    hidden_through_message_id: number | null;
     last_message_at: string | null;
+    last_message_id: number | null;
     role_id: string | null;
   }>) {
     if (!conversation.role_id || !conversation.last_message_at) continue;
+    if (
+      conversation.hidden_through_message_id !== null &&
+      (conversation.last_message_id === null ||
+        conversation.last_message_id <= conversation.hidden_through_message_id)
+    ) {
+      continue;
+    }
     const previous = lastConversationByRoleId.get(conversation.role_id);
     if (!previous || conversation.last_message_at > previous) {
       lastConversationByRoleId.set(
@@ -2405,7 +2420,7 @@ async function fetchRoleRowsForWorkspace(
 ) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_internal_roles(request, criteria, is_company_first_search, intro_search_date, intro_search_time)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_internal_roles(request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("source_type", "internal")
@@ -6950,19 +6965,25 @@ export async function openOrgResume(args: {
   }
   if (!url) throw new OrgHttpError(404, "Resume not found");
 
-  const { error: logError } = await (admin.from("logs" as any) as any).insert({
-    is_mobile: null,
-    meta_data: {
-      kind,
-      documentId: kind === "document" ? normalizeText(args.documentId) : null,
-      resumeFileName: openedFileName,
-      talentId,
-      workspaceId,
-    } satisfies Record<string, unknown>,
-    type: "org_resume_opened",
-    user_id: getUserEmail(args.user),
-  });
-  if (logError) throw logError;
+  try {
+    const { error: logError } = await (admin.from("logs" as any) as any).insert({
+      is_mobile: null,
+      meta_data: {
+        kind,
+        documentId: kind === "document" ? normalizeText(args.documentId) : null,
+        resumeFileName: openedFileName,
+        talentId,
+        workspaceId,
+      } satisfies Record<string, unknown>,
+      type: "org_resume_opened",
+      user_id: args.user.id,
+    });
+    if (logError) {
+      console.error("[org/resume-access] Failed to record resume access", logError);
+    }
+  } catch (logError) {
+    console.error("[org/resume-access] Failed to record resume access", logError);
+  }
 
   return { ok: true, url };
 }
@@ -7414,6 +7435,7 @@ export async function updateOrgRole(args: {
   externalJdUrl?: string | null;
   expectedCriteria?: unknown;
   isCompanyFirstSearch?: boolean;
+  isPromote?: boolean;
   introSearchDate?: unknown;
   introSearchTime?: unknown;
   isExpired?: boolean | null;
@@ -7446,6 +7468,9 @@ export async function updateOrgRole(args: {
     typeof args.isCompanyFirstSearch !== "boolean"
   ) {
     throw new OrgHttpError(400, "정기 후보 검색 설정이 올바르지 않습니다.");
+  }
+  if (args.isPromote !== undefined && typeof args.isPromote !== "boolean") {
+    throw new OrgHttpError(400, "공개 채용 공고 설정이 올바르지 않습니다.");
   }
   const introSearchDate = args.introSearchDate === undefined ? undefined : parseIntroSearchDays(args.introSearchDate);
   const introSearchTime = args.introSearchTime === undefined ? undefined : parseIntroSearchHour(args.introSearchTime);
@@ -7545,6 +7570,9 @@ export async function updateOrgRole(args: {
       value: args.isCompanyFirstSearch,
     });
   }
+  if (args.isPromote !== undefined) {
+    changes.push({ key: "role_is_promote", roleId, value: args.isPromote });
+  }
   if (introSearchDate !== undefined) {
     changes.push({ key: "role_intro_search_date", roleId, value: introSearchDate });
   }
@@ -7635,7 +7663,7 @@ export async function updateOrgRole(args: {
   const { data: internalRole, error: internalError } = await (
     admin.from("company_internal_roles" as any) as any
   )
-    .select("request, criteria, is_company_first_search, intro_search_date, intro_search_time")
+    .select("request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time")
     .eq("role_id", roleId)
     .maybeSingle();
   if (internalError) throw internalError;
@@ -7736,7 +7764,7 @@ export async function updateOrgRoleRequestOnly(args: {
   }
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria, is_company_first_search, intro_search_date, intro_search_time)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)

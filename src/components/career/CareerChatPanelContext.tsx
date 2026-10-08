@@ -169,6 +169,8 @@ export type CareerChatPanelContextValue = {
   isAssistantSpeaking?: boolean;
   isVoiceToolExecuting?: boolean;
   voiceActiveToolNames?: string[];
+  idleWarningVisible?: boolean;
+  onAcknowledgeIdleWarning?: () => void;
 };
 
 export type CareerCallContextValue = Pick<
@@ -178,6 +180,8 @@ export type CareerCallContextValue = Pick<
   | "isAssistantSpeaking"
   | "isVoiceToolExecuting"
   | "voiceActiveToolNames"
+  | "idleWarningVisible"
+  | "onAcknowledgeIdleWarning"
   | "liveUserTranscriptPlacement"
   | "onEndCallMode"
   | "onToggleVoiceMute"

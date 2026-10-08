@@ -7,6 +7,7 @@ import {
   buildOpportunityStatusSection,
   buildOptionalFollowUpOpportunitiesSection,
 } from "./conversationSections";
+import { buildCareerConversationPromptPlan } from "./conversationPlan";
 import { CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT } from "./rawPrompts";
 import { getInsightChecklist } from "../../talentOnboarding/insightChecklist";
 import { buildCareerInsightExtractionPrompt } from "./cases/insightExtractionPrompts";
@@ -109,6 +110,29 @@ test("keeps saved Brief content out of onboarding checklist metadata", () => {
   assert.ok(promptHint);
   assert.equal(extractionSection.split(promptHint).length - 1, 1);
   assert.doesNotMatch(extractionSection, /Canonical insight keys/);
+});
+
+test("onboarding voice asks for core context without generic deep probing", () => {
+  const plan = buildCareerConversationPromptPlan({
+    channel: "voice",
+    isOnboardingDone: false,
+    profile: null,
+    structuredProfileText: "",
+    talentContextSection: "",
+    toolNames: ["end_call"],
+  });
+  const voiceRules = plan.promptBlocks.find(
+    (block) => block.key === "voice_call_rules"
+  );
+  const runtimeState = plan.promptBlocks.find(
+    (block) => block.key === "dynamic_state"
+  );
+
+  assert.ok(voiceRules);
+  assert.ok(runtimeState);
+  assert.doesNotMatch(voiceRules.text, /장려할 질문 주제/);
+  assert.match(runtimeState.text, /cross_border_work_authorization[\s\S]*priority: optional/);
+  assert.match(runtimeState.text, /Required checklist items covered: 0\/6/);
 });
 
 test("keeps canonical onboarding Brief fields separate without discounting free-form Briefs", () => {

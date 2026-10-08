@@ -6,7 +6,7 @@ import {
   type ChatCompletionReasoningEffort,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
-import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
 import {
   logLlmTokenUsage,
@@ -78,9 +78,9 @@ type LlmToolCostAttribution = {
   toolNames: readonly string[];
 };
 
-const DEFAULT_TALENT_PRIMARY_MODEL = GPT_56_LUNA_MODEL;
+const DEFAULT_TALENT_PRIMARY_MODEL = GPT_6_LUNA_MODEL;
 const DEFAULT_TALENT_FALLBACK_MODEL = "gpt-4.1-mini";
-const DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL = GPT_56_LUNA_MODEL;
+const DEFAULT_TALENT_ANTHROPIC_OVERLOAD_FALLBACK_MODEL = GPT_6_LUNA_MODEL;
 
 function cleanModelText(raw: string) {
   return raw
@@ -120,7 +120,9 @@ function supportsExplicitPromptCache(model: string) {
   const normalized = model.trim().toLowerCase();
   return (
     getLlmChatProviderForModel(normalized) === "openai" &&
-    (normalized === "gpt-5.6" || normalized.startsWith("gpt-5.6-"))
+    (normalized === GPT_6_LUNA_MODEL ||
+      normalized === "gpt-5.6" ||
+      normalized.startsWith("gpt-5.6-"))
   );
 }
 

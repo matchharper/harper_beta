@@ -46,7 +46,11 @@ import {
   normalizeOrgRoleStatus,
 } from "@/lib/org/roleStatus";
 import { isOrgInboxStage } from "@/lib/org/pipelineStage";
-import { buildOrgHref, type OrgRoleTab } from "@/lib/org/routes";
+import {
+  buildOrgHref,
+  resolveOrgRoleTab,
+  type OrgRoleTab,
+} from "@/lib/org/routes";
 import type { OrgRole } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -100,18 +104,6 @@ const CHAT_TAB = {
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function getRoleTab({
-  isDraft,
-  tab,
-}: {
-  isDraft: boolean;
-  tab: string;
-}): RoleCreationTab {
-  if (!isDraft && (tab === "inbox" || tab === "pipeline")) return tab;
-  if (tab === "role" || tab === "settings") return tab;
-  return "matching";
 }
 
 function OrgRolePipelineWorkspace({
@@ -278,7 +270,10 @@ function OrgRoleCreationDetails({
   const calibrationProfileId = router.isReady
     ? getQueryText(router.query.profile)
     : "";
-  const activeTab = getRoleTab({ isDraft: roleCreation, tab: requestedTab });
+  const activeTab = resolveOrgRoleTab({
+    isDraft: roleCreation,
+    tab: requestedTab,
+  });
   const pipelineDisplay: RolePipelineDisplay =
     mobile || requestedView === "board" ? "board" : "pipeline";
   const detailTabs = [
@@ -291,9 +286,6 @@ function OrgRoleCreationDetails({
     if (tab === "pipeline") {
       nextQuery.tab = "pipeline";
       nextQuery.view = pipelineDisplay;
-    } else if (tab === "matching") {
-      delete nextQuery.tab;
-      delete nextQuery.view;
     } else {
       nextQuery.tab = tab;
       delete nextQuery.view;

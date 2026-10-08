@@ -163,8 +163,17 @@ export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
     FINAL_PRIORITY_CONFIRMATION_ITEM,
   ];
 
+/** The short first conversation only needs enough context to begin searching. */
+export const ONBOARDING_REQUIRED_QUESTION_KEYS = [
+  "search_intensity",
+  "location",
+  "next_scope",
+  "compensation",
+  "language",
+] as const;
+
 export const ONBOARDING_QUESTION_MIN_COVERED_COUNT =
-  ONBOARDING_QUESTION_CHECKLIST.length;
+  ONBOARDING_REQUIRED_QUESTION_KEYS.length + 1; // final confirmation
 
 const ALL_ONBOARDING_QUESTION_CHECKLIST = ONBOARDING_QUESTION_CHECKLIST;
 
@@ -185,7 +194,7 @@ export function getOnboardingAdditionalQuestionKeys(
 export function getOnboardingRequiredQuestionKeys(
   _context?: OnboardingChecklistLocationContext
 ) {
-  return [CROSS_BORDER_WORK_AUTHORIZATION_ONBOARDING_ITEM.key];
+  return [...ONBOARDING_REQUIRED_QUESTION_KEYS];
 }
 
 export function getOnboardingQuestionInsightKeys(

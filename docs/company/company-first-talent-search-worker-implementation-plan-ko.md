@@ -1,5 +1,7 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+> 2026-10-02 운영 반영 (Worker `8acac40`): Company-first 검색은 후보자별 Behavior Context를 생성·갱신하지 않는다. 저장된 cache를 한 번에 읽고, cache가 없는 후보자도 현재 Profile·Search Brief로 계속 평가한다. 이미 완료된 운영 run 결과는 소급 변경되지 않는다.
+
 > 2026-10-01 운영 변경: scheduler는 각 Role의 정기 검색 요일·시각(Asia/Seoul)을 매분 읽고 같은 회사·같은 시각의 대상 Role을 한 run으로 묶는다. 기본은 월·수·금 09:00이다. 예약된 Role 범위는 run에 고정한다. 아래 월요일 09:00·전역 cron·시간대 변경 설명은 이전 계약의 이력이며 현재 기준은 [운영 설정 계약](./company-first-runtime-settings-ko.md)이다.
 
 > 2026-09-29 운영 반영: beta `dc52b832`, Worker `8b355199`와 관련 DB 변경을 반영했고 Company-first 실행기·예약 실행기를 활성화했다. [운영 설정 계약](./company-first-runtime-settings-ko.md)에 따라 예약 주기·시간대·Role별 상한·미처리 한도를 DB에서 읽는다. 아래 월요일 09:00, 3명/6명, 30명은 재배포 없이 수정 가능한 기본값이다. 정기는 `is_company_first_search = true`, calibration 후 첫 검색은 기존 자동 실행 설정, 직접 요청은 명시적으로 지정한 Role을 따른다.
@@ -12,7 +14,7 @@
 
 > 2026-09-24 로컬 계약 보완: 전달된 제안의 답변 대기 중 회사가 승인한 메시지는 기존 연락 경로로 허용한다. 별도 follow-up worker나 분류기는 추가하지 않는다. 후보 선정·수락·공유 상태는 변하지 않는다. [현재 연락 계약](../company-talent-contacts-ko.md) 참고. 운영 배포를 뜻하지 않는다.
 
-- 문서 기준: 2026-10-01
+- 문서 기준: 2026-10-02
 - 상태: candidate-first/company-first route 결정과 matching review persistence를 운영 반영했다. 실행기 활성화와 실제 대기 작업 claim을 확인했다. 기존 route-aware frozen gold·회사/직군별 shadow gate의 완료 여부와 정성적 품질 과제는 배포 성공과 별도로 유지한다.
 - 범위: 회사 단위 예약 실행, search 여부 판단, 동적 SQL retrieval, scoring, 회사 전체 reranking,
   candidate-first/company-first/no-action route 결정, 결과 기록, candidate-first 기존 delivery queue 연계,
@@ -756,7 +758,7 @@ Run 시작 시 load한 같은 snapshot을 모든 scoring call이 재사용한다
 - current date/time text
 - candidate Profile
 - 전체 Search Brief, 최대 40행과 기존 Worker char budget
-- same-version Behavior Context 한 개
+- 검색 시작 시 이미 저장된 Behavior Context 한 개. 없는 경우 빈 context를 사용한다
 - raw Memory나 과거 대화 전체는 넣지 않음
 - 회사와 eligible Role의 JD/request/criteria/behavior context
 - 이번 `searchStrategy`
@@ -768,7 +770,7 @@ Run 시작 시 load한 같은 snapshot을 모든 scoring call이 재사용한다
 직전 company-first fit은 scoring을 다시 호출하지 않는다. non-fit은 `scored_at + 30일 <= run 기준 시각`일
 때만 새 scoring 대상이다. 성공한 모든 scoring을 `company_first_talent_scores`에 저장하고 실패는 갱신하지 않는다.
 재사용 fit과 새 fit을 합친 뒤 기존 역할별 12쌍·회사별 50명/72쌍 상한을 한 번 적용한다. Rerank의
-`no_action`은 scoring 결과를 바꾸지 않는다. 재사용 후보도 최신 Brief·Behavior·추천 이력과 현재 역할 조건을 읽는다.
+`no_action`은 scoring 결과를 바꾸지 않는다. 재사용 후보도 최신 Brief·추천 이력·현재 역할 조건과 검색 시작 시 저장돼 있던 Behavior Context를 읽는다. 검색은 Behavior Context의 미반영 변경을 확인하거나 갱신하지 않는다.
 
 기존 fit은 같은 canonical evaluator가 만든 **강한 prior**로 명시한다. 현재 Profile·전체 Search Brief·같은
 version Behavior Context·Role 사실과 양립하면 처음부터 같은 분석을 반복하지 않고 적극 재사용한다. 최신
@@ -852,10 +854,12 @@ fingerprint에 포함해 scoring 뒤 값이 바뀌면 commit을 중단한다. �
 
 한 회사 run 안에서 최대 5개 Talent를 동시에 score한다. 각 future는 독립 LLM call이며 DB connection을
 공유하지 않는다. Profile·Brief·Behavior packet은 LLM 시작 전에 읽고 transaction을 commit/close한다.
-Company-first Profile loader는 범용 agent loader의 대화·활동·추천 이력을 다시 읽지 않는다. 그 원천은 같은
-version의 Behavior Context에 이미 반영되므로, 이름·headline·bio·location·경력·학력·extra·locale만 회사
-후보군 전체에 대해 한 번에 batch 조회한다. 2026-09-17 shadow의 29명에서 기존 packet과 company-first
-소비 field가 29/29 exact 일치했고 batch query는 3.3초였다.
+Company-first Profile loader는 범용 agent loader의 대화·활동 이력을 다시 읽지 않는다. 이름·headline·bio·
+location·경력·학력·extra와 저장된 Behavior Context를 회사 후보군 전체에 대해 한 번에 batch 조회한다.
+캐시가 없는 후보자는 제외하지 않고 빈 Behavior Context와 version 0으로 평가한다. 기존 캐시가 최근 행동을
+반영하지 않았을 수 있으므로 이를 최신 사실이나 hard constraint로 취급하지 않는다. 2026-09-17 shadow의
+29명 Profile batch 조회는 3.3초였으며, 당시 packet 비교는 29/29 exact 일치했다. 새 cache-only 경로의
+운영 소요 시간은 배포 후 별도 측정이 필요하다.
 Future 결과는 완료 순서가 아니라 원래 candidate order와 id로 합친다.
 
 External scorer의 “높은 점수 30개가 쌓이면 남은 batch scheduling을 멈춘다”는 early-stop은 v1에 그대로

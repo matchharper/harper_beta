@@ -538,7 +538,6 @@ export const useCareerOnboardingVoice = ({
   const endCallModeRef = useRef<
     ((options?: EndCallModeOptions) => void) | null
   >(null);
-  const forceEndCallModeRef = useRef<(() => void) | null>(null);
   const pendingCallEndRef = useRef(false);
   const wasAssistantSpeakingRef = useRef(false);
   const callStartedAtRef = useRef<number | null>(null);
@@ -553,7 +552,6 @@ export const useCareerOnboardingVoice = ({
     typeof setTimeout
   > | null>(null);
   const inputModeRef = useRef<string>("text");
-  const generateSpeechRef = useRef<((text: string) => void) | null>(null);
   const realtimeSessionRef = useRef<ReturnType<
     typeof useCareerVoiceSession
   > | null>(null);
@@ -771,10 +769,6 @@ export const useCareerOnboardingVoice = ({
           }
           if (response.ok && payload?.progress?.completed) {
             setStage("completed" as CareerStage);
-            if (args.isCallMode && !pendingCallEndRef.current) {
-              pendingCallEndRef.current = true;
-              generateSpeechRef.current?.(tCareer(H.callCompletionSpeech));
-            }
           }
           if (response.ok && payload?.opportunityRun) {
             onOpportunityRunChanged?.(
@@ -789,8 +783,8 @@ export const useCareerOnboardingVoice = ({
           if (response.ok && payload?.searchStatusMessage) {
             appendMessage(toUiMessage(payload.searchStatusMessage));
           }
-          if (response.ok && payload?.shouldEndCall) {
-            forceEndCallModeRef.current?.();
+          if (response.ok && args.isCallMode && (payload?.shouldEndCall || payload?.progress?.completed)) {
+            scheduleCallEndAfterRealtimePlayback();
           }
           if (response.ok && payload?.nextStepInstructions) {
             const updateSessionInstructions =
@@ -834,6 +828,7 @@ export const useCareerOnboardingVoice = ({
       onTalentContextsRefreshed,
       onTalentInsightsRefreshed,
       onOpportunityRunChanged,
+      scheduleCallEndAfterRealtimePlayback,
       setStage,
       tCareer,
     ]
@@ -1236,14 +1231,6 @@ export const useCareerOnboardingVoice = ({
   useEffect(() => {
     inputModeRef.current = inputMode;
   }, [inputMode]);
-
-  useEffect(() => {
-    generateSpeechRef.current = realtimeSession.generateSpeech;
-  }, [realtimeSession.generateSpeech]);
-
-  useEffect(() => {
-    forceEndCallModeRef.current = endCallMode;
-  }, [endCallMode]);
 
   useEffect(() => {
     updateSessionInstructionsRef.current =
@@ -2109,5 +2096,7 @@ export const useCareerOnboardingVoice = ({
     isAssistantSpeaking: realtimeSession.isAssistantSpeaking,
     isVoiceToolExecuting: realtimeSession.isToolExecuting,
     voiceActiveToolNames: realtimeSession.activeToolNames,
+    idleWarningVisible: realtimeSession.idleWarningVisible,
+    acknowledgeIdleWarning: realtimeSession.acknowledgeIdleWarning,
   };
 };

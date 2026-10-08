@@ -67,6 +67,10 @@ export function useCareerVoiceSession({
   return useMemo(
     () => ({
       ...controller,
+      idleWarningVisible: isCareerLiveModel(activeModel ?? resolvedModel)
+        ? liveSession.idleWarningVisible
+        : false,
+      acknowledgeIdleWarning: liveSession.acknowledgeIdleWarning,
       connect,
       disconnect,
       sendTextMessage: (text: string) =>
@@ -89,6 +93,15 @@ export function useCareerVoiceSession({
       sendEvent: (event: Record<string, unknown>) =>
         getCurrentSession().sendEvent(event),
     }),
-    [controller, connect, disconnect, getCurrentSession]
+    [
+      activeModel,
+      controller,
+      connect,
+      disconnect,
+      getCurrentSession,
+      liveSession.acknowledgeIdleWarning,
+      liveSession.idleWarningVisible,
+      resolvedModel,
+    ]
   );
 }

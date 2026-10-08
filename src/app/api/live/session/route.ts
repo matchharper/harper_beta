@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
                 tools: toolSelection.tools,
                 tool_choice: "auto",
                 parallel_tool_calls: false,
-                reasoning: { effort: "high" },
+                reasoning: { effort: liveConfig.delegationReasoningEffort },
                 text: { verbosity: "low" },
               },
             },

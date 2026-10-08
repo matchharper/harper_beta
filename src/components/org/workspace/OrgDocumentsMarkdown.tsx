@@ -24,6 +24,14 @@ type OrgDocumentsMarkdownProps = {
   linkTargets: Record<string, string>;
   markdown: string;
   onCopy: () => void;
+  onNavigate?: (id: string) => boolean;
+  showCopyButton?: boolean;
+};
+
+export const ORG_DOCUMENTS_FAQ_HEADING: OrgDocumentsHeading = {
+  id: "faq",
+  level: 2,
+  text: "자주 묻는 질문",
 };
 
 /**
@@ -147,6 +155,49 @@ export function extractOrgDocumentsHeadings(markdown: string) {
   return headings;
 }
 
+export function splitOrgDocumentsMarkdown(markdown: string) {
+  const lines = markdown.split(/\r?\n/);
+  const headings = extractOrgDocumentsHeadings(markdown);
+  const primaryHeadings = headings.filter((heading) => heading.level === 2);
+  const sectionStarts: number[] = [];
+  let inFence = false;
+
+  lines.forEach((line, index) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      return;
+    }
+    if (!inFence && /^##\s+/.test(line)) sectionStarts.push(index);
+  });
+
+  const firstHeadingIndex = headings.findIndex(
+    (heading) => heading.level === 2
+  );
+  const sections = sectionStarts.map((start, index) => {
+    const heading = primaryHeadings[index];
+    const nextStart = sectionStarts[index + 1] ?? lines.length;
+    const headingIndex = headings.indexOf(heading);
+    const nextHeadingIndex = primaryHeadings[index + 1]
+      ? headings.indexOf(primaryHeadings[index + 1])
+      : headings.length;
+
+    return {
+      heading,
+      headings: headings.slice(headingIndex, nextHeadingIndex),
+      markdown: lines.slice(start, nextStart).join("\n"),
+    };
+  });
+
+  return {
+    introHeadings: headings.slice(
+      0,
+      firstHeadingIndex < 0 ? headings.length : firstHeadingIndex
+    ),
+    introMarkdown: lines.slice(0, sectionStarts[0] ?? lines.length).join("\n"),
+    sections,
+  };
+}
+
 function removeHeadingIdComments(markdown: string) {
   return markdown.replace(
     /^(#{1,2}\s+.*?)\s*<!--\s*id:\s*[A-Za-z0-9_-]+\s*-->\s*$/gm,
@@ -205,10 +256,17 @@ function createMarkdownComponents({
   headings,
   linkTargets,
   onCopy,
+  onNavigate,
+  showCopyButton,
   sourceT,
 }: Pick<
   OrgDocumentsMarkdownProps,
-  "copied" | "headings" | "linkTargets" | "onCopy"
+  | "copied"
+  | "headings"
+  | "linkTargets"
+  | "onCopy"
+  | "onNavigate"
+  | "showCopyButton"
 > & { sourceT: (source: string) => string }) {
   let renderedHeadingIndex = 0;
   let renderedH2Index = 0;
@@ -236,6 +294,20 @@ function createMarkdownComponents({
         <Link className={ORG_DOCUMENTS_MARKDOWN_STYLES.link} href={target}>
           {children}
         </Link>
+      );
+    }
+
+    if (href?.startsWith("#") && onNavigate) {
+      return (
+        <a
+          className={ORG_DOCUMENTS_MARKDOWN_STYLES.link}
+          href={href}
+          onClick={(event) => {
+            if (onNavigate(href.slice(1))) event.preventDefault();
+          }}
+        >
+          {children}
+        </a>
       );
     }
 
@@ -341,21 +413,23 @@ function createMarkdownComponents({
         return (
           <>
             <p className={ORG_DOCUMENTS_MARKDOWN_STYLES.lead}>{children}</p>
-            <MuteButton
-              className="mt-3 font-normal focus-visible:ring-black/10 focus-visible:ring-offset-white"
-              data-documents-copy-exclude
-              onClick={onCopy}
-              size="md"
-            >
-              {copied ? (
-                <Check aria-hidden="true" className="size-4" />
-              ) : (
-                <Copy aria-hidden="true" className="size-4" />
-              )}
-              <span aria-live="polite">
-                {sourceT(copied ? "복사됨" : "페이지 복사")}
-              </span>
-            </MuteButton>
+            {showCopyButton ? (
+              <MuteButton
+                className="mt-3 font-normal focus-visible:ring-black/10 focus-visible:ring-offset-white"
+                data-documents-copy-exclude
+                onClick={onCopy}
+                size="md"
+              >
+                {copied ? (
+                  <Check aria-hidden="true" className="size-4" />
+                ) : (
+                  <Copy aria-hidden="true" className="size-4" />
+                )}
+                <span aria-live="polite">
+                  {sourceT(copied ? "복사됨" : "섹션 복사")}
+                </span>
+              </MuteButton>
+            ) : null}
           </>
         );
       }
@@ -499,6 +573,8 @@ export function OrgDocumentsMarkdown({
   linkTargets,
   markdown,
   onCopy,
+  onNavigate,
+  showCopyButton = true,
 }: OrgDocumentsMarkdownProps) {
   const sourceT = useOrgSourceT();
   const components = createMarkdownComponents({
@@ -506,6 +582,8 @@ export function OrgDocumentsMarkdown({
     headings,
     linkTargets,
     onCopy,
+    onNavigate,
+    showCopyButton,
     sourceT,
   });
 

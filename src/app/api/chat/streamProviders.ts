@@ -1,5 +1,5 @@
 import { createChatCompletionStreamWithFallback } from "@/lib/llm/llm";
-import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 
 type LunaChatMessage = {
   content: string;
@@ -25,7 +25,7 @@ export function createLunaChatCompletion(args: {
       ...(args.tool_choice ? { tool_choice: args.tool_choice } : {}),
     }),
     debugLabel: "legacy-chat:luna",
-    model: GPT_56_LUNA_MODEL,
+    model: GPT_6_LUNA_MODEL,
     onTextDelta: args.onTextDelta,
     openAIResponses: { reasoningEffort: "xhigh" },
   });

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
-import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { CLAUDE_MODEL, GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
 import {
   createTalentContextMutationRequestId,
@@ -760,7 +760,7 @@ async function extractEvidenceEntries(args: {
             },
           ],
           openAIResponsesReasoningEffort: "xhigh",
-          primaryModel: GPT_56_LUNA_MODEL,
+          primaryModel: GPT_6_LUNA_MODEL,
           temperature: 0.1,
           usageLabel: "career/gmail-career-history:extract",
         })
@@ -845,7 +845,7 @@ async function mergeCareerEntriesIntoMemories(args: {
         },
       ],
       openAIResponsesReasoningEffort: "xhigh",
-      primaryModel: GPT_56_LUNA_MODEL,
+      primaryModel: GPT_6_LUNA_MODEL,
       temperature: 0.1,
       usageLabel: "career/gmail-career-history:merge",
     });

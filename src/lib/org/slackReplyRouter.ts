@@ -1,5 +1,5 @@
 import { createChatCompletionWithFallback } from "@/lib/llm/llm";
-import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { createLlmDebugCall, type LlmDebugCall } from "@/lib/llm/debugUsage";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 
@@ -116,7 +116,7 @@ export async function decideHarperSlackThreadReply(
       }),
       debugLabel: "org/slack-router:decision",
       fallbackModel: null,
-      model: GPT_56_LUNA_MODEL,
+      model: GPT_6_LUNA_MODEL,
       openAIResponses: { reasoningEffort: "none" },
       signal: options?.signal,
     });

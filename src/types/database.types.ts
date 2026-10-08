@@ -1525,6 +1525,7 @@ export type Database = {
         Row: {
           company_workspace_id: string;
           created_at: string;
+          hidden_through_message_id: number | null;
           id: string;
           last_message_at: string | null;
           last_message_id: number | null;
@@ -1537,6 +1538,7 @@ export type Database = {
         Insert: {
           company_workspace_id: string;
           created_at?: string;
+          hidden_through_message_id?: number | null;
           id?: string;
           last_message_at?: string | null;
           last_message_id?: number | null;
@@ -1549,6 +1551,7 @@ export type Database = {
         Update: {
           company_workspace_id?: string;
           created_at?: string;
+          hidden_through_message_id?: number | null;
           id?: string;
           last_message_at?: string | null;
           last_message_id?: number | null;

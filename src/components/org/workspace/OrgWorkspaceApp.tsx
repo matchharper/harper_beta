@@ -10,6 +10,7 @@ import {
   OrgWorkspaceSidebar,
   OrgWorkspaceShellSkeleton,
 } from "@/components/org/workspace/OrgWorkspaceSidebar";
+import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocumentsMarkdown";
 import { OrgMobileNavigationProvider } from "@/components/org/workspace/OrgMobileNavigation";
 import {
   OrgWorkspaceProvider,
@@ -20,10 +21,12 @@ import { cn } from "@/lib/utils";
 
 export function OrgWorkspaceApp({
   children,
+  documentSections,
   legacyEntry = false,
   page,
 }: {
   children: ReactNode;
+  documentSections?: readonly OrgDocumentsHeading[];
   legacyEntry?: boolean;
   page: OrgWorkspacePageId;
 }) {
@@ -82,7 +85,10 @@ export function OrgWorkspaceApp({
           message={
             bootstrapQuery.error instanceof Error
               ? bootstrapQuery.error.message
-              : t("workspace.OrgWorkspaceApp.dbaaaa1c", "Organization을 불러오지 못했습니다.")
+              : t(
+                  "workspace.OrgWorkspaceApp.dbaaaa1c",
+                  "Organization을 불러오지 못했습니다."
+                )
           }
           onRetry={() => void bootstrapQuery.refetch()}
         />
@@ -130,7 +136,10 @@ export function OrgWorkspaceApp({
           className="overflow-x-clip overflow-y-auto overscroll-y-none font-sans text-neutral-primary"
           minHeight="fillScreen"
         >
-          <OrgWorkspaceSidebar compact={isRoleCreationStarted} />
+          <OrgWorkspaceSidebar
+            compact={isRoleCreationStarted}
+            documentSections={documentSections}
+          />
           <div
             className={cn(
               page === "role" ? "md:pt-0" : "pt-12 md:pt-0",

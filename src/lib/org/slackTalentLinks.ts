@@ -17,17 +17,21 @@ const TALENT_MARKER_PATTERN = new RegExp(
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export type SlackTalentLinkTarget = {
+export type SlackTalentRecommendationTarget = {
   recommendationId: string;
   roleId: string;
   talentId: string;
 };
 
+export type SlackTalentLinkTarget =
+  | SlackTalentRecommendationTarget
+  | { profileUrl: string; talentId: string };
+
 export type SlackRoleLinkTarget = {
   roleId: string;
 };
 
-export type SlackTalentRecommendationRow = SlackTalentLinkTarget & {
+export type SlackTalentRecommendationRow = SlackTalentRecommendationTarget & {
   recommendedAt: string;
 };
 
@@ -87,7 +91,7 @@ export function selectSlackTalentLinkTargets(args: {
   rows: SlackTalentRecommendationRow[];
 }) {
   const preferredRoleId = String(args.preferredRoleId ?? "").trim();
-  const targetByTalentId = new Map<string, SlackTalentLinkTarget>();
+  const targetByTalentId = new Map<string, SlackTalentRecommendationTarget>();
   for (const row of args.rows) {
     const talentId = normalizedTalentId(row.talentId);
     const current = targetByTalentId.get(talentId);
@@ -107,7 +111,7 @@ export function selectSlackTalentLinkTargets(args: {
 
 export function buildSlackTalentProfileUrl(args: {
   publicSiteUrl?: string | null;
-  target: SlackTalentLinkTarget;
+  target: SlackTalentRecommendationTarget;
   workspaceId: string;
 }) {
   const href = buildOrgHref({
@@ -179,11 +183,14 @@ export function renderSlackTalentLinks(args: {
     (_marker, rawName: string, rawTalentId: string) => {
       const target = targetByTalentId.get(normalizedTalentId(rawTalentId));
       if (!target) return escapeSlackText(rawName);
-      const url = buildSlackTalentProfileUrl({
-        publicSiteUrl: args.publicSiteUrl,
-        target,
-        workspaceId: args.workspaceId,
-      });
+      const url =
+        "profileUrl" in target
+          ? target.profileUrl
+          : buildSlackTalentProfileUrl({
+              publicSiteUrl: args.publicSiteUrl,
+              target,
+              workspaceId: args.workspaceId,
+            });
       return `<${url}|${escapeSlackLinkLabel(rawName)}>`;
     }
   );

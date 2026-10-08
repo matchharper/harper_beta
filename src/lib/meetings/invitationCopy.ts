@@ -6,7 +6,7 @@ import {
   supportsResponseFormatForModel,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
-import { GPT_56_LUNA_MODEL, GPT_56_TERRA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL, GPT_56_TERRA_MODEL } from "@/lib/llm/modelConfig";
 import {
   buildMeetingInvitationFallback,
   buildMeetingInvitationSubject,
@@ -182,7 +182,7 @@ export async function generateMeetingInvitationEmail(
   );
 
   try {
-    const model = options.model?.trim() || GPT_56_LUNA_MODEL;
+    const model = options.model?.trim() || GPT_6_LUNA_MODEL;
     const { response } = await createChatCompletionWithFallback({
       buildRequest: (model) => ({
         ...(usesMaxCompletionTokensForModel(model)

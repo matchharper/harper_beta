@@ -1,4 +1,5 @@
 import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { OrgSlackCreateChannelDialog } from "@/components/org/OrgSlackCreateChannelDialog";
 import {
   OrgSection,
   OrgSectionHeader,
@@ -47,6 +49,7 @@ import {
   useOrgRoleNotificationSettings,
   useUpdateOrgRoleNotificationSettings,
 } from "@/hooks/org/useOrgRoleNotifications";
+import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useUnsavedChangesWarning } from "@/hooks/org/useUnsavedChangesWarning";
 import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
@@ -102,11 +105,17 @@ export function OrgRoleSettingsContent({
   const addToast = useToastStore((state) => state.add);
   const updateRoleStatus = useUpdateOrgRole();
   const updateCompanyFirstSearch = useUpdateOrgRole();
+  const updatePromotion = useUpdateOrgRole();
   const updateNotifications = useUpdateOrgRoleNotificationSettings();
   const settingsQuery = useOrgRoleNotificationSettings({
     roleId: role.roleId,
     workspaceId,
   });
+  const slackStatusQuery = useOrgSlackStatus({
+    enabled: canManage,
+    workspaceId,
+  });
+  const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [settingsEditing, setSettingsEditing] = useState(false);
   const [channelOverrides, setChannelOverrides] = useState<
     Record<string, boolean>
@@ -120,6 +129,7 @@ export function OrgRoleSettingsContent({
   const [roleDeleteConfirmOpen, setRoleDeleteConfirmOpen] = useState(false);
   const [settingsSaveError, setSettingsSaveError] = useState("");
   const [companyFirstSearchError, setCompanyFirstSearchError] = useState("");
+  const [promotionError, setPromotionError] = useState("");
   const [scheduleDaysOverride, setScheduleDaysOverride] = useState<
     IntroSearchDay[] | null
   >(null);
@@ -139,6 +149,11 @@ export function OrgRoleSettingsContent({
       "boolean"
       ? updateCompanyFirstSearch.variables.isCompanyFirstSearch
       : role.isCompanyFirstSearch === true;
+  const promotionEnabled =
+    updatePromotion.isPending &&
+    typeof updatePromotion.variables?.isPromote === "boolean"
+      ? updatePromotion.variables.isPromote
+      : role.isPromote === true;
   const scheduleDisabled =
     !companyFirstSearchEnabled ||
     !canManage ||
@@ -160,6 +175,10 @@ export function OrgRoleSettingsContent({
       JSON.stringify([...(settingsQuery.data?.assigneeUserIds ?? [])].sort());
   const hasChanges = notificationChanged || assigneeChanged;
   const settingsPending = updateNotifications.isPending;
+  const slackConnected =
+    slackStatusQuery.data?.connected ?? (channels?.length ?? 0) > 0;
+  const canCreateSlackChannel =
+    slackStatusQuery.data?.canCreateChannels ?? (channels?.length ?? 0) > 0;
 
   useUnsavedChangesWarning(hasChanges || scheduleChanged);
 
@@ -422,6 +441,36 @@ export function OrgRoleSettingsContent({
     }
   };
 
+  const changePromotion = async (enabled: boolean) => {
+    if (!canManage || updatePromotion.isPending || updateRoleStatus.isPending)
+      return;
+    setPromotionError("");
+    try {
+      await updatePromotion.mutateAsync({
+        isPromote: enabled,
+        roleId: role.roleId,
+        workspaceId,
+      });
+      addToast({
+        message: t(
+          "role.overview.OrgRoleSettingsContent.promotionSaved",
+          "공개 공고 설정을 저장했습니다."
+        ),
+        variant: "success",
+      });
+    } catch (error) {
+      setPromotionError(
+        getRoleOverviewErrorMessage(
+          error,
+          t(
+            "role.overview.OrgRoleSettingsContent.promotionSaveError",
+            "공개 공고 설정을 저장하지 못했습니다. 다시 시도해 주세요."
+          )
+        )
+      );
+    }
+  };
+
   const saveSchedule = async () => {
     if (
       !companyFirstSearchEnabled ||
@@ -639,7 +688,7 @@ export function OrgRoleSettingsContent({
                       </div>
                     ))}
                   </div>
-                ) : (
+                ) : !slackConnected ? (
                   <div className="flex w-full flex-col items-start justify-between gap-3 mt-1 sm:flex-row sm:items-center">
                     <MuteButton asChild variant="default">
                       <Link
@@ -656,7 +705,34 @@ export function OrgRoleSettingsContent({
                       </Link>
                     </MuteButton>
                   </div>
-                )}
+                ) : null}
+                {canManage && slackConnected ? (
+                  canCreateSlackChannel ? (
+                    <MuteButton
+                      disabled={settingsPending}
+                      onClick={() => setCreateChannelOpen(true)}
+                      size="sm"
+                    >
+                      <Plus className="size-3.5" />
+                      {t("OrgSlackChannelPicker.f9c0c08b", "새 채널 만들기")}
+                    </MuteButton>
+                  ) : (
+                    <MuteButton asChild size="sm">
+                      <Link
+                        href={buildOrgHref({
+                          orgId: workspaceId,
+                          page: "settings",
+                        })}
+                      >
+                        {t(
+                          "onboarding.OrgOnboardingSlack.f2cd61bc",
+                          "채널 생성 권한 추가하기"
+                        )}
+                        <ArrowRight className="size-3.5" />
+                      </Link>
+                    </MuteButton>
+                  )
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -1076,6 +1152,92 @@ export function OrgRoleSettingsContent({
         ) : null}
       </OrgSection>
 
+      <OrgSection>
+        <div className="rounded-md bg-neutral-100 px-4 py-5">
+          <div className="flex items-start justify-between gap-6">
+            <RoleSectionHeading
+              title={t(
+                "role.overview.OrgRoleSettingsContent.promotionTitle",
+                "외부 공고 노출"
+              )}
+              description={t(
+                "role.overview.OrgRoleSettingsContent.promotionDescription",
+                "Harper가 이 역할에 더 적합한 인재를 찾기 위해 LinkedIn 등 외부에 채용 정보를 소개할 수 있어요."
+              )}
+            />
+            <div className="flex min-h-6 shrink-0 items-center gap-2">
+              {updatePromotion.isPending ? (
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="size-3.5 animate-spin text-neutral-muted"
+                />
+              ) : null}
+              <span className="text-[12px] text-neutral-muted">
+                {promotionEnabled
+                  ? t("role.overview.OrgRoleSettingsContent.9a89d1f5", "켜짐")
+                  : t("role.overview.OrgRoleSettingsContent.60895fe9", "꺼짐")}
+              </span>
+              <AppleSwitch
+                aria-label={t(
+                  "role.overview.OrgRoleSettingsContent.promotionTitle",
+                  "외부 공고 노출"
+                )}
+                checked={promotionEnabled}
+                disabled={
+                  !canManage ||
+                  updatePromotion.isPending ||
+                  updateRoleStatus.isPending
+                }
+                onCheckedChange={(enabled) => void changePromotion(enabled)}
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <p className="text-[12px] text-neutral-muted">
+              {t(
+                "role.overview.OrgRoleSettingsContent.promotionExample",
+                "예시"
+              )}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-neutral-1000-a05 bg-bg-default px-3 py-3">
+              <Image
+                alt=""
+                className="size-8 shrink-0"
+                height={32}
+                src="/images/logos/linkedin2.svg"
+                width={32}
+              />
+              <div className="min-w-0 flex-1 basis-36">
+                <p className="text-[12px] text-neutral-muted">
+                  {t(
+                    "role.overview.OrgRoleSettingsContent.linkedinJob",
+                    "LinkedIn 채용 공고"
+                  )}
+                </p>
+                <p className="truncate text-[13px] font-medium text-neutral-primary">
+                  {role.name}
+                </p>
+              </div>
+              <ArrowRight
+                aria-hidden="true"
+                className="size-4 text-neutral-soft"
+              />
+              <span className="text-[13px] font-medium text-neutral-primary">
+                {t(
+                  "role.overview.OrgRoleSettingsContent.harperJob",
+                  "지원하기"
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+        {promotionError ? (
+          <p className="mt-3 text-[13px] text-critical" role="alert">
+            {promotionError}
+          </p>
+        ) : null}
+      </OrgSection>
+
       {canManage && hasChanges ? (
         <OrgUnsavedChangesBar
           canSave={hasChanges}
@@ -1083,6 +1245,15 @@ export function OrgRoleSettingsContent({
           onCancel={cancelEditing}
           onSave={() => void save()}
           pending={settingsPending}
+        />
+      ) : null}
+
+      {createChannelOpen ? (
+        <OrgSlackCreateChannelDialog
+          onCreated={() => void settingsQuery.refetch()}
+          onOpenChange={setCreateChannelOpen}
+          open
+          workspaceId={workspaceId}
         />
       ) : null}
 

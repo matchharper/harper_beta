@@ -5,12 +5,7 @@ import {
 } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
-import {
-  ArrowRight,
-  ChartNoAxesColumnIncreasing,
-  Info,
-  LoaderCircle,
-} from "lucide-react";
+import { ArrowRight, Info, LoaderCircle } from "lucide-react";
 import Image from "next/image";
 import { type ReactNode, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
@@ -28,6 +23,7 @@ import {
   OrgCandidateStageMenu,
 } from "@/components/org/OrgCandidateCard";
 import { CardButton, MuteButton } from "@/components/ui/button";
+import { StatusDot } from "@/components/ui/status-dot";
 import { Tabs } from "@/components/ui/tabs";
 import {
   humanizeOrgCompanyIntroStatus,
@@ -58,8 +54,14 @@ import {
   shouldOpenOrgStopCandidateDialog,
 } from "@/lib/org/candidateDecision";
 import { cn } from "@/lib/utils";
-import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
-import { Tooltips } from "../ui/tooltip";
+import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
+import type {
+  OrgBoardItem,
+  OrgRole,
+  OrgStage,
+  OrgStageId,
+} from "@/lib/org/server";
+import { ResponsiveLightTooltip, Tooltips } from "../ui/tooltip";
 import { useToastStore } from "@/store/useToastStore";
 
 function getStageLabel(stage: OrgStage, roleName: string | null) {
@@ -93,10 +95,73 @@ function getBoardStageLabel(
   );
 }
 
+function OrgRoleRecommendationStatus({
+  roleStatus,
+}: {
+  roleStatus: OrgRole["status"];
+}) {
+  const t = useOrgT();
+  const status = getOrgRoleStatusPresentation(roleStatus).status;
+  const active = status === "active" || status === "top_priority";
+  const label = active
+    ? t("OrgRoleTalentBoard.recommendationActive", "Harper가 소개하고 있어요")
+    : status === "paused"
+      ? t("OrgRoleTalentBoard.recommendationPaused", "후보자 추천 중단")
+      : t("OrgRoleTalentBoard.recommendationEnded", "후보자 추천 종료");
+
+  const description = active
+    ? t(
+        "OrgRoleTalentBoard.recommendationActiveDescription",
+        "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하고 Harper가 최종 확인한 뒤 ‘연결 대기’에 추천해 드려요."
+      )
+    : status === "paused"
+      ? t(
+          "OrgRoleTalentBoard.recommendationPausedDescription",
+          "역할이 중단되어 새로운 후보자 추천도 쉬고 있어요. 역할을 다시 진행하면 추천도 이어집니다."
+        )
+      : t(
+          "OrgRoleTalentBoard.recommendationEndedDescription",
+          "이 역할의 채용이 종료되어 새로운 후보자를 추천하지 않아요."
+        );
+
+  return (
+    <ResponsiveLightTooltip
+      align="end"
+      className="w-auto"
+      contentClassName="max-w-[min(340px,calc(100vw-32px))] bg-bg-floating px-4 py-3 text-[13px] leading-5 text-neutral-primary md:text-[13px]"
+      mobileAriaLabel={label}
+      side="bottom"
+      trigger={
+        <>
+          <span
+            aria-hidden="true"
+            className="relative flex size-3 items-center justify-center"
+          >
+            {active ? (
+              <StatusDot
+                className="absolute opacity-40 motion-safe:animate-ping motion-safe:[animation-duration:3s]"
+                tone="positive"
+              />
+            ) : null}
+            <StatusDot tone={active ? "positive" : "neutral"} />
+          </span>
+          <span>{label}</span>
+          {/* <Info aria-hidden="true" className="size-3 text-neutral-soft" /> */}
+        </>
+      }
+      triggerClassName="min-h-7 shrink-0 gap-1.5 rounded-md bg-bg-weak px-2 py-1 text-[12px] font-medium leading-5 text-neutral-muted hover:text-neutral-primary"
+    >
+      <p className="break-keep">{description}</p>
+    </ResponsiveLightTooltip>
+  );
+}
+
 function BoardTalentAvatar({ item }: { item: OrgBoardItem }) {
   const t = useOrgT();
   const name =
-    item.talent.name || item.talent.email || t("OrgRoleTalentBoard.f227651c", "이름 없음");
+    item.talent.name ||
+    item.talent.email ||
+    t("OrgRoleTalentBoard.f227651c", "이름 없음");
   const profilePicture = getDisplayableProfileImageUrl(
     item.talent.profilePicture
   );
@@ -294,7 +359,9 @@ export function OrgRoleTalentBoardCard({
   const sourceT = useOrgSourceT();
   const { locale } = useOrgLocale();
   const name =
-    item.talent.name || item.talent.email || t("OrgRoleTalentBoard.f227651c", "이름 없음");
+    item.talent.name ||
+    item.talent.email ||
+    t("OrgRoleTalentBoard.f227651c", "이름 없음");
   const isDecisionStage =
     item.stage === "pending_connection" ||
     (item.source === "company_intro" && item.companyIntro?.status === "ready");
@@ -304,12 +371,16 @@ export function OrgRoleTalentBoardCard({
   return (
     <article className="@container/talent-card relative isolate min-w-0 overflow-hidden rounded-lg">
       <CardButton
-        aria-label={t("OrgRoleTalentBoard.f15e21d3", "{p0} 후보자 상세 보기", { p0: name })}
+        aria-label={t("OrgRoleTalentBoard.f15e21d3", "{p0} 후보자 상세 보기", {
+          p0: name,
+        })}
         className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05"
         onClick={onOpen}
       >
         <span className="sr-only">
-          {t("composed.viewCandidateDetails", "{name} 후보자 상세 보기", { name })}
+          {t("composed.viewCandidateDetails", "{name} 후보자 상세 보기", {
+            name,
+          })}
         </span>
       </CardButton>
       <div className="pointer-events-none relative z-10 p-4 sm:p-5">
@@ -497,6 +568,10 @@ export function OrgRoleTalentBoard({
         ),
     [board?.items, selectedStageId]
   );
+  const recommendationStatus =
+    section === "inbox" && activeRole ? (
+      <OrgRoleRecommendationStatus roleStatus={activeRole.status} />
+    ) : null;
 
   const continueMove = (
     item: OrgBoardItem,
@@ -541,18 +616,28 @@ export function OrgRoleTalentBoard({
 
   if (boardQuery.isLoading) {
     return (
-      <div className="flex min-h-56 items-center justify-center text-[13px] text-neutral-muted">
-        <LoaderCircle className="mr-2 size-4 animate-spin" />
-        {t("OrgRoleTalentBoard.8a6c6d35", "후보자를 불러오는 중입니다.")}
-      </div>
+      <section className="@container/talent-board min-w-0">
+        {recommendationStatus ? (
+          <div className="flex justify-end">{recommendationStatus}</div>
+        ) : null}
+        <div className="flex min-h-56 items-center justify-center text-[13px] text-neutral-muted">
+          <LoaderCircle className="mr-2 size-4 animate-spin" />
+          {t("OrgRoleTalentBoard.8a6c6d35", "후보자를 불러오는 중입니다.")}
+        </div>
+      </section>
     );
   }
 
   if (visibleStages.length === 0) {
     return (
-      <div className="px-4 py-10 text-center text-[13px] text-neutral-muted">
-        {t("OrgRoleTalentBoard.3f651826", "표시할 단계가 없습니다.")}
-      </div>
+      <section className="@container/talent-board min-w-0">
+        {recommendationStatus ? (
+          <div className="flex justify-end">{recommendationStatus}</div>
+        ) : null}
+        <div className="px-4 py-10 text-center text-[13px] text-neutral-muted">
+          {t("OrgRoleTalentBoard.3f651826", "표시할 단계가 없습니다.")}
+        </div>
+      </section>
     );
   }
 
@@ -561,8 +646,19 @@ export function OrgRoleTalentBoard({
       aria-label={t("OrgRoleTalentBoard.3767a293", "후보자 보드")}
       className="@container/talent-board min-w-0"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 overflow-x-auto pb-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
+      <div
+        className={cn(
+          "flex items-center justify-between gap-3",
+          section === "inbox" &&
+            "flex-wrap gap-y-2 @min-[560px]/talent-board:flex-nowrap"
+        )}
+      >
+        <div
+          className={cn(
+            "min-w-0 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
+            section === "inbox" && "w-full @min-[560px]/talent-board:w-auto"
+          )}
+        >
           <Tabs
             activeValue={selectedStageId}
             aria-label={t("OrgRoleTalentBoard.4458527b", "보드 단계 선택")}
@@ -588,6 +684,11 @@ export function OrgRoleTalentBoard({
             variant="pills"
           />
         </div>
+        {recommendationStatus ? (
+          <div className="shrink-0 @min-[560px]/talent-board:ml-auto">
+            {recommendationStatus}
+          </div>
+        ) : null}
         {displayControl ? (
           <div className="shrink-0">{displayControl}</div>
         ) : null}
@@ -632,7 +733,10 @@ export function OrgRoleTalentBoard({
         ))}
         {items.length === 0 ? (
           <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted">
-            {t("OrgRoleTalentBoard.964b74fd", "이 단계에는 아직 후보자가 없습니다.")}
+            {t(
+              "OrgRoleTalentBoard.964b74fd",
+              "이 단계에는 아직 후보자가 없습니다."
+            )}
           </div>
         ) : null}
       </div>
@@ -733,12 +837,19 @@ export function OrgRoleTalentBoard({
             });
             setCompanyIntroRequest(null);
             addToast({
-              message: t("OrgRoleTalentBoard.2e9b2805", "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."),
+              message: t(
+                "OrgRoleTalentBoard.2e9b2805",
+                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."
+              ),
               variant: "success",
             });
           } catch (error) {
             addToast({
-              message: localizedOrgErrorMessage(error, locale, t("OrgRoleTalentBoard.7d2cc265", "제안을 처리하지 못했습니다.")),
+              message: localizedOrgErrorMessage(
+                error,
+                locale,
+                t("OrgRoleTalentBoard.7d2cc265", "제안을 처리하지 못했습니다.")
+              ),
               variant: "error",
             });
             throw error;
@@ -763,7 +874,10 @@ export function OrgRoleTalentBoard({
           });
           setCompanyIntroPass(null);
           addToast({
-            message: t("OrgRoleTalentBoard.ce127878", "후보자에게 제안하지 않고 목록에서 제외했습니다."),
+            message: t(
+              "OrgRoleTalentBoard.ce127878",
+              "후보자에게 제안하지 않고 목록에서 제외했습니다."
+            ),
             variant: "success",
           });
         }}

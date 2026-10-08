@@ -9,7 +9,7 @@ import { buildLlmImageMessageContent } from "./imageInput";
 
 test("builds a stateless high-reasoning Responses request", () => {
   const request = buildOpenAIResponsesRequest({
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     reasoningEffort: "high",
     requestBody: {
       max_tokens: 4_000,
@@ -48,7 +48,7 @@ test("maps Responses function calls into the existing chat tool shape", () => {
   ];
   const completion = toChatCompletionFromOpenAIResponse({
     id: "resp_1",
-    model: "gpt-5.6-luna",
+    model: "gpt-6-luna",
     output: rawOutput,
     status: "completed",
     usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },

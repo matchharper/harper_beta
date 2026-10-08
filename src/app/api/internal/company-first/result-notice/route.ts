@@ -1,7 +1,12 @@
 import type { User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { buildCompanyMatchingResultContext } from "@/lib/companyFirstSearch/resultContext";
-import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour } from "@/lib/org/introSearchSchedule";
+import {
+  DEFAULT_INTRO_SEARCH_DAYS,
+  DEFAULT_INTRO_SEARCH_HOUR,
+  parseIntroSearchDays,
+  parseIntroSearchHour,
+} from "@/lib/org/introSearchSchedule";
 import {
   InternalApiError,
   requireInternalWorkerSecret,
@@ -18,6 +23,7 @@ import {
   convertMarkdownLinksToSlackMrkdwn,
   getOrgPublicSiteUrl,
 } from "@/lib/org/slackMessages";
+import { renderSlackOrgLinks } from "@/lib/org/slackTalentLinks";
 import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
@@ -42,7 +48,9 @@ function roleSalary(row: Record<string, any>) {
   const explicit = text(row.salary_range, 300);
   if (explicit) return explicit;
   const bounds = [row.salary_min, row.salary_max]
-    .filter((value) => value !== null && value !== undefined && text(value, 50) !== "")
+    .filter(
+      (value) => value !== null && value !== undefined && text(value, 50) !== ""
+    )
     .map((value) => text(value, 50));
   if (!bounds.length) return null;
   return `${bounds.join(" ~ ")}${text(row.salary_currency, 20) ? ` ${text(row.salary_currency, 20)}` : ""}${text(row.salary_period, 40) ? ` / ${text(row.salary_period, 40)}` : ""}`;
@@ -220,8 +228,12 @@ export async function POST(req: NextRequest) {
         return {
           automaticSearchEnabled:
             internalRole?.is_company_first_search === true,
-          introSearchDate: parseIntroSearchDays(internalRole?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
-          introSearchTime: parseIntroSearchHour(internalRole?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
+          introSearchDate:
+            parseIntroSearchDays(internalRole?.intro_search_date) ??
+            DEFAULT_INTRO_SEARCH_DAYS,
+          introSearchTime:
+            parseIntroSearchHour(internalRole?.intro_search_time) ??
+            DEFAULT_INTRO_SEARCH_HOUR,
           id: text(row.role_id, 100),
           name: text(row.name, 300) || "이름 없는 Role",
           request: text(internalRole?.request, 2_000) || null,
@@ -254,6 +266,7 @@ export async function POST(req: NextRequest) {
         roleId,
         roleName: text(role?.name, 300) || roleNameById.get(roleId) || "Role",
         summary: text(presentation.summary, 2_000) || null,
+        talentId: text(row.talent_id, 100),
       };
     });
     const workspace = Array.isArray(run.workspace)
@@ -367,13 +380,29 @@ export async function POST(req: NextRequest) {
     let slackMessageTs = text(existingNotice.slackMessageTs, 100) || null;
     if (slackStatus !== "sent" && slackStatus !== "not_configured") {
       const receipts: Array<{ slackMessageTs: string }> = [];
+      const slackText = convertMarkdownLinksToSlackMrkdwn(
+        renderSlackOrgLinks({
+          message,
+          publicSiteUrl: getOrgPublicSiteUrl(),
+          roleTargets: roleRows.map((role: { id: string }) => ({
+            roleId: role.id,
+          })),
+          talentTargets: candidates.map(
+            (candidate: { profileUrl: string; talentId: string }) => ({
+              profileUrl: candidate.profileUrl,
+              talentId: candidate.talentId,
+            })
+          ),
+          workspaceId,
+        })
+      );
       const delivered = await sendHarperWorkspaceSlackMessage({
         idempotencyKey,
         messageMetadata: metadata,
         onPosted: (receipt) => receipts.push(receipt),
         recordConversationMessage: false,
         roleId: primaryRoleId,
-        text: convertMarkdownLinksToSlackMrkdwn(message),
+        text: slackText,
         unfurlLinks: false,
         unfurlMedia: false,
         workspaceId,

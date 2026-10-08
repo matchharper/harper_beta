@@ -1,4 +1,5 @@
 import React, { type ErrorInfo, type ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
 
 type AppErrorBoundaryProps = {
   children: ReactNode;
@@ -7,6 +8,8 @@ type AppErrorBoundaryProps = {
 
 type AppErrorBoundaryState = {
   error: Error | null;
+  signingOut: boolean;
+  signOutError: boolean;
 };
 
 const getErrorMessage = (error: unknown) => {
@@ -32,9 +35,11 @@ class AppErrorBoundary extends React.Component<
 > {
   state: AppErrorBoundaryState = {
     error: null,
+    signingOut: false,
+    signOutError: false,
   };
 
-  static getDerivedStateFromError(error: Error): AppErrorBoundaryState {
+  static getDerivedStateFromError(error: Error): Partial<AppErrorBoundaryState> {
     return { error };
   }
 
@@ -51,20 +56,29 @@ class AppErrorBoundary extends React.Component<
 
   componentDidUpdate(prevProps: AppErrorBoundaryProps) {
     if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
-      this.setState({ error: null });
+      this.setState({ error: null, signingOut: false, signOutError: false });
     }
   }
-
-  handleRetry = () => {
-    this.setState({ error: null });
-  };
 
   handleReload = () => {
     window.location.reload();
   };
 
+  handleSignOut = async () => {
+    if (this.state.signingOut) return;
+    this.setState({ signingOut: true, signOutError: false });
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      window.location.reload();
+    } catch (error) {
+      console.error("[AppErrorBoundary] sign out failed", error);
+      this.setState({ signingOut: false, signOutError: true });
+    }
+  };
+
   render() {
-    const { error } = this.state;
+    const { error, signingOut, signOutError } = this.state;
 
     if (!error) return this.props.children;
 
@@ -95,12 +109,18 @@ class AppErrorBoundary extends React.Component<
             </button>
             <button
               type="button"
-              onClick={this.handleRetry}
-              className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-sm font-medium text-neutral-primary"
+              disabled={signingOut}
+              onClick={() => void this.handleSignOut()}
+              className="inline-flex h-10 flex-1 items-center justify-center rounded-md border border-neutral-1000-a10 bg-bg-floating px-4 text-sm font-medium text-neutral-primary disabled:cursor-not-allowed disabled:opacity-55"
             >
-              다시 시도
+              {signingOut ? "로그아웃 중…" : "로그아웃"}
             </button>
           </div>
+          {signOutError && (
+            <p role="alert" className="mt-3 text-sm text-critical">
+              로그아웃하지 못했습니다. 다시 시도해 주세요.
+            </p>
+          )}
         </section>
       </main>
     );

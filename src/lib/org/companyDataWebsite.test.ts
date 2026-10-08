@@ -458,6 +458,44 @@ test("saves search toggles with the canonical boolean expectation", async () => 
   }
 });
 
+test("saves public promotion with the stored value as the conflict expectation", async () => {
+  for (const enabled of [true, false]) {
+    const fixture = createWebsiteMutationAdminFixture({
+      internalRoles: {
+        "role-1": { is_promote: !enabled, role_id: "role-1" },
+      },
+      roles: {
+        "role-1": {
+          name: "Backend",
+          role_id: "role-1",
+          source_type: "internal",
+          status: "active",
+        },
+      },
+      workspace: {
+        company_db_id: null,
+        company_workspace_id: "workspace-1",
+      },
+    });
+
+    await applyWebsiteCompanyDataChanges({
+      actorLabel: "김호진",
+      admin: fixture.admin as never,
+      changes: [{ key: "role_is_promote", roleId: "role-1", value: enabled }],
+      workspaceId: "workspace-1",
+    });
+
+    assert.deepEqual(fixture.rpcCalls[0]?.args.p_changes, [
+      {
+        expected: !enabled,
+        key: "role_is_promote",
+        role_id: "role-1",
+        value: enabled,
+      },
+    ]);
+  }
+});
+
 test("an unchanged disabled search setting skips the mutation RPC", async () => {
   const fixture = createWebsiteMutationAdminFixture({
     internalRoles: {

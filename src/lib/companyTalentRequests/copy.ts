@@ -4,7 +4,7 @@ import {
   createChatCompletionWithFallback,
   getLlmErrorMessage,
 } from "@/lib/llm/llm";
-import { CLAUDE_MODEL, GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { CLAUDE_MODEL, GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
 import { candidateContactBodyWithoutTransportFooter } from "@/lib/companyTalentRequests/presentation";
 import { assertCandidateContactUploadLinks } from "@/lib/companyTalentRequests/copyRules";
@@ -57,7 +57,7 @@ async function generateJson(
   signal.throwIfAborted();
   const { response } = await createChatCompletionWithFallback({
     signal,
-    anthropicOverloadFallbackModel: GPT_56_LUNA_MODEL,
+    anthropicOverloadFallbackModel: GPT_6_LUNA_MODEL,
     buildRequest: () => ({
       // Responses API output budgets include both reasoning and visible JSON.
       // Keep enough room for xhigh reasoning plus a complete subject/body.
@@ -66,7 +66,7 @@ async function generateJson(
       temperature: 0.2,
     }),
     debugLabel: "org/agent:candidate-contact-copy",
-    fallbackModel: GPT_56_LUNA_MODEL,
+    fallbackModel: GPT_6_LUNA_MODEL,
     model: CLAUDE_MODEL,
     openAIResponses: { reasoningEffort: "xhigh" },
     structuredOutput: {

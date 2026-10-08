@@ -111,13 +111,18 @@ function resolvePricingForUsage(
 ) {
   const shouldUseLongContextPricing =
     pricing.longContextThresholdTokens !== undefined &&
-    (usage.totalProcessedInputTokens ?? 0) >=
+    (usage.totalProcessedInputTokens ?? 0) >
       pricing.longContextThresholdTokens;
 
   return {
-    cacheReadUsdPerMtok: pricing.cacheReadUsdPerMtok ?? pricing.inputUsdPerMtok,
+    cacheReadUsdPerMtok:
+      (shouldUseLongContextPricing
+        ? pricing.longContextCacheReadUsdPerMtok
+        : undefined) ?? pricing.cacheReadUsdPerMtok ?? pricing.inputUsdPerMtok,
     cacheWriteUsdPerMtok:
-      pricing.cacheWriteUsdPerMtok ?? pricing.inputUsdPerMtok,
+      (shouldUseLongContextPricing
+        ? pricing.longContextCacheWriteUsdPerMtok
+        : undefined) ?? pricing.cacheWriteUsdPerMtok ?? pricing.inputUsdPerMtok,
     inputUsdPerMtok:
       shouldUseLongContextPricing &&
       pricing.longContextInputUsdPerMtok !== undefined

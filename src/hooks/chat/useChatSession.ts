@@ -14,7 +14,7 @@ import {
 import type { CandidateDetail } from "@/hooks/candidates/useCandidateDetail";
 import { logger } from "@/utils/logger";
 
-const CHAT_MODEL = "gpt-5.6-luna";
+const CHAT_MODEL = "gpt-6-luna";
 const STREAM_FLUSH_INTERVAL_MS = 60;
 
 export const UI_START = "<<UI>>";
@@ -233,7 +233,7 @@ export function useChatSessionDB(args: {
   scope?: ChatScope;
   userId?: string;
   apiPath?: string;
-  model?: "gpt-5.6-luna" | "gemini-3-flash-preview";
+  model?: "gpt-6-luna" | "gemini-3-flash-preview";
   candidDoc?: CandidateDetail;
 }) {
   const { scope, userId } = args;

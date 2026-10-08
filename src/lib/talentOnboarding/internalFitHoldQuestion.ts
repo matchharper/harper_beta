@@ -2,7 +2,7 @@ import {
   getChatClientForModel,
   supportsResponseFormatForModel,
 } from "@/lib/llm/llm";
-import { GPT_56_LUNA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import { isTestOnlyInternalRole } from "@/lib/internalRoleSafety";
 import type { TalentAdminClient } from "./admin";
 import {
@@ -21,7 +21,7 @@ export type ActiveInternalFitHoldQuestion = {
 
 const ACTIVE_HOLD_CANDIDATE_LIMIT = 20;
 const NEW_INFORMATION_MAX_CHARS = 700;
-const PROPAGATION_MODEL = GPT_56_LUNA_MODEL;
+const PROPAGATION_MODEL = GPT_6_LUNA_MODEL;
 const PROPAGATION_TEMPERATURE = 0.3;
 const PROPAGATION_METHOD = "llm_criteria_match_v1";
 const INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND =

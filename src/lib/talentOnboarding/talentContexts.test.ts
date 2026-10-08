@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildTalentMemoryRetrievalQuery,
   mutateTalentContexts,
+  mutateTalentContextsFromAgent,
   normalizeTalentContextRow,
   projectBriefsToLegacyInsights,
   readTalentContextsForAgent,
@@ -118,6 +119,49 @@ test("fills missing add metadata and ignores empty optional update metadata", as
   assert.equal(changes[1]?.label, "Career criteria");
   assert.equal(changes[2]?.content, "Now prefers smaller teams.");
   assert.equal("label" in changes[2]!, false);
+});
+
+test("accepts importance on a Brief update without writing Brief importance", async () => {
+  const captured: { rpcArgs?: Record<string, unknown> } = {};
+  const admin = {
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      captured.rpcArgs = args;
+      return { data: { applied: [] }, error: null };
+    },
+  } as unknown as Parameters<typeof mutateTalentContextsFromAgent>[0]["admin"];
+
+  await mutateTalentContextsFromAgent({
+    admin,
+    changes: [
+      {
+        content: "서울 또는 원격 근무를 선호한다.",
+        importance: 3,
+        op: "update",
+        ref: 1,
+      },
+      {
+        content: "평일 저녁 면접을 선호한다.",
+        importance: 3,
+        op: "update",
+        ref: 2,
+      },
+    ],
+    referencedRows: [
+      row(10, "brief", "서울 근무를 선호한다."),
+      row(20, "memory", "저녁 면접을 선호한다."),
+    ],
+    requestId: "brief-importance-update-test",
+    userId: "00000000-0000-0000-0000-000000000001",
+  });
+
+  const changes = captured.rpcArgs?.p_changes as Array<Record<string, unknown>>;
+  assert.deepEqual(changes[0], {
+    content: "서울 또는 원격 근무를 선호한다.",
+    expected_revision: 1,
+    id: 10,
+    op: "update",
+  });
+  assert.equal(changes[1]?.importance, 3);
 });
 
 test("normalizes Memory importance without exposing it in prompt text", () => {

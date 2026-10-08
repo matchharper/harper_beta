@@ -31,7 +31,6 @@ import {
   User2,
 } from "lucide-react";
 import {
-  AnimatePresence,
   motion,
   useSpring,
   useScroll,
@@ -42,7 +41,6 @@ import {
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type React from "react";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
-import GmailPhoneMockup from "@/components/landing/career/GmailMockup";
 import CareerWorkspacePreview from "@/components/career/preview/CareerWorkspaceLandingMockup";
 import { cx } from "@/components/ops/theme";
 import { cn } from "@/lib/cn";
@@ -122,11 +120,6 @@ type LandingCopy = {
     cta: string;
     secondaryCta: string;
     desktopLabel: string;
-    mailNotification: {
-      title: string;
-      body: string;
-      time: string;
-    };
   };
   workflow: {
     title: readonly string[];
@@ -213,11 +206,6 @@ const LANDING_COPY = {
       cta: "Meet your Agent",
       secondaryCta: "제품 화면 보기",
       desktopLabel: "Desktop",
-      mailNotification: {
-        title: "소개: Chris & Wonderful APAC VP",
-        body: "안녕하세요, 메일로 두분을 연결드리게 되어서 기쁘네요. Chris는 현재 FDE로 SF에서 일하고 있고, 빠르게 성장하는 AI 스타트업에서의 기회를 찾고 있습니다.",
-        time: "방금",
-      },
     },
     workflow: {
       title: ["맥락을 파악하고,", "연결까지"],
@@ -454,11 +442,6 @@ const LANDING_COPY = {
       cta: "Meet your Agent",
       secondaryCta: "View product",
       desktopLabel: "Desktop",
-      mailNotification: {
-        title: "Intro: Chris & VP of APAC, Wonderful",
-        body: "I routed Chris directly to Wonderful's VP of APAC for the core architecture role in Singapore or Seoul.",
-        time: "Now",
-      },
     },
     workflow: {
       title: ["From context,", "to connection."],
@@ -713,13 +696,7 @@ function Lines({ lines }: { lines: readonly string[] }) {
   );
 }
 
-function DesktopWindowMockup({
-  label,
-  onGmailMockupVisibleChange,
-}: {
-  label: string;
-  onGmailMockupVisibleChange?: (visible: boolean) => void;
-}) {
+function DesktopWindowMockup({ label }: { label: string }) {
   return (
     <div className="bg-neutral-100 text-neutral-900 [clip-path:inset(0_round_16px)] md:[clip-path:inset(0_round_0px)] md:rounded-t-[14px] pointer-events-auto absolute isolate w-[min(90vw,320px)] overflow-hidden ring-1 ring-white/15 md:pointer-events-none md:w-[94%] md:translate-x-0">
       <div className="hidden h-8 border-b border-neutral-200 grid-cols-[64px_1fr_76px] items-center px-3 text-[11px] text-neutral-900 ring-1 ring-black/[0.06] md:grid sm:grid-cols-[110px_1fr_110px] sm:px-4 sm:text-[13px]">
@@ -729,7 +706,7 @@ function DesktopWindowMockup({
           <span className="h-2 w-2 rounded-full bg-neutral-300 sm:h-2.5 sm:w-2.5" />
         </div>
         <div className="whitespace-nowrap text-xs text-center font-normal">
-          Harper Desktop
+          Harper {label}
         </div>
         <div />
       </div>
@@ -738,10 +715,7 @@ function DesktopWindowMockup({
         <div className="absolute inset-0">
           <CareerWorkspacePreview
             embedded
-            autoPlayConversation
             disableInteractions
-            initialTab="chat"
-            onGmailMockupVisibleChange={onGmailMockupVisibleChange}
             viewport="auto"
           />
         </div>
@@ -750,85 +724,19 @@ function DesktopWindowMockup({
   );
 }
 
-function HeroMailNotification({
-  item,
-}: {
-  item: LandingCopy["hero"]["mailNotification"];
-}) {
+function HeroScreenshot({ desktopLabel }: { desktopLabel: string }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -84, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -74, scale: 0.98 }}
-      transition={{
-        duration: 0.52,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      className="relative flex w-full items-start gap-3 rounded-[18px] bg-neutral-0/88 px-3 py-3 text-neutral-950 shadow-[0_18px_46px_rgba(0,0,0,0.22)] ring-1 ring-white/30 backdrop-blur-md"
-    >
-      <div
-        aria-label="Gmail"
-        className="mt-0.5 h-9 w-9 shrink-0 rounded-[10px] bg-white bg-size-[26px_26px] bg-center bg-no-repeat ring-1 ring-black/[0.04]"
-        style={{ backgroundImage: "url('/svgs/gmail.svg')" }}
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
-          <span className="truncate text-[13px] font-medium">Harper</span>
-          <span className="shrink-0 text-[11px] text-black/55">
-            {item.time}
-          </span>
-        </div>
-        <div className="mt-0.5 truncate text-sm font-medium">{item.title}</div>
-        <div className="mt-0.5 line-clamp-2 text-[13px] leading-[1.45] text-black/90">
-          {item.body}
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-function HeroScreenshot({
-  desktopLabel,
-  mailNotification,
-}: {
-  desktopLabel: string;
-  mailNotification: LandingCopy["hero"]["mailNotification"];
-}) {
-  const [showGmailMockup, setShowGmailMockup] = useState(false);
-
-  return (
-    <div className="shadow-lg md:shadow-lg relative flex items-center md:items-end justify-center mx-auto mt-6 md:mt-12 h-[640px] w-full max-w-[1440px] overflow-hidden rounded-[8px] bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[720px]">
+    <div className="shadow-lg md:shadow-lg relative flex items-center md:items-end justify-center mx-auto mt-6 md:mt-12 h-[640px] w-full max-w-[1440px] overflow-hidden rounded-[8px] bg-neutral-200 ring-1 ring-black/[0.06] md:mt-14 md:h-[clamp(600px,55vw,780px)]">
       <Image
         src="/images/river.jpg"
         alt=""
         fill
         priority
-        sizes="(min-width: 1280px) 1240px, 100vw"
+        sizes="(min-width: 1280px) 1400px, 100vw"
         className="object-cover opacity-[1]"
       />
       <div className="absolute inset-0 bg-neutral-200/40" />
-      <div className="pointer-events-none absolute inset-x-4 top-4 z-30 md:hidden">
-        <AnimatePresence initial={false}>
-          {showGmailMockup ? (
-            <HeroMailNotification
-              key="hero-mobile-mail-notification"
-              item={mailNotification}
-            />
-          ) : null}
-        </AnimatePresence>
-      </div>
-      <DesktopWindowMockup
-        label={desktopLabel}
-        onGmailMockupVisibleChange={setShowGmailMockup}
-      />
-      <GmailPhoneMockup
-        className={cn(
-          "pointer-events-none transition-[opacity,transform,filter] duration-700 ease-out will-change-transform",
-          showGmailMockup
-            ? "translate-y-0 scale-100 opacity-100 blur-0"
-            : "pointer-events-none translate-y-8 scale-[0.96] opacity-0 blur-[2px]"
-        )}
-      />
+      <DesktopWindowMockup label={desktopLabel} />
     </div>
   );
 }
@@ -2246,12 +2154,9 @@ export default function LandingKoVfPage({
             </div>
           </section>
           <section className={`${ui.pageX}`}>
-            <div className="mx-auto w-full max-w-[1240px]">
+            <div className="mx-auto w-full max-w-[1400px]">
               <Reveal once blur={0} distance={20} delay={0.08}>
-                <HeroScreenshot
-                  desktopLabel={copy.hero.desktopLabel}
-                  mailNotification={copy.hero.mailNotification}
-                />
+                <HeroScreenshot desktopLabel={copy.hero.desktopLabel} />
               </Reveal>
             </div>
           </section>

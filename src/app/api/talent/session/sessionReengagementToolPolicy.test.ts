@@ -47,8 +47,8 @@ test("session start and re-engagement turns expose no career tools", () => {
 });
 
 test("dedicated re-engagement overrides the model without changing legacy session start", () => {
-  assert.match(reengagementRoute, /assistantModel:\s*GPT_56_LUNA_MODEL/);
-  assert.doesNotMatch(sessionRoute, /GPT_56_LUNA_MODEL/);
+  assert.match(reengagementRoute, /assistantModel:\s*GPT_6_LUNA_MODEL/);
+  assert.doesNotMatch(sessionRoute, /GPT_6_LUNA_MODEL/);
 });
 
 test("dedicated re-engagement configures temperature 0.8", () => {

@@ -54,12 +54,12 @@ v3 이후 production 함수는 cross-company market summary를 기본으로 읽�
 | 방법 | 외부 호출 | 기본 조건 |
 | --- | --- | --- |
 | `market_median` | 없음 | peer 최소·최대의 중앙값 |
-| `deepseek` | OpenRouter 1회 | DeepSeek V4 Flash 0731, low reasoning, temperature 0.1, 1,000 max tokens |
+| `deepseek` | OpenRouter 1회 | DeepSeek V4.1 Flash, low reasoning, temperature 0.1, 1,000 max tokens |
 | `deepseek_peers` | OpenRouter 1회 | 위 모델 + 공개 연봉 peer 최대 10건 |
 | `glm` | OpenRouter 1회 | GLM 5.3 Flash, low reasoning, temperature 0.1, 1,000 max tokens |
 | `glm_peers` | OpenRouter 1회 | 위 모델 + 공개 연봉 peer 최대 10건 |
 | `exa` | Exa structured search 1회 | 검색 결과 5개, 공개 회사·Role·location query |
-| `deepseek_market` | DB + OpenRouter 1회 | DeepSeek V4 Flash 0731 + compact market summary |
+| `deepseek_market` | DB + OpenRouter 1회 | DeepSeek V4.1 Flash + compact market summary |
 | `luna` | OpenAI 1회 | GPT-5.6 Luna low reasoning, Role/company context only |
 | `luna_market` | DB + OpenAI 1회 | GPT-5.6 Luna low reasoning + compact market summary |
 | `exa_url_luna` | Exa Contents + OpenAI 1회 | 정확한 공고 URL content + GPT-5.6 Luna |

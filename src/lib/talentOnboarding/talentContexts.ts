@@ -946,12 +946,6 @@ export async function mutateTalentContextsFromAgent(args: {
         };
       }
       if (
-        Object.prototype.hasOwnProperty.call(change, "importance") &&
-        row.collection !== "memory"
-      ) {
-        throw new Error("Importance can only be updated on a Memory");
-      }
-      if (
         Object.prototype.hasOwnProperty.call(change, "label") &&
         row.collection !== "brief"
       ) {
@@ -963,7 +957,8 @@ export async function mutateTalentContextsFromAgent(args: {
           : {}),
         expectedRevision: row.revision,
         id: row.id,
-        ...(Object.prototype.hasOwnProperty.call(change, "importance")
+        ...(row.collection === "memory" &&
+        Object.prototype.hasOwnProperty.call(change, "importance")
           ? { importance: change.importance }
           : {}),
         ...(Object.prototype.hasOwnProperty.call(change, "label")

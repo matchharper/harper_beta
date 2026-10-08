@@ -227,8 +227,7 @@ export function OrgLoginScreen({
     setMessage(value.split("\n").slice(0, 2).join("\n"));
   };
 
-  const LoginButton = () => {
-    const t = useOrgT();
+  const renderLoginButton = () => {
     return (
       <button
         type="button"
@@ -299,7 +298,7 @@ export function OrgLoginScreen({
           {t("OrgLoginScreen.a2c2c7d0", "초대를 받은 계정만 해당 워크스페이스에 접근할 수 있습니다.")}
         </p>
         <br />
-        {LoginButton()}
+        {renderLoginButton()}
         {loginError ? (
           <p className="mt-3 text-[12px] font-normal leading-5 text-critical">
             {loginError}
