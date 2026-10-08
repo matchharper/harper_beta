@@ -2359,6 +2359,10 @@ export const ko = {
     "career.profile.documents.make_private": "비공개로 전환",
     "career.profile.documents.make_public": "공개하기",
     "career.profile.documents.open_call_note": "통화 기록 열기",
+    "career.profile.documents.pdf_changed":
+      "문서가 변경되었습니다. 최신 내용을 확인한 뒤 다시 다운로드해 주세요.",
+    "career.profile.documents.pdf_failed":
+      "PDF를 만들지 못했습니다. 다시 시도해 주세요.",
     "career.profile.documents.preview_failed":
       "문서를 불러오지 못했습니다. 삭제되었거나 접근할 수 없는 문서일 수 있습니다.",
     "career.profile.documents.preview_loading": "문서를 불러오는 중입니다.",

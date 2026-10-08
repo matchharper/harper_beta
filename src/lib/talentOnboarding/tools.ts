@@ -1,3 +1,4 @@
+import { GENERATE_RESUME_PARAMETERS } from "@/lib/resumes/schema";
 import {
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
@@ -153,6 +154,7 @@ export type TalentToolExecutionContext = {
   scheduleAfter?: (task: () => Promise<void>) => void;
   toolCallId?: string | null;
   userMessageId?: number | string | null;
+  resumeRequestId?: string;
   userId?: string;
 };
 
@@ -232,6 +234,7 @@ export const TALENT_TOOL_NAMES = {
   OPEN_URL: "open_url",
   SEARCH_CONNECTED_GMAIL: "search_connected_gmail",
   RESEARCH_COMPANY: "research_company",
+  GENERATE_RESUME: "generate_resume",
   LIST_DOCUMENTS: "list_documents",
   READ_DOCUMENT: "read_document",
   UPDATE_DOCUMENT: "update_document",
@@ -265,6 +268,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
+  TALENT_TOOL_NAMES.GENERATE_RESUME,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,
   TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
@@ -2597,6 +2601,17 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     channels: ["chat"],
     stopAfterExecution: true,
   },
+  [TALENT_TOOL_NAMES.GENERATE_RESUME]: {
+    name: TALENT_TOOL_NAMES.GENERATE_RESUME,
+    description: "Create or update a saved resume document (private by default) using known user facts. For create, provide full content. For update, provide only changes targeting exact fields or stable entry IDs; the server preserves all other content. Use only for explicit resume creation/editing requests, never for review or a suggestion alone. create requires document_name; update requires document_id, expected_revision and changes from read_document(format=structured), forbids full content, preserves that document link, and cannot edit an uploaded original. Saves JSON for an HTML preview; PDF is generated only when the user downloads it. It does not change Profile/Memory or submit/share the resume. Return to the conversation after execution.",
+    parameters: GENERATE_RESUME_PARAMETERS,
+    channels: ["chat"],
+    async execute(input, context) {
+      if (!context?.admin || !context.userId || !context.userMessageId || context.channel === "voice") throw new TalentToolError("Resume generation requires authenticated web chat context.");
+      const { generateResume } = await import("@/lib/resumes/service");
+      return generateResume({ admin: context.admin as TalentAdminClient, userId: context.userId, userMessageId: context.userMessageId, requestId: context.resumeRequestId, input });
+    },
+  },
   [TALENT_TOOL_NAMES.LIST_DOCUMENTS]: {
     name: TALENT_TOOL_NAMES.LIST_DOCUMENTS,
     description:
@@ -2647,6 +2662,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
+        format: { type: "string", enum: ["text", "structured"], description: "Use structured to read a Harper-generated resume JSON and revision before editing. Default text retains paginated reading." },
         document_id: {
           type: "string",
           description: "Exact saved document id.",
@@ -2685,7 +2701,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_DOCUMENT]: {
     name: TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
     description:
-      'Update one exact saved document. It can correct resume/document kind, primary/public state, or the soft-delete marker. Document content and extracted_text cannot be edited. If the user asks to change document content, say "내용 수정은 불가능하며, 새로 업로드 해야한다." Use only for changes supported by the user\'s request or the current-turn upload policy; is_deleted does not remove the storage object.',
+      'Update one exact saved document. It can correct resume/document kind, primary/public state, or the soft-delete marker. This tool only edits metadata. For Harper-generated resume content use generate_resume after read_document(format=structured); uploaded originals remain unchanged. Harper-generated resumes can change visibility when explicitly requested, but cannot become primary or another kind. Use only for changes supported by the user\'s request or the current-turn upload policy; is_deleted does not remove the storage object.',
     parameters: {
       type: "object",
       properties: {

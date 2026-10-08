@@ -1,3 +1,4 @@
+import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
   TALENT_RESUME_BUCKET,
@@ -6,7 +7,7 @@ import {
 } from "@/lib/talentOnboarding/models";
 
 const TALENT_DOCUMENT_SELECT =
-  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, is_deleted, created_at, updated_at, origin_type, origin_id";
+  "id, talent_id, kind, file_name, storage_path, content_type, size_bytes, content_sha256, extracted_text, is_public, is_primary, is_deleted, created_at, updated_at, origin_type, origin_id, structured_content, revision";
 
 export async function fetchTalentDocuments(args: {
   admin: TalentAdminClient;
@@ -138,7 +139,7 @@ export async function serializeTalentDocuments(args: {
 
   return Promise.all(
     documents.map(async (document) => {
-      const signed = document.storage_path
+      const signed = document.origin_type !== GENERATED_RESUME_ORIGIN && document.storage_path
         ? await admin.storage
             .from(TALENT_RESUME_BUCKET)
             .createSignedUrl(document.storage_path, expiresIn)
@@ -164,11 +165,12 @@ export async function serializeTalentDocuments(args: {
 }
 
 export function pickLatestResumeDocument(documents: TalentDocumentRow[]) {
+  const eligible = documents.filter(d => d.origin_type !== GENERATED_RESUME_ORIGIN);
   return (
-    documents.find(
+    eligible.find(
       (document) => document.kind === "resume" && document.is_primary
     ) ??
-    documents.find((document) => document.kind === "resume") ??
+    eligible.find((document) => document.kind === "resume") ??
     null
   );
 }

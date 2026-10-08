@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { TalentAdminClient } from "./admin";
-import { serializeTalentDocuments } from "./documentStore";
+import {
+  pickLatestResumeDocument,
+  serializeTalentDocuments,
+} from "./documentStore";
 import type { TalentDocumentRow } from "./models";
 
 function documentRow(
@@ -58,4 +61,21 @@ test("creates signed URLs for files but not call notes", async () => {
   assert.deepEqual(signedPaths, ["user-1/portfolio.pdf"]);
   assert.equal(documents[0]?.downloadUrl, "signed:user-1/portfolio.pdf");
   assert.equal(documents[1]?.downloadUrl, null);
+});
+
+test("generated resumes are excluded from legacy primary selection", () => {
+  const generated = documentRow({
+    kind: "resume",
+    origin_type: "harper_generated_resume",
+    is_primary: true,
+  });
+  const uploaded = documentRow({ id: "uploaded", kind: "resume" });
+  assert.equal(pickLatestResumeDocument([generated]), null);
+  assert.equal(pickLatestResumeDocument([generated, uploaded])?.id, "uploaded");
+});
+
+test("generated resumes never expose stale stored PDF URLs", async () => {
+  const admin = { storage: { from: () => { throw new Error("must not sign old generated PDF"); } } } as unknown as TalentAdminClient;
+  const [document] = await serializeTalentDocuments({ admin, documents: [documentRow({ origin_type: "harper_generated_resume" })] });
+  assert.equal(document.downloadUrl, null);
 });

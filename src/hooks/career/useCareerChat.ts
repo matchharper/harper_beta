@@ -719,6 +719,7 @@ export const useCareerChat = ({
         : visibleText;
       const messageType = args.messageType ?? "chat";
       const tempId = `temp-user-${Date.now()}`;
+      const clientRequestId = crypto.randomUUID();
       const nowIso = new Date().toISOString();
 
       setChatError("");
@@ -777,6 +778,7 @@ export const useCareerChat = ({
             coachingActivityAction: args.coachingActivityAction,
             conversationStarterId: activeConversationStarterId,
             conversationId,
+            clientRequestId,
             locale,
             message: text,
             messageType,

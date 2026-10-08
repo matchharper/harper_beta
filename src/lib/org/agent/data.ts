@@ -1029,6 +1029,7 @@ async function readCompanyTalentRequestProjection(args: {
       .limit(5),
     args.includeResumeAvailability === false ? Promise.resolve({ data: [], error: null }) : (args.admin.from("talent_documents" as any) as any)
       .select("id, is_public, is_primary")
+      .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("talent_id", args.talentId)
       .eq("kind", "resume")
       .eq("is_primary", true)
@@ -1054,6 +1055,7 @@ async function readCompanyTalentRequestProjection(args: {
     responseDocumentIds.length > 0
       ? (args.admin.from("talent_documents" as any) as any)
           .select("id, created_at")
+          .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
           .in("id", responseDocumentIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
