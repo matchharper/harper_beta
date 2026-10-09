@@ -1,6 +1,6 @@
 # 연결대기 후보자 Slack 추천 — Vercel Cron 운영 계약
 
-문서 상태: Vercel Cron + LLM 작성 구현 완료, 배포 전
+문서 상태: 2026-10-09 웹 `f89c99c6`의 Vercel Cron + LLM 작성 경로 운영 배포 확인. 개별 소개의 성공은 실제 전달 기록으로 확인한다.
 
 ## 1. 실행 주체
 
@@ -13,7 +13,7 @@ Authorization: Bearer ${CRON_SECRET}
 
 endpoint는 후보자를 조회하고, 각 `(role_id, talent_id)` 조합마다 별도 LLM call로 소개문을 작성하게 한 뒤, 현재 자격을 다시 확인하고 workspace별 Slack 메시지로 묶어 발송한다. 예전 Codex scheduled task는 운영 실행 주체가 아니다. `scripts/autoIntroToCompanyCodexScheduled.ts`의 list/send 명령은 수동 진단과 호환용으로만 남긴다.
 
-아직 배포 전이므로 이 문서는 라이브 동작을 주장하지 않는다. 실제 배포 때 기존 scheduled task가 꺼져 있는지 확인하고, 배포 후 동작을 기준으로 Notion 제품 문서를 동기화한다.
+2026-10-09 배포에는 위 Cron 설정과 실행 경로가 포함됐다. 현재 Codex automation 파일에서 이전 auto-intro 예약을 찾지 못했으며, 이번 요청에서 별도 소개를 수동 발송하지 않았다. Role 검색이 이미 준비한 소개는 해당 outbox가 재시도를 소유하므로 이 Cron이 중복 소개를 만들지 않는다. Notion 문서는 실제 배포 코드와 전달 상태 구분을 기준으로 동기화한다.
 
 ## 2. 후보자 선정과 중복 방지
 

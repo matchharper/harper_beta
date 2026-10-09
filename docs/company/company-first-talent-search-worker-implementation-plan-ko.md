@@ -1,5 +1,7 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+> 2026-10-09 배포 확인: Worker `71326f6`과 웹 `f89c99c6`이 운영 중이다. 추천 Worker 6개는 순차 교체했고 교체 직전 실행 중이던 3개 run은 모두 completed로 끝났다. 회사 검색·예약 실행기, 이메일·Slack 실행기도 새 프로세스로 확인했다. 아래 10월 8~9일의 미배포 표기는 작성 당시 이력이며, 현재 실행 코드는 `opp/matching`의 공통 평가·선정/연락 분리·수락 후보 재검토·공통 회사 소개를 사용한다. 운영 설정은 회사 선검토 정기 3명·직접 요청 6명·ready 30명이고 후보자 선제안은 독립 상한 20명이다. 검색 순서 결합 설정이 없는 현재 운영값은 기본 true를 사용한다. DB 관련 함수·컬럼은 이미 존재함을 확인했으며 이번 배포에서는 migration을 실행하지 않았다. 배포 성공이 모든 설계 항목이나 평가 gate의 통과를 뜻하지는 않는다.
+
 > 2026-10-09 수락 후보 선정 지침(로컬·미배포): `ACCEPTED_REVIEW_SYSTEM`은 한 번의 회사 검토에서 전체 Role을 합쳐 `connect`를 최대 2명으로 고르고 다른 적합한 수락 후보를 `defer`로 남기도록 지시한다. 0~1명도 가능하다. Prompt만 변경하며 parser·저장·DB guard에 수량 제한이나 초과 후보 자르기를 추가하지 않는다.
 
 > 2026-10-08 추가 로컬 변경(미배포): 일반 역할의 유효한 talent-first 수락을 별도 mandatory pair source로 합친다. 수락 pair는 부정적인 1차 fit도 rerank에 보내며 shortlist로 제거하지 않고 48명 단위로 검토한다. `connect/reject/defer`는 기존 `talent_opportunity_matching_review.decision`과 원본 `recommendation_id`에 저장한다. Reject는 동일 fit input이 유지되는 해당 수락 pair의 재선정을 막고, Defer는 다음 관련 사실 변경 시 재판단할 수 있다. 새 추천을 만들거나 후보자의 철회·회사의 거절로 바꿔 기록하지 않는다. 명시적 Run Search의 역할 scope를 지키고, 수락 후보가 없으면 추가 prompt가 없다.

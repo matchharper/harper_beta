@@ -7,7 +7,7 @@
 - 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit 런북](./company-role-fit-recovery-audit-codex-runbook-ko.md)
 
 이 문서는 명시적으로 요청해 queue에 들어온 Role 하나의 context 갱신과 후보 평가를 설명한다.
-정기·event·legacy weekly 자동 실행은 폐지됐다.
+정기·event·legacy weekly 자동 실행 폐지는 로컬 변경의 목표다. 2026-10-09 배포 시 운영 DB에는 기존 자동 enqueue/claim 함수와 관련 trigger가 남아 있음을 확인했다. 이 런북이나 로컬 migration을 운영 폐지 완료의 근거로 사용하지 않는다. 이번 배포에서는 DB 변경이나 자동 작업 취소를 수행하지 않았다.
 
 ## 1. 단일 queue consumer의 계약
 

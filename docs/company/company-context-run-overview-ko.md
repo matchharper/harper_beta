@@ -1,9 +1,9 @@
 # Company Run: 목적과 구현 계약
 
 - 작성일: 2026-08-14
-- 상태: 수동 실행 계약. 정기 Harper Company Run은 2026-10-06 로컬 변경에서 폐지했으며 배포 전이다.
+- 상태: 수동 실행 참고 계약. 2026-10-09 웹·Worker 배포 시 운영 DB를 읽기 전용 확인한 결과, `is_auto`와 기존 자동 enqueue/claim 함수·관련 trigger가 남아 있다. 로컬 폐지 migration만으로 운영 폐지가 완료됐다고 해석하지 않는다. 이번 배포에서는 DB 변경이나 기존 자동 작업 취소를 수행하지 않았다. 실제 예약 실행 여부는 해당 실행기의 현재 설정과 실행 기록을 별도 확인한다.
 - 반복 실행 절차: [Company Context Run Codex 런북](./company-context-run-codex-runbook-ko.md)
-- 폐지된 월·목 예약 실행 기록: [Company Run 예약 실행](../schedule/company-run-ko.md)
+- 월·목 예약 실행 폐지 계획과 운영 확인: [Company Run 예약 실행](../schedule/company-run-ko.md)
 - 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)
 
 ## 1. 한 문장으로 설명
