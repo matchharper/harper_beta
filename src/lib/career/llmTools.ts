@@ -1,3 +1,9 @@
+import { applyToRoleTool, APPLY_TO_ROLE } from "./simulation/applicationBrowser";
+import { applicationInputTool, ASK_APPLICATION_INPUT } from "./simulation/applicationInput";
+import {
+  SIMULATION_TOOL_NAMES,
+  simulationSessionTool,
+} from "./simulation/sessionTool";
 import {
   getOpenAIChatTools,
   getRealtimeTools,
@@ -16,6 +22,7 @@ export type CareerOpenAIChatTool = ReturnType<
 export type CareerRealtimeTool = ReturnType<typeof getRealtimeTools>[number];
 
 export type CareerChatToolSelectionArgs = {
+  simulationActive?: boolean;
   allowedToolNames?: readonly string[] | null;
   activeInternalFitHoldQuestion?: boolean | null;
   channel?: TalentToolChannel | null;
@@ -208,10 +215,26 @@ function shouldExposeCareerChatTool(
 
 export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
+  if (args.simulationActive) {
+    const tools = [
+      ...getOpenAIChatTools("chat", {
+        responseLocale: args.responseLocale,
+      }).filter((t) => SIMULATION_TOOL_NAMES.includes(t.function.name)),
+      simulationSessionTool,
+      applicationInputTool,
+      applyToRoleTool,
+    ];
+    return {
+      tools,
+      toolNames: tools.map((t) => t.function.name),
+      stopAfterToolNames: [ASK_APPLICATION_INPUT, APPLY_TO_ROLE],
+    };
+  }
   const selectedTools = applyAllowedToolNames(
     getOpenAIChatTools("chat", {
       responseLocale: args.responseLocale,
     })
+      .filter((tool) => tool.function.name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION)
       .filter((tool) =>
         shouldExposeCareerChatTool(getOpenAIChatToolName(tool), args)
       )

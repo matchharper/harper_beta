@@ -1,3 +1,4 @@
+import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 import {
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
@@ -145,6 +146,9 @@ export type PendingProcessClosureNotice = {
 };
 
 export type TalentToolExecutionContext = {
+  suppressCommonAssistantInstruction?: boolean;
+  simulationStartConfirmed?: boolean;
+  simulationStartOfferId?: number;
   onSimulationMessage?: (message: TalentMessageResponse) => void;
   searchPurpose?: "mock_interview";
   admin?: unknown;
@@ -341,10 +345,11 @@ function isTalentToolResultRecord(
 }
 
 export function withTalentToolAssistantInstruction(
-  result: unknown
+  result: unknown,
+  includeCommonInstruction = true
 ): Record<string, unknown> {
   if (isTalentToolResultRecord(result)) {
-    if (result.skipCommonAssistantInstruction === true) {
+    if (result.skipCommonAssistantInstruction === true || !includeCommonInstruction) {
       const { skipCommonAssistantInstruction: _skip, ...rest } = result;
       return {
         ...rest,
@@ -360,7 +365,7 @@ export function withTalentToolAssistantInstruction(
   }
 
   return {
-    assistantInstruction: buildCommonTalentToolAssistantInstruction(null),
+    assistantInstruction: includeCommonInstruction ? buildCommonTalentToolAssistantInstruction(null) : null,
     ok: true,
     result,
   };
@@ -649,8 +654,10 @@ const ROLE_CONTEXT_ROLE_SELECT = `
   ),
   company_workspace:company_workspace!inner (
     company_name,
+    logo_url,
     company_db:company_db (
       name,
+      logo,
       short_description,
       description,
       location,
@@ -732,7 +739,7 @@ function pickLatestRoleContextRecommendation(
   })[0];
 }
 
-async function runGetRoleContext(args: {
+export async function runGetRoleContext(args: {
   activityOffset: number;
   admin: any;
   includeJd: boolean;
@@ -742,7 +749,7 @@ async function runGetRoleContext(args: {
   const [roleResponse, recommendationResponse, fitResponse] = await Promise.all(
     [
       (args.admin.from("company_roles" as any) as any)
-        .select(ROLE_CONTEXT_ROLE_SELECT)
+        .select(args.includeJd ? ROLE_CONTEXT_ROLE_SELECT : ROLE_CONTEXT_ROLE_SELECT.replace("  description,\n", ""))
         .in("role_id", args.roleIds),
       (args.admin.from("talent_opportunity_recommendation" as any) as any)
         .select(ROLE_CONTEXT_RECOMMENDATION_SELECT)
@@ -904,6 +911,7 @@ async function runGetRoleContext(args: {
         ),
       },
       companyDb: {
+        logoUrl: resolveCompanyLogoUrl({ companyDbLogoUrl: optionalToolString(companyDb?.logo), workspaceLogoUrl: optionalToolString(workspace?.logo_url) }),
         name: isInternalRole
           ? workspaceCompanyName
           : optionalToolString(companyDb?.name),
@@ -3144,7 +3152,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   },
   [TALENT_TOOL_NAMES.SIMULATE_APPLICATION]: {
     name: TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
-    description: "Analyze one Harper role against the user's resume/profile and suggest evidence-backed resume improvements. Use when the user requests application simulation, a detailed role-fit assessment, or role-specific resume feedback. Runs three sequential stages and shows their results in the chat. Does not change documents, matching decisions, recommendations or applications. Requires a known roleId or public /jobs slug; resolve an ambiguous role first. document_id is optional: otherwise use the primary/latest resume, or the profile if no resume exists. Use profile_only only when the user explicitly requests profile-only analysis. Uses saved role/company data, not live web research.",
+    description: "Analyze the confirmed role and selected resume in an active Apply with Harper mode. Use for explicit reanalysis requests. Initial analysis is started by the server after the user confirms the start card. Returns role requirements and resume preparation findings; does not display a start card, submit applications or edit documents.",
     channels: ["chat"],
     parameters: {
       type: "object", additionalProperties: false,
@@ -3159,29 +3167,39 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       if (!context?.admin || !context.userId || !context.conversationId) throw new TalentToolError("Simulation requires an authenticated conversation.");
       let role: Record<string, unknown> | null = null;
       let roleName = "";
+      let loadSavedRole: (() => Promise<Record<string, unknown>>) | undefined;
       if (typeof input.official_job_slug === "string" && input.official_job_slug.trim()) {
         const { getPublicOfficialJobBySlug } = await import("@/lib/officialJobs/server");
         const job = await getPublicOfficialJobBySlug(input.official_job_slug.trim());
         if (job) {
           roleName = `${job.companyName} · ${job.roleTitle}`;
           role = { name: job.roleTitle, company: job.companyName, description: job.roleDescriptionMarkdown, companyDescription: job.shortDescription, location: job.location, compensation: job.compensation, seniority: job.seniority };
+          const linked = job.roleId ? await (context.admin as TalentAdminClient).from("company_roles").select("external_jd_url").eq("role_id",job.roleId).maybeSingle() : null;
+          role.externalJdUrl = linked?.data?.external_jd_url || `https://matchharper.com/jobs/${job.slug}`;
         }
       } else {
         const roleIds = normalizeRoleContextRoleIds([input.roleId]);
         if (roleIds.length !== 1) throw new TalentToolError("Select one valid role before simulation.");
-        const lookup = await runGetRoleContext({ admin: context.admin, userId: context.userId, roleIds, includeJd: true, activityOffset: 0 });
+        const lookup = await runGetRoleContext({ admin: context.admin, userId: context.userId, roleIds, includeJd: false, activityOffset: 0 });
         const item = lookup.roles[0];
         if (item?.found && item.role) {
           // Explicit allowlist: never forward internalRequest, stored fit decisions or company feedback.
           const r = item.role;
+          loadSavedRole = async () => {
+            const fallback = await runGetRoleContext({ admin: context.admin, userId: context.userId!, roleIds, includeJd: true, activityOffset: 0 });
+            return { ...role, description: fallback.roles[0]?.role?.description };
+          };
           roleName = [item.companyDb?.name, r.name].filter(Boolean).join(" · ");
-          role = { name: r.name, description: r.description, location: r.locationText, workMode: r.workMode, seniority: r.seniorityLevel, compensation: r.salaryRange, company: item.companyDb };
+          role = { name: r.name, description: r.description, location: r.locationText, workMode: r.workMode, seniority: r.seniorityLevel, compensation: r.salaryRange, company: item.companyDb, externalJdUrl: r.externalJdUrl };
         }
       }
-      if (!role || !String(role.description ?? "").trim()) return { ok: false, reason: "A readable role description is unavailable. Ask the user to select a visible Harper role or its public /jobs posting." };
+      if (!role) return { ok: false, reason: "A readable role description is unavailable. Ask the user to select a visible Harper role or its public /jobs posting." };
+      if (!context.simulationStartConfirmed) return { ok: false, reason: "Analysis requires a confirmed application start. Offer an application start payload in the reply first." };
       return executeApplicationSimulation({
+      startOfferId: context.simulationStartOfferId,
         admin: context.admin as TalentAdminClient, userId: context.userId, conversationId: context.conversationId,
-        role, roleName, documentId: typeof input.document_id === "string" ? input.document_id : undefined, profileOnly: input.profile_only === true,
+        roleRef: typeof input.official_job_slug === "string" ? `job:${input.official_job_slug}` : `role:${input.roleId}`, requestKey: `simulation:${context.userMessageId ?? context.toolCallId ?? crypto.randomUUID()}`,
+        role, loadSavedRole, roleName, documentId: typeof input.document_id === "string" ? input.document_id : undefined, profileOnly: input.profile_only === true,
         locale: context.responseLocale, signal: context.abortSignal, onMessage: context.onSimulationMessage,
       });
     },
@@ -4874,7 +4892,9 @@ export async function executeTalentTool(args: {
     const result = withTalentToolAssistantInstruction(
       tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
         ? withRecommendJobPostingsAssistantInstruction(rawResult)
-        : rawResult
+        : rawResult,
+      tool.name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION &&
+        executionContext?.suppressCommonAssistantInstruction !== true
     );
     if (shouldLog) {
       logTalentToolResult({

@@ -222,7 +222,14 @@ async function createTalentChatCompletion(args: {
   return response;
 }
 
+export type TalentCompletionMetadata = {
+  model: string;
+  finishReason: string | null;
+  completionTokens?: number;
+};
+
 export async function runTalentAssistantCompletion(args: {
+  onCompletionMetadata?: (metadata: TalentCompletionMetadata) => void;
   abortSignal?: AbortSignal;
   anthropicOverloadFallbackModel?: string;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
@@ -320,10 +327,16 @@ export async function runTalentAssistantCompletion(args: {
     model,
     response,
   });
+  args.onCompletionMetadata?.({
+    model,
+    finishReason: response.choices[0]?.finish_reason ?? null,
+    completionTokens: response.usage?.completion_tokens,
+  });
   return cleanModelText(getMessageContent(response.choices[0]?.message));
 }
 
 export async function runTalentAssistantToolLoop(args: {
+  getSystemPrompt?: () => string;
   executeTool: (args: {
     input: Record<string, unknown>;
     name: string;
@@ -400,7 +413,24 @@ export async function runTalentAssistantToolLoop(args: {
   let totalToolCalls = 0;
   let pendingToolResultAttribution: string[] = [];
 
-  for (let loop = 0; loop < maxToolLoops; loop += 1) {
+  const refreshSystem = () => {
+    if (!args.getSystemPrompt) return;
+    const index = workingMessages.findIndex((m) => m.role === "system");
+    if (index >= 0)
+      workingMessages[index] = {
+        role: "system",
+        content: args.getSystemPrompt(),
+      };
+  };
+  for (
+    let loop = 0;
+    loop <
+    (tools.some((t) => t.function.name === "manage_simulation_session")
+      ? Math.max(8, maxToolLoops)
+      : maxToolLoops);
+    loop += 1
+  ) {
+    refreshSystem();
     const toolCostAttribution =
       pendingToolResultAttribution.length > 0
         ? {
@@ -459,7 +489,10 @@ export async function runTalentAssistantToolLoop(args: {
       })),
     });
 
-    const remainingToolCalls = maxTotalToolCalls - totalToolCalls;
+    const remainingToolCalls =
+      (tools.some((t) => t.function.name === "manage_simulation_session")
+        ? Math.max(8, maxTotalToolCalls)
+        : maxTotalToolCalls) - totalToolCalls;
     const executableToolCalls =
       remainingToolCalls > 0 ? toolCalls.slice(0, remainingToolCalls) : [];
     const skippedToolCalls = toolCalls.slice(executableToolCalls.length);
@@ -557,6 +590,7 @@ export async function runTalentAssistantToolLoop(args: {
     pendingToolResultAttribution = attemptedToolNames;
   }
 
+  refreshSystem();
   const fallback = await createTalentChatCompletion({
     anthropicOverloadFallbackModel: modelConfig?.anthropicOverloadFallbackModel,
     chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,

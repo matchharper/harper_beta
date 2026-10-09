@@ -119,9 +119,61 @@ test("simulation SSE updates one card before the chat turn completes", async () 
       "Evidence table"
     );
     assert.equal(committed.length, 2);
+    await act(async () => { send("text_delta", {delta:"Brief question introduction"}); });
+    assert.ok(api.messages.some(m => m.content === "Brief question introduction"));
+    await act(async () => {
+      send("assistant_text_done", {ok:true, discard:true});
+      send("assistant_messages", {messages:[]});
+    });
+    assert.equal(api.messages.some(m => m.content === "Brief question introduction"), false, "question batch owns the introduction even when no final chat messages are returned");
+
     await act(async () => {
       controller.close();
     });
+  } finally {
+    await act(async () => root.unmount());
+    dom.window.close();
+    for (const [key, descriptor] of originals) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});
+
+test("browser resume acknowledgement without userMessage removes optimistic message", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
+  const { useCareerChat } = await import("./useCareerChat");
+  const dom = new JSDOM("<html><body></body></html>", { url: "http://localhost/career" });
+  const originals = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries({
+    window: dom.window, document: dom.window.document,
+    CustomEvent: dom.window.CustomEvent, IS_REACT_ACT_ENVIRONMENT: true,
+  })) {
+    originals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+  }
+  let api!: ReturnType<typeof useCareerChat>;
+  const committed: unknown[] = [];
+  const Harness = () => {
+    api = useCareerChat({
+      conversationId: "test-conversation", user: { id: "test-user" } as User,
+      persistedMessages: [], sessionPending: false,
+      onMessagesChanged: (messages) => { committed.push(...messages); },
+      fetchWithAuth: async () => Response.json({
+        ok: true, assistantMessages: [], messages: [], conversationId: "test-conversation",
+      }),
+    });
+    return null;
+  };
+  const root = createRoot(dom.window.document.body);
+  try {
+    await act(async () => { root.render(<MessagesProvider locale="ko"><Harness /></MessagesProvider>); });
+    await act(async () => { api.setStage("chat"); });
+    await act(async () => { await api.sendChatMessage({ text: "", applicationInputSubmission: {batchId:"batch", sessionMessageId:1, expectedRevision:2} }); });
+    assert.equal(api.chatPending, false);
+    assert.deepEqual(api.messages, []);
+    assert.deepEqual(committed, []);
   } finally {
     await act(async () => root.unmount());
     dom.window.close();

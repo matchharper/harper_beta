@@ -399,3 +399,22 @@ test("streams Luna text while preserving Responses tool and reasoning output", a
     )
   );
 });
+
+test("completion metadata preserves provider truncation instead of losing the finish reason", async () => {
+  const [{ client }, { runTalentAssistantCompletion }] = await Promise.all([
+    import("@/lib/llm/llm"), import("./llm"),
+  ]);
+  const prototype = Object.getPrototypeOf(client.responses) as any;
+  const original = prototype.create;
+  prototype.create = async () => ({
+    model: "gpt-6-luna", status: "incomplete",
+    incomplete_details: { reason: "max_output_tokens" },
+    output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: '{"summary":"cut' }] }],
+    usage: { input_tokens: 100, output_tokens: 6500, total_tokens: 6600 },
+  });
+  try {
+    let observed: unknown;
+    await runTalentAssistantCompletion({ primaryModel: "gpt-6-luna", openAIResponsesReasoningEffort: "medium", messages: [{ role: "user", content: "JSON" }], onCompletionMetadata: value => { observed = value; } });
+    assert.deepEqual(observed, { model: "gpt-6-luna", finishReason: "length", completionTokens: 6500 });
+  } finally { prototype.create = original; }
+});

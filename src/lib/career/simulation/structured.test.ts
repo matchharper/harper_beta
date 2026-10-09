@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isStructuredStage, validReferences } from "./structured";
+import {
+  aggregateFitEvidence,
+  stageOutputIssues,
+  isStructuredStage,
+  validReferences,
+  type StructuredResult,
+} from "./structured";
 import {
   parseApplicationSimulation,
   SIMULATION_STEPS,
@@ -57,6 +63,18 @@ export const reviewResult = {
   report: "The profile supports onboarding, not revenue ownership.",
   data: {
     kind: "review",
+    actionCoverage: [
+      {
+        requirementId: "R1",
+        actionIds: ["A1"],
+        disposition: "action",
+        reason: "Confirmed in profile but missing in resume.",
+      },
+    ],
+    fitVerdict: {
+      level: "moderate",
+      reason: "Relevant delivery evidence; scope remains uncertain.",
+    },
     actions: [
       {
         id: "A1",
@@ -121,7 +139,7 @@ test("v2 freezes role data, retains evidence and actions through progress and re
   assert.deepEqual(final.steps[2].result, reviewResult);
 });
 
-test("invalid importance, mismatched IDs, evidence conflicts and action overflow are rejected", () => {
+test("invalid importance, mismatched IDs and evidence conflicts are rejected; important actions may exceed ten", () => {
   const invalid = structuredClone(roleResult);
   invalid.data.requirements[0].importance = 4;
   assert.equal(isStructuredStage(invalid, "role"), false);
@@ -143,7 +161,7 @@ test("invalid importance, mismatched IDs, evidence conflicts and action overflow
     ...review.data.actions[0],
     id: `A${i}`,
   }));
-  assert.equal(isStructuredStage(review, "review"), false);
+  assert.equal(isStructuredStage(review, "review"), true);
   const evidenceConflict = structuredClone(comparisonResult);
   evidenceConflict.data.diagnoses[0].evidence.push({
     ...evidenceConflict.data.diagnoses[0].evidence[0],
@@ -327,4 +345,251 @@ test("comparison generation schema requires the complete frozen rubric", async (
       .minItems,
     undefined
   );
+});
+
+test("resume edit previews require resume evidence and tolerate historical actions", async () => {
+  const { resumeEditPreviewIssues } = await import("./structured");
+  const value = structuredClone(reviewResult) as {
+    summary: string;
+    report: string;
+    data: Extract<import("./structured").StructuredResult, { kind: "review" }>;
+  };
+  const action = value.data.actions[0];
+  action.originalText = "Built an API.";
+  action.suggestedText = "Implemented the API service.";
+  assert.ok(isStructuredStage(value, "review"));
+  assert.deepEqual(
+    resumeEditPreviewIssues(value.data, "Experience\nBuilt an API."),
+    []
+  );
+  assert.equal(
+    resumeEditPreviewIssues(value.data, "Unrelated resume").length,
+    1
+  );
+  action.originalText = "";
+  assert.deepEqual(resumeEditPreviewIssues(value.data, ""), []);
+  action.edits = [
+    {
+      target: "Acme",
+      originalText: "Built an API.",
+      suggestedText: "Implemented the API service.",
+    },
+    {
+      target: "Beta",
+      originalText: "",
+      suggestedText: "Maintained the dashboard.",
+    },
+  ];
+  assert.ok(isStructuredStage(value, "review"));
+  assert.deepEqual(resumeEditPreviewIssues(value.data, "Built an API."), []);
+  action.edits[1].originalText = "An invented original";
+  assert.match(
+    resumeEditPreviewIssues(value.data, "Built an API.")[0],
+    /edits\[1\]/
+  );
+});
+
+test("fit verdict validates new generation while legacy review records remain readable", () => {
+  for (const level of ["strong", "moderate", "weak", "stretch"]) {
+    const review = structuredClone(reviewResult);
+    review.data.fitVerdict.level = level;
+    assert.equal(isStructuredStage(review, "review"), true);
+  }
+  const invalid = structuredClone(reviewResult);
+  invalid.data.fitVerdict.level = "guaranteed";
+  assert.equal(isStructuredStage(invalid, "review"), false);
+  invalid.data.fitVerdict = { level: "weak", reason: " " };
+  assert.equal(isStructuredStage(invalid, "review"), false);
+  const legacyData: Partial<typeof reviewResult.data> = {
+    ...reviewResult.data,
+  };
+  delete legacyData.fitVerdict;
+  const legacy = { ...reviewResult, data: legacyData };
+  assert.equal(isStructuredStage(legacy, "review"), true);
+  assert.ok(
+    stageOutputIssues(legacy, "review", [
+      roleResult,
+      comparisonResult,
+    ] as never).some((issue) => issue.includes("fitVerdict"))
+  );
+});
+
+test("fit totals weight qualifications, preserve unknowns and exclude submission materials", () => {
+  const role = {
+    kind: "role",
+    requirements: [
+      { ...roleResult.data.requirements[0], id: "R1", importance: 3 },
+      { ...roleResult.data.requirements[0], id: "R2", importance: 2 },
+      {
+        ...roleResult.data.requirements[0],
+        id: "R3",
+        importance: 3,
+        requirementType: "application_material",
+      },
+    ],
+  } as StructuredResult;
+  const comparison = comparisonResult.data as StructuredResult;
+  assert.deepEqual(
+    aggregateFitEvidence(role, comparison)?.importanceTotalsByMatch,
+    {
+      strong: 0,
+      met: 3,
+      partial: 0,
+      unknown: 2,
+      unmet: 0,
+    }
+  );
+});
+
+test("coverage must account for every requirement and match the actual action links", () => {
+  const previous = [roleResult, comparisonResult] as unknown as {
+    data: StructuredResult;
+  }[];
+  const valid = reviewResult.data as StructuredResult;
+  assert.equal(validReferences(valid, previous), true);
+  for (const actionCoverage of [
+    [],
+    [
+      {
+        requirementId: "R1",
+        actionIds: ["missing"],
+        disposition: "action",
+        reason: "Gap",
+      },
+    ],
+    [
+      {
+        requirementId: "R1",
+        actionIds: [],
+        disposition: "no_action",
+        reason: "Ignoring linked action",
+      },
+    ],
+    [
+      {
+        requirementId: "R1",
+        actionIds: ["A1"],
+        disposition: "deferred",
+        reason: "Conflicting disposition",
+      },
+    ],
+  ]) {
+    assert.equal(
+      validReferences(
+        { ...reviewResult.data, actionCoverage } as StructuredResult,
+        previous
+      ),
+      false
+    );
+  }
+  const legacy = { ...reviewResult, data: { ...reviewResult.data } };
+  delete (legacy.data as Partial<typeof legacy.data>).actionCoverage;
+  assert.equal(isStructuredStage(legacy, "review"), true);
+  assert.ok(
+    stageOutputIssues(legacy, "review", previous).some((i) =>
+      i.includes("actionCoverage")
+    )
+  );
+});
+
+test("truncated review is regenerated with attempt metadata and never published as a valid result", async () => {
+  const attempts: number[] = [];
+  const final = await runSimulationWorkflow({
+    state: initial(),
+    input: {
+      role: "JD",
+      candidate: "Profile",
+      resume: "Resume",
+      language: "Korean",
+    },
+    complete: async ({ key, attempt, input }) => {
+      if (key !== "review") return JSON.stringify(fixtures[key]);
+      attempts.push(attempt);
+      if (attempt === 1)
+        return {
+          text: '{"summary":"cut off',
+          finishReason: "length",
+          completionTokens: 6500,
+        };
+      const repair = JSON.parse(input).repair;
+      assert.equal(repair.invalidOutput, "");
+      assert.match(repair.issues[0], /token limit/);
+      return {
+        text: JSON.stringify(reviewResult),
+        finishReason: "stop",
+        completionTokens: 8500,
+      };
+    },
+    publish: async () => {},
+  });
+  assert.deepEqual(attempts, [1, 2]);
+  assert.equal(final.status, "completed");
+  assert.equal(final.steps[2].completion?.finishReason, "stop");
+  assert.equal(final.steps[2].validationIssues, undefined);
+});
+
+test("version 4 combines evidence and preparation in two calls and preserves old records", async () => {
+  const combined = structuredClone(reviewResult);
+  const merged = {
+    ...combined,
+    data: { ...combined.data, comparison: comparisonResult.data },
+  };
+  const calls: { key: string; input: string }[] = [];
+  const initial: ApplicationSimulation = {
+    version: 4,
+    status: "running",
+    roleName: "Example",
+    documentName: "resume.pdf",
+    updatedAt: new Date().toISOString(),
+    steps: [
+      { key: "role", status: "pending" },
+      { key: "review", status: "pending" },
+    ],
+  };
+  const final = await runSimulationWorkflow({
+    state: initial,
+    input: {
+      role: "JD",
+      candidate: "Profile",
+      resume: "Resume",
+      language: "ko",
+    },
+    publish: async () => {},
+    complete: async (args) => {
+      calls.push(args);
+      return JSON.stringify(args.key === "role" ? roleResult : merged);
+    },
+  });
+  assert.equal(final.status, "completed");
+  assert.deepEqual(
+    calls.map((c) => c.key),
+    ["role", "review"]
+  );
+  assert.deepEqual(JSON.parse(calls[0].input), { language: "ko", role: "JD" });
+  assert.equal(JSON.parse(calls[1].input).comparison, undefined);
+  assert.equal(JSON.parse(calls[1].input).candidate, "Profile");
+  assert.deepEqual(parseApplicationSimulation(final), final);
+  const invalid = structuredClone(final);
+  invalid.steps[1].result!.data = combined.data as StructuredResult;
+  assert.equal(parseApplicationSimulation(invalid), undefined);
+  const bad = structuredClone(merged);
+  bad.data.comparison.diagnoses[0].requirementId = "missing";
+  assert.ok(
+    stageOutputIssues(bad, "review", [roleResult as { data: StructuredResult }])
+      .length
+  );
+  const failed = await runSimulationWorkflow({
+    state: initial,
+    input: {
+      role: "JD",
+      candidate: "Profile",
+      resume: "Resume",
+      language: "ko",
+    },
+    publish: async () => {},
+    complete: async ({ key }) =>
+      JSON.stringify(key === "role" ? roleResult : bad),
+  });
+  assert.equal(failed.steps[0].status, "completed");
+  assert.equal(failed.steps[1].status, "failed");
 });

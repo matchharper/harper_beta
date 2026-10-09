@@ -1,3 +1,34 @@
+import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
+import { extractStartOfferPayload, startOfferVisibleLength, type StartOfferPayload } from "@/lib/career/simulation/startOfferPayload";
+import { prepareApplicationStartPayload } from "@/lib/career/simulation/startOfferStore";
+import { renderableApplicationMarkdown } from "@/lib/career/simulation/applicationMarkdown";
+import { after as afterApplicationResponse } from "next/server";
+import { APPLY_TO_ROLE } from "@/lib/career/simulation/applicationBrowser";
+import { startApplicationBrowser, resumeApplicationBrowser, runApplicationBrowser } from "@/lib/career/simulation/applicationBrowserServer";
+import { enqueueApplicationBrowser } from "@/lib/career/simulation/applicationBrowserQueue";
+import { stopApplicationBrowser } from "@/lib/career/simulation/agentsApi";
+import { ASK_APPLICATION_INPUT, askApplicationInput, applicationInputSchema } from "@/lib/career/simulation/applicationInput";
+import { allPreparationAnswered } from "@/lib/career/simulation/preparation";
+import { respondPreparationFromChat } from "@/lib/career/simulation/preparationService";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import { applicationStartRequestSchema } from "@/lib/career/simulation/startOffer";
+import { claimApplicationStartOffer } from "@/lib/career/simulation/startOfferStore";
+import {
+  sessionOperation,
+  saveSession,
+  persistSimulationProposal,
+  type SessionRecord,
+} from "@/lib/career/simulation/sessionStore";
+import {
+  cardRequestSchema,
+  resolveAnalysisCardAction,
+  sessionMutationSchema,
+  mutateSimulationSession,
+} from "@/lib/career/simulation/session";
+import {
+  SIMULATION_TOOL_NAMES,
+  SIMULATION_SESSION_TOOL,
+} from "@/lib/career/simulation/sessionTool";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
@@ -148,11 +179,14 @@ import {
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 
-export const maxDuration = 240;
+// Includes the bounded 7-minute analysis and its final chat response.
+export const maxDuration = 480;
 
 type Body = {
   allowedToolNames?: unknown;
   channel?: string;
+  simulationAction?: unknown;
+  applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
   coachingActivityAction?: unknown;
   conversationStarterId?: string;
   conversationId?: string;
@@ -590,7 +624,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!message && uploadedDocumentIds.length === 0) {
+    if (!message && uploadedDocumentIds.length === 0 && !body.applicationInputSubmission) {
       return NextResponse.json(
         { error: "message or uploadedDocumentIds is required" },
         { status: 400 }
@@ -678,7 +712,7 @@ export async function POST(req: NextRequest) {
           userId: user.id,
         })
       : null;
-    const careerCoachingActivity =
+    let careerCoachingActivity =
       careerCoachingActivityMessageId && !expiredCareerCoachingActivityMessage
         ? await fetchCurrentCareerCoachingActivity({
             activityMessageId: careerCoachingActivityMessageId,
@@ -688,6 +722,167 @@ export async function POST(req: NextRequest) {
           })
         : null;
 
+    const simulationStore = { admin, userId: user.id, conversationId };
+    let simulationSession: SessionRecord | null = null;
+    let simulationSchemaAvailable = true;
+    try {
+      simulationSession = await sessionOperation({
+        ...simulationStore,
+        operation: "touch",
+      });
+    } catch (error) {
+      // Deploying code before its migration must not break ordinary Career chat.
+      if (
+        error instanceof Error &&
+        ["PGRST202", "42883"].includes(
+          String((error as Error & { code?: string }).code)
+        )
+      )
+        simulationSchemaAvailable = false;
+      else throw error;
+    }
+    const submission = body.applicationInputSubmission;
+    let applicationQuestionsAsked = false;
+    let responseStartOffer: StartOfferPayload | undefined;
+    const dispatchBrowser = async (record: SessionRecord) => {
+      if (process.env.NODE_ENV === "development") afterApplicationResponse(() => runApplicationBrowser(simulationStore, record.messageId));
+      else await enqueueApplicationBrowser(user.id, conversationId, record.messageId, record.state.revision);
+    };
+    if (submission) {
+      const batch = simulationSession?.state.activity?.batches.find(b=>b.id===submission.batchId);
+      if (!batch || batch.status!=="submitted" || !["pending","failed"].includes(batch.continuation) || simulationSession?.state.status!=="active" || simulationSession.messageId!==submission.sessionMessageId || simulationSession.state.revision!==submission.expectedRevision) {
+        return NextResponse.json({error:"Question submission is no longer current"},{status:409});
+      }
+      if (batch.browser) {
+        const resumed=await resumeApplicationBrowser(simulationStore,simulationSession,submission.batchId);
+        await dispatchBrowser(resumed);
+        return NextResponse.json({ok:true,assistantMessages:"message" in resumed ? [resumed.message] : [],messages:[],conversationId});
+      }
+      const state=structuredClone(simulationSession.state);
+      state.activity!.batches.find(b=>b.id===batch.id)!.continuation="running";
+      state.activity!.batches.find(b=>b.id===batch.id)!.continuationStartedAt=new Date().toISOString();
+      simulationSession=await saveSession(simulationStore,simulationSession,state,`continue:${batch.id}:${state.revision}`);
+      message = `Application question responses submitted (internal continuation): ${JSON.stringify({questions:batch.items, responses:batch.responses})}`;
+    }
+    const finishApplicationContinuation = async (failed=false) => {
+      if (!submission) return;
+      const latest=await sessionOperation({...simulationStore,operation:"read",messageId:submission.sessionMessageId});
+      if (!latest || latest.state.status!=="active") return;
+      const state=structuredClone(latest.state), batch=state.activity?.batches.find(b=>b.id===submission.batchId);
+      if (!batch || batch.continuation!=="running") return;
+      batch.continuation=failed?"failed":"done";
+      simulationSession=await saveSession(simulationStore,latest,state,`continued:${batch.id}:${failed}`);
+    };
+    let requestedApplicationStart: Awaited<
+      ReturnType<typeof claimApplicationStartOffer>
+    > | null = null;
+    const startRequest =
+      body.simulationAction &&
+      (body.simulationAction as { action?: unknown }).action === "start"
+        ? applicationStartRequestSchema.safeParse(body.simulationAction)
+        : null;
+    if (startRequest) {
+      if (!startRequest.success)
+        return NextResponse.json(
+          { error: "Invalid application start request" },
+          { status: 400 }
+        );
+      if (simulationSession?.state.activity?.offerId === startRequest.data.sessionMessageId) {
+        return NextResponse.json({ok:true,alreadyStarted:true,assistantMessages:[],messages:[],conversationId});
+      }
+      if (
+        simulationSession?.state.status === "active" ||
+        careerCoachingActivity?.status === "active" ||
+        careerCoachingActivity?.status === "suggested"
+      )
+        return NextResponse.json(
+          {
+            error:
+              "Finish the current activity before starting a new application.",
+          },
+          { status: 409 }
+        );
+      try {
+        requestedApplicationStart = await claimApplicationStartOffer({
+          admin,
+          userId: user.id,
+          conversationId,
+          messageId: startRequest.data.sessionMessageId,
+          documentId: startRequest.data.documentId,
+        });
+        // Preserve the exact optimistic user message; the verified role is in the offer.
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : "Unable to start" },
+          { status: 409 }
+        );
+      }
+    }
+    const simulationCardAction =
+      !startRequest && body.simulationAction
+        ? cardRequestSchema.safeParse(body.simulationAction)
+        : null;
+    if (simulationCardAction && !simulationCardAction.success)
+      return NextResponse.json(
+        { error: "Invalid simulation action" },
+        { status: 400 }
+      );
+    if (
+      simulationCardAction?.success &&
+      (!simulationSession ||
+        simulationSession.state.status !== "active" ||
+        simulationSession.messageId !==
+          simulationCardAction.data.sessionMessageId ||
+        simulationSession.state.revision !==
+          simulationCardAction.data.expectedRevision)
+    )
+      return NextResponse.json(
+        {
+          error:
+            "This simulation card is no longer current. Reload the conversation.",
+        },
+        { status: 409 }
+      );
+
+    if (
+      simulationCardAction?.success &&
+      simulationCardAction.data.action !== "end"
+    ) {
+      const target = simulationSession?.state.actions.find(
+        (a) => a.id === simulationCardAction.data.actionId
+      );
+      if (!target || ["completed", "skipped"].includes(target.status))
+        return NextResponse.json(
+          { error: "This action is no longer available." },
+          { status: 409 }
+        );
+    }
+    if (simulationCardAction?.success && simulationSession) {
+      const action = simulationCardAction.data;
+      if (action.action === "select_analysis") {
+        const target = resolveAnalysisCardAction(simulationSession.state, action);
+        if (!target) return NextResponse.json({ error: "This analysis action is no longer available." }, { status: 409 });
+        message = careerT(responseLocale, "career.simulation.actionRequest", "‘{title}’ 액션을 함께 진행해 주세요.", { values: { title: target.title } });
+      } else if (action.action === "select") {
+        const proposal = simulationSession.state.proposal;
+        if (!proposal || proposal.actionId !== action.actionId)
+          return NextResponse.json(
+            { error: "This proposal is no longer available." },
+            { status: 409 }
+          );
+        // Resolve the request from the stored proposal, never from a client-supplied execution prompt.
+        message = proposal.request;
+      } else {
+        message =
+          action.action === "end"
+            ? responseLocale === "ko"
+              ? "시뮬레이트는 여기서 마칠게요."
+              : "End this simulation session."
+            : responseLocale === "ko"
+              ? "이 액션은 건너뛸게요."
+              : "Skip this action.";
+      }
+    }
     const uploadedDocuments = await fetchTalentDocumentsByIds({
       admin,
       documentIds: uploadedDocumentIds,
@@ -931,7 +1126,9 @@ export async function POST(req: NextRequest) {
         size: document.size_bytes ?? undefined,
       }))
     );
-    const { data: insertedUserMessage, error: userMessageError } = await admin
+    const { data: insertedUserMessage, error: userMessageError } = submission
+      ? await admin.from("talent_messages").select("*").eq("conversation_id", conversationId).eq("user_id", user.id).order("id", {ascending:false}).limit(1).single()
+      : await admin
       .from("talent_messages")
       .insert(
         withIsMobile(
@@ -989,6 +1186,13 @@ export async function POST(req: NextRequest) {
     const llmMessages = promptMessages
       .filter(
         (item) =>
+          !["simulation_session", "simulation_action"].includes(
+            item.message_type ?? ""
+          ) &&
+          !(
+            simulationSession?.state.status === "active" &&
+            item.message_type === "application_simulation"
+          ) &&
           item.message_type !==
             TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_NOTICE &&
           item.message_type !== TALENT_MESSAGE_TYPE_ONBOARDING_COMPLETION_WRAPUP
@@ -1002,6 +1206,8 @@ export async function POST(req: NextRequest) {
         }),
       }))
       .filter((item) => item.content.trim().length > 0);
+
+    if (submission) llmMessages.push({role: "user", content: message});
 
     const activeInternalFitHoldQuestion =
       selectedInternalFitHoldQuestion ??
@@ -1021,7 +1227,32 @@ export async function POST(req: NextRequest) {
           talentId: user.id,
         })
       : null;
+    if (simulationCardAction?.success && simulationSession) {
+      const action = simulationCardAction.data;
+      const mutation =
+        action.action === "end"
+          ? { action: "end" as const }
+          : action.action === "skip"
+            ? {
+                action: "update_action" as const,
+                actionId: action.actionId,
+                status: "skipped" as const,
+                reason: "User chose to skip this action.",
+              }
+            : { action: "select" as const, actionId: action.actionId };
+      simulationSession = await saveSession(
+        simulationStore,
+        simulationSession,
+        mutateSimulationSession(
+          simulationSession.state,
+          mutation,
+          Number(insertedUserMessage.id)
+        ),
+        `card:${insertedUserMessage.id}`
+      );
+    }
     const toolSelection = resolveCareerChatTools({
+      simulationActive: simulationSession?.state.status === "active",
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       allowedToolNames,
       channel: requestChannel,
@@ -1110,8 +1341,17 @@ export async function POST(req: NextRequest) {
     ]
       .filter((value): value is string => Boolean(value))
       .join("\n\n");
-    const { isOnboardingActive, promptBlocks } =
+    const buildCurrentPromptPlan = () =>
       buildCareerConversationPromptPlan({
+        simulationAvailability: !simulationSchemaAvailable
+          ? "unavailable"
+          : simulationSession?.state.status === "active"
+            ? undefined
+            : "inactive",
+        simulationSession:
+          simulationSession?.state.status === "active"
+            ? simulationSession.state
+            : undefined,
         activeInternalFitHoldQuestion,
         careerCoachingActivity,
         channel: "chat",
@@ -1138,19 +1378,60 @@ export async function POST(req: NextRequest) {
         postOnboardingContext,
         profile,
         conversationMode:
-          careerCoachingActivity?.status === "active"
-            ? "career_coaching"
-            : conversationStarter?.id === "career_coaching"
-              ? "default"
-              : (conversationStarter?.id ?? "default"),
+          simulationSession?.state.status === "active"
+            ? "simulation"
+            : careerCoachingActivity?.status === "active"
+              ? "career_coaching"
+              : conversationStarter?.id === "career_coaching"
+                ? "default"
+                : (conversationStarter?.id ?? "default"),
         recentActivitySummaries,
         recentRecommendedOpportunitiesText,
-        runtimeInstruction: runtimeInstruction || undefined,
+        runtimeInstruction:
+          simulationSession?.state.status === "active"
+            ? uploadedDocumentRuntimeInstruction
+            : runtimeInstruction || undefined,
         structuredProfileText,
         timeZone: promptTimeZone,
         toolNames: toolSelection.toolNames,
       });
+    if (simulationSession?.state.status === "active" && !submission) {
+      simulationSession = await saveSession(simulationStore,simulationSession,{...simulationSession.state,lastActivityAt:new Date().toISOString()},`user-turn:${insertedUserMessage.id}`);
+    }
+    const { isOnboardingActive, promptBlocks } = buildCurrentPromptPlan();
     const systemBlocks = promptBlocks;
+    const refreshSimulationRuntime = async () => {
+      if (!simulationSchemaAvailable) return;
+      simulationSession = await sessionOperation({
+        ...simulationStore,
+        operation: "read",
+      });
+      careerCoachingActivity = await fetchCurrentCareerCoachingActivity({
+        admin,
+        conversationId,
+        userId: user.id,
+      });
+      const selected = resolveCareerChatTools({
+        simulationActive: simulationSession?.state.status === "active",
+        allowedToolNames,
+        channel: requestChannel,
+        hasActiveGmailIntegration: Boolean(activeGmailIntegration),
+        isOnboardingDone: talentSetting?.is_onboarding_done,
+        responseLocale,
+      });
+      toolDefinitions.splice(0, toolDefinitions.length, ...selected.tools);
+      toolSelection.stopAfterToolNames.splice(0, toolSelection.stopAfterToolNames.length, ...selected.stopAfterToolNames);
+      toolSelection.toolNames.splice(
+        0,
+        toolSelection.toolNames.length,
+        ...selected.toolNames
+      );
+      systemBlocks.splice(
+        0,
+        systemBlocks.length,
+        ...buildCurrentPromptPlan().promptBlocks
+      );
+    };
 
     // console.info("[career-chat:prompt-breakdown]", {
     //   cacheableSystemBlockKeys: systemBlocks
@@ -1175,9 +1456,15 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let thinkingLogs: string[] = [];
     let pendingRecommendationPostingRoleIds: string[] = [];
-    const pendingProcessClosureNotices = new Map<string, PendingProcessClosureNotice>();
-    const registerProcessClosureNotices = (notices: PendingProcessClosureNotice[]) => {
-      for (const notice of notices) pendingProcessClosureNotices.set(notice.recommendationId, notice);
+    const pendingProcessClosureNotices = new Map<
+      string,
+      PendingProcessClosureNotice
+    >();
+    const registerProcessClosureNotices = (
+      notices: PendingProcessClosureNotice[]
+    ) => {
+      for (const notice of notices)
+        pendingProcessClosureNotices.set(notice.recommendationId, notice);
     };
     const recommendationReceiptRef: {
       current: RecommendJobPostingsReceipt | null;
@@ -1189,13 +1476,45 @@ export async function POST(req: NextRequest) {
       expiredCareerCoachingActivityMessage
         ? [expiredCareerCoachingActivityMessage]
         : [];
+    if (simulationSession) {
+      const snapshot = await sessionOperation({
+        ...simulationStore,
+        operation: "read",
+        messageId: simulationSession.messageId,
+      });
+      if (snapshot) auxiliaryAssistantMessages.push(snapshot.message);
+    }
+    if (requestedApplicationStart)
+      auxiliaryAssistantMessages.push(requestedApplicationStart.message);
+    let suppressRolePreviews = Boolean(requestedApplicationStart || simulationSession?.state.status === "active");
+    let proposalChanged = false;
+    let analysisCompletedThisTurn = false;
     let careerCoachingCallReady: CareerCoachingActivity | null = null;
-    let emitSimulationMessage: ((message: TalentMessageResponse) => void) | null = null;
+    let emitSimulationMessage:
+      | ((message: TalentMessageResponse) => void)
+      | null = null;
     let simulationResult: Promise<unknown> | null = null;
     let simulationInputKey: string | null = null;
+    let activityTransport = simulationSession?.state;
     const onSimulationMessage = (message: TalentMessageResponse) => {
-      auxiliaryAssistantMessages = [...auxiliaryAssistantMessages.filter((item) => item.id !== message.id), message];
+      if (message.simulationSession?.activity) activityTransport=message.simulationSession;
+      if (activityTransport?.activity) message={...message,applicationActivity:{activityId:activityTransport.sessionId,revision:activityTransport.revision,view:message.messageType,runId:message.applicationDraft?.runId ?? activityTransport.analysisStartedAt}};
+      if (message.simulation?.status === "completed") analysisCompletedThisTurn = true;
+      if(message.applicationStartOffer || message.simulation || message.simulationSession?.status === "active") suppressRolePreviews=true;
+      auxiliaryAssistantMessages = [
+        ...auxiliaryAssistantMessages.filter((item) => item.id !== message.id),
+        message,
+      ];
       emitSimulationMessage?.(message);
+    };
+    const attachResponseStartOffer = async (replyId: number) => {
+      if (!responseStartOffer || simulationSession?.state.status === "active") return;
+      try {
+        const card = await prepareApplicationStartPayload({ admin, userId: user.id, conversationId, replyId, request: responseStartOffer });
+        auxiliaryAssistantMessages.push(card);
+      } catch (error) {
+        console.error("[application-start] Could not prepare response card", { replyId, error: error instanceof Error ? error.message : "Unknown error" });
+      }
     };
     let emitToolStatus: ((message: string) => void) | null = null;
     let emitRecommendationStatus:
@@ -1226,7 +1545,11 @@ export async function POST(req: NextRequest) {
       content: string;
       messageId: number | string | null | undefined;
     }) => {
-      if (!shouldAutoExtractInsights || !args.content.trim()) {
+      if (
+        simulationSession ||
+        !shouldAutoExtractInsights ||
+        !args.content.trim()
+      ) {
         return;
       }
 
@@ -1326,23 +1649,140 @@ export async function POST(req: NextRequest) {
     const executeDefaultTalentTool = async (toolArgs: {
       input: Record<string, unknown>;
       name: string;
+      startConfirmed?: boolean;
     }) => {
       const { toolInput } = splitToolUiStatus(toolArgs.input);
+      if (simulationSession?.state.status === "active" && !SIMULATION_TOOL_NAMES.includes(toolArgs.name))
+        throw new Error("Tool unavailable in Apply with Harper mode");
+      if (toolArgs.name === APPLY_TO_ROLE) {
+        if (!simulationSession || simulationSession.state.status !== "active") throw new Error("No active application");
+        const saved=await startApplicationBrowser(simulationStore,simulationSession,toolInput);
+        simulationSession=saved;
+        onSimulationMessage(saved.message);
+        await dispatchBrowser(saved);
+        applicationQuestionsAsked=true;
+        thinkingLogs.length=0;
+        return {ok:true,applicationInProgress:true};
+      }
+      if (toolArgs.name === ASK_APPLICATION_INPUT) {
+        if (simulationSession?.state.browser && ["queued","running","waiting"].includes(simulationSession.state.browser.status)) throw new Error("The application browser owns the pending questions. Answer them or stop the application first.");
+        if (!simulationSession?.state.activity || simulationSession.state.status !== "active") throw new Error("No active application");
+        const input = applicationInputSchema.parse(toolInput);
+        for (const item of input.items) {
+          if (item.documentPurpose !== "final_resume") continue;
+          const documentId = item.documentId ?? simulationSession.state.preparation?.finalDocumentId ?? simulationSession.state.documentId;
+          if (!documentId) throw new Error("Choose a resume before asking for file confirmation");
+          const {validatePreparationDocument} = await import("@/lib/career/simulation/preparationService");
+          const document = await validatePreparationDocument(simulationStore, documentId, true);
+          item.documentId = document.id;
+          item.documentName = document.file_name;
+        }
+
+        const state = askApplicationInput(simulationSession.state, input, `questions:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(input)}`);
+        const saved = await saveSession(simulationStore, simulationSession, state, `questions:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(input)}`);
+        simulationSession=saved;
+        onSimulationMessage(saved.message);
+        applicationQuestionsAsked = true;
+        thinkingLogs.length = 0;
+        await refreshSimulationRuntime();
+        return {ok:true, awaitingUserInput:true};
+      }
+      if (toolArgs.name === SIMULATION_SESSION_TOOL) {
+        if (!simulationSession || simulationSession.state.status !== "active")
+          return { ok: false, reason: "No active simulation session." };
+        const mutation = sessionMutationSchema.parse(toolInput);
+        if(simulationSession.state.browser && ["queued","running"].includes(simulationSession.state.browser.status) && !["end","request_switch","cancel_switch"].includes(mutation.action)) throw new Error("The browser is using the current application data. Stop it before changing those details.");
+        if (mutation.action === "end") await stopApplicationBrowser(simulationSession.state.browser);
+        if (mutation.action === "propose" && analysisCompletedThisTurn && !simulationSession.state.preparation) {
+          return { ok: false, reason: "The analysis already displays the action list. A separate reminder card is available in a later user turn; continue this reply briefly in prose." };
+        }
+        if (mutation.action === "generate_draft") throw new Error("Write the revised document in ordinary chat instead.");
+        if (mutation.action === "respond") {
+          if(!mutation.actionId || !mutation.response) return {ok:false,reason:"Response required"};
+          const saved=await respondPreparationFromChat(simulationStore,simulationSession,mutation.actionId,mutation.response,Number(insertedUserMessage.id),`response:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(mutation)}`);
+          const batch=saved.state.activity?.batches.find(b=>b.browser && b.status === "submitted" && b.continuation === "pending");
+          if(batch) {
+            simulationSession=await resumeApplicationBrowser(simulationStore,saved,batch.id);
+            await dispatchBrowser(simulationSession);
+          } else simulationSession=saved;
+          onSimulationMessage(saved.message);
+          await refreshSimulationRuntime();
+          return {ok:true, responseRecorded:true, draftAvailable:simulationSession.state.preparation?.generation.status==="ready"};
+        }
+        const saved = await saveSession(
+          simulationStore,
+          simulationSession,
+          mutateSimulationSession(
+            simulationSession.state,
+            mutation,
+            Number(insertedUserMessage.id)
+          ),
+          `turn:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(mutation)}`
+        );
+        simulationSession = saved;
+        onSimulationMessage(saved.message);
+        if (mutation.action === "propose") proposalChanged = true;
+        await refreshSimulationRuntime();
+        return {
+          ok: true,
+          // Updated session context is already supplied by refreshSimulationRuntime.
+          sessionStatus: saved.state.status,
+          ...(mutation.action === "request_switch" ? { awaitingWrapUpConfirmation: true, modeChanged: false } : {}),
+          ...(saved.state.status === "ended" ? {
+            progressRecorded: false,
+            ...(saved.state.endReason === "switched" && saved.state.switchRequest
+              ? { nextUserRequest: saved.state.switchRequest.text }
+              : {}),
+          } : {}),
+        };
+      }
       if (toolArgs.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
         return executeRecommendJobPostings(toolInput);
       }
 
       if (toolArgs.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) {
-        const key = JSON.stringify([toolInput.roleId, toolInput.official_job_slug, toolInput.document_id, toolInput.profile_only === true]);
+        if (toolArgs.startConfirmed && !simulationSchemaAvailable)
+          return {
+            ok: false,
+            reason:
+              "Simulation sessions are unavailable until the database migration is applied. No analysis or edits were started.",
+          };
+        const key = JSON.stringify([
+          toolInput.roleId,
+          toolInput.official_job_slug,
+          toolInput.document_id,
+          toolInput.profile_only === true,
+        ]);
         if (simulationInputKey !== null && simulationInputKey !== key) {
-          return { ok: false, reason: "One role and source can be simulated per chat turn. The existing card belongs to the first selected role. Ask the user to request the other analysis in the next turn." };
+          return {
+            ok: false,
+            reason:
+              "One role and source can be simulated per chat turn. The existing card belongs to the first selected role. Ask the user to request the other analysis in the next turn.",
+          };
         }
         simulationInputKey = key;
         simulationResult ??= executeTalentTool({
-          context: { admin, abortSignal: req.signal, conversationId, isMobile, responseLocale, userMessageId: insertedUserMessage.id, userId: user.id, onSimulationMessage },
-          logging: false, name: toolArgs.name, input: toolInput,
+          context: {
+            admin,
+            abortSignal: req.signal,
+            conversationId,
+            isMobile,
+            responseLocale,
+            userMessageId: insertedUserMessage.id,
+            userId: user.id,
+            onSimulationMessage,
+            simulationStartConfirmed: toolArgs.startConfirmed === true || simulationSession?.state.status === "active",
+            simulationStartOfferId: toolArgs.startConfirmed ? requestedApplicationStart?.message.id : undefined,
+          },
+          logging: false,
+          name: toolArgs.name,
+          input: toolInput,
         });
-        return simulationResult;
+        try {
+          return await simulationResult;
+        } finally {
+          await refreshSimulationRuntime();
+        }
       }
 
       const result = await executeTalentTool({
@@ -1352,6 +1792,7 @@ export async function POST(req: NextRequest) {
           conversationId,
           isMobile,
           responseLocale,
+          suppressCommonAssistantInstruction: simulationSession?.state.status === "active",
           registerProcessClosureNotices,
           scheduleAfter: (task) => after(task),
           userMessageId: insertedUserMessage.id,
@@ -1403,6 +1844,20 @@ export async function POST(req: NextRequest) {
       return result;
     };
 
+    const startRequestedApplication = async () => {
+      if (!requestedApplicationStart) return;
+      onSimulationMessage(requestedApplicationStart.message);
+      const result = await executeDefaultTalentTool({
+        name: TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
+        input: requestedApplicationStart.input,
+        startConfirmed: true,
+      });
+      systemBlocks.push({
+        key: "application_start_outcome",
+        text: `The user pressed the application start card. Verified analysis outcome: ${JSON.stringify(result)}. The analysis card displays the results. On success call ask_application_input directly with consequential preparation questions, with a brief natural introduction in the tool introduction field, without an analysis recap. If no decisions are needed, continue the actual preparation in ordinary chat. The question tool displays the composer and yields to the user. If the analysis failed, briefly explain the blocker and the available next step.`,
+      });
+    };
+
     if (streamResponse) {
       const encoder = new TextEncoder();
       const stream = new ReadableStream<Uint8Array>({
@@ -1415,7 +1870,8 @@ export async function POST(req: NextRequest) {
               // Client disconnected while a tool or model call was still resolving.
             }
           };
-          emitSimulationMessage = (message) => send("simulation_message", { message });
+          emitSimulationMessage = (message) =>
+            send("simulation_message", { message, suppressRolePreviews });
           emitToolStatus = (message) => send("tool_status", { message });
           emitRecommendationStatus = (status) =>
             send("recommendation_search_status", status);
@@ -1431,7 +1887,7 @@ export async function POST(req: NextRequest) {
             ).replaceAll(TALENT_ONBOARDING_DONE_MARKER, "");
             const heldSuffixLength =
               getOnboardingMarkerPrefixSuffixLength(pendingAssistantText);
-            const safeLength = pendingAssistantText.length - heldSuffixLength;
+            const safeLength = Math.min(pendingAssistantText.length - heldSuffixLength, startOfferVisibleLength(pendingAssistantText));
             if (safeLength <= 0) return;
 
             const visibleDelta = pendingAssistantText.slice(0, safeLength);
@@ -1493,14 +1949,16 @@ export async function POST(req: NextRequest) {
                   recommendationStatusAfterCharCount,
                 };
           try {
-            send("user_message", {
+            if (!submission) send("user_message", {
               message: toResponseMessage(
                 insertedUserMessage as TalentMessageRow
               ),
             });
 
+            if(suppressRolePreviews) send("application_mode", {suppressRolePreviews:true});
             let assistantText: string;
             try {
+              await startRequestedApplication();
               assistantText = await runCareerChatAssistantStream({
                 chatCompletionReasoningEffort:
                   textChatModel.chatCompletionReasoningEffort,
@@ -1511,7 +1969,7 @@ export async function POST(req: NextRequest) {
                 systemBlocks,
                 responseLocale,
                 onTextDelta: (delta) => {
-                  if (!recommendationToolStarted) sendVisibleTextDelta(delta);
+                  if (!recommendationToolStarted && !simulationSession?.state.activity) sendVisibleTextDelta(delta);
                 },
                 onToolDetected: (tool) => {
                   if (tool.name !== TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
@@ -1519,6 +1977,7 @@ export async function POST(req: NextRequest) {
                   }
                 },
                 onToolStart: (tool) => {
+                  if (tool.name === ASK_APPLICATION_INPUT || tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) return;
                   if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
                     recommendationToolStarted = true;
                     ensureRecommendationToolPreamble();
@@ -1551,7 +2010,7 @@ export async function POST(req: NextRequest) {
                     );
                     if (languageStatus) recordThinkingLog(languageStatus);
                   }
-                  if (status) {
+                  if (status && name !== ASK_APPLICATION_INPUT && name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION && !(name === SIMULATION_SESSION_TOOL && toolInput.action === "generate_draft")) {
                     recordThinkingLog(status);
                   }
 
@@ -1691,6 +2150,7 @@ export async function POST(req: NextRequest) {
                 },
               });
             } catch (error) {
+              await finishApplicationContinuation(true);
               const receipt = recommendationReceiptRef.current;
               if (!receipt) throw error;
               console.warn(
@@ -1755,12 +2215,15 @@ export async function POST(req: NextRequest) {
               return;
             }
 
-            let assistantTextSource = assistantText.trim();
+            const extractedStartOffer = extractStartOfferPayload(assistantText);
+            responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
+            if (responseStartOffer) suppressRolePreviews = true;
+            let assistantTextSource = extractedStartOffer.content;
             if (recommendationReceiptRef.current) {
               assistantTextSource =
                 recommendationReceiptRef.current.answerDraft;
             }
-            if (!assistantTextSource) {
+            if (!assistantTextSource && !applicationQuestionsAsked) {
               assistantTextSource = (
                 await recoverCareerChatAssistantText({
                   latestUserMessage: normalizedContent,
@@ -1771,13 +2234,15 @@ export async function POST(req: NextRequest) {
                 })
               ).trim();
             }
-            if (!assistantTextSource) {
+            if (!assistantTextSource && !applicationQuestionsAsked) {
               throw new Error(
                 "Career assistant returned no visible text after recovery."
               );
             }
 
-            let assistantTextWithMarkers = assistantTextSource;
+            let assistantTextWithMarkers = simulationSession?.state.activity
+              ? renderableApplicationMarkdown(assistantTextSource)
+              : assistantTextSource;
 
             const completion = resolveTalentOnboardingCompletion({
               assistantContent: assistantTextWithMarkers,
@@ -1786,7 +2251,7 @@ export async function POST(req: NextRequest) {
             let safeAssistantText = stripPostgresUnsafeChars(
               stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
             );
-            if (!safeAssistantText) {
+            if (!safeAssistantText && !applicationQuestionsAsked) {
               const recoveredText = (
                 await recoverCareerChatAssistantText({
                   latestUserMessage: normalizedContent,
@@ -1850,6 +2315,14 @@ export async function POST(req: NextRequest) {
               send("done", { ok: true, stopped: true });
               return;
             }
+            await finishApplicationContinuation();
+            if (applicationQuestionsAsked) {
+              // The question batch owns its introduction; discard provisional prose.
+              send("assistant_text_done", {ok:true, discard:true});
+              send("assistant_messages", {messages:auxiliaryAssistantMessages});
+              send("done", {ok:true});
+              return;
+            }
             flushVisibleText(safeAssistantText);
             send("assistant_text_done", { ok: true });
 
@@ -1864,6 +2337,7 @@ export async function POST(req: NextRequest) {
                       role: "assistant",
                       content: safeAssistantText,
                       message_type: "chat",
+                      payload: {suppressRolePreviews, ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
                       thinking_logs: thinkingLogs,
                     },
                     isMobile
@@ -1877,6 +2351,8 @@ export async function POST(req: NextRequest) {
                 assistantError.message ?? "Failed to insert assistant message"
               );
             }
+
+            await attachResponseStartOffer(Number(insertedAssistantMessage.id));
 
             await commitDeliveredProcessClosureNotices({
               admin,
@@ -2007,6 +2483,15 @@ export async function POST(req: NextRequest) {
                 userId: user.id,
               });
 
+            if (proposalChanged && simulationSession) {
+              const card = await persistSimulationProposal(
+                simulationStore,
+                simulationSession,
+                Number(insertedAssistantMessage.id)
+              );
+              if (card) assistantResponseMessages.push(card);
+            }
+            assistantResponseMessages.splice(0, assistantResponseMessages.length, ...orderApplicationMessages(assistantResponseMessages));
             if (assistantResponseMessages.length > 1) {
               send("assistant_messages", {
                 messages: assistantResponseMessages,
@@ -2094,6 +2579,7 @@ export async function POST(req: NextRequest) {
 
     let assistantText: string;
     try {
+      await startRequestedApplication();
       assistantText = await runCareerChatAssistant({
         chatCompletionReasoningEffort:
           textChatModel.chatCompletionReasoningEffort,
@@ -2115,6 +2601,15 @@ export async function POST(req: NextRequest) {
           if (status) recordThinkingLog(status);
         },
         executeTool: async ({ name, input }) => {
+          if (
+            simulationSession?.state.status === "active" &&
+            !SIMULATION_TOOL_NAMES.includes(name)
+          )
+            return {
+              ok: false,
+              reason:
+                "This action is unavailable in Simulate. End the session after user agreement before changing modes.",
+            };
           const { status, toolInput } = splitToolUiStatus(input);
           if (status) {
             recordThinkingLog(status);
@@ -2274,6 +2769,7 @@ export async function POST(req: NextRequest) {
         },
       });
     } catch (error) {
+      await finishApplicationContinuation(true);
       const receipt = recommendationReceiptRef.current;
       if (!receipt) throw error;
       console.warn(
@@ -2338,18 +2834,21 @@ export async function POST(req: NextRequest) {
           currentStep: currentProgressStep,
           targetCount: TALENT_INTERVIEW_FINAL_STEP,
         },
-        userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+        userMessage: submission ? undefined : toResponseMessage(insertedUserMessage as TalentMessageRow),
         ...profileSnapshot,
       });
     }
 
     logger.log("\n\nassistantText : ", assistantText, "\n\n");
 
-    let assistantTextSource = assistantText.trim();
+    const extractedStartOffer = extractStartOfferPayload(assistantText);
+            responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
+            if (responseStartOffer) suppressRolePreviews = true;
+            let assistantTextSource = extractedStartOffer.content;
     if (recommendationReceiptRef.current) {
       assistantTextSource = recommendationReceiptRef.current.answerDraft;
     }
-    if (!assistantTextSource) {
+    if (!assistantTextSource && !applicationQuestionsAsked) {
       assistantTextSource = (
         await recoverCareerChatAssistantText({
           latestUserMessage: normalizedContent,
@@ -2359,22 +2858,25 @@ export async function POST(req: NextRequest) {
         })
       ).trim();
     }
-    if (!assistantTextSource) {
+    if (!assistantTextSource && !applicationQuestionsAsked) {
       throw new Error(
         "Career assistant returned no visible text after recovery."
       );
     }
 
-    let assistantTextWithMarkers = assistantTextSource;
+    let assistantTextWithMarkers = simulationSession?.state.activity
+              ? renderableApplicationMarkdown(assistantTextSource)
+              : assistantTextSource;
 
     const completion = resolveTalentOnboardingCompletion({
       assistantContent: assistantTextWithMarkers,
     });
 
+    await finishApplicationContinuation();
     let safeAssistantText = stripPostgresUnsafeChars(
       stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
     );
-    if (!safeAssistantText) {
+    if (!safeAssistantText && !applicationQuestionsAsked) {
       const recoveredText = (
         await recoverCareerChatAssistantText({
           latestUserMessage: normalizedContent,
@@ -2423,6 +2925,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (applicationQuestionsAsked) {
+      await finishApplicationContinuation();
+      return NextResponse.json({ok:true,conversationId,userMessage:submission ? undefined : toResponseMessage(insertedUserMessage as TalentMessageRow),assistantMessages:auxiliaryAssistantMessages});
+    }
     // --- Save assistant message ---
     const { data: insertedAssistantMessage, error: assistantError } =
       await admin
@@ -2435,6 +2941,7 @@ export async function POST(req: NextRequest) {
               role: "assistant",
               content: safeAssistantText,
               message_type: "chat",
+              payload: {suppressRolePreviews, ...(responseStartOffer ? { applicationStartRequest: responseStartOffer } : {})},
               thinking_logs: thinkingLogs,
             },
             isMobile
@@ -2465,6 +2972,8 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    await attachResponseStartOffer(Number(insertedAssistantMessage.id));
 
     await commitDeliveredProcessClosureNotices({
       admin,
@@ -2575,6 +3084,15 @@ export async function POST(req: NextRequest) {
       ),
       userId: user.id,
     });
+    if (proposalChanged && simulationSession) {
+      const card = await persistSimulationProposal(
+        simulationStore,
+        simulationSession,
+        Number(insertedAssistantMessage.id)
+      );
+      if (card) assistantResponseMessages.push(card);
+    }
+    assistantResponseMessages.splice(0, assistantResponseMessages.length, ...orderApplicationMessages(assistantResponseMessages));
     const insertedAssistantResponseMessage = assistantResponseMessages.find(
       (message) => message.id === insertedAssistantMessage.id
     );
@@ -2583,7 +3101,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       historyChangedRoleId: changedOpportunityRoleId,
       historyShouldRefresh: opportunityRecommendationsChanged,
-      userMessage: toResponseMessage(insertedUserMessage as TalentMessageRow),
+      userMessage: submission ? undefined : toResponseMessage(insertedUserMessage as TalentMessageRow),
       assistantMessage:
         insertedAssistantResponseMessage ??
         toResponseMessage(insertedAssistantMessage as TalentMessageRow),

@@ -1,0 +1,58 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {renderToStaticMarkup} from "react-dom/server";
+import {MessagesProvider} from "@/i18n/useMessage";
+import {ApplicationQuestionHistoryRow} from "./ApplicationQuestionHistoryRow";
+import {askApplicationInput} from "@/lib/career/simulation/applicationInput";
+import {createSimulationSession} from "@/lib/career/simulation/session";
+import {createPreparation} from "@/lib/career/simulation/preparation";
+import {applicationQuestionMessages} from "@/lib/career/simulation/questionHistory";
+
+test("waiting becomes a collapsed response record with stable identity", () => {
+  let state = createSimulationSession({roleName:"Engineer",roleRef:"job:test", documentId:"cv",documentName:"CV"});
+  state.analysisStatus="completed";
+  state.preparation=createPreparation();
+  state.activity={version:1,offerId:1,outputs:{},batches:[]};
+  state=askApplicationInput(state,{purpose:"Prepare", introduction:"Please share a detail.",items:[{kind:"question",title:"What did you build?"},{kind:"material",title:"Portfolio?"}]},"test");
+  const before=applicationQuestionMessages(state)[0];
+  const render=()=>renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationQuestionHistoryRow batch={applicationQuestionMessages(state)[0].applicationQuestions}/></MessagesProvider>);
+  assert.match(render(), /Waiting for your answers/);
+  assert.doesNotMatch(render(), /<details/);
+  const batch=state.activity!.batches[0];
+  batch.status="submitted";
+  batch.responses={[batch.itemIds[0]]:{decision:"answer",text:"An evaluation pipeline"},[batch.itemIds[1]]:{decision:"skip"}};
+  const html=render();
+  assert.equal(applicationQuestionMessages(state)[0].id,before.id);
+  assert.match(html,/Answered 2 questions/);
+  assert.match(html,/An evaluation pipeline/);
+  assert.match(html,/Skipped/);
+  assert.match(html,/<details class/);
+  assert.doesNotMatch(html,/<details[^>]*open/);
+  batch.status="cancelled";
+  assert.match(render(),/Cancelled questions/);
+});
+
+test("stored question anchors hydrate in place without repeating their introduction", async () => {
+  const {toTalentMessageResponse} = await import("@/lib/talentOnboarding/models");
+  const {toUiMessage} = await import("@/hooks/career/careerHelpers");
+  let state = createSimulationSession({roleName:"Engineer",roleRef:"job:test",documentId:"cv",documentName:"CV"});
+  state.analysisStatus="completed";
+  state.preparation=createPreparation();
+  state.activity={version:1,offerId:1,outputs:{},batches:[]};
+  state=askApplicationInput(state,{purpose:"Prepare",introduction:"Please share a detail.",items:[{kind:"question",title:"What did you build?"}]},"persisted");
+  const batch=state.activity!.batches[0];
+  batch.introMessageId=731;
+  const stored=toUiMessage(toTalentMessageResponse({id:731,user_id:"u",conversation_id:"c",role:"assistant",message_type:"application_activity",content:batch.introduction!,payload:{activityId:state.sessionId,view:"questions",batchId:batch.id},created_at:batch.createdAt}));
+  assert.equal(stored.content,"", "unhydrated references must not render as chat text");
+  assert.equal(stored.applicationActivity?.view,"questions");
+  const projected=applicationQuestionMessages(state)[0];
+  assert.equal(projected.id,stored.id);
+  const messages=new Map([[String(stored.id),stored]]);
+  messages.set(String(projected.id),projected);
+  assert.equal(messages.size,1,"refresh and live projection replace the persisted anchor");
+  const html=renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationQuestionHistoryRow batch={projected.applicationQuestions}/></MessagesProvider>);
+  assert.equal(html.split("Please share a detail.").length-1,1);
+  assert.equal(html.split("Waiting for your answers").length-1,1);
+  batch.status="submitted";
+  assert.equal(applicationQuestionMessages(state)[0].id,731);
+});

@@ -107,9 +107,11 @@
     "utf-8-validate": "^6.0.6",
     "uuid": "^10.0.0",
     "vaul": "^1.1.2",
+    "zod": "^3.25.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@slack/socket-mode": "^3.0.0",
     "@svgr/webpack": "^8.1.0",
     "@types/jsdom": "^27.0.0",

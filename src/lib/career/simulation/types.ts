@@ -5,6 +5,7 @@ import {
 } from "./structured";
 export const SIMULATION_MESSAGE_TYPE = "application_simulation";
 export const SIMULATION_STEPS = ["role", "comparison", "review"] as const;
+export const LIGHT_SIMULATION_STEPS = ["role", "review"] as const;
 export type SimulationStepKey = (typeof SIMULATION_STEPS)[number];
 export type SimulationResult = {
   summary: string;
@@ -15,13 +16,23 @@ export type SimulationStep = {
   key: SimulationStepKey;
   status: "pending" | "running" | "completed" | "failed" | "cancelled";
   attempts?: number;
+  completion?: {
+    finishReason: string | null;
+    outputCharacters: number;
+    completionTokens?: number;
+  };
+  failureReason?:
+    | "timeout"
+    | "cancelled"
+    | "invalid_output"
+    | "provider_or_storage_error";
   validationIssues?: string[];
   startedAt?: string;
   completedAt?: string;
   result?: SimulationResult;
 };
 export type ApplicationSimulation = {
-  version: 1 | 2;
+  version: 1 | 2 | 3 | 4;
   status: "running" | "completed" | "failed" | "cancelled";
   roleName: string;
   documentName: string | null;
@@ -35,21 +46,22 @@ export function parseApplicationSimulation(
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   const v = value as ApplicationSimulation;
   if (
-    ![1, 2].includes(v.version) ||
+    ![1, 2, 3, 4].includes(v.version) ||
     !["running", "completed", "failed", "cancelled"].includes(v.status) ||
     typeof v.roleName !== "string" ||
     typeof v.updatedAt !== "string" ||
     !Number.isFinite(Date.parse(v.updatedAt)) ||
     !(v.documentName === null || typeof v.documentName === "string") ||
     !Array.isArray(v.steps) ||
-    v.steps.length !== 3
+    v.steps.length !== (v.version === 4 ? 2 : 3)
   )
     return;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < v.steps.length; i++) {
     const s = v.steps[i];
     if (
       !s ||
-      s.key !== SIMULATION_STEPS[i] ||
+      s.key !==
+        (v.version === 4 ? LIGHT_SIMULATION_STEPS : SIMULATION_STEPS)[i] ||
       !["pending", "running", "completed", "failed", "cancelled"].includes(
         s.status
       )
@@ -63,7 +75,13 @@ export function parseApplicationSimulation(
       return;
     if (s.status === "completed" && !s.result) return;
     if (
-      v.version === 2 &&
+      v.version === 4 &&
+      s.result?.data?.kind === "review" &&
+      !s.result.data.comparison
+    )
+      return;
+    if (
+      v.version >= 2 &&
       s.result &&
       (!isStructuredStage(s.result, s.key) ||
         !validReferences(

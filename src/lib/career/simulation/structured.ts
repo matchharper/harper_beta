@@ -3,6 +3,7 @@ import type { SimulationStepKey } from "./types";
 export type Requirement = {
   id: string;
   requirement: string;
+  requirementType?: "qualification" | "application_material";
   importance: 1 | 2 | 3;
   mandatory: boolean;
   rationale: string;
@@ -32,21 +33,43 @@ export type Observation = {
 };
 export type Action = {
   id: string;
-  category: "content" | "wording" | "structure" | "consistency";
+  category: "content" | "wording" | "structure" | "consistency" | "materials";
   title: string;
   target: string;
   proposal: string;
+  originalText?: string;
+  suggestedText?: string;
+  edits?: { target: string; originalText: string; suggestedText: string }[];
   reason: string;
   requirementIds: string[];
   evidenceIds: string[];
   needsConfirmation: boolean;
   questions: string[];
   executionPrompt: string;
+  inputKind?: "change" | "question" | "material";
+  linkedActionIds?: string[];
+};
+export type FitVerdict = {
+  level: "strong" | "moderate" | "weak" | "stretch";
+  reason: string;
+};
+export type ActionCoverage = {
+  requirementId: string;
+  actionIds: string[];
+  disposition: "action" | "no_action" | "deferred";
+  reason: string;
 };
 export type StructuredResult =
   | { kind: "role"; requirements: Requirement[] }
   | { kind: "comparison"; diagnoses: Diagnosis[]; observations: Observation[] }
-  | { kind: "review"; actions: Action[]; emptyReason: string };
+  | {
+      kind: "review";
+      comparison?: Extract<StructuredResult, { kind: "comparison" }>;
+      actions: Action[];
+      emptyReason: string;
+      fitVerdict?: FitVerdict;
+      actionCoverage?: ActionCoverage[];
+    };
 
 type Schema = {
   type: string;
@@ -91,6 +114,7 @@ export const simulationSchemas: Record<SimulationStepKey, Schema> = {
         obj({
           id: str,
           requirement: str,
+          requirementType: choices("qualification", "application_material"),
           importance: { type: "integer", enum: [1, 2, 3] },
           mandatory: { type: "boolean" },
           rationale: str,
@@ -138,21 +162,46 @@ export const simulationSchemas: Record<SimulationStepKey, Schema> = {
     report: str,
     data: obj({
       kind: choices("review"),
+      actionCoverage: list(
+        obj({
+          requirementId: str,
+          actionIds: strings,
+          disposition: choices("action", "no_action", "deferred"),
+          reason: str,
+        })
+      ),
+      fitVerdict: obj({
+        level: choices("strong", "moderate", "weak", "stretch"),
+        reason: str,
+      }),
       actions: list(
         obj({
           id: str,
-          category: choices("content", "wording", "structure", "consistency"),
+          category: choices(
+            "content",
+            "wording",
+            "structure",
+            "consistency",
+            "materials"
+          ),
           title: str,
           target: str,
           proposal: str,
+          originalText: str,
+          suggestedText: str,
+          edits: list(
+            obj({ target: str, originalText: str, suggestedText: str })
+          ),
           reason: str,
           requirementIds: strings,
           evidenceIds: strings,
           needsConfirmation: { type: "boolean" },
           questions: strings,
           executionPrompt: str,
+          inputKind: choices("change", "question", "material"),
+          linkedActionIds: strings,
         }),
-        { maxItems: 10 }
+        {}
       ),
       emptyReason: str,
     }),
@@ -176,7 +225,20 @@ function conforms(value: unknown, schema: Schema): boolean {
   const row = value as Record<string, unknown>;
   return (
     Object.keys(row).every((k) => k in schema.properties!) &&
-    schema.required!.every((k) => conforms(row[k], schema.properties![k]))
+    schema.required!.every(
+      (k) =>
+        // Earlier version-2 results predate the optional visual edit preview.
+        ((k === "inputKind" ||
+          k === "linkedActionIds" ||
+          k === "edits" ||
+          k === "originalText" ||
+          k === "suggestedText" ||
+          k === "requirementType" ||
+          k === "fitVerdict" ||
+          k === "actionCoverage") &&
+          !(k in row)) ||
+        conforms(row[k], schema.properties![k])
+    )
   );
 }
 const unique = (ids: string[]) =>
@@ -185,6 +247,19 @@ export function isStructuredStage(
   value: unknown,
   key: SimulationStepKey
 ): value is { summary: string; report: string; data: StructuredResult } {
+  const combined = value as {
+    data?: Extract<StructuredResult, { kind: "review" }>;
+  } | null;
+  if (key === "review" && combined?.data?.comparison) {
+    const { comparison, ...data } = combined.data;
+    return (
+      isStructuredStage({ ...(value as object), data }, key) &&
+      isStructuredStage(
+        { summary: "Evidence", report: "Evidence", data: comparison },
+        "comparison"
+      )
+    );
+  }
   if (!conforms(value, simulationSchemas[key])) return false;
   const result = value as {
     summary: string;
@@ -227,6 +302,7 @@ export function isStructuredStage(
     );
   }
   return (
+    (!d.fitVerdict || !!d.fitVerdict.reason.trim()) &&
     unique(d.actions.map((a) => a.id)) &&
     (d.actions.length > 0 || !!d.emptyReason.trim()) &&
     d.actions.every(
@@ -252,7 +328,9 @@ export function validReferences(
       data.diagnoses.length === ids.size &&
       data.diagnoses.every((d) => ids.has(d.requirementId))
     );
-  const comparison = previous[1]?.data;
+  const comparison = data.comparison ?? previous[1]?.data;
+  if (data.comparison && !validReferences(data.comparison, previous))
+    return false;
   if (comparison?.kind !== "comparison") return false;
   const evidenceIds = new Set(
     [
@@ -262,6 +340,37 @@ export function validReferences(
   );
   for (const observation of comparison.observations)
     evidenceIds.add(observation.id);
+  if (data.actionCoverage) {
+    if (
+      data.actionCoverage.length !== ids.size ||
+      !unique(data.actionCoverage.map((r) => r.requirementId))
+    )
+      return false;
+    for (const row of data.actionCoverage) {
+      if (
+        !ids.has(row.requirementId) ||
+        !row.reason.trim() ||
+        !unique(row.actionIds)
+      )
+        return false;
+      if ((row.disposition === "action") !== row.actionIds.length > 0)
+        return false;
+      if (
+        !row.actionIds.every((id) =>
+          data.actions.some(
+            (a) => a.id === id && a.requirementIds.includes(row.requirementId)
+          )
+        )
+      )
+        return false;
+      if (
+        !data.actions
+          .filter((a) => a.requirementIds.includes(row.requirementId))
+          .every((a) => row.actionIds.includes(a.id))
+      )
+        return false;
+    }
+  }
   return data.actions.every(
     (a) =>
       a.requirementIds.every((id) => ids.has(id)) &&
@@ -275,6 +384,23 @@ export function stageOutputIssues(
   key: SimulationStepKey,
   previous: Array<{ data?: StructuredResult } | undefined>
 ): string[] {
+  const combined = value as {
+    data?: Extract<StructuredResult, { kind: "review" }>;
+  } | null;
+  if (key === "review" && combined?.data?.comparison) {
+    const { comparison, ...data } = combined.data;
+    return [
+      ...stageOutputIssues(
+        { summary: "Evidence", report: "Evidence", data: comparison },
+        "comparison",
+        previous
+      ),
+      ...stageOutputIssues({ ...(value as object), data }, "review", [
+        previous[0],
+        { data: comparison },
+      ]),
+    ];
+  }
   const issues: string[] = [];
   const inspect = (v: unknown, schema: Schema, path: string) => {
     if (conforms(v, schema)) return;
@@ -310,6 +436,45 @@ export function stageOutputIssues(
     data: StructuredResult;
   };
   const d = result.data;
+  if (d.kind === "review" && !d.actionCoverage)
+    issues.push(
+      "data.actionCoverage: account for every frozen requirement with linked action IDs or a reason for no action/deferment"
+    );
+  if (d.kind === "review") {
+    const actionIds = new Set(d.actions.map((a) => a.id));
+    for (const row of d.actionCoverage ?? []) {
+      const expected = d.actions
+        .filter((a) => a.requirementIds.includes(row.requirementId))
+        .map((a) => a.id);
+      if (
+        expected.some((id) => !row.actionIds.includes(id)) ||
+        row.actionIds.some((id) => !expected.includes(id))
+      )
+        issues.push(
+          `data.actionCoverage.${row.requirementId}: actionIds must match actions citing this requirement: ${expected.join(", ") || "none"}`
+        );
+    }
+    d.actions.forEach((a, i) => {
+      if (a.linkedActionIds?.some((id) => id === a.id || !actionIds.has(id)))
+        issues.push(
+          `data.actions[${i}].linkedActionIds: reference other existing items`
+        );
+      if (
+        a.inputKind === "question" &&
+        (a.suggestedText ||
+          a.originalText ||
+          a.edits?.length ||
+          !a.questions.length)
+      )
+        issues.push(
+          `data.actions[${i}]: questions require a question and no speculative draft`
+        );
+    });
+  }
+  if (d.kind === "review" && !d.fitVerdict)
+    issues.push(
+      "data.fitVerdict: provide a level and concise evidence-based reason"
+    );
   if (d.kind === "comparison") {
     const evidence = [
       ...d.diagnoses.flatMap((r, i) =>
@@ -363,9 +528,15 @@ export function stageOutputIssues(
 // Constrain the model to the frozen rubric before generation, not only after it.
 export function simulationSchemaForInput(
   key: SimulationStepKey,
-  context: { rubric?: { data?: StructuredResult } }
+  context: { rubric?: { data?: StructuredResult }; workflowVersion?: number }
 ): Schema {
   const schema = structuredClone(simulationSchemas[key]);
+  if (key === "review" && context.workflowVersion === 4) {
+    const comparison = simulationSchemaForInput("comparison", context)
+      .properties!.data;
+    schema.properties!.data.properties!.comparison = comparison;
+    schema.properties!.data.required!.push("comparison");
+  }
   const rubric = context.rubric?.data;
   if (
     key === "comparison" &&
@@ -380,4 +551,53 @@ export function simulationSchemaForInput(
     );
   }
   return schema;
+}
+
+// A visual deletion must quote the actual resume, not profile evidence or an invented example.
+export function resumeEditPreviewIssues(
+  data: Extract<StructuredResult, { kind: "review" }>,
+  resume: string
+): string[] {
+  const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
+  const source = normalize(resume);
+  return data.actions.flatMap((action, index) => {
+    const previews = [
+      {
+        text: action.originalText,
+        path: `data.actions[${index}].originalText`,
+      },
+      ...(action.edits ?? []).map((edit, j) => ({
+        text: edit.originalText,
+        path: `data.actions[${index}].edits[${j}].originalText`,
+      })),
+    ];
+    return previews.flatMap(({ text, path }) =>
+      text?.trim() && !source.includes(normalize(text))
+        ? [`${path}: must quote an exact passage from the supplied resume`]
+        : []
+    );
+  });
+}
+
+// Sum importance by evidence status, keeping unknowns distinct from actual gaps.
+// These are evidence totals, not a calibrated hiring probability or a verdict.
+export function aggregateFitEvidence(
+  role?: StructuredResult,
+  comparison?: StructuredResult
+) {
+  if (role?.kind !== "role" || comparison?.kind !== "comparison")
+    return undefined;
+  const totals = { strong: 0, met: 0, partial: 0, unknown: 0, unmet: 0 };
+  for (const requirement of role.requirements) {
+    if (requirement.requirementType === "application_material") continue;
+    const diagnosis = comparison.diagnoses.find(
+      (d) => d.requirementId === requirement.id
+    );
+    totals[diagnosis?.match ?? "unknown"] += requirement.importance;
+  }
+  return {
+    importanceTotalsByMatch: totals,
+    scope:
+      "Qualifications only; submission materials are preparation tasks, not candidate fit.",
+  };
 }

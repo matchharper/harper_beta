@@ -1544,6 +1544,7 @@ export async function runCareerChatAssistant(args: {
 
     if (args.tools.length > 0) {
       return runTalentAssistantToolLoop({
+        getSystemPrompt: () => flattenCareerSystemBlocks(args.systemBlocks),
         executeTool: args.executeTool,
         messages: fallbackMessages,
         modelConfig: activeModelConfig,
@@ -1600,7 +1601,14 @@ export async function runCareerChatAssistant(args: {
       });
     }
 
-    for (let loop = 0; loop < 3; loop += 1) {
+    for (
+      let loop = 0;
+      loop <
+      (args.tools.some((t) => t.function.name === "manage_simulation_session")
+        ? 8
+        : 3);
+      loop += 1
+    ) {
       const activeToolNames = args.tools.map(getTalentChatToolName);
       const systemBlocksForStep =
         executedToolNamesForPolicy.length > 0
@@ -1657,7 +1665,10 @@ export async function runCareerChatAssistant(args: {
         content: assistantBlocks,
       });
 
-      const remainingToolCalls = 4 - totalToolCalls;
+      const remainingToolCalls =
+        (args.tools.some((t) => t.function.name === "manage_simulation_session")
+          ? 8
+          : 4) - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -1898,6 +1909,7 @@ export async function runCareerChatAssistantStream(args: {
   if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
     const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
     return runTalentAssistantToolLoop({
+      getSystemPrompt: () => flattenCareerSystemBlocks(args.systemBlocks),
       executeTool: args.executeTool,
       messages: [{ role: "system", content: systemPrompt }, ...args.messages],
       modelConfig,
@@ -2046,7 +2058,9 @@ export async function runCareerChatAssistantStream(args: {
       });
 
       const remainingToolCalls =
-        MAX_STREAMING_TOOL_CALLS_PER_TURN - totalToolCalls;
+        (args.tools.some((t) => t.function.name === "manage_simulation_session")
+          ? 8
+          : MAX_STREAMING_TOOL_CALLS_PER_TURN) - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -2144,7 +2158,12 @@ export async function runCareerChatAssistantStream(args: {
 
       const continuationTools =
         !shouldStopAfterTool &&
-        totalToolCalls < MAX_STREAMING_TOOL_CALLS_PER_TURN
+        totalToolCalls <
+          (args.tools.some(
+            (t) => t.function.name === "manage_simulation_session"
+          )
+            ? 8
+            : MAX_STREAMING_TOOL_CALLS_PER_TURN)
           ? args.tools
           : [];
       const continuationToolNames = continuationTools.map(

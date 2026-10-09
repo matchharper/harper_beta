@@ -604,3 +604,12 @@ test("an old non-fit request uses the current company-criteria explanation", asy
   );
   assert.equal(admin.progress.length, 1);
 });
+
+test("focused-mode tool results omit generic verbose receipts but preserve tool-specific facts and instructions", async () => {
+  const { withTalentToolAssistantInstruction } = await talentToolsPromise;
+  const result = withTalentToolAssistantInstruction({ ok: true, document: "Resume", assistantInstruction: "The requested source is unavailable." }, false);
+  assert.equal(result.document, "Resume");
+  assert.equal(result.assistantInstruction, "The requested source is unavailable.");
+  assert.doesNotMatch(String(result.assistantInstruction), /longer and more detailed/);
+  assert.match(String(withTalentToolAssistantInstruction({ ok: true }).assistantInstruction), /longer and more detailed/);
+});

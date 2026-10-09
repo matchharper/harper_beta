@@ -107,6 +107,7 @@ type Props = {
   isUser: boolean;
   isAssistantSpeaking?: boolean;
   choiceActionsDisabled?: boolean;
+  hideAssistantChoices?: boolean;
   isCallStartPending?: boolean;
   onSelectAssistantChoice?: (
     selection: CareerAssistantChoiceSelection
@@ -374,6 +375,7 @@ const CareerMessageBubble = ({
   isUser,
   isAssistantSpeaking = false,
   choiceActionsDisabled = false,
+  hideAssistantChoices = false,
   isCallStartPending = false,
   onSelectAssistantChoice,
   onSelectReengagementAction,
@@ -512,7 +514,7 @@ const CareerMessageBubble = ({
         {!isUser && (
           <DocumentPreviewCards documents={documentLinks.documents} />
         )}
-        {!isUser && assistantChoices.length > 0 && (
+        {!isUser && !hideAssistantChoices && assistantChoices.length > 0 && (
           <ChatChoiceList
             choices={assistantChoices}
             disabled={choiceActionsDisabled || !onSelectAssistantChoice}

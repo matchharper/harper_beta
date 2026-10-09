@@ -179,3 +179,19 @@ test("profile snapshot keeps career evidence and omits account metadata", async 
   assert.match(snapshot, /Credential evidence/);
   assert.doesNotMatch(snapshot, /private|visibility|blocked/);
 });
+
+test("a stage timeout is recorded distinctly while completed stages survive", async () => {
+  const final = await runSimulationWorkflow({
+    state: initial(),
+    input,
+    complete: async ({ key }) => {
+      if (key === "review")
+        throw new DOMException("Deadline exceeded", "TimeoutError");
+      return result(key);
+    },
+    publish: async () => {},
+  });
+  assert.equal(final.status, "failed");
+  assert.equal(final.steps[1].status, "completed");
+  assert.equal(final.steps[2].failureReason, "timeout");
+});

@@ -1,0 +1,90 @@
+import { z } from "zod";
+
+export const APPLY_TO_ROLE = "apply_to_role";
+export const browserStateSchema = z.object({
+  id: z.string(),
+  status: z.enum([
+    "queued",
+    "running",
+    "waiting",
+    "succeeded",
+    "failed",
+    "uncertain",
+    "cancelled",
+  ]),
+  sessionId: z.string().optional(),
+  environmentId: z.string().optional(),
+  files: z
+    .array(
+      z.object({
+        documentId: z.string(),
+        hash: z.string(),
+        path: z.string(),
+        name: z.string(),
+      })
+    )
+    .optional(),
+  startedAt: z.string(),
+  updatedAt: z.string(),
+  documentId: z.string(),
+  documentHash: z.string(),
+  url: z.string(),
+  purpose: z.string(),
+  cursor: z.string().optional(),
+  leaseUntil: z.string().optional(),
+  taskSent: z.boolean().optional(),
+  recoveryTurnId: z.string().optional(),
+  diagnostic: z.object({
+    turnId: z.string().optional(),
+    status: z.string().optional(),
+    error: z.string().optional(),
+    items: z.string().optional(),
+  }).optional(),
+  approval: z
+    .object({
+      fingerprint: z.string(),
+      approved: z.boolean(),
+      summary: z.string(),
+    })
+    .optional(),
+  result: z
+    .object({
+      summary: z.string(),
+      url: z.string(),
+      evidence: z.string(),
+      emailNotice: z.boolean().optional(),
+    })
+    .optional(),
+  resultMessageId: z.number().optional(),
+});
+export const browserQuestionRefSchema = z.object({
+  runId: z.string(),
+  sessionId: z.string(),
+  turnId: z.string(),
+  callId: z.string(),
+  kind: z.enum(["information", "submission", "origin"]),
+  origin: z.string().optional(),
+  fingerprint: z.string().optional(),
+  summary: z.string().optional(),
+});
+export type ApplicationBrowserState = z.infer<typeof browserStateSchema>;
+export const applyToRoleSchema = z
+  .object({ purpose: z.string().min(1).max(4000) })
+  .strict();
+export const applyToRoleTool = {
+  type: "function" as const,
+  function: {
+    name: APPLY_TO_ROLE,
+    description:
+      "Fill the current role's public application form using the user's selected final resume and confirmed answers. Available only in Apply with Harper after completed analysis and final file selection. Saves a resumable browser run, can ask for missing information, and requires user confirmation before final submission. Login and CAPTCHA are unsupported. Ends this turn; the application delivers questions or a verified outcome later.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["purpose"],
+      properties: { purpose: { type: "string" } },
+    },
+  },
+};
+export function browserIsExecuting(browser?: ApplicationBrowserState) {
+  return !!browser && ["queued", "running"].includes(browser.status);
+}

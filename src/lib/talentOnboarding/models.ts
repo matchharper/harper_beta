@@ -1,3 +1,6 @@
+import { parseApplicationDraft, type ApplicationDraft } from "@/lib/career/simulation/preparation";
+import {parseApplicationStartOffer,type ApplicationStartOffer} from "@/lib/career/simulation/startOffer";
+import { parseSimulationSession, parseSimulationCard, type SimulationSession, type SimulationCardRef } from "@/lib/career/simulation/session";
 import { parseApplicationSimulation, SIMULATION_MESSAGE_TYPE, type ApplicationSimulation } from "@/lib/career/simulation/types";
 import type { MockInterviewOffer } from "@/lib/career/mockInterviewOffers";
 import type { Database } from "@/types/database.types";
@@ -111,6 +114,12 @@ export type TalentMessageRow = {
 };
 
 export type TalentMessageResponse = {
+  suppressRolePreviews?:boolean;
+  applicationStartOffer?:ApplicationStartOffer;
+  applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
+  applicationDraft?: ApplicationDraft;
+  simulationSession?: SimulationSession;
+  simulationAction?: SimulationCardRef;
   simulation?: ApplicationSimulation;
   mockInterviewOffers?: MockInterviewOffer[];
   attachments?: CareerMessageAttachment[];
@@ -141,15 +150,26 @@ export function toTalentMessageResponse(
       ? // Avoid importing the activity module here: that module already uses this serializer.
         parseCareerCoachingActivity(item)
       : null;
-  const attachments = extractCareerMessageAttachments(item.content);
+  const activityRef = item.message_type === "application_activity" && item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.activityId === "string" && typeof item.payload.view === "string"
+    ? {activityId:item.payload.activityId,view:item.payload.view,revision:typeof item.payload.revision === "number" ? item.payload.revision : 0}
+    : undefined;
+  // Reference rows are hydrated from the activity store, not independent prose.
+  const visibleContent = activityRef?.view === "questions" ? "" : item.content;
+  const attachments = extractCareerMessageAttachments(visibleContent);
   return {
+    ...(activityRef ? {applicationActivity:activityRef} : {}),
+    ...(item.message_type === "application_start_offer" ? {applicationStartOffer:parseApplicationStartOffer(item.payload)} : {}),
+    ...(item.message_type === "application_draft" ? {applicationDraft:parseApplicationDraft(item.payload)} : {}),
+    ...(item.message_type === "simulation_session" ? {simulationSession:parseSimulationSession(item.payload)} : {}),
+    ...(item.message_type === "simulation_action" ? {simulationAction:parseSimulationCard(item.payload)} : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
     ...(coachingActivity ? { coachingActivity } : {}),
     ...(item.message_type === SIMULATION_MESSAGE_TYPE ? { simulation: parseApplicationSimulation(item.payload) } : {}),
+    suppressRolePreviews: !!item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && item.payload.suppressRolePreviews === true,
     id: item.id,
     role: item.role,
     content: stripCareerMessageAttachmentMetadata(
-      stripCareerOpportunityMentionMetadata(item.content)
+      stripCareerOpportunityMentionMetadata(visibleContent)
     ),
     messageType: item.message_type ?? "chat",
     createdAt: item.created_at,

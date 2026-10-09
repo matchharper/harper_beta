@@ -117,10 +117,23 @@ test("exposes the input-free coaching list after onboarding as plain text", asyn
   assert.match(text, /연봉 협상 연습하기/);
 });
 
-test("simulation is available in text chat and excluded from voice", () => {
+test("analysis tool is excluded from ordinary chat and voice", () => {
   for (const isOnboardingDone of [false, true]) {
     const chat = resolveCareerChatTools({ channel: "chat", isOnboardingDone, responseLocale: "ko" });
-    assert.ok(chat.toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
+    assert.ok(!chat.toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
   }
   assert.ok(!getCareerRealtimeToolCandidates("ko").some(tool => tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
+});
+
+test("application questions are mode-only and are an explicit yield boundary",()=>{
+  const ordinary=resolveCareerChatTools({isOnboardingDone:true,channel:"chat"});
+  assert.ok(!ordinary.toolNames.includes("ask_application_input"));
+  assert.ok(!ordinary.toolNames.includes("apply_to_role"));
+  const active=resolveCareerChatTools({isOnboardingDone:true,channel:"chat",simulationActive:true});
+  assert.ok(active.toolNames.includes("ask_application_input"));
+  assert.ok(active.toolNames.includes("apply_to_role"));
+  assert.ok(active.stopAfterToolNames.includes("apply_to_role"));
+  assert.ok(active.stopAfterToolNames.includes("ask_application_input"));
+  assert.ok(!active.toolNames.includes("update_document"));
+  assert.ok(!active.toolNames.includes("contact_company"));
 });

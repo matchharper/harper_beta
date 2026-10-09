@@ -82,6 +82,7 @@ export type GmailCapability =
   | "not_connected";
 export type CareerConversationPromptMode =
   | "default"
+  | "simulation"
   | "career_coaching"
   | "match_quality"
   | "career_check_in"

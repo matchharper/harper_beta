@@ -1,3 +1,5 @@
+import { buildSimulationSessionPrompt } from "../simulation/sessionPrompt";
+import type { SimulationSession } from "../simulation/session";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import {
   getCareerPromptLanguageName,
@@ -137,6 +139,8 @@ export function buildCareerConversationPromptPlan(args: {
   recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
   runtimeInstruction?: string | null;
+  simulationSession?: SimulationSession;
+  simulationAvailability?: "inactive" | "unavailable";
   structuredProfileText: string;
   timeZone?: string | null;
   toolNames?: readonly string[] | string;
@@ -154,7 +158,7 @@ export function buildCareerConversationPromptPlan(args: {
   }
 
   const channelType = getCareerChannelType(args.channel);
-  const channelContextRules = buildCareerChannelContextRules(args.channel);
+  const channelContextRules = buildCareerChannelContextRules(args.channel, args.simulationSession?.status !== "active");
 
   const outputLanguage = getCareerPromptLanguageName(
     args.currentPreferences?.preferredLocale
@@ -224,6 +228,21 @@ export function buildCareerConversationPromptPlan(args: {
     ),
     cacheable: true,
   };
+
+  if (args.conversationMode === "simulation" && args.simulationSession) {
+    return {
+      isOnboardingActive: false,
+      enabledToolNames: normalizedToolNames,
+      toolPolicy: "",
+      promptBlocks: [
+        coreSystemPrompt,
+        ...buildSimulationSessionPrompt(args.simulationSession),
+        ...(args.runtimeInstruction
+          ? [{ key: "runtime_instruction", text: args.runtimeInstruction }]
+          : []),
+      ],
+    };
+  }
 
   const conversationGuidePrompt = () => {
     if (isOnboardingActive)
@@ -377,6 +396,19 @@ export function buildCareerConversationPromptPlan(args: {
     promptBlocks.push({
       key: "gmail_capability",
       text: buildGmailCapabilityPrompt(args.gmailCapability),
+    });
+  }
+
+  if (args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
+    key: "application_start_payload",
+    text: 'When the user wants role-specific application preparation and the role is known, explain the next step briefly in ordinary prose, then append [[APPLICATION_START_OFFER]]{"roleId":"the known role identifier"}[[/APPLICATION_START_OFFER]]. For a public Harper posting use {"official_job_slug":"the known slug"} instead. Include exactly one of those identifiers and no other fields. Resolve an ambiguous role before proposing the card. This response payload shows a resume-selection start card after your reply; it does not start analysis or activate a mode. No tool call is needed for the card. The user starts by choosing a resume and pressing its button. Keep the explanation concise; the card carries the controls.'
+  });
+  if (args.simulationAvailability) {
+    promptBlocks.push({
+      key: "simulation_availability",
+      text: args.simulationAvailability === "inactive"
+        ? "Current server-verified Apply with Harper state: no active 함께 지원 모드 in this conversation. This current state takes precedence over historical chat, old analysis cards and earlier claims that a mode was open. If the user asks to stop it, explain briefly that no mode is currently active and continue normally; no closing action or UI button is needed. Do not claim you just closed it, infer why or when it ended, or describe the missing management tool as an inability to close a still-active mode. Mention this state only when relevant to the user's request."
+        : "The current Apply with Harper state could not be verified because the capability is unavailable. Past conversation does not establish that a mode is still active. If the user asks about stopping it, explain the verification limitation briefly without asserting it is open or closed or inventing a required UI action.",
     });
   }
 

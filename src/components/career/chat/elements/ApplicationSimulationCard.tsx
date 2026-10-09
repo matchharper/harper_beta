@@ -1,8 +1,14 @@
+import {
+  parseSimulationSession,
+  resolveAnalysisCardAction,
+  type SimulationCardRequest,
+  type SimulationSession,
+} from "@/lib/career/simulation/session";
 import { SimulationStructuredResult } from "./SimulationStructuredResult";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import RichText from "@/components/ui/rich-text";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import {
   parseApplicationSimulation,
@@ -12,15 +18,106 @@ import {
 export function ApplicationSimulationCard({
   simulation: supplied,
   messageId,
+  sessionMessage,
+  disabled = false,
+  onAction,
 }: {
   simulation: ApplicationSimulation;
   messageId: string | number;
+  sessionMessage?: {
+    id: string | number;
+    simulationSession?: SimulationSession;
+  };
+  disabled?: boolean;
+  onAction?: (
+    action: SimulationCardRequest,
+    text: string
+  ) => void | Promise<void>;
 }) {
   const { fetchWithAuth } = useCareerApi();
   const [restored, setRestored] = useState<ApplicationSimulation | null>(null);
   const [now, setNow] = useState(Date.now);
   const simulation =
     restored && restored.updatedAt > supplied.updatedAt ? restored : supplied;
+  const [loadedSession, setLoadedSession] = useState<{
+    messageId: number;
+    state: SimulationSession;
+  }>();
+  const [pendingAction, setPendingAction] = useState(false);
+  const actionLock = useRef(false);
+  const provided = sessionMessage?.simulationSession;
+  const currentSession =
+    provided &&
+    (!loadedSession || provided.revision >= loadedSession.state.revision)
+      ? { messageId: Number(sessionMessage!.id), state: provided }
+      : loadedSession;
+  useEffect(() => {
+    if (!onAction || simulation.status !== "completed") return;
+    const controller = new AbortController();
+    void fetchWithAuth(
+      `/api/talent/simulation?messageId=${encodeURIComponent(messageId)}`,
+      { signal: controller.signal }
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body) => {
+        if (controller.signal.aborted) return;
+        const state = parseSimulationSession(body?.actionSession?.state);
+        setLoadedSession(
+          state ? { messageId: body.actionSession.messageId, state } : undefined
+        );
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [
+    fetchWithAuth,
+    messageId,
+    simulation.status,
+    simulation.updatedAt,
+    provided?.revision,
+    onAction,
+  ]);
+  const actionRequest = (
+    actionId: string
+  ): SimulationCardRequest | undefined =>
+    currentSession
+      ? {
+          action: "select_analysis",
+          sessionMessageId: currentSession.messageId,
+          expectedRevision: currentSession.state.revision,
+          analysisMessageId: Number(messageId),
+          actionId,
+        }
+      : undefined;
+  const canStartAction = (actionId: string) => {
+    const request = actionRequest(actionId);
+    return (
+      !disabled &&
+      !pendingAction &&
+      !!request &&
+      !!currentSession &&
+      !!resolveAnalysisCardAction(currentSession.state, request)
+    );
+  };
+  const startAction = async (actionId: string) => {
+    if (!onAction || actionLock.current || !canStartAction(actionId)) return;
+    const request = actionRequest(actionId)!;
+    const action = resolveAnalysisCardAction(currentSession!.state, request)!;
+    actionLock.current = true;
+    setPendingAction(true);
+    try {
+      await onAction(
+        request,
+        t(
+          "career.simulation.actionRequest",
+          "‘{title}’ 액션을 함께 진행해 주세요.",
+          { values: { title: action.title } }
+        )
+      );
+    } finally {
+      actionLock.current = false;
+      setPendingAction(false);
+    }
+  };
   const stale =
     simulation.status === "running" &&
     now - Date.parse(simulation.updatedAt) > 240_000;
@@ -57,7 +154,9 @@ export function ApplicationSimulationCard({
   const titles = {
     role: t("career.simulation.role", "Role·기업 분석"),
     comparison: t("career.simulation.comparison", "근거 대조·진단"),
-    review: t("career.simulation.review", "검증·액션 제안"),
+    review: simulation.version === 4
+      ? t("career.prep.combinedAnalysis", "근거 대조·준비 항목")
+      : t("career.simulation.review", "검증·액션 제안"),
   };
   const labels = {
     pending: t("career.simulation.pending", "대기 중"),
@@ -69,11 +168,13 @@ export function ApplicationSimulationCard({
   return (
     <section
       className="w-full max-w-[740px] overflow-hidden rounded-xl border border-neutral-1000-a10 bg-bg-floating"
-      aria-label="Simulate"
+      aria-label={t("career.apply.title", "하퍼로 지원하기")}
     >
       <div className="flex items-center justify-between gap-3 border-b border-neutral-1000-a05 p-4">
         <div>
-          <div className="font-medium">Simulate</div>
+          <div className="font-medium">
+            {t("career.apply.title", "하퍼로 지원하기")}
+          </div>
           <div className="text-sm text-neutral-muted">
             {simulation.roleName}
           </div>
@@ -127,12 +228,15 @@ export function ApplicationSimulationCard({
             {step.result ? (
               <div className="mt-3 space-y-3">
                 <p className="text-sm">{step.result.summary}</p>
-                <details open>
+                <details>
                   <summary className="cursor-pointer text-sm text-link">
                     {t("career.simulation.result", "단계 결과")}
                   </summary>
                   <div className="mt-2 overflow-x-auto [&_table]:min-w-[480px]">
                     <RichText variant="career" content={step.result.report} />
+                    {step.result.data?.kind === "review" && step.result.data.comparison && (
+                      <SimulationStructuredResult data={step.result.data.comparison} />
+                    )}
                     {step.result.data && step.result.data.kind !== "review" && (
                       <SimulationStructuredResult data={step.result.data} />
                     )}
@@ -140,7 +244,24 @@ export function ApplicationSimulationCard({
                 </details>
                 {step.status === "completed" &&
                   step.result.data?.kind === "review" && (
-                    <SimulationStructuredResult data={step.result.data} />
+                    <SimulationStructuredResult
+                      data={step.result.data}
+                      hideActions={simulation.version >= 3}
+                      onStartAction={onAction ? startAction : undefined}
+                      canStartAction={canStartAction}
+                      requirements={
+                        simulation.steps[0].result?.data?.kind === "role"
+                          ? simulation.steps[0].result.data.requirements
+                          : []
+                      }
+                      diagnoses={
+                        step.result.data.comparison
+                          ? step.result.data.comparison.diagnoses
+                          : simulation.steps[1].result?.data?.kind === "comparison"
+                          ? simulation.steps[1].result.data.diagnoses
+                          : []
+                      }
+                    />
                   )}
                 <details>
                   <summary className="cursor-pointer text-xs text-neutral-muted">

@@ -1,3 +1,6 @@
+import {
+  ApplicationPreparationProvider,
+} from "./chat/ApplicationPreparationContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useCareerChatPanelContext } from "./CareerChatPanelContext";
@@ -84,7 +87,7 @@ const CallSessionView = ({
   );
 };
 
-const CareerChatPanel = ({
+const CareerChatPanelContent = ({
   pendingAction,
   onPendingActionHandled,
 }: {
@@ -105,6 +108,7 @@ const CareerChatPanel = ({
     useState(false);
   const {
     user,
+    conversationId,
     inputMode,
     messages,
     sessionPending,
@@ -304,4 +308,14 @@ const CareerChatPanel = ({
   );
 };
 
+function CareerChatPanel(
+  props: React.ComponentProps<typeof CareerChatPanelContent>
+) {
+  const { conversationId } = useCareerChatPanelContext();
+  return (
+    <ApplicationPreparationProvider key={conversationId ?? "none"}>
+      <CareerChatPanelContent {...props} />
+    </ApplicationPreparationProvider>
+  );
+}
 export default React.memo(CareerChatPanel);
