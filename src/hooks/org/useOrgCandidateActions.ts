@@ -188,7 +188,8 @@ export function useOrgCandidateActions(args: {
   const changeStage = async (
     item: OrgBoardItem,
     stage: OrgStageId,
-    options?: OrgStageChangeOptions
+    options?: OrgStageChangeOptions,
+    errorPresentation: "toast" | "inline" = "toast"
   ) => {
     if (!args.canManageCandidates) return;
     try {
@@ -224,10 +225,12 @@ export function useOrgCandidateActions(args: {
       });
       return changed;
     } catch (error) {
-      addToast({
-        message: localizedOrgErrorMessage(error, locale, t("hooks.candidate.stageChangeFailed", "후보자 상태를 변경하지 못했습니다.")),
-        variant: "error",
-      });
+      if (errorPresentation === "toast") {
+        addToast({
+          message: localizedOrgErrorMessage(error, locale, t("hooks.candidate.stageChangeFailed", "후보자 상태를 변경하지 못했습니다.")),
+          variant: "error",
+        });
+      }
       throw error;
     }
   };

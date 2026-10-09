@@ -1,0 +1,182 @@
+{
+  "datasetVersion": "v1",
+  "provenance": "Synthetic fixtures authored before first model run, no production sources.",
+  "labelReviewer": "Codex; independent owner review pending",
+  "cases": [
+    {
+      "id": "UTF001",
+      "talent": {
+        "profile": "Eight years personally operating Python services, API design and incident response.",
+        "searchBrief": [
+          "Seoul hybrid work. Backend IC ownership."
+        ],
+        "behaviorContext": "",
+        "behaviorContextVersion": 1
+      },
+      "role": {
+        "company_workspace_id": "synthetic-company",
+        "name": "Backend engineer",
+        "description": "Own production services and incident response. Five years of similar ownership expected.",
+        "request": "Strong individual backend ownership, no school or employer-brand requirement.",
+        "location": "Seoul",
+        "work_mode": "hybrid",
+        "criteria": [],
+        "companyBehavior": ""
+      },
+      "gold": {
+        "stage": 2,
+        "roleFit": [
+          "perfect",
+          "good"
+        ],
+        "candidateFit": [
+          "perfect",
+          "good"
+        ],
+        "companyFit": [
+          "perfect",
+          "good"
+        ],
+        "missingInfo": false
+      }
+    },
+    {
+      "id": "UTF002",
+      "talent": {
+        "profile": "Eight years backend ownership.",
+        "searchBrief": [
+          "Only Seoul; cannot relocate abroad."
+        ],
+        "behaviorContext": "",
+        "behaviorContextVersion": 1
+      },
+      "role": {
+        "company_workspace_id": "synthetic-company",
+        "name": "Backend engineer",
+        "description": "Full time in Singapore office. Relocation mandatory; no remote option.",
+        "request": "Strong individual backend ownership, no school or employer-brand requirement.",
+        "location": "Singapore",
+        "work_mode": "hybrid",
+        "criteria": [],
+        "companyBehavior": ""
+      },
+      "gold": {
+        "stage": 1,
+        "missingInfo": false
+      }
+    },
+    {
+      "id": "UTF003",
+      "talent": {
+        "profile": "One year frontend internship; no production ownership.",
+        "searchBrief": [
+          "Want a supervised junior engineering role."
+        ],
+        "behaviorContext": "",
+        "behaviorContextVersion": 1
+      },
+      "role": {
+        "company_workspace_id": "synthetic-company",
+        "name": "CTO",
+        "description": "Lead 150 engineers, manage managers, company-wide strategy and enterprise reliability.",
+        "request": "Demonstrated leadership of 100+ engineers required.",
+        "location": "Seoul",
+        "work_mode": "hybrid",
+        "criteria": [],
+        "companyBehavior": ""
+      },
+      "gold": {
+        "stage": 1,
+        "missingInfo": false
+      }
+    },
+    {
+      "id": "UTF004",
+      "talent": {
+        "profile": "Seven years engineer. Owned roadmap priorities and customer discovery for a product used by 60 enterprise clients, ran launches, measured adoption.",
+        "searchBrief": [
+          "Want to move into an individual contributor PM role and own product decisions."
+        ],
+        "behaviorContext": "",
+        "behaviorContextVersion": 1
+      },
+      "role": {
+        "company_workspace_id": "synthetic-company",
+        "name": "Product manager",
+        "description": "Own customer discovery, roadmap tradeoffs and adoption metrics for a B2B technical product.",
+        "request": "Direct evidence of product decisions and enterprise customer discovery. Prior PM title is not required.",
+        "location": "Seoul",
+        "work_mode": "hybrid",
+        "criteria": [],
+        "companyBehavior": ""
+      },
+      "gold": {
+        "stage": 2,
+        "roleFit": [
+          "perfect",
+          "good"
+        ],
+        "candidateFit": [
+          "perfect",
+          "good"
+        ],
+        "companyFit": [
+          "perfect",
+          "good"
+        ],
+        "missingInfo": false
+      }
+    },
+    {
+      "id": "UTF005",
+      "talent": {
+        "profile": "Eight years Python backend ownership and incident response, operated a Singapore payment integration from Seoul.",
+        "searchBrief": [
+          "Want backend ownership in cross-border payments. Compensation and company stage align. Location preference not yet discussed."
+        ],
+        "behaviorContext": "",
+        "behaviorContextVersion": 1
+      },
+      "role": {
+        "company_workspace_id": "synthetic-company",
+        "name": "Backend engineer",
+        "description": "Own backend services and incidents at a cross-border payments product. Onsite Singapore, confirmed relocation support and work permit sponsorship.",
+        "request": "Backend IC ownership and payment integrations.",
+        "location": "Singapore",
+        "work_mode": "hybrid",
+        "criteria": [],
+        "companyBehavior": ""
+      },
+      "gold": {
+        "stage": 2,
+        "missingInfo": true
+      }
+    },
+    {
+      "id": "UTF006",
+      "talent": {
+        "profile": "Ten years staff engineer, infrastructure strategy and mentoring across six teams.",
+        "searchBrief": [
+          "Only staff roles with cross-team architectural responsibility. Explicit minimum base salary 180 million KRW."
+        ],
+        "behaviorContext": "",
+        "behaviorContextVersion": 1
+      },
+      "role": {
+        "company_workspace_id": "synthetic-company",
+        "name": "Junior maintenance engineer",
+        "description": "Junior ticket execution under a senior; no architecture ownership.",
+        "request": "Entry-level execution; scope and budget are fixed.",
+        "location": "Seoul",
+        "work_mode": "hybrid",
+        "criteria": [],
+        "companyBehavior": "",
+        "salary": "60 million KRW base, firm maximum"
+      },
+      "gold": {
+        "stage": 1,
+        "missingInfo": false
+      }
+    }
+  ]
+}

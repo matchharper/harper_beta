@@ -1,21 +1,20 @@
 # Company Context Run: 단일 queue Role 실행 런북
 
 - 작성일: 2026-08-14
-- 용도: 수동·event·legacy weekly queue의 단일 Role 실행 참고
+- 용도: 명시적으로 요청된 수동 Role 실행 참고
 - 기능·구현 계약: [Company Context Run 개요](./company-context-run-overview-ko.md)
-- 월·목 Scheduled task의 유일한 정본: [Company Run 예약 실행](../schedule/company-run-ko.md)
+- 과거 예약 실행 기록: [Company Run 예약 실행](../schedule/company-run-ko.md)
 - 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit 런북](./company-role-fit-recovery-audit-codex-runbook-ko.md)
 
-이 문서는 migration, 최초 배포, 테스트 계획을 설명하지 않는다. 이미 queue에 들어온 Role 하나의
-context를 올바르게 갱신하고 연결 후보를 평가하는 데만 집중한다. 월·목 오전 8시 batch는 이 문서의
-legacy weekly 시작 명령을 사용하지 않고 위 Scheduled 정본을 처음부터 끝까지 따른다.
+이 문서는 명시적으로 요청해 queue에 들어온 Role 하나의 context 갱신과 후보 평가를 설명한다.
+정기·event·legacy weekly 자동 실행은 폐지됐다.
 
 ## 1. 단일 queue consumer의 계약
 
-수동·event·legacy weekly consumer가 깨어날 때마다 다음 순서를 따른다.
+수동 실행을 시작할 때 다음 순서를 따른다.
 
 1. Root와 project `AGENTS.md`, 이 런북을 읽는다.
-2. Canonical helper로 weekly due-enqueue를 실행한다. Due 조건을 직접 다시 판단하지 않는다.
+2. 정확한 Role ID로 `enqueue`를 실행한다.
 3. `available_at <= now()`인 `queued` row 하나를 atomic claim한다.
 4. Claim할 row가 없으면 아무 write 없이 종료한다.
 5. Claim한 `run_id`와 `role_id` 하나의 전체 작업을 끝낸다.
@@ -24,8 +23,6 @@ legacy weekly 시작 명령을 사용하지 않고 위 Scheduled 정본을 처�
 
 직접 table을 임의 update하지 말고 enqueue, claim, save, finish, fail을 담당하는 repository helper를 사용한다.
 
-자동 queue는 `is_auto=true`인 role만 포함한다. Helper가 이 조건을 enqueue와 claim 양쪽에서 검증한다. `is_auto=false` role을 임의로 자동 enqueue하지 않는다. 명시적인 `manual` run만 예외다.
-
 ### 1.1 실제 시작 명령
 
 모든 명령은 project root에서 실행한다.
@@ -33,19 +30,13 @@ legacy weekly 시작 명령을 사용하지 않고 위 Scheduled 정본을 처�
 ```bash
 cd /Users/gimhojin/Desktop/harper/harper_beta
 python3 scripts/company_role_recurring_matching.py preflight
+python3 scripts/company_role_recurring_matching.py enqueue --role-id '<요청된 role_id>'
 python3 scripts/company_role_recurring_matching.py start \
-  --enqueue-due \
-  --runner codex-scheduled
+  --role-id '<요청된 role_id>' \
+  --runner codex-manual
 ```
 
-첫 claim에서만 `--enqueue-due`를 사용한다. 한 row를 terminal 상태로 끝낸 뒤 다음 claim부터는 아래 명령을 반복한다.
-
-```bash
-python3 scripts/company_role_recurring_matching.py start \
-  --runner codex-scheduled
-```
-
-`start` JSON의 `started=false`이고 reason이 `no_queued_run`이면 현재 claim 가능한 queue가 빈 것이므로 전체 예약 실행을 정상 종료한다. Inactive, expired, missing, non-internal, auto-disabled 등의 이유로 row가 즉시 `canceled`로 닫히면 그 row만 terminal 처리된 것이다. 여기서 예약 실행을 멈추지 않고 다음 row를 claim한다.
+`start` JSON의 `started=false`이고 reason이 `no_queued_run`이면 현재 claim 가능한 요청이 없다.
 
 `started=true`이면 출력된 `runId`, `artifactPath`, `sourcePacket`을 이후 명령에 그대로 사용한다. 해당 row를 terminal 상태로 끝내기 전에는 다음 row를 claim하지 않는다. 예시에서는 반복되는 값을 다음처럼 표시한다.
 
@@ -58,7 +49,7 @@ Shell 변수는 설명을 짧게 하기 위한 표기일 뿐이다. 실제 명�
 
 ### 1.2 결과를 반영하지 않는 전체 dry-run
 
-특정 queued role을 실제 데이터로 끝까지 검증하되 context, fit, 추천, queue 상태를 바꾸면 안 될 때만 `--dry-run`을 사용한다. 예약 작업의 정상 실행에는 이 옵션을 쓰지 않는다.
+특정 queued role을 실제 데이터로 끝까지 검증하되 context, fit, 추천, queue 상태를 바꾸면 안 될 때만 `--dry-run`을 사용한다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py start \
@@ -69,7 +60,7 @@ python3 scripts/company_role_recurring_matching.py start \
 
 Dry-run은 대상 row를 claim하지 않고 읽기만 하며 이후 `save-context`, `upsert-fits`, `finish`, `fail`, `skip`도 DB write를 하지 않는다. Context와 평가 결과, 검증 receipt는 local run artifact에만 남고 원래 queue row는 `queued` 상태를 유지한다. 종료 후에는 반드시 manifest의 `databaseWrites = 0`, verification의 `queueStatusUnchanged = true`, 그리고 context·fit·recommendation 전후 count가 같음을 확인한다.
 
-사용자가 특정 inactive 또는 `is_auto=false` internal role의 일회성 검토를 명시적으로 요청한 경우에만 아래 수동 preview를 쓸 수 있다. 이 명령은 DB queue row를 만들거나 claim하지 않는 local-only run이다. 자동 예약 작업에는 절대 사용하지 않으며, `--allow-inactive`는 `--dry-run` 및 정확한 `--role-id` 없이는 실행되지 않는다.
+사용자가 특정 inactive internal role의 일회성 검토를 명시적으로 요청한 경우에만 아래 수동 preview를 쓸 수 있다. 이 명령은 DB queue row를 만들거나 claim하지 않는 local-only run이다. `--allow-inactive`는 `--dry-run` 및 정확한 `--role-id` 없이는 실행되지 않는다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py start \
@@ -79,7 +70,7 @@ python3 scripts/company_role_recurring_matching.py start \
   --allow-inactive
 ```
 
-종료 후에는 `queueBacked=false`, `queueRowCreated=false`도 확인한다. 이 preview는 역할을 active로 바꾸거나 `is_auto`를 켠 것으로 취급하지 않는다.
+종료 후에는 `queueBacked=false`, `queueRowCreated=false`도 확인한다. 이 preview는 역할을 active로 바꾸지 않는다.
 
 ## 2. Claim 직후 확인
 
@@ -87,12 +78,11 @@ Helper가 반환한 다음 값을 확인한다.
 
 - `run_id`, `role_id`, `trigger_reason`
 - internal role이고 현재 `active`인지
-- 자동 run이면 현재 `is_auto=true`인지
 - 회사 workspace와 role 정보
 - 기존 current context
 - 이전 성공 실행 이후의 evidence 범위
 
-Claim 뒤 role이 더 이상 active가 아니거나 자동 run의 `is_auto`가 꺼졌으면 context나 fit을 쓰지 않고 `canceled`로 닫는다. Trigger의 정당성을 사람이 재심사하지 않는다. Queue 조건은 코드의 책임이다.
+Claim 뒤 role이 더 이상 active가 아니면 context나 fit을 쓰지 않고 `canceled`로 닫는다.
 
 ## 3. Evidence 읽기
 
@@ -188,9 +178,7 @@ Context를 먼저 저장하고 `company_behavior_contexts`의 해당 `role_id`�
 추가하지 않는다. 새 evidence가 있지만 의미 변화가 없으면 기존 text를 그대로 저장한다.
 
 기존 문서는 `$RUN_DIR/context_before.md`, raw evidence는 `$RUN_DIR/source_packet.json`, 편집 원칙은
-`$RUN_DIR/context_edit_instructions.md`에 있다. Legacy/manual run은 아래 text 명령을 계속 쓸 수 있다.
-Scheduled run은 [`Company Run 예약 실행`](../schedule/company-run-ko.md)의 JSON output contract와
-`save-context-output`을 사용한다.
+`$RUN_DIR/context_edit_instructions.md`에 있다. 수동 run은 아래 text 명령을 쓸 수 있다.
 
 ```bash
 python3 scripts/company_role_recurring_matching.py save-context \
@@ -286,9 +274,8 @@ python3 scripts/company_role_recurring_matching.py finish \
 
 ### 6.2 기존 평가 재검사 범위
 
-이 legacy/manual 단일 Role 흐름은 기본적으로 신규 후보만 평가한다. 월·목 Scheduled batch는 별도
-`output 2`가 기대효과를 확인했을 때 21일 이상 지난 effective `hold`·`ambiguous`를 10~50명 범위에서
-재평가할 수 있으며, 자세한 절차는 [Company Run 예약 실행](../schedule/company-run-ko.md)을 따른다.
+수동 단일 Role 흐름은 기본적으로 신규 후보만 평가한다. 기존 평가의 별도 재발견이 필요하면
+[Company Role Fit Recovery Audit 런북](./company-role-fit-recovery-audit-codex-runbook-ko.md)을 따른다.
 
 후보자가 실제 `hold_role_question`에 답한 경우의 즉시 재검사는 질문과 답을 보유한 Worker 경로에서
 처리한다. Role 중심 run이 그 답변을 추정하지 않는다.
@@ -465,18 +452,14 @@ python3 scripts/company_role_recurring_matching.py skip \
   --summary 'Claim 이후 role이 active가 아니어서 취소함'
 ```
 
-Claim 뒤 `is_auto=false`가 된 자동 run은 `--result-reason auto_disabled`로 닫는다. `manual` run에는 이 이유를 사용할 수 없다.
-
 ## 12. 종료 전 체크
 
 - [ ] Queue에서 claim한 정확한 role 하나만 처리했다.
-- [ ] 자동 run의 role이 `is_auto=true`인지 확인했다.
 - [ ] 기존 context를 읽고 새 행동 evidence를 verbalize했다.
 - [ ] Request·criteria·JD를 context에 복제하지 않았다.
 - [ ] Context를 pending gate보다 먼저 저장했다.
 - [ ] Pending limit 도달 시 matching만 생략했다.
 - [ ] SQL rank가 아니라 candidate 전체 문서로 pair를 평가했다.
-- [ ] Scheduled 재평가는 output 2와 허용된 bounded lane 안에서만 수행했다.
 - [ ] Pair `reason`을 저장했다.
 - [ ] Human override를 보존했다.
 - [ ] Queue status와 짧은 결론을 기록했다.

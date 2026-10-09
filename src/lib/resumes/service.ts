@@ -47,11 +47,13 @@ export async function generateResume(args: {
             input.target_role?.company ?? null,
             input.content.language,
           ]
-        : null,
+        : input.action === "copy"
+          ? [input.document_id, input.expected_revision, input.document_name]
+          : null,
     ])
   );
   const documentId =
-    input.action === "create"
+    input.action !== "update"
       ? resumeDocumentId(args.userId, requestKey)
       : input.document_id!;
   const readCurrent = () =>
@@ -78,7 +80,23 @@ export async function generateResume(args: {
     };
   };
   const original = await readCurrent();
-  if (input.action === "create" && original) return result(original);
+  if (input.action !== "update" && original) return result(original);
+  const source =
+    input.action === "copy"
+      ? await fetchTalentDocument({
+          admin: args.admin,
+          userId: args.userId,
+          documentId: input.document_id!,
+        })
+      : null;
+  if (input.action === "copy") {
+    if (!source || source.origin_type !== GENERATED_RESUME_ORIGIN)
+      throw new Error("Generated resume to copy not found.");
+    if (source.revision !== input.expected_revision)
+      throw new Error(
+        "Resume changed. Read its current JSON and revision before copying."
+      );
+  }
   if (input.action === "update") {
     if (
       !original ||
@@ -93,8 +111,10 @@ export async function generateResume(args: {
         "Resume changed. Read its current JSON and revision before updating."
       );
   }
-  const previous = original?.structured_content as StructuredResume | null;
-  if (original && !previous)
+  const previous = (input.action === "copy"
+    ? source?.structured_content
+    : original?.structured_content) as StructuredResume | null;
+  if ((source || original) && !previous)
     throw new Error("Generated resume has no editable JSON.");
   if (previous && previous.schema_version !== 1)
     throw new Error("Unsupported resume schema version.");
@@ -175,13 +195,13 @@ export async function generateResume(args: {
       structured_content: structured,
       extracted_text: resumePlainText(structured.content),
       origin_id: requestKey,
-      is_public: original?.is_public ?? false,
+      is_public: input.action === "update" ? original!.is_public : false,
       is_primary: false,
     };
     // One SQL statement publishes every field. The existing primary key arbitrates creates;
     // revision + owner + deletion predicates arbitrate edits, including concurrent deletion.
     const query =
-      input.action === "create"
+      input.action !== "update"
         ? db.from("talent_documents").insert({
             ...fields,
             id: documentId,
@@ -207,7 +227,7 @@ export async function generateResume(args: {
         current &&
         !current.is_deleted &&
         current.origin_type === GENERATED_RESUME_ORIGIN &&
-        (input.action === "create" || current.origin_id === requestKey)
+        (input.action !== "update" || current.origin_id === requestKey)
       ) {
         return result(current);
       }

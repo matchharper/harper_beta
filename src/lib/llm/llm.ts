@@ -114,6 +114,15 @@ export function supportsResponseFormatForModel(model: string) {
 
 export function supportsSamplingParametersForModel(model: string) {
   const normalized = model.trim().toLowerCase();
+  const claudeModel = normalized.replace(/^anthropic\//, "");
+  if (
+    claudeModel === "claude-haiku-5.5" ||
+    claudeModel.startsWith("claude-haiku-5.5-") ||
+    claudeModel === "claude-haiku-5-5" ||
+    claudeModel.startsWith("claude-haiku-5-5-")
+  ) {
+    return false;
+  }
   if (
     getLlmChatProviderForModel(normalized) === "openai" &&
     (normalized === GPT_6_LUNA_MODEL ||

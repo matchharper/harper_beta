@@ -1,0 +1,54 @@
+{
+  "datasetVersion": "v3",
+  "parentDataset": "v2",
+  "corpusHash": "ea0cfd57221b50566ee583f9139684bfd782e846b6008baecf08e9e62425a780",
+  "corpusCount": 4649,
+  "corpusPath": "private/v2/corpus.json",
+  "snapshotHash": "c0e7a6b690e1e8e0066a90e4af71429b23fdd168818bfd02bae9b92fad051886",
+  "goldHash": "e335b88666ec1d05c507c2f8d075c587faab5d05f071dbb0558f3c16c273b73e",
+  "parentGoldHash": "0cc53982ac11022c0ca3692e7ea90585edf9e4ac7c5b2ef0fdf3a5d79cd4b395",
+  "roles": [
+    "wonderful",
+    "sbva",
+    "sierra",
+    "config_robotics",
+    "sbva_communications",
+    "aleph_marketing",
+    "vooy_design",
+    "gaudio_finance",
+    "sierra_sales",
+    "wonderful_partnerships",
+    "mistral_scientist",
+    "narwhal_junior",
+    "aeolo_cofounder"
+  ],
+  "extraRoles": [
+    "aleph_marketing",
+    "vooy_design",
+    "gaudio_finance",
+    "sierra_sales",
+    "wonderful_partnerships",
+    "mistral_scientist",
+    "narwhal_junior",
+    "aeolo_cofounder"
+  ],
+  "roleHashes": {
+    "aleph_marketing": "ad39edd92f0e437f708088596759d317166ebf53d61631007e17daa80d014611",
+    "vooy_design": "608cd0e131ff636718eceea69a011f15707d9be618da54089db7f72fdf41d00e",
+    "gaudio_finance": "12693febb1040f5a1acfb039fafcf219a3af7bc16e5a6a34e7bfe01ef271fb18",
+    "sierra_sales": "6b77b4e25b4621f31d08838187cb67966eb506a0cd1cded0b388d9125c0290ea",
+    "wonderful_partnerships": "599f61accf42d72a14f242be99e6ba3911d880db2fd4910a3cf6621bd3283f1b",
+    "mistral_scientist": "a5117cf75003fd8a6710581bfac1ad5a2dea7862b1961f11ca8e5250dc99d8f4",
+    "narwhal_junior": "3fcef965d5156eb6cdde84b821728188eafb5c090ab3256e9426cedd217dc3bb",
+    "aeolo_cofounder": "9a38524f0865b36d3c8b5c121e1336ba83d55e2e3cf91db5b6a215e57b2d21c8"
+  },
+  "capturedAt": "2026-10-08T08:00:07.969541+00:00",
+  "frozenBeforeCalls": true,
+  "source": "Same isolated 2026-10-07 snapshot; inherited v2 corpus and original five role snapshots",
+  "privacy": "Localhost fixtures only; private/runs owner-only; no fit, queue, recommendation or sends",
+  "limitations": [
+    "Extra eight roles: one query generation, no independent gold.",
+    "Original five: inherited two generations and exposure-biased sparse gold.",
+    "Method-blind model silver; retrospective current-profile evidence; development inspection."
+  ]
+}

@@ -26,6 +26,7 @@ type RawCompanyDataRow = {
 };
 
 type RawRecommendationRow = {
+  updated_at?: string | null;
   clicked_at: string | null;
   created_at: string;
   feedback: string | null;
@@ -99,6 +100,7 @@ type RawRecentRecommendationPromptRow = {
 };
 
 type RawPostingRecommendationRow = {
+  updated_at?: string | null;
   clicked_at: string | null;
   created_at: string | null;
   feedback: string | null;
@@ -162,6 +164,7 @@ type RawTalentProgressRow = {
 
 const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   id,
+  updated_at,
   kind,
   role_id,
   opportunity_type,
@@ -278,6 +281,7 @@ const TALENT_POSTING_ROLE_SELECT = `
   ),
   talent_opportunity_recommendation:talent_opportunity_recommendation!role_id (
     id,
+    updated_at,
     kind,
     opportunity_type,
     preference_fit,
@@ -295,7 +299,7 @@ const TALENT_POSTING_ROLE_SELECT = `
   )
 `;
 
-export type TalentOpportunityFeedback = "positive" | "negative";
+export type TalentOpportunityFeedback = "positive" | "negative" | "keep";
 
 export { OpportunityType as TalentOpportunityType };
 
@@ -407,6 +411,7 @@ export type TalentCompanyRequestIntroProgressFacts = {
 };
 
 export type TalentOpportunityHistoryItem = {
+  updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
   clickedAt: string | null;
   companyData: TalentOpportunityCompanyData | null;
@@ -564,6 +569,7 @@ function normalizeSourceType(value: unknown): "internal" | "external" {
 function normalizeFeedback(value: unknown): TalentOpportunityFeedback | null {
   if (value === "like") return "positive";
   if (value === "dislike") return "negative";
+  if (value === "keep") return "keep";
   return null;
 }
 
@@ -829,9 +835,10 @@ export function buildInternalRecommendationProgress(args: {
 
 export function toDatabaseFeedback(
   value: TalentOpportunityFeedback | null | undefined
-): "like" | "dislike" | null {
+): "like" | "dislike" | "keep" | null {
   if (value === "positive") return "like";
   if (value === "negative") return "dislike";
+  if (value === "keep") return "keep";
   return null;
 }
 
@@ -1234,7 +1241,7 @@ function buildTalentOpportunityHistoryQuery(args: {
       .or("saved_stage.is.null,saved_stage.neq.hidden");
   } else if (args.historyTab === "saved") {
     query = query.or(
-      "feedback.eq.like,and(feedback.is.null,saved_stage.eq.hidden)"
+      "feedback.eq.like,feedback.eq.keep,and(feedback.is.null,saved_stage.eq.hidden)"
     );
   } else if (args.historyTab === "archived") {
     query = query.eq("feedback", "dislike");
@@ -1485,7 +1492,7 @@ async function countTalentOpportunityRecommendations(args: {
       .or("saved_stage.is.null,saved_stage.neq.hidden");
   } else if (args.historyTab === "saved") {
     query = query.or(
-      "feedback.eq.like,and(feedback.is.null,saved_stage.eq.hidden)"
+      "feedback.eq.like,feedback.eq.keep,and(feedback.is.null,saved_stage.eq.hidden)"
     );
   } else {
     query = query.eq("feedback", "dislike");
@@ -1782,6 +1789,7 @@ function mapRecommendationRow(
         : null,
     recommendedAt: row.created_at,
     recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
+    updatedAt: row.updated_at ?? null,
     recommendationReasons: normalizeTextList(row.fit_reasons),
     recommendationScore:
       typeof row.score === "number" && Number.isFinite(row.score)
@@ -1909,6 +1917,7 @@ function mapPostingRoleRow(
       existingRecommendation?.created_at ??
       row.posted_at ??
       fallbackRecommendedAt,
+    updatedAt: existingRecommendation?.updated_at ?? null,
     recommendationConcerns: normalizeTextList(
       existingRecommendation?.tradeoffs ?? [],
       3
@@ -3075,6 +3084,7 @@ export async function assertCurrentTalentRecommendation(args: {
 async function acceptInternalRoleRecommendation(args: {
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
+  expectedUpdatedAt?: string | null;
   emailAcceptanceConfirmation?: Json | null;
   feedbackReason?: string | null;
   recommendationId: string;
@@ -3112,9 +3122,10 @@ async function acceptInternalRoleRecommendation(args: {
         : null;
 
   const { data, error } = await (args.admin.rpc as any)(
-    "accept_talent_internal_role_recommendation_v1",
+    "accept_talent_internal_role_recommendation_v2",
     {
       p_context: {},
+      p_expected_updated_at: args.expectedUpdatedAt ?? null,
       p_email_acceptance_confirmation: emailAcceptanceConfirmation,
       p_feedback_reason:
         String(args.feedbackReason ?? "")
@@ -3150,6 +3161,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
   action: "feedback" | "saved_stage" | "view" | "click" | "memo";
   admin: AdminClient;
   clearEmailAcceptanceConfirmation?: boolean;
+  expectedUpdatedAt?: string | null;
   emailAcceptanceConfirmation?: Json | null;
   feedback?: TalentOpportunityFeedback | null;
   feedbackReason?: string | null;
@@ -3161,11 +3173,14 @@ export async function updateTalentOpportunityHistoryItem(args: {
 }) {
   const rawOpportunityId = String(args.opportunityId ?? "").trim();
   const postingRoleId = getPostingRoleIdFromOpportunityId(rawOpportunityId);
+  if (postingRoleId && args.action === "feedback" && args.feedback === "keep") {
+    throw new Error("keep_requires_internal_recommendation");
+  }
   const opportunityId = postingRoleId
     ? await ensureTalentOpportunityRecommendationForPostingRole({
         admin: args.admin,
         allowInternalRecommendationCreation: !(
-          args.action === "feedback" && args.feedback === "positive"
+          args.action === "feedback" && (args.feedback === "positive" || args.feedback === "keep")
         ),
         roleId: postingRoleId,
         userId: args.userId,
@@ -3233,6 +3248,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
         recommendationType?.opportunity_type === OpportunityType.IntroRequest
       ) {
         const decision = await decideTalentCompanyIntro({
+          expectedUpdatedAt: args.expectedUpdatedAt,
           decision: args.feedback === "positive" ? "accept" : "decline",
           emailAcceptanceConfirmation:
             args.emailAcceptanceConfirmation ?? null,
@@ -3249,6 +3265,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
     }
     const acceptance = args.feedback === "positive"
       ? await acceptInternalRoleRecommendation({
+        expectedUpdatedAt: args.expectedUpdatedAt,
         admin: args.admin,
         clearEmailAcceptanceConfirmation: args.clearEmailAcceptanceConfirmation,
         emailAcceptanceConfirmation: args.emailAcceptanceConfirmation,
@@ -3260,7 +3277,7 @@ export async function updateTalentOpportunityHistoryItem(args: {
       return { ok: true, opportunityId, updatedAt: now, companyShared: acceptance.companyShared };
     }
 
-    const savedStage =
+    const savedStage = args.feedback === "keep" ? "saved" :
       args.feedback === "positive"
         ? await resolvePositiveFeedbackSavedStage({
             admin: args.admin,
@@ -3270,9 +3287,11 @@ export async function updateTalentOpportunityHistoryItem(args: {
           })
         : null;
     const { error } = await (args.admin.rpc as any)(
-      "update_talent_role_feedback_v1",
+      "update_talent_role_feedback_v2",
       {
         p_feedback: toDatabaseFeedback(args.feedback),
+        p_expected_updated_at: args.expectedUpdatedAt ?? null,
+        p_source: "career",
         p_feedback_at: args.feedback ? now : null,
         p_feedback_reason: args.feedback
           ? String(args.feedbackReason ?? "").trim() || null
@@ -3290,8 +3309,8 @@ export async function updateTalentOpportunityHistoryItem(args: {
     }
 
     if (
-      args.emailAcceptanceConfirmation !== undefined ||
-      args.clearEmailAcceptanceConfirmation
+      args.feedback !== "keep" && (args.emailAcceptanceConfirmation !== undefined ||
+      args.clearEmailAcceptanceConfirmation)
     ) {
       const { error: confirmationError } = await ((
         args.admin.from("talent_opportunity_recommendation" as any) as any

@@ -41,18 +41,45 @@ export default function SharedResumePage() {
     )
   );
   const endpoint = `/api/org/generated-resume?${query}`;
-  const requestKey = `${endpoint}:${attempt}`;
+  const accessKind =
+    router.query.kind === "storage" || router.query.kind === "document"
+      ? router.query.kind
+      : null;
+  const accessBody = JSON.stringify({
+    kind: accessKind,
+    documentId: query.get("documentId"),
+    talentId: query.get("talentId"),
+    workspaceId: query.get("workspaceId"),
+  });
+  const requestKey = `${accessKind ? accessBody : endpoint}:${attempt}`;
   const document = loaded?.key === requestKey ? loaded.document : null;
   const failed = loaded?.key === requestKey && loaded.failed;
   useEffect(() => {
     if (!router.isReady) return;
     const controller = new AbortController();
-    void fetchWithInternalAuth<Document>(endpoint, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
+    const request = accessKind
+      ? fetchWithInternalAuth<{ url: string }>("/api/org/resume-access", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: accessBody,
+          cache: "no-store",
+          signal: controller.signal,
+        }).then((result) => {
+          if (!controller.signal.aborted) {
+            const target = new URL(result.url, window.location.origin);
+            if (!["https:", "http:"].includes(target.protocol))
+              throw new Error("Invalid document address");
+            window.location.replace(target.href);
+          }
+          return null;
+        })
+      : fetchWithInternalAuth<Document>(endpoint, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+    void request
       .then((result) => {
-        if (result.renderVersion !== RESUME_RENDER_VERSION)
+        if (result && result.renderVersion !== RESUME_RENDER_VERSION)
           throw new Error("Reload required");
         if (!controller.signal.aborted)
           setLoaded({ key: requestKey, document: result, failed: false });
@@ -62,7 +89,7 @@ export default function SharedResumePage() {
           setLoaded({ key: requestKey, document: null, failed: true });
       });
     return () => controller.abort();
-  }, [endpoint, router.isReady, requestKey]);
+  }, [accessBody, accessKind, endpoint, router.isReady, requestKey]);
   async function download() {
     if (!document || busy.current) return;
     busy.current = true;

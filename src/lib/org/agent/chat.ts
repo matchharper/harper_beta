@@ -1,4 +1,5 @@
 import { buildCompanyContactEventPrompt } from "@/lib/org/agent/contactEventPrompt";
+import { billingActionNotice } from "@/lib/org/billing/types";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { loadCompanyContactEventContext } from "@/lib/org/agent/contactEvent.server";
 import type { User } from "@supabase/supabase-js";
@@ -37,6 +38,11 @@ import {
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
 import { buildOrgAgentBackgroundResultMessages } from "@/lib/org/agent/backgroundResultPrompt";
+import {
+  backgroundResultResponseFormat,
+  parseBackgroundResultParts,
+  type BackgroundResultCandidateTarget,
+} from "./backgroundResultParts";
 import {
   buildCompanyConversationInput,
   buildCompanySystemInput,
@@ -77,6 +83,7 @@ import {
   type OrgAgentToolExecutionState,
 } from "@/lib/org/agent/toolExecution";
 import { isOrgAgentToolName } from "@/lib/org/agent/tools";
+import type { CompanyCapabilityId } from "./capabilities/registry";
 import type { SlackRoleCreationExecutionContext } from "@/lib/org/agent/slackRoleCreation";
 import {
   getOrgAgentToolCompletionMaxTokens,
@@ -99,6 +106,7 @@ import {
 } from "@/lib/org/agent/toolDebug";
 import type {
   OrgAgentMention,
+  OrgAgentMoreDataKind,
   OrgAgentMessage,
   OrgAgentMessageMetadata,
   OrgAgentThinkingLog,
@@ -199,8 +207,10 @@ const MAX_TOTAL_TOOL_CALLS = 30;
 const TOOL_FREE_FINAL_MAX_TOKENS = 2_000;
 
 export async function generateOrgAgentBackgroundResultReply(args: {
+  candidateTargets?: BackgroundResultCandidateTarget[];
   companyName: string;
   firstCompanyFirstResultDelivery?: boolean;
+  requestedByCompany?: boolean;
   responseLocale?: OrgLocale;
   resultText: string;
   roleId: string;
@@ -215,11 +225,16 @@ export async function generateOrgAgentBackgroundResultReply(args: {
   const modelConfig = resolveOrgAgentModel(undefined);
   const surface = args.surface ?? "chat";
   const completion = await runCompletion({
+    responseFormat: args.candidateTargets?.length
+      ? backgroundResultResponseFormat(args.candidateTargets.map(candidate => candidate.id))
+      : undefined,
     allowTools: false,
-    maxTokens: TOOL_FREE_FINAL_MAX_TOKENS,
+    maxTokens: TOOL_FREE_FINAL_MAX_TOKENS + (args.candidateTargets?.length ?? 0) * 100,
     messages: buildOrgAgentBackgroundResultMessages({
+      candidateTargets: args.candidateTargets,
       companyName: args.companyName,
       firstCompanyFirstResultDelivery: args.firstCompanyFirstResultDelivery,
+      requestedByCompany: args.requestedByCompany,
       requestMessage: args.userMessage,
       resultText,
       roleId: args.roleId,
@@ -240,7 +255,14 @@ export async function generateOrgAgentBackgroundResultReply(args: {
   ).trim();
   if (!reply)
     throw new Error("Company-side LLM returned an empty result reply");
-  return { model: completion.model, reply };
+  const parts = args.candidateTargets?.length
+    ? parseBackgroundResultParts(reply, args.candidateTargets.map(candidate => candidate.id))
+    : undefined;
+  return {
+    model: completion.model,
+    reply: parts ? parts.map(part => part.text).join("\n\n") : reply,
+    parts,
+  };
 }
 type OrgAgentTurnUsage = NonNullable<OrgAgentMessageMetadata["llmUsage"]>;
 
@@ -430,6 +452,7 @@ export async function runOrgAgentCompletion(args: {
   model: OrgAgentModelId;
   onTextDelta?: (delta: string) => void | Promise<void>;
   reasoningEffort?: OrgAgentReasoningEffort;
+  responseFormat?: ReturnType<typeof backgroundResultResponseFormat>;
   signal?: AbortSignal;
   strictModel?: boolean;
   surface?: "chat" | "slack";
@@ -456,6 +479,7 @@ export async function runOrgAgentCompletion(args: {
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens }),
       messages: args.messages as any,
+      ...(args.responseFormat ? { response_format: args.responseFormat } : {}),
       temperature: ORG_AGENT_TEMPERATURE,
       // Gemini thought signatures must not cross provider implementations.
       ...(args.model === ORG_AGENT_GEMINI_FLASH_MODEL && args.upstreamProvider
@@ -560,6 +584,7 @@ export async function runOrgAgentToolLoop(
     assertCanContinue?: () => Promise<void>;
     mentions: OrgAgentMention[];
     model: OrgAgentModelId;
+    initialCapabilities?: readonly CompanyCapabilityId[];
     responseLocale?: OrgLocale | "auto";
     readAudience: "caller" | "company_safe";
     referenceAttachments?: ChatAttachmentPayload[];
@@ -595,6 +620,11 @@ export async function runOrgAgentToolLoop(
   const loadedCapabilities = continuationCapabilities(
     args.context.conversationMessages
   );
+  // Trusted callers can expose known product capabilities without a loader round.
+  // Availability does not grant authorization; execution keeps its normal checks.
+  for (const capability of args.initialCapabilities ?? []) {
+    loadedCapabilities.add(capability);
+  }
   const messages: OrgAgentLlmMessage[] = [
     { role: "system", content: "" },
     ...buildCompanyConversationInput({
@@ -998,6 +1028,8 @@ export async function runOrgAgentToolLoop(
         });
       } catch (error) {
         args.signal?.throwIfAborted();
+        const billingNotice = billingActionNotice(error);
+        if (billingNotice) state.billingNotice = billingNotice;
         restoreLongTextVisibility({
           completeTargets: completeBefore,
           observedFingerprints: observedBefore,
@@ -1024,7 +1056,7 @@ export async function runOrgAgentToolLoop(
         emitToolStatus("error");
         messages.push({
           content: serializeOrgAgentToolError({
-            kind: isInputError ? "input" : "execution",
+            kind: billingNotice ? "blocked" : isInputError ? "input" : "execution",
             message: errorMessage,
             name: toolName,
           }),
@@ -1125,7 +1157,7 @@ export async function runOrgAgentToolLoop(
   };
 }
 
-function buildAssistantMetadata(args: {
+export function buildAssistantMetadata(args: {
   fallbackReason: ChatCompletionFallbackReason | null;
   model: string;
   state: OrgAgentToolExecutionState;
@@ -1133,6 +1165,7 @@ function buildAssistantMetadata(args: {
 }): OrgAgentMessageMetadata {
   const lastRequestChange = args.state.requestChanges.at(-1);
   return {
+    ...(args.state.billingNotice && { billingNotice: args.state.billingNotice }),
     ...(args.state.actions.length > 0 && { actions: args.state.actions }),
     ...(args.state.candidateConnectionConfirmations.length > 0 && {
       candidateConnectionConfirmations:
@@ -1564,6 +1597,8 @@ export async function runOrgAgentChat(args: {
   mentions?: OrgAgentMention[];
   message: string;
   model?: unknown;
+  initialCapabilities?: readonly CompanyCapabilityId[];
+  initialDataKinds?: readonly OrgAgentMoreDataKind[];
   responseLocale?: OrgLocale;
   onAssistantProgress?: (message: OrgAgentMessage) => Promise<boolean>;
   roleId?: string | null;
@@ -1748,6 +1783,7 @@ export async function runOrgAgentChat(args: {
         beforeMessageId: userMessage.id,
         conversation,
         currentUserMessageId: userMessage.id,
+        initialDataKinds: args.initialDataKinds,
         messageType: args.slackThreadId ? "slack" : "chat",
         readAudience: args.slackThreadId ? "company_safe" : "caller",
         scopeKey: args.slackThreadId
@@ -1793,6 +1829,7 @@ export async function runOrgAgentChat(args: {
       mentions,
       model: modelConfig.model,
       responseLocale: args.responseLocale,
+      initialCapabilities: args.initialCapabilities,
       ...(!args.slackThreadId && args.emit
         ? {
             onTextDelta: textStream.append,

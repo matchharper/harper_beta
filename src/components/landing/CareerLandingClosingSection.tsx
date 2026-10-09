@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Reveal from "@/components/landing/Animation/Reveal";
+import styles from "./CareerLandingClosingSection.module.css";
 
 export const CAREER_LANDING_CLOSING_COPY = {
   ko: {
@@ -19,10 +20,34 @@ export const CAREER_LANDING_CLOSING_COPY = {
 export default function CareerLandingClosingSection({
   copy,
   action,
+  variant = "career",
 }: {
   copy: { title: readonly string[]; desc?: string; note: string };
   action: ReactNode;
+  variant?: "career" | "company";
 }) {
+  if (variant === "company") {
+    return (
+      <section className={styles.company}>
+        <div className={styles.container}>
+          <div className={styles.content}>
+            <div className={styles.copy}>
+              <h2 className={styles.title}>{copy.title.join(" ")}</h2>
+              {copy.desc && (
+                <p
+                  className={styles.description}
+                  dangerouslySetInnerHTML={{ __html: copy.desc }}
+                />
+              )}
+              {copy.note && <p className={styles.note}>{copy.note}</p>}
+            </div>
+            <div className={styles.actions}>{action}</div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section id="cta" className="px-4 py-20 md:px-10 md:py-32">
       <div className="mx-auto w-full max-w-[1080px]">

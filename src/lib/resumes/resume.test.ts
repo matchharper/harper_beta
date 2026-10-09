@@ -50,7 +50,7 @@ const create = () => ({
   content: structuredClone(sample),
 });
 
-test("create/update contracts and private fields are enforced", () => {
+test("create, update and copy contracts and private fields are enforced", () => {
   assert.equal(parseResumeInput(create()).action, "create");
   assert.throws(() =>
     parseResumeInput({ ...create(), document_name: undefined })
@@ -66,6 +66,20 @@ test("create/update contracts and private fields are enforced", () => {
   assert.throws(() =>
     parseResumeInput({ ...create(), user_id: "someone-else" })
   );
+  const copy = {
+    action: "copy",
+    document_id: "c51c76d0-3a84-49b5-835a-dbc4c795980b",
+    expected_revision: 1,
+    document_name: "김하늘_이력서_PM_v2",
+  };
+  assert.equal(parseResumeInput(copy).action, "copy");
+  assert.throws(() => parseResumeInput({ ...copy, document_name: undefined }));
+  assert.throws(() => parseResumeInput({ ...copy, document_id: undefined }));
+  assert.throws(() =>
+    parseResumeInput({ ...copy, expected_revision: undefined })
+  );
+  assert.throws(() => parseResumeInput({ ...copy, content: sample }));
+  assert.throws(() => parseResumeInput({ ...copy, source_refs: [] }));
 });
 
 test("filename preserves identifying features and cannot become a path", () => {
@@ -103,6 +117,57 @@ test("stable entry IDs survive revision, unknown IDs cannot be injected", () => 
       content: original.content,
     })
   );
+});
+
+test("copy gives every entry a new ID, applies requested changes and preserves the source", () => {
+  const original = structureResume(parseResumeInput(create()));
+  const snapshot = structuredClone(original);
+  const sourceId = "c51c76d0-3a84-49b5-835a-dbc4c795980b";
+  const copied = structureResume(
+    parseResumeInput({
+      action: "copy",
+      document_id: sourceId,
+      expected_revision: 1,
+      document_name: "김하늘_이력서_PM_v2",
+      changes: [
+        {
+          op: "set",
+          path: `/experience/${original.content.experience![0].id}/bullets/0`,
+          value: "새 포지션에 맞춰 수정한 설명",
+        },
+      ],
+    }),
+    original
+  );
+  assert.deepEqual(original, snapshot);
+  assert.equal(
+    copied.content.experience![0].bullets![0],
+    "새 포지션에 맞춰 수정한 설명"
+  );
+  assert.equal(
+    copied.content.experience![0].bullets![1],
+    original.content.experience![0].bullets![1]
+  );
+  assert.notEqual(
+    copied.content.experience![0].id,
+    original.content.experience![0].id
+  );
+  assert.notEqual(
+    copied.content.education![0].id,
+    original.content.education![0].id
+  );
+  assert.deepEqual(copied.source_document_ids, [sourceId]);
+  assert.deepEqual(copied.source_refs, []);
+  const unchangedCopy = structureResume(
+    parseResumeInput({
+      action: "copy",
+      document_id: sourceId,
+      expected_revision: 1,
+      document_name: "동일 내용의 복사본",
+    }),
+    original
+  );
+  assert.equal(unchangedCopy.content.basics.name, original.content.basics.name);
 });
 
 test("renderer escapes HTML, rejects unsafe links, keeps only visible facts", () => {

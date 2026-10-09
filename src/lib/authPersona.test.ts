@@ -34,10 +34,7 @@ test("company destinations do not become talent destinations", () => {
     isTalentAuthDestination({ flow: "", nextPath: "/search" }),
     false
   );
-  assert.equal(
-    isTalentAuthDestination({ flow: "", nextPath: "/" }),
-    false
-  );
+  assert.equal(isTalentAuthDestination({ flow: "", nextPath: "/" }), false);
 });
 
 test("email onboarding callbacks always resolve to career", () => {
@@ -112,6 +109,25 @@ test("company entry sources are inferred from the callback destination", () => {
   );
   assert.equal(inferCompanyAuthEntrySource("/org/example"), "org");
   assert.equal(inferCompanyAuthEntrySource("/unknown"), "auth_callback");
+});
+
+test("company signup failures return to the login screen while preserving invitation and purchase context", () => {
+  assert.equal(
+    resolveAuthCallbackErrorDestination({
+      error: "no_user",
+      isTalentDestination: false,
+      nextPath: "/org/billing?orgId=company&interval=month",
+    }),
+    "/org/billing?orgId=company&interval=month&authError=no_user"
+  );
+  assert.equal(
+    resolveAuthCallbackErrorDestination({
+      error: "no_user",
+      isTalentDestination: false,
+      nextPath: "//untrusted.example/org",
+    }),
+    "?error=no_user"
+  );
 });
 
 test("org logins return to the requested org route for talent-only users", () => {

@@ -14,15 +14,13 @@
 ```bash
 python3 scripts/company_role_fit_recovery_audit.py preflight \
   --company-workspace-id <workspace_id> \
-  --role-id <role_id> [--role-id <role_id> ...] \
-  [--allow-non-auto-role]
+  --role-id <role_id> [--role-id <role_id> ...]
 
 python3 scripts/company_role_fit_recovery_audit.py prepare \
   --company-workspace-id <workspace_id> \
   --role-id <role_id> [--role-id <role_id> ...] \
   --sql-file <codex_authored_read_only_sql> \
-  --limit 50 \
-  [--allow-non-auto-role]
+  --limit 50
 
 python3 scripts/company_role_fit_recovery_audit.py finish \
   --run-path <run_directory> \
@@ -62,7 +60,7 @@ Company Context Run 런북은 신규 fit workflow를 확인할 때만 참고한�
 첫 Wonderful run의 기본값:
 
 - Company: Wonderful의 정확한 company workspace
-- Role scope: active, unexpired, internal, non-test, `is_auto=true`
+- Role scope: active, unexpired, internal, non-test
 - Mode: `local_read_only`
 - Unique talent limit: 50
 - Absolute unique talent limit: 150
@@ -72,7 +70,7 @@ Company Context Run 런북은 신규 fit workflow를 확인할 때만 참고한�
 
 Company 이름의 부분 문자열만으로 workspace를 고르지 않는다. Exact workspace ID를 먼저 resolve하고 모든 role이 같은 workspace인지 확인한다.
 
-사용자가 정확한 role을 지정한 manual audit에서만 `--allow-non-auto-role`을 사용할 수 있다. 이 flag는 `is_auto=false`만 예외로 허용하며 active·미만료·internal·non-test 검증은 그대로 유지한다. 자동·정기 실행이나 회사 전체 role 선택에는 사용하지 않는다.
+대상 Role ID를 명시하고 active·미만료·internal·non-test 조건을 확인한다.
 
 ## 4. Preflight
 
@@ -90,7 +88,6 @@ Company 이름의 부분 문자열만으로 workspace를 고르지 않는다. Ex
 - 필요한 relation과 column이 존재함
 - Wonderful workspace가 정확히 하나 resolve됨
 - 대상 role이 active, unexpired, internal, non-test임
-- 자동 run이면 모두 `is_auto=true`
 - `talent_opportunity_fit.company_side_evaluation_metadata`를 읽을 수 있음
 - `talent_contexts`, `talent_behavior_contexts`, `talent_behavior_context_changes`, recommendation, progress, tag를 읽을 수 있음
 - 각 대상 talent의 Behavior Context가 현재 builder version이고 미반영 change가 0건임
@@ -134,7 +131,6 @@ Manifest에는 raw resume, message, email, company private request를 넣지 않
 - `status='active'`
 - `is_expired=false`
 - `information.testOnly`이 true가 아님
-- automatic run이면 `company_internal_roles.is_auto=true`
 
 각 role에는 최소한 다음을 담는다.
 
@@ -484,7 +480,6 @@ Cleanup은 별도 실행으로 수행한다.
 ## 19. 종료 체크리스트
 
 - [ ] 정확한 company workspace와 role scope만 사용했다.
-- [ ] Automatic run에서 `is_auto=false` role을 포함하지 않았다.
 - [ ] Test-only role과 privacy opt-out을 제외했다.
 - [ ] N은 pair가 아니라 unique talent 상한이었다.
 - [ ] 같은 사람의 duplicate identity를 제거했다.

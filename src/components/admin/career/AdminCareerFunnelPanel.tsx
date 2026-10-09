@@ -40,9 +40,9 @@ const FUNNEL_TOOLTIPS: Record<string, string> = {
   onboarding_role:
     "logs.type='career_click_onboarding_next_step_2' 유저 수입니다. 완료 유저가 로그보다 많으면 talent_setting.is_onboarding_done으로 보정합니다.",
   onboarding_profile:
-    "logs.type='career_click_onboarding_next_step_3' 유저 수입니다. 완료 유저가 로그보다 많으면 talent_setting.is_onboarding_done으로 보정합니다.",
+    "logs.type='career_click_onboarding_next_step_3' 유저 수입니다. 실험군에 따라 3단계 화면이 다릅니다. 완료 유저가 로그보다 많으면 talent_setting.is_onboarding_done으로 보정합니다.",
   onboarding_visibility:
-    "logs.type='career_click_onboarding_submit_button' 또는 career_click_onboarding_submit 유저 수입니다. 완료 유저가 로그보다 많으면 talent_setting.is_onboarding_done으로 보정합니다.",
+    "logs.type='career_click_onboarding_submit_button' 또는 career_click_onboarding_submit 유저 수입니다. 실험군에 따라 마지막 단계 화면이 다릅니다. 완료 유저가 로그보다 많으면 talent_setting.is_onboarding_done으로 보정합니다.",
   onboarding_completed:
     "talent_activity_events.event_type='onboarding_completed' 첫 발생 기준입니다. 과거 이벤트가 없으면 talent_setting.is_onboarding_done=true 및 updated_at으로 보정합니다.",
   returned_after_first_recommendation:

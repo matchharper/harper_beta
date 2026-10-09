@@ -7,6 +7,12 @@ display_information:
   background_color: "#111827"
 
 features:
+  rich_previews:
+    is_active: true
+    entity_types:
+      - slack#/entities/item
+  unfurl_domains:
+    - matchharper.com
   bot_user:
     display_name: Harper
     always_online: true
@@ -26,6 +32,8 @@ oauth_config:
       - groups:history
       - groups:read
       - groups:write
+      - links:read
+      - links:write
       - users:read
       - users:read.email
 
@@ -35,6 +43,8 @@ settings:
     bot_events:
       - app_mention
       - app_uninstalled
+      - entity_details_requested
+      - link_shared
       - message.channels
       - message.groups
   interactivity:

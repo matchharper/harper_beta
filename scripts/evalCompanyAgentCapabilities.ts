@@ -11,7 +11,8 @@ import { companyDataTargetKey } from "../src/lib/org/agent/companyDataCatalog";
 import { humanizeOrgRoleStatus, humanizeOrgWorkMode, humanizeOrgEmploymentType } from "../src/lib/org/pipelineStage";
 import type { OrgAgentLoopDependencies } from "../src/lib/org/agent/chat";
 import type { OrgAgentConversationInput } from "../src/lib/org/agent/conversationInput";
-import { readFrozenDataset, evaluateContactLifecycle, fixtureRoleName, evaluationExecutionComplete } from "./lib/companyAgentEvaluationContract";
+import { WorkspaceBillingError } from "../src/lib/org/billing/types";
+import { readFrozenDataset, evaluateContactLifecycle, fixtureRoleName, evaluationExecutionComplete, createEvaluationReadAdmin } from "./lib/companyAgentEvaluationContract";
 
 async function main() {
 const root = path.resolve(__dirname, "..");
@@ -75,19 +76,27 @@ globalThis.fetch = (async (input: any, init?: any) => {
 // A throwing adapter is also passed below. No production executor or DB read
 // is reachable through the synthetic path.
 const { runOrgAgentToolLoop, runOrgAgentCompletion, appendRequiredPresentations } = await import("../src/lib/org/agent/chat");
-const { ORG_AGENT_GEMINI_FLASH_MODEL, DEFAULT_ORG_AGENT_REASONING_EFFORT } = await import("../src/lib/org/agent/modelConfig");
+const { ORG_AGENT_GEMINI_FLASH_MODEL, isOrgAgentModelId, getOrgAgentReasoningEffort } = await import("../src/lib/org/agent/modelConfig");
+const evaluationModel = option("model") ?? ORG_AGENT_GEMINI_FLASH_MODEL;
+if (!isOrgAgentModelId(evaluationModel) || !evaluationModel.includes("/")) {
+  throw Error("A supported OpenRouter company-side model is required");
+}
 const { conversationCompatibilityText } = await import("../src/lib/org/agent/conversationInput");
 const { parseOrgAgentContactRef } = await import("../src/lib/org/agent/contacts");
 const copy = copyMode === "real" ? await import("../src/lib/companyTalentRequests/copy") : null;
 const { candidateContactWritingEvidence } = await import("../src/lib/companyTalentRequests/writingEvidence");
 const { enforceOrgAgentReplyInvariants, getOrgAgentRequiredPresentationTexts, selectRecentlyPresentedContactDraftReferences, captureOrgAgentContactDraftState } = await import("../src/lib/org/agent/toolState");
-const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/org/slackMemberAccess.ts", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "src/i18n/org", "src/app/api/internal/org-agent/slack-turn/route.ts", "src/app/api/org/locale/route.ts", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").sort();
+const { readMatchingRunHistory } = await import("../src/lib/companyFirstSearch/history");
+const { formatMatchingRunHistory } = await import("../src/lib/org/agent/promptFormat");
+const { executeOrgAgentTool } = await import("../src/lib/org/agent/toolExecution");
+const { buildCompanyIntroTalentRead } = await import("../src/lib/org/agent/data");
+const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/org/slackMemberAccess.ts", "src/lib/companyFirstSearch/history.ts", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "src/i18n/org", "src/app/api/internal/org-agent/slack-turn/route.ts", "src/app/api/org/locale/route.ts", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").sort();
 const sourceFingerprint = sha(sourceFiles.map((file) => `${file}:${sha(readFileSync(path.join(root, file)))}`).join("\n"));
 const manifest: any = {
   task: "company-side-conversational-qa", datasetVersion: version, runId, createdAt: new Date().toISOString(),
   sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
   dirty: true, sourceFingerprint, datasetFiles: frozen.files,
-  model: ORG_AGENT_GEMINI_FLASH_MODEL, provider: "OpenRouter", reasoning: DEFAULT_ORG_AGENT_REASONING_EFFORT, temperature: 0.5,
+  model: evaluationModel, provider: "OpenRouter", reasoning: getOrgAgentReasoningEffort(evaluationModel), temperature: evaluationModel === "anthropic/claude-haiku-5.5" ? null : 0.5,
   mode, streaming, responseLocale, timeoutMsPerTurn: 120_000, layer: "real-model-production-loop-synthetic-tools",
   copyMode, copyModelContract: "Direct send preserves main-agent final copy via production prepareDirectCandidateMessage. Review drafts use existing copy.ts (Claude, Luna fallback). No delivery or DB calls.",
   rawArtifactPath: runDir, metricSummary: "Pending manual semantic review; structural execution is not a quality pass.",
@@ -107,6 +116,9 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
   const allRoles = [role, ...(variant.additionalRoles ?? [])];
   const roles = variant.workspaceRoleIds ? variant.workspaceRoleIds.map((id: string) => { const r = allRoles.find((r: any) => r.roleId === id); if (!r) throw Error("Unknown fixture Role"); return r; }) : allRoles;
   const visibleCandidates = roles.length ? candidates : [];
+  const readAdmin = variant.readTables ? createEvaluationReadAdmin(variant.readTables) : null;
+  const matchingHistoryText = readAdmin && Object.hasOwn(variant.readTables, "company_first_search_runs")
+    ? formatMatchingRunHistory(await readMatchingRunHistory({ admin: readAdmin as any, workspaceId })) : null;
   const history: OrgAgentConversationInput[] = (variant.history ?? []).map((m: any, i: number) => ({ id: i + 1, createdAt: dataset.clock, speaker: m.role === "user" ? "팀원 A" : "Harper", source: m.source ?? (m.role === "user" ? "company" : "harper"), references: m.references ?? "", complete: true, ...m }));
   const messageMetadata: Array<{ role: string; metadata: unknown }> = history.map((m) => ({ role: m.role, metadata: {} }));
   const trace: any[] = [], effects: any[] = [], outputs: any[] = [], completions: any[] = [];
@@ -132,6 +144,16 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
     return { items: items.slice(offset, offset + limit), offset, limit, hasMore: offset + limit < items.length, totalCount: items.length, returnedCount: items.slice(offset, offset + limit).length };
   };
   const readCandidate = (c: any, includeProfile: boolean) => {
+    if (["company_intro", "intro_requested"].includes(c.stage)) {
+      return buildCompanyIntroTalentRead(positions(c).map((p: any) => ({
+        ...p, talent: c, recommendationId: `synthetic-rec-${c.talentId}`,
+        companyIntro: { status: c.stage === "company_intro" ? "ready" : "awaiting_talent",
+          requestedAt: c.stage === "intro_requested" ? "2026-09-20T02:59:00Z" : null,
+          candidateSentAt: c.stage === "intro_requested" ? "2026-09-20T03:00:00Z" : null,
+          harperRecommendation: c.harperRecommendation ?? null },
+      })) as any, variant.followupAt ? [{ talent_id: c.talentId, role_id: role.roleId,
+        kind: "internal_followup_sent", created_at: variant.followupAt }] as any : []);
+    }
     const profile = includeProfile && c.stage !== "intro_requested";
     return ({
     candidate: publicCandidate(c), candidatePreferredLanguage: "Korean", profileIncluded: profile,
@@ -149,8 +171,10 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
     let result: any;
     const fault = (phase: string) => {
       for (const [i, f] of (variant.faults ?? []).entries()) {
-        if (injectedFaults.has(i) || f.phase !== phase || f.tool !== args.name || (f.action && f.action !== x.action) || (f.talentId && f.talentId !== x.talentId)) continue;
-        injectedFaults.add(i); throw Error(f.message ?? "Injected transport failure; check persisted state before retrying");
+        if ((!f.repeat && injectedFaults.has(i)) || f.phase !== phase || f.tool !== args.name || (f.action && f.action !== x.action) || (f.talentId && f.talentId !== x.talentId)) continue;
+        injectedFaults.add(i);
+        if (f.billingCode === "credits_exhausted") throw new WorkspaceBillingError(f.billingCode);
+        throw Error(f.message ?? "Injected transport failure; check persisted state before retrying");
       }
     };
     fault("before");
@@ -353,9 +377,12 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       result = { status: resolved.changes.length ? "updated" : "already_reflected", summary: resolved.summary };
     }
     else if (args.name === "request_matching_search") { assertRole(x.roleId); effects.push({ name: args.name, input: x }); result = { status: "queued", requestedRoleName: role.name }; }
+    else if (args.name === "get_more_data" && readAdmin) {
+      result = await executeOrgAgentTool({ ...args, admin: readAdmin as any });
+    }
     else if (args.name === "get_more_data") result = { requestedKinds: x.kinds ?? [], members: { complete: true, items: [], totalCount: 0, returnedCount: 0 } };
     else throw Error(`Fixture adapter has no implementation for ${args.name}; not a success.`);
-    args.state.toolResults.push({ callId: args.callId, name: args.name, status: "success", summary: "Synthetic tool adapter result" });
+    if (!(args.name === "get_more_data" && readAdmin)) args.state.toolResults.push({ callId: args.callId, name: args.name, status: "success", summary: "Synthetic tool adapter result" });
     traceEntry.result = structuredClone(result);
     fault("after");
     return result;
@@ -372,17 +399,18 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       roles, completeRoleRequestIds: [],
       rolesText: JSON.stringify(roles.map((r: any) => ({ roleId: r.roleId, name: r.name, status: r.status }))),
       recentRecommendationsText: JSON.stringify(visibleCandidates.flatMap(positions).slice(0, variant.defaultCandidateLimit ?? 20).map((c: any) => variant.compactCandidates ? { talentId: c.talentId, name: c.name, roleId: c.roleId, stage: c.stage } : c)), recentContactsText: "최근 연락의 상세 이력은 read_talent 또는 연락 조회에서 확인 가능",
-      conversationMessages: history, conversationText: conversationCompatibilityText(history), summariesText: variant.summary ?? "-", contextNotesText: roles.length ? `현재 대화 Role: ${variant.currentRoleId === null ? "workspace 전체" : role.roleId}; 기본 후보 목록은 일부이며 전체는 get_talents로 조회` : "역할이 아직 없는 일반 회사 대화",
+      conversationMessages: history, conversationText: conversationCompatibilityText(history), summariesText: variant.summary ?? "-", contextNotesText: [roles.length ? `현재 대화 Role: ${variant.currentRoleId === null ? "workspace 전체" : role.roleId}; 기본 후보 목록은 일부이며 전체는 get_talents로 조회` : "역할이 아직 없는 일반 회사 대화", matchingHistoryText].filter(Boolean).join("\n\n"),
       defaultLongTextObservations: [], inProgressRoleCreationsText: "-", pendingUpdateText: "-", recentToolContextText: "-",
     } as unknown as Parameters<typeof runOrgAgentToolLoop>[0]["context"];
     try {
       const result = await runOrgAgentToolLoop({
         actorId, actorLabel: "팀원 A", admin: deadAdmin as any, context,
         conversation: { id: conversationId, company_workspace_id: workspaceId, role_id: variant.currentRoleId === null ? null : roles[0]?.roleId ?? null } as any,
-        currentUserMessageId: currentId, mentions: [], model: ORG_AGENT_GEMINI_FLASH_MODEL,
+        currentUserMessageId: currentId, mentions: [], model: evaluationModel,
         readAudience: "company_safe", scopeKey: `synthetic-${version}`, source: variant.surface ?? "slack", responseLocale: responseLocale ?? undefined,
         slackThreadId: null, user: { id: actorId, email: "user@example.invalid" } as any,
         userLabel: "팀원 A", userMessage, allowSilentCompletion: variant.allowSilentCompletion === true,
+        serviceAnswerExamplesText: variant.serviceAnswerExamplesText ?? null,
         signal: AbortSignal.timeout(120_000),
         ...(streaming ? { onTextDelta: () => {}, onTextReset: () => {} } : {}),
       }, { executeTool, requestTime: new Date(dataset.clock), complete: async (args) => {
@@ -406,7 +434,7 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       } });
       const reply = appendRequiredPresentations({ requiredTexts: getOrgAgentRequiredPresentationTexts(result.state), reply: enforceOrgAgentReplyInvariants(result.state, result.reply) });
       if ("completionError" in result && result.completionError) error = String(result.completionError);
-      outputs.push({ userMessage, reply, usage: result.usage, toolResults: result.state.toolResults, completionError: "completionError" in result ? result.completionError : null });
+      outputs.push({ userMessage, reply, usage: result.usage, toolResults: result.state.toolResults, billingNotice: result.state.billingNotice ?? null, completionError: "completionError" in result ? result.completionError : null });
       history.push({ id: currentId, role: "user", content: userMessage, speaker: "팀원 A", source: "company", complete: true, references: "" });
       const refs = result.state.contactDraftRefs.length ? result.state.contactDraftRefs : result.state.contactDraftRef ? [result.state.contactDraftRef] : [];
       history.push({ id: currentId + 1, role: "assistant", content: reply, speaker: "Harper", source: "harper", complete: true, toolNames: [...new Set(result.state.toolResults.map((result) => result.name))], references: refs.map((ref) => `candidate_contact_ref{contact_id=${ref.contactId};revision=${ref.revision}}`).join(",") });

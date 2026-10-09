@@ -1,4 +1,11 @@
 import type { OrgLocale } from "@/i18n/org/locale";
+import {
+  DEFAULT_INTRO_SEARCH_DAYS,
+  DEFAULT_INTRO_SEARCH_HOUR,
+  parseIntroSearchDays,
+  parseIntroSearchHour,
+  type IntroSearchDay,
+} from "@/lib/org/introSearchSchedule";
 
 const DEFAULT_PUBLIC_SITE_URL = "https://matchharper.com";
 
@@ -132,27 +139,50 @@ export function formatOptional(value: unknown) {
 
 export function buildOrgRoleCreatedSlackMessage(args: {
   actor: OrgSlackUser;
+  introSearchDate?: IntroSearchDay[];
+  introSearchTime?: number;
+  isCompanyFirstSearch: boolean;
   locale?: OrgLocale;
   roleId: string;
   roleName: string;
   workspace: OrgSlackWorkspace;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
+  const days = parseIntroSearchDays(args.introSearchDate) ?? DEFAULT_INTRO_SEARCH_DAYS;
+  const hour = parseIntroSearchHour(args.introSearchTime) ?? DEFAULT_INTRO_SEARCH_HOUR;
+  const englishSchedule = `every ${days.join(", ")} at ${String(hour).padStart(2, "0")}:00 KST`;
+  const koreanDayNames: Record<IntroSearchDay, string> = {
+    Mon: "월", Tue: "화", Wed: "수", Thu: "목", Fri: "금", Sat: "토", Sun: "일",
+  };
+  const koreanSchedule = `매주 ${days.map((day) => koreanDayNames[day]).join("·")}요일 ${hour < 12 ? "오전" : "오후"} ${hour % 12 || 12}시(한국 시간)`;
   if (args.locale === "en")
     return [
       `Harper is starting to match candidates for *${formatSlackLink(roleUrl, args.roleName)}* at ${escapeSlackText(args.workspace.companyName)}.`,
       "",
-      "Harper searches for candidates who fit this role. After confirming fit and interest, Harper adds them to Ready to connect for your decision. When Company-first suggestions are on, potential matches may also appear in Suggested candidates. They have not accepted the role; use Request intro if you want Harper to contact them.",
+      "*How candidates reach you*",
+      "• Harper introduces the role to suitable candidates. After someone accepts, Harper prepares their introduction and sends it to Ready to connect for your decision.",
+      args.isCompanyFirstSearch
+        ? `• *Company-first suggestions are on:* Harper starts a new search ${englishSchedule}. If it finds suitable people, they appear in Suggested candidates.`
+        : `• *Company-first suggestions are off:* Turn them on in the role settings to start new searches ${englishSchedule}.`,
       "",
-      "Review candidates in Ready to connect and decide whether to connect. If you choose Connect, select Email intro or Direct contact. If you choose Reject, Harper closes the process for that role and notifies the candidate. Feedback on candidates and role priorities helps improve future recommendations.",
+      "*What you can do*",
+      "• Ask Harper to search this role now if you want to review potential matches at any time.",
+      "• Suggested candidates have not accepted the role. Use Request intro if you want Harper to contact one of them.",
+      "• In Ready to connect, choose whether to connect with each candidate. Tell Harper what matters to your team so future matches can reflect it.",
     ].join("\n");
   return [
-    `지금부터 ${escapeSlackText(args.workspace.companyName)}의 *${formatSlackLink(roleUrl, args.roleName)}* 역할의 매칭을 시작합니다.`,
-    "🔥 앞으로 Harper가 해당 역할의 기준과 팀의 선호도에 맞는 후보자를 찾아 추천할게요.",
+    `지금부터 ${escapeSlackText(args.workspace.companyName)}의 *${formatSlackLink(roleUrl, args.roleName)}* 역할의 리크루팅을 시작합니다.`,
     "",
-    "추천되는 후보자는 단순히 기준에 맞는 사람을 찾아 알려드리는 게 아니에요. Harper 인재풀을 검토하고 부족한 정보가 있다면 후보자에게 먼저 물어본 뒤, 회사와 역할을 충분히 소개하고 만나보고 싶다고 응한 분들만 알려드려요.",
+    "*후보자를 찾고 소개하는 방법*",
+    "• Harper가 적합한 후보자에게 역할을 먼저 소개해요. 후보자가 수락하면 Harper가 소개를 준비해 ‘연결 대기’에서 알려드려요.",
+    args.isCompanyFirstSearch
+      ? `• *정기 후보 검색 켜짐:* ${koreanSchedule}에 새 후보자 검색을 시작해요. 적합한 분이 있으면 ‘먼저 제안 가능한 후보’에 보여드려요.`
+      : `• *정기 후보 검색 꺼짐:* 역할 설정에서 켜면 ${koreanSchedule}에 새 후보자 검색을 시작해요.`,
     "",
-    "따라서 당장 많은 연결 제안을 드리기보다는, 천천히 정말 적합한 분들만 연결해드릴게요. 연결 대기 후보자를 검토한 뒤 연결을 수락하거나 거절하면 그 결정에 맞춰 다음 단계를 진행해요. 연결을 수락하면 소개 이메일로 양측을 연결하고, 연결을 거절하면 회사가 더 진행하지 않기로 했다는 종료 결정을 후보자에게 안내해요. 평소에도 어떤 점을 선호하시는지, 특정 후보자가 왜 기준에 맞지 않았는지 자세히 알려주실수록 더 정확한 매칭에 반영할게요.",
+    "*필요할 때 할 일*",
+    "• 지금 먼저 연락을 보낼 수 있는 후보자를 확인하고 싶다면 Harper에게 이 역할의 후보 검색을 요청할 수 있어요.",
+    "• ‘먼저 제안 가능한 후보’는 아직 역할을 수락한 분들이 아니에요. 만나보고 싶다면 ‘Intro 요청’을 눌러주세요.",
+    "• ‘연결 대기’에 도착한 후보자는 연결 여부를 결정해 주세요. 중요하게 보는 점이나 후보자 피드백도 알려주시면 다음 탐색에 반영할게요.",
   ].join("\n");
 }
 
@@ -325,7 +355,9 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
   if (args.locale === "en") {
-    const candidateName = escapeSlackText(args.candidate.name || "the candidate");
+    const candidateName = escapeSlackText(
+      args.candidate.name || "the candidate"
+    );
     const lines = [
       args.contactDirectly
         ? `*Direct contact selected for ${candidateName}*`

@@ -1,3 +1,6 @@
+import { createCareerCapabilityTurn, isCareerCapabilityTurn } from "@/lib/career/capabilities/server";
+import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
+import { initialCareerCapabilityPayload } from "@/lib/career/capabilities/lease";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
@@ -561,11 +564,7 @@ export async function POST(req: NextRequest) {
       requestChannel === "chat" && canUseCareerDevControls(user.email)
     );
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
-    const canUseInternalFitHoldQuestionTool =
-      !Array.isArray(allowedToolNames) ||
-      allowedToolNames.includes(
-        TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
-      );
+    const canUseInternalFitHoldQuestionTool = false;
     const opportunityMentions = normalizeCareerOpportunityMentions(
       body.opportunityMentions
     );
@@ -932,6 +931,8 @@ export async function POST(req: NextRequest) {
         size: document.size_bytes ?? undefined,
       }))
     );
+    const capabilityMode = getCareerCapabilityMode();
+    const trackCapabilities = isCareerCapabilityTurn({ channel: requestChannel, isOnboardingDone: Boolean(talentSetting?.is_onboarding_done), allowedToolNames });
     const { data: insertedUserMessage, error: userMessageError } = await admin
       .from("talent_messages")
       .insert(
@@ -942,6 +943,7 @@ export async function POST(req: NextRequest) {
             role: "user",
             content: normalizedContent,
             message_type: userMessageType,
+            ...(trackCapabilities ? { payload: initialCareerCapabilityPayload(capabilityMode) } : {}),
           },
           isMobile
         )
@@ -1037,7 +1039,7 @@ export async function POST(req: NextRequest) {
         ? ("available" as const)
         : ("connected_but_unavailable_this_turn" as const)
       : ("not_connected" as const);
-    const toolDefinitions = toolSelection.tools;
+    let toolDefinitions = toolSelection.tools;
     const currentPreferences = {
       getExternalRecommendation:
         talentSetting?.get_external_recommendation ?? true,
@@ -1111,8 +1113,7 @@ export async function POST(req: NextRequest) {
     ]
       .filter((value): value is string => Boolean(value))
       .join("\n\n");
-    const { isOnboardingActive, promptBlocks } =
-      buildCareerConversationPromptPlan({
+    const capabilityPromptArgs: Parameters<typeof buildCareerConversationPromptPlan>[0] = {
         activeInternalFitHoldQuestion,
         careerCoachingActivity,
         channel: "chat",
@@ -1150,8 +1151,22 @@ export async function POST(req: NextRequest) {
         structuredProfileText,
         timeZone: promptTimeZone,
         toolNames: toolSelection.toolNames,
-      });
-    const systemBlocks = promptBlocks;
+      };
+    const { isOnboardingActive, promptBlocks } = buildCareerConversationPromptPlan(capabilityPromptArgs);
+    const capabilityTurn = trackCapabilities ? await createCareerCapabilityTurn({
+    origin: "web",
+      admin, userId: user.id, conversationId, sourceMessage: insertedUserMessage as TalentMessageRow,
+      mode: capabilityMode, eligibleTools: toolSelection.tools, promptArgs: capabilityPromptArgs,
+      preloads: [
+        ...(uploadedDocuments.length ? ["documents" as const] : []),
+        ...(selectedInternalOpportunity ? ["opportunities" as const] : []),
+        ...(selectedCompanyTalentRequest ? ["company_contact" as const] : []),
+        ...(coachingActivityAction && careerCoachingActivity && coachingActivityAction.activityMessageId === careerCoachingActivity.messageId && coachingActivityAction.expectedRevision === careerCoachingActivity.revision ? ["career_coaching" as const] : []),
+      ],
+    }) : undefined;
+    const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
+    if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
+    const systemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
 
     // console.info("[career-chat:prompt-breakdown]", {
     //   cacheableSystemBlockKeys: systemBlocks
@@ -1278,13 +1293,18 @@ export async function POST(req: NextRequest) {
     const executeRecommendJobPostings = async (
       input: Record<string, unknown>
     ) => {
-      recordRecommendationStatus({ state: "running" });
+      let latestProgress: RecommendJobPostingStatus = { state: "running", phase: "query" };
+      recordRecommendationStatus(latestProgress);
 
       try {
         const result = await executeTalentTool({
           context: {
             admin,
             abortSignal: req.signal,
+            onRecommendationSearchProgress: (progress) => {
+              latestProgress = progress;
+              recordRecommendationStatus(progress);
+            },
             conversationId,
             isMobile,
             responseLocale,
@@ -1301,6 +1321,7 @@ export async function POST(req: NextRequest) {
         if (recommendationReceiptRef.current) return result;
         const recommendationResult = isRecord(result) ? result : {};
         const completedStatus: RecommendJobPostingStatus = {
+          ...latestProgress,
           candidateCount:
             typeof recommendationResult.candidateCount === "number"
               ? recommendationResult.candidateCount
@@ -1320,7 +1341,7 @@ export async function POST(req: NextRequest) {
         if (req.signal.aborted) {
           throw error;
         }
-        recordRecommendationStatus({ state: "error" }, { persist: true });
+        recordRecommendationStatus({ ...latestProgress, state: "error" }, { persist: true });
         throw error;
       }
     };
@@ -1493,6 +1514,7 @@ export async function POST(req: NextRequest) {
             let assistantText: string;
             try {
               assistantText = await runCareerChatAssistantStream({
+                toolRuntime: capabilityTurn?.runtime,
                 chatCompletionReasoningEffort:
                   textChatModel.chatCompletionReasoningEffort,
                 messages: llmMessages,
@@ -1742,6 +1764,7 @@ export async function POST(req: NextRequest) {
                 userId: user.id,
               });
               send("talent_profile", profileSnapshot);
+              await capabilityTurn?.complete();
               send("done", { ok: true });
               return;
             }
@@ -2042,6 +2065,7 @@ export async function POST(req: NextRequest) {
               userId: user.id,
             });
             send("talent_profile", profileSnapshot);
+            await capabilityTurn?.complete();
             send("done", { ok: true });
           } catch (error) {
             if (req.signal.aborted) return;
@@ -2085,6 +2109,7 @@ export async function POST(req: NextRequest) {
     let assistantText: string;
     try {
       assistantText = await runCareerChatAssistant({
+        toolRuntime: capabilityTurn?.runtime,
         chatCompletionReasoningEffort:
           textChatModel.chatCompletionReasoningEffort,
         messages: llmMessages,
@@ -2315,6 +2340,7 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       });
 
+      await capabilityTurn?.complete();
       return NextResponse.json({
         ok: true,
         historyChangedRoleId: changedOpportunityRoleId,
@@ -2571,6 +2597,7 @@ export async function POST(req: NextRequest) {
       (message) => message.id === insertedAssistantMessage.id
     );
 
+    await capabilityTurn?.complete();
     return NextResponse.json({
       ok: true,
       historyChangedRoleId: changedOpportunityRoleId,

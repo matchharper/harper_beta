@@ -1,3 +1,7 @@
+import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
+import { CareerCapabilityRuntime } from "./capabilities/runtime";
+import { getCareerCapabilityMode } from "./capabilities/registry";
+import { isCareerCapabilityTurn, readCareerCapabilityCoaching, readCareerCapabilityLeases } from "./capabilities/server";
 import {
   buildCareerConversationPromptPlan,
   type CareerPromptBlock,
@@ -206,6 +210,8 @@ export async function buildCareerTextChatDebugPrompt(args: {
     recentRecommendedOpportunities,
     activeRun,
     isConversationCompletedOpportunityRunActive,
+    activeGmailIntegration,
+    careerCoachingActivity,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId }),
     fetchTalentSetting({ admin, userId }),
@@ -234,6 +240,8 @@ export async function buildCareerTextChatDebugPrompt(args: {
     }),
     getActiveOpportunityRun({ admin, conversationId, userId }),
     hasActiveConversationCompletedOpportunityRun({ admin, userId }),
+    fetchActiveTalentGmailIntegration({ admin, talentId: userId }),
+    readCareerCapabilityCoaching({ admin, userId, conversationId }),
   ]);
 
   const responseLocale =
@@ -273,11 +281,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
       })
     : null;
 
-  const canUseInternalFitHoldQuestionTool =
-    !Array.isArray(args.allowedToolNames) ||
-    args.allowedToolNames.includes(
-      TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
-    );
+  const canUseInternalFitHoldQuestionTool = false;
   const activeInternalFitHoldQuestion =
     talentSetting?.is_onboarding_done &&
     talentSetting.profile_visibility !== "dont_share" &&
@@ -294,6 +298,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
     allowedToolNames: args.allowedToolNames,
     channel: "chat",
     isOnboardingDone: talentSetting?.is_onboarding_done,
+    hasActiveGmailIntegration: Boolean(activeGmailIntegration),
     responseLocale,
   });
   const currentPreferences = {
@@ -334,7 +339,9 @@ export async function buildCareerTextChatDebugPrompt(args: {
     ? getCareerConversationStarter(conversationStarterId, responseLocale)
     : null;
 
-  const { promptBlocks } = buildCareerConversationPromptPlan({
+  const promptArgs: Parameters<typeof buildCareerConversationPromptPlan>[0] = {
+    careerCoachingActivity,
+    gmailCapability: activeGmailIntegration ? toolSelection.toolNames.includes(TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL) ? "available" : "connected_but_unavailable_this_turn" : "not_connected",
     activeInternalFitHoldQuestion,
     channel: "chat",
     talentContextSection: renderTalentContextPrompt(talentContextSnapshot),
@@ -346,13 +353,20 @@ export async function buildCareerTextChatDebugPrompt(args: {
     pendingOpportunityFeedbackContext,
     postOnboardingContext,
     profile,
-    conversationMode: conversationStarter?.id ?? "default",
+    conversationMode: careerCoachingActivity?.status === "active" ? "career_coaching" : conversationStarter?.id === "career_coaching" ? "default" : conversationStarter?.id ?? "default",
     recentActivitySummaries,
     recentRecommendedOpportunitiesText,
     structuredProfileText,
     timeZone: args.timeZone,
     toolNames: toolSelection.toolNames,
-  });
+  };
+  const capabilityStep = isCareerCapabilityTurn({ channel: "chat", isOnboardingDone: Boolean(talentSetting?.is_onboarding_done), allowedToolNames: args.allowedToolNames })
+    ? new CareerCapabilityRuntime({
+        mode: getCareerCapabilityMode(), eligibleTools: toolSelection.tools, promptArgs: () => promptArgs,
+        remembered: await readCareerCapabilityLeases({ admin, userId, conversationId, currentCreatedAt: new Date().toISOString() }),
+      }).resolveStep(false)
+    : undefined;
+  const promptBlocks = capabilityStep?.systemBlocks ?? buildCareerConversationPromptPlan(promptArgs).promptBlocks;
 
   const recentMessages = await fetchRecentMessagesWithSummary({
     admin,
@@ -376,7 +390,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
       }),
     }))
     .filter((item) => item.content.trim().length > 0);
-  const tools = toolSelection.tools as TalentChatTool[];
+  const tools = capabilityStep?.tools ?? toolSelection.tools as TalentChatTool[];
   const renderedPrompt = renderTextDebugPrompt({
     messages,
     promptBlocks,
@@ -385,7 +399,7 @@ export async function buildCareerTextChatDebugPrompt(args: {
 
   return {
     channel: "text",
-    enabledToolNames: toolSelection.toolNames,
+    enabledToolNames: tools.map(tool => tool.function.name),
     messages,
     promptBlocks,
     renderedPrompt,

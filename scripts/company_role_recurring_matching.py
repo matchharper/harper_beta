@@ -33,7 +33,6 @@ from psycopg.rows import dict_row
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_ROOT = ROOT / "output" / "company_context_runs"
 RUNBOOK_PATH = ROOT / "docs" / "company" / "company-context-run-codex-runbook-ko.md"
-SCHEDULED_RUNBOOK_PATH = ROOT / "docs" / "schedule" / "company-run-ko.md"
 COMPANY_RUN_CONTRACT_VERSION = "company-run-v1"
 POST_CALIBRATION_CONTRACT_VERSION = "post-calibration-review-v1"
 CONTEXT_OUTPUT_CONTRACT_VERSION = "company-context-output-v1"
@@ -42,7 +41,6 @@ EVALUATOR_VERSION = "company-context-codex-v3-brief-behavior"
 EVALUATION_DOCUMENT_VERSION = "company-context-pair-document-v3-brief-behavior"
 COMPANY_RUN_NAMESPACE = uuid.UUID("936275f1-8593-49a4-ad37-6ea38eaf6f78")
 SEOUL = ZoneInfo("Asia/Seoul")
-SCHEDULED_WEEKDAYS = {0, 3}
 MAX_COMPANY_CONTEXT_BULLETS = 10
 MAX_COMPANY_CONTEXT_CHARS = 8_000
 MAX_COMPANY_CONTEXT_BULLET_CHARS = 1_200
@@ -389,38 +387,6 @@ def validate_context_structure(value: str) -> None:
         raise ValueError("behavior context must not copy candidate contact details")
 
 
-def scheduled_for_value(value: str | None, *, now: datetime | None = None) -> datetime:
-    if value:
-        parsed = parsed_time(value)
-        if parsed is None:
-            raise ValueError("scheduled-for must be an ISO-8601 timestamp")
-        scheduled_local = parsed.astimezone(SEOUL)
-    else:
-        local_now = (now or utc_now()).astimezone(SEOUL)
-        scheduled_local = local_now.replace(hour=8, minute=0, second=0, microsecond=0)
-        while (
-            scheduled_local.weekday() not in SCHEDULED_WEEKDAYS
-            or scheduled_local > local_now
-        ):
-            scheduled_local -= timedelta(days=1)
-    if scheduled_local.weekday() not in SCHEDULED_WEEKDAYS:
-        raise ValueError(
-            "scheduled Company Run is valid only on Monday or Thursday in Asia/Seoul"
-        )
-    if (
-        scheduled_local.hour != 8
-        or scheduled_local.minute != 0
-        or scheduled_local.second != 0
-    ):
-        raise ValueError("scheduled Company Run must use 08:00 Asia/Seoul")
-    return scheduled_local.astimezone(timezone.utc).replace(microsecond=0)
-
-
-def scheduled_batch_id(scheduled_for: datetime) -> str:
-    normalized = scheduled_for.astimezone(timezone.utc).replace(microsecond=0)
-    return str(uuid.uuid5(COMPANY_RUN_NAMESPACE, normalized.isoformat()))
-
-
 def batch_dir(batch_id: str) -> Path:
     try:
         uuid.UUID(batch_id)
@@ -576,7 +542,6 @@ def role_matching_fingerprint(role: Mapping[str, Any]) -> str:
         "status",
         "is_expired",
         "expired_at",
-        "is_auto",
         "max_pending_talents",
         "role_status_changed_at",
     }
@@ -737,39 +702,6 @@ def relation_exists(conn: psycopg.Connection, qualified_name: str) -> bool:
     return bool((row or {}).get("exists"))
 
 
-def enqueue_due_runs(conn: psycopg.Connection) -> int:
-    row = fetch_one(
-        conn,
-        "select public.enqueue_due_company_context_runs_v1(timezone('utc', now())) as count",
-    )
-    return int((row or {}).get("count") or 0)
-
-
-def enqueue_scheduled_runs(
-    conn: psycopg.Connection,
-    *,
-    batch_id: str,
-    scheduled_for: datetime,
-) -> list[dict[str, Any]]:
-    return fetch_all(
-        conn,
-        "select * from public.enqueue_scheduled_company_runs_v1(%s::uuid, %s::timestamptz)",
-        (batch_id, scheduled_for),
-    )
-
-
-def claim_post_calibration_run(
-    conn: psycopg.Connection,
-    *,
-    runner: str,
-) -> dict[str, Any] | None:
-    return fetch_one(
-        conn,
-        "select * from public.claim_post_calibration_company_context_run_v1(%s)",
-        (runner,),
-    )
-
-
 def enqueue_run(
     conn: psycopg.Connection,
     *,
@@ -804,19 +736,6 @@ def claim_queued_run(
     )
 
 
-def claim_scheduled_run(
-    conn: psycopg.Connection,
-    *,
-    runner: str,
-    batch_id: str,
-) -> dict[str, Any] | None:
-    return fetch_one(
-        conn,
-        "select * from public.claim_scheduled_company_run_v1(%s, %s::uuid)",
-        (runner, batch_id),
-    )
-
-
 def peek_queued_run(
     conn: psycopg.Connection,
     *,
@@ -833,10 +752,7 @@ def peek_queued_run(
         where run.status = 'queued'
           and run.available_at <= timezone('utc', now())
           and (%s::uuid is null or run.role_id = %s::uuid)
-          and (
-            run.trigger_reason = 'manual'
-            or coalesce(internal_role.is_auto, false) = true
-          )
+          and run.trigger_reason = 'manual'
         order by run.available_at, run.id
         limit 1
         """,
@@ -873,10 +789,6 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
     if relation_exists(conn, "public.company_role_matching_runs"):
         forbidden_artifacts.append("public.company_role_matching_runs")
     column_checks = {
-        "public.company_internal_roles.is_auto": (
-            "company_internal_roles",
-            "is_auto",
-        ),
         "public.company_internal_roles.max_pending_talents": (
             "company_internal_roles",
             "max_pending_talents",
@@ -936,13 +848,9 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
             forbidden_artifacts.append(f"public.{table_name}.{column_name}")
     procedure_signatures = (
         "public.enqueue_company_context_run_v1(uuid,text,timestamp with time zone)",
-        "public.enqueue_due_company_context_runs_v1(timestamp with time zone)",
-        "public.enqueue_scheduled_company_runs_v1(uuid,timestamp with time zone)",
         "public.claim_company_context_run_v1(text,uuid)",
-        "public.claim_scheduled_company_run_v1(text,uuid)",
         "public.enqueue_post_calibration_company_context_run_v1(uuid)",
         "public.claim_post_calibration_company_context_run_v1(text)",
-        "public.retry_post_calibration_company_context_run_v1(uuid,timestamp with time zone)",
         "public.record_post_calibration_company_notice_v1(uuid,text,bigint,text,text,text,text)",
         "public.finish_company_context_run_v1(uuid,text,jsonb)",
     )
@@ -952,7 +860,6 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
         if not bool((row or {}).get("exists")):
             missing_procedures.append(signature)
     trigger_names = (
-        "company_internal_roles_cancel_context_run_v1",
         "company_roles_track_status_and_enqueue_context_v1",
         "company_context_runs_enqueue_waiting_post_calibration_v1",
         "company_context_runs_notify_post_calibration_v1",
@@ -1015,7 +922,6 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
         "queueColumnCount": queue_column_count,
         "contextColumnCount": context_column_count,
         "runLedger": "public.company_context_runs",
-        "scheduledBatchContractVersion": COMPANY_RUN_CONTRACT_VERSION,
         "forbiddenDiscoveryRunAccess": True,
         "databaseWrites": 0,
     }
@@ -2019,8 +1925,7 @@ def assert_run_writable(
         """
         select role.role_id, role.company_workspace_id,
                role.status as role_status, role.source_type,
-               role.is_expired, role.expires_at, role.information,
-               internal_role.is_auto
+               role.is_expired, role.expires_at, role.information
         from public.company_roles role
         join public.company_internal_roles internal_role
           on internal_role.role_id = role.role_id
@@ -2050,8 +1955,8 @@ def assert_run_writable(
         raise RuntimeError("role expiry time has passed")
     if is_test_only_role(row.get("information")):
         raise RuntimeError("test-only role is excluded from Company Run")
-    if run.get("trigger_reason") != "manual" and row.get("is_auto") is not True:
-        raise RuntimeError("role automation is disabled")
+    if run.get("trigger_reason") != "manual":
+        raise RuntimeError("automatic Company Context Runs are retired")
     recorded_workspace = run.get("company_workspace_id")
     if recorded_workspace and str(row.get("company_workspace_id")) != str(recorded_workspace):
         raise RuntimeError("role workspace changed after run start")
@@ -2092,70 +1997,22 @@ def command_preflight(_: argparse.Namespace) -> int:
     return 0
 
 
-def command_enqueue_due(_: argparse.Namespace) -> int:
-    with connect() as conn:
-        count = enqueue_due_runs(conn)
-        conn.commit()
-    print(json.dumps({"enqueued": count}))
-    return 0
-
-
 def command_enqueue(args: argparse.Namespace) -> int:
     with connect() as conn:
         run_id = enqueue_run(
             conn,
             role_id=args.role_id,
-            trigger_reason=args.trigger_reason,
+            trigger_reason="manual",
         )
         conn.commit()
     print(json.dumps({"runId": run_id, "roleId": args.role_id, "status": "queued"}))
     return 0
 
 
-def command_enqueue_scheduled(args: argparse.Namespace) -> int:
-    scheduled_for = scheduled_for_value(args.scheduled_for)
-    batch_id = scheduled_batch_id(scheduled_for)
-    with connect() as conn:
-        rows = enqueue_scheduled_runs(
-            conn,
-            batch_id=batch_id,
-            scheduled_for=scheduled_for,
-        )
-        conn.commit()
-    counts = {
-        outcome: sum(1 for row in rows if row.get("outcome") == outcome)
-        for outcome in ("enqueued", "already_recorded", "blocked_by_open_run")
-    }
-    manifest = {
-        "contractVersion": COMPANY_RUN_CONTRACT_VERSION,
-        "batchRunId": batch_id,
-        "scheduledFor": iso(scheduled_for),
-        "createdAt": iso(),
-        "counts": counts,
-        "roles": rows,
-    }
-    path = batch_dir(batch_id)
-    path.mkdir(parents=True, exist_ok=True)
-    write_json(path / "batch_manifest.json", manifest)
-    print(json.dumps(jsonable(manifest), ensure_ascii=False))
-    return 0
-
-
 def command_start(args: argparse.Namespace) -> int:
     if args.allow_inactive and (not args.dry_run or not args.role_id):
         raise ValueError("--allow-inactive requires both --dry-run and --role-id")
-    if args.batch_id and args.dry_run:
-        raise ValueError("--batch-id cannot be combined with --dry-run")
-    if args.batch_id and args.role_id:
-        raise ValueError("--batch-id cannot be combined with --role-id")
-    if args.post_calibration and (args.batch_id or args.role_id or args.enqueue_due):
-        raise ValueError(
-            "--post-calibration cannot be combined with --batch-id, --role-id, or --enqueue-due"
-        )
-    if args.post_calibration and args.dry_run:
-        raise ValueError("--post-calibration claims a durable due row and cannot use --dry-run")
     with connect() as conn:
-        due_enqueued = enqueue_due_runs(conn) if args.enqueue_due and not args.dry_run else 0
         if args.allow_inactive:
             queue_row = {
                 "id": str(uuid.uuid4()),
@@ -2169,23 +2026,10 @@ def command_start(args: argparse.Namespace) -> int:
             queue_row = (
                 peek_queued_run(conn, role_id=args.role_id)
                 if args.dry_run
-                else (
-                    claim_post_calibration_run(
-                        conn,
-                        runner=args.runner,
-                    )
-                    if args.post_calibration
-                    else claim_scheduled_run(
-                        conn,
-                        runner=args.runner,
-                        batch_id=args.batch_id,
-                    )
-                    if args.batch_id
-                    else claim_queued_run(
-                        conn,
-                        runner=args.runner,
-                        role_id=args.role_id,
-                    )
+                else claim_queued_run(
+                    conn,
+                    runner=args.runner,
+                    role_id=args.role_id,
                 )
             )
         if not queue_row:
@@ -2195,14 +2039,10 @@ def command_start(args: argparse.Namespace) -> int:
                     {
                         "started": False,
                         "reason": "no_queued_run",
-                        "dueEnqueued": due_enqueued,
-                        "batchRunId": args.batch_id,
                     }
                 )
             )
             return 0
-        if args.post_calibration and queue_row.get("trigger_reason") != "post_calibration_12h":
-            raise RuntimeError("post-calibration claim returned a different run kind")
         run_id = str(queue_row["id"])
         role = fetch_one(
             conn,
@@ -2210,7 +2050,7 @@ def command_start(args: argparse.Namespace) -> int:
             select role.role_id, role.company_workspace_id,
                    role.status as role_status, role.source_type,
                    role.is_expired, role.expires_at, role.information,
-                   internal_role.is_auto
+                   internal_role.role_id as internal_role_id
             from public.company_roles role
             join public.company_internal_roles internal_role
               on internal_role.role_id = role.role_id
@@ -2250,11 +2090,8 @@ def command_start(args: argparse.Namespace) -> int:
             terminal_reason = "role_expired"
         elif is_test_only_role(role.get("information")):
             terminal_reason = "test_only_role"
-        elif (
-            str(queue_row.get("trigger_reason")) != "manual"
-            and role.get("is_auto") is not True
-        ):
-            terminal_reason = "auto_disabled"
+        elif str(queue_row.get("trigger_reason")) != "manual":
+            terminal_reason = "automatic_run_retired"
         else:
             terminal_reason = None
         if terminal_reason:
@@ -2363,9 +2200,6 @@ def command_start(args: argparse.Namespace) -> int:
                     "artifactPath": str(path),
                     "sourcePacket": str(path / "source_packet.json"),
                     "runbook": str(RUNBOOK_PATH),
-                    "scheduledRunbook": str(SCHEDULED_RUNBOOK_PATH),
-                    "batchRunId": run.get("batch_run_id"),
-                    "dueEnqueued": due_enqueued,
                     "dryRun": bool(args.dry_run),
                     "queueBacked": not bool(args.allow_inactive),
                 }
@@ -4281,7 +4115,6 @@ def batch_rerank_source(
           and role.status = 'active'
           and coalesce(role.is_expired, false) = false
           and (role.expires_at is null or role.expires_at > timezone('utc', now()))
-          and coalesce(internal_role.is_auto, false) = true
           and coalesce(lower(btrim(role.information->>'testOnly')), '')
             not in ('true', '1', 'yes', 'on')
           and coalesce(fit.human_label, fit.label) = 'fit'
@@ -5139,36 +4972,16 @@ def command_fail(args: argparse.Namespace) -> int:
             },
         )
         retry_run_id = None
-        retry_eligible = run.get("trigger_reason") == "manual"
-        if not retry_eligible and run.get("trigger_reason") != "scheduled":
-            auto_state = fetch_one(
+        if args.retryable and run.get("trigger_reason") == "manual":
+            retry_row = fetch_one(
                 conn,
-                "select is_auto from public.company_internal_roles where role_id = %s::uuid",
+                """
+                select public.enqueue_company_context_run_v1(
+                  %s::uuid, 'manual', timezone('utc', now()) + interval '6 hours'
+                ) as id
+                """,
                 (str(run["role_id"]),),
             )
-            retry_eligible = (auto_state or {}).get("is_auto") is True
-        if args.retryable and retry_eligible:
-            if run.get("trigger_reason") == "post_calibration_12h":
-                retry_row = fetch_one(
-                    conn,
-                    """
-                    select retry.id
-                    from public.retry_post_calibration_company_context_run_v1(
-                      %s::uuid, timezone('utc', now()) + interval '6 hours'
-                    ) retry
-                    """,
-                    (str(run["id"]),),
-                )
-            else:
-                retry_row = fetch_one(
-                    conn,
-                    """
-                    select public.enqueue_company_context_run_v1(
-                      %s::uuid, %s, timezone('utc', now()) + interval '6 hours'
-                    ) as id
-                    """,
-                    (str(run["role_id"]), str(run["trigger_reason"])),
-                )
             retry_run_id = compact((retry_row or {}).get("id"), 100) or None
         conn.commit()
     run["status"] = "failed"
@@ -5203,11 +5016,8 @@ def command_skip(args: argparse.Namespace) -> int:
         role_state = fetch_one(
             conn,
             """
-            select role.status as role_status, role.source_type, role.is_expired,
-                   internal_role.is_auto
+            select role.status as role_status, role.source_type, role.is_expired
             from public.company_roles role
-            left join public.company_internal_roles internal_role
-              on internal_role.role_id = role.role_id
             where role.role_id = %s::uuid
             """,
             (str(run["role_id"]),),
@@ -5221,11 +5031,6 @@ def command_skip(args: argparse.Namespace) -> int:
             )
             if active:
                 raise RuntimeError("role is still active; do not skip as role_not_active")
-        elif args.result_reason == "auto_disabled":
-            if run.get("trigger_reason") == "manual":
-                raise RuntimeError("manual runs are not controlled by is_auto")
-            if role_state.get("is_auto") is True:
-                raise RuntimeError("role automation is still enabled")
         if run.get("dry_run"):
             conn.rollback()
         else:
@@ -5289,33 +5094,18 @@ def build_parser() -> argparse.ArgumentParser:
     preflight = sub.add_parser("preflight")
     preflight.set_defaults(func=command_preflight)
 
-    enqueue_due = sub.add_parser("enqueue-due")
-    enqueue_due.set_defaults(func=command_enqueue_due)
-
     enqueue = sub.add_parser("enqueue")
     enqueue.add_argument("--role-id", required=True)
-    enqueue.add_argument(
-        "--trigger-reason",
-        choices=("role_created", "reactivated_after_7d", "weekly", "scheduled", "manual"),
-        default="manual",
-    )
     enqueue.set_defaults(func=command_enqueue)
-
-    enqueue_scheduled = sub.add_parser("enqueue-scheduled")
-    enqueue_scheduled.add_argument("--scheduled-for")
-    enqueue_scheduled.set_defaults(func=command_enqueue_scheduled)
 
     list_parser = sub.add_parser("list")
     list_parser.set_defaults(func=command_list)
 
     start = sub.add_parser("start")
     start.add_argument("--role-id")
-    start.add_argument("--batch-id")
-    start.add_argument("--runner", default="codex-scheduled")
-    start.add_argument("--enqueue-due", action="store_true")
+    start.add_argument("--runner", default="codex-manual")
     start.add_argument("--dry-run", action="store_true")
     start.add_argument("--allow-inactive", action="store_true")
-    start.add_argument("--post-calibration", action="store_true")
     start.set_defaults(func=command_start)
 
     refresh = sub.add_parser("refresh-packet")
@@ -5437,7 +5227,7 @@ def build_parser() -> argparse.ArgumentParser:
     skip.add_argument("--run-id", required=True)
     skip.add_argument(
         "--result-reason",
-        choices=("role_not_active", "auto_disabled"),
+        choices=("role_not_active", "automatic_run_retired"),
         required=True,
     )
     skip.add_argument("--summary", required=True)

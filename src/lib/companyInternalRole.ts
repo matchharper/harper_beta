@@ -3,6 +3,7 @@ type CompanyInternalRoleRecord = {
   criteria?: unknown;
   is_company_first_search?: boolean | null;
   is_promote?: boolean | null;
+  is_anonymous?: boolean | null;
   intro_search_date?: string[] | null;
   intro_search_time?: number | null;
   memory?: string | null;

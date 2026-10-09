@@ -16,7 +16,7 @@
 
 ### 2.1 Company Context Run
 
-기존 `Company Context Run`은 role별 회사 행동 context를 갱신하고, 해당 role의 fit row가 아직 없는 신규 후보를 찾는 production workflow다. 현재 자동 실행에서는 기존 fit row를 시간 경과나 일반적인 입력 변경만으로 재평가하지 않는다.
+기존 `Company Context Run`은 role별 회사 행동 context를 갱신하고, 해당 role의 fit row가 아직 없는 신규 후보를 찾던 workflow다. 정기 자동 실행은 2026-10-06 로컬 변경에서 폐지했다.
 
 Recovery Audit은 이 production workflow를 대체하지 않는다. 이미 non-fit row가 존재하는 후보를 다시 볼 필요가 있는지 제한된 예산 안에서 점검하는 별도 audit이다.
 
@@ -52,7 +52,7 @@ Recovery Audit의 기본 결과는 “다시 검토했을 때 이 pair가 어떤
 
 이 숫자는 설계 근거를 남기기 위한 시점 snapshot이며 runtime 상수로 사용하지 않는다.
 
-자동 반복 감사는 기본적으로 `is_auto=true` role만 다룬다. `is_auto=false` role은 사용자가 그 role을 명시적으로 포함한 manual audit에서만 읽는다. Wonderful이라는 이름을 코드에 hardcode하지 않고 company workspace 또는 명시된 role ID 목록을 입력으로 받는다.
+감사는 명시된 company workspace와 Role ID만 대상으로 한다. 대상 Role은 active·미만료·internal·non-test여야 한다. Wonderful이라는 이름을 코드에 hardcode하지 않는다.
 
 ## 4. 목표와 비목표
 
@@ -108,7 +108,6 @@ Effective label은 human override가 있으면 human label, 없으면 model labe
 
 - inactive, ended, expired role
 - `company_roles.information.testOnly=true` role
-- 자동 실행에서 `is_auto=false` role
 - `profile_visibility='dont_share'`
 - 명시적으로 차단한 회사
 - 같은 role이 이미 추천됐거나 진행·종료 상태가 있는 pair
@@ -363,7 +362,7 @@ Writeback 전에 현재 production consumer가 `label`, `kind`, `recommend`를 �
 
 - Company Context Run의 신규 평가와 Recovery Audit의 재발견 범위를 분리한다.
 - 기존 문서와 Codex automation prompt의 상충을 제거한다.
-- Wonderful `is_auto=true` role을 첫 범위로 고정한다.
+- Wonderful의 명시된 활성 internal Role을 첫 범위로 고정한다.
 
 ### Phase 1: 로컬 read-only, N=50
 

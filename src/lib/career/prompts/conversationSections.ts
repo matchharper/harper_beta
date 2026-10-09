@@ -370,13 +370,13 @@ export function buildProfileContextBlock(args: {
   ].join("\n");
 }
 
-/** 최근 talent activity event 요약을 text chat prompt에 넣을 짧은 블록으로 만든다. */
+/** Compact activity summaries plus at most five actually sent question refs. */
 export function buildRecentActivitySummariesSection(
   events?: readonly CareerPromptActivitySummary[] | null,
   dateTimeOptions?: CareerPromptDateTimeOptions
 ) {
   const rows = (events ?? [])
-    .slice(0, 5)
+    .slice(0, 10)
     .map((event) => ({
       created_at: formatCareerPromptCompactDateTime(
         event.created_at,

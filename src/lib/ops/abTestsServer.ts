@@ -1,6 +1,11 @@
 import "server-only";
 import { buildOfficialJobsExperiment } from "./officialJobsExperiment";
 import {
+  buildOnboardingStepOrderExperiment,
+  type OnboardingStepOrderLog,
+} from "./onboardingStepOrderExperiment";
+import { CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT } from "@/lib/career/onboardingStepOrderExperiment";
+import {
   OFFICIAL_JOBS_LAYOUT_ABTEST_A,
   OFFICIAL_JOBS_LAYOUT_ABTEST_B,
 } from "@/lib/officialJobs/experiment";
@@ -178,6 +183,34 @@ async function fetchVoiceRows(startIso: string) {
   return rows;
 }
 
+async function fetchOnboardingStepOrderRows(startIso: string) {
+  const admin = getTalentSupabaseAdmin();
+  const rows: OnboardingStepOrderLog[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await admin
+      .from("logs")
+      .select("id,user_id,type,created_at,meta_data")
+      .in("type", [
+        CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT,
+        "career_onboarding_submitted",
+      ])
+      .gte("created_at", startIso)
+      .order("id", { ascending: true })
+      .range(from, from + BATCH_SIZE - 1);
+
+    if (error)
+      throw new Error(error.message || "온보딩 순서 실험 로그 조회 실패");
+    const page = (data ?? []) as OnboardingStepOrderLog[];
+    rows.push(...page);
+    if (page.length < BATCH_SIZE) break;
+    from += BATCH_SIZE;
+  }
+
+  return rows;
+}
+
 async function fetchLandingRows(startIso: string, abtestTypes: string[]) {
   const admin = getTalentSupabaseAdmin();
   const rows: LandingLogRow[] = [];
@@ -202,7 +235,7 @@ async function fetchLandingRows(startIso: string, abtestTypes: string[]) {
   return rows;
 }
 
-async function fetchExcludedVoiceUserIds(
+async function fetchExcludedUserIds(
   userIds: string[],
   exclusionTerms: string[]
 ) {
@@ -216,7 +249,7 @@ async function fetchExcludedVoiceUserIds(
       .from("talent_users")
       .select("user_id,email")
       .in("user_id", chunk);
-    if (error) throw new Error(error.message || "Voice 유저 조회 실패");
+    if (error) throw new Error(error.message || "실험 유저 조회 실패");
 
     for (const row of data ?? []) {
       if (shouldExcludeEmail(row.email, exclusionTerms)) {
@@ -242,10 +275,7 @@ async function buildVoiceExperiment(
   const userIds = Array.from(
     new Set(rows.map((row) => String(row.user_id ?? "").trim()).filter(Boolean))
   );
-  const excludedUserIds = await fetchExcludedVoiceUserIds(
-    userIds,
-    exclusionTerms
-  );
+  const excludedUserIds = await fetchExcludedUserIds(userIds, exclusionTerms);
   const sessions = new Map<string, VoiceSession>();
   const completions = new Map<
     string,
@@ -542,7 +572,7 @@ export async function fetchOpsAbTests(args: {
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const startIso = new Date(Date.now() - days * DAY_MS).toISOString();
-  const [voiceRows, searchRows, jobsRows] = await Promise.all([
+  const [voiceRows, searchRows, jobsRows, onboardingRows] = await Promise.all([
     fetchVoiceRows(startIso),
     fetchLandingRows(startIso, [
       SEARCH_LANDING_ABTEST_TYPE_A,
@@ -552,6 +582,7 @@ export async function fetchOpsAbTests(args: {
       OFFICIAL_JOBS_LAYOUT_ABTEST_A,
       OFFICIAL_JOBS_LAYOUT_ABTEST_B,
     ]),
+    fetchOnboardingStepOrderRows(startIso),
   ]);
   const experiments = await Promise.all([
     buildVoiceExperiment(voiceRows, exclusionTerms),
@@ -561,6 +592,23 @@ export async function fetchOpsAbTests(args: {
         shouldExcludeEmail(email, exclusionTerms)
       )
     ),
+    (async () => {
+      const userIds = Array.from(
+        new Set(
+          onboardingRows
+            .map((row) => String(row.user_id ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+      const excludedUserIds = await fetchExcludedUserIds(
+        userIds,
+        exclusionTerms
+      );
+      return buildOnboardingStepOrderExperiment(
+        onboardingRows,
+        excludedUserIds
+      );
+    })(),
   ]);
   const value: OpsAbTestsResponse = {
     days,

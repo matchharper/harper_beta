@@ -8,58 +8,13 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from company_role_recurring_matching import (
-    COMPANY_RUN_CONTRACT_VERSION,
     MAX_COMPANY_RUN_RECOMMENDATIONS,
-    build_parser,
     company_run_role_notification_text,
     previous_fit_snapshot,
-    scheduled_batch_id,
-    scheduled_for_value,
     validate_batch_rerank_decision,
     validate_context_output,
     validate_search_decision,
 )
-
-
-class CompanyRunScheduleTests(unittest.TestCase):
-    def test_monday_and_thursday_slots_are_stable_at_eight_kst(self) -> None:
-        monday = scheduled_for_value("2026-09-14T08:00:00+09:00")
-        thursday = scheduled_for_value("2026-09-17T08:00:00+09:00")
-
-        self.assertEqual(monday, datetime(2026, 9, 13, 23, tzinfo=timezone.utc))
-        self.assertEqual(thursday, datetime(2026, 9, 16, 23, tzinfo=timezone.utc))
-        self.assertEqual(scheduled_batch_id(monday), scheduled_batch_id(monday))
-        self.assertNotEqual(scheduled_batch_id(monday), scheduled_batch_id(thursday))
-
-    def test_invalid_weekday_or_time_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Monday or Thursday"):
-            scheduled_for_value("2026-09-15T08:00:00+09:00")
-        with self.assertRaisesRegex(ValueError, "08:00"):
-            scheduled_for_value("2026-09-14T09:00:00+09:00")
-
-    def test_delayed_invocation_reuses_the_most_recent_slot(self) -> None:
-        delayed = scheduled_for_value(
-            None,
-            now=datetime(2026, 9, 15, 2, tzinfo=timezone.utc),
-        )
-
-        self.assertEqual(delayed, datetime(2026, 9, 13, 23, tzinfo=timezone.utc))
-
-    def test_parser_exposes_the_canonical_batch_commands(self) -> None:
-        parser = build_parser()
-        enqueue = parser.parse_args(
-            ["enqueue-scheduled", "--scheduled-for", "2026-09-14T08:00:00+09:00"]
-        )
-        start = parser.parse_args(
-            ["start", "--batch-id", "00000000-0000-4000-8000-000000000001"]
-        )
-        notify = parser.parse_args(
-            ["notify-batch", "--batch-id", "00000000-0000-4000-8000-000000000001"]
-        )
-
-        self.assertEqual(enqueue.scheduled_for, "2026-09-14T08:00:00+09:00")
-        self.assertEqual(start.batch_id, "00000000-0000-4000-8000-000000000001")
-        self.assertEqual(notify.batch_id, start.batch_id)
 
 
 class CompanyRunOutputContractTests(unittest.TestCase):
@@ -203,19 +158,6 @@ class CompanyRunOutputContractTests(unittest.TestCase):
         self.assertIn("A&amp;B", text)
         self.assertIn("FDE &lt;Korea&gt;", text)
         self.assertIn("이번 탐색은 생략", text)
-
-    def test_scheduled_migration_keeps_role_rows_in_the_existing_ledger(self) -> None:
-        migration = (
-            Path(__file__).resolve().parents[1]
-            / "supabase/migrations/20260911100000_company_run_scheduled_batches.sql"
-        ).read_text(encoding="utf-8")
-
-        self.assertIn("insert into public.company_context_runs", migration)
-        self.assertIn("'batchRunId'", migration)
-        self.assertIn("'company-run-v1'", migration)
-        self.assertIn("not in ('true', '1', 'yes', 'on')", migration)
-        self.assertEqual(COMPANY_RUN_CONTRACT_VERSION, "company-run-v1")
-
 
 if __name__ == "__main__":
     unittest.main()

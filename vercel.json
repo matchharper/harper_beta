@@ -67,6 +67,10 @@
     {
       "path": "/api/internal/company-first/connect-pending",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/org/billing/reconcile",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

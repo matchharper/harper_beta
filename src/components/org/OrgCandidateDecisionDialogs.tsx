@@ -1,4 +1,5 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { FormEvent, useId, useState } from "react";
 import {
   CalendarClock,
@@ -95,6 +96,7 @@ export function AcceptIntroDialog({
   roleTitle: string;
 }) {
   const t = useOrgT();
+  const { locale } = useOrgLocale();
   const router = useRouter();
   const { currentUser, workspace } = useOrgWorkspace();
   const acceptFormId = useId();
@@ -236,9 +238,11 @@ export function AcceptIntroDialog({
       }
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : t("OrgCandidateDecisionDialogs.34a3c453", "후보자 연결 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 현재 상태와 메일을 먼저 확인해 주세요.")
+        localizedOrgErrorMessage(
+          submitError,
+          locale,
+          t("OrgCandidateDecisionDialogs.34a3c453", "후보자 연결 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 현재 상태와 메일을 먼저 확인해 주세요.")
+        )
       );
     }
   };
@@ -732,6 +736,7 @@ export function StopCandidateDialog({
   pending?: boolean;
 }) {
   const t = useOrgT();
+  const { locale } = useOrgLocale();
   const stopNoteId = useId();
   const stopNoteHelpId = useId();
   const stopReasonLabelId = useId();
@@ -773,9 +778,11 @@ export function StopCandidateDialog({
       setStopNote("");
     } catch (submitError) {
       setError(
-        submitError instanceof Error
-          ? submitError.message
-          : t("OrgCandidateDecisionDialogs.9d6cab7b", "종료 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 후보자의 현재 상태를 먼저 확인해 주세요.")
+        localizedOrgErrorMessage(
+          submitError,
+          locale,
+          t("OrgCandidateDecisionDialogs.9d6cab7b", "종료 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 후보자의 현재 상태를 먼저 확인해 주세요.")
+        )
       );
     }
   };

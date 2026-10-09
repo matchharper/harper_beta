@@ -103,6 +103,12 @@ export function buildStaticSitemapEntries(): SitemapEntry[] {
     {
       loc: `${SITE_URL}/refer`,
     },
+    {
+      loc: `${SITE_URL}/privacy`,
+    },
+    {
+      loc: `${SITE_URL}/referral-terms`,
+    },
   ];
 }
 

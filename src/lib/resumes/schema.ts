@@ -55,6 +55,7 @@ export type GenerateResumeInput = ResumeInputMetadata &
   (
     | { action: "create"; content: ResumeContent; changes?: never }
     | { action: "update"; changes: ResumeChange[]; content?: never }
+    | { action: "copy"; changes?: ResumeChange[]; content?: never }
   );
 export type StructuredResume = {
   schema_version: 1;
@@ -105,16 +106,19 @@ export const GENERATE_RESUME_PARAMETERS = obj(
   {
     action: {
       type: "string",
-      enum: ["create", "update"],
+      enum: ["create", "update", "copy"],
       description:
-        "create requires document_name and full content. update requires document_id, expected_revision and changes from read_document(format=structured); never send full content for update.",
+        "create requires document_name and full content. update requires document_id, expected_revision and changes. copy requires the source document_id, expected_revision and a new document_name; changes are optional. Read the current JSON before update or copy.",
     },
     document_name: {
       ...str(200),
       description:
-        "Filename without .pdf; required for create. Include the person's known name and role/company/language. On update omit unless the user requested renaming or repurposing.",
+        "Filename without .pdf; required for create and copy. Include the person's known name and role/company/language. On update omit unless the user requested renaming or repurposing.",
     },
-    document_id: id,
+    document_id: {
+      ...id,
+      description: "The document to update, or the generated resume to copy.",
+    },
     expected_revision: { type: "integer", minimum: 1 },
     target_role: obj({ title: str(300), company: str(300) }, ["title"]),
     source_document_ids: arr(id, 20),
@@ -264,6 +268,8 @@ export function parseResumeInput(value: unknown): GenerateResumeInput {
     throw new Error(
       "update requires changes and must not include full content."
     );
+  if (input.action === "copy" && input.content !== undefined)
+    throw new Error("copy must not include full content.");
   if (
     input.action === "create" &&
     (!input.document_name ||
@@ -278,7 +284,21 @@ export function parseResumeInput(value: unknown): GenerateResumeInput {
     (!input.document_id || input.expected_revision === undefined)
   )
     throw new Error("update requires document_id and expected_revision.");
-  if (input.action === "update") return input;
+  if (
+    input.action === "copy" &&
+    (!input.document_name ||
+      !input.document_id ||
+      input.expected_revision === undefined)
+  )
+    throw new Error(
+      "copy requires document_name, document_id and expected_revision."
+    );
+  if (
+    input.action === "copy" &&
+    (input.source_document_ids !== undefined || input.source_refs !== undefined)
+  )
+    throw new Error("copy records its source document automatically.");
+  if (input.action !== "create") return input;
   const checkUrl = (url: string) => {
     const parsed = new URL(url);
     if (!["https:", "http:"].includes(parsed.protocol))
@@ -310,20 +330,21 @@ export function structureResume(
   input: GenerateResumeInput,
   previous?: StructuredResume
 ): StructuredResume {
-  if (input.action === "update" && !previous)
-    throw new Error("Partial resume edits require the current saved JSON.");
+  if (input.action !== "create" && !previous)
+    throw new Error("Resume edits and copies require the current saved JSON.");
   const content =
     input.action === "create"
       ? structuredClone(input.content)
       : readResumeContent({
           schema_version: RESUME_SCHEMA_VERSION,
-          content: applyResumeChanges(previous!.content, input.changes),
+          content: applyResumeChanges(previous!.content, input.changes ?? []),
         });
   const previousIds = new Set(
     previous ? resumeEntries(previous.content).map((x) => x.id) : []
   );
   for (const item of resumeEntries(content)) {
-    if (item.id && !previousIds.has(item.id))
+    if (input.action === "copy") delete item.id;
+    else if (item.id && !previousIds.has(item.id))
       throw new Error(
         "New resume entries must omit id; preserve IDs only from the current document."
       );
@@ -335,8 +356,13 @@ export function structureResume(
     content,
     target_role: input.target_role ?? previous?.target_role,
     source_document_ids:
-      input.source_document_ids ?? previous?.source_document_ids ?? [],
-    source_refs: input.source_refs ?? previous?.source_refs ?? [],
+      input.action === "copy"
+        ? [input.document_id!]
+        : input.source_document_ids ?? previous?.source_document_ids ?? [],
+    source_refs:
+      input.action === "copy"
+        ? []
+        : input.source_refs ?? previous?.source_refs ?? [],
   };
 }
 

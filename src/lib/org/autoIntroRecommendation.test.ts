@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { extractSentAutoIntroRecommendationBody } from "@/lib/org/autoIntroRecommendation";
+import { extractSentAutoIntroRecommendationBody, extractCompanyCandidateIntroduction } from "@/lib/org/autoIntroRecommendation";
 
 test("extracts the authored body from a successfully sent Slack candidate card", () => {
   const body = `*TL;DR* - 핵심 요약
@@ -40,4 +40,15 @@ test("does not expose an intro that Slack did not send", () => {
     }),
     null
   );
+});
+
+test("prefers the compact company presentation while retaining historical body fallback",()=>{
+  const metadata={deliveryStatus:"sent",companyPresentation:{introduction:"Owned the service from design to operation. Direct management is not documented."},candidateCopy:"Long Slack profile"};
+  assert.equal(extractSentAutoIntroRecommendationBody({metadata}),metadata.companyPresentation.introduction);
+  assert.equal(extractSentAutoIntroRecommendationBody({metadata:{...metadata,deliveryStatus:"failed"}}),null);
+});
+
+test("authorized company report remains available when Slack delivery is unavailable",()=>{
+  assert.equal(extractCompanyCandidateIntroduction({metadata:{autoIntroToCompany:true,deliveryStatus:"failed",companyPresentation:{introduction:"Company-visible report"}}}),"Company-visible report");
+  assert.equal(extractCompanyCandidateIntroduction({metadata:{deliveryStatus:"failed",candidateCopy:"Unsent legacy draft"}}),null);
 });

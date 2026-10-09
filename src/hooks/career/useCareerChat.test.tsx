@@ -128,6 +128,9 @@ test("stopping a recommendation search preserves the assistant text and thinking
               }),
               createSseEvent("recommendation_search_status", {
                 state: "running",
+                phase: "reranking",
+                candidateCount: 128,
+                scoredCount: 24,
               }),
             ].join("")
           )
@@ -191,6 +194,8 @@ test("stopping a recommendation search preserves the assistant text and thinking
       (message) => message.role === "assistant"
     );
     assert.equal(streamingAssistantMessage?.typingMode, "stream");
+    assert.equal(chatRef.current?.activeRecommendationSearchStatus?.phase, "reranking");
+    assert.equal(chatRef.current?.activeRecommendationSearchStatus?.scoredCount, 24);
 
     await act(async () => {
       chatRef.current?.cancelActiveRecommendationSearch();
@@ -206,7 +211,7 @@ test("stopping a recommendation search preserves the assistant text and thinking
     assert.equal(assistantMessage.content.trim(), "네 찾아볼게요.");
     assert.deepEqual(assistantMessage.thinkingLogs, [
       "요청 조건을 확인했습니다.",
-      "[[recommend_job_postings:stopped]]",
+      "[[recommend_job_postings:stopped:candidates=128:phase=reranking:scored=24]]",
     ]);
     assert.equal(
       stoppedRequests[0].assistantMessage &&

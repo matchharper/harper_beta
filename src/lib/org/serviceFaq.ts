@@ -26,14 +26,14 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     key: "pricing-overview",
     question: "Harper 비용은 어떻게 되나요? 월 구독료나 채용 수수료가 있나요?",
     answer:
-      "월 구독료나 기본 사용료는 없어요. 편하게 이용하시고, Harper를 통해 채용이 성사된 경우에만 비용이 발생하며, 구체적인 조건과 금액은 회사별로 안내해요. 채용 전에 확인이 필요하다면 프로필 메뉴의 문의하기에 회사명을 함께 남겨 주세요.",
+      "Free에서도 Role을 무제한으로 만들고 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10크레딧은 유료 슬롯을 추가해도 별도로 유지돼요. 유료 슬롯은 배정한 Role 하나에 유료 기능과 월 50크레딧을 제공해요. 해당 슬롯 크레딧을 먼저 쓰고 부족하면 공용 크레딧을 사용하며, 다른 슬롯의 크레딧은 사용할 수 없어요. Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. 요청하신 Enterprise에는 별도로 합의한 비용 모델이 적용될 수 있어요. 현재 판매 가격은 /pricing에서, 회사에 적용된 구독과 결제 내역은 Organization의 Slots와 Billing에서 확인해 주세요. 기존에 별도 계약을 맺었다면 그 계약이 유지돼요.",
     tags: ["locale:ko", "topic:pricing"],
   },
   {
     key: "pricing-subscription",
     question: "월 구독료나 사용료가 따로 있나요? 무료인가요?",
     answer:
-      "네~ 월 구독료나 기본 사용료는 없어요. 다만 Harper를 통해 채용이 성사되면 그때 비용이 발생하므로, 모든 경우에 무료인 서비스라는 뜻은 아니에요. 적용되는 조건과 금액은 회사에 개별적으로 연락드려 안내해요.",
+      "무료로 시작할 수 있는 Free와 유료 슬롯 구독이 있어요. 슬롯은 월간 또는 연간으로 결제하고, 추가한 슬롯은 각각 관리하거나 구독을 취소할 수 있어요. 연간은 1년 이용료를 한 번에 결제해요. 최신 금액은 /pricing에, 회사의 현재 구독은 Organization의 Slots와 Billing에 표시돼요. Enterprise와 기존 별도 계약의 조건은 Harper 팀에 확인해 주세요.",
     showInDocuments: false,
     tags: ["locale:ko", "topic:pricing"],
   },
@@ -41,7 +41,7 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     key: "pricing-success-fee",
     question: "채용이 성사되면 비용은 얼마인가요? 수수료율이 정해져 있나요?",
     answer:
-      "Harper를 통해 채용이 성사된 경우에만 비용이 발생해요. 공개된 공통 수수료율이나 고정 금액으로 안내하지 않으며, 구체적인 조건과 금액은 회사에 따로 연락드려 설명드려요. 아직 안내받지 못했는데 채용 전에 확인이 필요하다면 프로필 메뉴의 문의하기에 회사명과 함께 남겨 주세요.",
+      "Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. 요청하신 Enterprise에는 성공보수를 포함한 별도 비용 모델을 합의할 수 있어요. 기존에 별도 계약이 있다면 해당 계약의 조건을 따라요. 회사에 적용되는 조건과 금액은 Harper 팀에 회사명을 알려주시면 확인할 수 있어요.",
     showInDocuments: false,
     tags: ["locale:ko", "topic:pricing"],
   },

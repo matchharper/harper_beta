@@ -125,8 +125,6 @@ def role_rows(
     conn: Any,
     workspace_id: str,
     role_ids: Sequence[str],
-    *,
-    allow_non_auto_role: bool = False,
 ) -> list[dict[str, Any]]:
     rows = fetch_all(
         conn,
@@ -135,7 +133,6 @@ def role_rows(
                internal_role.criteria as internal_criteria,
                internal_role.considerations,
                internal_role.memory as internal_memory,
-               internal_role.is_auto,
                internal_role.max_pending_talents,
                workspace.company_name, workspace.company_description,
                workspace.homepage_url, workspace.linkedin_url,
@@ -176,8 +173,6 @@ def role_rows(
         information = row.get("information") or {}
         if isinstance(information, Mapping) and information.get("testOnly") is True:
             raise RuntimeError(f"test-only role is forbidden: {role_id}")
-        if row.get("is_auto") is not True and not allow_non_auto_role:
-            raise RuntimeError(f"automatic audit role has is_auto disabled: {role_id}")
     return [dict(by_id[role_id]) for role_id in role_ids]
 
 
@@ -241,7 +236,6 @@ def command_preflight(args: argparse.Namespace) -> int:
             conn,
             args.company_workspace_id,
             role_ids,
-            allow_non_auto_role=args.allow_non_auto_role,
         )
         snapshot = db_snapshot(conn, args.company_workspace_id, role_ids)
         conn.rollback()
@@ -252,13 +246,11 @@ def command_preflight(args: argparse.Namespace) -> int:
                 "companyWorkspaceId": args.company_workspace_id,
                 "companyName": roles[0].get("company_name"),
                 "roleCount": len(roles),
-                "allowNonAutoRole": args.allow_non_auto_role,
                 "roles": [
                     {
                         "roleId": str(row["role_id"]),
                         "name": row.get("name"),
                         "location": row.get("location_text"),
-                        "isAuto": row.get("is_auto"),
                     }
                     for row in roles
                 ],
@@ -353,7 +345,6 @@ def command_prepare(args: argparse.Namespace) -> int:
             conn,
             args.company_workspace_id,
             role_ids,
-            allow_non_auto_role=args.allow_non_auto_role,
         )
         before = db_snapshot(conn, args.company_workspace_id, role_ids)
         rows = fetch_all(conn, sql)
@@ -564,7 +555,6 @@ def command_prepare(args: argparse.Namespace) -> int:
         "companyWorkspaceId": args.company_workspace_id,
         "companyName": company_name,
         "roleIds": role_ids,
-        "allowNonAutoRole": args.allow_non_auto_role,
         "evaluatorVersion": EVALUATOR_VERSION,
         "packetVersion": PACKET_VERSION,
         "uniqueTalentLimit": args.limit,
@@ -1033,11 +1023,6 @@ def command_report(args: argparse.Namespace) -> int:
 def add_scope_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--company-workspace-id", required=True)
     parser.add_argument("--role-id", action="append", default=[], required=True)
-    parser.add_argument(
-        "--allow-non-auto-role",
-        action="store_true",
-        help="allow explicitly named is_auto=false roles in a manual audit",
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:

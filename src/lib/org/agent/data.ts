@@ -60,6 +60,11 @@ export type OrgAgentMoreDataFieldState = {
   truncated: boolean;
 };
 
+export type OrgAgentMoreDataToolResult = Omit<OrgAgentMoreDataResult, "requestedKinds"> & {
+  requestedKinds: Array<OrgAgentMoreDataKind | "matching_runs">;
+  matchingRuns?: import("@/lib/companyFirstSearch/history").MatchingRunHistory;
+};
+
 export type OrgAgentMoreDataResult = {
   companyDetails?: {
     complete: boolean;
@@ -1355,10 +1360,13 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
       companyIntroStatus: item.companyIntro!.status,
       introRequestedAt: item.companyIntro!.requestedAt,
       candidateSentAt: item.companyIntro!.candidateSentAt,
+      harperRecommendation: item.companyIntro!.harperRecommendation ?? null,
     })),
     profile: null, profileIncluded: false,
-    responseGuide: "Candidate interest is not yet confirmed. Only company-visible proposal facts are available; no resume, contact address or private Career data is disclosed.",
-    harperSharedInformation: [], meetingHistory: [], requestHistory: [],
+    responseGuide: "이 조회는 회사에 공개된 추천·제안 기록만 제공한다. 후보자의 열람 여부와 관심 표현 여부는 제공되지 않아 알 수 없다. 이는 열람하지 않았다거나 관심을 보이지 않았다는 뜻이 아니다. 이력서·연락처·비공개 Career 정보도 포함하지 않는다. Harper 선추천의 앱 카드 생성과 추천 이메일 발송은 회사가 요청한 Intro 발송과 별개다. 확인되는 시각만 근거로 설명하며, 기록이 없다는 이유로 미발송을 확정하지 않는다.",
+    // These sources were not read by this restricted projection. Null is not
+    // an observed empty history, and must not imply no response or contact.
+    harperSharedInformation: null, meetingHistory: null, requestHistory: null,
     resumeAvailability: { available: false, guidance: "제안 수락 전에는 비공개 이력서를 조회할 수 없어요. 후보자가 직접 공유하도록 요청하는 연락과는 별개예요." },
     recentProgress: progress.filter((row) => row.talent_id === first.talentId && roleById.has(row.role_id) && row.kind === "internal_followup_sent").map((row) => ({
       at: row.created_at, kind: humanizeOrgProgressKind(row.kind),
@@ -2356,9 +2364,10 @@ function serializedValueLength(value: unknown) {
   }
 }
 
-function fitOrgAgentMoreDataContent(args: {
+export function fitOrgAgentMoreDataContent(args: {
   fullTextKeys: string[];
   result: OrgAgentMoreDataResult;
+  contentBudget?: number;
 }) {
   const actual: Record<OrgAgentMoreDataKind, number> = {
     company_details: args.result.companyDetails
@@ -2392,14 +2401,21 @@ function fitOrgAgentMoreDataContent(args: {
     members: 0,
     workspace_memory: 0,
   };
+  const budget = Math.max(0, args.contentBudget ?? 12_000);
   for (const kind of args.result.requestedKinds) {
     targets[kind] = Math.min(actual[kind], minimum[kind]);
+  }
+  const minimumTotal = Object.values(targets).reduce((sum, value) => sum + value, 0);
+  if (minimumTotal > budget) {
+    for (const kind of args.result.requestedKinds) {
+      targets[kind] = Math.floor(targets[kind] * budget / minimumTotal);
+    }
   }
   // The fixed schema adds less than 2k of field names, completeness flags,
   // and TSV framing. Keeping actual values at 12k therefore preserves a full
   // 12k memory read while staying under the 14k transport ceiling.
   let remaining =
-    12_000 - Object.values(targets).reduce((sum, value) => sum + value, 0);
+    budget - Object.values(targets).reduce((sum, value) => sum + value, 0);
   for (const kind of [
     "company_details",
     "workspace_memory",
@@ -2415,6 +2431,7 @@ function fitOrgAgentMoreDataContent(args: {
     let used = 0;
     const items = args.result.members.items.filter((item) => {
       const length =
+        serializedValueLength(item.userId) +
         serializedValueLength(item.name) +
         serializedValueLength(item.email) +
         serializedValueLength(item.role);

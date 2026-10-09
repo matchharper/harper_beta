@@ -1,4 +1,97 @@
+## Free 무제한 Role·독립 공용 크레딧: v18 (2026-10-08)
+
+[입력](cases-v18.json) · [gold](gold-v18.md) · [manifest](manifest-v18.json)은 기존 v16을 보존하고 새 정책을 호출 전에 동결한 합성 6대화·8발화다. 목적은 Free Role 무제한, 공용 월 10개와 Slot 월 50개의 공존, 차감 우선순위·유료 기능 경계·만료 시 유지·실패 정직성 확인이다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v18 --run=<new>`. 현재 company-side 모델·provider·reasoning과 실제 prompt/tool contract를 사용하고 매 실행의 설정·입력 hash·소스 fingerprint를 기록한다. 평가 단위는 대화 전체이며 gate는 6/6 의미 검토, 중대한 정책/권한/허위 완료 오류 0, 두 크레딧 부족 경로의 무효과·별도 notice다. 수치 검증만으로 의미 통과를 대신하지 않는다.
+
+모든 입력은 합성이고 외부 DB·Slack·메일은 차단한다. 원문은 ignored `runs/`의 owner-only 파일에 보존한다. 월 주기와 유료 우선 차감은 구현 기본값으로 명시했다. 독립 팀원 label review와 실제 결제·운영 전달은 미검증이며 단일 표본이 운영 평균을 증명하지 않는다. [이번 검증 결과](reports/2026-10-08-shared-free-credits.md). 최종 항목별 정책 검토는 r3의 4대화 + r4의 가격 질문 2대화에서 6/6이다. 첫 run timeout과 중간 안내 누락, 단일 최종 전체 run이 아닌 한계도 보고서에 보존했다.
+
+## Slot 상품 용어·Enterprise 계약 설명: v16 (2026-10-07)
+
+v13의 합성 입력 4대화·5발화를 보존하고, 사용자가 확정한 Slot 용어와 Free·표준 Slot 성공보수 없음,
+요청한 Enterprise에만 별도 비용 모델을 합의할 수 있다는 기준을 새 gold에 동결했다.
+[입력](cases-v16.json) · [gold](gold-v16.md) · [manifest](manifest-v16.json).
+목적·단위·실행/개인정보 경계·metrics·4/4 자체 검토 gate·한계는 아래 v13과 동일하다.
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v16 --run=<new>`.
+모델·설정·원문·source hash는 owner-only runs에 보존한다. 기존 v13 입력·gold·manifest는 수정하지 않는다.
+[실행 결과](reports/2026-10-07-billing-notices.md#slot-용어와-확정된-enterprise-정책--v16-추가-검증): 4/4 자체 정책 검토, 5/5발화 실행. 독립 팀원 검토·실제 전달 E2E는 미검증.
+
 # Company-side conversational QA
+
+## 후보자 선추천 전달 사실 검증: v15 (2026-10-07)
+
+실행 결과: 최종 r6의 핵심 사실·불확실성 의미 3/3. r1–r5의 실패와 부가 안내 품질 한계는
+[검증 보고서](reports/2026-10-07-matching-history-reader.md)에 보존했다. 전반적 답변 품질의 완전 통과를 뜻하지 않는다.
+
+[cases-v15.json](cases-v15.json) / [gold-v15.md](gold-v15.md) /
+[manifest-v15.json](manifest-v15.json)은 앱 카드·이메일·관심 여부를 구분하는 합성 3대화·3발화다.
+`read_talent` 상세 조회의 production 회사 공개용 projection과 formatter를 재사용한다.
+Canonical runner: `scripts/evalCompanyAgentCapabilities.ts --dataset=v15 --run=<new>`.
+현재 production model/provider/reasoning/temperature, source/input hash와 원문을 owner-only runs에 남긴다.
+Gate는 상세 조회·시각·미확인 상태에 대한 전체 답변 3/3 의미 통과, 미승인 효과·정보 노출·허위 완료 0이다.
+동결 전에 공개 상태 사실만 합성했으며 DB·메일·Slack 호출은 차단한다. 각 1회 표본이므로 운영 평균이나
+DB/RPC/transport E2E, 독립 팀원 검토를 증명하지 않는다. 실행 전 동결된 v6 기반 입력/정답은 보존한다.
+
+
+## 후보자 선추천 상한 이력: v17 (2026-10-08)
+
+간결한 이력·개인정보 안내를 적용한 후 같은 frozen v17을 r1/r2로 재실행했다. r2는 실행 3/3, 핵심 상한 사실·미기록 경계 3/3, 전체 gold 2/3이다. 미기록 답변에서 확인된 선정 0명 집계를 생략하는 한계가 남아 있다. [변경·검증·남은 gate](reports/2026-10-08-compact-matching-history.md). 운영 DB·실제 추천 발송은 하지 않았다.
+
+최종 r3는 3/3 실행·해당 과거 사실의 의미 검토 통과(critical 0)였다. r1/r2의 상한 재개 표현,
+근거 없는 별도 문의 안내·미기록을 비공개로 설명한 문제는 덮어쓰지 않고 보존했다.
+그 실행의 `company_details` 조회 오류는 frozen adapter에 회사 상세 테이블이 없는 한계였으며 실제 DB 오류가 아니다.
+현재 입력은 당시 수치·누락·상한과 같은 경우·선정과 발송을 구분한다. 구현자 검토이고 독립 팀원 검토는 아니다.
+
+[입력](cases-v17.json)·[사전 정답](gold-v17.md)·[manifest](manifest-v17.json)은 호출 전에 동결한 합성 3대화다.
+최신 run의 당시 연결 대기 14명/상한 10명, 기본 5개 밖의 과거 기록 조회, 당시 수치가 미기록인 경우를 검증한다.
+기존 v14·v6 입력/정답은 보존한다. 단위는 대화 전체이며 실행 완료, 경로·수치·미확인 상태의 사실성,
+필요한 추가 조회, 비공개 정보 노출과 권한 없는 효과를 원문으로 검토한다. Gate는 3/3 의미 통과와 critical 0이다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v17 --run=<new>`.
+production 모델·prompt·history reader/formatter/get_more_data를 사용하고 DB만 frozen read-only table adapter로 대체한다.
+현재 회사 모델/OpenRouter/reasoning/temperature·소스 hash는 매 run에 기록한다. 실제 DB·메일·Slack은 차단한다.
+합성 원문·모델 출력도 ignored owner-only `runs/`에 저장한다. 각 1회 표본은 실제 발송·동시성·SQL E2E,
+운영 평균 또는 독립 팀원 검토를 증명하지 않는다. Priority 선정과 회사 메시지 품질은 별도의 실제 격리 inspection으로 확인한다.
+
+## 검색 이력 조회 계약 검증: v14 (2026-10-07)
+
+실행 결과: 최종 r4 기능·사실 의미 5/5, 기존 v10 회귀 3/3발화, 관련 코드 131/131.
+중간 timeout·복합 요청 누락과 전체 타입 검사 한계는 [보고서](reports/2026-10-07-matching-history-reader.md)를 참조한다.
+
+[cases-v14.json](cases-v14.json) / [gold-v14.md](gold-v14.md) /
+[manifest-v14.json](manifest-v14.json)은 실행 전에 동결한 합성 5대화·5발화다.
+최근 기본 이력, 이전 페이지와 회사 메모 동시 조회, 빈 기록, 등록/시작 및 미기록 수치,
+조회 실패를 검증한다. 기존 frozen 입력/정답은 변경하지 않는다.
+
+Canonical runner: `scripts/evalCompanyAgentCapabilities.ts --dataset=v14 --run=<new>`.
+실제 production 모델·tool loop·schema·formatter와 검색 이력 reader/get_more_data executor를 사용한다.
+DB만 frozen read-only table adapter로 대체하며 기본 입력도 같은 history reader/formatter로 만든다.
+API·DB·발송은 차단하고 모델 provider만 허용한다. 기본 모델/provider/reasoning/temperature와
+소스·입력·prompt fingerprint, raw response는 ignored owner-only `runs/<run>/`에 기록한다.
+평가 단위는 대화 전체이며 실행 완료율, 숫자/시간/미확인 상태 정확성, 필요한 추가 조회,
+권한 없는 효과와 비공개 정보 노출을 검토한다. Gate는 5/5 원문 의미 통과와 critical 0이다.
+합성 challenge 1회는 운영 평균, 실제 DB/transport E2E 또는 독립 팀원 검토가 아니다.
+
+
+## 구독 설명·크레딧 부족 표시 경계: v13 (2026-10-07)
+
+[입력](cases-v13.json)·[gold](gold-v13.md)·[동결 manifest](manifest-v13.json)는 한국어·영어
+요금 문의 2대화와 Intro·연결 수락 차단 2대화, 총 5발화다. 합성 v6 회사·후보자를 재사용한다.
+최신 서비스 정책과 충돌하는 과거 답변 예시를 명시적으로 주입하며, 부족 오류는 합성 executor에서
+반복 재현한다. 기존 v1 계약의 기본 빈 검색 결과와 달리 이 버전은 오래된 예시가 있는 조건이다.
+실제 검색·DB·발송은 하지 않는다. 입력과 gold는 첫 실행 전에 동결했으며 독립 팀원 검토는 대기 중이다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v13 --run=<새 이름>`.
+실제 production loop·prompt·tool schema, 현재 기본 모델/추론 설정, progressive, temperature 0.5,
+turn별 timeout 120초를 사용한다. 정확한 모델·source snapshot·fingerprint·provider 원문은 ignored
+`runs/`에 0700/0600으로 보존하며 네트워크는 모델 provider만 허용한다. Gold는 모델에 주입하지 않는다.
+
+Gate는 4대화의 정책·권한·사실성 자체 검토 통과, critical 0, 두 차단 경로의 표시 metadata 존재와
+실행 효과 0이다. 모델 입력에 부족 코드·잔액·차감량이 없고 정상 흐름에는 notice가 없는지 별도로 확인한다.
+단어 매칭은 machine metadata 경계만 검사하며 답변 의미는 전체 원문을 읽어 판단한다.
+1회씩의 challenge여서 운영 신뢰도나 실제 Slack 전달 성공률은 주장하지 않는다.
+[실행 결과와 한계](reports/2026-10-07-billing-notices.md)에 최초 실행과 보완 후 재실행,
+기존 v11 연결/Intro 선택 회귀를 함께 기록했다.
 
 ## /org 응답 언어 검증: 기존 v8·v10 선택 사례 (2026-09-30)
 
@@ -68,6 +161,8 @@ Gate는 3발화의 상태 사실·의미·불필요한 행동 없음과 critical
 원문 검토에서 3/3을 통과했고 결과·한계는 [보고서](reports/2026-09-28-company-first-history.md)에 기록했다.
 이 결과는 전체 v9/v10 회귀, 실제 DB 상태 변경, 브라우저 또는 메시지 왕복 E2E 통과를 뜻하지 않는다.
 
+2026-10-07 수락 후 안내 수정: 같은 v10의 3턴을 재실행했다. 실행 3/3, 의미 검토 2/3이며 회사 Intro 이후 상태를 일반화한 오류 1건을 [추가 회귀 기록](reports/2026-10-07-unified-matching.md)에 남겼다. 기본 서비스 설명을 보완한 r3 재시험은 동일 입력 3/3 의미 통과였다. 실제 전달·UI E2E는 아니다.
+
 ## 정기 검색 설정 검증: v9 (2026-09-28)
 
 [cases-v9.json](cases-v9.json) / [gold-v9.md](gold-v9.md) / [manifest-v9.json](manifest-v9.json)은
@@ -88,6 +183,7 @@ v8의 37변형을 보존하고 웹·Slack의 정기 검색 끄기→현재값 �
 [동결 manifest](manifest-v8.json) 순서로 확인한다. 37변형·54발화, 기존 v7은 보존한다.
 보류/취소·즉시화·전달/수신·재서술/조건 추가 경계를 명시했으며 이전 실패를 본 회귀 세트다.
 canonical runner: `scripts/evalCompanyAgentCapabilities.ts --dataset=v8 --copy=real --run=<new-id>`.
+`--model=<OpenRouter company-side model ID>`는 같은 동결 입력에 다른 모델을 실행한다. 생략하면 기존 Gemini 3.8 Flash를 사용하며 모델·reasoning·sampling 설정은 각 새 run의 manifest와 provider 원문에 기록한다.
 `--stream=true`는 같은 입력·모델·도구로 provider SSE 전송 경로를 검사한다. 원문 캡처는 응답 소비와
 병행하며 completion별 `firstTextMs`, `latencyMs`, `textDeltaCount`를 저장한다. 브라우저/DB/발송 E2E를
 대체하지 않는다. [2026-09-28 웹 스트리밍 검증](reports/2026-09-28-web-streaming.md)은 동결 v8의

@@ -1,3 +1,4 @@
+import type { CareerCapabilityRuntime } from "@/lib/career/capabilities/runtime";
 import {
   createChatCompletionStreamWithFallback,
   createChatCompletionWithFallback,
@@ -198,6 +199,7 @@ async function createTalentChatCompletion(args: {
     : await createChatCompletionWithFallback(completionArgs);
   logLlmTokenUsage({
     label: usageLabel,
+    meta: { offeredToolNames: (tools ?? []).map(tool => tool.function.name) },
     model,
     response,
   });
@@ -324,6 +326,7 @@ export async function runTalentAssistantCompletion(args: {
 }
 
 export async function runTalentAssistantToolLoop(args: {
+  toolRuntime?: CareerCapabilityRuntime;
   executeTool: (args: {
     input: Record<string, unknown>;
     name: string;
@@ -400,7 +403,15 @@ export async function runTalentAssistantToolLoop(args: {
   let totalToolCalls = 0;
   let pendingToolResultAttribution: string[] = [];
 
-  for (let loop = 0; loop < maxToolLoops; loop += 1) {
+  for (let loop = 0; loop < (args.toolRuntime?.maxToolLoops ?? maxToolLoops); loop += 1) {
+    const capabilityStep = args.toolRuntime?.resolveStep();
+    const stepTools = capabilityStep?.tools ?? tools;
+    const offeredNames = new Set(stepTools.map(tool => tool.function.name));
+    if (capabilityStep) {
+      const content = capabilityStep.systemBlocks.map(b => b.text).join("\n\n");
+      const systemIndex = workingMessages.findIndex(m => m.role === "system");
+      if (systemIndex >= 0) workingMessages[systemIndex] = { role: "system", content };
+    }
     const toolCostAttribution =
       pendingToolResultAttribution.length > 0
         ? {
@@ -420,14 +431,14 @@ export async function runTalentAssistantToolLoop(args: {
       primaryModel: modelConfig?.primaryModel,
       temperature,
       toolCostAttribution,
-      tools,
+      tools: stepTools,
       usageLabel,
     });
 
     const message = response.choices[0]?.message as any;
     const assistantContent = cleanModelText(getMessageContent(message));
     const toolCalls = Array.isArray(message?.tool_calls)
-      ? message.tool_calls
+      ? message.tool_calls.map((call: any) => ({ ...call, id: String(call.id ?? crypto.randomUUID()) }))
       : [];
 
     if (toolCalls.length === 0) {
@@ -459,7 +470,7 @@ export async function runTalentAssistantToolLoop(args: {
       })),
     });
 
-    const remainingToolCalls = maxTotalToolCalls - totalToolCalls;
+    const remainingToolCalls = (args.toolRuntime?.maxToolCalls ?? maxTotalToolCalls) - totalToolCalls;
     const executableToolCalls =
       remainingToolCalls > 0 ? toolCalls.slice(0, remainingToolCalls) : [];
     const skippedToolCalls = toolCalls.slice(executableToolCalls.length);
@@ -480,7 +491,6 @@ export async function runTalentAssistantToolLoop(args: {
       totalToolCalls += 1;
 
       const toolName = String(toolCall.function?.name ?? "").trim();
-      attemptedToolNames.push(toolName);
       const toolCallId = String(toolCall.id ?? crypto.randomUUID());
       const rawArguments = String(toolCall.function?.arguments ?? "{}");
 
@@ -493,6 +503,14 @@ export async function runTalentAssistantToolLoop(args: {
         parsedArguments = { _raw: rawArguments };
       }
 
+      const callError = capabilityStep ? args.toolRuntime!.claimCall(toolName, capabilityStep)
+        : !offeredNames.has(toolName) ? "tool_not_offered" : null;
+      if (callError || args.toolRuntime?.isInternalTool(toolName)) {
+        const result = callError ? { ok: false, error: callError } : args.toolRuntime!.load(parsedArguments, capabilityStep!);
+        workingMessages.push({ role: "tool", tool_call_id: toolCallId, name: toolName, content: JSON.stringify(result) });
+        continue;
+      }
+      attemptedToolNames.push(toolName);
       logTalentToolCall({
         callId: toolCallId,
         input: parsedArguments,
@@ -518,6 +536,7 @@ export async function runTalentAssistantToolLoop(args: {
           name: toolName,
           input: parsedArguments,
         });
+        if (capabilityStep) await args.toolRuntime!.recordResult(toolName, result, capabilityStep);
         logTalentToolResult({
           callId: toolCallId,
           durationMs: Date.now() - toolStartedAt,
@@ -533,6 +552,10 @@ export async function runTalentAssistantToolLoop(args: {
           content: JSON.stringify(result),
         });
         if (stopAfterToolNameSet.has(toolName)) {
+          for (const pending of executableToolCalls.slice(executableToolCalls.indexOf(toolCall) + 1)) {
+            workingMessages.push({ role: "tool", tool_call_id: pending.id, name: pending.function?.name,
+              content: JSON.stringify({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
+          }
           return "";
         }
       } catch (error) {
@@ -555,6 +578,14 @@ export async function runTalentAssistantToolLoop(args: {
       }
     }
     pendingToolResultAttribution = attemptedToolNames;
+  }
+
+  if (args.toolRuntime) {
+    const finalStep = args.toolRuntime.resolveStep();
+    const content = finalStep.systemBlocks.map(block => block.text).join("\n\n") +
+      "\n\nTool calls are exhausted for this turn. Answer using the completed results; do not claim unexecuted work is complete.";
+    const systemIndex = workingMessages.findIndex(message => message.role === "system");
+    if (systemIndex >= 0) workingMessages[systemIndex] = { role: "system", content };
   }
 
   const fallback = await createTalentChatCompletion({

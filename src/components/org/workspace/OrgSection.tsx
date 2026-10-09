@@ -38,7 +38,7 @@ export function OrgSectionHeader({
       )}
     >
       <div className="min-w-0">
-        <h2 className="text-[16px] font-medium text-neutral-primary">
+        <h2 className="text-[16px] font-normal text-neutral-primary">
           {title}
         </h2>
         {description ? (

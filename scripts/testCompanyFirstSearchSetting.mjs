@@ -53,7 +53,7 @@ try {
   await db.query("insert into company_workspace(company_workspace_id,company_name) values ($1,'Synthetic Search Labs'),($2,'Other Synthetic Labs')", [workspace,otherWorkspace]);
   for (const [id,scope,source] of [[role,workspace,"internal"],[otherRole,otherWorkspace,"internal"],[externalRole,workspace,"external"],[missingRole,workspace,"internal"]]) {
     await db.query("insert into company_roles(role_id,company_workspace_id,name,source_type,status,is_expired,information) values ($1,$2,'Backend',$3,'active',false,$4)", [id,scope,source,JSON.stringify({ testOnly:true,testFixture:"company-first-search-setting-v1",testTalentIds:[talent] })]);
-    if (id !== missingRole) await db.query("insert into company_internal_roles(role_id,is_company_first_search,is_auto) values ($1,true,true)",[id]);
+    if (id !== missingRole) await db.query("insert into company_internal_roles(role_id,is_company_first_search) values ($1,true)",[id]);
   }
   const addIntro = async (status = "ready") => scalar(`insert into company_intro_candidates
     (company_workspace_id,role_id,talent_id,status,selection_run_id,selection_reason,role_fingerprint,talent_fingerprint)
@@ -78,7 +78,6 @@ try {
   assert.equal(await flag(),false);
   assert.deepEqual(await artifacts(),before,"turning off preserves every intro row byte-for-byte");
   assert.deepEqual(await recommendations(),recBefore,"turning off preserves candidate recommendations");
-  assert.equal(await scalar("select is_auto from company_internal_roles where role_id=$1",[role]),true);
   assert.equal(await scalar("select status from company_roles where role_id=$1",[role]),"active");
   assert.equal(await scalar("select count(*)::int from opportunity_discovery_run"),0);
   assert.equal((await apply([mutation(false,false)])).status,"already_reflected");

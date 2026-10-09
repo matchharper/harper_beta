@@ -60,6 +60,13 @@ import {
 import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
+import {
+  assignCareerOnboardingStepOrder,
+  CAREER_ONBOARDING_STEP_ORDER_EXPERIMENT,
+  CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT,
+  getCareerOnboardingStepOrder,
+  type CareerOnboardingStepKind,
+} from "@/lib/career/onboardingStepOrderExperiment";
 import { trackSignUp } from "@/lib/ga";
 import { isTalentOnboardingSubmissionCommitted } from "@/lib/talentOnboarding/submissionRecovery";
 import {
@@ -247,6 +254,15 @@ const getDoneStepDefinition = (t: CareerT): OnboardingStepDefinition => ({
 });
 
 const TOTAL_STEPS = 4;
+const ONBOARDING_STEP_DEFINITION_INDEX: Record<
+  CareerOnboardingStepKind,
+  number
+> = {
+  basic: 0,
+  engagement: 1,
+  profile: 2,
+  visibility: 3,
+};
 
 const normalizeLink = (value: string) => {
   const trimmed = value.trim();
@@ -1067,6 +1083,15 @@ const CareerNetworkOnboardingContent = () => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
+  const userId = user?.id ?? null;
+  const stepOrderVariant = useMemo(
+    () => assignCareerOnboardingStepOrder(userId),
+    [userId]
+  );
+  const stepOrder = useMemo(
+    () => getCareerOnboardingStepOrder(stepOrderVariant),
+    [stepOrderVariant]
+  );
   const email = String(user?.email ?? "")
     .trim()
     .toLowerCase();
@@ -1121,10 +1146,12 @@ const CareerNetworkOnboardingContent = () => {
     () => getSingleQueryParam(officialJobSlugParam)?.trim() || "",
     [officialJobSlugParam]
   );
-  const onboardingSteps = useMemo(
-    () => getOnboardingSteps(t, officialJobTitle, name),
-    [officialJobTitle, name, t]
-  );
+  const onboardingSteps = useMemo(() => {
+    const definitions = getOnboardingSteps(t, officialJobTitle, name);
+    return stepOrder.map(
+      (kind) => definitions[ONBOARDING_STEP_DEFINITION_INDEX[kind]]
+    );
+  }, [officialJobTitle, name, stepOrder, t]);
   const doneStepDefinition = useMemo(() => getDoneStepDefinition(t), [t]);
   const onboardingEngagementCopy = useMemo(
     () => getOnboardingEngagementCopy(t),
@@ -1144,7 +1171,6 @@ const CareerNetworkOnboardingContent = () => {
   const [doneKickoffText, setDoneKickoffText] = useState(
     defaultDoneKickoffText
   );
-  const userId = user?.id ?? null;
   const inviteToken = getSingleQueryParam(router.query.invite)?.trim() || null;
   const mail = getSingleQueryParam(router.query.mail)?.trim() || null;
   const emailOnboardingToken =
@@ -1448,6 +1474,36 @@ const CareerNetworkOnboardingContent = () => {
     waitForProfileIngestion,
   ]);
 
+  const loggedStepOrderExposureRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      authLoading ||
+      bootstrapLoading ||
+      isPreviewSubmitState ||
+      submitState !== "form" ||
+      !userId ||
+      !conversationId ||
+      loggedStepOrderExposureRef.current === userId
+    ) {
+      return;
+    }
+
+    loggedStepOrderExposureRef.current = userId;
+    logCareerEvent(CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT, {
+      experiment: CAREER_ONBOARDING_STEP_ORDER_EXPERIMENT,
+      variant: stepOrderVariant,
+    });
+  }, [
+    authLoading,
+    bootstrapLoading,
+    conversationId,
+    isPreviewSubmitState,
+    logCareerEvent,
+    stepOrderVariant,
+    submitState,
+    userId,
+  ]);
+
   const saveBasicInfo = useCallback(async () => {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim().toLowerCase();
@@ -1549,7 +1605,7 @@ const CareerNetworkOnboardingContent = () => {
 
   const validateStep = useCallback(
     (currentStep: number) => {
-      if (currentStep === 0) {
+      if (stepOrder[currentStep] === "basic") {
         if (!name.trim()) {
           showToast({
             message: t(
@@ -1572,7 +1628,7 @@ const CareerNetworkOnboardingContent = () => {
         }
       }
 
-      if (currentStep === 1) {
+      if (stepOrder[currentStep] === "engagement") {
         if (selectedEngagements.length === 0) {
           showToast({
             message: t(
@@ -1585,7 +1641,7 @@ const CareerNetworkOnboardingContent = () => {
         }
       }
 
-      if (currentStep === 2) {
+      if (stepOrder[currentStep] === "profile") {
         const hasInvalidLinkedinLink = links.some(
           (link) => isLinkedinLink(link) && !isLinkedinProfileLink(link)
         );
@@ -1615,7 +1671,15 @@ const CareerNetworkOnboardingContent = () => {
 
       return true;
     },
-    [email, hasRequiredProfileSignal, links, name, selectedEngagements, t]
+    [
+      email,
+      hasRequiredProfileSignal,
+      links,
+      name,
+      selectedEngagements,
+      stepOrder,
+      t,
+    ]
   );
 
   const uploadResumeFile = useCallback(
@@ -1886,6 +1950,7 @@ const CareerNetworkOnboardingContent = () => {
     onComplete: submitOnboarding,
     enableWheelNavigation: false,
   });
+  const currentStepKind = stepOrder[step] ?? "basic";
 
   const handleLoggedNext = useCallback(() => {
     logCareerEvent(
@@ -1914,7 +1979,13 @@ const CareerNetworkOnboardingContent = () => {
       if (event.isComposing || event.metaKey || event.ctrlKey || event.altKey) {
         return;
       }
-      if ((step !== 1 && step !== 3) || !/^[1-9]$/.test(event.key)) return;
+      if (
+        (currentStepKind !== "engagement" &&
+          currentStepKind !== "visibility") ||
+        !/^[1-9]$/.test(event.key)
+      ) {
+        return;
+      }
 
       const target = event.target;
       if (
@@ -1928,7 +1999,7 @@ const CareerNetworkOnboardingContent = () => {
       }
 
       const optionIndex = Number(event.key) - 1;
-      if (step === 1) {
+      if (currentStepKind === "engagement") {
         const engagement = TALENT_NETWORK_ENGAGEMENT_OPTIONS[optionIndex];
         if (!engagement) return;
 
@@ -1947,10 +2018,10 @@ const CareerNetworkOnboardingContent = () => {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    currentStepKind,
     handleEngagementToggle,
     handleProfileVisibilitySelect,
     profileVisibilityOptions,
-    step,
   ]);
 
   const currentStepDefinition = onboardingSteps[step] ?? onboardingSteps[0];
@@ -2060,7 +2131,7 @@ const CareerNetworkOnboardingContent = () => {
         {effectiveSubmitState === "form" && (
           <OnboardingFrame
             progressStep={step}
-            expandContent={step === 2}
+            expandContent={currentStepKind === "profile"}
             title={
               <OnboardingTransition
                 stepKey={`header-${step}`}
@@ -2081,7 +2152,7 @@ const CareerNetworkOnboardingContent = () => {
               stepKey={`body-${step}`}
               className="flex min-h-full w-full flex-col items-stretch"
             >
-              {step === 0 && (
+              {currentStepKind === "basic" && (
                 <div className={currentStepDefinition.bodyClassName}>
                   <div>
                     <OnboardingFieldLabel>
@@ -2125,7 +2196,7 @@ const CareerNetworkOnboardingContent = () => {
                 </div>
               )}
 
-              {step === 1 && (
+              {currentStepKind === "engagement" && (
                 <div className={currentStepDefinition.bodyClassName}>
                   {TALENT_NETWORK_ENGAGEMENT_OPTIONS.map((option, index) => {
                     const copy = onboardingEngagementCopy[option.id];
@@ -2144,7 +2215,7 @@ const CareerNetworkOnboardingContent = () => {
                 </div>
               )}
 
-              {step === 2 && (
+              {currentStepKind === "profile" && (
                 <>
                   <div
                     className={cn(
@@ -2237,7 +2308,7 @@ const CareerNetworkOnboardingContent = () => {
                 </>
               )}
 
-              {step === 3 && (
+              {currentStepKind === "visibility" && (
                 <>
                   <div className={currentStepDefinition.bodyClassName}>
                     {profileVisibilityOptions.map((option) => (

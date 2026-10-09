@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabaseServer";
+import { isTestOnlyInternalRole } from "@/lib/internalRoleSafety";
 
 const BATCH_SIZE = 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -25,16 +26,15 @@ type CompanyWorkspaceRow = {
 type CompanyRoleRow = {
   company_internal_roles:
     | {
-        is_auto: boolean | null;
         role_status_changed_at?: string | null;
       }
     | Array<{
-        is_auto: boolean | null;
         role_status_changed_at?: string | null;
       }>
     | null;
   company_workspace_id: string;
   created_at?: string | null;
+  information?: unknown;
   is_expired: boolean;
   name?: string | null;
   role_id: string;
@@ -90,11 +90,14 @@ type RecommendationRow = {
 };
 
 type CompanyIntroCandidateRow = {
+  candidate_sent_at?: string | null;
   company_workspace_id: string;
+  requested_at?: string | null;
   role_id: string;
   selected_at: string;
   status: string;
   talent_id: string;
+  talent_users?: { name: string | null } | null;
 };
 
 type OpportunityTagRow = {
@@ -141,6 +144,15 @@ export type DailyCompanyRoleStatsRow = DailyCompanyCandidateStats & {
   roleStatus: string;
 };
 
+export type DailyCompanyIntroActivity = {
+  candidateSentAt: string | null;
+  requestedAt: string | null;
+  roleId: string;
+  roleName: string;
+  talentId: string;
+  talentName: string;
+};
+
 export type DailyCompanyStatsRow = {
   acceptedCount: number;
   acceptedTodayCount: number;
@@ -150,9 +162,11 @@ export type DailyCompanyStatsRow = {
   companyWorkspaceId: string;
   companyIntroCount: number;
   companyIntroTodayCount: number;
+  introActivityToday: DailyCompanyIntroActivity[];
+  introRequestedTodayCount: number;
+  introSentTodayCount: number;
   connectedCount: number;
   connectedTodayCount: number;
-  isAuto: boolean;
   isServed: boolean;
   isSlackConnected: boolean;
   latestLoginAt: string | null;
@@ -184,6 +198,8 @@ export type DailyCompanyStatsTotals = {
   chatTodayCount: number;
   companyIntroCount: number;
   companyIntroTodayCount: number;
+  introRequestedTodayCount: number;
+  introSentTodayCount: number;
   connectedCount: number;
   connectedTodayCount: number;
   memberCount: number;
@@ -257,12 +273,6 @@ function getInternalRoleRows(row: CompanyRoleRow) {
     : row.company_internal_roles
       ? [row.company_internal_roles]
       : [];
-}
-
-function isAutoRole(row: CompanyRoleRow) {
-  return getInternalRoleRows(row).some(
-    (internalRole) => internalRole.is_auto === true
-  );
 }
 
 function getRoleStatusChangedAt(row: CompanyRoleRow) {
@@ -645,7 +655,12 @@ export function compileDailyCompanyStatsReport(args: {
       text(row.company_workspace_id),
     ])
   );
+  const roleById = new Map(internalRoles.map((row) => [text(row.role_id), row]));
 
+  const introActivityTodayByWorkspaceId = new Map<
+    string,
+    DailyCompanyIntroActivity[]
+  >();
   const companyIntroTalentIdsByWorkspaceId = new Map<string, Set<string>>();
   const companyIntroTodayTalentIdsByWorkspaceId = new Map<
     string,
@@ -656,13 +671,39 @@ export function compileDailyCompanyStatsReport(args: {
     const workspaceId = text(intro.company_workspace_id);
     const roleId = text(intro.role_id);
     const talentId = text(intro.talent_id);
+    const role = roleById.get(roleId);
     if (
-      !ACTIVE_COMPANY_INTRO_STATUSES.has(normalized(intro.status)) ||
       !talentId ||
       roleWorkspaceId.get(roleId) !== workspaceId
     ) {
       continue;
     }
+
+    // Request/send timestamps are historical facts, including for closed intros.
+    // Never infer candidate delivery from selection or the current status.
+    if (
+      role &&
+      !isTestOnlyInternalRole(role) &&
+      (isInRange(intro.requested_at, startIso, endIso) ||
+        isInRange(intro.candidate_sent_at, startIso, endIso))
+    ) {
+      const activity = introActivityTodayByWorkspaceId.get(workspaceId) ?? [];
+      activity.push({
+        candidateSentAt:
+          intro.candidate_sent_at &&
+          new Date(intro.candidate_sent_at).getTime() < new Date(endIso).getTime()
+            ? intro.candidate_sent_at
+            : null,
+        requestedAt: intro.requested_at ?? null,
+        roleId,
+        roleName: text(role.name) || "이름 없는 역할",
+        talentId,
+        talentName: text(intro.talent_users?.name) || "이름 없는 후보자",
+      });
+      introActivityTodayByWorkspaceId.set(workspaceId, activity);
+    }
+
+    if (!ACTIVE_COMPANY_INTRO_STATUSES.has(normalized(intro.status))) continue;
 
     const workspaceTalents =
       companyIntroTalentIdsByWorkspaceId.get(workspaceId) ?? new Set<string>();
@@ -713,7 +754,6 @@ export function compileDailyCompanyStatsReport(args: {
   );
 
   const activeRoleCountByWorkspaceId = new Map<string, number>();
-  const autoWorkspaceIds = new Set<string>();
   const newRolesTodayByWorkspaceId = new Map<string, Set<string>>();
   for (const role of internalRoles) {
     const workspaceId = text(role.company_workspace_id);
@@ -723,7 +763,6 @@ export function compileDailyCompanyStatsReport(args: {
         (activeRoleCountByWorkspaceId.get(workspaceId) ?? 0) + 1
       );
     }
-    if (isAutoRole(role)) autoWorkspaceIds.add(workspaceId);
     if (isInRange(role.created_at, startIso, endIso)) {
       const newRoles =
         newRolesTodayByWorkspaceId.get(workspaceId) ?? new Set<string>();
@@ -997,7 +1036,6 @@ export function compileDailyCompanyStatsReport(args: {
   const allCompanies = args.rows.workspaces.map((workspace) => {
     const workspaceId = text(workspace.company_workspace_id);
     const memberCount = membersByWorkspaceId.get(workspaceId)?.size ?? 0;
-    const isAuto = autoWorkspaceIds.has(workspaceId);
     const isSlackConnected = slackWorkspaceIds.has(workspaceId);
     const usage = latestUsageByWorkspaceId.get(workspaceId);
     const counts = candidateCountsByWorkspaceId.get(workspaceId) ?? {
@@ -1010,6 +1048,13 @@ export function compileDailyCompanyStatsReport(args: {
       chat: 0,
       slack: 0,
     };
+    const introActivityToday = (
+      introActivityTodayByWorkspaceId.get(workspaceId) ?? []
+    ).sort((left, right) =>
+      text(left.candidateSentAt ?? left.requestedAt).localeCompare(
+        text(right.candidateSentAt ?? right.requestedAt)
+      )
+    );
     return {
       acceptedCount: counts.accepted,
       acceptedTodayCount:
@@ -1022,11 +1067,21 @@ export function compileDailyCompanyStatsReport(args: {
         companyIntroTalentIdsByWorkspaceId.get(workspaceId)?.size ?? 0,
       companyIntroTodayCount:
         companyIntroTodayTalentIdsByWorkspaceId.get(workspaceId)?.size ?? 0,
+      introActivityToday,
+      introRequestedTodayCount: new Set(
+        introActivityToday
+          .filter((intro) => isInRange(intro.requestedAt, startIso, endIso))
+          .map((intro) => intro.talentId)
+      ).size,
+      introSentTodayCount: new Set(
+        introActivityToday
+          .filter((intro) => isInRange(intro.candidateSentAt, startIso, endIso))
+          .map((intro) => intro.talentId)
+      ).size,
       connectedCount: counts.connected,
       connectedTodayCount:
         connectedTodayByWorkspaceId.get(workspaceId)?.size ?? 0,
-      isAuto,
-      isServed: isSlackConnected || (isAuto && memberCount > 0),
+      isServed: isSlackConnected,
       isSlackConnected,
       latestLoginAt: latestLoginByWorkspaceId.get(workspaceId) ?? null,
       latestUsageAt: usage?.at ?? null,
@@ -1098,6 +1153,10 @@ export function compileDailyCompanyStatsReport(args: {
       companyIntroCount: current.companyIntroCount + company.companyIntroCount,
       companyIntroTodayCount:
         current.companyIntroTodayCount + company.companyIntroTodayCount,
+      introRequestedTodayCount:
+        current.introRequestedTodayCount + company.introRequestedTodayCount,
+      introSentTodayCount:
+        current.introSentTodayCount + company.introSentTodayCount,
       connectedCount: current.connectedCount + company.connectedCount,
       connectedTodayCount:
         current.connectedTodayCount + company.connectedTodayCount,
@@ -1141,6 +1200,8 @@ export function compileDailyCompanyStatsReport(args: {
       chatTodayCount: 0,
       companyIntroCount: 0,
       companyIntroTodayCount: 0,
+      introRequestedTodayCount: 0,
+      introSentTodayCount: 0,
       connectedCount: 0,
       connectedTodayCount: 0,
       memberCount: 0,
@@ -1239,7 +1300,7 @@ export async function buildDailyCompanyStatsReport(
     fetchAllRows<CompanyRoleRow>((from, to) =>
       (supabaseServer.from("company_roles") as any)
         .select(
-          "role_id,company_workspace_id,name,status,is_expired,source_type,created_at,company_internal_roles(is_auto,role_status_changed_at)"
+          "role_id,company_workspace_id,name,information,status,is_expired,source_type,created_at,company_internal_roles(role_status_changed_at)"
         )
         .in("company_workspace_id", workspaceIds)
         .eq("source_type", "internal")
@@ -1293,10 +1354,15 @@ export async function buildDailyCompanyStatsReport(
     fetchAllRows<CompanyIntroCandidateRow>((from, to) =>
       supabaseServer
         .from("company_intro_candidates")
-        .select("company_workspace_id,role_id,talent_id,status,selected_at")
+        .select(
+          "company_workspace_id,role_id,talent_id,status,selected_at,requested_at,candidate_sent_at,talent_users(name)"
+        )
         .in("company_workspace_id", workspaceIds)
-        .in("status", [...ACTIVE_COMPANY_INTRO_STATUSES])
+        .or(
+          `status.in.(${[...ACTIVE_COMPANY_INTRO_STATUSES].join(",")}),and(requested_at.gte.${startIso},requested_at.lt.${endIso}),and(candidate_sent_at.gte.${startIso},candidate_sent_at.lt.${endIso})`
+        )
         .order("selected_at", { ascending: false })
+        .order("id", { ascending: false })
         .range(from, to)
     ),
   ]);
@@ -1411,6 +1477,11 @@ function formatCompanyLine(company: DailyCompanyStatsRow) {
           )}`,
         ]
       : []),
+    ...(company.introActivityToday.length > 0
+      ? [
+          `Request intro 오늘 요청 ${company.introRequestedTodayCount}명 · 후보자 발송 ${company.introSentTodayCount}명`,
+        ]
+      : []),
     formatAcceptedLink(company),
     `연결 대기 ${company.pendingConnectionCount}${formatTodayIncrease(
       company.pendingConnectionTodayCount
@@ -1475,6 +1546,7 @@ export function formatDailyCompanyStatsSlackMessage(
     `- 전체 active 상태 역할 수: ${report.totals.activeRoleCount}개 (+오늘 새 역할 ${report.totals.newRoleTodayCount}개)`,
     `- 전체 후보 상태: ${currentCompanyIntro}수락자 ${report.totals.acceptedCount}명 · 연결 대기 ${report.totals.pendingConnectionCount}명 · 진행 중 ${report.totals.connectedCount}명 · 거절 ${report.totals.rejectedCount}명`,
     `- 오늘 신규 전환: ${todayCompanyIntro}수락자 ${report.totals.acceptedTodayCount}명 · 연결 대기 ${report.totals.pendingConnectionTodayCount}명 · 연결됨 ${report.totals.connectedTodayCount}명 · 거절 ${report.totals.rejectedTodayCount}명`,
+    `- 오늘 Request intro: 회사 요청 ${report.totals.introRequestedTodayCount}명 · 후보자 발송 ${report.totals.introSentTodayCount}명 (메일 또는 채팅 전달 기준, 회사별 인원 합계)`,
     `- 지난 7일 신규 전환: 수락자 ${report.totals.rolling7Day.acceptedCount}명 · 연결 대기 ${report.totals.rolling7Day.pendingConnectionCount}명 · 연결됨 ${report.totals.rolling7Day.connectedCount}명 · 거절 ${report.totals.rolling7Day.rejectedCount}명`,
     "",
     `*Slack/직접 서빙 중 · ${report.servedCompanies.length}개*`,
@@ -1493,6 +1565,17 @@ function lifecycleActionLabel(
   if (action === "paused") return "역할 중단";
   if (action === "ended") return "역할 정지";
   return "역할 삭제";
+}
+
+function formatIntroActivityLine(intro: DailyCompanyIntroActivity) {
+  const time = (at: string) =>
+    new Date(new Date(at).getTime() + 9 * 60 * 60 * 1_000)
+      .toISOString()
+      .slice(5, 16)
+      .replace("-", "/")
+      .replace("T", " ");
+  const candidateUrl = `https://matchharper.com/ops/career?userId=${encodeURIComponent(intro.talentId)}`;
+  return `  • <${candidateUrl}|${escapeSlackText(intro.talentName)}> — ${escapeSlackText(intro.roleName)} · 요청 ${intro.requestedAt ? time(intro.requestedAt) : "기록 없음"} · 후보자 발송 ${intro.candidateSentAt ? time(intro.candidateSentAt) : "기록 없음(집계일 기준)"}`;
 }
 
 function formatCompanyDetailLines(company: DailyCompanyStatsRow) {
@@ -1521,6 +1604,12 @@ function formatCompanyDetailLines(company: DailyCompanyStatsRow) {
   }
   if (company.companyIntroTodayCount > 0) {
     lines.push(`- 새로 먼저 제안된 후보 ${company.companyIntroTodayCount}명`);
+  }
+  if (company.introActivityToday.length > 0) {
+    lines.push(
+      `- 오늘 Request intro: 회사 요청 ${company.introRequestedTodayCount}명 · 후보자 발송 ${company.introSentTodayCount}명 (KST)`
+    );
+    lines.push(...company.introActivityToday.map(formatIntroActivityLine));
   }
   if (company.pendingConnectionTodayCount > 0) {
     lines.push(

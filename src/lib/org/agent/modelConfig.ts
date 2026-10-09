@@ -8,6 +8,7 @@ import {
 
 export const ORG_AGENT_CLAUDE_MODEL = CLAUDE_MODEL;
 export const ORG_AGENT_GEMINI_FLASH_MODEL = "google/gemini-3.8-flash" as const;
+export const ORG_AGENT_HAIKU_MODEL = "anthropic/claude-haiku-5.5" as const;
 export const ORG_AGENT_TEMPERATURE = 0.5;
 export const ORG_AGENT_LUNA_MODEL = GPT_6_LUNA_MODEL;
 export const ORG_AGENT_TERRA_MODEL = GPT_56_TERRA_MODEL;
@@ -19,11 +20,13 @@ export const ORG_AGENT_MODEL_IDS = [
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_TERRA_MODEL,
   ORG_AGENT_CLAUDE_MODEL,
+  ORG_AGENT_HAIKU_MODEL,
 ] as const;
 
 export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];
 
-export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId = ORG_AGENT_GEMINI_FLASH_MODEL;
+export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId =
+  ORG_AGENT_GEMINI_FLASH_MODEL;
 export const DEFAULT_SLACK_ORG_AGENT_MODEL: OrgAgentModelId =
   ORG_AGENT_GEMINI_FLASH_MODEL;
 export const DEFAULT_ORG_AGENT_REASONING_EFFORT = "medium" as const;
@@ -32,7 +35,8 @@ export type OrgAgentReasoningEffort = "medium" | "high" | "xhigh" | "max";
 export function getOrgAgentReasoningEffort(
   model: OrgAgentModelId
 ): OrgAgentReasoningEffort {
-  return model === ORG_AGENT_GLM_53_FLASH_MODEL
+  return model === ORG_AGENT_GLM_53_FLASH_MODEL ||
+    model === ORG_AGENT_HAIKU_MODEL
     ? "high"
     : DEFAULT_ORG_AGENT_REASONING_EFFORT;
 }
@@ -40,8 +44,11 @@ export function getOrgAgentReasoningEffort(
 export function getOrgAgentFallbackModel(
   model: OrgAgentModelId
 ): OrgAgentModelId | null {
-  return model === ORG_AGENT_LUNA_MODEL || model === ORG_AGENT_GEMINI_FLASH_MODEL
-    ? null : ORG_AGENT_LUNA_MODEL;
+  return model === ORG_AGENT_LUNA_MODEL ||
+    model === ORG_AGENT_GEMINI_FLASH_MODEL ||
+    model === ORG_AGENT_HAIKU_MODEL
+    ? null
+    : ORG_AGENT_LUNA_MODEL;
 }
 
 export function isOrgAgentModelId(value: unknown): value is OrgAgentModelId {
@@ -77,7 +84,11 @@ export function resolveOrgAgentModel(value: unknown): {
   const requestedModel = typeof value === "string" ? value.trim() : "";
   const resolvedRequestedModel = migrateOrgAgentModel(requestedModel);
   if (resolvedRequestedModel) {
-    return { model: resolvedRequestedModel, requestedModel, resolvedBy: "requested" };
+    return {
+      model: resolvedRequestedModel,
+      requestedModel,
+      resolvedBy: "requested",
+    };
   }
   const configuredModel = process.env.ORG_AGENT_MODEL?.trim();
   const resolvedConfiguredModel = migrateOrgAgentModel(configuredModel);

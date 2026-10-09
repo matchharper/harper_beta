@@ -1,237 +1,203 @@
-import React, { useCallback, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import Head from "next/head";
-import router from "next/router";
-import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
-import Head1 from "@/components/landing/Head1";
-import Animate from "@/components/landing/Animate";
+// import { useRouter } from "next/router";
+import { useQuery } from "@tanstack/react-query";
+import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
+import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
 import QuestionAnswer from "@/components/landing/Questions";
-import LandingHeader from "@/components/landing/LandingHeader";
+import { PricingSocialProof } from "@/components/landing/PricingSocialProof";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { WorkspacePlans } from "@/components/org/billing/WorkspacePlans";
 import { useMessages } from "@/i18n/useMessage";
-import { supabase } from "@/lib/supabase";
-import Footer from "@/components/landing/Footer";
-import { trackSignUp } from "@/lib/ga";
-
-const LoginModal = dynamic(() => import("@/components/Modal/LoginModal"));
-const PricingSection = dynamic(() => import("@/components/landing/Pricing"));
-
-type Billing = "monthly" | "yearly";
+import { getCompanyLocalePath } from "@/lib/companyLandingSeo";
+import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
+import {
+  BILLING_SUPPORT_HREF,
+  type BillingCatalog,
+} from "@/lib/org/billing/types";
 
 export default function PricingPage() {
-  const { m, locale } = useMessages();
-  const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
-
-  const seoMeta = useMemo(() => {
-    if (locale === "ko") {
-      return {
-        title: "Harper Pricing | 팀을 위한 요금제",
-        description:
-          "Harper의 플랜과 결제/이용 정책을 확인하고 팀에 맞는 요금제를 선택하세요.",
-      };
-    }
-
-    return {
-      title: "Harper Pricing | Plans for Growing Teams",
-      description:
-        "Explore Harper plans and billing and usage policies to choose the best option for your team.",
-    };
-  }, [locale]);
-
-  const handleCloseLoginModal = useCallback(() => {
-    setIsOpenLoginModal(false);
-  }, []);
-
-  const login = useCallback(async () => {
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback`
-        : undefined;
-
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo,
-      },
-    });
-
-    if (error) throw error;
-    if (data?.url && typeof window !== "undefined") {
-      window.location.assign(data.url);
-    }
-    return data;
-  }, []);
-
-  const customLogin = useCallback(
-    async (email: string, password: string) => {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-
-        if (error) {
-          const authError = error as Error & {
-            code?: string;
-            status?: number;
-          };
-          console.error("[auth] signInWithPassword failed", {
-            message: authError.message,
-            code: authError.code,
-            status: authError.status,
-            name: authError.name,
-          });
-
-          const details = [authError.message];
-          if (authError.status) details.push(`status:${authError.status}`);
-          if (authError.code) details.push(`code:${authError.code}`);
-          return { message: details.join(" | ") };
-        }
-
-        const user = data.user;
-        if (!user) {
-          return { message: m.auth.invalidAccount };
-        }
-
-        const isEmailConfirmed = Boolean(
-          user.email_confirmed_at || user.user_metadata?.email_verified
-        );
-        if (!isEmailConfirmed) {
-          return { message: m.auth.emailConfirmationSent };
-        }
-
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const accessToken = session?.access_token;
-        if (!accessToken) {
-          return {
-            message: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
-          };
-        }
-
-        const bootstrapRes = await fetch("/api/auth/bootstrap", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ source: "pricing" }),
-        });
-        const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
-        if (!bootstrapRes.ok) {
-          return {
-            message:
-              bootstrapJson?.error ??
-              "계정 초기화에 실패했습니다. 다시 시도해 주세요.",
-          };
-        }
-        if (bootstrapJson?.persona === "talent") {
-          window.location.assign(bootstrapJson?.redirectTo || "/career");
-          return null;
-        }
-        if (bootstrapJson?.created === true) {
-          trackSignUp({
-            flow: "pricing",
-            method: "email_or_existing_session",
-          });
-        }
-
-        setIsOpenLoginModal(false);
-        router.push("/");
-        return null;
-      } catch (error) {
-        console.error("[auth] signInWithPassword unexpected error", error);
-        if (error instanceof Error && error.message) {
-          return { message: error.message };
-        }
-        return { message: m.auth.invalidAccount };
-      }
+  const { locale, setLocale } = useMessages();
+  // const router = useRouter();
+  const contactHref = `${getCompanyLocalePath(locale)}#company-contact`;
+  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const catalog = useQuery({
+    queryKey: ["billing-catalog"],
+    queryFn: async () => {
+      const res = await fetch("/api/billing/catalog");
+      if (!res.ok) throw new Error("catalog unavailable");
+      return res.json() as Promise<BillingCatalog>;
     },
-    [m.auth.emailConfirmationSent, m.auth.invalidAccount]
-  );
-
-  const handlePricingPlanClick = useCallback(
-    (_plan: string, _billing: Billing) => {
-      setIsOpenLoginModal(true);
-    },
-    []
-  );
-
-  const handleHeaderStartClick = useCallback(() => {
-    setIsOpenLoginModal(true);
-  }, []);
-
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const faqs = [
+    [
+      c("결제 없이 먼저 사용해 볼 수 있나요?", "Can I try Harper for free?"),
+      c(
+        "네. 회사 이메일로 가입하면 카드 등록 없이 시작할 수 있어요. Free에서도 Role을 무제한으로 만들고 채용을 진행할 수 있어요. 모든 Role이 함께 사용하는 공용 크레딧 10개를 매월 제공하며, 후보자 검토와 Intro 요청을 이용할 수 있어요.",
+        "Yes. Sign up with your work email, with no card required. Free includes unlimited Roles and 10 monthly credits shared across all Roles. You can review candidates and request introductions."
+      ),
+    ],
+    [
+      c(
+        "슬롯은 무엇이고, 몇 개가 필요한가요?",
+        "What is a slot, and how many do I need?"
+      ),
+      c(
+        "슬롯은 Role 하나에 유료 기능과 월 50크레딧을 연결하는 구독이에요. Role 수는 Free에서도 무제한이므로, 유료 기능이 필요한 Role 수만큼 추가하면 돼요. 슬롯에 연결된 Role은 Harper가 먼저 관심을 확인한 후보자와 연결할 수 있어요. 슬롯의 담당 Role은 변경할 수 있고, 크레딧과 갱신일은 슬롯에 남아요.",
+        "A slot adds paid features and 50 monthly credits to one Role. Roles are unlimited even on Free, so add slots for the Roles that need paid features, including connections with candidates whose interest Harper has confirmed. You can reassign a slot; its credits and renewal date stay with it."
+      ),
+    ],
+    [
+      c("크레딧은 무엇을 할 때 사용하나요?", "What do credits cover?"),
+      c(
+        "후보자에게 우리 회사의 채용 기회를 소개해 달라고 요청할 때 1개를 사용해요. 또는 Harper가 먼저 관심을 확인한 후보자를 소개했을 때, 그 후보자와 연결하기로 결정하면 1개를 사용해요. 먼저 소개를 요청한 후보자와 나중에 연결될 때는 추가로 사용하지 않아요. 후보자 정보를 살펴보는 데는 크레딧이 들지 않아요.",
+        "You use 1 credit when you ask Harper to introduce your opportunity to a candidate. You also use 1 credit when you choose to connect with a candidate whose interest Harper has already confirmed. If you requested the introduction first, connecting afterwards costs no additional credit. Reviewing candidate profiles does not use credits."
+      ),
+    ],
+    [
+      c(
+        "크레딧은 언제 새로 받나요? 남으면 이월되나요?",
+        "When do credits reset, and do they roll over?"
+      ),
+      c(
+        "전체 Role 공용 크레딧은 매월 10개, 유료 슬롯은 각 슬롯의 월 갱신일에 50개가 제공돼요. 유료 슬롯을 구매해도 공용 크레딧의 잔액과 갱신일은 유지돼요. 슬롯에 연결된 Role은 해당 슬롯의 크레딧을 먼저 쓰고 부족하면 공용 크레딧을 사용해요. 다른 유료 슬롯의 크레딧은 사용할 수 없고, 남은 크레딧은 이월되지 않아요.",
+        "All Roles share 10 credits each month. Each paid slot receives 50 credits on its own monthly reset date. Buying slots preserves the shared balance and its reset date. A Role uses its assigned slot’s credits first, then shared credits. It cannot use another paid slot’s credits. Unused credits do not roll over."
+      ),
+    ],
+    [
+      c(
+        "월간 결제와 연간 결제는 무엇이 다른가요?",
+        "How do monthly and yearly billing differ?"
+      ),
+      c(
+        "월간은 한 달 이용료를 매월 결제하고, 연간은 할인된 가격으로 12개월 이용료를 한 번에 결제해요. 이용할 수 있는 기능과 매월 받는 크레딧은 같아요. 연간 결제를 선택해도 크레딧은 1년치를 한꺼번에 받는 것이 아니라 슬롯마다 매월 50개씩 새로 제공돼요.",
+        "Monthly plans are billed one month at a time. Yearly plans are paid upfront for 12 months at a discounted rate. Both include the same features and monthly credits. On a yearly plan, each slot still receives 50 new credits every month, rather than a full year’s credits at once."
+      ),
+    ],
+    [
+      c(
+        "채용에 성공하면 별도 수수료가 있나요?",
+        "Is there a fee when I make a hire?"
+      ),
+      c(
+        "Free와 일반 유료 요금제에는 채용 성공보수가 없어요. 후보자를 채용해도 연봉에 따른 수수료나 별도의 성공보수를 청구하지 않아요. Harper에 Enterprise를 요청한 경우에만 별도 계약으로 다른 비용 모델을 정할 수 있으며, 계약 전에 안내해 드려요.",
+        "There is no hiring success fee on Free or standard paid plans. You will not be charged a salary-based commission or a separate fee for making a hire. If you request Enterprise, a different pricing model may be agreed in a separate contract and explained before you sign."
+      ),
+    ],
+    [
+      c(
+        "채용이 끝나면 구독을 취소할 수 있나요?",
+        "Can I cancel when I’m done hiring?"
+      ),
+      c(
+        "네. Organization의 Slots에서 필요한 슬롯만 골라 언제든 구독을 취소할 수 있어요. 취소해도 이미 결제한 기간이 끝날 때까지 이용할 수 있고, 다음 자동 결제는 중단돼요. 종료 후에도 모든 Role과 공용 크레딧은 유지돼요. 월간·연간 모두 중도 취소에 따른 잔여 기간 환불은 원칙적으로 제공하지 않아요. 결제 오류나 법령에 따른 환불은 별도로 처리해요.",
+        "Yes. In Organization → Slots, you can cancel any slot you no longer need. It stays available until the end of the paid period and will not renew. All Roles and shared credits remain available afterwards. Monthly and yearly subscriptions are generally not refunded for the unused portion when cancelled mid-period. Billing errors and refunds required by law are handled separately."
+      ),
+    ],
+  ];
   return (
-    <>
+    <div
+      id="top"
+      className="min-h-screen bg-bg-basement font-sans text-neutral-primary"
+    >
       <Head>
-        <title>{seoMeta.title}</title>
-        <meta name="description" content={seoMeta.description} />
-        <meta name="robots" content="index,follow,max-image-preview:large" />
-      </Head>
-
-      <main className="min-h-screen font-inter text-white bg-black w-screen">
-        {isOpenLoginModal && (
-          <LoginModal
-            open={isOpenLoginModal}
-            onClose={handleCloseLoginModal}
-            onGoogle={login}
-            onConfirm={customLogin}
-            language={locale}
-          />
-        )}
-
-        <LandingHeader
-          onStartClick={handleHeaderStartClick}
-          startButtonLabel={m.companyLanding.startButton}
+        <title>{`Harper — ${c("요금제", "Pricing")}`}</title>
+        <meta
+          name="description"
+          content={c(
+            "채용에 필요한 만큼 슬롯을 추가하세요. Free, Slot, Enterprise 요금제.",
+            "Add hiring slots as your team grows. Free, Slot and Enterprise plans."
+          )}
         />
-
-        <div className="h-14 md:h-20" />
-        <PricingSection onClick={handlePricingPlanClick} />
-
+      </Head>
+      <CareerAppBar
+        // careerStartHref={`/org?lang=${locale}`}
+        careerStartHref={contactHref}
+        sectionHrefPrefix={getCompanyLocalePath(locale)}
+        showSectionLinks={false}
+        audienceHref="/"
+        bgColor="bg-basement"
+        locale={locale}
+      />
+      <PageContainer
+        as="main"
+        padding="none"
+        className="max-w-[1160px] px-4 pb-24 pt-28 md:pb-32 md:pt-36"
+      >
+        <header className="mb-10 text-center md:mb-14">
+          <h1 className="text-[28px] font-normal leading-snug tracking-tight md:text-[36px]">
+            {c(
+              "채용에 맞는 요금제를 선택하세요.",
+              "A plan for your next hire."
+            )}
+          </h1>
+          <p className="mt-4 text-[15px] font-light leading-7 text-neutral-muted md:text-base">
+            {c(
+              "무료로 시작하고, 채용이 늘어나면 슬롯을 추가하세요.",
+              "Start for free. Add slots as your hiring grows."
+            )}
+          </p>
+        </header>
+        <WorkspacePlans
+          locale={locale}
+          catalog={catalog.data}
+          contactHref={contactHref}
+          onAddSlot={() => {}}
+          // Self-serve checkout preserved until payment testing is complete.
+          // onAddSlot={(interval) =>
+          //   void router.push(
+          //     `/org/slots?purchase=slot&interval=${interval}&lang=${locale}`
+          //   )
+          // }
+        />
+        <PricingSocialProof locale={locale} />
         <section
           id="pricing-faq"
-          className="w-full bg-black text-white mt-32 pb-24 md:pb-32"
+          aria-labelledby="pricing-faq-title"
+          className="mt-20 scroll-mt-24 md:mt-28"
         >
-          <Animate>
-            <BaseSectionLayout>
-              <div className="flex flex-col items-center justify-center w-full pt-4">
-                <Head1 as="h2" className="text-white text-center">
-                  {m.companyLanding.pricingFaq.title}
-                </Head1>
-                <div className="flex flex-col items-start justify-start text-white/70 font-light w-full mt-10 px-4 md:px-0">
-                  {m.companyLanding.pricingFaq.items.map((item, index) => (
-                    <QuestionAnswer
-                      key={item.question}
-                      question={item.question}
-                      answer={item.answer}
-                      index={index}
-                      length={m.companyLanding.pricingFaq.items.length}
-                    />
-                  ))}
-                </div>
-              </div>
-            </BaseSectionLayout>
-          </Animate>
-        </section>
-        <div>
-          <div className="mt-24 text-white/70 font-light text-center mb-40 flex flex-col items-center justify-center">
-            추가 문의 사항이 있으시다면, chris@matchharper.com으로 문의해
-            주세요.
-            <div
-              className="mt-2 underline decoration-dotted cursor-pointer text-neutral-300 hover:text-neutral-00"
-              onClick={() =>
-                window.open(
-                  "https://peat-find-598.notion.site/Refund-policy-2e684af768c6800e8276ccbe16fc8cb4?pvs=74",
-                  "_blank"
-                )
-              }
-            >
-              환불 규정
+          <div className="flex flex-col gap-6 md:flex-row md:gap-12">
+            <div className="md:w-1/3 md:shrink-0 md:pt-4">
+              <h2
+                id="pricing-faq-title"
+                className="text-[26px] font-normal leading-tight tracking-tight md:text-[28px]"
+              >
+                {c("자주 묻는 질문", "Frequently asked questions")}
+              </h2>
+              <p className="mt-5 text-sm font-light leading-6 text-neutral-muted">
+                {c("더 궁금한 점이 있으신가요?", "Have another question?")}
+                <br />
+                <a
+                  className="underline decoration-neutral-1000-a10 underline-offset-4 hover:text-neutral-primary"
+                  href={BILLING_SUPPORT_HREF}
+                >
+                  {c("Harper 팀에 문의해 주세요.", "Get in touch with Harper.")}
+                </a>
+              </p>
+            </div>
+            <div className="min-w-0 flex-1">
+              {faqs.map(([question, answer], index) => (
+                <QuestionAnswer
+                  key={question}
+                  question={question}
+                  answer={answer}
+                  index={index}
+                  length={faqs.length}
+                  theme="cream"
+                  variant="compact"
+                />
+              ))}
             </div>
           </div>
-        </div>
-        <Footer />
-      </main>
-    </>
+        </section>
+      </PageContainer>
+      <CareerLandingFooter
+        careerStartHref={`/career?lang=${locale}`}
+        locale={locale}
+        onLocaleChange={setLocale}
+        onScheduleCallClick={() => openCustomCrispWidget()}
+      />
+    </div>
   );
 }

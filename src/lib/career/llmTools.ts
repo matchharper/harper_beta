@@ -104,8 +104,8 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.GENERATE_RESUME,
   TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
-  // The schema is always present after onboarding. Its prompt and tool
-  // contract keep ordinary chat as the default; no classifier call is added.
+  // Eligible after onboarding; the capability resolver may defer this schema.
+  // Its prompt keeps ordinary chat as the default without an intent classifier.
   TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,

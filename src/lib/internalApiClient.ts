@@ -56,6 +56,7 @@ export async function fetchWithInternalAuth<T>(
   const response = await fetchResponseWithInternalAuth(input, init);
   const payload = (await response.json().catch(() => ({}))) as T & {
     error?: string;
+    billingCode?: string;
   };
 
   if (!response.ok) {
@@ -64,6 +65,7 @@ export async function fetchWithInternalAuth<T>(
       new Error(payload.error ?? "요청을 처리하지 못했습니다."),
       {
         status: response.status,
+        billingCode: payload.billingCode,
       }
     );
   }

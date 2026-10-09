@@ -571,6 +571,7 @@ export const HistoryOpportunityInlinePage = ({
   onUpdateTalentMemo,
   onStartMockInterview,
   pending,
+  onKeepDecision,
   roleActionsOnDesktop = true,
   savedStatus,
 }: {
@@ -593,6 +594,7 @@ export const HistoryOpportunityInlinePage = ({
     talentMemo: string | null
   ) => void | Promise<void>;
   pending: boolean;
+  onKeepDecision?: (action: "accept" | "decline") => void;
   roleActionsOnDesktop?: boolean;
   savedStatus?: CareerOpportunityManagementStatus;
 }) => {
@@ -607,6 +609,36 @@ export const HistoryOpportunityInlinePage = ({
 
   return (
     <section className={cn("min-w-0 pb-8 text-neutral-primary", className)}>
+      {item.feedback === "keep" ? (
+        <div className="mb-4 rounded-lg border border-neutral-1000-a05 p-3 bg-bg-basement">
+          <p className="text-sm text-neutral-800">
+            {t(
+              "career.history.keep.notice",
+              "저장됨 · 아직 수락하거나 거절하지 않았어요. 회사에는 전달되지 않습니다."
+            )}
+          </p>
+          {onKeepDecision ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!item.isExpired &&
+              (item.status === "active" || item.status === "paused") ? (
+                <MuteButton
+                  disabled={pending}
+                  onClick={() => onKeepDecision("accept")}
+                  variant="primary"
+                >
+                  {t("career.history.keep.accept", "연결 수락")}
+                </MuteButton>
+              ) : null}
+              <MuteButton
+                disabled={pending}
+                onClick={() => onKeepDecision("decline")}
+              >
+                {t("career.history.keep.decline", "거절")}
+              </MuteButton>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="mb-4 flex flex-row gap-3 items-center justify-between">
         <nav className="flex min-w-0 items-center gap-1 text-[13px] leading-5 text-neutral-muted">
           <BareButton
@@ -785,13 +817,15 @@ const HistoryOpportunityDetailContent = ({
         </InlinePanel>
       </div>
 
-      {showRoleActions ? <HistoryOpportunityRoleActions
-        key={item.id}
-        className={cn("mx-3 mt-5", !roleActionsOnDesktop && "md:hidden")}
-        item={item}
-        onOpenChat={onOpenChat}
-        onStartMockInterview={onStartMockInterview}
-      /> : null}
+      {showRoleActions ? (
+        <HistoryOpportunityRoleActions
+          key={item.id}
+          className={cn("mx-3 mt-5", !roleActionsOnDesktop && "md:hidden")}
+          item={item}
+          onOpenChat={onOpenChat}
+          onStartMockInterview={onStartMockInterview}
+        />
+      ) : null}
     </div>
   );
 };

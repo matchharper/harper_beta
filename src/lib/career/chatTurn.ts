@@ -1,3 +1,6 @@
+import { createCareerCapabilityTurn, isCareerCapabilityTurn, readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
+import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
+import { initialCareerCapabilityPayload } from "@/lib/career/capabilities/lease";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { after } from "next/server";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
@@ -590,11 +593,7 @@ export async function runCareerChatTurn(
     : null;
   const shouldAutoExtractInsights = isOnboardingActiveForTurn;
   const savedProfileChangesForExtraction = new Set<string>();
-  const canUseInternalFitHoldQuestionTool =
-    !Array.isArray(args.allowedToolNames) ||
-    args.allowedToolNames.includes(
-      TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
-    );
+  const canUseInternalFitHoldQuestionTool = false;
   const activeInternalFitHoldQuestion =
     talentSetting?.is_onboarding_done &&
     talentSetting.profile_visibility !== "dont_share" &&
@@ -635,6 +634,9 @@ export async function runCareerChatTurn(
         })
       : Promise.resolve(0);
 
+  const capabilityMode = getCareerCapabilityMode();
+  const trackCapabilities = isCareerCapabilityTurn({ channel: requestChannel, isOnboardingDone: !isOnboardingActiveForTurn, allowedToolNames: args.allowedToolNames });
+  const careerCoachingActivity = trackCapabilities ? await readCareerCapabilityCoaching({ admin, userId, conversationId, expire: true }) : null;
   let insertedUserMessage: TalentMessageRow | null = null;
   const normalizedContent = link
     ? `${rawUserMessage}\n\nReference link: ${link}`
@@ -650,6 +652,7 @@ export async function runCareerChatTurn(
             role: "user",
             content: normalizedContent,
             message_type: "chat",
+            ...(trackCapabilities ? { payload: initialCareerCapabilityPayload(capabilityMode) } : {}),
           },
           isMobile
         )
@@ -738,7 +741,7 @@ export async function runCareerChatTurn(
       ? ("available" as const)
       : ("connected_but_unavailable_this_turn" as const)
     : ("not_connected" as const);
-  const toolDefinitions = toolSelection.tools;
+  let toolDefinitions = toolSelection.tools;
   const currentPreferences = {
     getExternalRecommendation:
       talentSetting?.get_external_recommendation ?? true,
@@ -772,8 +775,9 @@ export async function runCareerChatTurn(
         }
       : null;
 
-  const { isOnboardingActive, promptBlocks } =
-    buildCareerConversationPromptPlan({
+  const capabilityPromptArgs: Parameters<typeof buildCareerConversationPromptPlan>[0] = {
+      careerCoachingActivity,
+      conversationMode: careerCoachingActivity?.status === "active" ? "career_coaching" : "default",
       activeInternalFitHoldQuestion,
       channel: "chat",
       companyTalentRequestText: companyContactContext,
@@ -797,8 +801,16 @@ export async function runCareerChatTurn(
       structuredProfileText,
       timeZone: args.timeZone,
       toolNames: toolSelection.toolNames,
-    });
-  const systemBlocks = promptBlocks;
+    };
+  const { isOnboardingActive, promptBlocks } = buildCareerConversationPromptPlan(capabilityPromptArgs);
+  const capabilityTurn = trackCapabilities ? await createCareerCapabilityTurn({
+    origin: "server",
+    admin, userId, conversationId, sourceMessage: insertedUserMessage, mode: capabilityMode,
+    eligibleTools: toolSelection.tools, promptArgs: capabilityPromptArgs,
+  }) : undefined;
+  const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
+  if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
+  const systemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
 
   const preparedCompanySnapshotRef: {
     current: CompanySnapshotToolResult | null;
@@ -935,6 +947,7 @@ export async function runCareerChatTurn(
   let assistantText: string;
   try {
     assistantText = await runCareerChatAssistant({
+      toolRuntime: capabilityTurn?.runtime,
       onToolStart: ({ name, input }) => {
         if (name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
           recordRecommendationStatus({ state: "running" });
@@ -1174,6 +1187,7 @@ export async function runCareerChatTurn(
       responseMessages[responseMessages.length - 1] ??
       null;
 
+    await capabilityTurn?.complete();
     return {
       ok: true,
       assistantMessage,
@@ -1268,6 +1282,7 @@ export async function runCareerChatTurn(
       conversationId,
       userId,
     });
+    await capabilityTurn?.complete();
     return {
       ok: true,
       assistantMessage: null,

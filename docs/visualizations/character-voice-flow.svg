@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="905" height="782" viewBox="0 0 905 782" role="img" aria-labelledby="title description">
+  <title id="title">Character voice to rig controls</title>
+  <desc id="description">A character voice drives separate face and head motion models. Their outputs enter a motion synthesis layer and produce 257 rig control channels at 60 frames per second.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L7 4 L0 8 Z" fill="#b5b5b5"/>
+    </marker>
+    <marker id="small-arrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L4 2 L0 4 Z" fill="#c9c9c9"/>
+    </marker>
+    <filter id="wave-soften" x="-5%" y="-25%" width="110%" height="150%"><feGaussianBlur stdDeviation="0.6"/></filter>
+    <path id="voice-wave" d="M264 75 L266 75 L268 74 L270 72 L272 72 L274 74 L276 75 L278 72 L280 68 L282 68 L284 71 L286 74 L288 74 L290 74 L292 75 L294 74 L296 73 L298 73 L300 74 L302 74 L304 74 L306 74 L308 75 L310 74 L312 72 L314 70 L316 72 L318 75 L320 75 L322 75 L324 75 L326 75 L328 75 L330 75 L332 74 L334 73 L336 73 L338 72 L340 69 L342 68 L344 71 L346 74 L348 74 L350 72 L352 70 L354 70 L356 71 L358 72 L360 73 L362 74 L364 75 L366 75 L364 75 L362 76 L360 77 L358 77 L356 79 L354 80 L352 80 L350 78 L348 76 L346 76 L344 79 L342 82 L340 81 L338 78 L336 77 L334 77 L332 76 L330 75 L328 75 L326 75 L324 75 L322 75 L320 75 L318 75 L316 78 L314 79 L312 78 L310 75 L308 75 L306 76 L304 76 L302 75 L300 76 L298 77 L296 77 L294 75 L292 75 L290 76 L288 76 L286 76 L284 79 L282 83 L280 83 L278 79 L276 75 L274 76 L272 78 L270 78 L268 76 L266 75 Z"/>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #4b4b4b; text-anchor: middle; }
+      .small { font-size: 12.5px; }
+      .middle { font-size: 13.5px; }
+      .dark { fill: #151515; }
+      .line { fill: none; stroke: #bdbdbd; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+      .hairline { fill: none; stroke: #c9c9c9; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <!-- Overall canvas and voice input -->
+  <rect width="905" height="782" fill="#fff"/>
+  <rect x="0" y="9" width="890" height="773" rx="39" fill="#f9f9f9"/>
+  <rect x="259" y="48" width="362" height="51" rx="25.5" fill="#fff"/>
+  <use href="#voice-wave" fill="#c5c5c5" filter="url(#wave-soften)"/>
+  <use href="#voice-wave" transform="translate(253 0)" fill="#c5c5c5" filter="url(#wave-soften)"/>
+  <text x="440" y="79.5" font-size="15" font-weight="700" class="dark">Character voice</text>
+
+  <!-- Split from voice to the two models -->
+  <path class="line" d="M444 99 V111 H238 V123" marker-end="url(#arrow)"/>
+  <path class="line" d="M444 111 H645 V123" marker-end="url(#arrow)"/>
+
+  <!-- Face model -->
+  <rect x="79" y="126" width="312" height="205" rx="18" fill="#f1f1f1"/>
+  <text x="235" y="153" font-size="13.25">Face Model – NVIDIA Audio2Face-3D</text>
+  <rect x="92" y="169" width="286" height="30" rx="15" fill="#fff"/>
+  <text x="235" y="189" class="small">audio features</text>
+  <path class="hairline" d="M238 199 V207" marker-end="url(#small-arrow)"/>
+  <rect x="92" y="209" width="286" height="30" rx="15" fill="#fff"/>
+  <text x="235" y="229" class="small">diffusion generator · GRU denoiser</text>
+  <path class="hairline" d="M161 253 V241" stroke-dasharray="2 2" marker-end="url(#small-arrow)"/>
+  <path class="hairline" d="M309 239 V249" marker-end="url(#small-arrow)"/>
+  <rect x="92" y="254" width="139" height="65" rx="20" fill="#e6e6e6"/>
+  <text x="161.5" y="284" class="small">emotion classifier</text>
+  <text x="161.5" y="302" class="small">A2E · conditioning</text>
+  <rect x="239" y="249" width="139" height="30" rx="15" fill="#fff"/>
+  <text x="308.5" y="269" class="small">face geometry</text>
+  <path class="hairline" d="M309 279 V288" marker-end="url(#small-arrow)"/>
+  <rect x="239" y="289" width="139" height="30" rx="15" fill="#fff"/>
+  <text x="308.5" y="309" class="small">blendshape solver</text>
+
+  <!-- Head model -->
+  <rect x="490" y="126" width="312" height="205" rx="18" fill="#f1f1f1"/>
+  <text x="646" y="153" font-size="13.25">Head Motion Model</text>
+  <rect x="502" y="169" width="287" height="67" rx="20" fill="#fff"/>
+  <text x="645.5" y="209" class="small">audio features</text>
+  <path class="hairline" d="M646 236 V250" marker-end="url(#small-arrow)"/>
+  <rect x="502" y="251" width="287" height="68" rx="20" fill="#fff"/>
+  <text x="645.5" y="291" class="small">motion generation</text>
+
+  <!-- Model outputs -->
+  <path class="line" d="M238 331 V349" marker-end="url(#arrow)"/>
+  <path class="line" d="M645 331 V349" marker-end="url(#arrow)"/>
+  <rect x="125" y="352" width="221" height="43" rx="21.5" fill="#fff"/>
+  <text x="235.5" y="379" class="middle dark">68 expression channels, 60 fps</text>
+  <rect x="562" y="352" width="166" height="43" rx="21.5" fill="#fff"/>
+  <text x="645" y="379" class="middle dark">6 head-pose channels</text>
+  <path class="line" d="M238 395 V413" marker-end="url(#arrow)"/>
+  <path class="line" d="M645 395 V413" marker-end="url(#arrow)"/>
+
+  <!-- Motion synthesis -->
+  <rect x="79" y="415" width="723" height="272" rx="21" fill="#ddd"/>
+  <text x="440.5" y="447" font-size="14">Motion Synthesis Layer</text>
+  <rect x="95" y="466" width="340" height="205" rx="13" fill="#fff"/>
+  <rect x="446" y="466" width="340" height="205" rx="13" fill="#fff"/>
+  <text x="265" y="493" class="small">Face path: retargeting</text>
+  <text x="616" y="493" class="small">Body path: 6 values become a body</text>
+
+  <!-- Face retargeting path -->
+  <rect x="107" y="509" width="316" height="30" rx="15" fill="#eee"/>
+  <text x="265" y="529" class="small">name-keyed mapping · gains</text>
+  <path class="hairline" d="M232 539 V548" marker-end="url(#small-arrow)"/>
+  <rect x="107" y="549" width="316" height="30" rx="15" fill="#eee"/>
+  <text x="265" y="569" class="small">lip-seal gate · pose deltas</text>
+  <path class="hairline" d="M232 579 V588" marker-end="url(#small-arrow)"/>
+  <rect x="107" y="589" width="316" height="30" rx="15" fill="#eee"/>
+  <text x="265" y="609" class="small">blink &amp; gaze layers</text>
+  <path class="hairline" d="M232 619 V628" marker-end="url(#small-arrow)"/>
+  <rect x="107" y="629" width="316" height="30" rx="15" fill="#eee"/>
+  <text x="265" y="649" class="small">control-surface limits</text>
+
+  <!-- Body motion synthesis path -->
+  <rect x="458" y="509" width="153" height="30" rx="15" fill="#eee"/>
+  <rect x="622" y="509" width="152" height="30" rx="15" fill="#eee"/>
+  <text x="534.5" y="529" class="small">conditioning</text>
+  <text x="698" y="529" class="small">amplification</text>
+  <path class="hairline" d="M611 524 H621" marker-end="url(#small-arrow)"/>
+  <path class="hairline" d="M698 539 V543 H530 V549"/>
+  <path d="M611 543 L617 540 L617 546 Z" fill="#c9c9c9"/>
+  <rect x="458" y="549" width="153" height="30" rx="15" fill="#eee"/>
+  <rect x="622" y="549" width="152" height="30" rx="15" fill="#eee"/>
+  <text x="534.5" y="569" class="small">activation a(t)</text>
+  <text x="698" y="569" class="small">per-part delays &amp; gains</text>
+  <path class="hairline" d="M611 564 H621" marker-end="url(#small-arrow)"/>
+  <path class="hairline" d="M698 579 V583 H530 V589"/>
+  <path d="M611 583 L617 580 L617 586 Z" fill="#c9c9c9"/>
+  <rect x="458" y="589" width="153" height="30" rx="15" fill="#eee"/>
+  <rect x="622" y="589" width="152" height="30" rx="15" fill="#eee"/>
+  <text x="534.5" y="609" class="small">striction trackers</text>
+  <text x="698" y="609" class="small">shape-axis distribution</text>
+  <path class="hairline" d="M611 604 H621" marker-end="url(#small-arrow)"/>
+  <path class="hairline" d="M698 619 V624 H616 V628" marker-end="url(#small-arrow)"/>
+  <rect x="458" y="629" width="316" height="30" rx="15" fill="#eee"/>
+  <text x="616" y="649" class="small">limit angles → quaternion compose</text>
+
+  <!-- Final render stage -->
+  <path class="line" d="M440 687 V704" marker-end="url(#arrow)"/>
+  <text x="281" y="734" class="middle dark">Rendering</text>
+  <rect x="329" y="707" width="222" height="43" rx="21.5" fill="#fff"/>
+  <text x="440" y="734" class="middle dark">257 rig control channels, 60 fps</text>
+</svg>

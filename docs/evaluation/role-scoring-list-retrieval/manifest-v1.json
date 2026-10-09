@@ -1,0 +1,23 @@
+{
+  "datasetVersion": "v1",
+  "capturedAt": "2026-10-08T05:29:19.720055+00:00",
+  "source": "isolated 2026-10-07 inspection snapshot; production capture previously read-only",
+  "cutoff": "2026-10-07T12:00:00+00:00",
+  "corpusCount": 4649,
+  "corpusHash": "ea0cfd57221b50566ee583f9139684bfd782e846b6008baecf08e9e62425a780",
+  "roleHashes": {
+    "wonderful": "528fa4f35b33cd2bd7d3c79e011887a7e603425f481eb9bb7bf4542216176540",
+    "sbva": "8ae5d12db34d54babdc1d45fb0e536f7ced40cfcadb672c5f0a60a6172f07108",
+    "sierra": "6e1490200473d04e37dd0e055d54723df60545eb0f6c1957ea387f99c77d8ddc"
+  },
+  "privacy": "UUID mappings, source facts, outputs local-only 0700/0600. No fit writes or sends.",
+  "frozen": true,
+  "limitations": [
+    "Current-profile retrospective, not historical as-of replay.",
+    "Outcome evidence excluded from planner; behavior omitted from retrieval embeddings to avoid outcome leakage.",
+    "Source snapshot predates evaluation and is a subset of production. No delivery freshness hard filter."
+  ],
+  "goldHash": "98ee733ed17a18031a50042545904757406be39e23a2015abe29fa6302644c0d",
+  "labels": 25,
+  "goldBeforeModelCalls": true
+}

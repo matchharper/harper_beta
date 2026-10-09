@@ -10,7 +10,6 @@ import {
   wasRoleCreationConfirmationHandled,
 } from "@/lib/org/agent/roleCreationConfirmationState";
 import {
-  fetchOrgActiveRoleLimitState,
   fetchRoleCreationState,
   getRoleCreationMissingFields,
   type RoleCreationConversationMetadata,
@@ -26,7 +25,6 @@ import type {
   OrgRoleCreationChoice,
 } from "@/lib/org/agent/types";
 import { OrgHttpError } from "@/lib/org/server";
-import { ORG_ACTIVE_ROLE_LIMIT_MESSAGE } from "@/lib/org/roleStatus";
 import { notifyOrgRoleCreatedSlack } from "@/lib/org/slack";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
@@ -324,16 +322,6 @@ export async function confirmRoleCreationChoice(args: {
     throw new OrgHttpError(409, "This confirmation was already handled");
   }
 
-  if (args.decision === "yes" && state.role.status !== "active") {
-    const limitState = await fetchOrgActiveRoleLimitState({
-      admin,
-      workspaceId,
-    });
-    if (limitState.limitReached) {
-      throw new OrgHttpError(409, ORG_ACTIVE_ROLE_LIMIT_MESSAGE);
-    }
-  }
-
   const claimedMetadata = await claimConfirmation({
     admin,
     conversationId: state.conversation.id,
@@ -453,6 +441,9 @@ export async function confirmRoleCreationChoice(args: {
       try {
         slackNotificationDelivered = await notifyOrgRoleCreatedSlack({
           actor: outcomeState.currentUser,
+          introSearchDate: outcomeState.role.introSearchDate,
+          introSearchTime: outcomeState.role.introSearchTime,
+          isCompanyFirstSearch: outcomeState.role.isCompanyFirstSearch,
           roleId,
           roleName: outcomeState.role.name,
           workspace: {
@@ -468,15 +459,17 @@ export async function confirmRoleCreationChoice(args: {
         );
       }
     }
-    const assistantContent = (await generateRoleCreationOutcomeReply({
-      missingFields,
-      model: sourceMetadata.model ?? rawMessage.model,
-      outcome,
-      slackNotificationDelivered,
-      surface: args.messageType === "slack" ? "slack" : "chat",
-      responseLocale: args.responseLocale,
-      state: outcomeState,
-    })).content;
+    const assistantContent = (
+      await generateRoleCreationOutcomeReply({
+        missingFields,
+        model: sourceMetadata.model ?? rawMessage.model,
+        outcome,
+        slackNotificationDelivered,
+        surface: args.messageType === "slack" ? "slack" : "chat",
+        responseLocale: args.responseLocale,
+        state: outcomeState,
+      })
+    ).content;
     assistantMessage = await persistConfirmationMessages({
       admin,
       assistantMessageMetadata: args.assistantMessageMetadata,

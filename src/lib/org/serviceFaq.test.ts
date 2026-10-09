@@ -86,9 +86,15 @@ test("Company pricing copy states the approved commercial boundary", () => {
     .map((item) => item.answer)
     .join("\n");
 
-  assert.match(pricingCopy, /월 구독료나 기본 사용료는 없어요/);
-  assert.match(pricingCopy, /채용이 성사된 경우에만 비용이 발생/);
-  assert.match(pricingCopy, /회사별로 안내|개별적으로 연락드려/);
+  assert.match(pricingCopy, /Role을 무제한/);
+  assert.match(pricingCopy, /월 10크레딧.*별도로 유지/);
+  assert.match(pricingCopy, /월 50크레딧/);
+  assert.match(pricingCopy, /Free와 표준 슬롯 구독에는 채용 성공보수가 없어요/);
+  assert.match(pricingCopy, /Enterprise.*별도/);
+  assert.doesNotMatch(
+    pricingCopy,
+    /월 구독료나 기본 사용료는 없어요|채용이 성사된 경우에만 비용이 발생/
+  );
   assert.doesNotMatch(pricingCopy, /\d+%|만원|원\/월/);
 });
 

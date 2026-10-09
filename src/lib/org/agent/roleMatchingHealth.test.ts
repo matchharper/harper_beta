@@ -56,7 +56,6 @@ function recommendation(
 
 function role(overrides: Partial<BuildArgs["role"]> = {}): BuildArgs["role"] {
   return {
-    automaticMatchingEnabled: true,
     employmentTypes: ["full_time"],
     expiresAt: null,
     isExpired: false,
@@ -125,7 +124,6 @@ test("returns a plain-text role snapshot and deduplicates candidates by their la
 
   assert.equal(typeof result, "string");
   assert.match(result, /Role: Backend Engineer/);
-  assert.match(result, /자동 매칭: 켜짐/);
   assert.match(result, /회사에 등록된 보상 범위: KRW 100000000–150000000 year/);
   assert.match(result, /적합도 판단 기록이 있는 고유 후보자: 3명/);
   assert.match(result, /현재 추천 대상으로 저장된 고유 후보자: 0명/);

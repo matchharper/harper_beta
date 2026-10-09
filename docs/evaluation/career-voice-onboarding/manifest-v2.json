@@ -1,0 +1,55 @@
+{
+  "task": "career-voice-onboarding",
+  "datasetVersion": "pilot-v2",
+  "windowStart": "2026-09-06T07:00:00.000Z",
+  "asOf": "2026-10-06T07:00:00.000Z",
+  "capturedAt": "2026-10-06T07:00:51.103Z",
+  "sourceRevision": "49d98d64314bd8e112036529ddcf2754e8968524",
+  "sourceDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "snapshotSha256": "4a0d9db40b1b91698588bb7bd4823ef5194d830fd43d535ab9a1c799686618ef",
+  "inheritedSourceSha256": "b6530c42f739024596f338ecfb15a45d1daaa402b13e671d7642c88bb99b4165",
+  "rubricSha256": "d34fff5cf1496743218bba511a610c4f348b91a215bb2a020e79d4af199a1eb7",
+  "runnerSha256": "281a1c75c35104d0968c3ff3d4a6f2075d2dc3c50a1f8ba29b7359cdc741e275",
+  "caseCount": 120,
+  "matureCount": 113,
+  "rawArtifact": "docs/evaluation/career-voice-onboarding/private/pilot-v2.json",
+  "evaluator": "Codex direct qualitative review; independent human gold pending",
+  "privacy": "Production raw data local-only; no additional external LLM API calls",
+  "models": [
+    "gpt-realtime-2.1",
+    "gpt-live-1"
+  ],
+  "goldSha256": "139ab5e7c61261d9489da73b1daefd8884fc5b472f877e4804ed81d4e7eb3610",
+  "preparedSha256": "a000a67d3c2034438469b642bb6323770d0df7e29c1e7344f1dab3b163b2d8af",
+  "promptFingerprint": "historical-production-mixed; see sourceRevision and report",
+  "modelRunConfiguration": "observed production A/B; provider, delegation model, and prompt changed over the window",
+  "labelReview": "pilot-v1 mature 40 inherited unchanged; other 80 reviewed under frozen rubric-v1; one unblinded label correction in labels-v2",
+  "metricSummary": [
+    {
+      "model": "gpt-realtime-2.1",
+      "n": 59,
+      "ready": 23,
+      "notReady": 11,
+      "unknown": 25,
+      "contentReady": 28,
+      "fidelityFailures": 6,
+      "noAttempt": 4,
+      "noUserTranscript": 25,
+      "operationalCompletion24h": 48
+    },
+    {
+      "model": "gpt-live-1",
+      "n": 54,
+      "ready": 13,
+      "notReady": 21,
+      "unknown": 20,
+      "contentReady": 18,
+      "fidelityFailures": 5,
+      "noAttempt": 6,
+      "noUserTranscript": 20,
+      "operationalCompletion24h": 40
+    }
+  ],
+  "initialGoldSha256": "139ab5e7c61261d9489da73b1daefd8884fc5b472f877e4804ed81d4e7eb3610",
+  "finalGoldSha256": "aaf8bf2c80d07dda4588c060855cd49c7e6bacc07d6445c45ebcb8f1146a65d9"
+}

@@ -1,5 +1,7 @@
-// Current /org UI copy, including existing English. Preserve these values when editing.
+// Korean copy for shared source translations; useOrgT reads UI copy from its call site.
 export const ko = {
+  "OrgRoleTalentBoard.harperEmailSent": "Harper가 후보자에게도 이 역할을 추천하는 메일을 보냈어요.",
+  "OrgRoleTalentBoard.harperCardAvailable": "후보자의 추천함에도 이 역할이 추가되어 있어요.",
   "TalentDetailSimpleView.feed.actorFallback": "팀원",
   "TalentDetailSimpleView.feed.body": "본문",
   "TalentDetailSimpleView.feed.cancel": "취소",
@@ -26,7 +28,7 @@ export const ko = {
   "OrgRoleTalentBoard.recommendationPaused": "후보자 추천 중단",
   "OrgRoleTalentBoard.recommendationEnded": "후보자 추천 종료",
   "OrgRoleTalentBoard.recommendationActiveDescription":
-    "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하고 Harper가 최종 확인한 뒤 ‘연결 대기’에 추천해 드려요.",
+    "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
   "OrgRoleTalentBoard.recommendationPausedDescription":
     "역할이 중단되어 새로운 후보자 추천도 쉬고 있어요. 역할을 다시 진행하면 추천도 이어집니다.",
   "OrgRoleTalentBoard.recommendationEndedDescription":
@@ -42,6 +44,12 @@ export const ko = {
     "{members}명 · 초대 대기 {invites}명",
   "composed.memberAndInviteCountOtherOther":
     "{members}명 · 초대 대기 {invites}명",
+  "announcement.welcome.title": "환영합니다.",
+  "announcement.welcome.action": "새 포지션 만들기",
+  "announcement.welcome.description": "Harper는 반대편에서 뛰어난 여러 후보자와 대화하며 그들의 니즈를 듣고 있어요. 적합한 사람을 바로 연결해드릴게요.",
+  "announcement.close": "안내 닫기",
+  "dev.announcement.preview": "Welcome 안내 띄우기",
+  "dev.announcement.close": "안내 닫기",
   "dev.palette.title": "색상 미리보기",
   "dev.palette.current": "1. 현재",
   "dev.palette.soft": "2. 누런끼 조금 제거",
@@ -240,15 +248,15 @@ export const ko = {
   "faq.pricing-overview.question":
     "Harper 비용은 어떻게 되나요? 월 구독료나 채용 수수료가 있나요?",
   "faq.pricing-overview.answer":
-    "월 구독료나 기본 사용료는 없어요. 편하게 이용하시고, Harper를 통해 채용이 성사된 경우에만 비용이 발생하며, 구체적인 조건과 금액은 회사별로 안내해요. 채용 전에 확인이 필요하다면 프로필 메뉴의 문의하기에 회사명을 함께 남겨 주세요.",
+    "Free에서도 Role을 무제한으로 만들고 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10크레딧은 유료 슬롯을 추가해도 별도로 유지돼요. 유료 슬롯은 배정한 Role 하나에 유료 기능과 월 50크레딧을 제공해요. 해당 슬롯 크레딧을 먼저 쓰고 부족하면 공용 크레딧을 사용하며, 다른 슬롯의 크레딧은 사용할 수 없어요. Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. 요청하신 Enterprise에는 별도로 합의한 비용 모델이 적용될 수 있어요. 현재 판매 가격은 /pricing에서, 회사에 적용된 구독과 결제 내역은 Organization의 Slots와 Billing에서 확인해 주세요. 기존에 별도 계약을 맺었다면 그 계약이 유지돼요.",
   "faq.pricing-subscription.question":
     "월 구독료나 사용료가 따로 있나요? 무료인가요?",
   "faq.pricing-subscription.answer":
-    "네~ 월 구독료나 기본 사용료는 없어요. 다만 Harper를 통해 채용이 성사되면 그때 비용이 발생하므로, 모든 경우에 무료인 서비스라는 뜻은 아니에요. 적용되는 조건과 금액은 회사에 개별적으로 연락드려 안내해요.",
+    "무료로 시작할 수 있는 Free와 유료 슬롯 구독이 있어요. 슬롯은 월간 또는 연간으로 결제하고, 추가한 슬롯은 각각 관리하거나 구독을 취소할 수 있어요. 연간은 1년 이용료를 한 번에 결제해요. 최신 금액은 /pricing에, 회사의 현재 구독은 Organization의 Slots와 Billing에 표시돼요. Enterprise와 기존 별도 계약의 조건은 Harper 팀에 확인해 주세요.",
   "faq.pricing-success-fee.question":
     "채용이 성사되면 비용은 얼마인가요? 수수료율이 정해져 있나요?",
   "faq.pricing-success-fee.answer":
-    "Harper를 통해 채용이 성사된 경우에만 비용이 발생해요. 공개된 공통 수수료율이나 고정 금액으로 안내하지 않으며, 구체적인 조건과 금액은 회사에 따로 연락드려 설명드려요. 아직 안내받지 못했는데 채용 전에 확인이 필요하다면 프로필 메뉴의 문의하기에 회사명과 함께 남겨 주세요.",
+    "Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. 요청하신 Enterprise에는 성공보수를 포함한 별도 비용 모델을 합의할 수 있어요. 기존에 별도 계약이 있다면 해당 계약의 조건을 따라요. 회사에 적용되는 조건과 금액은 Harper 팀에 회사명을 알려주시면 확인할 수 있어요.",
   "faq.recommendation-timing.question":
     "역할을 등록했는데 왜 후보자 추천이 바로 오지 않나요?",
   "faq.recommendation-timing.answer":
@@ -940,7 +948,7 @@ export const ko = {
   "TalentDetailSimpleView.c88fdf18": "제안을 처리하지 못했습니다.",
   "TalentDetailSimpleView.cb05015b": "이름 없음",
   "TalentDetailSimpleView.cc49f754":
-    "이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요.",
+    "이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유해서는 안됩니다.",
   "TalentDetailSimpleView.ccd83f11": "다시 시도",
   "TalentDetailSimpleView.ce7acd4f": "Harper 메모",
   "TalentDetailSimpleView.d0a09857": "불러오는 중",
@@ -1189,6 +1197,8 @@ export const ko = {
   "onboarding.OrgOnboardingPage.c4d1e087": "다시 불러오기",
   "onboarding.OrgOnboardingPage.c7e72135":
     "회사 이야기를 읽고, 기존 정보와 함께 정리하고 있어요.",
+  "onboarding.OrgOnboardingPage.companyResultUnconfirmed":
+    "회사 정보 반영 결과를 아직 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
   "onboarding.OrgOnboardingPage.c88b931d": "Harper와 슬랙을 통해",
   "onboarding.OrgOnboardingPage.c9aeaf34": "이렇게 이야기를 시작해 보세요",
   "onboarding.OrgOnboardingPage.d14c40ea": "시작하기",
@@ -1354,6 +1364,16 @@ export const ko = {
   "role.overview.OrgRoleSettingsContent.promotionDescription":
     "Harper가 이 역할에 더 적합한 인재를 찾기 위해 LinkedIn 등 외부에 채용 정보를 소개할 수 있어요.",
   "role.overview.OrgRoleSettingsContent.promotionExample": "예시",
+  "role.overview.OrgRoleSettingsContent.anonymityTitle": "회사명 공개 여부",
+  "role.overview.OrgRoleSettingsContent.anonymityDescription":
+    "켜면 Harper 공고는 공개 문구 검토 전까지 숨겨집니다. 이미 게시된 LinkedIn 공고는 자동으로 바뀌지 않으므로 먼저 별도로 수정하거나 종료해야 합니다.",
+  "role.overview.OrgRoleSettingsContent.anonymousState": "회사명 비공개",
+  "role.overview.OrgRoleSettingsContent.namedState": "회사명 공개",
+  "role.overview.OrgRoleSettingsContent.anonymousCompanyExample": "비공개 회사",
+  "role.overview.OrgRoleSettingsContent.anonymitySaved":
+    "회사명 공개 설정을 저장했습니다.",
+  "role.overview.OrgRoleSettingsContent.anonymitySaveError":
+    "회사명 공개 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
   "role.overview.OrgRoleSettingsContent.linkedinJob": "LinkedIn 채용 공고",
   "role.overview.OrgRoleSettingsContent.harperJob": "지원하기",
   "role.overview.OrgRoleSettingsContent.promotionSaved":

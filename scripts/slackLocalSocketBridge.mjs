@@ -205,6 +205,8 @@ async function handleSlackEvent({ ack, body }) {
 
 client.on("app_mention", handleSlackEvent);
 client.on("message", handleSlackEvent);
+client.on("entity_details_requested", handleSlackEvent);
+client.on("link_shared", handleSlackEvent);
 
 client.on("connected", () => {
   console.log("[slack-local-socket] connected to Slack");

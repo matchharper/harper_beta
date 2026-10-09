@@ -18,17 +18,29 @@ const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
+type DropdownMenuItemVariant = "sm" | "md";
+
+const dropdownMenuItemVariantClassNames: Record<
+  DropdownMenuItemVariant,
+  string
+> = {
+  sm: "gap-2 rounded-[8px] px-2.5 py-1.5 text-[13px] font-normal [&>svg]:size-3.5 [&>svg]:stroke-[1.75]",
+  md: "gap-2 rounded-[10px] px-3 py-2 text-sm font-normal [&>svg]:size-4 [&>svg]:stroke-2",
+};
+
 const DropdownMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubTrigger> & {
     inset?: boolean;
+    variant?: DropdownMenuItemVariant;
   }
->(({ className, inset, children, ...props }, ref) => (
+>(({ className, inset, variant = "md", children, ...props }, ref) => (
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      "flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "flex cursor-default select-none items-center outline-none [&_svg]:pointer-events-none [&_svg]:shrink-0",
       "text-neutral-primary focus:bg-bg-weak focus:text-neutral-primary data-[state=open]:bg-bg-weak",
+      dropdownMenuItemVariantClassNames[variant],
       inset && "pl-8",
       className
     )}
@@ -86,16 +98,6 @@ const DropdownMenuContent = React.forwardRef<
 });
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName;
 
-type DropdownMenuItemVariant = "sm" | "md";
-
-const dropdownMenuItemVariantClassNames: Record<
-  DropdownMenuItemVariant,
-  string
-> = {
-  sm: "gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13px] font-normal [&>svg]:size-3.5 [&>svg]:stroke-[1.75]",
-  md: "gap-2 rounded-[10px] px-3 py-2 text-sm font-normal [&>svg]:size-4 [&>svg]:stroke-2",
-};
-
 const dropdownMenuItemCheckClassNames: Record<DropdownMenuItemVariant, string> =
   {
     sm: "h-3.5 w-3.5 stroke-[1.75]",
@@ -126,6 +128,7 @@ const DropdownMenuItem = React.forwardRef<
   ) => {
     const itemClassName = cn(
       "relative flex cursor-default select-none items-center text-neutral-primary outline-none transition-colors hover:bg-black/5 focus:bg-black/5 focus:text-neutral-primary data-[highlighted]:bg-black/5 data-[highlighted]:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:shrink-0",
+      "[&_svg]:text-neutral-800/80",
       dropdownMenuItemVariantClassNames[variant],
       selected && "bg-black/5 text-neutral-primary",
       tone === "danger" &&
@@ -157,7 +160,7 @@ const DropdownMenuItem = React.forwardRef<
         {selected ? (
           <Check
             className={cn(
-              "ml-auto shrink-0 text-neutral-muted",
+              "ml-auto shrink-0",
               dropdownMenuItemCheckClassNames[variant]
             )}
           />

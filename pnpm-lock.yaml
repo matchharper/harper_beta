@@ -128,6 +128,9 @@ importers:
       exa-js:
         specifier: ^2.17.0
         version: 2.17.0(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      free-email-domains:
+        specifier: 1.12.21
+        version: 1.12.21
       google-auth-library:
         specifier: 10.6.1
         version: 10.6.1
@@ -194,6 +197,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      stripe:
+        specifier: 23.0.0
+        version: 23.0.0(@types/node@20.19.37)
       styled-jsx:
         specifier: ^5.1.7
         version: 5.1.7(@babel/core@7.29.0)(react@19.2.6)
@@ -206,6 +212,9 @@ importers:
       threejs-components:
         specifier: ^0.0.27
         version: 0.0.27
+      tldts:
+        specifier: 7.0.25
+        version: 7.0.25
       turndown:
         specifier: ^7.2.2
         version: 7.2.2
@@ -3714,6 +3723,10 @@ packages:
       react-dom:
         optional: true
 
+  free-email-domains@1.12.21:
+    resolution: {integrity: sha512-5z++kPjqC2SC96Xt5MAIx9APwzX+K7RWIGCnjfUURFfj2nRhYoNfbTdZP6EQz33LrGf1DdoRirpLnJDbr4wBiw==}
+    engines: {node: '>= 18'}
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -5229,6 +5242,15 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
+
+  stripe@23.0.0:
+    resolution: {integrity: sha512-MDE2A5ZVVluYURORaZEVghSmnLJc3w6aHAlZSxDQMsOjOb3V0O6ro/CiaeFlJS4N7uIVmsg98ocRsPmUK6YfyA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@types/node': '>=20'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
 
   style-to-js@1.1.21:
     resolution: {integrity: sha512-RjQetxJrrUJLQPHbLku6U/ocGtzyjbJMP9lCNK7Ag0CNh690nSH8woqWH9u16nMjYBAok+i7JO1NP2pOy8IsPQ==}
@@ -9394,6 +9416,8 @@ snapshots:
       react: 19.2.6
       react-dom: 19.2.6(react@19.2.6)
 
+  free-email-domains@1.12.21: {}
+
   fsevents@2.3.3:
     optional: true
 
@@ -11294,6 +11318,10 @@ snapshots:
   strip-final-newline@2.0.0: {}
 
   strip-json-comments@3.1.1: {}
+
+  stripe@23.0.0(@types/node@20.19.37):
+    optionalDependencies:
+      '@types/node': 20.19.37
 
   style-to-js@1.1.21:
     dependencies:

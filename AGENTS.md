@@ -13,6 +13,7 @@
 ## LinkedIn Jobs marketplace GTM
 
 - Before creating or updating an internal Role's public `official_jobs` entry, changing its LinkedIn posting, or planning/running the scheduled LinkedIn Jobs GTM task, read `docs/scheduled/linkedin-jobs-marketplace-gtm-ko.md` and `docs/scheduled/linkedin-jobs-marketplace-learnings-ko.md` in full.
+- Before opening a LinkedIn Recruiter Job editor for a new, copied, edited, or reopened posting, finish the per-job input packet specified in `docs/scheduled/linkedin-job-posting-packet-template-ko.md`. Save exact title, form values, full description, application URL, project name, and targeting intent under `.local/linkedin-jobs-gtm/posting-packets/`; use the browser to enter and verify that prepared content.
 - Treat the Recruiter UI as the source of truth for live slots and posting status. Record verified actions in the designated Notion `Data & Logs` database and send change summaries through Harper Scouter as specified in the runbook.
 
 ## Company Role Hiring Brief authoring

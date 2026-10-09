@@ -38,14 +38,6 @@ const priorityReviewGuidanceSource = readFileSync(
   ),
   "utf8"
 );
-const migration = readFileSync(
-  path.join(
-    process.cwd(),
-    "supabase/migrations/20260902100000_internal_role_priority_review_idempotency.sql"
-  ),
-  "utf8"
-);
-
 test("priority review omits role summary while returning identity and fit state", () => {
   assert.doesNotMatch(priorityReviewSource, /information,\s*summary,/);
   assert.doesNotMatch(priorityReviewSource, /roleRecord\.summary/);
@@ -102,6 +94,13 @@ test("paused roles remain eligible for priority review, and configured role grou
 });
 
 test("the database keeps one earliest priority request per talent and role", () => {
+  const migration = readFileSync(
+    path.join(
+      process.cwd(),
+      "supabase/migrations/20260902100000_internal_role_priority_review_idempotency.sql"
+    ),
+    "utf8"
+  );
   assert.match(migration, /order by created_at asc, id asc/i);
   assert.match(migration, /duplicate\.duplicate_rank > 1/i);
   assert.match(
@@ -110,14 +109,14 @@ test("the database keeps one earliest priority request per talent and role", () 
   );
 });
 
-test("requested roles advertise the idempotent status read and recommendation card", () => {
+test("requested roles advertise the read-only status check and recommendation card", () => {
   assert.match(
     priorityReviewRegistrySource,
-    /Register is idempotent:[\s\S]*?read its current review progress without creating a duplicate/
+    /Use status for progress questions;[\s\S]*?never registers or renews a request/
   );
   assert.match(
     internalRoleSearchSource,
-    /Repeating register is idempotent and returns the current review progress/
+    /action=status[\s\S]*?never registers or renews it/
   );
   assert.match(
     internalRoleSearchSource,
@@ -135,4 +134,14 @@ test("requested roles advertise the idempotent status read and recommendation ca
     priorityReviewRegistrySource,
     /skipCommonAssistantInstruction: true/
   );
+});
+
+test("withdrawn requests do not count as active requests in lookup or matched search", () => {
+  const requestClauses = internalRoleSearchSource.match(
+    /AND (?:requested_progress|progress)\.kind = \$\{INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND\}[\s\S]*?\)/g
+  ) ?? [];
+  assert.equal(requestClauses.length, 3);
+  for (const clause of requestClauses) {
+    assert.match(clause, /metadata->>'withdrawnAt' IS NULL/);
+  }
 });

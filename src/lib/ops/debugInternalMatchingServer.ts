@@ -6,7 +6,6 @@ import {
   type InternalMatchingRecommendationSourceRow,
   type InternalMatchingTagSourceRow,
   type OpsDebugInternalMatchingResponse,
-  type OpsDebugInternalMatchingRoleMode,
 } from "@/lib/ops/internalMatchingAnalytics";
 
 type UntypedAdminClient = ReturnType<typeof getTalentSupabaseAdmin> & {
@@ -20,7 +19,6 @@ type FetchRowsResult<T> = {
 
 type InternalRoleSource = {
   companyName: string;
-  isAuto: boolean;
   roleId: string;
   roleName: string;
   testOnly: boolean;
@@ -106,13 +104,11 @@ async function fetchPagedRows<T>(args: {
 function parseRoleRow(value: unknown): InternalRoleSource | null {
   const role = asRecord(value);
   const workspace = getFirstRecord(role.workspace);
-  const internalRole = getFirstRecord(role.company_internal_roles);
   const information = asRecord(role.information);
   const roleId = getString(role.role_id);
   if (!roleId) return null;
   return {
     companyName: getString(workspace.company_name) ?? "회사명 없음",
-    isAuto: internalRole.is_auto === true,
     roleId,
     roleName: getString(role.name) ?? "Role 이름 없음",
     testOnly: isTrue(information.testOnly),
@@ -139,7 +135,6 @@ function parseRecommendationRow(
     exposureId,
     feedback: getString(row.feedback),
     feedbackAt: getString(row.feedback_at),
-    isAuto: role.isAuto,
     processedStage: getString(row.processed_stage),
     recommendedAt,
     roleId,
@@ -218,7 +213,7 @@ async function fetchInternalRoleRows(admin: UntypedAdminClient) {
       await admin
         .from("company_roles")
         .select(
-          "role_id, name, information, workspace:company_workspace(company_name), company_internal_roles(is_auto)"
+          "role_id, name, information, workspace:company_workspace(company_name)"
         )
         .eq("source_type", "internal")
         .order("role_id", { ascending: true })
@@ -285,16 +280,8 @@ async function fetchProgressRows(args: {
   return { limitReached, rows };
 }
 
-export function parseOpsDebugInternalMatchingRoleMode(
-  value: string | null | undefined
-): OpsDebugInternalMatchingRoleMode {
-  if (value === "auto" || value === "manual") return value;
-  return "all";
-}
-
 export async function fetchOpsDebugInternalMatching(args: {
   from?: string | null;
-  roleMode?: OpsDebugInternalMatchingRoleMode;
   to?: string | null;
 }): Promise<OpsDebugInternalMatchingResponse> {
   const range = normalizeInternalMatchingDateRange({
@@ -306,12 +293,7 @@ export async function fetchOpsDebugInternalMatching(args: {
   const roles = roleResult.rows
     .map(parseRoleRow)
     .filter((role): role is InternalRoleSource => Boolean(role))
-    .filter((role) => {
-      if (role.testOnly) return false;
-      if (args.roleMode === "auto") return role.isAuto;
-      if (args.roleMode === "manual") return !role.isAuto;
-      return true;
-    });
+    .filter((role) => !role.testOnly);
   const roleById = new Map(roles.map((role) => [role.roleId, role]));
   const roleIds = roles.map((role) => role.roleId);
   const recommendationResult = await fetchRecommendationRows({
@@ -347,7 +329,6 @@ export async function fetchOpsDebugInternalMatching(args: {
     from: range?.from ?? null,
     progress,
     recommendations,
-    roleMode: args.roleMode ?? "all",
     sourceLimitReached:
       roleResult.limitReached ||
       recommendationResult.limitReached ||

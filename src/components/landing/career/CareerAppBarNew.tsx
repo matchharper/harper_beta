@@ -62,6 +62,7 @@ type CareerAppBarProps = {
   showSectionLinks?: boolean;
   audienceHref?: string;
   locale?: Locale;
+  primaryActionLabel?: string;
 };
 
 export default function CareerAppBar({
@@ -72,6 +73,7 @@ export default function CareerAppBar({
   showSectionLinks = true,
   audienceHref,
   locale: localeOverride,
+  primaryActionLabel,
 }: CareerAppBarProps) {
   const { locale: contextLocale } = useMessages();
   const user = useAuthStore((state) => state.user);
@@ -91,11 +93,11 @@ export default function CareerAppBar({
   const audienceLabel = isCompanyBar
     ? companyCopy.audience
     : talentCopy.audience;
-  const primaryLabel = isCompanyBar
+  const primaryLabel = primaryActionLabel ?? (isCompanyBar
     ? companyCopy.primary
     : user
       ? talentCopy.signedIn
-      : talentCopy.signedOut;
+      : talentCopy.signedOut);
 
   const pillbtn =
     "px-3.5 py-1.5 rounded-full border border-black/10 cursor-pointer text-[13px] md:text-sm font-normal shadow-xs";

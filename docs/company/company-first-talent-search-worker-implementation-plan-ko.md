@@ -1,5 +1,24 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+> 2026-10-09 수락 후보 선정 지침(로컬·미배포): `ACCEPTED_REVIEW_SYSTEM`은 한 번의 회사 검토에서 전체 Role을 합쳐 `connect`를 최대 2명으로 고르고 다른 적합한 수락 후보를 `defer`로 남기도록 지시한다. 0~1명도 가능하다. Prompt만 변경하며 parser·저장·DB guard에 수량 제한이나 초과 후보 자르기를 추가하지 않는다.
+
+> 2026-10-08 추가 로컬 변경(미배포): 일반 역할의 유효한 talent-first 수락을 별도 mandatory pair source로 합친다. 수락 pair는 부정적인 1차 fit도 rerank에 보내며 shortlist로 제거하지 않고 48명 단위로 검토한다. `connect/reject/defer`는 기존 `talent_opportunity_matching_review.decision`과 원본 `recommendation_id`에 저장한다. Reject는 동일 fit input이 유지되는 해당 수락 pair의 재선정을 막고, Defer는 다음 관련 사실 변경 시 재판단할 수 있다. 새 추천을 만들거나 후보자의 철회·회사의 거절로 바꿔 기록하지 않는다. 명시적 Run Search의 역할 scope를 지키고, 수락 후보가 없으면 추가 prompt가 없다.
+>
+> Presentation은 company-first/both/connect에 동일하게 호출한다. 입력은 공개 경력 + 전체 Brief + 현재 Role/Hiring Brief/criteria/회사 언어이며 Memory·Behavior·rerank 이유는 주지 않는다. 출력은 `criteriaEvaluations`, `tldr`, `finalFit`, `harper_note`; Note가 비어 있어도 유효하며 네 필드를 저장·cache한다. `connect`는 원본 추천을 잠그고 최신 수락·역할·privacy·fingerprint를 확인한 뒤 연결대기 tag, 기존 추천 processed stage, 공개 소개 progress, 별도 `delivery_kind=accepted_connection` outbox를 원자적으로 저장한다. 보존용 소개 row는 `closed/route_replaced`로 일반 pipeline reader에 이어지고 자동 Intro 연결 재시도 대상이 되지 않는다. 회사 선추천과 수락 후보 메시지 묶음의 chunk uniqueness·idempotency는 독립적이다. 실제 Slack 성공 후에만 sent 기록을 남기고, 대기·재시도 전달은 기존 outbox가 소유해 오전 9시 cron에서 중복 소개를 생성하지 않는다. 새 SQL migration은 미적용이며 앱/Worker 모두 미배포다.
+>
+> 회사 presentation 모델은 pointwise scoring과 분리한 GPT-6 Luna high 설정이다. 웹/Slack 상세는 동일한 공개 네 필드만 보여준다. Reject는 유효한 최신 fit input에만 적용하고 source 변경으로 fit이 만료되면 다시 검토할 수 있다. 수락 후보가 한 Role에 많이 모여도 카드 단위로 Slack 전송 크기를 나누며 후보를 버리지 않는다. 회사 선추천과 수락 후보의 메시지 묶음은 분리하되 각 카드는 thread_ts 없이 채널 본문에 표시한다. 부분 재시도는 각 메시지의 기존 receipt를 재사용한다. 실제 합성 검증과 남은 label/문구 한계는 [수락 후보 검증](../evaluation/company-first-talent-selection/reports/2026-10-08-accepted-candidate-role-review.md), [소개문 검증](../evaluation/company-candidate-introduction/reports/2026-10-08-brief-harper-note.md)에 기록했다.
+
+> 2026-10-08 추가 로컬 변경(미배포): 평가 목록은 회사당 새 pair 100/150/200개와 재평가 pair 최대 50개로 예산을 분리한다. 인원 한도 전에 미평가 pair만 새 검색으로 가져오며 만료·이전 계약·모델 변경 pair는 별도 재평가 예산으로 처리한다. 각 예산의 약 5%는 넓은 탐색에 배정하고 소진된 경로는 다른 경로로 채운다. 사용자 승인 후 실제 기본 정렬을 **SQL + 가중 FTS(문서 길이 정규화 2) + Profile 벡터의 RRF(k=60)**로 구현했다. 기존 `semantic_ordering_enabled` 설정 key를 재사용하며 누락 시 true, 명시적 false면 SQL 순서를 유지한다. 검색 planner 한 번에서 SQL·`lexicalGroups`·`capabilityQueries`를 함께 생성한다. 역할 관련 eligible SQL pool(역할별 최대 5,000명) 안에서 세 순위를 합친 다음 평가 예산을 적용한다. FTS는 canonical 전체 Profile과 전체 active Brief를 별개로 읽어 set-based session 문서로 계산하며 permanent FTS table/GIN migration은 없다. 0점 FTS는 해당 순위의 기여만 없고 후보 제외가 아니다. Profile embedding은 8,000자 canonical 경력 projection을 model/content hash로 재사용하는 Worker 전용 파생 cache이며 Brief·Memory·Behavior를 사실로 섞지 않는다. 역할·Hiring Brief·회사 Behavior·모델·prompt가 같으면 검색 plan 전체를 원본 작성일부터 최대 7일 재사용하고 수정 SQL도 저장한다. v14 prompt 변경으로 이전 plan은 재사용되지 않는다. 유효한 기존 stage-2 fit은 검색 순위와 별개로 새/갱신 평가와 합치며 admission된 pair만 추가 평가하고 sibling 전체로 확장하지 않는다. Cache-only 입력 변경은 다음 bounded 갱신으로 보낸다. cache/embedding/FTS가 불가하면 SQL 순서로 복귀하고 run metadata에 이유를 남긴다. `talent_profile_search_embeddings` migration은 작성·격리 DB 검증만 했으며 운영 DB에 적용하지 않았다. 13역할 개발 평가에서 결합 순위가 개선됐지만 sparse gold의 첫 발견 gate는 여전히 미통과이며 사용자 승인에 따른 로컬 구현이다. 추천/발송/스케줄/상한/fit grade 계약은 변경하지 않았고 미배포다.
+
+> 2026-10-08 실행 권한 보완(로컬·미배포): Free는 회사 자동 추천 ON + 설정 요일·시간의 company-first만 실행한다. Paid는 월·수·금 09:00 talent-first baseline과 허용된 회사 slot을 실행하며 `is_harper_tailored_role=true`·legacy·scale도 Paid처럼 처리한다. 명시적 Run Search는 회사 방향 전용이고 후보자 연결 대기 상한으로 enqueue를 막지 않는다. Retrieval 인원 한도 전에 공개 범위·방향별 이력을 검사하고, 저장 pool 합친 뒤 scoring 직전에도 허용 pair만 남긴다. 회사 채널·ready 한도는 회사 방향만 제한한다. 예약 slot 지연으로 추천 방향을 바꾸지 않으며 지난 날짜 slot은 새 talent-first를 만들지 않는다. Brief 준비 전 activation을 막고 다음 허용 slot에 등록한다. Free의 새 후보자 추천은 온보딩·선택·전달·즉시 우선 검토에서도 차단하되 실제 회사 Intro 요청 경로는 별도다. 이 계약이 아래 역사적 tailored 제외·추가 요일 talent-first 설명보다 우선한다. migration `20261008043437_role_matching_route_eligibility.sql`은 운영 DB에 적용하지 않았다.
+
+
+> 2026-10-08 추가 로컬 변경(미배포): 일반 Role-based rerank는 역할당 candidate-first 최대 **20명**, company-first는 기존 정기/직접 요청 Ops 한도를 각각 독립 검증한다. `both`는 양쪽에 1명씩 포함한다. 우선 검토 pool의 별도 합산 최대 3명은 유지하고 일반 pool에서 선택한 후보자 방향 인원을 차감해 전체 20명을 넘지 않는다. 새 read-time aggregate는 최근 90일 실제 receipt로 검증한 추천에 대해 첫 전달부터 14일의 명시적 반응을 집계한다. 회사 Intro는 별도로, 메일·chat·follow-up은 추천 ID 기준 중복 제거한다. 자동 dislike는 명시 거절로 세지 않고 출처 불명/기간 불명은 미확인으로 표시한다. 레거시 null도 기록 coverage가 불명확하므로 14일 무응답 확정값으로 바꾸지 않으며, 현재 null 상태의 답변 대기는 따로 제공한다. 역할별 현재 pipeline·Intro 요청/발송·선정 후 추천 미생성 및 전체 내부 역할 기준선을 shortlist와 rerank에 읽기용 text로 넣는다. 통계 조회 실패는 0이 아닌 미제공이며 run은 계속한다. 새 집계와 방향별 한도는 selection fingerprint에 포함해 관련 사실이 바뀌면 다시 판단한다. 새 table·schema·운영 DB write는 없다. Presentation/criteria LLM은 company-first/both/connect에 실행한다.
+
+> 2026-10-08 추가 로컬 변경(미배포): 일반·우선 검토 요청 pool의 fit 입력 조건과 출력 검증을 통일했다. `evaluated_stage=2`이고 `role_fit`, `candidate_fit`, `company_fit` 어느 것도 `bad`/`unfit`이 아니어야 한다. 우선 요청에 따른 조건 우회는 없다. 회사 history formatter는 실행 일시·계기, 전체 검토 인원, 양 방향 선정 인원으로 집계를 줄인다. 인원은 기존 `hard_filtered`/`packets`의 중복 없는 후보자 집계를 사용하며, 그 집계가 없는 단일 역할 기록에 한해 새 평가+cache 쌍 수를 인원으로 읽는다. 다중 역할의 pair 수를 인원으로 바꾸지 않는다. 전체 이력 마지막에는 사용자가 지정한 개인정보 보호 문장을 한 번 제공하며 당시 상한 사유·추가 페이지 조회는 유지한다.
+
+> 2026-10-08 로컬 변경(미배포): Role-based 검색에서 `max_pending_talents` 이상이면 **새 `candidate_first`·`both` 선택만** 막는다. `company_first`·우선 검토 요청에는 이 상한을 적용하지 않고, 회사의 미처리 ready 한도 등 기존 별도 경계는 유지한다. 온보딩 추천과 기존 선택의 3일 전달에는 추가 guard를 넣지 않는다. Run 결과에는 `candidateOutreachPauses`의 역할 ID·당시 연결 대기·상한을 남긴다. 회사 reader는 이 검증된 운영 사실만 공개하고, 오래된 미기록 상태를 0이나 비공개 제한으로 해석하지 않는다. 후보 카드에 포함된 역할은 같은 writer가 중단 이유를 설명한다. 새로 중단된 나머지 역할은 기존 회사 결과 안내 경로를 역할별로 사용하며 멱등 발송하고, 같은 중단 상태를 정기 실행마다 반복 안내하지 않는다. 우선 요청 pool은 일반 선추천보다 근거의 모호함을 조금 더 허용하되 hard conflict·실제 수행 근거·동의·공개 범위를 유지한다. 회사 writer에는 해당 역할의 직접 검토 요청 여부를 주고 Slack 강조·목록·문단 가이드를 적용한다. 새 문구는 prompt와 사실 context로 작성하며 후처리 문구 대체는 하지 않는다.
+
 > 2026-10-02 운영 반영 (Worker `8acac40`): Company-first 검색은 후보자별 Behavior Context를 생성·갱신하지 않는다. 저장된 cache를 한 번에 읽고, cache가 없는 후보자도 현재 Profile·Search Brief로 계속 평가한다. 이미 완료된 운영 run 결과는 소급 변경되지 않는다.
 
 > 2026-10-01 운영 변경: scheduler는 각 Role의 정기 검색 요일·시각(Asia/Seoul)을 매분 읽고 같은 회사·같은 시각의 대상 Role을 한 run으로 묶는다. 기본은 월·수·금 09:00이다. 예약된 Role 범위는 run에 고정한다. 아래 월요일 09:00·전역 cron·시간대 변경 설명은 이전 계약의 이력이며 현재 기준은 [운영 설정 계약](./company-first-runtime-settings-ko.md)이다.
@@ -243,8 +262,9 @@ in-flight run을 중단하지는 않는다.
 - enabled Slack channel이 하나 이상 있고 해당 Role이 그 채널에서 opt-out되지 않음
 - 현재 `연결 대기` unique Talent 수가 Role의 `max_pending_talents`보다 작음
 
-`is_company_first_search`는 새 boolean field이며 default는 `false`다. 기존 `is_auto`와 의미를 섞지 않는다.
-`is_auto`는 다른 internal matching 자동화의 제어이고, 이번 search의 명시적 opt-in은 새 field가 담당한다.
+`is_company_first_search`는 Role별 정기 검색 설정이며, 2026-10-09부터 새 Role의 DB 기본값은 `true`다.
+기존 Role의 설정은 소급 변경하지 않는다.
+Calibration 후 첫 검색은 이 정기 설정과 무관하게 한 번 예약한다.
 
 `max_pending_talents`가 6이고 현재 pending이 6이면 capacity가 이미 찬 상태이므로 실행하지 않는다. 즉,
 코드 조건은 `current_pending >= max_pending_talents`다. 회사에 여러 Role이 있으면 포화 Role만 제외하고,

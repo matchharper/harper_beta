@@ -151,6 +151,7 @@ const SavedOpportunityBoardCard = React.memo(
               <div className="mt-3 line-clamp-2 text-[14px] font-normal leading-5 text-neutral-primary">
                 {item.title}
               </div>
+              {item.feedback === "keep" ? <p className="mt-2 text-xs text-neutral-muted">{t("career.history.keep.badge", "저장됨 · 결정 전")}</p> : null}
               <UpcomingMeetingStrip
                 meeting={item.upcomingMeeting}
                 className="-mx-3 mt-2 rounded-none px-3 py-1 text-[11px] leading-4"

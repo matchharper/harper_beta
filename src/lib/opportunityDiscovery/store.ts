@@ -167,11 +167,12 @@ function getSafeOpportunityRunCoverage(value: unknown) {
     ...(getNonNegativeCount(coverage.liveCandidateCount) !== null
       ? { liveCandidateCount: getNonNegativeCount(coverage.liveCandidateCount) }
       : {}),
-    ...(getNonNegativeCount(coverage.scoredCandidateCount) !== null
+    ...((getNonNegativeCount(coverage.scoredCandidateCount) ??
+      getNonNegativeCount(candidateCounts?.externalDeepseekEvaluated)) !== null
       ? {
-          scoredCandidateCount: getNonNegativeCount(
-            coverage.scoredCandidateCount
-          ),
+          scoredCandidateCount:
+            getNonNegativeCount(coverage.scoredCandidateCount) ??
+            getNonNegativeCount(candidateCounts?.externalDeepseekEvaluated),
         }
       : {}),
     ...(getNonNegativeCount(coverage.selectedCount) !== null

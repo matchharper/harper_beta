@@ -1,0 +1,6 @@
+{
+  "datasetVersion": "contact-delivery-v2",
+  "sha256": "2186c47a649f5ffa5f69136e6dd5745a7915c632761302978d0e766bc1c0f271",
+  "gold": "unchanged from v1, evaluator-only",
+  "change": "Canonical runtime card fields corrected before first v2 run; v1 is retained as invalid card-input evidence."
+}

@@ -1,0 +1,166 @@
+{
+  "version": "presentation-v2",
+  "provenance": "Synthetic challenge extension frozen before first v2 model run on 2026-10-08. v1 cases are unchanged. Expectations authored by Codex; no independent human review.",
+  "cases": [
+    {
+      "id": "UCIP001",
+      "locale": "en",
+      "roleName": "Backend Engineer",
+      "description": "Own a B2B billing service and operational reliability. People management is useful but not required.",
+      "headline": "Backend engineer",
+      "experience": "Owned the billing API from design to production for 120 business customers. Operated incident response and wrote the migration plan. No people-management responsibility is documented.",
+      "criteria": [
+        {
+          "name": "Production ownership",
+          "criteria": "Owned and operated a production backend service."
+        },
+        {
+          "name": "People management",
+          "criteria": "Evidence of directly managing engineers."
+        }
+      ],
+      "expectedFitness": {
+        "Production ownership": [
+          "excellent",
+          "good"
+        ],
+        "People management": [
+          "uncertain"
+        ]
+      },
+      "gold": "Credit the candidate for their own shipped and operated service. Do not infer people management, willingness to relocate, salary or selection by the company. Unknown management is uncertainty, not a demonstrated mismatch."
+    },
+    {
+      "id": "UCIP002",
+      "locale": "ko",
+      "roleName": "Product Manager",
+      "description": "고객 문제를 정의하고 제품 우선순위와 출시를 책임지는 PM.",
+      "headline": "엔지니어 출신 제품 담당자",
+      "experience": "6년간 소프트웨어를 개발했고 마지막 2년은 고객 인터뷰 25회, 기능 우선순위 결정, 디자이너와 출시 범위 조율을 직접 담당했다. 정식 직함은 소프트웨어 엔지니어였다.",
+      "criteria": [],
+      "expectedFitness": {},
+      "gold": "직함을 PM 경력으로 바꾸지 않고 실제 제품 의사결정 경험을 설명한다. criteria가 없으면 빈 배열. 후보자가 수락했다는 합성 입력 사실과 회사의 채용 의사를 구분한다."
+    },
+    {
+      "id": "UCIP003",
+      "locale": "ko",
+      "roleName": "Backend Engineer",
+      "description": "고객용 API의 성능 개선과 안정적인 운영을 맡는다. 기술 설계와 팀원 관리는 별개 책임이다.",
+      "hiringBrief": "실서비스 성능 문제를 직접 분석·개선한 근거를 중시한다. 사용 기술과 관리 경험은 확인된 범위로 판단한다.",
+      "headline": "Backend engineer at a consumer platform",
+      "experience": "Worked for two years on a platform with 30 million registered users. During the final six months of those two years, implemented the billing API cache and reduced p95 latency from 150 ms to 30 ms. This result applies to that API, not the entire platform. Collaborated with three engineers; direct people-management responsibility is not documented. Profile mentions Java and Redis; no Kubernetes work is described.",
+      "criteria": [
+        {
+          "name": "실서비스 성능 개선",
+          "criteria": "성능 병목을 직접 개선하고 해당 서비스의 전후 지표를 설명할 수 있는가."
+        },
+        {
+          "name": "팀원 관리",
+          "criteria": "엔지니어를 직접 관리한 근거가 있는가."
+        },
+        {
+          "name": "Kubernetes 운영",
+          "criteria": "Kubernetes 클러스터를 직접 운영한 경험이 있는가."
+        }
+      ],
+      "expectedFitness": {
+        "실서비스 성능 개선": [
+          "good",
+          "excellent"
+        ],
+        "팀원 관리": [
+          "uncertain"
+        ],
+        "Kubernetes 운영": [
+          "uncertain"
+        ]
+      },
+      "gold": "API p95 150ms→30ms is the candidate-owned result. 30 million is platform-wide registered users, not API customers or users personally acquired. Final six months are included in two years. Collaboration does not establish management; Java/Redis do not establish Kubernetes. Explain only the specific evidence or missing evidence for each criterion, without generic praise."
+    },
+    {
+      "id": "UCIP004",
+      "locale": "ko",
+      "roleName": "투자 심사역",
+      "description": "스타트업 투자 소싱·심사와 투자위원회 보고를 담당한다.",
+      "headline": "Investment analyst",
+      "experience": "Participated in financial diligence for a $200 million Series C financing. The $200 million is the total round size, not capital personally sourced or deployed. Built revenue and cash-flow models for two diligence cases and drafted financial risk summaries for a senior investment manager. Did not lead sourcing, negotiate terms, present to the investment committee, or own the investment decision.",
+      "criteria": [
+        {
+          "name": "재무 분석",
+          "criteria": "투자 검토를 위해 재무 모델과 리스크 분석을 직접 작성한 경험."
+        },
+        {
+          "name": "딜 전 과정 주도",
+          "criteria": "소싱·조건 협상·투자위원회 보고를 직접 주도한 경험."
+        }
+      ],
+      "expectedFitness": {
+        "재무 분석": [
+          "good",
+          "excellent"
+        ],
+        "딜 전 과정 주도": [
+          "bad"
+        ]
+      },
+      "gold": "Retain personal model-building/risk-analysis work. Describe diligence participation without turning total financing size into personal deployment or deal leadership. Explicitly absent sourcing/negotiation/IC leadership is a demonstrated gap for that criterion; do not invent unrelated limitations. Keep content focused on each criterion."
+    },
+    {
+      "id": "UCIP005",
+      "locale": "en",
+      "roleName": "Enterprise Account Executive",
+      "description": "Manage enterprise sales and English-language customer conversations.",
+      "headline": "Account executive",
+      "experience": "Closed 12 mid-market SaaS subscriptions with $420,000 total annual recurring revenue in 2025, owning discovery, demos and negotiations. No enterprise-account contract is documented. English assessment reports CEFR B2; the profile describes attending English customer meetings with support from a bilingual colleague.",
+      "criteria": [
+        {
+          "name": "Sales ownership",
+          "criteria": "Personally owned discovery, demos, negotiation and closing with documented revenue."
+        },
+        {
+          "name": "English proficiency",
+          "criteria": "Documented English proficiency of CEFR C1 or above."
+        }
+      ],
+      "expectedFitness": {
+        "Sales ownership": [
+          "good",
+          "excellent"
+        ],
+        "English proficiency": [
+          "bad"
+        ]
+      },
+      "gold": "Keep 12 subscriptions/$420k ARR and the documented sales scope. Do not reclassify mid-market accounts as enterprise. Preserve B2 and supported meetings without upgrading to C1, native or fluent. State the relevant level mismatch directly; avoid generic aptitude or potential claims."
+    },
+    {
+      "id": "UCIP006",
+      "locale": "ko",
+      "roleName": "Product Manager",
+      "description": "고객 문제 정의부터 우선순위·출시·성과 검토까지 책임지는 PM.",
+      "headline": "소프트웨어 엔지니어",
+      "experience": "총 6년간 소프트웨어 엔지니어로 일했다. 마지막 2년에는 개발과 병행해 고객 인터뷰 25회, 디자이너와 출시 범위 조율, 기능 2개 출시를 담당했다. 로드맵과 우선순위의 최종 결정은 팀 리드가 맡았다. 해당 제품 전체의 고객 유지율은 92%이며 출시 기능의 유지율 기여는 측정하지 않았다.",
+      "criteria": [
+        {
+          "name": "제품 의사결정",
+          "criteria": "고객 조사와 제품 우선순위의 최종 결정을 모두 직접 책임진 경험."
+        },
+        {
+          "name": "기능 출시",
+          "criteria": "디자이너와 출시 범위를 조율하고 기능 출시를 직접 담당한 경험."
+        }
+      ],
+      "expectedFitness": {
+        "제품 의사결정": [
+          "uncertain",
+          "bad"
+        ],
+        "기능 출시": [
+          "good",
+          "excellent"
+        ]
+      },
+      "gold": "Explain 25 interviews versus team lead ownership of final priority; do not silently mark the compound criterion fully met. Credit scope coordination/two launches. Do not attribute product-wide 92% retention to those launches. Preserve total six years with the last two concurrent, and the formal engineering title."
+    }
+  ]
+}

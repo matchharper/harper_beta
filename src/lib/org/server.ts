@@ -1,3 +1,14 @@
+import type { WorkspaceSignupState } from "./signup";
+import { readCandidateDeliveryFacts, type CandidateDeliveryFacts } from "@/lib/companyFirstSearch/candidateDelivery";
+import {
+  approveConnection,
+  claimConnection,
+  completeConnection,
+  findConnectionApproval,
+  releaseConnection,
+} from "@/lib/org/billing/connections";
+import { billingRpc } from "@/lib/org/billing/store";
+import { throwBillingDbError } from "@/lib/org/billing/store";
 import { createHash } from "node:crypto";
 import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import type { User } from "@supabase/supabase-js";
@@ -7,7 +18,7 @@ import {
   hasOrgWorkspaceAccessBypass,
   isOrgInvitationForUser,
 } from "@/lib/org/access";
-import { extractSentAutoIntroRecommendationBody } from "@/lib/org/autoIntroRecommendation";
+import { extractCompanyCandidateIntroduction } from "@/lib/org/autoIntroRecommendation";
 import { companyIntroRoleIsAvailable } from "@/lib/org/companyIntroRoleAvailability";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
 import { buildOrgIntroCandidateProfessionalSummary } from "@/lib/org/introEmailProfessionalSummary";
@@ -87,7 +98,13 @@ import {
 } from "@/lib/companyTalentRequests/server";
 import type { Database, Json } from "@/types/database.types";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
-import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour, type IntroSearchDay } from "@/lib/org/introSearchSchedule";
+import {
+  DEFAULT_INTRO_SEARCH_DAYS,
+  DEFAULT_INTRO_SEARCH_HOUR,
+  parseIntroSearchDays,
+  parseIntroSearchHour,
+  type IntroSearchDay,
+} from "@/lib/org/introSearchSchedule";
 import {
   fetchOrgProcessClosureNotifications,
   isOrgProcessClosureNoticeUnresolved,
@@ -126,6 +143,7 @@ type CompanyRoleWithInternalRow = CompanyRoleRow & {
         criteria?: unknown;
         is_company_first_search?: boolean | null;
         is_promote?: boolean | null;
+        is_anonymous?: boolean | null;
         intro_search_date?: string[] | null;
         intro_search_time?: number | null;
         request?: string | null;
@@ -134,6 +152,7 @@ type CompanyRoleWithInternalRow = CompanyRoleRow & {
         criteria?: unknown;
         is_company_first_search?: boolean | null;
         is_promote?: boolean | null;
+        is_anonymous?: boolean | null;
         intro_search_date?: string[] | null;
         intro_search_time?: number | null;
         request?: string | null;
@@ -171,6 +190,7 @@ export class OrgHttpError extends Error {
 }
 
 export type OrgWorkspace = {
+  signupState?: WorkspaceSignupState | null;
   companyProfile?: OrgCompanyProfile;
   companyDescription: string | null;
   companyName: string;
@@ -234,6 +254,7 @@ export type OrgRole = {
   externalJdUrl: string | null;
   isCompanyFirstSearch?: boolean;
   isPromote?: boolean;
+  isAnonymous?: boolean;
   introSearchDate?: IntroSearchDay[];
   introSearchTime?: number;
   lastConversationAt?: string | null;
@@ -411,8 +432,12 @@ export type OrgBoardItem = {
   };
   companyIntro: {
     candidateSentAt: string | null;
+    harperRecommendation?: CandidateDeliveryFacts | null;
     companyAppeal: string | null;
     id: string;
+    introduction?: string | null;
+    tldr?: string | null;
+    harperNote?: string | null;
     nextStageId: string | null;
     requestedAt: string | null;
     selectionReason: string;
@@ -605,6 +630,7 @@ export type OrgCompanyTalentRequestFeedItem = {
 export type OrgTalentDetailResponse = {
   capabilities: OrgBoardItem["capabilities"];
   companyIntro: OrgBoardItem["companyIntro"];
+  companyPresentation?: import("./companyCriteriaEvaluations").OrgCompanyPresentation | null;
   companyRequestHistory: OrgCompanyTalentRequestFeedItem[];
   connectionConfirmationEmails: OpsMatchingConnectionConfirmationEmail[];
   feed: OrgFeedItem[];
@@ -955,8 +981,9 @@ function toWorkspace(
 ): OrgWorkspace {
   return {
     ...(company ? { companyProfile: company.profile } : {}),
+    signupState: row.signup_state ?? null,
     companyDescription: row.company_description ?? null,
-    companyName: company?.companyName ?? row.company_name,
+    companyName: row.signup_state ? row.company_name : company?.companyName ?? row.company_name,
     logoUrl: company?.logoUrl ?? row.logo_url ?? null,
     pitch: row.pitch ?? null,
     request: row.request ?? null,
@@ -973,6 +1000,7 @@ function toRole(
     criteria?: unknown;
     is_company_first_search?: boolean | null;
     is_promote?: boolean | null;
+    is_anonymous?: boolean | null;
     intro_search_date?: string[] | null;
     intro_search_time?: number | null;
     request?: string | null;
@@ -990,8 +1018,13 @@ function toRole(
     externalJdUrl: row.external_jd_url ?? null,
     isCompanyFirstSearch: canonicalInternal?.is_company_first_search === true,
     isPromote: canonicalInternal?.is_promote === true,
-    introSearchDate: parseIntroSearchDays(canonicalInternal?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
-    introSearchTime: parseIntroSearchHour(canonicalInternal?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
+    isAnonymous: canonicalInternal?.is_anonymous === true,
+    introSearchDate:
+      parseIntroSearchDays(canonicalInternal?.intro_search_date) ??
+      DEFAULT_INTRO_SEARCH_DAYS,
+    introSearchTime:
+      parseIntroSearchHour(canonicalInternal?.intro_search_time) ??
+      DEFAULT_INTRO_SEARCH_HOUR,
     lastConversationAt: lastConversationAt ?? null,
     locationText: row.location_text ?? null,
     memory: normalizeNullableText(memory?.content) ?? null,
@@ -1429,7 +1462,7 @@ async function fetchWorkspaceById(
 ) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, updated_at"
+      "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, signup_state, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -1752,7 +1785,7 @@ async function fetchWorkspacesByIds(
   if (workspaceIds.length === 0) return [];
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, updated_at"
     )
     .in("company_workspace_id", workspaceIds);
 
@@ -1763,7 +1796,7 @@ async function fetchWorkspacesByIds(
 async function fetchDefaultOrgWorkspaces(admin: SupabaseAdminClient) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, updated_at"
     )
     .eq("is_internal", true)
     .order("company_name", { ascending: true })
@@ -1894,7 +1927,9 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
       .eq("company_workspace_id", workspaceId)
       .not("role_id", "is", null),
     (admin.from("company_conversations" as any) as any)
-      .select("role_id, last_message_at, last_message_id, hidden_through_message_id")
+      .select(
+        "role_id, last_message_at, last_message_id, hidden_through_message_id"
+      )
       .eq("company_workspace_id", workspaceId)
       .not("role_id", "is", null)
       .not("last_message_at", "is", null),
@@ -1908,7 +1943,9 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
   const roleIds = roleRows.map((role) => role.role_id);
   const internalResult = roleIds.length
     ? await (admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time")
+        .select(
+          "role_id, request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time"
+        )
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -1918,6 +1955,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string) {
         criteria: unknown;
         is_company_first_search: boolean | null;
         is_promote: boolean | null;
+        is_anonymous: boolean | null;
         intro_search_date: string[] | null;
         intro_search_time: number | null;
         request: string | null;
@@ -2053,6 +2091,9 @@ export async function fetchOrgBootstrap(args: {
     };
   }
 
+  await billingRpc("workspace_billing_reconcile_v1", {
+    p_workspace: selectedWorkspace.company_workspace_id,
+  });
   const [members, roles, company] = await Promise.all([
     fetchOrgMembers(admin, selectedWorkspace.company_workspace_id),
     fetchOrgRoles(admin, selectedWorkspace.company_workspace_id),
@@ -2420,7 +2461,7 @@ async function fetchRoleRowsForWorkspace(
 ) {
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_internal_roles(request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_internal_roles(request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("source_type", "internal")
@@ -2555,6 +2596,14 @@ async function fetchCriteriaEvaluationsForBoard(args: {
     talentIds.push(row.talent_id);
     talentIdsByRoleId.set(row.role_id, talentIds);
   }
+  if (!talentIdsByRoleId.size) return new Map<string, OrgCompanyCriteriaEvaluation[]>();
+  const { currentCompanyCriteriaEvaluations } = await import("@/lib/companyFirstSearch/presentation");
+  const { data: currentRoles, error: criteriaError } = await (args.admin.from("company_internal_roles" as any) as any)
+    .select("role_id,criteria").in("role_id", [...talentIdsByRoleId.keys()]);
+  if (criteriaError) throw criteriaError;
+  const criteriaByRole = new Map<string, ReturnType<typeof normalizeOrgRoleCriteria>>(
+    (currentRoles ?? []).map((role: any) => [role.role_id, normalizeOrgRoleCriteria(role.criteria)])
+  );
 
   const results = await Promise.all(
     Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
@@ -2590,6 +2639,19 @@ async function fetchCriteriaEvaluationsForBoard(args: {
     )
   );
 
+  const presentationResults = await Promise.all(
+    Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
+      chunkValues(uniqueTexts(talentIds)).map(async talentIdChunk => {
+        const { data, error } = await (args.admin.from("talent_opportunity_matching_review" as any) as any)
+          .select("talent_id,opportunity_id,criteria_evaluations,reviewed_at")
+          .eq("opportunity_id",roleId).in("talent_id",talentIdChunk)
+          .not("presentation_fingerprint","is",null)
+          .order("reviewed_at",{ascending:false}).limit(ORG_BOARD_STAGE_DEPENDENCY_CAP);
+        if (error) throw error;
+        return data ?? [];
+      })
+    )
+  );
   const evaluationsByKey = new Map<string, OrgCompanyCriteriaEvaluation[]>();
   for (const row of results.flat()) {
     const key = `${row.talent_id}:${row.opportunity_id}`;
@@ -2600,6 +2662,40 @@ async function fetchCriteriaEvaluationsForBoard(args: {
         row.company_criteria_evaluations
       ).slice(0, 6)
     );
+  }
+  const seenPresentations = new Set<string>();
+  for (const row of presentationResults.flat()) {
+    const key = `${row.talent_id}:${row.opportunity_id}`;
+    if (seenPresentations.has(key)) continue;
+    seenPresentations.add(key);
+    evaluationsByKey.set(key,normalizeOrgCompanyCriteriaEvaluations(
+      currentCompanyCriteriaEvaluations(row.criteria_evaluations,criteriaByRole.get(row.opportunity_id) ?? [])
+    ).slice(0,6));
+  }
+  // The candidate-first path writes its report with the actual introduction,
+  // after Harper's connection confirmation. It never rewrites the shared fit.
+  const introductionResults = await Promise.all(
+    Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
+      chunkValues(uniqueTexts(talentIds)).map(async talentIdChunk => {
+        const { data, error } = await (args.admin.from("talent_progress" as any) as any)
+          .select("talent_id,role_id,metadata,created_at")
+          .eq("role_id", roleId).in("talent_id", talentIdChunk)
+          .eq("kind", "intro_to_company").eq("open_to_company", true)
+          .not("metadata->companyPresentation", "is", null)
+          .order("created_at", { ascending: false }).limit(ORG_BOARD_STAGE_DEPENDENCY_CAP);
+        if (error) throw error;
+        return data ?? [];
+      })
+    )
+  );
+  const seenIntroductions = new Set<string>();
+  for (const row of introductionResults.flat()) {
+    const key = `${row.talent_id}:${row.role_id}`;
+    if (seenIntroductions.has(key)) continue;
+    seenIntroductions.add(key);
+    evaluationsByKey.set(key, normalizeOrgCompanyCriteriaEvaluations(
+      currentCompanyCriteriaEvaluations(row.metadata?.companyPresentation?.criteriaEvaluations,criteriaByRole.get(row.role_id) ?? [])
+    ).slice(0,6));
   }
   return evaluationsByKey;
 }
@@ -3111,7 +3207,7 @@ export async function fetchOrgBoard(args: {
           recommendationIds: recommendationRows.map((row) => row.id),
         })
       : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
-    fetchCriteriaEvaluationsForBoard({ admin, recommendationRows }),
+    fetchCriteriaEvaluationsForBoard({ admin, recommendationRows: [...recommendationRows,...companyIntroRows] }),
     fetchLatestProcessClosureNoticeAtByRecommendation({
       admin,
       recommendationIds: recommendationRows.flatMap((row) =>
@@ -3226,6 +3322,8 @@ export async function fetchOrgBoard(args: {
       ];
     }
   );
+  const candidateDeliveryFacts = await readCandidateDeliveryFacts({admin,workspaceId,
+    roleIds, talentIds:introTalentIds});
   const companyIntroItems = companyIntroRows.flatMap((row): OrgBoardItem[] => {
     const talent = talentById.get(row.talent_id);
     if (!talent) return [];
@@ -3265,14 +3363,17 @@ export async function fetchOrgBoard(args: {
         },
         companyIntro: {
           candidateSentAt: row.candidate_sent_at,
+          harperRecommendation: candidateDeliveryFacts.get(`${row.talent_id}:${row.role_id}`) ?? null,
           companyAppeal: row.company_appeal,
           id: row.id,
           nextStageId: row.next_stage_id,
           requestedAt: row.requested_at,
           selectionReason: row.selection_reason,
+          tldr: normalizeNullableText(getJsonRecord(row.presentation).tldr),
+          harperNote: normalizeNullableText(getJsonRecord(row.presentation).harperNote),
           status: row.status,
         },
-        criteriaEvaluations: [],
+        criteriaEvaluations: criteriaEvaluationsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
         createdAt: row.created_at,
         fitReasons: [],
         fitSummary: row.selection_reason,
@@ -3657,6 +3758,8 @@ export async function requestOrgCompanyIntro(args: {
     p_next_stage_id: nextStageId || null,
   });
   if (error) {
+    if (error.message?.includes("workspace_credits_exhausted"))
+      throwBillingDbError(error);
     const message = normalizeText(error.message);
     if (message.includes("company_intro_appeal_required")) {
       throw new OrgHttpError(
@@ -3738,6 +3841,7 @@ export async function passOrgCompanyIntro(args: {
 }
 
 export async function decideTalentCompanyIntro(args: {
+  expectedUpdatedAt?: string | null;
   decision: "accept" | "decline";
   emailAcceptanceConfirmation?: Json | null;
   feedbackReason?: string | null;
@@ -3746,9 +3850,10 @@ export async function decideTalentCompanyIntro(args: {
 }) {
   const admin = getSupabaseAdmin();
   const { data, error } = await (admin.rpc as any)(
-    "decide_company_intro_request_v1",
+    "decide_company_intro_request_v2",
     {
       p_decision: args.decision,
+      p_expected_updated_at: args.expectedUpdatedAt ?? null,
       p_email_acceptance_confirmation: args.emailAcceptanceConfirmation ?? null,
       p_feedback_reason: normalizeNullableText(args.feedbackReason),
       p_recommendation_id: args.recommendationId,
@@ -4705,6 +4810,57 @@ export async function setOrgCandidateStage(args: {
     workspaceId,
   });
   await upsertOrgCompanyUser(admin, args.user);
+  const existingApproval = await findConnectionApproval(
+    workspaceId,
+    recommendationId
+  );
+  const resumingApproval = existingApproval && !existingApproval.completed_at;
+  if (
+    existingApproval &&
+    (existingApproval.action_payload.input.roleId !== roleId ||
+      existingApproval.action_payload.input.talentId !== talentId)
+  ) {
+    throw new OrgHttpError(409, "Candidate recommendation changed");
+  }
+  if (resumingApproval) {
+    const { user: _actor, ...retryInput } = args;
+    const original = existingApproval.action_payload.input;
+    const normalized = JSON.parse(JSON.stringify(retryInput));
+    const keys = new Set([
+      ...Object.keys(original),
+      ...Object.keys(normalized),
+    ]);
+    if (
+      [...keys].some(
+        (key) =>
+          JSON.stringify(original[key]) !== JSON.stringify(normalized[key])
+      )
+    ) {
+      throw new OrgHttpError(
+        409,
+        "이전에 승인한 연결 요청을 처리하고 있어요. 잠시 후 다시 확인해 주세요."
+      );
+    }
+    if (
+      Date.now() - new Date(existingApproval.created_at).getTime() >=
+      23 * 3600_000
+    ) {
+      throw new OrgHttpError(
+        409,
+        "이전 연결 요청의 전달 상태를 확인해야 해요. Harper 팀에 문의해 주세요."
+      );
+    }
+  }
+  if (
+    resumingApproval &&
+    (existingApproval.action_payload.input.stage !== stage ||
+      existingApproval.actor_id !== args.user.id)
+  ) {
+    throw new OrgHttpError(
+      409,
+      "이 후보자의 이전 연결 요청을 처리하고 있어요. 잠시 후 다시 확인해 주세요."
+    );
+  }
   const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId);
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
@@ -4752,10 +4908,12 @@ export async function setOrgCandidateStage(args: {
     !skipAutomaticContact
       ? await fetchOrgRoleAssigneeEmails({ admin, roleId, workspaceId })
       : [];
-  const introEmails = normalizeLooseEmailList([
-    ...requestedIntroEmails,
-    ...assignedIntroEmails,
-  ]);
+  const introEmails = resumingApproval
+    ? existingApproval.action_payload.introEmails
+    : normalizeLooseEmailList([
+        ...requestedIntroEmails,
+        ...assignedIntroEmails,
+      ]);
   if (recommendation.opportunity_type === "intro_request") {
     if (companyIntro?.status === "connecting") {
       if (!authorizedCompanyIntroTransition) {
@@ -4818,6 +4976,23 @@ export async function setOrgCandidateStage(args: {
       savedStage: recommendation.saved_stage,
       tags: (previousTags ?? []) as TalentOpportunityTagRow[],
     })?.stage ?? "pending_connection";
+  if (
+    existingApproval?.completed_at &&
+    args.expectedPreviousStage === "pending_connection" &&
+    existingApproval.action_payload.input.stage === stage &&
+    previousStage === stage
+  ) {
+    return {
+      ok: true as const,
+      closureNotificationDelivered: false,
+      closureNotificationDeliveredAt: null,
+      reactivated: false,
+      roleId,
+      stage,
+      stageTag: getStageTagForInsert(stage),
+      talentId,
+    };
+  }
   const closedState = candidateReengagementAppliesToStage(stage)
     ? await internalCandidatePairIsClosed({
         admin,
@@ -4855,7 +5030,10 @@ export async function setOrgCandidateStage(args: {
   if (
     args.expectedPreviousStage &&
     previousStage !== args.expectedPreviousStage &&
-    !(authorizedCompanyIntroTransition && previousStage === stage)
+    !(
+      (authorizedCompanyIntroTransition || resumingApproval) &&
+      previousStage === stage
+    )
   ) {
     throw new OrgHttpError(
       409,
@@ -4943,244 +5121,309 @@ export async function setOrgCandidateStage(args: {
     }
   }
 
-  const isIntroRequested = authorizedCompanyIntroTransition
-    ? introEmails.length > 0
-    : shouldSendOrgIntroEmail({
-        contactDirectly,
-        currentStage: previousStage,
-        nextStage: stage,
-        recipientCount: introEmails.length,
-        scheduleInterview,
-        skipAutomaticContact,
-      });
-  let introDelivery: {
-    cc: string[];
-    messageId: string;
-    recipients: string[];
-    resendEmailId: string | null;
-  } | null = null;
-
-  if (isIntroRequested) {
-    const [workspace, candidate, companyUser] = await Promise.all([
-      fetchWorkspaceById(admin, workspaceId),
-      fetchOrgSlackTalent(admin, talentId),
-      fetchOrgCompanyUser(admin, args.user, workspaceId),
-    ]);
-    if (!workspace) throw new OrgHttpError(404, "Workspace not found");
-    if (!candidate) throw new OrgHttpError(404, "Candidate not found");
-
-    try {
-      introDelivery = await sendOrgIntroEmail({
-        admin,
-        candidate,
-        companyUser,
-        introEmails,
-        recommendation,
-        role,
-        workspace,
-      });
-    } catch (error) {
-      if (error instanceof OrgHttpError) throw error;
-      console.error("[org/intro-email] generation or delivery failed", error);
-      throw new OrgHttpError(
-        502,
-        "연결 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요."
-      );
-    }
-  }
-
-  const nextTag = getStageTagForInsert(stage);
-  if (!reactivation) {
-    const { error: deleteError } = await (
-      admin.from("talent_opportunity_tag" as any) as any
-    )
-      .delete()
-      .eq("talent_id", talentId)
-      .eq("opportunity_id", roleId)
-      .in("tag", allStageTags);
-
-    if (deleteError) throw deleteError;
-
-    const { error: insertError } = await (
-      admin.from("talent_opportunity_tag" as any) as any
-    ).insert({
-      opportunity_id: roleId,
-      tag: nextTag,
-      talent_id: talentId,
+  const isIntroRequested = resumingApproval
+    ? existingApproval.action_payload.isIntroRequested
+    : authorizedCompanyIntroTransition
+      ? introEmails.length > 0
+      : shouldSendOrgIntroEmail({
+          contactDirectly,
+          currentStage: previousStage,
+          nextStage: stage,
+          recipientCount: introEmails.length,
+          scheduleInterview,
+          skipAutomaticContact,
+        });
+  // Approval and debit are one durable, idempotent transaction. All external
+  // contact happens after it; recovery reuses the same approval and recipients.
+  let billingApprovalId: string | null = resumingApproval
+    ? existingApproval.id
+    : null;
+  if (
+    !existingApproval &&
+    previousStage === "pending_connection" &&
+    stage !== "pending_connection" &&
+    canInitiateContact &&
+    !authorizedCompanyIntroTransition &&
+    !reactivation
+  ) {
+    const { user: _actor, ...input } = args;
+    billingApprovalId = await approveConnection({
+      workspaceId,
+      roleId,
+      talentId,
+      recommendationId,
+      actorId: args.user.id,
+      input: JSON.parse(JSON.stringify(input)),
+      introEmails,
+      isIntroRequested,
+      previousStage,
     });
+  }
+  if (
+    resumingApproval &&
+    previousStage !== stage &&
+    previousStage !== existingApproval.action_payload.previousStage
+  ) {
+    throw new OrgHttpError(
+      409,
+      "후보자의 상태가 변경되어 이전 연결 요청을 다시 처리할 수 없어요. Harper 팀에 문의해 주세요."
+    );
+  }
+  const billingExecutionToken = billingApprovalId
+    ? await claimConnection(billingApprovalId)
+    : null;
+  try {
+    let introDelivery: {
+      cc: string[];
+      messageId: string;
+      recipients: string[];
+      resendEmailId: string | null;
+    } | null = null;
 
-    if (insertError) {
-      const duplicateDuringCompanyIntro =
-        authorizedCompanyIntroTransition && insertError.code === "23505";
-      if (!duplicateDuringCompanyIntro) throw insertError;
-      const { data: concurrentTag, error: concurrentTagError } = await (
+    if (isIntroRequested) {
+      const [workspace, candidate, companyUser] = await Promise.all([
+        fetchWorkspaceById(admin, workspaceId),
+        fetchOrgSlackTalent(admin, talentId),
+        fetchOrgCompanyUser(admin, args.user, workspaceId),
+      ]);
+      if (!workspace) throw new OrgHttpError(404, "Workspace not found");
+      if (!candidate) throw new OrgHttpError(404, "Candidate not found");
+
+      try {
+        introDelivery = await sendOrgIntroEmail({
+          admin,
+          candidate,
+          companyUser,
+          introEmails,
+          recommendation,
+          role,
+          workspace,
+        });
+      } catch (error) {
+        if (error instanceof OrgHttpError) throw error;
+        console.error("[org/intro-email] generation or delivery failed", error);
+        throw new OrgHttpError(
+          502,
+          "연결 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요."
+        );
+      }
+    }
+
+    const nextTag = getStageTagForInsert(stage);
+    if (!reactivation && !billingApprovalId) {
+      const { error: deleteError } = await (
         admin.from("talent_opportunity_tag" as any) as any
       )
-        .select("id")
+        .delete()
         .eq("talent_id", talentId)
         .eq("opportunity_id", roleId)
-        .eq("tag", nextTag)
-        .maybeSingle();
-      if (concurrentTagError) throw concurrentTagError;
-      if (!concurrentTag) throw insertError;
+        .in("tag", allStageTags);
+
+      if (deleteError) throw deleteError;
+
+      const { error: insertError } = await (
+        admin.from("talent_opportunity_tag" as any) as any
+      ).insert({
+        opportunity_id: roleId,
+        tag: nextTag,
+        talent_id: talentId,
+      });
+
+      if (insertError) {
+        const duplicateDuringCompanyIntro =
+          authorizedCompanyIntroTransition && insertError.code === "23505";
+        if (!duplicateDuringCompanyIntro) throw insertError;
+        const { data: concurrentTag, error: concurrentTagError } = await (
+          admin.from("talent_opportunity_tag" as any) as any
+        )
+          .select("id")
+          .eq("talent_id", talentId)
+          .eq("opportunity_id", roleId)
+          .eq("tag", nextTag)
+          .maybeSingle();
+        if (concurrentTagError) throw concurrentTagError;
+        if (!concurrentTag) throw insertError;
+      }
+
+      await upsertRecommendationProcessedStage({
+        admin,
+        recommendationId,
+        roleId,
+        stage,
+        talentId,
+      });
     }
 
-    await upsertRecommendationProcessedStage({
+    const previousLabel = buildStageLabel(previousStage, stageRows);
+    const nextLabel = buildStageLabel(stage, stageRows);
+    const nextDestinationLabel = buildStageDestinationLabel(nextLabel);
+    const baseText =
+      stage === "process_stopped"
+        ? `프로세스 중단으로 옮겼습니다.`
+        : isIntroRequested
+          ? previousStage === stage
+            ? `warm intro를 요청했습니다.`
+            : `${nextDestinationLabel} 옮기고 warm intro를 요청했습니다.`
+          : contactDirectly
+            ? previousStage === stage
+              ? `직접 연락하기로 했습니다.`
+              : `${nextDestinationLabel} 옮기고 직접 연락하기로 했습니다.`
+            : scheduleInterview
+              ? previousStage === stage
+                ? `Harper가 후보자와의 미팅 일정을 조율하기로 했습니다.`
+                : `${nextDestinationLabel} 옮기고 Harper가 후보자와의 미팅 일정을 조율하기로 했습니다.`
+              : previousStage === stage
+                ? `${nextDestinationLabel} 표시했습니다.`
+                : `${previousLabel}에서 ${nextDestinationLabel} 옮겼습니다.`;
+    const text =
+      stage !== "process_stopped" && acceptReason
+        ? `${baseText}\n수락 이유: ${acceptReason}`
+        : baseText;
+    const metadata = {
+      acceptReason: stage !== "process_stopped" ? acceptReason || null : null,
+      contactDirectly,
+      introEmailCc: introDelivery?.cc ?? [],
+      introEmailMessageId: introDelivery?.messageId ?? null,
+      introEmailRecipients: introDelivery?.recipients ?? [],
+      introEmailResendId: introDelivery?.resendEmailId ?? null,
+      introEmails: isIntroRequested ? introEmails : [],
+      introRequested: isIntroRequested,
+      org: true,
+      previousStage,
+      processClosureNotificationDelivered:
+        processClosureNotification?.status === "sent",
+      processClosureNotificationDeliveredAt:
+        processClosureNotification?.deliveredAt ?? null,
+      processClosureNotificationSentChannel:
+        processClosureNotification?.sentChannel ?? null,
+      reactivation,
+      scheduleInterview,
+      skipAutomaticContact,
+      stage,
+      stopNote: stage === "process_stopped" ? stopNote : null,
+      stopReason: null,
+      tag: nextTag,
+      workspaceId,
+    } satisfies Record<string, unknown>;
+
+    const progressRow = {
+      company_user_id: args.user.id,
+      kind: "org_stage_change",
+      metadata: metadata as Json,
+      recommendation_id: recommendationId,
+      role_id: roleId,
+      talent_id: talentId,
+      text,
+      user_id: getUserEmail(args.user),
+      ...(billingApprovalId ? { id: billingApprovalId } : {}),
+      ...(authorizedCompanyIntroTransition && companyIntro
+        ? { id: buildOrgIntroProgressId(companyIntro.id) }
+        : {}),
+    };
+    if (billingApprovalId && billingExecutionToken) {
+      await billingRpc("workspace_billing_commit_connection_v1", {
+        p_event: billingApprovalId,
+        p_token: billingExecutionToken,
+        p_tags: allStageTags,
+        p_next_tag: nextTag,
+        p_stage: stage,
+        p_progress: progressRow,
+      });
+    }
+    const progressMutation = billingApprovalId
+      ? Promise.resolve({ error: null })
+      : authorizedCompanyIntroTransition
+        ? (admin.from("talent_progress" as any) as any).upsert(progressRow, {
+            onConflict: "id",
+          })
+        : (admin.from("talent_progress" as any) as any).insert(progressRow);
+    const { error: progressError } = await progressMutation;
+
+    if (progressError) throw progressError;
+
+    await syncInternalConnectionConfirmationEmailForStage({
+      actorEmail: getUserEmail(args.user),
       admin,
-      recommendationId,
+      emailMode: args.emailMode,
+      recommendation: {
+        createdAt: recommendation.created_at,
+        feedback: recommendation.feedback,
+        feedbackAt: recommendation.feedback_at,
+        recommendationId: recommendation.id,
+        savedStage: recommendation.saved_stage,
+      },
       roleId,
       stage,
       talentId,
     });
-  }
 
-  const previousLabel = buildStageLabel(previousStage, stageRows);
-  const nextLabel = buildStageLabel(stage, stageRows);
-  const nextDestinationLabel = buildStageDestinationLabel(nextLabel);
-  const baseText =
-    stage === "process_stopped"
-      ? `프로세스 중단으로 옮겼습니다.`
-      : isIntroRequested
-        ? previousStage === stage
-          ? `warm intro를 요청했습니다.`
-          : `${nextDestinationLabel} 옮기고 warm intro를 요청했습니다.`
-        : contactDirectly
-          ? previousStage === stage
-            ? `직접 연락하기로 했습니다.`
-            : `${nextDestinationLabel} 옮기고 직접 연락하기로 했습니다.`
-          : scheduleInterview
-            ? previousStage === stage
-              ? `Harper가 후보자와의 미팅 일정을 조율하기로 했습니다.`
-              : `${nextDestinationLabel} 옮기고 Harper가 후보자와의 미팅 일정을 조율하기로 했습니다.`
-            : previousStage === stage
-              ? `${nextDestinationLabel} 표시했습니다.`
-              : `${previousLabel}에서 ${nextDestinationLabel} 옮겼습니다.`;
-  const text =
-    stage !== "process_stopped" && acceptReason
-      ? `${baseText}\n수락 이유: ${acceptReason}`
-      : baseText;
-  const metadata = {
-    acceptReason: stage !== "process_stopped" ? acceptReason || null : null,
-    contactDirectly,
-    introEmailCc: introDelivery?.cc ?? [],
-    introEmailMessageId: introDelivery?.messageId ?? null,
-    introEmailRecipients: introDelivery?.recipients ?? [],
-    introEmailResendId: introDelivery?.resendEmailId ?? null,
-    introEmails: isIntroRequested ? introEmails : [],
-    introRequested: isIntroRequested,
-    org: true,
-    previousStage,
-    processClosureNotificationDelivered:
-      processClosureNotification?.status === "sent",
-    processClosureNotificationDeliveredAt:
-      processClosureNotification?.deliveredAt ?? null,
-    processClosureNotificationSentChannel:
-      processClosureNotification?.sentChannel ?? null,
-    reactivation,
-    scheduleInterview,
-    skipAutomaticContact,
-    stage,
-    stopNote: stage === "process_stopped" ? stopNote : null,
-    stopReason: null,
-    tag: nextTag,
-    workspaceId,
-  } satisfies Record<string, unknown>;
+    if (isIntroRequested || contactDirectly || stage === "process_stopped") {
+      try {
+        const [workspace, candidate] = await Promise.all([
+          fetchWorkspaceById(admin, workspaceId),
+          fetchOrgSlackTalent(admin, talentId),
+        ]);
 
-  const progressRow = {
-    company_user_id: args.user.id,
-    kind: "org_stage_change",
-    metadata: metadata as Json,
-    recommendation_id: recommendationId,
-    role_id: roleId,
-    talent_id: talentId,
-    text,
-    user_id: getUserEmail(args.user),
-    ...(authorizedCompanyIntroTransition && companyIntro
-      ? { id: buildOrgIntroProgressId(companyIntro.id) }
-      : {}),
-  };
-  const progressMutation = authorizedCompanyIntroTransition
-    ? (admin.from("talent_progress" as any) as any).upsert(progressRow, {
-        onConflict: "id",
-      })
-    : (admin.from("talent_progress" as any) as any).insert(progressRow);
-  const { error: progressError } = await progressMutation;
+        if (workspace && candidate) {
+          const slackBaseArgs = {
+            actor: {
+              email: getUserEmail(args.user),
+              name: getUserName(args.user),
+              userId: args.user.id,
+            },
+            candidate,
+            roleId,
+            roleName: role.name,
+            workspace: {
+              companyName: workspace.company_name,
+              workspaceId: workspace.company_workspace_id,
+            },
+          };
 
-  if (progressError) throw progressError;
-
-  await syncInternalConnectionConfirmationEmailForStage({
-    actorEmail: getUserEmail(args.user),
-    admin,
-    emailMode: args.emailMode,
-    recommendation: {
-      createdAt: recommendation.created_at,
-      feedback: recommendation.feedback,
-      feedbackAt: recommendation.feedback_at,
-      recommendationId: recommendation.id,
-      savedStage: recommendation.saved_stage,
-    },
-    roleId,
-    stage,
-    talentId,
-  });
-
-  if (isIntroRequested || contactDirectly || stage === "process_stopped") {
-    try {
-      const [workspace, candidate] = await Promise.all([
-        fetchWorkspaceById(admin, workspaceId),
-        fetchOrgSlackTalent(admin, talentId),
-      ]);
-
-      if (workspace && candidate) {
-        const slackBaseArgs = {
-          actor: {
-            email: getUserEmail(args.user),
-            name: getUserName(args.user),
-            userId: args.user.id,
-          },
-          candidate,
-          roleId,
-          roleName: role.name,
-          workspace: {
-            companyName: workspace.company_name,
-            workspaceId: workspace.company_workspace_id,
-          },
-        };
-
-        if (isIntroRequested || contactDirectly) {
-          await notifyOrgCandidateAcceptedSlack({
-            ...slackBaseArgs,
-            acceptReason,
-            closureNotificationDelivered:
-              processClosureNotification?.status === "sent",
-            contactDirectly,
-            introEmails,
-            reactivated: reactivation,
-          });
-        } else {
-          await notifyOrgCandidateRejectedSlack({
-            ...slackBaseArgs,
-            previousStage,
-            stopNote,
-          });
+          if (isIntroRequested || contactDirectly) {
+            await notifyOrgCandidateAcceptedSlack({
+              ...slackBaseArgs,
+              acceptReason,
+              closureNotificationDelivered:
+                processClosureNotification?.status === "sent",
+              contactDirectly,
+              introEmails,
+              reactivated: reactivation,
+            });
+          } else {
+            await notifyOrgCandidateRejectedSlack({
+              ...slackBaseArgs,
+              previousStage,
+              stopNote,
+            });
+          }
         }
+      } catch (slackError) {
+        console.error(
+          "[org/slack] candidate decision notify failed",
+          slackError
+        );
       }
-    } catch (slackError) {
-      console.error("[org/slack] candidate decision notify failed", slackError);
     }
-  }
 
-  return {
-    ok: true as const,
-    closureNotificationDelivered: processClosureNotification?.status === "sent",
-    closureNotificationDeliveredAt:
-      processClosureNotification?.deliveredAt ?? null,
-    reactivated: reactivation,
-    roleId,
-    stage,
-    stageTag: nextTag,
-    talentId,
-  };
+    if (billingApprovalId && billingExecutionToken)
+      await completeConnection(billingApprovalId, billingExecutionToken);
+    return {
+      ok: true as const,
+      closureNotificationDelivered:
+        processClosureNotification?.status === "sent",
+      closureNotificationDeliveredAt:
+        processClosureNotification?.deliveredAt ?? null,
+      reactivated: reactivation,
+      roleId,
+      stage,
+      stageTag: nextTag,
+      talentId,
+    };
+  } finally {
+    if (billingApprovalId && billingExecutionToken)
+      await releaseConnection(billingApprovalId, billingExecutionToken);
+  }
 }
 
 export async function updateOrgConnectionConfirmationEmail(args: {
@@ -6061,6 +6304,7 @@ export async function fetchOrgTalentDetail(args: {
     created_at: string;
     id: string;
     next_stage_id: string | null;
+    presentation: Json;
     recommendation_id: string | null;
     requested_at: string | null;
     role_id: string;
@@ -6082,7 +6326,7 @@ export async function fetchOrgTalentDetail(args: {
       admin.from("company_intro_candidates" as any) as any
     )
       .select(
-        "id, talent_id, role_id, selection_reason, status, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at"
+        "id, talent_id, role_id, selection_reason, presentation, status, recommendation_id, requested_at, company_appeal, next_stage_id, candidate_sent_at, selected_at, created_at, updated_at"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
@@ -6628,9 +6872,21 @@ export async function fetchOrgTalentDetail(args: {
   const sentAutoIntroRecommendation = optionalRows<
     Pick<TalentProgressRow, "metadata" | "text">
   >(autoIntroProgressResult, "sent auto intro").reduce<string | null>(
-    (body, row) => body ?? extractSentAutoIntroRecommendationBody(row),
+    (body, row) => body ?? extractCompanyCandidateIntroduction(row),
     null
   );
+  const { normalizeOrgCompanyPresentation } = await import("./companyCriteriaEvaluations");
+  const { currentCompanyCriteriaEvaluations } = await import("@/lib/companyFirstSearch/presentation");
+  const rawCompanyPresentation = companyIntro?.presentation ??
+    optionalRows<Pick<TalentProgressRow, "metadata">>(autoIntroProgressResult, "company report")
+      .map(row => getJsonRecord(row.metadata).companyPresentation)
+      .find(value => normalizeOrgCompanyPresentation(value)) ?? null;
+  const companyPresentation = normalizeOrgCompanyPresentation(rawCompanyPresentation);
+  if (companyPresentation) {
+    companyPresentation.criteriaEvaluations = normalizeOrgCompanyCriteriaEvaluations(
+      currentCompanyCriteriaEvaluations(getJsonRecord(rawCompanyPresentation).criteriaEvaluations, toRole(roleRow).criteria)
+    );
+  }
   const registeredLinks = Array.isArray(talent.resume_links)
     ? talent.resume_links.filter((link) => normalizeText(link))
     : [];
@@ -6713,6 +6969,9 @@ export async function fetchOrgTalentDetail(args: {
         },
       ];
     });
+  const candidateDeliveryFacts = companyIntro
+    ? await readCandidateDeliveryFacts({admin,workspaceId,roleIds:[companyIntro.role_id],talentIds:[talentId]})
+    : new Map<string,CandidateDeliveryFacts>();
   return {
     capabilities: companyIntro
       ? {
@@ -6734,14 +6993,21 @@ export async function fetchOrgTalentDetail(args: {
     companyIntro: companyIntro
       ? {
           candidateSentAt: companyIntro.candidate_sent_at,
+          harperRecommendation: candidateDeliveryFacts.get(`${talentId}:${companyIntro.role_id}`) ?? null,
           companyAppeal: companyIntro.company_appeal,
           id: companyIntro.id,
+          introduction: normalizeNullableText(
+            getJsonRecord(companyIntro.presentation).summary
+          ),
+          tldr: normalizeNullableText(getJsonRecord(companyIntro.presentation).tldr),
+          harperNote: normalizeNullableText(getJsonRecord(companyIntro.presentation).harperNote),
           nextStageId: companyIntro.next_stage_id,
           requestedAt: companyIntro.requested_at,
           selectionReason: companyIntro.selection_reason,
           status: companyIntro.status,
         }
       : null,
+    companyPresentation,
     companyRequestHistory,
     connectionConfirmationEmails,
     feed: sortOrgFeedItems([
@@ -7464,6 +7730,7 @@ export async function updateOrgRole(args: {
   expectedCriteria?: unknown;
   isCompanyFirstSearch?: boolean;
   isPromote?: boolean;
+  isAnonymous?: boolean;
   introSearchDate?: unknown;
   introSearchTime?: unknown;
   isExpired?: boolean | null;
@@ -7500,11 +7767,25 @@ export async function updateOrgRole(args: {
   if (args.isPromote !== undefined && typeof args.isPromote !== "boolean") {
     throw new OrgHttpError(400, "공개 채용 공고 설정이 올바르지 않습니다.");
   }
-  const introSearchDate = args.introSearchDate === undefined ? undefined : parseIntroSearchDays(args.introSearchDate);
-  const introSearchTime = args.introSearchTime === undefined ? undefined : parseIntroSearchHour(args.introSearchTime);
-  if ((args.introSearchDate !== undefined && !introSearchDate) ||
-      (args.introSearchTime !== undefined && introSearchTime === null)) {
-    throw new OrgHttpError(400, "정기 후보 검색 요일·시간이 올바르지 않습니다.");
+  if (args.isAnonymous !== undefined && typeof args.isAnonymous !== "boolean") {
+    throw new OrgHttpError(400, "회사명 공개 설정이 올바르지 않습니다.");
+  }
+  const introSearchDate =
+    args.introSearchDate === undefined
+      ? undefined
+      : parseIntroSearchDays(args.introSearchDate);
+  const introSearchTime =
+    args.introSearchTime === undefined
+      ? undefined
+      : parseIntroSearchHour(args.introSearchTime);
+  if (
+    (args.introSearchDate !== undefined && !introSearchDate) ||
+    (args.introSearchTime !== undefined && introSearchTime === null)
+  ) {
+    throw new OrgHttpError(
+      400,
+      "정기 후보 검색 요일·시간이 올바르지 않습니다."
+    );
   }
 
   const requestedStatus =
@@ -7535,14 +7816,27 @@ export async function updateOrgRole(args: {
 
     const currentRoleStatus = normalizeOrgRoleStatus(currentRole.status);
     if (currentRoleStatus === "draft" && requestedStatus !== "deleted") {
-      if (
-        requestedStatus !== "active" ||
-        !hasOrgAllWorkspaceAccess(args.user)
-      ) {
+      if (requestedStatus !== "active") {
         throw new OrgHttpError(
-          403,
-          "작성 중 역할은 matchharper.com 계정만 Settings에서 진행할 수 있습니다."
+          409,
+          "작성한 Role에서 채용 시작 또는 삭제를 선택해 주세요."
         );
+      }
+      if (!hasOrgAllWorkspaceAccess(args.user)) {
+        const { fetchRoleCreationState, getRoleCreationMissingFields } =
+          await import("@/lib/org/agent/roleCreationState");
+        const state = await fetchRoleCreationState({
+          roleId,
+          user: args.user,
+          workspaceId,
+          allowCompletedRole: true,
+        });
+        if (getRoleCreationMissingFields(state).length) {
+          throw new OrgHttpError(
+            409,
+            "작성한 내용은 저장되어 있어요. Role 대화에서 채용 정보와 담당자 설정을 먼저 마무리해 주세요."
+          );
+        }
       }
 
       const { data: activated, error: activationError } = await (
@@ -7601,11 +7895,22 @@ export async function updateOrgRole(args: {
   if (args.isPromote !== undefined) {
     changes.push({ key: "role_is_promote", roleId, value: args.isPromote });
   }
+  if (args.isAnonymous !== undefined) {
+    changes.push({ key: "role_is_anonymous", roleId, value: args.isAnonymous });
+  }
   if (introSearchDate !== undefined) {
-    changes.push({ key: "role_intro_search_date", roleId, value: introSearchDate });
+    changes.push({
+      key: "role_intro_search_date",
+      roleId,
+      value: introSearchDate,
+    });
   }
   if (introSearchTime !== undefined && introSearchTime !== null) {
-    changes.push({ key: "role_intro_search_time", roleId, value: introSearchTime });
+    changes.push({
+      key: "role_intro_search_time",
+      roleId,
+      value: introSearchTime,
+    });
   }
   if (requestedStatus && !activatedDraftRole) {
     changes.push({
@@ -7691,7 +7996,9 @@ export async function updateOrgRole(args: {
   const { data: internalRole, error: internalError } = await (
     admin.from("company_internal_roles" as any) as any
   )
-    .select("request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time")
+    .select(
+      "request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time"
+    )
     .eq("role_id", roleId)
     .maybeSingle();
   if (internalError) throw internalError;
@@ -7792,7 +8099,7 @@ export async function updateOrgRoleRequestOnly(args: {
   }
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria, is_company_first_search, is_promote, intro_search_date, intro_search_time)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, company_internal_roles(request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)

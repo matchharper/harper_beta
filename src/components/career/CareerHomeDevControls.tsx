@@ -14,6 +14,7 @@ import {
   Terminal,
 } from "lucide-react";
 import React from "react";
+import dynamic from "next/dynamic";
 import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
 import { MuteButton } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -43,6 +44,12 @@ import {
 import { useCareerTextChatModelStore } from "@/store/useCareerTextChatModelStore";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
+import CareerPriorityReviewDevControls from "./CareerPriorityReviewDevControls";
+import { canUsePriorityReviewTests } from "@/lib/career/priorityReviewTestContract";
+
+const CareerRecommendationSearchPreview = dynamic(
+  () => import("./CareerRecommendationSearchPreview")
+);
 
 const devVoiceModelOptions: Array<{
   label: string;
@@ -209,6 +216,7 @@ export default function CareerHomeDevControls({
   const [devPromptLogStatus, setDevPromptLogStatus] = React.useState("");
   const [devRoleFtsLoading, setDevRoleFtsLoading] = React.useState(false);
   const [devRoleFtsStatus, setDevRoleFtsStatus] = React.useState("");
+  const [searchPreviewOpen, setSearchPreviewOpen] = React.useState(false);
 
   const showDevRunControls = canUseCareerDevControls(user?.email);
   const reengagementPendingActions = useCareerReengagementPendingActions({
@@ -498,6 +506,18 @@ export default function CareerHomeDevControls({
       <div className="mt-4">
         <DevColorPaletteControls />
       </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Text as="span" type="subtle">추천 검색 로딩</Text>
+        <MuteButton onClick={() => setSearchPreviewOpen(true)}>
+          <Play className="size-3.5" />로딩 미리보기
+        </MuteButton>
+      </div>
+      {searchPreviewOpen ? (
+        <CareerRecommendationSearchPreview onClose={() => setSearchPreviewOpen(false)} />
+      ) : null}
+      {canUsePriorityReviewTests(user?.email) ? (
+        <CareerPriorityReviewDevControls model={textChatModel} />
+      ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Text as="span" type="subtle">
           채팅 메시지 복사·삭제 버튼

@@ -6,7 +6,10 @@ import {
   toTalentMessageResponse,
   type TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
-import { upsertRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recommendJobPostingStatus";
+import {
+  splitRecommendJobPostingStatusLogs,
+  upsertRecommendJobPostingStatusLog,
+} from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
 import { stripPostgresUnsafeChars } from "@/lib/textSanitization";
 
@@ -100,9 +103,17 @@ export async function POST(req: NextRequest) {
 
     let stoppedAssistant: TalentMessageRow | null = null;
     if (assistantContent) {
+      const sourceLogs = Array.isArray(body.assistantMessage?.thinkingLogs)
+        ? body.assistantMessage.thinkingLogs.filter(
+            (log): log is string => typeof log === "string"
+          )
+        : [];
       const assistantThinkingLogs = upsertRecommendJobPostingStatusLog(
-        body.assistantMessage?.thinkingLogs,
-        stoppedStatus
+        sourceLogs,
+        {
+          ...splitRecommendJobPostingStatusLogs(sourceLogs).latestStatus,
+          ...stoppedStatus,
+        }
       );
       const { data: existingStoppedAssistant, error: existingAssistantError } =
         await admin

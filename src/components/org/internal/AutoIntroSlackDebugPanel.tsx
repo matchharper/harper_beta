@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Copy, LoaderCircle, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import {
   getInternalAccessToken,
   refreshInternalAccessToken,
@@ -147,6 +148,7 @@ export default function AutoIntroSlackDebugPanel({
   workspaceId: string;
 }) {
   const [runState, setRunState] = useState<RunState>("idle");
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [userPrompt, setUserPrompt] = useState("");
@@ -182,10 +184,7 @@ export default function AutoIntroSlackDebugPanel({
   };
 
   const run = async () => {
-    const confirmed = window.confirm(
-      "프롬프트 테스트가 끝나면 이 회사의 실제 Slack 채널로 후보자 추천 메시지를 전송합니다. 계속할까요?"
-    );
-    if (!confirmed) return;
+    if (runState === "running") return;
 
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -292,7 +291,7 @@ export default function AutoIntroSlackDebugPanel({
         </div>
         <MuteButton
           disabled={runState === "running"}
-          onClick={() => void run()}
+          onClick={() => setConfirmOpen(true)}
           size="lg"
           variant="warn"
         >
@@ -387,6 +386,31 @@ export default function AutoIntroSlackDebugPanel({
           </div>
         </div>
       ) : null}
+      <TalentCareerModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        mobileBottomSheet
+        title="실제 Slack 채널로 전송할까요?"
+        description="프롬프트 테스트가 끝나면 이 회사의 실제 Slack 채널로 후보자 추천 메시지를 전송합니다. 계속할까요?"
+        panelClassName="max-w-md"
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <MuteButton onClick={() => setConfirmOpen(false)}>취소</MuteButton>
+            <MuteButton
+              variant="warn"
+              disabled={runState === "running"}
+              onClick={() => {
+                setConfirmOpen(false);
+                void run();
+              }}
+            >
+              생성 후 실제 Slack 전송
+            </MuteButton>
+          </div>
+        }
+      >
+        <></>
+      </TalentCareerModal>
     </section>
   );
 }

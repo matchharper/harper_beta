@@ -88,12 +88,14 @@ export function MessagesProvider({
   children,
   locale: controlledLocale,
   manageDocumentLanguage = true,
+  persistPreference = true,
   messages,
   onLocaleChange,
 }: {
   children: ReactNode;
   locale?: Locale;
   manageDocumentLanguage?: boolean;
+  persistPreference?: boolean;
   messages?: MessageDictionary;
   onLocaleChange?: (locale: Locale) => void;
 }) {
@@ -107,20 +109,20 @@ export function MessagesProvider({
   const locale = controlledLocale ?? localeState;
   const setLocale = useCallback(
     (nextLocale: Locale) => {
-      persistLocalePreference(nextLocale);
+      if (persistPreference) persistLocalePreference(nextLocale);
       if (!controlledLocale) {
         setLocaleState(nextLocale);
       }
       onLocaleChange?.(nextLocale);
     },
-    [controlledLocale, onLocaleChange]
+    [controlledLocale, onLocaleChange, persistPreference]
   );
 
   useEffect(() => {
-    if (controlledLocale) {
+    if (controlledLocale && persistPreference) {
       persistLocalePreference(controlledLocale);
     }
-  }, [controlledLocale]);
+  }, [controlledLocale, persistPreference]);
 
   useIsomorphicLayoutEffect(() => {
     if (controlledLocale || typeof window === "undefined") return;

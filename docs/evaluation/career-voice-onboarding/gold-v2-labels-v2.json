@@ -1,0 +1,863 @@
+{
+  "datasetVersion": "pilot-v2",
+  "rubricVersion": "v1",
+  "labelVersion": "v2",
+  "evaluator": "Codex direct qualitative audit; independent human gold pending",
+  "labelingProcedure": "Original 40 mature pilot-v1 judgments inherited from frozen first-call review; remaining cases reviewed from model-hidden pilot-v2 packets before group unblinding. No additional external LLM API calls.",
+  "inheritedMatureCases": 40,
+  "newlyReviewedTranscriptCases": 48,
+  "newCasesWithoutUserTranscript": 32,
+  "cases": [
+    {
+      "id": "VO2001",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2002",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2003",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2004",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_role_location_timing_pay_and_faithful_storage"
+    },
+    {
+      "id": "VO2005",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2006",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "hard_compensation_condition_weakened"
+    },
+    {
+      "id": "VO2007",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "future_role_and_constraints_unresolved"
+    },
+    {
+      "id": "VO2008",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "monthly_pay_unit_missing_in_storage"
+    },
+    {
+      "id": "VO2009",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2010",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2011",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2012",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "visa_scope_caveated_and_relevant_constraints_saved"
+    },
+    {
+      "id": "VO2013",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2014",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "interview_interrupted_before_constraints"
+    },
+    {
+      "id": "VO2015",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "us_work_authorization_scope_unresolved"
+    },
+    {
+      "id": "VO2016",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2017",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2018",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2019",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2020",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2021",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2022",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "role_and_tradeoffs_unresolved"
+    },
+    {
+      "id": "VO2023",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "cross_border_work_authorization_unresolved"
+    },
+    {
+      "id": "VO2024",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2025",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "interview_not_started_beyond_identity_question"
+    },
+    {
+      "id": "VO2026",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2027",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "noisy_transcript_but_final_role_visa_and_timing_clear"
+    },
+    {
+      "id": "VO2028",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "location_answer_incomplete_and_constraints_unresolved"
+    },
+    {
+      "id": "VO2029",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "visa_sponsorship_and_compensation_clear"
+    },
+    {
+      "id": "VO2030",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2031",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "role_location_compensation_and_timing_clear"
+    },
+    {
+      "id": "VO2032",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "compensation_and_material_tradeoffs_unresolved"
+    },
+    {
+      "id": "VO2033",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2034",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2035",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "call_ended_before_role_location_and_compensation"
+    },
+    {
+      "id": "VO2036",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2037",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2038",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2039",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "only_search_intensity_captured"
+    },
+    {
+      "id": "VO2040",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "role_location_timing_and_role_specific_flexibility_clear"
+    },
+    {
+      "id": "VO2041",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "unintelligible_single_user_utterance"
+    },
+    {
+      "id": "VO2042",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2043",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2044",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2045",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2046",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2047",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2048",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2049",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2050",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2051",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2052",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "role_location_and_flexible_compensation_clear"
+    },
+    {
+      "id": "VO2053",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2054",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "unverified_global_work_authorization_recorded_as_fact"
+    },
+    {
+      "id": "VO2055",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2056",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2057",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2058",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2059",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2060",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2061",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2062",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2063",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2064",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "country_and_currency_of_pay_recorded_inconsistently"
+    },
+    {
+      "id": "VO2065",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "visa_condition_critical_to_matching_not_explained"
+    },
+    {
+      "id": "VO2066",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2067",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "explicit_unlisted_role_preference_confirmed_in_full_utterance"
+    },
+    {
+      "id": "VO2068",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2069",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2070",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2071",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2072",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2073",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2074",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2075",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2076",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2077",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "garbled_role_and_timing_with_unsupported_role_expansion"
+    },
+    {
+      "id": "VO2078",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2079",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2080",
+      "readiness": "not_ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "next_role_invented_without_first_call_evidence"
+    },
+    {
+      "id": "VO2081",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "english_professional_scope_overstated"
+    },
+    {
+      "id": "VO2082",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2083",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2084",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2085",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "flexible_work_requirement_weakened"
+    },
+    {
+      "id": "VO2086",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2087",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "income_priority_without_location_or_pay_constraints"
+    },
+    {
+      "id": "VO2088",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2089",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2090",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2091",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "korean_citizenship_inferred_from_visa_statement"
+    },
+    {
+      "id": "VO2092",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "technical_english_and_dealbreakers_overstated"
+    },
+    {
+      "id": "VO2093",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2094",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2095",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "specific_role_request_unresolved_in_generic_intake"
+    },
+    {
+      "id": "VO2096",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "absence_of_foreign_work_authorization_inferred"
+    },
+    {
+      "id": "VO2097",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2098",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "search_intent_only"
+    },
+    {
+      "id": "VO2099",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2100",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2101",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2102",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2103",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2104",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_faithful"
+    },
+    {
+      "id": "VO2105",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "desired_role_location_and_pay_not_established"
+    },
+    {
+      "id": "VO2106",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2107",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2108",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "role_too_broad_and_location_pay_timing_missing"
+    },
+    {
+      "id": "VO2109",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "call_not_ended_and_location_pay_unresolved"
+    },
+    {
+      "id": "VO2110",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2111",
+      "readiness": "ready",
+      "fidelity": "fail",
+      "outcome": "not_ready",
+      "reason": "immediate_move_recast_as_one_to_three_month_timeline"
+    },
+    {
+      "id": "VO2112",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "only_search_intensity_and_nearby_location_captured"
+    },
+    {
+      "id": "VO2113",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2114",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2115",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2116",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2117",
+      "readiness": "not_ready",
+      "fidelity": "not_applicable",
+      "outcome": "not_ready",
+      "reason": "location_compensation_and_role_scope_unresolved"
+    },
+    {
+      "id": "VO2118",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    },
+    {
+      "id": "VO2119",
+      "readiness": "unknown",
+      "fidelity": "unknown",
+      "outcome": "unknown",
+      "reason": "no_observed_first_call_user_transcript"
+    },
+    {
+      "id": "VO2120",
+      "readiness": "ready",
+      "fidelity": "pass",
+      "outcome": "ready",
+      "reason": "sufficient_and_materially_faithful"
+    }
+  ],
+  "labelReviewHistory": [
+    {
+      "caseId": "VO2067",
+      "reviewer": "Codex",
+      "reviewedAt": "2026-10-06",
+      "unblindedAdjudication": true,
+      "from": "not_ready",
+      "to": "ready",
+      "reason": "First-pass excerpt truncated an explicit opportunity-source preference; complete utterance confirms faithful storage."
+    }
+  ]
+}

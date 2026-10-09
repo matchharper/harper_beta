@@ -59,6 +59,18 @@ const SUBMIT_AUTO_INTRO_TOOL = {
     parameters: {
       type: "object",
       properties: {
+        companyPresentation: {
+          type: "object",
+          properties: {
+            introduction: { type: "string", description: "Two or three company-visible sentences based on the shareable profile." },
+            criteriaEvaluations: { type: "array", items: {
+              type: "object",
+              properties: { name: { type: "string" }, fitness: { type: "string", enum: ["excellent", "good", "uncertain", "bad"] }, content: { type: "string" } },
+              required: ["name", "fitness", "content"], additionalProperties: false,
+            } },
+          },
+          required: ["introduction", "criteriaEvaluations"], additionalProperties: false,
+        },
         followUpQuestion: {
           type: ["string", "null"],
           description:
@@ -104,7 +116,7 @@ const SUBMIT_AUTO_INTRO_TOOL = {
           },
         },
       },
-      required: ["followUpQuestion", "slackProfile", "sources"],
+      required: ["followUpQuestion", "slackProfile", "companyPresentation", "sources"],
       additionalProperties: false,
     },
     strict: true,
@@ -227,7 +239,7 @@ async function createAutoIntroCompletion(args: {
     debugLabel: "org/auto-intro:candidate-copy",
     fallbackModel:
       process.env.AUTO_INTRO_TO_COMPANY_LLM_FALLBACK_MODEL?.trim() ||
-      GPT_56_TERRA_MODEL,
+      GPT_6_LUNA_MODEL,
     model: args.model,
     openAIResponses: { reasoningEffort: "high" },
   });
@@ -251,7 +263,7 @@ export async function generateAutoIntroWorkspaceMessage(
     { content: systemPrompt, role: "system" },
     { content: userPrompt, role: "user" },
   ];
-  let activeModel: string = GPT_6_LUNA_MODEL;
+  let activeModel: string = process.env.AUTO_INTRO_TO_COMPANY_LLM_MODEL?.trim() || GPT_56_TERRA_MODEL;
   const source = options?.source ?? AUTO_INTRO_LLM_SOURCE;
   let webToolCallCount = 0;
 

@@ -1504,13 +1504,13 @@ export async function POST(req: NextRequest) {
       },
       {
         key: "onboarding_profile" as const,
-        label: "프로필 자료 통과",
+        label: "3단계 통과",
         count: onboardingProfileCount,
         detail: "career_click_onboarding_next_step_3 + 완료 유저 보정",
       },
       {
         key: "onboarding_visibility" as const,
-        label: "공개 범위 제출",
+        label: "마지막 단계 제출",
         count: onboardingVisibilityCount,
         detail: "career_click_onboarding_submit* + 완료 유저 보정",
       },

@@ -2,11 +2,14 @@ import type { User } from "@supabase/supabase-js";
 import { prepareDirectCandidateMessage } from "@/lib/companyTalentRequests/directMessage";
 import {
   getOrgAgentMoreData,
+  fitOrgAgentMoreDataContent,
   getOrgAgentTalents,
   readOrgAgentRole,
   readOrgAgentTalent,
   readOrgAgentTalents,
   type OrgAgentAdminClient,
+  type OrgAgentMoreDataToolResult,
+  type OrgAgentMoreDataResult,
 } from "@/lib/org/agent/data";
 import {
   listOrgAgentContacts,
@@ -44,6 +47,7 @@ import {
 import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
+import { formatMatchingRunHistory } from "@/lib/org/agent/promptFormat";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
 import { enqueueOrgMatchingSearch } from "@/lib/org/agent/matchingSearch";
 import {
@@ -102,7 +106,6 @@ import { candidateContactWritingEvidence } from "@/lib/companyTalentRequests/wri
 import {
   getOrgRoleLifecycleUpdate,
   getOrgRoleStatusPresentation,
-  ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
   parseOrgRoleMutationStatus,
 } from "@/lib/org/roleStatus";
 import {
@@ -152,7 +155,6 @@ import {
   type SlackRoleCreationExecutionContext,
 } from "@/lib/org/agent/slackRoleCreation";
 import {
-  fetchOrgActiveRoleLimitState,
   fetchRoleCreationState,
   getRoleCreationMissingFields,
   setRoleCreationNotification,
@@ -941,7 +943,7 @@ function moreDataKinds(value: unknown) {
   if (!Array.isArray(value)) {
     throw new OrgAgentToolInputError("kinds must be an array");
   }
-  const allowed = ["members", "company_details", "workspace_memory"] as const;
+  const allowed = ["members", "company_details", "workspace_memory", "matching_runs"] as const;
   const kinds = Array.from(new Set(value.map(text).filter(Boolean)));
   if (
     kinds.length < 1 ||
@@ -981,18 +983,36 @@ async function executeGetMoreData(args: {
   workspaceId: string;
 }) {
   const kinds = moreDataKinds(args.input.kinds);
+  const retainedKinds = kinds.filter(kind => kind !== "matching_runs");
+  const readsHistory = kinds.includes("matching_runs");
+  const offset = args.input.offset ?? 0;
+  if (typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0 ||
+      (args.input.offset !== undefined && !readsHistory)) {
+    throw new OrgAgentToolInputError("offset must be a nonnegative integer and is only available for matching_runs");
+  }
   const fullTextKeys = moreDataFullTextKeys(args.input.fullTextKeys);
   if (fullTextKeys.length > 0 && !kinds.includes("company_details")) {
     throw new OrgAgentToolInputError(
       "fullTextKeys requires company_details in kinds"
     );
   }
-  const result = await getOrgAgentMoreData({
-    admin: args.admin,
-    fullTextKeys,
-    kinds,
-    workspaceId: args.workspaceId,
-  });
+  const { readMatchingRunHistory } = await import("@/lib/companyFirstSearch/history");
+  const [retained, matchingRuns] = await Promise.all([
+    retainedKinds.length ? getOrgAgentMoreData({
+      admin: args.admin, fullTextKeys, kinds: retainedKinds, workspaceId: args.workspaceId,
+    }) : Promise.resolve<OrgAgentMoreDataResult>({ requestedKinds: [] }),
+    readsHistory ? readMatchingRunHistory({ admin: args.admin, workspaceId: args.workspaceId, offset })
+      : Promise.resolve(undefined),
+  ]);
+  if (matchingRuns && retainedKinds.length) {
+    fitOrgAgentMoreDataContent({
+      fullTextKeys, result: retained,
+      contentBudget: 12_000 - formatMatchingRunHistory(matchingRuns).length - 150,
+    });
+  }
+  const result: OrgAgentMoreDataToolResult = {
+    ...retained, requestedKinds: kinds, ...(matchingRuns ? { matchingRuns } : {}),
+  };
 
   if (result.companyDetails) {
     for (const [key, marker] of Object.entries(result.companyDetails.fields)) {
@@ -1013,7 +1033,7 @@ async function executeGetMoreData(args: {
     });
   }
   const activatedAt = new Date().toISOString();
-  for (const kind of kinds) {
+  for (const kind of retainedKinds) {
     args.state.activatedMoreData = args.state.activatedMoreData.filter(
       (activation) => activation.kind !== kind
     );
@@ -1789,31 +1809,6 @@ async function executeChangeRoleStatus(args: {
   }
 
   if (draftActivation) {
-    const limitState = await fetchOrgActiveRoleLimitState({
-      admin: args.admin,
-      workspaceId: args.workspaceId,
-    });
-    if (limitState.limitReached) {
-      args.state.fallbackReply = ORG_ACTIVE_ROLE_LIMIT_MESSAGE;
-      recordResult(args.state, {
-        callId: args.callId,
-        name: args.name,
-        status: "unchanged",
-        summary: "채용 중인 역할 수 제한으로 작성 중 역할을 등록하지 않음",
-      });
-      return {
-        activeRoleCount: limitState.activeRoleCount,
-        activeRoleLimit: limitState.activeRoleLimit,
-        created: false,
-        responseGuidance:
-          "Tell the user that the draft Role remains unchanged because the workspace already has the maximum number of active Roles, and invite them to contact the Harper team if they need to register another Role.",
-        roleName: role.name,
-        roleStatus: "draft",
-        status: "active_role_limit_reached",
-        userMessage: ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
-      };
-    }
-
     let creationState = await fetchRoleCreationState({
       roleId: role.roleId,
       user: args.user,
@@ -2013,6 +2008,9 @@ async function executeChangeRoleStatus(args: {
     try {
       slackNotificationDelivered = await notifyOrgRoleCreatedSlack({
         actor: completionState.currentUser,
+        introSearchDate: completionState.role.introSearchDate,
+        introSearchTime: completionState.role.introSearchTime,
+        isCompanyFirstSearch: completionState.role.isCompanyFirstSearch,
         roleId: role.roleId,
         roleName: completionState.role.name,
         workspace: {
@@ -6131,24 +6129,6 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
-    if ("limitReached" in started) {
-      args.state.fallbackReply = ORG_ACTIVE_ROLE_LIMIT_MESSAGE;
-      recordResult(args.state, {
-        callId: args.callId,
-        name: args.name,
-        status: "unchanged",
-        summary: "채용 중인 역할 수 제한으로 새 역할을 등록하지 않음",
-      });
-      return {
-        activeRoleCount: started.activeRoleCount,
-        activeRoleLimit: started.activeRoleLimit,
-        created: false,
-        responseGuidance:
-          "Tell the user that no new Role was created because the workspace already has the maximum number of active Roles, and invite them to contact the Harper team if they need to register another Role.",
-        status: started.status,
-        userMessage: ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
-      };
-    }
     args.state.requiredSlackContinuationLink = `<${started.threadPermalink}|새로운 채용 등록 이어가기>`;
     args.state.fallbackReply = [
       `${started.roleTitle} 역할 등록을 함께 시작할게요.`,

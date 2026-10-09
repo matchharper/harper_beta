@@ -9,6 +9,7 @@ import {
   getSlackOrgAgentModel,
   migrateOrgAgentModel,
   ORG_AGENT_GEMINI_FLASH_MODEL,
+  ORG_AGENT_HAIKU_MODEL,
   ORG_AGENT_TEMPERATURE,
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_GLM_53_FLASH_MODEL,
@@ -25,7 +26,17 @@ test("exposes every supported company-side LLM", () => {
     ORG_AGENT_LUNA_MODEL,
     ORG_AGENT_TERRA_MODEL,
     ORG_AGENT_CLAUDE_MODEL,
+    ORG_AGENT_HAIKU_MODEL,
   ]);
+});
+
+test("uses the requested Haiku 5.5 with high reasoning without switching models on failure", () => {
+  assert.equal(
+    resolveOrgAgentModel(ORG_AGENT_HAIKU_MODEL).model,
+    ORG_AGENT_HAIKU_MODEL
+  );
+  assert.equal(getOrgAgentReasoningEffort(ORG_AGENT_HAIKU_MODEL), "high");
+  assert.equal(getOrgAgentFallbackModel(ORG_AGENT_HAIKU_MODEL), null);
 });
 
 test("uses Luna as the only company-agent fallback", () => {
@@ -55,8 +66,14 @@ test("uses Gemini 3.8 Flash with medium reasoning for web and Slack by default",
   assert.equal(DEFAULT_ORG_AGENT_MODEL, ORG_AGENT_GEMINI_FLASH_MODEL);
   assert.equal(DEFAULT_SLACK_ORG_AGENT_MODEL, ORG_AGENT_GEMINI_FLASH_MODEL);
   assert.equal(DEFAULT_ORG_AGENT_REASONING_EFFORT, "medium");
-  assert.equal(getOrgAgentReasoningEffort(ORG_AGENT_GLM_53_FLASH_MODEL), "high");
-  assert.equal(getOrgAgentReasoningEffort(ORG_AGENT_GEMINI_FLASH_MODEL), "medium");
+  assert.equal(
+    getOrgAgentReasoningEffort(ORG_AGENT_GLM_53_FLASH_MODEL),
+    "high"
+  );
+  assert.equal(
+    getOrgAgentReasoningEffort(ORG_AGENT_GEMINI_FLASH_MODEL),
+    "medium"
+  );
   assert.equal(ORG_AGENT_TEMPERATURE, 0.5);
   assert.equal(getOrgAgentFallbackModel(ORG_AGENT_GEMINI_FLASH_MODEL), null);
 
@@ -67,7 +84,10 @@ test("uses Gemini 3.8 Flash with medium reasoning for web and Slack by default",
 
   try {
     assert.equal(getSlackOrgAgentModel(), ORG_AGENT_GEMINI_FLASH_MODEL);
-    assert.equal(resolveOrgAgentModel(null).model, ORG_AGENT_GEMINI_FLASH_MODEL);
+    assert.equal(
+      resolveOrgAgentModel(null).model,
+      ORG_AGENT_GEMINI_FLASH_MODEL
+    );
   } finally {
     if (original === undefined) delete process.env.SLACK_ORG_AGENT_MODEL;
     else process.env.SLACK_ORG_AGENT_MODEL = original;

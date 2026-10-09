@@ -1114,6 +1114,90 @@
   }
 }
 
+.career-search-visual {
+  position: relative;
+  display: grid;
+  height: 176px;
+  margin: 12px 0;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--color-bg-basement);
+  color: var(--color-neutral-700);
+  contain: layout paint;
+  perspective: 600px;
+}
+
+.career-search-sculpture {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  transform-style: preserve-3d;
+  transform: rotateX(-24deg) rotateZ(-24deg);
+  animation: career-search-sculpture 14s linear infinite;
+}
+
+.career-search-ring {
+  position: absolute;
+  inset: 0;
+  border: 0.75px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.65;
+  transform: rotateY(var(--ring-angle)) translateX(44px);
+  animation: career-search-ring 5.6s ease-in-out infinite;
+  animation-delay: var(--ring-delay);
+}
+
+@keyframes career-search-sculpture {
+  from {
+    transform: rotateX(-24deg) rotateZ(-24deg) rotateY(0deg);
+  }
+  to {
+    transform: rotateX(-24deg) rotateZ(-24deg) rotateY(360deg);
+  }
+}
+
+@keyframes career-search-ring {
+  0%,
+  100% {
+    transform: rotateY(var(--ring-angle)) translateX(44px) rotateX(0deg);
+  }
+  50% {
+    transform: rotateY(var(--ring-angle)) translateX(36px) rotateX(65deg);
+  }
+}
+
+.career-search-steps {
+  --search-row-height: 32px;
+  position: relative;
+  margin-top: 8px;
+  isolation: isolate;
+}
+
+.career-search-step {
+  height: var(--search-row-height);
+}
+
+.career-search-step-highlight {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--search-row-height);
+  border-radius: 5px;
+  background: var(--color-bg-weak);
+  pointer-events: none;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .career-search-sculpture,
+  .career-search-ring {
+    animation: none;
+  }
+  .career-search-step-highlight {
+    transition: none;
+  }
+}
+
 .liquid-glass {
   position: relative;
   overflow: hidden;

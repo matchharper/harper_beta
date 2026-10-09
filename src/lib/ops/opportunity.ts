@@ -26,8 +26,8 @@ type WorkspaceRow = {
 
 type RoleRow = {
   company_internal_roles?:
-    | { is_auto?: boolean | null; request?: string | null }
-    | Array<{ is_auto?: boolean | null; request?: string | null }>
+    | { request?: string | null }
+    | Array<{ request?: string | null }>
     | null;
   company_workspace_id: string;
   created_at: string;
@@ -103,7 +103,6 @@ export type OpsOpportunityWorkspaceRecord = {
   externalRoleCount: number;
   homepageUrl: string | null;
   internalRoleCount: number;
-  hasAutoRole: boolean;
   hasSlackConnection: boolean;
   isInternal: boolean;
   linkedinUrl: string | null;
@@ -201,11 +200,6 @@ function normalizeOpportunitySourceType(value: unknown): OpportunitySourceType {
   return value === "external" ? "external" : "internal";
 }
 
-function isCompanyInternalRoleAuto(value: RoleRow["company_internal_roles"]) {
-  const records = Array.isArray(value) ? value : value ? [value] : [];
-  return records.some((record) => record?.is_auto === true);
-}
-
 function isConnectedProgress(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -300,7 +294,6 @@ function mapWorkspaceRecord(args: {
   connectedCount?: number;
   externalRoleCount: number;
   internalRoleCount: number;
-  hasAutoRole?: boolean;
   hasSlackConnection?: boolean;
   memberCount?: number;
   pendingConnectionCount?: number;
@@ -326,7 +319,6 @@ function mapWorkspaceRecord(args: {
     externalRoleCount: args.externalRoleCount,
     homepageUrl: args.row.homepage_url ?? null,
     internalRoleCount: args.internalRoleCount,
-    hasAutoRole: Boolean(args.hasAutoRole),
     hasSlackConnection: Boolean(args.hasSlackConnection),
     isInternal: Boolean(args.row.is_internal),
     linkedinUrl: args.row.linkedin_url ?? null,
@@ -662,7 +654,7 @@ export async function fetchOpsOpportunityCatalog(
   if (workspaceIds.length > 0) {
     let roleQuery = (admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode, company_internal_roles(request, is_auto)"
+        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode, company_internal_roles(request)"
       )
       .in("company_workspace_id", workspaceIds)
       .order("updated_at", { ascending: false }) as any;
@@ -691,7 +683,6 @@ export async function fetchOpsOpportunityCatalog(
     {
       active: number;
       external: number;
-      hasAutoRole: boolean;
       internal: number;
       total: number;
     }
@@ -746,7 +737,6 @@ export async function fetchOpsOpportunityCatalog(
     const current = roleStatsByWorkspaceId.get(workspaceId) ?? {
       active: 0,
       external: 0,
-      hasAutoRole: false,
       internal: 0,
       total: 0,
     };
@@ -755,9 +745,6 @@ export async function fetchOpsOpportunityCatalog(
     const status = normalizeOpportunityStatus(row.status);
     if (status === "active" || status === "top_priority") {
       current.active += 1;
-    }
-    if (isCompanyInternalRoleAuto(row.company_internal_roles)) {
-      current.hasAutoRole = true;
     }
     if (normalizeOpportunitySourceType(row.source_type) === "external") {
       current.external += 1;
@@ -803,7 +790,6 @@ export async function fetchOpsOpportunityCatalog(
       const stats = roleStatsByWorkspaceId.get(workspaceId) ?? {
         active: 0,
         external: 0,
-        hasAutoRole: false,
         internal: 0,
         total: 0,
       };
@@ -813,7 +799,6 @@ export async function fetchOpsOpportunityCatalog(
         activeRoleCount: stats.active,
         connectedCount: connectionCounts?.connectedCount ?? 0,
         externalRoleCount: stats.external,
-        hasAutoRole: stats.hasAutoRole,
         hasSlackConnection: slackWorkspaceIds.has(workspaceId),
         internalRoleCount: stats.internal,
         memberCount: memberCountByWorkspaceId.get(workspaceId) ?? 0,

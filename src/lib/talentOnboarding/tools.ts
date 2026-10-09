@@ -1,4 +1,6 @@
+import { buildCareerCoachingResultInstruction } from "@/lib/career/prompts/cases/coachingPrompts";
 import { GENERATE_RESUME_PARAMETERS } from "@/lib/resumes/schema";
+import { readTalentContactHistory } from "@/lib/career/talentContactHistory";
 import {
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
@@ -89,11 +91,13 @@ import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { formatCareerPromptCompactDateTime } from "@/lib/career/prompts/promptUtils";
 import { searchInternalRolesForCareerTool } from "@/lib/career/internalRoleSearch";
 import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
+import { isPriorityReviewInboxArchived } from "@/lib/career/priorityReviewProgress";
 import {
   hasPendingInternalRoleReconsideration,
   isInternalRoleCandidateReadable,
   isInternalRoleReconsiderationEligible,
   isInternalRoleCandidateVisible,
+  isInternalRolePriorityReviewRecommendable,
 } from "@/lib/career/internalRoleEligibility";
 import { IncomingWebhook } from "@slack/webhook";
 import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
@@ -143,6 +147,9 @@ export type PendingProcessClosureNotice = {
 };
 
 export type TalentToolExecutionContext = {
+  onRecommendationSearchProgress?: (
+    status: import("./recommendJobPostingStatus").RecommendJobPostingStatus
+  ) => void;
   searchPurpose?: "mock_interview";
   admin?: unknown;
   abortSignal?: AbortSignal;
@@ -150,7 +157,9 @@ export type TalentToolExecutionContext = {
   conversationId?: string;
   isMobile?: boolean | null;
   responseLocale?: string | null;
-  registerProcessClosureNotices?: (notices: PendingProcessClosureNotice[]) => void;
+  registerProcessClosureNotices?: (
+    notices: PendingProcessClosureNotice[]
+  ) => void;
   scheduleAfter?: (task: () => Promise<void>) => void;
   toolCallId?: string | null;
   userMessageId?: number | string | null;
@@ -264,7 +273,6 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
   TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
-  TALENT_TOOL_NAMES.REQUEST_INTERNAL_ROLE_RECONSIDERATION,
   TALENT_TOOL_NAMES.GET_ROLE_CONTEXT,
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
@@ -280,7 +288,6 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
   TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
-  TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION,
   TALENT_TOOL_NAMES.READ_COMPANY_CONNECTIONS,
   TALENT_TOOL_NAMES.CONTACT_COMPANY,
 ] as const;
@@ -478,12 +485,17 @@ function normalizeSinceDate(input: Record<string, unknown>) {
   ).toISOString();
 }
 
-type RecommendedOpportunityToolFeedback = "review" | "like" | "dislike";
+type RecommendedOpportunityToolFeedback =
+  | "review"
+  | "like"
+  | "dislike"
+  | "keep";
 
 const RECOMMENDED_OPPORTUNITY_TOOL_FEEDBACK = new Set<string>([
   "review",
   "like",
   "dislike",
+  "keep",
 ]);
 
 function normalizeRecommendedOpportunityToolFeedback(
@@ -496,7 +508,7 @@ function normalizeRecommendedOpportunityToolFeedback(
 }
 
 function toTalentOpportunityFeedback(
-  feedback: Exclude<RecommendedOpportunityToolFeedback, "review">
+  feedback: "like" | "dislike"
 ): TalentOpportunityFeedback {
   return feedback === "like" ? "positive" : "negative";
 }
@@ -747,9 +759,9 @@ async function runGetRoleContext(args: {
         .eq("talent_id", args.userId)
         .in("role_id", args.roleIds)
         .order("created_at", { ascending: false }),
-      (args.admin.from("talent_opportunity_fit" as any) as any)
+      (args.admin.from("talent_role_fit_with_selection_v1" as any) as any)
         .select(
-          "opportunity_id, label, human_label, recommend, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
+          "opportunity_id, fit_contract_version, candidate_visible, expires_at, label, human_label, recommend, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
         )
         .eq("talent_id", args.userId)
         .in("opportunity_id", args.roleIds),
@@ -867,7 +879,10 @@ async function runGetRoleContext(args: {
     const allActivities = detailedRecommendation?.talentRoleActivities ?? [];
     const recentActivity = formatTalentRoleActivitiesForPrompt(
       [...allActivities]
-        .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+        .sort(
+          (left, right) =>
+            Date.parse(right.createdAt) - Date.parse(left.createdAt)
+        )
         .slice(args.activityOffset, args.activityOffset + 10),
       10
     );
@@ -1055,6 +1070,7 @@ async function verifyUnrecommendedInternalRoleChoice(args: {
   admin: any;
   roleId: string;
   userId: string;
+  allowPriorityReview?: boolean;
 }) {
   const [roleResult, fitResult] = await Promise.all([
     (args.admin.from("company_roles" as any) as any)
@@ -1063,9 +1079,9 @@ async function verifyUnrecommendedInternalRoleChoice(args: {
       )
       .eq("role_id", args.roleId)
       .maybeSingle() as any,
-    (args.admin.from("talent_opportunity_fit" as any) as any)
+    (args.admin.from("talent_role_fit_with_selection_v1" as any) as any)
       .select(
-        "id, label, human_label, recommend, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
+        "id, fit_contract_version, candidate_visible, priority_review_recommendable, label, human_label, recommend, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
       )
       .eq("talent_id", args.userId)
       .eq("opportunity_id", args.roleId)
@@ -1108,7 +1124,14 @@ async function verifyUnrecommendedInternalRoleChoice(args: {
     optionalToolString(roleInformation?.testOnly)?.toLowerCase() === "true";
   const fit = asToolRecord(fitResult.data);
   const reconsiderationScheduled = hasPendingInternalRoleReconsideration(fit);
-  if (roleUnavailable || !isInternalRoleCandidateVisible(fit)) {
+  const requestedAssessment =
+    args.allowPriorityReview && isInternalRolePriorityReviewRecommendable(fit)
+      ? await fetchEarliestInternalRolePriorityReview(args)
+      : null;
+  if (
+    roleUnavailable ||
+    (!isInternalRoleCandidateVisible(fit) && !requestedAssessment)
+  ) {
     return {
       allowed: false as const,
       isInternal: true as const,
@@ -1207,6 +1230,36 @@ async function updateRecommendedOpportunityFeedback(args: {
   const hasFormalRecommendation =
     resolved.opportunity !== null &&
     !getPostingRoleIdFromOpportunityId(resolved.opportunity.id);
+  if (args.feedback === "keep") {
+    if (
+      !hasFormalRecommendation ||
+      resolved.opportunity?.sourceType !== "internal"
+    ) {
+      return {
+        ok: false,
+        reason: "internal_role_review_required",
+        assistantInstruction:
+          "Saving requires an internal role already formally shown to this user. If the user asked to save an available matched role, use the existing review action first with candidate-safe fit reasons. Do not reveal an unpresented company proposal or record acceptance.",
+      };
+    }
+    const result = await updateTalentOpportunityHistoryItem({
+      action: "feedback",
+      admin: args.admin,
+      userId: args.userId,
+      opportunityId: resolved.updateOpportunityId,
+      feedback: "keep",
+      feedbackReason: args.feedbackReason,
+    });
+    return {
+      ok: true,
+      feedback: args.feedback,
+      updatedAt: result.updatedAt,
+      accepted: false,
+      companyShared: false,
+      assistantInstruction:
+        "The internal role is saved for later in the user's interested/saved list, with no acceptance or rejection. Acknowledge briefly; do not ask for a reason or imply interest was sent to the company. The user can decide later.",
+    };
+  }
   if (args.feedback === "like" && !hasFormalRecommendation && requestedRoleId) {
     const verification = await verifyUnrecommendedInternalRoleChoice({
       admin: args.admin,
@@ -1361,13 +1414,13 @@ async function updateRecommendedOpportunityFeedback(args: {
       : args.feedback === "like" &&
           updatedOpportunity?.sourceType === "internal"
         ? {
-            // Candidate-facing contract: the human confirmation/handoff remains
-            // internal. A successful acceptance is explained as Harper sharing
+            // The local agent prepares and delivers the introduction after acceptance.
+            // A successful acceptance is explained as Harper sharing
             // the profile/context with the company and helping make the connection.
             // Future tense prevents a false completed-action claim without turning
             // the operational handoff into a disclaimer or another user decision.
             assistantInstruction:
-              "The internal connection acceptance is recorded. Tell the candidate directly that Harper will share or introduce their profile and relevant experience to the company and help make the connection. Use future tense until actual sharing is verified, but do not say profile sharing or company connection is not immediate/confirmed, do not say Harper merely needs to check the next step, and never expose Harper's internal human confirmation or handoff.",
+              "The internal connection acceptance is recorded. Tell the candidate directly that Harper will share or introduce their profile and relevant experience to the company and help make the connection. Use future tense until actual sharing is verified, but do not say profile sharing or company connection is not immediate/confirmed, do not say Harper merely needs to check the next step, and explain the introduction outcome without adding a staff approval step.",
           }
         : {}),
   };
@@ -1472,6 +1525,7 @@ async function fetchEarliestInternalRolePriorityReview(args: {
     .eq("talent_id", args.userId)
     .eq("role_id", args.roleId)
     .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND)
+    .is("metadata->>withdrawnAt", null)
     .order("created_at", { ascending: true })
     .limit(1) as any);
 
@@ -1482,6 +1536,73 @@ async function fetchEarliestInternalRolePriorityReview(args: {
   }
 
   return asToolRecord(Array.isArray(data) ? data[0] : null);
+}
+
+async function readInternalRolePriorityReviewArchive(args: {
+  admin: any;
+  companyName: string;
+  hasRecommendation?: boolean;
+  matchingReview?: Record<string, unknown> | null;
+  requestId: string;
+  requestedAt: string;
+  roleId: string;
+  roleTitle: string | null;
+  userId: string;
+}) {
+  if (args.hasRecommendation || !isPriorityReviewInboxArchived(args.requestedAt)) return null;
+  const [reviewResult, recommendationResult] = await Promise.all([
+    args.matchingReview !== undefined
+      ? Promise.resolve({ data: [args.matchingReview], error: null })
+      : (args.admin.from("talent_opportunity_matching_review") as any)
+          .select("decision, reviewed_at")
+          .eq("talent_id", args.userId).eq("opportunity_id", args.roleId)
+          .eq("priority_request_id", args.requestId).is("closed_at", null)
+          .order("reviewed_at", { ascending: false }).limit(1),
+    args.hasRecommendation !== undefined
+      ? Promise.resolve({ data: [], error: null })
+      : (args.admin.from("talent_opportunity_recommendation") as any)
+          .select("id").eq("talent_id", args.userId).eq("role_id", args.roleId).limit(1),
+  ]);
+  if (reviewResult.error || recommendationResult.error) {
+    throw new TalentToolError("Failed to verify the priority-review archive state.");
+  }
+  const review = asToolRecord(Array.isArray(reviewResult.data) ? reviewResult.data[0] : null);
+  if ((recommendationResult.data ?? []).length ||
+      !isPriorityReviewInboxArchived(args.requestedAt, review?.decision)) return null;
+
+  const { data, error } = await (args.admin.from("company_intro_candidates") as any)
+    .select("status, close_reason, requested_at")
+    .eq("talent_id", args.userId).eq("role_id", args.roleId)
+    .order("created_at", { ascending: false }).limit(1);
+  if (error) throw new TalentToolError("Failed to read the company's introduction response.");
+  const proposal = asToolRecord(Array.isArray(data) ? data[0] : null);
+  // 4주 경과는 Inbox 정리 기준이다. 이미 회사가 연결을 요청한 진행은 종료하지 않는다.
+  if (proposal?.requested_at || ["awaiting_talent", "connecting", "connected"].includes(String(proposal?.status))) {
+    return null;
+  }
+  return {
+    ok: true,
+    status: "already_exists",
+    roleId: args.roleId,
+    roleTitle: args.roleTitle,
+    companyName: args.companyName,
+    requestedAt: args.requestedAt,
+    requestCreated: false,
+    hasActiveRequest: true,
+    inboxArchived: true,
+    companyReviewProposed: Boolean(proposal),
+    companyConnectionRequested: false,
+    assistantInstruction: [
+      "Explain warmly that four weeks have passed since this priority-review request without a company introduction request. Harper has closed the waiting item in the 할 일/Inbox tab so the user does not need to keep waiting or worrying about it. The original interest remains recorded; this call did not create or renew a request or stop a separate matching process.",
+      proposal
+        ? "The profile was put forward for the company's review and the company was invited to consider an introduction. Explain that this has not led to a company introduction request."
+        : "The user's interest was recorded, but a company-side profile proposal is not verified. Explain the lack of a connection without claiming that their profile was delivered or an introduction was requested.",
+      proposal?.status === "passed" && proposal?.close_reason === "company_passed"
+        ? "The company explicitly chose not to request an introduction for this proposal. Describe that recorded decision without extending it to other roles."
+        : "The company may be busy or its hiring priorities may have changed; present these only as possible explanations, not known facts or an inferred rejection.",
+      "Harper will continue checking for suitable opportunities and relevant changes through its existing routine. Do not invent a new scheduled follow-up or guarantee a response. Suggest applying directly through the company's own channel as a useful alternative and offer help.",
+    ].join(" "),
+  };
 }
 
 function formatKstDate(value: string | null | undefined) {
@@ -1673,6 +1794,7 @@ async function presentInternalRoleRecommendationForReview(args: {
     admin: args.admin,
     roleId,
     userId: args.userId,
+    allowPriorityReview: true,
   });
   if (!verification.allowed) return verification.result;
   if (!verification.isInternal) {
@@ -1732,7 +1854,7 @@ async function presentInternalRoleRecommendationForReview(args: {
         : null,
       assistantInstruction: [
         `This role is now formally available for review. Before answering, call get_role_context with roleId=${roleId} and include_jd=true, then give a substantive explanation of the company, the role's actual scope, why ${targetRoleName ?? "the requested role"} may fit, and any meaningful public-safe tradeoff.`,
-        "Say the role has been added as a formal recommendation, but it has not been accepted and nothing has been sent to the company.",
+        "Say the role has been added as a formal recommendation, but nothing has been sent to the company. if user accept, Harper will introduce you to the company.",
         "This is an internal Harper-connected role. Never describe it as an external or public opportunity, and do not attribute information limits to it being external.",
         "Tell the user they can read the full role in the Positions tab in Korean or the Jobs tab in English, and ask them to accept there or tell Harper after reviewing it if they still want to proceed.",
         "Do not say the role was switched, selected, accepted, connected, or sent to the company.",
@@ -1800,7 +1922,7 @@ async function presentInternalRoleRecommendationForReview(args: {
 }
 
 async function updateInternalRolePriorityReview(args: {
-  action: "register" | "withdraw";
+  action: "register" | "withdraw" | "status";
   admin: any;
   conversationId?: string | null;
   responseLocale?: string | null;
@@ -1813,6 +1935,29 @@ async function updateInternalRolePriorityReview(args: {
     throw new TalentToolError(
       "internal_role_priority_review requires a valid roleId."
     );
+  }
+
+  let profileVisibility: string | null = null;
+  if (args.action === "register") {
+    const { data: setting, error } = await args.admin
+      .from("talent_setting")
+      .select("is_onboarding_done, profile_visibility")
+      .eq("user_id", args.userId)
+      .maybeSingle();
+    if (error) {
+      throw new TalentToolError("Could not verify onboarding completion.");
+    }
+    profileVisibility = optionalToolString(setting?.profile_visibility);
+    if (setting?.is_onboarding_done !== true) {
+      return {
+        ok: false,
+        status: "onboarding_required",
+        requestCreated: false,
+        companyShared: false,
+        assistantInstruction:
+          "Explain warmly that Harper directly helps introduce candidates to companies, so it needs the candidate's career background and preferences from onboarding to assess the opportunity and introduce them accurately. Ask them to complete onboarding first and help them continue it. The priority-review request was not registered and no profile was shared. Do not frame incomplete onboarding as rejection or promise acceptance or a hiring outcome.",
+      };
+    }
   }
 
   const { data: role, error: roleError } = await ((
@@ -1848,7 +1993,7 @@ async function updateInternalRolePriorityReview(args: {
       ok: false,
       status: "role_not_found",
       roleId,
-      assistantInstruction: `Tell the user Harper could not verify the exact role yet. Ask for the company name, role title, or link so Harper can identify it. Do not say the priority-review request was ${args.action === "register" ? "saved" : "withdrawn"}.`,
+      assistantInstruction: `Tell the user Harper could not verify the exact role yet. Ask for the company name, role title, or link so Harper can identify it. ${args.action === "status" ? "Do not claim the priority-review status was verified." : `Do not say the priority-review request was ${args.action === "register" ? "saved" : "withdrawn"}.`}`,
     };
   }
 
@@ -1858,7 +2003,7 @@ async function updateInternalRolePriorityReview(args: {
       ok: false,
       status: "not_internal_role",
       roleId,
-      assistantInstruction: `Tell the user Harper could not ${args.action === "register" ? "save" : "withdraw"} this priority internal-role review request because it is not verified as a Harper-connected role. Do not promise a connection, interview, referral, company introduction, or specific timeline.`,
+      assistantInstruction: `Tell the user Harper could not ${args.action === "status" ? "read" : args.action === "register" ? "save" : "withdraw"} this priority internal-role review request because it is not verified as a Harper-connected role. Do not promise a connection, interview, referral, company introduction, or specific timeline.`,
     };
   }
 
@@ -1901,6 +2046,84 @@ async function updateInternalRolePriorityReview(args: {
   const roleTitle =
     officialJobLabel?.roleTitle ?? optionalToolString(roleRecord.name);
 
+  if (args.action === "status") {
+    const existing = await fetchEarliestInternalRolePriorityReview({
+      admin: args.admin,
+      roleId,
+      userId: args.userId,
+    });
+    const { data, error } = existing
+      ? await (
+          args.admin.from("talent_opportunity_matching_review" as any) as any
+        )
+          .select("reviewed_at, decision")
+          .eq("talent_id", args.userId)
+          .eq("opportunity_id", roleId)
+          .eq("priority_request_id", existing.id)
+          .is("closed_at", null)
+          .order("reviewed_at", { ascending: false })
+          .limit(1)
+      : await (args.admin.from("talent_progress" as any) as any)
+          .select("created_at, metadata")
+          .eq("talent_id", args.userId)
+          .eq("role_id", roleId)
+          .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1);
+    if (error) {
+      throw new TalentToolError(
+        error.message ?? "Failed to read priority-review status."
+      );
+    }
+    const latest = asToolRecord(Array.isArray(data) ? data[0] : null);
+    const withdrawnAt = optionalToolString(
+      asToolRecord(latest?.metadata)?.withdrawnAt
+    );
+    const requestedAt = optionalToolString(
+      existing?.created_at ?? latest?.created_at
+    );
+    const reviewedAt = existing
+      ? optionalToolString(latest?.reviewed_at)
+      : null;
+    const hasActiveRequest = Boolean(existing || (latest && !withdrawnAt));
+    if (existing && requestedAt && roleIsAvailable) {
+      const archived = await readInternalRolePriorityReviewArchive({
+        admin: args.admin, companyName, matchingReview: latest,
+        requestId: String(existing.id), requestedAt, roleId, roleTitle: roleTitle ?? null,
+        userId: args.userId,
+      });
+      if (archived) return archived;
+    }
+    return {
+      ok: true,
+      status: hasActiveRequest
+        ? "already_exists"
+        : withdrawnAt
+          ? "withdrawn"
+          : "not_registered",
+      roleId,
+      roleTitle,
+      companyName,
+      requestCreated: false,
+      hasActiveRequest,
+      requestedAt,
+      withdrawnAt,
+      reviewedAt,
+      ...(hasActiveRequest
+        ? { reviewState: reviewedAt ? "reviewed" : "review_requested" }
+        : {}),
+      assistantInstruction: [
+        hasActiveRequest
+          ? "The existing priority-review request remains recorded. Use reviewedAt only to establish that a review of this exact request was completed; otherwise review completion is not verified. This result does not establish recommendation eligibility, company sharing, or the company's hiring decision."
+          : withdrawnAt
+            ? "The priority-review request for this exact role was already withdrawn. Explain that it is no longer an active priority-review request, using withdrawnAt when useful."
+            : "There is no recorded priority-review request for this exact role.",
+        "This was a read-only status check: no request was registered, renewed, or withdrawn. Use register only if the user explicitly asks to register or renew the request, never merely to check progress.",
+      ].join(" "),
+    };
+  }
+
   if (args.action === "withdraw") {
     const existing = await fetchEarliestInternalRolePriorityReview({
       admin: args.admin,
@@ -1922,13 +2145,18 @@ async function updateInternalRolePriorityReview(args: {
       };
     }
 
-    const { error: withdrawError } = await ((
-      args.admin.from("talent_progress" as any) as any
-    )
-      .delete()
-      .eq("talent_id", args.userId)
-      .eq("role_id", roleId)
-      .eq("kind", INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND) as any);
+    const { error: withdrawError } = await (args.admin.rpc as any)(
+      "withdraw_candidate_priority_review_v1",
+      {
+        p_talent_id: args.userId,
+        p_role_id: roleId,
+        p_source: {
+          conversationId: args.conversationId ?? null,
+          userMessageId: args.userMessageId ?? null,
+          source: "career_chat",
+        },
+      }
+    );
 
     if (withdrawError) {
       throw new TalentToolError(
@@ -1961,9 +2189,9 @@ async function updateInternalRolePriorityReview(args: {
         roleId,
         userId: args.userId,
       }),
-      (args.admin.from("talent_opportunity_fit" as any) as any)
+      (args.admin.from("talent_role_fit_with_selection_v1" as any) as any)
         .select(
-          "id, label, human_label, recommend, reason, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
+          "id, fit_contract_version, candidate_visible, priority_review_recommendable, label, human_label, recommend, reason, role_fit, candidate_fit, company_fit, reevaluation_criteria, reevaluation_checked_at"
         )
         .eq("talent_id", args.userId)
         .eq("opportunity_id", roleId)
@@ -2128,6 +2356,15 @@ async function updateInternalRolePriorityReview(args: {
     };
   }
 
+  if (existing && existingCreatedAt) {
+    const archived = await readInternalRolePriorityReviewArchive({
+      admin: args.admin, companyName, hasRecommendation: false,
+      requestId: String(existing.id), requestedAt: existingCreatedAt,
+      roleId, roleTitle: roleTitle ?? null, userId: args.userId,
+    });
+    if (archived) return archived;
+  }
+
   let requestedAt = existingCreatedAt;
   let requestCreated = false;
   if (!requestedAt) {
@@ -2199,55 +2436,48 @@ async function updateInternalRolePriorityReview(args: {
     }
   }
 
-  const clarification =
-    effectiveFitLabel === "hold"
-      ? buildPriorityReviewHoldQuestion({
-          fitRecord,
-          locale: args.responseLocale,
-        })
-      : null;
-
+  // true: 지금 정식 추천 카드를 보여줄 수 있음. false: 평가가 없거나 추천 조건을 충족하지 못함.
+  const recommendationAvailable =
+    isInternalRolePriorityReviewRecommendable(fitRecord);
   return {
     ok: true,
+    // created: 이번에 새로 요청함. already_exists: 이전 요청이 이미 있음.
     status: requestCreated ? "created" : "already_exists",
     roleId,
     roleTitle,
     companyName,
     requestedAt,
     requestedDate: formatKstDate(requestedAt),
-    ...(clarification
-      ? {
-          clarificationQuestion: clarification,
-        }
-      : {}),
-    candidatePreferenceMismatch,
-    candidatePreferenceState: candidatePreferenceMismatch
-      ? candidatePreferenceState
-      : null,
-    reasoningOnlyCandidatePreferenceContext,
-    reconsiderationAvailable,
-    reconsiderationScheduled,
-    reviewState: reconsiderationScheduled
-      ? "reconsideration_scheduled"
-      : candidatePreferenceMismatch
-        ? "candidate_preference_mismatch"
-        : fitRecord
-          ? "reviewed"
-          : "fit_review_in_progress",
-    assistantInstruction: buildInternalRolePriorityReviewAssistantInstruction({
-      alreadyRecommended: false,
-      candidatePreferenceMismatch,
-      candidatePreferenceReconsiderationAvailable:
-        reconsiderationAvailable && candidatePreferenceState === "middle",
-      effectiveFitLabel,
-      hasClarificationQuestion: Boolean(clarification),
-      priorityReviewGroupName,
-      reconsiderationScheduled,
-      requestCreated,
-      requestReachedFourteenDays: hasPriorityReviewReachedFourteenDays({
-        requestedAt,
-      }),
-    }),
+    requestCreated,
+    // 여기서는 검토 요청만 저장하며, 프로필을 회사에 공유하지 않음.
+    companyShared: false,
+    recommendationAvailable,
+    // true: 평가 기록이 있음(추천 가능하다는 뜻은 아님). false: 아직 평가 기록이 없음.
+    hasFitAssessment: Boolean(fitRecord),
+    reviewState: recommendationAvailable
+      ? "recommendation_available"
+      : "review_requested",
+    // 사용자에게 그대로 보내는 문구가 아니라, LLM이 답변을 작성할 때 따르는 지침.
+    assistantInstruction: recommendationAvailable
+      ? // 추천 가능: 정식 추천 카드를 보여주고, 진행 의사를 물어봄.
+        "The server verified that this exact role qualifies for recommendation after the priority-review request. Call update_recommended_opportunity_feedback with feedback=review and candidate-safe fit reasons to show its formal card now, then ask whether they want to proceed. Explain the role from known candidate and public role facts; do not make another recommendation eligibility decision. A review request alone is not acceptance or company-sharing consent."
+      : // 미평가 또는 추천 조건 미충족: 요청을 받았다는 안내. 이 경우의 말투·설명은 아래에서 수정.
+        `
+Tell the user Harper has acknowledged their interest in the returned company and role and recorded their request for the company's agent to review their profile for this exact role.
+Explain that Harper will help prepare their introduction to the company, deliver it at the appropriate time, and let them know when it happens.
+The user does not need to repeat the request or take another action for this request to remain registered.
+Focus on their interest and Harper's next steps rather than routinely adding disclaimers about acceptance or profile sharing.
+Tell them they can check progress in the 할 일 tab in Korean or the Inbox tab in English.
+Do not guarantee selection or a specific timeline, infer rejection, or override recommendationAvailable.
+${profileVisibility === "exceptional_only" ? "Add one brief, optional suggestion that switching from Exceptional only to Open to matches in the Profile tab lets Harper introduce them to suitable companies first, including opportunities like this role, which can help them receive better opportunities; do not make the change a requirement for this request or change the setting for them." : ""}
+
+이런 느낌으로 말해줘:
+- ~~에 대한 ~~님의 관심을 확인했어요. 이건 Harper에게 인재 소개를 요청하고 대화중인 회사의 역할이기 때문에, 제가 직접 회사측의 에이전테에게 회원님을 소개할거에요. 다만 전달하고 소개하기까지 시간 조금 소요될 수 있습니다.
+- 일반적인 지원방식과 달라서 어색할 수 있지만, 훨씬 자연스럽게 연결되는 방식이에요. 기다리면 회사한테 반드시 전달하겠다. 근데 만약 회사의 응답이 없어 외부에서 지원하시는게 낫다고 판단되면 알려주고 그걸 도와줄게요.
+- Harper는 직접 요청해주시지 않아도 항상 Harper에게 인재 소개를 요청한 회사들 중 소개드릴만한 기회가 있는지 찾고 연결해드리고 있어요.
+
+- 어떻게 진행되고 있는지는 할 일/Inbox 탭에서 확인할 수 있다.
+`,
   };
 }
 
@@ -2289,7 +2519,10 @@ async function requestInternalRoleReconsideration(args: {
 
   const result = asToolRecord(data) ?? {};
   const status = optionalToolString(result.status) ?? "unavailable";
-  const reason = optionalToolString(result.reason);
+  const storedReason = optionalToolString(result.reason);
+  // Preserve the legacy eligibility boundary without implying a staff workflow.
+  const reason =
+    storedReason === "human_review_required" ? "not_eligible" : storedReason;
   const reconsiderationScheduled = result.reconsiderationScheduled === true;
 
   if (reconsiderationScheduled) {
@@ -2347,9 +2580,7 @@ async function requestInternalRoleReconsideration(args: {
         ? "Say this role is already available as a formal recommendation, so a separate reconsideration was not scheduled. Ask the user to review that recommendation and respond to it directly."
         : reason === "candidate_preference_unfit"
           ? "Say Harper did not schedule reconsideration because the user's current explicit preference still conflicts with this role. Do not expose an internal label. If the user is explicitly changing that durable preference, save the new preference first and ask them to confirm the exact new direction before retrying."
-          : reason === "human_review_required"
-            ? "Say Harper needs to review the existing decision before this role can be reconsidered, and do not claim an automated reconsideration was scheduled."
-            : "Say this role is not currently eligible for the requested reconsideration. Do not mention internal labels, hidden criteria, or claim that anything was scheduled.";
+          : "Say this role is not currently eligible for the requested reconsideration. Do not mention internal labels, hidden criteria, or claim that anything was scheduled.";
 
   return {
     ok: false,
@@ -2569,6 +2800,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       return runCareerJobPostingRecommendations({
         admin: admin as any,
         abortSignal: context?.abortSignal,
+        onProgress: context?.onRecommendationSearchProgress,
         conversationId,
         preferredLocale: context?.responseLocale ?? null,
         request,
@@ -2603,13 +2835,28 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   },
   [TALENT_TOOL_NAMES.GENERATE_RESUME]: {
     name: TALENT_TOOL_NAMES.GENERATE_RESUME,
-    description: "Create or update a saved resume document (private by default) using known user facts. For create, provide full content. For update, provide only changes targeting exact fields or stable entry IDs; the server preserves all other content. Use only for explicit resume creation/editing requests, never for review or a suggestion alone. create requires document_name; update requires document_id, expected_revision and changes from read_document(format=structured), forbids full content, preserves that document link, and cannot edit an uploaded original. Saves JSON for an HTML preview; PDF is generated only when the user downloads it. It does not change Profile/Memory or submit/share the resume. Return to the conversation after execution.",
+    description:
+      "Create, edit, or privately copy a resume only on explicit request or clear acceptance of Harper's specific offer; career disclosures alone are not consent. Read the current structured document before update or copy; uploaded originals stay unchanged. Saves editable JSON for preview; PDF is created on download. Does not change Profile/Memory or share/submit the resume. Continue the conversation with the result.",
     parameters: GENERATE_RESUME_PARAMETERS,
     channels: ["chat"],
     async execute(input, context) {
-      if (!context?.admin || !context.userId || !context.userMessageId || context.channel === "voice") throw new TalentToolError("Resume generation requires authenticated web chat context.");
+      if (
+        !context?.admin ||
+        !context.userId ||
+        !context.userMessageId ||
+        context.channel === "voice"
+      )
+        throw new TalentToolError(
+          "Resume generation requires authenticated web chat context."
+        );
       const { generateResume } = await import("@/lib/resumes/service");
-      return generateResume({ admin: context.admin as TalentAdminClient, userId: context.userId, userMessageId: context.userMessageId, requestId: context.resumeRequestId, input });
+      return generateResume({
+        admin: context.admin as TalentAdminClient,
+        userId: context.userId,
+        userMessageId: context.userMessageId,
+        requestId: context.resumeRequestId,
+        input,
+      });
     },
   },
   [TALENT_TOOL_NAMES.LIST_DOCUMENTS]: {
@@ -2662,7 +2909,12 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
-        format: { type: "string", enum: ["text", "structured"], description: "Use structured to read a Harper-generated resume JSON and revision before editing. Default text retains paginated reading." },
+        format: {
+          type: "string",
+          enum: ["text", "structured"],
+          description:
+            "Use structured to read a Harper-generated resume JSON and revision before editing. Default text retains paginated reading.",
+        },
         document_id: {
           type: "string",
           description: "Exact saved document id.",
@@ -2701,7 +2953,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_DOCUMENT]: {
     name: TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
     description:
-      'Update one exact saved document. It can correct resume/document kind, primary/public state, or the soft-delete marker. This tool only edits metadata. For Harper-generated resume content use generate_resume after read_document(format=structured); uploaded originals remain unchanged. Harper-generated resumes can change visibility when explicitly requested, but cannot become primary or another kind. Use only for changes supported by the user\'s request or the current-turn upload policy; is_deleted does not remove the storage object.',
+      "Update one exact saved document. It can correct resume/document kind, primary/public state, or the soft-delete marker. This tool only edits metadata. For Harper-generated resume content use generate_resume after read_document(format=structured); uploaded originals remain unchanged. Harper-generated resumes can change visibility when explicitly requested, but cannot become primary or another kind. Use only for changes supported by the user's request or the current-turn upload policy; is_deleted does not remove the storage object.",
     parameters: {
       type: "object",
       properties: {
@@ -2749,10 +3001,25 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS]: {
     name: TALENT_TOOL_NAMES.READ_TALENT_ACTIVITY_EVENTS,
     description:
-      "Read concise recent activity summaries for this talent user. Use when the answer depends on what the user recently changed or did in Career, such as profile preference changes, profile-row memo additions or updates, onboarding completion, or Harper insight updates.",
+      "Read concise activity summaries or actual sent-contact questions for this talent. Use scope=contacts with query/cursor for older questions and refs (up to three) for exact wording; a sent question does not prove an answer. Use when the answer depends on what the user recently changed or did in Career, such as profile preference changes, profile-row memo additions or updates, onboarding completion, or Harper insight updates.",
     parameters: {
       type: "object",
       properties: {
+        scope: { type: "string", enum: ["activity", "contacts"] },
+        cursor: {
+          type: "string",
+          description: "Exact nextCursor from an earlier contact-history page.",
+        },
+        query: {
+          type: "string",
+          description: "Text to find in actual contact questions.",
+        },
+        refs: {
+          type: "array",
+          maxItems: 3,
+          items: { type: "string" },
+          description: "Exact contact refs to read in full.",
+        },
         limit: {
           type: "integer",
           description: "Maximum number of activity events to return.",
@@ -2791,7 +3058,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       },
       additionalProperties: false,
     },
-    channels: ["chat"],
+    channels: ["chat", "voice"],
     async execute(input, context) {
       const admin = context?.admin;
       const userId = context?.userId;
@@ -2802,6 +3069,20 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       const limit = normalizeToolLimit(input.limit, 5);
+      if (input.scope === "contacts") {
+        return readTalentContactHistory({
+          admin: admin as TalentAdminClient,
+          userId,
+          limit,
+          cursor: optionalToolString(input.cursor),
+          query: optionalToolString(input.query),
+          refs: Array.isArray(input.refs)
+            ? input.refs
+                .filter((value): value is string => typeof value === "string")
+                .slice(0, 3)
+            : undefined,
+        });
+      }
       const since = normalizeSinceDate(input);
       const eventTypes = normalizeActivityEventTypes(input.eventTypes);
       const events = await fetchTalentActivityEvents({
@@ -2917,7 +3198,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           itemsToClose.map((item) => ({
             closureKind: ["ended", "deleted"].includes(
               item.status.trim().toLowerCase()
-            ) ? "role_ended" : "company_process_stopped",
+            )
+              ? "role_ended"
+              : "company_process_stopped",
             companyName: item.companyName,
             currentStage: item.internalProgress?.stage ?? "accepted",
             recommendationId: item.id,
@@ -3046,15 +3329,15 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW]: {
     name: TALENT_TOOL_NAMES.INTERNAL_ROLE_PRIORITY_REVIEW,
     description:
-      "Register or withdraw a priority-review request for a specific Harper internal role when the user explicitly asks Harper to prioritize it. This remains a priority-review request even when the role has stored fit; it does not add the role to Positions/Jobs. Register is idempotent: when the request already exists, call register again to read its current review progress without creating a duplicate. This does not accept a role, share the candidate with a company, replace an existing recommendation, or rerun fit.",
+      "Register, withdraw, or read the status of a priority-review request for a specific Harper internal role. Use status for progress questions; it only reads existing or withdrawn request facts and never registers or renews a request. Use register only when the user explicitly asks Harper to prioritize this role or renew a withdrawn request. Registration requires completed onboarding; onboarding_required means nothing was registered or shared. Status and withdrawal remain available. Register is idempotent for an existing active request. Registration does not accept a role or share the candidate with a company.",
     parameters: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["register", "withdraw"],
+          enum: ["register", "withdraw", "status"],
           description:
-            "Use register to save a priority-review request and withdraw to remove it.",
+            "Use register to save or explicitly renew a priority-review request, withdraw to remove it, and status to read progress without changing the request.",
         },
         roleId: {
           type: "string",
@@ -3075,9 +3358,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       const action = optionalToolString(input.action)?.toLowerCase();
-      if (action !== "register" && action !== "withdraw") {
+      if (
+        action !== "register" &&
+        action !== "withdraw" &&
+        action !== "status"
+      ) {
         throw new TalentToolError(
-          "internal_role_priority_review requires action register or withdraw."
+          "internal_role_priority_review requires action register, withdraw, or status."
         );
       }
 
@@ -3161,7 +3448,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       properties: {
         activityOffset: {
           type: "integer",
-          description: "Activity page offset for older role events; starts at 0 and advances by 10 when activityPage.hasMore is true.",
+          description:
+            "Activity page offset for older role events; starts at 0 and advances by 10 when activityPage.hasMore is true.",
           minimum: 0,
           maximum: 100000,
         },
@@ -3200,7 +3488,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       return runGetRoleContext({
-        activityOffset: Math.min(100000, Math.max(0, Math.floor(Number(input.activityOffset) || 0))),
+        activityOffset: Math.min(
+          100000,
+          Math.max(0, Math.floor(Number(input.activityOffset) || 0))
+        ),
         admin: admin as any,
         includeJd: input.include_jd === true,
         roleIds,
@@ -3325,8 +3616,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           minLength: 1,
           maxLength: 5000,
-          description:
-            COMPANY_RELAY_CONTENT_CONTRACT,
+          description: COMPANY_RELAY_CONTENT_CONTRACT,
         },
         documentId: {
           type: "string",
@@ -3390,15 +3680,15 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK]: {
     name: TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
     description:
-      "Add a verified matched internal role to Positions/Jobs for the user's detailed review, or set one formal recommendation's feedback to like or dislike. Use review when the user asks to add the chosen matched role to Positions/Jobs, or when an earlier call for the same role returned reason=internal_role_review_required. A request asking Harper to prioritize a role is not feedback=review. For review, write one to three candidate-visible fitReasons using only public role facts and candidate-safe context. Acceptance requires a later explicit like.",
+      "Add a verified matched internal role to Positions/Jobs for the user's detailed review, or set one formal recommendation's feedback to like, dislike or keep. Use review when the user asks to add the chosen matched role to Positions/Jobs, or when an earlier call for the same role returned reason=internal_role_review_required. After registering a priority request, review may present that exact role when the stored/current assessment supports recommending it. For review, write one to three candidate-visible fitReasons using only public role facts and candidate-safe context. Acceptance requires a later explicit like.",
     parameters: {
       type: "object",
       properties: {
         feedback: {
           type: "string",
-          enum: ["review", "like", "dislike"],
+          enum: ["review", "like", "dislike", "keep"],
           description:
-            "Use review to add a verified matched internal role for detailed review without acceptance; like only for explicit acceptance/positive feedback; dislike for rejection.",
+            "Use review to add a verified matched internal role without acceptance; like for explicit acceptance; dislike for rejection; keep to save an internal role for later without deciding. Saving needs no reason and does not authorize company sharing.",
         },
         opportunityId: {
           type: "string",
@@ -3714,7 +4004,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT]: {
     name: TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
     description:
-      "Save or correct durable user context after onboarding. Put current opportunity-search criteria and premises that the user can review in Search Brief; put other context worth remembering for future conversations or opportunity judgment in Memory. Save only facts the user stated; never infer or add details the user did not provide. When a saved fact is corrected or no longer true, update or delete that row instead of appending a conflicting current fact; keep a past event only when it remains useful as history. For each new Memory, choose importance 3 if it can materially change matching, 2 if it is useful supporting context, or 1 if it mainly preserves conversational continuity. For a Brief, do not repeat its label in content. Read the existing rows and the user's meaning together. Preserve strength, exceptions, uncertainty, and known timing. Do not duplicate one fact across both collections. Use the relevant profile, settings, document, feedback, or recommendation tool when that feature already owns the data. Do not call when nothing should be saved.",
+      "Save or correct durable user context after onboarding. Put current opportunity-search criteria and premises that the user can review in Search Brief; put other context worth remembering for future conversations or opportunity judgment in Memory. Save only facts the user stated; never infer or add details the user did not provide. When a saved fact is corrected or no longer true, update or delete that row instead of appending a conflicting current fact; keep a past event only when it remains useful as history. For each new Memory, choose importance 3 if it can materially change matching, 2 if it is useful supporting context, or 1 if it mainly preserves conversational continuity. For a Brief, do not repeat its label in content. Read the existing rows and the user's meaning together. Preserve strength, exceptions, uncertainty, and known timing. A reply to an earlier Harper question is handled with this same tool. Read exact prior contact wording when its scope is unclear. Save a one-role exception as a scoped Brief fact, never as a global preference. Successful Brief changes automatically refresh matching; do not call a separate re-evaluation tool. Do not duplicate one fact across both collections. Use the relevant profile, settings, document, feedback, or recommendation tool when that feature already owns the data. Do not call when nothing should be saved.",
     parameters: TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
     channels: ["chat", "voice"],
     async execute(input, context) {
@@ -3991,14 +4281,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               },
             }
           : {}),
-        assistantInstruction:
-          status === "ended"
-            ? "The activity is ended. Briefly acknowledge the boundary and do not ask another coaching question or reopen the topic."
-            : status === "suggested"
-              ? "The suggestion card is visible. Briefly explain why this focused topic may be useful and let the user choose chat, call, or continue normally. Do not claim that coaching has started."
-              : channel === "call"
-                ? "The activity is active and the client will open the bound call. Briefly tell the user the call is ready; do not continue the coaching exchange in chat."
-                : "Continue the active coaching conversation now. Use the topic, duration, and agenda as scope rather than reading them back or running a checklist.",
+        assistantInstruction: buildCareerCoachingResultInstruction(
+          status,
+          channel
+        ),
         skipCommonAssistantInstruction: true,
       };
     },

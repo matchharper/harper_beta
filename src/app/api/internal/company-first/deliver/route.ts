@@ -4,8 +4,16 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
+import {
+  loadSlackCandidateCards,
+  sendSlackCandidateResult,
+  type SlackCandidatePostReceipts,
+} from "@/lib/org/slackCandidateWorkObject.server";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
+import { slackCandidatePartsFromBlocks } from "@/lib/org/slackCandidateWorkObject";
 import type { HarperSlackBlock } from "@/lib/org/slackChoiceButtons";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { recordAcceptedCandidateDelivery } from "@/lib/companyFirstSearch/acceptedDelivery";
 
 export const runtime = "nodejs";
 
@@ -21,6 +29,7 @@ type OutboxRow = {
   role_ids: string[];
   run_id: string;
   status: string;
+  delivery_kind: string;
 };
 
 function blocks(value: unknown): HarperSlackBlock[] | undefined {
@@ -145,7 +154,7 @@ export async function POST(req: NextRequest) {
       .in("status", ["pending", "failed"])
       .lte("available_at", now)
       .select(
-        "id, run_id, company_workspace_id, channel_id, idempotency_key, candidate_ids, role_ids, message_text, blocks, status, attempt_count"
+        "id, run_id, company_workspace_id, channel_id, idempotency_key, candidate_ids, role_ids, message_text, blocks, status, attempt_count, delivery_kind"
       )
       .maybeSingle();
     if (claimError) throw claimError;
@@ -196,6 +205,7 @@ export async function POST(req: NextRequest) {
       throw deliverableError;
     }
     if (deliverable !== true) {
+      await recordAcceptedCandidateDelivery(admin, row, "canceled");
       await (admin.from("company_first_slack_outbox" as any) as any)
         .update({
           last_error: "candidate state changed before Slack delivery",
@@ -230,19 +240,47 @@ export async function POST(req: NextRequest) {
 
     let slackMessageTs: string | null = null;
     try {
-      const sent = await sendHarperWorkspaceSlackMessage({
-        blocks: blocks(row.blocks),
-        channelId: channel.slack_channel_id,
-        idempotencyKey: row.idempotency_key,
-        messageMetadata: { source: "company_first_candidate_result" },
-        onPosted: (receipt) => {
-          slackMessageTs = receipt.slackMessageTs;
-        },
-        recordConversationMessage: true,
-        roleId: row.role_ids.length === 1 ? row.role_ids[0] : null,
-        text: row.message_text,
+      const receipts: SlackCandidatePostReceipts = {};
+      const candidateCards = await loadSlackCandidateCards({
+        candidateIds: row.candidate_ids,
         workspaceId: row.company_workspace_id,
       });
+      const sent = candidateCards.length
+        ? await sendSlackCandidateResult({
+            blocks: blocks(row.blocks),
+            candidates: candidateCards,
+            parts: slackCandidatePartsFromBlocks(row.blocks, candidateCards),
+            channelId: channel.slack_channel_id,
+            idempotencyKey: row.idempotency_key,
+            locale: await getOrgWorkspaceLocale(
+              row.company_workspace_id,
+              admin
+            ),
+            messageMetadata: { source: row.delivery_kind === "accepted_connection" ? "accepted_candidate_connection_result" : "company_first_candidate_result" },
+            receipts,
+            onReceipt: async (updated) => {
+              slackMessageTs =
+                Object.values(updated)[0]?.slackMessageTs || null;
+            },
+            recordConversationMessage: true,
+            roleId: row.role_ids.length === 1 ? row.role_ids[0] : null,
+            text: row.message_text,
+            workspaceId: row.company_workspace_id,
+          })
+        : await sendHarperWorkspaceSlackMessage({
+            blocks: blocks(row.blocks),
+            channelId: channel.slack_channel_id,
+            idempotencyKey: row.idempotency_key,
+            messageMetadata: { source: row.delivery_kind === "accepted_connection" ? "accepted_candidate_connection_result" : "company_first_candidate_result" },
+            onPosted: (receipt) => {
+              slackMessageTs = receipt.slackMessageTs;
+            },
+            recordConversationMessage: true,
+            roleId: row.role_ids.length === 1 ? row.role_ids[0] : null,
+            text: row.message_text,
+            workspaceId: row.company_workspace_id,
+          });
+      slackMessageTs ||= Object.values(receipts)[0]?.slackMessageTs || null;
       if (!sent)
         throw new Error("No eligible Slack destination accepted the message");
     } catch (error) {
@@ -251,6 +289,12 @@ export async function POST(req: NextRequest) {
     }
 
     const sentAt = new Date().toISOString();
+    try {
+      await recordAcceptedCandidateDelivery(admin, row, "sent");
+    } catch (error) {
+      await markFailed(admin, row, error);
+      throw error;
+    }
     const { error: sentError } = await (
       admin.from("company_first_slack_outbox" as any) as any
     )

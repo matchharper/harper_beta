@@ -129,12 +129,12 @@ const FUNNEL_META: Array<{
   },
   {
     key: "onboarding_profile",
-    label: "프로필 자료 통과",
+    label: "3단계 통과",
     detail: "career_click_onboarding_next_step_3",
   },
   {
     key: "onboarding_visibility",
-    label: "공개 범위 제출",
+    label: "마지막 단계 제출",
     detail: "career_click_onboarding_submit*",
   },
   {

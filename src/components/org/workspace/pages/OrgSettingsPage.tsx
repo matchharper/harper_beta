@@ -1,4 +1,9 @@
-import { useOrgLocale, useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import {
+  useOrgLocale,
+  useOrgSourceT,
+  useOrgT,
+} from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   ArrowRight,
@@ -28,14 +33,7 @@ import {
 } from "@/components/org/workspace/OrgSection";
 import { Badge } from "@/components/ui/badge";
 import { CardButton, MuteButton } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,7 +63,9 @@ function formatChannel(
   const channel = String(value ?? "").trim();
   if (!channel)
     return channelId
-      ? t("workspace.pages.OrgSettingsPage.ab4db132", "채널 {p0}", { p0: channelId })
+      ? t("workspace.pages.OrgSettingsPage.ab4db132", "채널 {p0}", {
+          p0: channelId,
+        })
       : t("workspace.pages.OrgSettingsPage.28b3e71c", "선택한 채널");
   return channel.startsWith("#") ? channel : `#${channel}`;
 }
@@ -135,7 +135,11 @@ export function OrgSettingsPage() {
       message:
         result === "connected"
           ? t("workspace.pages.OrgSettingsPage.a00e20e7", "Slack을 연결했어요.")
-          : message || t("workspace.pages.OrgSettingsPage.d2a39938", "Slack 연결을 완료하지 못했습니다."),
+          : message ||
+            t(
+              "workspace.pages.OrgSettingsPage.d2a39938",
+              "Slack 연결을 완료하지 못했습니다."
+            ),
       variant: result === "connected" ? "success" : "error",
     });
     const nextQuery = { ...router.query };
@@ -157,7 +161,14 @@ export function OrgSettingsPage() {
       window.location.assign(payload.authorizeUrl);
     } catch (error) {
       addToast({
-        message: localizedOrgErrorMessage(error, locale, t("workspace.pages.OrgSettingsPage.c6012c4f", "Slack 연결을 시작하지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "workspace.pages.OrgSettingsPage.c6012c4f",
+            "Slack 연결을 시작하지 못했습니다."
+          )
+        ),
         variant: "error",
       });
     }
@@ -174,14 +185,25 @@ export function OrgSettingsPage() {
       );
       setAddChannelOpen(false);
       addToast({
-        message: t("workspace.pages.OrgSettingsPage.52869ac5", "{p0}을 Harper 채널로 추가했습니다.", {
-          p0: formatChannel(t, channel?.channelName, channelId),
-        }),
+        message: t(
+          "workspace.pages.OrgSettingsPage.52869ac5",
+          "{p0}을 Harper 채널로 추가했습니다.",
+          {
+            p0: formatChannel(t, channel?.channelName, channelId),
+          }
+        ),
         variant: "success",
       });
     } catch (error) {
       addToast({
-        message: localizedOrgErrorMessage(error, locale, t("workspace.pages.OrgSettingsPage.8ab9ecf4", "Slack 채널을 추가하지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "workspace.pages.OrgSettingsPage.8ab9ecf4",
+            "Slack 채널을 추가하지 못했습니다."
+          )
+        ),
         variant: "error",
       });
     }
@@ -193,13 +215,24 @@ export function OrgSettingsPage() {
       await removeSlackChannel.mutateAsync(removeChannelId);
       setRemoveChannelId(null);
       addToast({
-        message: t("workspace.pages.OrgSettingsPage.a5be1731", "{p0} 연결을 제거했습니다.", {
-          p0: formatChannel(t, channelToRemove?.channelName, removeChannelId),
-        }),
+        message: t(
+          "workspace.pages.OrgSettingsPage.a5be1731",
+          "{p0} 연결을 제거했습니다.",
+          {
+            p0: formatChannel(t, channelToRemove?.channelName, removeChannelId),
+          }
+        ),
       });
     } catch (error) {
       addToast({
-        message: localizedOrgErrorMessage(error, locale, t("workspace.pages.OrgSettingsPage.66be02f6", "Slack 채널을 제거하지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "workspace.pages.OrgSettingsPage.66be02f6",
+            "Slack 채널을 제거하지 못했습니다."
+          )
+        ),
         variant: "error",
       });
     }
@@ -209,10 +242,22 @@ export function OrgSettingsPage() {
     try {
       await disconnectSlack.mutateAsync();
       setDisconnectOpen(false);
-      addToast({ message: t("workspace.pages.OrgSettingsPage.74c24122", "Slack 연결을 해제했습니다.") });
+      addToast({
+        message: t(
+          "workspace.pages.OrgSettingsPage.74c24122",
+          "Slack 연결을 해제했습니다."
+        ),
+      });
     } catch (error) {
       addToast({
-        message: localizedOrgErrorMessage(error, locale, t("workspace.pages.OrgSettingsPage.abb54617", "Slack 연결을 해제하지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "workspace.pages.OrgSettingsPage.abb54617",
+            "Slack 연결을 해제하지 못했습니다."
+          )
+        ),
         variant: "error",
       });
     }
@@ -260,7 +305,10 @@ export function OrgSettingsPage() {
   return (
     <div className="flex flex-col gap-4">
       <OrgPageHeader
-        description={t("workspace.pages.OrgSettingsPage.f6b71758", "팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요.")}
+        description={t(
+          "workspace.pages.OrgSettingsPage.f6b71758",
+          "팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요."
+        )}
         title={t("workspace.pages.OrgSettingsPage.e5d67468", "Integrations")}
       />
 
@@ -273,7 +321,10 @@ export function OrgSettingsPage() {
           activeIntegration={activeIntegration}
           selectIntegration={selectIntegration}
           title={t("workspace.pages.OrgSettingsPage.76e9fc6a", "Slack")}
-          description={t("workspace.pages.OrgSettingsPage.2d16b5b1", "팀과 함께 추천 소식과 채용 결정을 확인하세요.")}
+          description={t(
+            "workspace.pages.OrgSettingsPage.2d16b5b1",
+            "팀과 함께 추천 소식과 채용 결정을 확인하세요."
+          )}
           icon={
             <Image
               alt={t("workspace.pages.OrgSettingsPage.51f89a54", "")}
@@ -288,7 +339,10 @@ export function OrgSettingsPage() {
           activeIntegration={activeIntegration}
           selectIntegration={selectIntegration}
           title={t("workspace.pages.OrgSettingsPage.b66e3d0a", "Calendar")}
-          description={t("workspace.pages.OrgSettingsPage.11687265", "미팅이 가능한 일정을 관리하세요.")}
+          description={t(
+            "workspace.pages.OrgSettingsPage.11687265",
+            "미팅이 가능한 일정을 관리하세요."
+          )}
           icon={
             <Image
               alt={t("workspace.pages.OrgSettingsPage.51f89a54", "")}
@@ -305,7 +359,10 @@ export function OrgSettingsPage() {
         className={activeIntegration === "slack" ? undefined : "hidden"}
       >
         <OrgSectionHeader
-          description={t("workspace.pages.OrgSettingsPage.5c497790", "후보자 추천과 검토, 역할 기준 변경, 후보자 프로세스 종료를 Slack 채널에서 팀원과 함께 진행하세요.")}
+          description={t(
+            "workspace.pages.OrgSettingsPage.5c497790",
+            "후보자 추천과 검토, 역할 기준 변경, 후보자 프로세스 종료를 Slack 채널에서 팀원과 함께 진행하세요."
+          )}
           title={
             <span className="inline-flex flex-col items-start gap-3">
               <div className="border border-neutral-1000-a05 rounded-xl p-2">
@@ -332,7 +389,14 @@ export function OrgSettingsPage() {
             </div>
           ) : statusQuery.error ? (
             <OrgErrorState
-              message={localizedOrgErrorMessage(statusQuery.error, locale, t("workspace.pages.OrgSettingsPage.6692784b", "Slack 상태를 불러오지 못했습니다."))}
+              message={localizedOrgErrorMessage(
+                statusQuery.error,
+                locale,
+                t(
+                  "workspace.pages.OrgSettingsPage.6692784b",
+                  "Slack 상태를 불러오지 못했습니다."
+                )
+              )}
               onRetry={() => void statusQuery.refetch()}
             />
           ) : status?.connected ? (
@@ -353,9 +417,13 @@ export function OrgSettingsPage() {
                       {status.teamName || "Harper"}
                     </div>
                     <div className="mt-0.5 text-[13px] font-light text-neutral-muted">
-                      {t("workspace.pages.OrgSettingsPage.connectedChannelCount", "연결된 채널{count}개", {
-                        count: status.channels.length,
-                      })}
+                      {t(
+                        "workspace.pages.OrgSettingsPage.connectedChannelCount",
+                        "연결된 채널{count}개",
+                        {
+                          count: status.channels.length,
+                        }
+                      )}
                     </div>
                   </div>
                   {permissions.canManageIntegrations ? (
@@ -363,7 +431,8 @@ export function OrgSettingsPage() {
                       <DropdownMenuTrigger asChild>
                         <MuteButton
                           aria-label={t(
-                            "workspace.pages.OrgSettingsPage.05923ed7", "Slack 연결 관리"
+                            "workspace.pages.OrgSettingsPage.05923ed7",
+                            "Slack 연결 관리"
                           )}
                           className="self-start sm:self-auto gap-6"
                           size="md"
@@ -374,7 +443,10 @@ export function OrgSettingsPage() {
                               aria-hidden="true"
                               className="size-2 rounded-full bg-positive"
                             />
-                            {t("workspace.pages.OrgSettingsPage.e916576c", "연결됨")}
+                            {t(
+                              "workspace.pages.OrgSettingsPage.e916576c",
+                              "연결됨"
+                            )}
                           </div>
                           <ChevronDown className="w-4 h-4" />
                         </MuteButton>
@@ -385,7 +457,10 @@ export function OrgSettingsPage() {
                           onSelect={() => setDisconnectOpen(true)}
                           tone="danger"
                         >
-                          {t("workspace.pages.OrgSettingsPage.8aa4c361", "연결 끊기")}
+                          {t(
+                            "workspace.pages.OrgSettingsPage.8aa4c361",
+                            "연결 끊기"
+                          )}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -406,10 +481,16 @@ export function OrgSettingsPage() {
                 <div className="flex flex-col gap-3 rounded-md bg-info-faded px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-[13px] font-medium text-neutral-primary">
-                      {t("workspace.pages.OrgSettingsPage.37cc3a0a", "Slack 채널 생성 권한이 필요해요")}
+                      {t(
+                        "workspace.pages.OrgSettingsPage.37cc3a0a",
+                        "Slack 채널 생성 권한이 필요해요"
+                      )}
                     </div>
                     <p className="mt-1 text-[12px] font-light leading-5 text-neutral-muted">
-                      {t("workspace.pages.OrgSettingsPage.e4140993", "Slack을 다시 연결해 공개·비공개 채널 생성 권한을 승인해 주세요. 기존 채널 연결은 유지돼요.")}
+                      {t(
+                        "workspace.pages.OrgSettingsPage.e4140993",
+                        "Slack을 다시 연결해 공개·비공개 채널 생성 권한을 승인해 주세요. 기존 채널 연결은 유지돼요."
+                      )}
                     </p>
                   </div>
                   <MuteButton
@@ -421,7 +502,10 @@ export function OrgSettingsPage() {
                     {connectSlack.isPending ? (
                       <LoaderCircle className="size-4 animate-spin" />
                     ) : null}
-                    {t("workspace.pages.OrgSettingsPage.04ca06f9", "Slack 다시 연결")}
+                    {t(
+                      "workspace.pages.OrgSettingsPage.04ca06f9",
+                      "Slack 다시 연결"
+                    )}
                   </MuteButton>
                 </div>
               ) : null}
@@ -429,7 +513,10 @@ export function OrgSettingsPage() {
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-[14px] font-medium text-neutral-primary">
-                    {t("workspace.pages.OrgSettingsPage.75e213dd", "연결된 채널")}
+                    {t(
+                      "workspace.pages.OrgSettingsPage.75e213dd",
+                      "연결된 채널"
+                    )}
                   </h3>
                   {permissions.canManageIntegrations ? (
                     <MuteButton
@@ -441,7 +528,10 @@ export function OrgSettingsPage() {
                       }}
                     >
                       <Plus className="size-3.5" />
-                      {t("workspace.pages.OrgSettingsPage.36d91fa0", "채널 추가")}
+                      {t(
+                        "workspace.pages.OrgSettingsPage.36d91fa0",
+                        "채널 추가"
+                      )}
                     </MuteButton>
                   ) : null}
                 </div>
@@ -475,14 +565,26 @@ export function OrgSettingsPage() {
                               variant="faded"
                             >
                               {channel.respondToMentions
-                                ? t("workspace.pages.OrgSettingsPage.b650b03e", "@Harper 활성")
-                                : t("workspace.pages.OrgSettingsPage.64087ac3", "알림 전용")}
+                                ? t(
+                                    "workspace.pages.OrgSettingsPage.b650b03e",
+                                    "@Harper 활성"
+                                  )
+                                : t(
+                                    "workspace.pages.OrgSettingsPage.64087ac3",
+                                    "알림 전용"
+                                  )}
                             </Badge>
                           </div>
                           <div className="mt-1 text-[12px] font-light text-neutral-muted">
-                            {t("workspace.pages.OrgSettingsPage.da111017", "메시지에서 Role 자동 선택")}
+                            {t(
+                              "workspace.pages.OrgSettingsPage.da111017",
+                              "연결되었습니다."
+                            )}
                             {channel.replyToHarperThreads
-                              ? t("workspace.pages.OrgSettingsPage.a0d32edc", " · Harper 스레드 답글 활성")
+                              ? t(
+                                  "workspace.pages.OrgSettingsPage.a0d32edc",
+                                  " · Harper 스레드 답글 활성"
+                                )
                               : ""}
                           </div>
                         </div>
@@ -492,7 +594,8 @@ export function OrgSettingsPage() {
                           <DropdownMenuTrigger asChild>
                             <MuteButton
                               aria-label={t(
-                                "workspace.pages.OrgSettingsPage.a2cbf911", "{p0} 작업",
+                                "workspace.pages.OrgSettingsPage.a2cbf911",
+                                "{p0} 작업",
                                 {
                                   p0: formatChannel(
                                     t,
@@ -516,7 +619,10 @@ export function OrgSettingsPage() {
                               tone="danger"
                             >
                               <Trash2 />
-                              {t("workspace.pages.OrgSettingsPage.f50205f9", "채널 제거")}
+                              {t(
+                                "workspace.pages.OrgSettingsPage.f50205f9",
+                                "채널 제거"
+                              )}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -545,7 +651,10 @@ export function OrgSettingsPage() {
                 </MuteButton>
               ) : (
                 <p className="mt-4 text-[12px] font-light text-neutral-soft">
-                  {t("workspace.pages.OrgSettingsPage.b4914589", "Slack 연결은 Owner 또는 Admin이 설정할 수 있습니다.")}
+                  {t(
+                    "workspace.pages.OrgSettingsPage.b4914589",
+                    "Slack 연결은 Owner 또는 Admin이 설정할 수 있습니다."
+                  )}
                 </p>
               )}
             </div>
@@ -555,7 +664,10 @@ export function OrgSettingsPage() {
             <div className="mt-4 rounded-md border border-critical/20 bg-critical-faded px-3 py-3 text-[12px] leading-5 text-critical">
               {mutationError instanceof Error
                 ? mutationError.message
-                : t("workspace.pages.OrgSettingsPage.b568de28", "Slack 요청을 처리하지 못했습니다.")}
+                : t(
+                    "workspace.pages.OrgSettingsPage.b568de28",
+                    "Slack 요청을 처리하지 못했습니다."
+                  )}
             </div>
           ) : null}
         </div>
@@ -572,7 +684,10 @@ export function OrgSettingsPage() {
             />
             <OrgSection className="border-b-0 pb-0">
               <div
-                aria-label={t("workspace.pages.OrgSettingsPage.500a2a19", "내 인터뷰 가능 시간 설정 열기")}
+                aria-label={t(
+                  "workspace.pages.OrgSettingsPage.500a2a19",
+                  "내 인터뷰 가능 시간 설정 열기"
+                )}
                 className="min-h-[88px] flex flex-row items-center gap-4 text-left"
               >
                 <span className="flex min-w-0 items-start gap-4">
@@ -581,7 +696,10 @@ export function OrgSettingsPage() {
                   </span>
                   <span className="min-w-0">
                     <span className="flex flex-wrap items-center gap-2 text-[14px] font-normal text-neutral-primary">
-                      {t("workspace.pages.OrgSettingsPage.16c1f28c", "인터뷰 일정")}
+                      {t(
+                        "workspace.pages.OrgSettingsPage.16c1f28c",
+                        "인터뷰 일정"
+                      )}
                       {availability ? (
                         <Badge
                           radius="full"
@@ -589,12 +707,18 @@ export function OrgSettingsPage() {
                           tone="positive"
                           variant="faded"
                         >
-                          {t("workspace.pages.OrgSettingsPage.1247f2b6", "설정됨")}
+                          {t(
+                            "workspace.pages.OrgSettingsPage.1247f2b6",
+                            "설정됨"
+                          )}
                         </Badge>
                       ) : null}
                     </span>
                     <span className="mt-1 block text-[13px] font-light leading-5 text-neutral-muted">
-                      {t("workspace.pages.OrgSettingsPage.6d65249d", "후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 일정을 관리하세요.")}
+                      {t(
+                        "workspace.pages.OrgSettingsPage.6d65249d",
+                        "후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 일정을 관리하세요."
+                      )}
                     </span>
                   </span>
                 </span>
@@ -643,58 +767,71 @@ export function OrgSettingsPage() {
         workspaceId={workspace.workspaceId}
       />
 
-      <Dialog
+      <TalentCareerModal
         open={addChannelOpen && permissions.canManageIntegrations}
-        onOpenChange={(open) => {
-          if (!addSlackChannel.isPending) setAddChannelOpen(open);
+        onClose={() => {
+          if (!addSlackChannel.isPending) setAddChannelOpen(false);
         }}
+        mobileBottomSheet
+        title={
+          <>
+            {t(
+              "workspace.pages.OrgSettingsPage.12f2e7da",
+              "채널에 Harper 초대"
+            )}
+          </>
+        }
+        description={
+          <>
+            {status?.teamName || workspace.companyName}
+            {status?.connected ? (
+              <span className="mt-2 block">
+                {ORG_SLACK_PRIVATE_CHANNEL_HELP.map((line) => (
+                  <span key={line} className="block">
+                    {sourceT(line)}
+                  </span>
+                ))}
+              </span>
+            ) : null}
+          </>
+        }
+        panelClassName="max-w-md"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
       >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {t("workspace.pages.OrgSettingsPage.12f2e7da", "채널에 Harper 초대")}
-            </DialogTitle>
-            <DialogDescription>
-              {status?.teamName || workspace.companyName}
-              {status?.connected ? (
-                <span className="mt-2 block">
-                  {ORG_SLACK_PRIVATE_CHANNEL_HELP.map((line) => (
-                    <span key={line} className="block">
-                      {sourceT(line)}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-          <OrgSlackChannelPicker
-            channels={status?.availableChannels ?? []}
-            disabled={addSlackChannel.isPending}
-            pendingChannelId={
-              addSlackChannel.isPending
-                ? addSlackChannel.variables?.channelId
-                : null
-            }
-            refreshing={statusQuery.isFetching}
-            onInvite={(channelId) => void addChannel(channelId)}
-            onRefresh={() => void statusQuery.refetch()}
-            onCreate={
-              status?.canCreateChannels
-                ? () => {
-                    setAddChannelOpen(false);
-                    setCreateChannelInitialName("harper");
-                    setCreateChannelOpen(true);
-                  }
-                : undefined
-            }
-          />
-          {addSlackChannel.isError ? (
-            <p role="alert" className="text-[13px] leading-5 text-critical">
-              {localizedOrgErrorMessage(addSlackChannel.error, locale, t("workspace.pages.OrgSettingsPage.256325d1", "채널을 연결하지 못했어요."))}
-            </p>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+        <OrgSlackChannelPicker
+          channels={status?.availableChannels ?? []}
+          disabled={addSlackChannel.isPending}
+          pendingChannelId={
+            addSlackChannel.isPending
+              ? addSlackChannel.variables?.channelId
+              : null
+          }
+          refreshing={statusQuery.isFetching}
+          onInvite={(channelId) => void addChannel(channelId)}
+          onRefresh={() => void statusQuery.refetch()}
+          onCreate={
+            status?.canCreateChannels
+              ? () => {
+                  setAddChannelOpen(false);
+                  setCreateChannelInitialName("harper");
+                  setCreateChannelOpen(true);
+                }
+              : undefined
+          }
+        />
+        {addSlackChannel.isError ? (
+          <p role="alert" className="text-[13px] leading-5 text-critical">
+            {localizedOrgErrorMessage(
+              addSlackChannel.error,
+              locale,
+              t(
+                "workspace.pages.OrgSettingsPage.256325d1",
+                "채널을 연결하지 못했어요."
+              )
+            )}
+          </p>
+        ) : null}
+      </TalentCareerModal>
 
       {createChannelOpen ? (
         <OrgSlackCreateChannelDialog
@@ -705,17 +842,30 @@ export function OrgSettingsPage() {
         />
       ) : null}
 
-      <Dialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
-        <DialogContent className="max-w-md gap-4 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[18px]">
-              {t("workspace.pages.OrgSettingsPage.32b5a622", "Slack 연결을 해제할까요?")}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {t("workspace.pages.OrgSettingsPage.f35f4dc1", "연결된 모든 채널로 더 이상 Organization 알림이 발송되지 않습니다.")}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+      <TalentCareerModal
+        open={disconnectOpen}
+        onClose={() => setDisconnectOpen(false)}
+        mobileBottomSheet
+        title={
+          <>
+            {t(
+              "workspace.pages.OrgSettingsPage.32b5a622",
+              "Slack 연결을 해제할까요?"
+            )}
+          </>
+        }
+        description={
+          <>
+            {t(
+              "workspace.pages.OrgSettingsPage.f35f4dc1",
+              "연결된 모든 채널로 더 이상 Organization 알림이 발송되지 않습니다."
+            )}
+          </>
+        }
+        panelClassName="max-w-md"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <MuteButton
               disabled={disconnectSlack.isPending}
               onClick={() => setDisconnectOpen(false)}
@@ -734,32 +884,45 @@ export function OrgSettingsPage() {
               ) : null}
               {t("workspace.pages.OrgSettingsPage.b2ad6ffc", "연결 해제")}
             </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(removeChannelId)}
-        onOpenChange={(open) => {
-          if (!open) setRemoveChannelId(null);
-        }}
+          </div>
+        }
       >
-        <DialogContent className="max-w-md gap-4 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[18px]">
-              {t("workspace.pages.OrgSettingsPage.240219bb", "Slack 채널을 제거할까요?")}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {t("composed.removeNotificationChannel", "{channelName}로는 더 이상 Organization 알림이 발송되지 않습니다.", {
+        <></>
+      </TalentCareerModal>
+
+      <TalentCareerModal
+        open={Boolean(removeChannelId)}
+        onClose={() => {
+          setRemoveChannelId(null);
+        }}
+        mobileBottomSheet
+        title={
+          <>
+            {t(
+              "workspace.pages.OrgSettingsPage.240219bb",
+              "Slack 채널을 제거할까요?"
+            )}
+          </>
+        }
+        description={
+          <>
+            {t(
+              "composed.removeNotificationChannel",
+              "{channelName}로는 더 이상 Organization 알림이 발송되지 않습니다.",
+              {
                 channelName: formatChannel(
                   t,
                   channelToRemove?.channelName,
                   channelToRemove?.channelId
                 ),
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+              }
+            )}
+          </>
+        }
+        panelClassName="max-w-md"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <MuteButton
               disabled={removeSlackChannel.isPending}
               onClick={() => setRemoveChannelId(null)}
@@ -778,9 +941,11 @@ export function OrgSettingsPage() {
               ) : null}
               {t("workspace.pages.OrgSettingsPage.f50205f9", "채널 제거")}
             </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        }
+      >
+        <></>
+      </TalentCareerModal>
     </div>
   );
 }

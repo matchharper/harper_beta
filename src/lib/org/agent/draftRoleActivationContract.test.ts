@@ -30,8 +30,8 @@ test("general company-side draft activation reuses the guarded completion path",
   );
 
   assert.ok(notificationSave >= 0);
-  assert.match(draftBranch, /fetchOrgActiveRoleLimitState/);
-  assert.match(draftBranch, /active_role_limit_reached/);
+  assert.doesNotMatch(draftBranch, /fetchOrgActiveRoleLimitState/);
+  assert.doesNotMatch(draftBranch, /active_role_limit_reached/);
   assert.ok(readinessCheck > notificationSave);
   assert.ok(guardedCompletion > readinessCheck);
   assert.ok(completionMetadata > guardedCompletion);
@@ -50,45 +50,15 @@ test("general company-side draft activation reuses the guarded completion path",
   assert.match(draftBranch, /currentSlackChannelId/);
 });
 
-test("role creation confirmation checks the active-role limit before claiming the action", () => {
-  const limitCheck = confirmation.indexOf("fetchOrgActiveRoleLimitState");
-  const claim = confirmation.indexOf("const claimedMetadata");
-
-  assert.ok(limitCheck >= 0);
-  assert.ok(claim > limitCheck);
-  assert.match(confirmation, /ORG_ACTIVE_ROLE_LIMIT_MESSAGE/);
+test("Role confirmation keeps its claim and completion path without a plan capacity gate", () => {
+  assert.ok(confirmation.includes("const claimedMetadata"));
+  assert.doesNotMatch(
+    confirmation,
+    /fetchOrgActiveRoleLimitState|role_capacity_exceeded/
+  );
 });
 
-test("new role creation returns a user-safe unchanged result at the active-role limit", () => {
-  const startBranch = execution.slice(
-    execution.indexOf('if (args.name === "start_role_creation")'),
-    execution.indexOf('} else if (args.name === "web_search")')
-  );
-  const limitResult = startBranch.indexOf('if ("limitReached" in started)');
-  const continuationLink = startBranch.indexOf(
-    "args.state.requiredSlackContinuationLink"
-  );
-
-  assert.ok(limitResult >= 0);
-  assert.ok(continuationLink > limitResult);
-  assert.match(startBranch, /created: false/);
-  assert.match(startBranch, /status: "unchanged"/);
-  assert.match(startBranch, /userMessage: ORG_ACTIVE_ROLE_LIMIT_MESSAGE/);
-  assert.match(startBranch, /responseGuidance/);
-});
-
-test("a new draft is not inserted after the active-role limit is reached", () => {
-  const createDraft = state.slice(
-    state.indexOf("export async function createOrResumeDraftRole"),
-    state.indexOf("export async function fetchRoleCreationState")
-  );
-  const limitCheck = createDraft.indexOf("fetchOrgActiveRoleLimitState");
-  const insert = createDraft.indexOf('.from("company_roles").insert');
-
-  assert.ok(limitCheck >= 0);
-  assert.ok(insert > limitCheck);
-  assert.match(createDraft, /ORG_ACTIVE_ROLE_LIMIT_MESSAGE/);
-});
+// Unlimited activation, shared spending and draft safety also run against SQL.
 
 test("draft notification selection keeps explicit consent and structural validation", () => {
   const helper = state.slice(

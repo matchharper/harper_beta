@@ -241,7 +241,7 @@ function formatCandidate(args: { candidate: Candidate; roleTitle: string }) {
     );
   }
   lines.push(
-    "- Recommendation copy handling: independently synthesize the Slack profile using the current dossier and prior fit context. The validated Slack body becomes the saved company-facing fit reason; do not return a separate recommendation-reason field."
+    "- Recommendation copy handling: independently synthesize the Slack profile using the current dossier and prior fit context. The validated Slack body is stored with the company introduction delivery; it never changes the shared fit assessment."
   );
   if (!profile) {
     lines.push(

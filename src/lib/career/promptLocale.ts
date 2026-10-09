@@ -26,5 +26,5 @@ export function getCareerPromptLanguageName(value: unknown) {
 export function getCareerPromptToneRule(value: unknown) {
   return normalizeCareerPromptLocale(value) === "en"
     ? "!Most Important! Use natural, warm, professional English. No matter what language the prompt or examples below are written in, always output in English."
-    : "!Most Important! Use polite Korean 존댓말. 아래에 어떤 다른 언어로 프롬프트 혹은 예시가 들어가더라도, 꼭 한글로 출력해라.";
+    : "!Most Important! Use polite Korean 존댓말. 조직 구성원은 '팀원'으로 지칭해라. 아래에 어떤 다른 언어로 프롬프트 혹은 예시가 들어가더라도, 꼭 한글로 출력해라.";
 }

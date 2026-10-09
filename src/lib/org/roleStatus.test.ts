@@ -4,7 +4,6 @@ import {
   getOrgRoleStatusPresentation,
   getOrgRoleStatusFilterValue,
   getOrgRoleLifecycleUpdate,
-  hasReachedOrgActiveRoleLimit,
   isOrgRoleCountedAsActive,
   normalizeOrgRoleStatus,
   ORG_ROLE_MUTATION_STATUS_VALUES,
@@ -118,31 +117,10 @@ test("groups top priority roles into the regular active sidebar filter", () => {
   assert.equal(getOrgRoleStatusFilterValue("top_priority"), "active");
 });
 
-test("counts active, top-priority, and legacy open roles toward the creation limit", () => {
+test("recognizes statuses that consume active hiring capacity", () => {
   assert.equal(isOrgRoleCountedAsActive("active"), true);
   assert.equal(isOrgRoleCountedAsActive(" top_priority "), true);
   assert.equal(isOrgRoleCountedAsActive("open"), true);
   assert.equal(isOrgRoleCountedAsActive("draft"), false);
   assert.equal(isOrgRoleCountedAsActive("paused"), false);
-
-  assert.equal(
-    hasReachedOrgActiveRoleLimit([
-      { status: "active" },
-      { status: "active" },
-      { status: "top_priority" },
-      { status: "open" },
-      { status: "active" },
-      { status: "draft" },
-    ]),
-    true
-  );
-  assert.equal(
-    hasReachedOrgActiveRoleLimit([
-      { status: "active" },
-      { status: "active" },
-      { status: "paused" },
-      { status: "ended" },
-    ]),
-    false
-  );
 });

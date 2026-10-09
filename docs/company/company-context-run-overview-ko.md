@@ -1,9 +1,9 @@
 # Company Run: 목적과 구현 계약
 
 - 작성일: 2026-08-14
-- 상태: 구현 기준 설계
+- 상태: 수동 실행 계약. 정기 Harper Company Run은 2026-10-06 로컬 변경에서 폐지했으며 배포 전이다.
 - 반복 실행 절차: [Company Context Run Codex 런북](./company-context-run-codex-runbook-ko.md)
-- 월·목 예약 실행 정본: [Company Run 예약 실행](../schedule/company-run-ko.md)
+- 폐지된 월·목 예약 실행 기록: [Company Run 예약 실행](../schedule/company-run-ko.md)
 - 기존 non-fit의 제한적 재발견 감사: [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)
 
 ## 1. 한 문장으로 설명
@@ -15,7 +15,7 @@
 1. Role별로 관리되는 최신 `context` 문서 하나
 2. 이번 시점의 matching cycle 실행 여부와 run-specific 탐색 지침
 3. 실행을 선택했을 때 새로 평가하거나 재평가한 `[talent × role]`의 `talent_opportunity_fit`
-4. 각 Role의 상태·출력·짧은 결론이 담긴 `company_context_runs` row와 batch별 internal-notification thread
+4. Role의 상태·출력·짧은 결론이 담긴 `company_context_runs` row
 
 Context 갱신은 matching을 위한 준비 작업이 아니라 이 workflow의 핵심 결과다. 현재 run의 후보 평가에 즉시 사용하고, 앞으로 `harper_worker`의 new agent v2가 internal matching을 할 때도 같은 회사 기억을 사용할 수 있게 한다.
 
@@ -137,32 +137,10 @@ Role 한정 기준인지 각 문장 안에서 밝힌다. 빈 bullet을 억지로
 
 ## 5. 언제 실행하는가: schedule과 코드의 책임
 
-정기 실행 시각은 Codex가 매번 추론하지 않는다. 매주 월요일·목요일 오전 8시(`Asia/Seoul`)에
-Scheduled task가 한 `company_run` batch를 만들고 모든 eligible Role을 queue에 넣는다. 동일한 예약
-slot은 결정적인 `batchRunId`를 사용하므로 재실행해도 중복 batch가 생기지 않는다.
-
-자동 실행의 첫 gate는 `company_internal_roles.is_auto = true`다. `scheduled`, `role_created`,
-`reactivated_after_7d`, 기존 `weekly` queue는 모두 `is_auto=true`인 Role에만 적용한다.
-`is_auto=false`로 바뀌면 아직 시작하지 않은 자동 queue row를 취소한다. 운영자가 명시적으로 넣는
-`manual` run만 이 gate와 무관하다.
-
-| Trigger | Queue 조건 |
-| --- | --- |
-| `role_created` | `is_auto=true`인 새로운 internal role이 `active`로 확정됨. Draft 생성만으로는 queue에 넣지 않음 |
-| `reactivated_after_7d` | `is_auto=true`이고 `paused` 또는 `ended` 상태가 합쳐서 연속 7일 이상 지속된 뒤 `active`로 바뀜 |
-| `weekly` | `is_auto=true`인 role이 계속 `active`이고 마지막 성공한 `company_context_run` 이후 7일이 지남 |
-| `scheduled` | 월·목 오전 8시 batch 생성 시점에 eligible한 모든 Role |
-| `manual` | 운영자가 특정 role의 실행을 명시적으로 요청함 |
-
-`role_created`와 `reactivated_after_7d`는 상태 변경 transaction 직후 enqueue한다. `weekly` due 판정도 코드로 구현하며, 예약 작업이 시작될 때 due-enqueue helper를 한 번 호출하면 된다.
-
-모든 자동 queue는 enqueue 시점에 role이 internal, `active`, 미만료, `is_auto=true`여야 한다. Queue 대기 중 role이 비활성화·삭제·만료되거나 `is_auto=false`가 되면 아직 시작하지 않은 자동 row를 즉시 취소한다. `manual` row만 이 자동 조건의 예외다.
-
-“즉시 실행”은 즉시 queue에 들어간다는 뜻이다. 실제 Codex 실행 시각은 설정된 예약 주기를 따른다. 이미 같은 role의 `queued` 또는 `running` row가 있으면 중복 enqueue하지 않는다.
-
-예약 작업은 해당 `batchRunId`의 queue를 비울 때까지 순차 처리한다. 한 Role을 `succeeded`,
-`canceled`, `failed` 중 하나의 terminal 상태로 끝낸 뒤 다음 Role을 claim한다. 모든 Role이 terminal이면
-같은 회사의 fit Role을 talent별로 한 번 rerank하고 internal notification thread를 만든다.
+정기 Harper Company Run 예약 작업은 제거했다. 새 Role 활성화, 재활성화, 마지막 실행 후 7일 경과도
+Company Context Run을 자동으로 만들지 않는다. 과거 자동 실행 이력은 보존하고 아직 시작하지 않은
+자동 queue는 취소한다. 운영자가 특정 Role을 명시한 `manual` 실행만 이 queue에 새로 넣을 수 있다.
+새 Role calibration 후 첫 후보 검색은 별도의 Company Matching Worker가 담당한다.
 
 ## 6. `company_context_runs`: 6-column queue와 실행 이력
 
@@ -173,7 +151,7 @@ Queue는 실행 대상 전달, atomic claim, 완료 기록에만 사용한다. 6
 | `id` | run ID |
 | `role_id` | 처리할 internal role |
 | `status` | `queued`, `running`, `succeeded`, `failed`, `canceled` |
-| `trigger_reason` | `role_created`, `reactivated_after_7d`, `weekly`, `scheduled`, `manual` |
+| `trigger_reason` | 새 실행은 `manual`만 사용. 이전 자동 실행 값은 과거 row에 남을 수 있음 |
 | `available_at` | claim 가능한 시각. 실패 재시도의 backoff에도 사용 |
 | `result` | 시작·종료 시각, runner, 짧은 결론, count, 실패 stage를 담는 JSON |
 
@@ -182,7 +160,6 @@ Queue는 실행 대상 전달, atomic claim, 완료 기록에만 사용한다. 6
 ```json
 {
   "contractVersion": "company-run-v1",
-  "batchRunId": "...",
   "startedAt": "...",
   "finishedAt": "...",
   "contextOutput": {"bullets": [], "reason": "...", "changed": true},
@@ -205,8 +182,6 @@ Column을 늘리지 않고도 다음은 index와 RPC/helper로 구현한다.
 - role별 open run 하나만 허용하는 partial unique index
 - `(status, available_at)` claim index
 - `FOR UPDATE SKIP LOCKED` 기반 atomic claim
-- due enqueue와 실패 retry
-- 마지막 성공한 queue run의 종료 시각을 기준으로 한 weekly 판정
 
 ## 7. 한 run의 전체 흐름
 
@@ -224,7 +199,7 @@ Column을 늘리지 않고도 다음은 index와 RPC/helper로 구현한다.
     `null`을 고른다.
 12. Internal-notification에 batch thread 하나와 Role별 한두 문장 답글을 남긴다.
 
-Pending limit은 matching만 막는다. 일주일마다 context를 새로 확인하는 목적은 유지되므로 context 갱신까지 건너뛰지 않는다.
+Pending limit은 matching만 막는다. 수동 run이 시작되면 context 갱신은 계속 진행한다.
 
 ## 8. 신규 후보와 기존 평가
 
@@ -238,9 +213,7 @@ Codex가 role마다 SQL을 새로 작성한다. 고정 keyword query 하나를 �
 
 ### 8.2 기존 평가의 제한적 재판단
 
-Scheduled Company Run은 `output 2`가 실제 기대효과를 확인했을 때 기존 pair를 제한적으로 다시 볼 수
-있다. 기본 reevaluation lane은 21일 이상 지난 effective `hold`·`ambiguous` 중 입력 fingerprint가
-달라진 10~50명이다. 기존 `reason`은 이전 판단의 참고 evidence이며 정답으로 취급하지 않는다.
+기존 pair를 다시 살펴볼 필요가 있으면 별도 [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)을 사용한다. 기존 `reason`은 이전 판단의 참고 evidence이며 정답으로 취급하지 않는다.
 
 `fit`, `dissatisfied`, `unfit` 전체를 시간만으로 다시 계산하거나 추천 수를 채우려고 기준을 낮추지
 않는다. 더 넓은 false-negative 감사가 필요하면 별도 [Company Role Fit Recovery Audit](./company-role-fit-recovery-audit-overview-ko.md)을 사용한다. 후보자가 실제 `hold_role_question`에 답한 경우의 즉시 재검사는 질문과 답을 보유한 Worker 경로가 계속 담당한다.
@@ -278,8 +251,7 @@ Memory 원문과 광범위한 대화·이메일·추천 이력은 candidate 문�
 2. 이번 run에서 실제로 평가한 pair만 `talent_opportunity_fit`에 upsert한다.
 3. Queue `result`에 context 전체 출력, search 실행 판단, skip 이유, retrieval·lane·label count와 한두
    문장의 결론을 저장한다.
-4. 모든 Role 뒤 talent별 company-wide rerank 결과를 `recommend`와 run count에 반영한다.
-5. Internal-notification thread와 Role 답글 timestamp를 각 row의 `result.notification`에 저장한다.
+4. 저장 결과를 확인하고 실행 결과를 마무리한다.
 
 Fit 단계가 실패해도 이미 저장한 올바른 context를 되돌리지 않는다. 재시도에서는 같은 context가 unchanged임을 확인한 뒤 미완료 matching부터 이어갈 수 있어야 한다.
 
@@ -311,17 +283,14 @@ Due 여부, pending limit, 중복 실행, 같은 fingerprint skip처럼 결정�
 - 매 run 문서에 migration·test 절차를 반복해서 싣는 구성
 - 목적보다 privacy·fairness·artifact 보관 규칙을 앞세운 구성
 
-현재 구현은 `company_context_runs`를 실행 원장으로 사용한다. 이전 local-ledger table과 72시간 재개 trigger는 corrective migration에서 제거되며 예약 실행에서도 더 이상 참조하지 않는다.
+현재 구현은 `company_context_runs`를 실행 원장으로 사용한다. 이전 local-ledger table과 72시간 재개 trigger는 제거했다.
 
 ## 13. 완료 기준
 
-- 월·목 오전 8시에는 같은 `batchRunId`로 eligible Role별 row가 멱등하게 enqueue된다.
-- Codex 예약 작업은 대상 조건을 다시 추론하지 않고 해당 batch의 queued Role을 하나씩 atomic claim한다.
+- 명시적으로 요청된 Role만 `manual` row로 enqueue하고 claim한다.
 - Role당 current context 문서 하나가 실제 회사 행동을 최대 10개의 bullet로 compact하게 verbalize한다.
 - Pending limit에 도달해도 context는 갱신되고 matching만 생략된다.
 - LLM이 이번 matching cycle의 기대효과와 run-specific 탐색 지침을 명시적으로 남긴다.
 - 신규 후보는 동적 SQL과 full candidate text를 거쳐 pair별로 평가되고, 허용된 기존 pair는 bounded lane에서 재평가된다.
-- 같은 talent에 대한 동일 회사 Role들은 batch 마지막에 함께 rerank된다.
 - Pair reason과 input fingerprint가 저장되어 사람이 판단 근거를 확인할 수 있다.
 - Queue row에 output 1·2, 성공·실패, count와 짧은 실행 결론이 남는다.
-- Internal-notification에는 batch thread 하나와 Role별 답글 하나가 중복 없이 남는다.

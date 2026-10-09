@@ -1,3 +1,6 @@
+import { CreditCard } from "lucide-react";
+import { BillingCreditNotice } from "@/components/org/billing/BillingCreditNotice";
+import { canUseWorkspaceBilling } from "@/lib/org/billing/rollout";
 import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import {
   ArrowLeft,
@@ -10,6 +13,7 @@ import {
   Home,
   Inbox,
   Landmark,
+  Layers3,
   Menu,
   ListFilter,
   LogOut,
@@ -56,9 +60,7 @@ import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
 import { ORG_PRODUCT_LABELS } from "@/lib/org/productVocabulary";
 import {
   getOrgRoleStatusFilterValue,
-  hasReachedOrgActiveRoleLimit,
   normalizeOrgRoleStatus,
-  ORG_ACTIVE_ROLE_LIMIT_MESSAGE,
   ORG_ROLE_STATUS_FILTER_OPTIONS,
   type OrgRoleStatus,
 } from "@/lib/org/roleStatus";
@@ -176,9 +178,13 @@ function WorkspaceControl({
   const trigger = (
     <DropdownMenuTrigger asChild>
       <MuteButton
-        aria-label={t("workspace.OrgWorkspaceSidebar.c32de3c9", "{p0} Workspace 변경", {
-          p0: workspace.companyName,
-        })}
+        aria-label={t(
+          "workspace.OrgWorkspaceSidebar.c32de3c9",
+          "{p0} Workspace 변경",
+          {
+            p0: workspace.companyName,
+          }
+        )}
         className={cn(
           "w-full",
           compact ? "justify-center px-0" : "justify-between"
@@ -272,11 +278,11 @@ function getNavItemClassName({
   compact: boolean;
 }) {
   return cn(
-    "relative isolate flex h-9 items-center gap-2.5 overflow-hidden rounded-md px-2.5 text-[14.5px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+    "relative isolate flex h-9 items-center gap-2.5 overflow-hidden rounded-md px-2.5 text-[14px] font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
     compact && "justify-center gap-0 px-0",
     active
-      ? "bg-neutral-200/80 text-black"
-      : "text-neutral-primary hover:bg-neutral-100 hover:text-neutral-primary"
+      ? "bg-neutral-200/90 text-black"
+      : "text-neutral-primary hover:bg-neutral-200/80 hover:text-neutral-primary"
   );
 }
 
@@ -330,7 +336,12 @@ function NavLink({
           <Icon className="size-3.5 stroke-[1.8]" />
         </span>
       ) : (
-        <Icon className="relative z-20 size-4.5 stroke-[1.5]" />
+        <Icon
+          className={cn(
+            active ? "text-neutral-900" : "text-neutral-800/80",
+            "relative z-20 size-4 stroke-[1.7]"
+          )}
+        />
       )}
       {compact ? null : <span className="relative z-20">{label}</span>}
       {!compact && pendingConnectionCount !== undefined ? (
@@ -414,7 +425,10 @@ function RecentRoleStatusFilter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <MuteButton
-          aria-label={t("workspace.OrgWorkspaceSidebar.08960a8a", "Recent 역할 상태 필터")}
+          aria-label={t(
+            "workspace.OrgWorkspaceSidebar.08960a8a",
+            "Recent 역할 상태 필터"
+          )}
           aria-pressed={active}
           size="sm"
           variant={active ? "neutral" : "transparent"}
@@ -559,7 +573,10 @@ function RecentRolesSection({
                 mobile ? "px-3" : "px-2.5"
               )}
             >
-              {t("workspace.OrgWorkspaceSidebar.2db0c774", "선택한 상태의 역할이 없습니다.")}
+              {t(
+                "workspace.OrgWorkspaceSidebar.2db0c774",
+                "선택한 상태의 역할이 없습니다."
+              )}
             </p>
           ) : null}
         </div>
@@ -582,7 +599,10 @@ function OrgSlackConnectionCard() {
 
   return (
     <section
-      aria-label={t("workspace.OrgWorkspaceSidebar.f5e2ee13", "Slack 연결 안내")}
+      aria-label={t(
+        "workspace.OrgWorkspaceSidebar.f5e2ee13",
+        "Slack 연결 안내"
+      )}
       className="mb-2 rounded-lg border border-neutral-1000-a05 bg-bg-floating p-3 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
     >
       <div className="flex items-center gap-2">
@@ -600,7 +620,10 @@ function OrgSlackConnectionCard() {
         </p>
       </div>
       <p className="mt-2 text-[11px] leading-[1.45] text-neutral-muted">
-        {t("workspace.OrgWorkspaceSidebar.e32d503b", "채용 진행 알림과 역할 생성, 기준 변경 등 모든 작업을 Slack으로 할 수 있어요.")}
+        {t(
+          "workspace.OrgWorkspaceSidebar.e32d503b",
+          "채용 진행 알림과 역할 생성, 기준 변경 등 모든 작업을 Slack으로 할 수 있어요."
+        )}
       </p>
       {permissions.canManageIntegrations ? (
         <MuteButton
@@ -684,9 +707,6 @@ export function OrgWorkspaceSidebar({
   const topNav = primaryNav.filter((item) => item.location !== "bottom");
   const bottomNav = primaryNav.filter((item) => item.location === "bottom");
   const recentRoles = useMemo(() => sortOrgRolesForRecentList(roles), [roles]);
-  const roleCreationBlocked = hasReachedOrgActiveRoleLimit(roles);
-  const showRoleCreationLimitToast = () =>
-    addToast({ message: ORG_ACTIVE_ROLE_LIMIT_MESSAGE, variant: "error" });
   const visibleRecentRoleStatusSet = useMemo(
     () => new Set(visibleRecentRoleStatuses),
     [visibleRecentRoleStatuses]
@@ -725,7 +745,9 @@ export function OrgWorkspaceSidebar({
   const organizationMode =
     activePage === "team" ||
     activePage === "member" ||
-    activePage === "settings";
+    activePage === "settings" ||
+    activePage === "slots" ||
+    activePage === "billing";
   const documentsMode = activePage === "documents";
   const activeDocumentSection =
     typeof router.query.section === "string" &&
@@ -735,11 +757,13 @@ export function OrgWorkspaceSidebar({
   const animateOrganizationSidebarEntry =
     shouldAnimateOrganizationSidebarEntry(previousPathname);
   const organizationSection =
-    activePage === "settings"
-      ? "integration"
-      : activePage === "member"
-        ? "members"
-        : "company";
+    activePage === "slots" || activePage === "billing"
+      ? activePage
+      : activePage === "settings"
+        ? "integration"
+        : activePage === "member"
+          ? "members"
+          : "company";
   const organizationNav = [
     {
       active: organizationSection === "company",
@@ -759,6 +783,22 @@ export function OrgWorkspaceSidebar({
       icon: Blocks,
       label: ORG_PRODUCT_LABELS.integrations,
     },
+    ...(canUseWorkspaceBilling(workspace.workspaceId) ? [{
+      active: organizationSection === "slots",
+      href: navHref("slots"),
+      icon: Layers3,
+      label: "Slots",
+    }] : []),
+    ...(canUseWorkspaceBilling(workspace.workspaceId) && permissions.role === "owner"
+      ? [
+          {
+            active: organizationSection === "billing",
+            href: navHref("billing"),
+            icon: CreditCard,
+            label: "Billing",
+          },
+        ]
+      : []),
   ];
   const organizationReturnHref = buildOrgHref({
     orgId: workspace.workspaceId,
@@ -837,16 +877,22 @@ export function OrgWorkspaceSidebar({
               key="organization-sidebar"
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="mx-3 mb-3 border-b border-neutral-1000-a05 pb-3">
+              <div className="mx-3 mb-3">
                 <NavLink
                   active={false}
                   href={organizationReturnHref}
                   icon={ArrowLeft}
-                  label={t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
+                  label={t(
+                    "workspace.OrgWorkspaceSidebar.49e6718f",
+                    "돌아가기"
+                  )}
                 />
               </div>
               <nav
-                aria-label={t("workspace.OrgWorkspaceSidebar.d825bbe1", "Organization 설정")}
+                aria-label={t(
+                  "workspace.OrgWorkspaceSidebar.d825bbe1",
+                  "Organization 설정"
+                )}
                 className="mx-3 space-y-1"
               >
                 {organizationNav.map((item) => (
@@ -863,25 +909,38 @@ export function OrgWorkspaceSidebar({
               key="documents-sidebar"
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="mx-3 mb-3 border-b border-neutral-1000-a05 pb-3">
+              <div className="mx-3 mb-3">
                 <NavLink
                   active={false}
                   href={organizationReturnHref}
                   icon={ArrowLeft}
-                  label={t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
+                  label={t(
+                    "workspace.OrgWorkspaceSidebar.49e6718f",
+                    "돌아가기"
+                  )}
                 />
               </div>
-              <nav aria-label="Documents" className="mx-3 min-h-0 space-y-1 overflow-y-auto">
+              <nav
+                aria-label="Documents"
+                className="mx-3 min-h-0 space-y-1 overflow-y-auto"
+              >
                 <NavLink
                   active={!activeDocumentSection}
                   href={documentsHref}
                   icon={BookOpenText}
-                  label={t("workspace.OrgWorkspaceSidebar.04ffd41a", "Documents")}
+                  label={t(
+                    "workspace.OrgWorkspaceSidebar.04ffd41a",
+                    "Documents"
+                  )}
                 />
                 <div className="space-y-1 pt-2">
                   {documentSections.map((section) => (
                     <Link
-                      aria-current={activeDocumentSection === section.id ? "page" : undefined}
+                      aria-current={
+                        activeDocumentSection === section.id
+                          ? "page"
+                          : undefined
+                      }
                       className={cn(
                         "flex min-h-9 items-center rounded-md px-2.5 py-1.5 text-[14px] leading-5 outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
                         activeDocumentSection === section.id
@@ -917,20 +976,21 @@ export function OrgWorkspaceSidebar({
               </div>
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav
-                  aria-label={t("workspace.OrgWorkspaceSidebar.5b4f72fc", "Organization")}
+                  aria-label={t(
+                    "workspace.OrgWorkspaceSidebar.5b4f72fc",
+                    "Organization"
+                  )}
                   className="mx-3 space-y-1"
                 >
                   {topNav.map((item) => (
                     <NavLink
                       key={item.id}
                       active={activePage === item.id}
-                      blocked={item.id === "new-role" && roleCreationBlocked}
                       compact={compact}
                       href={navHref(item.id)}
                       icon={item.icon}
                       iconBackground={item.id === "new-role"}
                       label={item.label}
-                      onBlocked={showRoleCreationLimitToast}
                       pendingConnectionCount={
                         item.id === "inbox" ? pendingConnectionCount : undefined
                       }
@@ -978,16 +1038,30 @@ export function OrgWorkspaceSidebar({
           )}
         </AnimatePresence>
 
+        {activePage === "role" && (
+          <BillingCreditNotice
+            workspaceId={workspace.workspaceId}
+            roleId={activeRoleId}
+            compact={compact}
+            canManage={permissions.canManageWorkspace}
+          />
+        )}
         <div className="mx-3">
           <DropdownMenu>
             {compact ? (
               <Tooltips
                 side="right"
-                text={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
+                text={t(
+                  "workspace.OrgWorkspaceSidebar.007899a8",
+                  "프로필 메뉴"
+                )}
               >
                 <DropdownMenuTrigger asChild>
                   <MuteButton
-                    aria-label={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
+                    aria-label={t(
+                      "workspace.OrgWorkspaceSidebar.007899a8",
+                      "프로필 메뉴"
+                    )}
                     className="w-full justify-center px-0"
                     size="md"
                     variant="transparent"
@@ -999,7 +1073,10 @@ export function OrgWorkspaceSidebar({
             ) : (
               <DropdownMenuTrigger asChild>
                 <MuteButton
-                  aria-label={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
+                  aria-label={t(
+                    "workspace.OrgWorkspaceSidebar.007899a8",
+                    "프로필 메뉴"
+                  )}
                   className="w-full justify-start"
                   size="md"
                   variant="transparent"
@@ -1018,28 +1095,37 @@ export function OrgWorkspaceSidebar({
                 </MuteButton>
               </DropdownMenuTrigger>
             )}
-            <DropdownMenuContent align="start" className="w-[224px]" side="top">
-              <DropdownMenuLabel className="font-normal">
-                <span className="block truncate text-[13px] font-medium text-neutral-primary">
+            <DropdownMenuContent
+              align="start"
+              className="w-[224px] rounded-md"
+              side="top"
+            >
+              <DropdownMenuLabel className="font-normal text-neutral-800">
+                <span className="block truncate text-[13px]">
                   {currentUser?.name ||
                     t("workspace.OrgWorkspaceSidebar.5100cfe8", "이름 없음")}
                 </span>
-                <span className="mt-0.5 block truncate text-[11px] font-light text-neutral-muted">
+                <span className="mt-0.5 block truncate text-[12px]">
                   {currentUser?.email || "-"}
                 </span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => openCustomCrispWidget()}>
+              <DropdownMenuItem
+                variant="sm"
+                onSelect={() => openCustomCrispWidget()}
+              >
                 <CircleHelp />
                 {t("workspace.OrgWorkspaceSidebar.562916df", "문의하기")}
               </DropdownMenuItem>
               <DropdownMenuItem
+                variant="sm"
                 onSelect={() => void router.push(navHref("documents"))}
               >
                 <BookOpenText />
                 {t("workspace.OrgWorkspaceSidebar.04ffd41a", "Documents")}
               </DropdownMenuItem>
               <DropdownMenuItem
+                variant="sm"
                 onSelect={() => void router.push(calendarSettingsHref)}
               >
                 <Image
@@ -1055,10 +1141,10 @@ export function OrgWorkspaceSidebar({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={signOutPending}
+                variant="sm"
                 onSelect={() => void handleSignOut()}
-                tone="danger"
               >
-                <LogOut />
+                <LogOut className="rotate-180" />
                 {signOutPending
                   ? t("workspace.OrgWorkspaceSidebar.eb3ad908", "로그아웃 중")
                   : t("workspace.OrgWorkspaceSidebar.0426880f", "로그아웃")}
@@ -1071,7 +1157,10 @@ export function OrgWorkspaceSidebar({
       {navigationTriggerHidden || activePage === "role" ? null : (
         <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
           <MuteButton
-            aria-label={t("workspace.OrgWorkspaceSidebar.44d8d4c9", "메뉴 열기")}
+            aria-label={t(
+              "workspace.OrgWorkspaceSidebar.44d8d4c9",
+              "메뉴 열기"
+            )}
             className="border border-white/20 bg-white/10 backdrop-blur-xs hover:bg-white/20"
             onClick={handleOpenMobileNavigation}
             size="md"
@@ -1101,7 +1190,10 @@ export function OrgWorkspaceSidebar({
                 {workspace.companyName}
               </span>
               <MuteButton
-                aria-label={t("workspace.OrgWorkspaceSidebar.cd244a4b", "메뉴 닫기")}
+                aria-label={t(
+                  "workspace.OrgWorkspaceSidebar.cd244a4b",
+                  "메뉴 닫기"
+                )}
                 onClick={closeNavigation}
                 size="md"
                 variant="transparent"
@@ -1125,7 +1217,10 @@ export function OrgWorkspaceSidebar({
                   {t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
                 </MuteButton>
                 <nav
-                  aria-label={t("workspace.OrgWorkspaceSidebar.d825bbe1", "Organization 설정")}
+                  aria-label={t(
+                    "workspace.OrgWorkspaceSidebar.d825bbe1",
+                    "Organization 설정"
+                  )}
                   className="space-y-1"
                 >
                   {organizationNav.map((item) => (
@@ -1158,7 +1253,10 @@ export function OrgWorkspaceSidebar({
                   <ArrowLeft className="size-4" strokeWidth={1.6} />
                   {t("workspace.OrgWorkspaceSidebar.49e6718f", "돌아가기")}
                 </MuteButton>
-                <nav aria-label="Documents" className="min-h-0 space-y-1 overflow-y-auto">
+                <nav
+                  aria-label="Documents"
+                  className="min-h-0 space-y-1 overflow-y-auto"
+                >
                   <Link
                     aria-current={!activeDocumentSection ? "page" : undefined}
                     className={cn(
@@ -1175,7 +1273,11 @@ export function OrgWorkspaceSidebar({
                   </Link>
                   {documentSections.map((section) => (
                     <Link
-                      aria-current={activeDocumentSection === section.id ? "page" : undefined}
+                      aria-current={
+                        activeDocumentSection === section.id
+                          ? "page"
+                          : undefined
+                      }
                       className={cn(
                         "flex min-h-9 items-center rounded-md px-2 py-1.5 text-[14px] leading-5 outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
                         activeDocumentSection === section.id
@@ -1195,7 +1297,10 @@ export function OrgWorkspaceSidebar({
             ) : (
               <div className="flex min-h-0 flex-1 flex-col">
                 <nav
-                  aria-label={t("workspace.OrgWorkspaceSidebar.5b4f72fc", "Organization")}
+                  aria-label={t(
+                    "workspace.OrgWorkspaceSidebar.5b4f72fc",
+                    "Organization"
+                  )}
                   className="shrink-0 space-y-1 px-2 py-2"
                 >
                   {primaryNav.map((item) => {
@@ -1228,31 +1333,16 @@ export function OrgWorkspaceSidebar({
 
                     return (
                       <Link
-                        aria-disabled={
-                          item.id === "new-role" && roleCreationBlocked
-                            ? true
-                            : undefined
-                        }
                         aria-current={active ? "page" : undefined}
                         className={cn(
                           "flex h-9 items-center gap-2 rounded-md px-2 text-[14px] outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
                           active
                             ? "bg-bg-weak text-neutral-primary"
-                            : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary",
-                          item.id === "new-role" &&
-                            roleCreationBlocked &&
-                            "cursor-not-allowed opacity-45"
+                            : "text-neutral-muted hover:bg-bg-weak hover:text-neutral-primary"
                         )}
                         href={navHref(item.id)}
                         key={item.id}
-                        onClick={(event) => {
-                          if (item.id === "new-role" && roleCreationBlocked) {
-                            event.preventDefault();
-                            showRoleCreationLimitToast();
-                            return;
-                          }
-                          closeNavigation();
-                        }}
+                        onClick={closeNavigation}
                       >
                         {item.id === "new-role" ? (
                           <span className="flex size-5 items-center justify-center rounded-full bg-primary-faded text-primary">
@@ -1266,7 +1356,8 @@ export function OrgWorkspaceSidebar({
                         pendingConnectionCount !== undefined ? (
                           <Badge
                             aria-label={t(
-                              "workspace.OrgWorkspaceSidebar.fad130e6", "연결 대기 {p0}명",
+                              "workspace.OrgWorkspaceSidebar.fad130e6",
+                              "연결 대기 {p0}명",
                               { p0: pendingConnectionCount }
                             )}
                             className="ml-auto min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
@@ -1305,7 +1396,10 @@ export function OrgWorkspaceSidebar({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <MuteButton
-                    aria-label={t("workspace.OrgWorkspaceSidebar.007899a8", "프로필 메뉴")}
+                    aria-label={t(
+                      "workspace.OrgWorkspaceSidebar.007899a8",
+                      "프로필 메뉴"
+                    )}
                     className="w-full justify-start"
                     size="md"
                     variant="transparent"
@@ -1359,7 +1453,10 @@ export function OrgWorkspaceSidebar({
                   >
                     <LogOut />
                     {signOutPending
-                      ? t("workspace.OrgWorkspaceSidebar.eb3ad908", "로그아웃 중")
+                      ? t(
+                          "workspace.OrgWorkspaceSidebar.eb3ad908",
+                          "로그아웃 중"
+                        )
                       : t("workspace.OrgWorkspaceSidebar.0426880f", "로그아웃")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>

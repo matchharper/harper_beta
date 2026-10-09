@@ -22,7 +22,7 @@ function baseRows(): DailyCompanyStatsSourceRows {
   };
 }
 
-test("company stats separate Slack or auto-member workspaces from other companies", async () => {
+test("company stats separate Slack-connected workspaces from other companies", async () => {
   const { compileDailyCompanyStatsReport } =
     await import("@/lib/dailyCompanyStats");
   const rows = baseRows();
@@ -33,7 +33,7 @@ test("company stats separate Slack or auto-member workspaces from other companie
   ];
   rows.roles = [
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-slack",
       is_expired: false,
       role_id: "role-slack",
@@ -41,7 +41,7 @@ test("company stats separate Slack or auto-member workspaces from other companie
       status: "active",
     },
     {
-      company_internal_roles: { is_auto: true },
+      company_internal_roles: {},
       company_workspace_id: "workspace-auto",
       is_expired: false,
       role_id: "role-auto",
@@ -49,7 +49,7 @@ test("company stats separate Slack or auto-member workspaces from other companie
       status: "top_priority",
     },
     {
-      company_internal_roles: { is_auto: true },
+      company_internal_roles: {},
       company_workspace_id: "workspace-other",
       is_expired: false,
       role_id: "role-other",
@@ -68,14 +68,14 @@ test("company stats separate Slack or auto-member workspaces from other companie
 
   assert.deepEqual(
     report.servedCompanies.map((company) => company.companyName),
-    ["Auto Co", "Slack Co"]
+    ["Slack Co"]
   );
   assert.deepEqual(
     report.otherCompanies.map((company) => company.companyName),
-    ["Other Co"]
+    ["Auto Co", "Other Co"]
   );
   assert.equal(report.servedCompanies[0].activeRoleCount, 1);
-  assert.equal(report.otherCompanies[0].activeRoleCount, 0);
+  assert.equal(report.otherCompanies[0].activeRoleCount, 1);
 });
 
 test("company stats count current candidate stages and daily additions by unique talent", async () => {
@@ -89,7 +89,7 @@ test("company stats count current candidate stages and daily additions by unique
   ];
   rows.roles = [
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace",
       is_expired: false,
       role_id: "role",
@@ -220,7 +220,7 @@ test("company stats show active company-first candidates only when present", asy
   ];
   rows.roles = [
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-intro",
       is_expired: false,
       name: "Engineer",
@@ -229,7 +229,7 @@ test("company stats show active company-first candidates only when present", asy
       status: "active",
     },
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-zero",
       is_expired: false,
       name: "Designer",
@@ -299,6 +299,108 @@ test("company stats show active company-first candidates only when present", asy
   assert.doesNotMatch(zeroCompanyLine, /먼저 제안/);
 });
 
+test("Request intro logs preserve closed deliveries and separate KST requests from sends", async () => {
+  const {
+    compileDailyCompanyStatsReport,
+    formatDailyCompanyStatsSlackDetailMessages,
+    formatDailyCompanyStatsSlackMessage,
+  } = await import("@/lib/dailyCompanyStats");
+  const rows = baseRows();
+  rows.workspaces = [
+    { company_name: "Intro Co", company_workspace_id: "workspace" },
+  ];
+  const role = {
+    company_internal_roles: {},
+    company_workspace_id: "workspace",
+    is_expired: false,
+    name: "Engineer & Research",
+    role_id: "role",
+    source_type: "internal",
+    status: "active",
+  };
+  rows.roles = [
+    role,
+    { ...role, role_id: "second-role", name: "Second role", status: "ended" },
+    { ...role, role_id: "test-role", information: { testOnly: true } },
+  ];
+  const intro = {
+    company_workspace_id: "workspace",
+    role_id: "role",
+    selected_at: "2026-08-15T01:00:00.000Z",
+    status: "closed",
+    talent_id: "closed-talent",
+    talent_users: { name: "Candidate <A>" },
+    requested_at: "2026-08-16T01:00:00.000Z",
+    candidate_sent_at: "2026-08-16T02:00:00.000Z",
+  };
+  rows.companyIntroCandidates = [
+    intro,
+    { ...intro, role_id: "second-role" },
+    {
+      ...intro,
+      talent_id: "pending-talent",
+      talent_users: null,
+      status: "awaiting_talent",
+      candidate_sent_at: null,
+    },
+    {
+      ...intro,
+      talent_id: "previous-request",
+      talent_users: { name: "Sent after midnight" },
+      status: "connected",
+      requested_at: "2026-08-15T14:59:59.000Z",
+      candidate_sent_at: "2026-08-15T15:00:00.000Z",
+    },
+    {
+      ...intro,
+      talent_id: "future-send",
+      talent_users: { name: "Sent tomorrow" },
+      requested_at: "2026-08-16T14:59:59.000Z",
+      candidate_sent_at: "2026-08-16T15:00:00.000Z",
+    },
+    {
+      ...intro,
+      talent_id: "selected-only",
+      status: "ready",
+      selected_at: "2026-08-16T01:00:00.000Z",
+      requested_at: null,
+      candidate_sent_at: null,
+    },
+    {
+      ...intro,
+      talent_id: "tomorrow",
+      requested_at: "2026-08-16T15:00:00.000Z",
+      candidate_sent_at: "2026-08-16T15:01:00.000Z",
+    },
+    { ...intro, talent_id: "test-talent", role_id: "test-role" },
+    { ...intro, talent_id: "wrong-workspace", company_workspace_id: "other" },
+  ];
+
+  const report = compileDailyCompanyStatsReport({ date: "2026-08-16", rows });
+  const company = report.otherCompanies[0];
+  assert.equal(company.introRequestedTodayCount, 3);
+  assert.equal(company.introSentTodayCount, 2);
+  assert.equal(company.introActivityToday.length, 5);
+  assert.equal(report.totals.introRequestedTodayCount, 3);
+  assert.equal(report.totals.introSentTodayCount, 2);
+  assert.equal(
+    company.introActivityToday.find((row) => row.talentId === "future-send")
+      ?.candidateSentAt,
+    null
+  );
+  const message = formatDailyCompanyStatsSlackMessage(report);
+  const detail = formatDailyCompanyStatsSlackDetailMessages(report).join("\n");
+  assert.match(message, /오늘 Request intro: 회사 요청 3명 · 후보자 발송 2명/);
+  assert.match(detail, /userId=closed-talent\|Candidate &lt;A&gt;>/);
+  assert.match(detail, /Engineer &amp; Research · 요청 08\/16 10:00 · 후보자 발송 08\/16 11:00/);
+  assert.match(detail, /Second role/);
+  assert.match(detail, /요청 08\/15 23:59 · 후보자 발송 08\/16 00:00/);
+  assert.match(detail, /이름 없는 후보자/);
+  assert.match(detail, /후보자 발송 기록 없음\(집계일 기준\)/);
+  assert.doesNotMatch(detail, /userId=(test-talent|selected-only|tomorrow|wrong-workspace)[|>]/);
+  assert.doesNotMatch(detail, /후보자 발송 08\/17/);
+});
+
 test("company stats keep Harper acceptances separate from another role's later stage", async () => {
   const { compileDailyCompanyStatsReport } =
     await import("@/lib/dailyCompanyStats");
@@ -308,7 +410,7 @@ test("company stats keep Harper acceptances separate from another role's later s
   ];
   rows.roles = [
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace",
       is_expired: false,
       name: "Accepted Role",
@@ -317,7 +419,7 @@ test("company stats keep Harper acceptances separate from another role's later s
       status: "active",
     },
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace",
       is_expired: false,
       name: "Connected Role",
@@ -392,7 +494,7 @@ test("company stats choose the latest use and login and format one company per l
   ];
   rows.roles = [
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace",
       is_expired: false,
       role_id: "role",
@@ -473,7 +575,7 @@ test("company stats include daily totals, linked acceptances, and thread details
   ];
   rows.roles = [
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-main",
       created_at: "2026-08-16T01:00:00.000Z",
       is_expired: false,
@@ -483,7 +585,7 @@ test("company stats include daily totals, linked acceptances, and thread details
       status: "active",
     },
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-main",
       created_at: "2026-08-10T01:00:00.000Z",
       is_expired: false,
@@ -493,7 +595,7 @@ test("company stats include daily totals, linked acceptances, and thread details
       status: "paused",
     },
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-main",
       created_at: "2026-08-10T01:00:00.000Z",
       is_expired: false,
@@ -503,7 +605,7 @@ test("company stats include daily totals, linked acceptances, and thread details
       status: "ended",
     },
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-main",
       created_at: "2026-08-10T01:00:00.000Z",
       is_expired: true,
@@ -513,7 +615,7 @@ test("company stats include daily totals, linked acceptances, and thread details
       status: "ended",
     },
     {
-      company_internal_roles: { is_auto: false },
+      company_internal_roles: {},
       company_workspace_id: "workspace-empty",
       created_at: "2026-08-10T01:00:00.000Z",
       is_expired: false,
@@ -652,6 +754,8 @@ test("company stats include daily totals, linked acceptances, and thread details
     chatTodayCount: 1,
     companyIntroCount: 0,
     companyIntroTodayCount: 0,
+    introRequestedTodayCount: 0,
+    introSentTodayCount: 0,
     connectedCount: 0,
     connectedTodayCount: 0,
     memberCount: 2,

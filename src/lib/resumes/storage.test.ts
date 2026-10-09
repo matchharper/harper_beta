@@ -155,6 +155,39 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
     await db.query("update talent_documents set is_public=true where id=$1", [
       second.documentId,
     ]);
+    const copyInput = {
+      action: "copy",
+      document_id: second.documentId,
+      expected_revision: 2,
+      document_name: "Same name v2",
+      changes: [{ op: "set", path: "/basics/name", value: "김하늘 v2" }],
+    };
+    await assert.rejects(run(copyInput, "foreign-copy", other), /not found/);
+    const copied = await run(copyInput, "copy");
+    assert.notEqual(copied.documentId, second.documentId);
+    assert.equal(copied.fileName, "Same name v2.pdf");
+    assert.equal(copied.revision, 1);
+    assert.equal(copied.isPrivate, true);
+    assert.equal((await run(copyInput, "copy")).documentId, copied.documentId);
+    const copiedRow = (
+      await db.query("select * from talent_documents where id=$1", [
+        copied.documentId,
+      ])
+    ).rows[0] as Record<string, unknown>;
+    const copiedContent = copiedRow.structured_content as {
+      content: { basics: { name: string } };
+      source_document_ids: string[];
+    };
+    assert.equal(copiedContent.content.basics.name, "김하늘 v2");
+    assert.deepEqual(copiedContent.source_document_ids, [second.documentId]);
+    assert.equal(copiedRow.is_public, false);
+    assert.equal(copiedRow.is_primary, false);
+    const sourceAfterCopy = (
+      await db.query("select is_public from talent_documents where id=$1", [
+        second.documentId,
+      ])
+    ).rows[0] as { is_public: boolean };
+    assert.equal(sourceAfterCopy.is_public, true);
     const publicEdit = await run(
       {
         action: "update",
@@ -169,6 +202,7 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
       false,
       "content edits preserve the owner's sharing choice"
     );
+    await assert.rejects(run(copyInput, "stale-copy"), /changed/);
     await db.query("update talent_documents set is_public=false where id=$1", [
       second.documentId,
     ]);
@@ -222,7 +256,7 @@ test("direct document storage: duplicates, revisions, deletion, lost responses a
     assert.notEqual(resumeDocumentId(user, "x"), resumeDocumentId(other, "x"));
     assert.equal(
       (await db.query("select * from talent_documents")).rows.length,
-      2
+      3
     );
     assert.equal(
       (

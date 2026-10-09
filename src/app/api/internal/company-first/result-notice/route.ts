@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { readCandidateOutreachPauses } from "@/lib/companyFirstSearch/history";
 import { buildCompanyMatchingResultContext } from "@/lib/companyFirstSearch/resultContext";
 import {
   DEFAULT_INTRO_SEARCH_DAYS,
@@ -14,17 +15,23 @@ import {
 } from "@/lib/internalApi";
 import { generateOrgAgentBackgroundResultReply } from "@/lib/org/agent/chat";
 import {
+  parseBackgroundResultParts,
+  type BackgroundResultPart,
+} from "@/lib/org/agent/backgroundResultParts";
+import {
   ensureOrgRoleCreationConversation,
   insertOrgAgentMessage,
   type OrgAgentConversationRow,
 } from "@/lib/org/agent/store";
 import type { OrgAgentMessageMetadata } from "@/lib/org/agent/types";
-import {
-  convertMarkdownLinksToSlackMrkdwn,
-  getOrgPublicSiteUrl,
-} from "@/lib/org/slackMessages";
+import { getOrgPublicSiteUrl } from "@/lib/org/slackMessages";
+import { markdownToSlackMrkdwn } from "@/lib/org/slackTalentReviewView";
 import { renderSlackOrgLinks } from "@/lib/org/slackTalentLinks";
-import { sendHarperWorkspaceSlackMessage } from "@/lib/org/slackHarper";
+import {
+  loadSlackCandidateCards,
+  sendSlackCandidateResult,
+  type SlackCandidatePostReceipts,
+} from "@/lib/org/slackCandidateWorkObject.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 
@@ -153,6 +160,300 @@ async function updateNoticeFailure(args: {
     .eq("id", args.runId);
 }
 
+async function deliverRunNotice(args: {
+  admin: ReturnType<typeof getSupabaseAdmin>;
+  run: Record<string, any>;
+  runId: string;
+  runResult: Record<string, any>;
+  roleIds: string[];
+  existingNotice: Record<string, any>;
+  companyRequested: boolean;
+  onNotice: (notice: Record<string, any>) => Promise<void>;
+}) {
+  const {
+    admin,
+    run,
+    runId,
+    runResult,
+    roleIds,
+    existingNotice,
+    companyRequested,
+  } = args;
+  const workspaceId = text(run.company_workspace_id, 100);
+  const [
+    { data: roles, error: rolesError },
+    { data: intros, error: introsError },
+  ] = await Promise.all([
+    (admin.from("company_roles" as any) as any)
+      .select(
+        "role_id, name, salary_range, salary_min, salary_max, salary_currency, salary_period, internal_role:company_internal_roles(is_company_first_search, intro_search_date, intro_search_time, request)"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .in("role_id", roleIds),
+    (admin.from("company_intro_candidates" as any) as any)
+      .select(
+        "id, role_id, talent_id, selection_reason, presentation, role:company_roles(name)"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .eq("selection_run_id", runId)
+      .in("role_id", roleIds),
+  ]);
+  if (rolesError) throw rolesError;
+  if (introsError) throw introsError;
+  const roleRows = (roles ?? [])
+    .map((row: any) => {
+      const internalRole = Array.isArray(row.internal_role)
+        ? row.internal_role[0]
+        : row.internal_role;
+      return {
+        automaticSearchEnabled: internalRole?.is_company_first_search === true,
+        introSearchDate:
+          parseIntroSearchDays(internalRole?.intro_search_date) ??
+          DEFAULT_INTRO_SEARCH_DAYS,
+        introSearchTime:
+          parseIntroSearchHour(internalRole?.intro_search_time) ??
+          DEFAULT_INTRO_SEARCH_HOUR,
+        id: text(row.role_id, 100),
+        name: text(row.name, 300) || "이름 없는 Role",
+        request: text(internalRole?.request, 2_000) || null,
+        salary: roleSalary(row),
+      };
+    })
+    .sort(
+      (left: { id: string }, right: { id: string }) =>
+        roleIds.indexOf(left.id) - roleIds.indexOf(right.id)
+    );
+  if (roleRows.length === 0) {
+    throw new InternalApiError(404, "Requested Role not found");
+  }
+  const roleNameById = new Map<string, string>(
+    roleRows.map((role: { id: string; name: string }) => [role.id, role.name])
+  );
+  const candidates = (intros ?? []).map((row: any) => {
+    const presentation = record(row.presentation);
+    const role = Array.isArray(row.role) ? row.role[0] : row.role;
+    const roleId = text(row.role_id, 100);
+    return {
+      id: text(row.id, 100),
+      candidateRequestedReview: presentation.candidateRequestedReview === true,
+      headline: text(presentation.headline, 500) || null,
+      name: text(presentation.name, 300) || "이름 비공개",
+      profileUrl: candidateProfileUrl({
+        roleId,
+        talentId: text(row.talent_id, 100),
+        workspaceId,
+      }),
+      reason: text(row.selection_reason, 2_000),
+      roleId,
+      roleName: text(role?.name, 300) || roleNameById.get(roleId) || "Role",
+      summary: text(presentation.summary, 2_000) || null,
+      tldr: typeof presentation.tldr === "string" ? presentation.tldr.trim() || null : null,
+      harperNote: typeof presentation.harperNote === "string" ? presentation.harperNote.trim() || null : null,
+      talentId: text(row.talent_id, 100),
+    };
+  });
+  const workspace = Array.isArray(run.workspace)
+    ? run.workspace[0]
+    : run.workspace;
+  const companyName = text(workspace?.company_name, 300) || "현재 회사";
+  const primaryRoleId = roleRows[0]!.id;
+  const idempotencyKey = companyRequested
+    ? `company_matching_result:${runId}`
+    : `company_matching_capacity_notice:${runId}:${primaryRoleId}`;
+  const metadata: OrgAgentMessageMetadata = {
+    companyMatchingSearchResult: { idempotencyKey, runId },
+    source: companyRequested
+      ? "company_matching_search_result"
+      : "company_matching_capacity_notice",
+  };
+
+  const { data: existingMessage, error: existingMessageError } = await (
+    admin.from("company_messages" as any) as any
+  )
+    .select("id, content, model, metadata")
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", primaryRoleId)
+    .eq("role", "assistant")
+    .contains("metadata", { companyMatchingSearchResult: { runId } })
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (existingMessageError) throw existingMessageError;
+
+  const user = await workspaceUser({ admin, workspaceId });
+  const { data: storedConversation, error: conversationError } = await (
+    admin.from("company_conversations" as any) as any
+  )
+    .select(
+      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+    )
+    .eq("company_workspace_id", workspaceId)
+    .eq("role_id", primaryRoleId)
+    .maybeSingle();
+  if (conversationError) throw conversationError;
+  const conversation = storedConversation
+    ? (storedConversation as OrgAgentConversationRow)
+    : (
+        await ensureOrgRoleCreationConversation({
+          allowCompletedRole: true,
+          roleId: primaryRoleId,
+          user,
+          workspaceId,
+        })
+      ).conversation;
+  let message = text(existingMessage?.content, 12_000);
+  const candidateIds = candidates.map(
+    (candidate: { id: string }) => candidate.id
+  );
+  let messageParts: BackgroundResultPart[] | undefined = existingMessage
+    ?.metadata?.companyMatchingSearchResult?.parts
+    ? parseBackgroundResultParts(
+        { parts: existingMessage.metadata.companyMatchingSearchResult.parts },
+        candidateIds
+      )
+    : undefined;
+  let model = text(existingMessage?.model, 200) || null;
+  let companyMessageId = Number(existingMessage?.id) || null;
+  if (!message) {
+    const firstCompanyFirstResultDelivery =
+      run.status === "succeeded" &&
+      candidates.length > 0 &&
+      !(await hasPriorDeliveredCompanyFirstResult({ admin, workspaceId }));
+    const firstResultContext = buildCompanyMatchingResultContext({
+      candidates,
+      firstDelivery: firstCompanyFirstResultDelivery,
+      roles: roleRows,
+      runStatus: text(run.status, 40),
+      candidateOutreachPauses: readCandidateOutreachPauses(runResult),
+      requestedByCompany: companyRequested,
+    });
+    const scheduledSlot = text(run.scheduled_slot, 100);
+    const recentQuery = (admin.from("company_messages" as any) as any)
+      .select("id, role, content")
+      .eq("conversation_id", conversation.id)
+      .eq("message_type", "chat")
+      .eq("role", "user")
+      .order("id", { ascending: false })
+      .limit(1);
+    const { data: recentRows, error: recentError } = await (scheduledSlot
+      ? recentQuery.lte("created_at", scheduledSlot)
+      : recentQuery);
+    if (recentError) throw recentError;
+    const conversationMessages = (recentRows ?? [])
+      .toReversed()
+      .map((row: any) => ({
+        content: text(row.content, 4_000),
+        role: row.role === "user" ? ("user" as const) : ("assistant" as const),
+      }))
+      .filter((row: { content: string }) => Boolean(row.content));
+    const requestMessage = conversationMessages[0]?.content || "";
+    const generated = await generateOrgAgentBackgroundResultReply({
+      candidateTargets: candidates.map(
+        (candidate: { id: string; name: string; profileUrl: string }) => ({
+          id: candidate.id,
+          name: candidate.name,
+          profileUrl: candidate.profileUrl,
+        })
+      ),
+      companyName,
+      firstCompanyFirstResultDelivery,
+      requestedByCompany: companyRequested,
+      responseLocale: await getOrgWorkspaceLocale(workspaceId, admin),
+      resultText: firstResultContext,
+      roleId: primaryRoleId,
+      roleName: roleNameById.get(primaryRoleId) || "현재 채용",
+      surface: "chat",
+      userMessage:
+        requestMessage ||
+        `현재 채용의 매칭 확인 결과와 연락 제한을 알려주세요.`,
+    });
+    message = generated.reply;
+    messageParts = generated.parts;
+    if (messageParts)
+      metadata.companyMatchingSearchResult!.parts = messageParts;
+    model = text(generated.model, 200) || null;
+    const stored = await insertOrgAgentMessage({
+      admin,
+      content: message,
+      conversation,
+      messageType: "chat",
+      metadata,
+      model,
+      role: "assistant",
+      roleId: primaryRoleId,
+      userId: null,
+    });
+    companyMessageId = stored.id;
+  }
+
+  let slackStatus = text(existingNotice.slackStatus, 40) || "pending";
+  let slackMessageTs = text(existingNotice.slackMessageTs, 100) || null;
+  let slackPosts = record(
+    existingNotice.slackPosts
+  ) as SlackCandidatePostReceipts;
+  if (slackStatus !== "sent" && slackStatus !== "not_configured") {
+    const candidateCards = await loadSlackCandidateCards({
+      candidateIds: (intros ?? []).map((row: any) => row.id),
+      workspaceId,
+    });
+    const renderSlackText = (message: string) =>
+        renderSlackOrgLinks({
+          message: markdownToSlackMrkdwn(message),
+          publicSiteUrl: getOrgPublicSiteUrl(),
+          roleTargets: roleRows.map((role: { id: string }) => ({
+            roleId: role.id,
+          })),
+          talentTargets: candidates.map(
+            (candidate: { profileUrl: string; talentId: string }) => ({
+              profileUrl: candidate.profileUrl,
+              talentId: candidate.talentId,
+            })
+          ),
+          workspaceId,
+        });
+    const delivered = await sendSlackCandidateResult({
+      idempotencyKey,
+      parts: messageParts?.map((part) => ({
+        ...part,
+        text: renderSlackText(part.text),
+      })),
+      candidates: candidateCards,
+      locale: await getOrgWorkspaceLocale(workspaceId, admin),
+      messageMetadata: metadata,
+      receipts: slackPosts,
+      onReceipt: async (receipts) => {
+        slackPosts = receipts;
+        await args.onNotice({
+          ...existingNotice,
+          companyMessageId,
+          model,
+          slackPosts,
+          status: "sending",
+        });
+      },
+      recordConversationMessage: false,
+      roleId: primaryRoleId,
+      text: renderSlackText(message),
+      workspaceId,
+    });
+    slackStatus = delivered ? "sent" : "not_configured";
+    slackMessageTs =
+      Object.values(slackPosts)[0]?.slackMessageTs || slackMessageTs;
+  }
+
+  const notice = {
+    attemptCount: Math.max(1, Number(existingNotice.attemptCount ?? 1)),
+    companyMessageId,
+    deliveredAt: new Date().toISOString(),
+    model,
+    slackMessageTs,
+    slackPosts,
+    slackStatus,
+    status: slackStatus === "sent" ? "sent" : "not_configured",
+  };
+  return { message, notice };
+}
+
 export async function POST(req: NextRequest) {
   let admin: ReturnType<typeof getSupabaseAdmin> | null = null;
   let runId = "";
@@ -168,14 +469,15 @@ export async function POST(req: NextRequest) {
       admin.from("company_first_search_runs" as any) as any
     )
       .select(
-        "id, company_workspace_id, requested_role_ids, result, scheduled_slot, status, trigger_reason, workspace:company_workspace(company_name)"
+        "id, company_workspace_id, requested_role_ids, scheduled_role_ids, result, scheduled_slot, status, trigger_reason, workspace:company_workspace(company_name)"
       )
       .eq("id", runId)
       .maybeSingle();
     if (runError) throw runError;
     if (!run) throw new InternalApiError(404, "Company search run not found");
     if (
-      run.trigger_reason !== "company_requested" ||
+      (run.trigger_reason !== "company_requested" &&
+        !Array.isArray(record(run.result).candidateOutreachNoticeRoleIds)) ||
       !["succeeded", "skipped", "failed"].includes(text(run.status, 40))
     ) {
       throw new InternalApiError(
@@ -185,13 +487,32 @@ export async function POST(req: NextRequest) {
     }
 
     runResult = record(run.result);
-    const existingNotice = record(runResult.companyNotice);
+    const companyRequested = run.trigger_reason === "company_requested";
     const workspaceId = text(run.company_workspace_id, 100);
+    const pausedRoleIds = new Set(
+      readCandidateOutreachPauses(runResult).map((pause) => pause.roleId)
+    );
+    const runRoleIds = new Set([
+      ...(run.scheduled_role_ids ?? []),
+      ...(run.requested_role_ids ?? []),
+    ]);
     const roleIds = Array.from(
-      new Set(
-        (Array.isArray(run.requested_role_ids) ? run.requested_role_ids : [])
+      new Set<string>(
+        (companyRequested
+          ? Array.isArray(run.requested_role_ids)
+            ? run.requested_role_ids
+            : []
+          : Array.isArray(runResult.candidateOutreachNoticeRoleIds)
+            ? runResult.candidateOutreachNoticeRoleIds
+            : []
+        )
           .map((value: unknown) => text(value, 100))
-          .filter(Boolean)
+          .filter(
+            (id: string) =>
+              Boolean(id) &&
+              (companyRequested ||
+                (pausedRoleIds.has(id) && runRoleIds.has(id)))
+          )
       )
     );
     if (!workspaceId || roleIds.length === 0) {
@@ -201,236 +522,65 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [
-      { data: roles, error: rolesError },
-      { data: intros, error: introsError },
-    ] = await Promise.all([
-      (admin.from("company_roles" as any) as any)
-        .select(
-          "role_id, name, salary_range, salary_min, salary_max, salary_currency, salary_period, internal_role:company_internal_roles(is_company_first_search, intro_search_date, intro_search_time, request)"
+    // Scheduled capacity notices are scoped per Role so a channel that opted out
+    // of another Role cannot receive that Role's candidates or capacity facts.
+    const scopes = companyRequested
+      ? [roleIds]
+      : roleIds.map((roleId) => [roleId]);
+    const messages: string[] = [];
+    for (const [index, scope] of scopes.entries()) {
+      const current = record(runResult.companyNotice);
+      const scopedNotice = companyRequested
+        ? current
+        : record(record(current.roles)[scope[0]!]);
+      const persistNotice = async (
+        scoped: Record<string, any>,
+        complete = false
+      ) => {
+        const latest = record(runResult.companyNotice);
+        const roles = { ...record(latest.roles), [scope[0]!]: scoped };
+        const notice = companyRequested
+          ? scoped
+          : {
+              ...latest,
+              roles,
+              ...(complete ? { deliveredAt: new Date().toISOString() } : {}),
+              status:
+                !complete || index < scopes.length - 1
+                  ? "sending"
+                  : Object.values(roles).some(
+                        (value) => record(value).status === "sent"
+                      )
+                    ? "sent"
+                    : "not_configured",
+            };
+        runResult = { ...runResult, companyNotice: notice };
+        const { error } = await (
+          admin!.from("company_first_search_runs" as any) as any
         )
-        .eq("company_workspace_id", workspaceId)
-        .in("role_id", roleIds),
-      (admin.from("company_intro_candidates" as any) as any)
-        .select(
-          "id, role_id, talent_id, selection_reason, presentation, role:company_roles(name)"
-        )
-        .eq("company_workspace_id", workspaceId)
-        .eq("selection_run_id", runId),
-    ]);
-    if (rolesError) throw rolesError;
-    if (introsError) throw introsError;
-    const roleRows = (roles ?? [])
-      .map((row: any) => {
-        const internalRole = Array.isArray(row.internal_role)
-          ? row.internal_role[0]
-          : row.internal_role;
-        return {
-          automaticSearchEnabled:
-            internalRole?.is_company_first_search === true,
-          introSearchDate:
-            parseIntroSearchDays(internalRole?.intro_search_date) ??
-            DEFAULT_INTRO_SEARCH_DAYS,
-          introSearchTime:
-            parseIntroSearchHour(internalRole?.intro_search_time) ??
-            DEFAULT_INTRO_SEARCH_HOUR,
-          id: text(row.role_id, 100),
-          name: text(row.name, 300) || "이름 없는 Role",
-          request: text(internalRole?.request, 2_000) || null,
-          salary: roleSalary(row),
-        };
-      })
-      .sort(
-        (left: { id: string }, right: { id: string }) =>
-          roleIds.indexOf(left.id) - roleIds.indexOf(right.id)
-      );
-    if (roleRows.length === 0) {
-      throw new InternalApiError(404, "Requested Role not found");
-    }
-    const roleNameById = new Map<string, string>(
-      roleRows.map((role: { id: string; name: string }) => [role.id, role.name])
-    );
-    const candidates = (intros ?? []).map((row: any) => {
-      const presentation = record(row.presentation);
-      const role = Array.isArray(row.role) ? row.role[0] : row.role;
-      const roleId = text(row.role_id, 100);
-      return {
-        headline: text(presentation.headline, 500) || null,
-        name: text(presentation.name, 300) || "이름 비공개",
-        profileUrl: candidateProfileUrl({
-          roleId,
-          talentId: text(row.talent_id, 100),
-          workspaceId,
-        }),
-        reason: text(row.selection_reason, 2_000),
-        roleId,
-        roleName: text(role?.name, 300) || roleNameById.get(roleId) || "Role",
-        summary: text(presentation.summary, 2_000) || null,
-        talentId: text(row.talent_id, 100),
+          .update({ result: runResult, updated_at: new Date().toISOString() })
+          .eq("id", runId);
+        if (error) throw error;
       };
-    });
-    const workspace = Array.isArray(run.workspace)
-      ? run.workspace[0]
-      : run.workspace;
-    const companyName = text(workspace?.company_name, 300) || "현재 회사";
-    const primaryRoleId = roleRows[0]!.id;
-    const idempotencyKey = `company_matching_result:${runId}`;
-    const metadata = {
-      companyMatchingSearchResult: { idempotencyKey, runId },
-      source: "company_matching_search_result",
-    } satisfies OrgAgentMessageMetadata;
-
-    const { data: existingMessage, error: existingMessageError } = await (
-      admin.from("company_messages" as any) as any
-    )
-      .select("id, content, model")
-      .eq("company_workspace_id", workspaceId)
-      .eq("role_id", primaryRoleId)
-      .eq("role", "assistant")
-      .contains("metadata", { companyMatchingSearchResult: { runId } })
-      .order("id", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (existingMessageError) throw existingMessageError;
-
-    const user = await workspaceUser({ admin, workspaceId });
-    const { data: storedConversation, error: conversationError } = await (
-      admin.from("company_conversations" as any) as any
-    )
-      .select(
-        "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
-      )
-      .eq("company_workspace_id", workspaceId)
-      .eq("role_id", primaryRoleId)
-      .maybeSingle();
-    if (conversationError) throw conversationError;
-    const conversation = storedConversation
-      ? (storedConversation as OrgAgentConversationRow)
-      : (
-          await ensureOrgRoleCreationConversation({
-            allowCompletedRole: true,
-            roleId: primaryRoleId,
-            user,
-            workspaceId,
-          })
-        ).conversation;
-    let message = text(existingMessage?.content, 12_000);
-    let model = text(existingMessage?.model, 200) || null;
-    let companyMessageId = Number(existingMessage?.id) || null;
-    if (!message) {
-      const firstCompanyFirstResultDelivery =
-        run.status === "succeeded" &&
-        !(await hasPriorDeliveredCompanyFirstResult({ admin, workspaceId }));
-      const firstResultContext = buildCompanyMatchingResultContext({
-        candidates,
-        firstDelivery: firstCompanyFirstResultDelivery,
-        roles: roleRows,
-        runStatus: text(run.status, 40),
-      });
-      const scheduledSlot = text(run.scheduled_slot, 100);
-      const recentQuery = (admin.from("company_messages" as any) as any)
-        .select("id, role, content")
-        .eq("conversation_id", conversation.id)
-        .eq("message_type", "chat")
-        .eq("role", "user")
-        .order("id", { ascending: false })
-        .limit(1);
-      const { data: recentRows, error: recentError } = await (scheduledSlot
-        ? recentQuery.lte("created_at", scheduledSlot)
-        : recentQuery);
-      if (recentError) throw recentError;
-      const conversationMessages = (recentRows ?? [])
-        .toReversed()
-        .map((row: any) => ({
-          content: text(row.content, 4_000),
-          role:
-            row.role === "user" ? ("user" as const) : ("assistant" as const),
-        }))
-        .filter((row: { content: string }) => Boolean(row.content));
-      const requestMessage = conversationMessages[0]?.content || "";
-      const generated = await generateOrgAgentBackgroundResultReply({
-        companyName,
-        firstCompanyFirstResultDelivery,
-        responseLocale: await getOrgWorkspaceLocale(workspaceId, admin),
-        resultText: firstResultContext,
-        roleId: primaryRoleId,
-        roleName: roleNameById.get(primaryRoleId) || "현재 채용",
-        surface: "chat",
-        userMessage:
-          requestMessage ||
-          `이 채용에 관해 앞서 부탁한 확인 결과를 알려주세요.`,
-      });
-      message = generated.reply;
-      model = text(generated.model, 200) || null;
-      const stored = await insertOrgAgentMessage({
+      const delivered = await deliverRunNotice({
         admin,
-        content: message,
-        conversation,
-        messageType: "chat",
-        metadata,
-        model,
-        role: "assistant",
-        roleId: primaryRoleId,
-        userId: null,
+        run,
+        runId,
+        runResult,
+        roleIds: scope,
+        existingNotice: scopedNotice,
+        companyRequested,
+        onNotice: persistNotice,
       });
-      companyMessageId = stored.id;
+      messages.push(delivered.message);
+      await persistNotice(delivered.notice, true);
     }
-
-    let slackStatus = text(existingNotice.slackStatus, 40) || "pending";
-    let slackMessageTs = text(existingNotice.slackMessageTs, 100) || null;
-    if (slackStatus !== "sent" && slackStatus !== "not_configured") {
-      const receipts: Array<{ slackMessageTs: string }> = [];
-      const slackText = convertMarkdownLinksToSlackMrkdwn(
-        renderSlackOrgLinks({
-          message,
-          publicSiteUrl: getOrgPublicSiteUrl(),
-          roleTargets: roleRows.map((role: { id: string }) => ({
-            roleId: role.id,
-          })),
-          talentTargets: candidates.map(
-            (candidate: { profileUrl: string; talentId: string }) => ({
-              profileUrl: candidate.profileUrl,
-              talentId: candidate.talentId,
-            })
-          ),
-          workspaceId,
-        })
-      );
-      const delivered = await sendHarperWorkspaceSlackMessage({
-        idempotencyKey,
-        messageMetadata: metadata,
-        onPosted: (receipt) => receipts.push(receipt),
-        recordConversationMessage: false,
-        roleId: primaryRoleId,
-        text: slackText,
-        unfurlLinks: false,
-        unfurlMedia: false,
-        workspaceId,
-      });
-      slackStatus = delivered ? "sent" : "not_configured";
-      slackMessageTs = receipts[0]?.slackMessageTs || slackMessageTs;
-    }
-
-    const notice = {
-      attemptCount: Math.max(1, Number(existingNotice.attemptCount ?? 1)),
-      companyMessageId,
-      deliveredAt: new Date().toISOString(),
-      model,
-      slackMessageTs,
-      slackStatus,
-      status: slackStatus === "sent" ? "sent" : "not_configured",
-    };
-    const { error: updateError } = await (
-      admin.from("company_first_search_runs" as any) as any
-    )
-      .update({
-        result: { ...runResult, companyNotice: notice },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", runId);
-    if (updateError) throw updateError;
-
-    return NextResponse.json({ message, notice, ok: true });
+    return NextResponse.json({
+      message: messages.join("\n\n"),
+      messages,
+      notice: runResult.companyNotice,
+      ok: true,
+    });
   } catch (error) {
     if (admin && runId) {
       try {

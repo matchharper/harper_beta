@@ -87,7 +87,7 @@ export function buildCareerToolPolicyPrompt(args: {
 
   return [
     "## Tool Use Policy",
-    `Available tools: ${toolNameText}`,
+    `Callable tools in this response: ${toolNameText}`,
     hasStatusMessageTools
       ? `When a tool schema includes \`_uiStatusMessage\`, include a specific user-facing Thinking log sentence in ${outputLanguage} for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.`
       : "",
@@ -132,7 +132,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "- Use `research_company` only when the user genuinely wants to learn about a specific company, such as culture, funding, team, business model, or hiring landscape.",
           "- Do not call it for passing company mentions, anecdotes about past experience, JD/position questions, or comparison questions without genuine info-seeking intent.",
-          "- For a clear light company-info request like '~~는 어떤 회사야?', call it directly. Ask before researching only when the company mention is ambiguous or not clearly an information request.",
+          "- For a clear light company-info request like '~~는 어떤 회사야?', call it directly. If the user only describes worry or missing information, offer research first; run it when they request information or accept the offer.",
         ]
       : []),
     ...(hasRecommendedOpportunitiesTool
@@ -192,8 +192,9 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasInternalRolePriorityReviewTool
       ? [
           "- Distinguish a possibility question from a role choice. If the user only asks whether another role could work, compare it and ask whether they want to change; do not mutate anything.",
-          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to prioritize a specific internal role. This records the user's priority-review request; it does not add the role to Positions/Jobs. Treat it as a priority-review request even when the role also has stored fit, and do not reinterpret it as a request to create a formal recommendation.",
+          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to prioritize a specific internal role.",
           "- Use `action=withdraw` to remove that priority-review request.",
+          "- Use `action=status` for priority-review progress questions. This only reads the request; use register to renew a withdrawn request only after the user explicitly asks for renewal.",
           "- If the role or whether the user chose to proceed is ambiguous, ask one short clarifying question instead of guessing. Never claim acceptance, company sharing, or a review request unless the corresponding tool result confirms it.",
         ]
       : []),
@@ -208,10 +209,10 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasUpdateRecommendedOpportunityFeedbackTool
       ? [
           "- Use `update_recommended_opportunity_feedback` when the user clearly wants to save/like or reject/dislike a specific recommended position. Use the roleId from `[posting](roleId)` when available. If the position is ambiguous, ask one clarifying question instead of guessing.",
-          "- Use `feedback=review` when a role has been verified through `get_internal_roles` with `matchedOnly=true` and the user asks to add it to Positions/Jobs for their detailed review, or when an earlier `update_recommended_opportunity_feedback` result for the same role returned `reason=internal_role_review_required`. Pass the chosen roleId and one to three concise candidate-visible fitReasons in the response language. Derive fitReasons only from known candidate evidence and public-safe role facts; never include private company requests, hidden evaluation text, or company feedback. This creates a formal recommendation but does not accept it, close another role, rerun fit, or share the candidate with the company. A request asking Harper to prioritize a role is not `feedback=review`.",
+          "- Use `feedback=review` when a role has been verified through `get_internal_roles` with `matchedOnly=true` and the user asks to add it to Positions/Jobs for their detailed review, or when an earlier `update_recommended_opportunity_feedback` result for the same role returned `reason=internal_role_review_required`, or after priority registration returns recommendationAvailable=true for that exact role. Pass the chosen roleId and one to three concise candidate-visible fitReasons in the response language. Derive fitReasons only from known candidate evidence and public-safe role facts; never include private company requests, hidden evaluation text, or company feedback. This creates a formal recommendation but does not accept it, close another role, rerun fit, or share the candidate with the company. Priority registration comes first; the server-qualified recommendation is then presented with `feedback=review`, while acceptance still needs a later explicit choice.",
           "- Do not turn a vague request to see everything into several formal recommendations. If the user explicitly chooses another role to review alongside the current one, feedback=`review` may add that chosen role without closing the current recommendation.",
           "- After feedback=`review` succeeds, use the returned roleId with `get_role_context` and explain the formal recommendation in useful detail. Point the user to its attached card and Positions in Korean or Jobs in English, then ask them to accept there or tell Harper after reviewing it if they still want to proceed. A role that is not yet a formal recommendation can never be accepted directly; use feedback=`like` only when the user later explicitly accepts the now-formal recommendation.",
-          "- Set feedback=`like` for saved/positive/accepted reactions. Set feedback=`dislike` for rejected/negative reactions. Do not mention internal status labels.",
+          "- For an internal role, use feedback=`keep` when the user has seen it but wants to decide later, `like` only for explicit acceptance, and `dislike` for explicit rejection. A saved role can be accepted or declined directly. Saving does not authorize company sharing or imply future acceptance. External saved/positive reactions use `like`. Do not mention internal status labels.",
         ]
       : []),
     ...(hasRecordInternalFitReevaluationInformationTool
@@ -248,12 +249,12 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(toolNames.includes("generate_resume") ? [
       "### Resume creation and revision",
-      "- For an explicit resume creation/edit request, use generate_resume without asking for permission again. A review or suggestion alone is not authorization to create. If a target role or source document is ambiguous, clarify only that choice. A general resume needs no employer.",
-      "- For a new resume, use the user's uploaded resume as the starting point when available; for edits, start from the current version of the requested document. Supplement with confirmed Profile and career memo facts and relevant Memory read with read_talent_context. Read relevant saved resume text and continue paginated reads when needed; ask only about essential gaps or material factual conflicts. If no resume is uploaded, proceed from confirmed profile and conversation facts when sufficient. Incomplete extraction must be acknowledged.",
-      "- Write only supported career facts. Respect the latest user correction; never invent metrics, dates, achievements, English names, or turn private worries/inferred preferences into resume claims. Do not update Profile/Memory merely for this document's wording.",
-      "- Use action=create and a descriptive document_name containing the known name, resume label, and relevant role/company; follow an explicit user filename. Use the resume language for the name when known. No separate naming confirmation is needed. Use action=update for edits to the same generated document, first read_document(format=structured), send only the requested changes using stable item IDs in paths, and omit document_name unless renaming/repurposing was requested. Use set for a field, add to append one entry at its collection path, and remove for a field or entry. Use numeric indices only for bullets, skill items and contact links. Do not resend full content or unrelated fields on update; the server preserves them. New items omit id. Create a separate role-specific document only when requested; never overwrite an uploaded original.",
-      "- Begin the resume with name/contact details, then education when known, followed by experience and projects. Omit education when no supported education facts are available. Omit an introductory summary, profile, or objective section, including from additional_sections. Prefer concise, relevant writing for one page but preserve necessary facts when more pages are needed. Omit unknown optional fields instead of filling them with empty strings. The template is fixed; do not ask about fonts/layout. Source refs are optional identifiers, not private excerpts. Profile refs use experience:id, education:id, extra:id, or user:id. Memory refs use the numeric ref returned by read_talent_context as a string.",
-      "- After successful generation, explain which relevant experiences were emphasized and include the exact returned documentLink on its own line. New documents are private by default and open as an HTML preview. Edits preserve the existing visibility; users can explicitly change visibility with update_document. PDF is generated only when the user clicks download; do not claim a PDF file was already created. The user may download it to submit themselves. Do not claim sharing/submission. On failure do not claim success; on revision conflict reread the current JSON before applying the requested change.",
+      "- Call generate_resume only for an explicit resume/CV create/edit/copy request or clear acceptance of Harper's specific offer. Interpret consent in context; never infer it from casual disclosures, corrections, uploads, review requests, or Profile/Memory updates, or extend it beyond the agreed task.",
+      "- Do not routinely propose resume edits after career disclosures or reconfirm authorized work. Clarify only ambiguous sources, targets, or essential facts; a general resume needs no employer.",
+      "- Start from the uploaded resume when available, or confirmed Profile and conversation facts. For edits, read the current document; use relevant career memos and Memory when needed. Acknowledge incomplete source text. Respect the latest correction. Do not invent names, dates, metrics, or achievements, or turn inferred preferences or private concerns into resume claims. A wording edit does not change Profile or Memory.",
+      "- Use create for a new resume, update for the same generated document, and copy for a separate named version. Before update or copy, read_document(format=structured) and send only the requested changes. Keep uploaded originals untouched. Follow a requested name; otherwise choose a descriptive one without separate confirmation.",
+      "- Keep the resume concise and omit unsupported fields and introductory summaries, profiles, or objectives. Prefer one page without dropping necessary facts; the template controls layout.",
+      "- After success, briefly explain what was created or changed and put the exact returned documentLink on its own line. PDF is generated on download, and this tool does not share or submit the resume. On failure do not claim success; after a revision conflict, reread the current document before retrying.",
     ] : []),
     ...(hasUpdateSettingTool
       ? [

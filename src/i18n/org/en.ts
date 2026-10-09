@@ -1,6 +1,8 @@
 import type { OrgMessageKey } from "./ko";
 
 export const en: Record<OrgMessageKey, string> = {
+  "OrgRoleTalentBoard.harperEmailSent": "Harper has also emailed this role to the candidate as a recommendation.",
+  "OrgRoleTalentBoard.harperCardAvailable": "This role is also available in the candidate’s recommendations.",
   "TalentDetailSimpleView.feed.actorFallback": "Team member",
   "TalentDetailSimpleView.feed.body": "Body",
   "TalentDetailSimpleView.feed.cancel": "Cancel",
@@ -28,7 +30,7 @@ export const en: Record<OrgMessageKey, string> = {
   "OrgRoleTalentBoard.recommendationPaused": "Recommendations paused",
   "OrgRoleTalentBoard.recommendationEnded": "Recommendations ended",
   "OrgRoleTalentBoard.recommendationActiveDescription":
-    "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role and Harper completes a final review, we recommend them in Ready to connect.",
+    "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role, Harper prepares their introduction and recommends them in Ready to connect.",
   "OrgRoleTalentBoard.recommendationPausedDescription":
     "New candidate recommendations are paused with this role. They'll resume when the role is active again.",
   "OrgRoleTalentBoard.recommendationEndedDescription":
@@ -45,6 +47,12 @@ export const en: Record<OrgMessageKey, string> = {
     "{members} members · {invites} pending invite",
   "composed.memberAndInviteCountOtherOther":
     "{members} members · {invites} pending invites",
+  "announcement.welcome.title": "Welcome.",
+  "announcement.welcome.action": "Create a position",
+  "announcement.welcome.description": "Harper is talking with talented candidates to understand what they’re looking for, and will connect you with the right people.",
+  "announcement.close": "Close notice",
+  "dev.announcement.preview": "Show welcome notice",
+  "dev.announcement.close": "Close notice",
   "dev.palette.title": "Color preview",
   "dev.palette.current": "1. Current",
   "dev.palette.soft": "2. Less warm",
@@ -243,15 +251,15 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.pricing-overview.question":
     "How much does Harper cost? Is there a monthly subscription or hiring fee?",
   "faq.pricing-overview.answer":
-    "There is no monthly subscription or base usage fee. Costs apply only when a hire is made through Harper; specific terms and amounts are provided on a company-by-company basis. If you need confirmation before hiring, leave your company name in Contact us under the profile menu.",
+    "Free includes unlimited Roles and 10 monthly credits shared across all Roles. Your shared credits remain separate when you add paid slots. Each paid slot gives its assigned Role paid features and 50 monthly credits. A Role uses its own slot credits first, then shared credits; it cannot use another slot’s credits. Free and standard paid Slot subscriptions have no hiring success fee. Enterprise is available by request with separately agreed pricing. Check /pricing for public prices, Organization → Slots for shared credits and assignments, and Billing for your subscription and invoices. Existing agreements remain in place until explicitly changed.",
   "faq.pricing-subscription.question":
     "Is there a monthly subscription or usage fee? Is the service free?",
   "faq.pricing-subscription.answer":
-    "There is no monthly subscription or base usage fee. However, costs can occur when a hire is completed through Harper, so the service is not free in all cases. Applicable terms and amounts are communicated individually to each company.",
+    "You can start on Free or subscribe to paid slots with monthly or annual billing. You can manage and cancel slots individually; annual billing pays for a year upfront. Current prices are on /pricing, shared credits and assignments are in Organization → Slots, and your subscription is in Billing. Ask the Harper team about Enterprise or an existing separate agreement.",
   "faq.pricing-success-fee.question":
     "If a hire is made, how much does it cost? Is there a set fee rate?",
   "faq.pricing-success-fee.answer":
-    "You only incur a cost if a hire is completed through Harper. We do not publish a single common fee rate or a fixed price; specific terms and amounts are provided to each company separately. If you need to confirm fees before hiring and haven’t received details yet, go to the Profile menu and use the Contact option, leaving your company name and request.",
+    "Free and standard paid Slot subscriptions have no hiring success fee. Enterprise is available by request with separately agreed pricing that may include a success fee. Existing separate agreements keep their agreed terms. Contact the Harper team with your company name to confirm the terms and amounts that apply to you.",
   "faq.recommendation-timing.question":
     "I registered a role—why aren’t candidate recommendations arriving immediately?",
   "faq.recommendation-timing.answer":
@@ -1193,6 +1201,8 @@ export const en: Record<OrgMessageKey, string> = {
   "onboarding.OrgOnboardingPage.c4d1e087": "Reload",
   "onboarding.OrgOnboardingPage.c7e72135":
     "Reading company story and consolidating with existing info…",
+  "onboarding.OrgOnboardingPage.companyResultUnconfirmed":
+    "We couldn't confirm whether your company information was saved. Try again shortly to check the same request.",
   "onboarding.OrgOnboardingPage.c88b931d": "Chat with Harper",
   "onboarding.OrgOnboardingPage.c9aeaf34": "Try this opener",
   "onboarding.OrgOnboardingPage.d14c40ea": "Get started",
@@ -1359,6 +1369,16 @@ export const en: Record<OrgMessageKey, string> = {
   "role.overview.OrgRoleSettingsContent.promotionDescription":
     "Harper may share this role on LinkedIn and other public channels to find more suitable candidates.",
   "role.overview.OrgRoleSettingsContent.promotionExample": "Example",
+  "role.overview.OrgRoleSettingsContent.anonymityTitle": "Company name visibility",
+  "role.overview.OrgRoleSettingsContent.anonymityDescription":
+    "When on, the Harper job is hidden until its public wording is reviewed. Existing LinkedIn posts do not change automatically; edit or close them first.",
+  "role.overview.OrgRoleSettingsContent.anonymousState": "Company hidden",
+  "role.overview.OrgRoleSettingsContent.namedState": "Company shown",
+  "role.overview.OrgRoleSettingsContent.anonymousCompanyExample": "Confidential company",
+  "role.overview.OrgRoleSettingsContent.anonymitySaved":
+    "Company name visibility saved.",
+  "role.overview.OrgRoleSettingsContent.anonymitySaveError":
+    "Couldn't save company name visibility. Try again.",
   "role.overview.OrgRoleSettingsContent.linkedinJob": "LinkedIn job post",
   "role.overview.OrgRoleSettingsContent.harperJob": "Apply",
   "role.overview.OrgRoleSettingsContent.promotionSaved":

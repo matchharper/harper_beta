@@ -56,14 +56,15 @@ export function isCareerHistoryOpportunityExpired(
 export function getOpportunityPostingStatus(
   item: CareerHistoryOpportunity,
   locale: Locale = "ko",
-  tArg?: CareerTLike
+  tArg?: CareerTLike,
+  isShort: boolean = false
 ): OpportunityPostingStatus | null {
   const t: CareerTLike = tArg ?? fallbackT;
 
   if (isCareerHistoryOpportunityExpired(item)) {
     return {
       isExpired: true,
-      label: t("career.history.posting.closed", "지난 포지션."),
+      label: t("career.history.posting.closed", "지난 포지션"),
     };
   }
 
@@ -72,8 +73,12 @@ export function getOpportunityPostingStatus(
 
   return {
     isExpired: false,
-    label: t("career.history.posting.posted_ago", "{postedAgo}에 게시됨", {
-      values: { postedAgo },
-    }),
+    label: t(
+      "career.history.posting.posted_ago",
+      isShort ? "{postedAgo}" : "{postedAgo}에 게시됨",
+      {
+        values: { postedAgo },
+      }
+    ),
   };
 }

@@ -6,6 +6,39 @@ import { resolveCandidateContactLifecycleAction } from "../../src/lib/org/agent/
 
 export const evaluationSha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 
+/** Read-only table fixtures; production readers/executors still own all projections. */
+export function createEvaluationReadAdmin(tables: Record<string, Array<Record<string, any>>>) {
+  return { from(table: string) {
+    if (!Object.hasOwn(tables, table)) throw Error(`Missing frozen read table: ${table}`);
+    let rows = structuredClone(tables[table]);
+    const orders: Array<{ key: string; ascending: boolean }> = [];
+    let range: [number, number] | null = null;
+    let single = false;
+    const query: any = {
+      select() { return query; },
+      eq(key: string, value: unknown) { rows = rows.filter(row => row[key] === value); return query; },
+      is(key: string, value: unknown) { rows = rows.filter(row => row[key] === value); return query; },
+      in(key: string, values: unknown[]) { rows = rows.filter(row => values.includes(row[key])); return query; },
+      order(key: string, options: { ascending: boolean }) { orders.push({ key, ...options }); return query; },
+      range(start: number, end: number) { range = [start, end]; return query; },
+      maybeSingle() { single = true; return query; },
+      then(resolve: (value: unknown) => unknown) {
+        rows.sort((a, b) => {
+          for (const { key, ascending } of orders) {
+            const compared = a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0;
+            if (compared) return ascending ? compared : -compared;
+          }
+          return 0;
+        });
+        const page = range ? rows.slice(range[0], range[1] + 1) : rows;
+        if (single && page.length > 1) throw Error("Ambiguous frozen single-row result");
+        return Promise.resolve(resolve({ data: single ? page[0] ?? null : page, error: null }));
+      },
+    };
+    return query;
+  } };
+}
+
 /** Execution completeness only. A completed run still needs semantic review. */
 export function evaluationExecutionComplete(results: Array<{ error: unknown; turns: number; expectedTurns: number }>): boolean {
   return results.length > 0 && results.every(result => !result.error && result.expectedTurns > 0 && result.turns === result.expectedTurns);

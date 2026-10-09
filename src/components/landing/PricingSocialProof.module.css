@@ -1,0 +1,43 @@
+.viewport {
+  overflow: hidden;
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 4%,
+    #000 96%,
+    transparent
+  );
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  animation: pricing-talent-marquee 96s linear infinite;
+}
+
+.viewport:hover .track,
+.viewport:focus-within .track,
+.track[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+@keyframes pricing-talent-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewport {
+    overflow-x: auto;
+    mask-image: none;
+  }
+
+  .track {
+    animation: none;
+  }
+
+  .track > [aria-hidden="true"] {
+    display: none;
+  }
+}

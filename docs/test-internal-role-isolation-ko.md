@@ -29,7 +29,7 @@
 - `testOnly: true`가 canonical 격리 표식이다.
 - `testFixture`는 어떤 테스트가 만든 role인지 추적하고 정확히 정리하기 위한 값이다.
 - `testTalentIds`는 회사 측 E2E에 직접 fixture recommendation이 꼭 필요할 때만 사용한다. 실제 talent ID를 넣으면 안 된다.
-- `workspace.is_internal`, `company_internal_roles.is_auto`, role 이름의 `E2E` 접두어, 고정 UUID, 테스트 종료 후 cleanup은 격리 표식이 아니다.
+- `workspace.is_internal`, role 이름의 `E2E` 접두어, 고정 UUID, 테스트 종료 후 cleanup은 격리 표식이 아니다.
 
 ## 다중 방어선
 

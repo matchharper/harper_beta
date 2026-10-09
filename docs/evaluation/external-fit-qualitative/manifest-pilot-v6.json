@@ -1,0 +1,55 @@
+{
+  "capturedAt": "2026-10-07T07:31:19.833082+00:00",
+  "cases": [
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C04",
+      "cohort": "Korea business planning and strategy",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "a93c39364a69f6068d6f45c8d1d751af2c964b92c41416a22ef1d032b420843e",
+      "roleCount": 30
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C05",
+      "cohort": "Korea PR and communications",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "06f9cd4908a48ffe8fa98210a154ac2eeb2849cc05c0fd2805ba778627516f37",
+      "roleCount": 30
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C06",
+      "cohort": "B2B medical device sales",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "3167c7c73a15aeb4c3d374e7f329749f309f67fa17b0b28e4f64767cf158a45e",
+      "roleCount": 30
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C07",
+      "cohort": "Marketing operations",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "acdd4930f803a535f748c07d13f0b03bf9849eab3546b700082c503fb818d8c1",
+      "roleCount": 17
+    },
+    {
+      "aSystemSha256": "710c0b33a07de0e386c1c09d7559d247b536b82df847921c093ee3abdc9a55df",
+      "caseId": "C08",
+      "cohort": "Robotics software engineering",
+      "contextVariant": "talent_contexts",
+      "inputSha256": "847781d5edde8d3d8c83ce3ad1e5eb5bcf27043c356b5cb61f219571c3d7cbcd",
+      "roleCount": 30
+    }
+  ],
+  "datasetVersion": "pilot-v6",
+  "fixtureSha256": "0cc6bd74123ba709e96837ba3889332c4c66f340d0fd36965f956c85c0579870",
+  "goldVersion": "review-rubric-v1; no human outcome labels",
+  "privacy": "Raw data in ignored owner-only private/ and runs/",
+  "sampling": "First up to 30 eligible live roles from current retrieval using latest completed saved search plan; use all when fewer available; original order fixed.",
+  "source": {
+    "dirtyDiffSha256": "4ab877882b8d681586aa23753427e16ab4df36f66c98fc62d1d68e7a1cfe846e",
+    "revision": "773f1e37aa355799c9d30e53d1f1ddfc8325a4b5",
+    "runnerSha256": "c49bd78e181dfe9fa8614d0db4e6381e193bf41c8ead50703a1d8c407ce68091"
+  }
+}

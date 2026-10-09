@@ -97,6 +97,16 @@ Role의 최초 작성과 후속 편집은 구분한다. 후속 수정은 영향�
 조용히 다른 모델로 바꿔 평가를 통과시키지 않는다. 상세 분석을 수행하는 별도 기존 업무 모델과 사용자와
 대화하는 주 모델은 구분해 기록한다. 주 대화 모델은 calibration 뒤에도 임의 전환하지 않는다.
 
+2026-10-09 온보딩 Pitch 입력 화면은 사용자가 요청한 OpenRouter
+`anthropic/claude-haiku-5.5`, reasoning `high`를 명시적으로 사용한다. 일반 웹 채팅과 Slack의
+기본 모델은 유지한다. 별도 extractor 없이 같은 company-side LLM과 공통 read/update executor를
+사용하며, 이 입력 화면에서 필요한 `company_details`와 `company_role_edit`를 첫 completion부터
+제공한다. 초기 정보/기능 제공은 trusted caller의 선택일 뿐 실행 권한을 추가하지 않는다.
+Haiku의 sampling 옵션은 API 계약에 따라 생략하고 다른 모델로 조용히 fallback하지 않는다.
+검증 계약과 결과는 [온보딩 Pitch 평가](evaluation/company-onboarding-pitch/README.md)에 기록한다.
+
+온보딩 Pitch 입력은 후보자에게 회사를 어필할 강점과 근거다. `onboardingPrompt.ts`가 이 입력의 목적과 수정 범위를 제공하며, 같은 일반 read/update 도구로 기존 Pitch에 반영한다. 이 제출의 수정 범위는 Pitch이며 다른 회사 필드나 Role을 자동으로 채우는 요청으로 확대하지 않는다. 제품·성과·문화·혜택의 실제 조건을 보존하는지와 완료 답변을 [v2 평가](evaluation/company-onboarding-pitch/gold-v2.md)에서 실제 저장본과 함께 확인한다.
+
 한국어는 해요체 중심. `네~`, `넵`, `ㅎㅎ`도 문맥에 맞으면 자연스럽게 쓸 수 있다. 모든 답에 웃음·감탄을
 붙이라는 뜻이 아니다. 친근함 때문에 없는 관심도·발송·약속을 만들지 않는다. 사용자 예시는 사실/승인 계약이 아니다.
 웹의 응답 언어는 `/org`에서 선택한 `ko` 또는 `en`을 현재 요청으로 전달한다. 영어에서는 자연스러운

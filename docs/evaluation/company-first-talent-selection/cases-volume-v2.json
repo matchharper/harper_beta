@@ -1,0 +1,63 @@
+{
+  "datasetVersion": "volume-v2",
+  "provenance": "Synthetic structural-input correction frozen before the first volume-v2 model run. All volume-v1 candidate evidence, response counts and count expectations preserved. Explicit paid matching slot is added because current runtime treats the absent entitlement as unavailable. Codex review; independent human review pending.",
+  "sourceCutoff": "2026-10-08T00:00:00+00:00",
+  "role": {
+    "name": "Senior Backend Engineer",
+    "description": "Own a production B2B product backend and its reliability. An individual contributor with 5–8 years of experience, hands-on Python/PostgreSQL, measurable shipped outcomes, and production operations ownership.",
+    "request": "We need someone who independently designs, ships and operates product APIs. Candidates must have personally owned production backend work, not merely worked at a famous employer. Python and PostgreSQL are required. Senior IC scope; not an engineering management role.",
+    "salary": "Annual base salary KRW 100–130 million",
+    "location": "Seoul",
+    "work_mode": "hybrid, two office days per week",
+    "matching_slot_type": "paid"
+  },
+  "candidates": {
+    "strongCount": 22,
+    "strongProfile": "6 years as a backend IC. Personally designed and shipped the core customer billing API using Python and PostgreSQL, owned deployment and on-call, reduced p95 latency by 35%, and handled schema migrations with no customer downtime. No management duties.",
+    "strongBrief": [
+      "Wants a senior backend IC role with direct production ownership at a growing B2B product company.",
+      "Open to Seoul hybrid work with two office days. Annual base expectation KRW 110 million."
+    ],
+    "strongCandidateReason": "The senior IC scope, product ownership and growing B2B team match the stated next step; compensation is compatible.",
+    "strongCompanyReason": "Independent ownership of production Python/PostgreSQL APIs, deployment and operations at the requested senior IC level.",
+    "companyCount": 3,
+    "companyProfile": "4 years in backend engineering. Personally shipped and operated Python/PostgreSQL payment APIs. Owned release and on-call. Clear implementation ownership; scope of independent system design is not yet well established.",
+    "companyBrief": [
+      "Interested in a senior backend IC role in B2B products. Seoul hybrid is acceptable. Expects KRW 105 million base."
+    ],
+    "companyCandidateReason": "A worthwhile next step in backend product ownership with compatible compensation and work mode.",
+    "companyCompanyReason": "Relevant production Python/PostgreSQL work is clear, but the senior system-design scope needs company judgment before candidate outreach."
+  },
+  "funnel": {
+    "lookbackDays": 90,
+    "observationDays": 14,
+    "delivered": 100,
+    "mature": 100,
+    "accepted": 10,
+    "declined": 20,
+    "kept": 5,
+    "unanswered": 65,
+    "unknown": 0,
+    "awaitingUnder14Days": 0,
+    "awaiting14DaysOrMore": 0,
+    "unverifiedDelivery": 0
+  },
+  "scenarios": [
+    {
+      "id": "low-yield-empty-pipeline",
+      "pendingCount": 0,
+      "maxPending": 10,
+      "candidateMin": 10,
+      "candidateMax": 20,
+      "companyMax": 3
+    },
+    {
+      "id": "pending-capacity-full",
+      "pendingCount": 10,
+      "maxPending": 10,
+      "candidateMin": 0,
+      "candidateMax": 0,
+      "companyMax": 3
+    }
+  ]
+}

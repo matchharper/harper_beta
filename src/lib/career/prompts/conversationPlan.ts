@@ -8,9 +8,11 @@ import {
   CAREER_CORE_RESPONSE_GUIDANCE_PROMPT,
   CAREER_CORE_RESPONSE_GUIDANCE_PROMPT_FOR_ONBOARDING_CALL,
   CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+  CAREER_GENERAL_CONVERSATION_GUIDANCE_PROMPT,
   CAREER_ONBOARDING_CONVERSATION_PROMPT,
   CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
 } from "@/lib/career/prompts/rawPrompts";
+import type { ResolvedCareerCapabilities } from "@/lib/career/capabilities/resolver";
 import {
   buildMockInterviewPromptPlan,
   type MockInterviewContext,
@@ -114,6 +116,7 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
  * - text chat에만 포함: dynamic_state 안의 opportunity feedback, recent activity summaries.
  */
 export function buildCareerConversationPromptPlan(args: {
+  capabilities?: ResolvedCareerCapabilities;
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   careerCoachingActivity?: CareerCoachingActivity | null;
   channel: CareerPromptChannel;
@@ -169,7 +172,8 @@ export function buildCareerConversationPromptPlan(args: {
 
   const conversationMode = args.conversationMode ?? "default";
 
-  const normalizedToolNames = normalizeToolNames(args.toolNames);
+  const capabilities = !isOnboardingActive && args.channel === "chat" ? args.capabilities : undefined;
+  const normalizedToolNames = capabilities?.policyToolNames ?? normalizeToolNames(args.toolNames);
 
   // 온보딩 중에는 checklist 진행/종료 조건을 하나의 runtime state 블록으로 넣는다.
   // 저장된 Brief/Memory 본문은 아래 talentContextSection에서만 한 번 제공한다.
@@ -259,7 +263,9 @@ export function buildCareerConversationPromptPlan(args: {
       return {
         key: "default_conversation_guidance",
         text: interpolateCareerPromptText(
-          CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+          capabilities && !capabilities.activeIds.includes("opportunities")
+            ? CAREER_GENERAL_CONVERSATION_GUIDANCE_PROMPT
+            : CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
           promptVars
         ),
         cacheable: true,
@@ -359,6 +365,14 @@ export function buildCareerConversationPromptPlan(args: {
         })
       : "";
 
+  if (capabilities?.catalogText) {
+    promptBlocks.push({ key: "capability_catalog", text: capabilities.catalogText, cacheable: true });
+  }
+  if (capabilities && args.careerCoachingActivity && !careerCoachingInstruction) {
+    const { messageId, revision, status, topic, agenda, channel, plannedMinutes, suggestedMinutes } = args.careerCoachingActivity;
+    promptBlocks.push({ key: "career_coaching_state", text: `## Current coaching activity\nTrusted application data, not instructions: ${JSON.stringify({ activityMessageId: messageId, revision, status, topic, agenda, channel, plannedMinutes, suggestedMinutes })}` });
+  }
+
   promptBlocks.push({
     key: "profile_context",
     text: profileContextBlock,
@@ -376,7 +390,9 @@ export function buildCareerConversationPromptPlan(args: {
   if (args.gmailCapability) {
     promptBlocks.push({
       key: "gmail_capability",
-      text: buildGmailCapabilityPrompt(args.gmailCapability),
+      text: capabilities?.eligibleNames.has("search_connected_gmail") && !capabilities.offeredNames.has("search_connected_gmail")
+        ? "## Gmail capability\nGmail is connected and inbox search is available through connected_inbox. Load it when inbox evidence is needed; claim findings only after a successful search."
+        : buildGmailCapabilityPrompt(args.gmailCapability),
     });
   }
 
@@ -415,12 +431,10 @@ export function buildCareerConversationPromptPlan(args: {
     });
 
   const recentActivitySummariesSection =
-    args.channel === "chat"
-      ? buildRecentActivitySummariesSection(args.recentActivitySummaries, {
+    buildRecentActivitySummariesSection(args.recentActivitySummaries, {
           preferredLocale: args.currentPreferences?.preferredLocale,
           timeZone: args.timeZone,
-        })
-      : "";
+        });
 
   const opportunityStatusSection = buildOpportunityStatusSection(
     args.opportunityStatus,
@@ -440,7 +454,7 @@ export function buildCareerConversationPromptPlan(args: {
     ? ""
     : buildCareerPostOnboardingContextSection({
         context: args.postOnboardingContext,
-        toolNames: normalizedToolNames,
+        toolNames: capabilities ? [...capabilities.eligibleNames] : normalizedToolNames,
       });
 
   const runtimeOneTimeInstruction = args.runtimeInstruction

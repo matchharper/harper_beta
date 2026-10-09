@@ -71,6 +71,24 @@ test("cold turn starts with base tools; read/loader-only provider failure is not
   }), /provider unavailable/);
 });
 
+test("trusted capability preload exposes policy and tools in the first completion without loading unrelated tools", async () => {
+  let completions = 0;
+  const executed: string[] = [];
+  await runOrgAgentToolLoop({ ...fixture(), initialCapabilities: ["company_role_edit"] }, {
+    complete: async (args) => {
+      const names = args.tools!.map((tool) => tool.function.name);
+      assert.ok(names.includes("update_data"));
+      assert.ok(!names.includes("web_search"));
+      assert.ok(!names.includes("request_matching_search"));
+      assert.ok(String(args.messages[0].content).includes("<hiring_brief_authoring_contract>"));
+      return completions++ === 0 ? response([call("update", "update_data", {})]) : response([]);
+    },
+    executeTool: async (args) => { executed.push(args.name); return { status: "updated" }; },
+  });
+  assert.deepEqual(executed, ["update_data"]);
+  assert.equal(completions, 2);
+});
+
 test("a continued contact task has policy and schema in its first completion", async () => {
   const args = fixture();
   args.context.conversationMessages = [{ id: 0, role: "assistant", source: "harper", speaker: "Harper", content: "초안을 준비했어요", references: "", complete: true, toolNames: ["contact_talent"] }];
@@ -92,6 +110,30 @@ test("intro projection exposes only board facts and exact follow-up time, never 
   assert.equal(result.recentProgress[0].at, "2026-09-24T02:50:00Z");
   assert.ok(!JSON.stringify(result).includes("private@example.invalid"));
 });
+
+for (const emailSentAt of ["2026-10-06T01:15:00Z", null]) {
+  test(`candidate-first delivery facts survive the intro reader and LLM serializer: ${emailSentAt}`, async () => {
+    const { serializeOrgAgentToolResult } = await import("./promptFormat");
+    const result = buildCompanyIntroTalentRead([{
+      talentId: "talent", talent: { name: "Synthetic", headline: "개발", email: "private@example.invalid" },
+      roleId: "role", roleName: "Backend", stage: "company_intro",
+      companyIntro: { status: "ready", requestedAt: null, candidateSentAt: null,
+        harperRecommendation: { availableInAppAt: "2026-10-06T01:00:00Z", emailSentAt } },
+    }] as any, []);
+    const single = serializeOrgAgentToolResult("read_talent", result);
+    const batch = serializeOrgAgentToolResult("read_talent", { items: [result], requestedCount: 1, returnedCount: 1 });
+    for (const text of [single, batch]) {
+      assert.ok(text.includes("<harper_recommendations>"));
+      assert.ok(text.includes("2026년 10월 6일 10:00 KST"));
+      assert.ok(text.includes(emailSentAt ? "2026년 10월 6일 10:15 KST" : "조회 가능한 정보로 확인 불가"));
+      assert.ok(text.includes("후보자의 열람 여부와 관심 표현 여부는 제공되지 않아 알 수 없다"));
+      assert.ok(!text.includes("private@example.invalid"));
+      assert.ok(text.includes("회사 연락 이력: 이번 조회에 포함되지 않음"));
+      assert.ok(!text.includes("<company_contact_history>"));
+      assert.ok(!text.includes("<harper_shared_information>"));
+    }
+  });
+}
 
 test("provider errors and output exhaustion are machine failures, not successful empty answers", () => {
   assert.equal(companyCompletionTokenBudget(ORG_AGENT_GEMINI_FLASH_MODEL, 4000), 8192);

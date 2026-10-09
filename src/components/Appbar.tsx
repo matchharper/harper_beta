@@ -19,7 +19,7 @@ const Appbar = ({ back = true }: AppbarProps) => {
       <Image
         onClick={() => router.push("/")}
         className="w-[48px]"
-        src="/images/logotext.png"
+        src="/images/logotext.svg"
         alt="logo"
         width={28}
         height={28}

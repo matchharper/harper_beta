@@ -496,6 +496,8 @@ export type RelayableCompanyTalentConnection = {
     direction: "company_to_talent" | "talent_to_company";
     at: string;
     content: string;
+    // null is a verified no-document relay; undefined means not supplied.
+    documentId?: string | null;
   }>;
 };
 
@@ -563,7 +565,7 @@ export async function fetchRelayableCompanyTalentConnections(args: {
       args.admin
         .from("company_talent_relays")
         .select(
-          "id, recommendation_id, relay_content, created_at, deliveries:contact_queue(type,status,sent_at,updated_at)"
+          "id, recommendation_id, relay_content, document_id, created_at, deliveries:contact_queue(type,status,sent_at,updated_at)"
         )
         .in("recommendation_id", recommendationIds)
         .order("created_at", { ascending: false }),
@@ -773,6 +775,8 @@ export async function fetchRelayableCompanyTalentConnections(args: {
               direction: "talent_to_company" as const,
               at: contact.created_at,
               content: String(contact.relay_content ?? "").slice(0, 1200),
+              documentId: contact.document_id === null
+                ? null : normalizedText(contact.document_id, 120) || undefined,
             })
           ),
         ]
@@ -817,7 +821,13 @@ export function formatRelayableCompanyTalentConnections(
         `   최근 후보자→회사 relay: ${latestRelay}`,
         ...connection.recentContacts.map(
           (contact) =>
-            `   ${contact.at} ${contact.direction}: ${contact.content}`
+            `   ${contact.at} ${contact.direction}: ${contact.content}${
+              contact.direction === "talent_to_company" && contact.documentId !== undefined
+                ? contact.documentId
+                  ? ` (이 연락에 공유된 이력서 ID: ${contact.documentId})`
+                  : " (이 연락에 공유된 이력서 없음)"
+                : ""
+            }`
         ),
       ].join("\n");
     }),

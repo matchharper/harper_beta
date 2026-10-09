@@ -43,7 +43,7 @@ test("keeps language setting tool policy minimal", () => {
     toolNames: ["update_language_setting"],
   });
 
-  assert.match(prompt, /Available tools: update_language_setting/);
+  assert.match(prompt, /Callable tools in this response: update_language_setting/);
   assert.match(prompt, /Exceptions available.*update_language_setting/);
   assert.doesNotMatch(prompt, /_uiStatusMessage/);
   assert.doesNotMatch(prompt, /### update_language_setting/);

@@ -1,6 +1,6 @@
 # LinkedIn Jobs 수요 기반 GTM — Codex 운영 계약
 
-문서 기준: 2026-10-01. **DB 칼럼·트리거는 운영 DB에 적용되었고 웹 코드는 로컬 준비 상태다. 운영 자동화는 아직 켜지지 않았다.**
+문서 기준: 2026-10-07. **DB 칼럼·트리거는 운영 DB에 적용되었다. 이번 수동 실행에서 `/jobs` 공개 상세와 LinkedIn 게시 상태를 확인했으며, 웹 배포 revision과 예약 자동화 활성 상태는 재검증하지 않았다.**
 
 ## 목적과 정본
 
@@ -12,7 +12,8 @@ Scheduled task의 prompt에는 이 문서 경로와 실행 목표만 둔다. 매
 | --- | --- | --- |
 | Role 공개 허용·익명 여부 | `company_internal_roles.is_promote`, `is_anonymous` | DB. 기본값 `true`, `false` |
 | Role 채용 상태·테스트 격리 | `company_roles`와 `information.testOnly` | DB. 실행 직전 재확인 |
-| Harper 공고와 내용 | `official_jobs` | DB. `role_id`로 연결, slug는 공개 후 안정적으로 유지 |
+| Harper 공고와 내용 | `official_jobs` | DB. `role_id`로 연결, slug는 공개 후 안정적으로 유지하되 익명 전환으로 회사명이 드러나면 바꾼다 |
+| LinkedIn 입력 원고 | [게시 입력 패킷 양식](./linkedin-job-posting-packet-template-ko.md)으로 작성한 `harper_beta/.local/linkedin-jobs-gtm/posting-packets/<KST 실행일>-<행동>-<official_job_id>.md` | **브라우저를 열기 전에** 공고별 확정 입력값과 본문 전문을 저장. `.local/`은 Git 제외, 재시도에서는 같은 파일을 이어 쓴다 |
 | LinkedIn 실제 Open/Closed·슬롯 수·조회·Apply starters | 로그인된 Recruiter 화면 | 브라우저에서 확인한 시각과 수치를 Notion에 기록 |
 | 실행·판단·외부 작업 이력 | Notion `Data & Logs` | 행동마다 한 행. 후보자 개인정보·비공개 회사 사실은 기록하지 않음 |
 | 지속적으로 확인된 작성·운영 교훈 | [운영 학습](./linkedin-jobs-marketplace-learnings-ko.md) | 근거와 날짜를 붙여 수정. 일별 수치는 넣지 않음 |
@@ -30,20 +31,31 @@ Chris 등 다른 팀원 소유의 Closed Job을 다시 Open하고 싶다면 원�
 
 1. 새 공고·LinkedIn 홍보 대상은 `source_type=internal`, `status=active`, 미만료, `information.testOnly`가 아닌 Role 중 `is_promote=true`인 것만이다. `draft`, `paused`, `ended`, `deleted` Role에는 새 공고나 새 LinkedIn 게시를 하지 않는다. 기존 `paused` Role의 `/jobs` 공개 여부는 현행 의미를 유지한다. 기존 공고라도 `ended`/`deleted`/만료/테스트 Role 또는 `is_promote=false`이면 `/jobs` 목록·상세·사이트맵에서 즉시 제외한다.
 2. Role에 연결된 `official_jobs`가 하나라도 있으면 새 행을 만들기 전에 모든 변형을 비교한다. 실제로 사용할 공고가 모호하면 중복 생성하지 않고 `Works`에 조사 항목을 남긴다. LinkedIn Job ID를 `official_jobs.is_on_linkedin`만으로 추정하지 않는다.
-3. 익명 공개가 아니라면 `company_workspace.published_name`이 의도한 대외 이름인지 확인하고, 없으면 `company_name`과 공식 사이트·기존 대외 표기를 대조한다. `is_anonymous=true`이면 회사가 특정되지 않는 **검증 가능한** 설명형 이름과 slug를 쓰고, `source_company_name`을 포함한 모든 공개 가능한 `official_jobs` 필드에 실제 회사명·도메인·로고·식별 단서를 넣지 않는다. Role ID는 웹 응답에서 숨기지만 공개 DB 행 자체도 안전한 문구여야 한다. 기존 실명 공고를 익명으로 바꾸면 migration trigger가 Harper 공고를 먼저 비공개로 돌리므로 문구를 검토·수정한 뒤에만 다시 게시한다. 기존 LinkedIn 공고는 DB flag만으로 숨겨지지 않으므로 실명→익명 전환은 해당 LinkedIn 게시를 먼저 닫거나 수정해 공개 화면에서 실명이 사라졌는지 확인하고 진행한다. 이 작업을 다음 08:00 실행까지 미루지 않는다. LinkedIn의 `Company` 필드는 공개 회사 페이지와 연결될 수 있으므로 익명 Role에 실제 채용 회사 페이지를 선택하지 않는다. Harper가 채용 중개 주체로 표시될 수 있는지 해당 Recruiter 작성 화면·미리보기에서 확인하고, 허용되는 정확한 표기 방식이 불명확하면 LinkedIn 게시를 보류해 `Works`에 남긴다.
+3. 익명 공개가 아니라면 `company_workspace.company_name`을 공식 사이트·기존 대외 표기와 대조해 **실제 회사의 대외 이름**을 정한다. `published_name`은 설명형 별칭일 수 있으므로 실명 공개 Role의 제목에 자동 사용하지 않는다. `is_anonymous=true`이면 회사가 특정되지 않는 **검증 가능한** 설명형 이름과 slug를 쓰고, `source_company_name`을 포함한 모든 공개 가능한 `official_jobs` 필드에 실제 회사명·도메인·로고·식별 단서를 넣지 않는다. Role ID는 웹 응답에서 숨기지만 공개 DB 행 자체도 안전한 문구여야 한다. 기존 실명 공고를 익명으로 바꾸면 migration trigger가 Harper 공고를 먼저 비공개로 돌리므로 문구를 검토·수정한 뒤에만 다시 게시한다. 기존 LinkedIn 공고는 DB flag만으로 숨겨지지 않으므로 실명→익명 전환은 해당 LinkedIn 게시를 먼저 닫거나 수정해 공개 화면에서 실명이 사라졌는지 확인하고 진행한다. 이 작업을 다음 08:00 실행까지 미루지 않는다. LinkedIn의 `Company` 필드는 공개 회사 페이지와 연결될 수 있으므로 익명 Role에 실제 채용 회사 페이지를 선택하지 않는다. Harper가 채용 중개 주체로 표시될 수 있는지 해당 Recruiter 작성 화면·미리보기에서 확인하고, 허용되는 정확한 표기 방식이 불명확하면 LinkedIn 게시를 보류해 `Works`에 남긴다.
+   **LinkedIn 공고명은 `Role title at {company name}` 형태로 쓴다.** 여기서 company name은 해당 Role에 공개가 허용된 회사명이다. `is_anonymous=false`이면 실제 회사의 대외 이름을 쓰고, `is_anonymous=true`이면 실제 회사를 식별하지 않는 공개용 회사명을 쓴다. 익명 Role에 쓸 수 있는 공개용 회사명이 검증되지 않았으면 게시하지 않는다. LinkedIn 직함 입력·미리보기에서 실제 제목 전체가 보이는지 확인하고, 자동완성 직함만으로 제목을 줄이지 않는다.
 4. `company_workspace`의 공개 가능 회사 설명·pitch, `company_roles`의 회사·역할 설명, JD, 위치·근무 방식·보상, 공식 회사 사이트의 검증된 사실만 공고 근거로 쓴다. Hiring Brief/Request, 후보자 fit·평가·비공개 메모와 company-side 대화는 공개 JD의 사실 근거가 아니다. 장점은 구체적 근거가 있을 때만 말하고 채용 조건·혜택·투자 사실을 추정하지 않는다.
 5. `official_jobs`에는 회사 소개, 역할 범위, 필수·우대 조건, 위치·근무 방식·보상 등 해당 채용 공고에 필요한 내용을 쓴다. 회사가 제공한 면접 단계가 있다면 사실에 맞게 소개할 수 있다. **Harper의 내부 지원·공유·검토·연결 절차를 설명하는 `Process`, `How the Harper process works`, `Harper 지원 절차` 같은 섹션은 공고 본문에 넣지 않는다. Harper 팀원의 최종 확인 단계나 익명 회사명 공개 시점을 Harper의 소개 절차와 연결한 설명도 대외 공고에 언급하지 않는다.** 기존 공고의 이런 문구를 새 공고에 복제하지 않는다.
+   **LinkedIn Job description 본문에는 `자세한 역할 정보와 관심 표시는 Harper에서 확인하세요`, `Role details and interest form` 같은 Harper 이동 안내 문구나 `matchharper.com/jobs/...` URL을 넣지 않는다.** 지원 경로는 Recruiter의 `External application URL` 필드에만 설정한다. 새 게시·복사·문구 수정 전 미리보기와 저장 후 공개 본문에서 이 문구와 링크가 없는지 확인한다. 기존 공고에 있으면 제거한다.
 6. 회사·JD가 바뀐 기존 공고는 변경된 사실과 실제 공개 가능성을 비교한 뒤 필요한 부분만 고친다. 제목·위치·slug를 성급히 바꾸지 않는다. 공개 전후 `/jobs/{slug}` 렌더링, 목록, 링크, Apply 도착점과 익명성 검사를 한다.
+
+## LinkedIn 입력 패킷을 먼저 완성
+
+LinkedIn에서 새 Job을 작성·복사·수정하거나 Closed Job을 다시 게시하기로 결정하면, **Recruiter 작성 화면을 열기 전에 공고별 [입력 패킷](./linkedin-job-posting-packet-template-ko.md)을 완성해 로컬 문서로 저장한다.** Role과 `official_jobs`의 최신 값, 공개 URL, 익명 설정을 확인하고 Company, 최종 공고명, 표준 직함 선택 후보, 근무 조건, 보상 표시 여부, Project 이름, Profile 표시, 지원 방식·URL, Employer job ID, LinkedIn description **전문**, 타깃 기준의 의도까지 채운다. 선택하지 않을 선택 필드도 `비움`이라고 결정해 둔다. 본문은 Recruiter에서 즉흥적으로 쓰거나 기존 게시물의 금지 문구를 복사하지 않는다.
+
+패킷은 공개 가능 문구만 담고, 익명 Role의 실제 회사명·도메인·로고·식별 단서와 후보자 개인정보를 넣지 않는다. 한 실행에서 여러 Job을 다룬다면 **모든 게시·수정 대상의 패킷을 먼저 완성**한다. 기존 패킷은 출처의 `updated_at`·Role 상태·익명 설정과 비교해 재사용하거나 고친다. 내용이 비어 있거나 출처가 바뀌었으면 브라우저 입력 전에 해결한다. 이 파일은 편집 가능한 원고이며 LinkedIn의 실제 상태 정본은 아니다.
+
+브라우저 단계에서는 슬롯·Job 상태·Project Owner·지원 도착점 같은 UI 정본을 확인하고, 패킷의 값을 입력·저장·검증한다. UI가 예상과 달라 내용 판단이 필요하면 작성 화면에서 임의로 고치지 말고 패킷을 먼저 갱신한 뒤 이어서 입력한다. 초안 저장 후 `Jobs → Draft`의 실제 제목, 게시 후 `Job post`의 본문·Company·지원 URL·Open 상태를 패킷과 대조한다. 확인된 Job ID와 결과를 패킷에도 적고, 외부 행동은 별도로 Notion `Data & Logs`에 기록한다. 브라우저 조작이 막혀도 완성된 패킷은 다음 실행에서 이어 쓸 수 있다.
 
 ## 매일 08:00 KST 실행 순서
 
-1. **재조정:** DB의 eligible Role, 연결 공고, 현재 `is_on_linkedin` 표시와 Notion 마지막 기록을 읽는다. 로그인된 LinkedIn Recruiter의 `Open` 공고 전체와 `n of n job slots in use`를 브라우저로 읽고 URL의 Job ID를 매핑한다. 2026-09-30 조사에서는 실제 `21 of 21`에 비해 DB 표시가 처음에 23건이었고, Open 목록에 없는 두 행을 정정해 21건이 되었다. 건수가 맞아도 개별 공고 매핑은 별도로 검증한다. 표시값만 믿고 슬롯을 비우거나 기존 공고를 닫지 않는다. 매핑 불명·계정 미접속·슬롯 수 불명은 해당 LinkedIn 변경을 중단하고 조사 항목으로 남긴다.
+1. **브라우저 전 조사:** DB의 eligible Role, 연결 공고, 현재 `is_on_linkedin` 표시와 Notion 마지막 행동·성과 기록을 읽는다. 이 단계의 LinkedIn 상태는 지난 기록이므로 잠정 정보로 표시한다. 2026-09-30 조사에서는 실제 `21 of 21`에 비해 DB 표시가 처음에 23건이었고, Open 목록에 없는 두 행을 정정해 21건이 되었다. 건수 일치만으로 개별 Job 매핑을 검증했다고 보지 않는다.
 2. **Harper 공고 보강:** 없는 공고 생성과 바뀐 공고 수정을 처리한다. 각 저장 뒤 DB readback 및 공개 URL을 확인한다. 실제 생성·수정된 건만 Notion `Data & Logs`에 기록한다.
-3. **게시 대상 판단:** 홍보 가능한 모든 활성 Role에서 지금 LinkedIn에 올려야 할 Role을 판단한다. 아래 요소들을 종합해 현재 Open 공고를 유지·개선할 때와 새 공고를 게시·교체할 때 각각 어떤 인재 유입이 더 필요한지 살핀다. 그날은 아무 공고도 추가하지 않는 결론도 가능하다. 특정 요소 하나를 필수 우선순위나 할당량으로 삼지 않는다.
-4. **성과와 실행 판단:** LinkedIn의 최근 조회·지원 시작 변화, 게시·재게시일, Harper 유입 이후의 결과를 해석해 유지·문구 수정·게시·교체 중 목적에 가장 도움이 되는 행동을 선택한다. `is_promote=false`, Role의 `paused`·`ended`·`deleted`·만료·테스트 전환은 성과 판단과 무관하게 LinkedIn 공고를 닫아야 하는 hard gate다. `ended`·`deleted`·만료·테스트 전환 또는 `is_promote=false`이면 해당 Harper 공고도 기존 Ops 저장 경로로 `is_published=false` 처리해 검색 엔진 갱신을 요청한다. 웹 공개 조건은 이 후속 작업 전에도 숨김을 적용한다. `paused` Role의 기존 Harper 공고는 현행 공개 의미를 유지한다.
-5. **브라우저 실행:** LinkedIn 생성·수정·닫기는 로그인된 Recruiter의 브라우저 UI에서만 한다. Open·Close 전에는 위 **Project Owner 강제 조건**을 확인한다. 지원 링크는 해당 `/jobs/{slug}`로 연결하고 출처 식별용 UTM 또는 안정적인 job slug를 유지한다. Close 후 실제 Closed와 빈 슬롯을 확인하고, 새 게시 후 Job ID·Open 상태·지원 링크와 공개 미리보기를 확인한다. Recruiter에서는 같은 프로젝트에 공고를 여러 개 올려도 최신 공고만 구직자에게 보일 수 있으므로 프로젝트 연결과 공개 노출도 확인한다. 21/21 상태에서 교체하려면 새 공고 내용과 대상 URL을 먼저 준비한 뒤 기존 게시를 닫고 슬롯을 확인한다. 새 게시가 실패하면 종료된 Role이 아닌 한 기존 공고 복구 가능성을 확인하고 실패를 즉시 기록한다. CAPTCHA, 로그인, 권한, 화면 구조 변화는 추측 클릭으로 넘기지 않는다.
+3. **잠정 게시 대상 판단:** 홍보 가능한 모든 활성 Role에서 지금 LinkedIn에 올려야 할 Role을 판단한다. 아래 요소들을 종합해 현재 Open 공고를 유지·개선할 때와 새 공고를 게시·교체할 때 각각 어떤 인재 유입이 더 필요한지 살핀다. 그날은 아무 공고도 추가하지 않는 결론도 가능하다. 특정 요소 하나를 필수 우선순위나 할당량으로 삼지 않는다. 이전 LinkedIn 기록에 기대는 부분은 브라우저에서 다시 확인할 잠정 판단으로 둔다.
+4. **성과와 실행 초안:** 마지막으로 확인된 LinkedIn 조회·지원 시작 변화, 게시·재게시일, Harper 유입 이후의 결과를 해석해 유지·문구 수정·게시·교체의 초안을 만든다. `is_promote=false`, Role의 `paused`·`ended`·`deleted`·만료·테스트 전환은 성과 판단과 무관하게 LinkedIn 공고를 닫아야 하는 hard gate다. `ended`·`deleted`·만료·테스트 전환 또는 `is_promote=false`이면 해당 Harper 공고도 기존 Ops 저장 경로로 `is_published=false` 처리해 검색 엔진 갱신을 요청한다. 웹 공개 조건은 이 후속 작업 전에도 숨김을 적용한다. `paused` Role의 기존 Harper 공고는 현행 공개 의미를 유지한다.
+5. **입력 패킷 완성:** 게시·수정 가능성이 있는 대상 전부의 Company·제목·metadata·지원 URL·본문 전문을 위 양식의 로컬 문서에 확정한다. 출처 변경과 익명성을 검토하고, 공란은 의도적 `비움`인지 확인한다. 이 단계가 끝나기 전에는 Recruiter 브라우저 세션을 시작하지 않는다.
+6. **브라우저 확인·실행:** 로그인된 Recruiter의 `Open` 공고 전체와 `n of n job slots in use`를 읽고 URL의 Job ID를 매핑해 잠정 판단을 확정한다. DB 표시나 Notion의 옛 슬롯 수만 믿고 닫거나 게시하지 않는다. 매핑 불명·계정 미접속·슬롯 수 불명은 해당 변경을 중단하고 조사 항목으로 남긴다. 예상과 다른 상태 때문에 다른 Job을 게시해야 하면 **그 Job의 패킷을 브라우저 입력 전에 먼저 완성한다.** LinkedIn 생성·수정·닫기는 Recruiter UI에서만 한다. 게시 내용은 준비된 패킷에서 옮기고 UI에서는 라이브 상태와 입력 결과만 검증한다. Open·Close 전에는 위 **Project Owner 강제 조건**을 확인한다. 지원 링크는 공개 화면에서 검증한 해당 `/jobs/{slug}` 또는 `/jobs/{id}`로 연결한다. 익명 전환 때문에 기존 slug가 회사명을 드러내면 slug를 고치고 안정적인 공고 ID URL을 LinkedIn 지원 링크에 쓴다. 링크를 클릭한 뒤 상세 본문과 실제 관심 표시 경로까지 회사 식별자가 없는지 확인한다. Close 후 실제 Closed와 빈 슬롯을 확인하고, 새 게시 후 Job ID·Open 상태·지원 링크와 공개 미리보기를 확인한다. Recruiter에서는 같은 프로젝트에 공고를 여러 개 올려도 최신 공고만 구직자에게 보일 수 있으므로 프로젝트 연결과 공개 노출도 확인한다. 21/21 상태에서 교체하려면 모든 새 공고의 입력 패킷과 대상 URL을 먼저 준비한 뒤 기존 게시를 닫고 슬롯을 확인한다. 새 게시가 실패하면 종료된 Role이 아닌 한 기존 공고 복구 가능성을 확인하고 실패를 즉시 기록한다. CAPTCHA, 로그인, 권한, 화면 구조 변화는 추측 클릭으로 넘기지 않는다.
    한 번의 실행에서 Open과 Close는 합쳐 최대 6건으로 제한한다. 근거가 충분한 교체가 더 적으면 빈 한도를 채우기 위해 게시·종료하지 않는다.
-6. **기록·알림:** 검증된 외부 행동 직후 `official_jobs.is_on_linkedin`을 실제 UI 상태와 맞추고, Notion에 하나의 행동 행을 기록한다. 같은 실행 키·행동·공고 ID를 재시도에서 먼저 조회해 중복 기록과 중복 게시를 막는다. 변경이 생긴 실행만 Harper Scouter로 `C0B2TFPUS6P`에 그날의 공고·행동·짧은 이유·근거 수치·링크를 **한 메시지로** 요약한다. Slack 실패는 LinkedIn 행동을 되돌리는 이유가 아니며 다음 실행의 전달 재시도 대상으로 남긴다. 아무 변경이 없으면 조용히 끝낸다.
+7. **기록·알림:** 검증된 외부 행동 직후 `official_jobs.is_on_linkedin`을 실제 UI 상태와 맞추고, Notion에 하나의 행동 행을 기록한다. 같은 실행 키·행동·공고 ID를 재시도에서 먼저 조회해 중복 기록과 중복 게시를 막는다. 변경이 생긴 실행만 Harper Scouter로 `C0B2TFPUS6P`에 그날의 공고·행동·짧은 이유·근거 수치·링크를 **한 메시지로** 요약한다. Slack 실패는 LinkedIn 행동을 되돌리는 이유가 아니며 다음 실행의 전달 재시도 대상으로 남긴다. 아무 변경이 없으면 조용히 끝낸다.
 
 ## 슬롯 선택과 성과 판단
 
@@ -63,7 +75,7 @@ Harper 내부 지표는 기존 [Talent GTM Daily Slack Report](../talent-gtm-dai
 
 ## Notion과 Slack 계약
 
-`Data & Logs`는 한 공고의 매 행동 및 매일의 LinkedIn 성과 스냅샷을 보존한다. Hojin 소유 새 공고를 Draft로 저장하면 `linkedin_draft_created`, 실제 Open은 `linkedin_opened`, Close는 `linkedin_closed`로 **서로 다른 행**에 기록한다. `Action`, `Occurred at`, `Official job ID`, `Role ID`, `LinkedIn job ID`, 두 URL, `Reason`, `Evidence and metrics`, `Verification`, `Run key`, `Slack URL`을 해당될 때 채운다. 원본과 복제본의 Job ID·Project ID·Owner와 본문·지원 링크 대조 결과를 두 행에 남긴다. Snapshot은 누적 조회·Apply starters 및 게시·재게시 날짜를 각각의 열에 넣는다. `Name`은 `YYYY-MM-DD · 행동 · 공고명` 형태다. Notion `Works`는 미해결 매핑, 익명성 검토, UI 장애처럼 다음 실행이 이어받을 작업만 쓴다. 원본 후보자 프로필·연락처·비공개 회사 정보는 두 DB와 Slack에 쓰지 않는다.
+`Data & Logs`는 한 공고의 매 행동 및 매일의 LinkedIn 성과 스냅샷을 보존한다. **입력 패킷은 브라우저 입력 전 원고이며, Notion 행동 로그나 실제 게시 증거를 대신하지 않는다.** Hojin 소유 새 공고를 Draft로 저장하면 `linkedin_draft_created`, 실제 Open은 `linkedin_opened`, Close는 `linkedin_closed`로 **서로 다른 행**에 기록한다. `Action`, `Occurred at`, `Official job ID`, `Role ID`, `LinkedIn job ID`, 두 URL, `Reason`, `Evidence and metrics`, `Verification`, `Run key`, `Slack URL`을 해당될 때 채운다. 원본과 복제본의 Job ID·Project ID·Owner와 본문·지원 링크 대조 결과를 두 행에 남긴다. Snapshot은 누적 조회·Apply starters 및 게시·재게시 날짜를 각각의 열에 넣는다. `Name`은 `YYYY-MM-DD · 행동 · 공고명` 형태다. Notion `Works`는 미해결 매핑, 익명성 검토, UI 장애처럼 다음 실행이 이어받을 작업만 쓴다. 원본 후보자 프로필·연락처·비공개 회사 정보는 두 DB와 Slack에 쓰지 않는다.
 
 Slack 본문 예: `LinkedIn 공고 교체 · A 종료 → B 게시. B는 서울 디자인 Role 3건에 공통으로 필요한 인재 유입을 노리고, A는 7일 관측에서 가입 이후 적합 인재가 적었습니다. Recruiter 21/21, 두 Job ID와 Harper 링크 확인. [Notion 기록]`. 이 문장은 형식 예시일 뿐 실제 근거와 어조는 실행 시 Codex가 쓴다. 실제 게시·닫기 성공 전에는 성공형 알림을 보내지 않는다.
 

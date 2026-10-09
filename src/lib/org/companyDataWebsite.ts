@@ -41,6 +41,7 @@ export const WEBSITE_COMPANY_DATA_KEYS = [
   "role_request",
   "role_is_company_first_search",
   "role_is_promote",
+  "role_is_anonymous",
   "role_intro_search_date",
   "role_intro_search_time",
   "role_is_expired",
@@ -308,12 +309,13 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
       change.key === "role_request" ||
       change.key === "role_is_company_first_search" ||
       change.key === "role_is_promote" ||
+      change.key === "role_is_anonymous" ||
       change.key === "role_intro_search_date" ||
       change.key === "role_intro_search_time"
   );
   const internalResult = needsInternalRoles
     ? await (args.admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, is_company_first_search, is_promote, intro_search_date, intro_search_time")
+        .select("role_id, request, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -411,6 +413,7 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
       (change.key === "role_request" ||
         change.key === "role_is_company_first_search" ||
         change.key === "role_is_promote" ||
+        change.key === "role_is_anonymous" ||
         change.key === "role_intro_search_date" ||
         change.key === "role_intro_search_time") &&
       singleLine(role.source_type) === "internal" &&
@@ -430,6 +433,7 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
       role_external_jd_url: role.external_jd_url ?? null,
       role_is_company_first_search: internal?.is_company_first_search ?? null,
       role_is_promote: internal?.is_promote ?? null,
+      role_is_anonymous: internal?.is_anonymous ?? null,
       role_intro_search_date: internal?.intro_search_date ?? null,
       role_intro_search_time: internal?.intro_search_time ?? null,
       role_is_expired: role.is_expired ?? null,

@@ -1,9 +1,12 @@
+import { canUsePendingConnections } from "@/lib/org/billing/types";
+import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
+import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
+import { LockKeyhole } from "lucide-react";
 import {
   useOrgLocale,
   useOrgSourceT,
   useOrgT,
 } from "@/i18n/org/OrgLocaleProvider";
-import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
 import { ArrowRight, Info, LoaderCircle } from "lucide-react";
 import Image from "next/image";
@@ -112,7 +115,7 @@ function OrgRoleRecommendationStatus({
   const description = active
     ? t(
         "OrgRoleTalentBoard.recommendationActiveDescription",
-        "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하고 Harper가 최종 확인한 뒤 ‘연결 대기’에 추천해 드려요."
+        "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요."
       )
     : status === "paused"
       ? t(
@@ -437,6 +440,14 @@ export function OrgRoleTalentBoardCard({
 
         <TalentExperienceList item={item} />
 
+        {item.companyIntro?.status === "ready" && item.companyIntro.harperRecommendation ? (
+          <p className="mt-4 text-[13px] text-neutral-muted">
+            {item.companyIntro.harperRecommendation.emailSentAt
+              ? t("OrgRoleTalentBoard.harperEmailSent", "Harper가 후보자에게도 이 역할을 추천하는 메일을 보냈어요.")
+              : t("OrgRoleTalentBoard.harperCardAvailable", "후보자의 추천함에도 이 역할이 추가되어 있어요.")}
+          </p>
+        ) : null}
+
         {item.companyIntro ? (
           <p className="mt-4 text-[13px] text-neutral-muted">
             {sourceT(humanizeOrgCompanyIntroStatus(item.companyIntro))}
@@ -502,6 +513,12 @@ export function OrgRoleTalentBoard({
     requestCandidateReengagementBeforeStageChange,
   } = useOrgJobsCandidateActions();
   const { activeRole, selectTalent, workspaceId } = useOrgJobsNavigation();
+  const entitlements = useOrgEntitlements(workspaceId);
+  const pendingHidden = !canUsePendingConnections(
+    entitlements.data,
+    activeRole?.roleId
+  );
+  const pendingLocked = Boolean(entitlements.data) && pendingHidden;
   const {
     bootstrap,
     currentUser,
@@ -672,7 +689,16 @@ export function OrgRoleTalentBoard({
                       "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
                     )}
                   >
-                    {stageCounts.get(stage.id) ?? 0}
+                    {stage.id === "pending_connection" && pendingLocked ? (
+                      <LockKeyhole
+                        aria-label={
+                          locale === "ko" ? "유료 슬롯" : "Paid slot"
+                        }
+                        className="size-3"
+                      />
+                    ) : (
+                      (stageCounts.get(stage.id) ?? 0)
+                    )}
                   </span>
                 </span>
               ),
@@ -701,7 +727,29 @@ export function OrgRoleTalentBoard({
         )}
       >
         {selectedStage?.id === "accepted" ? <InternalOnlyHatch /> : null}
-        {items.map((item) => (
+        {selectedStageId === "pending_connection" && !entitlements.data && (
+          <div
+            className="col-span-full py-8 text-sm text-neutral-muted"
+            role="status"
+          >
+            {entitlements.isError ? (
+              <MuteButton onClick={() => void entitlements.refetch()}>
+                {locale === "ko" ? "이용 권한 다시 확인" : "Retry access check"}
+              </MuteButton>
+            ) : locale === "ko" ? (
+              "불러오는 중이에요."
+            ) : (
+              "Loading…"
+            )}
+          </div>
+        )}
+        {pendingLocked && selectedStageId === "pending_connection" ? (
+          <OrgPendingConnectionGate workspaceId={workspaceId} />
+        ) : null}
+        {(pendingHidden && selectedStageId === "pending_connection"
+          ? []
+          : items
+        ).map((item) => (
           <OrgRoleTalentBoardCard
             canManageCandidates={permissions.canManageCandidates}
             internalOpsAccess={internalOpsAccess}
@@ -731,7 +779,8 @@ export function OrgRoleTalentBoard({
             stages={board?.stages ?? []}
           />
         ))}
-        {items.length === 0 ? (
+        {items.length === 0 &&
+        !(pendingHidden && selectedStageId === "pending_connection") ? (
           <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted">
             {t(
               "OrgRoleTalentBoard.964b74fd",
@@ -787,7 +836,7 @@ export function OrgRoleTalentBoard({
             reengagementResolution: acceptRequest.reengagementResolution,
             scheduleInterview,
             title,
-          });
+          }, "inline");
           setAcceptRequest(null);
           return result;
         }}
@@ -810,7 +859,7 @@ export function OrgRoleTalentBoard({
         onClose={() => setStopItem(null)}
         onSubmit={async ({ note }) => {
           if (!stopItem) return;
-          await changeStage(stopItem, "process_stopped", { stopNote: note });
+          await changeStage(stopItem, "process_stopped", { stopNote: note }, "inline");
           setStopItem(null);
         }}
         open={Boolean(stopItem)}
@@ -828,32 +877,20 @@ export function OrgRoleTalentBoard({
         onClose={() => setCompanyIntroRequest(null)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!companyIntroRequest?.item.companyIntro) return;
-          try {
-            await requestCompanyIntro.mutateAsync({
-              companyAppeal,
-              introCandidateId: companyIntroRequest.item.companyIntro.id,
-              introRecipientEmails,
-              workspaceId,
-            });
-            setCompanyIntroRequest(null);
-            addToast({
-              message: t(
-                "OrgRoleTalentBoard.2e9b2805",
-                "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."
-              ),
-              variant: "success",
-            });
-          } catch (error) {
-            addToast({
-              message: localizedOrgErrorMessage(
-                error,
-                locale,
-                t("OrgRoleTalentBoard.7d2cc265", "제안을 처리하지 못했습니다.")
-              ),
-              variant: "error",
-            });
-            throw error;
-          }
+          await requestCompanyIntro.mutateAsync({
+            companyAppeal,
+            introCandidateId: companyIntroRequest.item.companyIntro.id,
+            introRecipientEmails,
+            workspaceId,
+          });
+          setCompanyIntroRequest(null);
+          addToast({
+            message: t(
+              "OrgRoleTalentBoard.2e9b2805",
+              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."
+            ),
+            variant: "success",
+          });
         }}
         open={Boolean(companyIntroRequest)}
         pending={requestCompanyIntro.isPending}

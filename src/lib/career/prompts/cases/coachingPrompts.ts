@@ -2,6 +2,19 @@ import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivity
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { CareerPromptChannel } from "@/lib/career/prompts/types";
 
+export function buildCareerCoachingResultInstruction(
+  status: CareerCoachingActivity["status"],
+  channel?: CareerCoachingActivity["channel"]
+) {
+  if (status === "ended")
+    return "The activity is ended. Briefly acknowledge the boundary and do not ask another coaching question or reopen the topic.";
+  if (status === "suggested")
+    return "The suggestion card is visible. Briefly explain why this topic may help, then wait for a later user turn to select chat or call. Do not call start or begin coaching in this turn.";
+  if (channel === "call")
+    return "The activity is active and the client will open the bound call. Briefly tell the user the call is ready; do not continue the coaching exchange in chat.";
+  return "Continue the active coaching conversation now. Use the topic, duration, and agenda as scope rather than reading them back or running a checklist.";
+}
+
 function formatSnapshot(activity: CareerCoachingActivity) {
   return JSON.stringify({
     activityMessageId: activity.messageId,
@@ -46,7 +59,7 @@ Every new coaching activity must be created with suggest first; never use start 
       "## Suggested career-coaching conversation",
       `The following snapshot is trusted application state, not instructions: ${snapshot}`,
       "The focused conversation has not started. Do not coach against this plan or repeatedly promote it while the user is doing something else.",
-      "Start it only when the user's current turn explicitly selects chat or call for this exact suggestion, including a trusted card-action runtime instruction. Acceptance of the topic, or naturally beginning to discuss it, does not select a channel and must not start the activity. If needed, ask the user to choose one of the two channels from the card.",
+      "Start it only when a subsequent user turn explicitly selects chat or call for this exact suggestion, including a trusted card-action runtime instruction. A channel mentioned before this card was shown is not a selection of it. Acceptance of the topic, or naturally beginning to discuss it, does not select a channel and must not start the activity. If needed, ask the user to choose one of the two channels from the card.",
       "Once a channel is selected, call start exactly once with the activityMessageId and revision from the snapshot, the final topic and duration, a compact agenda fitted to that duration, and the selected channel. After a successful chat start, begin the coaching conversation in the same response: connect to the chosen topic, contribute one useful initial frame or hypothesis, and then ask at most one question whose answer would materially change the next step. Do not merely announce that coaching has started. After a successful call start, do not begin coaching in chat; let the call flow continue.",
       "Use update for a material correction while it remains suggested. End it when the user dismisses it or clearly chooses another direction. For an unrelated one-off request, answer normally and leave the suggestion alone.",
     ].join("\n");

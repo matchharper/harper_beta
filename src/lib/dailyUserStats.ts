@@ -177,11 +177,6 @@ type InternalOpportunityRoleRow = Pick<
     | null;
 };
 
-type TestOnlyRoleRow = Pick<
-  Database["public"]["Tables"]["company_roles"]["Row"],
-  "information" | "role_id"
->;
-
 type TalentRoleActivityRow = Pick<
   Database["public"]["Tables"]["talent_progress"]["Row"],
   "created_at" | "kind" | "recommendation_id" | "role_id" | "talent_id"
@@ -603,32 +598,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 function getJsonString(value: unknown, key: string) {
   const raw = asRecord(value)[key];
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
-}
-
-export function buildDailyUserStatsTestExclusions(args: {
-  markerLogs: Array<Pick<LogRow, "user_id">>;
-  roles: TestOnlyRoleRow[];
-}) {
-  const roleIds = new Set<string>();
-  const talentIds = new Set<string>();
-
-  for (const log of args.markerLogs) addUserId(talentIds, log.user_id);
-
-  for (const role of args.roles) {
-    const information = asRecord(role.information);
-    if (information.testOnly !== true) continue;
-
-    const roleId = String(role.role_id ?? "").trim();
-    if (roleId) roleIds.add(roleId);
-
-    const testTalentIds = information.testTalentIds;
-    if (!Array.isArray(testTalentIds)) continue;
-    for (const talentId of testTalentIds) {
-      if (typeof talentId === "string") addUserId(talentIds, talentId);
-    }
-  }
-
-  return { roleIds, talentIds };
 }
 
 function getTalentRoleActivityRecommendation(row: TalentRoleActivityRow) {
@@ -1492,7 +1461,6 @@ async function buildUserStatsReport(args: {
   const [
     talentUsers,
     analyticsExcludedTalentLogs,
-    testOnlyRoleRows,
     signupAndSubmitLogs,
     referralInteractionLogs,
     activeTalentActivityLogs,
@@ -1539,14 +1507,6 @@ async function buildUserStatsReport(args: {
         .select("user_id,type,created_at")
         .eq("type", ANALYTICS_TEST_FIXTURE_TALENT_LOG_TYPE)
         .order("id", { ascending: true })
-        .range(from, to)
-    ),
-    fetchAllRows<TestOnlyRoleRow>((from, to) =>
-      supabaseServer
-        .from("company_roles")
-        .select("role_id,information")
-        .contains("information", { testOnly: true })
-        .order("role_id", { ascending: true })
         .range(from, to)
     ),
     fetchAllRows<LogRow>((from, to) =>
@@ -1899,11 +1859,10 @@ async function buildUserStatsReport(args: {
     ),
   ]);
 
-  const { roleIds: testOnlyRoleIds, talentIds: testFixtureTalentIds } =
-    buildDailyUserStatsTestExclusions({
-      markerLogs: analyticsExcludedTalentLogs,
-      roles: testOnlyRoleRows,
-    });
+  const testFixtureTalentIds = new Set<string>();
+  for (const log of analyticsExcludedTalentLogs) {
+    addUserId(testFixtureTalentIds, log.user_id);
+  }
   for (const user of talentUsers) {
     if (!testFixtureTalentIds.has(user.user_id)) continue;
     const email = normalizeEmail(user.email);
@@ -1923,11 +1882,8 @@ async function buildUserStatsReport(args: {
     return Boolean(normalized && includedUserIds.has(normalized));
   };
   const isIncludedRecommendation = (row: {
-    role_id: string | null | undefined;
     talent_id: string | null | undefined;
-  }) =>
-    isIncludedUserId(row.talent_id) &&
-    !testOnlyRoleIds.has(String(row.role_id ?? "").trim());
+  }) => isIncludedUserId(row.talent_id);
 
   const signupUserIds = new Set<string>();
   for (const user of includedTalentUsers) {
@@ -2198,11 +2154,7 @@ async function buildUserStatsReport(args: {
   }
 
   const includedActiveTalentActivityLogs = activeTalentActivityLogs.filter(
-    (log) => {
-      if (!isIncludedUserId(log.user_id)) return false;
-      const roleId = getJsonString(log.meta_data, "roleId");
-      return !roleId || !testOnlyRoleIds.has(roleId);
-    }
+    (log) => isIncludedUserId(log.user_id)
   );
 
   const loggedInUserIds = new Set<string>();

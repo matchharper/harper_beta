@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { readMatchingRunHistory } from "@/lib/companyFirstSearch/history";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
 import {
   fetchOrgAgentPipelineSnapshot,
@@ -32,6 +33,7 @@ import {
   formatPromptSection,
   formatPromptTable,
   serializeOrgAgentMoreData,
+  formatMatchingRunHistory,
 } from "@/lib/org/agent/promptFormat";
 import {
   enforceOrgAgentContextBudget,
@@ -51,6 +53,7 @@ import type {
   OrgAgentMention,
   OrgAgentMentionCandidate,
   OrgAgentReadAudience,
+  OrgAgentMoreDataKind,
 } from "@/lib/org/agent/types";
 import {
   assertOrgWorkspacePermission,
@@ -283,7 +286,7 @@ function formatRoles(
   };
 }
 
-function formatConversation(
+export function formatOrgAgentConversation(
   page: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>,
   slackThreadId: string | null
 ) {
@@ -519,6 +522,7 @@ export async function buildOrgAgentPromptContext(args: {
   beforeMessageId?: number | null;
   conversation: OrgAgentConversationRow;
   currentUserMessageId?: number | null;
+  initialDataKinds?: readonly OrgAgentMoreDataKind[];
   messageType?: string | null;
   readAudience?: OrgAgentReadAudience;
   scopeKey?: string | null;
@@ -558,6 +562,7 @@ export async function buildOrgAgentPromptContext(args: {
     contactSummary,
     pendingUpdate,
     calibrationsText,
+    matchingRuns,
   ] = await Promise.all([
     fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
     fetchOrgAgentWorkspaceAvailability({ admin: args.admin, workspace }),
@@ -630,6 +635,9 @@ export async function buildOrgAgentPromptContext(args: {
           workspaceId,
         }),
     }),
+    optionalContext({fallback:null,label:"matching_runs",
+      onError:()=>notes.push("matching run history unavailable; do not infer that no searches ran"),
+      task:()=>readMatchingRunHistory({admin:args.admin,workspaceId,limit:5})}),
   ]);
   const inProgressRoleCreationsText =
     scope.kind === "slack"
@@ -670,23 +678,28 @@ export async function buildOrgAgentPromptContext(args: {
   }
 
   let retainedMoreData: OrgAgentMoreDataResult | null = null;
-  if (currentUserMessageId) {
+  if (currentUserMessageId || args.initialDataKinds?.length) {
     try {
-      const activations = await fetchActiveOrgAgentRetainedDataActivations({
-        admin: args.admin,
-        conversationId: args.conversation.id,
-        currentUserMessageId,
-        scope,
-        scopeKey,
-      });
-      if (activations.length > 0) {
+      const activations = currentUserMessageId
+        ? await fetchActiveOrgAgentRetainedDataActivations({
+            admin: args.admin,
+            conversationId: args.conversation.id,
+            currentUserMessageId,
+            scope,
+            scopeKey,
+          })
+        : [];
+      if (activations.length > 0 || args.initialDataKinds?.length) {
         const companyDetailsActivation = activations.find(
           (activation) => activation.kind === "company_details"
         );
         retainedMoreData = await getOrgAgentMoreData({
           admin: args.admin,
           fullTextKeys: companyDetailsActivation?.fullTextKeys ?? [],
-          kinds: activations.map((activation) => activation.kind),
+          kinds: [...new Set([
+            ...activations.map((activation) => activation.kind),
+            ...(args.initialDataKinds ?? []),
+          ])],
           workspaceId,
         });
       }
@@ -727,8 +740,8 @@ export async function buildOrgAgentPromptContext(args: {
       workspaceRequestExists: Boolean(text(workspace.request)),
     }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
-    contextNotesText: notes.join("\n") || "-",
-    ...formatConversation(
+    contextNotesText: [...notes, ...(matchingRuns ? [formatMatchingRunHistory(matchingRuns)] : [])].join("\n\n") || "-",
+    ...formatOrgAgentConversation(
       messages,
       scope.kind === "slack" ? scope.slackThreadId : null
     ),

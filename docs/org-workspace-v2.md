@@ -33,6 +33,8 @@ hover tooltip과 접근성 label로 제공한다.
 | 새 역할 등록 | `/org/new` | 왼쪽 company-side LLM 채팅, 오른쪽 Role/Company/Setting/Calibration 상세 영역 |
 | Team | `/org/team` | 회사 정보, 초대, 멤버/권한 |
 | Settings | `/org/settings` | 회사 공용 Slack 연결, 개인 Google Calendar 연결, 알림 설정 |
+| Slots | `/org/slots` | 슬롯 목록·크레딧 사용 내역 |
+| Billing | `/org/billing` | Owner 전용 현재 플랜·결제 내역·서류 |
 | Help | `/org/help` | Harper 사용 안내, FAQ |
 
 기존 `/org?orgId=...` 초대 링크는 가입 호환성을 위해 유지하고, bootstrap 후
@@ -173,6 +175,10 @@ Claude Console과 xAI Console의 관리 화면에서 공통적으로 보이는 �
   `border-neutral-1000-a05` 구분선으로 만든다.
 - 반복 데이터는 카드 grid보다 table/list row를 우선한다. 행 전체 이동이
   가능하면 hover 배경만 추가한다.
+- `/org/slots`와 `/org/billing`은 사용자 요청에 따른 예외다. 왼쪽 Organization
+  메뉴에 Slots와 Owner 전용 Billing을 각각 두며 화면 내부 탭은 없다. Slots는 최대 3열의 테두리 카드와
+  마지막 점선 추가 카드, Billing은 현재 플랜 패널과 결제 내역 표를 사용한다.
+  카드 배경은 페이지와 같은 `bg-bg-default`이며 그림자는 두지 않는다.
 - 섹션 제목은 아이콘 박스 없이 텍스트로 시작한다. 아이콘은 navigation,
   실제 상태, 아이콘 없이는 의미가 불분명한 조작에만 쓴다. 텍스트로 의미가
   충분히 전달되는 버튼·목록 행·설명에는 아이콘을 덧붙이지 않는다.

@@ -41,6 +41,7 @@ type CareerMobileJobsViewProps = {
   onToggleOpportunity: (item: CareerHistoryOpportunity) => void;
   onPositive: (item: CareerHistoryOpportunity) => void;
   onNegative: (item: CareerHistoryOpportunity) => void;
+  onKeep: (item: CareerHistoryOpportunity) => void;
   loadingMore?: boolean;
   error?: string;
   hasMoreOpportunities?: boolean;
@@ -95,6 +96,7 @@ export default function CareerMobileJobsView({
   onToggleOpportunity,
   onPositive,
   onNegative,
+  onKeep,
   loadingMore = false,
   error,
   hasMoreOpportunities = false,
@@ -229,6 +231,7 @@ export default function CareerMobileJobsView({
                 loadingMore={loadingMore}
                 onLoadMore={onLoadMoreOpportunities}
                 onNegative={onNegative}
+                onKeep={onKeep}
                 onOpenCompanyInfo={onOpenCompanyInfo}
                 onOpenLink={onOpenLink}
                 onPositive={onPositive}
@@ -263,6 +266,10 @@ export default function CareerMobileJobsView({
                 onSavedStatusChange={(status) =>
                   onStatusChange?.(detailOpportunity, status)
                 }
+                onKeepDecision={(action) => {
+                  if (action === "accept") onPositive(detailOpportunity);
+                  else if (action === "decline") onNegative(detailOpportunity);
+                }}
                 onUpdateTalentMemo={onUpdateTalentMemo}
               />
             </div>

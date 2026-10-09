@@ -1,3 +1,4 @@
+import { billingErrorResponse } from "@/lib/org/billing/http";
 import { NextRequest, NextResponse } from "next/server";
 import { confirmRoleCreationChoice } from "@/lib/org/agent/roleCreationConfirmation";
 import type { OrgRoleCreationConfirmationBody } from "@/lib/org/agent/types";
@@ -8,6 +9,8 @@ import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 export const maxDuration = 180;
 
 function errorResponse(error: unknown) {
+  const billing = billingErrorResponse(error);
+  if (billing) return billing;
   if (error instanceof OrgHttpError) {
     return NextResponse.json(
       { error: error.message },
@@ -31,7 +34,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid decision" }, { status: 400 });
     }
     if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
-      return NextResponse.json({ error: "Invalid response locale" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid response locale" },
+        { status: 400 }
+      );
     }
     const result = await confirmRoleCreationChoice({
       actionId: body.actionId ?? "",

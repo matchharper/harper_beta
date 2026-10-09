@@ -1,0 +1,12 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v2",
+  "createdAt": "2026-10-09",
+  "provenance": "v1 inputs/gold retained unchanged; six additional fully synthetic challenge cases frozen before their first runs. No production data.",
+  "goldStatus": "Codex expected outcomes; independent human review pending. v1 coaching card-flow expectation mismatch remains recorded, not relabeled.",
+  "files": {
+    "cases-v2.json": "952b67c740db55ebb45d0bbc0b082778e974903bce004f67336264463c0dde73",
+    "gold-v2.json": "0bf8824eff050ab5a787c37c3c35d11dbd1338b86332db2deeba7f4a6fe8d9a8"
+  },
+  "caseCount": 18
+}

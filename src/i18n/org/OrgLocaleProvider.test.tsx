@@ -47,7 +47,7 @@ test("org language selection persists and takes precedence over browser language
     const t = useOrgT();
     return (
       <button onClick={() => setLocale("en")} type="button">
-        {locale}: {t("profile.language", "언어")}
+        {locale}: {t("profile.language", "표시 언어")}
       </button>
     );
   }
@@ -62,7 +62,7 @@ test("org language selection persists and takes precedence over browser language
       );
     });
     const button = dom.window.document.querySelector("button")!;
-    assert.equal(button.textContent, "ko: 언어");
+    assert.equal(button.textContent, "ko: 표시 언어");
     assert.equal(dom.window.document.documentElement.lang, "ko");
     await act(async () => button.click());
     assert.equal(button.textContent, "en: Language");

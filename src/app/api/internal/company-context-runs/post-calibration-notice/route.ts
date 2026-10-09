@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       admin.from("company_context_runs" as any) as any
     )
       .select(
-        "id, role_id, status, trigger_reason, result, role:company_roles!inner(company_workspace_id, information, is_expired, expires_at, source_type, status, internal_role:company_internal_roles!inner(is_auto))"
+        "id, role_id, status, trigger_reason, result, role:company_roles!inner(company_workspace_id, information, is_expired, expires_at, source_type, status)"
       )
       .eq("id", runId)
       .maybeSingle();
@@ -63,11 +63,8 @@ export async function POST(req: NextRequest) {
     const existingNotice = record(result.companyNotice);
     const idempotencyKey = `post_calibration_review:${calibrationId}`;
     const role = Array.isArray(run.role) ? run.role[0] : run.role;
-    const internalRole = Array.isArray(role?.internal_role)
-      ? role.internal_role[0]
-      : role?.internal_role;
     const workspaceId = text(role?.company_workspace_id, 100);
-    if (!calibrationId || !workspaceId || internalRole?.is_auto !== true) {
+    if (!calibrationId || !workspaceId) {
       return NextResponse.json(
         { error: "Run is missing its eligible Role or calibration scope" },
         { status: 409 }

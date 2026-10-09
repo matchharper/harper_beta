@@ -13,8 +13,21 @@ import {
 } from "../src/lib/ops/abTests";
 
 const ROOT = "docs/evaluation/career-voice-onboarding";
-const RAW = `${ROOT}/private/pilot-v1.json`;
-const AS_OF = "2026-09-28T01:17:29.323990Z";
+const VERSION = process.argv[3] === "v2" ? "v2" : "v1";
+const DATASET_VERSION = `pilot-${VERSION}`;
+const LABEL_REVISION =
+  VERSION === "v2" && process.argv[4] === "labels-v2" ? "labels-v2" : "v1";
+const RESULT_SUFFIX =
+  LABEL_REVISION === "labels-v2" ? "v2-labels-v2" : VERSION;
+const GOLD = `${ROOT}/gold-${RESULT_SUFFIX}.json`;
+const RAW = `${ROOT}/private/${DATASET_VERSION}.json`;
+const AS_OF =
+  VERSION === "v2"
+    ? "2026-10-06T07:00:00.000Z"
+    : "2026-09-28T01:17:29.323990Z";
+const WINDOW_START =
+  VERSION === "v2" ? "2026-09-06T07:00:00.000Z" : null;
+const USAGE_RAW = `${ROOT}/private/usage-${VERSION}.json`;
 const ms = (x: string) => Date.parse(x);
 const hash = (x: string) => createHash("sha256").update(x).digest("hex");
 const git = (...args: string[]) =>
@@ -26,11 +39,11 @@ async function privateWrite(path: string, value: unknown) {
     { mode: 0o600, flag: "wx" }
   );
 }
-async function capture() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL,
-    key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function readOnlyDb() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw Error("Supabase credentials unavailable");
-  const db = createClient(url, key, {
+  return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
       fetch: async (input, init) => {
@@ -40,6 +53,9 @@ async function capture() {
       },
     },
   });
+}
+async function capture() {
+  const db = readOnlyDb();
   async function rows(table: string, select: string, filter: (q: any) => any) {
     const all: any[] = [];
     for (let start = 0; ; start += 1000) {
@@ -61,7 +77,7 @@ async function capture() {
   ];
   const [choices, voice] = await Promise.all([
     rows("logs", "id,user_id,type,created_at", (q) =>
-      q
+      (WINDOW_START ? q.gte("created_at", WINDOW_START) : q)
         .in("type", [
           "career_click_onboarding_done_start_call",
           "career_click_onboarding_done_start_chat",
@@ -71,7 +87,7 @@ async function capture() {
         .order("id")
     ),
     rows("logs", "id,user_id,type,created_at,meta_data", (q) =>
-      q
+      (WINDOW_START ? q.gte("created_at", WINDOW_START) : q)
         .in("type", voiceTypes)
         .contains("meta_data", { experiment: CAREER_VOICE_MODEL_EXPERIMENT })
         .lte("created_at", AS_OF)
@@ -107,7 +123,7 @@ async function capture() {
     .sort((a, b) => hash(a.user_id).localeCompare(hash(b.user_id)))
     .map((x, i) => ({
       ...x,
-      caseId: `VO${String(i + 1).padStart(3, "0")}`,
+      caseId: `${VERSION === "v2" ? "VO2" : "VO"}${String(i + 1).padStart(3, "0")}`,
       assignedModel: assignCareerVoiceModel(x.user_id),
       mature: ms(AS_OF) - ms(x.created_at) >= 86400000,
     }));
@@ -170,7 +186,7 @@ async function capture() {
       })
     );
   const snapshot = {
-    datasetVersion: "pilot-v1",
+    datasetVersion: DATASET_VERSION,
     asOf: AS_OF,
     capturedAt: new Date().toISOString(),
     experimentStart,
@@ -324,8 +340,37 @@ function prepare(raw: any) {
 }
 async function packets() {
   const raw = JSON.parse(await readFile(RAW, "utf8"));
-  const cases = prepare(raw);
-  await mkdir(`${ROOT}/private/packets`, { recursive: true, mode: 0o700 });
+  let cases = prepare(raw);
+  let inheritedSourceSha256: string | null = null;
+  if (VERSION === "v2") {
+    const priorRawText = await readFile(`${ROOT}/private/pilot-v1.json`, "utf8");
+    const priorRaw = JSON.parse(priorRawText);
+    const priorPrepared = JSON.parse(
+      await readFile(`${ROOT}/private/prepared-v1.json`, "utf8")
+    );
+    const priorByUser = new Map<string, any>(
+      priorRaw.cohort.map((person: any) => [person.user_id, person])
+    );
+    const priorByCase = new Map<string, any>(
+      priorPrepared.map((person: any) => [person.caseId, person])
+    );
+    cases = cases.map((current: any, index: number) => {
+      const prior = priorByUser.get(raw.cohort[index].user_id);
+      if (!prior?.mature) return current;
+      const original = priorByCase.get(prior.caseId);
+      if (!original) throw Error(`Missing inherited case ${prior.caseId}`);
+      return {
+        ...original,
+        caseId: current.caseId,
+        mature: current.mature,
+        assignedModel: current.assignedModel,
+        observedModel: current.observedModel,
+      };
+    });
+    inheritedSourceSha256 = hash(priorRawText);
+  }
+  const packetDir = `${ROOT}/private/packets${VERSION === "v2" ? "-v2" : ""}`;
+  await mkdir(packetDir, { recursive: true, mode: 0o700 });
   for (const c of cases) {
     let text = `# ${c.caseId}\nMature24h: ${c.mature}; attempted: ${c.hasAttempt}; endRecord: ${c.hasEndLog}; explicitFailure: ${c.explicitFailure}\nUser turns: ${c.transcript.filter((m: any) => m.role === "user").length}; saved snapshots: ${c.writesBeforeCutoff}\n`;
     text += `\n## Existing evidence\n`;
@@ -357,17 +402,19 @@ async function packets() {
         )
         .join("\n") +
       "\n";
-    await privateWrite(`${ROOT}/private/packets/${c.caseId}.md`, text);
+    await privateWrite(`${packetDir}/${c.caseId}.md`, text);
   }
-  await privateWrite(`${ROOT}/private/prepared-v1.json`, cases);
+  await privateWrite(`${ROOT}/private/prepared-${VERSION}.json`, cases);
   const manifest = {
     task: "career-voice-onboarding",
-    datasetVersion: "pilot-v1",
+    datasetVersion: DATASET_VERSION,
+    windowStart: WINDOW_START,
     asOf: AS_OF,
     capturedAt: raw.capturedAt,
     sourceRevision: raw.sourceRevision,
     sourceDiffSha256: raw.sourceDiffSha256,
     snapshotSha256: hash(await readFile(RAW, "utf8")),
+    inheritedSourceSha256,
     rubricSha256: hash(await readFile(`${ROOT}/rubric-v1.md`, "utf8")),
     runnerSha256: hash(
       await readFile("scripts/evalCareerVoiceOnboarding.ts", "utf8")
@@ -382,7 +429,7 @@ async function packets() {
     models: ["gpt-realtime-2.1", "gpt-live-1"],
   };
   await writeFile(
-    `${ROOT}/manifest-v1.json`,
+    `${ROOT}/manifest-${VERSION}.json`,
     JSON.stringify(manifest, null, 2),
     { flag: "wx" }
   );
@@ -401,9 +448,9 @@ async function packets() {
 }
 async function summarize() {
   const cases = JSON.parse(
-    await readFile(`${ROOT}/private/prepared-v1.json`, "utf8")
+    await readFile(`${ROOT}/private/prepared-${VERSION}.json`, "utf8")
   );
-  const gold = JSON.parse(await readFile(`${ROOT}/gold-v1.json`, "utf8"));
+  const gold = JSON.parse(await readFile(GOLD, "utf8"));
   if (
     gold.cases.length !== cases.length ||
     new Set(gold.cases.map((x: any) => x.id)).size !== cases.length
@@ -457,10 +504,218 @@ async function summarize() {
     second: makeOpsAbTestRate(b.ready, b.n),
     secondVariantId: b.model,
   });
-  await writeFile(`${ROOT}/summary-v1.json`, JSON.stringify(result, null, 2), {
+  await writeFile(`${ROOT}/summary-${RESULT_SUFFIX}.json`, JSON.stringify(result, null, 2), {
     flag: "wx",
   });
   console.log(JSON.stringify(result, null, 2));
+}
+
+async function captureUsage() {
+  if (VERSION !== "v2") throw Error("Usage capture is registered for v2 only");
+  const raw = JSON.parse(await readFile(RAW, "utf8"));
+  const firstAttempts = new Map<string, any>();
+  for (const row of [...raw.voice]
+    .filter((x) => x.type === "career_voice_model_session_attempt")
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    if (!firstAttempts.has(row.user_id)) firstAttempts.set(row.user_id, row);
+  }
+  const eligible = new Map<string, { userId: string; startedAt: string }>();
+  for (const person of raw.cohort) {
+    const attempt = firstAttempts.get(person.user_id);
+    const sessionId = attempt?.meta_data?.callSessionId;
+    if (sessionId)
+      eligible.set(sessionId, {
+        userId: person.user_id,
+        startedAt: attempt.created_at,
+      });
+  }
+  const db = readOnlyDb();
+  const usageRows: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db
+      .from("llm_logs")
+      .select("id,created_at,source,model,estimated_cost_usd,cost_status,meta")
+      .in("source", ["career/realtime", "career/live"])
+      .gte("created_at", raw.experimentStart)
+      .lte("created_at", raw.asOf)
+      .order("id", { ascending: true })
+      .range(from, from + 999);
+    if (error) throw Error(`llm_logs: ${error.message}`);
+    for (const row of data ?? []) {
+      const match = eligible.get((row.meta as any)?.callSessionId);
+      if (
+        match &&
+        (row.meta as any)?.userId === match.userId &&
+        row.created_at >= match.startedAt
+      )
+        usageRows.push(row);
+    }
+    if ((data ?? []).length < 1000) break;
+  }
+  await privateWrite(USAGE_RAW, {
+    datasetVersion: DATASET_VERSION,
+    asOf: raw.asOf,
+    capturedAt: new Date().toISOString(),
+    pricingSources: [
+      "https://developers.openai.com/api/docs/models/gpt-live-1",
+      "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+    ],
+    rows: usageRows,
+  });
+  console.log(JSON.stringify({ firstSessionUsageRows: usageRows.length }));
+}
+
+function estimateSolDelegationCost(usage: any) {
+  const input = Number(usage?.inputTokens) || 0;
+  const output = Number(usage?.outputTokens) || 0;
+  const read = Number(usage?.cacheReadInputTokens) || 0;
+  const write = Number(usage?.cacheCreationInputTokens) || 0;
+  const standard = Math.max(
+    input -
+      (usage?.cacheReadInputTokensIncludedInInput ? read : 0) -
+      (usage?.cacheCreationInputTokensIncludedInInput ? write : 0),
+    0
+  );
+  const longContext = (Number(usage?.totalProcessedInputTokens) || 0) > 272000;
+  return (
+    (standard * (longContext ? 4 : 2) +
+      read * (longContext ? 0.2 : 0.1) +
+      write * (longContext ? 5 : 2.5) +
+      output * (longContext ? 15 : 10)) /
+    1_000_000
+  );
+}
+
+async function summarizeUsage() {
+  if (VERSION !== "v2") throw Error("Usage summary is registered for v2 only");
+  const raw = JSON.parse(await readFile(RAW, "utf8"));
+  const usage = JSON.parse(await readFile(USAGE_RAW, "utf8"));
+  const gold = JSON.parse(await readFile(GOLD, "utf8"));
+  const labels = new Map<string, string>(
+    gold.cases.map((c: any) => [c.id, c.outcome])
+  );
+  const attempts = new Map<string, any>();
+  for (const row of [...raw.voice]
+    .filter((x) => x.type === "career_voice_model_session_attempt")
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    if (!attempts.has(row.user_id)) attempts.set(row.user_id, row);
+  }
+  const bySession = new Map<string, any[]>();
+  for (const row of usage.rows) {
+    const sessionId = row.meta?.callSessionId;
+    const items = bySession.get(sessionId) ?? [];
+    items.push(row);
+    bySession.set(sessionId, items);
+  }
+  const summary: Record<string, any> = {};
+  for (const scope of ["mature", "all"]) {
+    for (const model of ["gpt-realtime-2.1", "gpt-live-1"]) {
+      const people = raw.cohort.filter(
+        (p: any) => p.assignedModel === model && (scope === "all" || p.mature)
+      );
+      const costs = people.map((p: any) => {
+        const attempt = attempts.get(p.user_id);
+        const rows = bySession.get(attempt?.meta_data?.callSessionId) ?? [];
+        const realtimeUsd = rows
+          .filter((r) => r.source === "career/realtime")
+          .reduce((sum, r) => sum + (Number(r.estimated_cost_usd) || 0), 0);
+        const audioRows = rows.filter((r) => r.meta?.usageKind === "audio");
+        const audioSeconds = audioRows.reduce(
+          (sum, r) => sum + (Number(r.meta?.audioSeconds) || 0),
+          0
+        );
+        const liveAudioUsd = (audioSeconds / 60) * 0.05;
+        const delegationRows = rows.filter(
+          (r) => r.meta?.usageKind === "delegation"
+        );
+        const delegationUsd = delegationRows.reduce(
+          (sum, r) =>
+            sum +
+            (r.model === "gpt-6.1-sol"
+              ? estimateSolDelegationCost(r.meta?.usage)
+              : Number(r.estimated_cost_usd) || 0),
+          0
+        );
+        return {
+          outcome: labels.get(p.caseId),
+          attempted: Boolean(attempt),
+          metered: rows.length > 0,
+          audioRows: audioRows.length,
+          audioSeconds,
+          delegationRows: delegationRows.length,
+          realtimeRows: rows.filter((r) => r.source === "career/realtime").length,
+          realtimeUsd,
+          liveAudioUsd,
+          delegationUsd,
+          totalUsd: realtimeUsd + liveAudioUsd + delegationUsd,
+        };
+      });
+      const sum = (key: string) =>
+        costs.reduce((total: number, row: any) => total + (Number(row[key]) || 0), 0);
+      const ready = costs.filter((x: any) => x.outcome === "ready").length;
+      const metered = costs.filter((x: any) => x.metered).length;
+      summary[`${scope}|${model}`] = {
+        assigned: costs.length,
+        attempts: costs.filter((x: any) => x.attempted).length,
+        ready,
+        meteredUsers: metered,
+        unmeteredUsers: costs.length - metered,
+        meteredReady: costs.filter((x: any) => x.metered && x.outcome === "ready")
+          .length,
+        realtimeRows: sum("realtimeRows"),
+        audioRows: sum("audioRows"),
+        delegationRows: sum("delegationRows"),
+        liveAudioSeconds: sum("audioSeconds"),
+        realtimeUsd: sum("realtimeUsd"),
+        liveAudioUsd: sum("liveAudioUsd"),
+        liveDelegationUsd: sum("delegationUsd"),
+        totalUsd: sum("totalUsd"),
+        perAssignedUsd: sum("totalUsd") / costs.length,
+        perMeteredUsd: metered ? sum("totalUsd") / metered : null,
+        perConfirmedReadyUsd: ready ? sum("totalUsd") / ready : null,
+      };
+    }
+  }
+  const output = {
+    task: "career-voice-onboarding",
+    datasetVersion: DATASET_VERSION,
+    asOf: raw.asOf,
+    usageCapturedAt: usage.capturedAt,
+    pricing: {
+      liveUsdPerMinute: 0.05,
+      realtime: "logged token-based estimate",
+      delegation: "logged estimate for gpt-5.6-terra; official token rates for gpt-6.1-sol",
+    },
+    scope: "first attempted call session per assigned onboarding-call user",
+    exclusions: [
+      "missing client-side usage logs",
+      "separately billed Realtime input transcription",
+      "other tool and downstream model calls",
+    ],
+    summary,
+  };
+  await writeFile(`${ROOT}/cost-summary-${RESULT_SUFFIX}.json`, JSON.stringify(output, null, 2), {
+    flag: "wx",
+  });
+  await writeFile(
+    `${ROOT}/cost-manifest-${RESULT_SUFFIX}.json`,
+    JSON.stringify(
+      {
+        task: "career-voice-onboarding-cost",
+        datasetVersion: DATASET_VERSION,
+        asOf: raw.asOf,
+        rawUsagePath: USAGE_RAW,
+        rawUsageSha256: hash(await readFile(USAGE_RAW, "utf8")),
+        frozenGoldSha256: hash(await readFile(GOLD, "utf8")),
+        runnerSha256: hash(await readFile("scripts/evalCareerVoiceOnboarding.ts", "utf8")),
+        costSummarySha256: hash(JSON.stringify(output, null, 2)),
+      },
+      null,
+      2
+    ),
+    { flag: "wx" }
+  );
+  console.log(JSON.stringify(output.summary, null, 2));
 }
 const command = process.argv[2];
 (command === "capture"
@@ -469,7 +724,11 @@ const command = process.argv[2];
     ? packets()
     : command === "summarize"
       ? summarize()
-      : Promise.reject(Error("Use capture, packets, or summarize"))
+      : command === "cost-capture"
+        ? captureUsage()
+        : command === "cost-summarize"
+          ? summarizeUsage()
+          : Promise.reject(Error("Use capture, packets, summarize, cost-capture, or cost-summarize"))
 ).catch((e) => {
   console.error(e.message);
   process.exitCode = 1;
