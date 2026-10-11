@@ -5,20 +5,16 @@ const copy = {
     howTitle: "How Harper Works",
     steps: [
       {
-        title: "가입하고, Harper와 대화하세요.",
-        body: "어떤 일을 해왔는지, 다음에는 어떤 환경에서 일하고 싶은지 알려주세요.",
+        title: "1. 가입하고, Harper와 대화하세요.",
       },
       {
-        title: "마음에 드는 역할에 관심을 표시하세요.",
-        body: "관심을 표시하시면 Harper가 먼저 해당 역할을 검토합니다. 회사에서 Harper에게 알려준 내부 정보를 바탕으로 회원님과 역할의 적합도를 판단합니다.",
+        title: "2. 채용/이직 제안을 받아보세요.",
       },
       {
-        title: "회사와 인재를 연결합니다.",
-        body: "적합하다고 판단했다면 회사에 회원님을 먼저 추천하거나 회원님에게 먼저 역할을 진행할지 다시 물어봅니다.(직접 설정) 수락하면 Harper가 바로 연결을 도와드립니다.",
+        title: "3. 수락시 회사의 담당자와 연결됩니다.",
       },
       {
-        title: "일하는 동안에도, 다음 기회는 열어두세요.",
-        body: "Harper는 항상 회원님의 기준에 맞는 기회를 살펴보고 새로운 연결을 제안합니다. 당장 이직할 생각이 없어도 괜찮아요. 회사의 제안들을 받아본 뒤 결정하세요. 프로세스를 진행하는 과정까지 Harper가 도와드립니다.",
+        title: "4. 일하는 동안에도, Harper와 대화하고 다음 기회는 열어두세요.",
       },
     ],
     faqs: [
@@ -48,9 +44,9 @@ const copy = {
           "네. 지금은 옮길 계획이 없다고 알려주세요. 마음에 드는 제안이 있을 때 살펴보고, 그때 결정하셔도 돼요.",
       },
       {
-        question: "중간 과정에서 사람이 제 프로필을 직접 검토하나요?",
+        question: "역할을 수락하면 어떻게 진행되나요?",
         answer:
-          "Harper Agent가 먼저 역할과의 적합도를 검토해요. 회사에 실제로 소개하기 전에는 Harper 팀원이 최종 확인합니다. 프로필은 회원님의 설정과 동의에 따라 회사에 공유돼요.",
+          "수락하시면 Harper가 프로필과 관련 경험을 정리해 회사에 소개하고 연결을 도와드려요. 프로필은 회원님의 설정과 동의에 따라 공유되며, 진행 상황은 이메일로 알려드려요.",
       },
     ],
     more: "역할 더 보기",
@@ -106,9 +102,9 @@ const copy = {
           "That's fine. Tell Harper you're not planning a move right now. You can look at a proposal you like and decide then.",
       },
       {
-        question: "Does a person review my profile along the way?",
+        question: "What happens after I accept a role?",
         answer:
-          "Harper Agent reviews the fit first. Before an introduction to a company, a Harper team member gives the connection a final check. Your profile is shared with the company according to your settings and consent.",
+          "Harper prepares your profile and relevant experience for an introduction to the company and helps make the connection. Your profile is shared according to your settings and consent, and Harper keeps you updated by email.",
       },
     ],
     more: "Load more roles",

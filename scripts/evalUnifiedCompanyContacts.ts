@@ -230,7 +230,7 @@ async function setup() {
       location_text: "Seoul",
       work_mode: "hybrid",
     });
-    await db`update company_internal_roles set is_auto=false,is_company_first_search=false,request=null where role_id=${roleId}`;
+    await db`update company_internal_roles set is_company_first_search=false,request=null where role_id=${roleId}`;
     await insert("ops_matching_role_stages", {
       id: stageId,
       role_id: roleId,

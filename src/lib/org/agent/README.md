@@ -92,6 +92,8 @@ DB를 읽기만 하며 LLM을 호출하거나 tool을 실행하지 않는다. �
   마지막 선택은 브라우저에 저장된다.
 - 서버 공통 기본값은 `ORG_AGENT_MODEL`, Slack 전용 override는
   `SLACK_ORG_AGENT_MODEL`로 바꾼다.
+- 온보딩 Pitch 저장은 `onboardingPrompt.ts`의 공통 옵션으로 Haiku 5.5/OpenRouter/high와
+  초기 회사 상세·수정 기능을 사용한다. 같은 대화 loop/executor이며 기본 모델 변경이나 별도 extractor가 아니다.
 - 허용값은 `modelConfig.ts`의 `ORG_AGENT_MODEL_IDS`가 단일 기준이다.
 
 

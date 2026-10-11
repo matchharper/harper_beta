@@ -56,7 +56,9 @@ export function isCareerEmailOnboardingAuth(args: {
   const source = String(args.source ?? "")
     .trim()
     .toLowerCase();
-  return source === "email_onboarding" || source.startsWith("email_onboarding_");
+  return (
+    source === "email_onboarding" || source.startsWith("email_onboarding_")
+  );
 }
 
 export function resolveAuthCallbackDestination(args: {
@@ -88,8 +90,17 @@ export function resolveAuthCallbackDestination(args: {
 export function resolveAuthCallbackErrorDestination(args: {
   error: string;
   isTalentDestination: boolean;
+  nextPath?: string;
 }) {
   const error = encodeURIComponent(String(args.error ?? "").trim());
+  if (
+    !args.isTalentDestination &&
+    inferCompanyAuthEntrySource(args.nextPath ?? "") === "org"
+  ) {
+    const next = new URL(args.nextPath!, "https://harper.local");
+    next.searchParams.set("authError", args.error);
+    return `${next.pathname}${next.search}`;
+  }
   return args.isTalentDestination
     ? `/career?authError=${error}`
     : `?error=${error}`;

@@ -1,3 +1,4 @@
+import { resumePolicy } from "./resumePolicy";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
@@ -18,7 +19,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? "the language selected for this interview"
       : getCareerPromptLanguageName(args.preferredLocale);
   const toolNameText = toolNames.join(", ");
-  const simulationPolicy = toolNames.includes("simulate_application") ? "Call the experience Apply with Harper (하퍼로 지원하기 in Korean). Refer to its conversational mode as 함께 지원 모드 (Apply with Harper mode in English), including when discussing entry, progress or ending; do not call it a session in user-facing replies. The start card is a response payload in ordinary chat. In an active mode, simulate_application performs an explicitly requested reanalysis of the confirmed target. Analysis and session activation require the user's resume selection and start-button click. The card contains the feature explanation, estimated duration and controls; accompanying prose should only briefly connect the user's request to starting together. Keep subsequent session replies focused on new, useful information: answer the current question, provide the requested wording or ask the missing factual question. Let visible cards carry their own details. Describe operational state only when the user asks or an actual failure or blocker requires a decision; routine successful steps do not need a status report or a list of unchanged things. Never claim an action succeeded without evidence." : "";
+  const simulationPolicy = toolNames.includes("simulate_application") ? "Call the experience Apply with Harper (하퍼로 지원하기 in Korean). Refer to its conversational mode as 함께 지원 모드 (Apply with Harper mode in English), including when discussing entry, progress or ending; do not call it a session in user-facing replies. The start card is a response payload in ordinary chat. In an active mode, simulate_application performs an explicitly requested reanalysis of the confirmed target. Analysis and session activation require the user's resume selection and start-button click. Introduce the benefit briefly in accompanying prose when the user expresses application intent, including asking Harper to apply for them; no exact feature-name phrase is necessary. Invite them to prepare and apply together, explain resume/material preparation and assisted or self-submission, and let the card carry selection and start controls. Do not narrate card rendering or give a long pre-start role analysis. Keep subsequent session replies focused on new, useful information: answer the current question, provide the requested wording or ask the missing factual question. Let visible cards carry their own details. Describe operational state only when the user asks or an actual failure or blocker requires a decision; routine successful steps do not need a status report or a list of unchanged things. Never claim an action succeeded without evidence." : "";
   const hasEndCallTool = toolNames.includes("end_call");
   const hasStatusMessageTools = toolNames.some(
     (name) => name !== "end_call" && name !== "update_language_setting"
@@ -89,7 +90,7 @@ export function buildCareerToolPolicyPrompt(args: {
   return [
     simulationPolicy,
     "## Tool Use Policy",
-    `Available tools: ${toolNameText}`,
+    `Callable tools in this response: ${toolNameText}`,
     hasStatusMessageTools
       ? `When a tool schema includes \`_uiStatusMessage\`, include a specific user-facing Thinking log sentence in ${outputLanguage} for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.`
       : "",
@@ -134,7 +135,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? [
           "- Use `research_company` only when the user genuinely wants to learn about a specific company, such as culture, funding, team, business model, or hiring landscape.",
           "- Do not call it for passing company mentions, anecdotes about past experience, JD/position questions, or comparison questions without genuine info-seeking intent.",
-          "- For a clear light company-info request like '~~는 어떤 회사야?', call it directly. Ask before researching only when the company mention is ambiguous or not clearly an information request.",
+          "- For a clear light company-info request like '~~는 어떤 회사야?', call it directly. If the user only describes worry or missing information, offer research first; run it when they request information or accept the offer.",
         ]
       : []),
     ...(hasRecommendedOpportunitiesTool
@@ -194,8 +195,9 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasInternalRolePriorityReviewTool
       ? [
           "- Distinguish a possibility question from a role choice. If the user only asks whether another role could work, compare it and ask whether they want to change; do not mutate anything.",
-          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to prioritize a specific internal role. This records the user's priority-review request; it does not add the role to Positions/Jobs. Treat it as a priority-review request even when the role also has stored fit, and do not reinterpret it as a request to create a formal recommendation.",
+          "- Use `internal_role_priority_review` with `action=register` when the user explicitly asks Harper to prioritize a specific internal role.",
           "- Use `action=withdraw` to remove that priority-review request.",
+          "- Use `action=status` for priority-review progress questions. This only reads the request; use register to renew a withdrawn request only after the user explicitly asks for renewal.",
           "- If the role or whether the user chose to proceed is ambiguous, ask one short clarifying question instead of guessing. Never claim acceptance, company sharing, or a review request unless the corresponding tool result confirms it.",
         ]
       : []),
@@ -210,10 +212,10 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasUpdateRecommendedOpportunityFeedbackTool
       ? [
           "- Use `update_recommended_opportunity_feedback` when the user clearly wants to save/like or reject/dislike a specific recommended position. Use the roleId from `[posting](roleId)` when available. If the position is ambiguous, ask one clarifying question instead of guessing.",
-          "- Use `feedback=review` when a role has been verified through `get_internal_roles` with `matchedOnly=true` and the user asks to add it to Positions/Jobs for their detailed review, or when an earlier `update_recommended_opportunity_feedback` result for the same role returned `reason=internal_role_review_required`. Pass the chosen roleId and one to three concise candidate-visible fitReasons in the response language. Derive fitReasons only from known candidate evidence and public-safe role facts; never include private company requests, hidden evaluation text, or company feedback. This creates a formal recommendation but does not accept it, close another role, rerun fit, or share the candidate with the company. A request asking Harper to prioritize a role is not `feedback=review`.",
+          "- Use `feedback=review` when a role has been verified through `get_internal_roles` with `matchedOnly=true` and the user asks to add it to Positions/Jobs for their detailed review, or when an earlier `update_recommended_opportunity_feedback` result for the same role returned `reason=internal_role_review_required`, or after priority registration returns recommendationAvailable=true for that exact role. Pass the chosen roleId and one to three concise candidate-visible fitReasons in the response language. Derive fitReasons only from known candidate evidence and public-safe role facts; never include private company requests, hidden evaluation text, or company feedback. This creates a formal recommendation but does not accept it, close another role, rerun fit, or share the candidate with the company. Priority registration comes first; the server-qualified recommendation is then presented with `feedback=review`, while acceptance still needs a later explicit choice.",
           "- Do not turn a vague request to see everything into several formal recommendations. If the user explicitly chooses another role to review alongside the current one, feedback=`review` may add that chosen role without closing the current recommendation.",
           "- After feedback=`review` succeeds, use the returned roleId with `get_role_context` and explain the formal recommendation in useful detail. Point the user to its attached card and Positions in Korean or Jobs in English, then ask them to accept there or tell Harper after reviewing it if they still want to proceed. A role that is not yet a formal recommendation can never be accepted directly; use feedback=`like` only when the user later explicitly accepts the now-formal recommendation.",
-          "- Set feedback=`like` for saved/positive/accepted reactions. Set feedback=`dislike` for rejected/negative reactions. Do not mention internal status labels.",
+          "- For an internal role, use feedback=`keep` when the user has seen it but wants to decide later, `like` only for explicit acceptance, and `dislike` for explicit rejection. A saved role can be accepted or declined directly. Saving does not authorize company sharing or imply future acceptance. External saved/positive reactions use `like`. Do not mention internal status labels.",
         ]
       : []),
     ...(hasRecordInternalFitReevaluationInformationTool
@@ -242,12 +244,13 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- Use `read_document` only when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
             : "",
           hasUpdateDocumentTool
-            ? `- Use 'update_document' to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Document content cannot be edited; if the user asks to change it, say "내용 수정은 불가능하며, 새로 업로드 해야한다." Never expose internal field names in the user-facing reply.
+            ? `- Use 'update_document' to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Use generate_resume for generated resume content changes; preserve uploaded originals. Never expose internal field names in the user-facing reply.
   - For a newly uploaded file, correct an obviously wrong filename-based kind. Soft-delete it when it is clearly transient third-party reference material and the user did not ask to keep it. If ownership or retention intent is ambiguous, ask before changing or deleting it.
   - Setting is_deleted=true is a soft delete only; do not claim that the underlying storage object was permanently erased. Set is_primary=true only for a resume and only when the user clearly wants that file to be their primary resume.`
             : "",
         ]
       : []),
+    ...(toolNames.includes("generate_resume") ? resumePolicy : []),
     ...(hasUpdateSettingTool
       ? [
           "",

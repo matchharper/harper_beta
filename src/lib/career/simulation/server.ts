@@ -1,3 +1,4 @@
+import { inspectApplicationForm } from "./applicationFormInspection";
 import { createPreparation } from "./preparation";
 import { executeSharedOpenUrl } from "@/lib/agentTools/web";
 import { readSimulationJdSource, buildSimulationRoleInput } from "./jdSource";
@@ -201,7 +202,7 @@ export async function executeApplicationSimulation(args: {
     if (notice)
       args.onMessage?.(toTalentMessageResponse(notice as TalentMessageRow));
     const state: ApplicationSimulation = {
-      version: 4,
+      version: 5,
       roleName: args.roleName,
       documentName: document?.file_name ?? null,
       status: "running",
@@ -232,7 +233,10 @@ export async function executeApplicationSimulation(args: {
       {
         ...current.state,
         analysisMessageId: Number(message.id),
-        applicationUrl: typeof args.role.externalJdUrl === "string" ? args.role.externalJdUrl : undefined,
+        applicationUrl:
+          typeof args.role.externalJdUrl === "string"
+            ? args.role.externalJdUrl
+            : undefined,
         activity: {
           ...current.state.activity!,
           outputs: {
@@ -265,15 +269,17 @@ export async function executeApplicationSimulation(args: {
       text.length <= limit
         ? text
         : `${text.slice(0, limit)}\n[Source truncated; absence beyond this point is unknown.]`;
-    const jdSource = await readSimulationJdSource(
-      args.role.externalJdUrl,
-      (url) =>
-        executeSharedOpenUrl({
-          admin: args.admin,
-          input: { url, maxMarkdownChars: 20000 },
-        })
-    );
+    const savedRole = await (args.loadSavedRole ?? (async () => args.role))();
+    const hasSavedJd = typeof savedRole.description === "string" && savedRole.description.trim();
+    const [jdSource, applicationForm] = await Promise.all([
+      hasSavedJd
+        ? Promise.resolve({ status: "unavailable", reason: "Saved JD provided; live JD lookup is unnecessary." })
+        : readSimulationJdSource(args.role.externalJdUrl, url => executeSharedOpenUrl({ admin: args.admin, input: { url, maxMarkdownChars: 20000 } })),
+      inspectApplicationForm(args.role.externalJdUrl, signal),
+    ]);
     signal?.throwIfAborted();
+    current = await saveSession(store, current!, { ...current!.state, applicationForm, applicationUrl: applicationForm.status !== "unavailable" ? applicationForm.url : current!.state.applicationUrl }, args.requestKey + ":form");
+    args.onMessage?.(current.message);
     const result = await runSimulationWorkflow({
       state,
       signal,
@@ -281,7 +287,8 @@ export async function executeApplicationSimulation(args: {
         role: await buildSimulationRoleInput(
           args.roleName,
           jdSource,
-          args.loadSavedRole ?? (async () => args.role)
+          async () => savedRole,
+          applicationForm
         ),
         candidate: bounded(simulationProfileSnapshot(profile), 60000),
         resume: resume
@@ -345,6 +352,19 @@ export async function executeApplicationSimulation(args: {
         result.steps.at(-1)?.result?.summary ??
         result.steps.findLast((s) => s.result)?.result?.summary ??
         null,
+      ...(result.status === "failed"
+        ? {
+            failure: {
+              stage: result.steps.find((s) => s.status === "failed")?.key,
+              reason:
+                result.steps.find((s) => s.status === "failed")
+                  ?.failureReason === "invalid_output"
+                  ? "The analysis output failed consistency validation. This is an analysis execution error, not a finding about candidate eligibility or fit."
+                  : "The analysis could not finish because of an execution error.",
+              retryable: true,
+            },
+          }
+        : {}),
       resultsDisplayedInChat: true,
     };
   } catch (error) {

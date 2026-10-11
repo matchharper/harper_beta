@@ -1,4 +1,9 @@
 import { createHash } from "crypto";
+import {
+  billingActionNoticeSlack,
+  readBillingActionNotice,
+} from "@/lib/org/billing/notice";
+import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireInternalWorkerSecret,
@@ -1443,6 +1448,38 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
     stopSlackJobWatch = null;
 
     if (!slackResponseTs) {
+      // Load presentation metadata on every delivery attempt, including a retry
+      // with cached response_text. The notice never enters response_text/content.
+      let deliveryMetadata: unknown = null;
+      let messageRoleId: string | null = null;
+      if (responseMessageId) {
+        const { data, error } = await (admin.from("company_messages" as any) as any)
+          .select("role_id, metadata")
+          .eq("id", responseMessageId)
+          .eq("company_workspace_id", channel.company_workspace_id)
+          .single();
+        if (error) throw error;
+        deliveryMetadata = data.metadata;
+        messageRoleId = clean(data.role_id) || null;
+      } else if (responseProposalId) {
+        const { data, error } = await (
+          admin.from("company_agent_update_proposals" as any) as any
+        )
+          .select("message_metadata")
+          .eq("id", responseProposalId)
+          .eq("workspace_id", channel.company_workspace_id)
+          .single();
+        if (error) throw error;
+        deliveryMetadata = data.message_metadata;
+      }
+      const billingNotice = readBillingActionNotice(deliveryMetadata);
+      const billingPresentation = billingNotice
+        ? billingActionNoticeSlack(
+            billingNotice,
+            slackAccess.member.locale ??
+              (await getOrgWorkspaceLocale(channel.company_workspace_id, admin))
+          )
+        : null;
       const parsedSlackResponse = parseHarperSlackChoiceMarkers(responseText);
       const companyInfoUrl = buildSlackWorkspacePageUrl({
         page: "team",
@@ -1451,21 +1488,11 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       });
       let slackResponseText: string;
       try {
-        let preferredRoleId = clean(thread.role_id) || null;
-        if (!preferredRoleId && responseMessageId) {
-          const { data: responseMessage, error: responseMessageError } = await (
-            admin.from("company_messages" as any) as any
-          )
-            .select("role_id, metadata")
-            .eq("id", responseMessageId)
-            .eq("company_workspace_id", channel.company_workspace_id)
-            .maybeSingle();
-          if (responseMessageError) throw responseMessageError;
-          preferredRoleId =
-            clean(responseMessage?.role_id) ||
-            clean(object(responseMessage?.metadata).preferredRoleId) ||
-            null;
-        }
+        const preferredRoleId =
+          clean(thread.role_id) ||
+          messageRoleId ||
+          clean(object(deliveryMetadata).preferredRoleId) ||
+          null;
         const targets = await loadSlackOrgLinkTargets({
           admin,
           message: parsedSlackResponse.text,
@@ -1524,18 +1551,24 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         .join("\n\n");
       const slackBlocks = buildHarperSlackChoiceBlocks({
         choices: parsedSlackResponse.choices,
+        maxBlocks: billingPresentation ? 49 : 50,
         sourceJobId: job.id,
         text: deliveredSlackText,
       });
+      const deliveredBlocks = billingPresentation
+        ? [...slackBlocks, ...billingPresentation.blocks]
+        : slackBlocks;
       // Slack clears the assistant thread status automatically after
       // chat.postMessage.
       const posted = await postHarperSlackMessage({
         // Use an explicit mrkdwn Block Kit section for every reply. The
         // top-level text remains a notification/accessibility fallback.
-        blocks: slackBlocks,
+        blocks: deliveredBlocks,
         channelId,
         clientMessageId: job.id,
-        text: deliveredSlackText,
+        text: [deliveredSlackText, billingPresentation?.text]
+          .filter(Boolean)
+          .join("\n\n"),
         threadTs,
         token,
         unfurlLinks: false,

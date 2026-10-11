@@ -128,6 +128,7 @@ export const OnboardingFrame = ({
   expandContent = false,
   asideAfterTitle = false,
   flexibleTitle = false,
+  wide = false,
   progressStep,
   showProgress = true,
   title,
@@ -137,6 +138,7 @@ export const OnboardingFrame = ({
   expandContent?: boolean;
   asideAfterTitle?: boolean;
   flexibleTitle?: boolean;
+  wide?: boolean;
   children: ReactNode;
   footer: ReactNode;
   progressStep: number;
@@ -196,7 +198,12 @@ export const OnboardingFrame = ({
         expandContent ? "h-svh overflow-y-auto" : "min-h-svh"
       )}
     >
-      <div className="grid h-max w-full max-w-[400px] gap-8">
+      <div
+        className={cn(
+          "grid h-max w-full gap-8",
+          wide ? "max-w-[1160px]" : "max-w-[400px]"
+        )}
+      >
         <div
           className={cn(
             "flex w-full flex-col",
@@ -246,12 +253,9 @@ export const OnboardingStepHeader = ({
         />
       ))}
     </Text>
-    <Text as="p" variant="body" tone="subtle" className="mt-2 ">
+    <Text as="p" variant="body" tone="subtle" className="mt-2 w-full">
       {stepDefinition.description.map((line, index) => (
-        <span
-          key={`${index}-${line}`}
-          className="block text-balance break-keep"
-        >
+        <span key={`${index}-${line}`} className="block break-keep">
           {line}
         </span>
       ))}
@@ -379,8 +383,7 @@ export const OnboardingReadyBody = ({
       <Text
         as="p"
         variant="body"
-        tone="subtle"
-        className="mt-3 max-w-[390px] text-[14px] md:text-[14px] font-light leading-5"
+        className="mt-3 max-w-[390px] text-[14px] md:text-[15px] font-light leading-5"
       >
         {description.split("\n").map((line) => (
           <span key={line} className="block">

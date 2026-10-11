@@ -16,6 +16,8 @@ import type { CareerConversationStarterId } from "@/lib/career/prompts/conversat
 import { buildChatTypewriterChunks } from "@/lib/chat/typewriter";
 import {
   createRecommendJobPostingStatusLog,
+  isRecommendJobPostingPhase,
+  splitRecommendJobPostingStatusLogs,
   upsertRecommendJobPostingStatusLog,
 } from "@/lib/talentOnboarding/recommendJobPostingStatus";
 import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
@@ -213,6 +215,8 @@ const toRecommendationSearchStatus = (
   }
 
   return {
+    ...(isRecommendJobPostingPhase(value.phase) ? { phase: value.phase } : {}),
+    scoredCount: typeof value.scoredCount === "number" ? value.scoredCount : null,
     candidateCount:
       typeof value.candidateCount === "number" ? value.candidateCount : null,
     recommendationCount:
@@ -403,14 +407,17 @@ export const useCareerChat = ({
   );
 
   const markActiveRecommendationSearchStopped = useCallback(() => {
+    const activeStreamAssistant = activeStreamAssistantRef.current;
+    const latestLogs =
+      activeStreamAssistant?.thinkingLogs ?? activeThinkingLogsRef.current;
     const stoppedStatus: CareerRecommendationSearchStatus = {
+      ...splitRecommendJobPostingStatusLogs(latestLogs).latestStatus,
       state: "stopped",
     };
     const streamAssistantId = activeStreamAssistantIdRef.current;
-    const activeStreamAssistant = activeStreamAssistantRef.current;
     const activeUserMessage = activeUserMessageRef.current;
     const logs = upsertRecommendJobPostingStatusLog(
-      activeStreamAssistant?.thinkingLogs ?? activeThinkingLogsRef.current,
+      latestLogs,
       stoppedStatus
     );
     activeThinkingLogsRef.current = logs;
@@ -724,6 +731,7 @@ export const useCareerChat = ({
         : visibleText;
       const messageType = args.messageType ?? "chat";
       const tempId = `temp-user-${Date.now()}`;
+      const clientRequestId = crypto.randomUUID();
       const nowIso = new Date().toISOString();
 
       setChatError("");
@@ -784,6 +792,7 @@ export const useCareerChat = ({
             coachingActivityAction: args.coachingActivityAction,
             conversationStarterId: activeConversationStarterId,
             conversationId,
+            clientRequestId,
             locale,
             message: text,
             messageType,

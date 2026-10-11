@@ -133,7 +133,7 @@ export function ApplicationStartCard({
   return (
     <section className="w-full max-w-[640px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm">
       <header className="border-b border-neutral-1000-a05 p-4">
-        <h3 className="text-lg font-medium">
+        <h3 className="font-medium">
           {t("career.apply.title", "하퍼로 지원하기")}
         </h3>
       </header>
@@ -150,7 +150,7 @@ export function ApplicationStartCard({
               size="md"
             />
             <div className="min-w-0 space-y-0.5">
-              <p className="break-words text-base font-medium">
+              <p className="break-words text-sm font-medium">
                 {offer.roleTitle ?? offer.roleName}
               </p>
               {offer.companyName && (
@@ -192,7 +192,7 @@ export function ApplicationStartCard({
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-weak text-neutral-muted">
                 <FileText className="h-5 w-5" aria-hidden />
               </span>
-              <SelectValue className="whitespace-normal break-words text-base">
+              <SelectValue className="whitespace-normal break-words text-xs">
                 {resumes.find((r) => r.id === documentId)?.name ??
                   t("career.apply.noResume", "이력서를 업로드해 주세요")}
               </SelectValue>

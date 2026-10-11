@@ -16,7 +16,10 @@ export function OrgLanguageMenu() {
   const selectLocale = (next: OrgLocale) => {
     void setLocale(next).catch(() => {
       addToast({
-        message: t("profile.languageSaveFailed", "언어 설정을 저장하지 못했어요. 다시 시도해 주세요."),
+        message: t(
+          "profile.languageSaveFailed",
+          "언어 설정을 저장하지 못했어요. 다시 시도해 주세요."
+        ),
         variant: "error",
       });
     });
@@ -24,18 +27,20 @@ export function OrgLanguageMenu() {
 
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
+      <DropdownMenuSubTrigger variant="sm">
         <Globe2 className="h-4 w-4" />
         {t("profile.language", "언어")}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
         <DropdownMenuItem
+          variant="sm"
           selected={locale === "ko"}
           onSelect={() => selectLocale("ko")}
         >
           {t("profile.korean", "한국어")}
         </DropdownMenuItem>
         <DropdownMenuItem
+          variant="sm"
           selected={locale === "en"}
           onSelect={() => selectLocale("en")}
         >

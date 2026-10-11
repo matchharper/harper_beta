@@ -1,3 +1,4 @@
+import { browserProgressEntrySchema } from "./browserProgress";
 import { z } from "zod";
 
 export const APPLY_TO_ROLE = "apply_to_role";
@@ -19,6 +20,7 @@ export const browserStateSchema = z.object({
       z.object({
         documentId: z.string(),
         hash: z.string(),
+        contentHash: z.string().optional(),
         path: z.string(),
         name: z.string(),
       })
@@ -30,6 +32,7 @@ export const browserStateSchema = z.object({
   documentHash: z.string(),
   url: z.string(),
   purpose: z.string(),
+  progress: browserProgressEntrySchema.array().max(40).optional(),
   cursor: z.string().optional(),
   leaseUntil: z.string().optional(),
   taskSent: z.boolean().optional(),
@@ -76,7 +79,7 @@ export const applyToRoleTool = {
   function: {
     name: APPLY_TO_ROLE,
     description:
-      "Fill the current role's public application form using the user's selected final resume and confirmed answers. Available only in Apply with Harper after completed analysis and final file selection. Saves a resumable browser run, can ask for missing information, and requires user confirmation before final submission. Login and CAPTCHA are unsupported. Ends this turn; the application delivers questions or a verified outcome later.",
+      "Fill the current role's public application form using the user's selected final resume and confirmed answers. Available only in Apply with Harper after completed analysis, final file selection and user review of all known required supporting documents and substantive written answers. Prepare missing materials before invoking this tool. Saves a resumable browser run, can ask for missing information, and requires user confirmation before final submission. Login and CAPTCHA are unsupported. Ends this turn; the application delivers questions or a verified outcome later.",
     parameters: {
       type: "object",
       additionalProperties: false,

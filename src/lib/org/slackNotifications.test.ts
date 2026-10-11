@@ -12,6 +12,7 @@ const actor = { email: "recruiter@example.com", name: "채용담당자" };
 test("new role Slack guidance explains the actual matching and review flow", () => {
   const message = buildOrgRoleCreatedSlackMessage({
     actor,
+    isCompanyFirstSearch: false,
     roleId: "role-1",
     roleName: "Founding Engineer",
     workspace,
@@ -19,14 +20,30 @@ test("new role Slack guidance explains the actual matching and review flow", () 
 
   assert.match(
     message,
-    /테스트회사의 .*Founding Engineer.* 역할의 매칭을 시작합니다/
+    /테스트회사의 .*Founding Engineer.* 역할의 리크루팅을 시작합니다/
   );
-  assert.match(message, /팀의 선호도에 맞는 후보자를 찾아 추천/);
-  assert.match(message, /후보자에게 먼저 물어본 뒤/);
-  assert.match(message, /만나보고 싶다고 응한 분들만/);
-  assert.match(message, /연결을 수락하거나 거절/);
+  assert.match(message, /\*후보자를 찾고 소개하는 방법\*/);
+  assert.match(message, /\*정기 후보 검색 꺼짐:\* 역할 설정에서 켜면 매주 월·수·금요일 오전 9시\(한국 시간\)/);
+  assert.match(message, /후보자가 수락하고 Harper가 최종 확인하면 ‘연결 대기’/);
+  assert.match(message, /‘먼저 제안 가능한 후보’는 아직 역할을 수락한 분들이 아니에요/);
+  assert.match(message, /지금 먼저 연락을 보낼 수 있는 후보자를 확인하고 싶다면 Harper에게 이 역할의 후보 검색을 요청/);
+  assert.match(message, /‘Intro 요청’/);
   assert.doesNotMatch(message, /Connect|Reject/);
-  assert.match(message, /더 정확한 매칭에 반영/);
+});
+
+test("new role Slack guidance reflects the role's enabled search schedule", () => {
+  const message = buildOrgRoleCreatedSlackMessage({
+    actor,
+    introSearchDate: ["Tue", "Thu"],
+    introSearchTime: 14,
+    isCompanyFirstSearch: true,
+    roleId: "role-1",
+    roleName: "Founding Engineer",
+    workspace,
+  });
+
+  assert.match(message, /\*정기 후보 검색 켜짐:\* 매주 화·목요일 오후 2시\(한국 시간\)에 새 후보자 검색을 시작/);
+  assert.match(message, /적합한 분이 있으면 ‘먼저 제안 가능한 후보’/);
 });
 
 test("connection Slack guidance explains the next action and closes warmly", () => {
@@ -117,6 +134,7 @@ test("English workspace notifications use clear connection terms", () => {
   const englishWorkspace = { companyName: "Acme", workspaceId: "workspace-1" };
   const common = {
     actor: { email: "sam@acme.com", name: "Sam" },
+    isCompanyFirstSearch: true,
     locale: "en" as const,
     roleId: "role-1",
     roleName: "Backend Engineer",
@@ -134,6 +152,8 @@ test("English workspace notifications use clear connection terms", () => {
     previousStage: "pending_connection",
   });
   assert.match(created, /Ready to connect/);
+  assert.match(created, /Company-first suggestions are on/);
+  assert.match(created, /every Mon, Wed, Fri at 09:00 KST/);
   assert.match(accepted, /Introduction email/);
   assert.match(rejected, /Alex/);
   assert.doesNotMatch(`${created}\n${accepted}\n${rejected}`, /[가-힣]/);

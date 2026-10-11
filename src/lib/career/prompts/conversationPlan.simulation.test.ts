@@ -41,3 +41,13 @@ test("active mode retains the chat-based stop contract", () => {
   assert.match(plan.promptBlocks.map(b => b.text).join("\n"), /Explicit stop ends it using the tool/);
   assert.ok(!plan.promptBlocks.some(b => b.key === "simulation_availability"));
 });
+
+test("ordinary application intent offers the feature without requiring its name or starting work", () => {
+ const plan=buildCareerConversationPromptPlan({...base,simulationAvailability:"inactive"});
+ const contract=plan.promptBlocks.find(b=>b.key==="application_start_payload")!.text;
+ assert.match(contract,/apply on their behalf/);
+ assert.match(contract,/No exact feature name/);
+ assert.match(contract,/Do not narrate card rendering/);
+ assert.match(contract,/does not start analysis or activate a mode/);
+ assert.match(contract,/official_job_slug/);
+});

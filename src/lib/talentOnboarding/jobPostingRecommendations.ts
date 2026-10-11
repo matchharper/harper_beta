@@ -1,5 +1,6 @@
 import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
 import { createHash } from "node:crypto";
+import type { RecommendJobPostingStatus } from "./recommendJobPostingStatus";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { partitionOpportunityFeedbackReasons } from "@/lib/career/opportunityFeedbackSignals";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
@@ -4073,6 +4074,7 @@ function fullJdSelectionInputs(args: {
 
 async function selectFullJdRecommendations(args: {
   abortSignal?: AbortSignal;
+  onProgress?: (status: RecommendJobPostingStatus) => void;
   admin: AdminClient;
   cards: RoleCard[];
   dryRun?: boolean;
@@ -4219,6 +4221,12 @@ async function selectFullJdRecommendations(args: {
     }
   }
 
+  args.onProgress?.({
+    state: "running",
+    phase: "reranking",
+    candidateCount: args.cards.length,
+    scoredCount: evaluationsByRoleId.size,
+  });
   const selectedRanked = selectFullJdEvaluations(
     fullJdSelectionInputs({
       cards: scoringCards,
@@ -4623,6 +4631,7 @@ function escapeRegExp(value: string) {
 export async function runCareerJobPostingRecommendations(args: {
   admin: AdminClient;
   abortSignal?: AbortSignal;
+  onProgress?: (status: RecommendJobPostingStatus) => void;
   conversationId: string;
   evaluation?: {
     asOf?: string | null;
@@ -4677,6 +4686,7 @@ export async function runCareerJobPostingRecommendations(args: {
   throwIfRecommendationSearchAborted(args.abortSignal);
 
   const requestedCount = extractRequestedPostingCount(request);
+  args.onProgress?.({ state: "running", phase: "query" });
   const startedAt = Date.now();
   console.info("[recommend_job_postings] start", {
     conversationId: args.conversationId,
@@ -4890,6 +4900,11 @@ export async function runCareerJobPostingRecommendations(args: {
   });
 
   const candidateCardsWithoutCache = roleRowsToCards(rows);
+  args.onProgress?.({
+    state: "running",
+    phase: "scoring",
+    candidateCount: candidateCardsWithoutCache.length,
+  });
   const externalFitInputFingerprint =
     recommendationStrategy === "full_jd"
       ? fullJdCacheInputFingerprint({
@@ -4928,6 +4943,7 @@ export async function runCareerJobPostingRecommendations(args: {
     throwIfRecommendationSearchAborted(args.abortSignal);
     const fullJdSelection = await selectFullJdRecommendations({
       abortSignal: args.abortSignal,
+      onProgress: args.onProgress,
       admin: args.admin,
       cards: candidateCards,
       dryRun: args.evaluation?.dryRun === true,
@@ -4946,6 +4962,13 @@ export async function runCareerJobPostingRecommendations(args: {
       fullJdSelection.cards,
       { preferSummaryAsRecommendationText: true }
     );
+    args.onProgress?.({
+      state: "running",
+      phase: "delivery",
+      candidateCount: candidateCards.length,
+      scoredCount: fullJdSelection.result.scoredCount,
+      recommendationCount: detailedRecommendations.length,
+    });
     const recommendations = args.evaluation?.dryRun
       ? detailedRecommendations
       : await persistRecommendations({
@@ -5062,6 +5085,12 @@ export async function runCareerJobPostingRecommendations(args: {
   const shortlistedCacheHitCount = shortlistedCards.filter((card) =>
     Boolean(card.externalFitCache)
   ).length;
+  args.onProgress?.({
+    state: "running",
+    phase: "reranking",
+    candidateCount: candidateCards.length,
+    scoredCount: shortlistedCards.length,
+  });
   const finalSelectionLanguageKey = roleSummaryLanguageKey(outputLanguage);
   const shortlistedCachedCompanyKeys = new Set(
     shortlistedCards
@@ -5111,6 +5140,13 @@ export async function runCareerJobPostingRecommendations(args: {
     finalSelectionCards
   );
   throwIfRecommendationSearchAborted(args.abortSignal);
+  args.onProgress?.({
+    state: "running",
+    phase: "delivery",
+    candidateCount: candidateCards.length,
+    scoredCount: finalSelection.scoredCount,
+    recommendationCount: detailedRecommendations.length,
+  });
   const recommendations = await persistRecommendations({
     admin: args.admin,
     outputLanguage,

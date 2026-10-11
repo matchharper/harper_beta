@@ -1,12 +1,9 @@
-export type OpsDebugInternalMatchingRoleMode = "all" | "auto" | "manual";
-
 export type InternalMatchingRecommendationSourceRow = {
   clickedAt: string | null;
   companyName: string;
   exposureId: string;
   feedback: string | null;
   feedbackAt: string | null;
-  isAuto: boolean;
   processedStage: string | null;
   recommendedAt: string;
   roleId: string;
@@ -111,7 +108,6 @@ export type OpsDebugInternalMatchingResponse = {
   comparison: OpsDebugInternalMatchingPeriodStats | null;
   filters: {
     from: string | null;
-    roleMode: OpsDebugInternalMatchingRoleMode;
     to: string | null;
   };
   generatedAt: string;
@@ -137,7 +133,6 @@ type MatchingPair = {
   feedback: "accepted" | "rejected" | null;
   feedbackAt: string | null;
   firstRecommendedAt: string;
-  isAuto: boolean;
   reachedStages: Set<string>;
   roleId: string;
   roleName: string;
@@ -657,7 +652,6 @@ function buildBreakdown(pairs: MatchingPair[], nowMs: number) {
 function buildPairs(args: {
   progress: InternalMatchingProgressSourceRow[];
   recommendations: InternalMatchingRecommendationSourceRow[];
-  roleMode: OpsDebugInternalMatchingRoleMode;
   tags: InternalMatchingTagSourceRow[];
 }) {
   const recommendationGroups = new Map<
@@ -666,8 +660,6 @@ function buildPairs(args: {
   >();
   for (const row of args.recommendations) {
     if (row.testOnly) continue;
-    if (args.roleMode === "auto" && !row.isAuto) continue;
-    if (args.roleMode === "manual" && row.isAuto) continue;
     const key = pairKey(row.talentId, row.roleId);
     const current = recommendationGroups.get(key) ?? [];
     current.push(row);
@@ -699,7 +691,6 @@ function buildPairs(args: {
         feedback,
         feedbackAt: latest.feedbackAt,
         firstRecommendedAt,
-        isAuto: latest.isAuto,
         reachedStages,
         roleId: latest.roleId,
         roleName: latest.roleName || "Role 이름 없음",
@@ -715,7 +706,6 @@ export function compileOpsDebugInternalMatching(args: {
   generatedAt?: string;
   progress: InternalMatchingProgressSourceRow[];
   recommendations: InternalMatchingRecommendationSourceRow[];
-  roleMode?: OpsDebugInternalMatchingRoleMode;
   sourceLimitReached?: boolean;
   tags: InternalMatchingTagSourceRow[];
   to?: string | null;
@@ -727,11 +717,9 @@ export function compileOpsDebugInternalMatching(args: {
     to: args.to,
   });
   const comparisonRange = previousDateRange(currentRange);
-  const roleMode = args.roleMode ?? "all";
   const pairs = buildPairs({
     progress: args.progress,
     recommendations: args.recommendations,
-    roleMode,
     tags: args.tags,
   });
   const currentPairs = pairs.filter((pair) =>
@@ -748,7 +736,6 @@ export function compileOpsDebugInternalMatching(args: {
     comparison: comparisonPairs ? buildStats(comparisonPairs, nowMs) : null,
     filters: {
       from: currentRange?.from ?? null,
-      roleMode,
       to: currentRange?.to ?? null,
     },
     generatedAt,

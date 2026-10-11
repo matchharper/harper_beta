@@ -1,4 +1,10 @@
-import type { FormEvent, HTMLAttributes, ReactNode } from "react";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import {
+  useId,
+  type FormEvent,
+  type HTMLAttributes,
+  type ReactNode,
+} from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,14 +16,7 @@ import {
 } from "lucide-react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { BareButton, MuteButton } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import { Input } from "@/components/ui/input";
 import { Tooltips } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -161,7 +160,9 @@ export function ReviewPipelineColumnHeader({
                 type="button"
                 onClick={onEdit}
                 disabled={pending}
-                aria-label={t("pipeline.rename", "{label} 이름 수정", { label })}
+                aria-label={t("pipeline.rename", "{label} 이름 수정", {
+                  label,
+                })}
                 title={t("pipeline.renameTitle", "이름 수정")}
                 className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -198,7 +199,11 @@ export function ReviewPipelineColumnHeader({
               <BareButton
                 type="button"
                 onClick={onAdd}
-                aria-label={t("pipeline.addAfter", "{label} 뒤에 프로세스 단계 추가", { label })}
+                aria-label={t(
+                  "pipeline.addAfter",
+                  "{label} 뒤에 프로세스 단계 추가",
+                  { label }
+                )}
                 title={t("pipeline.addStageTitle", "프로세스 단계 추가")}
                 className="flex h-6 w-6 items-center justify-center rounded-md text-neutral-soft transition hover:bg-primary-faded hover:text-primary"
               >
@@ -298,64 +303,75 @@ export function ReviewPipelineStageDialog({
   open: boolean;
   pending?: boolean;
 }) {
+  const modalFormId1 = useId();
   const t = useOrgT();
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-md rounded-lg" hideCloseButton>
-        <form onSubmit={onSubmit}>
-          <DialogHeader>
-            <DialogTitle>
-              {mode === "edit"
-                ? t("pipeline.editProcessName", "프로세스명 수정")
-                : t("pipeline.addProcess", "프로세스 추가")}
-            </DialogTitle>
-            <DialogDescription>
-              {mode === "edit"
-                ? t("pipeline.editDescription", "Pipeline 프로세스명을 수정합니다.")
-                : t("pipeline.addDescription", "연결 대기와 최종 오퍼 사이에 새 단계를 추가합니다.")}
-            </DialogDescription>
-          </DialogHeader>
-          {actionError ? (
-            <div className={cx(opsTheme.errorNotice, "mt-4")}>
-              {actionError}
-            </div>
-          ) : null}
-          <div className="mt-4 space-y-2">
-            <Input
-              autoFocus
-              value={label}
-              onChange={(event) => onLabelChange(event.target.value)}
-              maxLength={40}
-              placeholder={t("pipeline.placeholder", "예: 1차 인터뷰")}
-            />
-            {error ? (
-              <div className="text-xs text-critical">{error}</div>
-            ) : null}
-          </div>
-          <DialogFooter className="mt-5">
-            <MuteButton
-              onClick={onClose}
-              disabled={pending}
-              size="md"
-              variant="transparent"
-            >
-              {t("pipeline.cancel", "취소")}
-            </MuteButton>
-            <MuteButton
-              disabled={!label.trim() || pending}
-              size="md"
-              variant="dark"
-              type="submit"
-            >
-              {pending
-                ? t("pipeline.saving", "저장 중...")
-                : mode === "edit"
-                  ? t("pipeline.edit", "수정")
-                  : t("pipeline.add", "추가")}
-            </MuteButton>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <TalentCareerModal
+      open={open}
+      onClose={() => onClose()}
+      mobileBottomSheet
+      title={
+        <>
+          {mode === "edit"
+            ? t("pipeline.editProcessName", "프로세스명 수정")
+            : t("pipeline.addProcess", "프로세스 추가")}
+        </>
+      }
+      description={
+        <>
+          {mode === "edit"
+            ? t("pipeline.editDescription", "Pipeline 프로세스명을 수정합니다.")
+            : t(
+                "pipeline.addDescription",
+                "연결 대기와 최종 오퍼 사이에 새 단계를 추가합니다."
+              )}
+        </>
+      }
+      panelClassName="max-w-md"
+      bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+      showCloseButton={!true}
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <MuteButton
+            onClick={onClose}
+            disabled={pending}
+            size="md"
+            variant="transparent"
+            form={modalFormId1}
+          >
+            {t("pipeline.cancel", "취소")}
+          </MuteButton>
+          <MuteButton
+            disabled={!label.trim() || pending}
+            size="md"
+            variant="dark"
+            type="submit"
+            form={modalFormId1}
+          >
+            {pending
+              ? t("pipeline.saving", "저장 중...")
+              : mode === "edit"
+                ? t("pipeline.edit", "수정")
+                : t("pipeline.add", "추가")}
+          </MuteButton>
+        </div>
+      }
+    >
+      <form onSubmit={onSubmit} id={modalFormId1}>
+        {actionError ? (
+          <div className={cx(opsTheme.errorNotice, "mt-4")}>{actionError}</div>
+        ) : null}
+        <div className="mt-4 space-y-2">
+          <Input
+            autoFocus
+            value={label}
+            onChange={(event) => onLabelChange(event.target.value)}
+            maxLength={40}
+            placeholder={t("pipeline.placeholder", "예: 1차 인터뷰")}
+          />
+          {error ? <div className="text-xs text-critical">{error}</div> : null}
+        </div>
+      </form>
+    </TalentCareerModal>
   );
 }

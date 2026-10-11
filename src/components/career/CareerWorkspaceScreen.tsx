@@ -1221,6 +1221,7 @@ const CareerWorkspaceMobileHistoryView = ({
         onToggleOpportunity={handleToggleNewOpportunity}
         onPositive={handleTrack}
         onNegative={handleDismiss}
+        onKeep={(item) => void onUpdateHistoryOpportunityFeedback(item.id, "keep", {fallbackOpportunity: item, interactionSource: "position_tab"})}
         loadingMore={historyLoading || historyLoadingMore}
         error={historyUpdateError}
         hasMoreOpportunities={hasMoreFilteredOpportunities}

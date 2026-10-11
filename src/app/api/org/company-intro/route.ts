@@ -1,3 +1,4 @@
+import { billingErrorResponse } from "@/lib/org/billing/http";
 import { NextRequest, NextResponse } from "next/server";
 import {
   OrgHttpError,
@@ -29,6 +30,8 @@ async function roleIdForIntro(introCandidateId: string) {
 }
 
 function errorResponse(error: unknown) {
+  const billing = billingErrorResponse(error);
+  if (billing) return billing;
   if (error instanceof OrgHttpError) {
     return NextResponse.json(
       { error: error.message },

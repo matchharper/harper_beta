@@ -57,7 +57,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "start_role_creation",
       description:
-        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated flow continues automatically. The result provides the exact required continuation link. If the workspace has reached its active-role limit, this creates nothing and returns the verified limit plus company-facing guidance. This tool is Slack-only.",
+        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated flow continues automatically. The result provides the exact required continuation link. This tool is Slack-only.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -446,7 +446,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "get_more_data",
       description:
-        "Load optional workspace data by kind. The selected kinds are automatically refreshed into this same web conversation or Slack thread for the next three user turns. Use company_details for both requested fields and a completeness/consistency review. Members include exact member IDs for member-targeted tools plus names and stored role labels; do not add a permissions audit unless explicitly requested. A complete workspace-wide memory inventory requires workspace_memory plus a read of every active role's memory.",
+        "Read additional company information. Include every needed source in kinds: matching_runs for aggregate search history, workspace_memory for the company's saved notes, company_details for company fields and documents, members for team member IDs/names/roles. A result covers only the requested kinds; search reasons do not substitute for saved company notes. Multiple kinds can be read together. matching_runs returns five entries per page; the latest five are already in normal context, and nextOffset reads older entries. History counts are selections, not deliveries or consent; private candidate assessments and per-run details are unavailable. The other three kinds remain refreshed for the next three user turns in this conversation; history pages do not. For complete long company fields, request fullTextKeys and check returned completeness. A full memory inventory also requires reading each active Role's memory.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -463,13 +463,14 @@ export const ORG_AGENT_TOOLS = [
           kinds: {
             description: "One to three optional data groups to load.",
             items: {
-              enum: ["members", "company_details", "workspace_memory"],
+              enum: ["members", "company_details", "workspace_memory", "matching_runs"],
               type: "string",
             },
             maxItems: 3,
             minItems: 1,
             type: "array",
           },
+          offset: {type:"integer",minimum:0,description:"For matching_runs only: nextOffset from the preceding history page. Returns aggregate run history, without per-run candidate details."},
         },
         required: ["kinds"],
         type: "object",

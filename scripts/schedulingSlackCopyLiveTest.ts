@@ -182,7 +182,6 @@ async function setup() {
       {
         considerations: [],
         criteria: [],
-        is_auto: false,
         request:
           "Codex live scheduling copy verification. Never show this role to another talent.",
         role_id: ROLE_ID,

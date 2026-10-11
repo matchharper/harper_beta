@@ -156,14 +156,6 @@ export async function getOrgRoleMatchingHealthToolResult(args: {
   if (roleError) throw roleError;
   if (!role) throw new OrgRoleMatchingHealthError(404, "Role not found");
 
-  const { data: internalRole, error: internalRoleError } = await (
-    args.admin.from("company_internal_roles" as any) as any
-  )
-    .select("is_auto")
-    .eq("role_id", roleId)
-    .maybeSingle();
-  if (internalRoleError) throw internalRoleError;
-
   const maxRows = Math.max(
     PAGE_SIZE,
     Math.min(50_000, args.maxRows ?? DEFAULT_MAX_ROWS)
@@ -232,8 +224,6 @@ export async function getOrgRoleMatchingHealthToolResult(args: {
     generatedAt: new Date().toISOString(),
     recommendations: recommendationRows,
     role: {
-      automaticMatchingEnabled:
-        typeof internalRole?.is_auto === "boolean" ? internalRole.is_auto : null,
       employmentTypes: Array.isArray(role.type)
         ? role.type.map(text).filter(Boolean)
         : [],

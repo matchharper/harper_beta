@@ -1,0 +1,405 @@
+{
+  "datasetVersion": "contact-delivery-v2",
+  "provenance": "Synthetic, authored before first run from current user requests; no production records. Codex gold review; independent owner review pending. v2 corrects synthetic role cards to runtime roleDescription/salaryRange/company.pitch/externalFit shape; v1 preserved; facts and gold unchanged.",
+  "cases": [
+    {
+      "id": "FDQ001-two-conditions",
+      "userProfile": {
+        "settings": {
+          "locale": "ko"
+        }
+      },
+      "userContext": {
+        "profile": {
+          "identity": {
+            "name": "Min Park"
+          },
+          "headline": "B2B SaaS 백엔드 엔지니어",
+          "experience": "6년간 Python API와 PostgreSQL을 운영하고 고객 요구를 제품 기능으로 출시했다."
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "다음 역할",
+            "content": "고객 요구를 직접 제품으로 구현하는 시니어 IC 역할을 원함."
+          },
+          {
+            "ref": 2,
+            "label": "조건",
+            "content": "기본 연봉 1억 원 이상. 한국어 대화 선호. 해외 이전 여부는 아직 정하지 않음."
+          }
+        ],
+        "behavior_context": "명시된 선호 외에 추가로 추론할 행동 없음.",
+        "delivery_history": []
+      },
+      "actions": [
+        "held_role_question"
+      ],
+      "internal": [],
+      "external": [],
+      "informationRequests": [
+        {
+          "ref": "clarify-1",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000001"
+          ],
+          "missingInfo": "싱가포르와 호주의 시니어 IC 기회는 고객 요구부터 제품 출시까지 맡고 연봉 하한을 충족한다. 해외 근무를 고려할 지역 범위와 이전 가능 여부가 유일한 지역상 불확실성이다. 국가별로 각각 묻지 말고 허용 범위를 함께 확인할 가치가 있다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-2",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000002"
+          ],
+          "missingInfo": "서울의 고객 대면 제품 엔지니어 기회는 경험·보상·목표가 맞지만 월 1회 이틀 출장 가능 여부만 알 수 없다.",
+          "actualPriorQuestions": []
+        }
+      ],
+      "gold": {
+        "requiredRoleIds": [],
+        "maxQuestions": 5,
+        "review": [
+          "조건 2개를 부담 없이 확인하고 지역을 국가별로 쪼개지 않는다.",
+          "회사 관심·제안 확정을 지어내지 않고 질문 이유와 기회의 가치를 설명한다.",
+          "경력 검증·탈락 압박 없이 한국어로 쓰고 이름 Min Park를 보존한다."
+        ]
+      }
+    },
+    {
+      "id": "FDQ002-eight-conditions",
+      "userProfile": {
+        "settings": {
+          "locale": "ko"
+        }
+      },
+      "userContext": {
+        "profile": {
+          "identity": {
+            "name": "Min Park"
+          },
+          "headline": "B2B SaaS 백엔드 엔지니어",
+          "experience": "6년간 Python API와 PostgreSQL을 운영하고 고객 요구를 제품 기능으로 출시했다."
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "다음 역할",
+            "content": "고객 요구를 직접 제품으로 구현하는 시니어 IC 역할을 원함."
+          },
+          {
+            "ref": 2,
+            "label": "조건",
+            "content": "기본 연봉 1억 원 이상. 한국어 대화 선호. 해외 이전 여부는 아직 정하지 않음."
+          }
+        ],
+        "behavior_context": "명시된 선호 외에 추가로 추론할 행동 없음.",
+        "delivery_history": []
+      },
+      "actions": [
+        "held_role_question"
+      ],
+      "internal": [],
+      "external": [],
+      "informationRequests": [
+        {
+          "ref": "clarify-1",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000001"
+          ],
+          "missingInfo": "싱가포르와 호주의 시니어 IC 기회는 고객 요구부터 제품 출시까지 맡고 연봉 하한을 충족한다. 해외 근무를 고려할 지역 범위와 이전 가능 여부가 유일한 지역상 불확실성이다. 국가별로 각각 묻지 말고 허용 범위를 함께 확인할 가치가 있다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-2",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000002"
+          ],
+          "missingInfo": "서울의 고객 대면 제품 엔지니어 기회는 경험·보상·목표가 맞지만 월 1회 이틀 출장 가능 여부만 알 수 없다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-3",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000003"
+          ],
+          "missingInfo": "국내 완전 원격 API 기회는 목표·경험·보상에 맞는다. 분기별 1주일 사무실 방문 가능 여부가 필요하다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-4",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000004"
+          ],
+          "missingInfo": "보상 하한을 충족하는 영어권 고객 제품 역할은 영어 회의를 통한 협업 가능 여부만 미확인이다. 시험이나 과거 경험 설명이 아닌 실무 언어 가능 조건이다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-5",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000005"
+          ],
+          "missingInfo": "목표와 보상에 맞는 계약직 프로젝트는 1년 고용 형태를 고려할 의사가 있는지 확인이 필요하다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-6",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000006"
+          ],
+          "missingInfo": "고객 API 시니어 역할은 정규직이고 조건이 맞지만 내년 1월 입사 가능 여부가 필요하다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-7",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000007"
+          ],
+          "missingInfo": "서울의 API 팀은 보상·범위가 맞지만 주 1회 저녁 8시 글로벌 회의 수용 여부가 필요하다.",
+          "actualPriorQuestions": []
+        },
+        {
+          "ref": "clarify-8",
+          "coveredRoleIds": [
+            "33333333-3333-4333-8333-000000000008"
+          ],
+          "missingInfo": "핀테크 B2B 제품 역할은 조건이 맞지만 규제 산업 회사도 관심 대상인지 선호 범위가 미확인이다.",
+          "actualPriorQuestions": []
+        }
+      ],
+      "gold": {
+        "requiredRoleIds": [],
+        "maxQuestions": 5,
+        "review": [
+          "최대 5개만 묻고 탈락 압박 없이 선택적으로 답할 수 있게 한다.",
+          "실제 질문 문장과 askedClarifications를 일치시킨다."
+        ]
+      }
+    },
+    {
+      "id": "FDQ003-internal",
+      "userProfile": {
+        "settings": {
+          "locale": "ko"
+        }
+      },
+      "userContext": {
+        "profile": {
+          "identity": {
+            "name": "Min Park"
+          },
+          "headline": "B2B SaaS 백엔드 엔지니어",
+          "experience": "6년간 Python API와 PostgreSQL을 운영하고 고객 요구를 제품 기능으로 출시했다."
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "다음 역할",
+            "content": "고객 요구를 직접 제품으로 구현하는 시니어 IC 역할을 원함."
+          },
+          {
+            "ref": 2,
+            "label": "조건",
+            "content": "기본 연봉 1억 원 이상. 한국어 대화 선호. 해외 이전 여부는 아직 정하지 않음."
+          }
+        ],
+        "behavior_context": "명시된 선호 외에 추가로 추론할 행동 없음.",
+        "delivery_history": []
+      },
+      "actions": [
+        "internal_recommendation"
+      ],
+      "internal": [
+        {
+          "roleId": "11111111-1111-4111-8111-111111111111",
+          "sourceType": "internal",
+          "roleName": "Senior Backend Engineer",
+          "companyName": "Orbit Tools",
+          "location": "서울",
+          "workMode": "하이브리드",
+          "fitReasons": [
+            "고객 요구를 제품 기능으로 출시한 경험을 활용하며 시니어 IC 범위를 유지할 수 있다."
+          ],
+          "tradeoffs": "",
+          "roleDescription": "Python API와 PostgreSQL 서비스 설계 및 운영, 고객 문제 해결. 서울 주 2일 출근. 기본 연봉 1억~1억 3천만 원.",
+          "salaryRange": "기본 연봉 1억~1억 3천만 원",
+          "company": {
+            "description": "B2B SaaS 고객 지원 도구를 만드는 35명 회사. 유료 기업 고객 120곳.",
+            "pitch": "고객 피드백부터 출시까지 엔지니어가 직접 담당한다."
+          }
+        }
+      ],
+      "external": [],
+      "informationRequests": [],
+      "gold": {
+        "requiredRoleIds": [
+          "11111111-1111-4111-8111-111111111111"
+        ],
+        "maxQuestions": 5,
+        "review": [
+          "경력·목표와 기회 근거를 연결한다.",
+          "수락 시 Harper가 소개한다는 미래 행동을 설명하고 팀원 승인을 만들지 않는다.",
+          "저장을 언급한다면 수락·공유와 구분한다."
+        ]
+      }
+    },
+    {
+      "id": "FDQ004-mixed",
+      "userProfile": {
+        "settings": {
+          "locale": "ko"
+        }
+      },
+      "userContext": {
+        "profile": {
+          "identity": {
+            "name": "Min Park"
+          },
+          "headline": "B2B SaaS 백엔드 엔지니어",
+          "experience": "6년간 Python API와 PostgreSQL을 운영하고 고객 요구를 제품 기능으로 출시했다."
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "다음 역할",
+            "content": "고객 요구를 직접 제품으로 구현하는 시니어 IC 역할을 원함."
+          },
+          {
+            "ref": 2,
+            "label": "조건",
+            "content": "기본 연봉 1억 원 이상. 한국어 대화 선호. 해외 이전 여부는 아직 정하지 않음."
+          }
+        ],
+        "behavior_context": "명시된 선호 외에 추가로 추론할 행동 없음.",
+        "delivery_history": []
+      },
+      "actions": [
+        "internal_recommendation",
+        "external_recommendation"
+      ],
+      "internal": [
+        {
+          "roleId": "11111111-1111-4111-8111-111111111111",
+          "sourceType": "internal",
+          "roleName": "Senior Backend Engineer",
+          "companyName": "Orbit Tools",
+          "location": "서울",
+          "workMode": "하이브리드",
+          "fitReasons": [
+            "고객 요구를 제품 기능으로 출시한 경험을 활용하며 시니어 IC 범위를 유지할 수 있다."
+          ],
+          "tradeoffs": "",
+          "roleDescription": "Python API와 PostgreSQL 서비스 설계 및 운영, 고객 문제 해결. 서울 주 2일 출근. 기본 연봉 1억~1억 3천만 원.",
+          "salaryRange": "기본 연봉 1억~1억 3천만 원",
+          "company": {
+            "description": "B2B SaaS 고객 지원 도구를 만드는 35명 회사. 유료 기업 고객 120곳.",
+            "pitch": "고객 피드백부터 출시까지 엔지니어가 직접 담당한다."
+          }
+        }
+      ],
+      "external": [
+        {
+          "roleId": "22222222-2222-4222-8222-222222222222",
+          "sourceType": "external",
+          "roleName": "Backend Engineer",
+          "companyName": "Cedar Cloud",
+          "location": "서울",
+          "workMode": "하이브리드",
+          "roleDescription": "데이터 API를 개발하는 시니어 IC. 서울 하이브리드. 기본 연봉 1억~1억 2천만 원.",
+          "salaryRange": "기본 연봉 1억~1억 2천만 원",
+          "company": {
+            "description": "기업용 데이터 API 서비스",
+            "pitch": "기업용 데이터 API 서비스"
+          },
+          "externalFit": {
+            "fitSummary": "Cedar Cloud는 기업용 데이터 API 서비스를 만든다. 시니어 IC로 API를 설계·운영한다.",
+            "fitReasons": [
+              "Python API 운영 경험을 활용할 수 있다."
+            ],
+            "tradeoffs": ""
+          }
+        }
+      ],
+      "informationRequests": [],
+      "gold": {
+        "requiredRoleIds": [
+          "11111111-1111-4111-8111-111111111111",
+          "22222222-2222-4222-8222-222222222222"
+        ],
+        "maxQuestions": 5,
+        "review": [
+          "internal 소개를 중심에 두고 external은 직접 지원할 기회로 짧게 안내한다.",
+          "두 역할을 정확히 보존하고 회사 관심·완료된 소개를 만들지 않는다."
+        ]
+      }
+    },
+    {
+      "id": "FDQ005-external",
+      "userProfile": {
+        "settings": {
+          "locale": "ko"
+        }
+      },
+      "userContext": {
+        "profile": {
+          "identity": {
+            "name": "Min Park"
+          },
+          "headline": "B2B SaaS 백엔드 엔지니어",
+          "experience": "6년간 Python API와 PostgreSQL을 운영하고 고객 요구를 제품 기능으로 출시했다."
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "다음 역할",
+            "content": "고객 요구를 직접 제품으로 구현하는 시니어 IC 역할을 원함."
+          },
+          {
+            "ref": 2,
+            "label": "조건",
+            "content": "기본 연봉 1억 원 이상. 한국어 대화 선호. 해외 이전 여부는 아직 정하지 않음."
+          }
+        ],
+        "behavior_context": "명시된 선호 외에 추가로 추론할 행동 없음.",
+        "delivery_history": []
+      },
+      "actions": [
+        "external_recommendation"
+      ],
+      "internal": [],
+      "external": [
+        {
+          "roleId": "22222222-2222-4222-8222-222222222222",
+          "sourceType": "external",
+          "roleName": "Backend Engineer",
+          "companyName": "Cedar Cloud",
+          "location": "서울",
+          "workMode": "하이브리드",
+          "roleDescription": "데이터 API를 개발하는 시니어 IC. 서울 하이브리드. 기본 연봉 1억~1억 2천만 원.",
+          "salaryRange": "기본 연봉 1억~1억 2천만 원",
+          "company": {
+            "description": "기업용 데이터 API 서비스",
+            "pitch": "기업용 데이터 API 서비스"
+          },
+          "externalFit": {
+            "fitSummary": "Cedar Cloud는 기업용 데이터 API 서비스를 만든다. 시니어 IC로 API를 설계·운영한다.",
+            "fitReasons": [
+              "Python API 운영 경험을 활용할 수 있다."
+            ],
+            "tradeoffs": ""
+          }
+        }
+      ],
+      "informationRequests": [],
+      "gold": {
+        "requiredRoleIds": [
+          "22222222-2222-4222-8222-222222222222"
+        ],
+        "maxQuestions": 5,
+        "review": [
+          "직접 지원하는 기회를 Harper가 소개할 수 있는 것처럼 말하지 않는다.",
+          "보상·직무·근무 조건을 왜곡하지 않고 관련 경력을 근거로 쓴다."
+        ]
+      }
+    }
+  ]
+}

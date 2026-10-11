@@ -16,7 +16,6 @@ const MIGRATIONS = [
   "20260806070000_coalesce_slack_thread_replies.sql",
   "20260811100000_company_internal_role_criteria.sql",
   "20260811110000_company_internal_role_request_only.sql",
-  "20260812140000_company_internal_roles_is_auto_default_true.sql",
   "20260814130000_slack_company_agent_file_attachments.sql",
   "20260814210000_allow_zero_to_six_company_internal_role_criteria.sql",
 ] as const;
@@ -40,18 +39,6 @@ const TALENT_REQUEST_MULTI_CANDIDATE_SOURCE_MIGRATION =
   "20260901100000_company_talent_request_multi_candidate_source.sql";
 const TALENT_CONTACT_FIVE_MINUTE_DELAY_MIGRATION =
   "20260908170000_company_talent_contact_five_minute_delay.sql";
-const COMPANY_ROLE_RECURRING_MATCHING_MIGRATION =
-  "20260812150000_company_role_behavior_context_matching.sql";
-const COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION =
-  "20260814100000_company_internal_role_matching_lifecycle.sql";
-const COMPANY_CONTEXT_RUN_QUEUE_MIGRATION =
-  "20260814180000_company_context_run_queue.sql";
-const COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION =
-  "20260824163000_company_context_run_active_queue_only.sql";
-const TEST_ONLY_COMPANY_CONTEXT_RUN_GUARD_MIGRATION =
-  "20260831160000_test_only_company_context_run_guard.sql";
-const COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION =
-  "20260814200000_company_behavior_contexts_role_current.sql";
 const DROP_COMPANY_ROLES_REQUEST_MIGRATION =
   "20260826130000_drop_company_roles_request.sql";
 const COMPANY_MESSAGE_CONVERSATION_SCOPED_SLACK_IDENTITY_MIGRATION =
@@ -68,10 +55,6 @@ const IDS = {
   externalRole: "00000000-0000-4000-8000-000000000105",
   otherWorkspaceRole: "00000000-0000-4000-8000-000000000106",
   oversizedRole: "00000000-0000-4000-8000-000000000107",
-  recurringAutoRole: "00000000-0000-4000-8000-000000000108",
-  recurringLegacyPausedRole: "00000000-0000-4000-8000-000000000109",
-  recurringDraftRole: "00000000-0000-4000-8000-000000000110",
-  recurringTestOnlyRole: "00000000-0000-4000-8000-000000000111",
   conversation: "00000000-0000-4000-8000-000000000201",
   slackDuplicateConversation: "00000000-0000-4000-8000-000000000202",
   slackChannel: "00000000-0000-4000-8000-000000000301",
@@ -174,7 +157,6 @@ create table public.company_internal_roles (
   request text,
   considerations jsonb not null default '{}'::jsonb,
   questions jsonb,
-      is_auto boolean not null default false,
       is_require_linkedin boolean,
       is_require_resume boolean,
       max_peding_talents integer,
@@ -695,48 +677,13 @@ async function testRequestMigration(sql: Db, notices: string[]) {
 }
 
 async function applyRemainingMigrations(sql: Db) {
-  await applyMigration(sql, MIGRATIONS[1]);
-  await applyMigration(sql, MIGRATIONS[2]);
-  await applyMigration(sql, MIGRATIONS[3]);
-  await applyMigration(sql, MIGRATIONS[4]);
-  await applyMigration(sql, MIGRATIONS[5]);
-  await applyMigration(sql, MIGRATIONS[6]);
-  await applyMigration(sql, MIGRATIONS[7]);
-  await applyMigration(sql, MIGRATIONS[8]);
-  await applyMigration(sql, MIGRATIONS[9]);
-  await applyMigration(sql, MIGRATIONS[10]);
-  await applyMigration(sql, MIGRATIONS[11]);
-  await applyMigration(sql, MIGRATIONS[12]);
+  for (const migration of MIGRATIONS.slice(1)) {
+    await applyMigration(sql, migration);
+  }
   await applyMigration(
     sql,
     COMPANY_MESSAGE_CONVERSATION_SCOPED_SLACK_IDENTITY_MIGRATION
   );
-  const isAutoColumn = firstRow(
-    await sql`
-      select column_default, is_nullable
-      from information_schema.columns
-      where table_schema = 'public'
-        and table_name = 'company_internal_roles'
-        and column_name = 'is_auto'
-    `
-  );
-  assert(
-    isAutoColumn.column_default === "true" && isAutoColumn.is_nullable === "NO",
-    "company_internal_roles.is_auto does not default to true"
-  );
-  assert(
-    value<boolean>(
-      await sql`
-        select is_auto
-        from public.company_internal_roles
-        where role_id = ${IDS.legacyRole}::uuid
-      `,
-      "is_auto"
-    ) === false,
-    "migration overwrote an existing explicit is_auto=false value"
-  );
-  logPass("is_auto defaults to true without changing existing opt-outs");
-
   const oneCriterion = [
     { name: "Ownership", criteria: "모호한 문제를 끝까지 맡은 경험" },
   ];
@@ -1828,317 +1775,6 @@ async function testWorkspaceScopedCompanyTalentRequest(sql: Db) {
   );
   logPass(
     "company requests remain scoped and preserve committed delivery across stage changes"
-  );
-}
-
-async function testCompanyRoleRecurringMatchingMigration(sql: Db) {
-  await applyMigration(sql, COMPANY_ROLE_RECURRING_MATCHING_MIGRATION);
-  await applyMigration(sql, COMPANY_INTERNAL_ROLE_MATCHING_LIFECYCLE_MIGRATION);
-  await applyMigration(sql, COMPANY_CONTEXT_RUN_QUEUE_MIGRATION);
-  await applyMigration(sql, COMPANY_BEHAVIOR_CONTEXT_CURRENT_MIGRATION);
-  await applyMigration(sql, COMPANY_CONTEXT_RUN_ACTIVE_QUEUE_ONLY_MIGRATION);
-
-  await sql`
-    insert into public.company_roles(
-      role_id, company_workspace_id, name, information,
-      source_type, status, is_expired
-    ) values (
-      ${IDS.recurringTestOnlyRole}::uuid,
-      ${IDS.workspaceA}::uuid,
-      'Test-only Context Queue Guard',
-      ${JSON.stringify({
-        testFixture: "company-context-run-guard-db-test",
-        testOnly: true,
-        testTalentIds: [IDS.talent],
-      })}::jsonb,
-      'internal',
-      'active',
-      false
-    )
-  `;
-  await sql`
-    insert into public.company_internal_roles(
-      role_id, request, is_auto, max_pending_talents
-    ) values (
-      ${IDS.recurringTestOnlyRole}::uuid,
-      'Test-only queue guard',
-      true,
-      5
-    )
-  `;
-  assert(
-    value<string>(
-      await sql`
-        select status
-        from public.company_context_runs
-        where role_id = ${IDS.recurringTestOnlyRole}::uuid
-      `,
-      "status"
-    ) === "queued",
-    "the pre-guard fixture did not reproduce the test-only queue leak"
-  );
-
-  await applyMigration(sql, TEST_ONLY_COMPANY_CONTEXT_RUN_GUARD_MIGRATION);
-  const canceledTestOnlyRun = firstRow(
-    await sql`
-      select status, result->>'resultReason' as result_reason
-      from public.company_context_runs
-      where role_id = ${IDS.recurringTestOnlyRole}::uuid
-    `
-  );
-  assert(
-    canceledTestOnlyRun.status === "canceled" &&
-      canceledTestOnlyRun.result_reason === "test_only_role",
-    "the test-only queue guard did not cancel an existing queued run"
-  );
-  const manualTestOnlyRun = value<unknown>(
-    await sql`
-      select public.enqueue_company_context_run_v1(
-        ${IDS.recurringTestOnlyRole}::uuid,
-        'manual',
-        timezone('utc', now())
-      ) as run_id
-    `,
-    "run_id"
-  );
-  assert(
-    manualTestOnlyRun === null,
-    "manual enqueue created a context run for a test-only Role"
-  );
-  await sql`select public.enqueue_due_company_context_runs_v1(timezone('utc', now()))`;
-  assert(
-    Number(
-      value<number>(
-        await sql`
-          select count(*)::integer as count
-          from public.company_context_runs
-          where role_id = ${IDS.recurringTestOnlyRole}::uuid
-            and status in ('queued', 'running')
-        `,
-        "count"
-      )
-    ) === 0,
-    "the periodic enqueue path recreated a test-only context run"
-  );
-  assert(
-    (
-      await sql`
-      select *
-      from public.claim_company_context_run_v1(
-        'db-test',
-        ${IDS.recurringTestOnlyRole}::uuid
-      )
-    `
-    ).length === 0,
-    "the claim path returned a test-only context run"
-  );
-  await expectDbError(
-    "direct test-only company context run insert",
-    () => sql`
-      insert into public.company_context_runs(
-        role_id, status, trigger_reason, available_at, result
-      ) values (
-        ${IDS.recurringTestOnlyRole}::uuid,
-        'queued',
-        'manual',
-        timezone('utc', now()),
-        '{}'::jsonb
-      )
-    `,
-    /test-only internal roles cannot have company context runs/i
-  );
-  logPass("test-only Roles never enter or leave the company context-run queue");
-
-  const schema = firstRow(
-    await sql`
-      select
-        to_regclass('public.company_behavior_contexts') is not null as has_role_context,
-        to_regclass('public.company_role_behavior_contexts') is null as removed_legacy_role_context,
-        (select count(*) = 2
-         from information_schema.columns
-         where table_schema = 'public' and table_name = 'company_behavior_contexts') as has_two_context_columns,
-        exists (
-          select 1
-          from information_schema.columns
-          where table_schema = 'public'
-            and table_name = 'company_behavior_contexts'
-            and column_name = 'role_id'
-        ) as context_is_role_scoped,
-        to_regclass('public.company_context_runs') is not null as has_context_run_queue,
-        (select count(*) = 6
-         from information_schema.columns
-         where table_schema = 'public' and table_name = 'company_context_runs') as has_six_queue_columns,
-        exists (
-          select 1
-          from information_schema.columns
-          where table_schema = 'public'
-            and table_name = 'company_internal_roles'
-            and column_name = 'max_pending_talents'
-        ) as has_correct_pending_limit,
-        exists (
-          select 1
-          from information_schema.columns
-          where table_schema = 'public'
-            and table_name = 'talent_opportunity_fit'
-            and column_name = 'company_side_evaluation_metadata'
-        ) as has_fit_metadata,
-        exists (
-          select 1
-          from information_schema.columns
-          where table_schema = 'public'
-            and table_name = 'company_internal_roles'
-            and column_name = 'role_status_changed_at'
-        ) as has_internal_role_status_time,
-        not exists (
-          select 1
-          from information_schema.columns
-          where table_schema = 'public'
-            and table_name = 'company_internal_roles'
-            and column_name = 'last_long_inactive_reactivated_at'
-        ) as removed_long_resume_time,
-        not exists (
-          select 1
-          from information_schema.columns
-          where table_schema = 'public'
-            and table_name = 'company_internal_roles'
-            and column_name = 'last_auto_enabled_at'
-        ) as removed_auto_enabled_time
-    `
-  );
-  assert(
-    Object.values(schema).every((present) => present === true),
-    "recurring company-role matching schema is incomplete"
-  );
-
-  await sql`
-    insert into public.company_roles(
-      role_id, company_workspace_id, name, source_type, status, is_expired
-    ) values (
-      ${IDS.recurringDraftRole}::uuid,
-      ${IDS.workspaceA}::uuid,
-      'Draft Queue Guard Role',
-      'internal',
-      'draft',
-      false
-    )
-  `;
-  await sql`
-    insert into public.company_internal_roles(
-      role_id, request, is_auto, max_pending_talents
-    ) values (
-      ${IDS.recurringDraftRole}::uuid,
-      'Draft queue guard test',
-      true,
-      5
-    )
-  `;
-  assert(
-    Number(
-      value<number>(
-        await sql`
-          select count(*)::integer as count
-          from public.company_context_runs
-          where role_id = ${IDS.recurringDraftRole}::uuid
-        `,
-        "count"
-      )
-    ) === 0,
-    "a draft internal role was queued before activation"
-  );
-  await sql`
-    update public.company_roles
-    set status = 'active'
-    where role_id = ${IDS.recurringDraftRole}::uuid
-  `;
-  assert(
-    value<string>(
-      await sql`
-        select trigger_reason
-        from public.company_context_runs
-        where role_id = ${IDS.recurringDraftRole}::uuid
-          and status = 'queued'
-      `,
-      "trigger_reason"
-    ) === "role_created",
-    "a newly activated internal role did not receive its role_created run"
-  );
-  await sql`
-    update public.company_roles
-    set status = 'paused'
-    where role_id = ${IDS.recurringDraftRole}::uuid
-  `;
-  const canceledDraftRun = firstRow(
-    await sql`
-      select status, result->>'resultReason' as result_reason
-      from public.company_context_runs
-      where role_id = ${IDS.recurringDraftRole}::uuid
-      order by available_at desc, id desc
-      limit 1
-    `
-  );
-  assert(
-    canceledDraftRun.status === "canceled" &&
-      canceledDraftRun.result_reason === "role_not_active",
-    "an automatic run remained queued after its role became inactive"
-  );
-
-  await sql`
-    insert into public.company_roles(
-      role_id, company_workspace_id, name, source_type, status, is_expired
-    ) values (
-      ${IDS.recurringLegacyPausedRole}::uuid,
-      ${IDS.workspaceA}::uuid,
-      'Lifecycle Tracking Role',
-      'internal',
-      'paused',
-      false
-    )
-  `;
-  await sql`
-    insert into public.company_internal_roles(
-      role_id, request, is_auto, max_pending_talents, role_status_changed_at
-    ) values (
-      ${IDS.recurringLegacyPausedRole}::uuid,
-      'Lifecycle test',
-      true,
-      5,
-      timezone('utc', now()) - interval '8 days'
-    )
-  `;
-  await sql`
-    update public.company_context_runs
-    set status = 'canceled', result = result || '{"testCleanup":true}'::jsonb
-    where role_id = ${IDS.recurringLegacyPausedRole}::uuid
-      and status = 'queued'
-  `;
-  await sql`
-    update public.company_roles
-    set status = 'ended'
-    where role_id = ${IDS.recurringLegacyPausedRole}::uuid
-  `;
-  await sql`
-    update public.company_roles
-    set status = 'active'
-    where role_id = ${IDS.recurringLegacyPausedRole}::uuid
-  `;
-  const resumed = firstRow(
-    await sql`
-      select internal_role.role_status_changed_at, run.trigger_reason, run.status
-      from public.company_internal_roles internal_role
-      join public.company_context_runs run on run.role_id = internal_role.role_id
-      where internal_role.role_id = ${IDS.recurringLegacyPausedRole}::uuid
-      order by run.available_at desc, run.id desc
-      limit 1
-    `
-  );
-  assert(
-    resumed.role_status_changed_at != null &&
-      resumed.trigger_reason === "reactivated_after_7d" &&
-      resumed.status === "queued",
-    "a role reactivated after seven days was not queued"
-  );
-  logPass(
-    "company context runs use one role context, a six-column DB queue, and seven-day reactivation"
   );
 }
 
@@ -4797,7 +4433,6 @@ async function run() {
     await testRequestMigration(testDb, notices);
     await applyRemainingMigrations(testDb);
     await testWorkspaceScopedCompanyTalentRequest(testDb);
-    await testCompanyRoleRecurringMatchingMigration(testDb);
     await testMemoryConstraints(testDb, lockHolderDb);
     await testRlsAndGrants(testDb);
     await testApplyRpcAndGuard(testDb, lockHolderDb);

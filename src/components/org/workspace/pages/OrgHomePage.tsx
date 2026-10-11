@@ -452,43 +452,53 @@ export function OrgHomePage() {
   const endedRoleCount = hiringRoles.filter(
     (item) => item.state === "ended"
   ).length;
+  const devControls = canUseOrgDevControls(user.email) ? (
+    <OrgRoleMatchingHealthDevControls
+      key={workspaceId}
+      roles={homeRoles}
+      workspaceId={workspaceId}
+    />
+  ) : null;
 
   if (hasNoRoles) {
     return (
-      <div className="relative h-[calc(100svh-80px)] min-h-[560px]">
-        {permissions.canManageCandidates ? (
-          <div
-            aria-label={t("workspace.pages.OrgHomePage.3825f363", "새 역할 등록 대화")}
-            className="h-full"
-          >
-            <OrgAgentChatSurface
-              header={
-                <h1 className="sr-only">
-                  {t("workspace.pages.OrgHomePage.e04cbab8", "새 역할 등록")}
-                </h1>
-              }
-              onRoleCreated={handleRoleCreated}
-              purpose="role-creation"
-              roleId={null}
+      <>
+        <div className="relative h-[calc(100svh-80px)] min-h-[560px]">
+          {permissions.canManageCandidates ? (
+            <div
+              aria-label={t("workspace.pages.OrgHomePage.3825f363", "새 역할 등록 대화")}
+              className="h-full"
+            >
+              <OrgAgentChatSurface
+                header={
+                  <h1 className="sr-only">
+                    {t("workspace.pages.OrgHomePage.e04cbab8", "새 역할 등록")}
+                  </h1>
+                }
+                onRoleCreated={handleRoleCreated}
+                purpose="role-creation"
+                roleId={null}
+              />
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-neutral-muted">
+              {t("workspace.pages.OrgHomePage.0bc13914", "역할을 등록할 권한이 없습니다.")}
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 z-30 bg-bg-default/90 pt-4 backdrop-blur-sm">
+            <HomeQuickActions
+              companyLogoUrl={workspace.logoUrl}
+              companyName={workspace.companyName}
+              onOpenCompany={openCompany}
+              onOpenMembers={openMembers}
+              onOpenSlack={openSlack}
+              slackChannelName={slackChannelName}
+              slackDisconnected={slackDisconnected}
             />
           </div>
-        ) : (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-neutral-muted">
-            {t("workspace.pages.OrgHomePage.0bc13914", "역할을 등록할 권한이 없습니다.")}
-          </div>
-        )}
-        <div className="absolute inset-x-0 bottom-0 z-30 bg-bg-default/90 pt-4 backdrop-blur-sm">
-          <HomeQuickActions
-            companyLogoUrl={workspace.logoUrl}
-            companyName={workspace.companyName}
-            onOpenCompany={openCompany}
-            onOpenMembers={openMembers}
-            onOpenSlack={openSlack}
-            slackChannelName={slackChannelName}
-            slackDisconnected={slackDisconnected}
-          />
         </div>
-      </div>
+        {devControls}
+      </>
     );
   }
 
@@ -546,12 +556,7 @@ export function OrgHomePage() {
               ) : null}
             </div>
           </OrgSection>
-          {canUseOrgDevControls(user.email) ? (
-            <OrgRoleMatchingHealthDevControls
-              roles={homeRoles}
-              workspaceId={workspaceId}
-            />
-          ) : null}
+          {devControls}
           <HomeQuickActions
             companyLogoUrl={workspace.logoUrl}
             companyName={workspace.companyName}

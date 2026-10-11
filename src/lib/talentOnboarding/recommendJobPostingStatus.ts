@@ -8,9 +8,28 @@ export type RecommendJobPostingStatusState =
 
 export type RecommendJobPostingStatus = {
   candidateCount?: number | null;
+  scoredCount?: number | null;
+  phase?: RecommendJobPostingPhase;
   recommendationCount?: number | null;
   state: RecommendJobPostingStatusState;
 };
+
+export type RecommendJobPostingPhase =
+  | "query"
+  | "scoring"
+  | "reranking"
+  | "delivery";
+
+export function isRecommendJobPostingPhase(
+  value: unknown
+): value is RecommendJobPostingPhase {
+  return (
+    value === "query" ||
+    value === "scoring" ||
+    value === "reranking" ||
+    value === "delivery"
+  );
+}
 
 export const RECOMMEND_JOB_POSTINGS_CHAT_PREAMBLE =
   "좋습니다. 먼저 현재 추천 진행 상태를 확인해볼게요.";
@@ -50,6 +69,10 @@ export function createRecommendJobPostingStatusLog(
   if (recommendationCount !== null) {
     parts.push(`recommendations=${recommendationCount}`);
   }
+  if (isRecommendJobPostingPhase(status.phase))
+    parts.push(`phase=${status.phase}`);
+  const scoredCount = normalizeCount(status.scoredCount);
+  if (scoredCount !== null) parts.push(`scored=${scoredCount}`);
 
   return `${parts.join(":")}${STATUS_LOG_SUFFIX}`;
 }
@@ -83,10 +106,15 @@ export function parseRecommendJobPostingStatusLog(
   const status: RecommendJobPostingStatus = { state: rawState };
   for (const part of rawParts) {
     const [key, rawValue] = part.split("=");
+    if (key === "phase" && isRecommendJobPostingPhase(rawValue)) {
+      status.phase = rawValue;
+      continue;
+    }
     const count = normalizeCount(Number(rawValue));
     if (count === null) continue;
     if (key === "candidates") status.candidateCount = count;
     if (key === "recommendations") status.recommendationCount = count;
+    if (key === "scored") status.scoredCount = count;
   }
 
   return status;

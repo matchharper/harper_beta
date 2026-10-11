@@ -9,6 +9,7 @@ export const SIMULATION_TOOL_NAMES: readonly string[] = [
   "read_recommended_opportunities",
   "list_documents",
   "read_document",
+  "generate_resume",
 ];
 export const simulationSessionTool = {
   type: "function" as const,

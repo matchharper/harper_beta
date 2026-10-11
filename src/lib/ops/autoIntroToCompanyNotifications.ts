@@ -1,3 +1,4 @@
+import { parseCompanyCandidatePresentation } from "@/lib/companyFirstSearch/presentation";
 import { createHash, randomUUID } from "crypto";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { localeFromHeadquarters } from "@/lib/org/workspaceLocale";
@@ -13,6 +14,7 @@ import {
   getAutoIntroRoleSummaryDateKey,
   getFreshPendingConnectionSince,
   getLatestAutoIntroInternalStage,
+  isAutoIntroDeliveryOwnedElsewhere,
   isAutoIntroRoleSummaryDay,
   wasAutoIntroSlackSent,
   type AutoIntroReasonMode,
@@ -154,6 +156,7 @@ type TagRow = {
 };
 
 type FitRow = {
+  fit_contract_version?: string | null;
   company_criteria_evaluations: Json | null;
   created_at: string;
   id: string;
@@ -223,14 +226,6 @@ type CandidateProfile = {
   resumeLinks: string[];
 };
 
-const AUTO_INTRO_SHARED_BRIEF_KEYS = [
-  "next_scope",
-  "location",
-  "team_style_fit",
-  "must_haves",
-  "deal_breakers",
-] as const;
-
 type AutoIntroCompanyPromptContext = {
   companyInformation: string | null;
   companyName: string;
@@ -290,6 +285,7 @@ type WorkspaceNotificationGroup = {
 };
 
 type GeneratedWorkspaceMessage = {
+  companyPresentationByCandidateKey: Record<string, CompanyCandidatePresentation>;
   body: string;
   locale: OrgLocale;
   candidateCopyByCandidateKey: Record<string, string>;
@@ -322,7 +318,13 @@ type EligibilityStats = {
   skippedUnsupportedFitKindCount: number;
 };
 
+export type CompanyCandidatePresentation = {
+  introduction: string;
+  criteriaEvaluations: Array<{name: string; fitness: "excellent" | "good" | "uncertain" | "bad"; content: string; criterionDefinition?: string}>;
+};
+
 type CodexAuthoredCandidateBase = {
+  companyPresentation?: CompanyCandidatePresentation;
   sources?: Array<{ title?: string | null; url: string }>;
   talentId: string;
 };
@@ -1161,7 +1163,7 @@ async function fetchFits(
         ...(await fetchAllRows<FitRow>((from, to) =>
           (admin.from("talent_opportunity_fit" as any) as any)
             .select(
-              "id, opportunity_id, talent_id, reason, kind, company_criteria_evaluations, reevaluation_criteria, last_evaluated_at, created_at"
+              "id, opportunity_id, talent_id, reason, kind, fit_contract_version, company_criteria_evaluations, reevaluation_criteria, last_evaluated_at, created_at"
             )
             .in("opportunity_id", roleIdChunk)
             .in("talent_id", talentIdChunk)
@@ -1179,7 +1181,9 @@ async function fetchFits(
   const latest = new Map<string, FitRow>();
   for (const row of rows) {
     const key = `${row.opportunity_id}:${row.talent_id}`;
-    if (!latest.has(key)) latest.set(key, row);
+    if (!latest.has(key)) latest.set(key, row.fit_contract_version === "talent_role_fit_v2"
+      ? { ...row, kind: null, reason: "", reevaluation_criteria: null, company_criteria_evaluations: null }
+      : row);
   }
   return latest;
 }
@@ -1205,7 +1209,7 @@ async function fetchSentIntroProgressKeys(
           .range(from, to)
       );
       for (const row of rows) {
-        if (wasAutoIntroSlackSent(row.metadata)) {
+        if (wasAutoIntroSlackSent(row.metadata) || isAutoIntroDeliveryOwnedElsewhere(row.metadata)) {
           keys.add(`${row.role_id}:${row.talent_id}`);
         }
       }
@@ -1237,7 +1241,6 @@ async function fetchCandidateProfiles(
   const experiences: ExperienceRow[] = [];
   const educations: EducationRow[] = [];
   const extras = new Map<string, Json | null>();
-  const contexts = new Map<string, Array<Record<string, unknown>>>();
   const engagementTypes = new Map<string, string[]>();
 
   for (const talentIdChunk of chunkValues(talentIds)) {
@@ -1245,7 +1248,6 @@ async function fetchCandidateProfiles(
       experienceResult,
       educationResult,
       extraResult,
-      contextResult,
       settingResult,
     ] = await Promise.all([
       (admin.from("talent_experiences" as any) as any)
@@ -1261,12 +1263,6 @@ async function fetchCandidateProfiles(
       (admin.from("talent_extras" as any) as any)
         .select("talent_id, content")
         .in("talent_id", talentIdChunk),
-      (admin.from("talent_contexts" as any) as any)
-        .select("talent_id, key, content")
-        .eq("collection", "brief")
-        .is("deleted_at", null)
-        .in("talent_id", talentIdChunk)
-        .in("key", AUTO_INTRO_SHARED_BRIEF_KEYS),
       (admin.from("talent_setting" as any) as any)
         .select("user_id, engagement_types")
         .in("user_id", talentIdChunk),
@@ -1274,18 +1270,11 @@ async function fetchCandidateProfiles(
     if (experienceResult.error) throw experienceResult.error;
     if (educationResult.error) throw educationResult.error;
     if (extraResult.error) throw extraResult.error;
-    if (contextResult.error) throw contextResult.error;
     if (settingResult.error) throw settingResult.error;
     experiences.push(...((experienceResult.data ?? []) as ExperienceRow[]));
     educations.push(...((educationResult.data ?? []) as EducationRow[]));
     for (const row of extraResult.data ?? []) {
       extras.set(row.talent_id, row.content as Json | null);
-    }
-    for (const row of contextResult.data ?? []) {
-      if (!row.talent_id) continue;
-      const current = contexts.get(row.talent_id) ?? [];
-      current.push(row);
-      contexts.set(row.talent_id, current);
     }
     for (const row of settingResult.data ?? []) {
       engagementTypes.set(
@@ -1313,7 +1302,7 @@ async function fetchCandidateProfiles(
         .map(({ id: _id, talent_id: _talentId, ...row }) => ({
           ...row,
           description: normalizeMultiline(row.description) || null,
-          memo: normalizeMultiline(row.memo) || null,
+          memo: null,
         })),
       engagementTypes: engagementTypes.get(talentId) ?? [],
       experiences: experiences
@@ -1326,20 +1315,11 @@ async function fetchCandidateProfiles(
         .map(({ id: _id, talent_id: _talentId, ...row }) => ({
           ...row,
           description: normalizeMultiline(row.description) || null,
-          memo: normalizeMultiline(row.memo) || null,
+          memo: null,
         })),
       extras: extras.get(talentId) ?? null,
       headline: normalizeText(talent?.headline) || null,
-      insights: (() => {
-        const rows = contexts.get(talentId) ?? [];
-        return Object.fromEntries(
-          rows.flatMap((row) => {
-            const key = normalizeText(row.key);
-            const content = normalizeMultiline(row.content);
-            return key && content ? [[key, content]] : [];
-          })
-        ) as Json;
-      })(),
+      insights: null,
       resumeLinks: uniqueTexts(talent?.resume_links ?? []),
     });
   }
@@ -1686,6 +1666,7 @@ function parseCodexAuthoredMessage(
   const externalSourcesByCandidateKey: GeneratedWorkspaceMessage["externalSourcesByCandidateKey"] =
     {};
   const fitReasonByCandidateKey: Record<string, string> = {};
+  const companyPresentationByCandidateKey: Record<string, CompanyCandidatePresentation> = {};
   const presentationByCandidateKey: GeneratedWorkspaceMessage["presentationByCandidateKey"] =
     {};
 
@@ -1734,6 +1715,10 @@ function parseCodexAuthoredMessage(
         }
         candidateCopy = renderAutoIntroCandidateCopy(presentation, sentences);
         fitReason = candidateCopy;
+      }
+      if (row.companyPresentation) {
+        companyPresentationByCandidateKey[key] = parseCompanyCandidatePresentation(row.companyPresentation,
+          normalizeOrgRoleCriteria(getCompanyInternalRoleRecord(group.roleSections.find(section => section.roleId === roleId)?.role.company_internal_roles)?.criteria));
       }
       candidateCopyByCandidateKey[key] = candidateCopy;
       fitReasonByCandidateKey[key] = fitReason;
@@ -1790,6 +1775,7 @@ function parseCodexAuthoredMessage(
     externalSourcesByCandidateKey,
     followUpQuestion,
     fitReasonByCandidateKey,
+    companyPresentationByCandidateKey,
     model,
     presentationByCandidateKey,
     source: source.slice(0, 120),
@@ -1815,6 +1801,7 @@ function progressMetadata(args: {
   const now = new Date().toISOString();
   return {
     autoIntroToCompany: true,
+    companyPresentation: args.message.companyPresentationByCandidateKey[candidateKey(args.candidate)] ?? null,
     candidateCopy:
       args.message.candidateCopyByCandidateKey[candidateKey(args.candidate)],
     claimedAt: now,
@@ -1911,38 +1898,6 @@ async function updateCandidateProgressMetadata(args: {
       .update({ metadata: metadata as Json })
       .eq("id", progressIdForCandidate(candidate));
     if (error) throw error;
-  }
-}
-
-async function persistAutoIntroSlackBodiesAsFitReasons(args: {
-  admin: AdminClient;
-  group: WorkspaceNotificationGroup;
-  message: GeneratedWorkspaceMessage;
-}) {
-  for (const candidate of args.group.candidates) {
-    if (!candidate.fitId) {
-      throw new Error(`Missing candidate fit row: ${candidate.talentId}`);
-    }
-    const reason =
-      args.message.fitReasonByCandidateKey[candidateKey(candidate)];
-    if (!reason) {
-      throw new Error(`Missing candidate Slack body: ${candidate.talentId}`);
-    }
-    const { data, error } = await (
-      args.admin.from("talent_opportunity_fit" as any) as any
-    )
-      .update({ reason })
-      .eq("id", candidate.fitId)
-      .eq("opportunity_id", candidate.roleId)
-      .eq("talent_id", candidate.talentId)
-      .select("id")
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) {
-      throw new Error(
-        `Candidate fit changed before Slack body persistence: ${candidate.fitId}`
-      );
-    }
   }
 }
 
@@ -2596,11 +2551,6 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
             claimedGroup,
             workspaceLocale
           );
-    await persistAutoIntroSlackBodiesAsFitReasons({
-      admin,
-      group: claimedGroup,
-      message: candidateMessage,
-    });
     const delivery = await sendWorkspaceMessage({
       group: claimedGroup,
       message: candidateMessage,

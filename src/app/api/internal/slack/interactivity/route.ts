@@ -60,6 +60,7 @@ import {
 import { dispatchSlackReplyJob } from "@/lib/org/slackQueueDispatch";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
+import { handleSlackCandidateInteraction } from "@/lib/org/slackCandidateInteractivity";
 
 export const runtime = "nodejs";
 
@@ -541,6 +542,9 @@ export async function POST(req: NextRequest) {
   if (!isHarperSlackAppId(payload.api_app_id)) {
     return NextResponse.json({ error: "wrong_app" }, { status: 403 });
   }
+
+  const candidateInteraction = await handleSlackCandidateInteraction(payload);
+  if (candidateInteraction) return NextResponse.json(candidateInteraction);
 
   const callbackId = clean(payload.view?.callback_id);
   if (

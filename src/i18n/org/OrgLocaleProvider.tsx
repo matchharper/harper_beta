@@ -11,12 +11,22 @@ import {
 } from "react";
 import { en } from "./en";
 import { ko, type OrgMessageKey } from "./ko";
-import { getBrowserLanguage, isOrgLocale, resolveOrgLocale, type OrgLocale } from "./locale";
+import {
+  getBrowserLanguage,
+  isOrgLocale,
+  resolveOrgLocale,
+  type OrgLocale,
+} from "./locale";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { useAuthStore } from "@/store/useAuthStore";
 
 const STORAGE_KEY = "harper:org-locale";
 const STORAGE_OWNER_KEY = "harper:org-locale-user";
+function entryLocale(): OrgLocale | null {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("lang");
+  return isOrgLocale(value) ? value : null;
+}
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -70,14 +80,16 @@ function persistLocaleOwner(userId: string) {
 }
 
 async function initialAccountLocale(userId: string): Promise<OrgLocale> {
+  const entry = entryLocale();
+  if (entry) return entry;
   const local = storedLocale();
   const owner = storedLocaleOwner();
   if (local && (!owner || owner === userId)) return local;
   const browserLanguage = getBrowserLanguage();
   if (browserLanguage) return resolveOrgLocale(browserLanguage);
-  const context = await fetch("/api/landing/context", { cache: "no-store" })
+  const context = (await fetch("/api/landing/context", { cache: "no-store" })
     .then((response) => (response.ok ? response.json() : null))
-    .catch(() => null) as { countryCode?: string } | null;
+    .catch(() => null)) as { countryCode?: string } | null;
   return resolveOrgLocale(null, context?.countryCode);
 }
 
@@ -93,6 +105,11 @@ export function OrgLocaleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useIsomorphicLayoutEffect(() => {
+    const entry = entryLocale();
+    if (!authUserId && entry) {
+      applyLocale(entry);
+      return;
+    }
     const manual = storedLocale();
     const owner = storedLocaleOwner();
     const useManual = manual && (!authUserId || !owner || owner === authUserId);
@@ -171,31 +188,35 @@ export function OrgLocaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  const setLocale = useCallback(async (next: OrgLocale) => {
-    const previous = localeRef.current;
-    const version = ++requestVersion.current;
-    if (authUserId) persistLocaleOwner(authUserId);
-    applyLocale(next);
-    if (!authUserId) return;
-    try {
-      const saved = await fetchWithInternalAuth<{ locale: unknown }>(
-        "/api/org/locale",
-        {
-          body: JSON.stringify({ locale: next }),
-          headers: { "Content-Type": "application/json" },
-          method: "PUT",
+  const setLocale = useCallback(
+    async (next: OrgLocale) => {
+      const previous = localeRef.current;
+      const version = ++requestVersion.current;
+      if (authUserId) persistLocaleOwner(authUserId);
+      applyLocale(next);
+      if (!authUserId) return;
+      try {
+        const saved = await fetchWithInternalAuth<{ locale: unknown }>(
+          "/api/org/locale",
+          {
+            body: JSON.stringify({ locale: next }),
+            headers: { "Content-Type": "application/json" },
+            method: "PUT",
+          }
+        );
+        if (!isOrgLocale(saved.locale))
+          throw new Error("Invalid saved language");
+        if (requestVersion.current === version) {
+          persistLocaleOwner(authUserId);
+          applyLocale(saved.locale);
         }
-      );
-      if (!isOrgLocale(saved.locale)) throw new Error("Invalid saved language");
-      if (requestVersion.current === version) {
-        persistLocaleOwner(authUserId);
-        applyLocale(saved.locale);
+      } catch (error) {
+        if (requestVersion.current === version) applyLocale(previous);
+        throw error;
       }
-    } catch (error) {
-      if (requestVersion.current === version) applyLocale(previous);
-      throw error;
-    }
-  }, [applyLocale, authUserId]);
+    },
+    [applyLocale, authUserId]
+  );
 
   const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);
   return (
@@ -223,12 +244,11 @@ export function useOrgT() {
   return useCallback(
     <K extends OrgMessageKey>(
       key: K,
-      // Keep the current UI copy at the call site so it can locate the component in search.
-      // NoInfer keeps it in sync with ko.ts, which remains the runtime source.
-      _currentCopy: NoInfer<(typeof ko)[K]>,
+      // The call site owns its Korean copy so editing it updates the UI directly.
+      currentCopy: string,
       values?: OrgMessageValues
     ) => {
-      const source = locale === "ko" ? ko[key] : en[key];
+      const source = locale === "ko" ? currentCopy : en[key];
       if (!values) return source;
       return source.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => {
         if (!Object.prototype.hasOwnProperty.call(values, name)) return match;

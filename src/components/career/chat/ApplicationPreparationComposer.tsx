@@ -7,7 +7,14 @@ import {
   pendingApplicationBatch,
 } from "@/lib/career/simulation/applicationInput";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, ArrowUp, Pencil } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  X,
+  ArrowUp,
+  Pencil,
+  Info,
+} from "lucide-react";
 import { MuteButton, CardButton } from "@/components/ui/button";
 import { ChatComposerSurface } from "@/components/chat/ChatComposer";
 import { ResponsiveLightTooltip } from "@/components/ui/tooltip";
@@ -29,6 +36,11 @@ import {
   allPreparationAnswered,
 } from "@/lib/career/simulation/preparation";
 import type { PreparationResponse } from "@/lib/career/simulation/preparation";
+
+const numberedOptionClassName =
+  "flex w-full items-center justify-start gap-3 rounded-xl min-h-11 px-3 py-2 text-left text-[length:inherit] font-normal leading-[inherit]";
+const optionNumberClassName =
+  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-neutral-1000-a10 text-xs text-neutral-muted";
 
 export function PreparationDocumentPicker({
   resume = false,
@@ -159,11 +171,13 @@ export function ApplicationPreparationComposerSlot({
 }: {
   children: React.ReactNode;
 }) {
-  const { record } = useApplicationPreparation();
-  return shouldShowPreparationQuestions(record?.state) ? (
+  const { record, renderedReviewId, error, pending, command } = useApplicationPreparation();
+  const t = useCareerT();
+  const review = record ? pendingApplicationBatch(record.state)?.review : undefined;
+  return shouldShowPreparationQuestions(record?.state) && (!review || renderedReviewId === review.id) ? (
     <ApplicationPreparationComposer />
   ) : (
-    <>{children}</>
+    <>{error && <div role="alert" className="text-sm text-neutral-muted">{error}<MuteButton disabled={pending} onClick={() => void command({operation:"continue"})}>{t("career.application.answers.retry", "답변 전송 다시 시도")}</MuteButton></div>}{children}</>
   );
 }
 export function ApplicationPreparationReopen() {
@@ -231,11 +245,28 @@ export function ApplicationPreparationComposer() {
       className={`flex max-h-[min(360px,55dvh)] flex-col p-3 md:p-4 ${careerTimelineMessageTextClassName}`}
     >
       <div className="flex shrink-0 items-start justify-between gap-2 pb-3">
-        <strong className="min-w-0 break-words text-inherit font-medium">
-          {item.documentPurpose === "final_resume"
-            ? t("career.application.file.confirm", "이 파일로 지원할까요?")
-            : item.title}
-        </strong>
+        <div className="flex min-w-0 items-start gap-2">
+          <strong className="min-w-0 break-words text-inherit font-medium">
+            {item.documentPurpose === "final_resume"
+              ? t("career.application.method.title", "어떤 방식으로 지원할까요?")
+              : item.title}
+          </strong>
+          {kind === "change" && item.reason.trim() && (
+            <ResponsiveLightTooltip
+              className="w-auto shrink-0"
+              mobileAriaLabel={t("career.simulation.basis", "판단 근거")}
+              triggerClassName="shrink-0"
+              trigger={
+                <Info
+                  size={16}
+                  aria-label={t("career.simulation.basis", "판단 근거")}
+                />
+              }
+            >
+              {item.reason}
+            </ResponsiveLightTooltip>
+          )}
+        </div>
         <div className="flex shrink-0 items-center gap-1 text-xs text-neutral-muted">
           <MuteButton
             variant="transparent"
@@ -316,10 +347,9 @@ export function ApplicationPreparationComposer() {
             {item.questions.length ? item.questions.join("\n") : item.proposal}
           </p>
         )}
-        {kind === "choice" &&
-          ["final_submission", "website_access"].includes(
-            pendingApplicationBatch(s)?.purpose ?? ""
-          ) && <p className="whitespace-pre-wrap">{item.proposal}</p>}
+        {kind === "choice" && item.proposal && (
+          <p className="whitespace-pre-wrap">{item.proposal}</p>
+        )}
         {kind === "material" && item.documentPurpose !== "final_resume" && (
           <p className="whitespace-pre-wrap">{item.proposal}</p>
         )}
@@ -327,17 +357,6 @@ export function ApplicationPreparationComposer() {
           <p className="break-words">{item.documentName}</p>
         )}
 
-        {item.documentPurpose !== "final_resume" && (
-          <ResponsiveLightTooltip
-            trigger={
-              <span tabIndex={0} className="text-xs text-neutral-muted">
-                rational
-              </span>
-            }
-          >
-            {item.reason}
-          </ResponsiveLightTooltip>
-        )}
         {p.responses[item.id] && (
           <p className="text-xs text-neutral-muted">
             {t(
@@ -348,19 +367,17 @@ export function ApplicationPreparationComposer() {
         )}
       </div>
       {kind === "change" && (
-        <div className="mt-3 shrink-0 space-y-1">
+        <div className="mt-3 grid auto-rows-fr shrink-0 gap-1">
           {(["accept", "ignore"] as const).map((decision, i) => (
             <CardButton
               key={decision}
               selected={p.responses[item.id]?.decision === decision}
               aria-pressed={p.responses[item.id]?.decision === decision}
               disabled={pending}
-              className="flex w-full items-center justify-start gap-3 rounded-xl px-3 py-2 text-left text-[length:inherit] leading-[inherit]"
+              className={numberedOptionClassName}
               onClick={() => void answer({ decision })}
             >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-neutral-1000-a10 text-xs text-neutral-muted">
-                {i + 1}
-              </span>
+              <span className={optionNumberClassName}>{i + 1}</span>
               {decision === "accept"
                 ? t("career.prep.accept", "수락")
                 : t("career.prep.no", "아니요")}
@@ -369,12 +386,12 @@ export function ApplicationPreparationComposer() {
         </div>
       )}
       {kind === "choice" && (
-        <div className="mt-2 max-h-[min(144px,20dvh)] shrink-0 space-y-1 overflow-y-auto">
+        <div className="mt-3 grid auto-rows-fr max-h-[min(144px,20dvh)] shrink-0 gap-1 overflow-y-auto">
           {item.options?.map((option, i) => (
             <CardButton
               key={option.id}
               disabled={pending}
-              className="flex w-full gap-2 px-3 py-2 text-left text-[length:inherit] leading-[inherit]"
+              className={numberedOptionClassName}
               selected={p.responses[item.id]?.text === option.label}
               onClick={() =>
                 void answer({
@@ -384,57 +401,69 @@ export function ApplicationPreparationComposer() {
                 })
               }
             >
-              <span>{i + 1}</span>
+              <span className={optionNumberClassName}>{i + 1}</span>
               <span>
                 {option.label}
-                {option.description && (
-                  <small className="block text-neutral-muted">
-                    {option.description}
-                  </small>
-                )}
+                {option.description ? `: ${option.description}` : ""}
               </span>
             </CardButton>
           ))}
         </div>
       )}
       {kind === "material" && (
-        <div className="mt-3 shrink-0 space-y-1">
+        <div className="mt-3 grid auto-rows-fr shrink-0 gap-1">
           {item.documentPurpose !== "final_resume" && (
             <CardButton
+              className={numberedOptionClassName}
               disabled={pending}
               onClick={() => void answer({ decision: "help" })}
             >
+              <span className={optionNumberClassName}>1</span>
               {t("career.prep.help", "자료 준비를 도와주세요")}
             </CardButton>
           )}
           {item.documentId && (
             <CardButton
-              className="w-full text-left"
+              className={numberedOptionClassName}
               disabled={pending}
               onClick={() =>
                 void answer({
                   decision: "document",
                   documentId: item.documentId,
+                  ...(item.documentPurpose === "final_resume" ? {applicationMethod: "harper" as const, text: t("career.application.method.harper", "하퍼가 대신 지원하기: 브라우저로 지원을 진행하고, 실패하면 알려드려요.")} : {}),
                 })
               }
             >
-              {t("career.application.file.use", "이 파일로 진행하기")}
+              <span className={optionNumberClassName}>{item.documentPurpose === "final_resume" ? 1 : 2}</span>
+              {item.documentPurpose === "final_resume"
+                ? t("career.application.method.harper", "하퍼가 대신 지원하기: 브라우저로 지원을 진행하고, 실패하면 알려드려요.")
+                : t("career.application.file.use", "이 파일로 지원하기")}
             </CardButton>
           )}
           <CardButton
-            className="w-full text-left"
+            className={numberedOptionClassName}
             disabled={pending}
             onClick={() =>
               void answer({
-                decision: "answer",
+                ...(item.documentPurpose === "final_resume" ? {
+                  decision: item.documentId ? "document" as const : "answer" as const,
+                  documentId: item.documentId,
+                  applicationMethod: "manual" as const,
+                  text: t("career.application.method.manual", "직접 지원하기: 확정한 이력서와 부수 자료를 받아 직접 제출할게요."),
+                } : {decision: "answer" as const,
                 text: t(
                   "career.application.file.changeRequest",
                   "다른 파일을 사용할게요. 일반 채팅에서 파일을 첨부하거나 Docs에서 선택할게요."
-                ),
+                )}),
               })
             }
           >
-            {t("career.application.file.change", "다른 파일 사용하기")}
+            <span className={optionNumberClassName}>
+              {(item.documentPurpose === "final_resume" ? 0 : 1) + (item.documentId ? 2 : 1)}
+            </span>
+            {item.documentPurpose === "final_resume"
+              ? t("career.application.method.manual", "직접 지원하기: 확정한 이력서와 부수 자료를 받아 직접 제출할게요.")
+              : t("career.application.file.change", "다른 파일 사용하기")}
           </CardButton>
         </div>
       )}

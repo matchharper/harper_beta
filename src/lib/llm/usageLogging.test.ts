@@ -68,6 +68,38 @@ test("prices GPT-5.6 Terra fallback usage", () => {
   assert.equal(cost?.estimatedCostUsd, 14);
 });
 
+test("prices GPT-6.1 Sol without double counting cached input", () => {
+  const usage = extractLlmTokenUsage({
+    usage: {
+      input_tokens: 2_000,
+      input_tokens_details: { cached_tokens: 300, cache_write_tokens: 1_200 },
+      output_tokens: 100,
+    },
+  });
+  const cost = estimateLlmUsageCost("gpt-6.1-sol", usage);
+  assert.equal(cost?.inputTokens, 500);
+  assert.equal(cost?.estimatedCostUsd, 0.00503);
+});
+
+test("GPT-6.1 Sol long-context pricing applies only above 272K", () => {
+  const estimate = (tokens: number) =>
+    estimateLlmUsageCost(
+      "gpt-6.1-sol",
+      extractLlmTokenUsage({
+        usage: {
+          input_tokens: tokens,
+          input_tokens_details: {
+            cached_tokens: 1_000,
+            cache_write_tokens: 1_000,
+          },
+          output_tokens: 1_000,
+        },
+      })
+    );
+  assert.equal(estimate(272_000)?.estimatedCostUsd, 0.5526);
+  assert.equal(estimate(273_000)?.estimatedCostUsd, 1.1042);
+});
+
 test("prices retired Grok Fast slugs as redirected Grok 4.3", () => {
   const usage = extractLlmTokenUsage({
     usage: { input_tokens: 1_000, output_tokens: 500 },

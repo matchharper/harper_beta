@@ -58,6 +58,8 @@ const BOT_SCOPE_LIST = [
   "files:read",
   "groups:history",
   "groups:read",
+  "links:read",
+  "links:write",
   "users:read",
   "users:read.email",
 ] as const;
@@ -339,6 +341,33 @@ async function installation(workspaceId: string) {
     .maybeSingle();
   if (error) throw error;
   return data as Record<string, any> | null;
+}
+
+export async function getHarperSlackGrantedScopes(workspaceId: string) {
+  const row = await installation(workspaceId);
+  if (!row) return [];
+  try {
+    // Slack's reinstall screen can update the token without updating our saved
+    // OAuth scope snapshot. Read the permissions actually granted to the token.
+    const response = await fetch(
+      "https://slack.com/api/auth.test",
+      {
+        ...createSlackApiRequest(decryptHarperSlackToken(row.bot_token_ciphertext)),
+        signal: AbortSignal.timeout(5000),
+      }
+    );
+    const payload = (await response.json().catch(() => null)) as
+      | SlackApiResult
+      | null;
+    if (!response.ok || !payload?.ok) return [];
+    return (response.headers.get("x-oauth-scopes") ?? "")
+      .split(",")
+      .map(text)
+      .filter(Boolean);
+  } catch {
+    // Optional cards must never prevent the normal message from being sent.
+    return [];
+  }
 }
 
 export async function resolveHarperSlackInteractionContext(args: {
@@ -939,6 +968,7 @@ export async function removeHarperSlackChannel(args: {
 
 export async function postHarperSlackMessage(args: {
   blocks?: HarperSlackBlock[];
+  entityMetadata?: { entities: Record<string, unknown>[] };
   channelId: string;
   clientMessageId?: string;
   text: string;
@@ -947,8 +977,9 @@ export async function postHarperSlackMessage(args: {
   unfurlLinks?: boolean;
   unfurlMedia?: boolean;
 }) {
-  return slackApi<SlackApiResult>(args.token, "chat.postMessage", {
+  const body = {
     ...(args.blocks ? { blocks: JSON.stringify(args.blocks) } : {}),
+    ...(args.entityMetadata ? { metadata: JSON.stringify(args.entityMetadata) } : {}),
     channel: args.channelId,
     ...(args.clientMessageId ? { client_msg_id: args.clientMessageId } : {}),
     text: args.text,
@@ -959,7 +990,34 @@ export async function postHarperSlackMessage(args: {
     ...(args.unfurlMedia === undefined
       ? {}
       : { unfurl_media: args.unfurlMedia }),
-  });
+  };
+  try {
+    return await slackApi<SlackApiResult>(args.token, "chat.postMessage", body);
+  } catch (error) {
+    // These are explicit Slack rejections, not ambiguous transport failures.
+    // Retry the same message identity and prose without the optional card.
+    if (
+      !args.entityMetadata ||
+      !(error instanceof HarperSlackError) ||
+      ![
+        "missing_scope",
+        "no_permission",
+        "not_allowed_token_type",
+        "invalid_metadata_format",
+        "invalid_metadata_schema",
+        "metadata_must_be_sent_from_app",
+        "metadata_too_large",
+      ].includes(error.code ?? "")
+    )
+      throw error;
+    console.warn("[harper-slack] work object omitted", {
+      channelId: args.channelId,
+      code: error.code,
+    });
+    const plainBody = { ...body };
+    delete plainBody.metadata;
+    return slackApi<SlackApiResult>(args.token, "chat.postMessage", plainBody);
+  }
 }
 
 export async function getHarperSlackMessagePermalink(args: {
@@ -1339,7 +1397,9 @@ export async function storeHarperSlackThreadEvent(args: {
 
 export async function sendHarperWorkspaceSlackMessage(args: {
   blocks?: HarperSlackBlock[];
+  entityMetadata?: { entities: Record<string, unknown>[] };
   channelId?: string;
+  threadTs?: string;
   idempotencyKey?: string;
   messageMetadata?: OrgAgentMessageMetadata;
   mentions?: OrgAgentMention[];
@@ -1399,6 +1459,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
     channels.map(async (channel: any) => {
       const posted = await postHarperSlackMessage({
         blocks: args.blocks,
+        entityMetadata: args.entityMetadata,
         channelId: channel.slack_channel_id,
         clientMessageId: text(args.idempotencyKey)
           ? buildHarperSlackClientMessageId(
@@ -1408,6 +1469,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
           : undefined,
         text: args.text,
         token,
+        threadTs: args.threadTs,
         unfurlLinks: args.unfurlLinks,
         unfurlMedia: args.unfurlMedia,
       });
@@ -1420,7 +1482,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
               channel_id: channel.id,
               created_by_harper: true,
               role_id: roleId || null,
-              slack_thread_ts: posted.ts,
+              slack_thread_ts: args.threadTs || posted.ts,
               updated_at: new Date().toISOString(),
             },
             { onConflict: "channel_id,slack_thread_ts" }

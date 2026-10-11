@@ -1,5 +1,42 @@
 # Company-first talent selection calibration
 
+## 후보자 선추천 수량 challenge: volume-v1 (2026-10-08, 로컬 미배포)
+
+- 목적/단위: 동일 합성 회사·역할·후보 25명의 실제 rerank에서 낮은 수락률과 비어 있는 진행 현황을 보고 3명보다 넓게 선추천할 수 있는지, 대기 상한에서 후보자 선추천만 막는지 확인한다. 실제 수락률 개선이나 전체 검색 recall 평가는 아니다.
+- Frozen input/gold: `cases-volume-v1.json`. 첫 호출 전에 합성 경력·전체 Brief·fit 근거·100건 중 10건 수락 집계와 두 시나리오의 기대 범위를 작성했다. 낮은 수락률/빈 파이프라인은 후보자 10~20명, 상한 도달은 0명; 회사 선추천은 두 경우 최대 3명. Codex가 작성한 challenge이며 독립 human gold는 미확정이다. 과거 fixture/gold는 변경하지 않는다.
+- Canonical runner: `harper_worker/llm_evals/company_first_talent_selection/run_volume.py --run-id=<새 이름>`. 운영 `rerank_input`, `rerank`, 허용 경로·parser·repair와 실제 모델 설정을 직접 사용한다. DB 연결·추천 저장·연락 발송은 없다. Fit/scoring/retrieval/shortlist·최종 이메일은 포함하지 않는다.
+- Prompt/input: 현재 회사·Role, 후보별 Brief/Behavior·fit 양측 이유, 전달 대비 14일 반응·표본 수·현재 pipeline, 독립 후보자 최대 20명/회사 최대 3명 계약을 읽기용 텍스트로 제공한다. Criteria는 이 호출에서 작성하지 않으며 후보자만 선추천한 경우 후속 회사 presentation 호출도 없다.
+- 지표/gate: 기대 수량 범위 2/2, 구조·허용 route·인원 상한 오류 0, 전체 reason의 근거·회사 불확실성 처리 수동 검토. 숫자 통과만으로 품질·반응률 개선을 선언하지 않는다.
+- 실행/provenance/privacy: API provider/model/reasoning/sampling/fallback, source revision·dirty 소스 hash, fixture hash, 입력·출력·usage를 매 새 run의 ignored `runs/`에 0700/0600으로 저장한다. 모든 사례는 합성이다. 숫자·경력·회사명으로 운영 분기를 추가하지 않는다.
+- 한계: 한 직군의 작은 challenge, 구현자 검토, 독립 평가·온라인 반응 없음. 14일은 피드백 관찰 기간이며 자동 dislike 정책은 변경하지 않는다.
+- 결과: [2026-10-08 집계 보고서](reports/2026-10-08-candidate-first-volume.md). `20261008-volume-v1-r1`은 낮은 수락률/빈 진행 현황에서 후보자 20명·회사 3명, 연결 대기 상한에서 후보자 0명·회사 3명을 선정해 두 수량 challenge를 통과했다. 실제 반응률 개선을 검증한 결과는 아니다.
+
+2026-10-08 rerank v12는 각 선정 후보의 기존 `reason`을 오전9시 auto-intro의 Harper Note 계약에 맞춰 근거 있는 해석1–2개로 쓰도록 보완했다. 원문 이력·수치 반복이나 회사에 요청할 확인 목록을 쓰지 않는다. no_action은 핵심 부족/충돌/미확인을 짧게 설명하며 선택 수량·route 계약은 유지한다. reason은 내부 matching review에 그대로 저장되고 회사 공개 writer로 전달하지 않는다. 공개 Note는 공유 가능한 Profile/Role만 받는 presentation writer가 별도로 생성한다.
+
+## Harper Note 문체 재검증: volume-v2 (2026-10-08, 로컬 미배포)
+
+- Frozen input/gold: [cases-volume-v2.json](cases-volume-v2.json), [manifest-volume-v2.json](manifest-volume-v2.json). volume-v1의 후보 원문·수락 집계·두 수량 기대값은 그대로 보존하고 Role의 `matching_slot_type=paid`를 명시했다. 기존 v1은 변경하지 않는다.
+- 변경 근거: `20261008-volume-v1-harper-note-v12`는 두 시나리오 모두 0명을 반환했다. 당시 fixture가 entitlement를 생략해 현재 runtime에서 모든 pair가 `no_action`만 허용된 것이 원인이다. 이 결과는 문체 변경의 수량 회귀 근거로 사용하지 않는다. 운영 guard는 변경하지 않는다.
+- 목적/단위·지표/gate·privacy·한계는 위 volume-v1과 같다. 추가로 모든 선정 reason을 읽어 Harper Note의 짧고 근거 있는 해석, 사실·수치의 단순 반복 방지, 불필요한 면접 조언 방지를 확인한다. 내부 reason을 회사 공개 내용으로 옮기지 않는다.
+- Canonical runner: `harper_worker/llm_evals/company_first_talent_selection/run_volume.py --dataset v2 --run-id=<새 이름>`. 실제 rerank/input/parser·현재 모델 설정을 쓰며 DB·저장·연락 없이 ignored owner-only `runs/`에 입력·출력·model/config/source/fixture hash와 usage를 남긴다.
+- Provenance/label history: Codex가 첫 v2 모델 호출 전에 구조 입력 보완을 검토했다. 수량 gold는 변경하지 않았고 독립 팀원 gold 검토는 아직 없다. 실행 결과는 아래에 별도로 기록한다.
+
+volume-v2 실행 `20261008-volume-v2-harper-note-v12`는 두 경우 회사 3명·후보자 0명을 골랐다. 실제 입력이 목요일이어서 후보자 선추천 허용일(월/수/금)이 아니었다. 원문 selected reason은 간결한 근거 기반 해석으로 작성됐지만 이 run으로 후보자 수량 gate를 판정하지 않는다.
+
+## 현재 route 계약 재현: volume-v3 (2026-10-08, 로컬 미배포)
+
+[cases-volume-v3.json](cases-volume-v3.json)과 [manifest-volume-v3.json](manifest-volume-v3.json)은 첫 호출 전에 동결했다. v1/v2의 원문·수락 집계·기대 수량은 그대로 두고, paid entitlement와 명시적인 수요일 기준 시각·회사 검색 요일로 두 경로를 허용한다. 이전 version은 수정하지 않는다. 목적/단위·지표·privacy·모델 기록·한계·gold 검토 경계는 위와 같으며 canonical runner의 `--dataset v3`를 사용한다. 기대값이 양수인 후보자 경로를 실제 입력이 허용하는지 모델 호출 전에 확인한다. 이는 평가의 구조 입력 검증이며 운영 guard를 완화하지 않는다.
+
+## 통합 fit 실행을 확인하는 현재 경로
+
+새 `opp.matching` 공통 1·2차 fit까지 포함해서 확인할 때는
+[unified-talent-role-fit의 inspection-v1](../unified-talent-role-fit/README.md)을 사용한다.
+`harper_worker/llm_evals/unified_talent_role_fit/inspect_matching.py`가 실제
+`run_claimed`와 `score_company_pairs`를 호출하며, 검색·캐시·일반/우선 검토 rerank·live guard 원문을 보존한다.
+아래 기존 `run_shadow.py`의 과거 scorer 경로는 통합 fit 실행의 증거로 사용하지 않는다.
+2026-10-07 연결 DB에 새 통합 fit 컬럼이 없어 이번 실제 입력 검사는 마이그레이션을 적용한
+로컬 전용 DB에서 수행한다. 운영 DB schema 변경이나 추천·발송은 하지 않는다.
+
 ## 2026-09-28 OpenAI production read-only pilot
 
 사용자 지정 한국 FDE 역할의 현행 데이터로 서로 다른 후보 117명을 평가했다. 수정 SQL의 최종 후보 83명 중 8명을 rerank에 넣었고, 동일 입력 두 번에서 5명/6명(공통 5명)을 선택했다. SQL scope·JSON 타입 안내·필수 fit enum 및 실패 호출 비용/오류 기록 문제를 수정했다. 기록된 비용은 $0.70587515이며, 수정 전 실패 호출 일부 usage 누락으로 완전한 청구 총액은 아니다.
@@ -170,3 +207,21 @@ model output을 넣지 않는다. 원문은 gitignored `private/runs/`에만 있
 | --- | --- |
 | 2026-09-17 | Canonical production read-only runner와 한 positive v2-pilot shadow 결과·한계 등록 |
 | 2026-09-11 | 세 production read-only Role run의 guard-focused v1 calibration과 수동 gold 등록 |
+
+## General-role accepted candidate review: accepted-v1 (로컬 미배포)
+
+[cases-accepted-v1.json](cases-accepted-v1.json)과 [manifest-accepted-v1.json](manifest-accepted-v1.json)은 첫 모델 호출 전에 동결했다. 현재 유효한 수락이 있는 일반 역할 후보를 `connect/reject/defer`로 재검토하고 일반 후보의 경로를 유지하는 4쌍을 정기·회사 요청 두 실행 모드에서 검증한다. 운영 rerank/input/parser/repair를 직접 실행하는 canonical runner는 `harper_worker/llm_evals/company_first_talent_selection/run_accepted.py --run-id=<새 ID>`다. 현재 모델·reasoning·sampling 및 source/prompt/input/output/fixture hash·usage는 owner-only ignored runs에 기록한다. Gold는 Codex가 사전 작성한 synthetic challenge이며 독립 팀원 검토는 미완료다. 결정 일치와 이유의 사실성·부족/미확인 구분·상태 오표현을 함께 검토하며 critical 오류 0이 gate다. DB/저장/연락은 없고 실제 조회·원자적 상태 전환·Slack 전달은 별도 로컬 계약 테스트 대상이다. 상세 objective/input/provenance/privacy/known limitations는 manifest에 기록했다. 기존 frozen gold는 변경하지 않는다.
+
+## Accepted presentation + Slack: accepted-v2 (로컬 미배포)
+
+[cases-accepted-v2.json](cases-accepted-v2.json)과 [manifest-accepted-v2.json](manifest-accepted-v2.json)을 첫 호출 전에 동결했다. v1의 네 결정 gold는 보존하고, 동일 synthetic 후보에 회사 기준·합류 시점·문화 선호·보상 및 민감 맥락 challenge와 한국 회사 언어를 추가했다. `run_accepted.py --dataset=v2 --run-id=<새 ID>`는 실제 rerank → connect만 presentation → 별도 accepted Slack writer → 카드 bundle까지 생성하며 DB·실제 Slack 발송은 하지 않는다. 결정 8쌍 일치, 기준 coverage와 4필드 출력, 원문에 없는 책임·선호 창작, 보상 수치·다른 회사·사생활 노출, 후보자 수락과 회사 수락 상태 혼동을 분리 검토한다. 모델 설정·전체 input/output와 source hash는 owner-only ignored runs에 남기고 정성 검토는 Codex가 수행한다. 독립 팀원 검토·운영 표본 정확도·실제 Slack 화면 확인은 이 평가 범위 밖이다.
+
+실제 실행 결과와 실패·수정·최종 검토는 [2026-10-08 검증 기록](reports/2026-10-08-accepted-candidate-role-review.md)에 있다. 최종 v2 r8는 결정 8/8, 공개 presentation/Slack 각각 2건을 생성·검토했다. Rerank reason은 내부 결정 근거이며 Harper Note 양식의 작성 책임은 공개 presentation writer에만 있다. 아래 local replay를 운영 E2E나 전체 품질 보장으로 확대 해석하지 않는다.
+
+### Local storage and Harper-only Slack replay
+
+`scripts/evalAcceptedCandidateSlack.ts prepare|send|verify <새 model run ID>`는 동결 accepted-v2의 완료 run을 그대로 읽어 로컬 DB 저장부터 실제 Harper `#qa`의 카드 표시·상세 열기까지 확인한다. Worker의 `llm_evals/company_first_talent_selection/replay_accepted_local.py`가 실제 원자적 commit과 source fingerprint를 재사용한다. Fixture eligibility만 exact testOnly·testFixture·allowlisted talent 범위로 adapter를 사용하며 production RPC를 변경하거나 fit 행을 만들지 않는다. Role·후보·추천은 loopback의 marked local DB에만 생성하고, 모델 입력/gold는 수정하지 않는다. 기존 Harper Local Socket Mode와 localhost:3017 앱을 사용하며 발송 직전 team ID·채널 ID·비공유 채널을 검증한다. 외부 Slack·운영 DB·후보 연락은 허용하지 않는다.
+
+평가 단위는 frozen run의 결정 → 공개 보고서 → 로컬 pipeline → Slack channel/card/detail다. Gate는 connect만 pending, reject/defer의 기존 수락 유지, 보고서 저장·read 동일성, source scope·privacy·채널 본문 카드 표시·재시도 중복 없음, 실제 표시한 전체 문구의 의미 검토다. `runs/<run>/`에 owner-only fixture mapping·receipt·visible post·source/model/prompt manifest를 보존하고 공유 문서에는 집계만 기록한다. 실제 API·운영 provider 결과는 원 model run의 manifest를 따른다. 이 replay는 retrieval/scorer·운영 guard의 전체 production E2E나 운영 정확도를 증명하지 않는다. canonical testOnly exclusion과 guard는 별도 disposable Postgres 테스트로 검증한다.
+
+`scopes`는 실제 설치 권한을 읽는다. `native`는 정상 sender 발송 후 같은 Harper QA 채널 본문에 production entity builder로 독립 카드 메시지를 보내 렌더링·상세 요청을 검증하는 visual probe이며, 정상 sender의 권한 guard를 변경하지 않는다. 기존 스레드 probe 원문은 과거 실패 기록으로 보존한다. 설치 권한 때문에 `verify`의 private-thread API read가 막히면 그 제한을 기록하고 실제 Slack 화면에서 문구·카드·상세를 직접 검토한다. 현재 표시 gate는 수락 카드가 채널 본문에 보이고, 부분 재시도에도 중복되지 않는 것이다. Bot API의 성공만으로 UI gate를 통과시키지 않는다.

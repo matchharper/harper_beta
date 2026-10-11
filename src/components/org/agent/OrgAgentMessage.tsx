@@ -1,4 +1,5 @@
 import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { BillingActionNotice } from "@/components/org/billing/BillingActionNotice";
 import {
   Building2,
   CalendarClock,
@@ -479,6 +480,7 @@ export function OrgAgentMessageBubble({
           />
         ))}
       </ChatMessageBubbleFrame>
+      {!isUser && <BillingActionNotice metadata={message.metadata} />}
     </div>
   );
 }

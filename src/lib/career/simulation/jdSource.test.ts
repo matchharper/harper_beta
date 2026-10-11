@@ -32,16 +32,15 @@ test("submission requirements and original JD pass through all three stages with
  assert.deepEqual(result.steps[2].result?.data,review.data);
 });
 
-test("web-first JD input never loads or mixes saved requirements on success", async () => {
- const page = await readSimulationJdSource("https://example.com/job",async url=>({url,title:"Role",markdown:"Portfolio optional",cached:false}));
- const input=JSON.parse(await buildSimulationRoleInput("Example",page,async()=>{throw new Error("DB JD must not be loaded");}));
- assert.equal(input.savedRole,undefined);
- assert.equal(input.jdPage.markdown,"Portfolio optional");
- const empty=await readSimulationJdSource("https://example.com/job",async url=>({url,title:"Role",markdown:"   ",cached:false}));
- assert.equal(empty.status,"unavailable");
- let calls=0;
- const fallback=JSON.parse(await buildSimulationRoleInput("Example",empty,async()=>{calls++;return {description:"Saved JD: cover letter required"};}));
- assert.equal(calls,1);
- assert.match(fallback.savedRole,/cover letter required/);
+test("saved JD is authoritative and form requirements remain separate", async () => {
+ const page = await readSimulationJdSource("https://example.com/job",async url=>({url,title:"Role",markdown:"Live fallback",cached:false}));
+ const form={status:"partial" as const,url:"https://example.com/apply",checkedAt:"now",fields:[],limitations:["Hidden fields unknown"]};
+ const input=JSON.parse(await buildSimulationRoleInput("Example",page,async()=>({description:"Saved qualifications"}),form));
+ assert.match(input.savedJd,/Saved qualifications/);
+ assert.equal(input.jdPage,undefined);
+ assert.equal(input.applicationForm.status,"partial");
+ const fallback=JSON.parse(await buildSimulationRoleInput("Example",page,async()=>({description:""}),form));
+ assert.equal(fallback.jdPage.markdown,"Live fallback");
+ const empty=await readSimulationJdSource(null,async()=>{throw new Error();});
  await assert.rejects(buildSimulationRoleInput("Example",empty,async()=>({description:""})),/Neither/);
 });

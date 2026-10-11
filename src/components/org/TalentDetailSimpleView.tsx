@@ -1,3 +1,4 @@
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import {
   useOrgLocale,
   useOrgSourceT,
@@ -15,7 +16,6 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
@@ -29,14 +29,8 @@ import {
 import { ConnectionConfirmationEmailFeedCard } from "@/components/progress-feed/ConnectionConfirmationEmailFeedCard";
 import { CompanyTalentRequestFeedCard } from "@/components/progress-feed/CompanyTalentRequestFeedCard";
 import { OrgIntroEmailFeedCard } from "@/components/progress-feed/OrgIntroEmailFeedCard";
-import { BareButton, Button, MuteButton } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { MuteButton } from "@/components/ui/button";
+
 import { Tabs } from "@/components/ui/tabs";
 import {
   AcceptIntroDialog,
@@ -98,6 +92,7 @@ import {
   humanizeOrgStage,
 } from "@/lib/org/pipelineStage";
 import { convertSlackCandidateIntroToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
+import { companyPresentationFinalFitLabel } from "@/lib/org/companyCriteriaEvaluations";
 import type {
   OrgOtherRoleFeedResponse,
   OrgTalentDetailResponse,
@@ -327,7 +322,10 @@ function HarperMemoSection({
           </div>
         ) : (
           <div className="mt-2 text-[13px] text-neutral-muted">
-            {t("TalentDetailSimpleView.b0d573bb", "등록된 Harper 메모가 없습니다.")}
+            {t(
+              "TalentDetailSimpleView.b0d573bb",
+              "등록된 Harper 메모가 없습니다."
+            )}
           </div>
         )}
       </div>
@@ -347,7 +345,10 @@ function SystemActivitySummary({
   const t = useOrgT();
   const { locale } = useOrgLocale();
   const metrics = [
-    { label: t("TalentDetailSimpleView.556631d5", "가입 날짜"), value: account?.createdAt },
+    {
+      label: t("TalentDetailSimpleView.556631d5", "가입 날짜"),
+      value: account?.createdAt,
+    },
     {
       label: t("TalentDetailSimpleView.f49011b1", "최근 로그인"),
       value: account?.lastLoginAt,
@@ -371,7 +372,10 @@ function SystemActivitySummary({
           </div>
         ) : error ? (
           <div className="text-[11px] text-neutral-soft">
-            {t("TalentDetailSimpleView.5899dd6e", "시스템 활동을 불러오지 못했습니다.")}
+            {t(
+              "TalentDetailSimpleView.5899dd6e",
+              "시스템 활동을 불러오지 못했습니다."
+            )}
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] leading-4 text-neutral-muted">
@@ -415,6 +419,7 @@ function ProfilePane({
 }) {
   const t = useOrgT();
   const sourceT = useOrgSourceT();
+  const { locale } = useOrgLocale();
   const name =
     detail.talent.name ||
     detail.talent.email ||
@@ -444,7 +449,9 @@ function ProfilePane({
       kind: "resume",
       label: t("TalentDetailSimpleView.65bec4e3", "이력서"),
       onClick: () => onResumeClick("storage"),
-      title: detail.resume.fileName ?? t("TalentDetailSimpleView.c40f8d91", "저장된 이력서 파일"),
+      title:
+        detail.resume.fileName ??
+        t("TalentDetailSimpleView.c40f8d91", "저장된 이력서 파일"),
     });
   } else if (primaryResumeLink) {
     primaryResources.push({
@@ -471,7 +478,8 @@ function ProfilePane({
     ...detail.profile.documents.map((document) => ({
       key: `document:${document.id}`,
       kind: "document" as const,
-      label: document.fileName || t("TalentDetailSimpleView.b81cd952", "공개 문서"),
+      label:
+        document.fileName || t("TalentDetailSimpleView.b81cd952", "공개 문서"),
       onClick: () => onResumeClick("document", null, document.id),
       title: document.fileName,
     })),
@@ -529,7 +537,65 @@ function ProfilePane({
         />
       )}
 
-      {detail.recommendation.fitReason ? (
+      {detail.companyPresentation ? (
+        <>
+          <ProfileSection title="TL;DR">
+            <p className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
+              {detail.companyPresentation.tldr}
+            </p>
+          </ProfileSection>
+          {detail.companyPresentation.harperNote ? (
+            <ProfileSection title="Harper Note">
+              <p className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
+                {detail.companyPresentation.harperNote}
+              </p>
+            </ProfileSection>
+          ) : null}
+          {detail.companyPresentation.finalFit ? (
+            <ProfileSection
+              title={locale === "ko" ? "역할 적합도" : "Role fit"}
+            >
+              <p className="text-[13px] leading-6 text-neutral-primary">
+                {companyPresentationFinalFitLabel(
+                  detail.companyPresentation.finalFit,
+                  locale
+                )}
+              </p>
+            </ProfileSection>
+          ) : null}
+          {detail.companyPresentation.criteriaEvaluations.length ? (
+            <ProfileSection
+              title={locale === "ko" ? "기준별 근거" : "Criteria evidence"}
+            >
+              <dl className="space-y-4">
+                {detail.companyPresentation.criteriaEvaluations.map(
+                  (evaluation) => (
+                    <div key={evaluation.name}>
+                      <dt className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
+                        <Image
+                          src={`/svgs/${evaluation.fitness}.svg`}
+                          width={16}
+                          height={16}
+                          alt={companyPresentationFinalFitLabel(
+                            evaluation.fitness === "bad"
+                              ? "unfit"
+                              : evaluation.fitness,
+                            locale
+                          )}
+                        />
+                        {evaluation.name}
+                      </dt>
+                      <dd className="mt-1 whitespace-pre-wrap text-[13px] leading-6 text-neutral-muted">
+                        {evaluation.content}
+                      </dd>
+                    </div>
+                  )
+                )}
+              </dl>
+            </ProfileSection>
+          ) : null}
+        </>
+      ) : detail.recommendation.fitReason ? (
         <ProfileSection title={t("TalentDetailSimpleView.afa4d0e2", "")}>
           <div className="flex items-center gap-2 pt-2 text-[15px] text-neutral-900">
             <Face size={24} />
@@ -594,14 +660,23 @@ function CandidateDecisionActions({
     if (!onMoveToPendingConnection) return null;
     return (
       <section
-        aria-label={t("TalentDetailSimpleView.c702a21a", "연결 대기 상태로 이동")}
+        aria-label={t(
+          "TalentDetailSimpleView.c702a21a",
+          "연결 대기 상태로 이동"
+        )}
         className={cn("rounded-md bg-bg-weak px-4 py-4", className)}
       >
         <div className="text-[16px] font-medium text-neutral-primary">
-          {t("TalentDetailSimpleView.37609523", "연결 대기 상태로 옮기시겠습니까?")}
+          {t(
+            "TalentDetailSimpleView.37609523",
+            "연결 대기 상태로 옮기시겠습니까?"
+          )}
         </div>
         <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-          {t("TalentDetailSimpleView.26440e1f", "회사 측의 페이지에 현재 후보자가 표시되며, 회사 측에서 연결을 받을지 결정하는 단계로 넘어갑니다.")}
+          {t(
+            "TalentDetailSimpleView.26440e1f",
+            "회사 측의 페이지에 현재 후보자가 표시되며, 회사 측에서 연결을 받을지 결정하는 단계로 넘어갑니다."
+          )}
         </p>
         <MuteButton
           className="mt-4"
@@ -624,14 +699,23 @@ function CandidateDecisionActions({
     if (!onRejectClick) return null;
     return (
       <section
-        aria-label={t("TalentDetailSimpleView.a291badd", "진행 중인 후보자 연결 종료")}
+        aria-label={t(
+          "TalentDetailSimpleView.a291badd",
+          "진행 중인 후보자 연결 종료"
+        )}
         className={cn("rounded-md bg-critical-faded px-4 py-4", className)}
       >
         <div className="text-[15px] font-medium text-critical">
-          {t("TalentDetailSimpleView.102a021b", "진행 중인 프로세스를 종료하시겠습니까?")}
+          {t(
+            "TalentDetailSimpleView.102a021b",
+            "진행 중인 프로세스를 종료하시겠습니까?"
+          )}
         </div>
         <p className="mt-1 text-[13px] font-normal leading-5">
-          {t("TalentDetailSimpleView.e12d499e", "연결을 종료하면 Harper가 후보자에게 회사의 종료 결정을 안내해요. 이미 보이거나 전달된 안내는 회수할 수 없어요.")}
+          {t(
+            "TalentDetailSimpleView.e12d499e",
+            "연결을 종료하면 Harper가 후보자에게 회사의 종료 결정을 안내해요. 이미 보이거나 전달된 안내는 회수할 수 없어요."
+          )}
         </p>
         <MuteButton
           className="mt-4"
@@ -666,7 +750,9 @@ function CandidateDecisionActions({
         {t("TalentDetailSimpleView.35f9d8c1", "연결 여부를 결정해 주세요")}
       </div>
       <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-        {t("TalentDetailSimpleView.1fdb022f", "{name}님과 연결을 진행할까요?", { name: candidateName })}
+        {t("TalentDetailSimpleView.1fdb022f", "{name}님과 연결을 진행할까요?", {
+          name: candidateName,
+        })}
       </p>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <MuteButton
@@ -718,9 +804,18 @@ function CompanyIntroDecisionActions({
         </div>
         <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
           {detail.companyIntro.status === "connecting"
-            ? t("TalentDetailSimpleView.4fc3f9f9", "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다.")
-            : t("TalentDetailSimpleView.78af6bc0", "회사가 먼저 제안을 요청한 후보입니다. 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다.")}{" "}
-          {t("TalentDetailSimpleView.dd04379c", "연결 전에는 추가 연락이나 인터뷰 요청을 할 수 없습니다.")}
+            ? t(
+                "TalentDetailSimpleView.4fc3f9f9",
+                "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다."
+              )
+            : t(
+                "TalentDetailSimpleView.78af6bc0",
+                "회사가 먼저 제안을 요청한 후보입니다. 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다."
+              )}{" "}
+          {t(
+            "TalentDetailSimpleView.dd04379c",
+            "연결 전에는 추가 연락이나 인터뷰 요청을 할 수 없습니다."
+          )}
         </p>
       </section>
     );
@@ -728,9 +823,13 @@ function CompanyIntroDecisionActions({
   return (
     <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
       <div className="text-[16px] font-medium text-neutral-primary">
-        {t("TalentDetailSimpleView.requestIntroHeading", "Request Intro:{candidateName}", {
-          candidateName,
-        })}
+        {t(
+          "TalentDetailSimpleView.requestIntroHeading",
+          "Request Intro:{candidateName}",
+          {
+            candidateName,
+          }
+        )}
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <MuteButton
@@ -865,7 +964,10 @@ function FeedPanel({
       body: t("TalentDetailSimpleView.feed.body", "본문"),
       cancel: t("TalentDetailSimpleView.feed.cancel", "취소"),
       delete: t("TalentDetailSimpleView.feed.delete", "삭제"),
-      deleteProgress: t("TalentDetailSimpleView.feed.deleteProgress", "Progress 삭제"),
+      deleteProgress: t(
+        "TalentDetailSimpleView.feed.deleteProgress",
+        "Progress 삭제"
+      ),
       edit: t("TalentDetailSimpleView.feed.edit", "수정"),
       failure: t("TalentDetailSimpleView.feed.failure", "처리하지 못했습니다."),
       feedActions: t("TalentDetailSimpleView.feed.actions", "피드 작업"),
@@ -963,7 +1065,14 @@ function FeedPanel({
       setOtherRoleFeed({ payload, scope: requestedScope });
     } catch (error) {
       setOtherRoleFeedError({
-        message: localizedOrgErrorMessage(error, locale, t("TalentDetailSimpleView.5a6a678e", "다른 역할의 기록을 불러오지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "TalentDetailSimpleView.5a6a678e",
+            "다른 역할의 기록을 불러오지 못했습니다."
+          )
+        ),
         scope: requestedScope,
       });
     } finally {
@@ -1148,11 +1257,17 @@ function FeedPanel({
       </div>
       <ProgressFeed
         actionsVariant="menu"
-        deleteConfirmMessage={t("TalentDetailSimpleView.e3559795", "이 메모를 삭제할까요?")}
+        deleteConfirmMessage={t(
+          "TalentDetailSimpleView.e3559795",
+          "이 메모를 삭제할까요?"
+        )}
         deleteError={feedError(deleteFeed.error)}
         draft={draft}
         editError={feedError(updateFeed.error)}
-        emptyLabel={t("TalentDetailSimpleView.2fc1c257", "아직 피드가 없습니다.")}
+        emptyLabel={t(
+          "TalentDetailSimpleView.2fc1c257",
+          "아직 피드가 없습니다."
+        )}
         items={feedItems}
         labels={feedLabels}
         onDelete={
@@ -1218,7 +1333,10 @@ function FeedPanel({
           type="button"
           variant="transparent"
         >
-          {t("TalentDetailSimpleView.e7aa5c7b", "다른 역할에서 기록된 내용 보기")}
+          {t(
+            "TalentDetailSimpleView.e7aa5c7b",
+            "다른 역할에서 기록된 내용 보기"
+          )}
           <ChevronDown
             aria-hidden
             className={cn(
@@ -1232,7 +1350,10 @@ function FeedPanel({
             {otherRoleFeedLoading ? (
               <div className="flex items-center gap-2 py-4 text-[12px] text-neutral-muted">
                 <LoaderCircle aria-hidden className="size-4 animate-spin" />
-                {t("TalentDetailSimpleView.c6e14e96", "다른 역할의 기록을 불러오는 중")}
+                {t(
+                  "TalentDetailSimpleView.c6e14e96",
+                  "다른 역할의 기록을 불러오는 중"
+                )}
               </div>
             ) : scopedOtherRoleFeedError ? (
               <div className="rounded-md bg-critical-faded p-3 text-[12px] text-critical">
@@ -1253,7 +1374,10 @@ function FeedPanel({
               </div>
             ) : scopedOtherRoleFeed && scopedOtherRoleFeed.items.length > 0 ? (
               <ProgressFeed
-                emptyLabel={t("TalentDetailSimpleView.2ae3bc51", "다른 역할에서 기록된 내용이 없어요.")}
+                emptyLabel={t(
+                  "TalentDetailSimpleView.2ae3bc51",
+                  "다른 역할에서 기록된 내용이 없어요."
+                )}
                 items={scopedOtherRoleFeed.items.map((item) => ({
                   createdAt: item.createdAt,
                   icon:
@@ -1271,7 +1395,10 @@ function FeedPanel({
               />
             ) : (
               <div className="py-4 text-[12px] text-neutral-muted">
-                {t("TalentDetailSimpleView.2ae3bc51", "다른 역할에서 기록된 내용이 없어요.")}
+                {t(
+                  "TalentDetailSimpleView.2ae3bc51",
+                  "다른 역할에서 기록된 내용이 없어요."
+                )}
               </div>
             )}
           </div>
@@ -1279,12 +1406,26 @@ function FeedPanel({
       </div>
       {updateConnectionEmail.error ? (
         <div className={opsTheme.errorNotice}>
-          {localizedOrgErrorMessage(updateConnectionEmail.error, locale, t("TalentDetailSimpleView.465bd72b", "메일 상태를 변경하지 못했습니다."))}
+          {localizedOrgErrorMessage(
+            updateConnectionEmail.error,
+            locale,
+            t(
+              "TalentDetailSimpleView.465bd72b",
+              "메일 상태를 변경하지 못했습니다."
+            )
+          )}
         </div>
       ) : null}
       {cancelCompanyRequest.error ? (
         <div className={opsTheme.errorNotice}>
-          {localizedOrgErrorMessage(cancelCompanyRequest.error, locale, t("TalentDetailSimpleView.1d2364f2", "후보자 문의를 취소하지 못했습니다."))}
+          {localizedOrgErrorMessage(
+            cancelCompanyRequest.error,
+            locale,
+            t(
+              "TalentDetailSimpleView.1d2364f2",
+              "후보자 문의를 취소하지 못했습니다."
+            )
+          )}
         </div>
       ) : null}
     </div>
@@ -1363,7 +1504,6 @@ function TalentDetailPager({
 export function TalentDetailSimpleView() {
   const t = useOrgT();
   const sourceT = useOrgSourceT();
-  const { locale } = useOrgLocale();
   const {
     closeTalentDetail,
     selectTalent,
@@ -1479,7 +1619,12 @@ export function TalentDetailSimpleView() {
     if (!resumeRequest || !talentId) return;
     const popup = window.open("about:blank", "_blank");
     if (!popup) {
-      setResumeError(t("TalentDetailSimpleView.058c3864", "새 창을 열지 못했습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요."));
+      setResumeError(
+        t(
+          "TalentDetailSimpleView.058c3864",
+          "새 창을 열지 못했습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요."
+        )
+      );
       return;
     }
     popup.opener = null;
@@ -1498,7 +1643,10 @@ export function TalentDetailSimpleView() {
           setResumeError(
             requestError instanceof Error
               ? requestError.message
-              : t("TalentDetailSimpleView.8dc293e8", "이력서를 열지 못했습니다. 다시 시도해 주세요.")
+              : t(
+                  "TalentDetailSimpleView.8dc293e8",
+                  "이력서를 열지 못했습니다. 다시 시도해 주세요."
+                )
           );
         },
         onSuccess: (payload) => {
@@ -1574,350 +1722,337 @@ export function TalentDetailSimpleView() {
     canManageCandidates
   );
 
-  return createPortal(
+  return (
     <>
-      <div className="fixed inset-0 z-[70]">
-        <BareButton
-          type="button"
-          aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
-          onClick={handleClose}
-          className="absolute inset-0 h-full w-full cursor-default bg-black/35"
-        />
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="absolute bottom-0 right-0 top-0 flex w-full min-w-0 flex-col overflow-hidden bg-bg-default pb-[env(safe-area-inset-bottom)] shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] animate-in slide-in-from-right-6 duration-200 sm:w-[92vw] md:w-[90vw] md:pb-0"
-        >
-          <div className="shrink-0 border-b border-neutral-1000-a05 bg-bg-default md:hidden">
-            <div className="flex h-12 items-center w-full justify-between gap-2 px-2">
-              <div className="flex items-center gap-2">
+      <TalentCareerModal
+        open={open}
+        onClose={handleClose}
+        ariaLabel={title}
+        showCloseButton={false}
+        overlayClassName="z-[70] items-stretch justify-end p-0 sm:px-0"
+        backdropClassName="z-[70] bg-black/35 backdrop-blur-none"
+        panelClassName="h-dvh max-h-none max-w-none min-w-0 rounded-none border-0 pb-[env(safe-area-inset-bottom)] sm:w-[92vw] md:w-[90vw] md:pb-0 data-[state=open]:slide-in-from-right-6"
+        bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <div className="shrink-0 border-b border-neutral-1000-a05 bg-bg-default md:hidden">
+          <div className="flex h-12 items-center w-full justify-between gap-2 px-2">
+            <div className="flex items-center gap-2">
+              <MuteButton
+                aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
+                className="rounded-full"
+                onClick={handleClose}
+                size="md"
+                type="button"
+                variant="transparent"
+              >
+                <ChevronLeft aria-hidden className="size-4.5" />
+              </MuteButton>
+              <div className="flex min-w-0 flex-1 justify-center">
+                {detailNavigation ? (
+                  <TalentDetailPager
+                    compact
+                    navigation={detailNavigation}
+                    onNavigate={navigateToTalent}
+                  />
+                ) : null}
+              </div>
+            </div>
+            {showMobileDecisionActions ? (
+              <div className="flex shrink-0 items-center gap-1">
                 <MuteButton
-                  aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
-                  className="rounded-full"
-                  onClick={handleClose}
+                  className="min-w-11 border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
+                  disabled={
+                    decisionPending ||
+                    (detail?.recommendation.stage !== "company_intro" &&
+                      !onRejectCandidate)
+                  }
+                  onClick={() =>
+                    detail?.recommendation.stage === "company_intro"
+                      ? setCompanyIntroPassOpen(true)
+                      : setRejectDialogOpen(true)
+                  }
                   size="md"
                   type="button"
                   variant="transparent"
                 >
-                  <ChevronLeft aria-hidden className="size-4.5" />
+                  {detail?.recommendation.stage === "company_intro"
+                    ? t("TalentDetailSimpleView.a35ca647", "제안하지 않기")
+                    : CANDIDATE_DECISION_LABELS.reject}
                 </MuteButton>
-                <div className="flex min-w-0 flex-1 justify-center">
-                  {detailNavigation ? (
-                    <TalentDetailPager
-                      compact
-                      navigation={detailNavigation}
-                      onNavigate={navigateToTalent}
-                    />
-                  ) : null}
-                </div>
+                <MuteButton
+                  className="min-w-11 border-positive bg-positive text-neutral-00 hover:border-positive/90 hover:bg-positive/90 hover:text-neutral-00 active:bg-positive/80"
+                  disabled={
+                    decisionPending ||
+                    (detail?.recommendation.stage !== "company_intro" &&
+                      (!acceptStageId || !onAcceptCandidate))
+                  }
+                  onClick={() =>
+                    detail?.recommendation.stage === "company_intro"
+                      ? setCompanyIntroRequestOpen(true)
+                      : setAcceptDialogOpen(true)
+                  }
+                  size="md"
+                  type="button"
+                  variant="transparent"
+                >
+                  {detail?.recommendation.stage === "company_intro"
+                    ? t("TalentDetailSimpleView.690647f9", "먼저 제안하기")
+                    : CANDIDATE_DECISION_LABELS.connect}
+                </MuteButton>
               </div>
-              {showMobileDecisionActions ? (
-                <div className="flex shrink-0 items-center gap-1">
-                  <MuteButton
-                    className="min-w-11 border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
-                    disabled={
-                      decisionPending ||
-                      (detail?.recommendation.stage !== "company_intro" &&
-                        !onRejectCandidate)
-                    }
-                    onClick={() =>
-                      detail?.recommendation.stage === "company_intro"
-                        ? setCompanyIntroPassOpen(true)
-                        : setRejectDialogOpen(true)
-                    }
-                    size="md"
-                    type="button"
-                    variant="transparent"
-                  >
-                    {detail?.recommendation.stage === "company_intro"
-                      ? t("TalentDetailSimpleView.a35ca647", "제안하지 않기")
-                      : CANDIDATE_DECISION_LABELS.reject}
-                  </MuteButton>
-                  <MuteButton
-                    className="min-w-11 border-positive bg-positive text-neutral-00 hover:border-positive/90 hover:bg-positive/90 hover:text-neutral-00 active:bg-positive/80"
-                    disabled={
-                      decisionPending ||
-                      (detail?.recommendation.stage !== "company_intro" &&
-                        (!acceptStageId || !onAcceptCandidate))
-                    }
-                    onClick={() =>
-                      detail?.recommendation.stage === "company_intro"
-                        ? setCompanyIntroRequestOpen(true)
-                        : setAcceptDialogOpen(true)
-                    }
-                    size="md"
-                    type="button"
-                    variant="transparent"
-                  >
-                    {detail?.recommendation.stage === "company_intro"
-                      ? t("TalentDetailSimpleView.690647f9", "먼저 제안하기")
-                      : CANDIDATE_DECISION_LABELS.connect}
-                  </MuteButton>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="hidden shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3 font-normal md:flex">
+          {detailNavigation ? (
+            <div className="flex min-w-0 items-center gap-3">
+              <TalentDetailPager
+                navigation={detailNavigation}
+                onNavigate={navigateToTalent}
+              />
+              {resolvedTalentNavigationLabel ? (
+                <div
+                  className="max-w-[min(40vw,320px)] truncate text-[13px] font-normal text-neutral-muted"
+                  title={resolvedTalentNavigationLabel}
+                >
+                  {resolvedTalentNavigationLabel}
                 </div>
               ) : null}
             </div>
-          </div>
-
-          <div className="hidden shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3 font-normal md:flex">
-            {detailNavigation ? (
-              <div className="flex min-w-0 items-center gap-3">
-                <TalentDetailPager
-                  navigation={detailNavigation}
-                  onNavigate={navigateToTalent}
-                />
-                {resolvedTalentNavigationLabel ? (
-                  <div
-                    className="max-w-[min(40vw,320px)] truncate text-[13px] font-normal text-neutral-muted"
-                    title={resolvedTalentNavigationLabel}
-                  >
-                    {resolvedTalentNavigationLabel}
-                  </div>
-                ) : null}
+          ) : (
+            <div className="min-w-0">
+              <div className="truncate text-[14px] font-normal text-neutral-primary">
+                {title}
               </div>
-            ) : (
-              <div className="min-w-0">
-                <div className="truncate text-[14px] font-normal text-neutral-primary">
-                  {title}
-                </div>
-                <div className="mt-1 truncate text-[11px] text-neutral-muted">
-                  {subtitle}
-                </div>
+              <div className="mt-1 truncate text-[11px] text-neutral-muted">
+                {subtitle}
               </div>
-            )}
-            <MuteButton
-              aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
-              onClick={handleClose}
-              size="md"
-              type="button"
-              variant="transparent"
-            >
-              <X aria-hidden className="size-4" />
-            </MuteButton>
-          </div>
-
-          {isLoading ? (
-            <div className="flex flex-1 items-center justify-center text-[13px] text-neutral-muted">
-              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              {t("TalentDetailSimpleView.d0a09857", "불러오는 중")}
             </div>
-          ) : error ? (
-            <OrgErrorState
-              className="m-5"
-              message={error.message}
-              onRetry={onRetry}
-            />
-          ) : detail ? (
-            <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_480px]">
-              <div className="min-h-0 overflow-y-auto">
-                <div className="bg-bg-default px-4 py-2 md:hidden">
-                  <Tabs
-                    activeValue={mobileTab}
-                    aria-label={t("TalentDetailSimpleView.91f8ef14", "후보자 상세 보기")}
-                    className="w-fit"
-                    items={[
-                      {
-                        label: t("TalentDetailSimpleView.992961fa", "프로필"),
-                        value: "profile",
-                      },
-                      {
-                        label: t("TalentDetailSimpleView.d90be781", "피드"),
-                        value: "feed",
-                      },
-                    ]}
-                    onValueChange={(value) => {
-                      if (value === "profile" || value === "feed") {
-                        setMobileTab(value);
+          )}
+          <MuteButton
+            aria-label={t("TalentDetailSimpleView.59d76d8e", "닫기")}
+            onClick={handleClose}
+            size="md"
+            type="button"
+            variant="transparent"
+          >
+            <X aria-hidden className="size-4" />
+          </MuteButton>
+        </div>
+
+        {isLoading ? (
+          <div className="flex flex-1 items-center justify-center text-[13px] text-neutral-muted">
+            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+            {t("TalentDetailSimpleView.d0a09857", "불러오는 중")}
+          </div>
+        ) : error ? (
+          <OrgErrorState
+            className="m-5"
+            message={error.message}
+            onRetry={onRetry}
+          />
+        ) : detail ? (
+          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_480px]">
+            <div className="min-h-0 overflow-y-auto">
+              <div className="bg-bg-default px-4 py-2 md:hidden">
+                <Tabs
+                  activeValue={mobileTab}
+                  aria-label={t(
+                    "TalentDetailSimpleView.91f8ef14",
+                    "후보자 상세 보기"
+                  )}
+                  className="w-fit"
+                  items={[
+                    {
+                      label: t("TalentDetailSimpleView.992961fa", "프로필"),
+                      value: "profile",
+                    },
+                    {
+                      label: t("TalentDetailSimpleView.d90be781", "피드"),
+                      value: "feed",
+                    },
+                  ]}
+                  onValueChange={(value) => {
+                    if (value === "profile" || value === "feed") {
+                      setMobileTab(value);
+                    }
+                  }}
+                  size="small"
+                  variant="pills-elevated"
+                />
+              </div>
+              {internalOpsAccess ? (
+                <div
+                  className={cn(
+                    "border-b border-neutral-1000-a05 bg-bg-default px-5",
+                    mobileTab !== "profile" && "hidden md:block"
+                  )}
+                >
+                  <div className="flex">
+                    <MuteButton
+                      className={cn(
+                        "rounded-none border-b-2 px-3 text-[13px]",
+                        profileTab === "profile"
+                          ? "border-neutral-1000 text-neutral-primary"
+                          : "border-transparent text-neutral-muted"
+                      )}
+                      onClick={() => setProfileTab("profile")}
+                      size="sm"
+                      variant="transparent"
+                    >
+                      {t("TalentDetailSimpleView.a63c3d92", "회사 공개 프로필")}
+                    </MuteButton>
+                    <MuteButton
+                      className={cn(
+                        "rounded-none border-b-2 px-3 text-[13px]",
+                        profileTab === "internal"
+                          ? "border-neutral-1000 text-neutral-primary"
+                          : "border-transparent text-neutral-muted"
+                      )}
+                      onClick={() => setProfileTab("internal")}
+                      size="sm"
+                      variant="transparent"
+                    >
+                      {t("TalentDetailSimpleView.84d7bc3b", "Harper 내부 정보")}
+                    </MuteButton>
+                  </div>
+                </div>
+              ) : null}
+              <div className="p-4 sm:p-5">
+                <div
+                  className={cn(mobileTab !== "profile" && "hidden md:block")}
+                >
+                  {profileTab === "internal" && internalOpsAccess ? (
+                    <div className="space-y-2">
+                      <SystemActivitySummary
+                        account={systemActivityQuery.data?.account}
+                        error={systemActivityError}
+                        isLoading={systemActivityQuery.isLoading}
+                      />
+                      <HarperMemoSection
+                        error={harperMemoError}
+                        isLoading={harperMemoQuery.isLoading}
+                        memos={harperMemos}
+                      />
+                      <OrgInternalTalentPanel
+                        roleId={detail.role.roleId}
+                        talentId={detail.talent.userId}
+                        workspaceId={workspaceId}
+                      />
+                    </div>
+                  ) : (
+                    <ProfilePane
+                      acceptDisabled={
+                        !acceptStageId || !canUseExistingCandidateActions
                       }
-                    }}
-                    size="small"
-                    variant="pills-elevated"
+                      currentStage={detail.recommendation.stage}
+                      decisionPending={decisionPending}
+                      detail={detail}
+                      onAcceptClick={
+                        canUseExistingCandidateActions
+                          ? () => setAcceptDialogOpen(true)
+                          : undefined
+                      }
+                      onMoveToPendingConnection={onMoveToPendingConnection}
+                      onRejectClick={
+                        canUseExistingCandidateActions
+                          ? () => setRejectDialogOpen(true)
+                          : undefined
+                      }
+                      onResumeClick={(kind, link, documentId) => {
+                        if (!detail.capabilities.viewResume) return;
+                        setResumeRequest({ documentId, kind, link });
+                      }}
+                    />
+                  )}
+                </div>
+                <div
+                  className={cn(mobileTab !== "feed" && "hidden", "md:hidden")}
+                >
+                  <FeedPanel
+                    canManageCandidates={canUseExistingCandidateActions}
+                    currentUserId={currentUserId}
+                    detail={detail}
+                    internalOpsAccess={internalOpsAccess}
+                    talentId={talentId}
+                    workspaceId={workspaceId}
                   />
                 </div>
-                {internalOpsAccess ? (
-                  <div
-                    className={cn(
-                      "border-b border-neutral-1000-a05 bg-bg-default px-5",
-                      mobileTab !== "profile" && "hidden md:block"
-                    )}
-                  >
-                    <div className="flex">
-                      <MuteButton
-                        className={cn(
-                          "rounded-none border-b-2 px-3 text-[13px]",
-                          profileTab === "profile"
-                            ? "border-neutral-1000 text-neutral-primary"
-                            : "border-transparent text-neutral-muted"
-                        )}
-                        onClick={() => setProfileTab("profile")}
-                        size="sm"
-                        variant="transparent"
-                      >
-                        {t("TalentDetailSimpleView.a63c3d92", "회사 공개 프로필")}
-                      </MuteButton>
-                      <MuteButton
-                        className={cn(
-                          "rounded-none border-b-2 px-3 text-[13px]",
-                          profileTab === "internal"
-                            ? "border-neutral-1000 text-neutral-primary"
-                            : "border-transparent text-neutral-muted"
-                        )}
-                        onClick={() => setProfileTab("internal")}
-                        size="sm"
-                        variant="transparent"
-                      >
-                        {t("TalentDetailSimpleView.84d7bc3b", "Harper 내부 정보")}
-                      </MuteButton>
-                    </div>
-                  </div>
-                ) : null}
-                <div className="p-4 sm:p-5">
-                  <div
-                    className={cn(mobileTab !== "profile" && "hidden md:block")}
-                  >
-                    {profileTab === "internal" && internalOpsAccess ? (
-                      <div className="space-y-2">
-                        <SystemActivitySummary
-                          account={systemActivityQuery.data?.account}
-                          error={systemActivityError}
-                          isLoading={systemActivityQuery.isLoading}
-                        />
-                        <HarperMemoSection
-                          error={harperMemoError}
-                          isLoading={harperMemoQuery.isLoading}
-                          memos={harperMemos}
-                        />
-                        <OrgInternalTalentPanel
-                          roleId={detail.role.roleId}
-                          talentId={detail.talent.userId}
-                          workspaceId={workspaceId}
-                        />
-                      </div>
-                    ) : (
-                      <ProfilePane
-                        acceptDisabled={
-                          !acceptStageId || !canUseExistingCandidateActions
-                        }
-                        currentStage={detail.recommendation.stage}
-                        decisionPending={decisionPending}
-                        detail={detail}
-                        onAcceptClick={
-                          canUseExistingCandidateActions
-                            ? () => setAcceptDialogOpen(true)
-                            : undefined
-                        }
-                        onMoveToPendingConnection={onMoveToPendingConnection}
-                        onRejectClick={
-                          canUseExistingCandidateActions
-                            ? () => setRejectDialogOpen(true)
-                            : undefined
-                        }
-                        onResumeClick={(kind, link, documentId) => {
-                          if (!detail.capabilities.viewResume) return;
-                          setResumeRequest({ documentId, kind, link });
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      mobileTab !== "feed" && "hidden",
-                      "md:hidden"
-                    )}
-                  >
-                    <FeedPanel
-                      canManageCandidates={canUseExistingCandidateActions}
-                      currentUserId={currentUserId}
+              </div>
+            </div>
+            <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default px-5 pt-5 pb-20 md:block">
+              <FeedPanel
+                canManageCandidates={canUseExistingCandidateActions}
+                currentUserId={currentUserId}
+                decisionActions={
+                  detail.companyIntro ? (
+                    <CompanyIntroDecisionActions
+                      candidateName={title}
                       detail={detail}
-                      internalOpsAccess={internalOpsAccess}
-                      talentId={talentId}
-                      workspaceId={workspaceId}
+                      onPass={() => setCompanyIntroPassOpen(true)}
+                      onRequest={() => setCompanyIntroRequestOpen(true)}
+                      pending={
+                        requestCompanyIntro.isPending ||
+                        passCompanyIntro.isPending
+                      }
                     />
-                  </div>
-                </div>
-              </div>
-              <div className="hidden min-h-0 overflow-y-auto border-l border-neutral-1000-a05 bg-bg-default px-5 pt-5 pb-20 md:block">
-                <FeedPanel
-                  canManageCandidates={canUseExistingCandidateActions}
-                  currentUserId={currentUserId}
-                  decisionActions={
-                    detail.companyIntro ? (
-                      <CompanyIntroDecisionActions
-                        candidateName={title}
-                        detail={detail}
-                        onPass={() => setCompanyIntroPassOpen(true)}
-                        onRequest={() => setCompanyIntroRequestOpen(true)}
-                        pending={
-                          requestCompanyIntro.isPending ||
-                          passCompanyIntro.isPending
-                        }
-                      />
-                    ) : (
-                      <CandidateDecisionActions
-                        acceptDisabled={
-                          !acceptStageId || !canUseExistingCandidateActions
-                        }
-                        candidateName={title}
-                        currentStage={detail.recommendation.stage}
-                        decisionPending={decisionPending}
-                        onAcceptClick={
-                          canUseExistingCandidateActions
-                            ? () => setAcceptDialogOpen(true)
-                            : undefined
-                        }
-                        onMoveToPendingConnection={onMoveToPendingConnection}
-                        onRejectClick={
-                          canUseExistingCandidateActions
-                            ? () => setRejectDialogOpen(true)
-                            : undefined
-                        }
-                      />
-                    )
-                  }
-                  detail={detail}
-                  internalOpsAccess={internalOpsAccess}
-                  talentId={talentId}
-                  workspaceId={workspaceId}
-                />
-              </div>
+                  ) : (
+                    <CandidateDecisionActions
+                      acceptDisabled={
+                        !acceptStageId || !canUseExistingCandidateActions
+                      }
+                      candidateName={title}
+                      currentStage={detail.recommendation.stage}
+                      decisionPending={decisionPending}
+                      onAcceptClick={
+                        canUseExistingCandidateActions
+                          ? () => setAcceptDialogOpen(true)
+                          : undefined
+                      }
+                      onMoveToPendingConnection={onMoveToPendingConnection}
+                      onRejectClick={
+                        canUseExistingCandidateActions
+                          ? () => setRejectDialogOpen(true)
+                          : undefined
+                      }
+                    />
+                  )
+                }
+                detail={detail}
+                internalOpsAccess={internalOpsAccess}
+                talentId={talentId}
+                workspaceId={workspaceId}
+              />
             </div>
-          ) : null}
-        </div>
-      </div>
-
-      <Dialog
-        open={Boolean(resumeRequest)}
-        onOpenChange={(nextOpen) => !nextOpen && closeResumeDialog()}
-      >
-        <DialogContent
-          className="z-[90] max-w-md gap-4 rounded-lg p-6"
-          overlayClassName="z-[80]"
-        >
-          <DialogHeader>
-            <DialogTitle className="text-[18px]">
-              {resumeRequest?.kind === "document"
-                ? t("TalentDetailSimpleView.48c8a063", "문서 열기")
-                : t("TalentDetailSimpleView.5a0204aa", "이력서 열기")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
-            {t("TalentDetailSimpleView.cc49f754", "이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요.")}
           </div>
-          {resumeError ? (
-            <div className="text-[12px] text-critical" role="alert">
-              {resumeError}
-            </div>
-          ) : null}
-          <DialogFooter className="mt-3">
-            <Button
+        ) : null}
+      </TalentCareerModal>
+
+      <TalentCareerModal
+        open={Boolean(resumeRequest)}
+        onClose={() => closeResumeDialog()}
+        mobileBottomSheet
+        title={
+          <>
+            {resumeRequest?.kind === "document"
+              ? t("TalentDetailSimpleView.48c8a063", "문서 열기")
+              : t("TalentDetailSimpleView.5a0204aa", "이력서 열기")}
+          </>
+        }
+        panelClassName="z-[90] max-w-md"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <MuteButton
               type="button"
-              variant="secondary"
               size="md"
               onClick={closeResumeDialog}
               disabled={openResume.isPending}
             >
               {t("TalentDetailSimpleView.d1850640", "취소")}
-            </Button>
-            <Button
+            </MuteButton>
+            <MuteButton
               type="button"
               variant="primary"
               size="md"
@@ -1928,10 +2063,23 @@ export function TalentDetailSimpleView() {
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
               {t("TalentDetailSimpleView.a0865986", "확인 후 열기")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </MuteButton>
+          </div>
+        }
+        backdropClassName={"z-[80]"}
+      >
+        <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
+          {t(
+            "TalentDetailSimpleView.cc49f754",
+            "이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요."
+          )}
+        </div>
+        {resumeError ? (
+          <div className="text-[12px] text-critical" role="alert">
+            {resumeError}
+          </div>
+        ) : null}
+      </TalentCareerModal>
 
       <AcceptIntroDialog
         key={detail?.recommendation.recommendationId ?? "accept-dialog"}
@@ -2000,25 +2148,20 @@ export function TalentDetailSimpleView() {
         onClose={() => setCompanyIntroRequestOpen(false)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!detail?.companyIntro) return;
-          try {
-            await requestCompanyIntro.mutateAsync({
-              companyAppeal,
-              introCandidateId: detail.companyIntro.id,
-              introRecipientEmails,
-              workspaceId,
-            });
-            setCompanyIntroRequestOpen(false);
-            addToast({
-              message: t("TalentDetailSimpleView.d685802e", "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."),
-              variant: "success",
-            });
-          } catch (error) {
-            addToast({
-              message: localizedOrgErrorMessage(error, locale, t("TalentDetailSimpleView.c88fdf18", "제안을 처리하지 못했습니다.")),
-              variant: "error",
-            });
-            throw error;
-          }
+          await requestCompanyIntro.mutateAsync({
+            companyAppeal,
+            introCandidateId: detail.companyIntro.id,
+            introRecipientEmails,
+            workspaceId,
+          });
+          setCompanyIntroRequestOpen(false);
+          addToast({
+            message: t(
+              "TalentDetailSimpleView.d685802e",
+              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."
+            ),
+            variant: "success",
+          });
         }}
         open={companyIntroRequestOpen && Boolean(detail?.companyIntro)}
         pending={requestCompanyIntro.isPending}
@@ -2035,7 +2178,10 @@ export function TalentDetailSimpleView() {
           });
           setCompanyIntroPassOpen(false);
           addToast({
-            message: t("TalentDetailSimpleView.4034123e", "후보자에게 제안하지 않고 목록에서 제외했습니다."),
+            message: t(
+              "TalentDetailSimpleView.4034123e",
+              "후보자에게 제안하지 않고 목록에서 제외했습니다."
+            ),
             variant: "success",
           });
           handleClose();
@@ -2060,7 +2206,6 @@ export function TalentDetailSimpleView() {
           setRejectDialogOpen(false);
         }}
       />
-    </>,
-    document.body
+    </>
   );
 }

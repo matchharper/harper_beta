@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v13",
+  "frozenAt": "2026-10-07T07:41:48.788971+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v13.json": "a5f5628436de88a3829838a5c0fa67d423e11d8515da1f96c29b6d87592c4152",
+    "gold-v13.md": "b95cd0ba4ea34ae67109397182d1f55939b32efb046ef57c2e1ab45c5b1a5549",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "4 synthetic conversations / 5 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v13 --run=<new>",
+  "provenance": "Synthetic billing policy and exhausted-action challenge. Frozen before model calls. No database or delivery.",
+  "model": "Current production company-side model/config; exact settings and source fingerprint saved per run",
+  "privacy": "Synthetic input only; DB and delivery forbidden; ignored owner-only raw artifacts",
+  "releaseGate": "4/4 manual review; zero critical failures; both exhausted actions observed without effects",
+  "knownLimitations": "One sample per case, synthetic executor, no actual retrieval/DB/transport E2E, independent label review pending"
+}

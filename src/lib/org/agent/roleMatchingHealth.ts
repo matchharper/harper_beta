@@ -43,7 +43,6 @@ export type RoleMatchingHealthTalentContext = {
 };
 
 export type RoleMatchingHealthRole = {
-  automaticMatchingEnabled: boolean | null;
   employmentTypes: string[];
   expiresAt: string | null;
   isExpired: boolean;
@@ -443,12 +442,6 @@ function valueOrMissing(value: unknown) {
   return text(value) || "등록 정보 없음";
 }
 
-function automaticMatching(value: boolean | null) {
-  if (value === true) return "켜짐";
-  if (value === false) return "꺼짐";
-  return "설정 기록 없음";
-}
-
 function latestEvaluationAt(rows: RoleMatchingHealthFitRow[]) {
   const value = rows.reduce((latest, row) => {
     const candidate = row.last_evaluated_at || row.created_at;
@@ -564,7 +557,6 @@ export function buildOrgRoleMatchingHealthToolResult(
     `Role: ${text(args.role.name) || "이름 없음"}`,
     `저장된 상태: ${valueOrMissing(args.role.status)}`,
     `만료 표시: ${args.role.isExpired ? "만료됨" : "만료되지 않음"}`,
-    `자동 매칭: ${automaticMatching(args.role.automaticMatchingEnabled)}`,
   ];
   const coverageFacts = [
     `결과 생성 시각: ${args.generatedAt}`,
@@ -648,7 +640,6 @@ export function buildOrgRoleMatchingHealthToolResult(
     `저장된 상태: ${valueOrMissing(args.role.status)}`,
     `만료 표시: ${args.role.isExpired ? "만료됨" : "만료되지 않음"}`,
     `만료 예정 시각: ${valueOrMissing(args.role.expiresAt)}`,
-    `자동 매칭: ${automaticMatching(args.role.automaticMatchingEnabled)}`,
     `근무 위치: ${valueOrMissing(args.role.location)}`,
     `근무 방식: ${valueOrMissing(args.role.workMode)}`,
     `고용 형태: ${

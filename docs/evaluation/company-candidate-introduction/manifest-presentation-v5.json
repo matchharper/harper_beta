@@ -1,0 +1,25 @@
+{
+  "datasetVersion": "presentation-v5",
+  "createdAt": "2026-10-08T08:10:11.828489+00:00",
+  "input": "presentation-cases-v5.json",
+  "fixtureSha256": "5f51a97f8a890290b9a8bf5d43408dfaefec2bb20b8c5b2e28d07ce9800979ba",
+  "evaluationUnit": "selected synthetic candidate × role presentation",
+  "cases": 12,
+  "provenance": "v4 facts/labels preserved; explicit synthetic conversational Brief and compensation privacy challenges added before first v5 call. New UCIP011/012 clone UCIP001 gold with within-range and non-comparable compensation facts. No production data.",
+  "goldReviewer": "Codex before first model call; independent team review pending",
+  "promptInputContract": "Actual Worker writer: full shareable profile + full Search Brief + Role/Hiring Brief/current criteria + company outputLocale; tldr,harper_note,finalFit,criteriaEvaluations. No Behavior/Memory/rerank reason.",
+  "metrics": [
+    "Structural field/identifier coverage",
+    "Existing criterion/finalFit gold agreement",
+    "Manual source/aspiration/soft-preference fidelity",
+    "No exact candidate compensation in any output",
+    "Only above-role comparable salary may have nonnumeric relative mention",
+    "Empty Brief has empty Harper Note",
+    "No private employer/medical detail or borrowed example facts"
+  ],
+  "releaseGate": "No critical privacy or invented-fact error; all outputs manually reviewed; fit-label differences reported without rewriting gold.",
+  "models": "Actual COMPANY_FIRST_SCORING_CALL; provider/reasoning/sampling/usage captured per run.",
+  "canonicalRunner": "harper_worker/llm_evals/unified_talent_role_fit/eval_presentations.py --dataset v5",
+  "privacy": "Synthetic only, no DB/write/delivery; raw owner-only ignored runs.",
+  "knownLimitations": "Small challenge, Codex labels not independently reviewed; inherited UCIP010 fitness ambiguity. No real Slack or representative accuracy estimate."
+}

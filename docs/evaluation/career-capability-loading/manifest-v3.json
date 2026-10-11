@@ -1,0 +1,23 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v3",
+  "createdAt": "2026-10-09",
+  "provenance": "Fully synthetic. All v2 cases retained; coaching_start adds an explicit subsequent channel selection. The initial coaching gold is corrected to the already-existing production suggestion-card contract, not the generated answer. Frozen before v3 runs. Prior versions and failed/limited runs remain available.",
+  "labelReviewHistory": [
+    {
+      "date": "2026-10-09",
+      "reviewer": "Codex",
+      "change": "coaching_start: first suggest, next user turn selects chat, then start; old no-card first-turn expectation conflicted with current code.",
+      "evidence": [
+        "src/lib/career/prompts/cases/coachingPrompts.ts:buildCareerCoachingPrompt",
+        "src/lib/talentOnboarding/tools.ts:manage_career_coaching_activity"
+      ]
+    }
+  ],
+  "goldStatus": "Codex contract review; independent human review pending.",
+  "files": {
+    "cases-v3.json": "10a7f7228a683272fcf97e9553930957f9158d87efdec2167e54b16c65453f70",
+    "gold-v3.json": "0800abddadef1e84c55eece192b0b058a2868b83ee62c3594ecc08fd61fa1747"
+  },
+  "caseCount": 18
+}

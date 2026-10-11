@@ -65,7 +65,6 @@ Slack delivery가 성공하지 않은 calibration은 후속 run을 예약하지 
 Enqueue 시 다음을 모두 확인한다.
 
 - internal, active, unexpired Role
-- `company_internal_roles.is_auto=true`
 - 비어 있지 않은 current Hiring Brief
 - `company_roles.information.testOnly != true`
 - active Company Slack integration과 Role에 전달 가능한 enabled channel

@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "contact-v1",
+  "input": "contact-cases-v1.json",
+  "goldLocation": "contact-cases-v1.json",
+  "fixtureSha256": "7e49eca06c0e3503fba69703db2f4b9249dc614b29959b0b0bb6574ab56ba21b",
+  "provenance": "Synthetic; input and expected behavior authored before first model run. Gold reviewed by Codex, not independently human-validated.",
+  "referenceRunId": "contacts-20261007T082854.761741Z",
+  "sourceRevision": "773f1e37aa355799c9d30e53d1f1ddfc8325a4b5",
+  "runtimeHashes": {
+    "clarification": "7255671acc13dc6d1b0caa727f10eeb5cb74ebb64fd5fe7f1f76a60d840a657b"
+  },
+  "privacy": "No production data in input. Raw model outputs remain in ignored runs/.",
+  "knownLimitations": "Development challenge; no population or recommendation feedback-rate inference."
+}

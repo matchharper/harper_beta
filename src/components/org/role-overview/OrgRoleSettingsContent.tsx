@@ -1,4 +1,5 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -21,14 +22,7 @@ import {
 } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
 import { MuteButton } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,12 +94,14 @@ export function OrgRoleSettingsContent({
     bootstrap: { members },
     internalOpsAccess,
     permissions,
+    workspace,
   } = useOrgWorkspace();
   const canManage = permissions.canManageCandidates;
   const addToast = useToastStore((state) => state.add);
   const updateRoleStatus = useUpdateOrgRole();
   const updateCompanyFirstSearch = useUpdateOrgRole();
   const updatePromotion = useUpdateOrgRole();
+  const updateAnonymity = useUpdateOrgRole();
   const updateNotifications = useUpdateOrgRoleNotificationSettings();
   const settingsQuery = useOrgRoleNotificationSettings({
     roleId: role.roleId,
@@ -123,6 +119,7 @@ export function OrgRoleSettingsContent({
   const [assigneeOverride, setAssigneeOverride] = useState<string[] | null>(
     null
   );
+  const { locale } = useOrgLocale();
   const [statusToConfirm, setStatusToConfirm] = useState<OrgRoleStatus | null>(
     null
   );
@@ -130,6 +127,7 @@ export function OrgRoleSettingsContent({
   const [settingsSaveError, setSettingsSaveError] = useState("");
   const [companyFirstSearchError, setCompanyFirstSearchError] = useState("");
   const [promotionError, setPromotionError] = useState("");
+  const [anonymityError, setAnonymityError] = useState("");
   const [scheduleDaysOverride, setScheduleDaysOverride] = useState<
     IntroSearchDay[] | null
   >(null);
@@ -154,6 +152,11 @@ export function OrgRoleSettingsContent({
     typeof updatePromotion.variables?.isPromote === "boolean"
       ? updatePromotion.variables.isPromote
       : role.isPromote === true;
+  const anonymousEnabled =
+    updateAnonymity.isPending &&
+    typeof updateAnonymity.variables?.isAnonymous === "boolean"
+      ? updateAnonymity.variables.isAnonymous
+      : role.isAnonymous === true;
   const scheduleDisabled =
     !companyFirstSearchEnabled ||
     !canManage ||
@@ -471,6 +474,36 @@ export function OrgRoleSettingsContent({
     }
   };
 
+  const changeAnonymity = async (enabled: boolean) => {
+    if (!canManage || updateAnonymity.isPending || updateRoleStatus.isPending)
+      return;
+    setAnonymityError("");
+    try {
+      await updateAnonymity.mutateAsync({
+        isAnonymous: enabled,
+        roleId: role.roleId,
+        workspaceId,
+      });
+      addToast({
+        message: t(
+          "role.overview.OrgRoleSettingsContent.anonymitySaved",
+          "회사명 공개 설정을 저장했습니다."
+        ),
+        variant: "success",
+      });
+    } catch (error) {
+      setAnonymityError(
+        getRoleOverviewErrorMessage(
+          error,
+          t(
+            "role.overview.OrgRoleSettingsContent.anonymitySaveError",
+            "회사명 공개 설정을 저장하지 못했습니다. 다시 시도해 주세요."
+          )
+        )
+      );
+    }
+  };
+
   const saveSchedule = async () => {
     if (
       !companyFirstSearchEnabled ||
@@ -542,7 +575,7 @@ export function OrgRoleSettingsContent({
               </p>
             </div>
             {roleCreation ? (
-              internalOpsAccess ? (
+              canManage ? (
                 <MuteButton
                   disabled={!canManage || updateRoleStatus.isPending}
                   onClick={() => setStatusToConfirm("active")}
@@ -1193,6 +1226,48 @@ export function OrgRoleSettingsContent({
             </div>
           </div>
           <div className="mt-4">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-t border-neutral-1000-a10 pt-5">
+              <div className="max-w-xl">
+                <p className="text-[14px] font-medium text-neutral-primary">
+                  {t(
+                    "role.overview.OrgRoleSettingsContent.anonymityTitle",
+                    "회사명 공개 여부"
+                  )}
+                </p>
+              </div>
+              <div className="flex min-h-6 shrink-0 items-center gap-2">
+                {updateAnonymity.isPending ? (
+                  <LoaderCircle
+                    aria-hidden="true"
+                    className="size-3.5 animate-spin text-neutral-muted"
+                  />
+                ) : null}
+                <span className="text-[12px] font-medium text-neutral-primary">
+                  {anonymousEnabled
+                    ? t(
+                        "role.overview.OrgRoleSettingsContent.anonymousState",
+                        "회사명 비공개"
+                      )
+                    : t(
+                        "role.overview.OrgRoleSettingsContent.namedState",
+                        "회사명 공개"
+                      )}
+                </span>
+                <AppleSwitch
+                  aria-label={t(
+                    "role.overview.OrgRoleSettingsContent.anonymityTitle",
+                    "회사명 공개 여부"
+                  )}
+                  checked={anonymousEnabled}
+                  disabled={
+                    !canManage ||
+                    updateAnonymity.isPending ||
+                    updateRoleStatus.isPending
+                  }
+                  onCheckedChange={(enabled) => void changeAnonymity(enabled)}
+                />
+              </div>
+            </div>
             <p className="text-[12px] text-neutral-muted">
               {t(
                 "role.overview.OrgRoleSettingsContent.promotionExample",
@@ -1215,7 +1290,13 @@ export function OrgRoleSettingsContent({
                   )}
                 </p>
                 <p className="truncate text-[13px] font-medium text-neutral-primary">
-                  {role.name}
+                  {role.name} at{" "}
+                  {anonymousEnabled
+                    ? t(
+                        "role.overview.OrgRoleSettingsContent.anonymousCompanyExample",
+                        "비공개 회사"
+                      )
+                    : workspace.companyName}
                 </p>
               </div>
               <ArrowRight
@@ -1231,6 +1312,11 @@ export function OrgRoleSettingsContent({
             </div>
           </div>
         </div>
+        {anonymityError ? (
+          <p className="mt-3 text-[13px] text-critical" role="alert">
+            {anonymityError}
+          </p>
+        ) : null}
         {promotionError ? (
           <p className="mt-3 text-[13px] text-critical" role="alert">
             {promotionError}
@@ -1257,22 +1343,20 @@ export function OrgRoleSettingsContent({
         />
       ) : null}
 
-      <Dialog
+      <TalentCareerModal
         open={Boolean(statusToConfirm)}
-        onOpenChange={(open) => {
-          if (!open && !updateRoleStatus.isPending) setStatusToConfirm(null);
+        onClose={() => {
+          if (!updateRoleStatus.isPending) {
+            setStatusToConfirm(null);
+          }
         }}
-      >
-        <DialogContent className="max-w-sm gap-5 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[17px]">
-              {statusConfirmCopy.title}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {statusConfirmCopy.description}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+        mobileBottomSheet
+        title={<>{statusConfirmCopy.title}</>}
+        description={<>{statusConfirmCopy.description}</>}
+        panelClassName="max-w-sm"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <MuteButton
               disabled={updateRoleStatus.isPending}
               onClick={() => setStatusToConfirm(null)}
@@ -1310,32 +1394,36 @@ export function OrgRoleSettingsContent({
                       "채용 종료하기"
                     )}
             </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        }
+      >
+        <></>
+      </TalentCareerModal>
 
-      <Dialog
-        onOpenChange={(open) => {
-          if (!open && !updateRoleStatus.isPending) {
+      <TalentCareerModal
+        open={roleDeleteConfirmOpen}
+        onClose={() => {
+          if (!updateRoleStatus.isPending) {
             setRoleDeleteConfirmOpen(false);
           }
         }}
-        open={roleDeleteConfirmOpen}
-      >
-        <DialogContent className="max-w-sm gap-5 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[17px]">
-              {t("role.overview.OrgRoleSettingsContent.2c72320b", "역할 삭제")}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {t(
-                "composed.deleteRole",
-                "“{roleName}” 역할을 삭제합니다. 계속할까요?",
-                { roleName: role.name }
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+        mobileBottomSheet
+        title={
+          <>{t("role.overview.OrgRoleSettingsContent.2c72320b", "역할 삭제")}</>
+        }
+        description={
+          <>
+            {t(
+              "composed.deleteRole",
+              "“{roleName}” 역할을 삭제합니다. 계속할까요?",
+              { roleName: role.name }
+            )}
+          </>
+        }
+        panelClassName="max-w-sm"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <MuteButton
               disabled={updateRoleStatus.isPending}
               onClick={() => setRoleDeleteConfirmOpen(false)}
@@ -1356,9 +1444,11 @@ export function OrgRoleSettingsContent({
               )}
               {t("role.overview.OrgRoleSettingsContent.159f1f79", "삭제")}
             </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        }
+      >
+        <></>
+      </TalentCareerModal>
     </div>
   );
 }

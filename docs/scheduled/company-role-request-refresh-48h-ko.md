@@ -81,7 +81,6 @@ Activity 후보 중 다음을 모두 만족하는 Role만 claim한다.
 - internal
 - active
 - not expired
-- `company_internal_roles.is_auto = true`
 - `information.testOnly != true`
 
 Role별로 하나씩 claim하고 terminal 상태로 끝낸 뒤 다음 Role을 처리한다. 최신 activity가 오래된
@@ -127,7 +126,7 @@ Codex는 다음을 확인한다.
 gate, existing/proposed clause audit와 shadow check를 수행한다. 충분히 타당해도 이 lane의 결론은
 confirmation-required proposal이다.
 
-Scheduled task를 켰다는 사실, `is_auto=true`, 회사가 일반적으로 Harper를 사용한다는 사실은 새로
+Scheduled task를 켰다는 사실이나 회사가 일반적으로 Harper를 사용한다는 사실은 새로
 추론한 Hiring Brief 변경의 confirmation이 아니다.
 
 ## 8. Draft와 적용
@@ -233,4 +232,3 @@ prompt에 고정하지 않는다. 다른 clone에서는 project target과 workin
 - [ ] Normal no-op은 회사나 운영자에게 불필요한 메시지를 만들지 않는다.
 - [ ] Owner-only artifact permission과 Git exclusion을 확인한다.
 - [ ] Scheduled task가 local host 의존임을 운영 문서에 남기고 host 상태를 모니터링한다.
-

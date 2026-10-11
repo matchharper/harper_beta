@@ -22,10 +22,10 @@ import { OrgOnboardingFlow } from "./OrgOnboardingPage";
 
 const screens = [
   { id: "profile", step: "profile", label: "1. 환영" },
-  { id: "slack", step: "slack", label: "2. Slack" },
+  { id: "company", step: "company", label: "2. 회사 소개" },
+  { id: "slack", step: "slack", label: "3. Slack" },
   { id: "slack-channel", step: "slack", label: "채널 연결" },
   { id: "slack-invite", step: "slack", label: "다른 계정 초대" },
-  { id: "company", step: "company", label: "3. 회사 소개" },
   { id: "roles", step: "roles", label: "4. 역할" },
   { id: "done", step: "done", label: "5. 완료" },
 ] as const satisfies ReadonlyArray<{

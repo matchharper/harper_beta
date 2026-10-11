@@ -56,3 +56,31 @@ test("stored question anchors hydrate in place without repeating their introduct
   batch.status="submitted";
   assert.equal(applicationQuestionMessages(state)[0].id,731);
 });
+
+test("resume review question retains the shared document card before the waiting record", async () => {
+  const {RouterContext} = await import('next/dist/shared/lib/router-context.shared-runtime');
+  const {formatCareerDocumentLink} = await import('@/lib/career/documentLinks');
+  const router = {push: async () => true} as unknown as import('next/router').NextRouter;
+  let state = createSimulationSession({roleName:'Engineer',roleRef:'job:test',documentId:'cv',documentName:'CV'});
+  state.analysisStatus='completed'; state.preparation=createPreparation();
+  state.activity={version:1,offerId:1,outputs:{},batches:[]};
+  state=askApplicationInput(state,{purpose:'Review resume',introduction:'Open the resume to review it.\n\n'+formatCareerDocumentLink({id:'11111111-1111-4111-8111-111111111111',title:'Role resume.pdf'}),items:[{kind:'material',documentPurpose:'final_resume',documentId:'11111111-1111-4111-8111-111111111111',title:'Apply with this file?'}]},'review');
+  const html=renderToStaticMarkup(<RouterContext.Provider value={router}><MessagesProvider locale="en"><ApplicationQuestionHistoryRow batch={applicationQuestionMessages(state)[0].applicationQuestions}/></MessagesProvider></RouterContext.Provider>);
+  assert.match(html,/Role resume.pdf/);
+  assert.match(html,/Open the resume to review it/);
+  assert.doesNotMatch(html,/documentId:/);
+  assert.ok(html.indexOf('Role resume.pdf') < html.indexOf('Waiting for your answers'));
+});
+
+test("long review is rendered as Markdown in chat before the question record",()=>{
+  let state=createSimulationSession({roleName:"Role",roleRef:"job:test",documentId:"cv",documentName:"CV"});
+  state.analysisStatus="completed";state.preparation=createPreparation();state.activity={version:1,offerId:1,outputs:{},batches:[]};
+  state=askApplicationInput(state,{purpose:"review",reviewMarkdown:"## Motivation\n\nA **reviewed** paragraph.\n\n- First point\n- Second point\n\n| Company | Role |\n| --- | --- |\n| Example | Engineer |",items:[{kind:"choice",title:"Use this?",options:[{id:"use",label:"Use"},{id:"revise",label:"Revise"}]}]},"review");
+  const html=renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationQuestionHistoryRow batch={state.activity!.batches[0]}/></MessagesProvider>);
+  assert.match(html,/<h2[^>]*>Motivation<\/h2>/);
+  assert.match(html,/<strong[^>]*>reviewed<\/strong>/);
+  assert.match(html,/overflow-x-auto/);
+  assert.match(html,/<td[^>]*class="[^"]*px-/);
+  assert.match(html,/list-disc/);
+  assert.ok(html.indexOf("Motivation")<html.indexOf("Waiting for your answers"));
+});

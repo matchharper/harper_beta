@@ -467,3 +467,216 @@ export function OrgLoginScreen({
     </>
   );
 }
+
+// Self-serve login preserved for the payment launch; currently disabled.
+// import Head from "next/head";
+// import Image from "next/image";
+// import Link from "next/link";
+// import { useRouter } from "next/router";
+// import { useEffect, useState, type FormEvent } from "react";
+// import { LoaderCircle, Mail } from "lucide-react";
+// import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+// import { useOrgInvitePreview } from "@/hooks/org/useOrg";
+// import { supabase } from "@/lib/supabase";
+// import { MuteButton } from "@/components/ui/button";
+// import { Input } from "@/components/ui/input";
+// import { OrgSignupEntry } from "./onboarding/OrgSignupEntry";
+//
+// export function OrgLoginScreen({
+//   authenticatedEmail,
+//   orgId,
+// }: {
+//   authenticatedEmail?: string | null;
+//   orgId?: string | null;
+// }) {
+//   const { locale } = useOrgLocale();
+//   const router = useRouter();
+//   const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+//   const invitation = useOrgInvitePreview({
+//     enabled: Boolean(orgId),
+//     orgId: orgId || "",
+//   });
+//   const [email, setEmail] = useState("");
+//   const [pending, setPending] = useState(false);
+//   const [error, setError] = useState("");
+//   const [sent, setSent] = useState(false);
+//   const [cooldown, setCooldown] = useState(0);
+//   useEffect(() => {
+//     if (!cooldown) return;
+//     const id = setTimeout(() => setCooldown((n) => n - 1), 1000);
+//     return () => clearTimeout(id);
+//   }, [cooldown]);
+//   function redirectTo() {
+//     const url = new URL(window.location.href);
+//     url.searchParams.delete("authError");
+//     const next = `${url.pathname}${url.search}`;
+//     return `${window.location.origin}/auths/callback?next=${encodeURIComponent(next)}`;
+//   }
+//   async function google() {
+//     setPending(true);
+//     setError("");
+//     try {
+//       const result = await supabase.auth.signInWithOAuth({
+//         provider: "google",
+//         options: {
+//           redirectTo: redirectTo(),
+//           queryParams: { prompt: "select_account" },
+//         },
+//       });
+//       if (result.error) throw result.error;
+//     } catch {
+//       setError(
+//         c(
+//           "로그인을 시작하지 못했어요. 다시 시도해 주세요.",
+//           "Couldn’t start sign-in. Please try again."
+//         )
+//       );
+//       setPending(false);
+//     }
+//   }
+//   async function sendLink(event: FormEvent) {
+//     event.preventDefault();
+//     if (pending || cooldown) return;
+//     setPending(true);
+//     setError("");
+//     try {
+//       const result = await supabase.auth.signInWithOtp({
+//         email: email.trim(),
+//         options: { emailRedirectTo: redirectTo() },
+//       });
+//       if (result.error) throw result.error;
+//       setSent(true);
+//       setCooldown(60);
+//     } catch {
+//       setError(
+//         c(
+//           "로그인 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.",
+//           "Couldn’t send a sign-in link. Please try again shortly."
+//         )
+//       );
+//     } finally {
+//       setPending(false);
+//     }
+//   }
+//   if (authenticatedEmail) return <OrgSignupEntry email={authenticatedEmail} />;
+//   return (
+//     <main className="min-h-svh bg-bg-basement text-neutral-primary">
+//       <Head>
+//         <title>
+//           {c("회사 계정으로 시작하기", "Start with your work account")} · Harper
+//         </title>
+//       </Head>
+//       <header className="flex h-20 items-center justify-between px-6 md:px-12">
+//         <Link href="/company" className="font-hedvig text-2xl">
+//           Harper
+//         </Link>
+//         <Link href="/pricing" className="text-sm text-neutral-muted">
+//           {c("요금제", "Pricing")}
+//         </Link>
+//       </header>
+//       <div className="mx-auto w-full max-w-[420px] px-6 pb-16 pt-16 md:pt-24">
+//         <h1 className="text-[28px] font-normal leading-snug tracking-tight">
+//           {orgId && invitation.data?.workspace
+//             ? c(
+//                 `${invitation.data.workspace.companyName}에 참여하세요`,
+//                 `Join ${invitation.data.workspace.companyName}`
+//               )
+//             : c("회사 이메일로\n시작하세요", "Your next hire starts here")}
+//         </h1>
+//         <p className="mb-9 mt-4 text-sm leading-7 text-neutral-muted">
+//           {orgId
+//             ? c(
+//                 "초대받은 이메일로 로그인해 주세요.",
+//                 "Sign in with the email that received your invitation."
+//               )
+//             : c(
+//                 "가입 후 회사 정보를 확인하고 바로 시작할 수 있어요. 처음에는 무료로 이용해 보세요.",
+//                 "Confirm your company after signing in, then start for free."
+//               )}
+//         </p>
+//         <MuteButton
+//           variant="default"
+//           size="lg"
+//           className="w-full rounded-full"
+//           disabled={pending}
+//           onClick={() => void google()}
+//         >
+//           <Image src="/images/logos/google.png" alt="" width={18} height={18} />
+//           {c("Google 회사 계정으로 계속", "Continue with Google")}
+//         </MuteButton>
+//         <div className="my-4 flex items-center gap-4 text-xs text-neutral-soft">
+//           <span className="h-px flex-1 bg-neutral-1000-a10" />
+//           {c("또는 이메일로", "or use email")}
+//           <span className="h-px flex-1 bg-neutral-1000-a10" />
+//         </div>
+//         <form onSubmit={(event) => void sendLink(event)} className="space-y-4">
+//           <label htmlFor="org-work-email" className="block text-sm">
+//             {c("회사 이메일", "Work email")}
+//           </label>
+//           <Input
+//             id="org-work-email"
+//             type="email"
+//             autoComplete="email"
+//             placeholder="you@company.com"
+//             required
+//             maxLength={254}
+//             value={email}
+//             onChange={(e) => {
+//               setEmail(e.target.value);
+//               setSent(false);
+//             }}
+//             disabled={pending}
+//           />
+//           <MuteButton
+//             type="submit"
+//             variant="dark"
+//             size="lg"
+//             className="w-full rounded-full"
+//             disabled={pending || cooldown > 0}
+//           >
+//             {pending ? (
+//               <LoaderCircle className="size-4 animate-spin" />
+//             ) : (
+//               <Mail className="size-4" />
+//             )}
+//             {cooldown > 0
+//               ? c(`${cooldown}초 후 다시 보내기`, `Resend in ${cooldown}s`)
+//               : c("로그인 링크 받기", "Email me a sign-in link")}
+//           </MuteButton>
+//         </form>
+//         {sent ? (
+//           <p
+//             className="mt-5 text-sm leading-6 text-neutral-muted"
+//             role="status"
+//           >
+//             {c(
+//               "메일의 링크를 열어 계속해 주세요. 메일이 보이지 않으면 스팸함도 확인해 주세요.",
+//               "Open the link in your email to continue. Check your spam folder if it hasn’t arrived."
+//             )}
+//           </p>
+//         ) : null}
+//         {error || (router.query.authError && !pending && !sent) ? (
+//           <p className="mt-4 text-sm text-critical" role="alert">
+//             {error ||
+//               c(
+//                 "로그인을 완료하지 못했어요. 다시 로그인하거나 새 이메일 링크를 받아 주세요.",
+//                 "Sign-in wasn’t completed. Try again or request a new email link."
+//               )}
+//           </p>
+//         ) : null}
+//         <p className="mt-8 text-xs leading-6 text-neutral-soft">
+//           {c(
+//             "회사 계정으로 로그인하거나 새 계정을 만들게 됩니다.",
+//             "You’ll sign in or create a company account."
+//           )}{" "}
+//           <Link
+//             href={`/privacy?lang=${locale}`}
+//             className="underline underline-offset-4"
+//           >
+//             {c("개인정보 처리방침", "Privacy policy")}
+//           </Link>
+//         </p>
+//       </div>
+//     </main>
+//   );
+// }

@@ -733,9 +733,14 @@ export async function POST(req: NextRequest) {
             });
           }
 
+          const submittedProfileVisibility = talentSetting?.profile_visibility;
           const { error: logInsertError } = await admin.from("logs").insert({
             type: ONBOARDING_SUBMITTED_EVENT_TYPE,
             user_id: user.id,
+            ...(submittedProfileVisibility === "open_to_matches" ||
+            submittedProfileVisibility === "exceptional_only"
+              ? { meta_data: { profileVisibility: submittedProfileVisibility } }
+              : {}),
           });
           if (logInsertError) {
             console.error(

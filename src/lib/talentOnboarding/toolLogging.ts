@@ -12,6 +12,7 @@ function safeSerialize(value: unknown, maxLength = 3000) {
 }
 
 function sanitizeTalentToolResultForLog(name: string, result: unknown) {
+  if (name === "generate_resume" || name === "read_document") return { redacted: true };
   if (name !== "search_connected_gmail") return result;
 
   const record =
@@ -45,7 +46,7 @@ export function logTalentToolCall(args: {
       args.callId ? `callId: ${args.callId}` : null,
       typeof args.loop === "number" ? `loop: ${args.loop}` : null,
       "input:",
-      safeSerialize(args.input ?? {}),
+      safeSerialize(args.name === "generate_resume" ? { redacted: true } : args.input ?? {}),
       "============================================================",
       "",
     ]

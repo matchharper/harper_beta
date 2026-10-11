@@ -5,6 +5,55 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CareerOpportunityRun } from "@/components/career/types";
 import { MessagesProvider } from "@/i18n/useMessage";
 import { RecommendationSearchStatusPanel } from "./RecommendationSearchStatusPanel";
+import { getRecommendationSearchProgress } from "./RecommendationSearchProgress";
+
+test("uses streamed phases and keeps delivery unconfirmed until completion", () => {
+  const status = {
+    state: "running" as const,
+    phase: "delivery" as const,
+    candidateCount: 128,
+    scoredCount: 24,
+    recommendationCount: 5,
+  };
+  const html = renderToStaticMarkup(
+    <MessagesProvider locale="ko">
+      <RecommendationSearchStatusPanel active status={status} />
+    </MessagesProvider>
+  );
+  assert.equal((html.match(/data-state="complete"/g) ?? []).length, 3);
+  assert.match(
+    html,
+    /data-search-step="delivery" data-state="active" aria-current="step"/
+  );
+  assert.deepEqual(getRecommendationSearchProgress(null, status).counts, [
+    128,
+    24,
+    5,
+    null,
+  ]);
+  assert.deepEqual(
+    getRecommendationSearchProgress(null, {
+      ...status,
+      state: "completed",
+      recommendationCount: 0,
+    }).counts,
+    [128, 24, 0, 0]
+  );
+});
+
+test("does not invent progress for older runs or mark partial delivery complete", () => {
+  const unknown = getRecommendationSearchProgress(
+    createRun({ status: "running", coverage: { phase: "unknown" } })
+  );
+  assert.equal(unknown.activeStep, 0);
+  assert.deepEqual(unknown.counts, [null, null, null, null]);
+  const partial = getRecommendationSearchProgress(
+    createRun({ status: "partial", recommendationCount: 5 })
+  );
+  assert.equal(partial.activeStep, 3);
+  assert.equal(partial.completed, false);
+  assert.equal(partial.counts[3], null);
+});
 
 const createRun = (
   overrides: Partial<CareerOpportunityRun> = {}

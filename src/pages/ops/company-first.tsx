@@ -140,12 +140,12 @@ export default function CompanyFirstSettingsPage() {
                     }
                   />
                 </div>
-                <p className="text-sm text-neutral-muted">검색 요일과 시간은 각 Role의 Settings에서 설정합니다. 모든 시간은 Asia/Seoul 기준입니다.</p>
+                <p className="text-sm text-neutral-muted">검색 요일과 시간은 각 Role의 Settings에서 설정합니다. 모든 시간은 Asia/Seoul 기준입니다. 아래 인원 설정은 회사 선추천 한도입니다. 후보자 선추천은 역할당 한 번의 검색에서 최대 20명을 선정합니다.</p>
                 <div className="grid gap-4 sm:grid-cols-3">
                   {(
                     [
-                      ["scheduled_role_limit", "정기 검색 · Role당 최대", 50],
-                      ["requested_role_limit", "직접 요청 · Role당 최대", 50],
+                      ["scheduled_role_limit", "회사 선추천 · 정기 검색 · Role당 최대", 50],
+                      ["requested_role_limit", "회사 선추천 · 직접 요청 · Role당 최대", 50],
                       ["ready_backlog_limit", "회사별 미처리 제안 한도", 500],
                     ] as const
                   ).map(([key, label, maximum]) => (

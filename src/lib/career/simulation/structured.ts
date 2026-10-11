@@ -48,6 +48,7 @@ export type Action = {
   executionPrompt: string;
   inputKind?: "change" | "question" | "material";
   linkedActionIds?: string[];
+  options?: { id: string; label: string }[];
 };
 export type FitVerdict = {
   level: "strong" | "moderate" | "weak" | "stretch";
@@ -200,6 +201,7 @@ export const simulationSchemas: Record<SimulationStepKey, Schema> = {
           executionPrompt: str,
           inputKind: choices("change", "question", "material"),
           linkedActionIds: strings,
+          options: list(obj({ id: str, label: str })),
         }),
         {}
       ),
@@ -228,7 +230,8 @@ function conforms(value: unknown, schema: Schema): boolean {
     schema.required!.every(
       (k) =>
         // Earlier version-2 results predate the optional visual edit preview.
-        ((k === "inputKind" ||
+        ((k === "options" ||
+          k === "inputKind" ||
           k === "linkedActionIds" ||
           k === "edits" ||
           k === "originalText" ||
@@ -240,6 +243,22 @@ function conforms(value: unknown, schema: Schema): boolean {
         conforms(row[k], schema.properties![k])
     )
   );
+}
+export function hasStageShape(value: unknown, key: SimulationStepKey): boolean {
+  if (key === "review" && value && typeof value === "object") {
+    const v = value as { data?: Record<string, unknown> };
+    if (v.data?.comparison) {
+      const { comparison, ...data } = v.data;
+      return (
+        conforms({ ...v, data }, simulationSchemas.review) &&
+        conforms(
+          { summary: "", report: "", data: comparison },
+          simulationSchemas.comparison
+        )
+      );
+    }
+  }
+  return conforms(value, simulationSchemas[key]);
 }
 const unique = (ids: string[]) =>
   ids.every((id) => id.trim().length > 0) && new Set(ids).size === ids.length;
@@ -376,6 +395,125 @@ export function validReferences(
       a.requirementIds.every((id) => ids.has(id)) &&
       a.evidenceIds.every((id) => evidenceIds.has(id))
   );
+}
+
+// Coverage links are an inverse index of actions, not a second model judgment.
+// Preserve the model's rationale and no-action/deferred decision; never repair
+// missing evidence or unknown requirements by inventing/dropping references.
+export function deriveActionCoverage(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const result = value as { data?: Record<string, unknown> };
+  const d = result.data;
+  if (
+    d?.kind !== "review" ||
+    !Array.isArray(d.actions) ||
+    !Array.isArray(d.actionCoverage)
+  )
+    return value;
+  if (
+    !d.actions.every(
+      (a) =>
+        a &&
+        typeof a.id === "string" &&
+        Array.isArray(a.requirementIds) &&
+        a.requirementIds.every((id: unknown) => typeof id === "string")
+    )
+  )
+    return value;
+  return {
+    ...result,
+    data: {
+      ...d,
+      actionCoverage: d.actionCoverage.map((row) => {
+        if (!row || typeof row.requirementId !== "string") return row;
+        const actionIds = (d.actions as Action[])
+          .filter((a) => a.requirementIds.includes(row.requirementId))
+          .map((a) => a.id);
+        return {
+          ...row,
+          actionIds,
+          ...(actionIds.length ? { disposition: "action" } : {}),
+        };
+      }),
+    },
+  };
+}
+
+// Give the repair call the exact broken edge, rather than asking it to guess
+// which of several independent reference constraints failed.
+export function referenceIssues(
+  data: StructuredResult,
+  previous: Array<{ data?: StructuredResult } | undefined>
+): string[] {
+  if (data.kind === "role") return [];
+  const role = previous[0]?.data;
+  if (role?.kind !== "role") return ["data: frozen role rubric is missing"];
+  const ids = new Set(role.requirements.map((r) => r.id));
+  const issues: string[] = [];
+  const checkRequirements = (values: string[], path: string) => {
+    for (const id of values)
+      if (!ids.has(id))
+        issues.push(
+          `${path}: unknown requirement ${id}; use ${[...ids].join(", ")}`
+        );
+  };
+  if (data.kind === "comparison") {
+    data.diagnoses.forEach((d, i) =>
+      checkRequirements([d.requirementId], `data.diagnoses[${i}].requirementId`)
+    );
+    for (const id of ids)
+      if (data.diagnoses.filter((d) => d.requirementId === id).length !== 1)
+        issues.push(`data.diagnoses: provide exactly one diagnosis for ${id}`);
+    return issues;
+  }
+  const comparison = data.comparison ?? previous[1]?.data;
+  if (comparison?.kind !== "comparison")
+    return ["data: evidence comparison is missing"];
+  const evidenceIds = new Set([
+    ...comparison.diagnoses.flatMap((d) => d.evidence.map((e) => e.id)),
+    ...comparison.observations.flatMap((o) => [
+      o.id,
+      ...o.evidence.map((e) => e.id),
+    ]),
+  ]);
+  data.actions.forEach((a, i) => {
+    checkRequirements(a.requirementIds, `data.actions[${i}].requirementIds`);
+    for (const id of a.evidenceIds)
+      if (!evidenceIds.has(id))
+        issues.push(
+          `data.actions[${i}].evidenceIds: unknown evidence ${id}; reference existing comparison evidence/observation IDs (${[...evidenceIds].join(", ") || "none"}), or use [] when unavailable`
+        );
+  });
+  if (data.actionCoverage) {
+    for (const id of ids)
+      if (
+        data.actionCoverage.filter((r) => r.requirementId === id).length !== 1
+      )
+        issues.push(`data.actionCoverage: provide exactly one row for ${id}`);
+    data.actionCoverage.forEach((r, i) => {
+      const path = `data.actionCoverage[${i}]`;
+      checkRequirements([r.requirementId], `${path}.requirementId`);
+      if (!r.reason.trim())
+        issues.push(`${path}.reason: explain the disposition`);
+      if (!unique(r.actionIds))
+        issues.push(`${path}.actionIds: use distinct nonempty IDs`);
+      if ((r.disposition === "action") !== r.actionIds.length > 0)
+        issues.push(
+          `${path}.disposition: linked actions require action; without linked actions choose no_action or deferred`
+        );
+      const expected = data.actions
+        .filter((a) => a.requirementIds.includes(r.requirementId))
+        .map((a) => a.id);
+      if (
+        expected.some((id) => !r.actionIds.includes(id)) ||
+        r.actionIds.some((id) => !expected.includes(id))
+      )
+        issues.push(
+          `${path}.actionIds: must equal actions citing ${r.requirementId}: ${expected.join(", ") || "[]"}`
+        );
+    });
+  }
+  return issues;
 }
 
 // Diagnostics contain paths/codes only: never log resume excerpts or model output.
@@ -518,10 +656,7 @@ export function stageOutputIssues(
     issues.push(
       "result: nonempty content and unique IDs required; confirmation needs questions and zero actions needs emptyReason"
     );
-  if (!validReferences(d, previous))
-    issues.push(
-      "data: references must resolve to the supplied frozen rubric and comparison; cover every requirement exactly once"
-    );
+  issues.push(...referenceIssues(d, previous));
   return issues.slice(0, 30);
 }
 
@@ -548,6 +683,26 @@ export function simulationSchemaForInput(
     diagnoses.maxItems = rubric.requirements.length;
     diagnoses.items!.properties!.requirementId = choices(
       ...rubric.requirements.map((r) => r.id)
+    );
+  }
+  if (
+    key === "review" &&
+    rubric?.kind === "role" &&
+    rubric.requirements.length
+  ) {
+    const data = schema.properties!.data;
+    const ids = rubric.requirements.map((r) => r.id);
+    const coverage = data.properties!.actionCoverage;
+    // The server derives this inverse index from actions.requirementIds.
+    delete coverage.items!.properties!.actionIds;
+    coverage.items!.required = coverage.items!.required!.filter(
+      (name) => name !== "actionIds"
+    );
+    coverage.minItems = ids.length;
+    coverage.maxItems = ids.length;
+    coverage.items!.properties!.requirementId = choices(...ids);
+    data.properties!.actions.items!.properties!.requirementIds = list(
+      choices(...ids)
     );
   }
   return schema;

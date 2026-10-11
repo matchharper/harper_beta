@@ -1,3 +1,4 @@
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import {
   Ellipsis,
   Eye,
@@ -128,16 +129,12 @@ const CareerDocumentsSettingsSection = ({
     const rawToken = router.query.resumeRequest;
     const token = typeof rawToken === "string" ? rawToken.trim() : "";
     let active = true;
-    void fetch(
+    void fetchWithInternalAuth<{ request: ResumeCompanyRequest | null }>(
       token
         ? `/api/talent/company-requests/active?token=${encodeURIComponent(token)}`
         : "/api/talent/company-requests/active"
     )
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(String(payload?.error ?? ""));
-        return payload?.request as ResumeCompanyRequest | null;
-      })
+      .then((payload) => payload.request)
       .then((request) => {
         if (active) setCompanyRequest(request?.requestId ? request : null);
       })
@@ -190,7 +187,7 @@ const CareerDocumentsSettingsSection = ({
       onOpenCallNote(document);
     } else if (isGmailCareerHistory) {
       onEditDocument(document);
-    } else if (document.contentType === "text/markdown") {
+    } else if (document.originType === "harper_generated_resume" || document.contentType === "text/markdown") {
       onOpenDocument(document);
     } else if (document.downloadUrl) {
       window.open(document.downloadUrl, "_blank", "noopener,noreferrer");
@@ -252,6 +249,7 @@ const CareerDocumentsSettingsSection = ({
               ? t("career.profile.documents.call_note_title", "Harper와의 통화")
               : document.fileName;
           const canOpen =
+            document.originType === "harper_generated_resume" ||
             document.kind === "call_note" ||
             isGmailCareerHistory ||
             document.contentType === "text/markdown" ||
@@ -280,7 +278,7 @@ const CareerDocumentsSettingsSection = ({
                   }
                   variant="faded"
                 >
-                  {document.isPrimary
+                  {document.originType === "harper_generated_resume" ? (document.isPublic ? t("career.profile.documents.public", "회사 공개") : t("career.profile.documents.private", "비공개")) : document.isPrimary
                     ? t(
                         "career.profile.documents.primary_resume",
                         "대표 이력서"
@@ -323,7 +321,7 @@ const CareerDocumentsSettingsSection = ({
                         "통화 기록 열기"
                       )}
                     </ActionDropdownItem>
-                  ) : document.kind === "resume" && !document.isPrimary ? (
+                  ) : document.kind === "resume" && !document.isPrimary && document.originType !== "harper_generated_resume" ? (
                     <ActionDropdownItem
                       onSelect={() =>
                         void onUpdateTalentDocument(document.id, {
@@ -337,7 +335,7 @@ const CareerDocumentsSettingsSection = ({
                         "대표 이력서로 지정"
                       )}
                     </ActionDropdownItem>
-                  ) : document.kind === "document" && !isGmailCareerHistory ? (
+                  ) : (document.kind === "document" || document.originType === "harper_generated_resume") && !isGmailCareerHistory ? (
                     <ActionDropdownItem
                       onSelect={() =>
                         void onUpdateTalentDocument(document.id, {

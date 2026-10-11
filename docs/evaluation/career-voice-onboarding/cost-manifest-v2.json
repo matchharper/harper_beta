@@ -1,0 +1,56 @@
+{
+  "task": "career-voice-onboarding-cost",
+  "datasetVersion": "pilot-v2",
+  "asOf": "2026-10-06T07:00:00.000Z",
+  "rawUsagePath": "docs/evaluation/career-voice-onboarding/private/usage-v2.json",
+  "rawUsageSha256": "73631a638685b2248dedbc0e304197dea5247a452e7fa29b48717e8d4372f467",
+  "frozenGoldSha256": "139ab5e7c61261d9489da73b1daefd8884fc5b472f877e4804ed81d4e7eb3610",
+  "runnerSha256": "c7fca6e1e8e1f2664ef76a7723a5e71dbe1a2b37ec7c83313ce49c1168c8e5ea",
+  "costSummarySha256": "de9d937ad176994d4eeb545cec5afb75a35a5df6a84c549ccebabcea122c356b",
+  "sourceRevision": "49d98d64314bd8e112036529ddcf2754e8968524",
+  "pricingSourceUrls": [
+    "https://developers.openai.com/api/docs/models/gpt-live-1",
+    "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+    "https://developers.openai.com/api/docs/models/gpt-realtime-2.1"
+  ],
+  "metricSummary": {
+    "mature|gpt-realtime-2.1": {
+      "assigned": 59,
+      "attempts": 55,
+      "ready": 23,
+      "meteredUsers": 42,
+      "unmeteredUsers": 17,
+      "meteredReady": 23,
+      "realtimeRows": 662,
+      "audioRows": 0,
+      "delegationRows": 0,
+      "liveAudioSeconds": 0,
+      "realtimeUsd": 36.937470399999995,
+      "liveAudioUsd": 0,
+      "liveDelegationUsd": 0,
+      "totalUsd": 36.937470399999995,
+      "perAssignedUsd": 0.626058820338983,
+      "perMeteredUsd": 0.8794635809523809,
+      "perConfirmedReadyUsd": 1.6059769739130432
+    },
+    "mature|gpt-live-1": {
+      "assigned": 54,
+      "attempts": 48,
+      "ready": 12,
+      "meteredUsers": 35,
+      "unmeteredUsers": 19,
+      "meteredReady": 12,
+      "realtimeRows": 0,
+      "audioRows": 34,
+      "delegationRows": 181,
+      "liveAudioSeconds": 13576,
+      "realtimeUsd": 0,
+      "liveAudioUsd": 11.313333333333334,
+      "liveDelegationUsd": 7.127450400000001,
+      "totalUsd": 18.440783733333337,
+      "perAssignedUsd": 0.34149599506172845,
+      "perMeteredUsd": 0.5268795352380954,
+      "perConfirmedReadyUsd": 1.5367319777777781
+    }
+  }
+}

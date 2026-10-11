@@ -1,3 +1,5 @@
+import type { CareerCapabilityRuntime } from "@/lib/career/capabilities/runtime";
+import { CAREER_CAPABILITY_LOADER } from "@/lib/career/capabilities/registry";
 import {
   createChatCompletionWithFallback,
   getLlmChatProviderForModel,
@@ -44,7 +46,7 @@ export const CAREER_LLM_CONFIG = {
   assistant: {
     anthropicOverloadFallbackModel: GPT_56_TERRA_MODEL,
     openAIResponsesReasoningEffort: "xhigh" as const,
-    primaryModel: CLAUDE_MODEL,
+    primaryModel: GPT_61_SOL_MODEL,
     fallbackModel: GPT_56_TERRA_MODEL,
   },
   // 일반 텍스트 커리어 채팅 설정. Realtime 전화/음성 응답에는 적용되지 않는다.
@@ -314,6 +316,7 @@ type LlmToolCostAttribution = {
 type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 const MAX_STREAMING_TOOL_CALLS_PER_TURN = 3;
+const RESUME_TOOL_CALL_LIMIT = 8;
 
 function cleanModelText(raw: string) {
   return raw
@@ -376,10 +379,11 @@ function buildAnthropicTools(tools: TalentChatTool[]) {
     input_schema: tool.function.parameters,
   }));
   const lastIndex = normalizedTools.length - 1;
+  const coreBoundary = normalizedTools.findIndex(tool => tool.name === CAREER_CAPABILITY_LOADER);
 
   return normalizedTools.map((tool, index) => ({
     ...tool,
-    ...(index === lastIndex
+    ...(index === lastIndex || index === coreBoundary
       ? { cache_control: { type: "ephemeral" as const } }
       : {}),
   })) as AnthropicTool[];
@@ -426,7 +430,7 @@ function buildScopedContinuationToolPolicy(args: {
   const rawPolicyLines = rawPolicy.split("\n");
   const policyBody =
     rawPolicyLines[0] === "## Tool Use Policy" &&
-    rawPolicyLines[1]?.startsWith("Available tools:")
+    rawPolicyLines[1]?.startsWith("Callable tools in this response:")
       ? rawPolicyLines.slice(2)
       : rawPolicyLines[0] === "## Tool Use Policy"
         ? rawPolicyLines.slice(1)
@@ -437,10 +441,10 @@ function buildScopedContinuationToolPolicy(args: {
     `Callable tools in this continuation: ${
       callableToolNames.length > 0 ? callableToolNames.join(", ") : "none"
     }.`,
-    `Previously executed tools covered by this policy: ${
+    `Tools executed in this user turn (earlier turns are not listed): ${
       executedToolNames.length > 0 ? executedToolNames.join(", ") : "none"
     }.`,
-    "Only the policies for callable tools and previously executed tools are in scope. Do not call any tool that is not present in the current API tool schema.",
+    "Only policies for currently callable tools and tools executed in this user turn are in scope. This list does not audit prior turns. Do not call a tool absent from the current API schema.",
     ...policyBody,
   ].join("\n");
 }
@@ -601,7 +605,7 @@ export function buildToolResultFollowupInstruction(
     "Do not return empty text, expose raw JSON, or mention internal tool names.",
     "If the assistant already wrote a brief pre-tool preamble in the same turn, do not repeat that preamble; continue with the result or the next useful sentence.",
     "When a tool changed saved profile or preference state, answer as Harper in a normal product conversation: acknowledge the substantive change, explain the practical consequence when it matters, and continue naturally from the user's intent.",
-    "If the result is inconclusive, say what could and could not be verified, then continue naturally from the user's question.",
+    "If the result leaves the current question unresolved, say what remains unknown. A current snapshot cannot disprove a past state; do not retract earlier changes merely because their older traces are absent.",
   ].join(" ");
 }
 
@@ -890,6 +894,7 @@ async function createAnthropicMessage(args: {
   const json = (await response.json()) as AnthropicMessageResponse;
   logLlmTokenUsage({
     label: args.usageLabel,
+    meta: { offeredToolNames: tools.map(getTalentChatToolName), systemChars: args.systemBlocks.reduce((n, b) => n + b.text.length, 0) },
     model: args.model,
     response: json,
   });
@@ -1210,6 +1215,7 @@ async function createAnthropicMessageStreamResponse(args: {
 
   logLlmTokenUsage({
     label: args.usageLabel,
+    meta: { offeredToolNames: (args.tools ?? []).map(getTalentChatToolName), systemChars: args.systemBlocks.reduce((n, b) => n + b.text.length, 0) },
     model: args.model,
     response: { usage },
   });
@@ -1487,7 +1493,14 @@ function resolveNativeAnthropicFallbackModelConfig(
   };
 }
 
-export async function runCareerChatAssistant(args: {
+export function runCareerChatAssistant(args: Parameters<typeof runCareerChatAssistantImpl>[0]) {
+  return args.toolRuntime
+    ? args.toolRuntime.runWithUsageContext(() => runCareerChatAssistantImpl(args))
+    : runCareerChatAssistantImpl(args);
+}
+
+async function runCareerChatAssistantImpl(args: {
+  toolRuntime?: CareerCapabilityRuntime;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   executeTool: (args: {
     input: Record<string, unknown>;
@@ -1545,6 +1558,10 @@ export async function runCareerChatAssistant(args: {
     if (args.tools.length > 0) {
       return runTalentAssistantToolLoop({
         getSystemPrompt: () => flattenCareerSystemBlocks(args.systemBlocks),
+        toolRuntime: args.toolRuntime,
+        ...(args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume")
+          ? { maxToolLoops: RESUME_TOOL_CALL_LIMIT, maxTotalToolCalls: RESUME_TOOL_CALL_LIMIT }
+          : {}),
         executeTool: args.executeTool,
         messages: fallbackMessages,
         modelConfig: activeModelConfig,
@@ -1570,14 +1587,14 @@ export async function runCareerChatAssistant(args: {
     return fallbackWithExistingClient();
   }
 
+  const workingMessages: AnthropicMessage[] = args.messages
+    .filter(message => message.content.trim().length > 0)
+    .map(message => ({ role: message.role, content: message.content }));
+  let startedExecution = false;
+  let recoverySystemBlocks = args.systemBlocks;
   try {
-    const workingMessages: AnthropicMessage[] = args.messages
-      .filter((message) => message.content.trim().length > 0)
-      .map((message) => ({
-        role: message.role,
-        content: message.content,
-      }));
     const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
+    const maxToolCalls = args.toolRuntime?.maxToolCalls ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : 4);
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let executedToolNamesForPolicy: string[] = [];
@@ -1601,15 +1618,12 @@ export async function runCareerChatAssistant(args: {
       });
     }
 
-    for (
-      let loop = 0;
-      loop <
-      (args.tools.some((t) => t.function.name === "manage_simulation_session")
-        ? 8
-        : 3);
-      loop += 1
-    ) {
-      const activeToolNames = args.tools.map(getTalentChatToolName);
+    const maxToolLoops = args.toolRuntime?.maxToolLoops ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : 3);
+    for (let loop = 0; loop < maxToolLoops; loop += 1) {
+      const capabilityStep = args.toolRuntime?.resolveStep();
+      const stepTools = capabilityStep?.tools ?? args.tools;
+      const stepSystemBlocks = capabilityStep?.systemBlocks ?? args.systemBlocks;
+      const activeToolNames = stepTools.map(getTalentChatToolName);
       const systemBlocksForStep =
         executedToolNamesForPolicy.length > 0
           ? withScopedContinuationToolPolicy({
@@ -1617,9 +1631,9 @@ export async function runCareerChatAssistant(args: {
               executedToolNames: executedToolNamesForPolicy,
               isOnboardingActive: args.isOnboardingActive,
               responseLocale: args.responseLocale,
-              systemBlocks: args.systemBlocks,
+              systemBlocks: stepSystemBlocks,
             })
-          : args.systemBlocks;
+          : stepSystemBlocks;
       const toolCostAttribution =
         pendingToolResultAttribution.length > 0
           ? {
@@ -1628,13 +1642,14 @@ export async function runCareerChatAssistant(args: {
             }
           : undefined;
       pendingToolResultAttribution = [];
+      recoverySystemBlocks = systemBlocksForStep;
       const response = await createAnthropicMessage({
         messages: workingMessages,
         model: modelConfig.primaryModel,
         systemBlocks: systemBlocksForStep,
         temperature,
         toolCostAttribution,
-        tools: args.tools,
+        tools: stepTools,
         usageLabel,
       });
 
@@ -1665,10 +1680,7 @@ export async function runCareerChatAssistant(args: {
         content: assistantBlocks,
       });
 
-      const remainingToolCalls =
-        (args.tools.some((t) => t.function.name === "manage_simulation_session")
-          ? 8
-          : 4) - totalToolCalls;
+      const remainingToolCalls = maxToolCalls - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -1691,12 +1703,21 @@ export async function runCareerChatAssistant(args: {
 
       for (const toolCall of executableToolCalls) {
         totalToolCalls += 1;
-        attemptedToolNames.push(toolCall.name);
 
         const toolInput =
           toolCall.input && typeof toolCall.input === "object"
             ? toolCall.input
             : {};
+        const callError = capabilityStep
+          ? args.toolRuntime!.claimCall(toolCall.name, capabilityStep)
+          : !activeToolNames.includes(toolCall.name) ? "tool_not_offered" : null;
+        if (callError || args.toolRuntime?.isInternalTool(toolCall.name)) {
+          const result = callError ? { ok: false, error: callError }
+            : args.toolRuntime!.load(toolInput, capabilityStep!);
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id, content: JSON.stringify(result), ...(result.ok ? {} : { is_error: true }) });
+          continue;
+        }
+        attemptedToolNames.push(toolCall.name);
         logTalentToolCall({
           callId: toolCall.id,
           input: toolInput,
@@ -1706,6 +1727,7 @@ export async function runCareerChatAssistant(args: {
         });
         const toolStartedAt = Date.now();
         try {
+          startedExecution = true;
           await args.onToolStart?.({
             name: toolCall.name,
             input: toolInput,
@@ -1714,6 +1736,7 @@ export async function runCareerChatAssistant(args: {
             name: toolCall.name,
             input: toolInput,
           });
+          if (capabilityStep) await args.toolRuntime!.recordResult(toolCall.name, result, capabilityStep);
           logTalentToolResult({
             callId: toolCall.id,
             durationMs: Date.now() - toolStartedAt,
@@ -1749,6 +1772,14 @@ export async function runCareerChatAssistant(args: {
         }
       }
 
+      if (shouldStopAfterTool) {
+        const answered = new Set(toolResultBlocks.map(result => result.tool_use_id));
+        for (const call of toolUseBlocks) if (!answered.has(call.id)) {
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: call.id, is_error: true,
+            content: JSON.stringify({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
+        }
+      }
+
       if (toolResultBlocks.length > 0) {
         workingMessages.push({
           role: "user",
@@ -1778,7 +1809,7 @@ export async function runCareerChatAssistant(args: {
       executedToolNames: executedToolNamesForPolicy,
       isOnboardingActive: args.isOnboardingActive,
       responseLocale: args.responseLocale,
-      systemBlocks: args.systemBlocks,
+      systemBlocks: args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks,
     });
     const finalToolCostAttribution =
       pendingToolResultAttribution.length > 0
@@ -1816,6 +1847,12 @@ export async function runCareerChatAssistant(args: {
     });
   } catch (error) {
     if (isAbortLikeError(error)) throw error;
+    if (startedExecution) {
+      const recovered = await recoverVisibleTextFromAnthropicMessages({ messages: workingMessages, modelConfig, reason: "error_after_tool_execution", responseLocale: args.responseLocale, systemBlocks: recoverySystemBlocks, usageLabel, skipNativeRetry: true });
+      if (recovered) return recovered;
+      // Do not let an outer empty-response recovery lose already executed effects.
+      throw error;
+    }
     const nativeFallback = resolveNativeAnthropicFallbackModelConfig(
       error,
       modelConfig
@@ -1867,7 +1904,14 @@ export async function recoverCareerChatAssistantText(args: {
   });
 }
 
-export async function runCareerChatAssistantStream(args: {
+export function runCareerChatAssistantStream(args: Parameters<typeof runCareerChatAssistantStreamImpl>[0]) {
+  return args.toolRuntime
+    ? args.toolRuntime.runWithUsageContext(() => runCareerChatAssistantStreamImpl(args))
+    : runCareerChatAssistantStreamImpl(args);
+}
+
+async function runCareerChatAssistantStreamImpl(args: {
+  toolRuntime?: CareerCapabilityRuntime;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   executeTool: (args: {
     input: Record<string, unknown>;
@@ -1910,6 +1954,10 @@ export async function runCareerChatAssistantStream(args: {
     const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
     return runTalentAssistantToolLoop({
       getSystemPrompt: () => flattenCareerSystemBlocks(args.systemBlocks),
+        toolRuntime: args.toolRuntime,
+      ...(args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume")
+        ? { maxToolLoops: RESUME_TOOL_CALL_LIMIT, maxTotalToolCalls: RESUME_TOOL_CALL_LIMIT }
+        : {}),
       executeTool: args.executeTool,
       messages: [{ role: "system", content: systemPrompt }, ...args.messages],
       modelConfig,
@@ -1978,6 +2026,7 @@ export async function runCareerChatAssistantStream(args: {
       });
     }
 
+    const maxToolCalls = args.toolRuntime?.maxToolCalls ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : MAX_STREAMING_TOOL_CALLS_PER_TURN);
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let activeTools = args.tools;
@@ -1987,6 +2036,9 @@ export async function runCareerChatAssistantStream(args: {
     while (activeTools.length > 0) {
       const loop = toolLoopIndex;
       toolLoopIndex += 1;
+      const capabilityStep = args.toolRuntime?.resolveStep();
+      if (capabilityStep) activeTools = capabilityStep.tools;
+      const stepSystemBlocks = capabilityStep?.systemBlocks ?? args.systemBlocks;
       const activeToolNames = activeTools.map(getTalentChatToolName);
       const systemBlocksForStep =
         executedToolNamesForPolicy.length > 0
@@ -1995,9 +2047,9 @@ export async function runCareerChatAssistantStream(args: {
               executedToolNames: executedToolNamesForPolicy,
               isOnboardingActive: args.isOnboardingActive,
               responseLocale: args.responseLocale,
-              systemBlocks: args.systemBlocks,
+              systemBlocks: stepSystemBlocks,
             })
-          : args.systemBlocks;
+          : stepSystemBlocks;
       activeSystemBlocksForRecovery = systemBlocksForStep;
       const toolCostAttribution =
         pendingToolResultAttribution.length > 0
@@ -2013,7 +2065,7 @@ export async function runCareerChatAssistantStream(args: {
         onToolUseStart: async (tool) => {
           startedAnyTool = true;
           forwardedVisibleText = "";
-          await args.onToolDetected?.(tool);
+          if (!args.toolRuntime?.isInternalTool(tool.name) && activeToolNames.includes(tool.name)) await args.onToolDetected?.(tool);
         },
         onTextDelta: forwardTextDelta,
         systemBlocks: systemBlocksForStep,
@@ -2058,9 +2110,7 @@ export async function runCareerChatAssistantStream(args: {
       });
 
       const remainingToolCalls =
-        (args.tools.some((t) => t.function.name === "manage_simulation_session")
-          ? 8
-          : MAX_STREAMING_TOOL_CALLS_PER_TURN) - totalToolCalls;
+        maxToolCalls - totalToolCalls;
       const executableToolCalls =
         remainingToolCalls > 0
           ? toolUseBlocks.slice(0, remainingToolCalls)
@@ -2084,12 +2134,21 @@ export async function runCareerChatAssistantStream(args: {
 
       for (const toolCall of executableToolCalls) {
         totalToolCalls += 1;
-        attemptedToolNames.push(toolCall.name);
 
         const toolInput =
           toolCall.input && typeof toolCall.input === "object"
             ? toolCall.input
             : {};
+        const callError = capabilityStep
+          ? args.toolRuntime!.claimCall(toolCall.name, capabilityStep)
+          : !activeToolNames.includes(toolCall.name) ? "tool_not_offered" : null;
+        if (callError || args.toolRuntime?.isInternalTool(toolCall.name)) {
+          const result = callError ? { ok: false, error: callError }
+            : args.toolRuntime!.load(toolInput, capabilityStep!);
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id, content: JSON.stringify(result), ...(result.ok ? {} : { is_error: true }) });
+          continue;
+        }
+        attemptedToolNames.push(toolCall.name);
         try {
           await args.onToolStart?.({
             id: toolCall.id,
@@ -2121,6 +2180,7 @@ export async function runCareerChatAssistantStream(args: {
             name: toolCall.name,
             input: toolInput,
           });
+          if (capabilityStep) await args.toolRuntime!.recordResult(toolCall.name, result, capabilityStep);
           logTalentToolResult({
             callId: toolCall.id,
             durationMs: Date.now() - toolStartedAt,
@@ -2158,13 +2218,8 @@ export async function runCareerChatAssistantStream(args: {
 
       const continuationTools =
         !shouldStopAfterTool &&
-        totalToolCalls <
-          (args.tools.some(
-            (t) => t.function.name === "manage_simulation_session"
-          )
-            ? 8
-            : MAX_STREAMING_TOOL_CALLS_PER_TURN)
-          ? args.tools
+        totalToolCalls < maxToolCalls
+          ? args.toolRuntime?.resolveStep(false).tools ?? args.tools
           : [];
       const continuationToolNames = continuationTools.map(
         getTalentChatToolName
@@ -2173,6 +2228,14 @@ export async function runCareerChatAssistantStream(args: {
         ...executedToolNamesForPolicy,
         ...attemptedToolNames,
       ]);
+
+      if (shouldStopAfterTool) {
+        const answered = new Set(toolResultBlocks.map(result => result.tool_use_id));
+        for (const call of toolUseBlocks) if (!answered.has(call.id)) {
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: call.id, is_error: true,
+            content: JSON.stringify({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
+        }
+      }
 
       if (toolResultBlocks.length > 0) {
         workingMessages.push({
@@ -2206,7 +2269,7 @@ export async function runCareerChatAssistantStream(args: {
       executedToolNames: executedToolNamesForPolicy,
       isOnboardingActive: args.isOnboardingActive,
       responseLocale: args.responseLocale,
-      systemBlocks: args.systemBlocks,
+      systemBlocks: args.toolRuntime?.resolveStep().systemBlocks ?? args.systemBlocks,
     });
     activeSystemBlocksForRecovery = finalSystemBlocks;
     const finalToolCostAttribution =
@@ -2284,6 +2347,7 @@ export async function runCareerChatAssistantStream(args: {
     });
     const text = await runCareerChatAssistant({
       executeTool: args.executeTool,
+      toolRuntime: args.toolRuntime,
       messages: args.messages,
       modelConfig: nativeFallback.modelConfig,
       stopAfterToolNames: args.stopAfterToolNames,

@@ -234,6 +234,8 @@ test("composer collects decisions without chat turns, restores answers, and sepa
       2
     );
     assert.match(dom.window.document.body.textContent!, /1 \/ 2/);
+    assert.ok(dom.window.document.querySelector('svg[aria-label="판단 근거"]'));
+    assert.doesNotMatch(dom.window.document.body.textContent!, /rational/);
     assert.doesNotMatch(
       dom.window.document.body.textContent!,
       /PRIVATE|진행하기/
@@ -265,6 +267,7 @@ test("composer collects decisions without chat turns, restores answers, and sepa
       dom.window.document.querySelector("textarea")?.value,
       "Owned A dashboard and B API"
     );
+    assert.equal(dom.window.document.querySelector('svg[aria-label="판단 근거"]'), null);
     const answerInput = dom.window.document.querySelector("textarea")!;
     // React's legacy input-event fallback in jsdom expects these focus hooks.
     Object.assign(answerInput, { attachEvent() {}, detachEvent() {} });
@@ -565,7 +568,7 @@ test("composer collects decisions without chat turns, restores answers, and sepa
             kind: "choice",
             title: "How should we prepare the resume?",
             options: [
-              { id: "self", label: "직접 수정할게요" },
+              { id: "self", label: "직접 수정할게요", description: "수정한 파일을 첨부해요" },
               { id: "help", label: "초안을 도와주세요" },
             ],
           },
@@ -577,6 +580,10 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     const choice = [...dom.window.document.querySelectorAll("button")].find(
       (b) => b.textContent?.includes("직접 수정할게요")
     )!;
+    assert.match(choice.textContent!, /직접 수정할게요: 수정한 파일을 첨부해요/);
+    assert.equal(choice.querySelector("small, strong"), null);
+    assert.ok(choice.className.includes("font-normal"));
+    assert.equal(dom.window.document.querySelector('svg[aria-label="판단 근거"]'), null);
     await act(async () => choice.click());
     assert.deepEqual(commands.at(-1)?.response, {
       decision: "answer",
@@ -665,9 +672,10 @@ test("final file question shows one verified candidate without a file picker; su
     "final-file"
   );
   let html = render();
-  assert.match(html, /이 파일로 지원할까요/);
+  assert.match(html, /어떤 방식으로 지원할까요/);
   assert.match(html, /Resume.pdf/);
-  assert.match(html, /다른 파일 사용하기/);
+  assert.match(html, /직접 지원하기/);
+  assert.match(html, /하퍼가 대신 지원하기/);
   assert.doesNotMatch(
     html,
     /type="file"|role="combobox"|Hidden generic explanation/
@@ -693,4 +701,51 @@ test("final file question shows one verified candidate without a file picker; su
   );
   html = render();
   assert.match(html, /Company, role, file and all answers/);
+});
+
+test("review questions remain closed until the matching chat review has rendered", async () => {
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { ApplicationPreparationContext } = await import("./ApplicationPreparationContext");
+  const { ApplicationPreparationComposerSlot } = await import("./ApplicationPreparationComposer");
+  let state=createSimulationSession({roleName:"Role",roleRef:"job:test",documentId:"cv",documentName:"CV"});
+  state.analysisStatus="completed";state.preparation=createPreparation();state.activity={version:1,offerId:1,outputs:{},batches:[]};
+  state=askApplicationInput(state,{purpose:"review",reviewMarkdown:"## Full answer\n\nReview this before deciding.",items:[{kind:"choice",title:"Use this?",options:[{id:"yes",label:"Use"},{id:"no",label:"Revise"}]}]},"r1");
+  const render=(renderedReviewId?:string)=>renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationPreparationContext.Provider value={{record:{state,messageId:1},drafts:[],pending:false,error:"",command:async()=>true,renderedReviewId}}><ApplicationPreparationComposerSlot><span>Ordinary input</span></ApplicationPreparationComposerSlot></ApplicationPreparationContext.Provider></MessagesProvider>);
+  assert.match(render(),/Ordinary input/);
+  assert.match(render("old-review"),/Ordinary input/);
+  const html=render(state.activity!.batches[0].review!.id);
+  assert.doesNotMatch(html,/Ordinary input/);
+  assert.match(html,/Use this\?/);
+  assert.doesNotMatch(html,/Review this before deciding/);
+});
+
+test("all question choice surfaces use the same numbered buttons; writing remains open ended", async () => {
+  const {renderToStaticMarkup} = await import("react-dom/server");
+  const {ApplicationPreparationContext} = await import("./ApplicationPreparationContext");
+  const {ApplicationPreparationComposer} = await import("./ApplicationPreparationComposer");
+  const buttonClasses: string[] = [];
+  for (const item of [
+    {kind:"change",title:"Improve this?"},
+    {kind:"choice",title:"Choose",options:[{id:"a",label:"One"},{id:"b",label:"A longer second choice"}]},
+    {kind:"material",title:"Provide a file"},
+    {kind:"material",title:"Choose a file",documentId:"cv"},
+    {kind:"material",title:"Apply",documentPurpose:"final_resume",documentId:"cv"},
+    {kind:"question",title:"What motivates you?"},
+  ]) {
+    let state=createSimulationSession({roleName:"Role",roleRef:"job:test",documentId:"cv",documentName:"CV"});
+    state.analysisStatus="completed";state.preparation=createPreparation();state.activity={version:1,offerId:1,outputs:{},batches:[]};
+    state=askApplicationInput(state,{purpose:"test",items:[item]},`test-${item.title}`);
+    const html=renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationPreparationContext.Provider value={{record:{state,messageId:1},drafts:[],pending:false,error:"",command:async()=>true}}><ApplicationPreparationComposer/></ApplicationPreparationContext.Provider></MessagesProvider>);
+    const dom=new JSDOM(html);
+    const group=dom.window.document.querySelector(".auto-rows-fr");
+    if(item.kind === "question") {assert.equal(group,null);assert.ok(dom.window.document.querySelector("textarea"));}
+    else {
+      assert.ok(group);
+      const buttons=Array.from(group.querySelectorAll("button"));
+      assert.equal(buttons.length,item.kind === "material" && item.documentId && !item.documentPurpose ? 3 : 2);
+      buttons.forEach((button,index)=>{assert.equal(button.firstElementChild?.textContent,String(index+1));buttonClasses.push(button.className);});
+    }
+    dom.window.close();
+  }
+  assert.equal(new Set(buttonClasses).size,1);
 });

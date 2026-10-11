@@ -86,6 +86,19 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     outputUsdPerMtok: 12,
     pricingSource: "openai_api_pricing_2026_09",
   },
+  // https://developers.openai.com/api/docs/models/gpt-6.1-sol (Standard)
+  "gpt-6.1-sol": {
+    cacheReadUsdPerMtok: 0.1,
+    cacheWriteUsdPerMtok: 2.5,
+    inputUsdPerMtok: 2,
+    outputUsdPerMtok: 10,
+    longContextThresholdTokens: 272_000,
+    longContextInputUsdPerMtok: 4,
+    longContextCacheReadUsdPerMtok: 0.2,
+    longContextCacheWriteUsdPerMtok: 5,
+    longContextOutputUsdPerMtok: 15,
+    pricingSource: "openai_gpt_6_1_sol_pricing_2026_10_09",
+  },
   "grok-build-0.1": {
     cacheReadUsdPerMtok: 0.2,
     inputUsdPerMtok: 1,

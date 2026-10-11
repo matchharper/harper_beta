@@ -1,3 +1,4 @@
+import type { WorkspaceSignupState } from "@/lib/org/signup";
 export type Json =
   | string
   | number
@@ -14,6 +15,12 @@ export type Database = {
   };
   public: {
     Tables: {
+      user_announcement_receipts: {
+        Row: { user_id: string; announcement_id: string; seen_at: string };
+        Insert: { user_id: string; announcement_id: string; seen_at?: string };
+        Update: { user_id?: string; announcement_id?: string; seen_at?: string };
+        Relationships: [];
+      };
       company_first_talent_scores: {
         Row: {
           talent_id: string;
@@ -1737,7 +1744,6 @@ export type Database = {
           considerations: Json;
           created_at: string;
           criteria: Json;
-          is_auto: boolean;
           is_anonymous: boolean;
           is_company_first_search: boolean;
           intro_search_date: string[];
@@ -1757,7 +1763,6 @@ export type Database = {
           considerations?: Json;
           created_at?: string;
           criteria?: Json;
-          is_auto?: boolean;
           is_anonymous?: boolean;
           is_company_first_search?: boolean;
           intro_search_date?: string[];
@@ -1777,7 +1782,6 @@ export type Database = {
           considerations?: Json;
           created_at?: string;
           criteria?: Json;
-          is_auto?: boolean;
           is_anonymous?: boolean;
           is_company_first_search?: boolean;
           intro_search_date?: string[];
@@ -2898,6 +2902,8 @@ export type Database = {
       };
       company_workspace: {
         Row: {
+          signup_domain: string | null;
+          signup_state: WorkspaceSignupState | null;
           brief: string | null;
           career_url: string | null;
           company_db_id: number | null;
@@ -2919,6 +2925,8 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          signup_domain?: string | null;
+          signup_state?: WorkspaceSignupState | null;
           brief?: string | null;
           career_url?: string | null;
           company_db_id?: number | null;
@@ -2940,6 +2948,8 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          signup_domain?: string | null;
+          signup_state?: WorkspaceSignupState | null;
           brief?: string | null;
           career_url?: string | null;
           company_db_id?: number | null;
@@ -7318,6 +7328,8 @@ export type Database = {
           content_sha256: string | null;
           content_type: string | null;
           created_at: string;
+          structured_content: Json | null;
+          revision: number;
           extracted_text: string | null;
           file_name: string;
           id: string;
@@ -7336,6 +7348,8 @@ export type Database = {
           content_sha256?: string | null;
           content_type?: string | null;
           created_at?: string;
+          structured_content?: Json | null;
+          revision?: number;
           extracted_text?: string | null;
           file_name: string;
           id?: string;
@@ -7354,6 +7368,8 @@ export type Database = {
           content_sha256?: string | null;
           content_type?: string | null;
           created_at?: string;
+          structured_content?: Json | null;
+          revision?: number;
           extracted_text?: string | null;
           file_name?: string;
           id?: string;
@@ -7932,6 +7948,9 @@ export type Database = {
       talent_opportunity_matching_review: {
         Row: {
           criteria_evaluations: Json;
+          tldr: string | null;
+          harper_note: string | null;
+          final_fit: "excellent" | "good" | "borderline" | "uncertain" | "unfit" | null;
           decision: string;
           discovery_run_id: string | null;
           id: string;
@@ -7944,6 +7963,9 @@ export type Database = {
         };
         Insert: {
           criteria_evaluations?: Json;
+          tldr?: string | null;
+          harper_note?: string | null;
+          final_fit?: "excellent" | "good" | "borderline" | "uncertain" | "unfit" | null;
           decision: string;
           discovery_run_id?: string | null;
           id?: string;
@@ -7956,6 +7978,9 @@ export type Database = {
         };
         Update: {
           criteria_evaluations?: Json;
+          tldr?: string | null;
+          harper_note?: string | null;
+          final_fit?: "excellent" | "good" | "borderline" | "uncertain" | "unfit" | null;
           decision?: string;
           discovery_run_id?: string | null;
           id?: string;
@@ -9475,10 +9500,6 @@ export type Database = {
               isSetofReturn: false;
             };
           };
-      enqueue_due_company_context_runs_v1: {
-        Args: { p_now?: string };
-        Returns: number;
-      };
       enqueue_slack_button_choice_v1: {
         Args: {
           p_action_ts: string;

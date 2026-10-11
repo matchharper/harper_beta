@@ -284,13 +284,11 @@ class SchemaPreflightTests(unittest.TestCase):
             procedures: set[str],
             columns: set[tuple[str, str]],
             *,
-            is_auto_default: str | None = None,
             triggers: set[str] | None = None,
         ):
             self.relations = relations
             self.procedures = procedures
             self.columns = columns
-            self.is_auto_default = is_auto_default
             self.triggers = triggers or set()
 
         def cursor(self):
@@ -307,8 +305,6 @@ class SchemaPreflightTests(unittest.TestCase):
                 self.row = {"exists": params[0] in self.relations}
             elif "to_regprocedure" in query:
                 self.row = {"exists": params[0] in self.procedures}
-            elif "column_default" in query:
-                self.row = {"column_default": self.is_auto_default}
             elif "count(*)::integer as count" in query:
                 self.row = {
                     "count": 2 if "company_behavior_contexts" in query else 6
@@ -339,26 +335,18 @@ class SchemaPreflightTests(unittest.TestCase):
                 },
                 {
                     "public.enqueue_company_context_run_v1(uuid,text,timestamp with time zone)",
-                    "public.enqueue_due_company_context_runs_v1(timestamp with time zone)",
-                    "public.enqueue_scheduled_company_runs_v1(uuid,timestamp with time zone)",
                     "public.claim_company_context_run_v1(text,uuid)",
-                    "public.claim_scheduled_company_run_v1(text,uuid)",
                     "public.enqueue_post_calibration_company_context_run_v1(uuid)",
                     "public.claim_post_calibration_company_context_run_v1(text)",
-                    "public.retry_post_calibration_company_context_run_v1(uuid,timestamp with time zone)",
                     "public.record_post_calibration_company_notice_v1(uuid,text,bigint,text,text,text,text)",
                     "public.finish_company_context_run_v1(uuid,text,jsonb)",
                 },
                 {
-                    ("company_internal_roles", "is_auto"),
                     ("company_internal_roles", "max_pending_talents"),
                     ("company_internal_roles", "role_status_changed_at"),
                     ("talent_opportunity_fit", "company_side_evaluation_metadata"),
                 },
-                is_auto_default="true",
                 triggers={
-                    "company_internal_roles_enqueue_context_run_v1",
-                    "company_internal_roles_cancel_context_run_v1",
                     "company_roles_track_status_and_enqueue_context_v1",
                     "company_context_runs_enqueue_waiting_post_calibration_v1",
                     "company_context_runs_notify_post_calibration_v1",
@@ -474,51 +462,6 @@ class RoleScopeContractTests(unittest.TestCase):
                     }
                 ]
             )
-
-    def test_corrective_migration_creates_six_column_queue_and_removes_old_state(self) -> None:
-        queue_migration = (
-            Path(__file__).resolve().parents[1]
-            / "supabase/migrations/20260814180000_company_context_run_queue.sql"
-        ).read_text(encoding="utf-8")
-        active_queue_migration = (
-            Path(__file__).resolve().parents[1]
-            / "supabase/migrations/20260824163000_company_context_run_active_queue_only.sql"
-        ).read_text(encoding="utf-8")
-        context_migration = (
-            Path(__file__).resolve().parents[1]
-            / "supabase/migrations/20260814200000_company_behavior_contexts_role_current.sql"
-        ).read_text(encoding="utf-8")
-        queue_body = queue_migration.split(
-            "create table if not exists public.company_context_runs (", 1
-        )[1].split(");", 1)[0]
-        self.assertEqual(
-            sum(
-                1
-                for line in queue_body.splitlines()
-                if line.strip().startswith(
-                    ("id ", "role_id ", "status ", "trigger_reason ", "available_at ", "result ")
-                )
-            ),
-            6,
-        )
-        self.assertIn("drop table if exists public.company_role_matching_runs", queue_migration)
-        self.assertIn("interval '7 days'", queue_migration)
-        self.assertIn("coalesce(internal_role.is_auto, false) = true", queue_migration)
-        self.assertIn("automatic company context run requires is_auto=true", queue_migration)
-        self.assertIn("company_internal_roles_cancel_context_run_v1", queue_migration)
-        self.assertNotIn("interval '72 hours'", queue_migration)
-        self.assertIn(
-            "automatic company context run requires an active, unexpired internal role",
-            active_queue_migration,
-        )
-        self.assertIn("v_old_status = 'draft'", active_queue_migration)
-        self.assertIn("v_new_status = 'active'", active_queue_migration)
-        self.assertIn("run.status = 'queued'", active_queue_migration)
-        self.assertIn("run.trigger_reason <> 'manual'", active_queue_migration)
-        self.assertIn("create table if not exists public.company_behavior_contexts", context_migration)
-        self.assertIn("drop table public.company_role_behavior_contexts", context_migration)
-        self.assertIn("drop column if exists context_version", context_migration)
-        self.assertIn("drop column if exists changed_domains", context_migration)
 
     def test_dry_run_terminal_paths_never_finish_the_database_queue(self) -> None:
         finish_source = inspect.getsource(command_finish)

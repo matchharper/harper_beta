@@ -18,6 +18,7 @@ import {
   type OrgSlackUser,
   type OrgSlackWorkspace,
 } from "@/lib/org/slackMessages";
+import type { IntroSearchDay } from "@/lib/org/introSearchSchedule";
 
 export {
   buildOrgCandidateAcceptedSlackMessage,
@@ -106,6 +107,9 @@ async function postWorkspaceScopedOrgSlackMessage(
 
 export async function notifyOrgRoleCreatedSlack(args: {
   actor: OrgSlackUser;
+  introSearchDate?: IntroSearchDay[];
+  introSearchTime?: number;
+  isCompanyFirstSearch: boolean;
   roleId: string;
   roleName: string;
   workspace: OrgSlackWorkspace;

@@ -1,3 +1,4 @@
+import { billingErrorResponse } from "@/lib/org/billing/http";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { OrgHttpError, updateOrgRole } from "@/lib/org/server";
@@ -12,6 +13,8 @@ function actionIdentity(value: unknown) {
 }
 
 function toErrorResponse(error: unknown) {
+  const billing = billingErrorResponse(error);
+  if (billing) return billing;
   if (error instanceof OrgHttpError) {
     return NextResponse.json(
       { error: error.message },
@@ -37,6 +40,7 @@ export async function PATCH(req: NextRequest) {
       expectedCriteria?: unknown;
       isCompanyFirstSearch?: boolean;
       isPromote?: boolean;
+      isAnonymous?: boolean;
       introSearchDate?: unknown;
       introSearchTime?: unknown;
       isExpired?: boolean | null;
@@ -57,6 +61,7 @@ export async function PATCH(req: NextRequest) {
       expectedCriteria: body.expectedCriteria,
       isCompanyFirstSearch: body.isCompanyFirstSearch,
       isPromote: body.isPromote,
+      isAnonymous: body.isAnonymous,
       introSearchDate: body.introSearchDate,
       introSearchTime: body.introSearchTime,
       isExpired: body.isExpired,

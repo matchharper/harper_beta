@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock3,
-  Loader2,
-  Square,
-  X,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Square, X } from "lucide-react";
 import { memo } from "react";
 
 import type {
@@ -16,6 +9,7 @@ import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { cn } from "@/lib/utils";
 import type { OpportunityRunMarkerRelation } from "@/lib/opportunityDiscovery/messageMarker";
+import { RecommendationSearchProgress } from "./RecommendationSearchProgress";
 
 type RecommendationSearchStatusPanelProps = {
   active?: boolean;
@@ -58,11 +52,7 @@ export const RecommendationSearchStatusPanel = memo(
     const recommendationCount =
       run?.recommendationCount ?? status?.recommendationCount;
 
-    const icon = isRunning ? (
-      <Loader2 className="h-4 w-4 animate-spin" />
-    ) : isQueued ? (
-      <Clock3 className="h-4 w-4" />
-    ) : isCancelled ? (
+    const icon = isCancelled ? (
       <X className="h-4 w-4" />
     ) : isCompleted ? (
       <CheckCircle2 className="h-4 w-4" />
@@ -216,48 +206,35 @@ export const RecommendationSearchStatusPanel = memo(
                     "이번 검색을 완료하지 못했어요. 잠시 뒤 다시 요청해 주세요."
                   );
     const showCancel = !run && isRunning && active && onCancel;
-    const iconToneClassName = isActive
-      ? "border-primary/15 bg-primary-faded text-primary"
-      : isCancelled
-        ? "border-neutral-1000-a05 bg-neutral-100 text-neutral-muted"
-        : isCompleted
-          ? "border-positive/20 bg-positive-faded text-positive"
-          : isStopped || isPartial
-            ? "border-neutral-1000-a05 bg-bg-weak text-neutral-muted"
-            : "border-critical/20 bg-critical-faded text-critical";
-    const progressClassName = isActive
-      ? "w-2/5 animate-[career-search-progress_6.4s_ease-in-out_infinite] bg-primary"
-      : isCancelled
-        ? "w-full bg-neutral-400"
-        : isCompleted
-          ? "w-full bg-positive"
-          : isStopped || isPartial
-            ? "w-full bg-neutral-400"
-            : "w-full bg-critical";
-
+    const iconToneClassName = isCancelled
+      ? "text-neutral-muted"
+      : isCompleted
+        ? "text-positive"
+        : isStopped || isPartial
+          ? "text-neutral-muted"
+          : "text-critical";
     return (
       <div
         role="status"
-        className="w-full max-w-[760px] rounded-[8px] border border-neutral-1000-a05 bg-bg-floating p-3 text-neutral-primary shadow-sm"
+        className="w-full max-w-[420px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 text-neutral-primary"
         aria-live="polite"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <div
-              className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border",
-                iconToneClassName
-              )}
-            >
-              {icon}
-            </div>
-            <div className="min-w-0 pt-0.5">
-              <div className="text-[14px] font-semibold leading-5 text-neutral-primary">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2">
+            {!isActive ? (
+              <div className={cn("mt-0.5 shrink-0", iconToneClassName)}>
+                {icon}
+              </div>
+            ) : null}
+            <div className="min-w-0">
+              <div className="text-[13px] font-medium leading-5 text-neutral-primary">
                 {title}
               </div>
-              <div className="mt-0.5 break-words text-[12px] leading-5 text-neutral-muted">
-                {detail}
-              </div>
+              {!isActive || run?.purposeText ? (
+                <div className="mt-0.5 break-words text-[12px] leading-5 text-neutral-muted">
+                  {isActive ? run?.purposeText : detail}
+                </div>
+              ) : null}
             </div>
           </div>
           {showCancel ? (
@@ -266,21 +243,18 @@ export const RecommendationSearchStatusPanel = memo(
               onClick={onCancel}
               variant="neutral"
               size="sm"
-              aria-label={"검색 중지"}
+              aria-label={t("career.common.career.1nwpekv", "검색 중지")}
               title={t("career.common.career.1nwpekv", "검색 중지")}
             >
               <Square className="h-3.5 w-3.5" fill="currentColor" />
             </MuteButton>
           ) : null}
         </div>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-weak">
-          <div
-            className={cn(
-              "h-full rounded-full transition-all duration-500",
-              progressClassName
-            )}
-          />
-        </div>
+        <RecommendationSearchProgress
+          run={run}
+          status={status}
+          showAnimation={isActive}
+        />
       </div>
     );
   }

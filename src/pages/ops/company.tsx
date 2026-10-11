@@ -33,7 +33,6 @@ import type {
 import type { OpsOpportunityWorkspaceRecord } from "@/lib/ops/opportunity";
 import { useAuthStore } from "@/store/useAuthStore";
 import {
-  Bot,
   ChevronDown,
   LoaderCircle,
   Pencil,
@@ -102,13 +101,6 @@ function CompanyCard({
       )}
     >
       <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
-        {workspace.hasAutoRole ? (
-          <Tooltips side="top" text="자동 매칭이 켜진 역할이 있습니다.">
-            <span className="flex h-5 w-5 items-center justify-center rounded bg-primary-faded text-primary">
-              <Bot className="h-3 w-3" />
-            </span>
-          </Tooltips>
-        ) : null}
         {workspace.hasSlackConnection ? (
           <Tooltips side="top" text="Slack이 연결되어 있습니다.">
             <span className="flex h-5 w-5 items-center justify-center rounded bg-bg-floating">

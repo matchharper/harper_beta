@@ -1,0 +1,61 @@
+{
+  "datasetVersion": "v15",
+  "baseDataset": "cases-v6.json",
+  "clock": "2026-10-07T03:00:00Z",
+  "provenance": "Synthetic company-visible Harper recommendation delivery facts, frozen before calls. No candidate profile, DB writes or external delivery.",
+  "scenarios": [
+    {
+      "id": "CSCQ1516",
+      "variants": [
+        {
+          "id": "email_sent",
+          "surface": "chat",
+          "compactCandidates": true,
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "company_intro",
+              "harperRecommendation": {
+                "availableInAppAt": "2026-10-06T01:00:00Z",
+                "emailSentAt": "2026-10-06T01:15:00Z"
+              }
+            }
+          },
+          "turns": [
+            "Daniel Park님한테 우리 백엔드 역할을 Harper가 먼저 추천했어? 앱 추천이나 메일 보낸 날짜를 확인해서 알려줘. 이 사람이 관심도 보인 거야?"
+          ]
+        },
+        {
+          "id": "app_only",
+          "surface": "chat",
+          "compactCandidates": true,
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "company_intro",
+              "harperRecommendation": {
+                "availableInAppAt": "2026-10-06T01:00:00Z",
+                "emailSentAt": null
+              }
+            }
+          },
+          "turns": [
+            "Daniel Park님한테 우리 백엔드 역할을 Harper가 먼저 추천했어? 앱 추천이나 메일 보낸 날짜를 확인해서 알려줘. 이 사람이 관심도 보인 거야?"
+          ]
+        },
+        {
+          "id": "unknown",
+          "surface": "chat",
+          "compactCandidates": true,
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "company_intro",
+              "harperRecommendation": null
+            }
+          },
+          "turns": [
+            "Daniel Park님한테 우리 백엔드 역할을 Harper가 먼저 추천했어? 앱 추천이나 메일 보낸 날짜를 확인해서 알려줘. 이 사람이 관심도 보인 거야?"
+          ]
+        }
+      ]
+    }
+  ]
+}

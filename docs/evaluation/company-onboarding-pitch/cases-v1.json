@@ -1,0 +1,27 @@
+{
+  "version": "v1",
+  "provenance": "Synthetic company context. PITCH01 preserves the October 8 local latency reproduction input; PITCH02 and PITCH03 extend correction and Korean coverage. Frozen before the Haiku model run.",
+  "cases": [
+    {
+      "id": "PITCH01",
+      "companyName": "Onboarding Pitch Check",
+      "existingPitch": null,
+      "locale": "en",
+      "message": "We build planning software for small teams. Our team works remotely, shares product decisions openly, and gives engineers ownership from discovery through release. Please add these facts to our company pitch."
+    },
+    {
+      "id": "PITCH02",
+      "companyName": "Synthetic Planning",
+      "existingPitch": "Synthetic Planning builds planning software for small teams. Everyone works in the Seoul office five days a week. Engineers own work from discovery through release.",
+      "locale": "en",
+      "message": "Our office policy has changed. We now work remotely and meet in Seoul once a month. Update our company information to reflect this; our product and engineering ownership are unchanged."
+    },
+    {
+      "id": "PITCH03",
+      "companyName": "합성 물류팀",
+      "existingPitch": "합성 물류팀은 소규모 판매자를 위한 재고 관리 서비스를 만들어요.",
+      "locale": "ko",
+      "message": "매주 고객과 직접 얘기하고 피드백을 제품에 반영해요. 작은 팀이라 엔지니어도 문제 발견부터 출시까지 맡습니다. 회사 소개에 넣어주세요."
+    }
+  ]
+}

@@ -241,6 +241,7 @@ export async function loadSlackTalentReviewCandidate(args: {
       .eq("talent_id", args.candidate.talentId),
     (admin.from("talent_documents" as any) as any)
       .select("file_name, is_primary, is_public, kind")
+      .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
       .eq("talent_id", args.candidate.talentId)
       .in("kind", ["resume", "document"])
       .order("created_at", { ascending: false }),

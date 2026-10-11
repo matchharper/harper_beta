@@ -44,7 +44,7 @@ test("selected context exposes only candidate-safe presentation facts", () => {
   });
 
   assert.match(result, /\[Alex\]\(https:\/\/example\.com\/profile\)/);
-  assert.match(result, /아직 이 회사를 보거나 대화할 마음이 있는지 확인/);
+  assert.match(result, /일반 선제 제안은 후보자의 관심을 아직 확인하지 않았다/);
   assert.match(result, /이 회사와 잘 맞을 수 있다고 본 이유/);
 });
 
@@ -67,4 +67,44 @@ test("first delivered result includes verified schedule and a missing compensati
   assert.match(result, /Tue, Thu 15:00 Asia\/Seoul/);
   assert.match(result, /보상 범위: 아직 확인되지 않음/);
   assert.match(result, /분산 시스템 운영 경험/);
+});
+
+test("company result uses stored TLDR and safe Harper Note without repeating the legacy summary", () => {
+  const result=buildCompanyMatchingResultContext({
+    candidates:[{name:"Alex",headline:"Engineer",profileUrl:"https://example.com/profile",
+      roleId:"role-1",roleName:"Engineer",summary:"Legacy summary",reason:"Legacy reason",
+      tldr:"Owned implementation and operations.",harperNote:"The experience spans building and sustaining the product."}],
+    roles:[{automaticSearchEnabled:false,id:"role-1",name:"Engineer"}],runStatus:"succeeded",
+  });
+  assert.ok(result.includes("Owned implementation and operations."));
+  assert.ok(result.includes("The experience spans building and sustaining the product."));
+  assert.ok(!result.includes("Legacy summary") && !result.includes("Legacy reason"));
+});
+
+test("capacity facts stop candidate outreach while preserving company review and role scope", () => {
+  const result = buildCompanyMatchingResultContext({
+    candidates: [], requestedByCompany: false,
+    roles: [{ automaticSearchEnabled: true, id: "role-1", name: "Engineer" }],
+    runStatus: "succeeded", candidateOutreachPauses: [
+      { roleId: "role-1", pendingCount: 14, maxPendingTalents: 10 },
+      { roleId: "other-role", pendingCount: 99, maxPendingTalents: 9 },
+    ],
+  });
+  assert.match(result, /연결 대기 14명/);
+  assert.match(result, /상한 10명/);
+  assert.match(result, /회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다/);
+  assert.match(result, /회사가 새 검색을 직접 요청한 결과는 아니다/);
+  assert.doesNotMatch(result, /99명/);
+});
+
+test("explicit review request is known interest without invented acceptance", () => {
+  const result = buildCompanyMatchingResultContext({
+    candidates: [{ candidateRequestedReview: true, headline: "Engineer", name: "Alex",
+      profileUrl: "https://example.com/profile", reason: "Relevant product work",
+      roleId: "role-1", roleName: "Engineer", summary: "Product ownership" }],
+    roles: [{ automaticSearchEnabled: true, id: "role-1", name: "Engineer" }],
+    runStatus: "succeeded",
+  });
+  assert.match(result, /후보자 본인이 이 역할의 우선 검토를 요청했다/);
+  assert.match(result, /역할 수락이나 회사의 Intro 요청은 아니다/);
 });

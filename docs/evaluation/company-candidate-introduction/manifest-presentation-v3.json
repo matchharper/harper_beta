@@ -1,0 +1,26 @@
+{
+  "datasetVersion": "presentation-v3",
+  "createdAt": "2026-10-08T07:13:14.295233+00:00",
+  "input": "presentation-cases-v3.json",
+  "fixtureSha256": "c4eb0b175d91270251c0b406e75f37a38235ab399e17a7713a797d8a8b95606f",
+  "evaluationUnit": "selected synthetic candidate × role",
+  "cases": 10,
+  "criteria": 13,
+  "provenance": "Synthetic final-fit extension frozen before first v3 model call on 2026-10-08. v1/v2 files remain unchanged. First six source inputs retained; final-fit expectations added. Codex labels, no independent review.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "stage": "before first v3 model call",
+      "change": "Added overall-fit gold and four boundary cases. Original v1/v2 datasets untouched. Some v2 overall-fit labels allow adjacent levels because criterion importance is unspecified."
+    }
+  ],
+  "qualitativeRubric": [
+    "Final fit agrees with the same source evidence as introduction/content",
+    "Criteria weighting respects required/preferred strength without counting labels",
+    "No-criteria assessment uses stated role work and scope",
+    "Missing evidence vs documented partial scope vs explicit disqualifier",
+    "Compact factual content and source attribution preserved"
+  ],
+  "privacy": "Synthetic inputs only; raw outputs in ignored runs, no DB or delivery.",
+  "knownLimitations": "Small development challenge, not representative; labels authored by Codex with no independent review; permissive adjacent labels on under-specified v2-derived cases. No live backfill or UI verification."
+}

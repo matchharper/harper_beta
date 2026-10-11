@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v14",
+  "frozenAt": "2026-10-07T10:29:53.477266+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v14.json": "4218de18caa517c4e6cecf3c829659b34080d794fc6f67ac66be96f55e919cc5",
+    "gold-v14.md": "8b344c5462acca4ec2445945910adaeb2c6ec6f43248c01ea7e008f300a8ab84",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "5 synthetic conversations / 5 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v14 --run=<new>",
+  "provenance": "Synthetic search-run history challenge. Frozen before model calls. Table fixtures only, no production data or external delivery.",
+  "model": "Current production company-side model/config; exact settings and source fingerprint saved per run",
+  "privacy": "Synthetic input only; real DB and delivery forbidden; ignored owner-only raw artifacts",
+  "releaseGate": "5/5 execution and manual semantic review; zero critical failures",
+  "knownLimitations": "One sample per case; read-only table fixtures exercise production reader/executor/serializer but no database transport, concurrency, delivery or independent review"
+}

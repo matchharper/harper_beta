@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { markdownToSlackMrkdwn } from "./slackTalentReviewView";
 import {
   buildSlackRolePipelineUrl,
   buildSlackTalentProfileUrl,
@@ -15,6 +16,19 @@ const ROLE_A = "825d1723-5cea-4e83-9d7c-84988ce77b1d";
 const ROLE_B = "c3aa7f09-ed15-4f6f-843e-89536cabc66c";
 const TALENT_A = "4fcc61fe-4282-4b4b-b0bc-49f35e297901";
 const TALENT_B = "72f3a534-66e2-4eca-92be-cb054b31fd36";
+
+test("background result formatting preserves authorized role links and renders emphasis on Slack", () => {
+  const output=renderSlackOrgLinks({
+    message: markdownToSlackMrkdwn(`**선추천 중단**\n- [백엔드](role:${ROLE_A})는 대기 14명 / 상한 10명입니다.\n- [설명](https://example.com/details)`),
+    workspaceId:"00000000-0000-4000-8000-000000000001", publicSiteUrl:"https://matchharper.com",
+    roleTargets:[{roleId:ROLE_A}],talentTargets:[],
+  });
+  assert.ok(output.startsWith("*선추천 중단*\n• "));
+  assert.ok(output.includes(`roleId=${ROLE_A}`));
+  assert.ok(output.includes("<https://example.com/details|설명>"));
+  assert.ok(!output.includes("**"));
+  assert.ok(!output.includes("role:"));
+});
 
 test("extracts unique valid role IDs from company-side LLM markers", () => {
   assert.deepEqual(

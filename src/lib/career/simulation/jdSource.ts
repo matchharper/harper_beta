@@ -37,29 +37,22 @@ export async function readSimulationJdSource(
   }
 }
 
-// The saved description is loaded only when the URL reader cannot provide a body.
+// Saved JD is authoritative for role analysis; the live form is independent evidence.
 export async function buildSimulationRoleInput(
   roleName: string,
   jdPage: Awaited<ReturnType<typeof readSimulationJdSource>>,
-  loadSavedRole: () => Promise<Record<string, unknown>>
+  loadSavedRole: () => Promise<Record<string, unknown>>,
+  applicationForm?: import("./applicationForm").ApplicationForm
 ) {
-  if (jdPage.status === "read") return JSON.stringify({ roleName, jdPage });
   const savedRole = await loadSavedRole();
-  if (
-    typeof savedRole.description !== "string" ||
-    !savedRole.description.trim()
-  )
-    throw new Error(
-      "Neither the JD page nor the saved role description is readable."
-    );
+  const hasSavedJd = typeof savedRole.description === "string" && savedRole.description.trim();
+  if (!hasSavedJd && jdPage.status !== "read")
+    throw new Error("Neither the JD page nor the saved role description is readable.");
   const text = JSON.stringify(savedRole);
   return JSON.stringify({
     roleName,
-    jdPage,
-    savedRole:
-      text.length <= 40000
-        ? text
-        : text.slice(0, 40000) +
-          "\n[Saved source truncated; omitted information is unknown.]",
+    savedJd: hasSavedJd ? (text.length <= 40000 ? text : text.slice(0, 40000) + "\n[Saved source truncated; omitted information is unknown.]") : undefined,
+    jdPage: hasSavedJd ? undefined : jdPage,
+    applicationForm,
   });
 }

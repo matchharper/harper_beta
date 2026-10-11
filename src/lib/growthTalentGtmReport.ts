@@ -30,7 +30,9 @@ import {
 import type { Database } from "@/types/database.types";
 
 const BATCH_SIZE = 1000;
+const PAGE_FETCH_CONCURRENCY = 4;
 const VALUE_CHUNK_SIZE = 250;
+const VALUE_CHUNK_CONCURRENCY = 4;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const ATTRIBUTION_LOOKBACK_DAYS = 365;
 const UTM_ATTRIBUTION_MAX_GAP_MS = CAREER_LANDING_SESSION_GAP_MS;
@@ -275,12 +277,27 @@ async function fetchAllRows<T>(
   loadPage: (from: number, to: number) => PromiseLike<FetchPageResult<T>>
 ) {
   const rows: T[] = [];
-  for (let from = 0; ; from += BATCH_SIZE) {
-    const { data, error } = await loadPage(from, from + BATCH_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const page = data ?? [];
-    rows.push(...page);
-    if (page.length < BATCH_SIZE) return rows;
+  for (
+    let from = 0;
+    ;
+    from += BATCH_SIZE * PAGE_FETCH_CONCURRENCY
+  ) {
+    const pages = await Promise.all(
+      Array.from({ length: PAGE_FETCH_CONCURRENCY }, (_, index) =>
+        loadPage(
+          from + index * BATCH_SIZE,
+          from + (index + 1) * BATCH_SIZE - 1
+        )
+      )
+    );
+    let reachedEnd = false;
+    for (const { data, error } of pages) {
+      if (error) throw new Error(error.message);
+      const page = data ?? [];
+      rows.push(...page);
+      if (page.length < BATCH_SIZE) reachedEnd = true;
+    }
+    if (reachedEnd) return rows;
   }
 }
 
@@ -296,11 +313,21 @@ async function fetchRowsForValues<T>(
     new Set(Array.from(values, (value) => value.trim()).filter(Boolean))
   );
   const rows: T[] = [];
+  const chunks: string[][] = [];
   for (let index = 0; index < unique.length; index += VALUE_CHUNK_SIZE) {
-    const chunk = unique.slice(index, index + VALUE_CHUNK_SIZE);
-    rows.push(
-      ...(await fetchAllRows<T>((from, to) => loadPage(chunk, from, to)))
+    chunks.push(unique.slice(index, index + VALUE_CHUNK_SIZE));
+  }
+  for (
+    let index = 0;
+    index < chunks.length;
+    index += VALUE_CHUNK_CONCURRENCY
+  ) {
+    const batch = await Promise.all(
+      chunks
+        .slice(index, index + VALUE_CHUNK_CONCURRENCY)
+        .map((chunk) => fetchAllRows<T>((from, to) => loadPage(chunk, from, to)))
     );
+    rows.push(...batch.flat());
   }
   return rows;
 }

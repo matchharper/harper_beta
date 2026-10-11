@@ -1,3 +1,4 @@
+import { billingErrorResponse } from "@/lib/org/billing/http";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import {
@@ -17,6 +18,8 @@ function actionIdentity(value: unknown) {
 }
 
 function toErrorResponse(error: unknown) {
+  const billing = billingErrorResponse(error);
+  if (billing) return billing;
   if (error instanceof OrgHttpError) {
     return NextResponse.json(
       { error: error.message },

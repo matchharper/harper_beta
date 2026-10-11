@@ -22,9 +22,9 @@ import React, {
   type ReactNode,
 } from "react";
 import Image from "next/image";
-import Face from "@/components/common/Face";
 import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { MuteButton } from "@/components/ui/button";
+import { ChatDateDivider } from "@/components/chat/ChatTimeline";
 import { cn } from "@/lib/utils";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 
@@ -39,7 +39,6 @@ type CareerWorkspaceLandingMockupProps = {
 };
 
 type StaticCopy = {
-  assistantName: string;
   composerPlaceholder: string;
   dateLabel: string;
   messages: Array<{
@@ -79,7 +78,6 @@ type StaticCopy = {
 // career-i18n-skip
 const COPY: Record<Locale, StaticCopy> = {
   ko: {
-    assistantName: "Harper",
     composerPlaceholder: "새로운 조건이나 궁금한 점을 남겨주세요",
     dateLabel: "오늘",
     messages: [
@@ -135,7 +133,6 @@ const COPY: Record<Locale, StaticCopy> = {
     },
   },
   en: {
-    assistantName: "Harper",
     composerPlaceholder: "Ask anything",
     dateLabel: "Today",
     messages: [
@@ -270,54 +267,43 @@ const ScaledPreviewViewport = ({
   );
 };
 
-const Avatar = ({ small = false }: { small?: boolean }) => (
-  <div
-    className={cn(
-      "flex shrink-0 items-center justify-center rounded-full bg-black font-medium text-neutral-00",
-      small ? "h-8 w-8 text-[12px]" : "h-9 w-9 text-[13px]"
-    )}
-  >
-    C
-  </div>
-);
-
-const AssistantProfile = ({ assistantName }: { assistantName: string }) => (
-  <div className="flex h-8 items-center gap-2 text-[13px] font-medium leading-none text-neutral-primary md:text-[15px]">
-    <Face
-      size={24}
-      status="idle"
-      className="rounded-full"
-      aria-label={`${assistantName} face`}
+const Avatar = () => (
+  <div className="relative size-8 shrink-0 overflow-hidden rounded-lg border border-neutral-1000-a10 bg-bg-floating">
+    <Image
+      alt=""
+      className="h-full w-full scale-[1.35] object-cover"
+      height={48}
+      src="/images/notionface.png"
+      width={48}
     />
-    <span>{assistantName}</span>
   </div>
 );
 
 const MessageBubble = ({
-  assistantName,
   body,
+  compact,
   role,
 }: {
-  assistantName: string;
   body: string;
+  compact: boolean;
   role: "assistant" | "user";
 }) => {
   const isUser = role === "user";
 
   return (
-    <div className="flex flex-col gap-2">
-      {!isUser ? <AssistantProfile assistantName={assistantName} /> : null}
-      <article
-        className={cn(
-          "max-w-[92%] whitespace-pre-line wrap-break-word text-[15px] leading-[1.5] md:text-[16px] md:leading-[1.72]",
-          isUser
-            ? "ml-auto rounded-[14px] bg-black px-4 py-2.5 text-neutral-00"
-            : "w-fit max-w-[920px] text-neutral-primary"
-        )}
-      >
-        {body}
-      </article>
-    </div>
+    <article
+      className={cn(
+        "w-fit whitespace-pre-line wrap-break-word",
+        compact
+          ? "text-[15px] leading-[1.72]"
+          : "text-[14px] leading-[1.8]",
+        isUser
+          ? "ml-auto max-w-[min(740px,92%)] rounded-[14px] bg-black px-3 py-1.5 text-neutral-00"
+          : "max-w-[min(740px,100%)] text-neutral-primary"
+      )}
+    >
+      {body}
+    </article>
   );
 };
 
@@ -417,26 +403,25 @@ const StaticChatPanel = ({
           "min-h-0 flex-1 scrollbar-thin scrollbar-thumb-neutral-1000-a10 scrollbar-track-transparent",
           compact
             ? "overflow-y-auto overscroll-contain px-4 pb-[120px] pt-5"
-            : "overflow-hidden px-5 pb-[210px] pt-6 md:px-6"
+            : "overflow-hidden px-5 pb-[210px] pt-4"
         )}
       >
-        <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-5">
-          <div className="flex justify-center py-1">
-            <span className="rounded-full bg-bg-weak px-3 py-1 text-[12px] text-neutral-soft">
-              {copy.dateLabel}
-            </span>
-          </div>
+        <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 py-1">
+          <ChatDateDivider
+            className="text-[13px] leading-[1.55]"
+            label={copy.dateLabel}
+          />
           {copy.messages.map((message) => (
             <MessageBubble
               key={message.id}
-              assistantName={copy.assistantName}
               body={message.body}
+              compact={compact}
               role={message.role}
             />
           ))}
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-bg-basement via-bg-basement/70 to-transparent">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-bg-basement via-bg-basement/10 to-transparent">
         <div>
           <StaticComposer
             compact={compact}
@@ -461,7 +446,7 @@ const StaticTaskSection = ({
     <div className="flex items-center gap-2">
       <h2 className="text-[16px] font-medium">{title}</h2>
       {count ? (
-        <span className="text-[13px] text-neutral-muted">({count})</span>
+        <span className="mb-[1px] text-[13px] font-normal tracking-wider text-neutral-muted">({count})</span>
       ) : null}
     </div>
     <div>{children}</div>
@@ -491,11 +476,11 @@ const StaticTaskRow = ({
       {meta ? (
         <p className="mb-1 text-[12px] text-neutral-muted">{meta}</p>
       ) : null}
-      <h3 className={cn("text-[15px] leading-5", primary && "font-medium")}>
+      <h3 className={cn("text-sm leading-5", primary && "font-medium")}>
         {title}
       </h3>
       {description ? (
-        <p className="mt-1.5 line-clamp-3 text-[13px] leading-[1.45] text-neutral-muted">
+        <p className="mt-1.5 line-clamp-3 text-sm leading-5 text-neutral-muted">
           {description}
         </p>
       ) : null}
@@ -587,7 +572,7 @@ const DesktopWorkspace = ({ copy }: { copy: StaticCopy }) => {
             {copy.desktop.nav.settings}
           </div>
           <div className="flex items-center gap-2 px-2.5 py-1">
-            <Avatar small />
+            <Avatar />
             <div className="min-w-0">
               <div className="truncate text-[13px] font-medium">Chris</div>
               <div className="truncate text-[12px] text-neutral-muted">
@@ -599,7 +584,7 @@ const DesktopWorkspace = ({ copy }: { copy: StaticCopy }) => {
       </aside>
 
       <div className="flex min-w-0 flex-1">
-        <section className="min-w-0 basis-1/2 border-r border-neutral-1000-a05 bg-bg-basement">
+        <section className="min-w-0 basis-1/2 bg-bg-basement">
           <StaticChatPanel copy={copy} viewport="desktop" />
         </section>
 
@@ -610,7 +595,7 @@ const DesktopWorkspace = ({ copy }: { copy: StaticCopy }) => {
           <div className="h-10 w-[3px] rounded-full bg-black/20" />
         </div>
 
-        <section className="flex min-w-0 flex-1 flex-col border-l border-neutral-1000-a05 bg-bg-basement">
+        <section className="flex min-w-0 flex-1 flex-col bg-bg-basement">
           <header className="flex h-14 shrink-0 items-center border-b border-neutral-1000-a05 px-4 text-[18px]">
             {copy.desktop.nav.tasks}
           </header>

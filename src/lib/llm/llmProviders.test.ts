@@ -19,10 +19,7 @@ test("routes OpenRouter catalog models to OpenRouter", async () => {
     await loadLlm();
   const model = "deepseek/deepseek-v4.1-flash";
   assert.equal(getLlmChatProviderForModel(model), "openrouter");
-  assert.equal(
-    getLlmChatProviderForModel("meta/muse-spark-1.3"),
-    "openrouter"
-  );
+  assert.equal(getLlmChatProviderForModel("meta/muse-spark-1.3"), "openrouter");
   assert.equal(supportsSamplingParametersForModel(model), true);
 });
 
@@ -32,6 +29,43 @@ test("rejects Grok model IDs before selecting a provider", async () => {
     () => getLlmChatProviderForModel("grok-4.3"),
     /Grok models are disabled/
   );
+});
+
+test("sends Haiku 5.5 high effort without unsupported sampling parameters", async () => {
+  const {
+    createChatCompletionWithFallback,
+    openrouterClient,
+    supportsSamplingParametersForModel,
+  } = await loadLlm();
+  assert.equal(supportsSamplingParametersForModel("claude-haiku-5-5"), false);
+  assert.equal(
+    supportsSamplingParametersForModel("anthropic/claude-haiku-5.5"),
+    false
+  );
+  const completions = openrouterClient.chat.completions as any;
+  const originalCreate = completions.create;
+  let receivedBody: any;
+  completions.create = async (body: any) => {
+    receivedBody = body;
+    return { choices: [{ message: { content: "ok" } }] };
+  };
+  try {
+    await createChatCompletionWithFallback({
+      model: "anthropic/claude-haiku-5.5",
+      chatCompletionReasoning: { reasoningEffort: "high" },
+      buildRequest: () => ({
+        messages: [{ role: "user", content: "hello" }],
+        temperature: 0.5,
+        top_p: 0.9,
+        top_k: 40,
+      }),
+    });
+  } finally {
+    completions.create = originalCreate;
+  }
+  assert.deepEqual(receivedBody.reasoning, { effort: "high" });
+  for (const key of ["temperature", "top_p", "top_k"])
+    assert.equal(key in receivedBody, false);
 });
 
 test("routes Z.ai models to OpenRouter with explicit reasoning effort", async () => {

@@ -18,17 +18,9 @@ import {
   useCanFetchInternal,
 } from "@/components/ops/debugging/shared";
 import { MuteButton } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useOpsDebugInternalMatching } from "@/hooks/ops/useOpsDebugInternalMatching";
 import type {
   OpsDebugInternalMatchingPeriodStats,
-  OpsDebugInternalMatchingRoleMode,
 } from "@/lib/ops/internalMatchingAnalytics";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -597,12 +589,9 @@ export default function OpsDebugInternalMatchingPage() {
   const initialRange = useMemo(() => presetRange(90), []);
   const [from, setFrom] = useState(initialRange.from);
   const [to, setTo] = useState(initialRange.to);
-  const [roleMode, setRoleMode] =
-    useState<OpsDebugInternalMatchingRoleMode>("all");
   const canFetchInternal = useCanFetchInternal();
   const query = useOpsDebugInternalMatching(canFetchInternal, {
     from,
-    roleMode,
     to,
   });
   const data = query.data;
@@ -647,21 +636,6 @@ export default function OpsDebugInternalMatchingPage() {
             />
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <Select
-              value={roleMode}
-              onValueChange={(value) =>
-                setRoleMode(value as OpsDebugInternalMatchingRoleMode)
-              }
-            >
-              <SelectTrigger className="h-9 min-w-[150px] bg-bg-floating text-xs">
-                <SelectValue placeholder="Role 방식" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 internal role</SelectItem>
-                <SelectItem value="auto">자동 매칭 role</SelectItem>
-                <SelectItem value="manual">수동 매칭 role</SelectItem>
-              </SelectContent>
-            </Select>
             <MuteButton
               aria-label="매칭 지표 새로고침"
               disabled={query.isFetching}

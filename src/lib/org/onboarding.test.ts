@@ -67,7 +67,7 @@ test("existing Slack and later teammates skip optional steps; missing roles do n
       showCompany: true,
       roles: [role("draft")],
     }),
-    ["profile", "slack", "company", "roles", "done"]
+    ["profile", "company", "slack", "roles", "done"]
   );
   assert.deepEqual(
     getOrgOnboardingSteps({

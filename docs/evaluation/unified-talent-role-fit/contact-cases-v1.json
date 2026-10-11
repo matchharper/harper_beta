@@ -1,0 +1,752 @@
+{
+  "version": "contact-v1",
+  "provenance": "Synthetic inputs and expected behavior authored before the first run, 2026-10-07. No production records.",
+  "cases": [
+    {
+      "id": "UCTC001",
+      "talent": {
+        "profile": {
+          "headline": "Backend engineer",
+          "experience": "Six years owning and operating production services."
+        },
+        "search_brief": [
+          "Seeking a backend role with product ownership; currently in South Korea. No relocation or salary answer has been received."
+        ],
+        "behavior_context": "No inferred relocation or compensation preference.",
+        "behavior_context_version": 4
+      },
+      "rows": [
+        {
+          "roleId": "role-1",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 1",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-1",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-2",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 2",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-2",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-3",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 3",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-3",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-4",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 4",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-4",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-5",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 5",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-5",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-6",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 6",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-6",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-7",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 7",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-7",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-8",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 8",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-8",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-9",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 9",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-9",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-10",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 10",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-10",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-11",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 11",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-11",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-12",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 12",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-12",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-13",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 13",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-13",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-14",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 14",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-14",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-15",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 15",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-15",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-16",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 16",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-16",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-17",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 17",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-17",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-18",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 18",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-18",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-19",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 19",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-19",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-20",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 20",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-20",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-21",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 21",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-21",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-22",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 22",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-22",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-23",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 23",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-23",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-24",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 24",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-24",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-25",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 25",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-25",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-26",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 26",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-26",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-27",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 27",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-27",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-28",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 28",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-28",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-29",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 29",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-29",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-30",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 30",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-30",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-31",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 31",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-31",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-32",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 32",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-32",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-33",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 33",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-33",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-34",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 34",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-34",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-35",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 35",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-35",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-36",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 36",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-36",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-37",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 37",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-37",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-38",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 38",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-38",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-39",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 39",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-39",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-40",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 40",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-40",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-41",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 41",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-41",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-42",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 42",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-42",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-43",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 43",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-43",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-44",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 44",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-44",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-45",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 45",
+          "missingInfo": "Willingness and geographic scope for overseas relocation; all other material requirements are strongly supported.",
+          "inputFingerprint": "synthetic-input-45",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-46",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 46",
+          "missingInfo": "Minimum acceptable annual base compensation for domestic roles is unknown; the supported range is 100–120 million KRW, and the opportunity otherwise has strong mutual fit.",
+          "inputFingerprint": "synthetic-input-46",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-47",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 47",
+          "missingInfo": "Minimum acceptable annual base compensation for domestic roles is unknown; the supported range is 100–120 million KRW, and the opportunity otherwise has strong mutual fit.",
+          "inputFingerprint": "synthetic-input-47",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-48",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 48",
+          "missingInfo": "Minimum acceptable annual base compensation for domestic roles is unknown; the supported range is 100–120 million KRW, and the opportunity otherwise has strong mutual fit.",
+          "inputFingerprint": "synthetic-input-48",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-49",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 49",
+          "missingInfo": "Minimum acceptable annual base compensation for domestic roles is unknown; the supported range is 100–120 million KRW, and the opportunity otherwise has strong mutual fit.",
+          "inputFingerprint": "synthetic-input-49",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        },
+        {
+          "roleId": "role-50",
+          "roleName": "Backend Engineer",
+          "companyName": "Synthetic team 50",
+          "missingInfo": "Minimum acceptable annual base compensation for domestic roles is unknown; the supported range is 100–120 million KRW, and the opportunity otherwise has strong mutual fit.",
+          "inputFingerprint": "synthetic-input-50",
+          "candidateReason": "Suitable scope, ownership and supported compensation; practical condition is the only uncertainty.",
+          "companyReason": "Directly owned comparable production services."
+        }
+      ],
+      "history": [
+        {
+          "ref": "contact-0",
+          "created_at": "2026-09-27T00:00:00Z",
+          "role_id": "old-role",
+          "question": "When would you like to start?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-1",
+          "created_at": "2026-09-26T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Would you consider a fixed-term contract?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-2",
+          "created_at": "2026-09-25T00:00:00Z",
+          "role_id": "old-role",
+          "question": "What is your preferred working language?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-3",
+          "created_at": "2026-09-24T00:00:00Z",
+          "role_id": "old-role",
+          "question": "How much business travel is comfortable?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-4",
+          "created_at": "2026-09-23T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Do you need a visa sponsorship?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-5",
+          "created_at": "2026-09-22T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Are weekend on-call rotations possible?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-6",
+          "created_at": "2026-09-21T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Do you prefer people management or individual contributor work?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-7",
+          "created_at": "2026-09-20T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Would you consider a four-day working week?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-8",
+          "created_at": "2026-09-19T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Is an early-stage company an option?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-9",
+          "created_at": "2026-09-18T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Do you need a particular equipment setup?",
+          "coveredRoleIds": []
+        },
+        {
+          "ref": "contact-10",
+          "created_at": "2026-09-17T00:00:00Z",
+          "role_id": "old-role",
+          "question": "Which overseas regions would you consider relocating to, and under what conditions?",
+          "coveredRoleIds": []
+        }
+      ],
+      "gold": {
+        "maxItems": 1,
+        "forbiddenRoleIds": [
+          "role-1",
+          "role-2",
+          "role-3",
+          "role-4",
+          "role-5",
+          "role-6",
+          "role-7",
+          "role-8",
+          "role-9",
+          "role-10",
+          "role-11",
+          "role-12",
+          "role-13",
+          "role-14",
+          "role-15",
+          "role-16",
+          "role-17",
+          "role-18",
+          "role-19",
+          "role-20",
+          "role-21",
+          "role-22",
+          "role-23",
+          "role-24",
+          "role-25",
+          "role-26",
+          "role-27",
+          "role-28",
+          "role-29",
+          "role-30",
+          "role-31",
+          "role-32",
+          "role-33",
+          "role-34",
+          "role-35",
+          "role-36",
+          "role-37",
+          "role-38",
+          "role-39",
+          "role-40",
+          "role-41",
+          "role-42",
+          "role-43",
+          "role-44",
+          "role-45"
+        ],
+        "requiredRoleIds": [
+          "role-46",
+          "role-47",
+          "role-48",
+          "role-49",
+          "role-50"
+        ],
+        "review": "Group the compensation gap once. Suppress the same unresolved relocation question even though it is the eleventh historical contact. Do not infer an answer from silence."
+      }
+    },
+    {
+      "id": "UCTC002",
+      "talent": {
+        "profile": {
+          "headline": "Engineer seeking a product role"
+        },
+        "search_brief": [
+          "I will consider relocating only for the named Alpha role. For every other role, I want domestic work."
+        ],
+        "behavior_context": "The exception is limited to Alpha; it does not broaden the explicit geographic preference.",
+        "behavior_context_version": 2
+      },
+      "rows": [
+        {
+          "roleId": "other-0",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 0",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-0",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-1",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 1",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-1",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-2",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 2",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-2",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-3",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 3",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-3",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-4",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 4",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-4",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-5",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 5",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-5",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-6",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 6",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-6",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-7",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 7",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-7",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-8",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 8",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-8",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-9",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 9",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-9",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-10",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 10",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-10",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        },
+        {
+          "roleId": "other-11",
+          "roleName": "Product Engineer",
+          "companyName": "Synthetic other team 11",
+          "missingInfo": "Whether the candidate would relocate for this overseas role.",
+          "inputFingerprint": "other-input-11",
+          "candidateReason": "Strong product scope but requires overseas relocation.",
+          "companyReason": "Relevant work is documented."
+        }
+      ],
+      "history": [],
+      "gold": {
+        "maxItems": 0,
+        "requiredRoleIds": [],
+        "forbiddenRoleIds": [
+          "other-0",
+          "other-1",
+          "other-2",
+          "other-3",
+          "other-4",
+          "other-5",
+          "other-6",
+          "other-7",
+          "other-8",
+          "other-9",
+          "other-10",
+          "other-11"
+        ],
+        "review": "A role-specific exception must not reopen the explicit refusal for other roles. No question is warranted."
+      }
+    }
+  ]
+}

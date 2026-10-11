@@ -77,7 +77,7 @@ export default function OfficialJobsExperience({
                     {step.title}
                   </h3>
                   <p className="mt-3 font-light text-[15px] leading-7 text-neutral-800">
-                    {step.body}
+                    {"body" in step ? step.body : null}
                   </p>
                 </div>
               </li>

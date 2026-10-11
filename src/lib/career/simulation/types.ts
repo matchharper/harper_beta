@@ -1,5 +1,6 @@
 import {
   isStructuredStage,
+  hasStageShape,
   validReferences,
   type StructuredResult,
 } from "./structured";
@@ -32,7 +33,7 @@ export type SimulationStep = {
   result?: SimulationResult;
 };
 export type ApplicationSimulation = {
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   status: "running" | "completed" | "failed" | "cancelled";
   roleName: string;
   documentName: string | null;
@@ -46,14 +47,14 @@ export function parseApplicationSimulation(
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   const v = value as ApplicationSimulation;
   if (
-    ![1, 2, 3, 4].includes(v.version) ||
+    ![1, 2, 3, 4, 5].includes(v.version) ||
     !["running", "completed", "failed", "cancelled"].includes(v.status) ||
     typeof v.roleName !== "string" ||
     typeof v.updatedAt !== "string" ||
     !Number.isFinite(Date.parse(v.updatedAt)) ||
     !(v.documentName === null || typeof v.documentName === "string") ||
     !Array.isArray(v.steps) ||
-    v.steps.length !== (v.version === 4 ? 2 : 3)
+    v.steps.length !== (v.version >= 4 ? 2 : 3)
   )
     return;
   for (let i = 0; i < v.steps.length; i++) {
@@ -61,7 +62,7 @@ export function parseApplicationSimulation(
     if (
       !s ||
       s.key !==
-        (v.version === 4 ? LIGHT_SIMULATION_STEPS : SIMULATION_STEPS)[i] ||
+        (v.version >= 4 ? LIGHT_SIMULATION_STEPS : SIMULATION_STEPS)[i] ||
       !["pending", "running", "completed", "failed", "cancelled"].includes(
         s.status
       )
@@ -75,7 +76,7 @@ export function parseApplicationSimulation(
       return;
     if (s.status === "completed" && !s.result) return;
     if (
-      v.version === 4 &&
+      v.version >= 4 &&
       s.result?.data?.kind === "review" &&
       !s.result.data.comparison
     )
@@ -83,11 +84,13 @@ export function parseApplicationSimulation(
     if (
       v.version >= 2 &&
       s.result &&
-      (!isStructuredStage(s.result, s.key) ||
-        !validReferences(
-          s.result.data!,
-          v.steps.slice(0, i).map((step) => step.result)
-        ))
+      (v.version >= 5
+        ? !hasStageShape(s.result, s.key)
+        : !isStructuredStage(s.result, s.key) ||
+          !validReferences(
+            s.result.data!,
+            v.steps.slice(0, i).map((step) => step.result)
+          ))
     )
       return;
   }

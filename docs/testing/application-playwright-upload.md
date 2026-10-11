@@ -41,3 +41,21 @@ A fresh hosted Agents API run using the production Playwright files and browser 
 5. Reported `succeeded` through `report_application_outcome`. The successful test session was cancelled and deleted (HTTP 200).
 
 This validates the browser question/approval/attachment path, not an actual Sixfold submission. No employer application or production data was changed. The first synthetic attempt failed at sandbox setup; its cleanup request returned HTTP 409 (`hosted session provisioning or resource creation has not settled`) even after cancellation. Provider reference for cleanup: `sess_038e1ad4e052b46a006ac9378f6acc819a8d028fea37b9a1bf`.
+
+## WorkOS TLS trust failure — 2026-10-10
+
+The WorkOS run stopped at initial navigation with `net::ERR_CERT_AUTHORITY_INVALID`, before form entry, attachment or submission. In a disposable hosted environment, Chromium reproduced the failure while curl verified TLS and returned HTTP 200. The hosted environment's Envoy proxy CA was already installed in `/usr/local/share/ca-certificates` and trusted by `/etc/ssl/certs/ca-certificates.crt`, but Chromium's local NSS database was absent.
+
+Importing that existing trusted CA into the NSS database and restarting Chromium resolved navigation: HTTP 200, title `Product Engineer - Enterprise @ WorkOS`, ten application inputs and a visible Submit application button. No employer form was filled or submitted.
+
+Production setup now installs `libnss3-tools` and runs the bundled `trust.py` before launching Chromium. It imports only local CA certificates that verify against the system bundle, with content-derived names for repeatable imports. It never trusts certificates obtained from target websites and does not disable TLS verification. Setup failures stop provisioning instead of silently continuing without the trust configuration. New browser environments receive this setup; existing provider sessions are not modified in place.
+
+A second fresh hosted environment used the exact updated production `playwrightFiles` and `playwrightSetup`, without agent-side setup/trust changes. WorkOS navigation returned HTTP 200 with the expected title. A synthetic local file input accepted a 38-byte fixture, and a synthetic field retained its value across separate persistent-driver calls. Thus both the automatic trust bootstrap and the existing attachment/state path were exercised. No personal data or employer submission was used. The four composer/analysis tests and ten browser/transport tests passed, as did TypeScript and scoped ESLint.
+
+## Application work-progress UI — 2026-10-10
+
+The browser worker now persists completed public `agent.session.turn.output_text.done` parts (up to 40 entries, 800 characters each) in the existing browser payload. Stable item/content IDs deduplicate replayed updates. Reasoning, command arguments and tool output are not displayed. Progress-save failures do not abort the application. The browser prompt requests brief, user-language updates at meaningful transitions and distinguishes intended work from observed results.
+
+The timeline reuses `ChatThinkingLogPanel`: Working while executing or preparing the outcome reply, no active spinner while awaiting user answers, and saved logs on the ordinary outcome message through the existing `thinking_logs` field. Thus completed and failed attempts remain expandable after reload. There is no new table or progress-only chat message. Live updates use the existing three-second activity refresh; text is shown when each output part completes, not token by token. The old standalone browser-status shimmer is removed.
+
+Sixteen focused tests cover public-text filtering, bounded storage, duplicate events, worker-to-question persistence, input-wait rendering without a spinner, and outcome-message handoff. TypeScript and scoped ESLint were checked. This UI verification does not submit an employer application or establish application success.

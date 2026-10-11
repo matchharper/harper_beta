@@ -1,3 +1,4 @@
+import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
 import type { Database } from "@/types/database.types";
 import type { TalentAdminClient } from "./admin";
 import {
@@ -157,6 +158,10 @@ export async function readTalentDocumentForTool(args: {
     throw new Error("Document not found.");
   }
 
+  if (args.input.format === "structured") {
+    if (document.origin_type !== GENERATED_RESUME_ORIGIN || !document.structured_content) throw new Error("This document has no editable resume JSON. Read its text and create a new resume instead.");
+    return { document: toDocumentMetadata(document, Boolean(document.extracted_text)), structuredContent: document.structured_content, revision: document.revision };
+  }
   const content = document.extracted_text?.trim() ?? "";
   const offset = normalizeInteger(
     args.input.offset,
@@ -226,6 +231,9 @@ export async function updateTalentDocumentForTool(args: {
     throw new Error("At least one document change is required.");
   }
 
+  if (document.origin_type === GENERATED_RESUME_ORIGIN && (update.is_primary === true || (update.kind && update.kind !== "resume"))) {
+    throw new Error("Harper-generated resumes cannot be selected as primary or changed to another kind.");
+  }
   const effectiveKind = update.kind ?? document.kind;
   const willBeDeleted = update.is_deleted ?? document.is_deleted;
   const isGmailCareerHistory =
@@ -302,12 +310,12 @@ export async function updateTalentDocumentForTool(args: {
 
   const updated = updatedDocument as TalentDocumentMetadataRow &
     Pick<TalentDocumentRow, "is_deleted">;
-  if (
+  if (document.origin_type !== GENERATED_RESUME_ORIGIN && (
     document.kind === "resume" ||
     updated.kind === "resume" ||
     hasOwn(args.input, "is_primary") ||
     hasOwn(args.input, "is_deleted")
-  ) {
+  )) {
     await syncLegacyResumeFromDocuments({
       admin: args.admin,
       userId: args.userId,

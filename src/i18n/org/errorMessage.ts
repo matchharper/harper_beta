@@ -1,3 +1,4 @@
+import { billingErrorCopy, isBillingErrorCode } from "@/lib/org/billing/types";
 import type { OrgLocale } from "./locale";
 
 const ENGLISH_SLACK_ERRORS = new Map([
@@ -13,6 +14,8 @@ export function localizedOrgErrorMessage(
   locale: OrgLocale,
   fallback: string
 ): string {
+  const billingCode = error && typeof error === "object" && "billingCode" in error ? error.billingCode : null;
+  if (isBillingErrorCode(billingCode)) return billingErrorCopy(billingCode, locale);
   const message = error instanceof Error ? error.message.trim() : "";
   if (!message) return fallback;
   if (locale === "ko") return message;

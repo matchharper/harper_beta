@@ -25,6 +25,7 @@ export type CareerPendingActionsSnapshot = {
 };
 
 export type CareerTaskProgressSnapshot = {
+  priorityReviews?: {id:string;roleId:string;requestedAt:string;companyName:string;roleTitle:string;reviewState?:"requested"|"reviewing"|"reviewed"|"delayed"}[];
   connections: CareerWaitingConnection[];
   searchStatus: string | null;
 };

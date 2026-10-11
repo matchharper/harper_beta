@@ -1,0 +1,48 @@
+{
+  "version": "v2",
+  "provenance": "2026-10-09 user clarified Pitch as company appeal for candidates. PITCH01-03 inputs retained from v1 (unblinded); PITCH04-06 are new synthetic challenges. Frozen before v2 model execution; self-authored gold, independent teammate review pending.",
+  "cases": [
+    {
+      "id": "PITCH01",
+      "companyName": "Onboarding Pitch Check",
+      "existingPitch": null,
+      "locale": "en",
+      "message": "We build planning software for small teams. Our team works remotely, shares product decisions openly, and gives engineers ownership from discovery through release. Please add these facts to our company pitch."
+    },
+    {
+      "id": "PITCH02",
+      "companyName": "Synthetic Planning",
+      "existingPitch": "Synthetic Planning builds planning software for small teams. Everyone works in the Seoul office five days a week. Engineers own work from discovery through release.",
+      "locale": "en",
+      "message": "Our office policy has changed. We now work remotely and meet in Seoul once a month. Update our company information to reflect this; our product and engineering ownership are unchanged."
+    },
+    {
+      "id": "PITCH03",
+      "companyName": "합성 물류팀",
+      "existingPitch": "합성 물류팀은 소규모 판매자를 위한 재고 관리 서비스를 만들어요.",
+      "locale": "ko",
+      "message": "매주 고객과 직접 얘기하고 피드백을 제품에 반영해요. 작은 팀이라 엔지니어도 문제 발견부터 출시까지 맡습니다. 회사 소개에 넣어주세요."
+    },
+    {
+      "id": "PITCH04",
+      "companyName": "Synthetic ClinicFlow",
+      "existingPitch": "Synthetic ClinicFlow builds scheduling software for hospitals.",
+      "locale": "en",
+      "message": "We are bootstrapped and profitable, with 40 paying hospitals and a team of 12. We improve the product alongside our customers, and team members make routine product decisions without waiting for investor approval. These are the things I want candidates to know about our company. Add them to our pitch."
+    },
+    {
+      "id": "PITCH05",
+      "companyName": "합성 테스트팀",
+      "existingPitch": "합성 테스트팀은 개발자용 테스트 자동화 제품을 만들어요.",
+      "locale": "ko",
+      "message": "최근 Series A 투자를 받았고 미국 진출을 확대하고 있어요. 현재 고객의 60%가 미국 고객입니다. 미국으로 이주하고 싶은 팀원은 비자 스폰서십을 개별 검토해서 지원할 수 있어요. 누구에게나 확정적으로 제공하는 건 아니에요. 후보자들에게 어필할 회사 강점으로 정리해서 Pitch에 넣어주세요."
+    },
+    {
+      "id": "PITCH06",
+      "companyName": "합성 에너지팀",
+      "existingPitch": "합성 에너지팀은 건물의 에너지 사용을 줄이는 제품을 만들어요.\n\n주요 업무: API 개발과 운영. 필수 요건: Python 개발 경력 3년 이상.",
+      "locale": "ko",
+      "message": "Pitch에 들어간 API 업무와 경력 요건은 빼주세요. 회사 자랑은 8명으로 이루어진 팀이라 제품 방향을 정할 때 모두 참여할 수 있고, 고객 현장에서 우리가 만든 기능이 에너지 절약에 어떤 효과를 내는지 직접 확인할 수 있다는 거예요. 현재 제품팀은 정식 근무 일정이 주 4일이고 고객 현장 방문이 있는 주는 주 5일로 일해요. 이 조건도 정확히 담아주세요. Role을 바꾸는 요청은 아니고 회사 Pitch만 정리해주세요."
+    }
+  ]
+}

@@ -98,6 +98,14 @@ export function wasAutoIntroSlackSent(metadata: unknown) {
   return record.slackSent === true || record.deliveryStatus === "sent";
 }
 
+/** A sealed role-search delivery owns retries until it succeeds or is canceled. */
+export function isAutoIntroDeliveryOwnedElsewhere(metadata: unknown) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  const row = metadata as Record<string, unknown>;
+  return row.deliveryOwner === "role_matching_outbox" &&
+    ["pending", "failed"].includes(String(row.deliveryStatus));
+}
+
 function kstShiftedDate(value: Date) {
   return new Date(value.getTime() + KST_OFFSET_MS);
 }

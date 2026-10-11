@@ -1,0 +1,24 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v5",
+  "createdAt": "2026-10-09",
+  "provenance": "Fully synthetic. Retains all v4 cases/gold except clarifies company_connection_ambiguity by making both company roles ask for interview times and adds a no-resend confirmation turn. v4 remains unchanged.",
+  "goldStatus": "Codex contract review; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "date": "2026-10-09",
+      "reviewer": "Codex",
+      "change": "v4 claimed ambiguous target although only one of two connections requested interview availability. Selecting that connection could be reasonable under the existing semantic contract, so do not force a runtime always-ask branch. v5 makes both references equally plausible, preserving the exact-ID consent gate, and adds a confirmation without resend. Frozen before v5 execution.",
+      "evidence": [
+        "src/lib/talentOnboarding/tools.ts:CONTACT_COMPANY",
+        "src/lib/career/prompts/toolPolicyPrompt.ts:hasCompanyConnectionsTool"
+      ]
+    }
+  ],
+  "files": {
+    "cases-v5.json": "35f1f5dd2c7e8394eb581ec9a2139fe32eaea6464b9b2640e993ec15f0022cbe",
+    "gold-v5.json": "010b6e99415f47d5786f685bd4bfe40296cd50b1b1f12767472bb0624b2faa72"
+  },
+  "caseCount": 14,
+  "turnCount": 33
+}

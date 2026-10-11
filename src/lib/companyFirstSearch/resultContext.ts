@@ -1,3 +1,5 @@
+import type { CandidateOutreachPause } from "./history";
+
 type ResultRole = {
   automaticSearchEnabled: boolean;
   id: string;
@@ -9,6 +11,7 @@ type ResultRole = {
 };
 
 type ResultCandidate = {
+  candidateRequestedReview?: boolean;
   headline: string | null;
   name: string;
   profileUrl: string;
@@ -16,6 +19,8 @@ type ResultCandidate = {
   roleId: string;
   roleName: string;
   summary: string | null;
+  tldr?: string | null;
+  harperNote?: string | null;
 };
 
 export type CompanyMatchingResultContextInput = {
@@ -23,6 +28,8 @@ export type CompanyMatchingResultContextInput = {
   firstDelivery?: boolean;
   roles: ResultRole[];
   runStatus: string;
+  candidateOutreachPauses?: CandidateOutreachPause[];
+  requestedByCompany?: boolean;
 };
 
 export function buildCompanyMatchingResultContext(
@@ -36,12 +43,14 @@ export function buildCompanyMatchingResultContext(
       .filter(Boolean)
       .join(", ") || "부탁받은 채용";
   const lines = [
-    `- Harper가 ${roleNames} 채용에 관해 앞서 부탁받은 확인을 마쳤다.`,
+    input.requestedByCompany === false
+      ? `- ${roleNames} 채용의 정기 매칭 확인 결과다. 회사가 새 검색을 직접 요청한 결과는 아니다.`
+      : `- Harper가 ${roleNames} 채용에 관해 앞서 부탁받은 확인을 마쳤다.`,
     ...(succeeded
       ? selected > 0
         ? [
             "- 지금 회사에 소개해도 좋겠다고 판단한 사람들이 아래에 있다.",
-            "- 이들은 아직 이 회사를 보거나 대화할 마음이 있는지 확인한 상태가 아니다. 회사가 만나 보고 싶은 사람을 고르면 그때 Harper가 본인에게 의사를 묻는다.",
+            "- 일반 선제 제안은 후보자의 관심을 아직 확인하지 않았다. 본인이 우선 검토를 요청한 사람은 아래에 그 사실이 표시된다. 어느 쪽도 역할 수락이나 연결 완료를 의미하지 않는다. 회사가 만나 보고 싶은 사람을 고르면 Harper가 본인에게 역할 수락 의사를 묻는다.",
           ]
         : [
             "- 지금 Harper가 알고 있는 사람들 가운데 회사가 찾는 사람에 비춰 바로 소개해도 좋겠다고 확신할 만한 사람은 고르지 못했다.",
@@ -74,15 +83,26 @@ export function buildCompanyMatchingResultContext(
       : []),
   ];
 
+  for (const pause of input.candidateOutreachPauses ?? []) {
+    const role = input.roles.find(role => role.id === pause.roleId);
+    if (!role) continue;
+    lines.push(`- ${role.name}: 이번 확인 당시 연결 대기 ${pause.pendingCount}명, 후보자에게 먼저 제안하는 경로의 상한 ${pause.maxPendingTalents}명. 상한 이상이므로 이번에는 후보자에게 먼저 역할을 추천하는 경로를 진행하지 않았다. 이 제한은 회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다. 검색·fit 평가 전체를 하지 않았다는 뜻은 아니다. Role-based 검색의 새 후보자 선추천은 연결 대기가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아니다.`);
+  }
+
   if (selected > 0) {
     lines.push("");
     for (const candidate of input.candidates) {
       lines.push(
         `- [${candidate.name}](${candidate.profileUrl}) · ${candidate.roleName}`,
         `  - ${candidate.headline || "공개 headline 없음"}`,
-        `  - ${candidate.summary || "공개 가능한 경력 요약 없음"}`,
-        `  - 이 회사와 잘 맞을 수 있다고 본 이유: ${candidate.reason}`
+        `  - ${candidate.tldr || candidate.summary || "공개 가능한 경력 요약 없음"}`,
+        candidate.harperNote
+          ? `  - Harper Note: ${candidate.harperNote}`
+          : `  - 이 회사와 잘 맞을 수 있다고 본 이유: ${candidate.reason}`
       );
+      if (candidate.candidateRequestedReview) {
+        lines.push("  - 후보자 본인이 이 역할의 우선 검토를 요청했다. 이 사실을 소개할 때 가볍게 함께 알릴 수 있다. 역할 수락이나 회사의 Intro 요청은 아니다.");
+      }
     }
   }
   return lines.join("\n");

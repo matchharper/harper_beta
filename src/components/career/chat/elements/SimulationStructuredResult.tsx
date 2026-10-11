@@ -117,6 +117,8 @@ export function SimulationStructuredResult({
     unavailable: t("career.simulation.unavailable", "이력서 표현 평가 불가"),
   };
   if (data.kind === "comparison") {
+    const hasEvidence = data.diagnoses.some((d) => d.evidence.length > 0);
+    const hasQuestions = data.diagnoses.some((d) => d.questions.length > 0);
     return (
       <div className="space-y-4">
         <div className="overflow-x-auto">
@@ -129,12 +131,12 @@ export function SimulationStructuredResult({
                 <th className={th}>
                   {t("career.simulation.diagnosis", "진단·이력서 반영 상태")}
                 </th>
-                <th className={th}>
+                {hasEvidence && <th className={th}>
                   {t("career.simulation.evidence", "근거·출처")}
-                </th>
-                <th className={th}>
+                </th>}
+                {hasQuestions && <th className={th}>
                   {t("career.simulation.questions", "확인할 사항")}
-                </th>
+                </th>}
               </tr>
             </thead>
             <tbody>
@@ -154,10 +156,10 @@ export function SimulationStructuredResult({
                     </p>
                     <p className="mt-2">{d.rationale}</p>
                   </td>
-                  <td className={td}>
+                  {hasEvidence && <td className={td}>
                     <EvidenceList items={d.evidence} />
-                  </td>
-                  <td className={td}>{d.questions.join("\n")}</td>
+                  </td>}
+                  {hasQuestions && <td className={td}>{d.questions.join("\n")}</td>}
                 </tr>
               ))}
             </tbody>

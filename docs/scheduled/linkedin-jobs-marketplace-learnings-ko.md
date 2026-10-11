@@ -1,6 +1,6 @@
 # LinkedIn Jobs 운영 학습
 
-문서 기준: 2026-10-01. 이 파일은 Scheduled Codex가 매번 읽는 **검증된 운영 메모**다. 사실·가설·아직 모르는 것을 구분하고, 새 관측을 추가할 때 날짜·근거·적용 범위를 쓴다. 일일 숫자와 개별 행동은 [Notion Data & Logs](https://app.notion.com/p/3eb7277d26df80f7924adf6a59ad6d66)에 둔다.
+문서 기준: 2026-10-07. 이 파일은 Scheduled Codex가 매번 읽는 **검증된 운영 메모**다. 사실·가설·아직 모르는 것을 구분하고, 새 관측을 추가할 때 날짜·근거·적용 범위를 쓴다. 일일 숫자와 개별 행동은 [Notion Data & Logs](https://app.notion.com/p/3eb7277d26df80f7924adf6a59ad6d66)에 둔다.
 
 ## 현재 확인된 사실
 
@@ -21,8 +21,16 @@
 - 같은 Recruiter 상세 화면에서 공고의 `Apply starters`는 6, 프로젝트 사이드바의 수는 14로 달랐다. 공고 성과 판단에는 해당 **Job ID의 지표**만 쓰고 프로젝트 합계를 섞지 않는다. 원 게시일과 재게시일이 다를 수도 있어 게시 경과일 계산에 둘 다 보존한다.
 - 2026-10-01 사용자 지시: 공개 채용 공고에는 Harper의 내부 지원·공유·검토·연결 절차를 설명하는 섹션을 넣지 않는다. 특히 Harper 팀원의 최종 확인을 언급하지 않는다. 회사가 실제로 제공한 면접 단계는 채용 정보로 남길 수 있다. 이날 새로 만든 공고 6건과 이전 실행에서 수정한 공고 14건에서 해당 Harper 절차 섹션을 제거했다. 익명 회사 공고 4건의 회사 소개와 역할 설명에 있던, 회사명 공개 시점을 Harper의 소개 절차와 연결한 문장도 제거했다. 예전 공고의 `Process` 문구는 새 공고 작성의 참고 양식으로 사용하지 않는다.
 - 2026-10-01 Recruiter의 `Copy job`은 원본 Job의 제목·본문·본문 링크·주요 입력 필드를 채운 새 작성 화면을 열었다. `Save to new project`에서 원본과 같은 프로젝트 이름을 쓰고 `Save a draft`를 누르면 **새 Project ID와 Job ID**가 만들어지며 슬롯은 차지하지 않았다. Mistral 4건에서 원본과 Draft의 본문 텍스트·본문 링크 URL, 프로젝트 이름·설명·제목·위치·시니어리티가 각각 일치했다. 새 프로젝트의 Owner는 모두 `Hojin KIM`이고 Job 작성 화면의 Profile도 현재 계정으로 자동 바뀌었다. 원본 Chris 소유 4건은 사용자의 직접 지시에 따른 일회성 예외로 종료했으며 Recruiter는 Open 17/21·Draft 4·Closed 40으로 표시했다. 이후 Owner 조건은 [운영 계약](./linkedin-jobs-marketplace-gtm-ko.md)의 강제 조건을 따른다. 개별 원본·복제 ID와 행동은 Notion에 기록했다.
+- 2026-10-03 재검토에서 앞서 추천했던 서울 Marketing Manager는 10/2 `paused`로 바뀐 것이 확인되어 게시 후보에서 제외했다. 같은 기간 새로운 활성 Role 3건이 등록되었다. 과거 추천을 다음 실행에 그대로 넘기지 말고 Role 상태와 새 수요를 다시 읽어야 한다. Recruiter는 다시 슬롯이 모두 사용 중이었다. 이때 Open 대상 4건을 정하더라도 한 실행의 Open·Close 합계 최대 6건을 지키려면 게시 작업을 나눠야 한다.
+- 2026-10-03 새 `official_jobs` 3건의 공개 상세를 확인했을 때 `company_description_markdown`만으로는 회사 소개가 공고의 본문에 보이지 않았다. 회사 소개를 `role_description_markdown`에도 넣은 뒤 `/jobs` 목록·상세와 지원 링크에서 노출을 확인했다. 두 필드에 같은 사실을 넣더라도 공개 본문에 Harper 내부 절차를 복제하지 않는다.
 - LinkedIn의 [Recruiter 작성 도움말](https://www.linkedin.com/help/linkedin/answer/a415043)은 같은 프로젝트에 공고를 여러 개 올려도 최신 공고만 구직자에게 보일 수 있고 공고가 30일 후 만료된다고 설명한다. 실제 Harper 계정의 프로젝트 관계·만료일·공개 화면은 매번 확인해야 한다.
-- LinkedIn의 [회사 페이지 연결 안내](https://www.linkedin.com/help/recruiter/answer/a413257)에 따르면 `Company` 자동완성에서 회사를 선택하면 해당 회사 페이지에 공고가 연결된다. 익명 Role에 실제 채용 회사 페이지를 선택하면 익명성이 깨질 수 있다. Harper 중개 표기의 허용 방식은 해당 작성 화면에서 확인하기 전까지 미확인이다.
+- LinkedIn의 [회사 페이지 연결 안내](https://www.linkedin.com/help/recruiter/answer/a413257)에 따르면 `Company` 자동완성에서 회사를 선택하면 해당 회사 페이지에 공고가 연결된다. 익명 Role에 실제 채용 회사 페이지를 선택하면 익명성이 깨질 수 있다. 2026-10-06 작성 화면에서 Harper를 선택한 세 공고는 미리보기와 실제 Open 화면에서 Company가 Harper로 표시되었다. 이는 해당 계정 UI에서의 게시 결과이며 정책 해석까지 검증한 것은 아니다.
+- 2026-10-06에는 익명 역할 3건을 Recruiter의 새 Hojin KIM 소유 프로젝트에서 Draft로 저장한 뒤 Open했다. `Company` 자동완성에서 Harper를 고르고 공개 미리보기·Open 상세에서 모두 Harper 표기를 확인했다. 프로젝트 Owner는 게시 전 `Project settings → Project members`에서 각각 확인했다. 회사명을 감추는 범위는 LinkedIn 제목·본문·Company뿐 아니라 Harper 공고의 회사명·본문·slug·로고·회사 URL·원본 회사명 및 관심 표시 링크까지다. 기존 실명 Harper 공고를 익명으로 바꿀 때 `is_anonymous=true`가 먼저 공고를 비공개로 돌리므로, 문구와 링크를 고친 뒤 공개 상태를 재확인했다. 회사명이 들어 있던 slug는 익명 slug로 바꾸고 LinkedIn 지원 URL은 안정적인 `/jobs/{official_job_id}`를 사용했다. 개별 ID와 행동은 Notion에 있다.
+- 같은 날 LinkedIn 작성 화면에서 표준 직함 제안에 `Junior Product Engineer`가 없어 `Product Engineer`를 선택하고 본문 첫 줄에 Junior와 경력 1–3년을 명시했다. `AI Researcher`는 `Artificial Intelligence Researcher`로 제안되었다. 한국어 JD에서 자동 생성된 targeting criteria 2개는 일본어·한국어가 뒤섞여 의미가 잘못되어, 게시 전 모델 학습·평가와 AI 실험 기준으로 고치고 에이전트 의사결정 모델 기준을 추가했다. 이 기준은 지원자에게 보이지 않아도 실제 타겟팅에 영향을 줄 수 있으므로 생성 결과를 항상 읽고 고친다.
+- 2026-10-06 사용자 피드백에 따라 위 익명 LinkedIn 공고 3건의 본문 끝에 넣었던 Harper 이동 안내 문구와 `/jobs/{id}` URL을 제거했다. 지원 목적 URL은 별도 `External application URL` 필드에 그대로 두었다. 앞으로 LinkedIn description에는 이런 중복 안내와 URL을 넣지 않고, 저장 후 공개 본문을 확인한다. 개별 편집 이력은 Notion에 기록한다.
+- 2026-10-07 사용자 지시로 LinkedIn 공고 제목은 항상 `Role title at {company name}` 형식을 쓴다. 실제 회사명이 공개 허용된 Role은 대외 회사명을, 익명 Role은 회사를 식별하지 않는 검증된 공개용 이름을 넣는다. Recruiter에서 제목 전체를 새 입력란에 바로 쓰면 표준 직함 선택을 요구할 수 있고, 자동완성 직함을 선택한 뒤 입력란 전체를 `fill`로 바꾸면 저장 시 표준 직함만 남은 사례가 있었다. 표준 직함을 선택한 다음 **키보드 입력으로** 제목을 완성하고, Preview보다 `Jobs → Draft`의 저장된 제목과 Open 상세의 제목을 정본으로 확인한다. 가우디오랩·vooy·NARWHAL PROJECT에서 이 방식으로 정확한 전체 제목을 저장·게시했다.
+- 2026-10-07 사용자가 vooy 프로덕트 디자이너와 NARWHAL PROJECT 주니어 엔지니어의 회사명 공개 및 익명 설정 해제를 명시했다. 두 Role의 `is_anonymous=false`와 Harper 공고의 실제 회사명·웹사이트·로고를 운영 DB에서 확인했다. vooy의 `published_name`은 설명형 별칭이므로 실명 공개 시 제목에 자동 사용하면 사용자의 지시와 달라진다. LinkedIn에서는 과거 익명 Closed 원본을 재게시하지 않고, Hojin KIM 소유 새 프로젝트에 각각 실명 제목의 Job을 만들어 Open했다. 가우디오랩도 새 Hojin KIM 소유 프로젝트에서 게시했다. 세 Open Job ID와 이유는 Notion `Data & Logs`에 남겼다.
+- 2026-10-07 익명 로보틱스 Role은 `is_anonymous=true`로 바꾸고 Harper 공고의 회사명·설명·slug·로고·회사 URL·원본 회사명을 공개용 비식별 정보로 고친 후 공개 상세에 회사 식별 단서가 없는지 확인했다. LinkedIn 새 Job의 제목은 `Head of Robotics Systems at Robotics AI Company`, Company는 Harper, 프로젝트명도 비식별 이름이다. Project settings에서 `Hojin KIM · Owner`를 확인하고, Preview에서 제목·회사·본문을 대조한 뒤 Job ID `4475409503`을 Open했다. 게시 후 Recruiter Jobs는 Open 21/21 슬롯으로 표시했다. 입력 패킷은 `.local/linkedin-jobs-gtm/posting-packets/`에, 행동 ID와 이유는 Notion `Data & Logs`에 남겼다.
 
 ## 검증할 가설
 

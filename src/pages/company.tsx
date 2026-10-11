@@ -1,4 +1,5 @@
 import Head from "next/head";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import Reveal from "@/components/landing/Animation/Reveal";
 import StaggerText from "@/components/landing/Animation/StaggerText";
@@ -23,7 +24,27 @@ import { cn } from "@/lib/utils";
 import { showToast } from "@/components/toast/toast";
 import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
 import CareerLandingFooter from "@/components/landing/CareerLandingFooter";
+// import CareerLandingClosingSection from "@/components/landing/CareerLandingClosingSection";
+// import { MuteButton } from "@/components/ui/button";
+import {
+  CompanyTalentStatement,
+  CompanyHiringProcess,
+  CompanyLandingFaq,
+} from "@/components/landing/CompanyLandingSections";
+import {
+  CompanyTalentLogoTile,
+  companySocialProofCopy,
+  companyTalentLogos as logos,
+  companyTeamHighlights,
+} from "@/components/landing/CompanySocialProof";
 import DemoVideo from "@/components/landing/DemoVideo";
+import {
+  getConceptHero,
+  getConceptClosing,
+  type CompanyConcept,
+} from "@/components/landing/company-preview/CompanyLandingConceptCopy";
+import companyConceptStyles from "@/components/landing/company-preview/CompanyLandingConcepts.module.css";
+
 import Image from "next/image";
 import { useRouter } from "next/router";
 import {
@@ -50,6 +71,32 @@ import {
   getCompanyLocaleUrl,
 } from "@/lib/companyLandingSeo";
 
+const CompanyConceptBeforeAgents = dynamic(() =>
+  import("@/components/landing/company-preview/CompanyLandingConcepts").then(
+    (m) => m.CompanyConceptBeforeAgents
+  )
+);
+const CompanyConceptAfterAgents = dynamic(() =>
+  import("@/components/landing/company-preview/CompanyLandingConcepts").then(
+    (m) => m.CompanyConceptAfterAgents
+  )
+);
+const CompanyConceptGettingStarted = dynamic(() =>
+  import("@/components/landing/company-preview/CompanyLandingConcepts").then(
+    (m) => m.CompanyConceptGettingStarted
+  )
+);
+const CompanyConceptFaq = dynamic(() =>
+  import("@/components/landing/company-preview/CompanyLandingConcepts").then(
+    (m) => m.CompanyConceptFaq
+  )
+);
+const CompanyLandingPreviewBar = dynamic(() =>
+  import("@/components/landing/company-preview/CompanyLandingConcepts").then(
+    (m) => m.CompanyLandingPreviewBar
+  )
+);
+
 const fontMain =
   "text-[22px] font-normal leading-[1.5] text-neutral-900 md:text-[28px]";
 const fontBig =
@@ -73,20 +120,16 @@ const COMPANY_PAGE_COPY = {
       language: "ko-KR",
     },
     hero: {
-      title: ["우리 팀에 적합한 인재를", "자연스러운 소개로 연결해드립니다."],
+      title: ["Harper와 대화중인 인재들을", "자연스럽게 연결해드립니다."],
       description: [
-        "Harper는 인재들과 회사와 직접 대화하며 그들의 맥락을 이해하고,",
-        "적합한 연결을 찾고, 자연스럽게 이어주는 AI Agent입니다.",
+        "단순한 후보자 이력서 리스트가 아닙니다.",
+        "회사의 모든 기준을 통과하고, 우리 팀을 좋아할만한 뛰어난 인재들입니다.",
       ],
+      // cta: "무료로 시작하기", // Restore when self-serve signup launches.
       cta: "미팅 신청하기",
     },
     videoSoundHint: "소리를 켜고 보시면 좋습니다.",
-    socialProof: {
-      talentTitle: "이 곳의 인재들이 신뢰합니다.",
-      companyTitle: "최고의 팀들과 함께하고 있습니다.",
-      testimonial:
-        "Harper는 최고의 채용파트너입니다. 까다로운 조건을 붙였지만 모든 조건을 만족하는 사람을 한달만에 20명을 연결받았고, 채용까지 바로 이어졌습니다.",
-    },
+    socialProof: companySocialProofCopy.ko,
     chat: {
       request: "AI infra를 리드할 senior backend engineer가 필요합니다.",
       prompt: "좋습니다. 팀 상황과 꼭 맞아야 하는 조건을 알려주세요.",
@@ -202,15 +245,11 @@ const COMPANY_PAGE_COPY = {
       description: [
         "Harper speaks directly with talent and companies to understand the context on both sides, finds the right match, and brings everyone together as your AI agent.",
       ],
+      // cta: "Start for free",
       cta: "Request a demo",
     },
     videoSoundHint: "Best watched with sound on.",
-    socialProof: {
-      talentTitle: "Trusted by talent from",
-      companyTitle: "Working with exceptional teams",
-      testimonial:
-        "Harper is the best recruiting partner we have worked with. We had a demanding set of requirements, and within a month Harper introduced us to 20 people who met every one of them—leading directly to a hire.",
-    },
+    socialProof: companySocialProofCopy.en,
     chat: {
       request: "We need a senior backend engineer to lead AI infrastructure.",
       prompt: "Great. Tell me about the team and your must-have criteria.",
@@ -442,39 +481,6 @@ const textareaClass =
   "mt-2 min-h-[76px] w-full resize-none rounded-[3px] border border-[#cfcac0] bg-[#fbfaf7] px-3 py-3 text-[15px] font-light leading-[1.4] text-neutral-primary outline-none transition-colors placeholder:text-neutral-muted focus:border-neutral-950";
 
 const labelClass = "block text-[13px] font-normal text-neutral-primary";
-
-const YONSEI_LOGO_SRC =
-  "https://zzojrniuppueizhnmqfd.supabase.co/storage/v1/object/public/company_logo/8FCgNqlkK-QnA_6-52ZbfFJ_Wz_Gsm9zkPybokRMl8R0H4ZgUL0wu1lggVUIHhEwIxGXPOYR9gw9RDFxiW46Eg.svg";
-
-type SocialProofLogo = {
-  src: string;
-  name: string;
-  width: number;
-  hideOnMobile?: boolean;
-};
-
-const logos: readonly SocialProofLogo[] = [
-  { src: "/images/logos/sn.png", name: "SNU", width: 44 },
-  { src: YONSEI_LOGO_SRC, name: "Yonsei University", width: 62 },
-  { src: "/images/logos/kai.png", name: "KAIST", width: 68 },
-  { src: "/images/logos/cmu.png", name: "CMU", width: 62 },
-  { src: "/images/logos/stanfordtext.png", name: "Stanford", width: 84 },
-  { src: "/images/logos/harvard.svg", name: "Harvard", width: 80 },
-  {
-    src: "/images/logos/torontotext.png",
-    name: "University of Toronto",
-    width: 124,
-  },
-  { src: "/images/logos/toss.png", name: "Toss", width: 64 },
-  { src: "/images/logos/kakao.svg", name: "Kakao", width: 58 },
-  { src: "/svgs/cohere.svg", name: "Cohere", width: 78, hideOnMobile: true },
-  { src: "/images/logos/amazon.svg", name: "Amazon", width: 60 },
-  { src: "/images/logos/naver.svg", name: "Naver", width: 60 },
-  { src: "/images/logos/moloco.png", name: "Moloco", width: 90 },
-  { src: "/images/logos/nvidia.svg", name: "NVIDIA", width: 82 },
-  { src: "/images/logos/microsoft.svg", name: "Microsoft", width: 76 },
-  { src: "/images/logos/samsung.svg", name: "Samsung", width: 104 },
-] as const;
 
 const darkBtnClass =
   "bg-linear-to-b shadow-xs from-[#232323] to-[#101010] text-neutral-00 transition-colors hover:bg-black border border-black/40";
@@ -775,12 +781,27 @@ function CandidateProfileMockup({
   );
 }
 
-function AgentsSection({ copy }: { copy: CompanyPageCopy }) {
+function AgentsSection({
+  copy,
+  preview = false,
+  locale = "ko",
+}: {
+  copy: CompanyPageCopy;
+  preview?: boolean;
+  locale?: Locale;
+}) {
   return (
-    <Section bgColor="bg-neutral-00">
+    <Section bgColor="bg-neutral-00" marker="how-harper-works">
       <div className="mx-auto grid w-full gap-8 md:grid-cols-2">
         <h2 className={cn(fontBig, "max-w-[620px]")}>{copy.agents.title}</h2>
       </div>
+      {preview && (
+        <p className="mt-3 text-xs text-neutral-muted">
+          {locale === "ko"
+            ? "제품 이해를 위한 가상 예시입니다."
+            : "Illustrative product examples with a fictional candidate."}
+        </p>
+      )}
       <div className="mx-auto mt-10 grid w-full gap-4 md:grid-cols-2">
         <Card
           title={copy.agents.requestCard.title}
@@ -801,8 +822,20 @@ function AgentsSection({ copy }: { copy: CompanyPageCopy }) {
           <TalentRequestChatMockup copy={copy.chat} />
         </Card>
         <Card
-          title={copy.agents.verifiedCard.title}
-          description={copy.agents.verifiedCard.description}
+          title={
+            preview
+              ? locale === "ko"
+                ? "경력과 맥락을 함께 살펴봅니다."
+                : "Experience and context, considered together."
+              : copy.agents.verifiedCard.title
+          }
+          description={
+            preview
+              ? locale === "ko"
+                ? "Harper는 후보자의 경험과 다음에 원하는 일을 함께 살펴봅니다. 확인된 내용과 더 알아볼 점을 이해하고, 만나볼 사람을 결정하세요."
+                : "Harper considers a candidate’s experience alongside what they want next. See what is known and what needs exploring, then decide who to meet."
+              : copy.agents.verifiedCard.description
+          }
         >
           <CandidateProfileMockup copy={copy.candidateProfile} />
         </Card>
@@ -816,14 +849,20 @@ const Section = ({
   bgColor = "bg-neutral-100",
   className,
   id,
+  marker,
 }: {
   children: React.ReactNode;
   bgColor?: string;
   className?: string;
   id?: string;
+  marker?: string;
 }) => {
   return (
-    <div id={id} className={cn("w-full py-16 md:py-24", bgColor, className)}>
+    <div
+      id={id}
+      data-company-existing-section={marker}
+      className={cn("w-full py-16 md:py-24", bgColor, className)}
+    >
       <section className="mx-auto w-full max-w-[1244px] px-5 md:px-10">
         {children}
       </section>
@@ -1175,26 +1214,42 @@ function ContactSalesSection({
 
 export type CompanyPageProps = {
   locale: Locale;
+  previewConcept?: CompanyConcept;
 };
 
-export default function CompanyPage({ locale }: CompanyPageProps) {
+function CompanyPageVisitLog() {
+  usePublicPageVisitLog();
+  return null;
+}
+
+export default function CompanyPage({
+  locale,
+  previewConcept,
+}: CompanyPageProps) {
   const router = useRouter();
   const companyLocale = locale;
-  const [showPreloader, setShowPreloader] = useState(true);
-  const [socialProofAnimationReady, setSocialProofAnimationReady] =
-    useState(false);
+  const [showPreloader, setShowPreloader] = useState(!previewConcept);
+  const [socialProofAnimationReady, setSocialProofAnimationReady] = useState(
+    Boolean(previewConcept)
+  );
   const copy = COMPANY_PAGE_COPY[companyLocale];
+  const heroCopy = previewConcept
+    ? getConceptHero(previewConcept, companyLocale)
+    : copy.hero;
+  const closingCopy = previewConcept
+    ? getConceptClosing(companyLocale)
+    : copy.closing;
   const canonicalUrl = getCompanyLocaleUrl(companyLocale);
   const structuredData = buildCompanyPageStructuredData(copy, canonicalUrl);
-  usePublicPageVisitLog();
 
   useEffect(() => {
+    if (previewConcept) return;
     const timeout = window.setTimeout(() => {
       setShowPreloader(false);
     }, 1500);
 
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [previewConcept]);
 
   const scrollToContactSales = () => {
     document.getElementById(CONTACT_SALES_SECTION_ID)?.scrollIntoView({
@@ -1207,6 +1262,7 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
     event
   ) => {
     event.preventDefault();
+    // void router.push(`/org?lang=${companyLocale}`);
     scrollToContactSales();
   };
 
@@ -1220,14 +1276,26 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
   return (
     <MessagesProvider locale={companyLocale}>
       <>
+        {!previewConcept && <CompanyPageVisitLog />}
         <Head>
-          <title>{copy.meta.title}</title>
+          <title>
+            {previewConcept
+              ? `Harper · Company Concept 0${previewConcept}`
+              : copy.meta.title}
+          </title>
           <meta
             key="description"
             name="description"
             content={copy.meta.description}
           />
-          <meta name="robots" content="index,follow,max-image-preview:large" />
+          <meta
+            name="robots"
+            content={
+              previewConcept
+                ? "noindex,nofollow"
+                : "index,follow,max-image-preview:large"
+            }
+          />
           <meta name="application-name" content="Harper" />
           <meta name="author" content="Harper" />
           <meta key="theme-color" name="theme-color" content="#f7f6f1" />
@@ -1369,8 +1437,17 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
             </motion.div>
           )}
         </AnimatePresence>
-        <main className="min-h-screen text-neutral-primary">
+        <main
+          id="top"
+          lang={companyLocale}
+          className={cn(
+            "min-h-screen text-neutral-primary",
+            previewConcept && companyConceptStyles.page
+          )}
+        >
           <CareerAppBar
+            // primaryActionLabel={heroCopy.cta}
+            // careerStartHref={`/org?lang=${companyLocale}`}
             careerStartHref={CONTACT_SALES_HREF}
             onCareerStartClick={handleContactSalesAnchorClick}
             showSectionLinks={false}
@@ -1378,13 +1455,23 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
             locale={companyLocale}
           />
           <Section
+            marker="hero"
             bgColor="bg-neutral-100"
-            className="pb-14 pt-20 md:pb-20 md:pt-36"
+            className={cn(
+              "pb-14 pt-20 md:pb-20 md:pt-36",
+              previewConcept && companyConceptStyles.hero
+            )}
           >
             <div className="grid gap-6 md:grid-cols-[0.95fr_1fr] md:items-end md:justify-between md:gap-10">
-              <h1 className={cn(fontMain, "max-w-[620px] leading-[1.4]")}>
+              <h1
+                className={
+                  previewConcept
+                    ? companyConceptStyles.heroTitle
+                    : cn(fontMain, "max-w-[620px] leading-[1.4]")
+                }
+              >
                 {/* 채용 공고로는 닿기 어려운 */}
-                {copy.hero.title.map((line, index) => (
+                {heroCopy.title.map((line, index) => (
                   <Fragment key={line}>
                     {index > 0 && <br />}
                     {line}
@@ -1392,31 +1479,41 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
                 ))}
                 {/* Top talent를 연결해드립니다. */}
               </h1>
-              <p className={`max-w-[500px] ${fontMedium}`}>
-                {copy.hero.description[0]}
-                <br />
-                {copy.hero.description[1]}
+              <p
+                className={
+                  previewConcept
+                    ? companyConceptStyles.heroDescription
+                    : `max-w-[500px] ${fontMedium}`
+                }
+              >
+                {heroCopy.description.map((line, index) => (
+                  <Fragment key={line}>
+                    {index > 0 && <br />}
+                    {line}
+                  </Fragment>
+                ))}
               </p>
             </div>
             <div className="mt-8 md:mt-6">
               <PillLink
+                // href={`/org?lang=${companyLocale}`}
                 href={CONTACT_SALES_HREF}
                 onClick={handleContactSalesAnchorClick}
                 variant="dark"
               >
-                {copy.hero.cta}&nbsp; <ArrowRight className="h-4 w-4" />
+                {heroCopy.cta}&nbsp; <ArrowRight className="h-4 w-4" />
               </PillLink>
             </div>
           </Section>
 
-          <Section className="pt-0 pb-14 md:pt-0 md:pb-20">
+          <Section marker="demo-video" className="pt-0 pb-14 md:pt-0 md:pb-20">
             <p className="mb-3 text-left text-[12px] font-normal text-neutral-muted md:text-[13px]">
               {copy.videoSoundHint}
             </p>
             <DemoVideo playerName="Harper company page" />
           </Section>
 
-          <Section className="pt-0 md:pt-0">
+          <Section marker="social-proof" className="pt-0 md:pt-0">
             <div className="grid gap-14 md:grid-cols-[0.6fr_0.4fr] md:gap-8">
               <div>
                 <div className={cn(fontMedium, "text-neutral-muted")}>
@@ -1437,20 +1534,7 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
                         logo.hideOnMobile && "hidden md:block"
                       )}
                     >
-                      <div className="group flex h-full items-center justify-center rounded-sm border border-neutral-200 bg-neutral-200/80 px-3 md:px-4">
-                        <span
-                          className="relative block h-7 max-w-full opacity-75 grayscale transition group-hover:opacity-100 group-hover:grayscale-0 md:h-8"
-                          style={{ width: logo.width }}
-                        >
-                          <Image
-                            src={logo.src}
-                            alt={logo.name}
-                            fill
-                            sizes={`(min-width: 768px) ${logo.width}px, 96px`}
-                            className="object-contain"
-                          />
-                        </span>
-                      </div>
+                      <CompanyTalentLogoTile logo={logo} />
                     </Reveal>
                   ))}
                 </div>
@@ -1461,15 +1545,7 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
                 </div>
                 <div className="mt-6 flex flex-1 flex-col md:mt-8">
                   <div className="flex w-full flex-col gap-2">
-                    {[
-                      { accent: "$2B", label: "AI-first Asia VC" },
-                      { accent: "$5B", label: "Global Agentic Company" },
-                      {
-                        accent: "Sequoia-backed",
-                        label: "Consumer AI Agent",
-                      },
-                      { accent: "$15B", label: "U.S B2B AI Agent Service" },
-                    ].map((item, index) => (
+                    {companyTeamHighlights.map((item, index) => (
                       <Reveal
                         key={item.label}
                         enabled={socialProofAnimationReady}
@@ -1536,30 +1612,112 @@ export default function CompanyPage({ locale }: CompanyPageProps) {
               </div>
             </div>
           </Section>
-          <AgentsSection copy={copy} />
+          {!previewConcept && <CompanyTalentStatement locale={companyLocale} />}
+          {previewConcept && (
+            <CompanyConceptBeforeAgents
+              concept={previewConcept}
+              locale={companyLocale}
+            />
+          )}
+          <AgentsSection
+            copy={copy}
+            preview={Boolean(previewConcept)}
+            locale={companyLocale}
+          />
+          {previewConcept && (
+            <CompanyConceptAfterAgents
+              concept={previewConcept}
+              locale={companyLocale}
+            />
+          )}
 
           <Section
+            marker="closing-message"
             bgColor="bg-neutral-00"
-            className="md:pt-8 pt-4 md:pb-48 pb-32"
+            className={cn(
+              "md:pt-8 pt-4",
+              previewConcept ? "md:pb-48 pb-32" : "md:pb-24 pb-16",
+              previewConcept && "company-existing-closing"
+            )}
           >
             <div className="flex flex-col gap-2 text-xl font-normal leading-[1.3]">
-              {copy.closing.map((paragraph) => (
+              {closingCopy.map((paragraph) => (
                 <p key={paragraph}>{paragraph}</p>
               ))}
             </div>
           </Section>
 
+          {!previewConcept && <CompanyHiringProcess locale={companyLocale} />}
+          {!previewConcept && <CompanyLandingFaq locale={companyLocale} />}
+
+          {previewConcept && (
+            <CompanyConceptGettingStarted
+              concept={previewConcept}
+              locale={companyLocale}
+            />
+          )}
+          {previewConcept && (
+            <CompanyConceptFaq
+              concept={previewConcept}
+              locale={companyLocale}
+            />
+          )}
+
+          {/* Self-serve closing section preserved for the payment launch.
+          <div
+            data-company-existing-section="get-started"
+            id={CONTACT_SALES_SECTION_ID}
+            className="scroll-mt-16"
+          >
+            <CareerLandingClosingSection
+              variant="company"
+              copy={
+                companyLocale === "ko"
+                  ? {
+                      title: ["Harper로 채용을 시작하세요."],
+                      note: "",
+                    }
+                  : {
+                      title: ["Start hiring with Harper."],
+                      note: "",
+                    }
+              }
+              action={
+                <div className="flex flex-wrap items-center gap-3">
+                  <MuteButton asChild variant="dark" size="lg">
+                    <Link href={`/org?lang=${companyLocale}`}>
+                      {companyLocale === "ko"
+                        ? "무료로 시작하기"
+                        : "Start for free"}
+                      <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </MuteButton>
+                </div>
+              }
+            />
+          </div>
+          */}
           <ContactSalesSection copy={copy.contact} shareUrl={canonicalUrl} />
         </main>
         <CareerLandingFooter
-          careerStartHref={CONTACT_SALES_HREF}
-          onCareerStartClick={handleContactSalesAnchorClick}
+          audience="company"
+          careerStartHref={`/career?lang=${companyLocale}`}
           onScheduleCallClick={handleFooterScheduleClick}
           locale={companyLocale}
           onLocaleChange={(nextLocale) => {
-            void router.push(getCompanyLocalePath(nextLocale));
+            void router.push(
+              previewConcept
+                ? `/company/preview/${previewConcept}?lang=${nextLocale}`
+                : getCompanyLocalePath(nextLocale)
+            );
           }}
         />
+        {previewConcept && (
+          <CompanyLandingPreviewBar
+            concept={previewConcept}
+            locale={companyLocale}
+          />
+        )}
       </>
     </MessagesProvider>
   );

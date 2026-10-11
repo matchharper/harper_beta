@@ -1,5 +1,6 @@
 import {
   ArrowUpRight,
+  Bookmark,
   Building2,
   ChevronRight,
   Handshake,
@@ -44,6 +45,7 @@ type NewOpportunityListProps = {
   loadingMore?: boolean;
   onLoadMore?: () => void;
   onNegative: OpportunityAction;
+  onKeep: OpportunityAction;
   onOpenCompanyInfo?: OpportunityAction;
   onOpenLink?: (item: CareerHistoryOpportunity, url: string) => void;
   onPositive: OpportunityAction;
@@ -58,11 +60,24 @@ const DESCRIPTION_PREVIEW_HEIGHT = 280;
 const INTERNAL_CONNECTION_LABEL = "Harper 연결 제안";
 // career-i18n-skip-next-line Source is translated by useCareerT below.
 const INTERNAL_CONNECTION_DESCRIPTION =
-  "Harper가 회사와의 연결을 도와드리는 기회입니다. 최대한 수락/거절 의사를 표시해 주세요.";
+  "Harper가 회사와의 연결을 도와드리는 기회입니다. 아직 결정하기 어렵다면 저장해 두세요. 저장만으로 회사에 연결되지는 않습니다.";
 const DATE_LABEL_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
-  ko: new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }),
-  en: new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }),
+  ko: new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+    weekday: "short",
+  }),
+  en: new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    weekday: "short",
+  }),
 };
+const RELATIVE_DATE_LABEL_FORMATTERS: Record<Locale, Intl.RelativeTimeFormat> =
+  {
+    ko: new Intl.RelativeTimeFormat("ko-KR", { numeric: "auto" }),
+    en: new Intl.RelativeTimeFormat("en-US", { numeric: "auto" }),
+  };
 
 function PositiveActionIconView({
   icon: Icon,
@@ -143,6 +158,7 @@ function NewOpportunityCard({
   expanded,
   item,
   onNegative,
+  onKeep,
   onOpenCompanyInfo,
   onOpenLink,
   onPositive,
@@ -151,6 +167,7 @@ function NewOpportunityCard({
 }: Pick<
   NewOpportunityListProps,
   | "onNegative"
+  | "onKeep"
   | "onOpenCompanyInfo"
   | "onOpenLink"
   | "onPositive"
@@ -272,6 +289,26 @@ function NewOpportunityCard({
               pending && "md:[@media(hover:hover)]:opacity-100"
             )}
           >
+            {isInternal ? (
+              <Tooltips
+                text={t(
+                  "career.history.keep.tooltip",
+                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
+                )}
+              >
+                <MuteButton
+                  disabled={pending}
+                  variant="transparent"
+                  aria-label={t(
+                    "career.history.keep.action",
+                    "저장하고 나중에 결정"
+                  )}
+                  onClick={() => onKeep(item)}
+                >
+                  <Bookmark aria-hidden className="size-3.5 md:size-4" />
+                </MuteButton>
+              </Tooltips>
+            ) : null}
             <Tooltips text={negativeLabel}>
               <MuteButton
                 aria-label={`${item.title}: ${negativeLabel}`}
@@ -370,11 +407,29 @@ function NewOpportunityCard({
               </MuteButton>
             </div>
           ) : null}
-          <div className="flex items-center justify-end gap-2 border-t border-neutral-1000-a05 pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-1000-a05 pt-4">
+            {isInternal ? (
+              <Tooltips
+                text={t(
+                  "career.history.keep.tooltip",
+                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
+                )}
+              >
+                <MuteButton
+                  disabled={pending}
+                  onClick={() => onKeep(item)}
+                  size="md"
+                  variant="neutral"
+                >
+                  <Bookmark aria-hidden className="size-4" />
+                  {t("career.history.keep.action", "저장하고 나중에 결정")}
+                </MuteButton>
+              </Tooltips>
+            ) : null}
             <MuteButton
               disabled={pending}
               onClick={() => onNegative(item)}
-              size="lg"
+              size="md"
             >
               <ThumbsDown aria-hidden className="size-4" />
               {negativeLabel}
@@ -382,7 +437,7 @@ function NewOpportunityCard({
             <MuteButton
               disabled={pending}
               onClick={() => onPositive(item)}
-              size="lg"
+              size="md"
               variant={isInternal ? "primary" : "dark"}
             >
               {pending ? (
@@ -401,8 +456,13 @@ function NewOpportunityCard({
 
 function getDateGroups(
   items: readonly CareerHistoryOpportunity[],
-  locale: Locale
+  locale: Locale,
+  today: Date
 ) {
+  const todayKey = formatCareerDate(today, locale);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = formatCareerDate(yesterday, locale);
   const groups = new Map<
     string,
     { key: string; label: string; opportunities: CareerHistoryOpportunity[] }
@@ -413,9 +473,17 @@ function getDateGroups(
     const key =
       formatCareerDate(item.recommendedAt, locale) ?? item.recommendedAt;
     const date = new Date(item.recommendedAt);
-    const label = Number.isNaN(date.getTime())
-      ? key
-      : DATE_LABEL_FORMATTERS[locale].format(date);
+    const relativeDay = key === todayKey ? 0 : key === yesterdayKey ? -1 : null;
+    const relativeLabel =
+      relativeDay === null
+        ? null
+        : RELATIVE_DATE_LABEL_FORMATTERS[locale].format(relativeDay, "day");
+    const label = relativeLabel
+      ? relativeLabel.charAt(0).toLocaleUpperCase(locale) +
+        relativeLabel.slice(1)
+      : Number.isNaN(date.getTime())
+        ? key
+        : DATE_LABEL_FORMATTERS[locale].format(date);
     const group = groups.get(key);
     if (group) group.opportunities.push(item);
     else groups.set(key, { key, label, opportunities: [item] });
@@ -431,6 +499,7 @@ export default function NewOpportunityList({
   loadingMore = false,
   onLoadMore,
   onNegative,
+  onKeep,
   onOpenCompanyInfo,
   onOpenLink,
   onPositive,
@@ -443,6 +512,16 @@ export default function NewOpportunityList({
   const { talentPreferences } = useCareerProfileContext();
   const listId = useId();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    const nextMidnight = new Date();
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timeout = window.setTimeout(
+      () => setToday(new Date()),
+      nextMidnight.getTime() - Date.now()
+    );
+    return () => window.clearTimeout(timeout);
+  }, [today]);
   const sections = useMemo(() => {
     const internalItems = items.filter(
       (item) => item.isInternal || item.sourceType === "internal"
@@ -496,10 +575,10 @@ export default function NewOpportunityList({
           totalCount !== undefined && internalCount !== undefined
             ? Math.max(0, totalCount - internalCount)
             : externalItems.length,
-        groups: getDateGroups(externalItems, locale),
+        groups: getDateGroups(externalItems, locale, today),
       },
     ];
-  }, [internalCount, items, locale, t, totalCount]);
+  }, [internalCount, items, locale, t, today, totalCount]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -553,6 +632,7 @@ export default function NewOpportunityList({
                       item={item}
                       key={item.id}
                       onNegative={onNegative}
+                      onKeep={onKeep}
                       onOpenCompanyInfo={onOpenCompanyInfo}
                       onOpenLink={onOpenLink}
                       onPositive={onPositive}

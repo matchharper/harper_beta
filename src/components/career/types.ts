@@ -53,11 +53,8 @@ export type CareerRecommendationSearchStatusState =
   | "error"
   | "stopped";
 
-export type CareerRecommendationSearchStatus = {
-  candidateCount?: number | null;
-  recommendationCount?: number | null;
-  state: CareerRecommendationSearchStatusState;
-};
+export type CareerRecommendationSearchStatus =
+  import("@/lib/talentOnboarding/recommendJobPostingStatus").RecommendJobPostingStatus;
 
 export type CareerOpportunityAgentVariant = OpportunityDiscoveryAgentVariant;
 
@@ -363,7 +360,7 @@ export type CareerHistoryOpportunityCounts = {
   total: number;
 };
 
-export type CareerHistoryOpportunityFeedback = "positive" | "negative";
+export type CareerHistoryOpportunityFeedback = "positive" | "negative" | "keep";
 
 export type CareerPreferenceFitStatus =
   | "Satisfied"
@@ -385,6 +382,7 @@ export type CareerPreferenceFitItem = {
 };
 
 export type CareerHistoryOpportunity = {
+  updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
   clickedAt: string | null;
   companyData?: CareerOpportunityCompanyData | null;

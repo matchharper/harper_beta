@@ -58,10 +58,9 @@ import { useRouter } from "next/router";
 import { TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE } from "@/lib/talentNetworkReferral";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useTalentNetworkReferralCapture } from "@/hooks/useTalentNetworkReferralCapture";
+import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://matchharper.com")
-  .trim()
-  .replace(/\/$/, "");
+const SITE_URL = getConfiguredPublicSiteUrl();
 const LANDING_HOME_URL = `${SITE_URL}/`;
 const LANDING_OG_IMAGE_URL = `${SITE_URL}/images/logos/thumbnail.png`;
 const LANDING_LOGO_URL = `${SITE_URL}/images/logo.png`;
@@ -190,9 +189,9 @@ type LandingCopy = {
 const LANDING_COPY = {
   ko: {
     meta: {
-      title: "Harper - Your Career Agent",
+      title: "Harper(하퍼) - 나만의 AI 커리어 에이전트",
       description:
-        "Harper는 엔지니어의 기준을 대화로 이해하고, 맞는 회사와 포지션만 선별해 브리핑한 뒤 관심 있는 기회만 직접 연결합니다.",
+        "Harper(하퍼)는 엔지니어를 위한 AI 커리어 에이전트입니다. 대화로 경력과 이직 기준을 이해하고, 맞는 채용 기회를 추천하며, 동의한 기회에 한해 회사와 연결합니다.",
     },
     socialProofTitle: "이곳의 인재들이 신뢰합니다.",
     hero: {
@@ -428,9 +427,9 @@ const LANDING_COPY = {
   },
   en: {
     meta: {
-      title: "Harper - Your Career on Autopilot",
+      title: "Harper - Your AI Career Agent",
       description:
-        "Assign your next move to a private Agent. With just one conversation, Harper remembers your context, curates the perfect roles, and connects you directly with decision-makers.",
+        "Harper is a private AI career agent for engineers. Share your experience and job preferences, get personalized job recommendations, and connect with companies when you approve.",
     },
     socialProofTitle: "Trusted by top engineers from",
     hero: {
@@ -1828,6 +1827,7 @@ function buildLandingStructuredData(args: {
         "@type": "Organization",
         "@id": `${SITE_URL}/#organization`,
         name: "Harper",
+        alternateName: "하퍼",
         url: LANDING_HOME_URL,
         logo: {
           "@type": "ImageObject",
@@ -1841,6 +1841,7 @@ function buildLandingStructuredData(args: {
         "@type": "WebSite",
         "@id": `${SITE_URL}/#website`,
         name: "Harper",
+        alternateName: ["하퍼", "matchharper.com"],
         url: LANDING_HOME_URL,
         inLanguage: args.language,
         publisher: {

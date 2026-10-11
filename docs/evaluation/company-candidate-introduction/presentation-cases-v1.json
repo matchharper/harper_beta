@@ -1,0 +1,45 @@
+{
+  "version": "presentation-v1",
+  "provenance": "Synthetic, authored before the first model run on 2026-10-07. No production people, roles, or companies.",
+  "cases": [
+    {
+      "id": "UCIP001",
+      "locale": "en",
+      "roleName": "Backend Engineer",
+      "description": "Own a B2B billing service and operational reliability. People management is useful but not required.",
+      "headline": "Backend engineer",
+      "experience": "Owned the billing API from design to production for 120 business customers. Operated incident response and wrote the migration plan. No people-management responsibility is documented.",
+      "criteria": [
+        {
+          "name": "Production ownership",
+          "criteria": "Owned and operated a production backend service."
+        },
+        {
+          "name": "People management",
+          "criteria": "Evidence of directly managing engineers."
+        }
+      ],
+      "expectedFitness": {
+        "Production ownership": [
+          "excellent",
+          "good"
+        ],
+        "People management": [
+          "uncertain"
+        ]
+      },
+      "gold": "Credit the candidate for their own shipped and operated service. Do not infer people management, willingness to relocate, salary or selection by the company. Unknown management is uncertainty, not a demonstrated mismatch."
+    },
+    {
+      "id": "UCIP002",
+      "locale": "ko",
+      "roleName": "Product Manager",
+      "description": "고객 문제를 정의하고 제품 우선순위와 출시를 책임지는 PM.",
+      "headline": "엔지니어 출신 제품 담당자",
+      "experience": "6년간 소프트웨어를 개발했고 마지막 2년은 고객 인터뷰 25회, 기능 우선순위 결정, 디자이너와 출시 범위 조율을 직접 담당했다. 정식 직함은 소프트웨어 엔지니어였다.",
+      "criteria": [],
+      "expectedFitness": {},
+      "gold": "직함을 PM 경력으로 바꾸지 않고 실제 제품 의사결정 경험을 설명한다. criteria가 없으면 빈 배열. 후보자가 수락했다는 합성 입력 사실과 회사의 채용 의사를 구분한다."
+    }
+  ]
+}

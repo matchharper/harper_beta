@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v16",
+  "frozenAt": "2026-10-07T13:02:29.739309+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v16.json": "e480427c3cc44b66c52ab4dc3aef67c2739315afe4c8e0fc91a07df611f4da54",
+    "gold-v16.md": "c6728278bb3480ffc9ebfd810f30b50d32c51f7c9b5b9daef286f08c17e6e9fd",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "4 synthetic conversations / 5 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v16 --run=<new>",
+  "provenance": "Same synthetic inputs as v13. Expected policy updated before calls for user-approved Slot terminology and optional separately agreed Enterprise pricing.",
+  "model": "Current production company-side model/config; exact settings and source fingerprint saved per run",
+  "privacy": "Synthetic input only; DB and delivery forbidden; ignored owner-only raw artifacts",
+  "releaseGate": "4/4 manual review; zero critical failures; both exhausted actions observed without effects",
+  "knownLimitations": "One sample per case, synthetic executor, no actual retrieval/DB/transport E2E, independent label review pending"
+}

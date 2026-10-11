@@ -15,7 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -137,6 +137,28 @@ export default function CareerTasksPanel({
   const { locale } = useMessages();
   const router = useRouter();
   const tasks = useCareerTasks(true);
+  const [withdrawingRoleId, setWithdrawingRoleId] = useState<string | null>(
+    null
+  );
+  const [withdrawalError, setWithdrawalError] = useState<string | null>(null);
+  const withdrawPriorityReview = async (roleId: string) => {
+    setWithdrawingRoleId(roleId);
+    setWithdrawalError(null);
+    try {
+      const response = await fetch(
+        `/api/talent/pending-actions?priorityReviewRoleId=${encodeURIComponent(roleId)}`,
+        {
+          method: "DELETE",
+        }
+      );
+      if (!response.ok) throw new Error("Withdrawal failed");
+      tasks.refetch();
+    } catch {
+      setWithdrawalError(roleId);
+    } finally {
+      setWithdrawingRoleId(null);
+    }
+  };
   const taskSuggestions = useCareerTaskSuggestions();
   const openProfileLinks = () => {
     const isPreview = router.pathname === "/career/preview";
@@ -720,6 +742,73 @@ export default function CareerTasksPanel({
             description={searchActivity.description}
             action={<></>}
           />
+          {tasks.priorityReviews.map((review) => (
+            <TaskRow
+              key={review.id}
+              icon={<Search className="h-4 w-4" />}
+              meta={`${review.companyName} · ${review.roleTitle}`}
+              title={
+                review.reviewState === "reviewing"
+                  ? t(
+                      "career.tasks.priority_review_running",
+                      "프로필을 검토하고 있어요"
+                    )
+                  : review.reviewState === "reviewed"
+                    ? t(
+                        "career.tasks.priority_review_done",
+                        "프로필 검토를 마쳤어요"
+                      )
+                    : review.reviewState === "delayed"
+                      ? t(
+                          "career.tasks.priority_review_delayed",
+                          "프로필 검토가 지연되고 있어요"
+                        )
+                      : t(
+                          "career.tasks.priority_review_requested",
+                          "우선 검토를 요청했어요"
+                        )
+              }
+              description={
+                t(
+                  "career.tasks.priority_review_waiting",
+                  "회사의 인재 목록에 전달했고, 적절한 타이밍에 잘 소개할 수 있게 기다리고 있어요."
+                )
+              }
+              action={
+                <>
+                  <MuteButton
+                    size="sm"
+                    disabled={
+                      withdrawingRoleId !== null ||
+                      router.pathname === "/career/preview"
+                    }
+                    onClick={() => void withdrawPriorityReview(review.roleId)}
+                  >
+                    {withdrawingRoleId === review.roleId && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    )}
+                    {t(
+                      "career.tasks.priority_review_withdraw",
+                      "검토 요청 취소"
+                    )}
+                  </MuteButton>
+                  {withdrawalError === review.roleId && (
+                    <Text
+                      as="p"
+                      type="caption"
+                      className="text-critical"
+                      role="alert"
+                    >
+                      {t(
+                        "career.tasks.priority_review_withdraw_error",
+                        "요청을 취소하지 못했어요. 다시 시도해 주세요."
+                      )}
+                    </Text>
+                  )}
+                </>
+              }
+            />
+          ))}
         </>
       ),
     },

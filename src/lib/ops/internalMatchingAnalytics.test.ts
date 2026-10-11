@@ -18,7 +18,6 @@ function recommendation(
     companyName: "Acme",
     feedback: null,
     feedbackAt: null,
-    isAuto: true,
     processedStage: null,
     recommendedAt: "2026-09-01T01:00:00.000Z",
     roleName: "Engineer",
@@ -182,37 +181,27 @@ test("uses the latest internal tag before processed stage and feedback", () => {
   );
 });
 
-test("filters automatic and manual roles without counting test roles", () => {
+test("excludes test roles from matching metrics", () => {
   const recommendations = [
     recommendation({
-      exposureId: "auto",
-      isAuto: true,
-      roleId: "auto-role",
+      exposureId: "normal",
+      roleId: "normal-role",
       talentId: "talent-a",
     }),
     recommendation({
-      exposureId: "manual",
-      isAuto: false,
-      roleId: "manual-role",
+      exposureId: "test",
+      testOnly: true,
+      roleId: "test-role",
       talentId: "talent-b",
     }),
   ];
 
-  const automatic = compileOpsDebugInternalMatching({
+  const result = compileOpsDebugInternalMatching({
     progress: [],
     recommendations,
-    roleMode: "auto",
-    tags: [],
-  });
-  const manual = compileOpsDebugInternalMatching({
-    progress: [],
-    recommendations,
-    roleMode: "manual",
     tags: [],
   });
 
-  assert.equal(automatic.summary.cohortPairCount, 1);
-  assert.equal(manual.summary.cohortPairCount, 1);
-  assert.equal(automatic.breakdown[0]?.roleId, "auto-role");
-  assert.equal(manual.breakdown[0]?.roleId, "manual-role");
+  assert.equal(result.summary.cohortPairCount, 1);
+  assert.equal(result.breakdown[0]?.roleId, "normal-role");
 });

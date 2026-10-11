@@ -16,7 +16,7 @@ export async function refreshInternalAccessToken() {
   return session?.access_token ?? null;
 }
 
-export async function fetchWithInternalAuth<T>(
+export async function fetchResponseWithInternalAuth(
   input: string,
   init?: RequestInit
 ) {
@@ -46,8 +46,17 @@ export async function fetchWithInternalAuth<T>(
     }
   }
 
+  return response;
+}
+
+export async function fetchWithInternalAuth<T>(
+  input: string,
+  init?: RequestInit
+) {
+  const response = await fetchResponseWithInternalAuth(input, init);
   const payload = (await response.json().catch(() => ({}))) as T & {
     error?: string;
+    billingCode?: string;
   };
 
   if (!response.ok) {
@@ -56,6 +65,7 @@ export async function fetchWithInternalAuth<T>(
       new Error(payload.error ?? "요청을 처리하지 못했습니다."),
       {
         status: response.status,
+        billingCode: payload.billingCode,
       }
     );
   }

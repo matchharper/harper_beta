@@ -289,6 +289,7 @@ export async function deliverCompanyTalentRelay(args: {
       const { data: document, error: documentError } = await admin
         .from("talent_documents")
         .select("file_name")
+        .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
         .eq("id", relay.document_id)
         .eq("talent_id", request.talent_id)
         .eq("is_public", true)

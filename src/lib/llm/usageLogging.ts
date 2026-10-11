@@ -1,4 +1,5 @@
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
+import { getLlmUsageContext } from "./usageContext";
 import {
   getLlmModelPricing,
   getRealtimeModelPricing,
@@ -637,13 +638,15 @@ async function insertLlmLog(args: {
   source: string;
 }) {
   try {
+    const context = getLlmUsageContext();
     const admin = getTalentSupabaseAdmin() as any;
     const { error } = await admin.from("llm_logs").insert({
       cost_status: args.costStatus ?? "priced",
       estimated_cost_usd: Number.isFinite(args.estimatedCostUsd)
         ? args.estimatedCostUsd
         : 0,
-      meta: args.meta,
+      ...(context?.userId ? { user_id: context.userId } : {}),
+      meta: { ...context, ...args.meta },
       model: args.model,
       source: args.source,
     });

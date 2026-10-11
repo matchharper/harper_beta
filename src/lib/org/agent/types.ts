@@ -1,4 +1,5 @@
 import type { OrgAgentModelId } from "@/lib/org/agent/modelConfig";
+import type { BillingActionNotice } from "@/lib/org/billing/types";
 import type {
   MeetingScheduleAdditionalMessage,
   MeetingScheduleDraftBlocker,
@@ -144,6 +145,10 @@ export type OrgAgentMessageAction =
     };
 
 export type OrgAgentMessageMetadata = {
+  /** Rendered by web/Slack only; excluded from conversation and summary inputs. */
+  billingNotice?: BillingActionNotice;
+  /** Stable browser submission identity for company onboarding recovery. */
+  onboardingSubmissionId?: string;
   /**
    * Server-authored delivery identity for one company-side LLM turn. This is
    * deliberately structural: the model decides whether a progress or terminal
@@ -178,6 +183,14 @@ export type OrgAgentMessageMetadata = {
   companyMatchingSearchResult?: {
     idempotencyKey: string;
     runId: string;
+    /** Message boundaries retained for exact Slack rendering and delivery retry. */
+    parts?: Array<{ candidateId: string | null; text: string }>;
+  };
+  /** Durable receipt identity for candidate-card posts, without a new table. */
+  slackCandidateDelivery?: {
+    deliveryKey: string;
+    postKey: string;
+    channelId: string;
   };
   contactDraftRef?: {
     contactId: string;

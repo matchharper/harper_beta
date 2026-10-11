@@ -1,0 +1,56 @@
+{
+  "task": "career-voice-onboarding-cost",
+  "datasetVersion": "pilot-v2",
+  "asOf": "2026-10-06T07:00:00.000Z",
+  "rawUsagePath": "docs/evaluation/career-voice-onboarding/private/usage-v2.json",
+  "rawUsageSha256": "73631a638685b2248dedbc0e304197dea5247a452e7fa29b48717e8d4372f467",
+  "frozenGoldSha256": "aaf8bf2c80d07dda4588c060855cd49c7e6bacc07d6445c45ebcb8f1146a65d9",
+  "runnerSha256": "281a1c75c35104d0968c3ff3d4a6f2075d2dc3c50a1f8ba29b7359cdc741e275",
+  "costSummarySha256": "f730b327a0523aaa3770e50fc70ba47964f479fce812c780fbb05641ab747620",
+  "sourceRevision": "49d98d64314bd8e112036529ddcf2754e8968524",
+  "pricingSourceUrls": [
+    "https://developers.openai.com/api/docs/models/gpt-live-1",
+    "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+    "https://developers.openai.com/api/docs/models/gpt-realtime-2.1"
+  ],
+  "metricSummary": {
+    "mature|gpt-realtime-2.1": {
+      "assigned": 59,
+      "attempts": 55,
+      "ready": 23,
+      "meteredUsers": 42,
+      "unmeteredUsers": 17,
+      "meteredReady": 23,
+      "realtimeRows": 662,
+      "audioRows": 0,
+      "delegationRows": 0,
+      "liveAudioSeconds": 0,
+      "realtimeUsd": 36.937470399999995,
+      "liveAudioUsd": 0,
+      "liveDelegationUsd": 0,
+      "totalUsd": 36.937470399999995,
+      "perAssignedUsd": 0.626058820338983,
+      "perMeteredUsd": 0.8794635809523809,
+      "perConfirmedReadyUsd": 1.6059769739130432
+    },
+    "mature|gpt-live-1": {
+      "assigned": 54,
+      "attempts": 48,
+      "ready": 13,
+      "meteredUsers": 35,
+      "unmeteredUsers": 19,
+      "meteredReady": 13,
+      "realtimeRows": 0,
+      "audioRows": 34,
+      "delegationRows": 181,
+      "liveAudioSeconds": 13576,
+      "realtimeUsd": 0,
+      "liveAudioUsd": 11.313333333333334,
+      "liveDelegationUsd": 7.127450400000001,
+      "totalUsd": 18.440783733333337,
+      "perAssignedUsd": 0.34149599506172845,
+      "perMeteredUsd": 0.5268795352380954,
+      "perConfirmedReadyUsd": 1.418521825641026
+    }
+  }
+}

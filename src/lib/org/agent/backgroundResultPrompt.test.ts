@@ -67,3 +67,17 @@ test("only the first delivered company-first result receives onboarding writing 
   assert.match(first[0]?.content ?? "", /Prioritize compensation/);
   assert.equal(later[0]?.content, "base instructions");
 });
+
+test("scheduled capacity update does not impersonate a company search request", () => {
+  const messages = buildOrgAgentBackgroundResultMessages({
+    companyName: "Example", requestedByCompany: false,
+    requestMessage: "unrelated old company message",
+    resultText: "- 이번 검색은 후보자 선추천만 중단. 연결 대기 14명, 상한 10명.",
+    roleId: "role-1", roleName: "Engineer", systemPrompt: "full company-side instructions",
+  });
+  assert.equal(messages.length, 2);
+  assert.match(messages[0]!.content, /scheduled matching update/);
+  assert.match(messages[1]!.content, /연결 대기 14명/);
+  assert.ok(messages.every(message => !message.tool_calls));
+  assert.ok(messages.every(message => !message.content.includes("unrelated old company message")));
+});

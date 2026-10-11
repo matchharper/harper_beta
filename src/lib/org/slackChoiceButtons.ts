@@ -190,6 +190,7 @@ export function decodeHarperSlackChoiceActionValue(
 
 export function buildHarperSlackChoiceBlocks(args: {
   choices: HarperSlackChoice[];
+  maxBlocks?: number;
   sourceJobId: string;
   text: string;
 }): HarperSlackBlock[] {
@@ -204,7 +205,8 @@ export function buildHarperSlackChoiceBlocks(args: {
     type: "section",
     text: { type: "mrkdwn", text: section },
   }));
-  const sectionLimit = 50 - (args.choices.length > 0 ? 1 : 0);
+  const blockLimit = Math.min(50, Math.max(1, args.maxBlocks ?? 50));
+  const sectionLimit = blockLimit - (args.choices.length > 0 ? 1 : 0);
   if (args.choices.length === 0) {
     return sections.slice(0, sectionLimit);
   }

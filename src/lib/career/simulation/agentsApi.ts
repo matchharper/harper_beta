@@ -7,7 +7,8 @@ export class ApplicationBrowserApiError extends Error {
 export async function agentsRequest<T = Record<string, unknown>>(
   path: string,
   body?: unknown,
-  method = body === undefined ? "GET" : "POST"
+  method = body === undefined ? "GET" : "POST",
+  signal?: AbortSignal
 ): Promise<T> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("Application browser is not configured");
@@ -19,7 +20,7 @@ export async function agentsRequest<T = Record<string, unknown>>(
       "Content-Type": "application/json",
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    signal: AbortSignal.timeout(60_000),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000),
   });
   if (!response.ok)
     throw new ApplicationBrowserApiError(response.status);

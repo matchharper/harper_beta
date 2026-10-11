@@ -1,5 +1,5 @@
-import { useOrgLocale, useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
-import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { opsTheme } from "@/components/ops/theme";
@@ -8,14 +8,7 @@ import {
   isOrgInboxStage,
   ORG_STAGE_DESCRIPTIONS,
 } from "@/lib/org/pipelineStage";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import {
   ReviewPipelineColumnHeader,
   ReviewPipelineColumnShell,
@@ -67,7 +60,6 @@ function getCustomStageDbId(stageId: OrgStageId) {
 export function OrgPipeline() {
   const t = useOrgT();
   const sourceT = useOrgSourceT();
-  const { locale } = useOrgLocale();
   const { board, boardQuery, profileLabelsError, profileLabelsLoading } =
     useOrgJobsBoard();
   const {
@@ -267,7 +259,9 @@ export function OrgPipeline() {
     event.preventDefault();
     const label = customStageLabel.trim();
     if (!label) {
-      setCustomStageError(t("OrgPipeline.6b47dbef", "칼럼 이름을 입력해 주세요."));
+      setCustomStageError(
+        t("OrgPipeline.6b47dbef", "칼럼 이름을 입력해 주세요.")
+      );
       return;
     }
     if (activeRoleId === "all") return;
@@ -491,29 +485,28 @@ export function OrgPipeline() {
         onClose={closeCustomStageDialog}
       />
 
-      <Dialog
+      <TalentCareerModal
         open={Boolean(stageToDelete)}
-        onOpenChange={(open) => {
-          if (!open && !deleteCustomStage.isPending) setStageToDelete(null);
+        onClose={() => {
+          if (!deleteCustomStage.isPending) setStageToDelete(null);
         }}
-      >
-        <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[17px]">
-              {t("OrgPipeline.5bcdc5fb", "칼럼 삭제")}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {t("composed.deletePipelineColumn", "“{stageLabel}” 칼럼을 삭제합니다. 후보자가 남아 있다면 먼저 다른 칼럼으로 이동해 주세요.", {
+        mobileBottomSheet
+        title={<>{t("OrgPipeline.5bcdc5fb", "칼럼 삭제")}</>}
+        description={
+          <>
+            {t(
+              "composed.deletePipelineColumn",
+              "“{stageLabel}” 칼럼을 삭제합니다. 후보자가 남아 있다면 먼저 다른 칼럼으로 이동해 주세요.",
+              {
                 stageLabel: stageToDelete?.label ?? "",
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          {customStageActionError ? (
-            <div className="text-[12px] text-critical" role="alert">
-              {customStageActionError}
-            </div>
-          ) : null}
-          <DialogFooter>
+              }
+            )}
+          </>
+        }
+        panelClassName="max-w-sm"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <MuteButton
               disabled={deleteCustomStage.isPending}
               onClick={() => setStageToDelete(null)}
@@ -534,9 +527,15 @@ export function OrgPipeline() {
               ) : null}
               {t("OrgPipeline.5a1f1bb5", "삭제")}
             </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        }
+      >
+        {customStageActionError ? (
+          <div className="text-[12px] text-critical" role="alert">
+            {customStageActionError}
+          </div>
+        ) : null}
+      </TalentCareerModal>
 
       <AcceptIntroDialog
         key={acceptRequest?.item.recommendationId ?? "accept-dialog"}
@@ -575,20 +574,25 @@ export function OrgPipeline() {
         }) => {
           if (!acceptRequest) return;
           const stage = acceptRequest.stage;
-          const result = await onStageChange(acceptRequest.item, stage, {
-            acceptReason,
-            additionalMessage,
-            additionalMessageVisibility,
-            attendeeEmails,
-            contactDirectly,
-            durationMinutes,
-            introEmails,
-            meetingCandidateMessage,
-            meetingPurpose,
-            reengagementResolution: acceptRequest.reengagementResolution,
-            scheduleInterview,
-            title,
-          });
+          const result = await onStageChange(
+            acceptRequest.item,
+            stage,
+            {
+              acceptReason,
+              additionalMessage,
+              additionalMessageVisibility,
+              attendeeEmails,
+              contactDirectly,
+              durationMinutes,
+              introEmails,
+              meetingCandidateMessage,
+              meetingPurpose,
+              reengagementResolution: acceptRequest.reengagementResolution,
+              scheduleInterview,
+              title,
+            },
+            "inline"
+          );
           setAcceptRequest(null);
           return result;
         }}
@@ -607,9 +611,14 @@ export function OrgPipeline() {
         onClose={() => setStopItem(null)}
         onSubmit={async ({ note }) => {
           if (!stopItem) return;
-          await onStageChange(stopItem, "process_stopped", {
-            stopNote: note,
-          });
+          await onStageChange(
+            stopItem,
+            "process_stopped",
+            {
+              stopNote: note,
+            },
+            "inline"
+          );
           setStopItem(null);
         }}
       />
@@ -625,25 +634,20 @@ export function OrgPipeline() {
         onClose={() => setCompanyIntroRequest(null)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
           if (!companyIntroRequest?.item.companyIntro) return;
-          try {
-            await requestCompanyIntro.mutateAsync({
-              companyAppeal,
-              introCandidateId: companyIntroRequest.item.companyIntro.id,
-              introRecipientEmails,
-              workspaceId,
-            });
-            setCompanyIntroRequest(null);
-            addToast({
-              message: t("OrgPipeline.996bc47c", "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."),
-              variant: "success",
-            });
-          } catch (error) {
-            addToast({
-              message: localizedOrgErrorMessage(error, locale, t("OrgPipeline.a60bc63f", "제안을 처리하지 못했습니다.")),
-              variant: "error",
-            });
-            throw error;
-          }
+          await requestCompanyIntro.mutateAsync({
+            companyAppeal,
+            introCandidateId: companyIntroRequest.item.companyIntro.id,
+            introRecipientEmails,
+            workspaceId,
+          });
+          setCompanyIntroRequest(null);
+          addToast({
+            message: t(
+              "OrgPipeline.996bc47c",
+              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."
+            ),
+            variant: "success",
+          });
         }}
         open={Boolean(companyIntroRequest)}
         pending={requestCompanyIntro.isPending}
@@ -664,7 +668,10 @@ export function OrgPipeline() {
           });
           setCompanyIntroPass(null);
           addToast({
-            message: t("OrgPipeline.ddb7afc1", "후보자에게 제안하지 않고 목록에서 제외했습니다."),
+            message: t(
+              "OrgPipeline.ddb7afc1",
+              "후보자에게 제안하지 않고 목록에서 제외했습니다."
+            ),
             variant: "success",
           });
         }}

@@ -1,0 +1,401 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Unified talent role matching: local runtime output contracts",
+  "description": "Matches local evaluators and selectors, not yet deployed. Exact ID coverage, capacity, current revisions, authorization and consent are executor checks.",
+  "$defs": {
+    "grade": {
+      "type": "string",
+      "enum": [
+        "perfect",
+        "good",
+        "worth_considering",
+        "bad",
+        "unfit"
+      ]
+    },
+    "stageOneOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluations"
+      ],
+      "properties": {
+        "evaluations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pairRef",
+              "proceedToStage2",
+              "reason"
+            ],
+            "properties": {
+              "pairRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1800
+              },
+              "proceedToStage2": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "stageTwoOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluations"
+      ],
+      "properties": {
+        "evaluations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "pairRef",
+              "roleFit",
+              "candidateFit",
+              "companyFit",
+              "candidateReason",
+              "companyReason",
+              "missingInfo"
+            ],
+            "properties": {
+              "pairRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "roleFit": {
+                "$ref": "#/$defs/grade"
+              },
+              "candidateFit": {
+                "$ref": "#/$defs/grade"
+              },
+              "companyFit": {
+                "$ref": "#/$defs/grade"
+              },
+              "missingInfo": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 600
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "candidateReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1800
+              },
+              "companyReason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1800
+              }
+            }
+          }
+        }
+      }
+    },
+    "roleRerankOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviews",
+        "noSelectionReason"
+      ],
+      "properties": {
+        "reviews": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "talentId",
+              "primaryRoleId",
+              "decision",
+              "alsoSuitableRoleIds",
+              "reason"
+            ],
+            "properties": {
+              "talentId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "primaryRoleId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "decision": {
+                "enum": [
+                  "candidate_first",
+                  "company_first",
+                  "both",
+                  "no_action"
+                ]
+              },
+              "alsoSuitableRoleIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "maxItems": 2
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "maxItems": 48
+        },
+        "noSelectionReason": {
+          "type": "string"
+        }
+      }
+    },
+    "companyPresentationOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tldr",
+        "harperNote",
+        "finalFit",
+        "criteriaEvaluations"
+      ],
+      "properties": {
+        "tldr": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 700
+        },
+        "harperNote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320
+        },
+        "finalFit": {
+          "type": "string",
+          "enum": [
+            "excellent",
+            "good",
+            "borderline",
+            "uncertain",
+            "unfit"
+          ]
+        },
+        "criteriaEvaluations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "criterionRef",
+              "fitness",
+              "content"
+            ],
+            "properties": {
+              "fitness": {
+                "type": "string",
+                "enum": [
+                  "excellent",
+                  "good",
+                  "uncertain",
+                  "bad"
+                ]
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1800
+              },
+              "criterionRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            }
+          }
+        }
+      }
+    },
+    "clarificationPreparationOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "reason"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "roleIds",
+              "missingInfo"
+            ],
+            "properties": {
+              "roleIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "missingInfo": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              }
+            }
+          },
+          "maxItems": 8
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "talentSelectionOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selections",
+        "reason"
+      ],
+      "properties": {
+        "selections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "roleId",
+              "reason"
+            ],
+            "properties": {
+              "roleId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "maxItems": 3
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "contactSelectionOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "roleIds",
+        "reason"
+      ],
+      "properties": {
+        "roleIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "finalDeliveryClarifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "askedClarifications"
+      ],
+      "properties": {
+        "askedClarifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref",
+              "question"
+            ],
+            "properties": {
+              "ref": {
+                "type": "string",
+                "minLength": 1
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "maxItems": 5
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/stageOneOutput"
+    },
+    {
+      "$ref": "#/$defs/stageTwoOutput"
+    },
+    {
+      "$ref": "#/$defs/roleRerankOutput"
+    },
+    {
+      "$ref": "#/$defs/companyPresentationOutput"
+    },
+    {
+      "$ref": "#/$defs/clarificationPreparationOutput"
+    },
+    {
+      "$ref": "#/$defs/talentSelectionOutput"
+    },
+    {
+      "$ref": "#/$defs/contactSelectionOutput"
+    },
+    {
+      "$ref": "#/$defs/finalDeliveryClarifications"
+    }
+  ]
+}

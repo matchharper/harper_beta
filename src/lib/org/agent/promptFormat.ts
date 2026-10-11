@@ -1,5 +1,6 @@
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
-import type { OrgAgentMoreDataResult } from "@/lib/org/agent/data";
+import type { OrgAgentMoreDataToolResult } from "@/lib/org/agent/data";
+import type { MatchingRunHistory } from "@/lib/companyFirstSearch/history";
 import {
   humanizeOrgEmploymentType,
   humanizeOrgFeedback,
@@ -322,6 +323,7 @@ function formatContactListResult(result: Record<string, any>) {
   const items = Array.isArray(result.items) ? result.items : [];
   return [
     "status=ok",
+    "조회 범위: 이 회사와 후보자 사이에 공유되는 연락·일정·진행 안내. 후보자와 Harper 사이의 비공개 추천 피드백·열람 정보는 이 목록에 포함되지 않는다. 빈 목록으로 그 정보의 유무를 판단할 수 없다.",
     `date_basis=${formatPromptCell(result.dateBasis, 20)} ${pageLine(result)}`,
     formatPromptSection(
       "contacts",
@@ -634,6 +636,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
     : [];
   return [
     "status=ok",
+    ...(typeof result.responseGuide === "string" ? [formatPromptSection("candidate_read_notes", formatPromptMarkdown(result.responseGuide, 800))] : []),
     `progress_offset=${Number(progressPage.offset ?? 0)} progress_limit=${Number(progressPage.limit ?? progress.length)} progress_has_more=${progressPage.hasMore === true}`,
     `candidate_preferred_language=${formatPromptCell(result.candidatePreferredLanguage, 40)}`,
     formatPromptSection(
@@ -704,6 +707,21 @@ function formatSingleTalentResult(result: Record<string, any>) {
         ]
       )
     ),
+    ...(positions.some((item: any) => Object.hasOwn(item ?? {}, "harperRecommendation")) ? [
+      formatPromptSection("harper_recommendations", [
+        "Harper가 후보자에게 먼저 추천한 기록. 회사의 Intro 요청 발송과는 별개다.",
+        "앱 카드 생성은 이메일 발송이 아니다. 이메일 발송 기록 없음은 미발송을 확정하지 않는다.",
+        "후보자의 열람 여부: 알 수 없음. 관심 표현 여부: 알 수 없음. 선추천에 대한 후보자의 수락·거절 응답: 이 조회에서 제공하지 않음.",
+        formatPromptTable(
+          ["role_id", "role", "앱 추천 카드 생성", "추천 이메일 발송"],
+          positions.filter((item: any) => Object.hasOwn(item ?? {}, "harperRecommendation")).map((item: any) => [
+            item.roleId, item.roleName,
+            item.harperRecommendation?.availableInAppAt ? formatPromptKstDateTime(item.harperRecommendation.availableInAppAt) : "조회 가능한 정보로 확인 불가",
+            item.harperRecommendation?.emailSentAt ? formatPromptKstDateTime(item.harperRecommendation.emailSentAt) : "조회 가능한 정보로 확인 불가",
+          ]), [100, 160, 60, 60]
+        ),
+      ].join("\n")),
+    ] : []),
     formatPromptSection(
       "recent_progress",
       formatPromptTable(
@@ -727,7 +745,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
         [10, 240]
       )
     ),
-    formatPromptSection(
+    Array.isArray(result.requestHistory) ? formatPromptSection(
       "company_contact_history",
       formatPromptTable(
         [
@@ -775,8 +793,8 @@ function formatSingleTalentResult(result: Record<string, any>) {
           1_600, 300, 10,
         ]
       )
-    ),
-    formatPromptSection(
+    ) : "회사 연락 이력: 이번 조회에 포함되지 않음. 필요한 경우 list_contacts로 회사에 공개된 연락을 조회할 수 있다.",
+    Array.isArray(result.meetingHistory) ? formatPromptSection(
       "meeting_coordination",
       formatPromptTable(
         [
@@ -809,16 +827,18 @@ function formatSingleTalentResult(result: Record<string, any>) {
         ]),
         [100, 160, 120, 700, 20, 180, 220, 40, 40, 10, 40, 40]
       )
-    ),
-    "Harper에게 말해준 정보. 후보자가 Harper에게 공유한 직업 관련 정보이며, 없는 내용은 추정하지 마세요. 보상 정보는 이 목록에 포함되지 않습니다.",
-    formatPromptSection(
+    ) : "일정 조율 이력: 이번 조회에 포함되지 않음.",
+    ...(Array.isArray(result.harperSharedInformation) ? [
+      "Harper에게 말해준 정보. 후보자가 Harper에게 공유한 직업 관련 정보이며, 없는 내용은 추정하지 마세요. 보상 정보는 이 목록에 포함되지 않습니다.",
+      formatPromptSection(
       "harper_shared_information",
       formatPromptTable(
         ["item", "candidate_shared_information"],
         harperSharedInformation.map((item: any) => [item?.label, item?.value]),
         [120, 600]
       )
-    ),
+      ),
+    ] : ["Harper에게 말해준 직업 관련 정보: 이번 조회에 포함되지 않음."]),
     result.profileIncluded && Object.keys(profile).length > 0
       ? formatTalentProfile(profile)
       : "profile_included=false",
@@ -1076,10 +1096,44 @@ function formatRoleResult(result: Record<string, any>) {
   ].join("\n");
 }
 
-export function serializeOrgAgentMoreData(value: OrgAgentMoreDataResult) {
+export function formatMatchingRunHistory(value: MatchingRunHistory) {
+  const missing = "기록 없음 (0으로 해석하지 않음)";
+  const statuses: Record<string, string> = { queued: "실행 대기", running: "실행 중", delivery_pending: "회사에 결과 전달 중", succeeded: "완료", failed: "실패", skipped: "실행 건너뜀", canceled: "취소", cancelled: "취소" };
+  const triggers: Record<string, string> = { scheduled: "정기 검색", company_requested: "회사의 검색 요청", role_activated: "역할 활성화", priority_review_requested: "후보자의 우선 검토 요청", manual: "수동 실행", recovery: "복구 실행", shadow: "실제 추천 없는 검증 실행" };
+  const measure = (count: number | null, unit: string) => count === null ? missing : `${count}${unit}`;
+  const rows = value.items.map((item, index) => [
+    `### 검색 ${value.offset + index + 1} · ${formatPromptCell(statuses[item.status] ?? item.status, 50)}`,
+    `실행: ${formatPromptKstDateTime(item.createdAt)}, ${formatPromptCell(triggers[item.trigger] ?? item.trigger, 80)}`,
+    `대상 역할: ${item.roles.map(role => `${formatPromptCell(role.name, 250)} (${role.roleId})`).join(", ") || missing}`,
+    `전체 검토: ${measure(item.reviewedTalents ?? null, "명")}`,
+    `회사에게 먼저 추천할 후보자 선정: ${measure(item.companyProposals, "명")} · 후보자에게 먼저 추천 선정: ${measure(item.candidateProposalsSelected, "명")}`,
+    ...(item.candidateOutreachPauses?.length ? [
+      `후보자에게 먼저 제안하는 경로 중단: ${item.candidateOutreachPauses.map(fact =>
+        `${formatPromptCell(item.roles.find(role => role.roleId === fact.roleId)?.name ?? fact.roleId, 250)} · 당시 연결 대기 ${fact.pendingCount}명 / 상한 ${fact.maxPendingTalents}명`).join("; ")}. 이 상한은 회사에 먼저 후보를 제안하는 경로에는 적용하지 않음. 검색·fit 평가 전체를 생략했다는 의미가 아님. Role-based 검색의 새 후보자 선추천은 연결 대기가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아님.`,
+    ] : [item.candidateOutreachPauses === undefined
+      ? "당시 연결 대기 인원과 선추천 상한 중단 여부는 이 실행 기록에 남아 있지 않아 확인할 수 없음. 비공개라서 숨기는 값이 아니라 과거 측정 기록이 없는 상태임."
+      : "이번 실행에는 연결 대기 상한 때문에 후보자 선추천을 중단한 역할이 없음."]),
+    `검색 판단 근거: ${formatPromptMarkdown(item.searchReason, 300)}`,
+    `검색 방향: ${formatPromptMarkdown(item.searchStrategy, 500)}`,
+  ].join("\n"));
+  return [
+    "회사 전체 검색 실행 이력 (최신 등록 순). 아래 인원은 이번 검색에서 선정한 수다. 실제 추천 발송·후보자 수락·회사 수락·연결 완료 여부는 이 이력에서 제공하지 않는다.",
+    "양쪽에 선정된 동일 후보자가 두 방향 수에 포함될 수 있다. 기록이 없는 수치는 0이 아니다. 개별 비공개 fit/선정 이유는 제공하지 않는다.",
+    "역할의 연결 대기 인원·선추천 상한 중단 여부는 기록이 있으면 회사에 설명할 수 있는 운영 사실이다. 상한 해소는 다음 검색에서 새 후보자 선추천 경로를 허용할 뿐, 후보 선정·추천 발송을 보장하지 않는다.",
+    rows.length ? rows.join("\n\n") : "이 페이지에 검색 실행 기록 없음.",
+    value.nextOffset === null ? "다음 페이지 없음." :
+      `더 오래된 실행: get_more_data(kinds=[\"matching_runs\"], offset=${value.nextOffset}). 개별 run 상세 조회는 제공하지 않는다.`,
+    "개인 정보 보호를 이유로 후보자에게 먼저 추천한 내역을 공유받지 못함.",
+  ].join("\n\n");
+}
+
+export function serializeOrgAgentMoreData(value: OrgAgentMoreDataToolResult) {
   const blocks: string[] = [
     `requested=${value.requestedKinds.join(",") || EMPTY_CELL}`,
   ];
+  if (value.matchingRuns) {
+    blocks.push(formatPromptSection("matching_runs", formatMatchingRunHistory(value.matchingRuns)));
+  }
   if (value.members) {
     blocks.push(
       [
@@ -2175,7 +2229,7 @@ export function serializeOrgAgentToolResult(
     ].join("\n");
   }
   if (name === "get_more_data") {
-    return serializeOrgAgentMoreData(value as OrgAgentMoreDataResult);
+    return serializeOrgAgentMoreData(value as OrgAgentMoreDataToolResult);
   }
   if (name === "read_conversation_history") {
     return formatConversationHistoryResult(result);
@@ -2224,7 +2278,7 @@ export function serializeOrgAgentToolResult(
   throw new Error(`Unsupported tool result: ${unsupported}`);
 }
 
-type OrgAgentToolErrorKind = "budget" | "execution" | "input" | "unknown_tool";
+type OrgAgentToolErrorKind = "blocked" | "budget" | "execution" | "input" | "unknown_tool";
 
 function isOrgAgentReadOrPreparationTool(name?: OrgAgentToolName | string) {
   return [
@@ -2245,6 +2299,9 @@ function orgAgentToolRecoveryInstruction(args: {
   kind: OrgAgentToolErrorKind;
   name?: OrgAgentToolName | string;
 }) {
+  if (args.kind === "blocked") {
+    return "This action is unavailable. Repeating the same request will not resolve it. The application displays the required next step separately. State that the action could not be completed without inventing a cause or suggesting a retry. Continue independently requested work when safe.";
+  }
   if (args.kind === "budget") {
     return "Tool use is unavailable for the rest of this turn. Explain what completed, what remains incomplete, and the smallest next step. Do not claim an unexecuted action.";
   }
@@ -2336,6 +2393,7 @@ export function serializeOrgAgentToolError(
     structured.kind === "execution" &&
     isOrgAgentReadOrPreparationTool(structured.name);
   const executionFact =
+    structured.kind === "blocked" ||
     structured.kind === "input" ||
     structured.kind === "budget" ||
     structured.kind === "unknown_tool"

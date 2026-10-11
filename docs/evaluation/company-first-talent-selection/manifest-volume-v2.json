@@ -1,0 +1,22 @@
+{
+  "datasetVersion": "volume-v2",
+  "createdAt": "2026-10-08T07:32:07.458129+00:00",
+  "input": "cases-volume-v2.json",
+  "fixtureSha256": "3d0cb106c604c9ad1b6119aaab986dc656c185342a25d50dcd0cf1366f6ced8e",
+  "evaluationUnit": "synthetic company × role × 25-candidate rerank",
+  "scenarios": 2,
+  "provenance": "Synthetic structural-input correction frozen before the first volume-v2 model run. All volume-v1 candidate evidence, response counts and count expectations preserved. Explicit paid matching slot is added because current runtime treats the absent entitlement as unavailable. Codex review; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "stage": "before first v2 call",
+      "change": "Keep v1 count gold and evidence unchanged; declare matching_slot_type=paid to exercise selectable routes. The previous v1 run is retained as a stale-input failure, not a prompt regression."
+    }
+  ],
+  "promptInputContract": "Actual production rerank_input, rerank and parser. Private full Brief/Behavior and role/pipeline context are available; selected reason follows the Harper Note writing contract and remains internal. No presentation, DB or delivery.",
+  "metricsAndGate": "Count bounds 2/2, zero invalid routes or schema failures; manual reading of all selected reasons for supported interpretation, compactness and source fidelity. Count pass alone is not full quality approval.",
+  "canonicalRunner": "harper_worker/llm_evals/company_first_talent_selection/run_volume.py --dataset v2 --run-id <new-id>",
+  "modelConfig": "Current runtime configuration; resolved provider/model/reasoning/sampling/fallback saved in each run manifest.",
+  "privacy": "Synthetic only; raw artifacts in ignored owner-only runs.",
+  "knownLimitations": "Two scenarios of one role, Codex-authored count expectations, no independent gold, no retrieval/scoring/reply improvement estimate."
+}

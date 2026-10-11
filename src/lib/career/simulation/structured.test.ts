@@ -593,3 +593,121 @@ test("version 4 combines evidence and preparation in two calls and preserves old
   assert.equal(failed.steps[0].status, "completed");
   assert.equal(failed.steps[1].status, "failed");
 });
+
+test("review repair identifies missing coverage, disposition and dangling evidence precisely", () => {
+  const previous = [roleResult, comparisonResult] as {
+    data: StructuredResult;
+  }[];
+  const wrong = structuredClone(reviewResult);
+  wrong.data.actions[0].evidenceIds = ["E404"];
+  wrong.data.actionCoverage[0].disposition = "deferred";
+  const issues = stageOutputIssues(wrong, "review", previous);
+  assert.ok(
+    issues.some(
+      (i) =>
+        i.includes("data.actions[0].evidenceIds: unknown evidence E404") &&
+        i.includes("E1")
+    )
+  );
+  assert.ok(
+    issues.some((i) => i.includes("data.actionCoverage[0].disposition"))
+  );
+  wrong.data.actionCoverage = [];
+  assert.ok(
+    stageOutputIssues(wrong, "review", previous).some((i) =>
+      i.includes("provide exactly one row for R1")
+    )
+  );
+});
+
+test("combined review repairs a broken evidence reference without discarding completed role analysis", async () => {
+  const combined = {
+    ...structuredClone(reviewResult),
+    data: {
+      ...structuredClone(reviewResult.data),
+      comparison: comparisonResult.data,
+    },
+  };
+  const result = await runSimulationWorkflow({
+    state: {
+      ...initial(),
+      version: 4,
+      steps: [
+        { key: "role", status: "pending" },
+        { key: "review", status: "pending" },
+      ],
+    },
+    input: {
+      role: "JD",
+      resume: "Resume",
+      candidate: "Profile",
+      language: "ko",
+    },
+    publish: async () => {},
+    complete: async ({ key, attempt, input }) => {
+      if (key === "role") return JSON.stringify(roleResult);
+      if (attempt === 1) {
+        const bad = structuredClone(combined);
+        bad.data.actions[0].evidenceIds = ["E_missing"];
+        return JSON.stringify(bad);
+      }
+      assert.ok(
+        JSON.parse(input).repair.issues.some(
+          (i: string) =>
+            i.includes("unknown evidence E_missing") && i.includes("E1")
+        )
+      );
+      return JSON.stringify(combined);
+    },
+  });
+  assert.equal(result.status, "completed");
+  assert.equal(result.steps[0].attempts, 1);
+  assert.equal(result.steps[1].attempts, 2);
+});
+
+test("review derives reverse links without another model call and preserves no-action judgment", async () => {
+  const { deriveActionCoverage, simulationSchemaForInput } =
+    await import("./structured");
+  const raw = structuredClone(reviewResult);
+  raw.data.actionCoverage[0].actionIds = [];
+  const normalized = deriveActionCoverage(raw) as typeof raw;
+  assert.deepEqual(normalized.data.actionCoverage[0].actionIds, ["A1"]);
+  assert.equal(
+    normalized.data.actionCoverage[0].reason,
+    raw.data.actionCoverage[0].reason
+  );
+  const final = await runSimulationWorkflow({
+    state: initial(),
+    input: {
+      role: "JD",
+      candidate: "Profile",
+      resume: "Resume",
+      language: "ko",
+    },
+    publish: async () => {},
+    complete: async ({ key }) =>
+      JSON.stringify(key === "review" ? raw : fixtures[key]),
+  });
+  assert.equal(final.status, "completed");
+  assert.equal(final.steps[2].attempts, 1);
+  const schema = simulationSchemaForInput("review", {
+    rubric: roleResult as never,
+    workflowVersion: 4,
+  });
+  const coverage = schema.properties!.data.properties!.actionCoverage;
+  assert.equal(coverage.items!.properties!.actionIds, undefined);
+  const action = schema.properties!.data.properties!.actions.items!;
+  assert.deepEqual(action.properties!.requirementIds.items!.enum, ["R1"]);
+  assert.equal(action.properties!.questions.items!.enum, undefined);
+  assert.equal(action.properties!.evidenceIds.items!.enum, undefined);
+  assert.equal(action.properties!.linkedActionIds.items!.enum, undefined);
+  assert.deepEqual(coverage.items!.properties!.requirementId.enum, ["R1"]);
+  const noAction = structuredClone(raw);
+  noAction.data.actions = [];
+  noAction.data.actionCoverage[0].disposition = "deferred";
+  assert.equal(
+    (deriveActionCoverage(noAction) as typeof raw).data.actionCoverage[0]
+      .disposition,
+    "deferred"
+  );
+});

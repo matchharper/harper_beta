@@ -1828,6 +1828,7 @@ const CareerHistoryPanel = ({
               loadingMore={historyLoadingMore}
               onLoadMore={loadMoreNewOpportunities}
               onNegative={handleNegativeAction}
+              onKeep={(item) => void updateFeedbackForItem(item, "keep")}
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={openHistoryLink}
               onPositive={handlePositiveAction}
@@ -1869,6 +1870,10 @@ const CareerHistoryPanel = ({
               onUpdateTalentMemo={(item, talentMemo) =>
                 onUpdateHistoryOpportunityTalentMemo(item.id, talentMemo)
               }
+              onKeepDecision={(action) => {
+                if (action === "accept") handlePositiveAction(modalOpportunity);
+                else if (action === "decline") handleNegativeAction(modalOpportunity);
+              }}
               roleActionsOnDesktop={false}
             />
           )}

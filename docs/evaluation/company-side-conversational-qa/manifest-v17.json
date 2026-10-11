@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "v17",
+  "frozenAt": "2026-10-08T01:24:56.183959+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v17.json": "4ddfbd4af7994694ec69b9f67aeb4eb9b1f1f742b0f33daeb98d29d6d8f424a7",
+    "gold-v17.md": "dd77bb255e45f5eb8b6c9d6a2f96cdaab4ce626ff0579f39c3e73261bc53d0cf",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "3 synthetic conversations / 3 turns",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v17 --run=<new>",
+  "provenance": "Synthetic extension of frozen v14 history-reader cases. New at-run capacity facts, older-page retrieval, and missing historical facts; frozen before model calls. No production data or delivery.",
+  "model": "Current production company-side model/config; exact settings and source fingerprint saved per run",
+  "privacy": "Synthetic input only; real DB and delivery forbidden; ignored owner-only raw artifacts",
+  "releaseGate": "3/3 execution and manual semantic review; zero critical failures",
+  "knownLimitations": "One sample per case; production history reader/executor/formatter and model loop with isolated read tables; no DB transport, delivery, concurrency or independent review"
+}

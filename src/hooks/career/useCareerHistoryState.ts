@@ -805,6 +805,7 @@ export function useCareerHistoryState(args: {
         | "internal_decision_change";
       conversationId?: string | null;
       feedback?: CareerHistoryOpportunityFeedback | null;
+      expectedUpdatedAt?: string | null;
       feedbackReason?: string | null;
       internalDecisionAction?: CareerInternalOpportunityDecisionAction;
       internalDecisionReason?: string | null;
@@ -961,7 +962,7 @@ export function useCareerHistoryState(args: {
         feedbackFollowUpCancellationVersionRef.current;
       const now = new Date().toISOString();
       const nextSavedStage =
-        feedback === "positive"
+        feedback === "keep" ? "saved" : feedback === "positive"
           ? (options?.savedStage ??
             previousItem.savedStage ??
             getDefaultSavedStage(previousItem))
@@ -992,6 +993,7 @@ export function useCareerHistoryState(args: {
       try {
         const payload = await patchHistoryOpportunity({
           action: "feedback",
+          expectedUpdatedAt: previousItem.updatedAt,
           conversationId,
           feedback,
           feedbackReason: options?.feedbackReason ?? null,

@@ -164,3 +164,72 @@ test("question history preserves question and option snapshots across subsequent
   assert.equal(batch.items![0].options![0].label, "Edit myself");
   assert.equal(batch.introduction, "Choose how to prepare your application.");
 });
+
+test("final file confirmation preserves the exact offered document fingerprint", () => {
+  let s = askApplicationInput(fixture(), {purpose: "Final resume", items: [{kind: "material", documentPurpose: "final_resume", title: "Use this file?", documentId: "new-resume", documentName: "Role.pdf", documentFingerprint: "revision-2"}]}, "file-v2");
+  const id = s.activity!.batches[0].itemIds[0];
+  s = finishApplicationAnswer(mutateSimulationSession(s, {action: "respond", actionId: id, response: {decision: "document", documentId: "new-resume"}}, 5));
+  assert.equal(s.preparation!.finalDocumentId, "new-resume");
+  assert.equal(s.preparation!.finalDocumentFingerprint, "revision-2");
+  assert.equal(s.documentId, "cv");
+});
+
+test("writing a new version preserves analysis and history, cancels stale file questions and requires reconfirmation", async () => {
+  const {recordApplicationResume, assertApplicationResumeWrite} = await import('./resumeWorkflow');
+  let s = askApplicationInput(fixture(), {purpose:"File",items:[{kind:"material",title:"Use this file?",documentPurpose:"final_resume",documentId:"cv",documentFingerprint:"old"}]}, "old-file");
+  s.preparation!.finalDocumentId = "cv";
+  s.preparation!.finalDocumentFingerprint = "old";
+  s = recordApplicationResume(s, {documentId:"new-resume",revision:2,fileName:"Role.pdf"});
+  assert.equal(s.documentId, "cv");
+  assert.equal(s.preparation!.workingResume!.documentId, "new-resume");
+  assert.equal(s.preparation!.finalDocumentId, null);
+  assert.equal(s.preparation!.finalDocumentFingerprint, null);
+  assert.equal(s.activity!.batches[0].status, "cancelled");
+  assert.equal(s.activity!.batches[0].items![0].documentId, "cv");
+  assert.doesNotThrow(() => assertApplicationResumeWrite(s));
+  s.browser = {id:"run",status:"waiting",startedAt:s.startedAt,updatedAt:s.startedAt,documentId:"cv",documentHash:"old",url:"https://example.com",purpose:"Apply"};
+  assert.throws(() => assertApplicationResumeWrite(s), /Stop the current application browser/);
+});
+
+test("review text is versioned with the question and submission retains that exact version", () => {
+  let s = createSimulationSession({roleRef:"job:test",roleName:"Role",documentId:"cv",documentName:"CV"});
+  s.analysisStatus="completed";s.preparation=createPreparation();s.activity={version:1,offerId:1,outputs:{},batches:[]};
+  const input={purpose:"motivation",reviewMarkdown:"## Motivation\n\nExact proposed answer.",items:[{kind:"choice",title:"Use this answer?",options:[{id:"use",label:"Use"},{id:"revise",label:"Revise"}]}]};
+  s=askApplicationInput(s,input,"r1");
+  const batch=s.activity!.batches[0];
+  s.preparation!.responses[batch.itemIds[0]]={decision:"answer",optionId:"revise",text:"Revise"};
+  s=finishApplicationAnswer(s);
+  assert.equal(s.activity!.batches[0].responses[batch.itemIds[0]].reviewId,batch.review!.id);
+  assert.equal(s.activity!.batches[0].review!.markdown,input.reviewMarkdown);
+  s=askApplicationInput(s,{...input,reviewMarkdown:"Revised answer."},"r2");
+  assert.equal(s.activity!.batches[1].review!.version,2);
+  assert.notEqual(s.activity!.batches[1].review!.id,batch.review!.id);
+  assert.deepEqual(s.activity!.batches[1].responses,{});
+  assert.equal(s.activity!.batches[0].review!.markdown,input.reviewMarkdown);
+});
+
+test("application method and exact document persist independently of final submission approval", () => {
+  for (const method of ["harper", "manual"] as const) {
+    let s=askApplicationInput(fixture(),{purpose:"Choose how to apply",items:[{kind:"material",title:"How to apply?",documentPurpose:"final_resume",documentId:"cv",documentFingerprint:"revision-2"}]},`method-${method}`);
+    const id=applicationQuestionItems(s)[0].id;
+    s.preparation!.responses[id]={decision:"document",documentId:"cv",applicationMethod:method};
+    s=finishApplicationAnswer(s);
+    assert.equal(s.preparation!.applicationMethod,method);
+    assert.equal(s.preparation!.finalDocumentId,"cv");
+    assert.equal(s.activity!.batches[0].responses[id].applicationMethod,method);
+    assert.equal(s.browser,undefined);
+  }
+});
+
+test("an explicit question kind replaces a material presentation without rewriting history", () => {
+  const initial = askApplicationInput(fixture(), {purpose: "writing", items: [{kind: "material", title: "Motivation", description: "Prepare a letter"}]}, "material");
+  const original = initial.activity!.batches[0].items![0];
+  const next = askApplicationInput(initial, {purpose: "notes", replace: true, items: [{actionId: original.id, kind: "question", title: "What draws you to this work?"}]}, "notes");
+  const question = applicationQuestionItems(next)[0];
+  assert.equal(question.inputKind, "question");
+  assert.deepEqual(question.options, []);
+  assert.notEqual(question.id, original.id);
+  assert.equal(next.activity!.batches[0].items![0].inputKind, "material");
+  assert.equal(next.activity!.batches[0].status, "cancelled");
+  assert.equal(initial.activity!.batches[0].status, "waiting");
+});

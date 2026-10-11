@@ -10,6 +10,7 @@ export const applicationInputSchema = z.object({
   purpose: z.string().min(1).max(2000),
   introduction: z.string().max(1000).optional(),
   replace: z.boolean().optional(),
+  reviewMarkdown: z.string().trim().min(1).max(60000).optional(),
   items: z
     .array(
       z.object({
@@ -18,6 +19,7 @@ export const applicationInputSchema = z.object({
         documentPurpose: z.enum(["final_resume", "supporting"]).optional(),
         documentId: z.string().optional(),
         documentName: z.string().optional(),
+        documentFingerprint: z.string().optional(),
         title: z.string().optional(),
         description: z.string().optional(),
         target: z.string().optional(),
@@ -43,7 +45,7 @@ export const applicationInputTool = {
   function: {
     name: ASK_APPLICATION_INPUT,
     description:
-      "Request decisions, missing facts or documents in the application composer. Reference existing preparation action IDs to reuse their evidence and edit examples; supply kind/title/description/options for additional questions. For an additional change, include target/reason and edits grounded in confirmed source facts; unknown experience belongs in a question, not a finished edit example. For a final resume selection, use a material item with documentPurpose=final_resume. Only ask when the answer changes content or the next operation. One pending batch is allowed; replace=true explicitly replaces it, preserving answers to unchanged items. This tool saves a question batch and ends the current turn to wait for the user. Do not execute other work after it.",
+      "Request decisions, missing facts or documents in the application composer. Use question without options to collect writing ideas, motivation or experience notes; use material only to request or select an actual file. Reference existing preparation action IDs to reuse their evidence and edit examples; an explicit different kind creates a new question from that action without overwriting its history; supply kind/title/description/options for additional questions. For an additional change, include target/reason and edits grounded in confirmed source facts; unknown experience belongs in a question, not a finished edit example. For a final resume selection, use a material item with documentPurpose=final_resume. Only ask when the answer changes content or the next operation. One pending batch is allowed; replace=true explicitly replaces it, preserving answers to unchanged items. This tool saves a question batch and ends the current turn to wait for the user. Do not execute other work after it.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -52,6 +54,7 @@ export const applicationInputTool = {
         purpose: { type: "string" },
         introduction: { type: "string" },
         replace: { type: "boolean" },
+        reviewMarkdown: { type: "string", description: "Full Markdown content for user review in the chat timeline before these questions. Use for written application drafts and detailed submission reviews; keep item descriptions short and do not duplicate this content." },
         items: {
           type: "array",
           minItems: 1,
@@ -71,7 +74,7 @@ export const applicationInputTool = {
                 enum: ["final_resume", "supporting"],
               },
               title: { type: "string" },
-              description: { type: "string" },
+              description: { type: "string", description: "Brief context for this question. Put full drafts and detailed reviews in reviewMarkdown, displayed in chat, not in this question body." },
               target: { type: "string" },
               reason: { type: "string" },
               edits: {
@@ -147,6 +150,28 @@ export function askApplicationInput(
     if (i.actionId) {
       const action = next.actions.find((a) => a.id === i.actionId);
       if (!action) throw new Error("Unknown analysis item");
+      if (i.kind && i.kind !== preparationKind(action)) {
+        const question: SessionAction = {
+          ...actionSchema.parse({
+          ...action,
+          id: `Q-${crypto.randomUUID()}-${index}`,
+          inputKind: i.kind,
+          title: i.title ?? action.title,
+          proposal: i.description ?? action.proposal,
+          questions: [],
+          options: i.kind === "choice" ? i.options : [],
+          }),
+          status: "pending",
+          resolution: "",
+          evidenceMessageId: null,
+        };
+        if (i.kind === "choice" && (!i.options || i.options.length < 2 || new Set(i.options.map(o => o.id)).size !== i.options.length))
+          throw new Error("Choices require distinct options");
+        next.actions.push(question);
+        return question;
+      }
+      if (action.inputKind === "question" && action.options?.length === 2)
+        action.inputKind = "choice";
       return action;
     }
     if (!i.kind || !i.title?.trim())
@@ -165,6 +190,7 @@ export function askApplicationInput(
         documentPurpose: i.documentPurpose,
         documentId: i.documentId,
         documentName: i.documentName,
+        documentFingerprint: i.documentFingerprint,
         title: i.title,
         target: i.target ?? "",
         proposal: i.description ?? "",
@@ -187,6 +213,8 @@ export function askApplicationInput(
   });
   if (new Set(items.map((i) => i.id)).size !== items.length)
     throw new Error("Duplicate question item");
+  // Every newly published review needs its own decision, even when action IDs are reused.
+  if (input.reviewMarkdown) for (const item of items) delete next.preparation!.responses[item.id];
   if (previous)
     next.activity!.batches.find((b) => b.id === previous.id)!.status =
       "cancelled";
@@ -195,6 +223,7 @@ export function askApplicationInput(
     key,
     purpose: input.purpose,
     introduction: input.introduction,
+    ...(input.reviewMarkdown ? { review: { id: crypto.randomUUID(), version: 1 + Math.max(0, ...next.activity!.batches.map(b => b.review?.version ?? 0)), markdown: input.reviewMarkdown } } : {}),
     items: structuredClone(items),
 
     itemIds: items.map((i) => i.id),
@@ -220,18 +249,27 @@ export function finishApplicationAnswer(
   if (!batch || !p) return next;
   batch.responses = Object.fromEntries(
     batch.itemIds.flatMap((id) =>
-      p.responses[id] ? [[id, p.responses[id]]] : []
+      p.responses[id] ? [[id, { ...p.responses[id], reviewId: batch.review?.id }]] : []
     )
   );
   const remaining = batch.itemIds.find((id) => !p.responses[id]);
   p.currentItemId = remaining ?? batch.itemIds.at(-1) ?? null;
   for (const id of batch.itemIds) {
+    if (next.actions.find(a => a.id === id)?.documentPurpose === "final_resume" && p.responses[id]?.applicationMethod) {
+      p.applicationMethod = p.responses[id].applicationMethod;
+    }
     if (
       next.actions.find((a) => a.id === id)?.documentPurpose ===
         "final_resume" &&
       p.responses[id]?.decision === "document"
-    )
+    ) {
       p.finalDocumentId = p.responses[id].documentId ?? null;
+      const item = next.actions.find((a) => a.id === id);
+      p.finalDocumentFingerprint =
+        item?.documentId === p.finalDocumentId
+          ? (item?.documentFingerprint ?? null)
+          : null;
+    }
   }
   if (!remaining) {
     batch.status = "submitted";

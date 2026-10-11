@@ -1,0 +1,6 @@
+{
+  "datasetVersion": "contact-delivery-v1",
+  "sha256": "3ad484f8d5c2d003e15d1c852da6ca14fda1e58ba920074197a6f098676f0eba",
+  "gold": "inline evaluator-only gold; frozen before first model run",
+  "unit": "one final delivery using fixed selected actions and cards"
+}

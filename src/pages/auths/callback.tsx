@@ -129,6 +129,16 @@ export default function AuthCallback() {
       const legalAcceptance = parseLegalAcceptanceQuery((key) =>
         getQueryText(router.query[key])
       );
+      if (callbackError && inferCompanyAuthEntrySource(nextPath) === "org") {
+        void router.replace(
+          resolveAuthCallbackErrorDestination({
+            error: "sign_in_failed",
+            isTalentDestination: false,
+            nextPath,
+          })
+        );
+        return;
+      }
 
       if (flow === "career_email_change") {
         const { error: initializationError } = await supabase.auth.initialize();
@@ -157,6 +167,16 @@ export default function AuthCallback() {
           await supabase.auth.exchangeCodeForSession(code);
         if (exchangeError) {
           console.error("exchangeCodeForSession error:", exchangeError);
+          if (inferCompanyAuthEntrySource(nextPath) === "org") {
+            void router.replace(
+              resolveAuthCallbackErrorDestination({
+                error: "sign_in_failed",
+                isTalentDestination: false,
+                nextPath,
+              })
+            );
+            return;
+          }
         }
       }
 
@@ -174,6 +194,7 @@ export default function AuthCallback() {
             : resolveAuthCallbackErrorDestination({
                 error: "no_user",
                 isTalentDestination,
+                nextPath,
               })
         );
         return;
@@ -324,7 +345,13 @@ export default function AuthCallback() {
       const bootstrapJson = await bootstrapRes.json().catch(() => ({}));
       if (!bootstrapRes.ok) {
         console.error("bootstrap error:", bootstrapJson);
-        router.replace("?error=profile_upsert_failed");
+        router.replace(
+          resolveAuthCallbackErrorDestination({
+            error: "profile_upsert_failed",
+            isTalentDestination: false,
+            nextPath,
+          })
+        );
         return;
       }
       if (bootstrapJson?.persona === "talent") {

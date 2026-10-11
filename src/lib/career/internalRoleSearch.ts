@@ -275,7 +275,7 @@ function formatInternalRole(
     `Location: ${formatText(row.location_text)}`,
     candidateState,
     companyState,
-    row.has_priority_review_request ? "검토요청/선호전달됨" : null,
+    row.has_priority_review_request ? "우선검토요청 등록됨" : null,
     row.has_reconsideration_scheduled
       ? "Scheduled for reconsideration"
       : null,
@@ -390,6 +390,7 @@ async function searchInternalRoleRows(args: {
                 WHERE requested_progress.talent_id = ${args.userId}::uuid
                   AND requested_progress.role_id = cr.role_id
                   AND requested_progress.kind = ${INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND}
+                  AND requested_progress.metadata->>'withdrawnAt' IS NULL
               )
           )
       ),
@@ -425,6 +426,7 @@ async function searchInternalRoleRows(args: {
               WHERE progress.talent_id = ${args.userId}
                 AND progress.role_id = er.role_id
                 AND progress.kind = ${INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND}
+                AND progress.metadata->>'withdrawnAt' IS NULL
             )
           ) AS has_priority_review_request,
           EXISTS (
@@ -614,6 +616,7 @@ async function searchMatchedInternalRoleRows(args: {
             WHERE progress.talent_id = ${args.userId}::uuid
               AND progress.role_id = role.role_id
               AND progress.kind = ${INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND}
+              AND progress.metadata->>'withdrawnAt' IS NULL
           )
         ) AS has_priority_review_request,
         public.talent_internal_role_reconsideration_is_pending_v1(fit)
@@ -888,7 +891,7 @@ export async function searchInternalRolesForCareerTool(args: {
         : "") +
       "The Company fields in get_internal_roles results are candidate-safe public aliases or Undisclosed internal company. Use the returned Company value exactly and never infer or expose a raw workspace company name. " +
       (hasPriorityReviewRequest
-        ? "When a returned role says 검토요청/선호전달됨 and the user asks about its progress, call internal_role_priority_review with action=register and that exact role id. Repeating register is idempotent and returns the current review progress without creating another request."
+        ? "When a returned role says 우선검토요청 등록됨 and the user asks about its progress, call internal_role_priority_review with action=status and that exact role id. Status only reads the request and never registers or renews it."
         : "") +
       (hasReconsiderationScheduled
         ? " When a returned role says Scheduled for reconsideration, explain that the user's new information is already attached to that exact role and a fresh review is scheduled. Do not ask for the same information again or imply that the role is already a formal recommendation."

@@ -40,10 +40,9 @@ begin
 
   if (select count(*) from public.company_roles r
       join _pool_reset_roles s using (role_id)
-      join public.company_internal_roles i using (role_id)
       where r.company_workspace_id = '720254d7-aeb7-4709-a56f-7b822f89eac5'
         and r.name = s.expected_name and r.source_type = 'internal'
-        and r.status = 'paused' and i.is_auto is false
+        and r.status = 'paused'
         and coalesce(r.is_expired, false) is false
         and (r.expires_at is null or r.expires_at > now())) <> 2 then
     raise exception '중단된 Harper FDE/DS Pool인지 확인하세요. Role 설정은 자동 변경하지 않습니다.';
@@ -284,7 +283,7 @@ update public.company_conversations c set
   updated_at = now()
 where c.id in (select id from _pool_reset_conversations);
 
--- 카드 표시를 위한 설정. Role의 paused / is_auto=false는 그대로 유지합니다.
+-- 카드 표시를 위한 설정. Role의 paused 상태는 그대로 유지합니다.
 update public.company_internal_roles set is_company_first_search = true, updated_at = now()
 where role_id in (select role_id from _pool_reset_roles);
 

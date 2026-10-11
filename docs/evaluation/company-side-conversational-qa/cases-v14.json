@@ -1,0 +1,651 @@
+{
+  "datasetVersion": "v14",
+  "baseDataset": "cases-v6.json",
+  "clock": "2026-10-07T03:00:00Z",
+  "provenance": "Synthetic search-run history challenge. Frozen before model calls. Table fixtures only, no production data or external delivery.",
+  "scenarios": [
+    {
+      "id": "CSCQ1415",
+      "variants": [
+        {
+          "id": "latest",
+          "surface": "chat",
+          "readTables": {
+            "company_first_search_runs": [
+              {
+                "id": "00000000-0000-4000-8000-000000000800",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-07T00:00:00Z",
+                "started_at": "2026-10-07T00:01:00Z",
+                "finished_at": "2026-10-07T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              }
+            ],
+            "company_roles": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": "00000000-0000-4000-8000-000000000101",
+                "name": "백엔드 엔지니어"
+              }
+            ],
+            "company_memories": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": null,
+                "content": "신규 서비스의 Python API 설계와 안정적 운영을 직접 맡길 사람을 우선 검토한다."
+              }
+            ]
+          },
+          "turns": [
+            "가장 최근 백엔드 검색이 언제 시작됐고, 회사 쪽과 후보자 쪽으로 몇 명씩 골랐어? 그 사람들한테 추천도 이미 나간 거야?"
+          ]
+        },
+        {
+          "id": "older_and_memory",
+          "surface": "slack",
+          "readTables": {
+            "company_first_search_runs": [
+              {
+                "id": "00000000-0000-4000-8000-000000000800",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-07T00:00:00Z",
+                "started_at": "2026-10-07T00:01:00Z",
+                "finished_at": "2026-10-07T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000801",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-06T00:00:00Z",
+                "started_at": "2026-10-06T00:01:00Z",
+                "finished_at": "2026-10-06T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000802",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-05T00:00:00Z",
+                "started_at": "2026-10-05T00:01:00Z",
+                "finished_at": "2026-10-05T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000803",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-04T00:00:00Z",
+                "started_at": "2026-10-04T00:01:00Z",
+                "finished_at": "2026-10-04T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000804",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-03T00:00:00Z",
+                "started_at": "2026-10-03T00:01:00Z",
+                "finished_at": "2026-10-03T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000805",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-02T00:00:00Z",
+                "started_at": "2026-10-02T00:01:00Z",
+                "finished_at": "2026-10-02T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 3,
+                    "candidateFirst": 1,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000806",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-01T00:00:00Z",
+                "started_at": "2026-10-01T00:01:00Z",
+                "finished_at": "2026-10-01T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 1,
+                    "candidateFirst": 1,
+                    "priorityReviewSelected": 0,
+                    "selected": 2
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              }
+            ],
+            "company_roles": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": "00000000-0000-4000-8000-000000000101",
+                "name": "백엔드 엔지니어"
+              }
+            ],
+            "company_memories": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": null,
+                "content": "신규 서비스의 Python API 설계와 안정적 운영을 직접 맡길 사람을 우선 검토한다."
+              }
+            ]
+          },
+          "turns": [
+            "최근 5개 이전의 검색 2개도 읽어줘. 각각 회사 쪽과 후보자 쪽으로 몇 명 골랐는지, 회사 메모의 채용 방향은 무엇인지 같이 알려줘."
+          ]
+        },
+        {
+          "id": "empty",
+          "surface": "chat",
+          "readTables": {
+            "company_first_search_runs": [],
+            "company_roles": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": "00000000-0000-4000-8000-000000000101",
+                "name": "백엔드 엔지니어"
+              }
+            ],
+            "company_memories": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": null,
+                "content": "신규 서비스의 Python API 설계와 안정적 운영을 직접 맡길 사람을 우선 검토한다."
+              }
+            ]
+          },
+          "turns": [
+            "검색 이력이 비어 있으면 검색이 실패했고 맞는 후보도 0명이라는 뜻이야?"
+          ]
+        },
+        {
+          "id": "queued_and_legacy",
+          "surface": "slack",
+          "readTables": {
+            "company_first_search_runs": [
+              {
+                "id": "00000000-0000-4000-8000-000000000800",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-07T00:00:00Z",
+                "started_at": null,
+                "finished_at": null,
+                "status": "queued",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {}
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000801",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-06T00:00:00Z",
+                "started_at": "2026-10-06T00:01:00Z",
+                "finished_at": "2026-10-06T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "scored": 33,
+                    "selected": 1
+                  }
+                }
+              }
+            ],
+            "company_roles": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": "00000000-0000-4000-8000-000000000101",
+                "name": "백엔드 엔지니어"
+              }
+            ],
+            "company_memories": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": null,
+                "content": "신규 서비스의 Python API 설계와 안정적 운영을 직접 맡길 사람을 우선 검토한다."
+              }
+            ]
+          },
+          "turns": [
+            "가장 최근 검색은 이미 시작한 거지? 그 바로 전 검색에서는 후보자 쪽으로 0명 고른 거야?"
+          ]
+        },
+        {
+          "id": "read_failure",
+          "surface": "chat",
+          "readTables": {
+            "company_first_search_runs": [
+              {
+                "id": "00000000-0000-4000-8000-000000000800",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-07T00:00:00Z",
+                "started_at": "2026-10-07T00:01:00Z",
+                "finished_at": "2026-10-07T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000801",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-06T00:00:00Z",
+                "started_at": "2026-10-06T00:01:00Z",
+                "finished_at": "2026-10-06T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000802",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-05T00:00:00Z",
+                "started_at": "2026-10-05T00:01:00Z",
+                "finished_at": "2026-10-05T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000803",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-04T00:00:00Z",
+                "started_at": "2026-10-04T00:01:00Z",
+                "finished_at": "2026-10-04T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000804",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-03T00:00:00Z",
+                "started_at": "2026-10-03T00:01:00Z",
+                "finished_at": "2026-10-03T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 2,
+                    "candidateFirst": 3,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000805",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-02T00:00:00Z",
+                "started_at": "2026-10-02T00:01:00Z",
+                "finished_at": "2026-10-02T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 3,
+                    "candidateFirst": 1,
+                    "priorityReviewSelected": 0,
+                    "selected": 4
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              },
+              {
+                "id": "00000000-0000-4000-8000-000000000806",
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "created_at": "2026-10-01T00:00:00Z",
+                "started_at": "2026-10-01T00:01:00Z",
+                "finished_at": "2026-10-01T00:05:00Z",
+                "status": "succeeded",
+                "trigger_reason": "scheduled",
+                "scheduled_role_ids": [
+                  "00000000-0000-4000-8000-000000000101"
+                ],
+                "requested_role_ids": [],
+                "query_plan": {
+                  "reason": "회사의 Python API 개발·운영 채용 요청에 맞춰 후보군을 탐색함",
+                  "searchStrategy": "직접 API 설계와 운영을 맡은 경험을 중심으로 탐색"
+                },
+                "result": {
+                  "counts": {
+                    "freshScorePairs": 35,
+                    "reusedFitPairs": 10,
+                    "companyFirst": 1,
+                    "candidateFirst": 1,
+                    "priorityReviewSelected": 0,
+                    "selected": 2
+                  },
+                  "noSelectionReason": "PRIVATE talent preference must not reach company context",
+                  "selectedTalentIds": [
+                    "PRIVATE candidate identity"
+                  ]
+                }
+              }
+            ],
+            "company_roles": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": "00000000-0000-4000-8000-000000000101",
+                "name": "백엔드 엔지니어"
+              }
+            ],
+            "company_memories": [
+              {
+                "company_workspace_id": "00000000-0000-4000-8000-000000000001",
+                "role_id": null,
+                "content": "신규 서비스의 Python API 설계와 안정적 운영을 직접 맡길 사람을 우선 검토한다."
+              }
+            ]
+          },
+          "faults": [
+            {
+              "phase": "before",
+              "tool": "get_more_data",
+              "message": "History read temporarily unavailable",
+              "repeat": true
+            }
+          ],
+          "turns": [
+            "최근 5개보다 이전 검색도 조회해서 결과를 알려줘."
+          ]
+        }
+      ]
+    }
+  ]
+}

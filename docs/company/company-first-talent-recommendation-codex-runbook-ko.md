@@ -148,7 +148,7 @@ SQL write로 대체하지 말고 구현·문서를 먼저 맞춘다.
 - target Role이 같은 workspace 소속인지 확인한다.
 - `source_type=internal`, active, unexpired인지 확인한다.
 - `information.testOnly=true`인 Role과 fixture를 제외한다.
-- 자동 scope이면 `is_auto` 같은 현재 Company Run eligibility를 canonical helper에서 확인한다.
+- 정기 scope이면 Role별 정기 검색 설정을 canonical helper에서 확인한다.
 - Role이 하나도 없으면 정상 no-op으로 종료한다.
 
 ### 6.3 현재 company intro backlog

@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     const assistantMessage = await createTalentOpportunityFeedbackFollowUpReply(
       {
-        action: feedback,
+        action: feedback === "keep" ? null : feedback,
         admin,
         allowedToolNames: getAllowedToolNamesForFeedbackFollowUp(trigger),
         conversationId,

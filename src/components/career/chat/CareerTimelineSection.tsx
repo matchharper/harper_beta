@@ -1,3 +1,5 @@
+import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
+import { browserPresentationPhase } from "@/lib/career/simulation/browserPresentation";
 import { ApplicationQuestionHistoryRow } from "./ApplicationQuestionHistoryRow";
 import { applicationQuestionMessages } from "@/lib/career/simulation/questionHistory";
 import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
@@ -735,6 +737,10 @@ const CareerTimelineSection = ({
     }
     return orderApplicationMessages([...merged.values()]);
   }, [historyMessages, preparation.drafts, preparation.record]);
+  const browserPhase = browserPresentationPhase(preparation.record?.state, messages);
+  const applicationBrowser = preparation.record?.state.browser;
+  const showBrowserWork = applicationBrowser &&
+    !messages.some(message => String(message.id) === String(applicationBrowser.resultMessageId));
   const devMessageActionsVisible = useCareerWorkspaceUiStore(
     (state) => state.devMessageActionsVisible
   );
@@ -1359,14 +1365,28 @@ const CareerTimelineSection = ({
           />
         )}
 
-        {preparation.record?.state.status === "active" && preparation.record.state.browser && ["queued", "running"].includes(preparation.record.state.browser.status) && (
-          <StatusMessage><span className="career-thinking-shimmer">{t("career.application.browser.running", "지원 사이트에서 진행하고 있어요…")}</span></StatusMessage>
+        {showBrowserWork && (
+          <ChatThinkingLogPanel
+            key={applicationBrowser.id}
+            active={browserPhase !== null}
+            hasToolWork
+            startedAt={applicationBrowser.startedAt}
+            completedAt={browserPhase ? undefined : applicationBrowser.updatedAt}
+            statusLabel={applicationBrowser.status === "waiting"
+              ? t("career.application.questions.waiting", "답변을 기다리고 있어요")
+              : undefined}
+            logs={applicationBrowser.progress?.length
+              ? applicationBrowser.progress.map(entry => ({id: entry.id, label: entry.text}))
+              : [t("career.application.browser.running", "지원 사이트에서 진행하고 있어요…")]}
+            typographyClassName={careerTimelineBodyTextClassName}
+          />
         )}
         {!sessionPending &&
           stage !== "profile" &&
           !onboardingWrapupPending &&
           !callWrapUpPending &&
           chatPending &&
+          !browserPhase &&
           !(preparation.record?.state.status === "active" && (
             preparation.record.state.analysisStatus === "running" ||
             ["queued", "running"].includes(preparation.record.state.browser?.status ?? "") ||

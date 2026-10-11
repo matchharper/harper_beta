@@ -33,7 +33,7 @@ import {
   normalizeTalentPeriodicIntervalDays,
   normalizeTalentRecommendationBatchSize,
 } from "@/lib/talentOnboarding/recommendationSettings";
-import { fetchLatestTalentActivityEvent } from "@/lib/talentOnboarding/activityEvents";
+import { fetchLatestTalentActivityEvent, fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
 import { OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE } from "@/lib/officialJobs";
 import { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 import { shouldUseCareerRealtimeOnboarding } from "@/lib/career/realtimeCallScope";
@@ -105,6 +105,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     recentRecommendedOpportunities,
     activeGmailIntegration,
     isConversationCompletedOpportunityRunActive,
+    recentActivitySummaries,
   ] = await Promise.all([
     fetchTalentUserProfile({ admin, userId: args.userId }),
     fetchTalentSetting({ admin, userId: args.userId }),
@@ -132,6 +133,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
       admin,
       userId: args.userId,
     }),
+    fetchRecentTalentActivitySummaries({admin,userId:args.userId,limit:5}),
   ]);
 
   const structuredProfile = await fetchTalentStructuredProfile({
@@ -265,6 +267,7 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     careerCoachingActivity,
     channel: "voice",
     talentContextSection,
+    recentActivitySummaries,
     currentPreferences,
     gmailCapability: activeGmailIntegration
       ? "connected_but_unavailable_this_turn"

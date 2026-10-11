@@ -1,3 +1,4 @@
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { useEffect, useState } from "react";
@@ -6,14 +7,7 @@ import { OrgSlackChannelPicker } from "@/components/org/OrgSlackChannelPicker";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+
 import {
   useAddOrgSlackChannel,
   useConnectOrgSlack,
@@ -84,7 +78,16 @@ export function OrgOnboardingSlack({
       const result = await connect.mutateAsync({ returnTo, workspaceId });
       window.location.assign(result.authorizeUrl);
     } catch (error) {
-      setError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.b1845655", "Slack 연결을 시작하지 못했어요.")));
+      setError(
+        localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "onboarding.OrgOnboardingSlack.b1845655",
+            "Slack 연결을 시작하지 못했어요."
+          )
+        )
+      );
     }
   };
   const inviteChannel = async (channelId: string) => {
@@ -97,7 +100,16 @@ export function OrgOnboardingSlack({
     try {
       await add.mutateAsync({ channelId });
     } catch (error) {
-      setError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.43672e3f", "채널을 연결하지 못했어요.")));
+      setError(
+        localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "onboarding.OrgOnboardingSlack.43672e3f",
+            "채널을 연결하지 못했어요."
+          )
+        )
+      );
     }
   };
   const createChannel = async () => {
@@ -110,7 +122,16 @@ export function OrgOnboardingSlack({
     try {
       await create.mutateAsync({ channelName: channelName.trim(), isPrivate });
     } catch (error) {
-      setError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.43672e3f", "채널을 연결하지 못했어요.")));
+      setError(
+        localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "onboarding.OrgOnboardingSlack.43672e3f",
+            "채널을 연결하지 못했어요."
+          )
+        )
+      );
     }
   };
   const invite = async () => {
@@ -129,11 +150,24 @@ export function OrgOnboardingSlack({
       const delivery = result.results[0];
       if (delivery?.status !== "sent")
         throw new Error(
-          delivery?.message || t("onboarding.OrgOnboardingSlack.50a5d55c", "초대 메일을 보내지 못했어요.")
+          delivery?.message ||
+            t(
+              "onboarding.OrgOnboardingSlack.50a5d55c",
+              "초대 메일을 보내지 못했어요."
+            )
         );
       setInvitedEmail(delivery.email);
     } catch (error) {
-      setInviteError(localizedOrgErrorMessage(error, locale, t("onboarding.OrgOnboardingSlack.50a5d55c", "초대 메일을 보내지 못했어요.")));
+      setInviteError(
+        localizedOrgErrorMessage(
+          error,
+          locale,
+          t(
+            "onboarding.OrgOnboardingSlack.50a5d55c",
+            "초대 메일을 보내지 못했어요."
+          )
+        )
+      );
     } finally {
       setInvitePending(false);
     }
@@ -145,7 +179,10 @@ export function OrgOnboardingSlack({
     <div className="flex h-full min-h-0 flex-col gap-6">
       {!permissions.canManageIntegrations ? (
         <p className="text-[13px] leading-6 text-neutral-muted">
-          {t("onboarding.OrgOnboardingSlack.9b3e78dc", "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요.")}
+          {t(
+            "onboarding.OrgOnboardingSlack.9b3e78dc",
+            "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요."
+          )}
         </p>
       ) : !status?.connected ? (
         <MuteButton
@@ -176,7 +213,10 @@ export function OrgOnboardingSlack({
             </div>
           ))}
           <p className="text-[13px] leading-6 text-neutral-muted">
-            {t("onboarding.OrgOnboardingSlack.f70b7d30", "채널에서 @Harper를 불러 대화를 시작할 수 있어요.")}
+            {t(
+              "onboarding.OrgOnboardingSlack.f70b7d30",
+              "채널에서 @Harper를 불러 대화를 시작할 수 있어요."
+            )}
           </p>
         </div>
       ) : (
@@ -200,7 +240,10 @@ export function OrgOnboardingSlack({
               />
               {!status.canCreateChannels ? (
                 <MuteButton onClick={() => void connectSlack()} disabled={busy}>
-                  {t("onboarding.OrgOnboardingSlack.f2cd61bc", "채널 생성 권한 추가하기")}
+                  {t(
+                    "onboarding.OrgOnboardingSlack.f2cd61bc",
+                    "채널 생성 권한 추가하기"
+                  )}
                 </MuteButton>
               ) : null}
             </>
@@ -230,7 +273,10 @@ export function OrgOnboardingSlack({
                   checked={isPrivate}
                   onChange={(event) => setIsPrivate(event.target.checked)}
                 />
-                {t("onboarding.OrgOnboardingSlack.8c703d6f", "비공개 채널로 만들기")}
+                {t(
+                  "onboarding.OrgOnboardingSlack.8c703d6f",
+                  "비공개 채널로 만들기"
+                )}
               </label>
               <MuteButton
                 type="submit"
@@ -244,7 +290,10 @@ export function OrgOnboardingSlack({
                 ) : (
                   <Plus className="size-4" />
                 )}
-                {t("onboarding.OrgOnboardingSlack.78e40040", "채널 만들고 연결하기")}
+                {t(
+                  "onboarding.OrgOnboardingSlack.78e40040",
+                  "채널 만들고 연결하기"
+                )}
               </MuteButton>
               <MuteButton
                 variant="transparent"
@@ -256,7 +305,10 @@ export function OrgOnboardingSlack({
             </form>
           ) : (
             <MuteButton onClick={() => void connectSlack()} disabled={busy}>
-              {t("onboarding.OrgOnboardingSlack.f2cd61bc", "채널 생성 권한 추가하기")}
+              {t(
+                "onboarding.OrgOnboardingSlack.f2cd61bc",
+                "채널 생성 권한 추가하기"
+              )}
             </MuteButton>
           )}
         </div>
@@ -266,77 +318,95 @@ export function OrgOnboardingSlack({
           {error}
         </p>
       ) : null}
-      <Dialog
+      <TalentCareerModal
         open={inviteOpen}
-        onOpenChange={(open) => {
-          if (!invitePending) onInviteOpenChange(open);
+        onClose={() => {
+          if (!invitePending) onInviteOpenChange(false);
         }}
+        mobileBottomSheet
+        title={
+          <>
+            {t(
+              "onboarding.OrgOnboardingSlack.83480060",
+              "회사 이메일로 초대 보내기"
+            )}
+          </>
+        }
+        description={
+          <>
+            {t(
+              "onboarding.OrgOnboardingSlack.f6ca7fef",
+              "Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재 계정과 같은 권한으로 참여할 수 있어요."
+            )}
+          </>
+        }
+        panelClassName="max-w-md"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
       >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {t("onboarding.OrgOnboardingSlack.83480060", "회사 이메일로 초대 보내기")}
-            </DialogTitle>
-            <DialogDescription>
-              {t("onboarding.OrgOnboardingSlack.f6ca7fef", "Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재 계정과 같은 권한으로 참여할 수 있어요.")}
-            </DialogDescription>
-          </DialogHeader>
-          {invitedEmail ? (
-            <>
-              <p role="status" className="text-[14px] leading-6">
-                {invitedEmail}
-                {t("onboarding.OrgOnboardingSlack.317d1a3c", "로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤 Slack을 연결해 주세요.")}
-              </p>
-              <DialogFooter>
-                <MuteButton onClick={() => onInviteOpenChange(false)}>
-                  {t("onboarding.OrgOnboardingSlack.1bf3f5aa", "확인")}
-                </MuteButton>
-              </DialogFooter>
-            </>
-          ) : (
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void invite();
-              }}
+        {invitedEmail ? (
+          <>
+            <p role="status" className="text-[14px] leading-6">
+              {invitedEmail}
+              {t(
+                "onboarding.OrgOnboardingSlack.317d1a3c",
+                "로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤 Slack을 연결해 주세요."
+              )}
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2 ">
+              <MuteButton onClick={() => onInviteOpenChange(false)}>
+                {t("onboarding.OrgOnboardingSlack.1bf3f5aa", "확인")}
+              </MuteButton>
+            </div>
+          </>
+        ) : (
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void invite();
+            }}
+          >
+            <label
+              htmlFor="org-onboarding-invite-email"
+              className="grid gap-2 text-[13px]"
             >
-              <label
-                htmlFor="org-onboarding-invite-email"
-                className="grid gap-2 text-[13px]"
+              {t("onboarding.OrgOnboardingSlack.be15f47f", "회사 이메일")}
+              <Input
+                autoFocus
+                id="org-onboarding-invite-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                maxLength={320}
+                required
+              />
+            </label>
+            {inviteError ? (
+              <p role="alert" className="text-[13px] text-critical">
+                {inviteError}
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2 ">
+              <MuteButton
+                type="submit"
+                variant="primary"
+                disabled={invitePending}
               >
-                {t("onboarding.OrgOnboardingSlack.be15f47f", "회사 이메일")}
-                <Input
-                  autoFocus
-                  id="org-onboarding-invite-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  maxLength={320}
-                  required
-                />
-              </label>
-              {inviteError ? (
-                <p role="alert" className="text-[13px] text-critical">
-                  {inviteError}
-                </p>
-              ) : null}
-              <DialogFooter>
-                <MuteButton
-                  type="submit"
-                  variant="primary"
-                  disabled={invitePending}
-                >
-                  {invitePending
-                    ? t("onboarding.OrgOnboardingSlack.9eaf444d", "초대 보내는 중…")
-                    : t("onboarding.OrgOnboardingSlack.63966ac6", "초대 메일 보내기")}
-                </MuteButton>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+                {invitePending
+                  ? t(
+                      "onboarding.OrgOnboardingSlack.9eaf444d",
+                      "초대 보내는 중…"
+                    )
+                  : t(
+                      "onboarding.OrgOnboardingSlack.63966ac6",
+                      "초대 메일 보내기"
+                    )}
+              </MuteButton>
+            </div>
+          </form>
+        )}
+      </TalentCareerModal>
     </div>
   );
 }

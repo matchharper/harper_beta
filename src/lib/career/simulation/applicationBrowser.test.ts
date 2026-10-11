@@ -1,3 +1,4 @@
+import { documentFingerprint } from "./resumeAttachment";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -29,6 +30,7 @@ function fixture() {
   });
   state.analysisStatus = "completed";
   state.preparation = createPreparation();
+  state.preparation.finalDocumentFingerprint = documentFingerprint({content_sha256: "hash-1", storage_path: "owner/resume.pdf"});
   state.activity = { version: 1, offerId: 1, outputs: {}, batches: [] };
   state.applicationUrl = "https://example.org/jobs/engineer";
   let documentHash = "hash-1";
@@ -107,6 +109,11 @@ test("analysis resume is never implicitly submitted; final selection is owner ch
     /unavailable/
   );
   s.preparation!.finalDocumentId = "final-file";
+  const confirmedFingerprint = s.preparation!.finalDocumentFingerprint;
+  s.preparation!.finalDocumentFingerprint = null;
+  f.set(s);
+  await assert.rejects(() => startApplicationBrowser(f.store, f.record(), {purpose: "Apply"}), /version-confirmed/);
+  s.preparation!.finalDocumentFingerprint = confirmedFingerprint;
   f.set(s);
   const started = await startApplicationBrowser(f.store, f.record(), {
     purpose: "Apply",
@@ -430,7 +437,8 @@ test("worker receives a terminal stream event but preserves a newly pending brow
     assert.notEqual(init?.method, "POST", "must not cancel or replay the application");
     if (String(url).includes("/events?")) {
       streamed = true;
-      return new Response('data: {"type":"agent.session.turn.completed","turn":{"id":"turn-question"}}\n\n', {headers: {"Content-Type":"text/event-stream"}});
+      const progress = 'data: {"type":"agent.session.turn.output_text.done","item_id":"public-update","text":"지원 페이지를 확인했고 필수 답변을 확인하고 있어요."}\n\n';
+      return new Response(progress + progress + 'data: {"type":"agent.session.turn.completed","turn":{"id":"turn-question"}}\n\n', {headers: {"Content-Type":"text/event-stream"}});
     }
     if (String(url).includes("/turns?")) return Response.json({ data: [{id:"turn-question",status:"in_progress"}] });
     return Response.json({ required_actions: streamed ? [{
@@ -443,5 +451,58 @@ test("worker receives a terminal stream event but preserves a newly pending brow
     assert.equal(f.record().state.browser!.status, "waiting");
     assert.equal(f.record().state.browser!.result, undefined);
     assert.equal(f.record().state.activity!.batches.length, 1);
+    assert.deepEqual(f.record().state.browser!.progress?.map(p => p.text), ["지원 페이지를 확인했고 필수 답변을 확인하고 있어요."]);
   } finally { globalThis.fetch = original; }
+});
+
+test("invalid browser question is returned for correction without ending the session; corrected question waits in the same run", async () => {
+  const f = fixture();
+  const s = f.record().state;
+  s.preparation!.finalDocumentId = "final-file";
+  f.set(s);
+  const started = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" });
+  Object.assign(started.state.browser!, { sessionId: "session-test", status: "running", taskSent: true });
+  f.set(started.state);
+  const original = globalThis.fetch;
+  let corrected = false;
+  const results: any[] = [];
+  globalThis.fetch = async (url, init) => {
+    assert.notEqual(init?.method, "DELETE");
+    if (init?.method === "POST") {
+      const event = JSON.parse(String(init.body)).events[0];
+      assert.equal(event.type, "agent.session.input.tool_result");
+      assert.equal(event.success, false);
+      results.push(event);
+      corrected = true;
+      return Response.json({});
+    }
+    if (String(url).includes("/turns?")) return Response.json({ data: [{id:"turn-question",status:"in_progress"}] });
+    return Response.json({ required_actions: [{
+      type:"function_call",name:"ask_application_input",call_id:corrected ? "fixed" : "bad",turn_id:"turn-question",
+      arguments: { purpose:"Contact",items:[corrected
+        ? {kind:"question",title:"Which phone number?"}
+        : {actionId:"phone-number",kind:"question",title:"Which phone number?"}] },
+    }] });
+  };
+  try {
+    assert.equal(await reconcileBrowserEnd(f.store, 10), false);
+    assert.equal(f.record().state.browser!.status, "running");
+    assert.equal(f.record().state.browser!.result, undefined);
+    assert.equal(f.record().state.activity!.batches.length, 0);
+    assert.match(results[0].output, /without actionId/);
+    assert.equal(await reconcileBrowserEnd(f.store, 10), true);
+    assert.equal(f.record().state.browser!.status, "waiting");
+    assert.equal(f.record().state.browser!.sessionId, "session-test");
+    assert.equal(f.record().state.activity!.batches.at(-1)!.browser!.callId, "fixed");
+  } finally { globalThis.fetch = original; }
+});
+
+test("manual application choice blocks browser launch even with a confirmed file", async () => {
+  const f=fixture();
+  const s=f.record().state;
+  s.preparation!.finalDocumentId="final-file";
+  s.preparation!.applicationMethod="manual";
+  f.set(s);
+  await assert.rejects(()=>startApplicationBrowser(f.store,f.record(),{purpose:"Apply"}),/chose to apply themselves/);
+  assert.equal(f.record().state.browser,undefined);
 });

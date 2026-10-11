@@ -137,3 +137,8 @@ test("application questions are mode-only and are an explicit yield boundary",()
   assert.ok(!active.toolNames.includes("update_document"));
   assert.ok(!active.toolNames.includes("contact_company"));
 });
+
+test("Apply with Harper exposes resume generation alongside its dedicated question and apply tools", () => {
+  const names = resolveCareerChatTools({isOnboardingDone:true, channel:"chat", simulationActive:true}).tools.map(t => t.function.name);
+  for (const name of ["generate_resume", "read_document", "ask_application_input", "apply_to_role"]) assert.ok(names.includes(name), name);
+});

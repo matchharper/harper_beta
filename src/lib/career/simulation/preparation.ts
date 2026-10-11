@@ -5,8 +5,10 @@ export const preparationResponseSchema = z.object({
   text: z.string().max(20000).optional(),
   documentId: z.string().optional(),
   documentName: z.string().optional(),
+  applicationMethod: z.enum(["harper", "manual"]).optional(),
   optionId: z.string().optional(),
   evidenceMessageId: z.number().optional(),
+  reviewId: z.string().optional(),
 });
 export const draftContentSchema = z.object({
   resume: z.string().min(1),
@@ -53,6 +55,9 @@ export const preparationSchema = z.object({
   draftMessageId: z.number().nullable(),
   approvedVersion: z.number().nullable(),
   finalDocumentId: z.string().nullable(),
+  applicationMethod: z.enum(["harper", "manual"]).optional(),
+  finalDocumentFingerprint: z.string().nullable().optional(),
+  workingResume: z.object({documentId: z.string(), revision: z.number().int(), fileName: z.string()}).optional(),
 });
 export type Preparation = z.infer<typeof preparationSchema>;
 export type PreparationResponse = z.infer<typeof preparationResponseSchema>;

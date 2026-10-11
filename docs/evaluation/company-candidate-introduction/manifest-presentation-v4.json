@@ -1,0 +1,27 @@
+{
+  "datasetVersion": "presentation-v4",
+  "createdAt": "2026-10-08T07:26:04.248634+00:00",
+  "input": "presentation-cases-v4.json",
+  "fixtureSha256": "34646f6b90c5d2c37c5cd2966998d19f916e0f82892cdcb9655742ce660dd128",
+  "evaluationUnit": "selected synthetic candidate × role company presentation",
+  "cases": 10,
+  "criteria": 13,
+  "provenance": "Synthetic TL;DR / Harper Note extension frozen before first v4 call. v3 candidate/role source facts and existing expected labels are preserved. Explicit company outputLocale is added from each existing locale. Codex rubric, no independent human review.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex",
+      "stage": "before first v4 call",
+      "change": "Preserved all v3 fit labels, including the previously observed UCIP010 criterion ambiguity. Added explicit company language and writing rubric without changing source evidence."
+    }
+  ],
+  "promptInputContract": "Production writer receives full shareable profile, Role/Hiring Brief/current criteria and explicit outputLocale. It returns tldr, harperNote, finalFit and criteriaEvaluations; private rerank reasons are omitted.",
+  "qualitativeRubric": [
+    "TL;DR leads with the role-relevant story and personally owned work, not chronology or company prestige",
+    "Interpretation in Harper Note adds one or two grounded observations rather than repeating facts/metrics",
+    "No unsupported causality, personality, motivation, interest or direct-interview claims",
+    "Company language, compact section budgets and source chronology/scope preserved",
+    "Existing criterion and final-fit gold retained, including known ambiguous label"
+  ],
+  "privacy": "Synthetic only; no DB/cache/publication/delivery; owner-only raw artifacts in ignored runs.",
+  "knownLimitations": "Development challenge with Codex-authored labels, no independent quality review or representative sample; UCIP010 criterion gold remains ambiguous."
+}

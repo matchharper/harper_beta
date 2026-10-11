@@ -1,10 +1,22 @@
-import {careerTimelineMessageTextClassName, careerTimelineTypographyStyle} from "./careerTimelineTypography";
+import { useEffect } from "react";
+import RichText from "@/components/ui/rich-text";
+import { useApplicationPreparation } from "./ApplicationPreparationContext";
+import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
+import { DocumentPreviewCards } from "./elements/DocumentPreviewCards";
+import {careerTimelineAssistantRichTextClassName, careerTimelineMessageTextClassName, careerTimelineTypographyStyle} from "./careerTimelineTypography";
 import { CircleHelp } from "lucide-react";
 import { useCareerT } from "@/i18n/useCareerT";
 import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
 
 export function ApplicationQuestionHistoryRow({batch}: {batch: ApplicationQuestionHistory}) {
   const t = useCareerT();
+  const { onReviewRendered } = useApplicationPreparation();
+  useEffect(() => {
+    if (!batch.review || batch.status !== "waiting") return;
+    const id = requestAnimationFrame(() => onReviewRendered?.(batch.review!.id));
+    return () => cancelAnimationFrame(id);
+  }, [batch.review, batch.status, onReviewRendered]);
+  const introduction = extractCareerDocumentLinks(batch.introduction ?? "");
   const waiting = batch.status === "waiting";
   const label = waiting
     ? t("career.application.questions.waiting", "답변을 기다리고 있어요")
@@ -12,7 +24,9 @@ export function ApplicationQuestionHistoryRow({batch}: {batch: ApplicationQuesti
       ? t("career.application.questions.cancelled", "취소된 질문")
       : t("career.application.questions.answered", "질문 {count}개에 답변했어요").replace("{count}", String(batch.itemIds.length));
   return <div data-application-question-anchor={waiting ? batch.id : undefined} style={careerTimelineTypographyStyle} className={`space-y-4 ${careerTimelineMessageTextClassName}`}>
-    {batch.introduction && <p className="whitespace-pre-wrap">{batch.introduction}</p>}
+    {introduction.content && <p className="whitespace-pre-wrap">{introduction.content}</p>}
+    {introduction.documents.length > 0 && <DocumentPreviewCards documents={introduction.documents} />}
+    {batch.review && <div data-application-review={batch.review.id}><RichText content={batch.review.markdown} variant="career" className={careerTimelineAssistantRichTextClassName} /></div>}
     {waiting ? <div className="flex items-center gap-2 text-neutral-muted"><CircleHelp size={16} aria-hidden />{label}</div> :
       <details className="text-neutral-muted">
         <summary className="cursor-pointer"><CircleHelp className="mr-2 inline" size={16} aria-hidden />{label}</summary>

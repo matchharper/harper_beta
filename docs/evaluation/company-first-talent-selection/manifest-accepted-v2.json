@@ -1,0 +1,33 @@
+{
+  "datasetVersion": "accepted-v2",
+  "createdAt": "2026-10-08T08:15:15.479543+00:00",
+  "fixtureSha256": "53c6961acf0a0be46c5516fbb7b14d74fc4b8a55a318cdd06903b616eca2ccd5",
+  "evaluationUnit": "candidate × current general role in actual rerank",
+  "objective": "Reconsider a prior acceptance: connect, evidenced reject, or defer; ordinary candidates keep ordinary routes.",
+  "canonicalRunner": "harper_worker/llm_evals/company_first_talent_selection/run_accepted.py --dataset=v2 --run-id=<new>",
+  "promptInputContract": "Actual role + profile summary + complete Brief/Behavior + fit evidence + exact verified accepted recommendation mapping and per-pair allowed decisions. Accepted contract included only when a current acceptance exists.",
+  "goldVersion": "accepted-v1; Codex authored before first run, independent team review pending",
+  "metrics": [
+    "Current decision agreement",
+    "Source-grounded reason and missing vs mismatch",
+    "No fabricated candidate withdrawal/company rejection",
+    "Structural exact IDs and no duplicate recommendations"
+  ],
+  "releaseGate": "All four decisions agree in both execution modes; no critical source/state error in full manual review. SQL/privacy/atomic delivery are separate deterministic tests.",
+  "modelConfig": "Actual COMPANY_FIRST_RERANK_CALL; full provider/reasoning/sampling settings recorded per run.",
+  "provenance": "Synthetic only; 4 named generic evidence cases frozen before model calls; no production candidate/company data.",
+  "privacy": "Entirely synthetic including salary and sensitive-context challenge. Raw inputs and outputs only owner-only ignored runs. No DB or delivery.",
+  "knownLimitations": [
+    "Four-case synthetic development challenge; no independent teammate gold review or population accuracy.",
+    "Candidate state and text preparation only; live availability, atomic persistence and Slack transport separately tested locally."
+  ],
+  "changeHistory": [
+    {
+      "version": "accepted-v2",
+      "author": "Codex",
+      "date": "2026-10-08",
+      "reason": "Preserve the four pre-existing decision labels; add a production-ownership criterion, explicit synthetic joining/culture/compensation/private Brief context, Korean company locale and actual presentation/Slack generation. Freeze before first call."
+    }
+  ],
+  "outputContract": "Actual rerank decisions -> connect only -> production four-field presentation -> accepted Slack writer and local card bundle. No database connection or real delivery."
+}

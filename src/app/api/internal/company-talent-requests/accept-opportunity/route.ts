@@ -33,6 +33,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    const expectedUpdatedAt = body.expectedUpdatedAt;
+    if (expectedUpdatedAt != null && (typeof expectedUpdatedAt !== "string" || !Number.isFinite(Date.parse(expectedUpdatedAt)))) {
+      return NextResponse.json({ error: "invalid_recommendation_revision" }, { status: 400 });
+    }
     const confirmation =
       body.emailAcceptanceConfirmation &&
       typeof body.emailAcceptanceConfirmation === "object" &&
@@ -95,6 +99,7 @@ export async function POST(req: NextRequest) {
       action: "feedback",
       admin,
       emailAcceptanceConfirmation: confirmation as Json,
+      expectedUpdatedAt: expectedUpdatedAt as string | null | undefined,
       feedback: decision === "decline" ? "negative" : "positive",
       feedbackReason:
         String(body.feedbackReason ?? "")
@@ -111,6 +116,9 @@ export async function POST(req: NextRequest) {
       recommendationId,
     });
   } catch (error) {
+    if (error instanceof Error && error.message.includes("recommendation_changed_refresh_required")) {
+      return NextResponse.json({ error: "recommendation_changed_refresh_required", historyShouldRefresh: true }, { status: 409 });
+    }
     if (error instanceof InternalRoleAcceptanceError && error.reason === "internal_recommendation_superseded") {
       return NextResponse.json({
         error: "internal_recommendation_superseded",

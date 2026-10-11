@@ -1,0 +1,462 @@
+{
+  "date": "2026-10-09",
+  "model": "gpt-6.1-sol",
+  "observedModels": [
+    "gpt-6.1-sol"
+  ],
+  "reasoning": "xhigh",
+  "maxOutputTokens": 4000,
+  "pricingSource": "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+  "pricingRegistrySha256": "96d4e075cc393068f3add4d044294d21a0dd3636205dcf6aace1188f3aa1b509",
+  "costFormula": "((input-cached-cache_write)*2 + cached*0.1 + cache_write*2.5 + output*10)/1e6; all requests under 272K, Standard; assistant only, excludes fake tools.",
+  "runs": [
+    {
+      "runId": "2026-10-09T08-34-46-950Z",
+      "datasetVersion": "v3",
+      "cases": 4,
+      "turns": 10,
+      "requests": 29,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass",
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "inputTokens": 311416,
+      "cachedTokens": 206410,
+      "cacheWriteTokens": 104922,
+      "outputTokens": 5753,
+      "estimatedCostUsd": 0.340644,
+      "medianTurnSeconds": 19.78,
+      "maxTurnSeconds": 124.79,
+      "requestsWithoutUsage": 1
+    },
+    {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "datasetVersion": "v4",
+      "cases": 14,
+      "turns": 32,
+      "requests": 83,
+      "structuralFailures": 1,
+      "reviewStatuses": [
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "fail",
+        "pass"
+      ],
+      "inputTokens": 914297,
+      "cachedTokens": 541655,
+      "cacheWriteTokens": 372393,
+      "outputTokens": 19734,
+      "estimatedCostUsd": 1.182986,
+      "medianTurnSeconds": 17.75,
+      "maxTurnSeconds": 46.62,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "datasetVersion": "v3",
+      "cases": 18,
+      "turns": 25,
+      "requests": 72,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "needs_improvement",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "needs_improvement",
+        "pass",
+        "pass",
+        "pass",
+        "pass",
+        "pass"
+      ],
+      "inputTokens": 764886,
+      "cachedTokens": 424705,
+      "cacheWriteTokens": 339965,
+      "outputTokens": 19194,
+      "estimatedCostUsd": 1.084755,
+      "medianTurnSeconds": 19.13,
+      "maxTurnSeconds": 65.62,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T08-56-12-230Z",
+      "datasetVersion": "v3",
+      "cases": 1,
+      "turns": 2,
+      "requests": 5,
+      "structuralFailures": 1,
+      "reviewStatuses": [
+        "fail"
+      ],
+      "inputTokens": 46904,
+      "cachedTokens": 9079,
+      "cacheWriteTokens": 37810,
+      "outputTokens": 2236,
+      "estimatedCostUsd": 0.117823,
+      "medianTurnSeconds": 30.22,
+      "maxTurnSeconds": 38.88,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T08-56-55-389Z",
+      "datasetVersion": "v4",
+      "cases": 6,
+      "turns": 16,
+      "requests": 47,
+      "structuralFailures": 1,
+      "reviewStatuses": [
+        "pass",
+        "pass",
+        "pass",
+        "confounded",
+        "pass",
+        "pass"
+      ],
+      "inputTokens": 522663,
+      "cachedTokens": 348976,
+      "cacheWriteTokens": 173546,
+      "outputTokens": 11266,
+      "estimatedCostUsd": 0.581705,
+      "medianTurnSeconds": 19.21,
+      "maxTurnSeconds": 51.83,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T08-59-50-175Z",
+      "datasetVersion": "v3",
+      "cases": 1,
+      "turns": 2,
+      "requests": 5,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass"
+      ],
+      "inputTokens": 46104,
+      "cachedTokens": 9065,
+      "cacheWriteTokens": 37024,
+      "outputTokens": 1667,
+      "estimatedCostUsd": 0.110167,
+      "medianTurnSeconds": 26.35,
+      "maxTurnSeconds": 33.43,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-01-33-176Z",
+      "datasetVersion": "v3",
+      "cases": 2,
+      "turns": 3,
+      "requests": 6,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass",
+        "pass"
+      ],
+      "inputTokens": 54501,
+      "cachedTokens": 9091,
+      "cacheWriteTokens": 45392,
+      "outputTokens": 3272,
+      "estimatedCostUsd": 0.147145,
+      "medianTurnSeconds": 28.69,
+      "maxTurnSeconds": 37.17,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-01-33-177Z",
+      "datasetVersion": "v4",
+      "cases": 1,
+      "turns": 2,
+      "requests": 2,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass"
+      ],
+      "inputTokens": 17193,
+      "cachedTokens": 0,
+      "cacheWriteTokens": 17187,
+      "outputTokens": 1838,
+      "estimatedCostUsd": 0.061359,
+      "medianTurnSeconds": 25.85,
+      "maxTurnSeconds": 36.96,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-03-30-648Z",
+      "datasetVersion": "v5",
+      "cases": 1,
+      "turns": 3,
+      "requests": 11,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "harness_limited"
+      ],
+      "inputTokens": 105866,
+      "cachedTokens": 66219,
+      "cacheWriteTokens": 39614,
+      "outputTokens": 2218,
+      "estimatedCostUsd": 0.127903,
+      "medianTurnSeconds": 17.66,
+      "maxTurnSeconds": 36.87,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-06-09-469Z",
+      "datasetVersion": "v5",
+      "cases": 2,
+      "turns": 5,
+      "requests": 13,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "fail",
+        "pass"
+      ],
+      "inputTokens": 123415,
+      "cachedTokens": 83951,
+      "cacheWriteTokens": 39425,
+      "outputTokens": 3264,
+      "estimatedCostUsd": 0.139676,
+      "medianTurnSeconds": 17.94,
+      "maxTurnSeconds": 29.88,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-07-05-646Z",
+      "datasetVersion": "v3",
+      "cases": 2,
+      "turns": 2,
+      "requests": 3,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass",
+        "needs_improvement"
+      ],
+      "inputTokens": 42983,
+      "cachedTokens": 0,
+      "cacheWriteTokens": 42974,
+      "outputTokens": 3049,
+      "estimatedCostUsd": 0.137943,
+      "medianTurnSeconds": 42.97,
+      "maxTurnSeconds": 51.42,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-09-11-994Z",
+      "datasetVersion": "v5",
+      "cases": 1,
+      "turns": 3,
+      "requests": 10,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass"
+      ],
+      "inputTokens": 95509,
+      "cachedTokens": 75455,
+      "cacheWriteTokens": 20024,
+      "outputTokens": 942,
+      "estimatedCostUsd": 0.067086,
+      "medianTurnSeconds": 11.18,
+      "maxTurnSeconds": 14.37,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-11-42-000Z",
+      "datasetVersion": "v5",
+      "cases": 1,
+      "turns": 3,
+      "requests": 10,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass"
+      ],
+      "inputTokens": 96677,
+      "cachedTokens": 57080,
+      "cacheWriteTokens": 39567,
+      "outputTokens": 1107,
+      "estimatedCostUsd": 0.115756,
+      "medianTurnSeconds": 12.93,
+      "maxTurnSeconds": 14.27,
+      "requestsWithoutUsage": 0
+    },
+    {
+      "runId": "2026-10-09T09-12-30-748Z",
+      "datasetVersion": "v3",
+      "cases": 2,
+      "turns": 2,
+      "requests": 6,
+      "structuralFailures": 0,
+      "reviewStatuses": [
+        "pass",
+        "pass"
+      ],
+      "inputTokens": 64715,
+      "cachedTokens": 35650,
+      "cacheWriteTokens": 29047,
+      "outputTokens": 2048,
+      "estimatedCostUsd": 0.096698,
+      "medianTurnSeconds": 28.66,
+      "maxTurnSeconds": 34.87,
+      "requestsWithoutUsage": 0
+    }
+  ],
+  "totals": {
+    "cases": 56,
+    "turns": 110,
+    "requests": 302,
+    "inputTokens": 3207129,
+    "outputTokens": 77588,
+    "estimatedCostUsd": 4.311646,
+    "requestsWithoutUsage": 1
+  },
+  "latestProgressiveCaseReviews": {
+    "awareness": {
+      "runId": "2026-10-09T09-12-30-748Z",
+      "status": "pass"
+    },
+    "accepted_offer": {
+      "runId": "2026-10-09T09-12-30-748Z",
+      "status": "pass"
+    },
+    "resume_lease": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "coaching_start": {
+      "runId": "2026-10-09T09-01-33-176Z",
+      "status": "pass"
+    },
+    "experience_consent_chain": {
+      "runId": "2026-10-09T08-56-55-389Z",
+      "status": "pass"
+    },
+    "resume_version_chain": {
+      "runId": "2026-10-09T08-56-55-389Z",
+      "status": "pass"
+    },
+    "ambiguous_resume_target": {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "status": "pass"
+    },
+    "preference_correction": {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "status": "pass"
+    },
+    "coaching_correction": {
+      "runId": "2026-10-09T08-56-55-389Z",
+      "status": "pass"
+    },
+    "coaching_resume_detour": {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "status": "pass"
+    },
+    "company_connection_ambiguity": {
+      "runId": "2026-10-09T09-11-42-000Z",
+      "status": "pass"
+    },
+    "resume_is_not_sharing_consent": {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "status": "pass"
+    },
+    "gmail_expiry": {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "status": "pass"
+    },
+    "untrusted_document_instructions": {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "status": "pass"
+    },
+    "resume_revision_conflict": {
+      "runId": "2026-10-09T08-56-55-389Z",
+      "status": "pass"
+    },
+    "resume_storage_failure": {
+      "runId": "2026-10-09T08-56-55-389Z",
+      "status": "pass"
+    },
+    "research_followthrough": {
+      "runId": "2026-10-09T09-06-09-469Z",
+      "status": "pass"
+    },
+    "unsupported_application": {
+      "runId": "2026-10-09T08-50-17-783Z",
+      "status": "pass"
+    },
+    "casual_experience": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "review_offer": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "resume_copy": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "core_memory": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "coaching_active": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "gmail_connected": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "gmail_restricted": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "company_contact": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "spontaneous_research": {
+      "runId": "2026-10-09T09-01-33-176Z",
+      "status": "pass"
+    },
+    "declined_offer": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "mixed_resume_memory": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "direct_recommendation": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "web_url": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    },
+    "resume_create_en": {
+      "runId": "2026-10-09T08-51-48-729Z",
+      "status": "pass"
+    }
+  },
+  "limitations": "Composite latest-case review, not one post-final-edit complete-suite run. Synthetic fixtures only; raw outputs remain ignored and owner-only. Initial smoke has one request without a recorded response/usage; its cost is excluded as unknown, not zero."
+}

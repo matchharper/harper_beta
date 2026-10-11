@@ -32,6 +32,7 @@ export function useCareerTasks(includeProgress = false) {
   return {
     actions,
     connections: tasksOverride?.connections ?? progress.data?.connections ?? [],
+    priorityReviews: tasksOverride?.priorityReviews ?? progress.data?.priorityReviews ?? [],
     decisionCount: decisions.length + meetingSchedules.length,
     decisions,
     error:

@@ -285,6 +285,7 @@ test("derives user-facing counts from the worker candidateCounts shape", () => {
           detailedExternal: 4,
           externalAfterLivenessFilter: 61,
           externalRaw: 84,
+          externalDeepseekEvaluated: 32,
           internal: 999,
         },
       },
@@ -293,6 +294,7 @@ test("derives user-facing counts from the worker candidateCounts shape", () => {
   );
 
   assert.equal(run?.candidateCount, 61);
+  assert.equal(run?.coverage.scoredCandidateCount, 32);
   assert.equal(run?.recommendationCount, 4);
   assert.deepEqual(run?.coverage.candidateCounts, {
     detailedExternal: 4,

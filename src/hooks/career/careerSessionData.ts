@@ -16,7 +16,7 @@ export const getHistoryOpportunityBucket = (
   item: Pick<CareerHistoryOpportunity, "feedback" | "savedStage">
 ): CareerHistoryOpportunityBucket => {
   if (item.feedback === "negative") return "archived";
-  if (item.feedback === "positive" || item.savedStage === "hidden") {
+  if (item.feedback === "positive" || item.feedback === "keep" || item.savedStage === "hidden") {
     return "saved";
   }
   return "new";
@@ -142,7 +142,8 @@ export const normalizeHistoryOpportunities = (
     if (
       item.feedback !== null &&
       item.feedback !== "positive" &&
-      item.feedback !== "negative"
+      item.feedback !== "negative" &&
+      item.feedback !== "keep"
     ) {
       return false;
     }

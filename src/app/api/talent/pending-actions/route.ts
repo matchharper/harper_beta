@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readPriorityReviewProgress } from "@/lib/career/priorityReviewProgress";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
   fetchTalentSetting,
@@ -37,6 +38,26 @@ const cleanText = (value: unknown, fallback: string, maxLength = 1000) => {
     typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   return (text || fallback).slice(0, maxLength);
 };
+
+export async function DELETE(req: NextRequest) {
+  const user = await getRequestUser(req);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const roleId = req.nextUrl.searchParams.get("priorityReviewRoleId");
+  if (!roleId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roleId)) {
+    return NextResponse.json({ error: "Invalid role ID" }, { status: 400 });
+  }
+  const admin = getTalentSupabaseAdmin();
+  const { data, error } = await (admin.rpc as any)("withdraw_candidate_priority_review_v1", {
+    p_talent_id: user.id,
+    p_role_id: roleId,
+    p_source: { source: "career_tasks" },
+  });
+  if (error) {
+    console.error("[CareerPriorityReview] Withdrawal failed", error);
+    return NextResponse.json({ error: "Could not withdraw request" }, { status: 500 });
+  }
+  return NextResponse.json(data);
+}
 
 async function withPendingActionsFallback<T>(args: {
   fallback: T;
@@ -136,6 +157,7 @@ export async function GET(req: NextRequest) {
   }
   if (isProgressScope) {
     try {
+      const priorityReviews = await readPriorityReviewProgress(admin,user.id);
       const opportunities = await fetchTalentOpportunityHistory({
         admin,
         historyTab: "saved",
@@ -149,6 +171,7 @@ export async function GET(req: NextRequest) {
       });
       return NextResponse.json({
         connections,
+        priorityReviews,
         searchStatus: setting.status,
       } satisfies CareerTaskProgressSnapshot);
     } catch (error) {

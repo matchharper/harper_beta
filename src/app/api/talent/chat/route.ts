@@ -1,3 +1,5 @@
+import { assertApplicationResumeWrite, recordApplicationResume } from "@/lib/career/simulation/resumeWorkflow";
+import { documentFingerprint } from "@/lib/career/simulation/resumeAttachment";
 import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
 import { extractStartOfferPayload, startOfferVisibleLength, type StartOfferPayload } from "@/lib/career/simulation/startOfferPayload";
 import { prepareApplicationStartPayload } from "@/lib/career/simulation/startOfferStore";
@@ -29,6 +31,9 @@ import {
   SIMULATION_TOOL_NAMES,
   SIMULATION_SESSION_TOOL,
 } from "@/lib/career/simulation/sessionTool";
+import { createCareerCapabilityTurn, isCareerCapabilityTurn } from "@/lib/career/capabilities/server";
+import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
+import { initialCareerCapabilityPayload } from "@/lib/career/capabilities/lease";
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
@@ -183,6 +188,7 @@ import type { TalentMessageResponse } from "@/lib/talentOnboarding/models";
 export const maxDuration = 480;
 
 type Body = {
+  clientRequestId?: string;
   allowedToolNames?: unknown;
   channel?: string;
   simulationAction?: unknown;
@@ -594,11 +600,7 @@ export async function POST(req: NextRequest) {
       requestChannel === "chat" && canUseCareerDevControls(user.email)
     );
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
-    const canUseInternalFitHoldQuestionTool =
-      !Array.isArray(allowedToolNames) ||
-      allowedToolNames.includes(
-        TALENT_TOOL_NAMES.RECORD_INTERNAL_FIT_REEVALUATION_INFORMATION
-      );
+    const canUseInternalFitHoldQuestionTool = false;
     const opportunityMentions = normalizeCareerOpportunityMentions(
       body.opportunityMentions
     );
@@ -762,7 +764,7 @@ export async function POST(req: NextRequest) {
       state.activity!.batches.find(b=>b.id===batch.id)!.continuation="running";
       state.activity!.batches.find(b=>b.id===batch.id)!.continuationStartedAt=new Date().toISOString();
       simulationSession=await saveSession(simulationStore,simulationSession,state,`continue:${batch.id}:${state.revision}`);
-      message = `Application question responses submitted (internal continuation): ${JSON.stringify({questions:batch.items, responses:batch.responses})}`;
+      message = `The user submitted application question batch ${batch.id}. Use that batch in the current application context to continue from their answers; do not ask them to repeat the answers.`;
     }
     const finishApplicationContinuation = async (failed=false) => {
       if (!submission) return;
@@ -1126,6 +1128,17 @@ export async function POST(req: NextRequest) {
         size: document.size_bytes ?? undefined,
       }))
     );
+    const capabilityMode = getCareerCapabilityMode();
+    // A start click creates the activity later in this request. It already owns
+    // the turn: a normal-chat runtime would keep the pre-analysis inactive prompt.
+    const trackCapabilities = isCareerCapabilityTurn({
+      applicationStartRequested: Boolean(requestedApplicationStart),
+      applicationActive: simulationSession?.state.status === "active",
+      applicationInputSubmitted: Boolean(submission),
+      channel: requestChannel,
+      isOnboardingDone: Boolean(talentSetting?.is_onboarding_done),
+      allowedToolNames,
+    });
     const { data: insertedUserMessage, error: userMessageError } = submission
       ? await admin.from("talent_messages").select("*").eq("conversation_id", conversationId).eq("user_id", user.id).order("id", {ascending:false}).limit(1).single()
       : await admin
@@ -1138,6 +1151,7 @@ export async function POST(req: NextRequest) {
             role: "user",
             content: normalizedContent,
             message_type: userMessageType,
+            ...(trackCapabilities ? { payload: initialCareerCapabilityPayload(capabilityMode) } : {}),
           },
           isMobile
         )
@@ -1267,7 +1281,7 @@ export async function POST(req: NextRequest) {
         ? ("available" as const)
         : ("connected_but_unavailable_this_turn" as const)
       : ("not_connected" as const);
-    const toolDefinitions = toolSelection.tools;
+    let toolDefinitions = toolSelection.tools;
     const currentPreferences = {
       getExternalRecommendation:
         talentSetting?.get_external_recommendation ?? true,
@@ -1341,8 +1355,7 @@ export async function POST(req: NextRequest) {
     ]
       .filter((value): value is string => Boolean(value))
       .join("\n\n");
-    const buildCurrentPromptPlan = () =>
-      buildCareerConversationPromptPlan({
+    const currentPromptArgs = (): Parameters<typeof buildCareerConversationPromptPlan>[0] => ({
         simulationAvailability: !simulationSchemaAvailable
           ? "unavailable"
           : simulationSession?.state.status === "active"
@@ -1395,11 +1408,26 @@ export async function POST(req: NextRequest) {
         timeZone: promptTimeZone,
         toolNames: toolSelection.toolNames,
       });
+    const buildCurrentPromptPlan = () => buildCareerConversationPromptPlan(currentPromptArgs());
+    const capabilityPromptArgs = currentPromptArgs();
     if (simulationSession?.state.status === "active" && !submission) {
-      simulationSession = await saveSession(simulationStore,simulationSession,{...simulationSession.state,lastActivityAt:new Date().toISOString()},`user-turn:${insertedUserMessage.id}`);
+      simulationSession = await saveSession(simulationStore, simulationSession, {...simulationSession.state, lastActivityAt: new Date().toISOString()}, `user-turn:${insertedUserMessage.id}`);
     }
     const { isOnboardingActive, promptBlocks } = buildCurrentPromptPlan();
-    const systemBlocks = promptBlocks;
+    const capabilityTurn = trackCapabilities ? await createCareerCapabilityTurn({
+    origin: "web",
+      admin, userId: user.id, conversationId, sourceMessage: insertedUserMessage as TalentMessageRow,
+      mode: capabilityMode, eligibleTools: toolSelection.tools, promptArgs: capabilityPromptArgs,
+      preloads: [
+        ...(uploadedDocuments.length ? ["documents" as const] : []),
+        ...(selectedInternalOpportunity ? ["opportunities" as const] : []),
+        ...(selectedCompanyTalentRequest ? ["company_contact" as const] : []),
+        ...(coachingActivityAction && careerCoachingActivity && coachingActivityAction.activityMessageId === careerCoachingActivity.messageId && coachingActivityAction.expectedRevision === careerCoachingActivity.revision ? ["career_coaching" as const] : []),
+      ],
+    }) : undefined;
+    const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
+    if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
+    const systemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
     const refreshSimulationRuntime = async () => {
       if (!simulationSchemaAvailable) return;
       simulationSession = await sessionOperation({
@@ -1471,6 +1499,13 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let opportunityRecommendationsChanged = false;
     let documentsChanged = uploadedDocuments.length > 0;
+    const generatedResumeLinks = new Map<string, string>();
+    const withResumeLinks = (text: string) => {
+      for (const [id, link] of generatedResumeLinks) {
+        if (!text.includes(`](documentId:${id})`)) text += `\n\n${link}`;
+      }
+      return text;
+    };
     let changedOpportunityRoleId: string | null = null;
     let auxiliaryAssistantMessages: TalentMessageResponse[] =
       expiredCareerCoachingActivityMessage
@@ -1600,13 +1635,18 @@ export async function POST(req: NextRequest) {
     const executeRecommendJobPostings = async (
       input: Record<string, unknown>
     ) => {
-      recordRecommendationStatus({ state: "running" });
+      let latestProgress: RecommendJobPostingStatus = { state: "running", phase: "query" };
+      recordRecommendationStatus(latestProgress);
 
       try {
         const result = await executeTalentTool({
           context: {
             admin,
             abortSignal: req.signal,
+            onRecommendationSearchProgress: (progress) => {
+              latestProgress = progress;
+              recordRecommendationStatus(progress);
+            },
             conversationId,
             isMobile,
             responseLocale,
@@ -1623,6 +1663,7 @@ export async function POST(req: NextRequest) {
         if (recommendationReceiptRef.current) return result;
         const recommendationResult = isRecord(result) ? result : {};
         const completedStatus: RecommendJobPostingStatus = {
+          ...latestProgress,
           candidateCount:
             typeof recommendationResult.candidateCount === "number"
               ? recommendationResult.candidateCount
@@ -1642,7 +1683,7 @@ export async function POST(req: NextRequest) {
         if (req.signal.aborted) {
           throw error;
         }
-        recordRecommendationStatus({ state: "error" }, { persist: true });
+        recordRecommendationStatus({ ...latestProgress, state: "error" }, { persist: true });
         throw error;
       }
     };
@@ -1670,13 +1711,18 @@ export async function POST(req: NextRequest) {
         const input = applicationInputSchema.parse(toolInput);
         for (const item of input.items) {
           if (item.documentPurpose !== "final_resume") continue;
-          const documentId = item.documentId ?? simulationSession.state.preparation?.finalDocumentId ?? simulationSession.state.documentId;
+          const documentId = item.documentId ?? simulationSession.state.preparation?.workingResume?.documentId ?? simulationSession.state.preparation?.finalDocumentId ?? simulationSession.state.documentId;
           if (!documentId) throw new Error("Choose a resume before asking for file confirmation");
           const {validatePreparationDocument} = await import("@/lib/career/simulation/preparationService");
           const document = await validatePreparationDocument(simulationStore, documentId, true);
           item.documentId = document.id;
           item.documentName = document.file_name;
+          item.documentFingerprint = documentFingerprint(document);
         }
+
+        // Question turns suppress ordinary prose. Keep verified resume links with
+        // the persisted introduction so the user can review before choosing a file.
+        if (generatedResumeLinks.size) input.introduction = withResumeLinks(input.introduction ?? "");
 
         const state = askApplicationInput(simulationSession.state, input, `questions:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(input)}`);
         const saved = await saveSession(simulationStore, simulationSession, state, `questions:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(input)}`);
@@ -1785,6 +1831,9 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && simulationSession?.state.status === "active") {
+        assertApplicationResumeWrite(simulationSession.state);
+      }
       const result = await executeTalentTool({
         context: {
           admin,
@@ -1796,16 +1845,27 @@ export async function POST(req: NextRequest) {
           registerProcessClosureNotices,
           scheduleAfter: (task) => after(task),
           userMessageId: insertedUserMessage.id,
+          resumeRequestId: submission ? `${conversationId}:application-answers:${submission.batchId}` : typeof body.clientRequestId === "string" && /^[0-9a-f-]{36}$/i.test(body.clientRequestId) ? `${conversationId}:${body.clientRequestId}` : undefined,
           userId: user.id,
         },
         logging: false,
         name: toolArgs.name,
         input: toolInput,
       });
+      if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && isRecord(result) && result.ok === true && typeof result.documentId === "string" && typeof result.documentLink === "string") {
+        generatedResumeLinks.set(result.documentId, result.documentLink);
+        if (simulationSession?.state.status === "active" && simulationSession.state.preparation && typeof result.revision === "number" && typeof result.fileName === "string") {
+          const state = recordApplicationResume(simulationSession.state, {documentId: result.documentId, revision: result.revision, fileName: result.fileName});
+          const saved = await saveSession(simulationStore, simulationSession, state, `resume:${result.documentId}:${result.revision}`);
+          simulationSession = saved;
+          onSimulationMessage(saved.message);
+          await refreshSimulationRuntime();
+        }
+      }
       rememberCareerCoachingActivityMessage(result);
       rememberRecommendationPostingRoleIds(result);
 
-      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT) {
+      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT || toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME) {
         documentsChanged = true;
       }
 
@@ -1960,6 +2020,7 @@ export async function POST(req: NextRequest) {
             try {
               await startRequestedApplication();
               assistantText = await runCareerChatAssistantStream({
+                toolRuntime: capabilityTurn?.runtime,
                 chatCompletionReasoningEffort:
                   textChatModel.chatCompletionReasoningEffort,
                 messages: llmMessages,
@@ -2211,6 +2272,7 @@ export async function POST(req: NextRequest) {
                 userId: user.id,
               });
               send("talent_profile", profileSnapshot);
+              await capabilityTurn?.complete();
               send("done", { ok: true });
               return;
             }
@@ -2218,7 +2280,7 @@ export async function POST(req: NextRequest) {
             const extractedStartOffer = extractStartOfferPayload(assistantText);
             responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
             if (responseStartOffer) suppressRolePreviews = true;
-            let assistantTextSource = extractedStartOffer.content;
+            let assistantTextSource = withResumeLinks(extractedStartOffer.content);
             if (recommendationReceiptRef.current) {
               assistantTextSource =
                 recommendationReceiptRef.current.answerDraft;
@@ -2536,6 +2598,7 @@ export async function POST(req: NextRequest) {
               userId: user.id,
             });
             send("talent_profile", profileSnapshot);
+            await capabilityTurn?.complete();
             send("done", { ok: true });
           } catch (error) {
             if (req.signal.aborted) return;
@@ -2581,6 +2644,7 @@ export async function POST(req: NextRequest) {
     try {
       await startRequestedApplication();
       assistantText = await runCareerChatAssistant({
+        toolRuntime: capabilityTurn?.runtime,
         chatCompletionReasoningEffort:
           textChatModel.chatCompletionReasoningEffort,
         messages: llmMessages,
@@ -2821,6 +2885,7 @@ export async function POST(req: NextRequest) {
         userId: user.id,
       });
 
+      await capabilityTurn?.complete();
       return NextResponse.json({
         ok: true,
         historyChangedRoleId: changedOpportunityRoleId,
@@ -2839,12 +2904,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    logger.log("\n\nassistantText : ", assistantText, "\n\n");
+    if (generatedResumeLinks.size === 0) {
+      logger.log("\n\nassistantText : ", assistantText, "\n\n");
+    }
 
     const extractedStartOffer = extractStartOfferPayload(assistantText);
             responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
             if (responseStartOffer) suppressRolePreviews = true;
-            let assistantTextSource = extractedStartOffer.content;
+            let assistantTextSource = withResumeLinks(extractedStartOffer.content);
     if (recommendationReceiptRef.current) {
       assistantTextSource = recommendationReceiptRef.current.answerDraft;
     }
@@ -3097,6 +3164,7 @@ export async function POST(req: NextRequest) {
       (message) => message.id === insertedAssistantMessage.id
     );
 
+    await capabilityTurn?.complete();
     return NextResponse.json({
       ok: true,
       historyChangedRoleId: changedOpportunityRoleId,

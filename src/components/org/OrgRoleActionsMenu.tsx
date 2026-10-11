@@ -1,16 +1,10 @@
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { MuteButton } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,7 +56,10 @@ export function OrgRoleActionsMenu({
     return (
       <button
         type="button"
-        aria-label={t("OrgRoleActionsMenu.44fb80c9", "Role actions unavailable")}
+        aria-label={t(
+          "OrgRoleActionsMenu.44fb80c9",
+          "Role actions unavailable"
+        )}
         disabled
         className={buttonClassName}
       >
@@ -95,7 +92,9 @@ export function OrgRoleActionsMenu({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={t("OrgRoleActionsMenu.31f058fc", "{p0} 역할 작업", { p0: role.name })}
+            aria-label={t("OrgRoleActionsMenu.31f058fc", "{p0} 역할 작업", {
+              p0: role.name,
+            })}
             disabled={isDisabled}
             className={buttonClassName}
           >
@@ -134,25 +133,41 @@ export function OrgRoleActionsMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog
+      <TalentCareerModal
         open={Boolean(lifecycleAction)}
-        onOpenChange={(open) => !open && setLifecycleAction(null)}
-      >
-        <DialogContent className="max-w-sm gap-4 rounded-lg p-6">
-          <DialogHeader>
-            <DialogTitle className="text-[17px]">
-              {t("OrgRoleActionsMenu.98238b00", "역할")}
-              {actionLabel}
-            </DialogTitle>
-            <DialogDescription className="text-[13px] leading-5">
-              {lifecycleAction === "delete"
-                ? t("OrgRoleActionsMenu.881904c4", "“{p0}” 역할을 삭제합니다. 계속할까요?", { p0: role.name })
-                : lifecycleAction === "pause"
-                  ? t("OrgRoleActionsMenu.f0433675", "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?", { p0: role.name })
-                  : t("OrgRoleActionsMenu.11685c0d", "“{p0}” 역할의 후보자 연결을 다시 시작할까요?", { p0: role.name })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
+        onClose={() => setLifecycleAction(null)}
+        mobileBottomSheet
+        title={
+          <>
+            {t("OrgRoleActionsMenu.98238b00", "역할")}
+            {actionLabel}
+          </>
+        }
+        description={
+          <>
+            {lifecycleAction === "delete"
+              ? t(
+                  "OrgRoleActionsMenu.881904c4",
+                  "“{p0}” 역할을 삭제합니다. 계속할까요?",
+                  { p0: role.name }
+                )
+              : lifecycleAction === "pause"
+                ? t(
+                    "OrgRoleActionsMenu.f0433675",
+                    "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?",
+                    { p0: role.name }
+                  )
+                : t(
+                    "OrgRoleActionsMenu.11685c0d",
+                    "“{p0}” 역할의 후보자 연결을 다시 시작할까요?",
+                    { p0: role.name }
+                  )}
+          </>
+        }
+        panelClassName="max-w-sm"
+        bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <MuteButton
               onClick={() => setLifecycleAction(null)}
               size="md"
@@ -168,9 +183,11 @@ export function OrgRoleActionsMenu({
             >
               {actionLabel}
             </MuteButton>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        }
+      >
+        <></>
+      </TalentCareerModal>
     </>
   );
 }

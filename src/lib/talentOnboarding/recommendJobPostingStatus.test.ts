@@ -2,10 +2,39 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createRecommendJobPostingStatusLog,
+  parseRecommendJobPostingStatusLog,
   isRecommendJobPostingSearchStopped,
   splitRecommendJobPostingStatusLogs,
   upsertRecommendJobPostingStatusLog,
 } from "./recommendJobPostingStatus";
+
+test("round-trips real phases and zero counts through persisted stream markers", () => {
+  for (const phase of ["query", "scoring", "reranking", "delivery"] as const) {
+    const status = {
+      state: "running" as const,
+      phase,
+      candidateCount: 0,
+      scoredCount: 0,
+      recommendationCount: 0,
+    };
+    assert.deepEqual(
+      parseRecommendJobPostingStatusLog(
+        createRecommendJobPostingStatusLog(status)
+      ),
+      status
+    );
+  }
+});
+
+test("ignores unknown phases and invalid counts without rejecting older status logs", () => {
+  assert.deepEqual(
+    parseRecommendJobPostingStatusLog(
+      "[[recommend_job_postings:running:phase=future:scored=-1:candidates=NaN]]"
+    ),
+    { state: "running" }
+  );
+});
 
 test("persists stopped status while preserving ordinary thinking logs", () => {
   const logs = upsertRecommendJobPostingStatusLog(

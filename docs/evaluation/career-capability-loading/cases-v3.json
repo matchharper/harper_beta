@@ -1,0 +1,147 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v3",
+  "cases": [
+    {
+      "id": "awareness",
+      "turns": [
+        "Harper에서 나를 위해 실제로 해줄 수 있는 일을 알려줘. 이력서 버전 관리, 회사 연락, 코칭도 가능한가?"
+      ]
+    },
+    {
+      "id": "casual_experience",
+      "turns": [
+        "오늘 API 응답 시간을 20% 줄였어. 그냥 뿌듯해서 얘기해봤어."
+      ]
+    },
+    {
+      "id": "review_offer",
+      "turns": [
+        "저장된 이력서에서 API 응답시간 개선 경험이 그냥 업무 나열처럼 보여. 읽고 어떤 점을 바꾸면 좋을지 알려줘. 아직 저장하지는 마."
+      ]
+    },
+    {
+      "id": "accepted_offer",
+      "history": [
+        {
+          "role": "user",
+          "content": "저장한 민재_백엔드 이력서에서 API 응답 시간을 줄였다는 bullet에 확인된 20% 개선 성과를 넣고 싶어."
+        },
+        {
+          "role": "assistant",
+          "content": "현재 문서를 읽고 해당 bullet에 API 응답시간 20% 개선을 반영해 수정할까요?"
+        }
+      ],
+      "turns": [
+        "응, 그렇게 해줘."
+      ]
+    },
+    {
+      "id": "resume_copy",
+      "turns": [
+        "저장된 민재_백엔드 이력서를 민재_백엔드_v2라는 이름으로 복사하고, API 응답시간을 20% 줄였다는 성과만 추가해 줘. 원본은 그대로 둬."
+      ]
+    },
+    {
+      "id": "core_memory",
+      "turns": [
+        "앞으로 회사 고를 때 주 2회 재택은 필수 조건으로 기억해 줘."
+      ]
+    },
+    {
+      "id": "coaching_start",
+      "turns": [
+        "지금부터 10분 정도 채팅으로 이직 결정을 코칭해 줘. 현 직장의 안정성과 새 직장의 성장 가능성 사이에서 고민 중이야.",
+        "방금 제안한 코칭을 채팅으로 시작할게. 10분으로 해 줘."
+      ]
+    },
+    {
+      "id": "coaching_active",
+      "activeCoaching": true,
+      "turns": [
+        "내가 가장 걱정하는 건 새 직장에서 적응을 못해 수입이 끊기는 거야.",
+        "오늘 코칭은 여기서 마칠게."
+      ]
+    },
+    {
+      "id": "gmail_connected",
+      "gmail": true,
+      "turns": [
+        "연결된 Gmail에서 최근 채용 관련 메일이 왔는지 찾아줘."
+      ]
+    },
+    {
+      "id": "gmail_restricted",
+      "gmail": true,
+      "allowed": [
+        "update_language_setting",
+        "update_setting",
+        "update_talent_profile",
+        "read_talent_context",
+        "write_talent_context"
+      ],
+      "turns": [
+        "연결된 Gmail에서 최근 채용 메일을 찾아줘."
+      ]
+    },
+    {
+      "id": "resume_lease",
+      "turns": [
+        "저장된 민재_백엔드 이력서에서 API 응답시간 20% 개선 성과를 넣어 수정해 줘.",
+        "수정한 것 읽고 API 관련 bullet만 알려줘.",
+        "고마워.",
+        "덕분에 도움이 됐어.",
+        "이제 좀 쉬어야겠네.",
+        "아까 이력서의 API bullet에 성능 모니터링도 담당했다고 추가해 줘."
+      ]
+    },
+    {
+      "id": "company_contact",
+      "turns": [
+        "연결된 회사의 이전 연락 내용을 읽고, 담당자에게 면접 가능 시간이 다음 주 화요일 오후 2시라고 답장해 줘."
+      ]
+    },
+    {
+      "id": "spontaneous_research",
+      "turns": [
+        "이직 제안을 받은 회사의 재무 상태나 팀 분위기를 거의 몰라서 합류 판단이 막혀. 뭘 확인해야 할지부터 알고 싶어."
+      ]
+    },
+    {
+      "id": "declined_offer",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "이력서의 별도 버전을 만들어서 성과가 더 잘 보이도록 다듬어 드릴까요?"
+        }
+      ],
+      "turns": [
+        "아니, 지금은 괜찮아. 오늘 얘기만으로 충분해."
+      ]
+    },
+    {
+      "id": "mixed_resume_memory",
+      "turns": [
+        "주 2회 재택은 앞으로 필수 조건으로 기억해 줘. 그리고 저장된 민재_백엔드 이력서에는 API 응답시간 20% 개선 성과만 추가해서 수정해 줘. 재택 조건은 이력서에 쓰지 마."
+      ]
+    },
+    {
+      "id": "direct_recommendation",
+      "turns": [
+        "Harper가 직접 연결하는 곳 말고, 외부 공개 공고 중 백엔드 개발 포지션을 찾아서 추천해 줘."
+      ]
+    },
+    {
+      "id": "web_url",
+      "turns": [
+        "https://example.org/engineering 의 내용을 읽고 간단히 요약해 줘."
+      ]
+    },
+    {
+      "id": "resume_create_en",
+      "turns": [
+        "Create a new private English resume named Minjae_Backend_EN using only my confirmed profile facts. Keep the existing resume unchanged."
+      ]
+    }
+  ]
+}

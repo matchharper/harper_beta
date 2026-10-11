@@ -1,8 +1,11 @@
+// Self-serve signup is paused while payments are being tested.
+// import { OrgSignupEntry } from "@/components/org/onboarding/OrgSignupEntry";
 import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import type { ReactNode } from "react";
 import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
+import { OrgAnnouncement } from "@/components/org/OrgAnnouncement";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
@@ -104,6 +107,7 @@ export function OrgWorkspaceApp({
     );
   }
   if (!workspace || !contextValue) {
+    // return <OrgSignupEntry email={user.email} />;
     return <OrgLoginScreen authenticatedEmail={user.email} />;
   }
 
@@ -165,6 +169,9 @@ export function OrgWorkspaceApp({
           </div>
         </Page>
       </OrgMobileNavigationProvider>
+      {page === "home" && router.pathname === "/org/home" && (
+        <OrgAnnouncement userId={user.id} workspaceId={workspace.workspaceId} />
+      )}
     </OrgWorkspaceProvider>
   );
 }

@@ -1,3 +1,4 @@
+import { documentFingerprint } from "./resumeAttachment";
 import { stopApplicationBrowser } from "./agentsApi";
 import {
   finishApplicationAnswer,
@@ -27,6 +28,7 @@ export const preparationRequestSchema = z
     requestId: z.string().min(1).max(200),
     operation: z.enum([
       "respond",
+      "submit_answers",
       "navigate",
       "hide",
       "show",
@@ -36,6 +38,8 @@ export const preparationRequestSchema = z
       "resume",
       "end",
     ]),
+    batchId: z.string().optional(),
+    responses: z.record(z.string(), preparationResponseSchema).optional(),
     itemId: z.string().optional(),
     response: preparationResponseSchema.optional(),
     documentId: z.string().optional(),
@@ -60,6 +64,12 @@ export async function respondPreparationFromChat(
   messageId: number,
   key: string
 ) {
+  const selected = record.state.actions.find(a => a.id === itemId);
+  if (response.decision === "document" && selected?.documentPurpose === "final_resume") {
+    const doc = await validatePreparationDocument(store, response.documentId ?? "", true);
+    if (selected.documentId !== doc.id || selected.documentFingerprint !== documentFingerprint(doc))
+      throw new Error("The file changed; request a new confirmation");
+  }
   if (response.documentId)
     response.documentName = (
       await validatePreparationDocument(
@@ -128,7 +138,15 @@ export async function executePreparationRequest(
   const p = state.preparation!;
   if (p.generation.status === "running" && input.operation !== "end")
     throw new Error("Draft generation is running");
-  if (input.operation === "respond") {
+  if (input.operation === "respond" || input.operation === "submit_answers") {
+    const batch = state.activity?.batches.find(b => b.id === input.batchId);
+    if (input.operation === "submit_answers" && (!batch || batch.status !== "waiting" || !input.responses || Object.keys(input.responses).length !== batch.itemIds.length || batch.itemIds.some(id => !input.responses?.[id])))
+      throw new Error("Complete pending question batch required");
+    const answers = input.operation === "submit_answers"
+      ? batch!.itemIds.map(itemId => ({itemId, response: input.responses![itemId]}))
+      : [{itemId: input.itemId, response: input.response}];
+    for (const answer of answers) {
+    const input = answer;
     if (!input.itemId || !input.response) throw new Error("Response required");
     const item = applicationQuestionItems(state).find(
       (a) => a.id === input.itemId
@@ -141,6 +159,11 @@ export async function executePreparationRequest(
       throw new Error(
         "The confirmed file has changed; request a new confirmation"
       );
+    if (item?.documentPurpose === "final_resume" && input.response.decision === "document") {
+      const doc = await validatePreparationDocument(store, input.response.documentId ?? "", true);
+      if (item.documentFingerprint !== documentFingerprint(doc))
+        throw new Error("The file changed; request a new confirmation");
+    }
     if (input.response.documentId)
       input.response.documentName = (
         await validatePreparationDocument(
@@ -158,6 +181,7 @@ export async function executePreparationRequest(
         0
       )
     );
+    }
   } else if (input.operation === "navigate" || input.operation === "show") {
     if (
       input.itemId &&

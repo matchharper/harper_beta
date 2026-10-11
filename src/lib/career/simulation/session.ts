@@ -1,3 +1,5 @@
+import { applicationAnswerContext, unbatchedApplicationResponses } from "./applicationAnswerContext";
+import { applicationFormSchema } from "./applicationForm";
 import { browserStateSchema, browserQuestionRefSchema } from "./applicationBrowser";
 import {
   preparationSchema,
@@ -50,6 +52,7 @@ export const actionSchema = z.object({
   documentPurpose: z.enum(["final_resume", "supporting"]).optional(),
   documentId: z.string().optional(),
   documentName: z.string().optional(),
+  documentFingerprint: z.string().optional(),
   inputKind: z.enum(["change", "question", "material", "choice"]).optional(),
   options: z
     .array(
@@ -67,6 +70,7 @@ export const sessionSchema = z.object({
   preparation: preparationSchema.optional(),
   browser: browserStateSchema.optional(),
   applicationUrl: z.string().optional(),
+  applicationForm: applicationFormSchema.optional(),
   activity: z
     .object({
       version: z.literal(1),
@@ -87,6 +91,7 @@ export const sessionSchema = z.object({
           purpose: z.string(),
           browser: browserQuestionRefSchema.optional(),
           introduction: z.string().optional(),
+          review: z.object({ id: z.string(), version: z.number().int().positive(), markdown: z.string() }).optional(),
           introMessageId: z.number().optional(),
           itemIds: z.array(z.string()),
           items: z.array(actionSchema).optional(),
@@ -496,31 +501,26 @@ export function mutateSimulationSession(
     next = endSimulationSession(next, "completed", now);
   return next;
 }
-// Only the selected action carries full source details into the next turn.
-export function simulationSessionContext(s: SimulationSession) {
+// Project current activity state; immutable question snapshots own recorded responses.
+export function simulationSessionContext(s: SimulationSession, toolNames?: readonly string[]) {
   return {
-    preparation: s.preparation ? { responses: s.preparation.responses, finalDocumentId: s.preparation.finalDocumentId } : undefined,
+    preparation: s.preparation ? { responses: unbatchedApplicationResponses(s), applicationMethod: s.preparation.applicationMethod, finalDocumentId: s.preparation.finalDocumentId } : undefined,
     application: s.browser ? { status: s.browser.status, result: s.browser.result } : undefined,
-    questionBatches: s.activity?.batches.map(
-      ({ purpose, itemIds, status, responses }) => ({
-        purpose,
-        itemIds,
-        status,
-        responses,
-      })
-    ),
+    questionBatches: applicationAnswerContext(s, true),
     role: s.roleName,
     document: s.documentName,
+    workingResume: s.preparation?.workingResume,
     selectedResume: {
       documentId: s.documentId,
       source: s.documentOriginType ?? "uploaded_or_unknown",
       // Enable only when an actual content editor is integrated and exposed in this mode.
-      directEditingAvailable: false,
+      directEditingAvailable: toolNames?.includes("generate_resume"),
     },
     status: s.status,
     endReason: s.endReason,
     analysisStatus: s.analysisStatus,
     requirements: s.requirements,
+    applicationForm: s.applicationForm,
     actions: s.actions.map(({ executionPrompt, ...a }) => a),
     facts: s.facts,
     pendingNewRequest: s.switchRequest?.text ?? null,

@@ -131,6 +131,12 @@ Raw artifact를 공유하거나 commit하지 않는다.
 
 ## 변경 이력
 
+### 2026-10-08 후보자 카드의 출력 계약
+
+후보자가 포함된 새 결과는 `backgroundResultParts.ts`의 최소 메시지 계약을 사용한다. 원본 회사 측 LLM이 자연스러운 설명을 작성하되 각 메시지에 `candidateId` 또는 `null`을 붙인다. 후보자 설명 뒤에 Slack 카드를 붙이고 인사·마무리·후속 질문은 별도 메시지로 렌더링하기 위한 식별자다. 별도 classifier·추출 LLM·문구 후처리는 없다. 후보자 없는 결과의 기존 prompt와 frozen v1은 유지한다.
+
+같은 작성 결과의 문장들을 웹에서는 하나의 답변으로 이어 붙이고 Slack에서는 메시지별로 전달한다. 식별자·누락·중복 검증은 `src/lib/org/slackCandidateWorkObject.test.ts`로 확인한다. 이 자동 테스트는 LLM의 사실성·자연스러움 검증이 아니다. v1은 후보자가 없어 새 positive-result 출력 계약을 평가하지 못하며, 이 변경에 대한 새 live LLM 평가를 실행했다고 주장하지 않는다. Positive-result 품질 평가는 비식별 fixture의 새 dataset version과 기존 rubric으로 별도 등록해야 한다.
+
 | 날짜 | 주요 변경 |
 | --- | --- |
 | 2026-10-01 | 기존 v1 후속 답변 회귀 실행, provider 실패와 첫 결과 coverage 한계 기록 |

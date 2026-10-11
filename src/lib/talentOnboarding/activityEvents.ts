@@ -1,3 +1,4 @@
+import { readTalentContactHistory } from "@/lib/career/talentContactHistory";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type {
   TalentOpportunityFeedback,
@@ -844,7 +845,12 @@ export async function fetchRecentTalentActivitySummaries(args: {
       throw new Error(error.message ?? "Failed to load talent_activity_events");
     }
 
-    return Array.isArray(data)
+    const contactHistory = await readTalentContactHistory({ admin: args.admin, userId: args.userId, limit: 5 }).catch(() => null);
+    const contactIndex = (contactHistory?.items ?? []).map((item, index) => ({
+      created_at: item.sentAt,
+      summary: `Sent question [${item.ref}]: ${item.question}${index === 0 ? ' An ask is not an answer. Read exact scope or older contacts with read_talent_activity_events(scope=contacts, refs/query/cursor). Save confirmed scoped facts with write_talent_context.' : ''}`,
+    }));
+    return [...contactIndex, ...(Array.isArray(data)
       ? data
           .map((row) => ({
             created_at: row.created_at,
@@ -856,7 +862,7 @@ export async function fetchRecentTalentActivitySummaries(args: {
               row.summary &&
               !containsHiddenTalentSettingSummary(row.summary)
           )
-      : [];
+      : [])];
   } catch (error) {
     console.error("[TalentActivityEvent] Failed to fetch activity summaries", {
       error: error instanceof Error ? error.message : String(error),

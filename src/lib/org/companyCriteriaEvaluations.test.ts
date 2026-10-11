@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeOrgCompanyCriteriaEvaluations } from "./companyCriteriaEvaluations";
+import { normalizeOrgCompanyCriteriaEvaluations, normalizeOrgCompanyPresentation } from "./companyCriteriaEvaluations";
 
 test("normalizes stored company criteria evaluations in their saved order", () => {
   assert.deepEqual(
@@ -52,4 +52,21 @@ test("drops incomplete entries and treats unknown fitness as uncertain", () => {
 test("returns an empty list for a missing or non-array value", () => {
   assert.deepEqual(normalizeOrgCompanyCriteriaEvaluations(null), []);
   assert.deepEqual(normalizeOrgCompanyCriteriaEvaluations({}), []);
+});
+
+test("company report exposes only the four shareable fields", () => {
+  assert.deepEqual(normalizeOrgCompanyPresentation({
+    tldr: "Built a production API.", harper_note: "Prefers architecture ownership.",
+    finalFit: "good", criteriaEvaluations: [{ name: "Ownership", fitness: "good", content: "Operated the API.", criterionDefinition: "Internal definition" }],
+    selectionReason: "Internal judgment", searchBrief: ["Private context"], recommendationId: "private",
+  }), {
+    tldr: "Built a production API.", harperNote: "Prefers architecture ownership.", finalFit: "good",
+    criteriaEvaluations: [{ name: "Ownership", fitness: "good", content: "Operated the API." }],
+  });
+});
+
+test("missing report stays absent and empty Note is valid", () => {
+  assert.equal(normalizeOrgCompanyPresentation({ selectionReason: "Private" }), null);
+  assert.deepEqual(normalizeOrgCompanyPresentation({ tldr: "API work.", harperNote: "", finalFit: "unsupported", criteriaEvaluations: [] }),
+    { tldr: "API work.", harperNote: "", finalFit: null, criteriaEvaluations: [] });
 });

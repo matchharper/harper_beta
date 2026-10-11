@@ -169,7 +169,7 @@ async function setup() {
     admin
       .from("company_internal_roles")
       .select(
-        "request, considerations, is_auto, questions, is_require_linkedin, is_require_resume, memory, criteria, max_pending_talents"
+        "request, considerations, questions, is_require_linkedin, is_require_resume, memory, criteria, max_pending_talents"
       )
       .eq("role_id", SOURCE_ROLE_ID)
       .single()

@@ -1,3 +1,4 @@
+import { simpleReviewSchema } from "./simpleReview";
 import {
   runTalentAssistantCompletion,
   type TalentCompletionMetadata,
@@ -40,7 +41,10 @@ export async function completeSimulationStage(args: {
     jsonSchema: {
       name: "application_simulation_stage",
       strict: true,
-      schema: simulationSchemaForInput(args.key, JSON.parse(args.input)),
+      schema:
+        args.key === "review" && JSON.parse(args.input).workflowVersion >= 5
+          ? simpleReviewSchema()
+          : simulationSchemaForInput(args.key, JSON.parse(args.input)),
     },
     messages: [
       { role: "system", content: args.system },

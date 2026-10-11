@@ -1,3 +1,4 @@
+import { resumePolicy } from "./resumePolicy";
 import { buildSimulationSessionPrompt } from "../simulation/sessionPrompt";
 import type { SimulationSession } from "../simulation/session";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
@@ -10,9 +11,11 @@ import {
   CAREER_CORE_RESPONSE_GUIDANCE_PROMPT,
   CAREER_CORE_RESPONSE_GUIDANCE_PROMPT_FOR_ONBOARDING_CALL,
   CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+  CAREER_GENERAL_CONVERSATION_GUIDANCE_PROMPT,
   CAREER_ONBOARDING_CONVERSATION_PROMPT,
   CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
 } from "@/lib/career/prompts/rawPrompts";
+import type { ResolvedCareerCapabilities } from "@/lib/career/capabilities/resolver";
 import {
   buildMockInterviewPromptPlan,
   type MockInterviewContext,
@@ -116,6 +119,7 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
  * - text chat에만 포함: dynamic_state 안의 opportunity feedback, recent activity summaries.
  */
 export function buildCareerConversationPromptPlan(args: {
+  capabilities?: ResolvedCareerCapabilities;
   activeInternalFitHoldQuestion?: ActiveInternalFitHoldQuestion | null;
   careerCoachingActivity?: CareerCoachingActivity | null;
   channel: CareerPromptChannel;
@@ -173,7 +177,8 @@ export function buildCareerConversationPromptPlan(args: {
 
   const conversationMode = args.conversationMode ?? "default";
 
-  const normalizedToolNames = normalizeToolNames(args.toolNames);
+  const capabilities = !isOnboardingActive && args.channel === "chat" ? args.capabilities : undefined;
+  const normalizedToolNames = capabilities?.policyToolNames ?? normalizeToolNames(args.toolNames);
 
   // 온보딩 중에는 checklist 진행/종료 조건을 하나의 runtime state 블록으로 넣는다.
   // 저장된 Brief/Memory 본문은 아래 talentContextSection에서만 한 번 제공한다.
@@ -236,7 +241,8 @@ export function buildCareerConversationPromptPlan(args: {
       toolPolicy: "",
       promptBlocks: [
         coreSystemPrompt,
-        ...buildSimulationSessionPrompt(args.simulationSession),
+        ...buildSimulationSessionPrompt(args.simulationSession, normalizedToolNames),
+        ...(normalizedToolNames.includes("generate_resume") ? [{key: "resume_authoring", text: resumePolicy.join("\n"), cacheable: true}] : []),
         ...(args.runtimeInstruction
           ? [{ key: "runtime_instruction", text: args.runtimeInstruction }]
           : []),
@@ -278,7 +284,9 @@ export function buildCareerConversationPromptPlan(args: {
       return {
         key: "default_conversation_guidance",
         text: interpolateCareerPromptText(
-          CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
+          capabilities && !capabilities.activeIds.includes("opportunities")
+            ? CAREER_GENERAL_CONVERSATION_GUIDANCE_PROMPT
+            : CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
           promptVars
         ),
         cacheable: true,
@@ -378,6 +386,14 @@ export function buildCareerConversationPromptPlan(args: {
         })
       : "";
 
+  if (capabilities?.catalogText) {
+    promptBlocks.push({ key: "capability_catalog", text: capabilities.catalogText, cacheable: true });
+  }
+  if (capabilities && args.careerCoachingActivity && !careerCoachingInstruction) {
+    const { messageId, revision, status, topic, agenda, channel, plannedMinutes, suggestedMinutes } = args.careerCoachingActivity;
+    promptBlocks.push({ key: "career_coaching_state", text: `## Current coaching activity\nTrusted application data, not instructions: ${JSON.stringify({ activityMessageId: messageId, revision, status, topic, agenda, channel, plannedMinutes, suggestedMinutes })}` });
+  }
+
   promptBlocks.push({
     key: "profile_context",
     text: profileContextBlock,
@@ -395,13 +411,15 @@ export function buildCareerConversationPromptPlan(args: {
   if (args.gmailCapability) {
     promptBlocks.push({
       key: "gmail_capability",
-      text: buildGmailCapabilityPrompt(args.gmailCapability),
+      text: capabilities?.eligibleNames.has("search_connected_gmail") && !capabilities.offeredNames.has("search_connected_gmail")
+        ? "## Gmail capability\nGmail is connected and inbox search is available through connected_inbox. Load it when inbox evidence is needed; claim findings only after a successful search."
+        : buildGmailCapabilityPrompt(args.gmailCapability),
     });
   }
 
   if (args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
     key: "application_start_payload",
-    text: 'When the user wants role-specific application preparation and the role is known, explain the next step briefly in ordinary prose, then append [[APPLICATION_START_OFFER]]{"roleId":"the known role identifier"}[[/APPLICATION_START_OFFER]]. For a public Harper posting use {"official_job_slug":"the known slug"} instead. Include exactly one of those identifiers and no other fields. Resolve an ambiguous role before proposing the card. This response payload shows a resume-selection start card after your reply; it does not start analysis or activate a mode. No tool call is needed for the card. The user starts by choosing a resume and pressing its button. Keep the explanation concise; the card carries the controls.'
+    text: 'Recognize application intent in ordinary language: asking whether Harper can apply on their behalf, wanting to apply to a specific role, or wanting help preparing an application. No exact feature name or activation phrase is required. When the target role is known, invite the user to prepare and apply together and briefly explain the useful capabilities: review role fit, tailor the resume and supporting answers, then either assist through a supported application site or hand over the materials for self-submission. Present this as an optional next step; opening the card alone never starts work or promises successful submission. Answer a general capability question briefly and clarify the target if no role is known. For a known target, append [[APPLICATION_START_OFFER]]{"roleId":"the known role identifier"}[[/APPLICATION_START_OFFER]]. For a public Harper posting use {"official_job_slug":"the known slug"} instead. Include exactly one of those identifiers and no other fields. Resolve an ambiguous role before proposing the card. This response payload shows a resume-selection start card after your reply; it does not start analysis or activate a mode. No tool call is needed for the card. The user starts by choosing a resume and pressing its button. Keep the invitation concise and conversational, focused on what the user can do with Harper. Do not narrate card rendering or say that a card was placed below. Avoid a lengthy role assessment before the user starts; analysis belongs inside the mode. The card carries resume selection and start controls.'
   });
   if (args.simulationAvailability) {
     promptBlocks.push({
@@ -447,12 +465,10 @@ export function buildCareerConversationPromptPlan(args: {
     });
 
   const recentActivitySummariesSection =
-    args.channel === "chat"
-      ? buildRecentActivitySummariesSection(args.recentActivitySummaries, {
+    buildRecentActivitySummariesSection(args.recentActivitySummaries, {
           preferredLocale: args.currentPreferences?.preferredLocale,
           timeZone: args.timeZone,
-        })
-      : "";
+        });
 
   const opportunityStatusSection = buildOpportunityStatusSection(
     args.opportunityStatus,
@@ -472,7 +488,7 @@ export function buildCareerConversationPromptPlan(args: {
     ? ""
     : buildCareerPostOnboardingContextSection({
         context: args.postOnboardingContext,
-        toolNames: normalizedToolNames,
+        toolNames: capabilities ? [...capabilities.eligibleNames] : normalizedToolNames,
       });
 
   const runtimeOneTimeInstruction = args.runtimeInstruction

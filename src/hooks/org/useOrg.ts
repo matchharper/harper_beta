@@ -108,7 +108,12 @@ async function refreshOrgAgentWebActionWhenReady(args: {
     observedProgressMessageId =
       status.progressMessageId ?? observedProgressMessageId;
     terminalStateObserved = terminalStateObserved || status.done;
-    if (status.done) return;
+    if (status.done) {
+      await args.queryClient.invalidateQueries({
+        queryKey: ["org", "billing"],
+      });
+      return;
+    }
   }
 }
 
@@ -177,7 +182,10 @@ export function useOrgInvitePreview(args: {
   return useQuery(
     orgInvitePreviewQueryOptions({
       ...args,
-      errorMessage: t("hooks.invite.previewFailed", "초대 정보를 불러오지 못했습니다."),
+      errorMessage: t(
+        "hooks.invite.previewFailed",
+        "초대 정보를 불러오지 못했습니다."
+      ),
     })
   );
 }
@@ -498,6 +506,7 @@ export function useSetOrgCandidateStage() {
           : current
       );
 
+      void queryClient.invalidateQueries({ queryKey: ["org", "billing"] });
       void queryClient.invalidateQueries({
         queryKey: queryKeys.org.acceptedAll,
       });
@@ -545,6 +554,7 @@ export function useRequestOrgCompanyIntro() {
         workspaceId: variables.workspaceId,
       });
       return Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["org", "billing"] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
         queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
       ]);
@@ -799,6 +809,7 @@ export function useUpdateOrgRole() {
       expectedCriteria?: OrgRoleCriterion[];
       isCompanyFirstSearch?: boolean;
       isPromote?: boolean;
+      isAnonymous?: boolean;
       introSearchDate?: string[];
       introSearchTime?: number;
       isExpired?: boolean | null;
