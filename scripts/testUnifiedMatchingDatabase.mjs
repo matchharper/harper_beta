@@ -40,7 +40,7 @@ try {
    const stop=source.indexOf(opening[1]+';',begin+opening.index+opening[0].length);
    await exec(source.slice(begin,stop+opening[1].length+1));
  }
- const migrations=(await fs.readdir(path.join(root,'supabase/migrations'))).filter(n=>(/^202610071[23]/.test(n) && !/workspace_billing|workspace_slot_free|role_anonymous_visibility/.test(n)) || /_(role_based_priority_review|priority_review_presentation_v2|priority_review_rating_eligibility)\.sql$/.test(n)).sort();
+ const migrations=(await fs.readdir(path.join(root,'supabase/migrations'))).filter(n=>(/^202610071[23]/.test(n) && !/workspace_billing|workspace_slot_free|role_anonymous_visibility/.test(n)) || /_(role_based_priority_review|priority_review_presentation_v2|priority_review_rating_eligibility|stop_recommendation_conflict_retries)\.sql$/.test(n)).sort();
  for(const name of migrations){await exec(await fs.readFile(path.join(root,'supabase/migrations',name),'utf8'));console.log('PASS migration',name);}
  await exec(`create trigger talent_progress_company_intro_route before insert or update of kind,role_id,talent_id on public.talent_progress for each row when(new.kind='candidate_requested_connection') execute function public.route_candidate_priority_request_v1();`);
  await exec(`insert into public.talent_users(user_id,name) values($1,'Local fixture')`,[talent]);
@@ -84,10 +84,16 @@ try {
  assert.equal((await scalar("select count(*)::int as n from public.talent_progress where kind='candidate_opportunity_feedback_changed'")).n,1);
  await feedback('keep',before.updated_at);
  assert.deepEqual((await scalar('select feedback_at from public.talent_opportunity_recommendation where id=$1',[recommendation])).feedback_at,saved.feedback_at,'repeat keep preserves initial feedback time');
- await assert.rejects(()=>feedback('dislike',before.updated_at),/recommendation_changed_refresh_required/);
- await assert.rejects(()=>scalar('select public.accept_talent_internal_role_recommendation_v2($1,$2,null,null,null,\'{}\'::jsonb,$3)',[talent,recommendation,before.updated_at]),/recommendation_changed_refresh_required/);
- await assert.rejects(()=>scalar('select public.decide_company_intro_request_v2($1,$2,\'accept\',null,null,$3)',[talent,recommendation,before.updated_at]),/recommendation_changed_refresh_required/);
- console.log('PASS acceptance and company Intro reject an old displayed revision after keep');
+ const nonRetryableRevisionConflict=error=>{
+   assert.equal(error.code,'PT409','stale input must not trigger PostgREST serialization retries');
+   assert.match(error.message,/recommendation_changed_refresh_required/);
+   return true;
+ };
+ await assert.rejects(()=>feedback('dislike',before.updated_at),nonRetryableRevisionConflict);
+ await assert.rejects(()=>scalar('select public.accept_talent_internal_role_recommendation_v2($1,$2,null,null,null,\'{}\'::jsonb,$3)',[talent,recommendation,before.updated_at]),nonRetryableRevisionConflict);
+ await assert.rejects(()=>scalar('select public.decide_company_intro_request_v2($1,$2,\'accept\',null,null,$3)',[talent,recommendation,before.updated_at]),nonRetryableRevisionConflict);
+ assert.deepEqual(await scalar('select feedback,saved_stage,feedback_at,updated_at,email_acceptance_confirmation from public.talent_opportunity_recommendation where id=$1',[recommendation]),saved,'conflicts must not change the saved decision');
+ console.log('PASS feedback, acceptance and company Intro reject stale revisions with non-retryable PT409 and preserve the saved decision');
  await feedback(null,saved.updated_at);
  assert.equal((await scalar('select feedback from public.talent_opportunity_recommendation where id=$1',[recommendation])).feedback,null);
  await feedback('dislike');
