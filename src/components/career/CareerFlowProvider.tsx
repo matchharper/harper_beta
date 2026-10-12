@@ -1,3 +1,4 @@
+import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import CareerCompanyJobsDrawer from "./watchlist/CareerCompanyJobsDrawer";
 import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import React, {
@@ -853,6 +854,7 @@ export const CareerFlowProvider = ({
     async (args: {
       allowedToolNames?: readonly string[];
       channel?: "chat" | "voice";
+      simulationAction?:SimulationCardRequest;
       coachingActivityAction?: {
         action: "start" | "end";
         activityMessageId: number;
@@ -1837,6 +1839,7 @@ export const CareerFlowProvider = ({
     (historyInitialLoading || (!historyLoaded && activeTab === "history"));
 
   useCareerChatAutoScroll({
+    preserveReadingPosition: messages.some(m=>m.applicationActivity || m.messageType === "application_activity" || m.simulationSession),
     conversationId,
     initialScrollPending: chatSessionPending,
     messageCount: messages.length,
@@ -1959,6 +1962,7 @@ export const CareerFlowProvider = ({
       onPrepareChatDraft: prepareChatDraft,
       onShowSameCompanyRoles: showSameCompanyRoles,
       onStartConversationStarter: handleStartConversationStarter,
+      onSimulationAction: async (simulationAction:SimulationCardRequest,text:string) => { await sendChatMessage({simulationAction,text}); },
       onUpdateCareerCoachingActivity: handleUpdateCareerCoachingActivity,
       onRunSessionReengagement: handleRunSessionReengagement,
       onUpdateHistoryOpportunityFeedback,

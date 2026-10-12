@@ -1017,7 +1017,10 @@ export function formatTalentRoleActivitiesForPrompt(
         2,
         "0"
       )} ${parts.hour}:${parts.minute} KST`;
-      const content = compactTalentRoleActivityContent(item.content);
+      const content = compactTalentRoleActivityContent(
+        item.content,
+        item.kind === "application_preparation_summary" ? 2400 : 240
+      );
       if (item.kind === "memo") {
         return content ? `${timestamp} memo: ${content}` : "";
       }

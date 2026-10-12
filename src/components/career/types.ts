@@ -1,3 +1,8 @@
+import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
+import type { ApplicationDraft } from "@/lib/career/simulation/preparation";
+import type {ApplicationStartOffer} from "@/lib/career/simulation/startOffer";
+import type { SimulationSession, SimulationCardRef } from "@/lib/career/simulation/session";
+import type { ApplicationSimulation } from "@/lib/career/simulation/types";
 import type { MockInterviewOffer } from "@/lib/career/mockInterviewOffers";
 import { OpportunityType } from "@/lib/opportunityType";
 import type {
@@ -466,6 +471,14 @@ export type CareerHistoryItem = {
 };
 
 export type CareerMessage = {
+  applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
+  applicationQuestions?: ApplicationQuestionHistory;
+  applicationDraft?: ApplicationDraft;
+  simulationSession?: SimulationSession;
+  simulationAction?: SimulationCardRef;
+  applicationStartOffer?:ApplicationStartOffer;
+  suppressRolePreviews?:boolean;
+  simulation?: ApplicationSimulation;
   attachments?: CareerMessageAttachment[];
   coachingActivity?: CareerCoachingActivity;
   id: string | number;
@@ -484,6 +497,14 @@ export type CareerMessage = {
 };
 
 export type CareerMessagePayload = {
+  applicationActivity?: {activityId:string; revision:number; runId?:string; view:string};
+  applicationQuestions?: ApplicationQuestionHistory;
+  applicationDraft?: ApplicationDraft;
+  simulationSession?: SimulationSession;
+  simulationAction?: SimulationCardRef;
+  applicationStartOffer?:ApplicationStartOffer;
+  suppressRolePreviews?:boolean;
+  simulation?: ApplicationSimulation;
   attachments?: CareerMessageAttachment[];
   coachingActivity?: CareerCoachingActivity;
   id: number;

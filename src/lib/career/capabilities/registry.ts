@@ -13,6 +13,18 @@ export const CAREER_CONDITIONAL_TOOLS = [
 ] as const;
 export const CAREER_CAPABILITIES = [
   {
+    id: "application_support",
+    turns: 1,
+    summary:
+      "Continue the user's active application preparation, collect consequential answers, reanalyze the selected source, or assist with an explicitly approved public application. Available only while the server confirms an active application. Other tasks require agreement to end that activity first; shared Profile, Brief and Memory tools remain available inside it.",
+    tools: [
+      ["manage_simulation_session", "manage the active application and its confirmed answers"],
+      ["ask_application_input", "collect application decisions and documents"],
+      ["simulate_application", "reanalyze the confirmed role and resume"],
+      ["apply_to_role", "prepare a public application and request final submission approval"],
+    ],
+  },
+  {
     id: "opportunities",
     turns: 3,
     summary:

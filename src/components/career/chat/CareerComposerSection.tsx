@@ -1,3 +1,5 @@
+import { ApplicationPreparationComposerSlot, ApplicationPreparationReopen } from "./ApplicationPreparationComposer";
+import { useApplicationPreparation } from "./ApplicationPreparationContext";
 import React, {
   KeyboardEvent,
   useCallback,
@@ -131,6 +133,7 @@ const CareerComposerSection = ({
     ? "company"
     : currentRoleActionScope;
 
+  const preparation = useApplicationPreparation();
   const logCareerEvent = useCareerLogEvent();
   const { onRequestMoreOpenPositions } = useCareerSidebarContext();
   const { onSaveTalentProfile, profileSavePending } = useCareerProfileContext();
@@ -1281,316 +1284,328 @@ const CareerComposerSection = ({
       className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0"
     >
       <div className="mx-auto w-full max-w-[1120px]">
-        {initialOpportunitySearchStatus ? (
-          <CareerInitialOpportunitySearchStatus
-            status={initialOpportunitySearchStatus}
-            variant="composer"
-          />
-        ) : null}
-        {desktopRoleActionOpportunity &&
-        shouldShowCareerComposerRoleActions(draft) ? (
+        <ApplicationPreparationComposerSlot>
+          {initialOpportunitySearchStatus ? (
+            <CareerInitialOpportunitySearchStatus
+              status={initialOpportunitySearchStatus}
+              variant="composer"
+            />
+          ) : null}
+          {preparation.record?.state.status !== "active" && desktopRoleActionOpportunity &&
+          shouldShowCareerComposerRoleActions(draft) ? (
+            <div
+              key={desktopRoleActionOpportunity.id}
+              className="hidden px-2 pb-2 md:block"
+            >
+              <HistoryOpportunityRoleActions
+                item={desktopRoleActionOpportunity}
+                variant="tags"
+                visibleActions={
+                  desktopRoleActionScope === "company"
+                    ? COMPANY_DETAIL_ROLE_ACTIONS
+                    : undefined
+                }
+              />
+            </div>
+          ) : null}
           <div
-            key={desktopRoleActionOpportunity.id}
-            className="hidden px-2 pb-2 md:block"
+            className={cn(
+              "transition-all duration-200",
+              showInterviewComposerFrame
+                ? "rounded-[20px] border border-neutral-1000-a05 bg-neutral-200 p-2 shadow-[0_18px_42px_rgba(31,28,26,0.08)] backdrop-blur-xl"
+                : "rounded-3xl"
+            )}
           >
-            <HistoryOpportunityRoleActions
-              item={desktopRoleActionOpportunity}
-              variant="tags"
-              visibleActions={
-                desktopRoleActionScope === "company"
-                  ? COMPANY_DETAIL_ROLE_ACTIONS
+            <Input
+              unstyled
+              ref={actionMenuFileInputRef}
+              accept={CAREER_CHAT_FILE_ACCEPT}
+              className="hidden"
+              onChange={(event) => void handleActionMenuFileChange(event)}
+              type="file"
+            />
+            <ChatComposerFrame
+              ref={textareaRef}
+              actionLayout="footer"
+              aria-activedescendant={opportunityMentionActiveDescendantId}
+              aria-autocomplete="list"
+              aria-controls={
+                opportunityMentionSearch && !isTextInputLocked
+                  ? opportunityMentionListId
                   : undefined
               }
-            />
-          </div>
-        ) : null}
-        <div
-          className={cn(
-            "transition-all duration-200",
-            showInterviewComposerFrame
-              ? "rounded-[20px] border border-neutral-1000-a05 bg-neutral-200 p-2 shadow-[0_18px_42px_rgba(31,28,26,0.08)] backdrop-blur-xl"
-              : "rounded-3xl"
-          )}
-        >
-          <Input
-            unstyled
-            ref={actionMenuFileInputRef}
-            accept={CAREER_CHAT_FILE_ACCEPT}
-            className="hidden"
-            onChange={(event) => void handleActionMenuFileChange(event)}
-            type="file"
-          />
-          <ChatComposerFrame
-            ref={textareaRef}
-            actionLayout="footer"
-            aria-activedescendant={opportunityMentionActiveDescendantId}
-            aria-autocomplete="list"
-            aria-controls={
-              opportunityMentionSearch && !isTextInputLocked
-                ? opportunityMentionListId
-                : undefined
-            }
-            aria-expanded={
-              Boolean(opportunityMentionSearch) && !isTextInputLocked
-            }
-            className="overflow-visible"
-            context={
-              selectedPendingAction || pendingFileAttachment ? (
-                <div className="grid gap-2">
-                  {selectedPendingAction ? (
-                    <CareerPendingActionContextCard
-                      action={selectedPendingAction}
-                      expanded={pendingQuestionExpanded}
-                      onDismiss={() => {
-                        setSelectedPendingAction(null);
-                        setPendingQuestionExpanded(false);
-                        window.requestAnimationFrame(() =>
-                          textareaRef.current?.focus()
-                        );
-                      }}
-                      onUploadResume={
-                        selectedPendingAction.kind === "company_request" &&
-                        selectedPendingAction.requestMode === "resume" &&
-                        selectedPendingAction.resumeRequestToken
-                          ? () => openPendingResumePicker(selectedPendingAction)
-                          : undefined
-                      }
-                      onToggleExpanded={() =>
-                        setPendingQuestionExpanded((current) => !current)
-                      }
-                      resumeUploadPending={
-                        fileUploadPending || profileSavePending
-                      }
-                    />
-                  ) : null}
-                  {pendingFileAttachment ? (
-                    <ChatAttachmentDraftList
-                      attachments={[pendingFileAttachment]}
-                      onRemove={() => setPendingFileAttachment(null)}
-                      tone="light"
-                    />
-                  ) : null}
-                </div>
-              ) : null
-            }
-            textareaKey={textareaResetVersion}
-            id="career-chat-composer"
-            value={draft}
-            onChange={(event) => {
-              const value = event.target.value;
-              opportunityTokens.updateValue(value);
-              updateOpportunityMentionSearch(
-                value,
-                event.currentTarget.selectionStart ?? value.length
-              );
-            }}
-            onCompositionStart={() => {
-              isComposingRef.current = true;
-            }}
-            onCompositionEnd={(event) => {
-              isComposingRef.current = false;
-              const value = event.currentTarget.value;
-              opportunityTokens.updateValue(value);
-              updateOpportunityMentionSearch(
-                value,
-                event.currentTarget.selectionStart ?? value.length
-              );
-            }}
-            onFocus={handleComposerFocus}
-            onBeforeInput={opportunityTokens.handleBeforeInput}
-            onKeyDown={handleComposerKeyDown}
-            onScroll={(event) =>
-              syncOpportunityMentionHighlight(event.currentTarget)
-            }
-            onSelect={(event) => {
-              opportunityTokens.handleSelect(event);
-            }}
-            enterKeyHint="send"
-            placeholder={composerPlaceholder}
-            rows={2}
-            maxRows={CAREER_COMPOSER_MAX_ROWS}
-            disabled={isTextInputLocked}
-            mobileLeadingAction={
-              <ChatComposerActionMenu
-                animated={false}
-                contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
-                disabled={!user}
-                items={composerActionMenuItems}
-                onItemSelect={handleComposerActionMenuItemSelect}
-                onOpenChange={handleMobileActionMenuOpenChange}
-                open={mobileActionMenuOpen}
-              />
-            }
-            textareaClassName={cn(
-              "min-h-12 py-3",
-              opportunityTokens.tokens.length > 0 &&
-                "relative z-10 text-transparent caret-neutral-primary"
-            )}
-            overlay={
-              <>
-                {opportunityTokens.tokens.length > 0 ? (
-                  <ChatComposerTokenOverlay
-                    ref={opportunityMentionHighlightRef}
-                    className="z-20 min-h-12 py-3"
-                    getTokenAriaLabel={(token) =>
-                      t(
-                        "career.chat.career_composer_section.opportunity_token_aria_label",
-                        "기회 상세 열기: {opportunity}",
-                        { values: { opportunity: token.text } }
-                      )
-                    }
-                    isTokenClickable={(token) =>
-                      (token.data as CareerComposerOpportunityMention)
-                        .isClickable !== false
-                    }
-                    onTokenClick={(token) => {
-                      const data =
-                        token.data as Partial<CareerOpportunityMention>;
-                      const roleId = String(data.roleId ?? "").trim();
-                      if (roleId) handleOpenPendingOpportunity(roleId);
-                    }}
-                    segments={opportunityTokens.segments}
-                  />
-                ) : null}
-                {opportunityMentionSearch && !isTextInputLocked ? (
-                  <ChatComposerPicker
-                    highlightedIndex={opportunityMentionHighlightedIndex}
-                    items={opportunityPickerItems}
-                    listId={opportunityMentionListId}
-                    navigationDirection={opportunityMentionNavigationDirection}
-                    onClose={closeOpportunityMentionPicker}
-                    onHighlight={setOpportunityMentionHighlightedIndex}
-                  />
-                ) : null}
-              </>
-            }
-            action={
-              <div className="flex w-full items-end justify-between gap-2">
+              aria-expanded={
+                Boolean(opportunityMentionSearch) && !isTextInputLocked
+              }
+              className="overflow-visible"
+              context={
+                (selectedPendingAction || pendingFileAttachment || preparation.record?.state.status === "active") ? (
+                  <div className="grid gap-2">
+                    <ApplicationPreparationReopen />
+                    {selectedPendingAction ? (
+                      <CareerPendingActionContextCard
+                        action={selectedPendingAction}
+                        expanded={pendingQuestionExpanded}
+                        onDismiss={() => {
+                          setSelectedPendingAction(null);
+                          setPendingQuestionExpanded(false);
+                          window.requestAnimationFrame(() =>
+                            textareaRef.current?.focus()
+                          );
+                        }}
+                        onUploadResume={
+                          selectedPendingAction.kind === "company_request" &&
+                          selectedPendingAction.requestMode === "resume" &&
+                          selectedPendingAction.resumeRequestToken
+                            ? () =>
+                                openPendingResumePicker(selectedPendingAction)
+                            : undefined
+                        }
+                        onToggleExpanded={() =>
+                          setPendingQuestionExpanded((current) => !current)
+                        }
+                        resumeUploadPending={
+                          fileUploadPending || profileSavePending
+                        }
+                      />
+                    ) : null}
+                    {pendingFileAttachment ? (
+                      <ChatAttachmentDraftList
+                        attachments={[pendingFileAttachment]}
+                        onRemove={() => setPendingFileAttachment(null)}
+                        tone="light"
+                      />
+                    ) : null}
+                  </div>
+                ) : null
+              }
+              textareaKey={textareaResetVersion}
+              id="career-chat-composer"
+              value={draft}
+              onChange={(event) => {
+                const value = event.target.value;
+                opportunityTokens.updateValue(value);
+                updateOpportunityMentionSearch(
+                  value,
+                  event.currentTarget.selectionStart ?? value.length
+                );
+              }}
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={(event) => {
+                isComposingRef.current = false;
+                const value = event.currentTarget.value;
+                opportunityTokens.updateValue(value);
+                updateOpportunityMentionSearch(
+                  value,
+                  event.currentTarget.selectionStart ?? value.length
+                );
+              }}
+              onFocus={handleComposerFocus}
+              onBeforeInput={opportunityTokens.handleBeforeInput}
+              onKeyDown={handleComposerKeyDown}
+              onScroll={(event) =>
+                syncOpportunityMentionHighlight(event.currentTarget)
+              }
+              onSelect={(event) => {
+                opportunityTokens.handleSelect(event);
+              }}
+              enterKeyHint="send"
+              placeholder={composerPlaceholder}
+              rows={2}
+              maxRows={CAREER_COMPOSER_MAX_ROWS}
+              disabled={isTextInputLocked}
+              mobileLeadingAction={
                 <ChatComposerActionMenu
-                  align="start"
                   animated={false}
-                  className="hidden md:inline-flex"
                   contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                   disabled={!user}
                   items={composerActionMenuItems}
                   onItemSelect={handleComposerActionMenuItemSelect}
-                  onOpenChange={handleDesktopActionMenuOpenChange}
-                  open={desktopActionMenuOpen}
+                  onOpenChange={handleMobileActionMenuOpenChange}
+                  open={mobileActionMenuOpen}
                 />
-                <ActionButton
-                  onClick={handlePrimaryComposerAction}
-                  disabled={
-                    hasSendableDraft
-                      ? isComposerActionLocked
-                      : isComposerActionLocked ||
-                        isStartingCall ||
-                        !onStartCallMode
-                  }
-                  actionVariant="primary"
-                  buttonRadius="pill"
-                  className={cn(
-                    "px-2.5 h-9 rounded-[18px] text-neutral-00 shadow-xs",
-                    hasSendableDraft
-                      ? "border-neutral-1000-a10 bg-primary"
-                      : "border border-neutral-1000-a10 bg-primary"
-                  )}
-                  aria-label={
-                    hasSendableDraft
-                      ? t(
-                          "career.chat.career_composer_section.send_message_aria_label",
-                          "메시지 보내기"
-                        )
-                      : t(
-                          "career.chat.career_composer_section.call_mode_aria_label",
-                          "통화 모드"
-                        )
-                  }
-                >
-                  {(hasSendableDraft && isComposerBusy) ||
-                  (!hasSendableDraft && isStartingCall) ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : hasSendableDraft ? (
-                    <ArrowUp className="h-4 w-4" />
-                  ) : (
-                    <AudioLines className="h-3.5 w-3.5" />
-                  )}
-                </ActionButton>
-              </div>
-            }
-          />
-          {showInterviewComposerFrame ? (
-            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 px-1 text-neutral-muted md:justify-between">
-              {showResumeInterviewAction ? (
-                <ActionButton
-                  type="button"
-                  onClick={handleResumeInterview}
-                  disabled={resumeInterviewDisabled}
-                  actionVariant="primary"
-                  buttonRadius="pill"
-                  className="hidden h-8 items-center gap-1.5 rounded-[12px] border border-neutral-1000 bg-neutral-1000 px-3 text-[12px] font-normal text-neutral-00 shadow-xs hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70 md:inline-flex"
-                >
-                  {sessionReengagementPending || resumeInterviewRequested ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <></>
-                  )}
-                  {t(
-                    "career.chat.career_composer_section.resume_interview_cta",
-                    "5분 커리어 인터뷰 이어가기"
-                  )}
-                </ActionButton>
-              ) : (
-                <div className="hidden md:block" />
+              }
+              textareaClassName={cn(
+                "min-h-12 py-3",
+                opportunityTokens.tokens.length > 0 &&
+                  "relative z-10 text-transparent caret-neutral-primary"
               )}
-              <div className="inline-flex min-w-0 items-center gap-2">
-                <div className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium">
-                  <span>
-                    {t(
-                      "career.home.career_home_panel.1ol18h9",
-                      "커리어 인터뷰 진행 중"
-                    )}
-                  </span>
-                </div>
-                <div
-                  className="h-1 w-24 overflow-hidden rounded-full bg-neutral-400 sm:w-32"
-                  role="progressbar"
-                  aria-label={t(
-                    "career.chat.career_composer_section.interview_progress_aria_label",
-                    "커리어 인터뷰 진행률"
-                  )}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={interviewProgress.percent}
-                >
-                  <div
-                    className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
-                    style={{ width: `${interviewProgress.percent}%` }}
+              overlay={
+                <>
+                  {opportunityTokens.tokens.length > 0 ? (
+                    <ChatComposerTokenOverlay
+                      ref={opportunityMentionHighlightRef}
+                      className="z-20 min-h-12 py-3"
+                      getTokenAriaLabel={(token) =>
+                        t(
+                          "career.chat.career_composer_section.opportunity_token_aria_label",
+                          "기회 상세 열기: {opportunity}",
+                          { values: { opportunity: token.text } }
+                        )
+                      }
+                      isTokenClickable={(token) =>
+                        (token.data as CareerComposerOpportunityMention)
+                          .isClickable !== false
+                      }
+                      onTokenClick={(token) => {
+                        const data =
+                          token.data as Partial<CareerOpportunityMention>;
+                        const roleId = String(data.roleId ?? "").trim();
+                        if (roleId) handleOpenPendingOpportunity(roleId);
+                      }}
+                      segments={opportunityTokens.segments}
+                    />
+                  ) : null}
+                  {opportunityMentionSearch && !isTextInputLocked ? (
+                    <ChatComposerPicker
+                      highlightedIndex={opportunityMentionHighlightedIndex}
+                      items={opportunityPickerItems}
+                      listId={opportunityMentionListId}
+                      navigationDirection={
+                        opportunityMentionNavigationDirection
+                      }
+                      onClose={closeOpportunityMentionPicker}
+                      onHighlight={setOpportunityMentionHighlightedIndex}
+                    />
+                  ) : null}
+                </>
+              }
+              action={
+                <div className="flex w-full items-end justify-between gap-2">
+                  <ChatComposerActionMenu
+                    align="start"
+                    animated={false}
+                    className="hidden md:inline-flex"
+                    contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
+                    disabled={!user}
+                    items={composerActionMenuItems}
+                    onItemSelect={handleComposerActionMenuItemSelect}
+                    onOpenChange={handleDesktopActionMenuOpenChange}
+                    open={desktopActionMenuOpen}
                   />
+                  <ActionButton
+                    onClick={handlePrimaryComposerAction}
+                    disabled={
+                      hasSendableDraft
+                        ? isComposerActionLocked
+                        : isComposerActionLocked ||
+                          isStartingCall ||
+                          !onStartCallMode
+                    }
+                    actionVariant="primary"
+                    buttonRadius="pill"
+                    className={cn(
+                      "px-2.5 h-9 rounded-[18px] text-neutral-00 shadow-xs",
+                      hasSendableDraft
+                        ? "border-neutral-1000-a10 bg-primary"
+                        : "border border-neutral-1000-a10 bg-primary"
+                    )}
+                    aria-label={
+                      hasSendableDraft
+                        ? t(
+                            "career.chat.career_composer_section.send_message_aria_label",
+                            "메시지 보내기"
+                          )
+                        : t(
+                            "career.chat.career_composer_section.call_mode_aria_label",
+                            "통화 모드"
+                          )
+                    }
+                  >
+                    {(hasSendableDraft && isComposerBusy) ||
+                    (!hasSendableDraft && isStartingCall) ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : hasSendableDraft ? (
+                      <ArrowUp className="h-4 w-4" />
+                    ) : (
+                      <AudioLines className="h-3.5 w-3.5" />
+                    )}
+                  </ActionButton>
                 </div>
-                {showManualCompletionAction ? (
-                  <Tooltips text={forceCompleteTooltip} side="top">
-                    <BareButton
-                      type="button"
-                      onClick={handleForceComplete}
-                      disabled={manualCompletionDisabled}
-                      className="inline-flex h-5 items-center gap-1 text-[12px] font-semibold text-critical transition-all duration-300 ease-out hover:text-neutral-primary disabled:cursor-wait disabled:opacity-70"
-                    >
-                      {forceCompletePending || onboardingWrapupPending ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : null}
-                      {t("career.chat.career_call_screen.0yqbta2", "임의 종료")}
-                    </BareButton>
-                  </Tooltips>
+              }
+            />
+            {showInterviewComposerFrame ? (
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 px-1 text-neutral-muted md:justify-between">
+                {showResumeInterviewAction ? (
+                  <ActionButton
+                    type="button"
+                    onClick={handleResumeInterview}
+                    disabled={resumeInterviewDisabled}
+                    actionVariant="primary"
+                    buttonRadius="pill"
+                    className="hidden h-8 items-center gap-1.5 rounded-[12px] border border-neutral-1000 bg-neutral-1000 px-3 text-[12px] font-normal text-neutral-00 shadow-xs hover:bg-neutral-800 disabled:cursor-wait disabled:opacity-70 md:inline-flex"
+                  >
+                    {sessionReengagementPending || resumeInterviewRequested ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <></>
+                    )}
+                    {t(
+                      "career.chat.career_composer_section.resume_interview_cta",
+                      "5분 커리어 인터뷰 이어가기"
+                    )}
+                  </ActionButton>
                 ) : (
-                  <div className="inline-flex h-5 items-center gap-1.5 text-[12px] text-neutral-soft transition-all duration-300 ease-out">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    {t("career.chat.career_composer_section.02tj0kp", "약 5분")}
-                  </div>
+                  <div className="hidden md:block" />
                 )}
+                <div className="inline-flex min-w-0 items-center gap-2">
+                  <div className="inline-flex shrink-0 items-center gap-1.5 text-[12px] font-medium">
+                    <span>
+                      {t(
+                        "career.home.career_home_panel.1ol18h9",
+                        "커리어 인터뷰 진행 중"
+                      )}
+                    </span>
+                  </div>
+                  <div
+                    className="h-1 w-24 overflow-hidden rounded-full bg-neutral-400 sm:w-32"
+                    role="progressbar"
+                    aria-label={t(
+                      "career.chat.career_composer_section.interview_progress_aria_label",
+                      "커리어 인터뷰 진행률"
+                    )}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={interviewProgress.percent}
+                  >
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+                      style={{ width: `${interviewProgress.percent}%` }}
+                    />
+                  </div>
+                  {showManualCompletionAction ? (
+                    <Tooltips text={forceCompleteTooltip} side="top">
+                      <BareButton
+                        type="button"
+                        onClick={handleForceComplete}
+                        disabled={manualCompletionDisabled}
+                        className="inline-flex h-5 items-center gap-1 text-[12px] font-semibold text-critical transition-all duration-300 ease-out hover:text-neutral-primary disabled:cursor-wait disabled:opacity-70"
+                      >
+                        {forceCompletePending || onboardingWrapupPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : null}
+                        {t(
+                          "career.chat.career_call_screen.0yqbta2",
+                          "임의 종료"
+                        )}
+                      </BareButton>
+                    </Tooltips>
+                  ) : (
+                    <div className="inline-flex h-5 items-center gap-1.5 text-[12px] text-neutral-soft transition-all duration-300 ease-out">
+                      <Clock3 className="h-3.5 w-3.5" />
+                      {t(
+                        "career.chat.career_composer_section.02tj0kp",
+                        "약 5분"
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        </ApplicationPreparationComposerSlot>
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+import { buildSimulationSessionPrompt } from "../simulation/sessionPrompt";
+import type { SimulationSession } from "../simulation/session";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import {
   getCareerPromptLanguageName,
@@ -140,6 +142,8 @@ export function buildCareerConversationPromptPlan(args: {
   recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
   runtimeInstruction?: string | null;
+  simulationSession?: SimulationSession;
+  simulationAvailability?: "inactive" | "unavailable";
   structuredProfileText: string;
   timeZone?: string | null;
   toolNames?: readonly string[] | string;
@@ -157,7 +161,7 @@ export function buildCareerConversationPromptPlan(args: {
   }
 
   const channelType = getCareerChannelType(args.channel);
-  const channelContextRules = buildCareerChannelContextRules(args.channel);
+  const channelContextRules = buildCareerChannelContextRules(args.channel, args.simulationSession?.status !== "active");
 
   const outputLanguage = getCareerPromptLanguageName(
     args.currentPreferences?.preferredLocale
@@ -228,6 +232,25 @@ export function buildCareerConversationPromptPlan(args: {
     ),
     cacheable: true,
   };
+
+  if (args.conversationMode === "simulation" && args.simulationSession) {
+    return {
+      isOnboardingActive: false,
+      enabledToolNames: normalizedToolNames,
+      toolPolicy,
+      promptBlocks: [
+        coreSystemPrompt,
+        ...buildSimulationSessionPrompt(args.simulationSession, normalizedToolNames),
+        { key: "profile_context", text: profileContextBlock, cacheable: true },
+        ...(futureMatchingInsightsSection ? [{ key: "future_matching_insights", text: futureMatchingInsightsSection, cacheable: true }] : []),
+        ...(capabilities?.catalogText ? [{ key: "capability_catalog", text: capabilities.catalogText, cacheable: true }] : []),
+        ...(toolPolicy ? [{ key: "tool_policy", text: toolPolicy, cacheable: true }] : []),
+        ...(args.runtimeInstruction
+          ? [{ key: "runtime_instruction", text: args.runtimeInstruction }]
+          : []),
+      ],
+    };
+  }
 
   const conversationGuidePrompt = () => {
     if (isOnboardingActive)
@@ -393,6 +416,19 @@ export function buildCareerConversationPromptPlan(args: {
       text: capabilities?.eligibleNames.has("search_connected_gmail") && !capabilities.offeredNames.has("search_connected_gmail")
         ? "## Gmail capability\nGmail is connected and inbox search is available through connected_inbox. Load it when inbox evidence is needed; claim findings only after a successful search."
         : buildGmailCapabilityPrompt(args.gmailCapability),
+    });
+  }
+
+  if (!isOnboardingActive && args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
+    key: "application_start_payload",
+    text: 'Recognize application intent in ordinary language: asking whether Harper can apply on their behalf, wanting to apply to a specific role, or wanting help preparing an application. No exact feature name or activation phrase is required. When the target role is known, invite the user to prepare and apply together and briefly explain the useful capabilities: review role fit, tailor the resume and supporting answers, then either assist through a supported application site or hand over the materials for self-submission. Present this as an optional next step; opening the card alone never starts work or promises successful submission. Answer a general capability question briefly and clarify the target if no role is known. For a known target, append [[APPLICATION_START_OFFER]]{"roleId":"the known role identifier"}[[/APPLICATION_START_OFFER]]. For a public Harper posting use {"official_job_slug":"the known slug"} instead. Include exactly one of those identifiers and no other fields. Resolve an ambiguous role before proposing the card. This response payload shows a resume-selection start card after your reply; it does not start analysis or activate a mode. No tool call is needed for the card. The user starts by choosing a resume and pressing its button. Keep the invitation concise and conversational, focused on what the user can do with Harper. Do not narrate card rendering or say that a card was placed below. Avoid a lengthy role assessment before the user starts; analysis belongs inside the mode. The card carries resume selection and start controls.'
+  });
+  if (args.simulationAvailability) {
+    promptBlocks.push({
+      key: "simulation_availability",
+      text: args.simulationAvailability === "inactive"
+        ? "Current server-verified Apply with Harper state: no active 함께 지원 모드 in this conversation. This current state takes precedence over historical chat, old analysis cards and earlier claims that a mode was open. If the user asks to stop it, explain briefly that no mode is currently active and continue normally; no closing action or UI button is needed. Do not claim you just closed it, infer why or when it ended, or describe the missing management tool as an inability to close a still-active mode. Mention this state only when relevant to the user's request."
+        : "The current Apply with Harper state could not be verified because the capability is unavailable. Past conversation does not establish that a mode is still active. If the user asks about stopping it, explain the verification limitation briefly without asserting it is open or closed or inventing a required UI action.",
     });
   }
 

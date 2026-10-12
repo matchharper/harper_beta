@@ -1,3 +1,4 @@
+import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import type { User } from "@supabase/supabase-js";
 import React, { createContext, useContext } from "react";
 import type {
@@ -99,6 +100,7 @@ export type CareerChatPanelContextValue = {
   onProfileSubmit: () => void | Promise<void>;
 
   onSendChatMessage: (args: {
+    applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
     allowedToolNames?: readonly string[];
     files?: File[];
     channel?: "chat" | "voice";
@@ -122,6 +124,7 @@ export type CareerChatPanelContextValue = {
     mode: CareerConversationStarterMode;
     starterId: CareerConversationStarterId;
   }) => boolean | Promise<boolean>;
+  onSimulationAction?: (action:SimulationCardRequest,text:string)=>void|Promise<void>;
   onUpdateCareerCoachingActivity?: (args: {
     action: CareerCoachingActivityUiAction;
     activity: CareerCoachingActivity;

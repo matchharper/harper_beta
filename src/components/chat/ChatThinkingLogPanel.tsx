@@ -28,6 +28,7 @@ export type ChatThinkingLogPanelProps = {
   className?: string;
   completedAt?: string;
   hasToolWork?: boolean;
+  statusLabel?: string;
   logs: Array<string | ChatThinkingLogEntry>;
   startedAt?: string;
   typographyClassName?: string;
@@ -117,6 +118,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
   hasToolWork = true,
   logs,
   startedAt,
+  statusLabel: statusLabelOverride,
   typographyClassName,
 }: ChatThinkingLogPanelProps) {
   const [expanded, setExpanded] = useState(active);
@@ -125,11 +127,11 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
     !active && hasToolWork
       ? formatChatWorkDuration(startedAt, completedAt)
       : null;
-  const statusLabel = hasToolWork
+  const statusLabel = statusLabelOverride ?? (hasToolWork
     ? active
       ? "Working"
       : "Worked"
-    : "Thinking";
+    : "Thinking");
 
   if (logs.length === 0) return null;
 

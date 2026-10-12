@@ -1,0 +1,758 @@
+import type { SimulationStepKey } from "./types";
+
+export type Requirement = {
+  id: string;
+  requirement: string;
+  requirementType?: "qualification" | "application_material";
+  importance: 1 | 2 | 3;
+  mandatory: boolean;
+  rationale: string;
+  source: string;
+  evidenceNeeded: string;
+};
+export type Evidence = {
+  id: string;
+  source: "resume" | "profile";
+  location: string;
+  quote: string;
+};
+export type Diagnosis = {
+  requirementId: string;
+  match: "strong" | "met" | "partial" | "unknown" | "unmet";
+  evidence: Evidence[];
+  rationale: string;
+  presentation: "clear" | "weak" | "absent" | "overstated" | "unavailable";
+  questions: string[];
+  target: string;
+};
+export type Observation = {
+  id: string;
+  target: string;
+  finding: string;
+  evidence: Evidence[];
+};
+export type Action = {
+  id: string;
+  category: "content" | "wording" | "structure" | "consistency" | "materials";
+  title: string;
+  target: string;
+  proposal: string;
+  originalText?: string;
+  suggestedText?: string;
+  edits?: { target: string; originalText: string; suggestedText: string }[];
+  reason: string;
+  requirementIds: string[];
+  evidenceIds: string[];
+  needsConfirmation: boolean;
+  questions: string[];
+  executionPrompt: string;
+  inputKind?: "change" | "question" | "material";
+  linkedActionIds?: string[];
+  options?: { id: string; label: string }[];
+};
+export type FitVerdict = {
+  level: "strong" | "moderate" | "weak" | "stretch";
+  reason: string;
+};
+export type ActionCoverage = {
+  requirementId: string;
+  actionIds: string[];
+  disposition: "action" | "no_action" | "deferred";
+  reason: string;
+};
+export type StructuredResult =
+  | { kind: "role"; requirements: Requirement[] }
+  | { kind: "comparison"; diagnoses: Diagnosis[]; observations: Observation[] }
+  | {
+      kind: "review";
+      comparison?: Extract<StructuredResult, { kind: "comparison" }>;
+      actions: Action[];
+      emptyReason: string;
+      fitVerdict?: FitVerdict;
+      actionCoverage?: ActionCoverage[];
+    };
+
+type Schema = {
+  type: string;
+  properties?: Record<string, Schema>;
+  required?: string[];
+  additionalProperties?: boolean;
+  items?: Schema;
+  enum?: readonly (string | number)[];
+  minItems?: number;
+  maxItems?: number;
+};
+const str: Schema = { type: "string" };
+const strings: Schema = { type: "array", items: str };
+const choices = (...values: string[]): Schema => ({
+  type: "string",
+  enum: values,
+});
+const obj = (properties: Record<string, Schema>): Schema => ({
+  type: "object",
+  properties,
+  required: Object.keys(properties),
+  additionalProperties: false,
+});
+const list = (items: Schema, bounds = {}): Schema => ({
+  type: "array",
+  items,
+  ...bounds,
+});
+const evidenceSchema = obj({
+  id: str,
+  source: choices("resume", "profile"),
+  location: str,
+  quote: str,
+});
+export const simulationSchemas: Record<SimulationStepKey, Schema> = {
+  role: obj({
+    summary: str,
+    report: str,
+    data: obj({
+      kind: choices("role"),
+      requirements: list(
+        obj({
+          id: str,
+          requirement: str,
+          requirementType: choices("qualification", "application_material"),
+          importance: { type: "integer", enum: [1, 2, 3] },
+          mandatory: { type: "boolean" },
+          rationale: str,
+          source: str,
+          evidenceNeeded: str,
+        }),
+        { minItems: 1 }
+      ),
+    }),
+  }),
+  comparison: obj({
+    summary: str,
+    report: str,
+    data: obj({
+      kind: choices("comparison"),
+      diagnoses: list(
+        obj({
+          requirementId: str,
+          match: choices("strong", "met", "partial", "unknown", "unmet"),
+          evidence: list(evidenceSchema),
+          rationale: str,
+          presentation: choices(
+            "clear",
+            "weak",
+            "absent",
+            "overstated",
+            "unavailable"
+          ),
+          questions: strings,
+          target: str,
+        })
+      ),
+      observations: list(
+        obj({
+          id: str,
+          target: str,
+          finding: str,
+          evidence: list(evidenceSchema),
+        })
+      ),
+    }),
+  }),
+  review: obj({
+    summary: str,
+    report: str,
+    data: obj({
+      kind: choices("review"),
+      actionCoverage: list(
+        obj({
+          requirementId: str,
+          actionIds: strings,
+          disposition: choices("action", "no_action", "deferred"),
+          reason: str,
+        })
+      ),
+      fitVerdict: obj({
+        level: choices("strong", "moderate", "weak", "stretch"),
+        reason: str,
+      }),
+      actions: list(
+        obj({
+          id: str,
+          category: choices(
+            "content",
+            "wording",
+            "structure",
+            "consistency",
+            "materials"
+          ),
+          title: str,
+          target: str,
+          proposal: str,
+          originalText: str,
+          suggestedText: str,
+          edits: list(
+            obj({ target: str, originalText: str, suggestedText: str })
+          ),
+          reason: str,
+          requirementIds: strings,
+          evidenceIds: strings,
+          needsConfirmation: { type: "boolean" },
+          questions: strings,
+          executionPrompt: str,
+          inputKind: choices("change", "question", "material"),
+          linkedActionIds: strings,
+          options: list(obj({ id: str, label: str })),
+        }),
+        {}
+      ),
+      emptyReason: str,
+    }),
+  }),
+};
+
+function conforms(value: unknown, schema: Schema): boolean {
+  if (schema.enum && !schema.enum.includes(value as string | number))
+    return false;
+  if (schema.type === "string") return typeof value === "string";
+  if (schema.type === "boolean") return typeof value === "boolean";
+  if (schema.type === "integer") return Number.isInteger(value);
+  if (schema.type === "array")
+    return (
+      Array.isArray(value) &&
+      value.length >= (schema.minItems ?? 0) &&
+      value.length <= (schema.maxItems ?? Infinity) &&
+      value.every((v) => conforms(v, schema.items!))
+    );
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  return (
+    Object.keys(row).every((k) => k in schema.properties!) &&
+    schema.required!.every(
+      (k) =>
+        // Earlier version-2 results predate the optional visual edit preview.
+        ((k === "options" ||
+          k === "inputKind" ||
+          k === "linkedActionIds" ||
+          k === "edits" ||
+          k === "originalText" ||
+          k === "suggestedText" ||
+          k === "requirementType" ||
+          k === "fitVerdict" ||
+          k === "actionCoverage") &&
+          !(k in row)) ||
+        conforms(row[k], schema.properties![k])
+    )
+  );
+}
+export function hasStageShape(value: unknown, key: SimulationStepKey): boolean {
+  if (key === "review" && value && typeof value === "object") {
+    const v = value as { data?: Record<string, unknown> };
+    if (v.data?.comparison) {
+      const { comparison, ...data } = v.data;
+      return (
+        conforms({ ...v, data }, simulationSchemas.review) &&
+        conforms(
+          { summary: "", report: "", data: comparison },
+          simulationSchemas.comparison
+        )
+      );
+    }
+  }
+  return conforms(value, simulationSchemas[key]);
+}
+const unique = (ids: string[]) =>
+  ids.every((id) => id.trim().length > 0) && new Set(ids).size === ids.length;
+export function isStructuredStage(
+  value: unknown,
+  key: SimulationStepKey
+): value is { summary: string; report: string; data: StructuredResult } {
+  const combined = value as {
+    data?: Extract<StructuredResult, { kind: "review" }>;
+  } | null;
+  if (key === "review" && combined?.data?.comparison) {
+    const { comparison, ...data } = combined.data;
+    return (
+      isStructuredStage({ ...(value as object), data }, key) &&
+      isStructuredStage(
+        { summary: "Evidence", report: "Evidence", data: comparison },
+        "comparison"
+      )
+    );
+  }
+  if (!conforms(value, simulationSchemas[key])) return false;
+  const result = value as {
+    summary: string;
+    report: string;
+    data: StructuredResult;
+  };
+  if (!result.summary.trim() || !result.report.trim()) return false;
+  const d = result.data;
+  if (d.kind === "role")
+    return (
+      unique(d.requirements.map((r) => r.id)) &&
+      d.requirements.every((r) =>
+        [r.requirement, r.rationale, r.source, r.evidenceNeeded].every((s) =>
+          s.trim()
+        )
+      )
+    );
+  if (d.kind === "comparison") {
+    const evidence = [
+      ...d.diagnoses.flatMap((r) => r.evidence),
+      ...d.observations.flatMap((r) => r.evidence),
+    ];
+    const byId = new Map<string, string>();
+    for (const e of evidence) {
+      if (![e.id, e.location, e.quote].every((s) => s.trim())) return false;
+      const text = JSON.stringify([e.source, e.location, e.quote]);
+      if (byId.has(e.id) && byId.get(e.id) !== text) return false;
+      byId.set(e.id, text);
+    }
+    return (
+      unique(d.diagnoses.map((r) => r.requirementId)) &&
+      unique(d.observations.map((r) => r.id)) &&
+      d.diagnoses.every(
+        (r) =>
+          r.rationale.trim() &&
+          r.target.trim() &&
+          (!["strong", "met", "unmet"].includes(r.match) ||
+            r.evidence.length > 0)
+      )
+    );
+  }
+  return (
+    (!d.fitVerdict || !!d.fitVerdict.reason.trim()) &&
+    unique(d.actions.map((a) => a.id)) &&
+    (d.actions.length > 0 || !!d.emptyReason.trim()) &&
+    d.actions.every(
+      (a) =>
+        [a.title, a.target, a.proposal, a.reason, a.executionPrompt].every(
+          (s) => s.trim()
+        ) &&
+        (!a.needsConfirmation || a.questions.some((q) => q.trim()))
+    )
+  );
+}
+
+export function validReferences(
+  data: StructuredResult,
+  previous: Array<{ data?: StructuredResult } | undefined>
+): boolean {
+  if (data.kind === "role") return true;
+  const role = previous[0]?.data;
+  if (role?.kind !== "role") return false;
+  const ids = new Set(role.requirements.map((r) => r.id));
+  if (data.kind === "comparison")
+    return (
+      data.diagnoses.length === ids.size &&
+      data.diagnoses.every((d) => ids.has(d.requirementId))
+    );
+  const comparison = data.comparison ?? previous[1]?.data;
+  if (data.comparison && !validReferences(data.comparison, previous))
+    return false;
+  if (comparison?.kind !== "comparison") return false;
+  const evidenceIds = new Set(
+    [
+      ...comparison.diagnoses.flatMap((d) => d.evidence),
+      ...comparison.observations.flatMap((o) => o.evidence),
+    ].map((e) => e.id)
+  );
+  for (const observation of comparison.observations)
+    evidenceIds.add(observation.id);
+  if (data.actionCoverage) {
+    if (
+      data.actionCoverage.length !== ids.size ||
+      !unique(data.actionCoverage.map((r) => r.requirementId))
+    )
+      return false;
+    for (const row of data.actionCoverage) {
+      if (
+        !ids.has(row.requirementId) ||
+        !row.reason.trim() ||
+        !unique(row.actionIds)
+      )
+        return false;
+      if ((row.disposition === "action") !== row.actionIds.length > 0)
+        return false;
+      if (
+        !row.actionIds.every((id) =>
+          data.actions.some(
+            (a) => a.id === id && a.requirementIds.includes(row.requirementId)
+          )
+        )
+      )
+        return false;
+      if (
+        !data.actions
+          .filter((a) => a.requirementIds.includes(row.requirementId))
+          .every((a) => row.actionIds.includes(a.id))
+      )
+        return false;
+    }
+  }
+  return data.actions.every(
+    (a) =>
+      a.requirementIds.every((id) => ids.has(id)) &&
+      a.evidenceIds.every((id) => evidenceIds.has(id))
+  );
+}
+
+// Coverage links are an inverse index of actions, not a second model judgment.
+// Preserve the model's rationale and no-action/deferred decision; never repair
+// missing evidence or unknown requirements by inventing/dropping references.
+export function deriveActionCoverage(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const result = value as { data?: Record<string, unknown> };
+  const d = result.data;
+  if (
+    d?.kind !== "review" ||
+    !Array.isArray(d.actions) ||
+    !Array.isArray(d.actionCoverage)
+  )
+    return value;
+  if (
+    !d.actions.every(
+      (a) =>
+        a &&
+        typeof a.id === "string" &&
+        Array.isArray(a.requirementIds) &&
+        a.requirementIds.every((id: unknown) => typeof id === "string")
+    )
+  )
+    return value;
+  return {
+    ...result,
+    data: {
+      ...d,
+      actionCoverage: d.actionCoverage.map((row) => {
+        if (!row || typeof row.requirementId !== "string") return row;
+        const actionIds = (d.actions as Action[])
+          .filter((a) => a.requirementIds.includes(row.requirementId))
+          .map((a) => a.id);
+        return {
+          ...row,
+          actionIds,
+          ...(actionIds.length ? { disposition: "action" } : {}),
+        };
+      }),
+    },
+  };
+}
+
+// Give the repair call the exact broken edge, rather than asking it to guess
+// which of several independent reference constraints failed.
+export function referenceIssues(
+  data: StructuredResult,
+  previous: Array<{ data?: StructuredResult } | undefined>
+): string[] {
+  if (data.kind === "role") return [];
+  const role = previous[0]?.data;
+  if (role?.kind !== "role") return ["data: frozen role rubric is missing"];
+  const ids = new Set(role.requirements.map((r) => r.id));
+  const issues: string[] = [];
+  const checkRequirements = (values: string[], path: string) => {
+    for (const id of values)
+      if (!ids.has(id))
+        issues.push(
+          `${path}: unknown requirement ${id}; use ${[...ids].join(", ")}`
+        );
+  };
+  if (data.kind === "comparison") {
+    data.diagnoses.forEach((d, i) =>
+      checkRequirements([d.requirementId], `data.diagnoses[${i}].requirementId`)
+    );
+    for (const id of ids)
+      if (data.diagnoses.filter((d) => d.requirementId === id).length !== 1)
+        issues.push(`data.diagnoses: provide exactly one diagnosis for ${id}`);
+    return issues;
+  }
+  const comparison = data.comparison ?? previous[1]?.data;
+  if (comparison?.kind !== "comparison")
+    return ["data: evidence comparison is missing"];
+  const evidenceIds = new Set([
+    ...comparison.diagnoses.flatMap((d) => d.evidence.map((e) => e.id)),
+    ...comparison.observations.flatMap((o) => [
+      o.id,
+      ...o.evidence.map((e) => e.id),
+    ]),
+  ]);
+  data.actions.forEach((a, i) => {
+    checkRequirements(a.requirementIds, `data.actions[${i}].requirementIds`);
+    for (const id of a.evidenceIds)
+      if (!evidenceIds.has(id))
+        issues.push(
+          `data.actions[${i}].evidenceIds: unknown evidence ${id}; reference existing comparison evidence/observation IDs (${[...evidenceIds].join(", ") || "none"}), or use [] when unavailable`
+        );
+  });
+  if (data.actionCoverage) {
+    for (const id of ids)
+      if (
+        data.actionCoverage.filter((r) => r.requirementId === id).length !== 1
+      )
+        issues.push(`data.actionCoverage: provide exactly one row for ${id}`);
+    data.actionCoverage.forEach((r, i) => {
+      const path = `data.actionCoverage[${i}]`;
+      checkRequirements([r.requirementId], `${path}.requirementId`);
+      if (!r.reason.trim())
+        issues.push(`${path}.reason: explain the disposition`);
+      if (!unique(r.actionIds))
+        issues.push(`${path}.actionIds: use distinct nonempty IDs`);
+      if ((r.disposition === "action") !== r.actionIds.length > 0)
+        issues.push(
+          `${path}.disposition: linked actions require action; without linked actions choose no_action or deferred`
+        );
+      const expected = data.actions
+        .filter((a) => a.requirementIds.includes(r.requirementId))
+        .map((a) => a.id);
+      if (
+        expected.some((id) => !r.actionIds.includes(id)) ||
+        r.actionIds.some((id) => !expected.includes(id))
+      )
+        issues.push(
+          `${path}.actionIds: must equal actions citing ${r.requirementId}: ${expected.join(", ") || "[]"}`
+        );
+    });
+  }
+  return issues;
+}
+
+// Diagnostics contain paths/codes only: never log resume excerpts or model output.
+export function stageOutputIssues(
+  value: unknown,
+  key: SimulationStepKey,
+  previous: Array<{ data?: StructuredResult } | undefined>
+): string[] {
+  const combined = value as {
+    data?: Extract<StructuredResult, { kind: "review" }>;
+  } | null;
+  if (key === "review" && combined?.data?.comparison) {
+    const { comparison, ...data } = combined.data;
+    return [
+      ...stageOutputIssues(
+        { summary: "Evidence", report: "Evidence", data: comparison },
+        "comparison",
+        previous
+      ),
+      ...stageOutputIssues({ ...(value as object), data }, "review", [
+        previous[0],
+        { data: comparison },
+      ]),
+    ];
+  }
+  const issues: string[] = [];
+  const inspect = (v: unknown, schema: Schema, path: string) => {
+    if (conforms(v, schema)) return;
+    if (
+      schema.type === "object" &&
+      v &&
+      typeof v === "object" &&
+      !Array.isArray(v)
+    ) {
+      const row = v as Record<string, unknown>;
+      for (const name of Object.keys(row))
+        if (!(name in schema.properties!))
+          issues.push(`${path}.${name}: unexpected field`);
+      for (const name of schema.required!)
+        inspect(row[name], schema.properties![name], `${path}.${name}`);
+    } else if (schema.type === "array" && Array.isArray(v)) {
+      if (
+        v.length < (schema.minItems ?? 0) ||
+        v.length > (schema.maxItems ?? Infinity)
+      )
+        issues.push(`${path}: invalid item count`);
+      v.forEach((item, i) => inspect(item, schema.items!, `${path}[${i}]`));
+    } else
+      issues.push(
+        `${path}: expected ${schema.enum ? schema.enum.join(" | ") : schema.type}`
+      );
+  };
+  inspect(value, simulationSchemas[key], "result");
+  if (issues.length) return issues.slice(0, 30);
+  const result = value as {
+    summary: string;
+    report: string;
+    data: StructuredResult;
+  };
+  const d = result.data;
+  if (d.kind === "review" && !d.actionCoverage)
+    issues.push(
+      "data.actionCoverage: account for every frozen requirement with linked action IDs or a reason for no action/deferment"
+    );
+  if (d.kind === "review") {
+    const actionIds = new Set(d.actions.map((a) => a.id));
+    for (const row of d.actionCoverage ?? []) {
+      const expected = d.actions
+        .filter((a) => a.requirementIds.includes(row.requirementId))
+        .map((a) => a.id);
+      if (
+        expected.some((id) => !row.actionIds.includes(id)) ||
+        row.actionIds.some((id) => !expected.includes(id))
+      )
+        issues.push(
+          `data.actionCoverage.${row.requirementId}: actionIds must match actions citing this requirement: ${expected.join(", ") || "none"}`
+        );
+    }
+    d.actions.forEach((a, i) => {
+      if (a.linkedActionIds?.some((id) => id === a.id || !actionIds.has(id)))
+        issues.push(
+          `data.actions[${i}].linkedActionIds: reference other existing items`
+        );
+      if (
+        a.inputKind === "question" &&
+        (a.suggestedText ||
+          a.originalText ||
+          a.edits?.length ||
+          !a.questions.length)
+      )
+        issues.push(
+          `data.actions[${i}]: questions require a question and no speculative draft`
+        );
+    });
+  }
+  if (d.kind === "review" && !d.fitVerdict)
+    issues.push(
+      "data.fitVerdict: provide a level and concise evidence-based reason"
+    );
+  if (d.kind === "comparison") {
+    const evidence = [
+      ...d.diagnoses.flatMap((r, i) =>
+        r.evidence.map((e, j) => ({
+          e,
+          path: `data.diagnoses[${i}].evidence[${j}]`,
+        }))
+      ),
+      ...d.observations.flatMap((r, i) =>
+        r.evidence.map((e, j) => ({
+          e,
+          path: `data.observations[${i}].evidence[${j}]`,
+        }))
+      ),
+    ];
+    const seen = new Map<string, string>();
+    for (const { e, path } of evidence) {
+      const signature = JSON.stringify([e.source, e.location, e.quote]);
+      if (seen.has(e.id) && seen.get(e.id) !== signature)
+        issues.push(
+          `${path}.id: reused for different source/location/quote; use a distinct ID or reuse identical evidence`
+        );
+      seen.set(e.id, signature);
+    }
+    d.diagnoses.forEach((r, i) => {
+      if (["strong", "met", "unmet"].includes(r.match) && !r.evidence.length)
+        issues.push(
+          `data.diagnoses[${i}].evidence: this judgment requires evidence; missing information is unknown`
+        );
+    });
+    const role = previous[0]?.data;
+    if (role?.kind === "role") {
+      for (const r of role.requirements)
+        if (d.diagnoses.filter((x) => x.requirementId === r.id).length !== 1)
+          issues.push(
+            `data.diagnoses: provide exactly one diagnosis for ${r.id}`
+          );
+    }
+  }
+  if (!isStructuredStage(value, key) && !issues.length)
+    issues.push(
+      "result: nonempty content and unique IDs required; confirmation needs questions and zero actions needs emptyReason"
+    );
+  issues.push(...referenceIssues(d, previous));
+  return issues.slice(0, 30);
+}
+
+// Constrain the model to the frozen rubric before generation, not only after it.
+export function simulationSchemaForInput(
+  key: SimulationStepKey,
+  context: { rubric?: { data?: StructuredResult }; workflowVersion?: number }
+): Schema {
+  const schema = structuredClone(simulationSchemas[key]);
+  if (key === "review" && context.workflowVersion === 4) {
+    const comparison = simulationSchemaForInput("comparison", context)
+      .properties!.data;
+    schema.properties!.data.properties!.comparison = comparison;
+    schema.properties!.data.required!.push("comparison");
+  }
+  const rubric = context.rubric?.data;
+  if (
+    key === "comparison" &&
+    rubric?.kind === "role" &&
+    rubric.requirements.length
+  ) {
+    const diagnoses = schema.properties!.data.properties!.diagnoses;
+    diagnoses.minItems = rubric.requirements.length;
+    diagnoses.maxItems = rubric.requirements.length;
+    diagnoses.items!.properties!.requirementId = choices(
+      ...rubric.requirements.map((r) => r.id)
+    );
+  }
+  if (
+    key === "review" &&
+    rubric?.kind === "role" &&
+    rubric.requirements.length
+  ) {
+    const data = schema.properties!.data;
+    const ids = rubric.requirements.map((r) => r.id);
+    const coverage = data.properties!.actionCoverage;
+    // The server derives this inverse index from actions.requirementIds.
+    delete coverage.items!.properties!.actionIds;
+    coverage.items!.required = coverage.items!.required!.filter(
+      (name) => name !== "actionIds"
+    );
+    coverage.minItems = ids.length;
+    coverage.maxItems = ids.length;
+    coverage.items!.properties!.requirementId = choices(...ids);
+    data.properties!.actions.items!.properties!.requirementIds = list(
+      choices(...ids)
+    );
+  }
+  return schema;
+}
+
+// A visual deletion must quote the actual resume, not profile evidence or an invented example.
+export function resumeEditPreviewIssues(
+  data: Extract<StructuredResult, { kind: "review" }>,
+  resume: string
+): string[] {
+  const normalize = (text: string) => text.replace(/\s+/g, " ").trim();
+  const source = normalize(resume);
+  return data.actions.flatMap((action, index) => {
+    const previews = [
+      {
+        text: action.originalText,
+        path: `data.actions[${index}].originalText`,
+      },
+      ...(action.edits ?? []).map((edit, j) => ({
+        text: edit.originalText,
+        path: `data.actions[${index}].edits[${j}].originalText`,
+      })),
+    ];
+    return previews.flatMap(({ text, path }) =>
+      text?.trim() && !source.includes(normalize(text))
+        ? [`${path}: must quote an exact passage from the supplied resume`]
+        : []
+    );
+  });
+}
+
+// Sum importance by evidence status, keeping unknowns distinct from actual gaps.
+// These are evidence totals, not a calibrated hiring probability or a verdict.
+export function aggregateFitEvidence(
+  role?: StructuredResult,
+  comparison?: StructuredResult
+) {
+  if (role?.kind !== "role" || comparison?.kind !== "comparison")
+    return undefined;
+  const totals = { strong: 0, met: 0, partial: 0, unknown: 0, unmet: 0 };
+  for (const requirement of role.requirements) {
+    if (requirement.requirementType === "application_material") continue;
+    const diagnosis = comparison.diagnoses.find(
+      (d) => d.requirementId === requirement.id
+    );
+    totals[diagnosis?.match ?? "unknown"] += requirement.importance;
+  }
+  return {
+    importanceTotalsByMatch: totals,
+    scope:
+      "Qualifications only; submission materials are preparation tasks, not candidate fit.",
+  };
+}

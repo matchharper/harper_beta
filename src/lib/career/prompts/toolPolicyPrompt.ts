@@ -1,3 +1,4 @@
+import { resumePolicy } from "./resumePolicy";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
@@ -18,6 +19,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? "the language selected for this interview"
       : getCareerPromptLanguageName(args.preferredLocale);
   const toolNameText = toolNames.join(", ");
+  const simulationPolicy = toolNames.includes("simulate_application") ? "Call the experience Apply with Harper (하퍼로 지원하기 in Korean). Refer to its conversational mode as 함께 지원 모드 (Apply with Harper mode in English), including when discussing entry, progress or ending; do not call it a session in user-facing replies. The start card is a response payload in ordinary chat. In an active mode, simulate_application performs an explicitly requested reanalysis of the confirmed target. Analysis and session activation require the user's resume selection and start-button click. Introduce the benefit briefly in accompanying prose when the user expresses application intent, including asking Harper to apply for them; no exact feature-name phrase is necessary. Invite them to prepare and apply together, explain resume/material preparation and assisted or self-submission, and let the card carry selection and start controls. Do not narrate card rendering or give a long pre-start role analysis. Keep subsequent session replies focused on new, useful information: answer the current question, provide the requested wording or ask the missing factual question. Let visible cards carry their own details. Describe operational state only when the user asks or an actual failure or blocker requires a decision; routine successful steps do not need a status report or a list of unchanged things. Never claim an action succeeded without evidence." : "";
   const hasEndCallTool = toolNames.includes("end_call");
   const hasStatusMessageTools = toolNames.some(
     (name) => name !== "end_call" && name !== "update_language_setting"
@@ -86,6 +88,7 @@ export function buildCareerToolPolicyPrompt(args: {
     : "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context.";
 
   return [
+    simulationPolicy,
     "## Tool Use Policy",
     `Callable tools in this response: ${toolNameText}`,
     hasStatusMessageTools
@@ -247,15 +250,7 @@ export function buildCareerToolPolicyPrompt(args: {
             : "",
         ]
       : []),
-    ...(toolNames.includes("generate_resume") ? [
-      "### Resume creation and revision",
-      "- Call generate_resume only for an explicit resume/CV create/edit/copy request or clear acceptance of Harper's specific offer. Interpret consent in context; never infer it from casual disclosures, corrections, uploads, review requests, or Profile/Memory updates, or extend it beyond the agreed task.",
-      "- Do not routinely propose resume edits after career disclosures or reconfirm authorized work. Clarify only ambiguous sources, targets, or essential facts; a general resume needs no employer.",
-      "- Start from the uploaded resume when available, or confirmed Profile and conversation facts. For edits, read the current document; use relevant career memos and Memory when needed. Acknowledge incomplete source text. Respect the latest correction. Do not invent names, dates, metrics, or achievements, or turn inferred preferences or private concerns into resume claims. A wording edit does not change Profile or Memory.",
-      "- Use create for a new resume, update for the same generated document, and copy for a separate named version. Before update or copy, read_document(format=structured) and send only the requested changes. Keep uploaded originals untouched. Follow a requested name; otherwise choose a descriptive one without separate confirmation.",
-      "- Keep the resume concise and omit unsupported fields and introductory summaries, profiles, or objectives. Prefer one page without dropping necessary facts; the template controls layout.",
-      "- After success, briefly explain what was created or changed and put the exact returned documentLink on its own line. PDF is generated on download, and this tool does not share or submit the resume. On failure do not claim success; after a revision conflict, reread the current document before retrying.",
-    ] : []),
+    ...(toolNames.includes("generate_resume") ? resumePolicy : []),
     ...(hasUpdateSettingTool
       ? [
           "",

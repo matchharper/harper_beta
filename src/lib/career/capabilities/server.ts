@@ -34,6 +34,9 @@ import {
 } from "./runtime";
 
 export function isCareerCapabilityTurn(args: {
+  applicationStartRequested?: boolean;
+  applicationActive?: boolean;
+  applicationInputSubmitted?: boolean;
   channel: string;
   isOnboardingDone: boolean;
   allowedToolNames?: readonly string[] | null;
@@ -108,7 +111,9 @@ export async function createCareerCapabilityTurn(args: {
   sourceMessage: TalentMessageRow | null;
   mode: CareerCapabilityMode;
   eligibleTools: readonly TalentChatTool[];
+  getEligibleTools?: () => readonly TalentChatTool[];
   promptArgs: CareerCapabilityPromptArgs;
+  getPromptArgs?: () => CareerCapabilityPromptArgs;
   preloads?: readonly CareerCapabilityId[];
   origin?: "web" | "server";
 }) {
@@ -139,6 +144,8 @@ export async function createCareerCapabilityTurn(args: {
         })
       : new Set<CareerCapabilityId>();
   const promptArgs = { ...args.promptArgs };
+  let refreshedUserContext: Partial<CareerCapabilityPromptArgs> = {};
+  let coachingRefreshed = false;
   const readCoaching = async () => {
     promptArgs.careerCoachingActivity = await readCareerCapabilityCoaching({
       admin,
@@ -163,7 +170,17 @@ export async function createCareerCapabilityTurn(args: {
   const runtime = new CareerCapabilityRuntime({
     mode: args.mode,
     eligibleTools: args.eligibleTools,
-    promptArgs: () => promptArgs,
+    getEligibleTools: args.getEligibleTools,
+    promptArgs: () => {
+      const current = { ...promptArgs, ...args.getPromptArgs?.(), ...refreshedUserContext };
+      if (coachingRefreshed) {
+        current.careerCoachingActivity = promptArgs.careerCoachingActivity;
+        if (current.simulationSession?.status !== "active")
+          current.conversationMode = promptArgs.careerCoachingActivity?.status === "active"
+            ? "career_coaching" : current.conversationMode === "career_coaching" ? "default" : current.conversationMode;
+      }
+      return current;
+    },
     remembered,
     preloads,
     usageContext: {
@@ -175,6 +192,7 @@ export async function createCareerCapabilityTurn(args: {
     },
     refreshAfterTool: async (name, result) => {
       if (name === "manage_career_coaching_activity") {
+        coachingRefreshed = true;
         // Keep the executor's verified state even if the follow-up read fails.
         const receipt = result as {
           activityMessage?: { coachingActivity?: CareerCoachingActivity };
@@ -242,6 +260,12 @@ export async function createCareerCapabilityTurn(args: {
                 setting.recommendation_batch_size
               )
             : null,
+        };
+        refreshedUserContext = {
+          profile: promptArgs.profile,
+          structuredProfileText: promptArgs.structuredProfileText,
+          talentContextSection: promptArgs.talentContextSection,
+          currentPreferences: promptArgs.currentPreferences,
         };
       }
     },

@@ -7259,6 +7259,16 @@ export type Database = {
           },
         ];
       };
+      talent_simulate_application: {
+        Row: {id: string; user_id: string; conversation_id: string; role_ref: string;
+          start_offer_message_id: number; message_id: number; status: string; revision: number;
+          payload: Json; created_at: string; updated_at: string; last_activity_at: string; ended_at: string | null;},
+        Insert: {id: string; user_id: string; conversation_id: string; role_ref: string;
+          start_offer_message_id: number; message_id: number; status: string; revision?: number;
+          payload: Json; created_at?: string; updated_at?: string; last_activity_at?: string; ended_at?: string | null;},
+        Update: {id?: string; status?: string; revision?: number; payload?: Json; updated_at?: string; last_activity_at?: string; ended_at?: string | null;},
+        Relationships: [],
+      };
       talent_conversations: {
         Row: {
           career_coaching_activity_message_id: number | null;

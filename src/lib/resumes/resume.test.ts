@@ -21,6 +21,7 @@ export const sample: ResumeContent = {
       title: "프로덕트 매니저",
       organization: "예시 주식회사",
       period: "2022 - 현재",
+      location: "서울, 대한민국",
       bullets: [
         "고객 인터뷰를 진행하고 문제 정의부터 출시 후 개선까지 담당했습니다.",
         "디자이너·개발자와 협업해 사용자 온보딩을 개선했습니다.",
@@ -201,6 +202,14 @@ test(
   async () => {
     const single = await renderResumePdf(sample);
     assert.equal(single.pageCount, 1);
+    const {PDFParse} = await import("pdf-parse");
+    const parser = new PDFParse({data: new Uint8Array(single.pdf)});
+    try {
+      const extracted = await parser.getText();
+      assert.match(extracted.text, /•/);
+      assert.match(extracted.text, /haneul@example.com.*·.*example\.com\/projects/);
+    } finally {await parser.destroy();}
+
     const english = await renderResumePdf({
       language: "en",
       basics: {
@@ -215,7 +224,9 @@ test(
       experience: [
         {
           title: "Product Manager",
-          organization: "Example",
+          organization: "Example Research and Development Laboratory for Applied Product Engineering",
+          period: "September 2021 - December 2025",
+          location: "San Francisco, California",
           bullets: [
             "Led customer research and worked with designers and engineers.",
           ],
@@ -281,4 +292,27 @@ test("legacy summary is omitted from edited JSON, PDF HTML and plain text", () =
   assert.ok(!resumeHtml(content, "").includes("Legacy summary text"));
   assert.ok(!resumePlainText(content).includes("Legacy summary text"));
   assert.ok(!resumeHtml(content, "").includes(">소개<"));
+});
+
+
+test("contact URLs omit labels and protocols, and absent URLs leave no labels or separators", () => {
+  const content: ResumeContent = {
+    ...sample,
+    basics: {
+      name: "Example Person", email: "person@example.com",
+      links: [
+        { label: "LinkedIn", url: " https://linkedin.com/in/example " },
+        { label: "GitHub", url: "http://github.com/example" },
+        { label: "Portfolio", url: "example.org/work" },
+        { label: "Missing link", url: "  " },
+      ],
+    },
+  };
+  const html = resumeHtml(content, "");
+  const contacts = html.match(/<div class="contacts">([\s\S]*?)<\/div>/)![1];
+  assert.equal(contacts, '<span class="contact">person@example.com</span> · <span class="contact">linkedin.com/in/example</span> · <span class="contact">github.com/example</span> · <span class="contact">example.org/work</span>');
+  assert.doesNotMatch(resumePlainText(content), /https?:|LinkedIn|GitHub|Portfolio|Missing link/);
+  assert.equal(content.basics.links![0].url, " https://linkedin.com/in/example ");
+  const empty = resumeHtml({ ...content, basics: { name: "Example Person", links: [{ label: "GitHub", url: "" }] } }, "");
+  assert.ok(empty.includes('<div class="contacts"></div>'));
 });

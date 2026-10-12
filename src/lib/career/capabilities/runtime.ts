@@ -68,6 +68,7 @@ export class CareerCapabilityRuntime {
     readonly options: {
       mode: CareerCapabilityMode;
       eligibleTools: readonly TalentChatTool[];
+      getEligibleTools?: () => readonly TalentChatTool[];
       promptArgs: () => CareerCapabilityPromptArgs;
       remembered?: ReadonlySet<CareerCapabilityId>;
       preloads?: readonly CareerCapabilityId[];
@@ -114,8 +115,17 @@ export class CareerCapabilityRuntime {
     const promptArgs = this.options.promptArgs();
     if (promptArgs.careerCoachingActivity?.status === "active")
       this.loaded.add("career_coaching");
+    const eligibleTools = this.options.getEligibleTools?.() ?? this.options.eligibleTools;
+    // An existing, server-confirmed activity supplies its required abilities.
+    // No intent classification or model-authored mode state is used here.
+    if (promptArgs.simulationSession?.status === "active") {
+      for (const capability of CAREER_CAPABILITIES) {
+        if (capability.tools.some(([name]) => eligibleTools.some(tool => tool.function.name === name)))
+          this.loaded.add(capability.id);
+      }
+    }
     const resolved = resolveCareerCapabilities({
-      eligibleTools: this.options.eligibleTools.filter(
+      eligibleTools: eligibleTools.filter(
         (tool) => !this.revokedTools.has(tool.function.name)
       ),
       mode: this.options.mode,

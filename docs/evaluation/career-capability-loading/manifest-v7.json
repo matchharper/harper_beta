@@ -1,0 +1,35 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v7",
+  "createdAt": "2026-10-12",
+  "provenance": "Fully synthetic. Retains v6 except corrects application_profile to the actual writable current-location contract. v6 incorrectly required direct experience company-name editing that the common Profile tool does not implement. Preserves v5 and v6 files and failed runs.",
+  "goldStatus": "Codex contract review; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "date": "2026-10-12",
+      "reviewer": "Codex",
+      "change": "User decisions: public-site application remains; shared Memory/Brief/Profile tools remain in mode; unrelated tasks confirm ending before switching. v5 files remain unchanged.",
+      "evidence": [
+        "src/lib/career/simulation/sessionTool.ts",
+        "src/lib/career/simulation/preparationPrompt.ts",
+        "src/lib/career/simulation/session.ts"
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "reviewer": "Codex",
+      "change": "Correct invalid Profile gold to current location, supported by talentUser.location. Clarify semantic Brief boundary for one-application decisions; UI metadata and session receipts now reuse production contracts. No runtime scenario branches.",
+      "evidence": [
+        "src/lib/talentOnboarding/tools.ts:UPDATE_TALENT_PROFILE",
+        "src/lib/career/prompts/toolPolicyPrompt.ts",
+        "src/lib/career/simulation/sessionTool.ts:applicationSessionToolResult"
+      ]
+    }
+  ],
+  "files": {
+    "cases-v7.json": "7a0e33db693ba6e98b93cc470abaef9008911f285bb19e1b2643bba6c091ddcb",
+    "gold-v7.json": "322b55ea87bdd49f66ff46097ab5afecca0b771bb694dc117866e585f529af8d"
+  },
+  "caseCount": 18,
+  "turnCount": 38
+}

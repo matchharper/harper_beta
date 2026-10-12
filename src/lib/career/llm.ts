@@ -1557,6 +1557,7 @@ async function runCareerChatAssistantImpl(args: {
 
     if (args.tools.length > 0) {
       return runTalentAssistantToolLoop({
+        getSystemPrompt: () => flattenCareerSystemBlocks(args.systemBlocks),
         toolRuntime: args.toolRuntime,
         ...(args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume")
           ? { maxToolLoops: RESUME_TOOL_CALL_LIMIT, maxTotalToolCalls: RESUME_TOOL_CALL_LIMIT }
@@ -1592,8 +1593,7 @@ async function runCareerChatAssistantImpl(args: {
   let startedExecution = false;
   let recoverySystemBlocks = args.systemBlocks;
   try {
-    const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
-    const maxToolCalls = args.toolRuntime?.maxToolCalls ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : 4);
+    const maxToolCalls = args.toolRuntime?.maxToolCalls ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : 4);
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let executedToolNamesForPolicy: string[] = [];
@@ -1617,8 +1617,9 @@ async function runCareerChatAssistantImpl(args: {
       });
     }
 
-    const maxToolLoops = args.toolRuntime?.maxToolLoops ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : 3);
+    const maxToolLoops = args.toolRuntime?.maxToolLoops ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : 3);
     for (let loop = 0; loop < maxToolLoops; loop += 1) {
+      const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
       const capabilityStep = args.toolRuntime?.resolveStep();
       const stepTools = capabilityStep?.tools ?? args.tools;
       const stepSystemBlocks = capabilityStep?.systemBlocks ?? args.systemBlocks;
@@ -1952,6 +1953,7 @@ async function runCareerChatAssistantStreamImpl(args: {
   if (!shouldUseAnthropicNativeMessages(modelConfig.primaryModel)) {
     const systemPrompt = flattenCareerSystemBlocks(args.systemBlocks);
     return runTalentAssistantToolLoop({
+      getSystemPrompt: () => flattenCareerSystemBlocks(args.systemBlocks),
         toolRuntime: args.toolRuntime,
       ...(args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume")
         ? { maxToolLoops: RESUME_TOOL_CALL_LIMIT, maxTotalToolCalls: RESUME_TOOL_CALL_LIMIT }
@@ -1992,7 +1994,6 @@ async function runCareerChatAssistantStreamImpl(args: {
   let startedAnyTool = false;
   let executedAnyTool = false;
   let forwardedVisibleText = "";
-  const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
   const forwardTextDelta = async (delta: string) => {
     if (!delta) return;
     streamedAnyText = true;
@@ -2024,7 +2025,7 @@ async function runCareerChatAssistantStreamImpl(args: {
       });
     }
 
-    const maxToolCalls = args.toolRuntime?.maxToolCalls ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : MAX_STREAMING_TOOL_CALLS_PER_TURN);
+    const maxToolCalls = args.toolRuntime?.maxToolCalls ?? (args.tools.some(tool => getTalentChatToolName(tool) === "generate_resume") ? RESUME_TOOL_CALL_LIMIT : args.tools.some(tool => getTalentChatToolName(tool) === "manage_simulation_session") ? 8 : MAX_STREAMING_TOOL_CALLS_PER_TURN);
     let totalToolCalls = 0;
     let pendingToolResultAttribution: string[] = [];
     let activeTools = args.tools;
@@ -2032,6 +2033,7 @@ async function runCareerChatAssistantStreamImpl(args: {
     let toolLoopIndex = 0;
 
     while (activeTools.length > 0) {
+      const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? []);
       const loop = toolLoopIndex;
       toolLoopIndex += 1;
       const capabilityStep = args.toolRuntime?.resolveStep();

@@ -221,6 +221,8 @@ test("a verified coaching end receipt wins over the old active prompt even when 
       careerCoachingActivity: activity,
       conversationMode: "career_coaching",
     },
+    // A web route getter may still hold the old card until its next read.
+    getPromptArgs: () => ({...promptArgs,careerCoachingActivity:activity,conversationMode:"career_coaching"}),
     eligibleTools: [
       {
         type: "function",
@@ -260,4 +262,49 @@ test("a verified coaching end receipt wins over the old active prompt even when 
       block.text.includes("## Active focused career-coaching conversation")
     )
   );
+});
+
+test("application start owns the turn before an activity exists, and retains its post-analysis prompt and question tools", async () => {
+  const {buildCareerConversationPromptPlan} = await import('../prompts/conversationPlan');
+  const {resolveCareerChatTools} = await import('../llmTools');
+  const {createSimulationSession} = await import('../simulation/session');
+  const {createPreparation} = await import('../simulation/preparation');
+  const ordinary = {channel: 'chat' as const, isOnboardingDone: true};
+  // Source turns participate in the common runtime; activity facts are refreshed
+  // before each completion rather than freezing the pre-start prompt.
+  assert.equal(isCareerCapabilityTurn({...ordinary, applicationStartRequested:true, applicationActive:false}), true);
+  assert.equal(isCareerCapabilityTurn({...ordinary, applicationActive:true}), true);
+  assert.equal(isCareerCapabilityTurn({...ordinary, applicationInputSubmitted:true}), true);
+  assert.equal(isCareerCapabilityTurn(ordinary), true);
+  const state = createSimulationSession({roleRef:'job:example', roleName:'Engineer',documentId:'resume',documentName:'CV'});
+  state.analysisStatus='completed'; state.preparation=createPreparation();
+  state.activity={version:1, offerId:10, batches:[], outputs:{}};
+  const selected = resolveCareerChatTools({...ordinary, simulationActive:true});
+  const plan = buildCareerConversationPromptPlan({channel:'chat',isOnboardingDone:true,conversationMode:'simulation',simulationSession:state,toolNames:selected.toolNames,profile:null,structuredProfileText:'',talentContextSection:''});
+  assert.ok(selected.toolNames.includes('ask_application_input'));
+  assert.ok(selected.stopAfterToolNames.includes('ask_application_input'));
+  assert.ok(plan.promptBlocks.some(b => b.key === 'application_preparation_contract'));
+  assert.ok(!plan.promptBlocks.some(b => b.key === 'simulation_availability'));
+  const context=JSON.parse(plan.promptBlocks.find(b => b.key === 'application_preparation_context')!.text);
+  assert.equal(context.status,'active');
+  assert.equal(context.analysisStatus,'completed');
+
+  let currentState: typeof state | undefined;
+  const currentPrompt = () => ({...promptArgs,conversationMode:currentState ? "simulation" as const : "default" as const,simulationSession:currentState,
+    runtimeInstruction: currentState ? "Verified start result: completed" : undefined});
+  const currentTools = () => resolveCareerChatTools({...ordinary,simulationActive:Boolean(currentState)}).tools;
+  const turn = await createCareerCapabilityTurn({admin:{} as TalentAdminClient,userId:"fixture",conversationId:"fixture",sourceMessage:null,mode:"progressive",
+    promptArgs:currentPrompt(),getPromptArgs:currentPrompt,eligibleTools:currentTools(),getEligibleTools:currentTools});
+  assert.ok(!turn.runtime.resolveStep(false).offeredNames.has("manage_simulation_session"));
+  currentState = state;
+  const started = turn.runtime.resolveStep(false);
+  assert.ok(started.offeredNames.has("manage_simulation_session"));
+  assert.ok(started.offeredNames.has("write_talent_context"));
+  assert.ok(started.systemBlocks.some(block=>block.text.includes("Verified start result: completed")));
+  currentState = undefined;
+  const ended = turn.runtime.resolveStep(false);
+  assert.ok(!ended.offeredNames.has("manage_simulation_session"));
+  assert.ok(!ended.offeredNames.has("apply_to_role"));
+  assert.ok(ended.offeredNames.has("research_company"));
+  assert.ok(ended.systemBlocks.some(block=>block.key==="capability_catalog"));
 });

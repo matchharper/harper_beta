@@ -1,3 +1,5 @@
+import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
+import type {ApplicationDraft} from "@/lib/career/simulation/preparation";
 import type {
   CareerMessage,
   CareerStage,
@@ -51,6 +53,14 @@ const normalizeThinkingLogs = (value: unknown) =>
     : [];
 
 export const toUiMessage = (message: {
+  applicationActivity?: CareerMessage["applicationActivity"];
+  applicationQuestions?: ApplicationQuestionHistory;
+  applicationDraft?: ApplicationDraft;
+  simulationSession?: CareerMessage["simulationSession"];
+  simulationAction?: CareerMessage["simulationAction"];
+  applicationStartOffer?:CareerMessage["applicationStartOffer"];
+  suppressRolePreviews?:boolean;
+  simulation?: CareerMessage["simulation"];
   attachments?: CareerMessage["attachments"];
   coachingActivity?: CareerMessage["coachingActivity"];
   id: string | number;
@@ -65,6 +75,14 @@ export const toUiMessage = (message: {
   recommendationStatusAfterCharCount?: number | null;
   thinkingLogs?: unknown;
 }): CareerMessage => ({
+  applicationQuestions: message.applicationQuestions,
+  applicationDraft: message.applicationDraft,
+  applicationActivity: message.applicationActivity,
+  simulationSession: message.simulationSession,
+  simulationAction: message.simulationAction,
+  applicationStartOffer:message.applicationStartOffer,
+  suppressRolePreviews:message.suppressRolePreviews,
+  simulation: message.simulation,
   attachments: message.attachments,
   coachingActivity: message.coachingActivity,
   id: message.id,

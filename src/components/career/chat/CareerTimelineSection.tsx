@@ -1,3 +1,15 @@
+import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
+import { browserPresentationPhase } from "@/lib/career/simulation/browserPresentation";
+import { ApplicationQuestionHistoryRow } from "./ApplicationQuestionHistoryRow";
+import { applicationQuestionMessages } from "@/lib/career/simulation/questionHistory";
+import { orderApplicationMessages } from "@/lib/career/simulation/presentation";
+import { useApplicationTimelineLayout } from "./useApplicationTimelineLayout";
+import { useApplicationPreparation } from "./ApplicationPreparationContext";
+import { latestChoiceMessageIndex } from "@/lib/career/latestChoiceMessage";
+import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
+import { ApplicationStartCard } from "./ApplicationStartCard";
+import { SimulationNextActionCard } from "./SimulationNextActionCard";
+import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import { Loader2, Plus, Upload, X } from "lucide-react";
 import {
   FormEvent,
@@ -251,6 +263,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
   onSelectAssistantChoice,
   onSelectReengagementAction,
   onUpdateCareerCoachingActivity,
+  onSimulationAction,
   onDeleteMessage,
   showDevMessageActions,
 }: {
@@ -264,6 +277,10 @@ const TimelineMessageList = memo(function TimelineMessageList({
   ) => void | Promise<void>;
   onSelectReengagementAction?: (
     selection: CareerReengagementActionSelection
+  ) => void | Promise<void>;
+  onSimulationAction?: (
+    action: SimulationCardRequest,
+    text: string
   ) => void | Promise<void>;
   onUpdateCareerCoachingActivity?: (args: {
     action: CareerCoachingActivityUiAction;
@@ -288,10 +305,32 @@ const TimelineMessageList = memo(function TimelineMessageList({
     "대화 날짜"
   );
 
+  const choiceMessageIndex = latestChoiceMessageIndex(messages);
+  const isSimulationMode = messages.some(
+    (m) => m.simulationSession?.status === "active"
+  );
   return (
     <>
       {messages.map((message, index) => {
         const isUser = message.role === "user";
+        let turnStart = index;
+        let turnEnd = index + 1;
+        while (turnStart > 0 && messages[turnStart - 1].role !== "user")
+          turnStart--;
+        while (turnEnd < messages.length && messages[turnEnd].role !== "user")
+          turnEnd++;
+        const suppressRolePreviews = Boolean(
+          message.suppressRolePreviews ||
+          messages
+            .slice(turnStart, turnEnd)
+            .some(
+              (m) =>
+                m.applicationStartOffer ||
+                m.simulation ||
+                m.simulationAction ||
+                m.suppressRolePreviews
+            )
+        );
         const thinkingLogs = message.thinkingLogs?.length
           ? message.thinkingLogs
           : isUser
@@ -334,7 +373,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
           isLatestAssistantMessage && assistantTyping;
         const disableAssistantChoiceActions =
           assistantChoiceActionsDisabled ||
-          !isLatestAssistantMessage ||
+          index !== choiceMessageIndex ||
           isAssistantStreamActive;
         const shouldRenderChatBubble =
           isUser ||
@@ -375,6 +414,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
         const messageNode = (
           <div
             data-career-message-container="true"
+            data-career-message-role={message.role}
             className={cn("group flex flex-col gap-2", !isUser && "mt-1")}
           >
             {!isUser && textLogs.length > 0 && (
@@ -398,7 +438,43 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   status={latestStatus}
                 />
               )}
-            {message.coachingActivity ? (
+            {message.applicationQuestions ? (
+              <ApplicationQuestionHistoryRow batch={message.applicationQuestions} />
+            ) : message.applicationActivity?.view === "questions" ? null : message.applicationStartOffer ? (
+              <ApplicationStartCard
+                offer={message.applicationStartOffer}
+                messageId={Number(message.id)}
+                disabled={assistantChoiceActionsDisabled}
+                onAction={onSimulationAction}
+              />
+            ) : message.messageType === "application_draft_progress" ? null : message.applicationDraft ? (
+              <div className="whitespace-pre-wrap">{message.applicationDraft.content.resume}{message.applicationDraft.content.materials.map(m => `\n\n${m.title}\n${m.content}`).join("")}</div>
+            ) : message.simulationSession ? null : message.simulationAction ? (
+              <SimulationNextActionCard
+                card={message.simulationAction}
+                session={
+                  messages.find(
+                    (m) =>
+                      Number(m.id) ===
+                      message.simulationAction!.sessionMessageId
+                  )?.simulationSession
+                }
+                disabled={assistantChoiceActionsDisabled}
+                onAction={onSimulationAction}
+              />
+            ) : message.simulation ? (
+              <ApplicationSimulationCard
+                messageId={message.id}
+                simulation={message.simulation}
+                sessionMessage={messages.find(
+                  (m) =>
+                    m.simulationSession?.analysisMessageId ===
+                    Number(message.id)
+                )}
+                disabled={assistantChoiceActionsDisabled}
+                onAction={onSimulationAction}
+              />
+            ) : message.coachingActivity ? (
               <CareerCoachingActivityCard
                 activity={message.coachingActivity}
                 disabled={assistantChoiceActionsDisabled}
@@ -418,6 +494,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   message={recommendationSearchPreambleMessage}
                   isUser={false}
                   choiceActionsDisabled={disableAssistantChoiceActions}
+                  hideAssistantChoices={isSimulationMode}
                   isCallStartPending={isStartingCall}
                   onSelectAssistantChoice={onSelectAssistantChoice}
                   onSelectReengagementAction={onSelectReengagementAction}
@@ -443,6 +520,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                     message={recommendationSearchResultMessage}
                     isUser={false}
                     choiceActionsDisabled={disableAssistantChoiceActions}
+                    hideAssistantChoices={isSimulationMode}
                     isCallStartPending={isStartingCall}
                     onSelectAssistantChoice={onSelectAssistantChoice}
                     onSelectReengagementAction={onSelectReengagementAction}
@@ -469,6 +547,7 @@ const TimelineMessageList = memo(function TimelineMessageList({
                 message={message}
                 isUser={isUser}
                 choiceActionsDisabled={disableAssistantChoiceActions}
+                hideAssistantChoices={isSimulationMode}
                 isCallStartPending={isStartingCall}
                 onSelectAssistantChoice={onSelectAssistantChoice}
                 onSelectReengagementAction={onSelectReengagementAction}
@@ -507,12 +586,14 @@ const TimelineMessageList = memo(function TimelineMessageList({
                   status={latestStatus}
                 />
               )}
-            {!isUser && (message.opportunityPreview?.length ?? 0) > 0 && (
-              <OpportunityPreviewCards
-                items={message.opportunityPreview ?? []}
-                onOpenOpportunity={onOpenOpportunity}
-              />
-            )}
+            {!isUser &&
+              !suppressRolePreviews &&
+              (message.opportunityPreview?.length ?? 0) > 0 && (
+                <OpportunityPreviewCards
+                  items={message.opportunityPreview ?? []}
+                  onOpenOpportunity={onOpenOpportunity}
+                />
+              )}
             {showDevMessageActions && onDeleteMessage ? (
               <CareerMessageDevActions
                 isUser={isUser}
@@ -579,7 +660,7 @@ const CareerTimelineSection = ({
     user,
     conversationId,
     stage,
-    messages,
+    messages: historyMessages,
     scrollRef,
     hasOlderMessages,
     loadingOlderMessages,
@@ -624,6 +705,7 @@ const CareerTimelineSection = ({
     onSendChatMessage,
     onStartConversationStarter,
     onUpdateCareerCoachingActivity,
+    onSimulationAction,
     showVoiceStartPrompt,
     onStartCallMode,
     onUseChatOnly,
@@ -632,6 +714,33 @@ const CareerTimelineSection = ({
     onContinueOnboardingConversation,
     inputMode,
   } = useCareerChatPanelContext();
+  const preparation = useApplicationPreparation();
+  const messages = useMemo(() => {
+    const merged = new Map(historyMessages.map((m) => [String(m.id), m]));
+    for (const output of preparation.drafts) {
+      const previous=merged.get(String(output.id));
+      if (previous?.applicationActivity && output.applicationActivity && previous.applicationActivity.revision>output.applicationActivity.revision) continue;
+      if (previous?.simulation && output.simulation && Date.parse(previous.simulation.updatedAt)>Date.parse(output.simulation.updatedAt)) continue;
+      merged.set(String(output.id),output);
+    }
+    if (preparation.record) {
+      const r = preparation.record;
+      for (const question of applicationQuestionMessages(r.state)) merged.set(String(question.id), question);
+      merged.set(String(r.messageId), {
+        id: r.messageId,
+        role: "assistant",
+        content: "",
+        createdAt: r.state.startedAt,
+        messageType: "simulation_session",
+        simulationSession: r.state,
+      });
+    }
+    return orderApplicationMessages([...merged.values()]);
+  }, [historyMessages, preparation.drafts, preparation.record]);
+  const browserPhase = browserPresentationPhase(preparation.record?.state, messages);
+  const applicationBrowser = preparation.record?.state.browser;
+  const showBrowserWork = applicationBrowser &&
+    !messages.some(message => String(message.id) === String(applicationBrowser.resultMessageId));
   const devMessageActionsVisible = useCareerWorkspaceUiStore(
     (state) => state.devMessageActionsVisible
   );
@@ -643,6 +752,14 @@ const CareerTimelineSection = ({
   const [authPassword, setAuthPassword] = useState("");
   const [showLoadOlderButton, setShowLoadOlderButton] = useState(false);
   const [stickToBottom, setStickToBottom] = useState(true);
+  const applicationActive = preparation.record?.state.status === "active";
+  const applicationTarget = useApplicationTimelineLayout(applicationActive, scrollRef, stickToBottom);
+  const latestUserId = messages.findLast(m => m.role === "user")?.id;
+  useEffect(() => {
+    if (!applicationActive) return;
+    const frame = requestAnimationFrame(() => setStickToBottom(true));
+    return () => cancelAnimationFrame(frame);
+  }, [latestUserId, applicationActive]);
   const [interestSelectionState, setInterestSelectionState] = useState<{
     messageKey: string;
     options: TalentOnboardingInterestOptionId[];
@@ -733,9 +850,9 @@ const CareerTimelineSection = ({
     (behavior: ScrollBehavior = "smooth") => {
       const el = scrollRef.current;
       if (!el) return;
-      el.scrollTo({ top: el.scrollHeight, behavior });
+      el.scrollTo({ top: applicationTarget() ?? el.scrollHeight, behavior });
     },
-    [scrollRef]
+    [scrollRef, applicationTarget]
   );
 
   const syncScrollState = useCallback(() => {
@@ -745,16 +862,16 @@ const CareerTimelineSection = ({
     setShowLoadOlderButton((prev) =>
       prev === nextShowLoadOlderButton ? prev : nextShowLoadOlderButton
     );
-    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const distanceToBottom = (applicationTarget() ?? (el.scrollHeight - el.clientHeight)) - el.scrollTop;
     const nextStickToBottom = distanceToBottom <= BOTTOM_THRESHOLD_PX;
     setStickToBottom((prev) =>
       prev === nextStickToBottom ? prev : nextStickToBottom
     );
-  }, [scrollRef]);
+  }, [scrollRef, applicationTarget]);
 
   useEffect(() => {
-    syncScrollState();
-  }, [messages.length, syncScrollState]);
+    if (!applicationActive || !stickToBottom) syncScrollState();
+  }, [messages.length, syncScrollState, applicationActive, stickToBottom]);
 
   const handleTimelineScroll = useCallback(() => {
     syncScrollState();
@@ -873,6 +990,8 @@ const CareerTimelineSection = ({
     hasTimelineMessages,
     inputMode,
     latestTimelineMessageKey,
+    preparation.record?.state.preparation?.generation.status,
+    preparation.record?.state.preparation?.generation.runId,
     scrollToBottom,
     showOpportunityFeedbackFollowUpPending,
     showSessionReengagementPending,
@@ -1179,6 +1298,7 @@ const CareerTimelineSection = ({
             onStartCallMode={onStartCallMode}
             onStartConversationStarter={onStartConversationStarter}
             onUpdateCareerCoachingActivity={onUpdateCareerCoachingActivity}
+            onSimulationAction={onSimulationAction}
             sessionReengagementActionMessageId={
               visibleSessionReengagementActionMessageId
             }
@@ -1245,11 +1365,34 @@ const CareerTimelineSection = ({
           />
         )}
 
+        {showBrowserWork && (
+          <ChatThinkingLogPanel
+            key={applicationBrowser.id}
+            active={browserPhase !== null}
+            hasToolWork
+            startedAt={applicationBrowser.startedAt}
+            completedAt={browserPhase ? undefined : applicationBrowser.updatedAt}
+            statusLabel={applicationBrowser.status === "waiting"
+              ? t("career.application.questions.waiting", "답변을 기다리고 있어요")
+              : undefined}
+            logs={applicationBrowser.progress?.length
+              ? applicationBrowser.progress.map(entry => ({id: entry.id, label: entry.text}))
+              : [t("career.application.browser.running", "지원 사이트에서 진행하고 있어요…")]}
+            typographyClassName={careerTimelineBodyTextClassName}
+          />
+        )}
         {!sessionPending &&
           stage !== "profile" &&
           !onboardingWrapupPending &&
           !callWrapUpPending &&
           chatPending &&
+          !browserPhase &&
+          !(preparation.record?.state.status === "active" && (
+            preparation.record.state.analysisStatus === "running" ||
+            ["queued", "running"].includes(preparation.record.state.browser?.status ?? "") ||
+            preparation.record.state.preparation?.generation.status === "running" ||
+            preparation.record.state.activity?.batches.some(b=>b.status === "waiting")
+          )) &&
           !assistantTyping &&
           (activeRecommendationSearchStatus ? (
             <RecommendationSearchStatusPanel
@@ -1513,6 +1656,8 @@ const CareerTimelineSection = ({
             </div>
           </div>
         )}
+
+
 
         {showInterestSelector && (
           <div className="max-w-[900px]">

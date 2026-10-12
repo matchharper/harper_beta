@@ -1,0 +1,27 @@
+{
+  "version": "v1",
+  "reviewMethod": "Human/Codex transcript review; no word/regex semantic scoring. Historical exploratory checks only.",
+  "cases": [
+    {
+      "runner": "scripts/evals/simulationSession.ts",
+      "expect": [
+        "Start invitation is an offer, not confirmed activation.",
+        "Confirmed candidate facts ground useful wording; suggestions are distinguished from applied edits."
+      ]
+    },
+    {
+      "runner": "scripts/evals/simulationActionCoverage.ts",
+      "expect": [
+        "Action coverage respects all three requirement IDs and supplied met/unknown/unmet diagnoses.",
+        "Do not invent missing observability or five-year experience; qualification gaps require useful truthful guidance, not cosmetic claims."
+      ]
+    },
+    {
+      "runner": "scripts/evals/simulationCompletionBudget.ts",
+      "expect": [
+        "Eighteen independently evidenced work areas remain covered; no invented numerical outcomes.",
+        "Compare truncation, schema completion and actual latency/usage at the two completion budgets against identical synthetic input."
+      ]
+    }
+  ]
+}
