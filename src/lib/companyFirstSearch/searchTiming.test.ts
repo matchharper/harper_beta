@@ -36,7 +36,7 @@ function fakeAdmin(answer: (query: Query) => Answer) {
       };
       const builder: any = {
         select(value: string) { query.selected = value; return builder; },
-        eq: filter("eq"), in: filter("in"), gte: filter("gte"), lte: filter("lte"),
+        eq: filter("eq"), in: filter("in"), gte: filter("gte"), lt: filter("lt"), lte: filter("lte"),
         not(key: string, op: string, value: unknown) { query.filters.push(["not", key, [op, value]]); return builder; },
         order() { return builder; },
         limit() { return builder; },
@@ -136,32 +136,70 @@ test("a failed timing read leaves that fact out instead of failing the request",
   assert.equal(timing.startMayBeDelayed, false);
 });
 
-test("Role activation reads the queued first search and checks delay only when it is due", async (t) => {
-  t.mock.method(console, "warn", () => {});
-  const roleQuery = (startsAt: string, status = "queued") => (query: Query): Answer => {
-    if (has(query, "eq", "role_id")) {
-      assert.ok(has(query, "eq", "trigger_reason", "role_activated"));
-      assert.ok(query.filters.some(([op, key, value]) =>
-        op === "in" && key === "status" && JSON.stringify(value) === JSON.stringify(["queued", "running"])));
-      return { data: [{ available_at: startsAt, status }], error: null };
-    }
-    if (has(query, "gte", "started_at") || has(query, "gte", "finished_at")) return { data: [], error: null };
-    return healthyAnswer(query);
+test("Role activation reads the queued first search slot without checking the queue", async () => {
+  const roleRun = (available_at: string, status: string) => (query: Query): Answer => {
+    assert.ok(has(query, "eq", "role_id", "role-1"));
+    assert.ok(has(query, "eq", "trigger_reason", "role_activated"));
+    assert.ok(query.filters.some(([op, key, value]) =>
+      op === "in" && key === "status" && JSON.stringify(value) === JSON.stringify(["queued", "running"])));
+    return { data: [{ available_at, company_workspace_id: "ws-1", status }], error: null };
   };
 
-  const futureAdmin = fakeAdmin(roleQuery("2026-10-16T00:00:00Z"));
+  const future = fakeAdmin(roleRun("2026-10-16T00:00:00Z", "queued"));
   assert.deepEqual(
-    await readRoleFirstSearchStart({ admin: futureAdmin as any, now, roleId: "role-1" }),
-    { startsAt: "2026-10-16T00:00:00Z", startsNow: false, startMayBeDelayed: false }
+    await readRoleFirstSearchStart({ admin: future as any, now, roleId: "role-1" }),
+    { startsAt: "2026-10-16T00:00:00Z", start: "scheduled", startMayBeDelayed: false }
   );
-  assert.equal(futureAdmin.queries.length, 1);
+  assert.equal(future.queries.length, 1);
 
+  const running = fakeAdmin(roleRun(minutesAgo(5), "running"));
   assert.deepEqual(
-    await readRoleFirstSearchStart({ admin: fakeAdmin(roleQuery(minutesAgo(200))) as any, now, roleId: "role-1" }),
-    { startsAt: minutesAgo(200), startsNow: true, startMayBeDelayed: true }
+    await readRoleFirstSearchStart({ admin: running as any, now, roleId: "role-1" }),
+    { startsAt: minutesAgo(5), start: "now", startMayBeDelayed: false }
   );
+  assert.equal(running.queries.length, 1);
+});
 
-  const none = fakeAdmin(query => has(query, "eq", "role_id") ? { data: [], error: null } : healthyAnswer(query));
+test("a due first search is promised now only when no other search starts first", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const dueAt = minutesAgo(2);
+  const queue = (ahead: { earlier?: boolean; requested?: boolean; sameCompany?: boolean; orderFails?: boolean; stalled?: boolean }) =>
+    (query: Query): Answer => {
+      const rows = (present?: boolean) => ({ data: present ? [{ id: "other" }] : [], error: null });
+      if (has(query, "eq", "role_id")) {
+        return { data: [{ available_at: dueAt, company_workspace_id: "ws-1", status: "queued" }], error: null };
+      }
+      if (ahead.orderFails && (has(query, "lt", "available_at") || has(query, "eq", "company_workspace_id"))) {
+        return { data: null, error: new Error("statement timeout") };
+      }
+      if (has(query, "lt", "available_at", dueAt)) return rows(ahead.earlier);
+      if (has(query, "eq", "trigger_reason", "company_requested")) return rows(ahead.requested);
+      if (has(query, "eq", "company_workspace_id", "ws-1")) {
+        assert.ok(has(query, "eq", "status", "running"));
+        return rows(ahead.sameCompany);
+      }
+      // Searches started an hour ago are still due; stalled means nothing moved since.
+      if (has(query, "lte", "available_at")) return rows(true);
+      if (has(query, "gte", "started_at") || has(query, "gte", "finished_at")) return rows(!ahead.stalled);
+      throw new Error(`Unexpected query: ${JSON.stringify(query)}`);
+    };
+  const read = async (ahead: Parameters<typeof queue>[0]) => {
+    const result = await readRoleFirstSearchStart({ admin: fakeAdmin(queue(ahead)) as any, now, roleId: "role-1" });
+    return result && [result.start, result.startMayBeDelayed];
+  };
+
+  assert.deepEqual(await read({}), ["now", false]);
+  // Monday 09:00 queued 31 searches; the last started at 14:13 KST.
+  assert.deepEqual(await read({ earlier: true }), ["waiting", false]);
+  assert.deepEqual(await read({ requested: true }), ["waiting", false]);
+  assert.deepEqual(await read({ sameCompany: true }), ["waiting", false]);
+  assert.deepEqual(await read({ stalled: true }), ["waiting", true]);
+  assert.deepEqual(await read({ orderFails: true }), ["waiting", false]);
+});
+
+test("a missing or unreadable first search is left out", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const none = fakeAdmin(() => ({ data: [], error: null }));
   assert.equal(await readRoleFirstSearchStart({ admin: none as any, now, roleId: "role-1" }), null);
   const failed = fakeAdmin(() => ({ data: null, error: new Error("unavailable") }));
   assert.equal(await readRoleFirstSearchStart({ admin: failed as any, now, roleId: "role-1" }), null);

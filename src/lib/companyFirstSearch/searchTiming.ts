@@ -18,7 +18,11 @@ export type CompanySearchTiming = {
 /** The first search a newly activated Role waits for. */
 export type RoleFirstSearchStart = {
   startsAt: string;
-  startsNow: boolean;
+  /**
+   * "now" when it is running or next to start, "waiting" when it is due but
+   * other searches start first, "scheduled" when its slot is still ahead.
+   */
+  start: "now" | "scheduled" | "waiting";
   startMayBeDelayed: boolean;
 };
 
@@ -126,6 +130,29 @@ export async function readCompanySearchTiming(args: {
 }
 
 /**
+ * Workers start explicit requests first, then due searches by due time, and
+ * one search per company at a time. Morning slots queue dozens of searches, so
+ * a search due now can wait hours behind them.
+ */
+async function otherSearchesStartFirst(
+  admin: OrgAgentAdminClient,
+  now: Date,
+  run: Record<string, unknown>
+) {
+  const [dueEarlier, requested, sameCompany] = await Promise.all([
+    runs(admin).select("id").eq("status", "queued")
+      .lt("available_at", String(run.available_at)).limit(1),
+    runs(admin).select("id").eq("status", "queued")
+      .eq("trigger_reason", "company_requested")
+      .lte("available_at", now.toISOString()).limit(1),
+    runs(admin).select("id").eq("status", "running")
+      .eq("company_workspace_id", String(run.company_workspace_id)).limit(1),
+  ]);
+  for (const result of [dueEarlier, requested, sameCompany]) if (result.error) throw result.error;
+  return [dueEarlier, requested, sameCompany].some(result => Boolean(result.data?.length));
+}
+
+/**
  * Activation queues one search per Role at its next allowed slot (Asia/Seoul).
  * Roles with no allowed slot, and Roles activated before, have none.
  */
@@ -137,7 +164,7 @@ export async function readRoleFirstSearchStart(args: {
   const now = args.now ?? new Date();
   const run = await optional("role-first-search", async () => {
     const { data, error } = await runs(args.admin)
-      .select("available_at,status")
+      .select("available_at,company_workspace_id,status")
       .eq("role_id", args.roleId)
       .eq("trigger_reason", "role_activated")
       .in("status", ["queued", "running"])
@@ -148,12 +175,18 @@ export async function readRoleFirstSearchStart(args: {
   });
   const startsAt = typeof run?.available_at === "string" ? run.available_at : "";
   if (!run || !Number.isFinite(Date.parse(startsAt))) return null;
-  const startsNow = run.status === "running" || Date.parse(startsAt) <= now.getTime();
+  if (run.status === "running") return { startsAt, start: "now", startMayBeDelayed: false };
+  if (Date.parse(startsAt) > now.getTime()) {
+    return { startsAt, start: "scheduled", startMayBeDelayed: false };
+  }
+  const [othersFirst, stalled] = await Promise.all([
+    optional("role-first-search-order", () => otherSearchesStartFirst(args.admin, now, run)),
+    optional("stalled", () => searchStartsAreStalled(args.admin, now)),
+  ]);
   return {
     startsAt,
-    startsNow,
-    startMayBeDelayed: startsNow
-      ? (await optional("stalled", () => searchStartsAreStalled(args.admin, now))) === true
-      : false,
+    // An unreadable order is reported as waiting rather than promised now.
+    start: othersFirst === false && stalled !== true ? "now" : "waiting",
+    startMayBeDelayed: stalled === true,
   };
 }

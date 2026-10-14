@@ -123,12 +123,15 @@ export function formatRoleFirstSearchFacts(
 ): Record<string, string> | null {
   const search = asRecord(value);
   if (typeof search.startsAt !== "string") return null;
-  const startsNow = search.startsNow === true;
-  return {
-    start: startsNow
+  const start =
+    search.start === "now"
       ? "now"
-      : formatPromptKstDateTimeWithWeekday(search.startsAt),
-    ...(startsNow && search.startMayBeDelayed === true
+      : search.start === "waiting"
+        ? "Already due. Searches start in order, so the exact start time is not known yet."
+        : formatPromptKstDateTimeWithWeekday(search.startsAt);
+  return {
+    start,
+    ...(search.start === "waiting" && search.startMayBeDelayed === true
       ? { start_delay: SEARCH_START_DELAY_FACT }
       : {}),
     result:

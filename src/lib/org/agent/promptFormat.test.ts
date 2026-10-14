@@ -1874,8 +1874,8 @@ test("Role activation names the first search slot without promising candidates",
   const scheduled = serializeOrgAgentToolResult("change_role_status", {
     firstCandidateSearch: {
       startsAt: "2026-10-16T00:00:00Z",
+      start: "scheduled",
       startMayBeDelayed: false,
-      startsNow: false,
     },
     roleName: "Backend Engineer",
     roleStatus: "active",
@@ -1891,26 +1891,32 @@ test("Role activation names the first search slot without promising candidates",
   );
   assert.doesNotMatch(scheduled, /first_candidate_search_start_delay/);
 
-  const due = serializeOrgAgentToolResult("change_role_status", {
-    firstCandidateSearch: {
-      startsAt: "2026-10-14T11:00:00Z",
-      startMayBeDelayed: true,
-      startsNow: true,
-    },
-    roleName: "Backend Engineer",
-    roleStatus: "active",
-    status: "updated",
-  });
-  assert.match(due, /first_candidate_search_start=now/);
+  const roleWithFirstSearch = (start: string, startMayBeDelayed: boolean) =>
+    serializeOrgAgentToolResult("change_role_status", {
+      firstCandidateSearch: { startsAt: "2026-10-14T11:00:00Z", start, startMayBeDelayed },
+      roleName: "Backend Engineer",
+      roleStatus: "active",
+      status: "updated",
+    });
+  const next = roleWithFirstSearch("now", false);
+  assert.match(next, /first_candidate_search_start=now/);
+  assert.doesNotMatch(next, /first_candidate_search_start_delay/);
+
+  const waiting = roleWithFirstSearch("waiting", true);
   assert.match(
-    due,
+    waiting,
+    /first_candidate_search_start=Already due\. Searches start in order, so the exact start time is not known yet\./
+  );
+  assert.doesNotMatch(waiting, /first_candidate_search_start=now/);
+  assert.match(
+    waiting,
     /first_candidate_search_start_delay=Searches are starting later than usual/
   );
 
   for (const result of [
     { firstCandidateSearch: null, roleStatus: "active" },
     {
-      firstCandidateSearch: { startsAt: "2026-10-16T00:00:00Z", startsNow: false },
+      firstCandidateSearch: { startsAt: "2026-10-16T00:00:00Z", start: "scheduled" },
       roleStatus: "paused",
     },
   ]) {

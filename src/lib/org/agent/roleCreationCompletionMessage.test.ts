@@ -20,7 +20,7 @@ test("outcome prompt is compact verified facts, not authoring or an obligatory C
   assert.match(prompt, /"firstCandidateSearch": null/);
 
   const scheduled = buildRoleCreationOutcomePrompt({
-    firstCandidateSearch: { startsAt: "2026-10-16T00:00:00Z", startMayBeDelayed: false, startsNow: false },
+    firstCandidateSearch: { startsAt: "2026-10-16T00:00:00Z", start: "scheduled", startMayBeDelayed: false },
     missingFields: [], outcome: "completed", state, slackNotificationDelivered: true,
   });
   assert.match(scheduled, /"start": "2026년 10월 16일 09:00 KST \(Friday\)"/);
