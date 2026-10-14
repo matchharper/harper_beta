@@ -18,6 +18,7 @@ import {
   hasOrgWorkspaceAccessBypass,
   isOrgInvitationForUser,
 } from "@/lib/org/access";
+import { isInternalEmail } from "@/lib/internalAccess";
 import { extractCompanyCandidateIntroduction } from "@/lib/org/autoIntroRecommendation";
 import { companyIntroRoleIsAvailable } from "@/lib/org/companyIntroRoleAvailability";
 import { buildOrgIntroEmailDraft } from "@/lib/org/introEmail";
@@ -3448,7 +3449,7 @@ export async function fetchOrgAcceptedTalents(args: {
   const offset = Math.max(0, Math.floor(Number(args.offset) || 0));
   const workspaceIds = uniqueTexts(args.workspaceIds ?? []);
 
-  if (!hasOrgAllWorkspaceAccess(args.user)) {
+  if (!isInternalEmail(args.user.email)) {
     throw new OrgHttpError(403, "내부 계정에서만 접근할 수 있습니다.");
   }
 

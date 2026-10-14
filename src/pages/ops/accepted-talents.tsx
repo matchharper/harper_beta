@@ -2,14 +2,14 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import OpsShell from "@/components/ops/OpsShell";
 import { MatchingAcceptedTalents } from "@/components/ops/matching/MatchingAcceptedTalents";
-import { isInternalDomainEmail } from "@/lib/internalAccess";
+import { isInternalEmail } from "@/lib/internalAccess";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export default function OpsAcceptedTalentsPage() {
   const router = useRouter();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
-  const canFetchInternal = !authLoading && isInternalDomainEmail(user?.email);
+  const canFetchInternal = !authLoading && isInternalEmail(user?.email);
 
   return (
     <>

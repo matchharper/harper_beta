@@ -12,6 +12,12 @@ test("internal domain accounts retain full internal access", () => {
   assert.equal(canViewOpsUtm("operator@matchharper.com"), true);
 });
 
+test("the allowlisted account can access ops", () => {
+  assert.equal(isInternalEmail(" SHAUNLIMSHAUNLIM@gmail.com "), true);
+  assert.equal(canViewOpsUtm("shaunlimshaunlim@gmail.com"), true);
+  assert.equal(isInternalEmail("unknown@gmail.com"), false);
+});
+
 test("UTM viewer accounts are limited to the UTM access predicate", () => {
   assert.equal(isInternalEmail("khj605123@gmail.com"), false);
   assert.equal(canViewOpsUtm("khj605123@gmail.com"), true);

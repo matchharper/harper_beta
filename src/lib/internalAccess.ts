@@ -1,4 +1,5 @@
 export const INTERNAL_EMAIL_DOMAIN = "matchharper.com";
+export const OPS_ACCESS_EMAILS = ["shaunlimshaunlim@gmail.com"] as const;
 export const OPS_UTM_VIEWER_EMAILS = [
   "hongbeom.heo@gmail.com",
   "reason.jinny@gmail.com",
@@ -24,13 +25,17 @@ export function isInternalDomainEmail(value: string | null | undefined) {
 }
 
 export function isInternalEmail(value: string | null | undefined) {
-  return isInternalDomainEmail(value);
+  const normalized = normalizeEmail(value);
+  return (
+    isInternalDomainEmail(normalized) ||
+    OPS_ACCESS_EMAILS.includes(normalized as (typeof OPS_ACCESS_EMAILS)[number])
+  );
 }
 
 export function canViewOpsUtm(value: string | null | undefined) {
   const normalized = normalizeEmail(value);
   return (
-    isInternalDomainEmail(normalized) ||
+    isInternalEmail(normalized) ||
     OPS_UTM_VIEWER_EMAILS.includes(
       normalized as (typeof OPS_UTM_VIEWER_EMAILS)[number]
     )
