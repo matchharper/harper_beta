@@ -2,6 +2,7 @@ import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 import type { OrgLocale } from "@/i18n/org/locale";
+import { readRoleFirstSearchStart } from "@/lib/companyFirstSearch/searchTiming";
 import { generateRoleCreationOutcomeReply } from "@/lib/org/agent/roleCreationChat";
 import {
   canReclaimRoleCreationConfirmation,
@@ -459,8 +460,12 @@ export async function confirmRoleCreationChoice(args: {
         );
       }
     }
+    const firstCandidateSearch = completed
+      ? await readRoleFirstSearchStart({ admin, roleId })
+      : null;
     const assistantContent = (
       await generateRoleCreationOutcomeReply({
+        firstCandidateSearch,
         missingFields,
         model: sourceMetadata.model ?? rawMessage.model,
         outcome,

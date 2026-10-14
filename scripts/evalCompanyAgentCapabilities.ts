@@ -376,7 +376,7 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       effects.push({ name: args.name, input: x, changes: resolved.changes });
       result = { status: resolved.changes.length ? "updated" : "already_reflected", summary: resolved.summary };
     }
-    else if (args.name === "request_matching_search") { assertRole(x.roleId); effects.push({ name: args.name, input: x }); result = { status: "queued", requestedRoleName: role.name }; }
+    else if (args.name === "request_matching_search") { assertRole(x.roleId); effects.push({ name: args.name, input: x }); result = { status: "queued", requestedRoleName: role.name, timing: { startedAt: null, startedMinutesAgo: null, startMayBeDelayed: false, typicalMinutes: 20 } }; }
     else if (args.name === "get_more_data" && readAdmin) {
       result = await executeOrgAgentTool({ ...args, admin: readAdmin as any });
     }

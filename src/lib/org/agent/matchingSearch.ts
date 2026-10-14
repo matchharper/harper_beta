@@ -6,6 +6,7 @@ export type CompanyMatchingSearchQueueStatus =
 
 export type CompanyMatchingSearchQueueResult = {
   reason: string | null;
+  runId: string | null;
   startsAfterCurrentRun: boolean;
   status: CompanyMatchingSearchQueueStatus;
 };
@@ -53,6 +54,7 @@ export async function enqueueOrgMatchingSearch(args: {
   }
   return {
     reason: String(payload.reason ?? "").trim() || null,
+    runId: String(payload.runId ?? "").trim() || null,
     startsAfterCurrentRun: payload.startsAfterCurrentRun === true,
     status,
   };

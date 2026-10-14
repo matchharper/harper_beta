@@ -9,7 +9,7 @@ test("explicit current-Brief search calls the durable company queue once", async
       rpc(name, params) {
         calls.push({ name, params });
         return Promise.resolve({
-          data: { startsAfterCurrentRun: false, status: "queued" },
+          data: { runId: "run-1", startsAfterCurrentRun: false, status: "queued" },
           error: null,
         });
       },
@@ -31,6 +31,7 @@ test("explicit current-Brief search calls the durable company queue once", async
   ]);
   assert.deepEqual(result, {
     reason: null,
+    runId: "run-1",
     startsAfterCurrentRun: false,
     status: "queued",
   });

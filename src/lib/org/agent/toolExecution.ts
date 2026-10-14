@@ -51,6 +51,10 @@ import { formatMatchingRunHistory } from "@/lib/org/agent/promptFormat";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
 import { enqueueOrgMatchingSearch } from "@/lib/org/agent/matchingSearch";
 import {
+  readCompanySearchTiming,
+  readRoleFirstSearchStart,
+} from "@/lib/companyFirstSearch/searchTiming";
+import {
   assertOrgAgentToolAvailable,
   OrgAgentToolInputError,
 } from "@/lib/org/agent/toolAvailability";
@@ -869,8 +873,17 @@ async function executeRequestMatchingSearch(args: {
     };
   }
 
+  const timing = await readCompanySearchTiming({
+    admin: args.admin,
+    runId: queued.runId,
+    status,
+  });
+  // Recovery text when the model does not answer. Only the people retrieved
+  // for the Brief are evaluated, and the company hears back even with no one.
   args.state.fallbackReply =
-    "좋아요. 현재 Hiring Brief를 기준으로 전체 후보자를 찾고 있어요. 전체 풀을 평가해서 조금 걸리지만, 끝나는 대로 가장 적합한 분들을 공유할게요.";
+    status === "already_running"
+      ? "같은 기준의 새 후보자 검색이 이미 진행 중이에요. 검색이 끝나면 결과를 따로 알려드릴게요."
+      : "좋아요. 저장된 Hiring Brief를 기준으로 새 후보자 검색을 요청했어요. 검색이 끝나면 결과를 따로 알려드릴게요.";
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
@@ -883,6 +896,7 @@ async function executeRequestMatchingSearch(args: {
   return {
     requestedRoleName: role.name,
     status,
+    timing,
   };
 }
 
@@ -2031,6 +2045,9 @@ async function executeChangeRoleStatus(args: {
       });
     }
     const changed = activated === true;
+    const firstCandidateSearch = changed
+      ? await readRoleFirstSearchStart({ admin: args.admin, roleId: role.roleId })
+      : null;
     args.state.fallbackReply = changed
       ? `${role.name} 역할의 채용을 시작했어요. ${copy.effect}`
       : `${role.name} 역할은 이미 진행 중이에요. ${copy.effect}`;
@@ -2052,6 +2069,7 @@ async function executeChangeRoleStatus(args: {
     return {
       effect: copy.effect,
       expectation: copy.expectation,
+      firstCandidateSearch,
       nextProcess: copy.nextProcess,
       roleName: role.name,
       roleStatus: "active",
@@ -2166,6 +2184,10 @@ async function executeChangeRoleStatus(args: {
   }
 
   const changed = resultStatus === "updated";
+  const firstCandidateSearch =
+    changed && status === "active"
+      ? await readRoleFirstSearchStart({ admin: args.admin, roleId: role.roleId })
+      : null;
   const currentRole = args.state.roleById.get(role.roleId);
   if (currentRole) {
     args.state.roleById.set(role.roleId, { ...currentRole, status });
@@ -2191,6 +2213,7 @@ async function executeChangeRoleStatus(args: {
   return {
     effect: copy.effect,
     expectation: copy.expectation,
+    firstCandidateSearch,
     nextProcess: copy.nextProcess,
     roleName: role.name,
     roleStatus: status,

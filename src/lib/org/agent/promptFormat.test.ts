@@ -1825,6 +1825,104 @@ test("matching search result gives facts without prescribing acknowledgement cop
   assert.doesNotMatch(compact, /candidate-first|company-first/);
 });
 
+test("matching search timing reaches the model as measured facts with absolute times", () => {
+  const compact = serializeOrgAgentToolResult("request_matching_search", {
+    requestedRoleName: "Founding Engineer",
+    status: "already_running",
+    timing: {
+      startedAt: "2026-10-14T14:05:00Z",
+      startedMinutesAgo: 12,
+      startMayBeDelayed: true,
+      typicalMinutes: 20,
+    },
+  });
+
+  assert.match(
+    compact,
+    /search_started_at=2026년 10월 14일 23:05 KST \(about 12 minutes ago\)/
+  );
+  assert.match(
+    compact,
+    /typical_search_duration=Recent candidate searches finished about 20 minutes after starting\./
+  );
+  assert.match(compact, /search_start_delay=Searches are starting later than usual/);
+  assert.match(compact, /including when no one suitable is found/);
+  assert.doesNotMatch(compact, /pool/i);
+});
+
+test("matching search without a measured duration adds no guessed timing", () => {
+  const compact = serializeOrgAgentToolResult("request_matching_search", {
+    requestedRoleName: "Founding Engineer",
+    startsAfterCurrentRun: true,
+    status: "queued",
+    timing: {
+      startedAt: null,
+      startedMinutesAgo: null,
+      startMayBeDelayed: false,
+      typicalMinutes: null,
+    },
+  });
+
+  assert.match(compact, /result_meaning=/);
+  assert.doesNotMatch(
+    compact,
+    /typical_search_duration|search_started_at|search_start|starts_after/
+  );
+});
+
+test("Role activation names the first search slot without promising candidates", () => {
+  const scheduled = serializeOrgAgentToolResult("change_role_status", {
+    firstCandidateSearch: {
+      startsAt: "2026-10-16T00:00:00Z",
+      startMayBeDelayed: false,
+      startsNow: false,
+    },
+    roleName: "Backend Engineer",
+    roleStatus: "active",
+    status: "updated",
+  });
+  assert.match(
+    scheduled,
+    /first_candidate_search_start=2026년 10월 16일 09:00 KST \(Friday\)/
+  );
+  assert.match(
+    scheduled,
+    /first_candidate_search_result=Candidates are shared only when the search finds someone worth showing/
+  );
+  assert.doesNotMatch(scheduled, /first_candidate_search_start_delay/);
+
+  const due = serializeOrgAgentToolResult("change_role_status", {
+    firstCandidateSearch: {
+      startsAt: "2026-10-14T11:00:00Z",
+      startMayBeDelayed: true,
+      startsNow: true,
+    },
+    roleName: "Backend Engineer",
+    roleStatus: "active",
+    status: "updated",
+  });
+  assert.match(due, /first_candidate_search_start=now/);
+  assert.match(
+    due,
+    /first_candidate_search_start_delay=Searches are starting later than usual/
+  );
+
+  for (const result of [
+    { firstCandidateSearch: null, roleStatus: "active" },
+    {
+      firstCandidateSearch: { startsAt: "2026-10-16T00:00:00Z", startsNow: false },
+      roleStatus: "paused",
+    },
+  ]) {
+    const compact = serializeOrgAgentToolResult("change_role_status", {
+      ...result,
+      roleName: "Backend Engineer",
+      status: "updated",
+    });
+    assert.doesNotMatch(compact, /first_candidate_search/);
+  }
+});
+
 test("role calibration returns only compact user-facing outcome fields", () => {
   const compact = serializeOrgAgentToolResult("calibrate_role_hiring_brief", {
     failedReferenceUrls: [],

@@ -58,6 +58,7 @@ import type {
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
 import type { ChatAttachmentPayload } from "@/types/chat";
+import type { RoleFirstSearchStart } from "@/lib/companyFirstSearch/searchTiming";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   referenceAttachmentMetadata,
@@ -367,6 +368,7 @@ async function completion(args: {
 }
 
 export async function generateRoleCreationOutcomeReply(args: {
+  firstCandidateSearch?: RoleFirstSearchStart | null;
   missingFields: string[];
   slackNotificationDelivered?: boolean | null;
   model?: OrgAgentModelId | string | null;
@@ -391,6 +393,7 @@ export async function generateRoleCreationOutcomeReply(args: {
         },
         {
           content: buildRoleCreationOutcomePrompt({
+            firstCandidateSearch: args.firstCandidateSearch,
             missingFields: args.missingFields,
             slackNotificationDelivered: args.slackNotificationDelivered,
             outcome: args.outcome,

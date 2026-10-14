@@ -17,4 +17,12 @@ test("outcome prompt is compact verified facts, not authoring or an obligatory C
   assert.match(prompt, /"slackNotificationDelivered": false/);
   assert.doesNotMatch(prompt, /PRIVATE_CRITERIA/);
   assert.match(prompt, /not that a matching worker ran/);
+  assert.match(prompt, /"firstCandidateSearch": null/);
+
+  const scheduled = buildRoleCreationOutcomePrompt({
+    firstCandidateSearch: { startsAt: "2026-10-16T00:00:00Z", startMayBeDelayed: false, startsNow: false },
+    missingFields: [], outcome: "completed", state, slackNotificationDelivered: true,
+  });
+  assert.match(scheduled, /"start": "2026년 10월 16일 09:00 KST \(Friday\)"/);
+  assert.match(scheduled, /"result": "Candidates are shared only when the search finds someone worth showing/);
 });

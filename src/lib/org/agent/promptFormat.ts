@@ -75,6 +75,67 @@ export function formatPromptKstDateTime(value: unknown) {
   return `${part("year")}년 ${part("month")}월 ${part("day")}일 ${part("hour")}:${part("minute")} KST`;
 }
 
+/** Adds the weekday so the model never derives it from a date. */
+function formatPromptKstDateTimeWithWeekday(value: unknown) {
+  const formatted = formatPromptKstDateTime(value);
+  if (formatted === EMPTY_CELL) return formatted;
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    weekday: "long",
+  }).format(new Date(String(value)));
+  return `${formatted} (${weekday})`;
+}
+
+const SEARCH_START_DELAY_FACT =
+  "Searches are starting later than usual right now, so this one may take longer.";
+
+function formatMatchingSearchTiming(value: unknown) {
+  const timing = asRecord(value);
+  const minutes = (key: string) =>
+    Number.isSafeInteger(timing[key]) && timing[key] >= 0
+      ? (timing[key] as number)
+      : null;
+  const startedMinutesAgo = minutes("startedMinutesAgo");
+  const typicalMinutes = minutes("typicalMinutes");
+  return [
+    ...(startedMinutesAgo !== null && typeof timing.startedAt === "string"
+      ? [
+          `search_started_at=${formatPromptKstDateTime(timing.startedAt)} (about ${startedMinutesAgo} minutes ago)`,
+        ]
+      : []),
+    ...(typicalMinutes !== null
+      ? [
+          `typical_search_duration=Recent candidate searches finished about ${typicalMinutes} minutes after starting.`,
+        ]
+      : []),
+    ...(timing.startMayBeDelayed === true
+      ? [`search_start_delay=${SEARCH_START_DELAY_FACT}`]
+      : []),
+  ];
+}
+
+/**
+ * The first search queued by Role activation. Only searches that select
+ * someone produce a company message, so no result is promised.
+ */
+export function formatRoleFirstSearchFacts(
+  value: unknown
+): Record<string, string> | null {
+  const search = asRecord(value);
+  if (typeof search.startsAt !== "string") return null;
+  const startsNow = search.startsNow === true;
+  return {
+    start: startsNow
+      ? "now"
+      : formatPromptKstDateTimeWithWeekday(search.startsAt),
+    ...(startsNow && search.startMayBeDelayed === true
+      ? { start_delay: SEARCH_START_DELAY_FACT }
+      : {}),
+    result:
+      "Candidates are shared only when the search finds someone worth showing; no message is sent when nobody is selected.",
+  };
+}
+
 export function formatPromptCell(value: unknown, maxLength = 500): string {
   if (Array.isArray(value)) {
     return (
@@ -1341,6 +1402,14 @@ function formatRoleStatusChangeResult(result: Record<string, any>) {
     ...Object.entries(facts).map(
       ([key, value]) => `${key}=${formatPromptCell(value, 100)}`
     ),
+    ...(lifecycle === "active"
+      ? Object.entries(
+          formatRoleFirstSearchFacts(result.firstCandidateSearch) ?? {}
+        ).map(
+          ([key, value]) =>
+            `first_candidate_search_${key}=${formatPromptCell(value, 300)}`
+        )
+      : []),
     ...formatOptionalResponseGuidance(result),
   ].join("\n");
 }
@@ -2201,7 +2270,8 @@ export function serializeOrgAgentToolResult(
             "result_meaning=No new search was started. Use the verified reason to respond naturally in the current conversation; mention a next step only when it is genuinely useful.",
           ]
         : [
-            "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating the pool can take time, and the completed outcome will be shared separately.",
+            "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating likely matches takes time, and the completed outcome will be shared separately, including when no one suitable is found.",
+            ...formatMatchingSearchTiming(result.timing),
           ]),
       ...formatOptionalResponseGuidance(result),
     ].join("\n");

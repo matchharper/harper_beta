@@ -1,6 +1,8 @@
 import type { ChatAttachmentPayload } from "@/types/chat";
 import type { RoleCreationState } from "@/lib/org/agent/roleCreationState";
 import type { OrgAgentMention } from "@/lib/org/agent/types";
+import type { RoleFirstSearchStart } from "@/lib/companyFirstSearch/searchTiming";
+import { formatRoleFirstSearchFacts } from "@/lib/org/agent/promptFormat";
 import {
   hasCompleteOrgRoleCriteria,
   ORG_ROLE_CRITERIA_MAX_ITEMS,
@@ -112,6 +114,7 @@ Use only the supplied outcome facts. Keep the reply proportionate; do not add a 
 }
 
 export function buildRoleCreationOutcomePrompt(args: {
+  firstCandidateSearch?: RoleFirstSearchStart | null;
   slackNotificationDelivered?: boolean | null;
   missingFields: string[];
   outcome: "completed" | "declined" | "revalidation_failed";
@@ -125,6 +128,7 @@ export function buildRoleCreationOutcomePrompt(args: {
     confirmedSlackChannels: args.state.channels.filter((channel) =>
       args.state.metadata.confirmedSlackChannelIds.includes(channel.channelId)
     ),
+    firstCandidateSearch: formatRoleFirstSearchFacts(args.firstCandidateSearch),
     missingFields: args.missingFields,
     outcome: args.outcome,
     role: { name: args.state.role.name, status: args.state.role.status },
