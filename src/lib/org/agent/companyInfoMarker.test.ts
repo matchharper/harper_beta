@@ -88,6 +88,25 @@ test("keeps persisted single-bracket markers compatible", () => {
   );
 });
 
+test("treats a marker at the end of a sentence as the marker line", () => {
+  const reply = `역할 설명과 매칭 기준을 저장했어요. ${ORG_AGENT_COMPANY_INFO_MARKER}\n\n*근무 기본값*\n• 서울 근무`;
+  assert.equal(ensureOrgAgentCompanyInfoMarker(reply), reply);
+  assert.deepEqual(
+    renderOrgAgentCompanyInfoSlackLink(
+      `${reply}\n\n${ORG_AGENT_COMPANY_INFO_MARKER}`,
+      "https://matchharper.com/org/team?orgId=workspace-1"
+    ),
+    {
+      hasCompanyInfo: true,
+      text: "역할 설명과 매칭 기준을 저장했어요.\n\n<https://matchharper.com/org/team?orgId=workspace-1|회사 정보>를 작성에 참고했어요.\n\n*근무 기본값*\n• 서울 근무",
+    }
+  );
+  assert.deepEqual(
+    parseOrgAgentCompanyInfoMarker("회사 정보를 반영했습니다.[company_info]"),
+    { hasCompanyInfo: true, text: "회사 정보를 반영했습니다." }
+  );
+});
+
 test("does not treat inline or code-sample text as a company information card", () => {
   assert.deepEqual(
     parseOrgAgentCompanyInfoMarker("패턴은 [company_info]입니다."),

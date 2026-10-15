@@ -1,12 +1,15 @@
+import { ORG_ACTION_TYPES, type OrgActionType, type OrgActionMetadata } from "@/lib/org/actionLogs";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { InternalApiError } from "@/lib/internalApi";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import {
   describeOpsCompanyProgressActivity,
+  describeOpsCompanyAction,
   describeOpsCompanyRoleRecommendation,
   getOpsCompanyStageLabelKey,
   isHiddenOpsCompanyProgressActivity,
+  OPS_COMPANY_PROGRESS_KINDS,
 } from "@/lib/ops/companyActivityPresentation";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
@@ -59,6 +62,7 @@ type RecommendationRow = {
 };
 
 type TalentProgressRow = {
+  company_user_id: string | null;
   created_at: string;
   id: string;
   kind: string;
@@ -119,6 +123,7 @@ export type OpsCompanyActivityKind =
   | "candidate_accepted"
   | "candidate_recommended"
   | "candidate_status_changed"
+  | "workspace_action"
   | "member_joined"
   | "memo_left"
   | "role_created"
@@ -403,7 +408,9 @@ async function fetchWorkspaceRoles(args: {
   workspaceId: string;
 }) {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
-    .select("role_id, name, status, is_expired, created_at, updated_at")
+    .select(
+      "role_id, name, status, is_expired, created_at, updated_at, company_internal_roles!inner(role_id)"
+    )
     .eq("company_workspace_id", args.workspaceId)
     .order("updated_at", { ascending: false })
     .limit(500);
@@ -569,6 +576,26 @@ async function fetchRecommendations(args: {
   return coerceJsonArray<RecommendationRow>(data);
 }
 
+type CompanyActionRow = {
+  id: number;
+  type: OrgActionType;
+  user_id: string | null;
+  created_at: string;
+  meta_data: OrgActionMetadata;
+};
+
+async function fetchCompanyActions(args: { admin: AdminClient; workspaceId: string; limit: number }) {
+  const { data, error } = await args.admin.from("logs")
+    .select("id, type, user_id, created_at, meta_data")
+    .eq("meta_data->>workspaceId", args.workspaceId)
+    .in("type", ORG_ACTION_TYPES)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(args.limit);
+  if (error) throw error;
+  return coerceJsonArray<CompanyActionRow>(data);
+}
+
 async function fetchTalentProgress(args: {
   admin: AdminClient;
   limit: number;
@@ -578,7 +605,10 @@ async function fetchTalentProgress(args: {
   const { data, error } = await (
     args.admin.from("talent_progress" as any) as any
   )
-    .select("id, talent_id, role_id, kind, metadata, text, created_at")
+    .select(
+      "id, talent_id, role_id, company_user_id, kind, metadata, text, created_at"
+    )
+    .in("kind", OPS_COMPANY_PROGRESS_KINDS)
     .in("role_id", args.roleIds)
     .order("created_at", { ascending: false })
     .limit(args.limit);
@@ -654,11 +684,12 @@ export async function fetchOpsCompanyActivity(args: {
 
   const limit = Math.max(1, Math.min(Number(args.limit ?? 20) || 20, 20));
   const offset = Math.max(0, Number(args.offset ?? 0) || 0);
-  const sourceLimit = Math.min(200, offset + limit * 4);
+  const sourceLimit = offset + limit * 4;
 
-  const [roles, members] = await Promise.all([
+  const [roles, members, actions] = await Promise.all([
     fetchWorkspaceRoles({ admin, workspaceId }),
     fetchMembershipRows({ admin, limit: sourceLimit, workspaceId }),
+    fetchCompanyActions({ admin, limit: sourceLimit, workspaceId }),
   ]);
   const roleIds = roles
     .map((row) => normalizeText(row.role_id))
@@ -682,17 +713,36 @@ export async function fetchOpsCompanyActivity(args: {
   const memoTalentIds = uniqueStrings([
     ...recommendations.map((row) => row.talent_id),
     ...progressRows.map((row) => row.talent_id),
+    ...actions.map((row) => row.meta_data.talentId ?? ""),
   ]);
   const [memos, talentMap, companyUserMap] = await Promise.all([
     fetchTalentMemos({ admin, limit: sourceLimit, talentIds: memoTalentIds }),
     fetchTalentUsersByIds({ admin, userIds: memoTalentIds }),
     fetchCompanyUsersByIds({
       admin,
-      userIds: members.map((row) => row.company_user_id),
+      userIds: [
+        ...members.map((row) => row.company_user_id),
+        ...progressRows.map((row) => row.company_user_id ?? ""),
+        ...actions.flatMap((row) => [row.user_id ?? "", row.meta_data.targetUserId ?? ""]),
+      ],
     }),
   ]);
 
   const items: OpsCompanyActivityItem[] = [];
+
+  for (const row of actions) {
+    const activity = describeOpsCompanyAction({
+      type: row.type,
+      actorName: displayPersonName(companyUserMap.get(row.user_id ?? ""), "팀원"),
+      targetName: row.meta_data.talentId
+        ? displayPersonName(talentMap.get(row.meta_data.talentId), "후보자")
+        : row.meta_data.targetUserId
+        ? displayPersonName(companyUserMap.get(row.meta_data.targetUserId), "팀원")
+        : row.meta_data.targetLabel,
+      metadata: row.meta_data,
+    });
+    items.push({ id: `action:${row.id}`, kind: "workspace_action", occurredAt: row.created_at, ...activity });
+  }
 
   for (const row of recommendations) {
     const talent = talentMap.get(normalizeText(row.talent_id));
@@ -716,8 +766,8 @@ export async function fetchOpsCompanyActivity(args: {
         kind: "candidate_accepted",
         meta: "후보자가 역할 추천 수락",
         occurredAt: String(row.feedback_at ?? row.updated_at ?? ""),
-        subtitle: role?.name ? role.name : null,
-        title: `${displayPersonName(talent, "후보자")} 역할 추천 수락`,
+        subtitle: null,
+        title: `${displayPersonName(talent, "후보자")} · ${normalizeText(role?.name) || "이름 없는 포지션"} 추천 수락`,
       });
     }
   }
@@ -728,6 +778,9 @@ export async function fetchOpsCompanyActivity(args: {
     const talent = talentMap.get(normalizeText(row.talent_id));
     const role = roleById.get(normalizeText(row.role_id));
     const activity = describeOpsCompanyProgressActivity({
+      actorName: displayPersonName(
+        companyUserMap.get(normalizeText(row.company_user_id)), "팀원"
+      ),
       candidateName: displayPersonName(talent, "후보자"),
       customStageLabelByKey,
       progress: {
@@ -755,7 +808,7 @@ export async function fetchOpsCompanyActivity(args: {
       kind: "memo_left",
       meta: "메모",
       occurredAt: String(row.updated_at ?? row.created_at ?? ""),
-      subtitle: normalizeText(row.content).slice(0, 180) || null,
+      subtitle: normalizeText(row.content) || null,
       title: `${displayPersonName(talent, "후보자")} 메모`,
     });
   }
@@ -765,13 +818,13 @@ export async function fetchOpsCompanyActivity(args: {
     items.push({
       id: `member:${row.id}`,
       kind: "member_joined",
-      meta: "새 멤버",
+      meta: "새 팀원",
       occurredAt: String(row.created_at ?? ""),
       subtitle: [user?.email, row.role]
         .map(normalizeText)
         .filter(Boolean)
         .join(" · "),
-      title: `${displayPersonName(user, "멤버")} 가입`,
+      title: `${displayPersonName(user, "팀원")} 가입`,
     });
   }
 
@@ -822,7 +875,8 @@ export async function fetchOpsCompanyActivity(args: {
     recommendations.length === sourceLimit ||
     progressRows.length === sourceLimit ||
     memos.length === sourceLimit ||
-    members.length === sourceLimit;
+    members.length === sourceLimit ||
+    actions.length === sourceLimit;
   const nextOffset =
     offset + limit < sortedItems.length
       ? offset + limit

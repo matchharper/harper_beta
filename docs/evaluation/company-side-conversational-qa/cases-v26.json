@@ -1,0 +1,287 @@
+{
+  "datasetVersion": "v26",
+  "baseDataset": "cases-v25.json",
+  "clock": "2026-10-15T07:00:00.000Z",
+  "provenance": "Input-contract correction after inspecting v25 r5: ambiguous freshFitPeople meant fresh evaluation records, not positive/eligible fits; recent presented count was per review window, not lifetime. Clarifies definitions without new evidence, relaxed labels or runtime case branches. Uses canonical process_stopped instead of legacy closed in this one synthetic market fixture. v25 remains frozen.",
+  "scenarios": [
+    {
+      "id": "CSCQ2501",
+      "variants": [
+        {
+          "id": "unchanged_silent",
+          "history": [
+            {
+              "role": "user",
+              "content": "후보 소개만 받아 볼게요. 이번 주는 제가 직접 검토하고 필요하면 말할게요."
+            },
+            {
+              "role": "assistant",
+              "content": "Daniel Park님을 소개했어요. Python API 운영 경험이 있고 첫 API 설계를 주도했는지는 아직 확인되지 않았어요."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "lastDeliveredAt": "2026-10-14 16:00 KST",
+                "changesSinceLastDelivery": "새 후보·회신·위임 없음"
+              }
+            }
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "shortlist_then_contact",
+          "defaultCandidateLimit": 1,
+          "pageSize": 1,
+          "compactCandidates": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "초기 제품의 첫 API 설계를 주도한 경험이 중요해요. 후보가 여러 명이라 먼저 볼 분을 골라주면 좋겠어요."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "pipelineCounts": {
+                  "pending_connection": 2,
+                  "intro_requested": 1
+                },
+                "defaultCandidateIndexComplete": false
+              }
+            },
+            "Mina님에게 고객 요구를 듣고 첫 API를 직접 설계했는지 구체적인 사례 하나만 물어봐줘. 지금 보내도 돼."
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "delegated_work_then_silence",
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님 소개가 끝나면 첫 API 설계를 본인이 주도했는지 물어봐 주세요. 따로 승인받지 말고 바로 보내고 알려주세요."
+            },
+            {
+              "role": "assistant",
+              "content": "Daniel Park님 소개가 전달됐어요."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "presentationDelivered": true,
+                "lastDeliveredAt": "2026-10-15 11:00 KST",
+                "delegatedContactState": "아직 연락 없음"
+              }
+            },
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "presentationDelivered": true,
+                "changesSincePreviousReview": "새 회사 지시·후보 회신 없음"
+              }
+            }
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "proposal_then_execute",
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님이 첫 API 설계도 직접 했으면 좋겠는데 프로필만으로는 잘 모르겠네요."
+            },
+            {
+              "role": "assistant",
+              "content": "운영·장애 대응 경험은 확인됐지만 첫 설계의 담당 범위는 확인되지 않았어요."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "presentationDelivered": true,
+                "materialUnknown": "첫 API 설계 주도 경험"
+              }
+            },
+            "Daniel에게 그 질문만 보내줘. 다른 연락이나 단계 변경은 하지 말고."
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "latest_cancellation",
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님에게 첫 API 설계 경험을 물어봐줘."
+            },
+            {
+              "role": "assistant",
+              "content": "확인해서 전달할게요."
+            },
+            {
+              "role": "user",
+              "content": "아 그 연락은 취소할게요. 제가 먼저 검토할 테니 더 연락하지 말아주세요."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "contacts": "아직 저장된 연락 없음"
+              }
+            }
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "market_evidence_missing",
+          "roleOverride": {
+            "name": "Communications",
+            "request": "매체 관계와 스타트업 관련 대외 커뮤니케이션을 직접 맡을 사람. 한국에서 7년 이상의 관련 경험을 원함. 예산·연봉 범위는 미정.",
+            "salaryRange": null
+          },
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "process_stopped"
+            },
+            "00000000-0000-4000-8000-000000000202": {
+              "stage": "process_stopped"
+            },
+            "00000000-0000-4000-8000-000000000203": {
+              "stage": "process_stopped"
+            }
+          },
+          "history": [
+            {
+              "role": "user",
+              "content": "Communications는 아직 만나볼 만한 분이 없어서 걱정이에요. 더 잘 찾을 방법이 있으면 알려주세요."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "roleId": "00000000-0000-4000-8000-000000000101",
+                "recentRoleReview": "현재 역할의 최근 검토 구간에서 서로 다른 30명에 대한 평가 기록이 있고, 그중 18명의 평가가 현재 입력과 비교해 최신이다. 18명은 평가 최신성 인원이며 적합 판정이나 추천 가능 인원이 아니다. 각 평가의 적합 결과·회사 신규 공유 자격·의향은 이 자료에 포함되지 않아 알 수 없다. 이 검토 구간의 실제 회사 소개 전달은 0명이며, 과거 소개를 합친 누적 인원을 뜻하지 않는다. 기준별 통과·보류·제외 근거의 분포는 제공되지 않는다.",
+                "marketMappingAvailable": false,
+                "promotionToolAvailable": false,
+                "promotionAllowed": true,
+                "priorPipelineLimit": "과거 파이프라인의 종료 상태는 조회할 수 있지만 종료 사유는 이 입력에 제공되지 않았다. 직무 경력과 상태만으로 종료 이유를 확인할 수 없다."
+              }
+            }
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "contact_response_loss",
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님 소개가 끝나면 첫 API 설계 주도 경험을 바로 물어보고 알려줘. 초안 확인은 필요 없어."
+            },
+            {
+              "role": "assistant",
+              "content": "Daniel Park님 소개가 전달됐어요."
+            }
+          ],
+          "faults": [
+            {
+              "tool": "contact_talent",
+              "action": "send",
+              "phase": "after",
+              "message": "Synthetic response loss after persisted contact; inspect the saved contact before retrying."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "presentationDelivered": true
+              }
+            }
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "search_does_not_suspend_delegated_work",
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님께 첫 API 설계 경험을 물어봐줘. 다른 후보를 찾는 검색과 별개로 이 연락은 바로 보내도 돼."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "search": {
+                  "roleId": "00000000-0000-4000-8000-000000000101",
+                  "state": "running",
+                  "deliveredResults": false
+                },
+                "contacts": "해당 질문 아직 발송되지 않음"
+              }
+            }
+          ],
+          "surface": "slack"
+        },
+        {
+          "id": "external_meeting_then_company_reply",
+          "candidateOverrides": {
+            "00000000-0000-4000-8000-000000000201": {
+              "stage": "connected"
+            }
+          },
+          "contacts": [
+            {
+              "contactId": "00000000-0000-4000-8000-000000000601",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "status": "sent",
+              "sentAt": "2026-10-08T03:00:00Z",
+              "updatedAt": "2026-10-08T03:00:00Z",
+              "requestContext": "서로 연결된 뒤 간단한 대화를 조율",
+              "subject": "백엔드 역할 소개",
+              "body": "서로 간단한 대화 가능한 일정을 조율해주세요."
+            }
+          ],
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님과 연결해줘."
+            },
+            {
+              "role": "assistant",
+              "content": "소개 이메일을 전달했어요. 두 분이 같은 이메일에서 일정을 조율하실 수 있어요."
+            }
+          ],
+          "turns": [
+            {
+              "origin": "scheduled_review",
+              "awareness": {
+                "asOf": "2026-10-15 16:00 KST",
+                "connectionDelivered": true,
+                "externalMeetingState": "Harper에 공유된 미팅 진행 사실 없음",
+                "previousProgressQuestion": false
+              }
+            },
+            "금요일에 만나기로 했어. 지금은 후보에게 팔로업 보내지 말아줘."
+          ],
+          "surface": "slack"
+        }
+      ]
+    }
+  ]
+}

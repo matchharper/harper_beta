@@ -1,8 +1,4 @@
-import {
-  useOrgLocale,
-  useOrgSourceT,
-  useOrgT,
-} from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
 import Image from "next/image";
 import { MoreHorizontal } from "lucide-react";
@@ -19,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { isOrgInternalStage } from "@/lib/org/candidateDecision";
+import { getOrgCandidateCardDate } from "@/lib/org/candidateCardDate";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { humanizeOrgCompanyIntroStatus } from "@/lib/org/pipelineStage";
 import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
@@ -87,7 +84,7 @@ export function OrgCandidateStageMenu({
   pending?: boolean;
   stages: OrgStage[];
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const availableStages = stages.filter(
     (stage) =>
       canDropOrgCandidateToStage(item, stage) &&
@@ -105,7 +102,7 @@ export function OrgCandidateStageMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <MuteButton
-            aria-label={t("OrgCandidateCard.11222a5c", "후보자 이동")}
+            aria-label={c("후보자 이동", "Move candidate")}
             size="sm"
             variant="transparent"
           >
@@ -166,16 +163,12 @@ export function OrgCandidateCard({
   stages?: OrgStage[];
   viewed?: boolean;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const displayName = sourceT(getOrgCandidateDisplayName(item));
   const recentCompanies = item.talent.recentCompanies.map((company) => ({
     ...company,
-    period: localizeOrgProfilePeriod(
-      company.period,
-      t("profile.current", "현재")
-    ),
+    period: localizeOrgProfilePeriod(company.period, c("현재", "Present")),
   }));
   const profilePicture = getDisplayableProfileImageUrl(
     item.talent.profilePicture
@@ -222,7 +215,7 @@ export function OrgCandidateCard({
         {showProfilePicture ? (
           <Image
             src={profilePicture}
-            alt={t("OrgCandidateCard.9e88e552", "")}
+            alt={c("", "")}
             width={28}
             height={28}
             unoptimized
@@ -241,8 +234,8 @@ export function OrgCandidateCard({
             </div>
             {!viewed ? (
               <span
-                aria-label={t("OrgCandidateCard.b9d63ba7", "아직 열람하지 않음")}
-                title={t("OrgCandidateCard.b9d63ba7", "아직 열람하지 않음")}
+                aria-label={c("아직 열람하지 않음", "Not viewed")}
+                title={c("아직 열람하지 않음", "Not viewed")}
                 className="h-2 w-2 shrink-0 rounded-full bg-blue-500"
               />
             ) : null}
@@ -265,14 +258,17 @@ export function OrgCandidateCard({
           </>
         ) : profileLabelsError ? (
           <div className="text-[12px] leading-5 text-neutral-soft">
-            {t("OrgCandidateCard.5e1edcf5", "경력·학력 정보를 불러오지 못했습니다.")}
+            {c(
+              "경력·학력 정보를 불러오지 못했습니다.",
+              "Failed to load experience and education info."
+            )}
           </div>
         ) : (
           <>
             <div className="min-w-0 mt-1">
               <ProfileLabelCell
                 isCompact={true}
-                emptyLabel={t("OrgCandidateCard.7f214f44", "정보 없음")}
+                emptyLabel={c("정보 없음", "No info")}
                 labels={recentCompanies}
               />
             </div>
@@ -287,16 +283,16 @@ export function OrgCandidateCard({
       </div>
       {item.processClosureNoticeUnresolved ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          {t("OrgCandidateCard.c2bb3a3d", "프로세스 종료 안내됨")}
+          {c("프로세스 종료 안내됨", "Notified of process closure")}
         </div>
       ) : item.upcomingMeeting ? (
         <div className="-mx-3 mt-3 bg-positive px-3 py-1 text-[12px] font-medium text-neutral-00">
           {formatOrgUpcomingMeetingTime(item.upcomingMeeting.startAt, locale)}{" "}
-          {t("OrgCandidateCard.8f93e58e", "Interview 예정")}
+          {c("Interview 예정", "Interview scheduled")}
         </div>
       ) : item.stage === "pending_connection" ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          {t("OrgCandidateCard.b7d71d97", "결정이 필요합니다")}
+          {c("결정이 필요합니다", "Decision required")}
         </div>
       ) : item.companyIntro && item.companyIntro.status !== "ready" ? (
         <div
@@ -312,10 +308,12 @@ export function OrgCandidateCard({
       ) : null}
       <div className="mt-3 flex flex-wrap gap-1.5">
         <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
-          {item.source === "company_intro"
-            ? t("OrgCandidateCard.fbe6976f", "회사에 제안")
-            : t("OrgCandidateCard.d5014512", "추천")}{" "}
-          {formatKstRelativeDate(item.recommendedAt, { locale })}
+          {item.stage === "pending_connection"
+            ? c("연결 대기 등록", "Ready to connect since")
+            : item.source === "company_intro"
+              ? c("회사에 제안", "Offer to company")
+              : c("추천", "Recommend")}{" "}
+          {formatKstRelativeDate(getOrgCandidateCardDate(item), { locale })}
         </span>
         {/* {item.roleName && (
           <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
@@ -335,7 +333,7 @@ export function OrgCandidateCard({
             }}
             size="sm"
           >
-            {t("OrgCandidateCard.ed540185", "제안하지 않기")}
+            {c("제안하지 않기", "Pass")}
           </MuteButton>
           <MuteButton
             disabled={pending}
@@ -346,7 +344,7 @@ export function OrgCandidateCard({
             size="sm"
             variant="dark"
           >
-            {t("OrgCandidateCard.2b387928", "먼저 제안하기")}
+            {c("먼저 제안하기", "Request intro")}
           </MuteButton>
         </div>
       ) : null}

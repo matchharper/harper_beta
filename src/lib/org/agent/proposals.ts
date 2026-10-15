@@ -72,6 +72,6 @@ export function formatPendingOrgAgentUpdateProposal(
     `proposalId: ${proposal.proposalId}`,
     `summary: ${proposal.summary}`,
     `preview: ${preview || "(미리보기 없음)"}`,
-    "Only apply this exact stored proposal after direct confirmation. Never say its ID to the user.",
+    "Interpret the user’s intent from the conversation under the relevant editing policy. This pending proposal is context, not authorization. Never say its ID to the user.",
   ].join("\n");
 }

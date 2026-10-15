@@ -1,3 +1,4 @@
+import { OrgLocaleScope } from "@/i18n/org/OrgLocaleProvider";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -52,31 +53,29 @@ const summary: BillingSummary = {
   ],
 };
 const noop = () => {};
-const date = (value: string | null) => value ?? "—";
 
 test("complimentary slot shows its expiry without promising renewal or charging", () => {
   const html = renderToStaticMarkup(
-    <BillingSlots
-      summary={summary}
-      locale="ko"
-      busy={false}
-      canManage
-      canAssign
-      canViewBilling
-      date={date}
-      onAddSlot={noop}
-      onCancel={noop}
-      onResume={noop}
-      onAssign={noop}
-      onPortal={noop}
-    />
+    <OrgLocaleScope locale="ko">
+      <BillingSlots
+        summary={summary}
+        busy={false}
+        canManage
+        canViewBilling
+        onAddSlot={noop}
+        onCancel={noop}
+        onResume={noop}
+        onAssign={noop}
+        onPortal={noop}
+      />
+    </OrgLocaleScope>
   );
   assert.match(html, /제공 슬롯/);
-  assert.match(html, /자동 결제 없음/);
+  assert.match(html, /Slot 1 관리/);
   const document = new JSDOM(html).window.document;
   assert.equal(document.querySelector("time")?.dateTime, end);
   assert.match(document.querySelector("time")?.textContent ?? "", /만료/);
-  assert.doesNotMatch(html, /월간 구독|자동 갱신|크레딧 갱신/);
+  assert.doesNotMatch(html, /월간 구독|자동 갱신|Intro 갱신/);
   assert.equal(isEndedBillingSlot(grant), false);
   assert.equal(
     isEndedBillingSlot({ ...grant, active: false }, Date.parse(end)),
@@ -100,27 +99,33 @@ test("mixed plan summary only uses subscriptions for the next payment", () => {
     hasCustomer: true,
   };
   const html = renderToStaticMarkup(
-    <BillingPlanSummary
-      summary={mixed}
-      locale="ko"
-      busy={false}
-      date={date}
-      onPortal={noop}
-      onAddSlot={noop}
-    />
+    <OrgLocaleScope locale="ko">
+      <BillingPlanSummary
+        summary={mixed}
+        busy={false}
+        onPortal={noop}
+        onAddSlot={noop}
+        canManage
+        onCancel={noop}
+        onResume={noop}
+      />
+    </OrgLocaleScope>
   );
   assert.match(html, /슬롯 2개/);
   assert.match(html, /2099-03-01/);
   assert.doesNotMatch(html, /2099-02-01/);
   const onlyGrant = renderToStaticMarkup(
-    <BillingPlanSummary
-      summary={summary}
-      locale="en"
-      busy={false}
-      date={date}
-      onPortal={noop}
-      onAddSlot={noop}
-    />
+    <OrgLocaleScope locale="en">
+      <BillingPlanSummary
+        summary={summary}
+        busy={false}
+        onPortal={noop}
+        onAddSlot={noop}
+        canManage
+        onCancel={noop}
+        onResume={noop}
+      />
+    </OrgLocaleScope>
   );
   assert.match(onlyGrant, /complimentary slots/);
   assert.doesNotMatch(
@@ -135,7 +140,7 @@ test("shared credits coexist with a paid Slot without appearing as an assignable
     slotId: null,
     roleId: null,
     roleName: null,
-    label: "Shared credits",
+    label: "Shared Intros",
     remaining: 7,
     allowance: 10,
     renewsAt: end,
@@ -143,34 +148,33 @@ test("shared credits coexist with a paid Slot without appearing as an assignable
   };
   for (const locale of ["ko", "en"] as const) {
     const html = renderToStaticMarkup(
-      <BillingSlots
-        summary={{
-          ...summary,
-          capacity: null,
-          activeRoles: 3,
-          creditSlots: [shared, ...summary.creditSlots],
-        }}
-        locale={locale}
-        busy={false}
-        canManage
-        canViewBilling
-        canAssign
-        roles={[
-          { roleId: "new-role", name: "New Role", status: "active" },
-          { roleId: "second-role", name: "Second Role", status: "active" },
-          { roleId: "third-role", name: "Third Role", status: "active" },
-        ]}
-        date={(value) => value ?? "—"}
-        onAddSlot={() => {}}
-        onCancel={() => {}}
-        onResume={() => {}}
-        onAssign={() => {}}
-        onPortal={() => {}}
-      />
+      <OrgLocaleScope locale={locale}>
+        <BillingSlots
+          summary={{
+            ...summary,
+            capacity: null,
+            activeRoles: 3,
+            creditSlots: [shared, ...summary.creditSlots],
+          }}
+          busy={false}
+          canManage
+          canViewBilling
+          roles={[
+            { roleId: "new-role", name: "New Role", status: "active" },
+            { roleId: "second-role", name: "Second Role", status: "active" },
+            { roleId: "third-role", name: "Third Role", status: "active" },
+          ]}
+          onAddSlot={() => {}}
+          onCancel={() => {}}
+          onResume={() => {}}
+          onAssign={() => {}}
+          onPortal={() => {}}
+        />
+      </OrgLocaleScope>
     );
     assert.ok(
       html.includes(
-        locale === "ko" ? "공용 크레딧 7개 남음" : "7 shared credits left"
+        locale === "ko" ? "공용 Intro 7개 남음" : "7 shared Intros left"
       )
     );
     const document = new JSDOM(html).window.document;

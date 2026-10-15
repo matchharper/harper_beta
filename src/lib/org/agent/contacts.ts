@@ -1,4 +1,6 @@
+import { listCompanyFollowups } from "@/lib/companyTalentRequests/followups";
 import type { User } from "@supabase/supabase-js";
+import { readOrgRoleAccess, visibleOrgRoleIds } from "@/lib/org/teamAccess";
 import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
 import { MEETING_INVITATION_LINK_MARKER } from "@/lib/meetings/invitation";
 import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
@@ -10,10 +12,11 @@ export const ORG_AGENT_CONTACT_KINDS = [
   "interview_request",
   "connection_intro",
   "notice",
+  "followup",
 ] as const;
 
 export type OrgAgentContactKind = (typeof ORG_AGENT_CONTACT_KINDS)[number];
-export type OrgAgentContactDateBasis = "created" | "sent" | "updated";
+export type OrgAgentContactDateBasis = "created" | "sent" | "updated" | "scheduled";
 
 export type OrgAgentContactSummary = {
   allResponseContactCount: number;
@@ -105,9 +108,11 @@ export async function fetchOrgAgentContactSummary(args: {
     throw new Error("Invalid contact summary as-of time");
   }
   const windowStart = new Date(asOf.getTime() - 7 * 24 * 60 * 60 * 1_000);
+  const access = await readOrgRoleAccess(args);
   const { data, error } = await (args.admin.rpc as any)(
-    "summarize_company_contact_index_v1",
+    access.scope === "team" ? "summarize_company_team_contacts_v1" : "summarize_company_contact_index_v1",
     {
+      ...(access.scope === "team" ? { p_actor: args.user.id } : {}),
       p_as_of: asOf.toISOString(),
       p_company_workspace_id: args.workspaceId,
       p_window_start: windowStart.toISOString(),
@@ -141,7 +146,7 @@ export async function fetchOrgAgentContactSummary(args: {
 export function parseOrgAgentContactRef(value: unknown) {
   const normalized = text(value);
   const match = normalized.match(
-    /^(contact|interview_request|connection_intro|notice):([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
+    /^(contact|interview_request|connection_intro|notice|followup):([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
   );
   if (!match) return null;
   return {
@@ -326,6 +331,8 @@ function stateForKind(kind: OrgAgentContactKind, row: Record<string, any>) {
 }
 
 export async function listOrgAgentContacts(args: {
+  followupStatus?: string | null;
+  includeFollowups?: boolean;
   admin: OrgAgentAdminClient;
   after?: string | null;
   before?: string | null;
@@ -338,19 +345,53 @@ export async function listOrgAgentContacts(args: {
   talentId?: string | null;
   user: User;
   workspaceId: string;
-}) {
+}): Promise<{
+  dateBasis: string;
+  hasMore: boolean;
+  items: Array<Record<string, any>>;
+  limit: number;
+  offset: number;
+  followupsAvailable?: boolean;
+}> {
   await assertOrgWorkspacePermission({
     admin: args.admin,
     permission: "view",
     user: args.user,
     workspaceId: args.workspaceId,
   });
+  if (args.kind === "followup") return listCompanyFollowups({ ...args, status: args.followupStatus });
+  if (!args.kind && args.includeFollowups !== false) {
+    const limit = Math.min(Math.max(Math.trunc(args.limit ?? 20), 1), 100);
+    const offset = Math.min(Math.max(Math.trunc(args.offset ?? 0), 0), 10_000);
+    async function prefix(read: (limit: number, offset: number) => Promise<any>) {
+      const items: any[] = []; let hasMore = false;
+      while (items.length < offset + limit + 1) {
+        const page = await read(Math.min(100,offset + limit + 1-items.length),items.length);
+        items.push(...page.items); hasMore=page.hasMore;
+        if (!hasMore || !page.items.length) break;
+      }
+      return { items,hasMore,available: true };
+    }
+    const [ordinary, followups] = await Promise.all([
+      prefix((size,start) => listOrgAgentContacts({ ...args, includeFollowups: false, limit:size, offset:start })),
+      prefix((size,start) => listCompanyFollowups({ ...args, dateBasis: args.dateBasis ?? "updated", limit:size, offset:start })).catch(error => {
+        if (!["PGRST202", "PGRST205", "42P01", "42883"].includes(error?.code)) throw error;
+        return { items: [], hasMore: false, available: false };
+      }),
+    ]);
+    const items = [...ordinary.items, ...followups.items].sort((a,b) =>
+      String(b.activityAt ?? "").localeCompare(String(a.activityAt ?? "")) || a.contactRef.localeCompare(b.contactRef));
+    return { items: items.slice(offset,offset+limit), hasMore: items.length>offset+limit || ordinary.hasMore || followups.hasMore,
+      limit,offset,dateBasis: args.dateBasis ?? "updated", followupsAvailable: followups.available !== false };
+  }
   const limit = Math.min(Math.max(Math.trunc(args.limit ?? 20), 1), 100);
   const offset = Math.min(Math.max(Math.trunc(args.offset ?? 0), 0), 10_000);
   const dateBasis = args.dateBasis ?? "updated";
+  const access = await readOrgRoleAccess(args);
   const { data, error } = await (args.admin.rpc as any)(
-    "list_company_contact_index_v2",
+    access.scope === "team" ? "list_company_team_contact_index_v1" : "list_company_contact_index_v2",
     {
+      ...(access.scope === "team" ? { p_actor: args.user.id } : {}),
       p_after: text(args.after) || null,
       p_before: text(args.before) || null,
       p_company_workspace_id: args.workspaceId,
@@ -640,7 +681,6 @@ async function readCandidateContacts(args: {
     responseDocumentIds.some(Boolean)
       ? (args.admin.from("talent_documents" as any) as any)
           .select("id,file_name,created_at")
-          .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
           .in("id", responseDocumentIds.filter(Boolean))
       : Promise.resolve({ data: [], error: null }),
     fetchCandidateContactScopeTimelines({
@@ -1388,7 +1428,8 @@ export async function readOrgAgentContacts(args: {
     parsed.flatMap((item) =>
       item.parsed?.kind === kind ? [item.parsed.sourceId] : []
     );
-  const [contacts, interviews, intros, notices] = await Promise.all([
+  const [followups, contacts, interviews, intros, notices] = await Promise.all([
+    ids("followup").length ? listCompanyFollowups({ ...args, ids: ids("followup"), limit: 10, includeHistory: true }).then(result => result.items) : Promise.resolve([]),
     readCandidateContacts({
       admin: args.admin,
       ids: ids("contact"),
@@ -1410,8 +1451,10 @@ export async function readOrgAgentContacts(args: {
       workspaceId: args.workspaceId,
     }),
   ]);
+  const allowedIds = await visibleOrgRoleIds(args);
   const resultByRef = new Map(
-    [...contacts, ...interviews, ...intros, ...notices].map((item) => [
+    [...contacts, ...interviews, ...intros, ...notices, ...followups]
+      .filter(item => allowedIds === null || allowedIds.includes(item.role.roleId)).map((item) => [
       item.contactRef,
       item,
     ])

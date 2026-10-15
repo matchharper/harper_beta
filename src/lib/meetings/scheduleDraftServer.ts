@@ -25,7 +25,8 @@ import {
   fetchMeetingCalendarDelivery,
   hasActiveOrganizerGoogleCalendarConnection,
 } from "@/lib/meetings/meetingCalendarServer";
-import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
+import { assertOrgWorkspacePermission, assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
+import { visibleOrgRoleIds } from "@/lib/org/teamAccess";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
 
@@ -406,6 +407,8 @@ export async function prepareMeetingScheduleDraftForStage(args: {
     throw new OrgHttpError(400, "일정 요청 대상을 확인해 주세요.");
   }
 
+  await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId });
+
   await assertOrgWorkspacePermission({
     admin,
     permission: "manage_candidates",
@@ -644,6 +647,7 @@ export async function fetchMeetingScheduleDetail(args: {
     .maybeSingle();
   if (scheduleError) throw scheduleError;
   if (!schedule) throw new OrgHttpError(404, "일정 요청을 찾지 못했어요.");
+  await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId: schedule.role_id });
   if (!schedule.active_round_id) {
     throw new OrgHttpError(409, "현재 일정 요청 내용을 찾지 못했어요.");
   }
@@ -803,7 +807,8 @@ export async function fetchMeetingScheduleList(args: {
     user: args.user,
     workspaceId,
   });
-  const { data, error } = await (admin.from("meeting_schedules" as any) as any)
+  const allowedRoleIds = await visibleOrgRoleIds({ admin, user: args.user, workspaceId });
+  let query = (admin.from("meeting_schedules" as any) as any)
     .select(
       "id, role_id, talent_id, status, title, active_round_id, updated_at"
     )
@@ -811,6 +816,8 @@ export async function fetchMeetingScheduleList(args: {
     .in("status", ["preparing", "awaiting_talent", "confirmed"])
     .order("updated_at", { ascending: false })
     .limit(50);
+  if (allowedRoleIds !== null) query = query.in("role_id", allowedRoleIds);
+  const { data, error } = await query;
   if (error) throw error;
   const schedules = (data ?? []) as Array<{
     active_round_id: string | null;
@@ -915,13 +922,14 @@ export async function updateMeetingScheduleDraft(args: {
     admin.from("meeting_schedules" as any) as any
   )
     .select(
-      "id, organizer_company_user_id, company_attendees, status, active_round_id"
+      "id, role_id, organizer_company_user_id, company_attendees, status, active_round_id"
     )
     .eq("id", scheduleId)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
   if (scheduleError) throw scheduleError;
   if (!schedule) throw new OrgHttpError(404, "일정 요청을 찾지 못했어요.");
+  await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId: schedule.role_id });
   if (schedule.status !== "preparing") {
     throw new OrgHttpError(
       409,

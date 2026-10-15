@@ -1,0 +1,32 @@
+{
+  "task": "application-form-inspection",
+  "datasetVersion": "native-korea-v1",
+  "goldVersion": "native-korea-visible-v1",
+  "createdAt": "2026-10-13T02:19:55.856428+00:00",
+  "clientDate": "2026-10-13",
+  "sampleSha256": "8665c17e6de522a083250ca61904bc13225f95a3d881d9a45a458983d8adf742",
+  "goldSha256": "944b3d8b1babc258147a2151175a57f05903566eab9848821b09caad389b99a8",
+  "selectedCaseIds": [
+    "korea-v1-jd-04",
+    "korea-v1-jd-05"
+  ],
+  "canonicalRunner": "scripts/runAgentsApplicationInputBatch.py",
+  "configurations": [
+    {
+      "model": "gpt-6.1-sol",
+      "reasoning": "low",
+      "serviceTier": "provider_default"
+    },
+    {
+      "model": "gpt-6-luna",
+      "reasoning": "low",
+      "serviceTier": "provider_default"
+    }
+  ],
+  "perModelConcurrency": 1,
+  "maxCombinedConcurrency": 2,
+  "taskRetries": 0,
+  "usageWaitSeconds": 20,
+  "privacy": "Only frozen public JD URLs are sent to OpenAI. No applicant values, PDF, login, consent or application submission. Gold and previous outputs are not given to the model.",
+  "knownLimitations": "Historical as-of observations on mutable public pages; not independent human gold, not hidden/conditional-question coverage or a production release gate. Required-state accuracy is not scored."
+}

@@ -1,3 +1,6 @@
+import { serializeToolResultForModel } from "@/lib/llm/toolError";
+import { executeToolCall } from "@/lib/llm/toolExecution";
+import { formatToolError } from "@/lib/llm/toolError";
 import type { Json } from "@/types/database.types";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import {
@@ -758,7 +761,7 @@ async function executeBaseCompanySearches(args: {
             focus,
             query,
             result: {
-              error: error instanceof Error ? error.message : String(error),
+              error: formatToolError(error),
               results: [],
             },
           };
@@ -1082,7 +1085,7 @@ async function runCompanySnapshotReportAgent(args: {
           {
             role: "user",
             content: [
-              error instanceof Error ? error.message : String(error),
+              formatToolError(error),
               "Return the complete article with valid citations. Copy source URLs exactly as provided, including the hostname; do not add or remove www. Preserve the article except where this structural correction requires a change.",
               "Available source URLs:",
               ...Array.from(args.registry.byUrl.keys()),
@@ -1137,18 +1140,18 @@ async function runCompanySnapshotReportAgent(args: {
     const executed = await Promise.all(
       executableCalls.map(async (call) => {
         try {
-          const searchResult = await executeCompanySearchTool({
+          const searchResult = await executeToolCall(() => executeCompanySearchTool({
             companyName: args.companyName,
             exa: args.exa,
             input: call.input,
             registry: args.registry,
-          });
+          }));
           return { ...call, result: searchResult };
         } catch (error) {
           return {
             ...call,
             result: {
-              error: error instanceof Error ? error.message : String(error),
+              error: formatToolError(error),
               results: [],
             },
           };
@@ -1179,7 +1182,7 @@ async function runCompanySnapshotReportAgent(args: {
         role: "tool",
         name: "search_company_web",
         tool_call_id: call.id,
-        content: JSON.stringify(searchResult),
+        content: serializeToolResultForModel(searchResult),
       });
     }
   }
@@ -1279,7 +1282,7 @@ export async function buildCompanyResearchTalentContext(args: {
       .slice(0, 24_000);
   } catch (error) {
     console.warn("[research_company] talent context unavailable", {
-      error: error instanceof Error ? error.message : String(error),
+      error: formatToolError(error),
       userId: args.userId,
     });
     return "";
@@ -1400,7 +1403,7 @@ export async function runCompanySnapshotReportFromCachedResearch(args: {
   } catch (error) {
     console.warn("[research_company] cached-evidence report failed", {
       companyName: args.companyName,
-      error: error instanceof Error ? error.message : String(error),
+      error: formatToolError(error),
     });
     return { error: "research_failed", reason: "external_search_unavailable" };
   }

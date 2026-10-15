@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertOrgWorkspaceAccess, OrgHttpError } from "@/lib/org/server";
+import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
 import {
   getSupabaseAdmin,
   requireAuthenticatedUser,
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getSupabaseAdmin();
-    await assertOrgWorkspaceAccess({ admin, user, workspaceId });
+    await assertOrgRoleAccess({ admin, user, workspaceId, roleId });
 
     const { data: role, error: roleError } = await (
       admin.from("company_roles" as any) as any

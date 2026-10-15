@@ -8,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { OpsMatchingConnectionConfirmationEmailActionResponse } from "@/lib/ops/connectionConfirmationEmail";
 import type {
@@ -124,16 +124,52 @@ export function orgBootstrapQueryOptions(args: {
   const orgId = args.orgId?.trim() ?? "";
   return queryOptions({
     queryKey: queryKeys.org.bootstrap(orgId),
-    queryFn: () => {
+    refetchOnWindowFocus: true,
+    queryFn: ({ signal }) => {
       const params = new URLSearchParams();
       if (orgId) params.set("orgId", orgId);
       const suffix = params.toString() ? `?${params.toString()}` : "";
       return fetchWithInternalAuth<OrgBootstrapResponse>(
-        `/api/org/bootstrap${suffix}`
+        `/api/org/bootstrap${suffix}`,
+        { signal, cache: "no-store" }
       );
     },
     enabled: args.enabled ?? true,
     staleTime: 30_000,
+  });
+}
+
+/** Refresh one authoritative snapshot, including inactive aliases used by dialogs/routes.
+ * Cancel old reads first so an in-flight response cannot restore pre-mutation assignments. */
+export async function refreshOrgWorkspaceData(
+  queryClient: QueryClient,
+  workspaceId: string
+) {
+  const matches = (query: {
+    queryKey: readonly unknown[];
+    state: { data: unknown };
+  }) =>
+    query.queryKey[0] === "org" &&
+    query.queryKey[1] === "bootstrap" &&
+    (query.queryKey[2] === workspaceId ||
+      (query.state.data as OrgBootstrapResponse | undefined)?.workspace
+        ?.workspaceId === workspaceId);
+  await queryClient.cancelQueries({ predicate: matches });
+  await queryClient.invalidateQueries({
+    predicate: matches,
+    refetchType: "none",
+  });
+  const fresh = await queryClient.fetchQuery({
+    ...orgBootstrapQueryOptions({ orgId: workspaceId }),
+    staleTime: 0,
+  });
+  queryClient.setQueriesData<OrgBootstrapResponse>(
+    { predicate: matches },
+    fresh
+  );
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.org.all,
+    predicate: (query) => query.queryKey[1] !== "bootstrap",
   });
 }
 
@@ -178,13 +214,13 @@ export function useOrgInvitePreview(args: {
   enabled?: boolean;
   orgId?: string | null;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   return useQuery(
     orgInvitePreviewQueryOptions({
       ...args,
-      errorMessage: t(
-        "hooks.invite.previewFailed",
-        "초대 정보를 불러오지 못했습니다."
+      errorMessage: c(
+        "초대 정보를 불러오지 못했습니다.",
+        "Couldn't load invite details."
       ),
     })
   );
@@ -193,8 +229,10 @@ export function useOrgInvitePreview(args: {
 export function useSendOrgInvitations() {
   const queryClient = useQueryClient();
   return useMutation({
+    scope: { id: "org-directory" },
     mutationFn: (args: {
       emails: string[];
+      teamId?: string | null;
       role: OrgMembershipRole;
       workspaceId: string;
     }) =>
@@ -203,16 +241,15 @@ export function useSendOrgInvitations() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.org.bootstrapAll,
-      }),
+    onSuccess: (_result, args) =>
+      refreshOrgWorkspaceData(queryClient, args.workspaceId),
   });
 }
 
 export function useCancelOrgInvitation() {
   const queryClient = useQueryClient();
   return useMutation({
+    scope: { id: "org-directory" },
     mutationFn: (args: { invitationId: string; workspaceId: string }) =>
       fetchWithInternalAuth<OrgInvitationMutationResponse>(
         "/api/org/invitations",
@@ -222,16 +259,15 @@ export function useCancelOrgInvitation() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.org.bootstrapAll,
-      }),
+    onSuccess: (_result, args) =>
+      refreshOrgWorkspaceData(queryClient, args.workspaceId),
   });
 }
 
 export function useUpdateOrgMembershipAuthority() {
   const queryClient = useQueryClient();
   return useMutation({
+    scope: { id: "org-directory" },
     mutationFn: (args: {
       authority: OrgMembershipRole;
       userId: string;
@@ -245,16 +281,15 @@ export function useUpdateOrgMembershipAuthority() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.org.bootstrapAll,
-      }),
+    onSuccess: (_result, args) =>
+      refreshOrgWorkspaceData(queryClient, args.workspaceId),
   });
 }
 
 export function useUpdateOrgMemberProfile() {
   const queryClient = useQueryClient();
   return useMutation({
+    scope: { id: "org-directory" },
     mutationFn: (args: {
       name?: string;
       firstName?: string;
@@ -271,27 +306,23 @@ export function useUpdateOrgMemberProfile() {
           body: JSON.stringify(args),
         }
       ),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.org.bootstrapAll,
-      }),
+    onSuccess: (_result, args) =>
+      refreshOrgWorkspaceData(queryClient, args.workspaceId),
   });
 }
 
 export function useRemoveOrgMember() {
   const queryClient = useQueryClient();
   return useMutation({
+    scope: { id: "org-directory" },
     mutationFn: (args: { userId: string; workspaceId: string }) =>
       fetchWithInternalAuth<OrgMemberRemoveResponse>("/api/org/membership", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(args),
       }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.org.bootstrapAll,
-      });
-    },
+    onSuccess: (_result, args) =>
+      refreshOrgWorkspaceData(queryClient, args.workspaceId),
   });
 }
 
@@ -349,17 +380,9 @@ export function useOrgInbox(args: {
   enabled?: boolean;
   workspaceId?: string | null;
 }) {
-  const workspaceId = args.workspaceId?.trim() ?? "";
-  return useQuery({
-    queryKey: queryKeys.org.inbox(workspaceId),
-    queryFn: () =>
-      fetchWithInternalAuth<OrgBoardResponse>(
-        `/api/org/inbox?workspaceId=${encodeURIComponent(workspaceId)}`
-      ),
-    enabled: (args.enabled ?? true) && Boolean(workspaceId),
-    staleTime: 20_000,
-    retry: 1,
-  });
+  // Home, Inbox and the sidebar read the same unfiltered board. Sharing the
+  // query also shares an in-flight request and mutation invalidation.
+  return useOrgBoard(args);
 }
 
 export function useOrgAcceptedTalents(args: {

@@ -64,7 +64,6 @@ export function getOrgAgentThinkingLogIcon(
       "set_role_notification",
       "confirm_pending_role_creation",
       "update_company_context",
-      "record_role_profile_example_feedback",
     ].includes(toolName)
   ) {
     return "write";

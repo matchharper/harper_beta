@@ -25,6 +25,7 @@ const scalar = async (sql, args = []) =>
 
 try {
   await db.exec(`
+    set time zone 'UTC';
     create role anon; create role authenticated; create role service_role;
     create table company_workspace (company_workspace_id uuid primary key, company_name text);
     create table company_roles (role_id uuid primary key, company_workspace_id uuid, name text, status text default 'active', is_expired boolean default false, information jsonb);
@@ -68,6 +69,7 @@ try {
       "supabase/migrations/20260923063625_unified_company_talent_contacts.sql"
     )
   );
+  await db.exec(read("supabase/migrations/20261014164639_company_contact_agent_first.sql"));
   const workspace = randomUUID(),
     role = randomUUID(),
     talent = randomUUID(),
@@ -274,10 +276,26 @@ try {
     "update contact_queue set payload=jsonb_build_object('delivery',jsonb_build_object('body','Proceed after reviewing the conditions')) where company_talent_relay_id=$1",
     [latestConsent.id]
   );
+  // A recorded contact alone does not grant consent execution. Only the
+  // exact company actor's claimed delivery turn can use fresh source evidence.
+  const pendingJob = await scalar("select job_id from enqueue_company_agent_web_action_v1($1,$2,$3,$4,'candidate_contact_received',$5,$6)",
+    [workspace, conversation, role, actor, JSON.stringify({relayId: latestConsent.id, contactPendingDelivery:true}), `candidate-contact:${latestConsent.id}`]);
+  await assert.rejects(consent(latestConsent.id), /candidate_contact_consent_evidence_not_found/);
+  await db.query("update company_agent_web_action_jobs set status='completed_silent' where id<>$1", [pendingJob]);
+  await db.query("select * from claim_company_agent_web_action_v1($1,'fixture',5,360)", [pendingJob]);
+  await assert.rejects(scalar("select confirm_internal_candidate_from_contact_v1($1,$2,$3,'pending_connection',$4,null,'Confirmed','{}',$5)",
+    [rec,talent,role,other,latestConsent.id]), /candidate_contact_consent_evidence_not_found/);
+  await db.query("update contact_queue set status='cancelled' where company_talent_relay_id=$1", [latestConsent.id]);
+  await assert.rejects(consent(latestConsent.id), /candidate_contact_consent_evidence_not_found/);
+  await db.query("update contact_queue set status='queued' where company_talent_relay_id=$1", [latestConsent.id]);
+  assert.equal(await consent(latestConsent.id), true);
+  assert.equal(await scalar("select status from contact_queue where company_talent_relay_id=$1", [latestConsent.id]), 'queued');
   await scalar(
     "select finalize_company_talent_relay_delivery_v1($1,null,null)",
     [latestConsent.id]
   );
+  assert.equal(await scalar("select count(*)::int from company_agent_web_action_jobs where idempotency_key=$1", [`candidate-contact:${latestConsent.id}`]), 1);
+  assert.equal(await scalar("select count(*)::int from company_messages where metadata->>'relayId'=$1", [latestConsent.id]), 0, 'prepared agent turn suppresses the legacy raw-copy and second-turn trigger');
   assert.equal(await consent(latestConsent.id), true);
   await db.query(
     "update talent_opportunity_recommendation set saved_stage='closed',updated_at=now()+interval '1 second' where id=$1",
@@ -329,6 +347,32 @@ try {
   console.log(
     "PASS: PostgreSQL contact routing, historical labels, proactive contacts, ownership, attachments, idempotency, durable event and consent freshness"
   );
+
+  // A crashed consumer must not block the conversation indefinitely. Recovery
+  // retains the original job and attempts; a live consumer keeps its lease.
+  await db.exec(read("supabase/migrations/20261014174708_company_agent_event_delivery_recovery.sql"));
+  await db.query("update company_agent_web_action_jobs set status='completed_silent'");
+  const recoveryJob = async (key, attempts, lockedAgo, createdAgo) => {
+    const id = await scalar("select job_id from enqueue_company_agent_web_action_v1($1,$2,$3,$4,'company_update','{}',$5)",
+      [workspace, conversation, role, actor, key]);
+    await db.query("update company_agent_web_action_jobs set status='processing',attempt_count=$2,locked_at=now()-$3::interval,locked_by='crashed-consumer',created_at=now()-$4::interval where id=$1",
+      [id, attempts, lockedAgo, createdAgo]);
+    return id;
+  };
+  const exhausted = await recoveryJob('recovery-exhausted', 5, '20 minutes', '1 hour');
+  const resumable = await recoveryJob('recovery-resumable', 2, '20 minutes', '50 minutes');
+  const live = await recoveryJob('recovery-live', 1, '1 minute', '40 minutes');
+  assert.equal(await scalar("select recover_company_agent_web_action_jobs_v1(360,5,20)"), 2);
+  assert.equal(await scalar("select status from company_agent_web_action_jobs where id=$1", [exhausted]), 'failed');
+  const recovered = (await db.query("select status,queue_dispatch_status,locked_at,locked_by,attempt_count from company_agent_web_action_jobs where id=$1", [resumable])).rows[0];
+  assert.deepEqual(recovered, { status:'retry',queue_dispatch_status:'pending',locked_at:null,locked_by:null,attempt_count:2 });
+  assert.equal(await scalar("select status from company_agent_web_action_jobs where id=$1", [live]), 'processing');
+  await db.query("update company_agent_web_action_jobs set status='completed_silent' where id=$1", [live]);
+  const claimed = (await db.query("select * from claim_company_agent_web_action_v1($1,'replacement-consumer',5,360)", [resumable])).rows[0];
+  assert.equal(claimed.id, resumable);
+  assert.equal(claimed.attempt_count, 3);
+  assert.equal(await scalar("select recover_company_agent_web_action_jobs_v1(360,5,20)"), 0);
+  console.log("PASS: PostgreSQL lease recovery retries the same job, terminal exhaustion releases ordering, and fresh consumers remain protected");
 } catch (error) {
   console.error({
     message: error.message,

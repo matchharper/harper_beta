@@ -11,15 +11,24 @@ const toAnthropicStream = (events: unknown[]) =>
     }
   );
 
-test("Sonnet 5.5 streaming preserves signed and redacted thinking through tool continuation", async () => {
+for (const { model, toolCost, replyCost } of [
+  { model: "claude-sonnet-5-5", toolCost: 0.00265, replyCost: 0.00054 },
+  { model: "claude-haiku-5-5", toolCost: 0.0001325, replyCost: 0.000027 },
+]) {
+test(`${model} streaming preserves signed and redacted thinking through tool continuation`, async () => {
   const previousApiKey = process.env.ANTHROPIC_API_KEY;
   const previousOpenAiApiKey = process.env.OPENAI_API_KEY;
   const previousFetch = globalThis.fetch;
+  const previousLog = console.log;
+  const usageReceipts: any[] = [];
+  console.log = (label, receipt) => { if (label === "[llm-usage]") usageReceipts.push(JSON.parse(receipt)); };
   process.env.ANTHROPIC_API_KEY = "test-key";
   process.env.OPENAI_API_KEY = "test-key";
   const requests: Record<string, any>[] = [];
   const responses = [
     toAnthropicStream([
+      { type: "message_start", message: { id: "msg-tool", model,
+        usage: { input_tokens: 1000, cache_read_input_tokens: 500, cache_creation_input_tokens: 200, output_tokens: 0 } } },
       {
         type: "content_block_start",
         index: 0,
@@ -64,6 +73,8 @@ test("Sonnet 5.5 streaming preserves signed and redacted thinking through tool c
       { type: "message_stop" },
     ]),
     toAnthropicStream([
+      { type: "message_start", message: { id: "msg-reply", model,
+        usage: { input_tokens: 100, cache_read_input_tokens: 1500, output_tokens: 0 } } },
       {
         type: "content_block_start",
         index: 0,
@@ -93,7 +104,7 @@ test("Sonnet 5.5 streaming preserves signed and redacted thinking through tool c
       onTextDelta: (text) => {
         visibleText += text;
       },
-      primaryModel: "claude-sonnet-5-5",
+      primaryModel: model,
       systemBlocks: [
         { text: "Use read_context to retrieve the saved context." },
       ],
@@ -107,13 +118,22 @@ test("Sonnet 5.5 streaming preserves signed and redacted thinking through tool c
           },
         },
       ],
-      usageLabel: "test:sonnet-5-5-thinking-continuation",
+      usageLabel: `test:${model}-thinking-continuation`,
     });
     assert.equal(result, "확인했어요.");
     assert.equal(visibleText, "확인했어요.");
     assert.equal(requests.length, 2);
-    assert.equal(requests[0].model, "claude-sonnet-5-5");
-    assert.equal("temperature" in requests[0], false);
+    assert.deepEqual(usageReceipts.map(receipt => ({
+      id: receipt.responseId, model: receipt.model, cost: receipt.estimatedCostUsd,
+    })), [
+      { id: "msg-tool", model, cost: toolCost },
+      { id: "msg-reply", model, cost: replyCost },
+    ]);
+    for (const request of requests) {
+      assert.equal(request.model, model);
+      assert.equal("temperature" in request, false);
+      assert.deepEqual(request.output_config, { effort: "medium" });
+    }
     assert.deepEqual(requests[0].tool_choice, { type: "auto" });
     const assistantMessage = requests[1].messages.find(
       (message: any) => message.role === "assistant"
@@ -124,12 +144,14 @@ test("Sonnet 5.5 streaming preserves signed and redacted thinking through tool c
     ]);
   } finally {
     globalThis.fetch = previousFetch;
+    console.log = previousLog;
     if (previousApiKey === undefined) delete process.env.ANTHROPIC_API_KEY;
     else process.env.ANTHROPIC_API_KEY = previousApiKey;
     if (previousOpenAiApiKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previousOpenAiApiKey;
   }
 });
+}
 
 test("Career tool results prefer compact model-facing text when provided", async () => {
   const previousApiKey = process.env.ANTHROPIC_API_KEY;

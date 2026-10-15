@@ -1,5 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
 import { useId, type FormEvent, useMemo, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export function OrgMemberProfileDialog({
   workspace: OrgWorkspace;
 }) {
   const modalFormId1 = useId();
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const defaults = useMemo(() => getNameDefaults(member), [member]);
   const updateProfile = useUpdateOrgMemberProfile();
   const [firstName, setFirstName] = useState(defaults.firstName);
@@ -53,9 +53,9 @@ export function OrgMemberProfileDialog({
     const normalizedRole = role.trim();
     if (!normalizedFirstName || !normalizedLastName || !normalizedRole) {
       setError(
-        t(
-          "OrgMemberProfileDialog.6344aaa8",
-          "이름, 성, 직함을 모두 입력해 주세요."
+        c(
+          "이름, 성, 직함을 모두 입력해 주세요.",
+          "Enter first name, last name, and job title."
         )
       );
       return;
@@ -74,10 +74,7 @@ export function OrgMemberProfileDialog({
       setError(
         profileError instanceof Error
           ? profileError.message
-          : t(
-              "OrgMemberProfileDialog.4f8c874b",
-              "프로필을 저장하지 못했습니다."
-            )
+          : c("프로필을 저장하지 못했습니다.", "Failed to save profile.")
       );
     }
   };
@@ -87,9 +84,7 @@ export function OrgMemberProfileDialog({
       open
       onClose={() => {}}
       mobileBottomSheet
-      title={
-        <>{t("OrgMemberProfileDialog.91fa967f", "프로필을 완성해 주세요")}</>
-      }
+      title={<>{c("프로필을 완성해 주세요", "Complete profile")}</>}
       panelClassName="max-w-md"
       bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
       showCloseButton={false}
@@ -108,7 +103,7 @@ export function OrgMemberProfileDialog({
             {updateProfile.isPending ? (
               <LoaderCircle className="size-4 animate-spin" />
             ) : null}
-            {t("OrgMemberProfileDialog.d36d1676", "시작하기")}
+            {c("시작하기", "Get started")}
           </MuteButton>
         </div>
       }
@@ -123,7 +118,7 @@ export function OrgMemberProfileDialog({
             className="grid gap-1.5 text-[13px] font-medium text-neutral-primary"
             htmlFor="org-member-first-name"
           >
-            <span>{t("OrgMemberProfileDialog.24d9371a", "이름")}</span>
+            <span>{c("이름", "First name")}</span>
             <Input
               autoComplete="given-name"
               autoFocus
@@ -133,7 +128,7 @@ export function OrgMemberProfileDialog({
                 setError(null);
                 setFirstName(event.target.value);
               }}
-              placeholder={t("OrgMemberProfileDialog.24d9371a", "이름")}
+              placeholder={c("이름", "First name")}
               required
               value={firstName}
             />
@@ -142,7 +137,7 @@ export function OrgMemberProfileDialog({
             className="grid gap-1.5 text-[13px] font-medium text-neutral-primary"
             htmlFor="org-member-last-name"
           >
-            <span>{t("OrgMemberProfileDialog.165b8c8f", "성")}</span>
+            <span>{c("성", "Last name")}</span>
             <Input
               autoComplete="family-name"
               id="org-member-last-name"
@@ -151,7 +146,7 @@ export function OrgMemberProfileDialog({
                 setError(null);
                 setLastName(event.target.value);
               }}
-              placeholder={t("OrgMemberProfileDialog.165b8c8f", "성")}
+              placeholder={c("성", "Last name")}
               required
               value={lastName}
             />
@@ -161,7 +156,7 @@ export function OrgMemberProfileDialog({
           className="grid gap-1.5 text-[13px] font-medium text-neutral-primary"
           htmlFor="org-member-role"
         >
-          <span>{t("OrgMemberProfileDialog.8a337ab3", "직함")}</span>
+          <span>{c("직함", "Job title")}</span>
           <Input
             autoComplete="organization-title"
             id="org-member-role"
@@ -170,9 +165,9 @@ export function OrgMemberProfileDialog({
               setError(null);
               setRole(event.target.value);
             }}
-            placeholder={t(
-              "OrgMemberProfileDialog.07c64625",
-              "예: 채용 매니저, CTO"
+            placeholder={c(
+              "예: 채용 매니저, CTO",
+              "e.g., Recruiting Manager, CTO"
             )}
             required
             value={role}

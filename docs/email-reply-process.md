@@ -1,3 +1,5 @@
+> 2026-10-13: Vercel 전환 구현은 [이메일 Vercel runtime 운영 문서](email-vercel-runtime-ko.md)에 정리되어 있습니다. 아래 Python Worker 설명은 기존 운영/롤백 경로입니다. 새 구현이 운영에 배포·활성화되었다는 의미는 아닙니다.
+
 # Email Reply Process
 
 ## Scope

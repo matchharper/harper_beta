@@ -1,3 +1,6 @@
+import { runToolCall, unwrapToolCall, prepareToolDeliveryParts } from "@/lib/llm/toolExecution";
+import { serializeToolResultForModel, projectToolDiagnosticFieldsForTransport } from "@/lib/llm/toolError";
+import { billingActionNotice } from "@/lib/org/billing/types";
 import crypto from "node:crypto";
 import type { User } from "@supabase/supabase-js";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
@@ -5,7 +8,7 @@ import { isInternalEmail } from "@/lib/internalAccess";
 import type { OrgAgentPromptContext } from "@/lib/org/agent/context";
 import {
   serializeOrgAgentToolError,
-  serializeOrgAgentToolResult,
+  formatOrgAgentToolResult,
 } from "@/lib/org/agent/promptFormat";
 import type { OrgAgentConversationRow } from "@/lib/org/agent/store";
 import {
@@ -15,6 +18,7 @@ import {
 import { createOrgAgentToolExecutionStateFromSnapshot } from "@/lib/org/agent/toolState";
 import {
   fitOrgAgentToolResultToBudget,
+  fitOrgAgentDiagnosticSupplements,
   ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
 } from "@/lib/org/agent/toolResultBudget";
 import { OrgHttpError } from "@/lib/org/server";
@@ -374,7 +378,7 @@ function runtimeToolErrorText(error: unknown) {
     (error instanceof OrgHttpError && error.status < 500)
       ? error.message
       : "The tool could not be completed. Do not claim success.";
-  return serializeOrgAgentToolError(visibleToModel);
+  return serializeToolResultForModel(error, () => serializeOrgAgentToolError(visibleToModel), billingActionNotice(error) ? [] : [error]);
 }
 
 export async function runOpsOrgAgentToolDebug(
@@ -433,7 +437,7 @@ export async function runOpsOrgAgentToolDebug(
   });
 
   try {
-    const result = await executeOrgAgentTool({
+    const capture = await runToolCall(() => executeOrgAgentTool({
       actorId: actor.userId,
       actorLabel: actorLabel(actor),
       admin,
@@ -449,19 +453,22 @@ export async function runOpsOrgAgentToolDebug(
       state,
       user,
       userMessage: "",
-    });
-    const serializedResult = serializeOrgAgentToolResult(toolName, result);
+    }));
+    const result = unwrapToolCall(capture);
+    const prepared = prepareToolDeliveryParts(capture, value => formatOrgAgentToolResult(toolName, value));
+    const serializedResult = prepared.content;
     const fittedResult = fitOrgAgentToolResultToBudget({
       remainingChars:
         ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - priorToolResultChars,
       serializedResult,
     });
 
+    const [delivered] = fitOrgAgentDiagnosticSupplements([{ content: fittedResult.content, diagnosticText: prepared.diagnosticText }], ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - priorToolResultChars - fittedResult.content.length);
     return {
       actor,
       budget: {
         complete: fittedResult.complete,
-        deliveredChars: fittedResult.content.length,
+        deliveredChars: delivered.length,
         maxTotalChars: ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
         priorToolResultChars,
         serializedChars: serializedResult.length,
@@ -477,9 +484,9 @@ export async function runOpsOrgAgentToolDebug(
       },
       durationMs: Math.round((performance.now() - startedAt) * 10) / 10,
       error: null,
-      llmText: fittedResult.content,
+      llmText: delivered,
       ok: true,
-      resultJson: JSON.stringify(result, null, 2),
+      resultJson: JSON.stringify(projectToolDiagnosticFieldsForTransport(result), null, 2),
       toolName,
     };
   } catch (error) {

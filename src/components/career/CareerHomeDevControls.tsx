@@ -14,6 +14,7 @@ import {
   Terminal,
 } from "lucide-react";
 import React from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { DevColorPaletteControls } from "@/components/common/DevColorPaletteControls";
 import { MuteButton } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import type { CareerReengagementPendingAction } from "@/lib/career/pendingAction
 import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import {
+  CLAUDE_HAIKU_MODEL,
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
@@ -46,9 +48,16 @@ import { useCareerWorkspaceUiStore } from "@/store/useCareerWorkspaceUiStore";
 import { useCareerSidebarContext } from "./CareerSidebarContext";
 import CareerPriorityReviewDevControls from "./CareerPriorityReviewDevControls";
 import { canUsePriorityReviewTests } from "@/lib/career/priorityReviewTestContract";
+import type {
+  DevExternalVariant,
+  DevExternalVariantSnapshot,
+} from "@/lib/externalRecommendationsV2/devVariant";
 
 const CareerRecommendationSearchPreview = dynamic(
   () => import("./CareerRecommendationSearchPreview")
+);
+const CareerExternalFitsDevModal = dynamic(
+  () => import("./CareerExternalFitsDevModal")
 );
 
 const devVoiceModelOptions: Array<{
@@ -66,6 +75,7 @@ const devTextChatModelOptions: Array<{
   value: CareerTextChatModelId;
 }> = [
   { eventKey: "sonnet_5_5", label: "Sonnet 5.5", value: CLAUDE_MODEL },
+  { eventKey: "haiku_5_5", label: "Haiku 5.5", value: CLAUDE_HAIKU_MODEL },
   {
     eventKey: "glm_5_3_flash_high",
     label: "OpenRouter · GLM 5.3 Flash · high",
@@ -217,8 +227,43 @@ export default function CareerHomeDevControls({
   const [devRoleFtsLoading, setDevRoleFtsLoading] = React.useState(false);
   const [devRoleFtsStatus, setDevRoleFtsStatus] = React.useState("");
   const [searchPreviewOpen, setSearchPreviewOpen] = React.useState(false);
+  const [externalFitsOpen, setExternalFitsOpen] = React.useState(false);
 
   const showDevRunControls = canUseCareerDevControls(user?.email);
+  const queryClient = useQueryClient();
+  const externalVariantQueryKey = ["career-dev-external-variant", user?.id];
+  const externalVariantQuery = useQuery({
+    queryKey: externalVariantQueryKey,
+    enabled: showDevRunControls && Boolean(user?.id),
+    queryFn: async (): Promise<DevExternalVariantSnapshot> => {
+      const response = await fetchWithAuth("/api/talent/dev-external-variant");
+      if (!response.ok) throw new Error("추천 버전을 불러오지 못했습니다.");
+      return response.json();
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const externalVariantSnapshot = externalVariantQuery.data;
+  const [externalVariantSaving, setExternalVariantSaving] = React.useState(false);
+  const [externalVariantError, setExternalVariantError] = React.useState("");
+  const saveExternalVariant = async (selection: DevExternalVariant) => {
+    if (externalVariantSaving) return;
+    setExternalVariantSaving(true);
+    setExternalVariantError("");
+    try {
+      const response = await fetchWithAuth("/api/talent/dev-external-variant", {
+        method: "POST",
+        body: JSON.stringify({ selection }),
+      });
+      if (!response.ok) throw new Error("추천 버전을 저장하지 못했습니다.");
+      queryClient.setQueryData(externalVariantQueryKey, await response.json() as DevExternalVariantSnapshot);
+    } catch (error) {
+      setExternalVariantError(error instanceof Error ? error.message : "추천 버전을 저장하지 못했습니다.");
+    } finally {
+      setExternalVariantSaving(false);
+    }
+  };
   const reengagementPendingActions = useCareerReengagementPendingActions({
     enabled: showDevRunControls,
     userId: user?.id,
@@ -514,6 +559,66 @@ export default function CareerHomeDevControls({
       </div>
       {searchPreviewOpen ? (
         <CareerRecommendationSearchPreview onClose={() => setSearchPreviewOpen(false)} />
+      ) : null}
+      {process.env.NODE_ENV !== "production" ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Text as="span" type="subtle">Apply with Harper</Text>
+          <MuteButton asChild>
+            <a
+              href="/career/preview/application"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MessageSquareText aria-hidden className="size-3.5" />
+              제안 받은 상태 미리보기
+            </a>
+          </MuteButton>
+          <Text as="span" type="subtle">예시 데이터 · 새 탭에서 열기</Text>
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Text as="span" type="subtle">외부 공고 fit</Text>
+        <MuteButton onClick={() => setExternalFitsOpen(true)} disabled={!user?.id}>
+          <BriefcaseBusiness className="size-3.5" />fit 목록 보기
+        </MuteButton>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Text as="span" type="subtle">recommend_job_posting</Text>
+        {([
+          { value: "auto", label: "자동" },
+          { value: "control", label: "기존 버전" },
+          { value: "v2", label: "V2" },
+        ] as const).map((option) => (
+          <MuteButton
+            key={option.value}
+            aria-pressed={externalVariantSnapshot?.selection === option.value}
+            variant={externalVariantSnapshot?.selection === option.value ? "dark" : "default"}
+            disabled={!externalVariantSnapshot || externalVariantSaving || !externalVariantSnapshot.experimentEnabled}
+            onClick={() => void saveExternalVariant(option.value)}
+          >
+            {option.label}
+          </MuteButton>
+        ))}
+        <Text as="span" type="subtle" role="status">
+          {externalVariantSaving ? "저장 중…" : externalVariantSnapshot
+            ? `현재 적용: ${externalVariantSnapshot.effectiveVariant === "v2" ? "V2" : "기존 버전"}`
+            : externalVariantQuery.isError ? "버전 확인 실패" : "버전 확인 중…"}
+        </Text>
+        <Text as="div" type="subtle" className="w-full">
+          이 계정·브라우저의 다음 추천 호출부터 적용 · 정기 Worker 추천은 자동 배정 유지
+          {externalVariantSnapshot?.experimentEnabled === false ? " · 추천 실험이 비활성화되어 있습니다." : ""}
+        </Text>
+        {externalVariantError || externalVariantQuery.error ? (
+          <Text as="div" type="subtle" role="alert">
+            {externalVariantError || externalVariantQuery.error?.message}
+          </Text>
+        ) : null}
+      </div>
+      {externalFitsOpen && user?.id ? (
+        <CareerExternalFitsDevModal
+          userId={user.id}
+          onClose={() => setExternalFitsOpen(false)}
+        />
       ) : null}
       {canUsePriorityReviewTests(user?.email) ? (
         <CareerPriorityReviewDevControls model={textChatModel} />

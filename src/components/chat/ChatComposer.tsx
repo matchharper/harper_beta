@@ -12,6 +12,7 @@ import {
   type FocusEvent,
   forwardRef,
   type Key,
+  type HTMLAttributes,
   type MouseEvent,
   type ReactNode,
   type TextareaHTMLAttributes,
@@ -28,6 +29,22 @@ import { cn } from "@/lib/utils";
 
 export const CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME =
   "border-neutral-1000-a05 bg-bg-floating/55 shadow-sm backdrop-blur-lg";
+
+export function ChatComposerSurface({
+  className,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      {...props}
+      className={cn(
+        "group/chat-composer origin-bottom overflow-hidden rounded-[18px] border transition-[background-color,border-color,box-shadow,opacity,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME,
+        className
+      )}
+    />
+  );
+}
 
 const DEFAULT_MAX_ROWS = 4;
 const MOBILE_COMPOSER_MEDIA_QUERY = "(max-width: 767px)";
@@ -225,7 +242,7 @@ export const ChatComposerFrame = forwardRef<
   );
 
   return (
-    <div
+    <ChatComposerSurface
       data-expanded={expanded}
       onClickCapture={handleCollapsedTokenClickCapture}
       onPointerCancel={finishPointerInteraction}
@@ -234,8 +251,6 @@ export const ChatComposerFrame = forwardRef<
       }}
       onPointerUp={finishPointerInteraction}
       className={cn(
-        "group/chat-composer origin-bottom overflow-hidden rounded-[18px] border transition-[background-color,border-color,box-shadow,opacity,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-        CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME,
         pointerActive &&
           "max-md:scale-[1.01] max-md:opacity-85 max-md:duration-[180ms]",
         className
@@ -313,7 +328,7 @@ export const ChatComposerFrame = forwardRef<
           {action}
         </div>
       </div>
-    </div>
+    </ChatComposerSurface>
   );
 });
 

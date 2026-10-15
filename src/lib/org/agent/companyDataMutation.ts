@@ -1157,7 +1157,7 @@ export async function fetchCompanyDataSnapshot(args: {
 
   const internalResult = roleIds.length
     ? await (args.admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, is_company_first_search, intro_search_date, intro_search_time")
+        .select("role_id, request, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time")
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;
@@ -1262,6 +1262,8 @@ export async function fetchCompanyDataSnapshot(args: {
       salaryRange: role.salary_range ?? null,
       role_status: role.status,
       role_is_company_first_search: internal.is_company_first_search,
+      role_is_promote: internal.is_promote,
+      role_is_anonymous: internal.is_anonymous,
       role_intro_search_date: internal.intro_search_date,
       role_intro_search_time: internal.intro_search_time,
       role_work_mode: role.work_mode ?? null,

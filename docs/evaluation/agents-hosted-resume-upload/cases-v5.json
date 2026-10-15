@@ -1,0 +1,26 @@
+{
+  "datasetVersion": "product-submission-v5",
+  "case": "owned_product_submission",
+  "url": "https://127.0.0.1/application",
+  "resume": "fixtures/synthetic-resume-v1.pdf",
+  "filename": "Harper Test Resume.pdf",
+  "profile": {
+    "name": "Harper Test Candidate",
+    "email": "test-candidate@example.com",
+    "phone": "01000000000",
+    "country": "KR",
+    "portfolio": "https://example.com/test-portfolio",
+    "availability": "two_weeks"
+  },
+  "approvedMaterials": [
+    {
+      "field": "Why are you interested in this test role?",
+      "text": "웹 서비스 백엔드와 내부 운영 도구를 개발한 경험을 바탕으로 지원 자동화의 안정성을 개선하고 싶습니다. Python과 TypeScript를 사용하며 파일 업로드 장애를 추적하고 테스트로 재발을 줄인 경험을 활용하겠습니다."
+    },
+    {
+      "field": "Describe a relevant project",
+      "text": "Playwright로 폼 입력, PDF 첨부, 서버 접수 확인을 연결하는 자동화 프로젝트를 수행했습니다. Python과 TypeScript를 사용했으며 파일 업로드 장애를 추적하고 회귀 테스트를 추가했습니다."
+    }
+  ],
+  "authorization": "Synthetic owned receiver only. The test actor approves the exact held POST after inspecting actual fields. No employer, candidate/application rows, messages or legal consent."
+}

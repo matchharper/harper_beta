@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { readOrgRoleAccess } from "@/lib/org/teamAccess";
 import { readMatchingRunHistory } from "@/lib/companyFirstSearch/history";
 import { getLlmErrorMessage } from "@/lib/llm/llm";
 import {
@@ -69,11 +70,10 @@ import {
 import { filterOrgAgentMentionCandidates } from "@/lib/org/agent/mentionCandidates";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { formatInProgressSlackRoleCreations } from "@/lib/org/agent/slackRoleCreation";
-import { fetchCompanyRoleCalibrationPromptIndex } from "@/lib/org/roleCalibrationServer";
 import { conversationCompatibilityText, type OrgAgentConversationInput } from "./conversationInput";
 
 export type OrgAgentPromptContext = {
-  calibrationsText?: string;
+  accessText?: string;
   companyText: string;
   completeRoleRequestIds: string[];
   contextNotesText: string;
@@ -168,6 +168,8 @@ function formatRoles(
         "has_structured_criteria",
         "has_memory",
         "has_description",
+        "promotion_allowed",
+        "anonymous_posting",
         "periodic_search",
         "search_days_kst",
         "search_hour_kst",
@@ -190,12 +192,14 @@ function formatRoles(
           item.criteria.length >= 3,
           Boolean(item.hasMemory),
           Boolean(text(item.description)),
+          item.isPromote === true,
+          item.isAnonymous === true,
           item.isCompanyFirstSearch === true,
           item.introSearchDate?.join(",") ?? "Mon,Wed,Fri",
           item.introSearchTime ?? 9,
         ];
       }),
-      [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 30, 3]
+      [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 8, 8, 30, 3]
     );
     if (table.length > DEFAULT_ROLE_INDEX_MAX_CHARS) break;
     selected.push(role);
@@ -217,6 +221,8 @@ function formatRoles(
       "has_structured_criteria",
       "has_memory",
       "has_description",
+      "promotion_allowed",
+      "anonymous_posting",
       "periodic_search",
       "search_days_kst",
       "search_hour_kst",
@@ -239,12 +245,14 @@ function formatRoles(
         role.criteria.length >= 3,
         Boolean(role.hasMemory),
         Boolean(text(role.description)),
+        role.isPromote === true,
+        role.isAnonymous === true,
         role.isCompanyFirstSearch === true,
         role.introSearchDate?.join(",") ?? "Mon,Wed,Fri",
         role.introSearchTime ?? 9,
       ];
     }),
-    [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 30, 3]
+    [100, 180, 100, 100, 40, 180, 12, 12, 12, 12, 8, 8, 8, 8, 8, 8, 8, 8, 30, 3]
   );
   return {
     completeRoleRequestIds: selected
@@ -281,6 +289,7 @@ function formatRoles(
     ]),
     text: [
       `total_roles=${roles.length} returned_roles=${selected.length} role_index_truncated=${selected.length < roles.length}`,
+      "anonymous_posting=true means public promotion must conceal the hiring company's identity (real/source company name, logo, website and identifying copy), exclude external job IDs and hide the linked Role ID from public Harper job responses.",
       table,
     ].join("\n"),
   };
@@ -354,9 +363,6 @@ export function formatOrgAgentConversation(
             `request_id=${message.metadata.candidateRelayRef.requestId ?? "none"}`,
             `relay_id=${message.metadata.candidateRelayRef.relayId}`,
           ].join(";")}}`
-        : "",
-      message.metadata.roleCalibration
-        ? `role_profile_example_context{set_id=${message.metadata.roleCalibration.calibrationId};profile_ids=${message.metadata.roleCalibration.profileIds.join(",")}}`
         : "",
     ].filter(Boolean);
     const speaker =
@@ -523,6 +529,7 @@ export async function buildOrgAgentPromptContext(args: {
   conversation: OrgAgentConversationRow;
   currentUserMessageId?: number | null;
   initialDataKinds?: readonly OrgAgentMoreDataKind[];
+  includeSharedConversation?: boolean;
   messageType?: string | null;
   readAudience?: OrgAgentReadAudience;
   scopeKey?: string | null;
@@ -531,10 +538,11 @@ export async function buildOrgAgentPromptContext(args: {
   user: User;
 }) {
   const workspaceId = args.conversation.company_workspace_id;
+  const access = await readOrgRoleAccess({ admin: args.admin, user: args.user, workspaceId });
   const isSlack = args.messageType === "slack" || Boolean(args.slackThreadId);
   const scope: OrgAgentPromptMessageScope = isSlack
     ? { kind: "slack", slackThreadId: text(args.slackThreadId) }
-    : { kind: "chat" };
+    : { kind: args.includeSharedConversation ? "conversation" : "chat" };
   if (scope.kind === "slack" && !scope.slackThreadId) {
     throw new OrgHttpError(400, "slackThreadId is required for Slack context");
   }
@@ -561,10 +569,9 @@ export async function buildOrgAgentPromptContext(args: {
     messages,
     contactSummary,
     pendingUpdate,
-    calibrationsText,
     matchingRuns,
   ] = await Promise.all([
-    fetchOrgAgentRoles({ admin: args.admin, workspaceId }),
+    fetchOrgAgentRoles({ admin: args.admin, user: args.user, workspaceId }),
     fetchOrgAgentWorkspaceAvailability({ admin: args.admin, workspace }),
     optionalContext({
       fallback: [],
@@ -624,20 +631,9 @@ export async function buildOrgAgentPromptContext(args: {
           workspaceId,
         }),
     }),
-    optionalContext({
-      fallback:
-        "unavailable=true; do not assume there is no prepared Role profile example set",
-      label: "prepared_role_profile_examples",
-      task: () =>
-        fetchCompanyRoleCalibrationPromptIndex({
-          admin: args.admin,
-          preferredRoleId: args.conversation.role_id,
-          workspaceId,
-        }),
-    }),
     optionalContext({fallback:null,label:"matching_runs",
       onError:()=>notes.push("matching run history unavailable; do not infer that no searches ran"),
-      task:()=>readMatchingRunHistory({admin:args.admin,workspaceId,limit:5})}),
+      task:()=>readMatchingRunHistory({admin:args.admin,workspaceId,user:args.user,limit:5})}),
   ]);
   const inProgressRoleCreationsText =
     scope.kind === "slack"
@@ -649,6 +645,7 @@ export async function buildOrgAgentPromptContext(args: {
             formatInProgressSlackRoleCreations({
               admin: args.admin as ReturnType<typeof getSupabaseAdmin>,
               workspaceId,
+              user: args.user,
             }),
         })
       : "-";
@@ -695,11 +692,12 @@ export async function buildOrgAgentPromptContext(args: {
         );
         retainedMoreData = await getOrgAgentMoreData({
           admin: args.admin,
+          user: args.user,
           fullTextKeys: companyDetailsActivation?.fullTextKeys ?? [],
           kinds: [...new Set([
             ...activations.map((activation) => activation.kind),
             ...(args.initialDataKinds ?? []),
-          ])],
+          ])].filter(kind => access.scope !== "team" || kind !== "workspace_memory"),
           workspaceId,
         });
       }
@@ -731,7 +729,19 @@ export async function buildOrgAgentPromptContext(args: {
     );
   }
   return enforceOrgAgentContextBudget({
-    calibrationsText,
+    accessText: [
+      `현재 팀원: ${args.user.user_metadata?.name || args.user.email || args.user.id}`,
+      `권한: ${access.authority}`,
+      `배정 팀: ${access.teamNames.join(", ") || "없음"}`,
+      access.audienceRestricted
+        ? "이 공유 대화의 팀 범위로 Role 조회와 설명을 제한한다. 이는 작성자 계정의 팀 배정을 바꾸지 않는다."
+        : access.scope === "organization"
+        ? "접근 범위: Organization의 모든 팀과 Role."
+        : "접근 범위: 배정된 팀의 Role만. 아래 Role 목록과 조회 도구는 이 범위로 제한된다. 목록 밖 Role의 존재나 내용을 추측하지 않는다.",
+      "팀은 Role 접근 범위만 정한다. 슬롯·Intro·결제는 Organization에서 함께 관리한다.",
+      "팀 생성·이름 변경·삭제와 팀원·Role 배정, 접근 범위 변경은 Owner만 관리한다. Admin은 허용된 Role을 관리하고 Viewer는 조회한다.",
+      ...(access.scope === "team" ? ["Organization 공용 메모에는 다른 Role의 맥락이 섞일 수 있어 제공하지 않는다. 배정된 Role의 메모를 사용한다."] : []),
+    ].join("\n"),
     companyText: formatOrgAgentCompanyContext({
       companyDetailsAvailable: availability.companyDetailsAvailable,
       companyName: workspace.companyName,

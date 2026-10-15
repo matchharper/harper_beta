@@ -7,14 +7,10 @@ import {
   requireInternalWorkerSecret,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import {
-  sendHarperSlackThreadReply,
-  sendHarperWorkspaceSlackMessage,
-} from "@/lib/org/slackHarper";
-import { getCompanyTalentRelaySlackDestination } from "@/lib/companyTalentRequests/slackDelivery";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
@@ -43,7 +39,7 @@ export async function POST(req: NextRequest) {
       admin.from("company_talent_requests" as any) as any
     )
       .select(
-        "id, company_workspace_id, role_id, recommendation_id, talent_id, workflow_status, role:company_roles(name), source_message:company_messages!company_talent_requests_source_company_message_id_fkey(conversation_id, slack_thread_id), deliveries:contact_queue(payload, type)"
+        "id, company_workspace_id, role_id, recommendation_id, talent_id, talent_source_message_id, talent_response, document_id, workflow_status, role:company_roles(name), source_message:company_messages!company_talent_requests_source_company_message_id_fkey(conversation_id, slack_thread_id), deliveries:contact_queue(payload, type)"
       )
       .eq("id", requestId)
       .maybeSingle();
@@ -100,44 +96,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    let slackMessageTs: string | null = null;
-    let slackBotUserId: string | null = null;
-    const sourceMessage = Array.isArray(request.source_message)
-      ? request.source_message[0]
-      : request.source_message;
-    const slackDestination = getCompanyTalentRelaySlackDestination(
-      sourceMessage?.slack_thread_id
-    );
-    if (slackDestination.kind === "thread") {
-      const posted = await sendHarperSlackThreadReply({
-        idempotencyKey: request.id,
-        text: relayBody,
-        threadId: slackDestination.threadId,
-        workspaceId: request.company_workspace_id,
-      });
-      slackMessageTs = posted.slackMessageTs;
-      slackBotUserId = posted.botUserId;
-    } else {
-      await sendHarperWorkspaceSlackMessage({
-        idempotencyKey: request.id,
-        recordConversationMessage: false,
-        roleId: request.role_id,
-        text: relayBody,
-        workspaceId: request.company_workspace_id,
-      });
-    }
-
-    const { data: finalized, error: finalizeError } = await (admin.rpc as any)(
-      "finalize_company_talent_delivery_v1",
-      {
-        p_request_id: request.id,
-        p_slack_bot_user_id: slackBotUserId,
-        p_slack_message_ts: slackMessageTs,
-      }
-    );
-    if (finalizeError) throw finalizeError;
-    await mirrorRelayToRoleConversation({ admin, relayBody, request });
-    return NextResponse.json({ ok: true, result: finalized });
+    const { data: relay, error: relayError } = await (admin.rpc as any)("create_company_talent_relay_v1", {
+      p_request_id: request.id, p_talent_id: request.talent_id,
+      p_source_message_id: request.talent_source_message_id,
+      p_relay_content: request.talent_response,
+      p_document_id: request.document_id,
+    });
+    if (relayError) throw relayError;
+    if (!relay?.id) throw new Error("Candidate relay conversion failed");
+    return NextResponse.json(await deliverCompanyTalentRelay({ admin, relayId: relay.id, requestId }));
   } catch (error) {
     return toInternalApiErrorResponse(
       error,

@@ -1,0 +1,226 @@
+{
+  "contact_queue.onboarding_questions.additional_question_one": {
+    "ko": "프로필만 봐서는 잘 드러나지 않지만, 제가 꼭 알아두면 좋을 강점이나 맥락이 있을까요?",
+    "en": "Is there a strength or background that doesn't show clearly in your profile but would be important for me to know?"
+  },
+  "contact_queue.onboarding_questions.additional_question_two": {
+    "ko": "앞으로 기회를 볼 때 제가 특히 조심해서 걸러야 할 기준이 있을까요?",
+    "en": "Are there any criteria I should be especially careful to filter out when looking at future opportunities?"
+  },
+  "contact_queue.onboarding_questions.compensation": {
+    "ko": "다음 기회를 볼 때 최소로 기대하시는 보상 기준이 있으신가요?",
+    "en": "Do you have a minimum compensation expectation for your next opportunity?"
+  },
+  "contact_queue.onboarding_questions.deal_breakers": {
+    "ko": "아무리 좋아 보여도 피하고 싶은 조건이나 역할이 있으신가요?",
+    "en": "Are there any roles, company types, or conditions you'd want to avoid, even if the opportunity looks good otherwise?"
+  },
+  "contact_queue.onboarding_questions.final_priority_confirmation": {
+    "ko": "마지막으로, 지금 기준에서 가장 중요한 우선순위 1~2가지만 꼽으면 무엇인가요?",
+    "en": "Finally, what are the top one or two priorities for you right now?"
+  },
+  "contact_queue.onboarding_questions.language": {
+    "ko": "영어 또는 외국어로 회의나 협업을 하는 데 어느 정도 익숙하신가요?",
+    "en": "How comfortable are you with meetings or collaboration in English or another foreign language?"
+  },
+  "contact_queue.onboarding_questions.location": {
+    "ko": "선호하시는 근무 지역이나 원격/하이브리드 조건이 있으신가요?",
+    "en": "Do you have any preferred work locations or remote/hybrid work preferences I should know about?"
+  },
+  "contact_queue.onboarding_questions.must_haves": {
+    "ko": "앞서 말씀하신 것과 별개로, 다음 기회를 연결받을 때 꼭 반영됐으면 하는 조건이 있으신가요?",
+    "en": "Aside from what you've already mentioned, is there anything I should definitely consider when finding your next opportunity?"
+  },
+  "contact_queue.onboarding_questions.next_scope": {
+    "ko": "다음 역할에서는 어떤 범위의 일을 가장 하고 싶으신가요?",
+    "en": "What kind of work or responsibilities do you most want in your next role?"
+  },
+  "contact_queue.onboarding_questions.search_intensity": {
+    "ko": "지금은 이직이나 새로운 기회에 어느 정도로 열려 있으신가요?",
+    "en": "How actively are you currently open to moving or exploring new opportunities?"
+  },
+  "contact_queue.onboarding_questions.team_style_fit": {
+    "ko": "어떤 스타일의 회사나 팀에서 가장 잘 맞는다고 느끼시나요?",
+    "en": "What kind of company or team environment do you feel suits you best?"
+  },
+  "contact_queue.profile_prompt.language_rule": {
+    "ko": "한국어 존댓말로 쓴다.",
+    "en": "Write in English."
+  },
+  "contact_queue.connection_confirmed_body": {
+    "ko": "{name}님, 안녕하세요. Harper입니다.\n\n{company} · {position} 연결이 확정되었습니다. Harper가 회원님의 프로필과 추천 사유를 {company}에 직접 소개합니다.\n\n회사가 검토 후 진행을 결정하면 초기 인터뷰(Initial Call) 일정 조율 메일이 도착합니다. 빠르면 오늘 중에 올 수도 있어요. 검토 결과에 따라 진행되지 않을 수도 있으며, 그 경우에도 결과를 알려드리고 더 잘 맞는 기회를 계속 찾아드릴게요.\n\n메일이 도착하면 편한 시간으로 일정만 잡아주세요. 빠른 응답과 약속된 인터뷰 참석은 회사들이 Harper를 특별히 신뢰하는 이유이며, 회원님의 응답과 참여 이력은 이후 기회 매칭에도 반영됩니다.\n\n혹시 진행이 어려우신가요?\n\nHarper는 서로의 시간을 존중하는 멤버들의 커뮤니티입니다. 일정이 맞지 않거나, 다른 기회와 진행 중이시라면 지금 알려주세요. 취소 사실은 회사에 전달되지 않고, 회원님의 상황을 알수록 다음에 더 맞는 기회를 찾아드릴 수 있어요.\n\n혹시 중단하시고 싶다면 현재 이메일로 답장해주세요. 별도 답장이 없으면 예정대로 진행됩니다.\n\n궁금한 점이 있으면 이 메일에 바로 회신 주세요.\n\nHarper 드림",
+    "en": "Hi {name},\n\nYour connection with {company} · {position} is confirmed. Harper is personally introducing you to {company}, sharing your profile and why you're a great fit.\n\nOnce {company} reviews and decides to move forward, you'll receive an email from them to schedule your initial call, possibly as early as today. Depending on their review, this opportunity may not proceed. If so, we'll let you know and keep finding you a better fit.\n\nWhen the email arrives, just pick a time that works for you. Prompt responses and showing up to confirmed interviews are why companies place special trust in Harper, and your participation history shapes your future matching.\n\nNot able to proceed?\n\nHarper is a community of members who respect each other's time. If the timing isn't right or you're in the middle of another process, please tell us now. The company never hears about it, and knowing your situation helps us find you a better fit next time.\n\nIf you'd like to stop, just reply to this email. Unless we hear from you, we'll proceed as planned.\n\nQuestions? Just reply to this email.\n\nHarper"
+  },
+  "contact_queue.connection_confirmed_section_heading": {
+    "ko": "혹시 진행이 어려우신가요?",
+    "en": "Not able to proceed?"
+  },
+  "contact_queue.connection_confirmed_subject": {
+    "ko": "[Harper] {company} 연결이 확정되었습니다. 다음 단계를 안내드려요",
+    "en": "[Harper] {company} will reach out soon to schedule your interview"
+  },
+  "contact_queue.candidate_role_changed_subject": {
+    "ko": "[Harper] {company} 진행 포지션이 변경되었습니다",
+    "en": "[Harper] Your role with {company} has changed"
+  },
+  "contact_queue.candidate_role_changed_body": {
+    "ko": "{name}님, 안녕하세요.\n\n{company}에서 진행 중인 포지션이 변경됐어요.\n\n기존: {source_role}\n변경: {target_role}\n\n안내받은 내용과 다르거나 확인이 필요하다면 이 메일에 답장하거나 Harper에 알려 주세요.\n좋은 기회가 되시길 바라겠습니다.\n\n{cta}\n\nHarper 드림",
+    "en": "Hi {name},\n\nThe role you're moving forward with at {company} has changed.\n\nPrevious: {source_role}\nNew: {target_role}\n\nIf this differs from what you were told or if anything needs clarification, please reply to this email or let Harper know.\nWe hope this becomes a great opportunity for you.\n\n{cta}\n\nHarper"
+  },
+  "contact_queue.candidate_role_changed_cta": {
+    "ko": "{target_role} 내용 확인하기",
+    "en": "View {target_role}"
+  },
+  "contact_queue.signup_body": {
+    "ko": "{greeting}\n\n가입은 해주셨지만 아직 프로필을 제출하지 않으셔서 짧게 리마인드만 연락드려요.\n\n편하신 시간에 접속하신 뒤 링크드인 혹은 이력서 등을 알려주시면, 제가 {member_label}의 정보를 볼 수 있어요.\n\n제출해주신 뒤에는 저랑 가볍게 5분 정도 통화 혹은 채팅으로 선호하시는 것들에 대해서 알려주시면, 앞으로 선호하실 만한 기회를 계속 연결해드릴게요.\n\n여기서 이어서 하실 수 있어요:[커리어 인터뷰 이어가기]({onboarding_link})\n\n당장은 아니고, 나중에 언제든 돌아오셔도 괜찮아요.\n\n이 건으로 추가로 연락드리지는 않을게요. 편하실 때 이어서 와주세요. 기다리고 있겠습니다.\n\n감사합니다.\nHarper 드림",
+    "en": "{greeting}\n\nI noticed you signed up but have not submitted your profile yet, so I wanted to send one short reminder.\n\nWhen you have a moment, please share your LinkedIn, resume, or other profile details so I can understand {member_label} as a candidate.\n\nAfter that, a few quick career questions by call or chat will help me keep sending opportunities that are closer to what you actually want.\n\nYou can continue here:\n[Continue career interview]({onboarding_link})\n\nNo rush. You can come back whenever it is convenient.\n\nI will not keep following up about this. Come back when you are ready, and I will pick it up from there.\n\nBest regards,\nHarper"
+  },
+  "contact_queue.profile_auto_completed_body": {
+    "ko": "{greeting}\n\n가입 후 커리어 인터뷰에 참여해주셔서 감사합니다. 이미 충분히 많은 정보를 알려주셨고, 제가 질문을 조금 많이 드렸던 것 같아요. 커리어 인터뷰는 완료하신 것으로 처리했습니다. 곧 첫 번째 기회 안내 메일이 발송될 예정입니다.\n\n{member_label}의 편의를 위해 한 가지만 여쭤볼게요. Harper는 커리어를 돕는 에이전트로서, Harper에 인재를 요청한 회사와 {member_label}이 바로 연결될 수 있도록 돕습니다. 추가로 적극적으로 이직을 탐색하시는 분들을 위해 직접 지원하실 수 있는 외부 오픈 포지션도 찾아서 전달드려요.\n\n앞으로 제가 주기적으로 좋은 외부 기회까지 찾아서 메일로 알려드릴까요, 아니면 제가 연결 가능한 Harper 내부 기회가 있을 때만 연락드릴까요?\n\n사이트에 접속 후 알려주시거나, 혹은 현재 메일에 편하게 \"내부 기회만 연결해주세요\"와 같이 답장만 해주셔도 제가 반영하겠습니다.\n\n감사합니다.\nHarper 드림\n\n[Harper 접속하기](https://matchharper.com/career)",
+    "en": "{greeting}\n\nThanks for taking part in the career interview after signing up. You have already shared enough useful context, and I may have asked a few too many questions. I have marked the interview as complete, and your first opportunity update will be sent soon.\n\nI have one quick preference question for {member_label}. Harper is a career agent that helps connect you directly with companies that ask Harper for talent. For people actively exploring a move, I can also look for strong external open roles that you can apply to directly.\n\nWould you like me to periodically email you good external opportunities too, or would you prefer that I only contact you when there is a Harper-connected opportunity I can help with?\n\nYou can simply reply to this email.\n\nThanks,\nHarper\n\n[Open Harper](https://matchharper.com/career)"
+  },
+  "contact_queue.subjects.profile_auto_completed_onboarding": {
+    "ko": "커리어 인터뷰를 완료 처리했습니다",
+    "en": "Your career interview is complete"
+  },
+  "contact_queue.subjects.profile_partial_onboarding": {
+    "ko": "함께해주셔서 감사합니다. 몇가지 질문만 남았어요.",
+    "en": "Thank you for joining. Just a few questions left."
+  },
+  "contact_queue.subjects.profile_submitted_no_answer": {
+    "ko": "프로필을 확인했습니다. 5분만 대화 가능하신가요?",
+    "en": "I've reviewed your profile. Can we have a quick 5-minute chat?"
+  },
+  "contact_queue.subjects.signup_no_profile": {
+    "ko": "Harper: 가입해주셔서 감사합니다.",
+    "en": "Harper: Thank you for signing up."
+  },
+  "email_onboarding.ack_saved_preferences.both": {
+    "ko": "관심 있는 기회 형태와 회사에 소개하는 방식은 그렇게 기억해둘게요.",
+    "en": "I've saved your preferences for opportunity types and how you want to be introduced to companies."
+  },
+  "email_onboarding.ack_saved_preferences.engagement_types": {
+    "ko": "관심 있는 기회 형태는 그렇게 기억해둘게요.",
+    "en": "I will remember those opportunity types."
+  },
+  "email_onboarding.ack_saved_preferences.profile_visibility": {
+    "ko": "프로필을 회사에 제안하는 방식은 그렇게 기억해둘게요.",
+    "en": "I'll remember how you'd like me to present your profile to companies."
+  },
+  "email_onboarding.additional_material_received": {
+    "ko": "추가 자료도 받았어요. 같이 반영해서 확인해볼게요.{suffix}",
+    "en": "I've received the additional materials and will include them in my review.{suffix}"
+  },
+  "email_onboarding.engagement_types_question": {
+    "ko": "그리고 어떤 형태의 기회까지 열어두면 좋을지도 알려주세요.\n\n풀타임 합류, 현업과 병행하는 파트타임/프로젝트, 가벼운 기술 자문 중 관심 있는 것만 적어주시면 됩니다. 여러 개 골라도 괜찮아요.",
+    "en": "Also, please let me know which types of opportunities you'd like to keep open.\n\nYou can choose from full-time roles, part-time or project work alongside your current job, or light technical advisory work. Feel free to select any that interest you."
+  },
+  "email_onboarding.email_first_missing_field.current_location": {
+    "ko": "현재 계신 지역",
+    "en": "Current location"
+  },
+  "email_onboarding.email_first_missing_field.engagement_types": {
+    "ko": "어떤 기회에 열려있으신지",
+    "en": "What types of opportunities you are open to"
+  },
+  "email_onboarding.email_first_missing_field.name": {
+    "ko": "이름",
+    "en": "Name"
+  },
+  "email_onboarding.email_first_missing_field.profile_material": {
+    "ko": "이력서 또는 LinkedIn URL",
+    "en": "Resume or LinkedIn URL"
+  },
+  "email_onboarding.email_first_missing_fields_intro": {
+    "ko": "안녕하세요! 보내주신 내용 확인했어요. 감사합니다.\n\n시작하려면 아래 정보가 조금 더 필요해요.",
+    "en": "Hi, I reviewed what you sent.\n\nI just need a little more information to get started."
+  },
+  "email_onboarding.email_first_missing_fields_outro": {
+    "ko": "이 메일에 그대로 답장으로 보내주시면 이어서 확인할게요.",
+    "en": "You can reply directly to this email and I will continue from there."
+  },
+  "email_onboarding.materials_received": {
+    "ko": "자료 받았어요. 감사합니다.\n\n지금 바로 읽어보고, 제가 이해한 핵심과 다음 액션을 정리해서 몇 분 안에 다시 메일드릴게요.{extra}",
+    "en": "I received the materials. Thank you.\n\nI will review them now and follow up in a few minutes with the key points and next steps.{extra}"
+  },
+  "email_onboarding.missing_followup_both": {
+    "ko": "그리고 다음 두 가지만 짧게 알려주세요.\n\n- 회사에 소개하는 방식: 잘 맞으면 익명으로 먼저 제안해도 괜찮은지, 아니면 먼저 확인한 기회만 회사와 이야기하고 싶은지\n- 열려 있는 기회 형태: 풀타임 합류, 현업과 병행하는 파트타임/프로젝트, 기술 자문 중 어디까지 열어둘지\n\n짧게 \"익명 제안 괜찮고, 파트타임/자문 위주요\"처럼 답해주셔도 됩니다.",
+    "en": "Please briefly answer these two questions:\n\n- How should I introduce you to companies: Is it okay to first share an anonymous summary if there's a good fit, or would you prefer to review each opportunity before I talk to a company?\n- Which types of opportunities are you open to: full-time roles, part-time/project work, or technical advisory?\n\nA short reply like \"anonymous first is fine, mostly part-time/advisory\" works perfectly."
+  },
+  "email_onboarding.profile_request_body": {
+    "ko": "{greeting}\n\n제가 {profile_target} 제대로 이해하고, 안 맞는 제안을 걸러내려면 최소한 링크드인이나 이력서 중 하나가 필요해요. 회사에 아무 자료나 넘기려는 용도가 아니라, 어떤 기회를 보내드리면 좋을지 판단하기 위한 기준으로만 볼게요.\n\n가능하시면 링크드인/이력서 중 하나를 보내주세요. 이력서는 PDF로 첨부해도 괜찮고, GitHub, 개인 페이지, Google Scholar, 논문이나 프로젝트 링크처럼 도움이 될 만한 자료도 같이 주시면 더 정확하게 볼 수 있습니다.",
+    "en": "{greeting}\n\nTo understand {profile_target} properly and avoid sending you unsuitable opportunities, I need at least one profile source like LinkedIn or a resume. I will only use it to decide what opportunities to share with you, not to pass anything along without your permission.\n\nWhenever you can, please send me a LinkedIn URL or resume. A PDF attachment is fine, and links to GitHub, personal sites, Google Scholar, papers, or projects are also helpful."
+  },
+  "email_onboarding.profile_request_greeting_after_visibility": {
+    "ko": "좋아요. 이어서 필요한 자료만 확인할게요 :)",
+    "en": "Great. I just need one profile source next."
+  },
+  "email_onboarding.profile_request_greeting_default": {
+    "ko": "좋아요. 그럼 너무 무겁지 않게, 먼저 두 가지만 확인할게요 :)",
+    "en": "Great. To keep this simple, I just need two things first."
+  },
+  "email_onboarding.profile_request_greeting_with_ack": {
+    "ko": "좋아요. {acknowledgement} :)",
+    "en": "Great. {acknowledgement} :)"
+  },
+  "email_onboarding.profile_visibility_question": {
+    "ko": "마지막으로, 나중에 회사에 소개할 때 어느 쪽이 더 편하신지도 알려주세요.\n\n1. 잘 맞는 기회라면 Harper가 필요한 정보만 익명으로 먼저 제안해도 괜찮아요.\n2. 먼저 저에게 보여주고, 제가 괜찮다고 한 기회만 회사와 이야기하고 싶어요.\n\n번호로 답해주셔도 되고, 편한 말로 적어주셔도 됩니다.",
+    "en": "Finally, please let me know how you'd prefer me to handle introductions to companies later.\n\n1. If an opportunity seems like a great fit, I can first share only limited, anonymous details.\n2. I should show you the opportunity first and only reach out to the company after you approve.\n\nYou can reply with the number or just write your preference in your own words."
+  },
+  "email_onboarding.review_pending": {
+    "ko": "지금 자료를 확인하고 있습니다. 정리되는 대로 바로 이어서 메일드릴게요.",
+    "en": "I'm reviewing the materials now and will get back to you as soon as I have a summary ready."
+  },
+  "email_onboarding.stop": {
+    "ko": "알겠습니다. 더 이상 이 흐름으로 메일드리지 않겠습니다.\n\n나중에 다시 시작하고 싶으시면 이 메일에 편하게 답장 주세요.",
+    "en": "Understood. I won't send any more emails in this onboarding sequence.\n\nIf you want to start again later, just reply to this email."
+  },
+  "review_onboarding.email_first_fallback_body": {
+    "ko": "안녕하세요 {name_label}! 보내주신 정보 전부 잘 확인했어요.\n\n제가 {name_label}의 커리어에 도움이 될 수 있는 기회들을 많이 찾아올게요.\n\n그걸 위해서 앞서 말씀드린 것처럼 어떤걸 선호하시는지, 제가 어떤 기회를 연결해드리는걸 원하시는지 가볍게 5분 동안 대화를 나눠본 뒤 시작할게요. 당장 하실 필요는 없고, 편하실 때 이어나가주세요.\n\n평가가 아니라 {name_label}을 위해 필요한 정보를 여쭤보는 자리라 부담없이 참여해주셔도 좋습니다!\n\n아래 링크로 접속하셔서 회원가입 후 이어나가시죠.\n\n{continue_url}\n\n감사합니다.",
+    "en": "Hi {name_label}, I reviewed everything you sent.\n\nI will look for opportunities that could be genuinely helpful for your career.\n\nTo do that, as I mentioned earlier, I would like to spend about 5 minutes talking through what you prefer and what kinds of opportunities you would like me to connect you with. You do not have to do it right away. Continue whenever it is convenient.\n\nThis is not an evaluation. I am only asking for the information I need to work better on your behalf, so you can answer comfortably.\n\nOpen the link below, sign up, and continue from there.\n\n{continue_url}\n\nBest,\nHarper"
+  },
+  "review_onboarding.email_first_subject": {
+    "ko": "{name_prefix}함께하게 되어서 반갑습니다. 잠깐 대화로 어떤 기회들을 선호하시는지 알려주실 수 있나요?",
+    "en": "{name_prefix}I'm glad you're here. Could you share what kinds of opportunities you prefer?"
+  },
+  "review_onboarding.profile_ingestion_failed_subject": {
+    "ko": "{name_prefix}자료를 다시 확인하고 싶어요",
+    "en": "{name_prefix}I'd like to check your materials again"
+  },
+  "review_onboarding.profile_ingestion_failed_body": {
+    "ko": "안녕하세요 {name_label}, 보내주신 답장 확인했어요.\n\n다만 첨부해주신 이력서나 링크에서 프로필 내용을 읽는데 문제가 있었습니다. 이력서 파일이나 LinkedIn URL을 이 메일에 다시 보내주시면 바로 이어서 확인할게요. 번거롭게 해드려 죄송합니다.\n\n메일 답장 대신 아래 링크로 접속해서 이어가셔도 됩니다.\n\n{continue_url}\n\n감사합니다.\nHarper 드림",
+    "en": "Hi {name_label}, I reviewed your reply.\n\nI had trouble reading the profile details from the resume or links you sent. If you can reply with the resume file or LinkedIn URL again, I will review it and continue from there. Sorry for the extra step.\n\nIf replying by email is inconvenient, you can also continue through this link:\n\n{continue_url}\n\nBest,\nHarper"
+  },
+  "review_onboarding.language_name": {
+    "ko": "Korean",
+    "en": "English"
+  },
+  "runtime.email_first_complete": {
+    "ko": "안녕하세요 {nameLabel}, 정보를 공유해 주셔서 감사합니다.\n\n이제 제가 선호하실 만한 기회들을 찾아보고, 인재 연결을 요청한 회사 중 괜찮은 곳이 있으면 직접 자연스러운 소개 및 연결까지 해드릴게요.\n\n대신 좋은 기회들을 더 잘 연결해드리기 위해서, 어떤 기회를 선호하시는지, 특별한 기준이 있으신지 등을 여쭤보고 싶어요.\n또 일반적으로 연결에 필요한 사항들을 가볍게 질문드릴게요. 대답에 고민이 필요한 질문이 아닌 선호 및 기준을 파악하기 위한 가벼운 질문들이니, 편하신 상태로 언제든 진행해주세요.\n보통 5분 정도면 충분합니다. 아래 링크로 접속하셔서 회원가입 또는 로그인 후 이어나가주세요!\n\n{continueUrl}\n\n대화 내용은 안전하게 보호되며, 오직 {nameLabel}의 더 나은 커리어 기회를 찾는 데에만 활용됩니다.\n\n감사합니다.\nHarper 드림",
+    "en": "Hi {nameLabel}, thank you for sharing your information.\n\nI will now start looking for opportunities you may prefer. If a company that has asked Harper to connect with talent seems like a good fit, I can also help make a natural introduction.\n\nTo connect you with better opportunities, I would like to ask a few light questions about what kinds of opportunities you prefer and whether you have any specific criteria.\nI will also ask a few general questions that are usually needed for introductions. These are not questions you need to prepare for or overthink. They are light questions to understand your preferences and criteria, so feel free to continue whenever you are comfortable.\nIt usually takes about five minutes. Open the link below, sign up or log in, and continue from there.\n\n{continueUrl}\n\nYour conversation is protected and used only to help find better career opportunities for you.\n\nBest,\nHarper"
+  },
+  "runtime.profile_ingestion_failed": {
+    "ko": "안녕하세요 {nameLabel}, 보내주신 답장 확인했어요.\n\n다만 첨부해주신 이력서나 링크에서 프로필 내용을 읽는데 문제가 있었습니다. 이력서 파일이나 LinkedIn URL을 이 메일에 다시 보내주시면 바로 이어서 확인할게요. 번거롭게 해드려 죄송합니다.\n\n메일 답장 대신 아래 링크로 접속해서 이어가셔도 됩니다.\n\n{continueUrl}\n\n감사합니다.\nHarper 드림",
+    "en": "Hi {nameLabel}, I reviewed your reply.\n\nI had trouble reading the profile details from the resume or links you sent. If you can reply with the resume file or LinkedIn URL again, I will review it and continue from there. Sorry for the extra step.\n\nIf replying by email is inconvenient, you can also continue through this link:\n\n{continueUrl}\n\nBest,\nHarper"
+  },
+  "runtime.review_pending": {
+    "ko": "지금 자료를 확인하고 있습니다. 정리되는 대로 바로 이어서 메일드릴게요.",
+    "en": "I'm reviewing the materials now and will get back to you as soon as I have a summary ready."
+  },
+  "runtime.paused": {
+    "ko": "알겠습니다. 더 이상 이 흐름으로 메일드리지 않겠습니다.\n\n나중에 다시 시작하고 싶으시면 이 메일에 편하게 답장 주세요.",
+    "en": "Understood. I won't send any more emails in this onboarding sequence.\n\nIf you want to start again later, just reply to this email."
+  },
+  "runtime.referral_candidate": {
+    "ko": "안녕하세요, {candidateName}님.\n\n{referrerName}님이 후보자님께 Harper가 도움이 될 수 있다고 생각해 이 이메일 주소를 소개해주셨습니다.\nHarper는 후보자 편에서 커리어 기회를 검토하고, 적합한 회사와의 연결을 도와드리는 서비스입니다.\n\n아직 Harper는 후보자님의 채용 프로필을 만들거나 회사에 정보를 공유하지 않았습니다. 원하실 때만 Harper 이용을 시작하시면 됩니다.\n\n받은 정보: 이름/이메일 주소, 추천인이 작성한 소개 내용, 이메일 제목/본문/수신자 정보\n사용 목적: 소개 출처 안내, Harper 이용 동의 확인, 중복 추천 방지\n\nHarper를 이용해보고 싶으시면 여기에서 시작해주세요: {baseUrl}/career_login?source=referral_intro\n소개를 원하지 않으시면 이 메일에 답장하시거나 privacy@matchharper.com 으로 알려주세요. 그러면 재연락 방지를 위한 최소 정보 외에는 삭제하겠습니다.\n\n추천인은 Harper 추천 프로그램을 통해 보상을 받을 수 있습니다. 보상 여부는 후보자님의 채용 결과와 Harper의 지급 조건에 따라 결정되며, 후보자님에게 비용이 청구되지 않습니다.\n\n추천인이 남긴 소개 내용:\n{introExcerpt}\n\nHarper team",
+    "en": "안녕하세요, {candidateName}님.\n\n{referrerName}님이 후보자님께 Harper가 도움이 될 수 있다고 생각해 이 이메일 주소를 소개해주셨습니다.\nHarper는 후보자 편에서 커리어 기회를 검토하고, 적합한 회사와의 연결을 도와드리는 서비스입니다.\n\n아직 Harper는 후보자님의 채용 프로필을 만들거나 회사에 정보를 공유하지 않았습니다. 원하실 때만 Harper 이용을 시작하시면 됩니다.\n\n받은 정보: 이름/이메일 주소, 추천인이 작성한 소개 내용, 이메일 제목/본문/수신자 정보\n사용 목적: 소개 출처 안내, Harper 이용 동의 확인, 중복 추천 방지\n\nHarper를 이용해보고 싶으시면 여기에서 시작해주세요: {baseUrl}/career_login?source=referral_intro\n소개를 원하지 않으시면 이 메일에 답장하시거나 privacy@matchharper.com 으로 알려주세요. 그러면 재연락 방지를 위한 최소 정보 외에는 삭제하겠습니다.\n\n추천인은 Harper 추천 프로그램을 통해 보상을 받을 수 있습니다. 보상 여부는 후보자님의 채용 결과와 Harper의 지급 조건에 따라 결정되며, 후보자님에게 비용이 청구되지 않습니다.\n\n추천인이 남긴 소개 내용:\n{introExcerpt}\n\nHarper team"
+  },
+  "runtime.referral_ack": {
+    "ko": "안녕하세요.\n\n{candidateName}님 소개를 받았습니다. Harper는 후보자님의 동의를 먼저 확인한 뒤에만 프로필 검토, 기회 추천, 고객사 공유를 진행합니다.\n\n현재 상태: 후보자 동의 대기\n\n후보자님의 개인정보 보호를 위해 상세 진행 상황은 제한적으로만 안내됩니다. 보상 대상 여부가 확정되면 이메일 또는 dashboard로 알려드리겠습니다.\n\n감사합니다.\nHarper team",
+    "en": "안녕하세요.\n\n{candidateName}님 소개를 받았습니다. Harper는 후보자님의 동의를 먼저 확인한 뒤에만 프로필 검토, 기회 추천, 고객사 공유를 진행합니다.\n\n현재 상태: 후보자 동의 대기\n\n후보자님의 개인정보 보호를 위해 상세 진행 상황은 제한적으로만 안내됩니다. 보상 대상 여부가 확정되면 이메일 또는 dashboard로 알려드리겠습니다.\n\n감사합니다.\nHarper team"
+  },
+  "company_talent_request.email_career_cta": {
+    "ko": "Harper에서 답하기",
+    "en": "Reply in Harper"
+  }
+}

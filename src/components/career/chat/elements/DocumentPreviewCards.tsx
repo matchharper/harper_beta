@@ -28,11 +28,7 @@ export function DocumentPreviewCards({
             <span className="block break-words text-sm font-medium text-neutral-primary">
               {document.title}
             </span>
-            <span className="block text-xs font-normal text-neutral-muted">
-              {t("career.chat.documents.open", "문서 열기 · 복사 및 내보내기")}
-            </span>
           </span>
-          <ArrowUpRight className="h-4 w-4 shrink-0 text-neutral-primary" />
         </CardButton>
       ))}
     </div>

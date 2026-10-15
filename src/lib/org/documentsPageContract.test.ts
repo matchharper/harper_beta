@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { COMPANY_SERVICE_FAQ_ITEMS } from "./serviceFaq";
+import { ko } from "@/i18n/org/ko";
+import { en } from "@/i18n/org/en";
 
 const page = readFileSync(
   new URL(
@@ -21,6 +24,10 @@ const content = readFileSync(
   new URL("../../content/org-documents.md", import.meta.url),
   "utf8"
 );
+const englishContent = readFileSync(
+  new URL("../../content/org-documents.en.md", import.meta.url),
+  "utf8"
+);
 const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
 const sidebar = readFileSync(
   new URL(
@@ -29,6 +36,11 @@ const sidebar = readFileSync(
   ),
   "utf8"
 );
+
+const documentDestinations = (body: string) =>
+  [...body.matchAll(/^(#{1,3})\s+.+?<!-- id: ([\w-]+) -->$/gm)].map(
+    ([, heading, id]) => ({ id, level: heading.length })
+  );
 
 test("Documents exposes every user-facing primary section", () => {
   for (const sectionId of [
@@ -40,6 +52,10 @@ test("Documents exposes every user-facing primary section", () => {
     "accept-or-decline",
     "ask-harper",
     "pipeline",
+    "company-and-team",
+    "candidate-search",
+    "slots-and-credits",
+    "public-job-visibility",
   ]) {
     assert.match(content, new RegExp(`<!-- id: ${sectionId} -->`));
   }
@@ -47,9 +63,54 @@ test("Documents exposes every user-facing primary section", () => {
   assert.doesNotMatch(content, /privacy|개인정보|구현 범위|server-side/i);
 });
 
+test("Korean and English Documents preserve the same navigation destinations", () => {
+  const koreanHeadings = documentDestinations(content);
+  const englishHeadings = documentDestinations(englishContent);
+
+  assert.deepEqual(koreanHeadings, englishHeadings);
+  assert.equal(
+    new Set(koreanHeadings.map(({ id }) => id)).size,
+    koreanHeadings.length
+  );
+
+  for (const body of [content, englishContent]) {
+    const headingIds = new Set(documentDestinations(body).map(({ id }) => id));
+    for (const [, target] of body.matchAll(/\]\(#([^)]*)\)/g)) {
+      if (target.startsWith("org-")) {
+        assert.ok(
+          [
+            "company",
+            "members",
+            "slack",
+            "newRole",
+            "inbox",
+            "calendar",
+            "pipeline",
+          ].includes(target.slice(4)),
+          target
+        );
+      } else {
+        assert.ok(headingIds.has(target), target);
+      }
+    }
+  }
+});
+
+test("each canonical FAQ has synchronized Korean copy and an English translation", () => {
+  for (const item of COMPANY_SERVICE_FAQ_ITEMS) {
+    const questionKey = `faq.${item.key}.question` as keyof typeof ko;
+    const answerKey = `faq.${item.key}.answer` as keyof typeof ko;
+    assert.equal(ko[questionKey], item.question, questionKey);
+    assert.equal(ko[answerKey], item.answer, answerKey);
+    assert.ok(en[questionKey]?.trim(), questionKey);
+    assert.ok(en[answerKey]?.trim(), answerKey);
+    assert.notEqual(en[answerKey], ko[answerKey], answerKey);
+  }
+});
+
 test("Documents renders only the canonical Company FAQ collection", () => {
   assert.match(page, /import \{ COMPANY_SERVICE_FAQ_ITEMS \}/);
-  assert.match(page, /item\.showInDocuments !== false/);
+  assert.match(page, /item\.showInDocuments === false/);
   assert.match(page, /\.map\(\(item\) =>/);
   assert.doesNotMatch(page, /const FAQ_ITEMS =/);
   assert.doesNotMatch(page, /한 역할에 연결 대기 후보자가 5명 이상/);
@@ -77,7 +138,7 @@ test("Documents uses MuteButton actions and underlined inline navigation", () =>
   assert.match(markdownRenderer, /underline-offset-4/);
   assert.doesNotMatch(page, /<button/);
   assert.doesNotMatch(`${page}\n${markdownRenderer}`, /size="lg"/);
-  assert.match(markdownRenderer, /페이지 복사/);
+  assert.match(markdownRenderer, /섹션 복사/);
   assert.match(markdownRenderer, /size="md"/);
   assert.match(page, /navigator\.clipboard\.writeText/);
 });
@@ -95,10 +156,10 @@ test("Documents provides reusable callout, quote, example, and action formats", 
 
 test("the post-registration flow explains the company’s next steps", () => {
   assert.match(content, /화면을 계속 열어둘 필요는 없습니다/);
-  assert.match(content, /대화할 마음이 있는지 확인합니다/);
+  assert.match(content, /회사와 역할에 대한 설명을 듣고 대화해 볼 의사/);
   assert.match(content, /후보자는 회사의 답을 기다립니다/);
   assert.match(content, /Slack과 \[Inbox\]/);
-  assert.match(content, /관심이 없는 사람은 검토 목록에 들어오지 않습니다/);
+  assert.match(content, /후보자의 관심이나 지원 의사를 확정할 수는 없습니다/);
 });
 
 test("the introduction explains Harper's candidate introduction model", () => {
@@ -186,11 +247,16 @@ test("profile menu Documents items navigate explicitly", () => {
 });
 
 test("profile menus link to Calendar settings directly below Documents", () => {
-  const documentsItem = /Documents\s*<\/DropdownMenuItem>/g;
+  const documentsItem = /"Documents"\)\}\s*<\/DropdownMenuItem>/g;
   const calendarNavigation =
     /onSelect=\{\(\) => void router\.push\(calendarSettingsHref\)\}/g;
   assert.equal(sidebar.match(documentsItem)?.length, 2);
   assert.equal(sidebar.match(calendarNavigation)?.length, 2);
   assert.match(sidebar, /src="\/images\/logos\/calendar\.png"/);
-  assert.match(sidebar, /Documents\s*<\/DropdownMenuItem>[\s\S]*?일정 저장/);
+  assert.equal(
+    sidebar.match(
+      /"Documents"\)\}\s*<\/DropdownMenuItem>\s*<DropdownMenuItem\s+(?:variant="sm"\s+)?onSelect=\{\(\) => void router\.push\(calendarSettingsHref\)\}/g
+    )?.length,
+    2
+  );
 });

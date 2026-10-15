@@ -1,0 +1,12 @@
+{
+  "version": "inventory-v2",
+  "sourceFixtureVersion": "v1",
+  "provenance": "Same frozen invented source pages as v1. Gold adds all visible basic/application fields because user requested complete input/question inventory. Existing v1 gold is unchanged. Defined from source DOM before any inventory-v2 model run; no new runtime branch for a fixture.",
+  "frozenInputs": {
+    "cases-v1.json": "dfe439a257b523d0866fa801bd442f7173d796930a3a36c3c2dd7c18d3fc15c9",
+    "gold-v1.json": "5a7a5abdd5af268a5d0532d2603592448e285bec1c94ebd92f972ff46d241547",
+    "gold-inventory-v2.json": "4c6c5ec240ffb25f5fed7231b3873b8d270af2f13839527064d9c62655491022",
+    "fixtures/server-v1.cjs": "09d52b677ce4046c10bd9ea43a11e14ab76b396459bb5ec8911aea4a8d1b85ab"
+  },
+  "canonicalRunner": "scripts/evalApplicationFormInspection.ts"
+}

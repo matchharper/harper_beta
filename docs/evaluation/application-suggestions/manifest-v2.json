@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "v2",
+  "createdAt": "2026-10-13",
+  "provenance": "Assistant-authored synthetic fixtures; frozen before model execution. Existing v1 fixtures unchanged.",
+  "goldReview": "Assistant-authored, no independent human review.",
+  "privacy": "Synthetic data only; provider-only network; no DB, employer contact or actual submission.",
+  "runner": "scripts/evalApplicationSuggestions.ts",
+  "model": "claude-haiku-5-5",
+  "files": {
+    "cases-v2.json": "14059e698a486098dd94f4566d59c620cd68c6903d0455b22a99cbacbf4f8c10",
+    "gold-v2.json": "f7bab5a74ba8bcc44c84ddd646de0ad074ebf03a64317a3f5dc8a65e697c94a6"
+  }
+}

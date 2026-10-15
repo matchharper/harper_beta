@@ -1,4 +1,4 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { AlignJustify, ChevronDown } from "lucide-react";
 import { useRouter } from "next/router";
 import {
@@ -37,7 +37,7 @@ function getRoleStatusOrder(status: string | null) {
 }
 
 export function OrgRolePicker() {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const router = useRouter();
   const { roles, workspace } = useOrgWorkspace();
   const [open, setOpen] = useState(false);
@@ -110,7 +110,7 @@ export function OrgRolePicker() {
         <DropdownMenuTrigger asChild>
           <MuteButton
             ref={triggerRef}
-            aria-label={t("OrgRolePicker.9d114b75", "Role 선택")}
+            aria-label={c("Role 선택", "Select role")}
             className="-ml-2 w-fit min-w-0 max-w-[calc(100vw-40px)] justify-start text-[20px] text-neutral-primary"
             onPointerEnter={(event) => {
               if (event.pointerType === "mouse") setOpen(true);
@@ -120,7 +120,7 @@ export function OrgRolePicker() {
           >
             <AlignJustify className="size-5" />
             <span className="max-w-[min(640px,calc(100vw-132px))] truncate">
-              {t("OrgRolePicker.57f510b2", "All roles")}
+              {c("All roles", "All roles")}
             </span>
             <ChevronDown
               className={cn(
@@ -141,13 +141,11 @@ export function OrgRolePicker() {
       >
         <DropdownMenuItem onSelect={() => selectRole("all")} selected>
           <AlignJustify className="size-4 text-neutral-muted" />
-          <span className="min-w-0 flex-1 truncate">
-            {t("OrgRolePicker.2bb56ee8", "All")}
-          </span>
+          <span className="min-w-0 flex-1 truncate">{c("All", "All")}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-[11px] font-normal uppercase tracking-[0.08em] text-neutral-soft">
-          {t("OrgRolePicker.3b3ae885", "Roles")}
+          {c("Roles", "Roles")}
         </DropdownMenuLabel>
         {orderedRoles.map((role) => (
           <DropdownMenuItem

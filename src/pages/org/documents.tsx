@@ -10,21 +10,25 @@ import {
 
 type OrgDocumentsRouteProps = {
   markdown: string;
+  englishMarkdown: string;
 };
 
 export const getStaticProps: GetStaticProps<
   OrgDocumentsRouteProps
-> = async () => ({
-  props: {
-    markdown: await readFile(
-      path.join(process.cwd(), "src/content/org-documents.md"),
+> = async () => {
+  const [markdown, englishMarkdown] = await Promise.all([
+    readFile(path.join(process.cwd(), "src/content/org-documents.md"), "utf8"),
+    readFile(
+      path.join(process.cwd(), "src/content/org-documents.en.md"),
       "utf8"
     ),
-  },
-});
+  ]);
+  return { props: { markdown, englishMarkdown } };
+};
 
 export default function OrgDocumentsRoute({
   markdown,
+  englishMarkdown,
 }: OrgDocumentsRouteProps) {
   const documentSections = [
     ...extractOrgDocumentsHeadings(markdown).filter(
@@ -34,7 +38,7 @@ export default function OrgDocumentsRoute({
   ];
   return (
     <OrgWorkspaceApp documentSections={documentSections} page="documents">
-      <OrgDocumentsPage markdown={markdown} />
+      <OrgDocumentsPage markdown={markdown} englishMarkdown={englishMarkdown} />
     </OrgWorkspaceApp>
   );
 }

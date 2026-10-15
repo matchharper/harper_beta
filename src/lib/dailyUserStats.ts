@@ -31,6 +31,7 @@ import {
 } from "@/lib/talentNetworkReferralTracking";
 import { normalizeEmail } from "@/lib/adminMetrics/utils";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { fetchAllStatsRows as fetchAllRows } from "@/lib/statsQuery";
 import type { Database } from "@/types/database.types";
 
 const BATCH_SIZE = 1000;
@@ -458,26 +459,6 @@ function isInRange(
 
 function addMillisecondsToIso(value: string, milliseconds: number) {
   return new Date(new Date(value).getTime() + milliseconds).toISOString();
-}
-
-async function fetchAllRows<T>(
-  loadPage: (from: number, to: number) => PromiseLike<FetchPageResult<T>>
-) {
-  const rows: T[] = [];
-  let from = 0;
-
-  while (true) {
-    const to = from + BATCH_SIZE - 1;
-    const { data, error } = await loadPage(from, to);
-    if (error) throw new Error(error.message || "Failed to load rows");
-
-    const page = data ?? [];
-    rows.push(...page);
-    if (page.length < BATCH_SIZE) break;
-    from += BATCH_SIZE;
-  }
-
-  return rows;
 }
 
 function normalizeRecommendationFeedback(value: string | null | undefined) {
@@ -1313,52 +1294,67 @@ async function fetchOnboardingDeliveryGapContext(args: {
 }) {
   const settings: TalentRecommendationSettingRow[] = [];
   const recommendationEmailUserIds = new Set<string>();
+  const recommendationUserIds = new Set<string>();
 
-  for (const userIdChunk of chunkArray(args.userIds, BATCH_SIZE)) {
-    const [settingRows, emailRows, deliveryRows] = await Promise.all([
-      fetchAllRows<TalentRecommendationSettingRow>((from, to) =>
-        supabaseServer
-          .from("talent_setting")
-          .select("user_id,get_external_recommendation,profile_visibility")
-          .in("user_id", userIdChunk)
-          .order("user_id", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAllRows<Pick<CareerEmailMessageRow, "talent_id">>((from, to) =>
-        supabaseServer
-          .from("career_email_messages")
-          .select("talent_id")
-          .in("talent_id", userIdChunk)
-          .eq("direction", "outbound")
-          .eq("mail_type", "opportunity_recommendation")
-          .eq("status", "sent")
-          .gte("occurred_at", args.startIso)
-          .lt("occurred_at", args.endIso)
-          .order("occurred_at", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAllRows<Pick<TalentOpportunityDeliveryRow, "talent_id">>(
-        (from, to) =>
+  // Bound identifier filters as well as result pages to keep request URLs small.
+  for (const userIdChunk of chunkArray(args.userIds, 100)) {
+    const [settingRows, emailRows, deliveryRows, recommendationRows] =
+      await Promise.all([
+        fetchAllRows<TalentRecommendationSettingRow>((from, to) =>
           supabaseServer
-            .from("talent_opportunity_delivery")
+            .from("talent_setting")
+            .select("user_id,get_external_recommendation,profile_visibility")
+            .in("user_id", userIdChunk)
+            .order("user_id", { ascending: true })
+            .range(from, to)
+        ),
+        fetchAllRows<Pick<CareerEmailMessageRow, "talent_id">>((from, to) =>
+          supabaseServer
+            .from("career_email_messages")
             .select("talent_id")
             .in("talent_id", userIdChunk)
-            .eq("channel", "email")
+            .eq("direction", "outbound")
+            .eq("mail_type", "opportunity_recommendation")
             .eq("status", "sent")
-            .gte("sent_at", args.startIso)
-            .lt("sent_at", args.endIso)
-            .order("sent_at", { ascending: true })
+            .gte("occurred_at", args.startIso)
+            .lt("occurred_at", args.endIso)
+            .order("occurred_at", { ascending: true })
             .range(from, to)
-      ),
-    ]);
+        ),
+        fetchAllRows<Pick<TalentOpportunityDeliveryRow, "talent_id">>(
+          (from, to) =>
+            supabaseServer
+              .from("talent_opportunity_delivery")
+              .select("talent_id")
+              .in("talent_id", userIdChunk)
+              .eq("channel", "email")
+              .eq("status", "sent")
+              .gte("sent_at", args.startIso)
+              .lt("sent_at", args.endIso)
+              .order("sent_at", { ascending: true })
+              .range(from, to)
+        ),
+        fetchAllRows<Pick<RecommendationRow, "talent_id">>((from, to) =>
+          supabaseServer
+            .from("talent_opportunity_recommendation")
+            .select("talent_id")
+            .in("talent_id", userIdChunk)
+            .lt("created_at", args.endIso)
+            .order("id", { ascending: true })
+            .range(from, to)
+        ),
+      ]);
 
     settings.push(...settingRows);
     for (const row of [...emailRows, ...deliveryRows]) {
       addUserId(recommendationEmailUserIds, row.talent_id);
     }
+    for (const row of recommendationRows) {
+      addUserId(recommendationUserIds, row.talent_id);
+    }
   }
 
-  return { recommendationEmailUserIds, settings };
+  return { recommendationEmailUserIds, recommendationUserIds, settings };
 }
 
 function getInternalOpportunityCompanyName(row: InternalOpportunityRoleRow) {
@@ -1477,7 +1473,6 @@ async function buildUserStatsReport(args: {
     failedDiscoveryCompletedRuns,
     failedDiscoveryLegacyRuns,
     noRecommendationOnboardingEvents,
-    recommendationTalentRowsBeforeObservationEnd,
     internalOpportunityRolling7DayRows,
     externalNegativeFeedbackReasonAtRows,
     externalNegativeFeedbackReasonLegacyRows,
@@ -1516,6 +1511,7 @@ async function buildUserStatsReport(args: {
         .in("type", ["career_signup_completed", "career_onboarding_submitted"])
         .gte("created_at", startIso)
         .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to)
     ),
@@ -1529,6 +1525,7 @@ async function buildUserStatsReport(args: {
         ])
         .gte("created_at", startIso)
         .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to)
     ),
@@ -1539,6 +1536,7 @@ async function buildUserStatsReport(args: {
         .in("type", [...TALENT_ACTIVE_ACTIVITY_LOG_TYPES])
         .gte("created_at", startIso)
         .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to)
     ),
@@ -1687,16 +1685,6 @@ async function buildUserStatsReport(args: {
         .order("created_at", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<
-      Pick<RecommendationRow, "created_at" | "role_id" | "talent_id">
-    >((from, to) =>
-      supabaseServer
-        .from("talent_opportunity_recommendation")
-        .select("talent_id,role_id,created_at")
-        .lt("created_at", noRecommendationObservationEndIso)
-        .order("created_at", { ascending: true })
-        .range(from, to)
-    ),
     fetchAllRows<RecommendationRow>((from, to) =>
       supabaseServer
         .from("talent_opportunity_recommendation")
@@ -1757,28 +1745,35 @@ async function buildUserStatsReport(args: {
         .eq("type", ACCOUNT_DELETED_LOG_TYPE)
         .gte("created_at", startIso)
         .lt("created_at", endIso)
+        .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to)
     ),
-    fetchAllRows<LogRow>((from, to) =>
-      supabaseServer
-        .from("logs")
-        .select("user_id,type,created_at")
-        .like("type", `${TOOL_USAGE_LOG_PREFIX}%`)
-        .gte("created_at", startIso)
-        .lt("created_at", endIso)
-        .order("id", { ascending: true })
-        .range(from, to)
+    fetchAllRows<LogRow>(
+      (from, to) =>
+        supabaseServer
+          .from("logs")
+          .select("user_id,type,created_at")
+          .like("type", `${TOOL_USAGE_LOG_PREFIX}%`)
+          .gte("created_at", startIso)
+          .lt("created_at", endIso)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "logs:tool_usage"
     ),
-    fetchAllRows<LogRow>((from, to) =>
-      supabaseServer
-        .from("logs")
-        .select("user_id,type,created_at")
-        .like("type", `${TOOL_FAILURE_LOG_PREFIX}%`)
-        .gte("created_at", startIso)
-        .lt("created_at", endIso)
-        .order("id", { ascending: true })
-        .range(from, to)
+    fetchAllRows<LogRow>(
+      (from, to) =>
+        supabaseServer
+          .from("logs")
+          .select("user_id,type,created_at")
+          .like("type", `${TOOL_FAILURE_LOG_PREFIX}%`)
+          .gte("created_at", startIso)
+          .lt("created_at", endIso)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "logs:tool_failure"
     ),
     fetchAllRows<LandingLogRow>((from, to) =>
       supabaseServer
@@ -1817,6 +1812,7 @@ async function buildUserStatsReport(args: {
         .select("user_id,type,created_at")
         .in("type", ["career_signup_completed", "career_onboarding_submitted"])
         .gte("created_at", startIso)
+        .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to)
     ),
@@ -2260,12 +2256,6 @@ async function buildUserStatsReport(args: {
       );
     }
   }
-  const recommendationTalentIdsBeforeObservationEnd = new Set<string>();
-  for (const row of recommendationTalentRowsBeforeObservationEnd) {
-    if (isIncludedRecommendation(row)) {
-      addUserId(recommendationTalentIdsBeforeObservationEnd, row.talent_id);
-    }
-  }
   const noRecommendationEligibleUserIds = Array.from(
     noRecommendationEligibleOnboardingCompletedUserIds
   );
@@ -2278,12 +2268,13 @@ async function buildUserStatsReport(args: {
         })
       : {
           recommendationEmailUserIds: new Set<string>(),
+          recommendationUserIds: new Set<string>(),
           settings: [] as TalentRecommendationSettingRow[],
         };
   const onboardingDeliveryGapStats = buildOnboardingDeliveryGapStats({
     eligibleUserIds: noRecommendationEligibleUserIds,
     recommendationEmailUserIds: deliveryGapContext.recommendationEmailUserIds,
-    recommendationUserIds: recommendationTalentIdsBeforeObservationEnd,
+    recommendationUserIds: deliveryGapContext.recommendationUserIds,
     settings: deliveryGapContext.settings,
   });
 

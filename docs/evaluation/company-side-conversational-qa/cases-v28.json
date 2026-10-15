@@ -1,0 +1,440 @@
+{
+  "datasetVersion": "v28",
+  "clock": "2026-10-15T03:00:00Z",
+  "provenance": "v27 retained; missing_info Role location corrected to null to agree with activation missing-field result. Discovered by fixture audit after v27 runs; not a blind holdout. Other inputs and gold meanings unchanged.",
+  "role": {
+    "roleId": "00000000-0000-4000-8000-000000000101",
+    "name": "백엔드 엔지니어",
+    "status": "draft",
+    "request": "초기 제품에서 고객 요구를 듣고 Python API 설계부터 운영까지 직접 맡을 사람. 서울 하이브리드. 연차·학력·연봉 필수 조건은 정하지 않음.",
+    "information": {
+      "testOnly": true,
+      "testFixture": "company-conversation-v6"
+    },
+    "description": "Python API 개발",
+    "location": "서울",
+    "workMode": "hybrid",
+    "employmentTypes": [
+      "full_time"
+    ],
+    "criteria": [
+      {
+        "name": "API 개발 경험",
+        "description": "API 개발 경험 비교"
+      }
+    ]
+  },
+  "candidates": [],
+  "scenarios": [
+    {
+      "id": "CSCQ2701",
+      "variants": [
+        {
+          "surface": "slack",
+          "currentRoleId": null,
+          "notifications": {
+            "00000000-0000-4000-8000-000000000101": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            },
+            "00000000-0000-4000-8000-000000000102": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            }
+          },
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "프로덕트 디자이너",
+              "status": "draft",
+              "request": "초기 제품에서 고객 요구를 듣고 Python API 설계부터 운영까지 직접 맡을 사람. 서울 하이브리드. 연차·학력·연봉 필수 조건은 정하지 않음.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              },
+              "description": "Python API 개발",
+              "location": "서울",
+              "workMode": "hybrid",
+              "employmentTypes": [
+                "full_time"
+              ],
+              "criteria": [
+                {
+                  "name": "API 개발 경험",
+                  "description": "API 개발 경험 비교"
+                }
+              ]
+            }
+          ],
+          "slackExecutionContext": {
+            "channelId": "C_SETUP",
+            "channelName": "채용",
+            "slackTeamId": "T_SYNTHETIC",
+            "slackUserId": "U_SYNTHETIC",
+            "slackThreadId": "thread",
+            "slackThreadTs": "1.1"
+          },
+          "history": [
+            {
+              "role": "assistant",
+              "content": "팀원 A님, 환영해요! 작성 중인 백엔드 엔지니어와 프로덕트 디자이너는 아직 담당자와 알림 채널이 정해지지 않았어요. 두 Role 모두 이 채널과 팀원 A님을 담당자로 설정하고 채용을 시작할까요?"
+            }
+          ],
+          "id": "approve_both",
+          "turns": [
+            "좋아요 그렇게 해주세요."
+          ]
+        },
+        {
+          "surface": "slack",
+          "currentRoleId": null,
+          "notifications": {
+            "00000000-0000-4000-8000-000000000101": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            },
+            "00000000-0000-4000-8000-000000000102": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            }
+          },
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "프로덕트 디자이너",
+              "status": "draft",
+              "request": "초기 제품에서 고객 요구를 듣고 Python API 설계부터 운영까지 직접 맡을 사람. 서울 하이브리드. 연차·학력·연봉 필수 조건은 정하지 않음.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              },
+              "description": "Python API 개발",
+              "location": "서울",
+              "workMode": "hybrid",
+              "employmentTypes": [
+                "full_time"
+              ],
+              "criteria": [
+                {
+                  "name": "API 개발 경험",
+                  "description": "API 개발 경험 비교"
+                }
+              ]
+            }
+          ],
+          "slackExecutionContext": {
+            "channelId": "C_SETUP",
+            "channelName": "채용",
+            "slackTeamId": "T_SYNTHETIC",
+            "slackUserId": "U_SYNTHETIC",
+            "slackThreadId": "thread",
+            "slackThreadTs": "1.1"
+          },
+          "history": [
+            {
+              "role": "assistant",
+              "content": "팀원 A님, 환영해요! 작성 중인 백엔드 엔지니어와 프로덕트 디자이너는 아직 담당자와 알림 채널이 정해지지 않았어요. 두 Role 모두 이 채널과 팀원 A님을 담당자로 설정하고 채용을 시작할까요?"
+            }
+          ],
+          "id": "settings_only",
+          "turns": [
+            "둘 다 설정은 그렇게 해줘. 채용 시작은 아직 하지 마."
+          ]
+        },
+        {
+          "surface": "slack",
+          "currentRoleId": null,
+          "notifications": {
+            "00000000-0000-4000-8000-000000000101": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            },
+            "00000000-0000-4000-8000-000000000102": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            }
+          },
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "프로덕트 디자이너",
+              "status": "draft",
+              "request": "초기 제품에서 고객 요구를 듣고 Python API 설계부터 운영까지 직접 맡을 사람. 서울 하이브리드. 연차·학력·연봉 필수 조건은 정하지 않음.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              },
+              "description": "Python API 개발",
+              "location": "서울",
+              "workMode": "hybrid",
+              "employmentTypes": [
+                "full_time"
+              ],
+              "criteria": [
+                {
+                  "name": "API 개발 경험",
+                  "description": "API 개발 경험 비교"
+                }
+              ]
+            }
+          ],
+          "slackExecutionContext": {
+            "channelId": "C_SETUP",
+            "channelName": "채용",
+            "slackTeamId": "T_SYNTHETIC",
+            "slackUserId": "U_SYNTHETIC",
+            "slackThreadId": "thread",
+            "slackThreadTs": "1.1"
+          },
+          "history": [
+            {
+              "role": "assistant",
+              "content": "팀원 A님, 환영해요! 작성 중인 백엔드 엔지니어와 프로덕트 디자이너는 아직 담당자와 알림 채널이 정해지지 않았어요. 두 Role 모두 이 채널과 팀원 A님을 담당자로 설정하고 채용을 시작할까요?"
+            }
+          ],
+          "id": "partial",
+          "turns": [
+            "백엔드만 그렇게 시작해줘. 디자이너는 그대로 둬."
+          ]
+        },
+        {
+          "surface": "slack",
+          "currentRoleId": null,
+          "notifications": {
+            "00000000-0000-4000-8000-000000000101": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            },
+            "00000000-0000-4000-8000-000000000102": {
+              "assigneeUserIds": [],
+              "confirmedAssigneeUserId": null,
+              "confirmedChannelIds": [],
+              "availableAssignees": [
+                {
+                  "userId": "00000000-0000-4000-8000-000000000002",
+                  "name": "팀원 A",
+                  "current": true
+                }
+              ],
+              "channels": [
+                {
+                  "channelId": "C_SETUP",
+                  "channelName": "채용",
+                  "current": true,
+                  "enabled": true
+                },
+                {
+                  "channelId": "C_OTHER",
+                  "channelName": "다른채널",
+                  "current": false,
+                  "enabled": true
+                }
+              ]
+            }
+          },
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "프로덕트 디자이너",
+              "status": "draft",
+              "request": "초기 제품에서 고객 요구를 듣고 Python API 설계부터 운영까지 직접 맡을 사람. 서울 하이브리드. 연차·학력·연봉 필수 조건은 정하지 않음.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              },
+              "description": "Python API 개발",
+              "location": null,
+              "workMode": "hybrid",
+              "employmentTypes": [
+                "full_time"
+              ],
+              "criteria": [
+                {
+                  "name": "API 개발 경험",
+                  "description": "API 개발 경험 비교"
+                }
+              ]
+            }
+          ],
+          "slackExecutionContext": {
+            "channelId": "C_SETUP",
+            "channelName": "채용",
+            "slackTeamId": "T_SYNTHETIC",
+            "slackUserId": "U_SYNTHETIC",
+            "slackThreadId": "thread",
+            "slackThreadTs": "1.1"
+          },
+          "history": [
+            {
+              "role": "assistant",
+              "content": "팀원 A님, 환영해요! 작성 중인 백엔드 엔지니어와 프로덕트 디자이너는 아직 담당자와 알림 채널이 정해지지 않았어요. 두 Role 모두 이 채널과 팀원 A님을 담당자로 설정하고 채용을 시작할까요?"
+            }
+          ],
+          "id": "missing_info",
+          "turns": [
+            "좋아요 그렇게 해주세요."
+          ],
+          "activationMissingFields": {
+            "00000000-0000-4000-8000-000000000102": [
+              "근무 지역"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

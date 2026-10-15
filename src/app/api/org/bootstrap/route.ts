@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const orgId = req.nextUrl.searchParams.get("orgId");
     const payload = await fetchOrgBootstrap({ orgId, user });
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return toErrorResponse(error);
   }

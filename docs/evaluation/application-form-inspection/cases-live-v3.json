@@ -1,0 +1,24 @@
+{
+  "version": "live-v3",
+  "capturedAt": "2026-10-12",
+  "cases": [
+    {
+      "id": "channel-lever",
+      "url": "https://channel.io/kr/careers/04d1bd56-f75b-4dc1-ad61-c538274bdccf",
+      "expectedHost": "jobs.lever.co",
+      "expectedPath": "/zoyi/04d1bd56-f75b-4dc1-ad61-c538274bdccf/apply"
+    },
+    {
+      "id": "workos-ashby",
+      "url": "https://jobs.ashbyhq.com/workos/d76843a8-2a45-444a-b187-3336b45a7934",
+      "expectedHost": "jobs.ashbyhq.com",
+      "expectedPath": "/workos/d76843a8-2a45-444a-b187-3336b45a7934/application"
+    },
+    {
+      "id": "anthropic-greenhouse",
+      "url": "https://job-boards.greenhouse.io/anthropic/jobs/5400153008",
+      "expectedHost": "job-boards.greenhouse.io",
+      "expectedPath": "/anthropic/jobs/5400153008"
+    }
+  ]
+}

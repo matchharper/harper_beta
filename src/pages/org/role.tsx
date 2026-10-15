@@ -1,6 +1,14 @@
+import dynamic from "next/dynamic";
 import type { GetServerSideProps } from "next";
 import { OrgWorkspaceApp } from "@/components/org/workspace/OrgWorkspaceApp";
-import { OrgRoleCreationPage } from "@/components/org/workspace/pages/OrgRoleCreationPage";
+import { OrgPageLoading } from "@/components/org/workspace/OrgPageLoading";
+const OrgRoleCreationPage = dynamic(
+  () =>
+    import("@/components/org/workspace/pages/OrgRoleCreationPage").then(
+      (module) => module.OrgRoleCreationPage
+    ),
+  { loading: () => <OrgPageLoading /> }
+);
 
 export default function OrgRoleWorkspaceRoute() {
   return (

@@ -1,0 +1,29 @@
+{
+  "task": "career-job-search-plan",
+  "datasetVersion": "v1",
+  "provenance": "Synthetic, authored before model execution on 2026-10-13; no production data",
+  "cases": [{
+    "id": "CJSP001",
+    "input": {
+      "outputLanguage": "Korean",
+      "request": "이번에는 음성 합성이나 멀티모달 생성 모델을 직접 개발하는 Research Engineer 또는 ML Engineer 공고를 찾아줘. 모델 학습·평가가 중심인 역할이면 좋겠고, 일반 백엔드나 고객사 대상 솔루션 구축 역할은 빼줘. 한국 또는 미국에 있는 정규직을 보고 싶어. 미국 취업 자격은 있어. 원격은 선호하지만 필수는 아니고 출근이나 하이브리드도 괜찮아. 인턴·계약직·파트타임은 제외하고, 최근 30일 안에 올라온 공고만 보여줘. 회사는 연구를 제품에 연결하는 곳이면 규모나 투자 단계는 상관없어. 이번 검색만 이 방향으로 보고 싶은 거라 기존 탐색 기준을 바꾸지는 말아줘.",
+      "previousDeliveryTexts": ["지난번에는 AI 플랫폼과 ML 인프라 역할을 중심으로 검토했습니다. 사용자는 서비스 운영보다 모델 자체를 개선하는 경험을 더 쌓고 싶다고 답했습니다."],
+      "recentDeliveryMeta": ["ML infrastructure 방향을 검토한 뒤 모델 학습 중심 역할에 관심을 표현함."],
+      "llmUserProfile": {
+        "profile": {
+          "headline": "Machine Learning Engineer, 6 years of experience",
+          "location": "Seoul, South Korea",
+          "bio": "음성 인식 및 추천 모델의 학습·평가·배포 경험. Python, PyTorch, 분산 학습을 사용하며 연구 결과를 사용자 제품에 적용하는 역할을 맡았다."
+        },
+        "careerContext": "[Search Brief]\n[1] 다음 역할: ML 인프라 또는 Applied ML 역할을 탐색 중.\n[2] 근무 지역: 한국 또는 미국. 미국 취업 자격이 있다.\n[3] 근무 형태: 정규직. 원격을 선호하지만 출근·하이브리드도 가능.\n[4] 회사: 모델 기술을 실제 제품에 연결하는 회사 선호. 회사 규모·투자 단계는 필수 조건이 아님.",
+        "career": {
+          "experiences": [{"title": "Machine Learning Engineer", "description": "6년 동안 음성 인식 모델, 개인화 모델, 분산 학습 및 모델 평가를 수행했다. 최근에는 생성 음성 모델의 fine-tuning과 실험 설계를 맡았다."}],
+          "educations": [{"degree": "Master", "field": "Computer Science"}],
+          "skills": ["Python", "PyTorch", "speech modeling", "distributed training", "model evaluation"]
+        },
+        "settings": {"engagementTypes": ["full_time"], "workModes": ["remote", "hybrid", "onsite"]},
+        "feedbackSignals": [{"feedback": "negative", "reason": "최근 검토한 백엔드 역할은 모델을 직접 개선할 기회가 적어 관심이 낮았다."}]
+      }
+    }
+  }]
+}

@@ -14,13 +14,13 @@ export function OrgPendingConnectionGate({
       <LockKeyhole className="size-5 text-neutral-muted" aria-hidden />
       <h3 className="text-sm font-medium">
         {locale === "ko"
-          ? "연결 대기는 유료 슬롯에 연결된 Role에서 이용할 수 있어요."
-          : "Ready to connect is available for Roles assigned to a paid slot."}
+          ? "연결 대기는 슬롯이 할당된 Role에서 이용할 수 있어요."
+          : "Ready to connect is available for Roles with an assigned slot."}
       </h3>
       <p className="max-w-lg text-sm leading-6 text-neutral-muted">
         {locale === "ko"
-          ? "Slots에서 이 Role에 유료 슬롯을 연결하면 Harper가 연결을 준비한 후보자를 확인하고 수락할 수 있어요."
-          : "Assign a paid slot to this Role in Slots to review and accept candidates Harper has prepared for connection."}
+          ? "이 Role에 슬롯을 할당하면 Harper가 먼저 후보자에게 역할을 소개하고 연결이 준비된채로 추천해드려요."
+          : "Assign a slot to this Role, and Harper will introduce it to candidates first, then recommend them to you once they're ready to connect."}
       </p>
       <MuteButton asChild variant="neutral">
         <Link href={buildOrgHref({ page: "slots", orgId: workspaceId })}>

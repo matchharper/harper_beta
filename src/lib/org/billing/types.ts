@@ -1,3 +1,4 @@
+import { TOOL_MODEL_DIAGNOSTIC } from "@/lib/llm/toolError";
 export const MAX_SLOT_PURCHASE_QUANTITY = 100;
 export function isSlotPurchaseQuantity(value: unknown): value is number {
   return (
@@ -28,6 +29,7 @@ export type BillingErrorCode =
 // Only the transport/UI reads code. Ordinary company-side LLM error handling
 // receives the business failure in message, without billing facts.
 export class WorkspaceBillingError extends Error {
+  readonly [TOOL_MODEL_DIAGNOSTIC] = { message: this.message };
   constructor(
     public readonly code: BillingErrorCode,
     public readonly status = 409
@@ -129,6 +131,14 @@ export function isLowCreditBalance(balance: number | null | undefined) {
   return typeof balance === "number" && balance >= 0 && balance <= 10;
 }
 
+/** Display unit only; billing identifiers and accounting remain unchanged. */
+export function formatIntroCount(
+  count: number | null | undefined,
+  locale: "ko" | "en"
+) {
+  return `${count ?? "—"} ${locale === "en" && count !== 1 ? "Intros" : "Intro"}`;
+}
+
 export function isEndedBillingSlot(slot: BillingSlot, now = Date.now()) {
   return (
     !slot.active &&
@@ -136,6 +146,19 @@ export function isEndedBillingSlot(slot: BillingSlot, now = Date.now()) {
       (slot.endedAt !== null && Date.parse(slot.endedAt) <= now) ||
       (slot.cancelAt !== null && Date.parse(slot.cancelAt) <= now))
   );
+}
+
+export function formatBillingDaysUntil(
+  value: string | null | undefined,
+  locale: "ko" | "en",
+  now = Date.now()
+) {
+  const timestamp = value ? Date.parse(value) : NaN;
+  if (!Number.isFinite(timestamp)) return "—";
+  const days = Math.max(0, Math.ceil((timestamp - now) / 86_400_000));
+  return locale === "ko"
+    ? `${days}일 뒤`
+    : `in ${days} ${days === 1 ? "day" : "days"}`;
 }
 
 export function creditSlotForRole(
@@ -179,8 +202,8 @@ export function billingErrorCopy(code: BillingErrorCode, locale: "ko" | "en") {
       "Ready to connect is available for Roles assigned to a paid slot. Review Role assignments in Slots.",
     ],
     credits_exhausted: [
-      "이 Role에서 사용할 수 있는 슬롯 크레딧과 공용 크레딧이 모두 소진됐어요. Harper 팀에 문의해 주세요.",
-      "There are no slot or shared credits available for this Role. Contact the Harper team.",
+      "이 Role에서 사용할 수 있는 슬롯 Intro와 공용 Intro가 모두 소진됐어요. Harper 팀에 문의해 주세요.",
+      "There are no slot or shared Intros available for this Role. Contact the Harper team.",
     ],
     role_slot_required: [
       "이 Role의 채용을 시작한 뒤 다시 시도해 주세요.",

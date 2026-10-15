@@ -23,8 +23,8 @@ test("a single candidate option is selected without an LLM call", async () => {
   assert.equal(result.chosenSlotId, "slot-1");
   assert.equal(result.method, "single_option");
   assert.equal(result.model, null);
-  assert.match(result.companyMessage, /Ito님이 1개의 가능 시간/);
-  assert.doesNotMatch(result.companyMessage, /Google Meet|메일.*보냈/);
+  assert.equal(result.companyMessage, null);
+  assert.equal(result.companyMessage, null);
 });
 
 test("a stale LLM choice falls back without hiding the candidate's original options", async () => {
@@ -53,10 +53,10 @@ test("a stale LLM choice falls back without hiding the candidate's original opti
 
   assert.equal(result.chosenSlotId, "valid-slot");
   assert.equal(result.method, "fallback_earliest");
-  assert.match(result.companyMessage, /Ito님이 2개의 가능 시간/);
+  assert.equal(result.companyMessage, null);
 });
 
-test("an English workspace gets an English scheduling notice on the deterministic path", async () => {
+test("time selection does not author a company notice, regardless of locale", async () => {
   const { selectMeetingOptionDeterministically } = await import("./selection");
   const result = selectMeetingOptionDeterministically({
     candidateName: "Ito",
@@ -71,8 +71,8 @@ test("an English workspace gets an English scheduling notice on the deterministi
       },
     ],
   });
-  assert.match(result.companyMessage, /Ito shared 1 available time/);
-  assert.doesNotMatch(result.companyMessage, /[가-힣]/);
+  assert.equal(result.companyMessage, null);
+  assert.equal(result.companyMessage, null);
 });
 
 test("public submission calls the LLM selector at most once", () => {

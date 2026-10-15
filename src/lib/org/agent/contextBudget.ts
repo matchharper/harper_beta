@@ -34,7 +34,7 @@ type RetainedMoreDataState = {
 };
 
 type OrgAgentContextBudgetShape = {
-  calibrationsText?: string;
+  accessText?: string;
   companyText: string;
   contextNotesText: string;
   conversationText: string;
@@ -99,8 +99,8 @@ export function enforceOrgAgentContextBudget<
   const mutable = context;
   const size = () =>
     [
+      mutable.accessText,
       mutable.companyText,
-      mutable.calibrationsText,
       mutable.recentContactsText,
       mutable.rolesText,
       mutable.recentRecommendationsText,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Loader2 } from "lucide-react";
-import CareerInPageTabs from "../CareerInPageTabs";
+import { MuteButton } from "@/components/ui/button";
 import {
   useCareerProfileContext,
   useCareerSidebarContext,
@@ -16,44 +16,18 @@ import { CareerDocumentDetail } from "@/components/career/documents/CareerDocume
 import { getCareerDocumentHref } from "@/lib/career/documentLinks";
 import CareerCallNoteDetail from "./CareerCallNoteDetail";
 import CareerResumeLinksSettingsSection from "../settings/CareerResumeLinksSettingsSection";
-import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
 import { useCareerT } from "@/i18n/useCareerT";
-
-type ProfileSectionId = "profile" | "links";
-
-const isProfileSectionId = (
-  value: string | null | undefined
-): value is ProfileSectionId => value === "profile" || value === "links";
-
-type ProfileSectionItem = {
-  id: ProfileSectionId;
-  label: string;
-};
-
-const getProfileSectionItems = (
-  t: ReturnType<typeof useCareerT>
-): ProfileSectionItem[] => [
-  {
-    id: "profile",
-    label: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
-  },
-  {
-    id: "links",
-    label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
-  },
-];
 
 const CareerProfileWorkspace = ({
   onDetailOpen,
   view = "profile",
 }: {
   onDetailOpen?: () => void;
-  view?: "profile" | "brief";
+  view?: "profile" | "brief" | "documents";
 }) => {
   const t = useCareerT();
   const router = useRouter();
-  const logCareerEvent = useCareerLogEvent();
   const { workspaceDataLoading } = useCareerSidebarContext();
   const {
     loadTalentMemories,
@@ -68,7 +42,6 @@ const CareerProfileWorkspace = ({
     talentMemoriesLoaded,
     talentMemoriesLoadPending,
   } = useCareerProfileContext();
-  const sectionItems = useMemo(() => getProfileSectionItems(t), [t]);
 
   const requestedProfileSection =
     typeof router.query.profileSection === "string"
@@ -85,50 +58,62 @@ const CareerProfileWorkspace = ({
       : null;
 
   useEffect(() => {
-    if (view === "profile" && (requestedCallNoteId || requestedDocumentId)) {
+    if (view === "documents" && (requestedCallNoteId || requestedDocumentId)) {
       onDetailOpen?.();
     }
   }, [onDetailOpen, requestedCallNoteId, requestedDocumentId, view]);
 
   useEffect(() => {
-    if (!router.isReady || requestedProfileSection !== "brief") return;
+    if (!router.isReady) return;
+    const legacyView =
+      requestedProfileSection === "brief"
+        ? "brief"
+        : requestedProfileSection === "links" ||
+            requestedProfileSection === "connections" ||
+            (view === "documents" &&
+              router.asPath.split("?")[0] === "/career/profile")
+          ? "documents"
+          : null;
+    if (!legacyView) return;
 
     const query = { ...router.query };
     delete query.profileSection;
     delete query.tab;
     const isPreview = router.pathname === "/career/preview";
-    if (isPreview) query.tab = "brief";
+    if (isPreview) query.tab = legacyView;
 
     void router.replace(
       {
-        pathname: isPreview ? router.pathname : "/career/brief",
+        pathname: isPreview ? router.pathname : `/career/${legacyView}`,
         query,
       },
       undefined,
-      { shallow: true, scroll: false }
+      { shallow: isPreview, scroll: false }
     );
-  }, [requestedProfileSection, router]);
+  }, [requestedProfileSection, router, view]);
+
+  const activeSection = view;
+  const showLocalMemories =
+    process.env.NODE_ENV === "development" && activeSection === "brief";
 
   useEffect(() => {
-    if (!router.isReady || requestedProfileSection !== "connections") return;
-
-    void router.replace(
-      {
-        pathname: router.pathname,
-        query: { ...router.query, profileSection: "links" },
-      },
-      undefined,
-      { shallow: true, scroll: false }
-    );
-  }, [requestedProfileSection, router]);
-
-  const profileSection: ProfileSectionId =
-    requestedProfileSection === "connections"
-      ? "links"
-      : isProfileSectionId(requestedProfileSection)
-        ? requestedProfileSection
-        : "profile";
-  const activeSection = view === "brief" ? "brief" : profileSection;
+    if (
+      showLocalMemories &&
+      !workspaceDataLoading &&
+      !talentMemoriesLoaded &&
+      !talentMemoriesLoadPending &&
+      !talentContextsSaveError
+    ) {
+      void loadTalentMemories?.();
+    }
+  }, [
+    loadTalentMemories,
+    showLocalMemories,
+    talentContextsSaveError,
+    talentMemoriesLoaded,
+    talentMemoriesLoadPending,
+    workspaceDataLoading,
+  ]);
 
   const callNoteDocument = useMemo(
     () =>
@@ -146,7 +131,7 @@ const CareerProfileWorkspace = ({
     void router.replace(
       {
         pathname: router.pathname,
-        query: { ...query, profileSection: "links" },
+        query,
       },
       undefined,
       { shallow: true, scroll: false }
@@ -161,7 +146,6 @@ const CareerProfileWorkspace = ({
           query: {
             ...router.query,
             callNoteId: documentId,
-            profileSection: "links",
           },
         },
         undefined,
@@ -171,26 +155,8 @@ const CareerProfileWorkspace = ({
     [router]
   );
 
-  const handleChangeSection = useCallback(
-    (next: ProfileSectionId) => {
-      logCareerEvent(`click_profile_section_${next}`);
-      const query = { ...router.query };
-      delete query.callNoteId;
-      delete query.documentId;
-      void router.replace(
-        {
-          pathname: router.pathname,
-          query: { ...query, profileSection: next },
-        },
-        undefined,
-        { shallow: true }
-      );
-    },
-    [logCareerEvent, router]
-  );
-
   const activeContent =
-    activeSection === "links" ? (
+    activeSection === "documents" ? (
       <CareerResumeLinksSettingsSection
         onOpenCallNote={(document) => openCallNote(document.id)}
         onOpenDocument={(document) =>
@@ -214,6 +180,91 @@ const CareerProfileWorkspace = ({
         <div className="mt-8 md:px-1">
           <CareerBlockedCompaniesSettingsSection />
         </div>
+        {showLocalMemories ? (
+          <section
+            aria-busy={talentMemoriesLoadPending}
+            className="mt-8 space-y-3 rounded-[18px] border border-neutral-1000-a05 bg-bg-default p-4 md:p-5"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(135deg, transparent 0px, transparent 7px, var(--color-neutral-1000-a05) 7px, var(--color-neutral-1000-a05) 8px)",
+            }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-[14px] font-medium text-neutral-primary">
+                {t("career.profile.context.memory_title", "Harper의 기억")}
+                {talentMemoriesLoaded ? (
+                  <span className="ml-1.5 font-normal text-neutral-muted">
+                    {talentMemories.length}
+                    {talentMemoriesHasMore ? "+" : ""}
+                  </span>
+                ) : null}
+              </h3>
+              <span className="text-[12px] text-neutral-muted">Local</span>
+            </div>
+            <p className="text-[12px] leading-5 text-neutral-muted">
+              {t(
+                "career.profile.context.memory_description",
+                "다음 대화와 기회 판단에 도움이 되도록 기억해 둔 맥락이에요."
+              )}
+            </p>
+            {!talentMemoriesLoaded ? (
+              talentContextsSaveError ? (
+                <MuteButton
+                  disabled={talentMemoriesLoadPending}
+                  onClick={() => void loadTalentMemories?.()}
+                  size="sm"
+                  type="button"
+                >
+                  {t("career.profile.context.retry", "다시 시도")}
+                </MuteButton>
+              ) : (
+                <div
+                  className="flex justify-center py-6 text-neutral-muted"
+                  role="status"
+                >
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="sr-only">
+                    {t(
+                      "career.common.career_history_panel.0s3czqf",
+                      "저장된 정보를 불러오는 중입니다..."
+                    )}
+                  </span>
+                </div>
+              )
+            ) : talentMemories.length > 0 ? (
+              <ul className="divide-y divide-neutral-1000-a05">
+                {talentMemories.map((row) => (
+                  <li
+                    className="whitespace-pre-wrap break-words py-3 text-[13px] leading-5 text-neutral-primary first:pt-0 last:pb-0"
+                    key={row.id}
+                  >
+                    {row.content}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[13px] text-neutral-muted">
+                {t(
+                  "career.profile.context.memory_empty",
+                  "아직 저장된 기억이 없어요."
+                )}
+              </p>
+            )}
+            {talentMemoriesLoaded && talentMemoriesHasMore ? (
+              <MuteButton
+                disabled={talentMemoriesLoadPending}
+                onClick={() => void loadTalentMemories?.({ append: true })}
+                size="sm"
+                type="button"
+              >
+                {talentMemoriesLoadPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                {t("career.profile.context.load_more", "더 보기")}
+              </MuteButton>
+            ) : null}
+          </section>
+        ) : null}
       </>
     ) : (
       <>
@@ -240,7 +291,7 @@ const CareerProfileWorkspace = ({
     );
   }
 
-  if (view === "profile" && requestedDocumentId) {
+  if (view === "documents" && requestedDocumentId) {
     const document = talentDocuments.find(
       (item) => item.id === requestedDocumentId
     );
@@ -259,7 +310,7 @@ const CareerProfileWorkspace = ({
     );
   }
 
-  if (view === "profile" && requestedCallNoteId) {
+  if (view === "documents" && requestedCallNoteId) {
     return (
       <CareerCallNoteDetail
         documentId={requestedCallNoteId}
@@ -270,23 +321,9 @@ const CareerProfileWorkspace = ({
   }
 
   return (
-    <>
-      {view === "profile" ? (
-        <CareerInPageTabs
-          items={sectionItems}
-          activeId={profileSection}
-          onChange={handleChangeSection}
-          mobileFloating
-          className="md:my-4"
-        />
-      ) : null}
-
-      <div
-        className={`flex flex-col gap-4${view === "brief" ? " md:my-4" : ""}`}
-      >
-        <div className="w-full">{activeContent}</div>
-      </div>
-    </>
+    <div className="my-4 flex flex-col gap-4">
+      <div className="w-full">{activeContent}</div>
+    </div>
   );
 };
 

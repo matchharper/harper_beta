@@ -1,8 +1,32 @@
 import type { GetServerSideProps } from "next";
+import dynamic from "next/dynamic";
 import { OrgWorkspaceApp } from "@/components/org/workspace/OrgWorkspaceApp";
-import { OrgRoleCreationPage } from "@/components/org/workspace/pages/OrgRoleCreationPage";
+import { OrgPageLoading } from "@/components/org/workspace/OrgPageLoading";
+const OrgRoleCreationPage = dynamic(
+  () =>
+    import("@/components/org/workspace/pages/OrgRoleCreationPage").then(
+      (module) => module.OrgRoleCreationPage
+    ),
+  { loading: () => <OrgPageLoading /> }
+);
 
-export default function OrgRoleCreationRoute() {
+const OrgOrganizationCreationPage = dynamic(() =>
+  import("@/components/org/onboarding/OrgOrganizationCreationPage").then(
+    (module) => module.OrgOrganizationCreationPage
+  )
+);
+
+export default function OrgRoleCreationRoute({
+  createOrganization = false,
+}: {
+  createOrganization?: boolean;
+}) {
+  if (createOrganization)
+    return (
+      <OrgWorkspaceApp page="onboarding">
+        <OrgOrganizationCreationPage />
+      </OrgWorkspaceApp>
+    );
   return (
     <OrgWorkspaceApp page="new-role">
       <OrgRoleCreationPage />
@@ -14,6 +38,8 @@ export const getServerSideProps: GetServerSideProps = async ({
   query,
   resolvedUrl,
 }) => {
+  if (query.create === "organization")
+    return { props: { createOrganization: true } };
   const roleId = typeof query.roleId === "string" ? query.roleId.trim() : "";
   if (!roleId) return { props: {} };
 

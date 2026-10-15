@@ -182,7 +182,7 @@ test("detail and scope timeline retain the correct inbound parent and do not dup
     assert.equal(item.kind, "contact");
     if (item.kind !== "contact") throw Error("Expected contact");
     const inbound = item.conversationTimeline.filter(
-      (event) => event.direction === "candidate_to_company"
+      (event: { direction: string }) => event.direction === "candidate_to_company"
     );
     assert.equal(inbound.length, 1);
     assert.equal(inbound[0].contactRef, `contact:${firstId}`);

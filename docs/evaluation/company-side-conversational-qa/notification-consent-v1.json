@@ -1,0 +1,248 @@
+{
+  "datasetVersion": "notification-consent-v1",
+  "frozenAt": "2026-10-13",
+  "state": {
+    "assigneeUserIds": [],
+    "channels": [
+      {
+        "channelId": "channel-a",
+        "channelName": "hiring",
+        "enabled": true
+      },
+      {
+        "channelId": "channel-b",
+        "channelName": "engineering",
+        "enabled": true
+      }
+    ],
+    "currentUser": {
+      "userId": "user-a",
+      "name": "김민수",
+      "email": "minsu@example.com"
+    },
+    "members": [
+      {
+        "userId": "user-a",
+        "name": "김민수",
+        "email": "minsu@example.com"
+      },
+      {
+        "userId": "user-b",
+        "name": "박지현",
+        "email": "jihyun@example.com"
+      }
+    ],
+    "metadata": {
+      "phase": "collecting",
+      "scope": "role_creation",
+      "confirmedSlackChannelIds": [],
+      "confirmedAssigneeUserId": null
+    },
+    "role": {
+      "roleId": "role-a",
+      "name": "Backend Engineer",
+      "status": "draft",
+      "description": "B2B 제품 API 개발. TypeScript, PostgreSQL 경험 필수.",
+      "request": "## Hard constraints\n- TypeScript 및 PostgreSQL 경험\n## Preferred criteria\n- 작은 팀에서 출시 및 운영 경험",
+      "criteria": [],
+      "locationText": "서울",
+      "workMode": "hybrid",
+      "employmentTypes": [
+        "full_time"
+      ],
+      "salaryRange": null,
+      "memory": null
+    },
+    "workspace": {
+      "companyName": "합성회사",
+      "pitch": "B2B 제품 개발",
+      "request": null,
+      "relatedLinks": []
+    }
+  },
+  "cases": [
+    {
+      "id": "N01",
+      "surface": "chat",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "공고 외에 어떤 경험을 중요하게 보시나요?"
+        },
+        {
+          "role": "user",
+          "content": "작은 팀에서 출시와 운영을 맡은 경험을 우대해요."
+        },
+        {
+          "role": "assistant",
+          "content": "참고할 인물이나 추가 기준, 보상 범위가 있나요?"
+        },
+        {
+          "role": "user",
+          "content": "없어요. 보상은 나중에요. 나머지는 모두 확정됐고 알림 설정만 남았습니다."
+        },
+        {
+          "role": "assistant",
+          "content": "#hiring 채널, 담당 팀원 김민수로 설정할까요?"
+        }
+      ],
+      "message": "네, 그 설정으로 확정하고 최종 등록 진행해주세요.",
+      "expectedSelection": {
+        "channelIds": [
+          "channel-a"
+        ],
+        "assigneeUserId": "user-a"
+      }
+    },
+    {
+      "id": "N02",
+      "surface": "slack",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "공고 외에 어떤 경험을 중요하게 보시나요?"
+        },
+        {
+          "role": "user",
+          "content": "작은 팀에서 출시와 운영을 맡은 경험을 우대해요."
+        },
+        {
+          "role": "assistant",
+          "content": "참고할 인물이나 추가 기준, 보상 범위가 있나요?"
+        },
+        {
+          "role": "user",
+          "content": "없어요. 보상은 나중에요. 나머지는 모두 확정됐고 알림 설정만 남았습니다."
+        },
+        {
+          "role": "assistant",
+          "content": "#hiring 채널, 담당 팀원 김민수로 설정할까요?"
+        }
+      ],
+      "message": "응. 아까 정한 걸로 마무리해줘.",
+      "expectedSelection": {
+        "channelIds": [
+          "channel-a"
+        ],
+        "assigneeUserId": "user-a"
+      }
+    },
+    {
+      "id": "N03",
+      "surface": "slack",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "공고 외에 어떤 경험을 중요하게 보시나요?"
+        },
+        {
+          "role": "user",
+          "content": "작은 팀에서 출시와 운영을 맡은 경험을 우대해요."
+        },
+        {
+          "role": "assistant",
+          "content": "참고할 인물이나 추가 기준, 보상 범위가 있나요?"
+        },
+        {
+          "role": "user",
+          "content": "없어요. 보상은 나중에요. 나머지는 모두 확정됐고 알림 설정만 남았습니다."
+        },
+        {
+          "role": "assistant",
+          "content": "#hiring 채널, 담당 팀원 김민수로 설정할까요?"
+        }
+      ],
+      "message": "아니요, 아직 저장하지 말고 기다려주세요.",
+      "expectedSelection": null
+    },
+    {
+      "id": "N04",
+      "surface": "chat",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "공고 외에 어떤 경험을 중요하게 보시나요?"
+        },
+        {
+          "role": "user",
+          "content": "작은 팀에서 출시와 운영을 맡은 경험을 우대해요."
+        },
+        {
+          "role": "assistant",
+          "content": "참고할 인물이나 추가 기준, 보상 범위가 있나요?"
+        },
+        {
+          "role": "user",
+          "content": "없어요. 보상은 나중에요. 나머지는 모두 확정됐고 알림 설정만 남았습니다."
+        },
+        {
+          "role": "assistant",
+          "content": "근무 방식은 하이브리드로 할까요?"
+        }
+      ],
+      "message": "네, 그렇게 해주세요.",
+      "expectedSelection": null
+    },
+    {
+      "id": "N05",
+      "surface": "chat",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "공고 외에 어떤 경험을 중요하게 보시나요?"
+        },
+        {
+          "role": "user",
+          "content": "작은 팀에서 출시와 운영을 맡은 경험을 우대해요."
+        },
+        {
+          "role": "assistant",
+          "content": "참고할 인물이나 추가 기준, 보상 범위가 있나요?"
+        },
+        {
+          "role": "user",
+          "content": "없어요. 보상은 나중에요. 나머지는 모두 확정됐고 알림 설정만 남았습니다."
+        },
+        {
+          "role": "assistant",
+          "content": "#hiring 채널, 담당 팀원 김민수로 설정할까요?"
+        }
+      ],
+      "message": "채널은 그대로 두고 담당자는 박지현으로 바꿔서 저장해주세요.",
+      "expectedSelection": {
+        "channelIds": [
+          "channel-a"
+        ],
+        "assigneeUserId": "user-b"
+      }
+    },
+    {
+      "id": "N06",
+      "surface": "chat",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "공고 외에 어떤 경험을 중요하게 보시나요?"
+        },
+        {
+          "role": "user",
+          "content": "작은 팀에서 출시와 운영을 맡은 경험을 우대해요."
+        },
+        {
+          "role": "assistant",
+          "content": "참고할 인물이나 추가 기준, 보상 범위가 있나요?"
+        },
+        {
+          "role": "user",
+          "content": "없어요. 보상은 나중에요. 나머지는 모두 확정됐고 알림 설정만 남았습니다."
+        },
+        {
+          "role": "assistant",
+          "content": "#hiring 채널, 담당 팀원 김민수로 설정할까요?"
+        }
+      ],
+      "message": "좋긴 한데 다른 채널도 보고 결정할게요.",
+      "expectedSelection": null
+    }
+  ]
+}

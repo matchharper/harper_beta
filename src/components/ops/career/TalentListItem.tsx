@@ -1,10 +1,12 @@
+import {
+  GithubLogo as Github,
+  LinkedinLogo as Linkedin,
+} from "@/components/common/BrandLogos";
 import { memo, useCallback } from "react";
 import {
   ChevronRight,
   FileText,
-  Github,
   Link2,
-  Linkedin,
   MessageSquareText,
 } from "lucide-react";
 import { cx } from "@/components/ops/theme";

@@ -1,4 +1,4 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   createContext,
   type Context,
@@ -206,7 +206,7 @@ function OrgJobsCandidateActionsProvider({
 }: {
   children: ReactNode;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const { permissions } = useOrgWorkspace();
   const navigation = useOrgJobsNavigation();
   const detail = useOrgJobsDetail();
@@ -224,7 +224,7 @@ function OrgJobsCandidateActionsProvider({
       <OrgCandidateReengagementDialog
         candidateName={
           value.candidateReengagement?.response.candidateName ??
-          t("hooks.candidate.fallbackName", "후보자")
+          c("후보자", "Candidate")
         }
         onCancel={value.cancelCandidateReengagement}
         onConfirmCompanyChecked={async () => {
@@ -237,7 +237,7 @@ function OrgJobsCandidateActionsProvider({
         pending={value.resolvingCandidateReengagement}
         roleName={
           value.candidateReengagement?.response.roleName ??
-          t("hooks.candidate.fallbackRole", "해당 역할")
+          c("해당 역할", "this role")
         }
       />
     </OrgJobsCandidateActionsContext.Provider>

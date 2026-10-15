@@ -1,4 +1,5 @@
 export type OpsAbTestConclusionState =
+  | "descriptive"
   | "collecting"
   | "leader"
   | "no_clear_difference";
@@ -19,7 +20,7 @@ export type OpsAbTestConclusion = {
 };
 
 export type OpsAbTestMetric = {
-  format: "count" | "duration_seconds" | "number" | "rate";
+  format: "count" | "duration_seconds" | "number" | "rate" | "usd";
   label: string;
   value: number | null;
 };
@@ -41,7 +42,8 @@ export type OpsAbTestSummary = {
   id: string;
   lastObservedAt: string | null;
   primaryMetricLabel: string;
-  status: "running";
+  metricLayout?: "table";
+  status: "running" | "awaiting_data" | "observing";
   title: string;
   unitLabel: string;
   variants: [OpsAbTestVariant, OpsAbTestVariant];

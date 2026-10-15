@@ -18,6 +18,7 @@ import {
 import { stripQuotedEmailText } from "@/lib/email/parse";
 import type { OutreachReplyTriage } from "./replyTriageContract";
 import { getResendEmail } from "@/lib/email/send";
+import type { Database } from "@/types/database.types";
 
 type UntypedAdmin = ReturnType<typeof getSupabaseAdmin> & {
   from: (table: string) => any;
@@ -46,7 +47,7 @@ function errorMessage(error: unknown) {
     : String(error ?? "Unknown error");
 }
 
-function rpcData<T>(result: { data?: T; error?: { message?: string } | null }) {
+function rpcData<T>(result: { data?: unknown; error?: { message?: string } | null }) {
   if (result.error) {
     throw new Error(result.error.message ?? "Supabase RPC failed");
   }
@@ -165,7 +166,7 @@ async function saveMailboxState(args: {
   mailbox: string;
   watchExpiration?: string | null;
 }) {
-  const payload: Record<string, unknown> = {
+  const payload: Database["public"]["Tables"]["gtm_outreach_mailboxes"]["Insert"] = {
     email: args.mailbox,
     last_error: args.error ?? null,
     last_synced_at: new Date().toISOString(),
@@ -334,6 +335,7 @@ async function ingestReplyMessage(messageId: string) {
 
 async function notifyReply(result: ReplyIngestResult) {
   if (!result.activity_id) throw new Error("Reply activity ID is required");
+  if (!result.dispatch_id) throw new Error("Reply dispatch ID is required");
   // Keep the deployed reply interpretation and downstream publication checks.
   // Retrying Slack reuses the durable interpretation instead of rerunning it.
   const [dispatchResult, triageResult] = await Promise.all([
@@ -466,6 +468,9 @@ export async function reconcileGtmResendMessageIds() {
   if (error) throw new Error(error.message);
   let resolved = 0;
   for (const dispatch of data ?? []) {
+    if (!dispatch.provider_message_id) {
+      throw new Error(`Resend email ID is not ready for dispatch ${dispatch.id}`);
+    }
     const email = await getResendEmail(dispatch.provider_message_id);
     // Gmail replies refer to Resend's actual RFC Message-ID. Advancing the
     // Gmail history cursor while that identity is unavailable can permanently

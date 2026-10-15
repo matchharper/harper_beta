@@ -145,3 +145,21 @@ test("does not split a styled Unicode character in profile context", () => {
   assert.match(context, new RegExp(`Bio: ${prefix}$`, "m"));
   assert.doesNotMatch(JSON.stringify(context), /\\ud835/i);
 });
+
+test("missing end dates reach the LLM as missing data, without asserting ongoing work", () => {
+  const context = buildTalentProfileContext({
+    profile: null,
+    structuredProfile: {
+      talentUser: null,
+      talentExperiences: [
+        { role: "Engineer", company_name: "Example", start_date: "2022-01", end_date: null },
+        { role: "Engineer", company_name: "Earlier", start_date: "2020-01", end_date: "2021-12" },
+      ] as never,
+      talentEducations: [],
+      talentExtras: [],
+    },
+  });
+  assert.match(context, /2022-01 ~ \(end date not recorded\)/);
+  assert.match(context, /2020-01 ~ 2021-12/);
+  assert.doesNotMatch(context, /Present/);
+});

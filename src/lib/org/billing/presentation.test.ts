@@ -5,9 +5,20 @@ import {
   canUsePendingConnections,
   isEndedBillingSlot,
   creditSlotForRole,
+  formatBillingDaysUntil,
   type BillingCreditSlot,
   type BillingSlot,
 } from "./types";
+
+test("renewal countdown rounds partial days up and handles elapsed or missing dates", () => {
+  const now = Date.parse("2026-10-13T09:00:00Z");
+  assert.equal(formatBillingDaysUntil("2026-10-14T09:00:00Z", "ko", now), "1일 뒤");
+  assert.equal(formatBillingDaysUntil("2026-10-14T10:00:00Z", "ko", now), "2일 뒤");
+  assert.equal(formatBillingDaysUntil("2026-10-13T10:00:00Z", "en", now), "in 1 day");
+  assert.equal(formatBillingDaysUntil("2026-10-12T09:00:00Z", "en", now), "in 0 days");
+  for (const value of [null, undefined, "invalid"])
+    assert.equal(formatBillingDaysUntil(value, "ko", now), "—");
+});
 
 test("low-credit notice includes zero and ten, and excludes unlimited or unknown balances", () => {
   for (const balance of [0, 5, 10])
@@ -56,7 +67,7 @@ test("Role balances prefer assigned paid credits, then shared credits, never a d
   assert.equal(
     canUsePendingConnections(entitlements, "engineering"),
     true,
-    "exhausted credits do not hide paid candidates"
+    "exhausted Intros do not hide paid candidates"
   );
   assert.equal(canUsePendingConnections(entitlements, "new-role"), false);
   assert.equal(

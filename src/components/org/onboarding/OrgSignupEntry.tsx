@@ -8,28 +8,38 @@ import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { signupErrorMessage, type SignupEntry } from "@/lib/org/signup";
 import { useAuthStore } from "@/store/useAuthStore";
-import { BILLING_SUPPORT_HREF } from "@/lib/org/billing/types";
 
-export function OrgSignupEntry({ email }: { email: string | undefined }) {
-  const { locale } = useOrgLocale();
+export function OrgSignupEntry({
+  email,
+  preview,
+}: {
+  email: string | undefined;
+  preview?: { onBegin: () => void };
+}) {
+  const { locale, c } = useOrgLocale();
   const router = useRouter();
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
   const signOut = useAuthStore((s) => s.signOut);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const autoStartedFor = useRef<string | null>(null);
   const entry = useQuery({
     queryKey: ["org", "signup-entry", email],
+    enabled: !preview,
+    initialData: preview ? { status: "new" as const } : undefined,
     queryFn: () => fetchWithInternalAuth<SignupEntry>("/api/org/signup"),
     retry: 1,
     staleTime: 0,
   });
   useEffect(() => {
-    if (entry.data?.workspaceId)
+    if (!preview && entry.data?.workspaceId)
       void router.replace(`/org?orgId=${entry.data.workspaceId}`);
-  }, [entry.data?.workspaceId, router]);
+  }, [entry.data?.workspaceId, router, preview]);
   const refetchEntry = entry.refetch;
   const begin = useCallback(async () => {
+    if (preview) {
+      preview.onBegin();
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -51,10 +61,11 @@ export function OrgSignupEntry({ email }: { email: string | undefined }) {
     } finally {
       setBusy(false);
     }
-  }, [locale, refetchEntry, router]);
+  }, [locale, refetchEntry, router, preview]);
   useEffect(() => {
     const account = email ?? "";
     if (
+      preview ||
       !router.isReady ||
       entry.isFetching ||
       entry.isError ||
@@ -72,6 +83,7 @@ export function OrgSignupEntry({ email }: { email: string | undefined }) {
     entry.isError,
     entry.isFetching,
     router.isReady,
+    preview,
   ]);
   const status = entry.data?.status;
   return (
@@ -84,19 +96,21 @@ export function OrgSignupEntry({ email }: { email: string | undefined }) {
         title={
           <header className="pt-6">
             <h1 className="text-2xl font-normal leading-relaxed">
-              {status === "invite_required"
-                ? c("팀의 Workspace에 참여하세요", "Join your team’s workspace")
-                : status === "work_email_required"
-                  ? c("회사 이메일로 시작해 주세요", "Use your work email")
-                  : c(
-                      "팀의 첫 채용을 시작해 보세요",
-                      "Start hiring with your team"
-                    )}
+              {status === "work_email_required"
+                ? c("회사 이메일로 시작해 주세요", "Use your work email")
+                : c(
+                    "팀의 첫 채용을 시작해 보세요",
+                    "Start hiring with your team"
+                  )}
             </h1>
           </header>
         }
         footer={
-          <MuteButton variant="transparent" onClick={() => void signOut()}>
+          <MuteButton
+            variant="transparent"
+            disabled={Boolean(preview)}
+            onClick={() => void signOut()}
+          >
             {c("다른 계정으로 로그인", "Use another account")}
           </MuteButton>
         }
@@ -105,7 +119,7 @@ export function OrgSignupEntry({ email }: { email: string | undefined }) {
         {entry.isPending ||
         entry.data?.workspaceId ||
         busy ||
-        (status === "new" && !error && !entry.error) ? (
+        (!preview && status === "new" && !error && !entry.error) ? (
           <LoaderCircle
             className="size-5 animate-spin"
             aria-label={c(
@@ -115,30 +129,13 @@ export function OrgSignupEntry({ email }: { email: string | undefined }) {
           />
         ) : status === "new" && !entry.error ? (
           <MuteButton variant="neutral" onClick={() => void begin()}>
-            {c("다시 시도하기", "Try again")}
+            {preview
+              ? c(
+                  "예시 Workspace를 만들고 계속하기",
+                  "Create example workspace and continue"
+                )
+              : c("다시 시도하기", "Try again")}
           </MuteButton>
-        ) : status === "invite_required" ? (
-          <>
-            <p className="text-sm leading-6 text-neutral-800">
-              {c(
-                "이미 이 회사의 Workspace가 있어요. 회사의 Harper 관리자에게 위 이메일로 초대해 달라고 요청해 주세요. 초대 링크를 열면 기존 팀에 참여할 수 있어요.",
-                "Your company already has a workspace. Ask your Harper administrator to invite the email shown above, then open their invitation link."
-              )}
-            </p>
-            <div className="mt-6 flex gap-3">
-              <MuteButton
-                variant="neutral"
-                onClick={() => void entry.refetch()}
-              >
-                {c("초대 다시 확인", "Check for an invitation")}
-              </MuteButton>
-              <MuteButton asChild variant="transparent">
-                <a href={BILLING_SUPPORT_HREF}>
-                  {c("관리자를 모르겠어요", "Help me find my team")}
-                </a>
-              </MuteButton>
-            </div>
-          </>
         ) : status === "work_email_required" ? (
           <p className="text-sm leading-7 text-neutral-muted">
             {c(

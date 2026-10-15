@@ -1,6 +1,7 @@
 import {
   BriefcaseBusiness,
   Inbox,
+  Files,
   PanelLeft,
   Settings,
   SlidersHorizontal,
@@ -33,6 +34,7 @@ export type CareerWorkspaceTab =
   | "home"
   | "tasks"
   | "profile"
+  | "documents"
   | "brief"
   | "history"
   | "watchlist";
@@ -43,6 +45,7 @@ export const isCareerWorkspaceTab = (
   value === "home" ||
   value === "tasks" ||
   value === "profile" ||
+  value === "documents" ||
   value === "brief" ||
   value === "history" ||
   value === "watchlist";
@@ -60,6 +63,17 @@ export const getCareerWorkspaceTabFromPath = (path: string) => {
     searchParams.get("profileSection") === "brief"
   ) {
     return "brief";
+  }
+
+  if (
+    pathname === "/career/profile" &&
+    (["links", "connections"].includes(
+      searchParams.get("profileSection") ?? ""
+    ) ||
+      searchParams.has("documentId") ||
+      searchParams.has("callNoteId"))
+  ) {
+    return "documents";
   }
 
   if (pathname === "/career") {
@@ -80,6 +94,7 @@ export type CareerDesktopNavTab =
   | "new"
   | "saved"
   | "profile"
+  | "documents"
   | "brief";
 
 export function CareerNewOpportunityIcon({ className }: { className?: string }) {
@@ -101,6 +116,10 @@ export const getCareerDesktopNavLabels = (
   new: t("career.workspace.new_opportunities", "새 기회"),
   saved: t("career.workspace.my_opportunities", "내 기회"),
   profile: t("career.common.career_workspace_screen.0b0v9cr", "프로필"),
+  documents: t(
+    "career.profile.career_profile_workspace.14bifvm",
+    "이력서/링크"
+  ),
   brief: t(
     "career.profile.career_profile_workspace.search_brief_tab",
     "선호 기준"
@@ -115,13 +134,13 @@ const CareerWorkspaceNav = ({
   activeTab,
   decisionCount,
   pendingInternalRoleFeedbackCount,
-  pendingExternalRoleFeedbackCount,
+  unreadExternalRoleCount,
   onChangeTab,
 }: {
   activeTab: CareerDesktopNavTab | null;
   decisionCount: number;
   pendingInternalRoleFeedbackCount: number;
-  pendingExternalRoleFeedbackCount: number;
+  unreadExternalRoleCount: number;
   onChangeTab: (tab: CareerDesktopNavTab) => void;
 }) => {
   const t = useCareerT();
@@ -179,7 +198,7 @@ const CareerWorkspaceNav = ({
       count:
         pendingInternalRoleFeedbackCount > 0
           ? pendingInternalRoleFeedbackCount
-          : pendingExternalRoleFeedbackCount,
+          : unreadExternalRoleCount,
       countClassName:
         pendingInternalRoleFeedbackCount > 0 ? undefined : "bg-action text-white",
     },
@@ -192,6 +211,11 @@ const CareerWorkspaceNav = ({
       id: "profile",
       icon: <User className="size-4.5" strokeWidth={1.5} />,
       label: navLabels.profile,
+    },
+    {
+      id: "documents",
+      icon: <Files className="size-4.5" strokeWidth={1.5} />,
+      label: navLabels.documents,
     },
     {
       id: "brief",
@@ -215,7 +239,13 @@ const CareerWorkspaceNav = ({
           )}
         >
           {!sidebarCollapsed && (
-            <span className="font-hedvig text-[1.1rem]">Harper</span>
+            <Image
+              alt="Harper"
+              className="h-auto w-16 shrink-0"
+              height={24}
+              src="/svgs/logov2.svg"
+              width={48}
+            />
           )}
           <Tooltips text={sidebarToggleLabel} side="right">
             <MuteButton
@@ -264,7 +294,11 @@ const CareerWorkspaceNav = ({
                   <>
                     <span className="truncate">{label}</span>
                     {typeof count === "number" && count > 0 ? (
-                      <NavCount count={count} className={countClassName} />
+                      <NavCount
+                        count={count}
+                        className={countClassName}
+                        maxCount={id === "new" ? 99 : undefined}
+                      />
                     ) : null}
                   </>
                 )}
@@ -320,9 +354,11 @@ const CareerWorkspaceNav = ({
 const NavCount = ({
   count,
   className,
+  maxCount,
 }: {
   count: number;
   className?: string;
+  maxCount?: number;
 }) => (
   <span
     className={cn(
@@ -330,7 +366,7 @@ const NavCount = ({
       className
     )}
   >
-    {count}
+    {maxCount !== undefined && count >= maxCount ? `${maxCount}+` : count}
   </span>
 );
 

@@ -33,7 +33,22 @@ const useIsomorphicLayoutEffect =
 type OrgLocaleContextValue = {
   locale: OrgLocale;
   setLocale: (locale: OrgLocale) => Promise<void>;
+  c: OrgCopy;
 };
+
+export type OrgCopy = (
+  ko: string,
+  en: string,
+  values?: OrgMessageValues
+) => string;
+
+function interpolateCopy(source: string, values?: OrgMessageValues) {
+  if (!values) return source;
+  return source.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => {
+    if (!Object.prototype.hasOwnProperty.call(values, name)) return match;
+    return String(values[name] ?? "");
+  });
+}
 
 const OrgLocaleContext = createContext<OrgLocaleContextValue | null>(null);
 const keysByCurrentCopy = new Map<string, OrgMessageKey>(
@@ -44,6 +59,7 @@ const keysByCurrentCopy = new Map<string, OrgMessageKey>(
 const FALLBACK_CONTEXT: OrgLocaleContextValue = {
   locale: "ko",
   setLocale: async () => undefined,
+  c: (ko, _en, values) => interpolateCopy(ko, values),
 };
 
 function storedLocale(): OrgLocale | null {
@@ -218,7 +234,39 @@ export function OrgLocaleProvider({ children }: { children: ReactNode }) {
     [applyLocale, authUserId]
   );
 
-  const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);
+  return (
+    <OrgLocaleScope locale={locale} setLocale={setLocale}>
+      {children}
+    </OrgLocaleScope>
+  );
+}
+
+// Connect shared Org UI to a language owned by another surface, such as pricing.
+// Persistence stays with that surface rather than starting another locale sync.
+export function OrgLocaleScope({
+  locale,
+  setLocale = FALLBACK_CONTEXT.setLocale,
+  children,
+}: {
+  locale: OrgLocale;
+  setLocale?: (locale: OrgLocale) => void | Promise<void>;
+  children: ReactNode;
+}) {
+  const c = useCallback(
+    (ko: string, en: string, values?: OrgMessageValues) =>
+      interpolateCopy(locale === "ko" ? ko : en, values),
+    [locale]
+  );
+  const changeLocale = useCallback(
+    async (next: OrgLocale) => {
+      await setLocale(next);
+    },
+    [setLocale]
+  );
+  const value = useMemo(
+    () => ({ locale, setLocale: changeLocale, c }),
+    [locale, changeLocale, c]
+  );
   return (
     <OrgLocaleContext.Provider value={value}>
       {children}
@@ -239,6 +287,7 @@ export type OrgMessageValues = Record<
   string | number | null | undefined
 >;
 
+// Compatibility for shared components; Org UI keeps both strings inline with c.
 export function useOrgT() {
   const { locale } = useOrgLocale();
   return useCallback(
@@ -249,11 +298,7 @@ export function useOrgT() {
       values?: OrgMessageValues
     ) => {
       const source = locale === "ko" ? currentCopy : en[key];
-      if (!values) return source;
-      return source.replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => {
-        if (!Object.prototype.hasOwnProperty.call(values, name)) return match;
-        return String(values[name] ?? "");
-      });
+      return interpolateCopy(source, values);
     },
     [locale]
   );

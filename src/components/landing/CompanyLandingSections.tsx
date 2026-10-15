@@ -40,7 +40,7 @@ const copy = {
       {
         question: "무료로 어디까지 써볼 수 있나요?",
         answer:
-          "카드 등록 없이 포지션을 개수 제한 없이 만들고, 추천받은 후보자를 살펴볼 수 있어요. 후보자에게 채용 기회를 소개해 달라고 요청할 때 사용하는 크레딧은 매월 10개씩 제공되며, 모든 포지션에서 함께 쓸 수 있어요.",
+          "Free에서는 카드 등록 없이 포지션을 개수 제한 없이 만들고 후보자를 살펴볼 수 있어요. 매월 제공되는 Intro 10개는 모든 포지션의 Intro 요청에 함께 사용할 수 있어요. 현재 새 회사의 직접 가입은 잠시 중단되어 있어, 도입과 이용 범위는 Harper 팀과 미팅에서 확인할 수 있어요.",
         pricing: true,
       },
       {
@@ -94,7 +94,7 @@ const copy = {
       {
         question: "Can we start for free?",
         answer:
-          "Free includes unlimited roles and candidate profile reviews, with no card required. You also receive 10 credits each month to request introductions, shared across all your roles.",
+          "Free includes unlimited roles, candidate profile reviews, and 10 monthly Intros shared across all your roles, with no card required. Self-serve signup for new companies is temporarily paused. Meet with the Harper team to discuss access.",
         pricing: true,
       },
       {

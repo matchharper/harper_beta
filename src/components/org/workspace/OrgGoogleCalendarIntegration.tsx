@@ -1,5 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/router";
@@ -27,8 +27,7 @@ export function OrgGoogleCalendarIntegration({
   userId: string;
   workspaceId: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const hasCallback =
@@ -66,13 +65,13 @@ export function OrgGoogleCalendarIntegration({
       addToast({
         message:
           result.status === "active"
-            ? t(
-                "workspace.OrgGoogleCalendarIntegration.19d3b8e8",
-                "Google Calendar 계정을 연결했어요."
+            ? c(
+                "Google Calendar 계정을 연결했어요.",
+                "Google Calendar account connected."
               )
-            : t(
-                "workspace.OrgGoogleCalendarIntegration.a2bb4f91",
-                "Google Calendar 연결을 완료하지 않았어요."
+            : c(
+                "Google Calendar 연결을 완료하지 않았어요.",
+                "Google Calendar connection incomplete."
               ),
         variant: result.status === "active" ? "success" : "default",
       });
@@ -81,9 +80,9 @@ export function OrgGoogleCalendarIntegration({
       const message = localizedOrgErrorMessage(
         error,
         locale,
-        t(
-          "workspace.OrgGoogleCalendarIntegration.7c8515ff",
-          "Google Calendar 연결 결과를 저장하지 못했어요."
+        c(
+          "Google Calendar 연결 결과를 저장하지 못했어요.",
+          "Failed to save Google Calendar connection."
         )
       );
       setCallbackError(message);
@@ -91,7 +90,7 @@ export function OrgGoogleCalendarIntegration({
       // Keep the callback on retryable failures, including a DB outage. Reload
       // or the retry button can finish the same browser-bound OAuth attempt.
     }
-  }, [addToast, clearCallback, completeAsync, router.query, t]);
+  }, [addToast, clearCallback, completeAsync, router.query, locale, c]);
 
   useEffect(() => {
     if (!hasCallback) return;
@@ -119,9 +118,9 @@ export function OrgGoogleCalendarIntegration({
       } else {
         if (hasCallback) await clearCallback();
         addToast({
-          message: t(
-            "workspace.OrgGoogleCalendarIntegration.6b72efe4",
-            "Google Calendar 계정이 연결되어 있어요."
+          message: c(
+            "Google Calendar 계정이 연결되어 있어요.",
+            "Google Calendar account connected."
           ),
           variant: "success",
         });
@@ -131,9 +130,9 @@ export function OrgGoogleCalendarIntegration({
         message: localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "workspace.OrgGoogleCalendarIntegration.bd28fbec",
-            "Google Calendar 연결을 시작하지 못했어요."
+          c(
+            "Google Calendar 연결을 시작하지 못했어요.",
+            "Failed to start Google Calendar connection."
           )
         ),
         variant: "error",
@@ -148,9 +147,9 @@ export function OrgGoogleCalendarIntegration({
       setDisconnectOpen(false);
       if (hasCallback) await clearCallback();
       addToast({
-        message: t(
-          "workspace.OrgGoogleCalendarIntegration.99ecaea2",
-          "Google Calendar 연결을 해제했어요."
+        message: c(
+          "Google Calendar 연결을 해제했어요.",
+          "Google Calendar connection disconnected."
         ),
         variant: "success",
       });
@@ -159,9 +158,9 @@ export function OrgGoogleCalendarIntegration({
         message: localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "workspace.OrgGoogleCalendarIntegration.bec31b55",
-            "Google Calendar 연결 해제를 완료하지 못했어요."
+          c(
+            "Google Calendar 연결 해제를 완료하지 못했어요.",
+            "Failed to disconnect Google Calendar."
           )
         ),
         variant: "error",
@@ -186,7 +185,7 @@ export function OrgGoogleCalendarIntegration({
         <div className="flex flex-row gap-4 w-fit">
           <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white border border-black/5">
             <Image
-              alt={t("workspace.OrgGoogleCalendarIntegration.0204b951", "")}
+              alt={c("", "")}
               height={32}
               src="/images/logos/calendar.png"
               width={32}
@@ -194,28 +193,19 @@ export function OrgGoogleCalendarIntegration({
           </div>
           <div className="min-w-0">
             <h3 className="text-[14px] font-normal flex items-center gap-2 text-neutral-primary">
-              {t(
-                "workspace.OrgGoogleCalendarIntegration.6d825a32",
-                "Google Calendar"
-              )}
+              {c("Google Calendar", "Google Calendar")}
               {state === "active" && (
                 <Badge size="sm" tone="positive" variant="faded">
-                  {t(
-                    "workspace.OrgGoogleCalendarIntegration.14016533",
-                    "연결됨"
-                  )}
+                  {c("연결됨", "Connected")}
                 </Badge>
               )}
             </h3>
             <p className="mt-1 max-w-2xl text-[13px] font-light leading-5 text-neutral-muted">
-              {t(
-                "workspace.OrgGoogleCalendarIntegration.b34542e1",
-                "미팅 가능 시간을 확인하고,"
-              )}
+              {c("미팅 가능 시간을 확인하고,", "Check meeting availability,")}
               <br />
-              {t(
-                "workspace.OrgGoogleCalendarIntegration.074866b9",
-                "인터뷰 링크를 만들고 초대하기 위해 연결이 필요해요."
+              {c(
+                "인터뷰 링크를 만들고 초대하기 위해 연결이 필요해요.",
+                "Connect to create interview links and send invites."
               )}
             </p>
           </div>
@@ -230,44 +220,29 @@ export function OrgGoogleCalendarIntegration({
                   className="size-4 animate-spin"
                 />
                 {disconnect.isPending
-                  ? t(
-                      "workspace.OrgGoogleCalendarIntegration.4fa7af97",
-                      "연결 해제 중"
-                    )
+                  ? c("연결 해제 중", "Disconnecting")
                   : hasCallback
-                    ? t(
-                        "workspace.OrgGoogleCalendarIntegration.6d57f9e9",
-                        "연결 확인 중"
-                      )
-                    : t(
-                        "workspace.OrgGoogleCalendarIntegration.d2f44c02",
-                        "연결 중"
-                      )}
+                    ? c("연결 확인 중", "Checking connection")
+                    : c("연결 중", "Connecting")}
               </MuteButton>
             ) : hasCallback ? (
               <>
                 <MuteButton onClick={() => void finishConnection()} size="md">
-                  {t(
-                    "workspace.OrgGoogleCalendarIntegration.8f9bbd63",
-                    "저장 다시 시도"
-                  )}
+                  {c("저장 다시 시도", "Retry save")}
                 </MuteButton>
                 <MuteButton
                   onClick={() => void startConnection()}
                   size="md"
                   variant="transparent"
                 >
-                  {t(
-                    "workspace.OrgGoogleCalendarIntegration.3c4d5d65",
-                    "다시 연결"
-                  )}
+                  {c("다시 연결", "Reconnect")}
                 </MuteButton>
               </>
             ) : statusQuery.isPending ? (
               <Skeleton
-                aria-label={t(
-                  "workspace.OrgGoogleCalendarIntegration.b0aa7f1c",
-                  "연결 상태 확인 중"
+                aria-label={c(
+                  "연결 상태 확인 중",
+                  "Checking connection status"
                 )}
                 className="h-8 w-24"
               />
@@ -277,10 +252,7 @@ export function OrgGoogleCalendarIntegration({
                 size="md"
                 variant="default"
               >
-                {t(
-                  "workspace.OrgGoogleCalendarIntegration.d1157882",
-                  "연결 해제"
-                )}
+                {c("연결 해제", "Disconnect")}
               </MuteButton>
             ) : state === "active" ? (
               <>
@@ -289,46 +261,34 @@ export function OrgGoogleCalendarIntegration({
                   size="md"
                   variant="default"
                 >
-                  {t(
-                    "workspace.OrgGoogleCalendarIntegration.d1157882",
-                    "연결 해제"
-                  )}
+                  {c("연결 해제", "Disconnect")}
                 </MuteButton>
               </>
             ) : state === "disabled" ? (
               <MuteButton onClick={() => void disconnectCalendar()} size="md">
-                {t(
-                  "workspace.OrgGoogleCalendarIntegration.a865cf6c",
-                  "연결 해제 다시 시도"
-                )}
+                {c("연결 해제 다시 시도", "Retry disconnect")}
               </MuteButton>
             ) : (
               <MuteButton onClick={() => void startConnection()} size="md">
                 {state === "expired"
-                  ? t(
-                      "workspace.OrgGoogleCalendarIntegration.3c4d5d65",
-                      "다시 연결"
-                    )
-                  : t(
-                      "workspace.OrgGoogleCalendarIntegration.db12bd89",
-                      "연결"
-                    )}
+                  ? c("다시 연결", "Reconnect")
+                  : c("연결", "Connect")}
               </MuteButton>
             )}
           </div>
         </div>
         {!hasCallback && state === "disabled" ? (
           <p className="pb-4 text-[13px] leading-5 text-neutral-muted">
-            {t(
-              "workspace.OrgGoogleCalendarIntegration.6193d97f",
-              "Harper의 접근은 차단되어 있어요. 외부 계정 연결 해제를 마치려면 다시 시도해 주세요."
+            {c(
+              "Harper의 접근은 차단되어 있어요. 외부 계정 연결 해제를 마치려면 다시 시도해 주세요.",
+              "Harper's access is blocked. Retry to complete external account disconnect."
             )}
           </p>
         ) : !hasCallback && state === "expired" ? (
           <p className="pb-4 text-[13px] leading-5 text-neutral-muted">
-            {t(
-              "workspace.OrgGoogleCalendarIntegration.13ae6a5f",
-              "Google Calendar 연결이 만료되었거나 해제됐어요. 사용하려면 다시 연결해 주세요."
+            {c(
+              "Google Calendar 연결이 만료되었거나 해제됐어요. 사용하려면 다시 연결해 주세요.",
+              "Google Calendar connection expired or was disconnected. Reconnect to use."
             )}
           </p>
         ) : null}
@@ -352,17 +312,17 @@ export function OrgGoogleCalendarIntegration({
         mobileBottomSheet
         title={
           <>
-            {t(
-              "workspace.OrgGoogleCalendarIntegration.c43dd4cf",
-              "Google Calendar 연결을 해제할까요?"
+            {c(
+              "Google Calendar 연결을 해제할까요?",
+              "Disconnect Google Calendar?"
             )}
           </>
         }
         description={
           <>
-            {t(
-              "workspace.OrgGoogleCalendarIntegration.dea4eeb2",
-              "내 Harper 계정의 연결만 해제해요. 기존 Google Calendar 일정과 다른 팀원의 연결은 변경하지 않아요."
+            {c(
+              "내 Harper 계정의 연결만 해제해요. 기존 Google Calendar 일정과 다른 팀원의 연결은 변경하지 않아요.",
+              "Only disconnects your Harper account. Does not change existing Google Calendar events or other team members' connections."
             )}
           </>
         }
@@ -374,7 +334,7 @@ export function OrgGoogleCalendarIntegration({
               disabled={busy}
               onClick={() => setDisconnectOpen(false)}
             >
-              {t("workspace.OrgGoogleCalendarIntegration.12a65c39", "취소")}
+              {c("취소", "Cancel")}
             </MuteButton>
             <MuteButton
               disabled={busy}
@@ -387,10 +347,7 @@ export function OrgGoogleCalendarIntegration({
                   className="size-4 animate-spin"
                 />
               ) : null}
-              {t(
-                "workspace.OrgGoogleCalendarIntegration.d1157882",
-                "연결 해제"
-              )}
+              {c("연결 해제", "Disconnect")}
             </MuteButton>
           </div>
         }

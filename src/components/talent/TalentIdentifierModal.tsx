@@ -1,11 +1,13 @@
+import {
+  GithubLogo as Github,
+  LinkedinLogo as Linkedin,
+} from "@/components/common/BrandLogos";
 import React, { useMemo, useRef, useState } from "react";
 import {
   FileText,
-  Github,
   Globe2,
   GraduationCap,
   Loader2,
-  Linkedin,
   Upload,
 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";

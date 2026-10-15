@@ -1,0 +1,174 @@
+{
+  "version": "v3",
+  "provenance": "Synthetic worker exploration / explicit web request counterpart. Copied v1 synthetic company facts; new candidate, roles, grounded feedback interpretation and compact search episodes. No production data.",
+  "batches": [
+    {
+      "surface": "worker",
+      "language": "ko",
+      "userContext": {
+        "profile": {
+          "headline": "ML Engineer / applied research",
+          "experiences": [
+            {
+              "role": "ML Engineer",
+              "description": "Six years developing and evaluating deep learning models, designing experiments and publishing two applied research papers. Built PyTorch training systems and production inference services."
+            }
+          ],
+          "educations": [
+            {
+              "degree": "PhD",
+              "field": "Machine Learning"
+            }
+          ]
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "Direction",
+            "content": "ML Engineer 일을 선호합니다. 모델을 실험하고 개선하는 일을 더 하고 싶어요."
+          },
+          {
+            "ref": 2,
+            "label": "Location",
+            "content": "한국에서 일하고 싶습니다. 출근도 괜찮습니다."
+          }
+        ],
+        "behavior_context": "The user declined three ML Engineer postings, each explaining that the work focused on deployment, monitoring and recurring on-call operations rather than model experimentation. Tentative interpretation: model research ownership may matter more than the title. This does not establish dislike of ML engineering as a whole. No user feedback has been received on research-scientist roles.",
+        "behavior_version": 7
+      },
+      "workerSearchContext": {
+        "search_goal_seed": "Offer a useful next career opportunity.",
+        "companion_actions": [],
+        "search_history": [
+          "2026-10-10 | intent: Search ML engineering work with production ownership | scope:ML Engineer · KR | result:recommended(3)",
+          "2026-10-12 | intent: Repeat ML platform roles | scope:ML Engineer · KR | result:recommended(2)"
+        ]
+      },
+      "roles": [
+        {
+          "caseId": "research",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000201",
+            "role_name": "Applied Research Scientist",
+            "description": "Design model experiments, train and evaluate models in PyTorch, publish applied research, and own model-quality improvements. Requires a relevant PhD and three years of model research experience. Seoul onsite.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000201",
+            "company_name": "Synthetic ML Company 201",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 220000000,
+            "salary_max": 260000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "country_code": "KR",
+            "location_text": "Seoul, South Korea",
+            "work_mode": "onsite"
+          }
+        },
+        {
+          "caseId": "ml-operations",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000202",
+            "role_name": "ML Engineer — Inference Platform",
+            "description": "Own deployment pipelines, inference serving, monitoring and on-call operations. No model-research responsibilities. Requires three years of production ML systems work. Seoul onsite.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000202",
+            "company_name": "Synthetic ML Company 202",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 220000000,
+            "salary_max": 260000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "country_code": "KR",
+            "location_text": "Seoul, South Korea",
+            "work_mode": "onsite"
+          }
+        }
+      ]
+    },
+    {
+      "surface": "web",
+      "language": "ko",
+      "userContext": {
+        "profile": {
+          "headline": "ML Engineer / applied research",
+          "experiences": [
+            {
+              "role": "ML Engineer",
+              "description": "Six years developing and evaluating deep learning models, designing experiments and publishing two applied research papers. Built PyTorch training systems and production inference services."
+            }
+          ],
+          "educations": [
+            {
+              "degree": "PhD",
+              "field": "Machine Learning"
+            }
+          ]
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "Direction",
+            "content": "ML Engineer 일을 선호합니다. 모델을 실험하고 개선하는 일을 더 하고 싶어요."
+          },
+          {
+            "ref": 2,
+            "label": "Location",
+            "content": "한국에서 일하고 싶습니다. 출근도 괜찮습니다."
+          }
+        ],
+        "behavior_context": "The user declined three ML Engineer postings, each explaining that the work focused on deployment, monitoring and recurring on-call operations rather than model experimentation. Tentative interpretation: model research ownership may matter more than the title. This does not establish dislike of ML engineering as a whole. No user feedback has been received on research-scientist roles.",
+        "behavior_version": 7,
+        "current_request": "이번에는 연구직 말고 ML Engineer 배포·서빙 역할만 찾아주세요. 직전 피드백과 달라도 이번 요청을 기준으로 봐주세요."
+      },
+      "workerSearchContext": {
+        "search_goal_seed": "Offer a useful next career opportunity.",
+        "companion_actions": [],
+        "search_history": [
+          "2026-10-10 | intent: Search ML engineering work with production ownership | scope:ML Engineer · KR | result:recommended(3)",
+          "2026-10-12 | intent: Repeat ML platform roles | scope:ML Engineer · KR | result:recommended(2)"
+        ]
+      },
+      "roles": [
+        {
+          "caseId": "web-research",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000201",
+            "role_name": "Applied Research Scientist",
+            "description": "Design model experiments, train and evaluate models in PyTorch, publish applied research, and own model-quality improvements. Requires a relevant PhD and three years of model research experience. Seoul onsite.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000201",
+            "company_name": "Synthetic ML Company 201",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 220000000,
+            "salary_max": 260000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "country_code": "KR",
+            "location_text": "Seoul, South Korea",
+            "work_mode": "onsite"
+          }
+        },
+        {
+          "caseId": "web-ml-operations",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000202",
+            "role_name": "ML Engineer — Inference Platform",
+            "description": "Own deployment pipelines, inference serving, monitoring and on-call operations. No model-research responsibilities. Requires three years of production ML systems work. Seoul onsite.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000202",
+            "company_name": "Synthetic ML Company 202",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 220000000,
+            "salary_max": 260000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "country_code": "KR",
+            "location_text": "Seoul, South Korea",
+            "work_mode": "onsite"
+          }
+        }
+      ],
+      "request": "이번에는 연구직 말고 ML Engineer 배포·서빙 역할만 찾아주세요. 직전 피드백과 달라도 이번 요청을 기준으로 봐주세요."
+    }
+  ]
+}

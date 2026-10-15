@@ -1,3 +1,4 @@
+import { CareerTodayExternalRecommendations } from "./CareerDailyExternalRecommendations";
 import {
   Blocks,
   CalendarClock,
@@ -164,13 +165,11 @@ export default function CareerTasksPanel({
     const isPreview = router.pathname === "/career/preview";
     void router.push(
       {
-        pathname: isPreview ? router.pathname : "/career/profile",
-        query: isPreview
-          ? { ...router.query, tab: "profile", profileSection: "links" }
-          : { profileSection: "links" },
+        pathname: isPreview ? router.pathname : "/career/documents",
+        query: isPreview ? { ...router.query, tab: "documents" } : {},
       },
       undefined,
-      { shallow: true, scroll: false }
+      { shallow: isPreview, scroll: false }
     );
   };
   const {
@@ -571,6 +570,9 @@ export default function CareerTasksPanel({
       count: 0,
       content: (
         <>
+          <CareerTodayExternalRecommendations
+            onOpenOpportunity={onOpenOpportunity}
+          />
           {suggestions}
           {taskSuggestions.externalLoading ? (
             <TaskSuggestionSkeleton
@@ -768,12 +770,10 @@ export default function CareerTasksPanel({
                           "우선 검토를 요청했어요"
                         )
               }
-              description={
-                t(
-                  "career.tasks.priority_review_waiting",
-                  "회사의 인재 목록에 전달했고, 적절한 타이밍에 잘 소개할 수 있게 기다리고 있어요."
-                )
-              }
+              description={t(
+                "career.tasks.priority_review_waiting",
+                "회사의 인재 목록에 전달했고, 적절한 타이밍에 잘 소개할 수 있게 기다리고 있어요."
+              )}
               action={
                 <>
                   <MuteButton

@@ -7,21 +7,21 @@ const hasTag = (
   tag: string
 ) => item.tags.some((current) => current === tag);
 
-test("Company service FAQ has 23 distinct user-facing entries", () => {
-  assert.equal(COMPANY_SERVICE_FAQ_ITEMS.length, 23);
+test("Company service FAQ has distinct, categorized entries", () => {
   assert.equal(
     new Set(COMPANY_SERVICE_FAQ_ITEMS.map((item) => item.question)).size,
-    23
+    COMPANY_SERVICE_FAQ_ITEMS.length
   );
   assert.equal(
     new Set(COMPANY_SERVICE_FAQ_ITEMS.map((item) => item.key)).size,
-    23
+    COMPANY_SERVICE_FAQ_ITEMS.length
   );
   assert.ok(
     COMPANY_SERVICE_FAQ_ITEMS.every(
       (item) =>
         item.question.trim().length > 0 &&
         item.answer.trim().length > 0 &&
+        item.category.trim().length > 0 &&
         hasTag(item, "locale:ko")
     )
   );
@@ -35,7 +35,10 @@ test("Documents hides retrieval aliases while keeping them in the FAQ seed", () 
     (item) => item.showInDocuments === false
   );
 
-  assert.equal(documentItems.length, 21);
+  assert.equal(
+    documentItems.length + hiddenItems.length,
+    COMPANY_SERVICE_FAQ_ITEMS.length
+  );
   assert.deepEqual(
     hiddenItems.map((item) => item.key),
     ["pricing-subscription", "pricing-success-fee"]
@@ -87,8 +90,8 @@ test("Company pricing copy states the approved commercial boundary", () => {
     .join("\n");
 
   assert.match(pricingCopy, /Role을 무제한/);
-  assert.match(pricingCopy, /월 10크레딧.*별도로 유지/);
-  assert.match(pricingCopy, /월 50크레딧/);
+  assert.match(pricingCopy, /월 10 Intro.*별도로 유지/);
+  assert.match(pricingCopy, /월 50 Intro/);
   assert.match(pricingCopy, /Free와 표준 슬롯 구독에는 채용 성공보수가 없어요/);
   assert.match(pricingCopy, /Enterprise.*별도/);
   assert.doesNotMatch(
@@ -117,7 +120,11 @@ test("Company FAQ explains consequences and concrete next actions", () => {
   assert.doesNotMatch(reject?.answer ?? "", /\bReject\b/);
   assert.match(reject?.answer ?? "", /후보자에게 보이며/);
   assert.match(reject?.answer ?? "", /신중하게 선택/);
-  assert.match(paused?.answer ?? "", /잘 맞고 실제로 대화할 의사가 있는 분/);
+  assert.match(paused?.answer ?? "", /해당 역할의 검토 한도/);
+  assert.match(
+    paused?.answer ?? "",
+    /먼저 제안 가능한 후보 검색까지 모두 멈춘다는 뜻은 아니에요/
+  );
   assert.match(paused?.answer ?? "", /문의하기/);
 });
 
@@ -132,7 +139,7 @@ test("Company connection explanations keep internal review private", () => {
 
   assert.match(connectionCopy, /회사와 역할/);
   assert.match(connectionCopy, /대화해 볼 의사/);
-  assert.match(connectionCopy, /연결 대기 상태로 회사에 소개/);
+  assert.match(connectionCopy, /슬롯이 배정된 Role/);
   assert.doesNotMatch(connectionCopy, /Harper 팀의 마지막 확인/);
   assert.doesNotMatch(connectionCopy, /Harper의 마지막 검토/);
 });
@@ -145,7 +152,7 @@ test("Company candidate-contact FAQ explains the one considerate follow-up", () 
   assert.match(candidateContact?.answer ?? "", /최소 3일/);
   assert.match(candidateContact?.answer ?? "", /후속 확인 이메일을 한 번/);
   assert.match(candidateContact?.answer ?? "", /요청이 계속 유효하면/);
-  assert.match(candidateContact?.answer ?? "", /연결 후 채용 절차/);
+  assert.match(candidateContact?.answer ?? "", /연결 후 진행 중/);
 });
 
 test("Company scheduling FAQ reflects Calendar-assisted coordination", () => {
@@ -158,7 +165,7 @@ test("Company scheduling FAQ reflects Calendar-assisted coordination", () => {
 
   assert.match(scheduling?.answer ?? "", /Google Calendar를 연결/);
   assert.match(scheduling?.answer ?? "", /이미 바쁜 시간을 제외/);
-  assert.match(scheduling?.answer ?? "", /Google Calendar에 일정을 만들고/);
+  assert.match(scheduling?.answer ?? "", /Calendar 초대/);
   assert.match(scheduling?.answer ?? "", /Google Meet 링크/);
   assert.match(
     scheduling?.answer ?? "",

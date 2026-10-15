@@ -506,7 +506,6 @@ function CareerMobileChatLauncher({
                       navigation.onChangeTab(nextTab);
                     }}
                     options={navigation.options}
-                    sideOffset={8}
                   >
                     <MuteButton
                       aria-label="메뉴 열기"

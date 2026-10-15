@@ -1,170 +1,157 @@
 import assert from "node:assert/strict";
-import test, { mock } from "node:test";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import test from "node:test";
+import { act, useState } from "react";
 import { JSDOM } from "jsdom";
-import { OrgLocaleProvider, useOrgLocale, useOrgT } from "./OrgLocaleProvider";
-import { supabase } from "@/lib/supabase";
-import { useAuthStore } from "@/store/useAuthStore";
 
-test("org language selection persists and takes precedence over browser language", async () => {
-  const dom = new JSDOM("<div id='root'></div>", {
-    url: "https://example.com/org",
+test("persisted Org language updates copy and billing descendants together; pricing keeps its own language storage", async () => {
+  const dom = new JSDOM("<html><body><div id='root'></div></body></html>", {
+    url: "http://localhost/org",
   });
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const previousDocument = Object.getOwnPropertyDescriptor(
-    globalThis,
-    "document"
+  const globals = {
+    window: dom.window,
+    document: dom.window.document,
+    navigator: dom.window.navigator,
+    IS_REACT_ACT_ENVIRONMENT: true,
+    BroadcastChannel: undefined,
+  };
+  const originals = Object.fromEntries(
+    Object.keys(globals).map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key),
+    ])
   );
-  const previousNavigator = Object.getOwnPropertyDescriptor(
-    globalThis,
-    "navigator"
-  );
-  const previousActEnvironment = Object.getOwnPropertyDescriptor(
-    globalThis,
-    "IS_REACT_ACT_ENVIRONMENT"
-  );
-  Object.defineProperty(globalThis, "window", {
-    configurable: true,
-    value: dom.window,
-  });
-  Object.defineProperty(globalThis, "document", {
-    configurable: true,
-    value: dom.window.document,
-  });
-  Object.defineProperty(globalThis, "navigator", {
-    configurable: true,
-    value: { language: "en-US", languages: ["en-US"] },
-  });
-  Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
-    configurable: true,
-    value: true,
-  });
-  dom.window.localStorage.setItem("harper:org-locale", "ko");
-
-  function View() {
-    const { locale, setLocale } = useOrgLocale();
-    const t = useOrgT();
+  for (const [key, value] of Object.entries(globals)) {
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+  }
+  const { createRoot } = await import("react-dom/client");
+  const { OrgLocaleProvider, OrgLocaleScope, useOrgLocale } =
+    await import("./OrgLocaleProvider");
+  const { useOrgBillingFormat } =
+    await import("@/hooks/org/useOrgBillingFormat");
+  const { BillingIntervalTabs } =
+    await import("@/components/org/billing/BillingIntervalTabs");
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  let selection: ReturnType<typeof useOrgLocale> | undefined;
+  function Probe() {
+    selection = useOrgLocale();
+    const { c } = selection;
+    const {
+      date,
+      formatBillingDaysUntil,
+      formatBillingMoney,
+      formatIntroCount,
+    } = useOrgBillingFormat();
     return (
-      <button onClick={() => setLocale("en")} type="button">
-        {locale}: {t("profile.language", "표시 언어")}
-      </button>
+      <>
+        <p data-copy>{c("선택된 언어", "Selected language")}</p>
+        <p data-interpolation>
+          {c(
+            "{name}: {count}명 · {note}",
+            "{count} candidates for {name} · {note}",
+            {
+              name: "팀{count}",
+              count: 0,
+              note: null,
+            }
+          )}
+        </p>
+        <p data-date>{date("2030-01-02T12:00:00Z")}</p>
+        <p data-days>
+          {formatBillingDaysUntil(
+            "2030-01-03T12:00:00Z",
+            Date.parse("2030-01-02T12:00:00Z")
+          )}
+        </p>
+        <p data-money>{formatBillingMoney(20000, "usd")}</p>
+        <p data-count>{formatIntroCount(2)}</p>
+        <BillingIntervalTabs value="year" onChange={() => undefined} />
+      </>
     );
   }
-
-  const root = createRoot(dom.window.document.getElementById("root")!);
+  const read = (name: string) =>
+    dom.window.document.querySelector(`[data-${name}]`)!.textContent;
+  let publicSelection = "en";
+  function PricingSurface() {
+    const [locale, setLocale] = useState<"ko" | "en">("en");
+    return (
+      <OrgLocaleScope
+        locale={locale}
+        setLocale={(next) => {
+          publicSelection = next;
+          setLocale(next);
+        }}
+      >
+        <Probe />
+      </OrgLocaleScope>
+    );
+  }
   try {
-    await act(async () => {
+    dom.window.localStorage.setItem("harper:org-locale", "ko");
+    await act(async () =>
       root.render(
         <OrgLocaleProvider>
-          <View />
+          <Probe />
         </OrgLocaleProvider>
-      );
-    });
-    const button = dom.window.document.querySelector("button")!;
-    assert.equal(button.textContent, "ko: 표시 언어");
-    assert.equal(dom.window.document.documentElement.lang, "ko");
-    await act(async () => button.click());
-    assert.equal(button.textContent, "en: Language");
+      )
+    );
+    assert.equal(read("copy"), "선택된 언어");
+    assert.equal(read("interpolation"), "팀{count}: 0명 · ");
+    assert.equal(read("days"), "1일 뒤");
+    assert.equal(read("count"), "2 Intro");
+    assert.ok(dom.window.document.querySelector('[aria-label="결제 주기"]'));
+    const koreanDate = read("date");
+    const koreanMoney = read("money");
+    const copy = selection!.c;
+    await act(async () =>
+      root.render(
+        <OrgLocaleProvider>
+          <Probe />
+        </OrgLocaleProvider>
+      )
+    );
+    assert.equal(selection!.c, copy);
+
+    await act(async () => selection!.setLocale("en"));
+    assert.equal(read("copy"), "Selected language");
+    assert.equal(read("interpolation"), "0 candidates for 팀{count} · ");
+    assert.equal(read("days"), "in 1 day");
+    assert.equal(read("count"), "2 Intros");
+    assert.notEqual(read("date"), koreanDate);
+    assert.notEqual(read("money"), koreanMoney);
+    assert.ok(
+      dom.window.document.querySelector('[aria-label="Billing period"]')
+    );
     assert.equal(dom.window.localStorage.getItem("harper:org-locale"), "en");
     assert.equal(dom.window.document.documentElement.lang, "en");
-  } finally {
-    await act(async () => root.unmount());
-    for (const [name, previous] of [
-      ["window", previousWindow],
-      ["document", previousDocument],
-      ["navigator", previousNavigator],
-      ["IS_REACT_ACT_ENVIRONMENT", previousActEnvironment],
-    ] as const) {
-      if (previous) Object.defineProperty(globalThis, name, previous);
-      else Reflect.deleteProperty(globalThis, name);
-    }
-    dom.window.close();
-  }
-});
 
-test("saved company language overrides local detection and profile changes update it", async () => {
-  const dom = new JSDOM("<div id='root'></div>", {
-    url: "https://example.com/org",
-  });
-  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
-  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-  const previousFetch = Object.getOwnPropertyDescriptor(globalThis, "fetch");
-  const previousActEnvironment = Object.getOwnPropertyDescriptor(globalThis, "IS_REACT_ACT_ENVIRONMENT");
-  const previousAuthState = useAuthStore.getState();
-  Object.defineProperty(globalThis, "window", { configurable: true, value: dom.window });
-  Object.defineProperty(globalThis, "document", { configurable: true, value: dom.window.document });
-  Object.defineProperty(globalThis, "navigator", {
-    configurable: true,
-    value: { language: "en-US", languages: ["en-US"] },
-  });
-  Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
-    configurable: true,
-    value: true,
-  });
-  const requests: Array<{ method: string; body: unknown }> = [];
-  let serverLocale: string | null = "ko";
-  Object.defineProperty(globalThis, "fetch", {
-    configurable: true,
-    value: async (_input: unknown, init?: RequestInit) => {
-      const body = init?.body ? JSON.parse(String(init.body)) : null;
-      requests.push({
-        method: init?.method ?? "GET",
-        body,
-      });
-      if (init?.method === "PUT" && (!body.ifUnset || !serverLocale)) {
-        serverLocale = body.locale;
-      }
-      return new Response(JSON.stringify({ locale: serverLocale }), {
-        headers: { "Content-Type": "application/json" },
-        status: 200,
-      });
-    },
-  });
-  const sessionMock = mock.method(supabase.auth, "getSession", async () => ({
-    data: { session: { access_token: "test-token" } },
-    error: null,
-  }));
-  dom.window.localStorage.setItem("harper:org-locale", "en");
-  useAuthStore.setState({ user: { id: "company-user-1" } as typeof previousAuthState.user });
+    dom.window.localStorage.setItem("harper:org-locale", "ko");
+    await act(async () =>
+      dom.window.dispatchEvent(
+        new dom.window.StorageEvent("storage", {
+          key: "harper:org-locale",
+          newValue: "ko",
+        })
+      )
+    );
+    assert.equal(read("copy"), "선택된 언어");
+    assert.equal(read("date"), koreanDate);
+    assert.equal(read("money"), koreanMoney);
 
-  function View() {
-    const { locale, setLocale } = useOrgLocale();
-    return <button onClick={() => void setLocale("en")} type="button">{locale}</button>;
-  }
-
-  const root = createRoot(dom.window.document.getElementById("root")!);
-  try {
-    await act(async () => root.render(<OrgLocaleProvider><View /></OrgLocaleProvider>));
-    assert.equal(dom.window.document.querySelector("button")?.textContent, "ko");
+    await act(async () => root.render(<PricingSurface />));
+    assert.equal(read("copy"), "Selected language");
+    await act(async () => selection!.setLocale("ko"));
+    assert.equal(publicSelection, "ko");
+    assert.equal(read("copy"), "선택된 언어");
+    await act(async () => selection!.setLocale("en"));
+    assert.equal(read("copy"), "Selected language");
     assert.equal(dom.window.localStorage.getItem("harper:org-locale"), "ko");
-    await act(async () => dom.window.document.querySelector("button")!.click());
-    assert.equal(dom.window.document.querySelector("button")?.textContent, "en");
-    assert.deepEqual(requests.map((request) => request.method), ["GET", "PUT"]);
-    assert.deepEqual(requests[1]?.body, { locale: "en" });
-    assert.equal(dom.window.localStorage.getItem("harper:org-locale-user"), "company-user-1");
-
-    serverLocale = null;
-    await act(async () => {
-      useAuthStore.setState({ user: { id: "company-user-2" } as typeof previousAuthState.user });
-    });
-    assert.deepEqual(requests.slice(2).map((request) => request.method), ["GET", "PUT"]);
-    assert.deepEqual(requests[3]?.body, { locale: "en", ifUnset: true });
-    assert.equal(dom.window.localStorage.getItem("harper:org-locale-user"), "company-user-2");
   } finally {
     await act(async () => root.unmount());
-    sessionMock.mock.restore();
-    useAuthStore.setState(previousAuthState, true);
-    for (const [name, previous] of [
-      ["window", previousWindow],
-      ["document", previousDocument],
-      ["navigator", previousNavigator],
-      ["fetch", previousFetch],
-      ["IS_REACT_ACT_ENVIRONMENT", previousActEnvironment],
-    ] as const) {
-      if (previous) Object.defineProperty(globalThis, name, previous);
-      else Reflect.deleteProperty(globalThis, name);
+    const { supabase } = await import("@/lib/supabase");
+    await supabase.auth.stopAutoRefresh();
+    for (const [key, descriptor] of Object.entries(originals)) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
     }
     dom.window.close();
   }

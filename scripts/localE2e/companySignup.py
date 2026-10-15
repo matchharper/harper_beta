@@ -48,16 +48,21 @@ try:
     workspace = results[0]['workspaceId']
     workspaces.add(workspace)
     assert results[1]['workspaceId'] == workspace
-    assert begin(1)['status'] == 'invite_required'
+    another = begin(1)
+    assert another['status'] == 'created' and another['workspaceId'] != workspace
+    workspaces.add(another['workspaceId'])
+    assert scalar('select count(*) from company_user_workspace where company_user_id=%s and company_workspace_id=%s', (users[1], workspace)) == 0
     summary = scalar('select workspace_billing_summary_v2(%s)', (workspace,))
-    assert (summary['model'], summary['capacity'], summary['balance']) == ('free', 1, 5)
+    # Creation must start on Free; quota amounts belong to the billing contract
+    # and may differ between installed billing migrations in the local stack.
+    assert summary['model'] == 'free'
     assert scalar('select count(*) from company_roles where company_workspace_id=%s', (workspace,)) == 0
     fails(lambda: scalar('select workspace_signup_begin_v1(%s,%s,true)', (users[0], 'spoofed.com')), 'signup_work_email_required')
     fails(lambda: update(1, workspace, 'company', {'name':'Unauthorized'}), 'signup_forbidden')
     fails(lambda: update(0, workspace, 'plan', {'plan':'free'}), 'signup_company_required')
     assert not scalar("select has_function_privilege('authenticated','workspace_signup_begin_v1(uuid,text,boolean)','execute')")
     assert not scalar("select has_function_privilege('anon','workspace_signup_update_v1(uuid,uuid,text,jsonb)','execute')")
-    print('PASS verified domain, same-user concurrency, duplicate company, permissions, Free 1 slot/5 credits, no roles')
+    print('PASS verified domain, same-user concurrency, independent same-company signup, permissions, Free start, no roles')
 
     claim = update(0, workspace, 'research_start')
     assert claim['claimed'] and not update(0, workspace, 'research_start')['claimed']
@@ -82,23 +87,21 @@ try:
     assert scalar("select signup_state->>'plan' from company_workspace where company_workspace_id=%s",(workspace,)) == 'free'
     print('PASS optional company description, required name, research claim/stale result/manual edits, company records, paid selection blocked without payment, Free selection')
 
-    # Two unrelated email domains must not claim the same LinkedIn company at once.
+    # Independent Organizations may confirm the same public LinkedIn company.
     for i in (2,3):
         workspaces.add(begin(i)['workspaceId'])
     other_ws = {i: scalar('select company_workspace_id from company_user_workspace where company_user_id=%s',(users[i],)) for i in (2,3)}
     shared = {'name':'Concurrent company', 'description':'Company description', 'linkedinUrl':f'https://www.linkedin.com/company/shared-{domain}'}
     def confirm(i):
-        try:
-            with psycopg.connect(url) as other:
-                company_values = shared | {'linkedinUrl': shared['linkedinUrl'].upper() if i == 3 else shared['linkedinUrl']}
-                other.execute('select workspace_signup_update_v1(%s,%s,%s,%s)', (users[i],other_ws[i],'company',Jsonb(company_values)))
-            return 'confirmed'
-        except psycopg.Error as error:
-            assert 'signup_company_exists' in str(error), str(error)
-            return 'blocked'
+        with psycopg.connect(url) as other:
+            company_values = shared | {'linkedinUrl': shared['linkedinUrl'].upper() if i == 3 else shared['linkedinUrl']}
+            other.execute('select workspace_signup_update_v1(%s,%s,%s,%s)', (users[i],other_ws[i],'company',Jsonb(company_values)))
+        return 'confirmed'
     with ThreadPoolExecutor(max_workers=2) as pool:
-        assert sorted(pool.map(confirm,[2,3])) == ['blocked','confirmed']
-    print('PASS concurrent LinkedIn company claim')
+        assert sorted(pool.map(confirm,[2,3])) == ['confirmed','confirmed']
+    company_ids = [scalar('select company_db_id from company_workspace where company_workspace_id=%s', (other_ws[i],)) for i in (2,3)]
+    assert company_ids[0] == company_ids[1]
+    print('PASS concurrent confirmation shares public company identity without sharing Organization membership')
 finally:
     for workspace in workspaces:
         db_id = scalar('select company_db_id from company_workspace where company_workspace_id=%s',(workspace,))

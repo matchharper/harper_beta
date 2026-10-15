@@ -20,6 +20,8 @@ export type OrgAgentToolResultMetadata = NonNullable<
 >[number];
 
 export type OrgAgentToolExecutionState = {
+  companyMessageBatch?: { batchId: string; messageIds: number[] };
+  issueReportResult?: Record<string, unknown>;
   billingNotice?: OrgAgentMessageMetadata["billingNotice"];
   activatedMoreData: Array<{
     activatedAt: string;

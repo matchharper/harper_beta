@@ -28,6 +28,7 @@ test("unanswered hidden opportunities belong to the saved archive bucket", () =>
     archived: 0,
     new: 0,
     newInternal: 0,
+    newExternalUnread: 0,
     saved: 1,
     savedStages: {
       applied: 0,
@@ -58,4 +59,20 @@ test("ended roles are rendered as past postings", () => {
     }),
     true
   );
+});
+
+
+test("counts only unread new external jobs, independently from Harper positions", () => {
+  const external = { sourceType: "external" as const, isInternal: false, opportunityType: OpportunityType.ExternalJd };
+  const counts = deriveHistoryOpportunityCounts([
+    createOpportunity({ ...external, viewedAt: null }),
+    createOpportunity({ ...external, viewedAt: "2026-10-13T00:00:00Z" }),
+    createOpportunity({ ...external, feedback: "positive", viewedAt: null }),
+    createOpportunity({ ...external, feedback: "negative", viewedAt: null }),
+    createOpportunity({ ...external, savedStage: "hidden", viewedAt: null }),
+    createOpportunity({ viewedAt: null }),
+  ]);
+  assert.equal(counts.new, 3);
+  assert.equal(counts.newInternal, 1);
+  assert.equal(counts.newExternalUnread, 1);
 });

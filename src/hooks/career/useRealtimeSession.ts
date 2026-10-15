@@ -1,5 +1,6 @@
 "use client";
 
+import { toolErrorResult, serializeToolResultForModel } from "@/lib/llm/toolError";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FetchWithAuth } from "./useCareerApi";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
@@ -49,6 +50,7 @@ type TokenInfo = {
 };
 
 type PendingFunctionCallOutput = {
+  modelOutput?: string;
   callId: string;
   output: unknown;
 };
@@ -797,7 +799,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           item: {
             type: "function_call_output",
             call_id: resolvedCall.callId,
-            output: JSON.stringify(resolvedCall.output),
+            output: resolvedCall.modelOutput ?? serializeToolResultForModel(resolvedCall.output),
           },
         });
       }
@@ -843,6 +845,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
 
         const executionId = beginToolExecution(functionCall.name);
         let output: unknown;
+        let preparedModelOutput: string | undefined;
         try {
           if (!conversationId) {
             throw new Error("Missing conversationId for tool execution.");
@@ -865,16 +868,14 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
             throw new Error(
-              getErrorText(payload, "Failed to execute realtime tool.")
+              getErrorText(payload, "Failed to execute realtime tool."), { cause: payload }
             );
           }
 
           output = payload?.output ?? {};
+          preparedModelOutput = typeof payload?.modelOutput === "string" ? payload.modelOutput : undefined;
         } catch (error) {
-          output = {
-            error:
-              error instanceof Error ? error.message : "Tool execution failed",
-          };
+          output = toolErrorResult(error);
         } finally {
           finishToolExecution(executionId);
         }
@@ -882,6 +883,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
         outputs.push({
           callId: functionCall.callId,
           output,
+          modelOutput: preparedModelOutput,
         });
       }
 

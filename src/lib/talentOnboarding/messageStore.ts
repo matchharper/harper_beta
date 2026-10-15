@@ -334,6 +334,9 @@ export async function fetchRecentMessages(args: {
     )
     .eq("conversation_id", conversationId)
     .neq("message_type", CAREER_COACHING_ACTIVITY_MESSAGE_TYPE)
+    .neq("message_type", "application_start_offer")
+    .neq("message_type", "simulation_session")
+    .neq("message_type", "simulation_action")
     .order("id", { ascending: false })
     .limit(limit);
 

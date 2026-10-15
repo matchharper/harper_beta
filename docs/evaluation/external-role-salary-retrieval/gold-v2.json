@@ -1,0 +1,15 @@
+{
+  "version": "v2",
+  "author": "Codex before ranking comparison",
+  "source": "published structured salary",
+  "sufficient": "annual minimum >= target",
+  "materiallyShort": "annual maximum < 0.6 * target",
+  "mixed": "comparable annual band between these labels",
+  "unknown": "missing/invalid currency,period or endpoints",
+  "targetsKrw": [
+    80000000,
+    120000000,
+    200000000,
+    300000000
+  ]
+}

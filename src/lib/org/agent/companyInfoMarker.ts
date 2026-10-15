@@ -13,14 +13,24 @@ function cleanRenderedText(value: string) {
     .trim();
 }
 
-function isCompanyInfoMarkerLine(line: string) {
+/**
+ * Returns the prose before the marker when the line is a marker line, or null.
+ * The model sometimes appends the marker to the end of a sentence instead of
+ * giving it its own line, so a trailing marker also counts.
+ */
+function proseBeforeCompanyInfoMarker(line: string) {
   const leadingSpaces = line.match(/^ */)?.[0].length ?? 0;
-  if (leadingSpaces > 3) return false;
-  const trimmed = line.trim();
-  return (
-    trimmed === ORG_AGENT_COMPANY_INFO_MARKER ||
-    trimmed === LEGACY_ORG_AGENT_COMPANY_INFO_MARKER
-  );
+  if (leadingSpaces > 3) return null;
+  const text = line.trimEnd();
+  for (const marker of [
+    ORG_AGENT_COMPANY_INFO_MARKER,
+    LEGACY_ORG_AGENT_COMPANY_INFO_MARKER,
+  ]) {
+    if (text.endsWith(marker)) {
+      return text.slice(0, -marker.length).trimEnd();
+    }
+  }
+  return null;
 }
 
 function appendTextSegment(
@@ -40,9 +50,9 @@ function appendTextSegment(
 /**
  * Splits the company-side LLM's private company-information marker from the
  * surrounding prose without losing its intended render position. Only a
- * standalone marker line is recognized so normal prose and code samples remain
- * untouched. The legacy single-bracket marker remains readable for persisted
- * messages.
+ * marker on its own line or at the end of a line is recognized so other prose
+ * and code samples remain untouched. The legacy single-bracket marker remains
+ * readable for persisted messages.
  */
 export function splitOrgAgentCompanyInfoMarker(
   message: string
@@ -60,7 +70,9 @@ export function splitOrgAgentCompanyInfoMarker(
       textLines.push(line);
       continue;
     }
-    if (!fenced && isCompanyInfoMarkerLine(line)) {
+    const prose = fenced ? null : proseBeforeCompanyInfoMarker(line);
+    if (prose !== null) {
+      textLines.push(prose);
       appendTextSegment(segments, textLines);
       textLines = [];
       if (!companyInfoAdded) {

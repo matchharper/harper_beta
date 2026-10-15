@@ -206,12 +206,12 @@ const CareerDocumentsSettingsSection = ({
       />
 
       {!hasSavedResume && (
-        <div className="mt-3 max-w-2xl text-[13px] rounded-[10px] border border-neutral-1000-a10 bg-white/10 px-3 py-2.5">
+        <div className="mt-3 text-[13px] rounded-[10px] border border-neutral-1000-a10 bg-white/10 px-3 py-2.5">
           {resumeEmptyNotice}
         </div>
       )}
       {companyRequest ? (
-        <div className="mt-3 max-w-2xl rounded-[10px] border border-neutral-1000-a10 bg-info-faded px-4 py-3">
+        <div className="mt-3 rounded-[10px] border border-neutral-1000-a10 bg-info-faded px-4 py-3">
           <p className="text-sm font-medium text-neutral-primary">
             {t(
               "career.profile.resume_request.banner_title",
@@ -233,7 +233,7 @@ const CareerDocumentsSettingsSection = ({
         </div>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
         {sortedDocuments.map((document) => {
           const isGmailCareerHistory =
             document.originType === "gmail_career_history" &&
@@ -256,6 +256,7 @@ const CareerDocumentsSettingsSection = ({
             Boolean(document.downloadUrl);
           return (
             <CareerProfileSourceCard
+              className="min-w-0 w-full md:w-full"
               key={document.id}
               icon={
                 document.kind === "call_note" ? (
@@ -380,6 +381,7 @@ const CareerDocumentsSettingsSection = ({
 
         {hasSavedResume && !hasResumeDocument ? (
           <CareerProfileSourceCard
+            className="min-w-0 w-full md:w-full"
             icon={<FileText className="h-5 w-5" aria-hidden="true" />}
             title={
               savedResumeFileName ??
@@ -407,6 +409,7 @@ const CareerDocumentsSettingsSection = ({
         ) : null}
 
         <ResumeDropzone
+          className="min-w-0 w-full md:w-full"
           inputId="career-settings-resume-upload"
           variant="source-card"
           accept=".pdf,.docx,.txt,.md"
@@ -463,7 +466,7 @@ const CareerDocumentsSettingsSection = ({
           icon={<Plus className="h-5 w-5" aria-hidden="true" />}
           title={t("career.profile.documents.add", "추가하기")}
           meta={t("career.profile.sources.add_document", "문서 추가")}
-          className="border-dashed shadow-none"
+          className="min-w-0 w-full border-dashed shadow-none md:w-full"
           onActivate={onAddDocument}
           ariaLabel={t("career.profile.documents.add", "추가하기")}
         />

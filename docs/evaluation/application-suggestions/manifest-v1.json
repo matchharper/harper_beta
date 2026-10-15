@@ -1,0 +1,11 @@
+{
+  "datasetVersion": "v1",
+  "createdAt": "2026-10-12",
+  "provenance": "Assistant-authored synthetic fixtures; no production data",
+  "labelReview": "Assistant-authored; no independent review",
+  "files": {
+    "cases-v1.json": "0305ab38c97c1e36aa6a3b5f43944d6fc9d44a2ac6fd340b93110bb05c9b0c98",
+    "gold-v1.json": "13009f3b6d43ab66af29fde1a8364874a6321b0f92c9a79021c46ca752783723"
+  },
+  "runner": "scripts/evalApplicationSuggestions.ts"
+}

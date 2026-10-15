@@ -399,3 +399,52 @@ test("streams Luna text while preserving Responses tool and reasoning output", a
     )
   );
 });
+
+test("completion metadata preserves provider truncation instead of losing the finish reason", async () => {
+  const [{ client }, { runTalentAssistantCompletion }] = await Promise.all([
+    import("@/lib/llm/llm"), import("./llm"),
+  ]);
+  const prototype = Object.getPrototypeOf(client.responses) as any;
+  const original = prototype.create;
+  prototype.create = async () => ({
+    model: "gpt-6-luna", status: "incomplete",
+    incomplete_details: { reason: "max_output_tokens" },
+    output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: '{"summary":"cut' }] }],
+    usage: { input_tokens: 100, output_tokens: 6500, total_tokens: 6600 },
+  });
+  try {
+    let observed: unknown;
+    await runTalentAssistantCompletion({ primaryModel: "gpt-6-luna", openAIResponsesReasoningEffort: "medium", messages: [{ role: "user", content: "JSON" }], onCompletionMetadata: value => { observed = value; } });
+    assert.deepEqual(observed, { model: "gpt-6-luna", finishReason: "length", completionTokens: 6500 });
+  } finally { prototype.create = original; }
+});
+
+test("Responses tool loop sends structured unexpected errors back to the model", async () => {
+  const [{ client }, { runTalentAssistantToolLoop }] = await Promise.all([
+    import("@/lib/llm/llm"), import("./llm"),
+  ]);
+  const prototype = Object.getPrototypeOf(client.responses) as any;
+  const original = prototype.create;
+  const requests: any[] = [];
+  prototype.create = async (body: any) => {
+    requests.push(body);
+    return { id: `response-${requests.length}`, model: "gpt-6-luna", status: "completed",
+      output: requests.length === 1
+        ? [{ type: "function_call", name: "read_context", call_id: "error-call", arguments: "{}" }]
+        : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "확인하지 못했어요." }] }],
+    };
+  };
+  try {
+    await runTalentAssistantToolLoop({
+      messages: [{ role: "user", content: "저장된 내용을 확인해줘" }],
+      modelConfig: { primaryModel: "gpt-6-luna", fallbackModel: "gpt-4.1-mini" },
+      openAIResponsesReasoningEffort: "high",
+      executeTool: async () => { throw { message: "read failed", code: "NEW_DB_CODE", details: "remote unavailable" }; },
+      tools: [{ type: "function", function: { name: "read_context", description: "Read context", parameters: { type: "object", properties: {} } } }],
+    });
+    const output = requests[1].input.find((item: any) => item.type === "function_call_output").output;
+    assert.match(output, /NEW_DB_CODE/);
+    assert.match(output, /remote unavailable/);
+    assert.ok(!output.includes("[object Object]"));
+  } finally { prototype.create = original; }
+});

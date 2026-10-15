@@ -20,9 +20,9 @@ export interface CheckboxProps extends Omit<
 }
 
 const checkboxSizeClassNames: Record<CheckboxSize, string> = {
-  small: "size-3 rounded-[0px]",
-  medium: "size-4 rounded-sm",
-  large: "size-5 rounded-sm",
+  small: "size-3.5 rounded-xs",
+  medium: "size-4.5 rounded-sm",
+  large: "size-6 rounded-sm",
 };
 
 const labelSizeClassNames: Record<CheckboxSize, string> = {

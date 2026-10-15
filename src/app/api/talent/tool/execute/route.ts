@@ -1,3 +1,5 @@
+import { runToolCall, unwrapToolCall, prepareToolDelivery } from "@/lib/llm/toolExecution";
+import { formatToolError, toolErrorResult, projectToolDiagnosticFieldsForTransport } from "@/lib/llm/toolError";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
@@ -23,6 +25,7 @@ type Body = {
 };
 
 export async function POST(req: NextRequest) {
+  let capturedDiagnostics: readonly unknown[] = [];
   try {
     const user = await getRequestUser(req);
     if (!user) {
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     if (conversationError) {
       return NextResponse.json(
-        { error: conversationError.message ?? "Failed to read conversation" },
+        { error: conversationError.message ?? "Failed to read conversation", diagnostic: formatToolError(conversationError) },
         { status: 500 }
       );
     }
@@ -82,7 +85,7 @@ export async function POST(req: NextRequest) {
       searchPurpose = "mock_interview";
     }
 
-    const output = await executeTalentTool({
+    const toolCapture = await runToolCall(() => executeTalentTool({
       channel,
       name,
       context: {
@@ -102,12 +105,15 @@ export async function POST(req: NextRequest) {
         body.arguments && typeof body.arguments === "object"
           ? body.arguments
           : {},
-    });
+    }), { callId: String(body.toolCallId ?? ""), name });
+          capturedDiagnostics = toolCapture.diagnostics;
+          const output = unwrapToolCall(toolCapture);
 
     return NextResponse.json({
       ok: true,
       name,
-      output,
+      output: projectToolDiagnosticFieldsForTransport(output),
+      modelOutput: prepareToolDelivery(toolCapture, value => JSON.stringify(value)),
     });
   } catch (error) {
     if (
@@ -115,18 +121,13 @@ export async function POST(req: NextRequest) {
       error instanceof MockInterviewRequestError
     ) {
       return NextResponse.json(
-        { error: error.message },
+        toolErrorResult(error, capturedDiagnostics),
         { status: error.status }
       );
     }
 
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to execute talent tool",
-      },
+      toolErrorResult(error, capturedDiagnostics),
       { status: 500 }
     );
   }

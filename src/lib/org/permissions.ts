@@ -1,6 +1,7 @@
 export type OrgMembershipRole = "owner" | "admin" | "viewer";
 
 export type OrgPermissions = {
+  canManageTeams: boolean;
   canManageCandidates: boolean;
   canManageIntegrations: boolean;
   canManageMembers: boolean;
@@ -14,13 +15,13 @@ export const ORG_MEMBERSHIP_ROLE_OPTIONS: Array<{
   value: OrgMembershipRole;
 }> = [
   {
-    description: "멤버 초대와 권한 변경을 포함해 모든 기능을 관리합니다.",
+    description: "팀원 초대와 권한 변경을 포함해 모든 기능을 관리합니다.",
     label: "Owner",
     value: "owner",
   },
   {
     description:
-      "후보자와 Jobs, 회사 정보 및 연동을 관리합니다. 멤버 초대 및 제거는 할 수 없습니다.",
+      "후보자와 Jobs, 회사 정보 및 연동을 관리합니다. 팀원 초대 및 제거는 할 수 없습니다.",
     label: "Admin",
     value: "admin",
   },
@@ -46,16 +47,18 @@ export function normalizeOrgMembershipRole(
 }
 
 export function getOrgPermissions(
-  value: string | null | undefined
+  value: string | null | undefined,
+  accessScope: "organization" | "team" = "organization"
 ): OrgPermissions {
   const role = normalizeOrgMembershipRole(value);
   const isOwner = role === "owner";
   const canManageCandidates = role === "owner" || role === "admin";
   return {
     canManageCandidates,
-    canManageIntegrations: canManageCandidates,
+    canManageTeams: isOwner,
+    canManageIntegrations: canManageCandidates && (isOwner || accessScope === "organization"),
     canManageMembers: isOwner,
-    canManageWorkspace: canManageCandidates,
+    canManageWorkspace: canManageCandidates && (isOwner || accessScope === "organization"),
     role,
   };
 }

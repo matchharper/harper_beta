@@ -69,7 +69,13 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
 
   return (
     <InlinePanel className="relative rounded-lg border border-neutral-1000-a05 bg-bg-floating py-3 px-4 transition-colors shadow-none active:bg-bg-weak">
-      <div className="absolute right-2 top-2 z-10">
+      <div className="absolute right-2 top-2 z-10 flex items-center gap-2">
+        {onOpenOpportunityInfo ? (
+          <HistoryOpportunityInfoTag
+            item={item}
+            onOpenInfo={onOpenOpportunityInfo}
+          />
+        ) : null}
         {item.isInternal && onInternalDecisionAction ? (
           <InternalOpportunityDecisionMenu
             onCard
@@ -167,21 +173,11 @@ export const CareerMobileJobCard = React.memo(function CareerMobileJobCard({
                 ))}
               </div>
             ) : null}
-            {location || onOpenOpportunityInfo ? (
-              <div className="flex min-w-0 items-center justify-between gap-3 mt-3">
-                {location ? (
-                  <span className="min-w-0 flex-1 wrap-break-word text-[12px] font-normal text-neutral-muted">
-                    {location}
-                  </span>
-                ) : null}
-                {onOpenOpportunityInfo ? (
-                  <div className="ml-auto shrink-0">
-                    <HistoryOpportunityInfoTag
-                      item={item}
-                      onOpenInfo={onOpenOpportunityInfo}
-                    />
-                  </div>
-                ) : null}
+            {location ? (
+              <div className="mt-3 min-w-0">
+                <span className="wrap-break-word text-[12px] font-normal text-neutral-muted">
+                  {location}
+                </span>
               </div>
             ) : null}
           </div>

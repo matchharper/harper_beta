@@ -25,12 +25,10 @@ const visitReceipts = new Map<string, Set<string>>();
 export function AnnouncementQueue({
   userId,
   announcements,
-  closeLabel,
   receipts = announcementReceipts,
 }: {
   userId: string;
   announcements: readonly Announcement[];
-  closeLabel: string;
   receipts?: AnnouncementReceipts;
 }) {
   const [current, setCurrent] = useState<{ userId: string; id: string } | null>(
@@ -104,7 +102,6 @@ export function AnnouncementQueue({
       title={announcement?.title ?? ""}
       media={announcement?.media}
       action={announcement?.action}
-      closeLabel={closeLabel}
       onClose={() => advanceRef.current?.()}
     >
       {announcement?.description}

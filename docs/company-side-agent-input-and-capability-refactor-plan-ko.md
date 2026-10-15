@@ -177,7 +177,7 @@ tools.ts
 | --- | --- | --- |
 | `web_research` | 공개 웹에서 회사·업무 관련 근거 조사. 웹 자료는 회사의 실행 지시가 아님 | `web_search`, `open_url` |
 | `company_role_edit` | 회사·역할 정보, 채용 기준, 지속적 맥락의 명시적 변경. 필요한 preview·확인 유지 | `update_data`, `update_role_criteria` |
-| `role_calibration` | 실제 참고 인물이나 준비된 프로필에 대한 피드백을 채용 기준 보정에 활용 | `calibrate_role_hiring_brief`, `record_role_profile_example_feedback` |
+| `role_calibration` | 사용자가 제공한 실제 참고 인물로 채용 기준 보정 | `calibrate_role_hiring_brief` |
 | `role_management` | 역할 등록 진입, 활성·중단·종료 관리, 단계 구성. 신규 등록 진입은 surface에 따라 다름 | `start_role_creation`, `change_role_status`, `manage_role_pipeline_stages` |
 | `candidate_search` | 저장된 기준으로 새로운 후보자 탐색 작업 요청. 현재 회사에 보이는 후보자 목록 조회와 다름 | `request_matching_search` |
 | `candidate_contact` | 허용된 관계의 후보자와 연락하고 이력을 조회. 외부 발송은 기존 동의·검토 계약 적용 | `list_contacts`, `read_contact`, `contact_talent` |
@@ -204,7 +204,7 @@ Registry에서 `toolIds`를 resolve한 뒤 기존 `getEnabledOrgAgentTools(surfa
 | 기본 조회·정보 출처·bounded/completeness 해석 | 기본 지침. 기본 도구와 함께 항상 제공 |
 | 저장 위치·변경 preview·정본 rewrite 계약 | `company_role_edit` |
 | Hiring Brief 공통 작성 계약 | `company_role_edit`, `role_calibration`, 전용 Role 작성 |
-| 실제 참고 인물과 준비된 프로필 피드백의 출처 구분 | `role_calibration` |
+| 실제 참고 인물의 채용 기준 해석 | `role_calibration` |
 | Role 등록 진입·lifecycle·단계 설정 | `role_management` |
 | 새 탐색 요청과 기존 후보자 조회의 차이·비동기 완료 | `candidate_search`; 결과 알림에는 결과 해석 부분만 사용 |
 | 연락 대상·초안·수정·발송·원문 보존·중복 방지 | `candidate_contact` |

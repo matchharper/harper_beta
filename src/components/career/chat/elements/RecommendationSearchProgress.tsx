@@ -62,9 +62,9 @@ const RINGS = Array.from(
     }) as CSSProperties
 );
 
-const SearchAnimation = memo(function SearchAnimation() {
+const SearchAnimation = memo(function SearchAnimation({ running }: { running: boolean }) {
   return (
-    <div className="career-search-visual" aria-hidden="true">
+    <div className="career-search-visual" data-running={running} aria-hidden="true">
       <div className="career-search-sculpture">
         {RINGS.map((style, index) => (
           <span className="career-search-ring" style={style} key={index} />
@@ -123,13 +123,20 @@ export function RecommendationSearchProgress({
   run,
   status,
   showAnimation = false,
+  keepVisual = false,
+  steps,
+  progress: suppliedProgress,
 }: {
   run?: CareerOpportunityRun | null;
   status?: CareerRecommendationSearchStatus | null;
   showAnimation?: boolean;
+  keepVisual?: boolean;
+  steps?: { key: string; label: string }[];
+  progress?: { activeStep: number; completed: boolean; running: boolean };
 }) {
   const t = useCareerT();
-  const progress = getRecommendationSearchProgress(run, status);
+  const searchProgress=getRecommendationSearchProgress(run,status);
+  const progress=suppliedProgress ?? searchProgress;
   const labels = [
     t("career.common.recommendation_search.step_query", "포지션 찾기"),
     t("career.common.recommendation_search.step_scoring", "적합도 확인"),
@@ -138,7 +145,7 @@ export function RecommendationSearchProgress({
   ];
   return (
     <>
-      {showAnimation ? <SearchAnimation /> : null}
+      {showAnimation || keepVisual ? <SearchAnimation running={showAnimation} /> : null}
       <div className="career-search-steps">
         <div
           aria-hidden="true"
@@ -149,11 +156,13 @@ export function RecommendationSearchProgress({
           }}
         />
         <ol className="relative">
-          {PHASES.map((phase, index) => {
+          {(
+            steps ?? PHASES.map((key, index) => ({ key, label: labels[index] }))
+          ).map(({ key: phase, label }, index) => {
             const done = progress.completed || index < progress.activeStep;
             const current =
               !done && progress.running && index === progress.activeStep;
-            const value = progress.counts[index];
+            const value = suppliedProgress ? null : searchProgress.counts[index];
             return (
               <li
                 key={phase}
@@ -181,9 +190,9 @@ export function RecommendationSearchProgress({
                   )}
                 </span>
                 <span className={cn("flex-1", current && "font-medium")}>
-                  {labels[index]}
+                  {label}
                 </span>
-                <AnimatedCount value={value} />
+                {!suppliedProgress && <AnimatedCount value={value} />}
               </li>
             );
           })}

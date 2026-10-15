@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { getCareerDefaultSavedStageForOpportunity } from "@/components/career/opportunityTypeMeta";
 import { getSavedOpportunityManagementStatus } from "@/components/career/history/savedOpportunityStatus";
 import { getHistoryOpportunityBucket } from "@/hooks/career/careerSessionData";
-import { compareNewOpportunityHistoryOrder } from "@/lib/opportunityType";
+import {
+  compareNewOpportunityHistoryOrder,
+  compareSavedOpportunityHistoryOrder,
+} from "@/lib/opportunityType";
 import type {
   CareerHistoryOpportunity,
   CareerHistoryOpportunityCounts,
@@ -140,7 +143,9 @@ const sortOpportunitiesForJobsTab =
       return compareNewOpportunityHistoryOrder(left, right);
     }
 
-    return compareRecommendedAtDesc(left, right);
+    return tab === "archived"
+      ? compareRecommendedAtDesc(left, right)
+      : compareSavedOpportunityHistoryOrder(left, right);
   };
 
 export function useCareerMobileHistoryOpportunities(args: {
@@ -196,10 +201,16 @@ export function useCareerMobileHistoryOpportunities(args: {
   ]);
 
   useEffect(() => {
+    const needsSavedFirstPage = filters.some(
+      (filter) =>
+        filter.historyTab === "saved" &&
+        !requestedInitialPageKeysRef.current.has(getHistoryFilterKey(filter))
+    );
     if (
       !hasMore ||
-      opportunities.length >=
-        Math.min(totalCount, CAREER_MOBILE_HISTORY_INITIAL_PAGE_SIZE)
+      (!needsSavedFirstPage &&
+        opportunities.length >=
+          Math.min(totalCount, CAREER_MOBILE_HISTORY_INITIAL_PAGE_SIZE))
     ) {
       return;
     }

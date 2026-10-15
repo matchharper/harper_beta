@@ -136,7 +136,11 @@
   --color-critical-500: var(--color-red-700);
 
   --color-bg-default: var(--color-neutral-00);
-  --color-bg-basement: color-mix(in srgb, var(--color-neutral-100) 40%, #ffffff);
+  --color-bg-basement: color-mix(
+    in srgb,
+    var(--color-neutral-100) 40%,
+    #ffffff
+  );
   --color-bg-floating: #ffffff;
   --color-bg-weak: var(--color-neutral-200);
   --color-neutral-primary: var(--color-neutral-1000);
@@ -1122,7 +1126,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: 6px;
-  background: var(--color-bg-basement);
+  background: var(--color-bg-weak);
   color: var(--color-neutral-700);
   contain: layout paint;
   perspective: 600px;
@@ -1130,8 +1134,8 @@
 
 .career-search-sculpture {
   position: relative;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   transform-style: preserve-3d;
   transform: rotateX(-24deg) rotateZ(-24deg);
   animation: career-search-sculpture 14s linear infinite;
@@ -1140,12 +1144,23 @@
 .career-search-ring {
   position: absolute;
   inset: 0;
-  border: 0.75px solid currentColor;
+  border: 1px solid var(--color-neutral-600);
   border-radius: 50%;
-  opacity: 0.65;
+  opacity: 0.6;
   transform: rotateY(var(--ring-angle)) translateX(44px);
   animation: career-search-ring 5.6s ease-in-out infinite;
   animation-delay: var(--ring-delay);
+}
+
+.career-search-ring:first-child {
+  color: var(--color-primary);
+  border-width: 1.4px;
+  border-color: var(--color-primary);
+}
+
+.career-search-visual[data-running="false"] .career-search-sculpture,
+.career-search-visual[data-running="false"] .career-search-ring {
+  animation: none;
 }
 
 @keyframes career-search-sculpture {
@@ -1185,7 +1200,9 @@
   border-radius: 5px;
   background: var(--color-bg-weak);
   pointer-events: none;
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+  transition:
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {

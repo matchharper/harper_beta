@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import {
   SectionDescription,
   SectionHeader,
@@ -7,15 +8,17 @@ import {
 
 export function OrgPageHeader({
   actions,
+  className,
   description,
   title,
 }: {
   actions?: ReactNode;
+  className?: string;
   description?: ReactNode;
   title: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 pb-2 sm:flex-row sm:items-start sm:justify-between">
+    <div className={cn("flex flex-col gap-4 pb-2 sm:flex-row sm:items-start sm:justify-between", className)}>
       <SectionHeader className="gap-1.5">
         <SectionTitle as="h1" className="text-[20px]" type="head2">
           {title}

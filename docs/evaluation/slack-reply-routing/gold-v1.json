@@ -1,0 +1,51 @@
+[
+  {
+    "id": "SRR001",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR002",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR003",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR004",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR005",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR006",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR007",
+    "expected": [
+      "uncertain",
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR008",
+    "expected": [
+      "respond"
+    ]
+  }
+]

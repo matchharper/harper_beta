@@ -191,11 +191,13 @@ test("company agent exposes compact contact index and detailed contact reads", (
     "interview_request",
     "connection_intro",
     "notice",
+    "followup",
   ]);
   assert.deepEqual(listParameters.properties.dateBasis.enum, [
     "created",
     "sent",
     "updated",
+    "scheduled",
   ]);
   assert.equal("direction" in listParameters.properties, false);
   assert.equal("subkind" in listParameters.properties, false);
@@ -409,7 +411,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   assert.equal(toolNames.includes("calibrate_role_hiring_brief"), true);
   assert.equal(
     toolNames.includes("record_role_profile_example_feedback"),
-    true
+    false
   );
   assert.equal(toolNames.includes("get_more_data"), true);
   assert.equal(toolNames.includes("update_role_criteria"), true);
@@ -424,7 +426,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   assert.equal(isOrgAgentToolName("calibrate_role_hiring_brief"), true);
   assert.equal(
     isOrgAgentToolName("record_role_profile_example_feedback"),
-    true
+    false
   );
 
   const calibration = ORG_AGENT_TOOLS.find(
@@ -476,11 +478,11 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   ]);
   assert.match(updateRoleCriteria?.function.description ?? "", /targetName/);
   assert.match(updateRoleCriteria?.function.description ?? "", /exactly one/);
-  assert.match(updateRoleCriteria?.function.description ?? "", /0-6/);
-  assert.match(updateRoleCriteria?.function.description ?? "", /prefer 2-4/);
+  assert.match(updateRoleCriteria?.function.description ?? "", /Zero to six/);
+  assert.match(updateRoleCriteria?.function.description ?? "", /no separate criteria request is needed/);
   assert.match(
     updateRoleCriteria?.function.description ?? "",
-    /one technical-fit dimension/
+    /independent candidate comparison elements/
   );
 
   const updateData = ORG_AGENT_TOOLS.find(
@@ -660,6 +662,7 @@ test("read_role documents built-in pipeline stage filter values", () => {
     "memory",
     "pipeline",
     "description",
+    "notification",
   ]);
   assert.match(stageDescription, /company_intro \(company may request an intro/);
   assert.match(stageDescription, /intro_requested \(company requested the intro/);
@@ -743,6 +746,9 @@ test("candidate contact uses one batch-capable draft-lifecycle tool", () => {
     "schedule",
     "immediate",
     "cancel",
+    "add_followup",
+    "reschedule_followup",
+    "cancel_followup",
   ]);
   assert.equal(parameters.properties.kind, undefined);
   assert.equal(parameters.properties.resumeStageId, undefined);

@@ -212,6 +212,15 @@ model output을 넣지 않는다. 원문은 gitignored `private/runs/`에만 있
 
 [cases-accepted-v1.json](cases-accepted-v1.json)과 [manifest-accepted-v1.json](manifest-accepted-v1.json)은 첫 모델 호출 전에 동결했다. 현재 유효한 수락이 있는 일반 역할 후보를 `connect/reject/defer`로 재검토하고 일반 후보의 경로를 유지하는 4쌍을 정기·회사 요청 두 실행 모드에서 검증한다. 운영 rerank/input/parser/repair를 직접 실행하는 canonical runner는 `harper_worker/llm_evals/company_first_talent_selection/run_accepted.py --run-id=<새 ID>`다. 현재 모델·reasoning·sampling 및 source/prompt/input/output/fixture hash·usage는 owner-only ignored runs에 기록한다. Gold는 Codex가 사전 작성한 synthetic challenge이며 독립 팀원 검토는 미완료다. 결정 일치와 이유의 사실성·부족/미확인 구분·상태 오표현을 함께 검토하며 critical 오류 0이 gate다. DB/저장/연락은 없고 실제 조회·원자적 상태 전환·Slack 전달은 별도 로컬 계약 테스트 대상이다. 상세 objective/input/provenance/privacy/known limitations는 manifest에 기록했다. 기존 frozen gold는 변경하지 않는다.
 
+2026-10-09 `ACCEPTED_REVIEW_SYSTEM`에 회사 검토 1회에서 전체 Role 합계 `connect` 최대 2명,
+그 외 적합한 수락 후보는 `defer`, 0~1명도 허용하는 prompt 지침을 추가했다. Parser·DB에
+수량 강제는 추가하지 않았으며 실제 parser는 3명의 `connect` 입력도 그대로 허용하는 것을 확인했다.
+같은 frozen accepted-v1의 새 run `20261009-accepted-v1-connect-two-prompt-r2`는 두 모드의 결정
+8/8이 일치했다. 정기 모드 첫 출력의 role ID 오류는 기존 구조 repair로 복구했고 원문을 보존했다.
+전체 이유의 현재 fit·필수 조건 충돌·근거 부족·일반 route 구분을 Codex가 읽었으며 관련 검사
+28개도 통과했다. 이 fixture의 적합한 수락 후보는 1명뿐이므로 3명 이상 적합한 경우의
+수량 지침이나 여러 호출로 나뉜 검토의 총수 준수를 검증한 결과는 아니다. DB·전송·배포는 없다.
+
 ## Accepted presentation + Slack: accepted-v2 (로컬 미배포)
 
 [cases-accepted-v2.json](cases-accepted-v2.json)과 [manifest-accepted-v2.json](manifest-accepted-v2.json)을 첫 호출 전에 동결했다. v1의 네 결정 gold는 보존하고, 동일 synthetic 후보에 회사 기준·합류 시점·문화 선호·보상 및 민감 맥락 challenge와 한국 회사 언어를 추가했다. `run_accepted.py --dataset=v2 --run-id=<새 ID>`는 실제 rerank → connect만 presentation → 별도 accepted Slack writer → 카드 bundle까지 생성하며 DB·실제 Slack 발송은 하지 않는다. 결정 8쌍 일치, 기준 coverage와 4필드 출력, 원문에 없는 책임·선호 창작, 보상 수치·다른 회사·사생활 노출, 후보자 수락과 회사 수락 상태 혼동을 분리 검토한다. 모델 설정·전체 input/output와 source hash는 owner-only ignored runs에 남기고 정성 검토는 Codex가 수행한다. 독립 팀원 검토·운영 표본 정확도·실제 Slack 화면 확인은 이 평가 범위 밖이다.

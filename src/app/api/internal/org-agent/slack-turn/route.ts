@@ -1,3 +1,5 @@
+import type { User } from "@supabase/supabase-js";
+import { readOrgRoleAccess, assertOrgTeamRoleAccess } from "@/lib/org/teamAccess";
 import { createHash } from "crypto";
 import {
   billingActionNoticeSlack,
@@ -10,6 +12,7 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { runOrgAgentChat } from "@/lib/org/agent/chat";
+import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
 import { runOrgRoleCreationChat } from "@/lib/org/agent/roleCreationChat";
 import { confirmRoleCreationChoice } from "@/lib/org/agent/roleCreationConfirmation";
 import {
@@ -35,6 +38,8 @@ import {
 } from "@/lib/llm/debugUsage";
 import {
   decryptHarperSlackToken,
+  slackApi,
+  isHarperSlackAudienceAllowed,
   getHarperSlackFileInfo,
   postHarperSlackMessage,
   setHarperSlackThreadStatus,
@@ -59,7 +64,6 @@ import {
 } from "@/lib/org/slackChoiceButtons";
 import {
   decideHarperSlackThreadReply,
-  shouldRespondToSchedulingThreadReply,
   type SlackReplyRoutingMessage,
 } from "@/lib/org/slackReplyRouter";
 import {
@@ -550,6 +554,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
   let stopSlackJobWatch: (() => void) | null = null;
   let activeAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
   let activeJobId = "";
+  let slackStatusUpdateChain: Promise<void> = Promise.resolve();
 
   try {
     const jobId = clean(args.jobId);
@@ -733,6 +738,9 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
     const responseStatus = draftRoleCreation
       ? "역할 정보를 정리 중입니다…"
       : "답변 작성 중";
+    const isRoutingThreadReply =
+      clean(job.trigger_kind) === "thread_reply" &&
+      phase !== "respond" && !draftRoleCreation;
     const shouldPrimeSlackStatus =
       !clean(job.response_text) &&
       !Number(job.response_message_id || 0) &&
@@ -742,7 +750,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       try {
         await setHarperSlackThreadStatus({
           channelId,
-          status: responseStatus,
+          status: isRoutingThreadReply ? "메시지 확인 중" : responseStatus,
           threadTs,
           token,
         });
@@ -814,6 +822,30 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       });
     }
 
+    const actorAccount = await admin.auth.admin.getUserById(slackAccess.member.companyUserId!);
+    if (actorAccount.error || !actorAccount.data.user) throw actorAccount.error || new Error("Slack caller account not found");
+    const access = await readOrgRoleAccess({ admin, user: actorAccount.data.user, workspaceId: channel.company_workspace_id });
+    const scopedRoleId = clean(thread.role_id) || clean(draftRoleCreation?.roleId) || null;
+    let roleAllowed = true;
+    if (scopedRoleId) {
+      try { await assertOrgTeamRoleAccess({ admin, user: actorAccount.data.user, workspaceId: channel.company_workspace_id, roleId: scopedRoleId }); }
+      catch (error) { if ((error as { status?: number }).status === 404) roleAllowed = false; else throw error; }
+    }
+    const audienceAllowed = access.scope !== "team" || Boolean(access.teamId);
+    if (!roleAllowed || !audienceAllowed || !await isHarperSlackAudienceAllowed({ workspaceId: channel.company_workspace_id, channelId, roleId: scopedRoleId, accessTeamId: access.scope === "team" ? access.teamId : null })) {
+      if (pendingSlackStatus) {
+        await setHarperSlackThreadStatus({ ...pendingSlackStatus, status: "" }).catch(error => console.warn("[org-agent/slack-turn:clear-team-denied-status]", error));
+        pendingSlackStatus = null;
+      }
+      await slackApi(token, "chat.postEphemeral", { channel: channelId, user: slackUserId,
+        text: slackAccess.member.locale === "en"
+          ? "I could not verify this channel's Role access, so I have not shared Role information here. Please continue in your Harper company workspace."
+          : "이 채널의 팀원 접근 범위를 확인할 수 없어 Role 정보를 공유하지 않았어요. Harper 회사 페이지에서 이어가 주세요." })
+        .catch(error => console.warn("[org-agent/slack-turn:team-denied-message]", error));
+      await markSlackReplyJobIgnored({ admin, jobId: job.id, lastError: "slack_team_audience_denied" });
+      return NextResponse.json({ ok: true, outcome: "ignored", accessDenied: true });
+    }
+    let roleLinkUser: User | null = actorAccount.data.user;
     let responseText = clean(job.response_text);
     let responseMessageId = Number(job.response_message_id || 0);
     let responseProposalId = clean(job.response_proposal_id) || null;
@@ -846,6 +878,14 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           });
         if (activeCandidateWorkflow) {
           routingMode = "candidate_workflow_bypass";
+        } else if (
+          await hasPendingOrgAgentUpdateProposal({
+            admin,
+            scopeKey: `slack:${thread.id}`,
+            workspaceId: channel.company_workspace_id,
+          })
+        ) {
+          routingMode = "pending_update_proposal_bypass";
         } else {
           const routingMessages = await loadSlackReplyRoutingMessages({
             admin,
@@ -854,26 +894,22 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
             slackThreadId: thread.id,
             slackUserId,
           });
-          if (shouldRespondToSchedulingThreadReply(routingMessages)) {
-            routingMode = "scheduling_thread_bypass";
-          } else {
-            routingDecision = await decideHarperSlackThreadReply(
-              routingMessages,
-              {
-                onDebugCall: verbose
-                  ? (call) => {
-                      llmUsage = summarizeLlmDebugCalls([call]);
-                      console.info("[org-agent/slack-turn:llm]", {
-                        jobId: job.id,
-                        ...llmUsage,
-                      });
-                    }
-                  : undefined,
-                signal: slackTurnSignal,
-              }
-            );
-            routingMode = "model";
-          }
+          routingDecision = await decideHarperSlackThreadReply(
+            routingMessages,
+            {
+              onDebugCall: verbose
+                ? (call) => {
+                    llmUsage = summarizeLlmDebugCalls([call]);
+                    console.info("[org-agent/slack-turn:llm]", {
+                      jobId: job.id,
+                      ...llmUsage,
+                    });
+                  }
+                : undefined,
+              signal: slackTurnSignal,
+            }
+          );
+          routingMode = "model";
         }
       }
       slackTurnSignal.throwIfAborted();
@@ -904,6 +940,14 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           routingMode,
           ...verboseLlmUsagePayload(verbose, llmUsage),
         });
+      }
+      if (isRoutingThreadReply && pendingSlackStatus) {
+        await setHarperSlackThreadStatus({
+          ...pendingSlackStatus,
+          status: responseStatus,
+        }).catch((error) =>
+          console.warn("[org-agent/slack-turn:set-responding-status]", error)
+        );
       }
       if (phase === "route") {
         return NextResponse.json({
@@ -946,6 +990,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           throw new Error("Slack caller has no Harper member account");
         const { data: authData, error: authError } =
           await admin.auth.admin.getUserById(actorUserId);
+        roleLinkUser = authData.user;
         if (authError || !authData.user)
           throw authError || new Error("Slack caller account not found");
 
@@ -1226,6 +1271,29 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           }
         }
         const emitSlackAgentEvent = (event: string, data: unknown) => {
+          if (event === "tool_status") {
+            const progress = object(data);
+            const id = clean(progress.id);
+            const label = clean(progress.label);
+            const status = clean(progress.status);
+            const target = pendingSlackStatus;
+            if (
+              target && label && id !== "context" && id !== "response" &&
+              (status === "running" || status === "done" || status === "error")
+            ) {
+              slackStatusUpdateChain = slackStatusUpdateChain
+                .then(async () => {
+                  if (pendingSlackStatus !== target || slackTurnSignal?.aborted) return;
+                  await setHarperSlackThreadStatus({
+                    ...target,
+                    status: status === "running" ? label : responseStatus,
+                  });
+                })
+                .catch((error) =>
+                  console.warn("[org-agent/slack-turn:set-tool-status]", error)
+                );
+            }
+          }
           if (!verbose) return;
           if (event === "tool_debug") {
             const toolCall = data as OrgAgentToolDebugEvent;
@@ -1246,6 +1314,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           roleConfirmationResult ??
           (draftRoleCreation
             ? await runOrgRoleCreationChat({
+                slackContext: { channelId, channelName: clean(channel.slack_channel_name) },
                 assistantMessageMetadata: {
                   slackReplyJobId: job.id,
                   source: "org_role_creation_slack",
@@ -1316,6 +1385,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                       });
                       progressText =
                         convertMarkdownLinksToSlackMrkdwn(progressText);
+                      await slackStatusUpdateChain;
                       const posted = await postHarperSlackMessage({
                         channelId,
                         clientMessageId: stableSlackClientMessageId(
@@ -1472,6 +1542,18 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         if (error) throw error;
         deliveryMetadata = data.message_metadata;
       }
+      const committedBatch = object(object(deliveryMetadata).companyMessageBatch);
+      if (clean(committedBatch.batchId)) {
+        const { deliverCompanyMessageBatch } = await import("@/lib/org/agent/companyMessageDelivery.server");
+        const receipts = await deliverCompanyMessageBatch({ batchId: clean(committedBatch.batchId), workspaceId: channel.company_workspace_id });
+        const { error: completeError } = await (admin.from("slack_reply_jobs") as any).update({
+          completed_at: new Date().toISOString(), locked_at: null, locked_by: null,
+          slack_response_ts: receipts[0].slackMessageTs, response_message_id: responseMessageId,
+          status: "completed", updated_at: new Date().toISOString(),
+        }).eq("id", job.id).in("status", ["processing", "retry"]);
+        if (completeError) throw completeError;
+        return NextResponse.json({ ok: true, outcome: "completed", phase: "reply", batchMessageCount: receipts.length });
+      }
       const billingNotice = readBillingActionNotice(deliveryMetadata);
       const billingPresentation = billingNotice
         ? billingActionNoticeSlack(
@@ -1521,10 +1603,11 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         slackResponseText,
         companyInfoUrl
       ).text;
-      if (!draftRoleCreation) {
+      if (!draftRoleCreation && roleLinkUser) {
         try {
           slackResponseText = await appendMissingInProgressSlackRoleLinks({
             admin,
+            user: roleLinkUser,
             message: slackResponseText,
             workspaceId: channel.company_workspace_id,
           });
@@ -1560,6 +1643,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         : slackBlocks;
       // Slack clears the assistant thread status automatically after
       // chat.postMessage.
+      await slackStatusUpdateChain;
       const posted = await postHarperSlackMessage({
         // Use an explicit mrkdwn Block Kit section for every reply. The
         // top-level text remains a notification/accessibility fallback.
@@ -1668,6 +1752,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       ...verboseLlmUsagePayload(verbose, llmUsage),
     });
   } catch (error) {
+    await slackStatusUpdateChain;
     if (pendingSlackStatus) {
       await setHarperSlackThreadStatus({
         ...pendingSlackStatus,

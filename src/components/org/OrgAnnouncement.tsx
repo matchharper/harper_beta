@@ -1,5 +1,5 @@
 import { AnnouncementQueue } from "@/components/common/AnnouncementQueue";
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgAnnouncements } from "./announcements";
 
 /** Mounted only by the authenticated, ready /org/home workspace. */
@@ -10,13 +10,7 @@ export function OrgAnnouncement({
   userId: string;
   workspaceId: string;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const announcements = useOrgAnnouncements(workspaceId);
-  return (
-    <AnnouncementQueue
-      userId={userId}
-      announcements={announcements}
-      closeLabel={t("announcement.close", "안내 닫기")}
-    />
-  );
+  return <AnnouncementQueue userId={userId} announcements={announcements} />;
 }

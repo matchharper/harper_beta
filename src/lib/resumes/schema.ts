@@ -130,7 +130,7 @@ export const GENERATE_RESUME_PARAMETERS = obj(
             path: {
               ...str(500),
               description:
-                "JSON pointer relative to content. Select existing entries by their exact id: /experience/<id>/description. Use numeric indices for bullets, skill items and contact links. set replaces only that field; remove deletes the exact field or entry. add appends one new item at a collection path (including a missing optional collection), or inserts before an existing item at its path. Never target id or replace existing entry collections; edit their fields. Escape ~ as ~0 and / as ~1.",
+                "JSON pointer relative to content. Select ALL existing objects with id by that exact id, including skill groups: /experience/<entry-id>/description, /skills/<skill-group-id>/items. Never use /skills/0 for an ID-bearing group. Only arrays without item IDs use numeric positions: /experience/<entry-id>/bullets/0, /skills/<skill-group-id>/items/0, /basics/links/0. set replaces only that field; remove deletes the exact field or entry. add appends one new item at a collection path (including a missing optional collection), or inserts before an existing item at its path. Never target id or replace existing entry collections; edit their fields. Escape ~ as ~0 and / as ~1.",
             },
             value: {
               description:

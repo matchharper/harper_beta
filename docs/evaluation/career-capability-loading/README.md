@@ -40,6 +40,8 @@ Stub는 실제 동시성·DB 권한·PDF 출력·연락 전송을 검증하지 �
 
 ## 결과와 실행 이력
 
+2026-10-15 오류 복구 보강: 같은 frozen v5에서 `resume_revision_conflict`, `resume_storage_failure`만 progressive로 재실행했다. `runs/2026-10-14T15-57-42-218Z/`의 구조 검사와 Codex 원문 의미 검토는 2/2이며, 최신 revision 재조회·다른 편집 보존·실패 시 사본 미생성 설명을 확인했다. 원문은 유지하고 별도 `review.json`에 검토를 기록했다. 합성 실패를 사용하는 부분 회귀이며 전체 Career gate나 실제 DB 저장을 증명하지 않는다. 새 근거 조회·검색/URL 오류 반환은 별도 runtime 단위 테스트로 검증했다. 로컬·미배포다.
+
 [2026-10-09 구현·검증 보고서](reports/2026-10-09-implementation.md)를 참조한다. 초기 core 5개, 공통 근거 문구 보완, 최종 core 6개의 결과는 각각 다른 run으로 보존했다. v1/v2의 코칭 시작 gold 중 “선택 재요구 없음”은 현재 제품의 최초 suggestion card 계약과 충돌해 v3에서 코드 근거를 명시하고 수정했다. 최초 코칭 stub에 실제 executor의 후속 지침이 빠졌던 문제도 수정 후 별도 run으로 재검증했다. 운영 비용/자유 대화 성공률과 독립 human review는 이 synthetic 실행만으로 확정하지 않는다.
 
 ## 로컬 회귀 검사
@@ -55,3 +57,14 @@ OPENAI_API_KEY=test-key ANTHROPIC_API_KEY=test-key OPENROUTER_API_KEY=test-key N
 최신 runner는 `usage-summary.json`에 실제 요청 usage와 repository 단가 기반 추정 비용을 함께 남긴다. 모델 크레딧·청구 잔액은 확인하지 않으며 업무 도구의 내부 모델 비용은 포함하지 않는다. 정성 검토는 별도 `review.json`에 남기고 원본 `results.json`의 응답을 바꾸지 않는다.
 
 [6.1 Sol 실제 평가·개선 보고서](reports/2026-10-09-sol-quality.md)에는 v3/v4 전체 실행, v5 입력 정제, 실패와 수정, 재검증, 실제 토큰·비용을 기록한다. 이전 결과를 성공으로 덮어쓰지 않는다.
+
+## PR #155 로컬 통합 challenge (v6/v7/v8)
+
+v6는 v5를 보존하고 활성 지원 모드의 Memory, Brief, Profile, 확인 후 다른 작업 전환 4대화를 추가했다. 외부 공고 지원 가능성의 gold만 새 기능 계약으로 수정했다. v6의 Profile 사례는 기존 도구가 지원하지 않는 경력 회사명 직접 수정을 요구한 잘못된 gold였다. v7는 이를 실제 지원 필드인 현재 거주지 수정으로 바로잡고, 현재 지원을 계속하는 일회성 결정을 지속적 Brief 예외로 저장하지 않는 의미 기준을 명확히 했다. v5/v6 입력·gold·실패 run은 보존한다. 두 manifest에 변경 이유와 코드 근거를 기록했다.
+
+Canonical runner는 그대로 `scripts/evalCareerCapabilities.ts`다. `activeApplication` fixture만 production session 생성/변경 함수와 선택기를 재사용하며, 모드 종료 receipt도 `applicationSessionToolResult`를 그대로 쓴다. 상태 변경 후 도구 및 terminal 목록을 다시 선택한다. 평가 사례별 production 분기는 추가하지 않는다. Profile 변경·Memory/Brief 저장은 합성 stub이고, 실제 저장·권한·동시성은 공통 tool/database tests에서 따로 검증한다. 네트워크·개인정보 경계, 모델 설정과 gate는 위 계약을 유지한다. v8은 입력을 유지하고, v7 gold가 session 도구 전체를 금지하면서 동시에 일회성 결정을 그 activity에 남기라고 요구한 모순을 바로잡았다. 종료·전환 action만 금지하고 save_fact는 허용한다. 이전 입력·gold·run은 보존한다. v8 부분 실행은 전체 데이터셋 gate를 뜻하지 않는다.
+
+```sh
+pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerCapabilities.ts --dataset-version v8 --validate-only
+pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerCapabilities.ts --dataset-version v8 --mode progressive --strict-model --only application_memory,application_brief,application_profile,application_switch
+```

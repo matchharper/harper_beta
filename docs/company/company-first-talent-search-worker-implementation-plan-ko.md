@@ -1,5 +1,15 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+> 2026-10-15 로컬 변경·미배포: Ops Pipeline과 `matchharper.com` 계정의 Org home Dev controls에서 Role별 Talent-first 검색을 수동 요청할 수 있다. 기존 검색 queue에 `talent_first_requested`로 기록하며 요일과 무관하게 해당 Role만 검색한다. 유료 슬롯·활성/미만료 Role·Hiring Brief·test-only 제외·후보자 자격·연결 대기 상한은 유지한다. 회사 선추천/수락 후보 소개는 이 요청에 포함하지 않는다. 같은 Role의 대기/실행 기록이 있으면 새 요청을 만들지 않고 현재 상태를 표시하며, 회사 요청이 대기 중인 수동 Talent-first를 회사 방향으로 승격하지 않는다. Org Dev controls는 수동 실행 여부와 무관하게 Role별 전체 검색 이력을 20개씩 조회한다. 새 migration은 준비만 했으며 DB 적용과 웹·Worker 배포는 별도다.
+
+> 2026-10-15 로컬 변경·미배포: 정기 회사 선추천·연결 대기 후보 소개는 운영 Worker `5c6ba484`와 웹 `b49471af`를 확인해 기존 Worker 작성 모델·두 소개 프롬프트·완성 카드 outbox 전달 방식으로 복원했다. 소개 뒤에만 공통 회사 이벤트를 호출해 유용한 후속 행동이나 발언을 선택적으로 판단한다. 가입일은 소개 작성 단계에서 연·월·일만 제공하고 최근 여부는 LLM이 판단한다. 아래 10월 13일의 facts-outbox/회사측 본문 재작성 계약은 이 정기 소개 경로에 적용하지 않는다. [검증 기록](../evaluation/company-candidate-writing-playground/reports/2026-10-15-signup-date.md).
+
+> 2026-10-14 로컬 변경·미배포: 후보자 선추천의 프로필 자격은 `opp/matching/eligibility.py`의 공통 SQL로 온보딩 완료 또는 canonical 경력·학력 행 존재를 검사한다. Retrieval 한도 적용 전, 저장 pool 합친 뒤 필터, 공통 Profile/fit 입력 로더, 우선 검토 요청과 최종 저장에 적용한다. company-first/both는 별도로 온보딩 완료를 유지하며 live guard에서도 재확인한다. Planner에는 onboarding/status 컬럼을 허용하지 않고 새 prompt version으로 기존 온보딩 필수 SQL cache를 재사용하지 않는다. 기본 모집단 통계도 확장 범위를 반영한다. 기존 Opportunity Worker가 쓰는 경력·학력 기반 미완료 프로필 진입과 내부 추천 전달 경로를 재사용하며 stopped는 계속 무관하다. DB migration·운영 데이터 변경·배포는 포함하지 않았다.
+
+> 2026-10-13 로컬 변경·미배포: 전체 연락 중단·프로필 공개·내부 추천 설정 변경은 **이미 회사에 제시된 후보를 숨기거나 Intro를 자동 종료하지 않는다**. 이미 소개된 프로필·발송·답변 기록을 보존하며 변경 사실은 shared talent_progress와 company-side 조회에 제공한다. 명시적인 후보자 거절은 종료 상태와 회사 안내 작업을 같은 DB transaction에 기록한다. closed/passed 후보도 종료 이력으로 조회한다. 신규 공유/연락 허용 여부, 계정 삭제·회사별 차단·test-only 경계는 별도로 검증한다. 아래 기존 13~14절 등의 ‘공개 변경 시 카드 제거·자동 종료’ 설명은 이전 계약이며 이 로컬 변경에 적용하지 않는다. 과거 privacy 종료를 일괄 재개하거나 과거 거절을 추정해 복원하지 않는다.
+>
+> 회사 안내는 공통 `companyUpdate` 계약에 목적·공유 가능한 사실을 전달해 company-side LLM이 작성한다. 거절·미팅은 기존 회사 작업 큐를 사용하며, 추천 Worker는 완성 문장 대신 channel별 공유 가능한 사실을 기존 outbox에 저장한다. 추천 발송 endpoint는 같은 company-side 모델·system prompt와 최근 회사 대화로 카드 문장을 생성하고 outbox에 확정한 뒤 기존 멱등 전송을 수행한다. 재시도는 확정 문장을 재사용한다. 기존 outbox의 완성 메시지는 재작성하지 않는다. 후보자 소개 자료 생성과 회사에 말을 거는 메시지 작성은 구분하며, Worker의 과거 Slack writer는 production에서 호출하지 않는다. 배포 시 새 beta 전달 코드가 먼저 준비되어야 facts outbox를 처리할 수 있다. 운영 DB migration·배포는 이번 작업에 포함하지 않았다.
+
 > 2026-10-09 배포 확인: Worker `71326f6`과 웹 `f89c99c6`이 운영 중이다. 추천 Worker 6개는 순차 교체했고 교체 직전 실행 중이던 3개 run은 모두 completed로 끝났다. 회사 검색·예약 실행기, 이메일·Slack 실행기도 새 프로세스로 확인했다. 아래 10월 8~9일의 미배포 표기는 작성 당시 이력이며, 현재 실행 코드는 `opp/matching`의 공통 평가·선정/연락 분리·수락 후보 재검토·공통 회사 소개를 사용한다. 운영 설정은 회사 선검토 정기 3명·직접 요청 6명·ready 30명이고 후보자 선제안은 독립 상한 20명이다. 검색 순서 결합 설정이 없는 현재 운영값은 기본 true를 사용한다. DB 관련 함수·컬럼은 이미 존재함을 확인했으며 이번 배포에서는 migration을 실행하지 않았다. 배포 성공이 모든 설계 항목이나 평가 gate의 통과를 뜻하지는 않는다.
 
 > 2026-10-09 수락 후보 선정 지침(로컬·미배포): `ACCEPTED_REVIEW_SYSTEM`은 한 번의 회사 검토에서 전체 Role을 합쳐 `connect`를 최대 2명으로 고르고 다른 적합한 수락 후보를 `defer`로 남기도록 지시한다. 0~1명도 가능하다. Prompt만 변경하며 parser·저장·DB guard에 수량 제한이나 초과 후보 자르기를 추가하지 않는다.
@@ -25,7 +35,7 @@
 
 > 2026-10-01 운영 변경: scheduler는 각 Role의 정기 검색 요일·시각(Asia/Seoul)을 매분 읽고 같은 회사·같은 시각의 대상 Role을 한 run으로 묶는다. 기본은 월·수·금 09:00이다. 예약된 Role 범위는 run에 고정한다. 아래 월요일 09:00·전역 cron·시간대 변경 설명은 이전 계약의 이력이며 현재 기준은 [운영 설정 계약](./company-first-runtime-settings-ko.md)이다.
 
-> 2026-09-29 운영 반영: beta `dc52b832`, Worker `8b355199`와 관련 DB 변경을 반영했고 Company-first 실행기·예약 실행기를 활성화했다. [운영 설정 계약](./company-first-runtime-settings-ko.md)에 따라 예약 주기·시간대·Role별 상한·미처리 한도를 DB에서 읽는다. 아래 월요일 09:00, 3명/6명, 30명은 재배포 없이 수정 가능한 기본값이다. 정기는 `is_company_first_search = true`, calibration 후 첫 검색은 기존 자동 실행 설정, 직접 요청은 명시적으로 지정한 Role을 따른다.
+> 2026-09-29 운영 반영: beta `dc52b832`, Worker `8b355199`와 관련 DB 변경을 반영했고 Company-first 실행기·예약 실행기를 활성화했다. [운영 설정 계약](./company-first-runtime-settings-ko.md)에 따라 예약 주기·시간대·Role별 상한·미처리 한도를 DB에서 읽는다. 아래 월요일 09:00, 3명/6명, 30명은 재배포 없이 수정 가능한 기본값이다. 정기는 `is_company_first_search = true`, 직접 요청은 명시적으로 지정한 Role을 따른다.
 
 > 아래 2026-09-24~28의 미배포 표기는 당시 구현 이력이다. 현재 출시 상태는 위 운영 반영 기록을 따른다. 모델의 정성적 품질 개선과 미완료된 평가 gate는 이번 배포에서 완료로 처리하지 않는다.
 
@@ -49,14 +59,12 @@
 회사 단위 후보 탐색은 더 이상 Codex Scheduled task가 문서를 읽고 매번 직접 수행하는 작업으로
 설계하지 않는다. `harper_worker`의 Python runtime이 Role별 지정 요일·시각(KST)에 회사를 queue에 넣고,
 회사 사용자가 `/org` 또는 Slack에서 현재 Hiring Brief 기반 검색을 명시적으로 요청해도 같은 durable
-queue에 넣는다. 새 Role calibration이 Slack에 처음 전달된 12시간 뒤에도 같은 queue에 정기 계약의
-1회 run을 넣는다. 세 trigger 모두 회사 하나를 한 실행 단위로 처리한다.
+queue에 넣는다. 두 trigger 모두 회사 하나를 한 실행 단위로 처리한다.
 
 한 번의 실행은 다음 순서다.
 
 ```text
-Role별 예약 시각(KST)의 scheduler, company-side LLM의 명시적 검색 요청,
-또는 calibration 최초 Slack sentAt + 12시간
+Role별 예약 시각(KST)의 scheduler 또는 company-side LLM의 명시적 검색 요청
   → 대상 회사와 Role을 deterministic하게 확정
   → 회사 단위 run enqueue
   → 현재 상태 재검증과 source cutoff 고정
@@ -95,7 +103,7 @@ Role별 예약 시각(KST)의 scheduler, company-side LLM의 명시적 검색 �
   `harper_worker/harper-company-first-scheduler.service`
 - DB migrations: `harper_beta/supabase/migrations/20260917162551_company_first_talent_search.sql`,
   `harper_beta/supabase/migrations/20260921190000_matching_review_route_decisions.sql`,
-  `harper_beta/supabase/migrations/20260923120000_post_calibration_company_matching.sql`
+  `harper_beta/supabase/migrations/20261014173559_retire_company_role_profile_calibration.sql` (예시 프로필과 후속 예약 제거)
 - Slack outbox delivery: `harper_beta/src/app/api/internal/company-first/deliver/route.ts`
 - Read-only shadow runner: `harper_worker/llm_evals/company_first_talent_selection/run_shadow.py`
 
@@ -227,14 +235,6 @@ Scheduler는 매 분 DB의 최신 운영 설정을 읽고 due slot을 확인한�
 `retry_of_run_id`를 쓰고 정기 slot의 unique key를 우회하지 않는다. 회사 사용자의 새 검색 요청은
 `trigger=company_requested`로 구분한다.
 
-새 Role calibration의 최초 Slack delivery transaction은
-`trigger_reason=post_calibration`, `available_at=sentAt+12h`인 run을 같은 table에 한 번 넣는다.
-`source_calibration_id`가 idempotency와 provenance를 보존하고 calibration Role id를
-`requested_role_ids`에 넣는다. 이 trigger는 명시적 `Run Search`가 아니라 regular mixed-route run이므로
-planner skip을 허용하고 `candidate_first | company_first | no_action`, Role별 actionable 최대 3명 계약을
-정기 run과 똑같이 사용한다. Local calibration listener나 별도 Codex direct-review helper는 이 run을
-claim하지 않는다.
-
 명시적 요청은 company-side LLM의 `request_matching_search`가 권한과 exact Role을 확인한 뒤
 `company_first_search_runs`에 `trigger_reason=company_requested`로 넣는다. scheduler가 이 table을 다시
 감시해 별도 process를 띄우지 않는다. 상시 실행 중인 Company Matching Worker pool이 같은 queue를 짧은
@@ -258,8 +258,8 @@ in-flight run을 중단하지는 않는다.
 - 실제 internal Role
 - active이고 만료되지 않음
 - `company_roles.information.testOnly != true`
-- 정기 run은 `company_internal_roles.is_company_first_search = true`. 회사가 명시적으로 요청했거나
-  post-calibration run에 담긴 exact Role은 그 실행에만 포함하며 이 설정을 자동으로 바꾸지 않는다.
+- 정기 run은 `company_internal_roles.is_company_first_search = true`. 회사가 명시적으로 요청한
+  exact Role은 그 실행에만 포함하며 이 설정을 자동으로 바꾸지 않는다.
 - active Company Slack integration이 있음
 - enabled Slack channel이 하나 이상 있고 해당 Role이 그 채널에서 opt-out되지 않음
 - 현재 `연결 대기` unique Talent 수가 Role의 `max_pending_talents`보다 작음
@@ -308,7 +308,7 @@ active route uniqueness와 후보자 연락 피로도에는 계속 포함한다.
 
 | 필드군 | 값 |
 | --- | --- |
-| 식별 | `id`, `company_workspace_id`, `scheduled_slot`, `trigger`, `contract_version`, 요청된 `role_ids`, optional `source_calibration_id` |
+| 식별 | `id`, `company_workspace_id`, `scheduled_slot`, `trigger`, `contract_version`, 요청된 `role_ids`, 과거 실행 provenance용 optional `source_calibration_id` |
 | queue | `status`, `available_at`, `lease_token`, `lease_heartbeat_at`, `attempt_count` |
 | snapshot | current attempt의 `source_cutoff`, 대상 `role_ids`, source fingerprint, compact attempt history |
 | 판단 | compact `query_plan` JSON |
@@ -943,8 +943,6 @@ Reranker는 한 회사의 모든 eligible Role과 compact pool을 한 번에 받
 
 - 정기 run은 `candidate_first | company_first | no_action`을 판단하고, 두 actionable route를 합쳐 Role별
   최대 3명이다.
-- `post_calibration` run도 정기 run과 같은 mixed-route·Role별 최대 3명 계약을 사용한다. 차이는 calibration
-  대상 exact Role을 `requested_role_ids`로 이번 한 번 포함한다는 점뿐이다.
 - 명시적 `Run Search` run은 `company_first | no_action`만 판단하고, company-first는 Role별 최대 6명이다.
 - 명시적 run에서는 candidate-first가 더 자연스러운 강한 후보도 회사가 지금 검토할 가치가 충분하면
   company-first로 선택한다. 회사 검토 가치가 부족하면 no-action이며 다른 route로 우회하지 않는다.
@@ -1282,7 +1280,6 @@ non-selected packet을 사람이 검토한다. Shadow 결과를 production ready
 ### 20.1 Python unit
 
 - schedule slot, Role별 예약 시각~다음 날 00:00 catch-up window와 KST DST 비영향
-- calibration `sentAt + 12h`, `source_calibration_id` idempotency와 regular mixed-route 분기
 - eligible Role, exact exclusion workspace ids, 30 backlog, pending `>= max`
 - previous terminal/search 두 cursor, 누적 skip inventory, text serializer와 date format
 - query plan schema, Role coverage, budget enum
@@ -1392,17 +1389,13 @@ Read-only executor는 Supabase transaction pool이 아니라 기존 dedicated se
 
 - Role별 KST slot이 Python scheduler에서 멱등 enqueue된다.
 - 예약 시각의 장애는 같은 요일 안에 한 번만 catch-up하고 오래된 주차는 소급하지 않는다.
-- 새 Role calibration 최초 Slack `sentAt + 12h`에 `post_calibration` run이 한 번 enqueue되고,
-  calibration Role이 `requested_role_ids`에 들어간다.
-- `post_calibration`은 local Codex listener가 아니라 같은 Company Matching Worker가 정기 mixed-route
-  계약으로 실행한다.
 - `/org`와 Slack의 명시적 현재-Brief 검색 요청이 같은 durable queue에 들어가며, queued 요청은 합쳐지고
   같은 workspace run은 동시에 두 개 실행되지 않는다.
 - 명시적 요청은 planner skip을 허용하지 않고, reranker는 hard 기준을 통과한 가능한 후보를 Role별 6명까지
   적극 선택한다. 가능한 후보가 전혀 없을 때의 0명과 deterministic padding 금지는 유지한다.
 - 실행 단위가 company workspace이고 모든 대상 Role이 같은 rerank에 들어간다.
-- 정기 run에는 `is_company_first_search=true`를 강제하고, 명시적 run과 post-calibration run에는 요청한
-  exact Role을 일회성으로 포함한다. 세 경로 모두 active Slack, non-test, availability, pending capacity를
+- 정기 run에는 `is_company_first_search=true`를 강제하고, 명시적 run에는 요청한
+  exact Role을 일회성으로 포함한다. 두 경로 모두 active Slack, non-test, availability, pending capacity를
   강제한다.
 - exact workspace ID로 세 회사가 제외된다.
 - unresolved ready 30명에서 자동 실행이 멈춘다.

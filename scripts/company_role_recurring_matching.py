@@ -34,7 +34,6 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_ROOT = ROOT / "output" / "company_context_runs"
 RUNBOOK_PATH = ROOT / "docs" / "company" / "company-context-run-codex-runbook-ko.md"
 COMPANY_RUN_CONTRACT_VERSION = "company-run-v1"
-POST_CALIBRATION_CONTRACT_VERSION = "post-calibration-review-v1"
 CONTEXT_OUTPUT_CONTRACT_VERSION = "company-context-output-v1"
 SEARCH_DECISION_CONTRACT_VERSION = "company-search-decision-v1"
 EVALUATOR_VERSION = "company-context-codex-v3-brief-behavior"
@@ -849,9 +848,6 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
     procedure_signatures = (
         "public.enqueue_company_context_run_v1(uuid,text,timestamp with time zone)",
         "public.claim_company_context_run_v1(text,uuid)",
-        "public.enqueue_post_calibration_company_context_run_v1(uuid)",
-        "public.claim_post_calibration_company_context_run_v1(text)",
-        "public.record_post_calibration_company_notice_v1(uuid,text,bigint,text,text,text,text)",
         "public.finish_company_context_run_v1(uuid,text,jsonb)",
     )
     missing_procedures: list[str] = []
@@ -861,8 +857,6 @@ def workflow_schema_status(conn: psycopg.Connection) -> dict[str, Any]:
             missing_procedures.append(signature)
     trigger_names = (
         "company_roles_track_status_and_enqueue_context_v1",
-        "company_context_runs_enqueue_waiting_post_calibration_v1",
-        "company_context_runs_notify_post_calibration_v1",
     )
     missing_triggers: list[str] = []
     for trigger_name in trigger_names:
@@ -1037,11 +1031,6 @@ def require_run(run_id: str) -> dict[str, Any]:
             if dry_run
             else result.get("notification")
         ),
-        "calibration_id": (
-            (manifest if isinstance(manifest, Mapping) else {}).get("calibration_id")
-            if dry_run
-            else result.get("calibrationId")
-        ),
         "company_notice": (
             (manifest if isinstance(manifest, Mapping) else {}).get("company_notice")
             if dry_run
@@ -1080,7 +1069,6 @@ def save_run(run: Mapping[str, Any]) -> dict[str, Any]:
         "contextOutput": payload.get("context_output"),
         "searchDecision": payload.get("search_decision"),
         "notification": payload.get("notification"),
-        "calibrationId": payload.get("calibration_id"),
         "companyNotice": payload.get("company_notice"),
     }
     result_patch = {
@@ -1162,10 +1150,7 @@ def source_cursor(conn: psycopg.Connection, workspace_id: str, role_id: str) -> 
            from public.company_memories memory
            where memory.company_workspace_id = %s::uuid
              and (memory.role_id is null or memory.role_id = %s::uuid))
-            as company_memory_state_hash,
-          (select max(calibration.updated_at)
-           from public.company_role_calibrations calibration
-           where calibration.role_id = %s::uuid) as role_calibration_updated_at
+            as company_memory_state_hash
         """,
         (
             workspace_id,
@@ -1181,7 +1166,6 @@ def source_cursor(conn: psycopg.Connection, workspace_id: str, role_id: str) -> 
             workspace_id,
             role_id,
             workspace_id,
-            role_id,
             role_id,
         ),
     )
@@ -1281,15 +1265,6 @@ def evidence_since_previous_success(
             )
         ],
         "companyMemories": memories if memory_state_changed else [],
-        "roleCalibrations": [
-            row
-            for row in (evidence.get("roleCalibrations") or [])
-            if _row_time_after(
-                row,
-                "updated_at",
-                previous_cursor.get("role_calibration_updated_at"),
-            )
-        ],
         "stateChanges": {
             "companyTalentRequests": request_state_changed,
             "operationalStages": stage_state_changed,
@@ -1364,37 +1339,6 @@ def assert_search_allowed(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
     return gate
 
 
-def post_calibration_gate(
-    conn: psycopg.Connection,
-    run: Mapping[str, Any],
-) -> dict[str, Any]:
-    if run.get("trigger_reason") != "post_calibration_12h":
-        return {}
-    calibration_id = compact(run.get("calibration_id"), 100)
-    if not calibration_id:
-        raise RuntimeError("post-calibration run is missing calibrationId")
-    row = fetch_one(
-        conn,
-        """
-        select
-          calibration.id,
-          calibration.role_id,
-          calibration.status,
-          calibration.payload->'delivery'->>'status' as delivery_status,
-          calibration.payload->'delivery'->>'sentAt' as sent_at
-        from public.company_role_calibrations calibration
-        where calibration.id = %s::uuid
-          and calibration.role_id = %s::uuid
-        """,
-        (calibration_id, str(run["role_id"])),
-    )
-    if not row:
-        raise RuntimeError("linked calibration does not exist for this Role")
-    if row.get("status") not in {"sent", "completed"}:
-        raise RuntimeError("linked calibration is not delivered")
-    if row.get("delivery_status") != "sent" or not compact(row.get("sent_at"), 100):
-        raise RuntimeError("linked calibration has no first Slack delivery receipt")
-    return jsonable(row)
 
 
 def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> dict[str, Any]:
@@ -1529,17 +1473,6 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
         """,
         (workspace_id, role_id),
     )
-    role_calibrations = fetch_all(
-        conn,
-        """
-        select id, role_id, status, payload, created_at, updated_at
-        from public.company_role_calibrations
-        where role_id = %s::uuid
-        order by updated_at desc, id desc
-        limit 10
-        """,
-        (role_id,),
-    )
     focus_talent_ids: list[str] = []
     seen_focus_talent_ids: set[str] = set()
     for row in [*company_talent_requests, *progress]:
@@ -1609,7 +1542,6 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
         "operationalStageOutcomes": stage_outcomes,
         "progressWithActor": progress,
         "companyMemories": company_memories,
-        "roleCalibrations": role_calibrations,
         "focusCandidateEvidence": focus_candidates,
     }
     evidence_delta = evidence_since_previous_success(
@@ -1618,7 +1550,6 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
         current_cursor=cursor,
     )
     gate = pending_gate(conn, role_id)
-    linked_calibration = post_calibration_gate(conn, run)
     return jsonable(
         {
             "schemaVersion": 2,
@@ -1636,7 +1567,6 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
                     "companyUserMessages",
                     "companyTalentRequests",
                     "progressWithActor rows whose company_user_id is present",
-                    "roleCalibrations profile review status and reasons, when they are traceable to a company message",
                     "focusCandidateEvidence only to interpret the target of a verified company decision; never copy private details into long-term context",
                 ],
                 "requiresActorVerification": [
@@ -1673,7 +1603,6 @@ def context_source_packet(conn: psycopg.Connection, run: Mapping[str, Any]) -> d
             "sourceFingerprint": stable_hash({"role": role, "evidence": evidence}),
             "roleMatchingFingerprint": role_matching_fingerprint(role),
             "pendingGate": gate,
-            "linkedCalibration": linked_calibration or None,
             "evidence": evidence,
         }
     )
@@ -1836,7 +1765,7 @@ def matching_decision_support(
             "recentRoleRuns": recent_runs,
             "recentCompanyRecommendationHistory": recent_recommendation_history,
             "decisionNotes": [
-                "Timestamps in company-attributed messages, progress, and calibration reviews are evidence for whether the company is responding; do not convert response speed into a talent fit criterion.",
+                "Timestamps in company-attributed messages and progress are evidence for whether the company is responding; do not convert response speed into a talent fit criterion.",
                 "Recommendation feedback belongs to the talent. Use recommendedAt, feedback/feedbackAt, savedStage, the latest company stage, and verified company response timestamps together to understand whether a recommendation reached the talent, was accepted, reached the company, and received company follow-through.",
                 "Existing fit reasons are previous judgments. Read them in candidate packets when a cycle runs, but do not treat them as gold labels.",
                 "A run-specific searchInstruction may broaden retrieval or choose a new exploration cohort without rewriting permanent company criteria.",
@@ -1961,7 +1890,6 @@ def assert_run_writable(
     if recorded_workspace and str(row.get("company_workspace_id")) != str(recorded_workspace):
         raise RuntimeError("role workspace changed after run start")
     checked = {**run, **row, "company_workspace_id": str(row["company_workspace_id"])}
-    post_calibration_gate(conn, checked)
     return checked
 
 
@@ -2136,17 +2064,12 @@ def command_start(args: argparse.Namespace) -> int:
             "error_message": None,
             "contract_version": (queue_row.get("result") or {}).get(
                 "contractVersion"
-            ) or (
-                POST_CALIBRATION_CONTRACT_VERSION
-                if queue_row.get("trigger_reason") == "post_calibration_12h"
-                else None
             ),
             "batch_run_id": (queue_row.get("result") or {}).get("batchRunId"),
             "scheduled_for": (queue_row.get("result") or {}).get("scheduledFor"),
             "context_output": (queue_row.get("result") or {}).get("contextOutput"),
             "search_decision": (queue_row.get("result") or {}).get("searchDecision"),
             "notification": (queue_row.get("result") or {}).get("notification"),
-            "calibration_id": (queue_row.get("result") or {}).get("calibrationId"),
             "company_notice": (queue_row.get("result") or {}).get("companyNotice"),
             "dry_run": bool(args.dry_run),
             "allow_inactive": bool(args.allow_inactive),
@@ -2344,8 +2267,6 @@ def command_run_sql(args: argparse.Namespace) -> int:
     raw_sql = sql_path.read_text(encoding="utf-8")
     with connect() as conn:
         run = assert_run_writable(conn, args.run_id)
-        if run.get("trigger_reason") == "post_calibration_12h" and args.lane != "new":
-            raise RuntimeError("post-calibration initial review uses only the unseen new lane")
         assert_search_allowed(conn, run)
         if not (run.get("input_snapshot") or {}).get("contextHash"):
             raise RuntimeError("context must be saved before retrieval SQL runs")
@@ -3195,8 +3116,6 @@ def command_candidate_packet(args: argparse.Namespace) -> int:
 
     with connect() as conn:
         run = assert_run_writable(conn, args.run_id)
-        if run.get("trigger_reason") == "post_calibration_12h" and args.lane != "new":
-            raise RuntimeError("post-calibration initial review uses only the unseen new lane")
         assert_search_allowed(conn, run)
         if not (run.get("input_snapshot") or {}).get("contextHash"):
             raise RuntimeError("context must be saved before candidate packets")
@@ -4631,104 +4550,12 @@ def command_notify_batch(args: argparse.Namespace) -> int:
     return 0
 
 
-def validate_post_calibration_notice(value: Any) -> dict[str, str]:
-    if not isinstance(value, Mapping):
-        raise ValueError("company notice input must be a JSON object")
-    message = str(value.get("message") or "").replace("\x00", "").strip()[:5_000]
-    if not message:
-        raise ValueError("company notice input requires a non-empty message")
-    return {"message": message}
 
 
-def command_preview_post_calibration_notice(args: argparse.Namespace) -> int:
-    notice = validate_post_calibration_notice(read_json(Path(args.input)))
-    preview = {
-        "status": "previewed",
-        "databaseWrites": 0,
-        "externalWrites": 0,
-        "slackMessage": notice["message"],
-        "orgMessage": notice["message"],
-    }
-    print(json.dumps(preview, ensure_ascii=False))
-    return 0
 
 
-def command_pending_post_calibration_notices(args: argparse.Namespace) -> int:
-    with connect() as conn:
-        with conn.cursor() as cur:
-            cur.execute("set transaction read only")
-        rows = fetch_all(
-            conn,
-            """
-            select run.id, run.role_id, run.result->>'calibrationId' as calibration_id,
-                   run.result->'companyNotice' as company_notice
-            from public.company_context_runs run
-            where run.trigger_reason = 'post_calibration_12h'
-              and run.status = 'succeeded'
-              and coalesce(run.result->'companyNotice'->>'status', '')
-                in ('partial', 'not_configured', 'failed')
-              and coalesce(
-                nullif(run.result->'companyNotice'->>'retryAt', '')::timestamptz,
-                run.available_at
-              ) <= timezone('utc', now())
-            order by coalesce(
-              nullif(run.result->'companyNotice'->>'retryAt', '')::timestamptz,
-              run.available_at
-            ), run.id
-            limit %s
-            """,
-            (args.limit,),
-        )
-        conn.rollback()
-    print(json.dumps(jsonable({"runs": rows}), ensure_ascii=False))
-    return 0
 
 
-def command_deliver_post_calibration_notice(args: argparse.Namespace) -> int:
-    run = require_run(args.run_id)
-    if run.get("trigger_reason") != "post_calibration_12h":
-        raise RuntimeError("company notice is only valid for post-calibration runs")
-    if run.get("status") not in {"running", "succeeded"}:
-        raise RuntimeError(f"post-calibration run cannot deliver from {run.get('status')}")
-    message = None
-    if args.input:
-        notice_input = validate_post_calibration_notice(read_json(Path(args.input)))
-        message = notice_input["message"]
-    if run.get("dry_run"):
-        if not message:
-            raise RuntimeError("dry-run notice preview requires --input")
-        receipt = {
-            "runId": args.run_id,
-            "status": "previewed",
-            "databaseWrites": 0,
-            "externalWrites": 0,
-            "slackMessage": message,
-            "orgMessage": message,
-        }
-        write_json(run_dir(run) / "company_notice_preview.json", receipt)
-        print(json.dumps(receipt, ensure_ascii=False))
-        return 0
-
-    payload: dict[str, Any] = {"runId": args.run_id}
-    if message:
-        payload["message"] = message
-    response = internal_post_json(
-        "/api/internal/company-context-runs/post-calibration-notice",
-        payload,
-    )
-    notice = response.get("notice")
-    if not isinstance(notice, Mapping):
-        raise RuntimeError("company notice delivery returned no durable receipt")
-    run["company_notice"] = dict(notice)
-    save_run(run)
-    receipt = {
-        "runId": args.run_id,
-        "status": response.get("status"),
-        "notice": notice,
-    }
-    write_json(run_dir(run) / "company_notice_receipt.json", receipt)
-    print(json.dumps(jsonable(receipt), ensure_ascii=False))
-    return 0
 
 
 def command_finish(args: argparse.Namespace) -> int:
@@ -4738,16 +4565,6 @@ def command_finish(args: argparse.Namespace) -> int:
         if not (path / "context_save_receipt.json").exists():
             raise RuntimeError("context must be saved before a run can succeed")
         scheduled_run = run.get("trigger_reason") == "scheduled"
-        post_calibration_run = run.get("trigger_reason") == "post_calibration_12h"
-        company_notice = run.get("company_notice") or {}
-        if post_calibration_run and company_notice.get("status") not in {
-            "sent",
-            "partial",
-            "not_configured",
-        }:
-            raise RuntimeError(
-                "post-calibration run requires a durable company notice receipt before finish"
-            )
         search_decision = run.get("search_decision") or {}
         if scheduled_run and not search_decision:
             raise RuntimeError("scheduled Company Run requires a saved search decision")
@@ -4870,9 +4687,6 @@ def command_finish(args: argparse.Namespace) -> int:
             },
             "counts": counts,
         }
-        if post_calibration_run:
-            result["calibrationId"] = run.get("calibration_id")
-            result["companyNotice"] = run.get("company_notice")
         if run.get("dry_run"):
             finished_row = {
                 "status": (
@@ -5171,19 +4985,6 @@ def build_parser() -> argparse.ArgumentParser:
     notify_batch = sub.add_parser("notify-batch")
     notify_batch.add_argument("--batch-id", required=True)
     notify_batch.set_defaults(func=command_notify_batch)
-
-    pending_notices = sub.add_parser("pending-post-calibration-notices")
-    pending_notices.add_argument("--limit", type=int, default=10, choices=range(1, 51))
-    pending_notices.set_defaults(func=command_pending_post_calibration_notices)
-
-    deliver_notice = sub.add_parser("deliver-post-calibration-notice")
-    deliver_notice.add_argument("--run-id", required=True)
-    deliver_notice.add_argument("--input")
-    deliver_notice.set_defaults(func=command_deliver_post_calibration_notice)
-
-    preview_notice = sub.add_parser("preview-post-calibration-notice")
-    preview_notice.add_argument("--input", required=True)
-    preview_notice.set_defaults(func=command_preview_post_calibration_notice)
 
     finish = sub.add_parser("finish")
     finish.add_argument("--run-id", required=True)

@@ -142,6 +142,7 @@ export function useOrgJobsRoute({
           },
           orgId: baseWorkspaceId,
           page,
+          inboxStage: getQueryText(router.query.inboxStage),
           roleId: page === "jobs" || page === "role" ? activeRoleId : null,
           tab: page === "role" ? roleTab : undefined,
           view:
@@ -165,6 +166,7 @@ export function useOrgJobsRoute({
       buildOrgHref({
         orgId: baseWorkspaceId,
         page,
+        inboxStage: getQueryText(router.query.inboxStage),
         roleId: page === "jobs" || page === "role" ? activeRoleId : null,
         tab: page === "role" ? roleTab : undefined,
         view:

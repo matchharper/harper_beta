@@ -56,6 +56,7 @@ import UpcomingMeetingStrip from "./UpcomingMeetingStrip";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
+import ApplyWithHarperButton from "./ApplyWithHarperButton";
 
 export { getKnownCompanyDataText, parseFundingStageLabel };
 
@@ -292,7 +293,7 @@ export const HistoryOpportunityOverview = ({
   const recommendationSummary = item.recommendationSummary?.trim() ?? "";
   const recommendationConcerns = item.recommendationConcerns ?? [];
   const hasRecommendationContent =
-    Boolean(recommendationSummary) || item.recommendationReasons.length > 0;
+    Boolean(item.recommendationNote || recommendationSummary) || item.recommendationReasons.length > 0;
   const hasStandaloneJdButton = Boolean(roleLink) && !hasRecommendationContent;
 
   return (
@@ -326,6 +327,7 @@ export const HistoryOpportunityOverview = ({
           </div>
           <div className="mt-1 h-[1px] w-full bg-neutral-1000-a05" />
           <div className="flex flex-col gap-1.5 py-2">
+            {item.recommendationNote ? <p className="mb-2 leading-6">{item.recommendationNote}</p> : null}
             {recommendationSummary && (
               <div className="mb-2">{recommendationSummary}</div>
             )}
@@ -712,6 +714,13 @@ export const HistoryOpportunityInlinePage = ({
           className="mt-5"
         />
       )}
+
+      <ApplyWithHarperButton
+        key={`apply-${item.id}`}
+        item={item}
+        pending={pending}
+        onOpenChat={onOpenChat}
+      />
 
       <TalentRoleActivityTimeline
         item={item}

@@ -6,6 +6,7 @@ import {
   requireAuthenticatedUser,
 } from "@/lib/server/candidateAccess";
 import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
+import { visibleOrgRoleIds } from "@/lib/org/teamAccess";
 import {
   billingDb,
   billingRpc,
@@ -65,6 +66,8 @@ export async function GET(req: NextRequest) {
     });
     const canManage = authority === "owner" || authority === "admin";
     const view = req.nextUrl.searchParams.get("view") ?? "summary";
+    const accessibleRoleIds = await visibleOrgRoleIds({ admin: getSupabaseAdmin(), user, workspaceId: id });
+    if (accessibleRoleIds !== null && view !== "capacity") throw new WorkspaceBillingError("billing_owner_required", 403);
     // Capacity remains available to ordinary hiring flows; payment screens are gated.
     if (view !== "capacity" && !canUseWorkspaceBilling(id))
       throw new WorkspaceBillingError("billing_forbidden", 403);
@@ -126,7 +129,7 @@ export async function GET(req: NextRequest) {
             ? (slotLabels.get(row.company_workspace_credit_periods.slot_id) ??
               null)
             : row.period_id
-              ? "Shared credits"
+              ? "Shared Intros"
               : null,
         })),
         total: count ?? 0,
@@ -140,7 +143,7 @@ export async function GET(req: NextRequest) {
         capacity: summary.capacity,
         activeRoles: summary.activeRoles,
         pendingConnections: summary.model !== "free",
-        creditSlots: summary.creditSlots,
+        creditSlots: accessibleRoleIds === null ? summary.creditSlots : summary.creditSlots.filter(slot => slot.slotId === null || Boolean(slot.roleId && accessibleRoleIds.includes(slot.roleId))),
       });
     const [slots, catalog] = await Promise.all([
       withSlotPrices(id, summary.slots),

@@ -157,3 +157,27 @@ test("update rejects full replacement content, empty changes and missing revisio
     })
   );
 });
+
+test("a numeric skill-group target reports its exact path and valid IDs without saving an earlier edit", () => {
+  const original = initial();
+  const snapshot = structuredClone(original);
+  const entryId = original.content.experience![0].id!;
+  const skillId = original.content.skills![0].id!;
+  assert.throws(() => edit(original, [
+    { op: "set", path: `/experience/${entryId}/description`, value: "Revised" },
+    { op: "add", path: "/skills/0/items/1", value: "TypeScript" },
+  ]), (error: Error) => {
+    assert.match(error.message, /\/skills\/0/);
+    assert.ok(error.message.includes(skillId));
+    assert.match(error.message, /stable entry IDs, not numeric positions/);
+    assert.match(error.message, /No edits from this command were saved/);
+    return true;
+  });
+  assert.deepEqual(original, snapshot);
+  const corrected = edit(original, [
+    { op: "set", path: `/experience/${entryId}/description`, value: "Revised" },
+    { op: "add", path: `/skills/${skillId}/items/1`, value: "TypeScript" },
+  ]);
+  assert.equal(corrected.content.experience![0].description, "Revised");
+  assert.deepEqual(corrected.content.skills![0].items, ["English", "TypeScript", "Korean"]);
+});

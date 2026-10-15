@@ -1,3 +1,4 @@
+import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
@@ -7,6 +8,7 @@ import type {
   OrgRoleNotificationSettingsUpdate,
 } from "@/lib/org/roleNotificationTypes";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { canAccessOrgRole, resolveOrgRoleAccess } from "./teamAccess";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
 
@@ -18,6 +20,7 @@ type ChannelRow = {
 
 type WorkspaceMemberRow = {
   company_user_id: string;
+  authority: string; access_scope: string; team_id: string | null;
 };
 
 function text(value: unknown) {
@@ -49,7 +52,7 @@ export async function fetchOrgRoleNotificationSettings(args: {
   roleId: string;
   user: User;
   workspaceId: string;
-}): Promise<OrgRoleNotificationSettings> {
+}): Promise<OrgRoleNotificationSettings & { availableAssignees: Array<{ userId: string; name: string; current: boolean }> }> {
   const admin = getSupabaseAdmin();
   const workspaceId = text(args.workspaceId);
   const roleId = text(args.roleId);
@@ -75,6 +78,15 @@ export async function fetchOrgRoleNotificationSettings(args: {
 
   if (channelOptOutResult.error) throw channelOptOutResult.error;
   if (assigneeResult.error) throw assigneeResult.error;
+  const [membershipResult, roleResult] = await Promise.all([
+    (admin.from("company_user_workspace") as any).select("company_user_id, authority, access_scope, team_id, company_workspace_team_members(team_id), company_users(name,email)").eq("company_workspace_id", workspaceId),
+    (admin.from("company_roles" as any) as any).select("company_internal_roles(team_id)").eq("company_workspace_id", workspaceId).eq("role_id", roleId).maybeSingle(),
+  ]);
+  if (membershipResult.error) throw membershipResult.error;
+  if (roleResult.error) throw roleResult.error;
+  if (!roleResult.data) throw new OrgHttpError(404, "Role을 찾지 못했습니다.");
+  const eligibleIds = new Set((membershipResult.data ?? []).filter((row: WorkspaceMemberRow) =>
+    canAccessOrgRole(resolveOrgRoleAccess(row), getCompanyInternalRoleRecord(roleResult.data.company_internal_roles)?.team_id)).map((row: WorkspaceMemberRow) => row.company_user_id));
 
   const disabledChannelIds = new Set<string>(
     (channelOptOutResult.data ?? []).map(
@@ -83,7 +95,12 @@ export async function fetchOrgRoleNotificationSettings(args: {
   );
 
   return {
-    assigneeUserIds: (assigneeResult.data ?? []).map(
+    availableAssignees: (membershipResult.data ?? []).filter((row: WorkspaceMemberRow) => eligibleIds.has(row.company_user_id)).map((row: any) => ({
+      userId: row.company_user_id,
+      name: text(row.company_users?.name) || text(row.company_users?.email) || "팀원",
+      current: row.company_user_id === args.user.id,
+    })),
+    assigneeUserIds: (assigneeResult.data ?? []).filter((row: { company_user_id: string }) => eligibleIds.has(row.company_user_id)).map(
       (row: { company_user_id: string }) => row.company_user_id
     ),
     channels: channels.map((channel) => ({
@@ -124,18 +141,22 @@ async function replaceRoleAssignees(args: {
   const memberResult = await (
     args.admin.from("company_user_workspace" as any) as any
   )
-    .select("company_user_id")
+    .select("company_user_id, authority, access_scope, team_id, company_workspace_team_members(team_id)")
     .eq("company_workspace_id", args.workspaceId)
     .in("company_user_id", args.assigneeUserIds);
   if (memberResult.error) throw memberResult.error;
+  const roleResult = await (args.admin.from("company_roles" as any) as any)
+    .select("company_internal_roles(team_id)").eq("company_workspace_id", args.workspaceId).eq("role_id", args.roleId).maybeSingle();
+  if (roleResult.error) throw roleResult.error;
+  if (!roleResult.data) throw new OrgHttpError(404, "Role을 찾지 못했습니다.");
 
   const memberIds = new Set(
     ((memberResult.data ?? []) as WorkspaceMemberRow[]).map(
-      (row) => row.company_user_id
-    )
+      (row) => canAccessOrgRole(resolveOrgRoleAccess(row), getCompanyInternalRoleRecord(roleResult.data.company_internal_roles)?.team_id) ? row.company_user_id : null
+    ).filter(Boolean)
   );
   if (args.assigneeUserIds.some((userId) => !memberIds.has(userId))) {
-    throw new OrgHttpError(400, "담당자는 현재 Organization 멤버여야 합니다.");
+    throw new OrgHttpError(400, "담당자는 이 Role에 접근할 수 있는 팀원이어야 합니다.");
   }
 
   const deleteResult = await (

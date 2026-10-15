@@ -1,3 +1,4 @@
+import { RoleSearchControls } from "@/components/org/internal/RoleSearchControls";
 import Head from "next/head";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -727,6 +728,10 @@ export default function OpsMatchingPage() {
             />
           ) : effectiveRole ? (
             <>
+              {activeTab === "harper_review" && canFetchInternal && <RoleSearchControls
+                key={effectiveRole.roleId}
+                roles={[{ roleId: effectiveRole.roleId, name: effectiveRole.roleName }]}
+                workspaceId={effectiveRole.companyWorkspaceId} surface="ops" showHistory={false} />}
               <TabBoxes
                 activeValue={activeTab}
                 items={MATCHING_STAGE_TABS.map((tab) => ({

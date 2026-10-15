@@ -1,3 +1,5 @@
+import { serializeToolResultForModel, toolErrorResult } from "@/lib/llm/toolError";
+import { executeToolCall } from "@/lib/llm/toolExecution";
 import { NextRequest, NextResponse } from "next/server";
 import { ChatScope } from "@/hooks/chat/useChatSession";
 import { buildLongDoc } from "@/utils/textprocess";
@@ -288,12 +290,12 @@ async function streamWithTools(params: {
             let toolPayload: any;
             try {
               if (toolName === "web_search")
-                toolPayload = await callWebSearch(req, parsedArgs);
+                toolPayload = await executeToolCall(() => callWebSearch(req, parsedArgs));
               else if (toolName === "website_scraping")
-                toolPayload = await callWebsiteScraping(req, parsedArgs);
+                toolPayload = await executeToolCall(() => callWebsiteScraping(req, parsedArgs));
               else toolPayload = { error: `Unknown tool: ${toolName}` };
             } catch (e: any) {
-              toolPayload = { error: String(e?.message ?? e) };
+              toolPayload = toolErrorResult(e);
             }
 
             emitUiBlock(controller, encoder, {
@@ -317,7 +319,7 @@ async function streamWithTools(params: {
               role: "tool",
               tool_call_id: toolCallId,
               name: toolName,
-              content: JSON.stringify(toolPayload),
+              content: serializeToolResultForModel(toolPayload),
             });
           }
 

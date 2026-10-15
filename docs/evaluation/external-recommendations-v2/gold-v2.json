@@ -1,0 +1,38 @@
+{
+  "version": "v2",
+  "authoredBeforeModelRun": true,
+  "reviewer": "Codex synthetic challenge author, not independent human labels",
+  "orderingChecks": [
+    {
+      "higher": "conditional-foreign-remote",
+      "lower": "conditional-foreign-onsite",
+      "axis": "constraintPass",
+      "reason": "Foreign roles allowed only when remotely workable from Korea."
+    },
+    {
+      "higher": "conditional-domestic",
+      "lower": "conditional-foreign-onsite",
+      "axis": "mutualFit",
+      "reason": "Domestic office attendance allowed; foreign office attendance excluded."
+    }
+  ],
+  "constraintChecks": [
+    {
+      "caseId": "conditional-domestic",
+      "operator": ">",
+      "threshold": 50
+    },
+    {
+      "caseId": "conditional-foreign-onsite",
+      "operator": "<=",
+      "threshold": 50
+    },
+    {
+      "caseId": "conditional-foreign-remote",
+      "operator": ">",
+      "threshold": 50
+    }
+  ],
+  "plannerReview": "Expect exactly KR 0.8 with remoteOnly=false and US 0.2 with remoteOnly=true; defaultAction explore for this explicit one-off search mix. Geography is a posting filter, not inferred citizenship or work authorization.",
+  "releaseGate": "All structure, ordinal and constraint boundaries pass; manually inspect planner and final role IDs. This is a targeted synthetic challenge, not production recall or calibrated probabilities."
+}

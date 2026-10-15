@@ -1,0 +1,12 @@
+{
+  "datasetVersion": "journeys-memory-v1",
+  "createdAt": "2026-10-13",
+  "provenance": "Assistant-authored synthetic fixtures frozen before execution; no real account data. Earlier datasets unchanged.",
+  "goldReview": "Assistant-authored, not independently reviewed",
+  "runner": "scripts/evalApplicationPreparationJourney.ts --dataset memory-v1",
+  "model": "claude-haiku-5-5",
+  "files": {
+    "journeys-memory-v1.json": "6a23ab1c58d2abaea13ccb67921157b2b966fa8b1d1386cf2aad949df089b17c",
+    "journey-gold-memory-v1.json": "a69150bc264d1ad4e28cd9bfae8332c9e5ed03218fd16c3462f0b9a078195eb3"
+  }
+}

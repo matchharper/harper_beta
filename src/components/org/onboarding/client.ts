@@ -1,5 +1,11 @@
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 
+export type OrgOnboardingCompleteResult = {
+  ok: true;
+  completedAt: string;
+  slackUrl?: string | null;
+};
+
 export type OrgOnboardingCompanyStatus =
   | { ok: true; status: "missing" | "pending" | "failed" }
   | { ok: true; status: "completed"; reply: string };

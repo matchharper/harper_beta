@@ -2563,6 +2563,21 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
       group: claimedGroup,
       message: candidateMessage,
     });
+    if (delivery.slackSent) {
+      try {
+        const { enqueueCompanyUpdate } = await import("@/lib/org/agent/companyUpdate.server");
+        await enqueueCompanyUpdate({
+          workspaceId: claimedGroup.workspaceId, roleId: authoredRoleId,
+          eventKey: `presented:${delivery.idempotencyKey}`, messageAlreadyDelivered: true,
+          purpose: "The introduction is already delivered. Decide whether useful authorized work or a consequential suggestion remains; otherwise finish silently.",
+          facts: { deliveredPresentation: candidateMessage.body },
+        });
+      } catch (error) {
+        // Progress persistence recorded the staged event in the same
+        // transaction; the normal dispatcher recovers its optional continuation.
+        console.error("[auto-intro] presentation follow-up dispatch failed", error);
+      }
+    }
 
     result.groups.push({
       candidateCount: claimedCandidates.length,

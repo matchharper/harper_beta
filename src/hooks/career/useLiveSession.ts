@@ -1,5 +1,6 @@
 "use client";
 
+import { toolErrorResult, serializeToolResultForModel } from "@/lib/llm/toolError";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
@@ -442,6 +443,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         }
 
         let output: unknown;
+        let preparedModelOutput: string | undefined;
         try {
           if (!conversationId) {
             throw new Error("Missing conversationId for tool execution.");
@@ -461,15 +463,13 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           const payload = await response.json().catch(() => ({}));
           if (!response.ok) {
             throw new Error(
-              getErrorText(payload, "Failed to execute GPT-Live tool.")
+              getErrorText(payload, "Failed to execute GPT-Live tool."), { cause: payload }
             );
           }
-          output = isRecord(payload) ? (payload.output ?? {}) : {};
+          output = isRecord(payload) ? payload.output ?? {} : {};
+          preparedModelOutput = typeof payload?.modelOutput === "string" ? payload.modelOutput : undefined;
         } catch (error) {
-          output = {
-            error:
-              error instanceof Error ? error.message : "Tool execution failed",
-          };
+          output = toolErrorResult(error);
         }
 
         sendEvent({
@@ -477,7 +477,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           item: {
             type: "function_call_output",
             call_id: functionCall.callId,
-            output: JSON.stringify(output),
+            output: preparedModelOutput ?? serializeToolResultForModel(output),
           },
         });
       }

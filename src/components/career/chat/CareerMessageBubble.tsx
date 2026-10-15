@@ -1,3 +1,4 @@
+import { ApplicationSimulationCard } from "./elements/ApplicationSimulationCard";
 import CareerCallProposalCard from "./CareerCallProposalCard";
 import { DocumentPreviewCards } from "./elements/DocumentPreviewCards";
 import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
@@ -106,6 +107,7 @@ type Props = {
   isUser: boolean;
   isAssistantSpeaking?: boolean;
   choiceActionsDisabled?: boolean;
+  hideAssistantChoices?: boolean;
   isCallStartPending?: boolean;
   onSelectAssistantChoice?: (
     selection: CareerAssistantChoiceSelection
@@ -373,6 +375,7 @@ const CareerMessageBubble = ({
   isUser,
   isAssistantSpeaking = false,
   choiceActionsDisabled = false,
+  hideAssistantChoices = false,
   isCallStartPending = false,
   onSelectAssistantChoice,
   onSelectReengagementAction,
@@ -427,6 +430,8 @@ const CareerMessageBubble = ({
         stripMockInterviewMarkers(documentLinks.content)
       )
     : displayContent;
+  if (!isUser && message.simulation) return <ApplicationSimulationCard messageId={message.id} simulation={message.simulation} />;
+
   return (
     <>
       {isUser && (message.attachments?.length ?? 0) > 0 ? (
@@ -509,7 +514,7 @@ const CareerMessageBubble = ({
         {!isUser && (
           <DocumentPreviewCards documents={documentLinks.documents} />
         )}
-        {!isUser && assistantChoices.length > 0 && (
+        {!isUser && !hideAssistantChoices && assistantChoices.length > 0 && (
           <ChatChoiceList
             choices={assistantChoices}
             disabled={choiceActionsDisabled || !onSelectAssistantChoice}
@@ -642,9 +647,7 @@ const CareerMessageBubble = ({
             {marker.resumePromptNeeded && (
               <BareButton
                 type="button"
-                onClick={() =>
-                  void router.push("/career/profile?profileSection=links")
-                }
+                onClick={() => void router.push("/career/documents")}
                 className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FileText className="h-3.5 w-3.5" />

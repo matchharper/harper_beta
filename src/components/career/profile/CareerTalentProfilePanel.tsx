@@ -569,7 +569,7 @@ const CareerTalentProfilePanel = ({
 
   const openProfileSources = () => {
     logCareerEvent("click_profile_header_source_icon");
-    void router.push("/career/profile?profileSection=links");
+    void router.push("/career/documents");
   };
 
   const cancelEditing = () => {

@@ -1,4 +1,6 @@
 import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
+import type { User } from "@supabase/supabase-js";
+import { visibleOrgRoleIds } from "@/lib/org/teamAccess";
 
 export type CandidateOutreachPause = {
   roleId: string;
@@ -21,6 +23,7 @@ export function readCandidateOutreachPauses(value: unknown): CandidateOutreachPa
 }
 
 export type MatchingRunHistoryItem = {
+  id?: string;
   createdAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -60,13 +63,13 @@ function count(value: unknown) {
 }
 
 function roleIds(row: Record<string, unknown>) {
-  return [...new Set([row.scheduled_role_ids, row.requested_role_ids]
+  return [...new Set([[row.role_id], row.scheduled_role_ids, row.requested_role_ids]
     .flatMap(value => Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []))];
 }
 
 /** Company-safe aggregate history; no private pair reasons or candidate identities. */
 export async function readMatchingRunHistory(args: {
-  admin: OrgAgentAdminClient; workspaceId: string; offset?: number; limit?: number;
+  admin: OrgAgentAdminClient; workspaceId: string; user?: User; roleId?: string; offset?: number; limit?: number;
 }): Promise<MatchingRunHistory> {
   const offset = args.offset ?? 0;
   const limit = args.limit ?? 5;
@@ -74,14 +77,20 @@ export async function readMatchingRunHistory(args: {
       !Number.isSafeInteger(limit) || limit < 1 || limit > 20) {
     throw new Error("History requires a nonnegative integer offset and a limit between 1 and 20");
   }
-  const { data, error } = await (args.admin.from("company_first_search_runs" as any) as any)
-    .select("id,created_at,started_at,finished_at,status,trigger_reason,scheduled_role_ids,requested_role_ids,query_plan,result")
-    .eq("company_workspace_id", args.workspaceId)
+  let query = (args.admin.from("company_first_search_runs" as any) as any)
+    .select("id,role_id,created_at,started_at,finished_at,status,trigger_reason,scheduled_role_ids,requested_role_ids,query_plan,result")
+    .eq("company_workspace_id", args.workspaceId);
+  if (args.roleId) {
+    query = query.or(`role_id.eq.${args.roleId},scheduled_role_ids.cs.{${args.roleId}},requested_role_ids.cs.{${args.roleId}}`);
+  }
+  const { data, error } = await query
     .order("created_at", { ascending: false }).order("id", { ascending: false })
     .range(offset, offset + limit);
   if (error) throw error;
   const rows = (data ?? []) as Record<string, unknown>[];
-  const page = rows.slice(0, limit);
+  const allowedIds = args.user ? await visibleOrgRoleIds({ admin: args.admin, user: args.user, workspaceId: args.workspaceId }) : null;
+  const page = rows.slice(0, limit).filter(row => allowedIds === null ||
+    (roleIds(row).length > 0 && roleIds(row).every(id => allowedIds.includes(id))));
   const ids = [...new Set(page.flatMap(roleIds))];
   const names = new Map<string, string | null>();
   if (ids.length) {
@@ -103,6 +112,7 @@ export async function readMatchingRunHistory(args: {
       (ids.length === 1 && evaluatedPairs !== null && cachedPairs !== null
         ? evaluatedPairs + cachedPairs : null);
     return {
+      id: String(row.id),
       createdAt: text(row.created_at), startedAt: text(row.started_at), finishedAt: text(row.finished_at),
       status: text(row.status) ?? "unknown", trigger: text(row.trigger_reason) ?? "unknown",
       roles: ids.map(roleId => ({ roleId, name: names.get(roleId) ?? null })),

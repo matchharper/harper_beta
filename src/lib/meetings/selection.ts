@@ -9,7 +9,7 @@ import type { PublicMeetingSlot } from "@/lib/meetings/invitation";
 
 export type MeetingAutoSelection = {
   chosenSlotId: string;
-  companyMessage: string;
+  companyMessage: null;
   method: "fallback_earliest" | "llm" | "single_option";
   model: string | null;
 };
@@ -51,26 +51,6 @@ function formatOptionList(
     .join("\n");
 }
 
-function deterministicCompanyMessage(args: {
-  candidateName: string;
-  chosen: PublicMeetingSlot;
-  locale?: OrgLocale;
-  options: PublicMeetingSlot[];
-  timezone: string;
-}) {
-  const dateFormatter = new Intl.DateTimeFormat(
-    args.locale === "en" ? "en-US" : "ko-KR",
-    {
-      dateStyle: "long",
-      timeStyle: "short",
-      timeZone: args.timezone,
-    }
-  );
-  if (args.locale === "en")
-    return `${args.candidateName} shared ${args.options.length} available ${args.options.length === 1 ? "time" : "times"}. Harper selected ${dateFormatter.format(new Date(args.chosen.startAt))}. Ask Harper if you'd like to change it.`;
-  return `${args.candidateName}님이 ${args.options.length}개의 가능 시간을 알려주셨고, ${dateFormatter.format(new Date(args.chosen.startAt))}가 가장 적절해 해당 시간으로 미팅을 잡아두었어요. 변경을 원하시면 말씀해 주세요.`;
-}
-
 export function selectMeetingOptionDeterministically(args: {
   candidateName: string;
   locale?: OrgLocale;
@@ -87,13 +67,7 @@ export function selectMeetingOptionDeterministically(args: {
   )[0];
   return {
     chosenSlotId: chosen.slotId,
-    companyMessage: deterministicCompanyMessage({
-      candidateName: args.candidateName,
-      chosen,
-      locale: args.locale,
-      options: reportedOptions,
-      timezone: args.timezone,
-    }),
+    companyMessage: null,
     method:
       reportedOptions.length === 1 ? "single_option" : "fallback_earliest",
     model: null,
@@ -131,8 +105,7 @@ export async function selectMeetingOption(args: {
               "Choose exactly one interview time from the candidate's valid options.",
               "Use the approved scheduling note as a preference, not permission to invent constraints.",
               "When no preference distinguishes the options, choose the earliest one.",
-              'Return JSON only: {"chosenSlotId":"...","companyMessage":"..."}.',
-              `The companyMessage must be one short natural ${args.locale === "en" ? "English" : "Korean"} message saying which options the candidate gave, which time was selected, and that the company can ask to change it.`,
+              'Return JSON only: {"chosenSlotId":"..."}.',
               "Do not claim that a Calendar event, Google Meet link, or email has been sent.",
             ].join(" "),
           },
@@ -158,16 +131,14 @@ export async function selectMeetingOption(args: {
         .replace(/\s*```$/i, "")
     ) as Record<string, unknown>;
     const chosenSlotId = clean(parsed.chosenSlotId, 200);
-    const companyMessage = clean(parsed.companyMessage, 800);
     if (
-      !args.options.some((option) => option.slotId === chosenSlotId) ||
-      !companyMessage
+      !args.options.some((option) => option.slotId === chosenSlotId)
     ) {
       throw new Error("Meeting selection output is invalid");
     }
     return {
       chosenSlotId,
-      companyMessage,
+      companyMessage: null,
       method: "llm",
       model,
     } satisfies MeetingAutoSelection;

@@ -1,0 +1,19 @@
+{
+  "version":"inventory-v2",
+  "plain":{"status":"partial","fields":[
+    {"label":"Name","required":true,"maxLength":null,"fileTypes":[]},
+    {"label":"Email","required":true,"maxLength":null,"fileTypes":[]},
+    {"label":"Resume","required":true,"maxLength":null,"fileTypes":[".pdf"]},
+    {"label":"Why are you interested in this role?","required":true,"maxLength":700,"fileTypes":[]},
+    {"label":"Cover letter (optional)","required":false,"maxLength":null,"fileTypes":[".pdf",".docx"]},
+    {"label":"Portfolio URL (optional)","required":false,"maxLength":null,"fileTypes":[]},
+    {"label":"Team","required":null,"maxLength":null,"fileTypes":[]}
+  ],"limitationsRequired":true},
+  "iframe":{"allowedStatus":["read","partial"],"fields":[
+    {"label":"Email","required":true,"maxLength":null,"fileTypes":[]},
+    {"label":"Describe a project relevant to this role.","required":true,"maxLength":400,"fileTypes":[]},
+    {"label":"Work sample (optional)","required":false,"maxLength":null,"fileTypes":[".pdf"]}
+  ]},
+  "login":{"status":"unavailable","fields":[],"limitationsRequired":true},
+  "all":{"executorModelTurns":0,"writeEvidenceCount":0,"cleanup404":true}
+}

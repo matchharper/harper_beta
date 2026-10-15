@@ -49,11 +49,13 @@ export async function POST(req: NextRequest) {
   if (body.event?.type === "entity_details_requested") {
     const event = body.event;
     const candidateId = candidateIdFromSlackEntity(event);
-    if (candidateId && event.trigger_id && event.user && body.team_id) {
+    if (event.trigger_id && event.user && body.team_id) {
       // The user trigger is short lived; details must bypass the conversation queue.
       after(() =>
         presentSlackCandidate({
           candidateId,
+          entityUrl: event.entity_url || event.link?.url || event.app_unfurl_url,
+          externalRef: event.external_ref,
           triggerId: event.trigger_id,
           slackUserId: event.user,
           slackTeamId: body.team_id,

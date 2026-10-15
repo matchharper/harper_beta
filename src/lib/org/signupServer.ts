@@ -5,6 +5,30 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getExaClient, type ExaSearchClient } from "@/lib/tools/exaClient";
 import type { SignupCompany, SignupEntry } from "./signup";
 
+export function companyHomepageInput(value: unknown) {
+  if (typeof value !== "string" || value.length > 2000 || !value.trim())
+    throw new Error("signup_invalid_homepage");
+  let url: URL;
+  try {
+    const input = value.trim();
+    url = new URL(input.includes("://") ? input : `https://${input}`);
+  } catch {
+    throw new Error("signup_invalid_homepage");
+  }
+  const parsed = parse(url.hostname, { allowPrivateDomains: true });
+  if (
+    !["https:", "http:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.port ||
+    parsed.isIp ||
+    !parsed.domain ||
+    !(parsed.isIcann || parsed.isPrivate)
+  )
+    throw new Error("signup_invalid_homepage");
+  return { domain: parsed.domain, homepageUrl: url.origin };
+}
+
 const personalDomains = new Set<string>(freeEmailDomains);
 export function companyEmailDomain(
   user: Pick<User, "email" | "email_confirmed_at" | "is_anonymous">

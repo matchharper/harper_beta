@@ -13,7 +13,6 @@
   - [Company Role Hiring Brief 작성 가이드](../company/company-role-hiring-brief-authoring-guide-ko.md)
   - [Company Context Run 목적과 구현 계약](../company/company-context-run-overview-ko.md)
   - [Company Context Run Codex 런북](../company/company-context-run-codex-runbook-ko.md)
-  - [Company Role Profile Calibration 런북](../company/company-role-profile-calibration-codex-runbook-ko.md)
 
 이 문서는 company-side outcome을 이용한 scheduled 보정의 evidence 수집·판정·실행 계약이다.
 Hiring Brief 자체의 공통 작성 규칙은 위 작성 가이드가 canonical source이며, 두 문서가 겹치는

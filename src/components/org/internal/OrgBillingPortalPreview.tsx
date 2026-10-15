@@ -1,3 +1,4 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import { useState } from "react";
 import { CreditCard, ArrowLeft, Check } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
@@ -11,7 +12,6 @@ import {
   previewCatalog,
 } from "@/lib/org/billing/preview";
 import {
-  formatBillingMoney,
   type BillingCatalog,
   type BillingInterval,
 } from "@/lib/org/billing/types";
@@ -26,8 +26,7 @@ export function OrgBillingPaymentPreview({
   onOpen: () => void;
 }) {
   const { preview } = useOrgBillingPreview(workspaceId);
-  const { locale } = useOrgLocale();
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { c } = useOrgLocale();
   if (!preview) return null;
   const card = previewCard(preview);
   return (
@@ -119,9 +118,9 @@ function PortalContent({
   onClose: () => void;
   onComplete: () => void;
 }) {
+  const { formatBillingMoney } = useOrgBillingFormat();
   const { preview, setPreview } = useOrgBillingPreview(workspaceId);
-  const { locale } = useOrgLocale();
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { c } = useOrgLocale();
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<keyof typeof PREVIEW_CARDS>(
     preview ? previewCard(preview) : "none"
@@ -297,8 +296,7 @@ function PortalContent({
               <p className="mt-2 text-2xl">
                 {formatBillingMoney(
                   (amount ?? 0) * checkout.quantity,
-                  prices.currency ?? "usd",
-                  locale
+                  prices.currency ?? "usd"
                 )}
               </p>
               <p className="mt-1 text-xs text-neutral-muted">

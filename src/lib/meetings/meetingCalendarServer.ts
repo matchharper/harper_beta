@@ -26,7 +26,7 @@ import type {
   MeetingCalendarRetryResponse,
 } from "@/lib/meetings/meetingCalendar";
 import { buildMeetingCalendarAttendeeEmails } from "@/lib/meetings/meetingCalendar";
-import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
+import { assertOrgWorkspacePermission, assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
 type AdminClient = ReturnType<typeof getSupabaseAdmin>;
@@ -371,11 +371,12 @@ export async function retryMeetingCalendarEvent(args: {
     workspaceId,
   });
   const { data, error } = await (admin.from("meeting_schedules" as any) as any)
-    .select("id")
+    .select("id, role_id")
     .eq("id", scheduleId)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new OrgHttpError(404, "미팅 일정을 찾지 못했어요.");
+  await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId: data.role_id });
   return { calendar: await ensureMeetingCalendarEvent(scheduleId), ok: true };
 }

@@ -32,6 +32,9 @@ export async function generateResume(args: {
   userMessageId: string | number;
   requestId?: string;
   input: unknown;
+  // Application preparation supplies a canonical role name. Allocate its suffix
+  // only after the idempotency read, so retries keep the already saved name.
+  deduplicateName?: boolean;
 }) {
   const started = Date.now();
   const input = parseResumeInput(args.input);
@@ -111,17 +114,36 @@ export async function generateResume(args: {
         "Resume changed. Read its current JSON and revision before updating."
       );
   }
-  const previous = (input.action === "copy"
-    ? source?.structured_content
-    : original?.structured_content) as StructuredResume | null;
+  const previous = (
+    input.action === "copy"
+      ? source?.structured_content
+      : original?.structured_content
+  ) as StructuredResume | null;
   if ((source || original) && !previous)
     throw new Error("Generated resume has no editable JSON.");
   if (previous && previous.schema_version !== 1)
     throw new Error("Unsupported resume schema version.");
   const structured = structureResume(input, previous ?? undefined);
-  const fileName = input.document_name
+  let fileName = input.document_name
     ? resumeFileName(input.document_name)
     : original!.file_name;
+  if (args.deduplicateName && input.action !== "update") {
+    const base = fileName.slice(0, -4);
+    for (let number = 2; ; number++) {
+      const { data: existing, error } = await db
+        .from("talent_documents")
+        .select("id")
+        .eq("talent_id", args.userId)
+        .eq("is_deleted", false)
+        .eq("file_name", fileName)
+        .limit(1)
+        .maybeSingle();
+      if (error)
+        throw new Error("Resume names could not be checked. Retry saving.");
+      if (!existing) break;
+      fileName = `${base} (${number}).pdf`;
+    }
+  }
   for (const documentId of structured.source_document_ids) {
     if (
       !(await fetchTalentDocument({
@@ -130,7 +152,7 @@ export async function generateResume(args: {
         documentId,
       }))
     )
-      throw new Error("Reference document not found.");
+      throw new Error(`Reference document not found (${documentId}). No resume was saved by this attempt. Read the current document list and use an owned, non-deleted source document; do not invent a replacement identifier.`);
   }
   // References contain identifiers only, and must belong to this authenticated user.
   for (const ref of structured.source_refs) {
@@ -171,8 +193,10 @@ export async function generateResume(args: {
       )
       .eq(owner, args.userId)
       .maybeSingle();
-    if (error || !data)
-      throw new Error("Resume source reference is unavailable.");
+    if (error)
+      throw new Error(`Resume source verification failed (${ref.kind}: ${ref.id}). No resume was saved by this attempt. The source's availability could not be checked; this is not evidence that it is missing. Read the source again before retrying.`, { cause: error });
+    if (!data)
+      throw new Error(`Resume source reference is unavailable (${ref.kind}: ${ref.id}). No resume was saved by this attempt. Re-read the current source and use its returned identifier. Optional source_refs may be omitted when there is no verified identifier; keep the resume grounded in the user's verified facts.`);
   }
   const discard = async (path: string) => {
     try {
@@ -234,7 +258,8 @@ export async function generateResume(args: {
       throw new Error(
         saveError
           ? "Resume could not be saved. Retry the same request to check its result."
-          : "Resume changed or was deleted. Read the current document before updating."
+          : "Resume changed or was deleted. Read the current document before updating.",
+        saveError ? { cause: saveError } : undefined
       );
     }
     if (original?.storage_path) await discard(original.storage_path);

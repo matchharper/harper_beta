@@ -25,3 +25,20 @@ test("keeps ordinary links, invalid IDs and code examples as text", () => {
     documents: [],
   });
 });
+
+test("renders a document card when the filename contains raw balanced brackets", () => {
+  const title = "Example · [Example] AI Engineer (2).pdf";
+  const parsed = extractCareerDocumentLinks(`[${title}](documentId:${document.id})`);
+  assert.deepEqual(parsed.documents, [{ id: document.id, title }]);
+  assert.equal(parsed.content, "");
+});
+
+test("does not combine adjacent links or accept unmatched label brackets", () => {
+  for (const content of [
+    `[One](documentId:${document.id}) [Two](documentId:${document.id})`,
+    `[One [Two](documentId:${document.id})`,
+    `[One] Two](documentId:${document.id})`,
+  ]) {
+    assert.deepEqual(extractCareerDocumentLinks(content), { content, documents: [] });
+  }
+});

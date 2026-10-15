@@ -1,0 +1,73 @@
+{
+  "version": "v4",
+  "authoredBeforeModelRun": true,
+  "reviewer": "Codex challenge author; independent human review pending",
+  "orderingChecks": [
+    {
+      "higher": "strong-compatible",
+      "lower": "ordinary-technology-gap",
+      "axis": "roleFit",
+      "reason": "Technology gap should affect capability fit without becoming a blocking condition."
+    },
+    {
+      "higher": "strong-compatible",
+      "lower": "extreme-responsibility-gap",
+      "axis": "roleFit",
+      "reason": "Executive-scale responsibility is unsupported by this individual-contributor background."
+    }
+  ],
+  "constraintChecks": [
+    {
+      "caseId": "strong-compatible",
+      "operator": ">",
+      "threshold": 50
+    },
+    {
+      "caseId": "ordinary-adjacent-role",
+      "operator": ">",
+      "threshold": 50
+    },
+    {
+      "caseId": "ordinary-seniority-gap",
+      "operator": ">",
+      "threshold": 50
+    },
+    {
+      "caseId": "ordinary-technology-gap",
+      "operator": ">",
+      "threshold": 50
+    },
+    {
+      "caseId": "unknown-compensation",
+      "operator": ">",
+      "threshold": 50
+    },
+    {
+      "caseId": "hard-onsite",
+      "operator": "<=",
+      "threshold": 50
+    },
+    {
+      "caseId": "hard-schedule",
+      "operator": "<=",
+      "threshold": 50
+    },
+    {
+      "caseId": "hard-compensation",
+      "operator": "<=",
+      "threshold": 50
+    },
+    {
+      "caseId": "extreme-responsibility-gap",
+      "operator": "<=",
+      "threshold": 50
+    },
+    {
+      "caseId": "hard-essential-credential",
+      "operator": "<=",
+      "threshold": 50
+    }
+  ],
+  "releaseGate": "All 10 constraint boundaries and 2 ordinal checks pass for each provider; inspect complete scores. No exact score labels or universal numeric seniority cutoff. A passing constraint gate is not a recommendation.",
+  "knownLimitations": "Ten synthetic cases; not calibrated probabilities, exhaustive constraint coverage, online recommendation quality or independent human labels."
+}

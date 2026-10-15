@@ -216,7 +216,7 @@ export const RecommendationSearchStatusPanel = memo(
     return (
       <div
         role="status"
-        className="w-full max-w-[420px] rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 text-neutral-primary"
+        className="w-full max-w-[420px] rounded-xl border border-neutral-1000-a10 bg-bg-floating mt-1 mb-2 p-3 text-neutral-primary"
         aria-live="polite"
       >
         <div className="flex items-center justify-between gap-3">
@@ -243,6 +243,7 @@ export const RecommendationSearchStatusPanel = memo(
               onClick={onCancel}
               variant="neutral"
               size="sm"
+              className="border-none"
               aria-label={t("career.common.career.1nwpekv", "검색 중지")}
               title={t("career.common.career.1nwpekv", "검색 중지")}
             >

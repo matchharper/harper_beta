@@ -4,36 +4,21 @@ import {
   buildOrgAgentSystemPrompt,
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
+import { resolveCompanyCapabilities } from "./capabilities/resolver";
 
-test("company prompt assembles common invariants and full capability policies without copy templates", () => {
+test("company prompt assembles selected policies and bounds the normal cold-turn prefix", () => {
   const prompt = buildOrgAgentSystemPrompt();
-  const slack = buildOrgAgentSystemPrompt({ surface: "slack" });
-  assert.ok(prompt.length < 36_000);
-  assert.ok(slack.length < 36_000);
+  const full = resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set() });
+  assert.ok(prompt.includes(full.policyText));
+  for (const surface of ["chat", "slack"] as const) {
+    const core = resolveCompanyCapabilities({ surface, mode: "progressive", loaded: new Set() });
+    const cold = buildOrgAgentSystemPrompt({ surface, capabilityCatalogText: core.catalogText, capabilityPolicyText: core.policyText });
+    assert.ok(cold.length < 36_000);
+    assert.ok(cold.includes(core.policyText));
+  }
   for (const fragment of [
-    "## Guide", "answer the company's request or complete its work accurately",
-    "<company_service_core>", "no subscription or usage fee", "Silence is neither acceptance nor rejection",
-    "Candidate willingness alone does not prove that this sharing happened",
-    "## Tool Policy", "Never silently omit targets", "<tool_outcome_response_contract>",
-    "<ux_writing_contract>", "해요체", "팀원", "## Scope and Current Data",
-    "conversation is workspace-scoped", "counts_complete=true", "read_conversation_history",
-    "Copy opaque identifiers exactly", "bounded, truncated, stale, or unavailable data as incomplete",
-    "Mutate only when the user explicitly asks", "<hiring_brief_authoring_contract>",
-    "Never erase an established school bar", "not an automatic preferred-company list",
-    "## Hard constraints", "## Preferred criteria", "bounded, complete preview and explicit confirmation",
-    "Report verified structure", "Talent-side rejection is never reversible",
-    "do not assume the Role is unseen", "same tool again to execute it",
-    "Include only a reason the user supplied", "delivered notices cannot be recalled",
-    "<meeting_coordination_contract>", "any company-visible active stage",
-    "Route evidence by provenance", "record_role_profile_example_feedback",
-    "## Candidate Contact",
-    "Prefer send for a lightweight reply or routine follow-up",
-    "Prefer create_draft for a new first outreach",
-    "one company review before delivery for an important moment",
-    "within roughly the last 24 hours",
-    "prefer create_draft over send and briefly mention the recent contact",
-    "automatic progress notices", "Creating or revising a draft never queues or sends it",
-    "never expose stored compensation", "never reopens a closed candidate process",
+    "## Guide", "<company_service_core>", "## Tool Policy",
+    "<tool_outcome_response_contract>", "<ux_writing_contract>", "## Scope and Current Data",
   ]) assert.ok(prompt.includes(fragment), fragment);
   assert.doesNotMatch(prompt, /One considerate follow-up is allowed only after 72/);
   assert.doesNotMatch(prompt, /김호진|E2E-MEET|workspaceId=/);
@@ -48,7 +33,9 @@ test("web response locale selects voice and exact stage names without changing l
   assert.match(english, /pending_connection: Ready to connect/);
   assert.match(english, /company_intro: Suggested candidates/);
   assert.match(english, /intro_requested: Intro requested/);
-  assert.match(english, /candidate has actually been shared with the company/);
+  const sharedPolicies = resolveCompanyCapabilities({ surface: "chat", mode: "full", loaded: new Set() }).policyText;
+  assert.ok(english.includes(sharedPolicies));
+  assert.ok(korean.includes(sharedPolicies));
   assert.match(korean, /<response_language locale="ko">/);
   assert.match(korean, /pending_connection: 연결 대기/);
   assert.match(korean, /company_intro: 먼저 제안 가능한 후보/);
@@ -63,7 +50,7 @@ test("organization-agent Slack prompt enables sparse private choice markers", ()
   const regularPrompt = buildOrgAgentSystemPrompt();
 
   assert.match(prompt, /Slack mrkdwn/);
-  assert.match(prompt, /굵게: \*한단어\*/);
+  assert.match(prompt, /굵게: \*텍스트\*/);
   assert.doesNotMatch(prompt, /표준 Markdown\/GFM/);
   assert.match(prompt, /\[짧은 버튼 라벨\]\(button:/);
   assert.match(prompt, /한 답변에 버튼은 최대 2개/);
@@ -92,7 +79,7 @@ test("turn delivery keeps tool depth independent from visible message count", ()
   assert.match(direct, /regardless of how many tools are needed/);
   assert.match(direct, /Do not narrate each tool call/);
   assert.match(direct, /always receives a terminal response/);
-  assert.match(webAction, /A user-facing message is optional/);
+  assert.match(webAction, /Follow the event's delivery requirement/);
   assert.match(webAction, /Silence is a successful outcome/);
   assert.match(webAction, /never an unverified result/);
   assert.match(

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "career-fact-to-profile",
+    "criteria": [
+      "update_talent_profile saves Python/FastAPI/task retries on the exact Example Studio row before ready",
+      "preserve existing API/on-call memo",
+      "no duplicate Memory",
+      "direct authorized resume edit saved without reconfirmation",
+      "fresh next-role writer using original resume + saved memo proposes grounded change without repeating answered question"
+    ]
+  },
+  {
+    "id": "independent-experience-to-memory",
+    "criteria": [
+      "write_talent_context saves independent project and 80-result error categorization with importance before publishing ask",
+      "do not attach the independent project to employer",
+      "first reply proposes new resume wording, second accepts and saves it",
+      "fresh next-role writer uses saved Memory without repeating experience question",
+      "do not claim model-training experience"
+    ]
+  },
+  {
+    "id": "skip-is-not-negative-memory",
+    "criteria": [
+      "no profile/Memory writes from skip",
+      "no invented language or lack-of-experience claim",
+      "ready reuses source"
+    ]
+  }
+]

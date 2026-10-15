@@ -14,6 +14,7 @@ import { slackCandidatePartsFromBlocks } from "@/lib/org/slackCandidateWorkObjec
 import type { HarperSlackBlock } from "@/lib/org/slackChoiceButtons";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { recordAcceptedCandidateDelivery } from "@/lib/companyFirstSearch/acceptedDelivery";
+import { enqueueCompanyUpdate } from "@/lib/org/agent/companyUpdate.server";
 
 export const runtime = "nodejs";
 
@@ -71,7 +72,7 @@ async function finishRunWhenDelivered(
   const { data: outboxRows, error: outboxError } = await (
     admin.from("company_first_slack_outbox" as any) as any
   )
-    .select("status")
+    .select("status,role_ids,company_workspace_id")
     .eq("run_id", runId);
   if (outboxError) throw outboxError;
   const statuses = (outboxRows ?? []).map(
@@ -98,7 +99,11 @@ async function finishRunWhenDelivered(
     .eq("status", "delivery_pending")
     .maybeSingle();
   if (runError) throw runError;
-  if (!run) return;
+  if (!run) {
+    // A retry after run finalization must still recover a missing follow-up job.
+    await enqueuePresentedCandidateFollowups(outboxRows ?? [], runId);
+    return;
+  }
   const result =
     run.result && typeof run.result === "object" && !Array.isArray(run.result)
       ? run.result
@@ -116,6 +121,27 @@ async function finishRunWhenDelivered(
     .eq("id", runId)
     .eq("status", "delivery_pending");
   if (finishError) throw finishError;
+  await enqueuePresentedCandidateFollowups(outboxRows ?? [], runId);
+}
+
+async function enqueuePresentedCandidateFollowups(rows: any[], runId: string) {
+  const delivered = rows.filter(row => row.status === "sent");
+  for (const roleId of new Set<string>(delivered.flatMap(row => row.role_ids))) {
+    const scoped = delivered.filter(row => row.role_ids.includes(roleId));
+    try {
+      await enqueueCompanyUpdate({
+        workspaceId: scoped[0].company_workspace_id, roleId,
+        eventKey: `candidate-presentation:${runId}:${roleId}`,
+        messageAlreadyDelivered: true,
+        purpose: "The candidate presentation is already delivered. Continue the company's conversation only if there is useful authorized work or a consequential suggestion; do not repeat the cards or invent a review decision.",
+        facts: { selectionRunId: runId, candidatePresentationDelivered: true },
+      });
+    } catch (error) {
+      // The delivery transaction already recorded the staged event. Dispatch
+      // recovery retries it without changing the successful introduction.
+      console.error("[company-first] presentation follow-up dispatch failed", error);
+    }
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -163,7 +189,7 @@ export async function POST(req: NextRequest) {
       const { data: existing, error: existingError } = await (
         admin.from("company_first_slack_outbox" as any) as any
       )
-        .select("status")
+        .select("status,run_id")
         .eq("id", outboxId)
         .maybeSingle();
       if (existingError) throw existingError;
@@ -174,6 +200,7 @@ export async function POST(req: NextRequest) {
         );
       }
       if (existing.status === "sent") {
+        await finishRunWhenDelivered(admin, existing.run_id);
         return NextResponse.json({
           ok: true,
           status: "sent",
