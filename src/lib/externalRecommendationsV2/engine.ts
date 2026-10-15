@@ -313,19 +313,30 @@ export async function loadFitCache(
   const data = pages.flat();
   const byId = new Map(cards.map((c) => [c.roleId, c]));
   for (const row of data ?? []) {
-    const value = row.evaluations?.[evaluatorKey(provider)] as
-      | FitEvaluation
-      | undefined;
     const card = byId.get(row.role_id);
-    if (
-      value &&
-      card &&
-      fitSchema.safeParse(value).success &&
-      value.inputFingerprint === inputFingerprint &&
-      value.roleSourceHash === roleSourceHash(card) &&
-      Date.parse(value.evaluatedAt) > Date.now() - 30 * 86400_000
-    )
-      result.set(row.role_id, value);
+    if (!card) continue;
+    // Daily visits can reuse prior evaluators and user context. Final selection
+    // still receives the current profile, Brief and Behavior Context.
+    const evaluations = (
+      args.surface === "daily"
+        ? Object.values(row.evaluations ?? {})
+        : [row.evaluations?.[evaluatorKey(provider)]]
+    ) as Array<FitEvaluation | undefined>;
+    const sourceHash = roleSourceHash(card);
+    const value = evaluations
+      .filter(
+        (value): value is FitEvaluation =>
+          Boolean(
+            value &&
+              fitSchema.safeParse(value).success &&
+              (args.surface === "daily" ||
+                value.inputFingerprint === inputFingerprint) &&
+              value.roleSourceHash === sourceHash &&
+              Date.parse(value.evaluatedAt) > Date.now() - 30 * 86400_000
+          )
+      )
+      .sort((a, b) => Date.parse(b.evaluatedAt) - Date.parse(a.evaluatedAt))[0];
+    if (value) result.set(row.role_id, value);
   }
   return result;
 }
@@ -550,11 +561,14 @@ export async function runExternalV2(
     const rows = await executeSql(
       args.admin,
       `SELECT ${ROLE_SELECT} FROM public.talent_external_fit f JOIN public.company_roles cr ON cr.role_id=f.role_id ${ROLE_JOINS}
+      JOIN LATERAL (
+        SELECT e.value FROM jsonb_each(f.evaluations) e
+        WHERE e.value->>'evaluatedAt'>${sqlLiteral(new Date(Date.now() - 30 * 86400000).toISOString())}
+        ORDER BY e.value->>'evaluatedAt' DESC, e.key
+        LIMIT 1
+      ) cached ON true
       WHERE f.talent_id=${sqlLiteral(args.userId)}::uuid AND ${eligibilitySql({ userId: args.userId, blockedCompanies: loaded.blockedCompanies })}
-      AND f.evaluations ? ${sqlLiteral(evaluatorKey(provider))}
-      AND f.evaluations->${sqlLiteral(evaluatorKey(provider))}->>'inputFingerprint'=${sqlLiteral(inputFingerprint)}
-      AND f.evaluations->${sqlLiteral(evaluatorKey(provider))}->>'evaluatedAt'>${sqlLiteral(new Date(Date.now() - 30 * 86400000).toISOString())}
-      ORDER BY (f.evaluations->${sqlLiteral(evaluatorKey(provider))}->>'mutualFit')::float DESC NULLS LAST`,
+      ORDER BY (cached.value->>'mutualFit')::float DESC NULLS LAST`,
       200
     );
     cards = await hydrate(args, rows);

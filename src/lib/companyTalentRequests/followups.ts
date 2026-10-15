@@ -16,7 +16,7 @@ export async function companyFollowupSourceFacts(admin: Admin, kind: string, id:
     items: (data ?? []).map((f: any) => ({ contactRef: `followup:${f.id}`, scheduledAt: f.due_at,
       delayDaysAfterFirstEmail: f.delay_days, status: f.status, expectedRevision: f.revision,
       changeable: f.status === "pending" && !f.delivery_started_at })),
-    timing: "eligible_from_saved_date_and_considered_on_next_three_day_review" };
+    timing: "candidate_agent_follows_up_from_saved_date_as_conversation_allows" };
   } catch {
     return { available: false };
   }
@@ -78,7 +78,7 @@ export async function listCompanyFollowups(args: {
       : !source?.active ? "원본 요청 종료 · 후속 연락 불가"
       : !source?.originalSentAt ? "최초 이메일 전달을 기다리는 후속 일정"
       : !row.due_at ? "최초 전달 후 날짜 확정 대기"
-      : new Date(row.due_at).getTime() <= Date.now() ? "예정일 도래 · 다음 검토 대상" : "후속 연락 예정";
+      : new Date(row.due_at).getTime() <= Date.now() ? "예정일 도래 · 후보자 측 Harper Agent가 후속 연락 진행 예정" : "후속 연락 예정";
     return {
       contactRef: `followup:${row.id}`, kind: "followup", followupId: row.id, expectedRevision: row.revision,
       sourceContactRef: `${row.source_kind === "intro" ? "intro_request" : row.source_kind === "contact" ? "contact" : "meeting_round"}:${row.source_id}`,

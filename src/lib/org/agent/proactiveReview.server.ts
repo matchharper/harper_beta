@@ -7,7 +7,9 @@ import { buildOrgAgentPromptContext } from "./context";
 import { buildCompanyProactiveReviewPrompt } from "./proactiveReview";
 import { ORG_AGENT_SOL_MODEL } from "./modelConfig";
 import { OrgAgentWebActionSupersededError, runOrgAgentToolLoop } from "./chat";
-import { commitCompanyMessages, type CompanyMessageAudience } from "./companyMessaging";
+import { commitCompanyMessages, saveCompanyMessageBatchThinkingLogs, type CompanyMessageAudience } from "./companyMessaging";
+import { upsertOrgAgentThinkingLog } from "./thinkingLogs";
+import type { OrgAgentThinkingLog } from "./types";
 import type { OrgAgentConversationRow } from "./store";
 import { enqueueOrgAgentWebActionTurn } from "./webActionTurn";
 
@@ -17,7 +19,7 @@ export function parseProactiveReviewSchedule(raw?: string): ProactiveReviewSched
   const value = raw?.trim() ? JSON.parse(raw) : {};
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("COMPANY_PROACTIVE_REVIEW_SCHEDULE must be an object");
   const daysOfWeek = value.daysOfWeek ?? [1, 2, 3, 4, 5];
-  const startTimeKst = value.startTimeKst ?? "16:00";
+  const startTimeKst = value.startTimeKst ?? "17:00";
   const windowMinutes = value.windowMinutes ?? 120;
   if (!Array.isArray(daysOfWeek) || daysOfWeek.some(day => !Number.isInteger(day) || day < 0 || day > 6)
     || typeof startTimeKst !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTimeKst)
@@ -153,12 +155,14 @@ export async function runCompanyProactiveReview(args: {
   const awareness = await loadCompanyProactiveAwareness({ admin, workspaceId, channelDbId: channel.id,
     roles: context.roles, anchor: args.anchorMessageId });
   const audience: CompanyMessageAudience = { channelDbId: channel.id, channelId: channel.slack_channel_id, jobId: args.jobId };
+  let thinkingLogs: OrgAgentThinkingLog[] = [];
   const result = await runOrgAgentToolLoop({ admin, user: args.user, conversation: args.conversation, context,
     actorId: args.user.id, actorLabel: "Harper scheduled recruiter", currentUserMessageId: args.anchorMessageId,
     companyMessageAudience: audience, model: ORG_AGENT_SOL_MODEL, responseLocale: args.responseLocale ?? "auto",
     allowSilentCompletion: true, backgroundOrigin: "scheduled_review", capabilityMode: "full", source: "slack",
     readAudience: "company_safe", scopeKey: `proactive:${channel.id}`, slackThreadId: null, mentions: [],
     userLabel: "Harper-initiated recruiting assignment", userMessage: buildCompanyProactiveReviewPrompt(awareness),
+    onToolStatus: (log) => { thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log); },
     assertCanContinue, signal: AbortSignal.timeout(240000) });
   let batch = result.state.companyMessageBatch;
   if (!batch && result.reply.trim()) {
@@ -167,6 +171,7 @@ export async function runCompanyProactiveReview(args: {
       conversationId: args.conversation.id, sourceMessageId: args.anchorMessageId, model: result.model,
       messages: [{ ref: "reply", text: result.reply }] });
   }
+  await saveCompanyMessageBatchThinkingLogs({ admin, workspaceId, batch, thinkingLogs });
   if (!batch) return { outcome: "completed_silent" as const, progressMessageId: null, terminalMessageId: null };
   return { outcome: "completed_message" as const, progressMessageId: null, terminalMessageId: batch.messageIds[0], batchId: batch.batchId };
 }

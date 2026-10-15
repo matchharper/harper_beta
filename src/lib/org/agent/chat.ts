@@ -3,6 +3,7 @@ import { formatToolError, serializeToolResultForModel } from "@/lib/llm/toolErro
 import { runToolCall, unwrapToolCall, prepareToolDeliveryParts } from "@/lib/llm/toolExecution";
 import { buildCompanyUpdatePrompt } from "./companyUpdate";
 import { companyConversationReadAdmin } from "./companyReadScope.server";
+import { recordOrgAgentFailure } from "./errorLogging";
 import { buildCompanyContactEventPrompt } from "@/lib/org/agent/contactEventPrompt";
 import { billingActionNotice } from "@/lib/org/billing/types";
 import type { OrgLocale } from "@/i18n/org/locale";
@@ -1856,6 +1857,7 @@ export async function runOrgAgentChat(args: {
     }
   }
 
+  let failureStage = "context";
   try {
     recordThinkingLog(
       nowLog("회사와 최근 추천 정보를 읽는 중", "running", {
@@ -1898,6 +1900,7 @@ export async function runOrgAgentChat(args: {
       nowLog("응답 생성 중", "running", { icon: "run", id: "response" })
     );
 
+    failureStage = "tool_loop";
     const llmResult = await runOrgAgentToolLoop({
       actorId: args.slackUserId ?? args.user.id,
       actorLabel:
@@ -1982,6 +1985,7 @@ export async function runOrgAgentChat(args: {
         (message) => message.metadata.agentTurn?.phase === "progress"
       ),
     });
+    failureStage = "response_persistence_and_presentation";
     if (llmResult.state.companyMessageBatch) {
       const { data: rows, error } = await (admin.from("company_messages") as any).select("*")
         .eq("company_workspace_id", args.workspaceId).in("id", llmResult.state.companyMessageBatch.messageIds).order("id");
@@ -2121,6 +2125,19 @@ export async function runOrgAgentChat(args: {
     };
   } catch (error) {
     args.signal?.throwIfAborted();
+    await recordOrgAgentFailure({
+      admin,
+      error,
+      userId: args.user.id,
+      workspaceId: conversation.company_workspace_id,
+      conversationId: conversation.id,
+      userMessageId: userMessage.id,
+      runId: directTurnRunId,
+      slackThreadId: args.slackThreadId ?? null,
+      slackReplyJobId: normalizeText(args.assistantMessageMetadata?.slackReplyJobId) || null,
+      model: modelConfig.model,
+      stage: failureStage,
+    });
     thinkingLogs = upsertOrgAgentThinkingLog(
       thinkingLogs,
       nowLog("응답 생성 실패", "error", { icon: "run", id: "response" })

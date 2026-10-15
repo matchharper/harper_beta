@@ -1,4 +1,6 @@
 import { OrgAgentToolInputError } from "./toolAvailability";
+import type { OrgAgentThinkingLog } from "./types";
+import { finalizeOrgAgentThinkingLogs, hasOrgAgentToolWork } from "./thinkingLogs";
 
 export type CompanyMessagePart = {
   ref: string; text: string; roleId?: string; threadRef?: string; replyTo?: string;
@@ -49,4 +51,21 @@ export async function commitCompanyMessages(args: {
   if (!data?.batchId || !Array.isArray(data.messageIds) || !data.messageIds.length)
     throw new Error("Message batch commit returned no durable messages");
   return { batchId: String(data.batchId), messageIds: data.messageIds.map(Number) };
+}
+
+/** Attach the run's existing Working log to its messages, without creating a chat entry for silent runs. */
+export async function saveCompanyMessageBatchThinkingLogs(args: {
+  admin: any;
+  workspaceId: string;
+  batch?: { batchId: string; messageIds: number[] };
+  thinkingLogs: OrgAgentThinkingLog[];
+}) {
+  if (!args.batch?.messageIds.length || !args.thinkingLogs.length) return;
+  const { error } = await args.admin.from("company_messages")
+    .update({ thinking_logs: finalizeOrgAgentThinkingLogs(args.thinkingLogs, hasOrgAgentToolWork(args.thinkingLogs)) })
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("role", "assistant")
+    .contains("metadata", { companyMessageBatch: { batchId: args.batch.batchId } })
+    .in("id", args.batch.messageIds);
+  if (error) throw error;
 }

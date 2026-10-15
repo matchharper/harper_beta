@@ -554,6 +554,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
   let stopSlackJobWatch: (() => void) | null = null;
   let activeAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
   let activeJobId = "";
+  let slackStatusUpdateChain: Promise<void> = Promise.resolve();
 
   try {
     const jobId = clean(args.jobId);
@@ -737,6 +738,9 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
     const responseStatus = draftRoleCreation
       ? "역할 정보를 정리 중입니다…"
       : "답변 작성 중";
+    const isRoutingThreadReply =
+      clean(job.trigger_kind) === "thread_reply" &&
+      phase !== "respond" && !draftRoleCreation;
     const shouldPrimeSlackStatus =
       !clean(job.response_text) &&
       !Number(job.response_message_id || 0) &&
@@ -746,7 +750,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       try {
         await setHarperSlackThreadStatus({
           channelId,
-          status: responseStatus,
+          status: isRoutingThreadReply ? "메시지 확인 중" : responseStatus,
           threadTs,
           token,
         });
@@ -936,6 +940,14 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           routingMode,
           ...verboseLlmUsagePayload(verbose, llmUsage),
         });
+      }
+      if (isRoutingThreadReply && pendingSlackStatus) {
+        await setHarperSlackThreadStatus({
+          ...pendingSlackStatus,
+          status: responseStatus,
+        }).catch((error) =>
+          console.warn("[org-agent/slack-turn:set-responding-status]", error)
+        );
       }
       if (phase === "route") {
         return NextResponse.json({
@@ -1259,6 +1271,29 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           }
         }
         const emitSlackAgentEvent = (event: string, data: unknown) => {
+          if (event === "tool_status") {
+            const progress = object(data);
+            const id = clean(progress.id);
+            const label = clean(progress.label);
+            const status = clean(progress.status);
+            const target = pendingSlackStatus;
+            if (
+              target && label && id !== "context" && id !== "response" &&
+              (status === "running" || status === "done" || status === "error")
+            ) {
+              slackStatusUpdateChain = slackStatusUpdateChain
+                .then(async () => {
+                  if (pendingSlackStatus !== target || slackTurnSignal?.aborted) return;
+                  await setHarperSlackThreadStatus({
+                    ...target,
+                    status: status === "running" ? label : responseStatus,
+                  });
+                })
+                .catch((error) =>
+                  console.warn("[org-agent/slack-turn:set-tool-status]", error)
+                );
+            }
+          }
           if (!verbose) return;
           if (event === "tool_debug") {
             const toolCall = data as OrgAgentToolDebugEvent;
@@ -1350,6 +1385,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                       });
                       progressText =
                         convertMarkdownLinksToSlackMrkdwn(progressText);
+                      await slackStatusUpdateChain;
                       const posted = await postHarperSlackMessage({
                         channelId,
                         clientMessageId: stableSlackClientMessageId(
@@ -1607,6 +1643,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         : slackBlocks;
       // Slack clears the assistant thread status automatically after
       // chat.postMessage.
+      await slackStatusUpdateChain;
       const posted = await postHarperSlackMessage({
         // Use an explicit mrkdwn Block Kit section for every reply. The
         // top-level text remains a notification/accessibility fallback.
@@ -1715,6 +1752,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       ...verboseLlmUsagePayload(verbose, llmUsage),
     });
   } catch (error) {
+    await slackStatusUpdateChain;
     if (pendingSlackStatus) {
       await setHarperSlackThreadStatus({
         ...pendingSlackStatus,

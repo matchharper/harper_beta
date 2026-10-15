@@ -9,7 +9,8 @@ import {
   loadFitCache,
   type EngineArgs,
 } from "./engine";
-import { SEARCH_PLAN_VERSION } from "./contract";
+import { SEARCH_PLAN_VERSION, evaluatorKey, fingerprint } from "./contract";
+import { buildFullJdCandidateBatchText } from "../talentOnboarding/jobPostingFullJdScoring";
 import { PLAN_PROMPT, WORKER_PLAN_PROMPT } from "./prompts";
 const cards = (n: number) =>
   Array.from({ length: n }, (_, i) =>
@@ -552,4 +553,39 @@ test("worker rerank carries its search hypothesis beside the authoritative Brief
       };
     }
   );
+});
+
+
+test("daily cache reuses the latest valid prior evaluator and context without relaxing other surfaces", async () => {
+  const [card] = cards(1);
+  const sourceHash = fingerprint(buildFullJdCandidateBatchText([
+    { ...v2PromptCandidate(card, "en"), cachedRoleSummary: null },
+  ]));
+  const fit = {
+    candidateInterest: 40, companyInterest: 50, mutualFit: 40,
+    roleFit: 50, constraintPass: 90, evidence: "sufficient",
+    roleId: card.roleId, inputFingerprint: "previous-profile-and-brief",
+    roleSourceHash: sourceHash,
+    evaluatedAt: new Date(Date.now() - 1000).toISOString(),
+  };
+  const evaluations: Record<string, unknown> = {
+    "old-prompt:jev:old-model": fit,
+    [evaluatorKey("openai")]: { ...fit, evaluatedAt: new Date(Date.now() - 2000).toISOString() },
+    "expired": { ...fit, evaluatedAt: new Date(Date.now() - 31 * 86400000).toISOString() },
+    "changed-source": { ...fit, roleSourceHash: "different", evaluatedAt: new Date().toISOString() },
+  };
+  const admin: any = {
+    from: () => ({ select: () => ({ eq: () => ({
+      in: async () => ({ data: [{ role_id: card.roleId, evaluations }], error: null }),
+    }) }) }),
+  };
+  const daily = await loadFitCache({ ...args, admin, surface: "daily" }, [card], "current-context", "openai");
+  assert.equal(daily.get(card.roleId), fit);
+  for (const surface of ["web", "worker"] as const) {
+    const strict = await loadFitCache({ ...args, admin, surface }, [card], "current-context", "openai");
+    assert.equal(strict.size, 0);
+  }
+  delete evaluations["old-prompt:jev:old-model"];
+  delete evaluations[evaluatorKey("openai")];
+  assert.equal((await loadFitCache({ ...args, admin, surface: "daily" }, [card], "current-context", "openai")).size, 0);
 });

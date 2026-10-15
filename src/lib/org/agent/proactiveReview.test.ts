@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { proactiveReviewWindow, parseProactiveReviewAudiences, parseProactiveReviewSchedule } from "./proactiveReview.server";
 
-test("scheduled window is weekdays 16-18 KST, with no next-day catchup", () => {
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T15:59:59+09:00")).due, false);
-  const window = proactiveReviewWindow(new Date("2026-10-15T16:00:00+09:00"));
+test("scheduled window is weekdays 17-19 KST, with no next-day catchup", () => {
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T16:59:59+09:00")).due, false);
+  const window = proactiveReviewWindow(new Date("2026-10-15T17:00:00+09:00"));
   assert.equal(window.due, true);
   assert.equal(window.date, "2026-10-15");
-  assert.equal(window.deadlineAt, "2026-10-15T09:00:00.000Z");
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T18:00:00+09:00")).due, false);
-  assert.equal(proactiveReviewWindow(new Date("2026-10-17T16:00:00+09:00")).due, false);
+  assert.equal(window.deadlineAt, "2026-10-15T10:00:00.000Z");
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T19:00:00+09:00")).due, false);
+  assert.equal(proactiveReviewWindow(new Date("2026-10-17T17:00:00+09:00")).due, false);
 });
 test("rollout requires an explicit unique trusted audience", () => {
   assert.deepEqual(parseProactiveReviewAudiences(undefined), []);
@@ -26,8 +26,8 @@ test("external schedule moves the window and selected weekdays without changing 
   assert.equal(start.due, true);
   assert.equal(start.deadlineAt, "2026-10-17T01:15:00.000Z");
   assert.equal(proactiveReviewWindow(new Date("2026-10-17T10:15:00+09:00"), schedule).due, false);
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T16:00:00+09:00"), parseProactiveReviewSchedule()).due, true);
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T16:00:00+09:00"), parseProactiveReviewSchedule('{"daysOfWeek":[]}')).due, false);
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T17:00:00+09:00"), parseProactiveReviewSchedule()).due, true);
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T17:00:00+09:00"), parseProactiveReviewSchedule('{"daysOfWeek":[]}')).due, false);
 });
 
 test("overnight windows keep the start-day deadline and idempotency date", () => {

@@ -289,6 +289,7 @@ function formatRoles(
     ]),
     text: [
       `total_roles=${roles.length} returned_roles=${selected.length} role_index_truncated=${selected.length < roles.length}`,
+      "anonymous_posting=true means public promotion must conceal the hiring company's identity (real/source company name, logo, website and identifying copy), exclude external job IDs and hide the linked Role ID from public Harper job responses.",
       table,
     ].join("\n"),
   };
