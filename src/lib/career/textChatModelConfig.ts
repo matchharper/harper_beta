@@ -1,4 +1,5 @@
 import {
+  CLAUDE_HAIKU_MODEL,
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
@@ -10,6 +11,7 @@ import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdap
 
 export const CAREER_TEXT_CHAT_MODEL_IDS = [
   CLAUDE_MODEL,
+  CLAUDE_HAIKU_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
   OPENROUTER_MUSE_SPARK_13_MODEL,
   GPT_6_LUNA_MODEL,
@@ -68,7 +70,14 @@ export function resolveCareerTextChatModel(value: unknown): {
 
 export function resolveCareerTextChatModelForRequest(
   value: unknown,
-  canOverride: boolean
+  canOverride: boolean,
+  applicationActive = false
 ) {
-  return resolveCareerTextChatModel(canOverride ? value : null);
+  return resolveCareerTextChatModel(
+    canOverride && isCareerTextChatModelId(value)
+      ? value
+      : applicationActive
+        ? CLAUDE_HAIKU_MODEL
+        : DEFAULT_CAREER_TEXT_CHAT_MODEL
+  );
 }

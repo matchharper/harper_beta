@@ -1,3 +1,4 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { isSlotPurchase } from "@/lib/org/billing/compat";
 import { useEffect, useRef, useState } from "react";
@@ -34,10 +35,8 @@ import {
   type BillingSlot,
   type BillingInterval,
 } from "@/lib/org/billing/types";
-import { isOrgRoleCountedAsActive } from "@/lib/org/roleStatus";
 import {
   billingAssignmentSlots,
-  isBillingRoleVisible,
   type BillingAssignmentSlot,
 } from "@/lib/org/billing/assignments";
 import { previewAssignRole } from "@/lib/org/billing/preview";
@@ -54,7 +53,9 @@ export function OrgBillingPage({
   const billingAvailable = canUseWorkspaceBilling(workspace.workspaceId);
   useEffect(() => {
     if (!billingAvailable) {
-      void router.replace(`/org/team?orgId=${encodeURIComponent(workspace.workspaceId)}`);
+      void router.replace(
+        `/org/team?orgId=${encodeURIComponent(workspace.workspaceId)}`
+      );
     }
   }, [billingAvailable, router, workspace.workspaceId]);
   if (!billingAvailable) return null;
@@ -90,8 +91,8 @@ function WorkspaceBillingContent({
 }: {
   section: "slots" | "billing";
 }) {
-  const { locale } = useOrgLocale();
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { date } = useOrgBillingFormat();
+  const { locale, c } = useOrgLocale();
   const router = useRouter();
   const { workspace, permissions, roles } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
@@ -133,21 +134,6 @@ function WorkspaceBillingContent({
     (slot) => slot.roleId === assignedRole && slot.id !== assignSlot?.id
   );
   const checkoutRun = useRef("");
-  const date = (value: string | null, time = false) =>
-    value
-      ? new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          ...(time
-            ? ({
-                hour: "2-digit",
-                minute: "2-digit",
-                timeZoneName: "short",
-              } as const)
-            : {}),
-        }).format(new Date(value))
-      : "—";
   const invalidateHistory = () =>
     Promise.all([
       queryClient.invalidateQueries({
@@ -517,18 +503,11 @@ function WorkspaceBillingContent({
             <>
               <BillingSlots
                 summary={summary}
-                locale={locale}
                 busy={busy}
-                date={date}
                 canManage={canManage}
                 canViewBilling={canViewBilling}
                 roles={roles}
                 preview={!!billing.preview}
-                canAssign={roles.some(
-                  (role) =>
-                    isBillingRoleVisible(role) &&
-                    (billing.preview || isOrgRoleCountedAsActive(role.status))
-                )}
                 onAddSlot={openAddSlot}
                 onCancel={(slot) => {
                   setError("");
@@ -543,17 +522,21 @@ function WorkspaceBillingContent({
               <BillingUsageHistory
                 key={`usage:${billing.preview?.history ?? "actual"}:${billing.preview?.slotCount ?? "actual"}`}
                 workspaceId={workspaceId}
-                locale={locale}
-                date={date}
               />
             </>
           ) : (
             <>
               <BillingPlanSummary
                 summary={summary}
-                locale={locale}
                 busy={busy}
-                date={date}
+                canManage={canManage}
+                onCancel={(slot) => {
+                  setError("");
+                  setCancelSlot(slot);
+                }}
+                onResume={(slot) =>
+                  handle("resume", { slotId: slot.id, revision: slot.revision })
+                }
                 onPortal={() => handle("portal")}
                 onAddSlot={openAddSlot}
               />
@@ -564,8 +547,6 @@ function WorkspaceBillingContent({
               <BillingInvoiceHistory
                 key={`invoices:${billing.preview?.history ?? "actual"}:${billing.preview?.slotCount ?? "actual"}`}
                 workspaceId={workspaceId}
-                locale={locale}
-                date={date}
               />
             </>
           )}
@@ -596,7 +577,6 @@ function WorkspaceBillingContent({
       <SlotPurchaseDialog
         open={addSlotOpen}
         onOpenChange={setAddSlotOpen}
-        locale={locale}
         catalog={catalog}
         initialInterval={interval}
         initialQuantity={Number(router.query.quantity ?? 1)}
@@ -659,8 +639,8 @@ function WorkspaceBillingContent({
           </p>
           <p>
             {c(
-              "슬롯이 종료돼도 모든 Role은 계속 유지돼요. 다른 빈 슬롯이 있으면 자동 이동하고, 없으면 공용 크레딧을 사용해요. 유료 기능은 이용 중인 슬롯에 연결된 Role에서 사용할 수 있어요.",
-              "All Roles stay active when a slot ends. Its Role moves to another available slot, or uses shared credits. Paid features require an active slot assignment."
+              "슬롯이 종료돼도 모든 Role은 계속 유지돼요. 다른 빈 슬롯이 있으면 자동 이동하고, 없으면 공용 Intro를 사용해요. 유료 기능은 이용 중인 슬롯에 연결된 Role에서 사용할 수 있어요.",
+              "All Roles stay active when a slot ends. Its Role moves to another available slot, or uses shared Intros. Paid features require an active slot assignment."
             )}
           </p>
           {cancelSlot?.roleId && (
@@ -686,8 +666,8 @@ function WorkspaceBillingContent({
         description={
           <>
             {c(
-              "기존 배정이 아래와 같이 바뀌어요. 크레딧과 갱신일은 각 슬롯에 그대로 남아요.",
-              "The existing assignments will change as shown below. Each slot keeps its credits and renewal date."
+              "기존 배정이 아래와 같이 바뀌어요. Intro 잔액과 갱신일은 각 슬롯에 그대로 유지돼요.",
+              "The existing assignments will change as shown below. Each slot keeps its Intro balance and renewal date."
             )}
           </>
         }

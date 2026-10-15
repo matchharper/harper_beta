@@ -38,8 +38,6 @@ test("general company-side draft activation reuses the guarded completion path",
   assert.match(draftBranch, /status: "role_creation_incomplete"/);
   assert.match(draftBranch, /phase: "completed"/);
   assert.match(draftBranch, /notifyOrgRoleCreatedSlack/);
-  assert.match(draftBranch, /previousAssistantMessage/);
-  assert.match(draftBranch, /userMessage: text\(args\.userMessage\)/);
   assert.doesNotMatch(
     draftBranch,
     /\.filter\(\(channel\) => channel\.enabled\)/
@@ -47,7 +45,6 @@ test("general company-side draft activation reuses the guarded completion path",
   assert.match(draftBranch, /continuationContext/);
   assert.match(draftBranch, /notification_channel_options/);
   assert.match(draftBranch, /assignee_options/);
-  assert.match(draftBranch, /currentSlackChannelId/);
 });
 
 test("Role confirmation keeps its claim and completion path without a plan capacity gate", () => {
@@ -60,7 +57,7 @@ test("Role confirmation keeps its claim and completion path without a plan capac
 
 // Unlimited activation, shared spending and draft safety also run against SQL.
 
-test("draft notification selection keeps explicit consent and structural validation", () => {
+test("draft notification selection keeps structural validation", () => {
   const helper = state.slice(
     state.indexOf("function resolveRoleCreationNotificationSelection"),
     state.indexOf("export function getRoleCreationMissingFields")
@@ -68,7 +65,6 @@ test("draft notification selection keeps explicit consent and structural validat
 
   assert.match(helper, /Unknown Slack channel/);
   assert.match(helper, /Assignee must be an organization member/);
-  assert.match(helper, /validateRoleCreationNotificationConsent/);
   assert.match(helper, /updateOrgRoleNotificationSettings/);
   assert.match(helper, /confirmedSlackChannelIds/);
   assert.match(helper, /confirmedAssigneeUserId/);

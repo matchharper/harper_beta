@@ -20,7 +20,8 @@ function getJsonRecord(value: unknown): Record<string, unknown> {
 
 export function companyIntroRoleIsAvailable(
   role: CompanyIntroRoleAvailabilityInput,
-  talentId?: string | null
+  talentId?: string | null,
+  includeInactive = false
 ) {
   const expiresAtMs = Date.parse(normalizeText(role.expires_at));
   const information = getJsonRecord(role.information);
@@ -37,11 +38,11 @@ export function companyIntroRoleIsAvailable(
   return (
     normalizeText(role.source_type).toLowerCase() === "internal" &&
     Boolean(internalRole) &&
-    ["active", "paused", "top_priority"].includes(
+    (includeInactive || (["active", "paused", "top_priority"].includes(
       normalizeText(role.status).toLowerCase()
     ) &&
     role.is_expired !== true &&
-    (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now()) &&
+    (!Number.isFinite(expiresAtMs) || expiresAtMs > Date.now()))) &&
     (!isTestOnly || allowedFixtureTalentIds.includes(normalizeText(talentId)))
   );
 }

@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { applicationEditsSchema } from "./applicationEditsSchema";
 import {
   actionSchema,
   type SimulationSession,
   type SessionAction,
 } from "./session";
 import { preparationKind } from "./preparation";
-export const ASK_APPLICATION_INPUT = "ask_application_input";
+export const ASK_APPLICATION_INPUT = "request_application_information";
 export const applicationInputSchema = z.object({
   purpose: z.string().min(1).max(2000),
   introduction: z.string().max(1000).optional(),
@@ -24,7 +25,7 @@ export const applicationInputSchema = z.object({
         description: z.string().optional(),
         target: z.string().optional(),
         reason: z.string().optional(),
-        edits: actionSchema.shape.edits,
+        edits: applicationEditsSchema,
         options: z
           .array(
             z.object({
@@ -255,6 +256,12 @@ export function finishApplicationAnswer(
   const remaining = batch.itemIds.find((id) => !p.responses[id]);
   p.currentItemId = remaining ?? batch.itemIds.at(-1) ?? null;
   for (const id of batch.itemIds) {
+    const action = next.actions.find(a => a.id === id), response = p.responses[id];
+    if (action && response && ["accept", "ignore"].includes(response.decision)) {
+      action.status = response.decision === "accept" ? "completed" : "skipped";
+      if (response.edits) action.edits = response.edits;
+      if (response.draftText !== undefined) {action.draftText=response.draftText;action.proposal=response.draftText;}
+    }
     if (next.actions.find(a => a.id === id)?.documentPurpose === "final_resume" && p.responses[id]?.applicationMethod) {
       p.applicationMethod = p.responses[id].applicationMethod;
     }

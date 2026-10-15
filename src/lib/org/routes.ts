@@ -49,6 +49,10 @@ const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
   team: "/org/team",
 };
 
+export function buildOrgOrganizationCreationHref(sourceWorkspaceId: string) {
+  return `/org/new?${new URLSearchParams({ create: "organization", orgId: sourceWorkspaceId })}`;
+}
+
 export function buildOrgHref(args: {
   detail?: {
     recommendationId?: string | null;
@@ -57,6 +61,7 @@ export function buildOrgHref(args: {
     workspaceId?: string | null;
   } | null;
   orgId?: string | null;
+  inboxStage?: string | null;
   page?: OrgWorkspacePageId;
   roleId?: string | null;
   tab?: OrgRoleTab | OrgSettingsTab | null;
@@ -93,6 +98,13 @@ export function buildOrgHref(args: {
   if (args.page === "settings" && args.tab === "calendar") {
     params.set("tab", args.tab);
   }
+  if (
+    args.inboxStage &&
+    (args.page === "inbox" ||
+      (args.page === "role" && args.tab === "inbox"))
+  ) {
+    params.set("inboxStage", args.inboxStage);
+  }
   if (detailTalentId) params.set("talentId", detailTalentId);
   if (detailRecommendationId) {
     params.set("recommendationId", detailRecommendationId);
@@ -102,4 +114,8 @@ export function buildOrgHref(args: {
   const query = params.toString();
   const pathname = ORG_PAGE_PATHS[args.page ?? "home"];
   return query ? `${pathname}?${query}` : pathname;
+}
+
+export function orgPageFromPath(pathname: string): OrgWorkspacePageId | null {
+  return (Object.entries(ORG_PAGE_PATHS).find(([, path]) => path === pathname)?.[0] as OrgWorkspacePageId | undefined) ?? null;
 }

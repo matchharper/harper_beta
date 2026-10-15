@@ -1,3 +1,4 @@
+import { suggestionSchema, type ApplicationSuggestion } from "./suggestionSchema";
 import {
   isStructuredStage,
   hasStageShape,
@@ -33,7 +34,9 @@ export type SimulationStep = {
   result?: SimulationResult;
 };
 export type ApplicationSimulation = {
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
+  progress?: "candidate" | "role" | "application" | "suggestions";
+  suggestions?: ApplicationSuggestion[];
   status: "running" | "completed" | "failed" | "cancelled";
   roleName: string;
   documentName: string | null;
@@ -47,16 +50,23 @@ export function parseApplicationSimulation(
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   const v = value as ApplicationSimulation;
   if (
-    ![1, 2, 3, 4, 5].includes(v.version) ||
+    ![1, 2, 3, 4, 5, 6].includes(v.version) ||
     !["running", "completed", "failed", "cancelled"].includes(v.status) ||
     typeof v.roleName !== "string" ||
     typeof v.updatedAt !== "string" ||
     !Number.isFinite(Date.parse(v.updatedAt)) ||
     !(v.documentName === null || typeof v.documentName === "string") ||
     !Array.isArray(v.steps) ||
-    v.steps.length !== (v.version >= 4 ? 2 : 3)
+    v.steps.length !== (v.version === 6 ? 1 : v.version >= 4 ? 2 : 3)
   )
     return;
+  if(v.version === 6) {
+    if(!["candidate","role","application","suggestions"].includes(v.progress ?? "")) return;
+    if(v.steps[0]?.key !== "review" || !["pending","running","completed","failed","cancelled"].includes(v.steps[0].status)) return;
+    if(v.suggestions && !suggestionSchema.array().max(20).safeParse(v.suggestions).success) return;
+    if(v.status === "completed" && (!v.suggestions || v.steps[0].status !== "completed")) return;
+    return v;
+  }
   for (let i = 0; i < v.steps.length; i++) {
     const s = v.steps[i];
     if (

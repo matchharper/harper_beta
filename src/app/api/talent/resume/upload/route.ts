@@ -339,7 +339,7 @@ export async function POST(req: NextRequest) {
               file_name: originalName,
               is_deleted: false,
               is_primary: false,
-              is_public: false,
+              is_public: kind === "resume",
               kind,
               size_bytes: fileSize,
               storage_path: storagePath,

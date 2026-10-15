@@ -1,0 +1,25 @@
+{
+  "datasetVersion": "v8-random-ten",
+  "frozenInputHash": "26ac4b8431ae2f78c4d9ed9f0907f917596426f4b8379ecff17feff08b6cc850",
+  "capturedAt": "2026-10-15T03:52:35.591Z",
+  "caseIds": [
+    "random-01",
+    "random-02",
+    "random-03",
+    "random-04",
+    "random-05",
+    "random-06",
+    "random-07",
+    "random-08",
+    "random-09",
+    "random-10"
+  ],
+  "selection": "Ten hash-random eligible completed-onboarding external-search users with existing profile, Brief and Behavior; excludes all three users-v4 accounts",
+  "seed": "772a47a5-2834-43ee-8ec4-a15dd4ed74df",
+  "eligiblePopulation": 2704,
+  "excludedPriorCount": 3,
+  "canonicalRunner": "scripts/evalExternalSalaryUserRetrieval.ts --random-ten",
+  "gold": "gold-v8-random-ten.json",
+  "readOnly": true,
+  "privacy": "Owner-only ignored private/runs; source contexts sent only to the existing configured planner provider"
+}

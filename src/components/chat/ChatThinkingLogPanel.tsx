@@ -127,11 +127,9 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
     !active && hasToolWork
       ? formatChatWorkDuration(startedAt, completedAt)
       : null;
-  const statusLabel = statusLabelOverride ?? (hasToolWork
-    ? active
-      ? "Working"
-      : "Worked"
-    : "Thinking");
+  const statusLabel =
+    statusLabelOverride ??
+    (hasToolWork ? (active ? "Working" : "Worked") : "Thinking");
 
   if (logs.length === 0) return null;
 
@@ -144,29 +142,29 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
       )}
       aria-live={active ? "polite" : undefined}
     >
-      <BareButton
-        type="button"
+      <div
         onClick={() => setExpanded((previous) => !previous)}
         aria-expanded={isExpanded}
         className={cn(
-          "inline-flex w-fit cursor-pointer items-center gap-1.5 rounded-[8px] py-1 font-normal text-neutral-muted transition-colors hover:text-neutral-muted",
+          "inline-flex w-fit items-center gap-1.5 cursor-default rounded-[8px] py-1 font-normal text-neutral-soft transition-colors hover:text-neutral-900",
           typographyClassName
         )}
       >
-        {active ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-neutral-soft" />
-        ) : isExpanded ? (
-          <ChevronDown className="h-3.5 w-3.5 text-neutral-soft" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-neutral-soft" />
-        )}
+        {active ? <Loader2 className="h-4 w-4 animate-spin" /> : <></>}
         <span>
           {statusLabel}
-          {duration ? ` · ${duration}` : ""}
+          {duration ? ` for ${duration}` : ""}
         </span>
-      </BareButton>
+        <ChevronRight
+          className={cn(
+            "h-4 w-4 transition-transform duration-200",
+            isExpanded ? "rotate-90" : ""
+          )}
+          strokeWidth={1.6}
+        />
+      </div>
       {isExpanded ? (
-        <div className="ml-[7px] border-l border-neutral-1000-a05 pl-4">
+        <div className="mb-2">
           <ol className="flex flex-col gap-1.5">
             {logs.map((log, index) => {
               const entry: ChatThinkingLogEntry =

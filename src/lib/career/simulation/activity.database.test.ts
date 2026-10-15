@@ -19,6 +19,7 @@ test("activity storage is atomic, owner scoped and revision guarded, with no mes
       )
     );
     await db.exec(await readFile("supabase/migrations/20261009142639_application_questions_without_intro.sql", "utf8"));
+    await db.exec(await readFile("supabase/migrations/20261013141544_email_application_start.sql", "utf8"));
     const user = crypto.randomUUID(),
       conv = crypto.randomUUID(),
       doc = crypto.randomUUID();
@@ -169,4 +170,34 @@ test("activity storage is atomic, owner scoped and revision guarded, with no mes
   } finally {
     await db.close();
   }
+});
+
+
+test("email activity requires an owned inbound source and readable resume, with no Start card", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`create role anon; create role authenticated; create role service_role;
+      create table talent_users(user_id uuid primary key);
+      create table talent_conversations(id uuid primary key,user_id uuid,career_coaching_activity_message_id bigint);
+      create table talent_messages(id bigint generated always as identity primary key,user_id uuid,conversation_id uuid,role text,message_type text,content text,payload jsonb,created_at timestamptz default now());
+      create table talent_documents(id uuid primary key,talent_id uuid,kind text,extracted_text text,is_deleted boolean default false);`);
+    for (const name of ["20261009132045_application_activity_store", "20261009142639_application_questions_without_intro", "20261013141544_email_application_start"])
+      await db.exec(await readFile(`supabase/migrations/${name}.sql`, "utf8"));
+    const user = crypto.randomUUID(), conv = crypto.randomUUID(), doc = crypto.randomUUID();
+    await db.query("insert into talent_users values($1)", [user]);
+    await db.query("insert into talent_conversations(id,user_id) values($1,$2)", [conv,user]);
+    await db.query("insert into talent_documents values($1,$2,'resume','Career facts',false)", [doc,user]);
+    const source = (await db.query<{id:number}>("insert into talent_messages(user_id,conversation_id,role,content) values($1,$2,'user','Please help me apply') returning id", [user,conv])).rows[0].id;
+    const state = { ...createSimulationSession({roleRef:"role:engineer",roleName:"Engineer",documentId:doc,documentName:"Resume"}), preparation:createPreparation(), activity:{version:1,channel:"email",sourceMessageId:source,outputs:{},batches:[]} };
+    const begin = async (payload: unknown, sourceId = source) => (await db.query<{r:any}>("select write_application_activity($1,$2,'begin',null,null,$3,'email-start',$4) r", [user,conv,JSON.stringify(payload),sourceId])).rows[0].r;
+    await assert.rejects(() => begin({...state, documentId:null}));
+    await assert.rejects(() => begin({...state, activity:{...state.activity,sourceMessageId:source+1}}));
+    await db.query("update talent_messages set role='assistant' where id=$1", [source]);
+    await assert.rejects(() => begin(state));
+    await db.query("update talent_messages set role='user' where id=$1", [source]);
+    const result = await begin(state);
+    assert.equal((await begin(state)).id, result.id);
+    assert.equal((await db.query("select * from talent_simulate_application")).rows.length, 1);
+    assert.equal((await db.query("select * from talent_messages where message_type='application_start_offer'")).rows.length, 0);
+  } finally { await db.close(); }
 });

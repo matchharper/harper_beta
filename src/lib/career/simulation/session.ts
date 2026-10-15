@@ -1,5 +1,7 @@
+import { suggestionAction } from "./suggestionSchema";
 import { applicationAnswerContext, unbatchedApplicationResponses } from "./applicationAnswerContext";
-import { applicationFormSchema } from "./applicationForm";
+import { applicationFormSchema, applicationInspectionSchema } from "./applicationForm";
+import { applicationEditsSchema } from "./applicationEditsSchema";
 import { browserStateSchema, browserQuestionRefSchema } from "./applicationBrowser";
 import {
   preparationSchema,
@@ -34,15 +36,9 @@ export const actionSchema = z.object({
   proposal: z.string(),
   originalText: z.string().optional(),
   suggestedText: z.string().optional(),
-  edits: z
-    .array(
-      z.object({
-        target: z.string(),
-        originalText: z.string(),
-        suggestedText: z.string(),
-      })
-    )
-    .optional(),
+  edits: applicationEditsSchema,
+  draftText: z.string().max(30000).optional(),
+  applicationField: z.string().optional(),
   reason: z.string(),
   requirementIds: z.array(z.string()),
   evidenceIds: z.array(z.string()),
@@ -71,10 +67,14 @@ export const sessionSchema = z.object({
   browser: browserStateSchema.optional(),
   applicationUrl: z.string().optional(),
   applicationForm: applicationFormSchema.optional(),
+  applicationInspection: applicationInspectionSchema.optional(),
   activity: z
     .object({
       version: z.literal(1),
-      offerId: z.number(),
+      offerId: z.number().optional(),
+      sourceMessageId: z.number().int().positive().optional(),
+      channel: z.enum(["web", "email"]).optional(),
+      preparationRequest: z.object({ role: z.record(z.unknown()), requestKey: z.string() }).optional(),
       outputs: z.record(
         z.string(),
         z.object({
@@ -108,7 +108,7 @@ export const sessionSchema = z.object({
   revision: z.number().int().positive(),
   status: z.enum(["active", "ended"]),
   endReason: z
-    .enum(["user", "completed", "empty", "expired", "switched"])
+    .enum(["user", "completed", "empty", "expired", "switched", "failed"])
     .nullable(),
   startedAt: z.string(),
   lastActivityAt: z.string(),
@@ -265,7 +265,7 @@ export function finishSimulationAnalysis(
     requirements: role?.kind === "role" ? role.requirements : [],
     diagnoses: comparison?.kind === "comparison" ? comparison.diagnoses : [],
     actions:
-      review?.kind === "review"
+      analysis.version === 6 ? (analysis.suggestions ?? []).map(a => suggestionAction(a)) : review?.kind === "review"
         ? review.actions.map((a) => ({
             ...a,
             status: a.needsConfirmation ? "needs_confirmation" : "pending",
@@ -506,7 +506,10 @@ export function simulationSessionContext(s: SimulationSession, toolNames?: reado
   return {
     preparation: s.preparation ? { responses: unbatchedApplicationResponses(s), applicationMethod: s.preparation.applicationMethod, finalDocumentId: s.preparation.finalDocumentId } : undefined,
     application: s.browser ? { status: s.browser.status, result: s.browser.result } : undefined,
-    questionBatches: applicationAnswerContext(s, true),
+    // Settled buttons already appear as authoritative current actions. Keep the user's
+    // exact response, but avoid duplicating the earlier, now superseded proposal.
+    // Free answers retain the immutable question they answer; UI history is unchanged.
+    questionBatches: applicationAnswerContext(s, true, {compactButtonDecisions: !!s.preparation}),
     role: s.roleName,
     document: s.documentName,
     workingResume: s.preparation?.workingResume,
@@ -514,13 +517,23 @@ export function simulationSessionContext(s: SimulationSession, toolNames?: reado
       documentId: s.documentId,
       source: s.documentOriginType ?? "uploaded_or_unknown",
       // Enable only when an actual content editor is integrated and exposed in this mode.
-      directEditingAvailable: toolNames?.includes("generate_resume"),
+      directEditingAvailable: toolNames?.some(name => name === "ready_for_role" || name === "generate_resume"),
     },
     status: s.status,
     endReason: s.endReason,
     analysisStatus: s.analysisStatus,
     requirements: s.requirements,
-    applicationForm: s.applicationForm,
+    applicationForm: s.applicationForm ? {
+      status: s.applicationForm.status,
+      url: s.applicationForm.url,
+      submission: s.applicationForm.submission,
+      limitations: s.applicationForm.limitations,
+      text: s.applicationForm.text,
+      fields: s.applicationForm.fields.filter(field => field.required !== false),
+    } : undefined,
+    applicationInspection: s.applicationInspection?.status,
+    applicationUrl: s.applicationUrl,
+    suggestionRounds: s.activity?.batches.filter(b => b.purpose === "suggestions").length ?? 0,
     actions: s.actions.map(({ executionPrompt, ...a }) => a),
     facts: s.facts,
     pendingNewRequest: s.switchRequest?.text ?? null,

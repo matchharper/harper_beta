@@ -201,7 +201,7 @@ test("includes server-resolved talent mentions in role creation context", () => 
   assert.match(prompt, /talent-1/);
 });
 
-test("provides structural criteria limits without a heuristic telling the model to invent more", () => {
+test("criteria context exposes storage limits without a completion requirement", () => {
   const prompt = buildRoleCreationUserPrompt({
     attachments: [],
     history: [],
@@ -214,6 +214,7 @@ test("provides structural criteria limits without a heuristic telling the model 
       metadata: {},
       role: {
         criteria: [],
+        status: "draft",
         description: "후보자가 맡을 역할과 주요 업무가 정리되어 있습니다.",
         name: "Backend Engineer",
         request: "백엔드 운영 경험과 초기 팀 적응력을 중요하게 봅니다.",
@@ -232,7 +233,7 @@ test("provides structural criteria limits without a heuristic telling the model 
 
   assert.doesNotMatch(prompt, /draftRecommended|recommendedMinItems/);
   assert.match(prompt, /"valid": true/);
-  assert.match(prompt, /"requiredBeforeCompletion": false/);
+  assert.doesNotMatch(prompt, /requiredBeforeCompletion/);
   assert.match(prompt, /"minItems": 0/);
   assert.match(prompt, /"maxItems": 6/);
 });

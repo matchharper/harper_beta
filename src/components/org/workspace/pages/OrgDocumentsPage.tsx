@@ -8,14 +8,22 @@ import {
   OrgDocumentsMarkdown,
   splitOrgDocumentsMarkdown,
 } from "@/components/org/workspace/OrgDocumentsMarkdown";
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { openCustomCrispWidget } from "@/lib/feedback/customCrispEvents";
 import { buildOrgHref } from "@/lib/org/routes";
 import { COMPANY_SERVICE_FAQ_ITEMS } from "@/lib/org/serviceFaq";
 
-export function OrgDocumentsPage({ markdown }: { markdown: string }) {
-  const t = useOrgT();
+export function OrgDocumentsPage({
+  markdown: koreanMarkdown,
+  englishMarkdown,
+}: {
+  markdown: string;
+  englishMarkdown: string;
+}) {
+  const { locale, c } = useOrgLocale();
+  const markdown = locale === "en" ? englishMarkdown : koreanMarkdown;
+
   const sourceT = useOrgSourceT();
   const router = useRouter();
   const { workspace } = useOrgWorkspace();
@@ -34,6 +42,19 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
     ],
     [documentContent.sections]
   );
+  const faqGroups = useMemo(() => {
+    const groups = new Map<
+      string,
+      (typeof COMPANY_SERVICE_FAQ_ITEMS)[number][]
+    >();
+    for (const item of COMPANY_SERVICE_FAQ_ITEMS) {
+      if (item.showInDocuments === false) continue;
+      const group = groups.get(item.category) ?? [];
+      group.push(item);
+      groups.set(item.category, group);
+    }
+    return [...groups];
+  }, []);
   const sectionParam =
     typeof router.query.section === "string" ? router.query.section : "";
   const activeSectionId = sectionHeadings.some(
@@ -62,6 +83,7 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
     newRole: buildOrgHref({ orgId, page: "new-role" }),
     pipeline: buildOrgHref({ orgId, page: "jobs", roleId: "all" }),
     slack: buildOrgHref({ orgId, page: "settings" }),
+    calendar: buildOrgHref({ orgId, page: "settings", tab: "calendar" }),
   };
 
   const navigateToSection = useCallback(
@@ -213,7 +235,7 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
               variant="transparent"
             >
               <ArrowLeft aria-hidden="true" className="size-4" />
-              {t("workspace.OrgWorkspaceSidebar.04ffd41a", "Documents")}
+              {c("Documents", "Documents")}
             </MuteButton>
             {activeSection ? (
               <article ref={articleRef} data-documents-copy-source>
@@ -232,26 +254,34 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
                   <h2 className="text-[23px] font-medium leading-8 tracking-[-0.025em] sm:text-[24px]">
                     {sourceT(ORG_DOCUMENTS_FAQ_HEADING.text)}
                   </h2>
-                  <div className="mt-6 divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
-                    {COMPANY_SERVICE_FAQ_ITEMS.filter(
-                      (item) => item.showInDocuments !== false
-                    ).map((item) => (
-                      <details className="group py-6" key={item.question}>
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[15px] leading-7 outline-none marker:hidden focus-visible:underline">
-                          {sourceT(item.question)}
-                          <ChevronDown className="size-4 shrink-0 text-neutral-muted transition-transform group-open:rotate-180 motion-reduce:transition-none" />
-                        </summary>
-                        <p className="mt-3 mr-8 text-[15px] leading-[1.7] text-neutral-muted">
-                          {sourceT(item.answer)}
-                        </p>
-                      </details>
-                    ))}
-                  </div>
+                  {faqGroups.map(([category, items]) => (
+                    <section className="mt-10" key={category}>
+                      <h3 className="mb-4 text-[18px] font-medium leading-7">
+                        {sourceT(category)}
+                      </h3>
+                      <div className="divide-y divide-neutral-1000-a05 border-y border-neutral-1000-a05">
+                        {items.map((item) => (
+                          <details className="group py-6" key={item.key}>
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-5 text-[15px] leading-7 outline-none marker:hidden focus-visible:underline">
+                              {sourceT(item.question)}
+                              <ChevronDown
+                                aria-hidden="true"
+                                className="size-4 shrink-0 text-neutral-muted transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                              />
+                            </summary>
+                            <p className="mt-3 mr-8 text-[15px] leading-[1.7] text-neutral-muted">
+                              {sourceT(item.answer)}
+                            </p>
+                          </details>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
                   <div className="mt-10">
                     <p className="text-[16px] leading-7 text-neutral-muted">
-                      {t(
-                        "workspace.pages.OrgDocumentsPage.75a8a0b9",
-                        "문의하기를 통해 Harper 팀에 직접 문의를 남겨주시면 최대한 빠르게 응답드리겠습니다. 보고 있던 역할이나 후보자 이름, 궁금한 내용을 함께 남겨주시면 더 정확하게 확인할 수 있습니다."
+                      {c(
+                        "문의하기를 통해 Harper 팀에 직접 문의를 남겨주시면 최대한 빠르게 응답드리겠습니다. 보고 있던 역할이나 후보자 이름, 궁금한 내용을 함께 남겨주시면 더 정확하게 확인할 수 있습니다.",
+                        "Contact Harper and the team will respond as soon as possible. Include the role or candidate name and any questions for faster help."
                       )}
                     </p>
                     <MuteButton
@@ -260,10 +290,7 @@ export function OrgDocumentsPage({ markdown }: { markdown: string }) {
                       size="md"
                       variant="dark"
                     >
-                      {t(
-                        "workspace.pages.OrgDocumentsPage.b9dd1d00",
-                        "문의하기"
-                      )}
+                      {c("문의하기", "Contact Harper")}
                       <ArrowRight className="size-4" />
                     </MuteButton>
                   </div>

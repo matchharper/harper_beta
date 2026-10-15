@@ -1,3 +1,5 @@
+import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
+import { formatToolError, throwIfToolControlError } from "@/lib/llm/toolError";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
 import { buildCareerConversationPromptPlan } from "../prompts/conversationPlan";
 import {
@@ -96,7 +98,7 @@ export class CareerCapabilityRuntime {
     }
     const domainLimit =
       options.domainLimit ??
-      (options.eligibleTools.some((t) => t.function.name === "generate_resume")
+      (options.eligibleTools.some((t) => ["generate_resume", "ready_for_role"].includes(t.function.name))
         ? 8
         : 4);
     this.maxToolCalls = domainLimit + (options.mode === "progressive" ? 2 : 0);
@@ -243,8 +245,11 @@ export class CareerCapabilityRuntime {
     // Refresh actual state even for a revision conflict, before the next completion.
     try {
       await this.options.refreshAfterTool?.(name, result);
-    } catch {
+    } catch (error) {
+      throwIfToolControlError(error);
+      reportToolDiagnostic({ error, source: "context_refresh" });
       console.warn("[career-capabilities] context refresh failed", {
+        diagnostic: formatToolError(error),
         tool: name,
       });
     }

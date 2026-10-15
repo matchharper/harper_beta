@@ -6,10 +6,8 @@ import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 import {
   buildOrgCandidateAcceptedSlackMessage,
   buildOrgCandidateRejectedSlackMessage,
-  buildOrgRoleCalibrationSlackBlocks,
   buildOrgRoleUrl,
   buildOrgRoleCreatedSlackMessage,
-  buildOrgRoleCalibrationSlackMessage,
   escapeSlackText,
   formatOptional,
   formatPerson,
@@ -23,9 +21,7 @@ import type { IntroSearchDay } from "@/lib/org/introSearchSchedule";
 export {
   buildOrgCandidateAcceptedSlackMessage,
   buildOrgCandidateRejectedSlackMessage,
-  buildOrgRoleCalibrationSlackBlocks,
   buildOrgRoleCreatedSlackMessage,
-  buildOrgRoleCalibrationSlackMessage,
 } from "@/lib/org/slackMessages";
 
 export const ORG_SLACK_CHANNEL_ID =
@@ -124,40 +120,6 @@ export async function notifyOrgRoleCreatedSlack(args: {
   );
 }
 
-export async function notifyOrgRoleCalibrationSlack(args: {
-  calibrationId: string;
-  profiles: Array<{
-    display: {
-      headline: string | null;
-      name: string;
-      profilePicture?: string | null;
-    };
-    profileId: string;
-    selection: { reason: string };
-  }>;
-  roleId: string;
-  roleName: string;
-  workspaceId: string;
-}) {
-  const locale = await getOrgWorkspaceLocale(args.workspaceId);
-  return sendHarperWorkspaceSlackMessage({
-    blocks: buildOrgRoleCalibrationSlackBlocks({ ...args, locale }),
-    idempotencyKey: `org-role-calibration/${args.calibrationId}`,
-    messageMetadata: {
-      roleCalibration: {
-        calibrationId: args.calibrationId,
-        profileIds: args.profiles.map((profile) => profile.profileId),
-      },
-      source: "company_role_calibration",
-    },
-    roleId: args.roleId,
-    text: buildOrgRoleCalibrationSlackMessage({ ...args, locale }),
-    unfurlLinks: false,
-    unfurlMedia: false,
-    workspaceId: args.workspaceId,
-  });
-}
-
 export async function notifyOrgCandidateAcceptedSlack(args: {
   acceptReason?: string | null;
   actor: OrgSlackUser;
@@ -206,23 +168,15 @@ export async function notifyCompanyIntroTalentDeclinedSlack(args: {
   roleName: string;
   workspaceId: string;
 }) {
-  const text = [
-    `*${escapeSlackText(args.candidateName)}님이 제안을 거절했습니다.*`,
-    `- *Role*: ${escapeSlackText(args.roleName)}`,
-    "후보자의 의사를 반영해 이 요청을 종료했습니다. 별도의 회사 액션은 필요하지 않습니다.",
-  ].join("\n");
-  return postWorkspaceScopedOrgSlackMessage(
-    text,
-    args.workspaceId,
-    undefined,
-    args.roleId,
-    `company-intro-decision/${args.introCandidateId}/declined`,
-    [
-      `*${escapeSlackText(args.candidateName)} declined the intro request.*`,
-      `- *Role*: ${escapeSlackText(args.roleName)}`,
-      "This request is closed. No action is needed from your team.",
-    ].join("\n")
-  );
+  const { enqueueCompanyUpdate } = await import("@/lib/org/agent/companyUpdate.server");
+  await enqueueCompanyUpdate({
+    workspaceId: args.workspaceId, roleId: args.roleId,
+    eventKey: `intro-declined:${args.introCandidateId}`,
+    purpose: "Inform the company of the candidate's decision and continue their hiring conversation.",
+    facts: { candidateName: args.candidateName, roleName: args.roleName, companyIntroCandidateId: args.introCandidateId, candidateDecision: "declined" },
+  });
+  return true;
+
 }
 
 export async function notifyOrgMemberJoinedSlack(args: {

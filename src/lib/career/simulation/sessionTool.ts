@@ -14,6 +14,9 @@ export function applicationSessionToolResult(
     ...(session.status === "ended"
       ? {
           progressRecorded: false,
+          assistantInstruction:
+            "Apply with Harper mode has ended. If the latest user message also requests another task, continue it in this same turn using the tools and capability catalog offered in the next completion. Load a deferred capability when needed. Do not treat the previous mode's tool list as a permanent limitation or ask the user to repeat an already clear request. If they only asked to stop, briefly confirm that it ended.",
+          skipCommonAssistantInstruction: true,
           ...(session.endReason === "switched" && session.switchRequest
             ? {
                 nextUserRequest: session.switchRequest.text,
@@ -34,9 +37,9 @@ export const APPLICATION_COMMON_TOOL_NAMES = [
 export const SIMULATION_TOOL_NAMES: readonly string[] = [
   ...APPLICATION_COMMON_TOOL_NAMES,
   SIMULATION_SESSION_TOOL,
-  "ask_application_input",
-  "apply_to_role",
-  "simulate_application",
+  "manage_application_suggestions",
+  "ready_for_role",
+  "apply_for_role",
   "get_role_context",
   "get_internal_roles",
   "read_recommended_opportunities",
@@ -164,6 +167,39 @@ export const simulationSessionTool = {
             executionPrompt: { type: "string" },
           },
         },
+      },
+    },
+  },
+};
+
+// Preparation suggestions and document writes each have one owner. Keep the legacy
+// action graph available only to older sessions without preparation state.
+export const APPLICATION_PREPARATION_SESSION_ACTIONS: readonly string[] = [
+  "save_fact",
+  "remove_fact",
+  "request_switch",
+  "cancel_switch",
+  "end",
+];
+export const applicationPreparationSessionTool = {
+  type: "function" as const,
+  function: {
+    name: SIMULATION_SESSION_TOOL,
+    description:
+      "Manage the active application's lifecycle or correct its confirmed session facts. save_fact records a confirmed fact; factId identifies a fact to correct or remove. Use shared Profile/Brief/Memory tools for durable user information. request_switch records the user's next task and waits for confirmation to leave this application; cancel_switch keeps the application active. end releases the mode, then continue an already confirmed switch in the same turn. Suggestions are managed only with manage_application_suggestions; resume changes are saved with ready_for_role.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["action"],
+      properties: {
+        action: {
+          type: "string",
+          enum: APPLICATION_PREPARATION_SESSION_ACTIONS,
+        },
+        factId: { type: "string" },
+        text: { type: "string" },
+        request: { type: "string" },
+        endReason: { type: "string", enum: ["user", "switched"] },
       },
     },
   },

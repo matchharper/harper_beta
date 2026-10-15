@@ -26,7 +26,10 @@ test("uses current Role notification channels for web requests", () => {
 });
 
 test("wires web relays to Slack without duplicating the /org message", () => {
-  assert.match(deliveryRoute, /sendHarperWorkspaceSlackMessage\(\{/);
-  assert.match(deliveryRoute, /recordConversationMessage: false/);
-  assert.match(deliveryRoute, /roleId: request\.role_id/);
+  const sharedDelivery = readFileSync(new URL("../org/agent/contactEvent.server.ts", import.meta.url), "utf8");
+  assert.match(deliveryRoute, /deliverCompanyTalentRelay/);
+  assert.doesNotMatch(deliveryRoute, /sendHarperWorkspaceSlackMessage\(/);
+  assert.match(sharedDelivery, /sendHarperWorkspaceSlackMessage\(\{/);
+  assert.match(sharedDelivery, /recordConversationMessage: false/);
+  assert.match(sharedDelivery, /roleId: args\.roleId/);
 });

@@ -34,6 +34,19 @@ export type RealtimeModelPricing = {
 };
 
 const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
+  // https://platform.claude.com/docs/en/models/haiku-5-5/overview
+  "claude-haiku-5-5": {
+    cacheReadUsdPerMtok: 0.01,
+    cacheWriteUsdPerMtok: 0.125,
+    inputUsdPerMtok: 0.1,
+    longContextCacheReadUsdPerMtok: 0.05,
+    longContextCacheWriteUsdPerMtok: 0.625,
+    longContextInputUsdPerMtok: 0.5,
+    longContextOutputUsdPerMtok: 2.5,
+    longContextThresholdTokens: 100_000,
+    outputUsdPerMtok: 0.5,
+    pricingSource: "anthropic_api_pricing_2026_10",
+  },
   "claude-sonnet-5-5": {
     cacheReadUsdPerMtok: 0.2,
     cacheWriteUsdPerMtok: 2.5,
@@ -86,6 +99,19 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     outputUsdPerMtok: 12,
     pricingSource: "openai_api_pricing_2026_09",
   },
+  // https://developers.openai.com/api/docs/models/gpt-6-astra (Standard)
+  "gpt-6-astra": {
+    cacheReadUsdPerMtok: 1,
+    cacheWriteUsdPerMtok: 12.5,
+    inputUsdPerMtok: 10,
+    outputUsdPerMtok: 50,
+    longContextThresholdTokens: 272_000,
+    longContextInputUsdPerMtok: 20,
+    longContextCacheReadUsdPerMtok: 2,
+    longContextCacheWriteUsdPerMtok: 25,
+    longContextOutputUsdPerMtok: 75,
+    pricingSource: "openai_api_pricing_2026_10",
+  },
   // https://developers.openai.com/api/docs/models/gpt-6.1-sol (Standard)
   "gpt-6.1-sol": {
     cacheReadUsdPerMtok: 0.1,
@@ -125,6 +151,12 @@ const STATIC_MODEL_PRICING_USD_PER_MTOK: Record<string, LlmModelPricing> = {
     inputUsdPerMtok: 1.25,
     outputUsdPerMtok: 2.5,
     pricingSource: "xai_retired_slug_redirect_2026_05_15",
+  },
+  // https://openrouter.ai/typesafe/jev-1.13 (Decisions API)
+  "typesafe/jev-1.13": {
+    inputUsdPerMtok: 0.042,
+    outputUsdPerMtok: 0,
+    pricingSource: "openrouter_jev_pricing_2026_10_15",
   },
   "deepseek/deepseek-v4-flash-0731": {
     cacheReadUsdPerMtok: 0.013,

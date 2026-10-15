@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "research-preview-v2",
+  "frozenAt": "2026-10-15T03:52:51.030Z",
+  "files": {
+    "research-preview-v2.json": "8c38b5fefa06bc55890e1265f30222c44bcafd43e354b4146314a66029d9a71e",
+    "research-preview-gold-v2.md": "3a7d96d0554d25910ab8b9b1b7497450ab2391a49cf52d8469df913e609aff92"
+  },
+  "runner": "scripts/runRoleSearchResearchPreview.ts",
+  "provenance": "User requested actual quality-bar and bonus text in Brief after v1. Original v1 cases unchanged; added synthetic RSR04 and prospective explicit quality-bar coverage. All RSR04 people and career combinations are fictional. Author gold before first run; independent review pending.",
+  "releaseGate": "4/4 mandatory meaning, critical errors 0; manual full-output review. Selected runs cannot establish full gate.",
+  "knownLimitations": [
+    "Internal reads are frozen adapters",
+    "RSR03 web changes over time",
+    "No production persistence or delivery",
+    "Author-designed non-blind challenge"
+  ]
+}

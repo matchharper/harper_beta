@@ -45,6 +45,8 @@ test("Career tool budgets cover every provider, streaming mode, failures and bat
                 : Math.min(3 * batchSize, 4);
             let executions = 0;
             let requests = 0;
+            let sawUnknownDiagnostic = false;
+            let sawAuthoredResult = false;
             mockFetch = async (url, init) => {
               if (
                 provider === "openrouter-fallback" &&
@@ -61,6 +63,16 @@ test("Career tool budgets cover every provider, streaming mode, failures and bat
                 );
               }
               const body = JSON.parse(String(init?.body));
+              const delivered = JSON.stringify(body);
+              if (delivered.includes("Synthetic unexpected error")) {
+                assert.ok(delivered.includes("newProviderField"), label);
+                assert.ok(!delivered.includes("[object Object]"), label);
+                sawUnknownDiagnostic = true;
+              }
+              if (delivered.includes("기존 업무 안내 그대로")) {
+                assert.ok(delivered.includes("기존 접수 원문 그대로"), label);
+                sawAuthoredResult = true;
+              }
               requests++;
               assert.ok(requests <= (hasResume ? 9 : 4), label);
               const final = !body.tools?.length;
@@ -200,9 +212,10 @@ test("Career tool budgets cover every provider, streaming mode, failures and bat
               executeTool: async () => {
                 executions++;
                 if (executions === 2)
-                  throw new Error("Synthetic retryable failure");
-                return { ok: true };
+                  throw { message: "Synthetic unexpected error", newProviderField: [2, 4], cause: { code: "E_NEW" } };
+                return { ok: true, assistantInstruction: "기존 업무 안내 그대로", answerDraft: "기존 접수 원문 그대로" };
               },
+              onToolStart: async () => { throw new Error("Progress display unavailable"); },
               onTextDelta: () => {},
               usageLabel: "test:career-tool-budget",
             };
@@ -211,6 +224,17 @@ test("Career tool budgets cover every provider, streaming mode, failures and bat
               : runCareerChatAssistant(args));
             assert.equal(result, "done", label);
             assert.equal(executions, expected, label);
+            assert.ok(sawUnknownDiagnostic, label);
+            assert.ok(sawAuthoredResult, label);
+            const { EmailContinuationPending } = await import("@/lib/email/runtime/types");
+            const control = new EmailContinuationPending("Continue this job later");
+            executions = 0; requests = 0;
+            await assert.rejects(streaming
+              ? runCareerChatAssistantStream({ ...args, executeTool: async () => { executions++; throw control; } })
+              : runCareerChatAssistant({ ...args, executeTool: async () => { executions++; throw control; } }), error => error === control, label);
+            assert.equal(executions, 1, label);
+            assert.equal(requests, 1, label);
+
           }
         }
       }

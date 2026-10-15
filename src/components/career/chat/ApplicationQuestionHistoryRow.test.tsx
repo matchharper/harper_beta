@@ -23,11 +23,12 @@ test("waiting becomes a collapsed response record with stable identity", () => {
   batch.responses={[batch.itemIds[0]]:{decision:"answer",text:"An evaluation pipeline"},[batch.itemIds[1]]:{decision:"skip"}};
   const html=render();
   assert.equal(applicationQuestionMessages(state)[0].id,before.id);
-  assert.match(html,/Answered 2 questions/);
+  assert.match(html,/Reviewed 2 suggestions/);
   assert.match(html,/An evaluation pipeline/);
   assert.match(html,/Skipped/);
-  assert.match(html,/<details class/);
-  assert.doesNotMatch(html,/<details[^>]*open/);
+  assert.match(html,/aria-expanded="false"/);
+  assert.match(html,/inert=""/);
+  assert.doesNotMatch(html,/<details/);
   batch.status="cancelled";
   assert.match(render(),/Cancelled questions/);
 });
@@ -83,4 +84,18 @@ test("long review is rendered as Markdown in chat before the question record",()
   assert.match(html,/<td[^>]*class="[^"]*px-/);
   assert.match(html,/list-disc/);
   assert.ok(html.indexOf("Motivation")<html.indexOf("Waiting for your answers"));
+});
+
+test("answered history shows the user's accepted inline edit instead of the original suggestion",()=>{
+  let state=createSimulationSession({roleName:"Role",roleRef:"job:test",documentId:"cv",documentName:"CV"});
+  state.analysisStatus="completed";
+  state.preparation=createPreparation();
+  state.activity={version:1,offerId:1,outputs:{},batches:[]};
+  state=askApplicationInput(state,{purpose:"suggestions",items:[{kind:"change",title:"Clarify API work?",edits:[{target:"Experience",originalText:"Built APIs",suggestedText:"Original suggestion"}]}]},"inline");
+  const batch=state.activity!.batches[0];
+  batch.status="submitted";
+  batch.responses[batch.itemIds[0]]={decision:"accept",edits:[{target:"Experience",originalText:"Built APIs",suggestedText:"The user's exact revised wording"}]};
+  const html=renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationQuestionHistoryRow batch={batch}/></MessagesProvider>);
+  assert.match(html,/The user&#x27;s exact revised wording/);
+  assert.doesNotMatch(html,/Original suggestion/);
 });

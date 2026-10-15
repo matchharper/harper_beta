@@ -53,6 +53,7 @@ export type OpsTalentMetricConversionTrendPoint = {
   pendingConnectionTalentCount: number;
   recommendationAcceptRejectRatio: number | null;
   recommendationAcceptedCount: number;
+  recommendationCount: number;
   recommendationDecisionAcceptanceRate: number | null;
   recommendationRejectedCount: number;
   serviceReadyTalentQuarterEquivalents: number;

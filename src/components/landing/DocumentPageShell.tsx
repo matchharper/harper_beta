@@ -9,6 +9,7 @@ import type { Locale } from "@/i18n/useMessage";
 
 type DocumentPageShellProps = {
   aside?: ReactNode;
+  audience?: "talent" | "company";
   background?: "basement" | "default";
   children: ReactNode;
   contentWidth?: "wide" | "reading";
@@ -20,6 +21,7 @@ type DocumentPageShellProps = {
 
 export default function DocumentPageShell({
   aside,
+  audience = "talent",
   background = "default",
   children,
   contentWidth = "wide",
@@ -60,8 +62,11 @@ export default function DocumentPageShell({
             >
               Harper
             </Link>
-            <Link href="/career" className="text-[13px] text-neutral-muted">
-              Career
+            <Link
+              href={audience === "company" ? `/org?lang=${locale}` : "/career"}
+              className="text-[13px] text-neutral-muted"
+            >
+              {audience === "company" ? "Workspace" : "Career"}
             </Link>
           </div>
         </header>
@@ -70,9 +75,7 @@ export default function DocumentPageShell({
       <div
         className={`mx-auto flex flex-col gap-20 px-4 sm:px-6 ${
           contentWidth === "reading" ? "max-w-[960px]" : "max-w-[1240px]"
-        } ${
-          landingChrome ? "pt-24 lg:pt-38" : "pt-10 lg:pt-14"
-        }`}
+        } ${landingChrome ? "pt-24 lg:pt-38" : "pt-10 lg:pt-14"}`}
       >
         <header className="flex flex-col gap-4 font-normal">
           <h1 className="max-w-[900px] text-[30px] font-normal leading-[1.2] tracking-normal text-neutral-primary sm:text-[48px] lg:text-[56px]">
@@ -104,6 +107,7 @@ export default function DocumentPageShell({
       </div>
 
       <CareerLandingFooter
+        audience={audience}
         careerStartHref={careerStartHref}
         onCareerStartClick={handleCareerStartClick}
         locale={locale}

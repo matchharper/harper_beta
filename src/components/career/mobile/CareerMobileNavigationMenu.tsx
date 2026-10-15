@@ -1,14 +1,19 @@
 "use client";
 
-import type { ComponentType, ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
+import Image from "next/image";
+import { PanelLeftClose } from "lucide-react";
 import type { CareerWorkspaceTab } from "@/components/career/CareerWorkspaceNav";
 import { Badge } from "@/components/ui/badge";
+import { MuteButton } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { useCareerT } from "@/i18n/useCareerT";
 import { cn } from "@/lib/utils";
 
 export type CareerMobileNavigationOptionId =
@@ -26,75 +31,104 @@ export type CareerMobileNavigationOption = {
 
 type CareerMobileNavigationMenuProps = {
   activeTab: CareerMobileNavigationOptionId;
-  align?: "start" | "center" | "end";
   children: ReactNode;
-  contentClassName?: string;
   onChangeTab: (tab: CareerMobileNavigationOptionId) => void;
   options: CareerMobileNavigationOption[];
-  side?: "top" | "right" | "bottom" | "left";
-  sideOffset?: number;
 };
 
 export default function CareerMobileNavigationMenu({
   activeTab,
-  align = "start",
   children,
-  contentClassName,
   onChangeTab,
   options,
-  side = "bottom",
-  sideOffset = 4,
 }: CareerMobileNavigationMenuProps) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
-      <DropdownMenuContent
-        align={align}
-        side={side}
-        sideOffset={sideOffset}
-        className={cn(
-          "min-w-[196px] rounded-xl p-1 text-neutral-primary",
-          contentClassName
-        )}
-      >
-        {options.map((option) => {
-          const Icon = option.icon;
-          const active = option.id === activeTab;
-          const badgeCount = option.badgeCount ?? 0;
+  const t = useCareerT();
+  const [open, setOpen] = useState(false);
 
-          return (
-            <DropdownMenuItem
-              key={option.id}
-              data-career-topbar-option-id={option.id}
-              onSelect={() => onChangeTab(option.id)}
-              selected={active}
-              className="cursor-pointer rounded-lg px-2.5 py-2.5 text-sm text-neutral-primary focus:bg-bg-weak/70 focus:text-neutral-primary"
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent
+        hideCloseButton
+        aria-describedby={undefined}
+        overlayClassName="z-[80] motion-reduce:animate-none"
+        className="!inset-y-0 !left-0 !right-auto !top-0 z-[81] flex h-svh w-[min(82vw,280px)] max-w-[280px] !translate-x-0 !translate-y-0 flex-col gap-0 rounded-none border-0 border-r border-neutral-1000-a05 bg-bg-basement p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] duration-300 data-[state=closed]:slide-out-to-left-full data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-left-full data-[state=open]:zoom-in-100 motion-reduce:animate-none"
+      >
+        <DialogTitle className="sr-only">Career</DialogTitle>
+        <div className="mb-4 flex h-9 shrink-0 items-center justify-between pl-2.5">
+          <Image
+            alt="Harper"
+            src="/svgs/logov2.svg"
+            width={48}
+            height={24}
+            className="h-auto w-16"
+          />
+          <DialogClose asChild>
+            <MuteButton
+              variant="transparent"
+              aria-label={t("career.workspace.collapse_sidebar", "메뉴 접기")}
             >
-              {Icon ? (
-                <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-neutral-muted">
+              <PanelLeftClose
+                aria-hidden
+                className="size-5"
+                strokeWidth={1.5}
+              />
+            </MuteButton>
+          </DialogClose>
+        </div>
+        <nav
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto"
+          aria-label="Career"
+        >
+          {options.map((option) => {
+            const Icon = option.icon;
+            const active = option.id === activeTab;
+            const badgeCount = option.badgeCount ?? 0;
+
+            return (
+              <MuteButton
+                key={option.id}
+                variant="transparent"
+                aria-current={active ? "page" : undefined}
+                data-career-topbar-option-id={option.id}
+                onClick={() => {
+                  setOpen(false);
+                  onChangeTab(option.id);
+                }}
+                className={cn(
+                  "flex h-11 w-full items-center justify-start gap-2.5 rounded-md px-2.5 text-[14.5px] font-normal text-neutral-primary",
+                  active &&
+                    "bg-neutral-300/70 text-neutral-primary hover:bg-neutral-200"
+                )}
+              >
+                {Icon ? (
                   <Icon
-                    className="h-4 w-4"
+                    className="size-5 shrink-0"
                     strokeWidth={option.id === "home" ? undefined : 1.5}
                   />
+                ) : null}
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {option.label}
                 </span>
-              ) : null}
-              <span className="min-w-0 flex-1 truncate">{option.label}</span>
-              {badgeCount > 0 ? (
-                <Badge
-                  className={cn(
-                    "min-w-5 bg-primary-faded font-normal tabular-nums text-primary",
-                    option.badgeClassName
-                  )}
-                  radius="full"
-                  size="sm"
-                >
-                  {badgeCount}
-                </Badge>
-              ) : null}
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+                {badgeCount > 0 ? (
+                  <Badge
+                    className={cn(
+                      "min-w-5 bg-primary-faded font-normal tabular-nums text-primary",
+                      option.badgeClassName
+                    )}
+                    radius="full"
+                    size="sm"
+                  >
+                    {option.id === "inbox" && badgeCount >= 99
+                      ? "99+"
+                      : badgeCount}
+                  </Badge>
+                ) : null}
+              </MuteButton>
+            );
+          })}
+        </nav>
+      </DialogContent>
+    </Dialog>
   );
 }

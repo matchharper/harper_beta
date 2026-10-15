@@ -1,5 +1,7 @@
 # Harper Organization Workspace v2
 
+선택적 Team의 Role 접근 범위 로컬 구현은 [별도 계약](company/organization-team-role-access-ko.md)을 따른다. 팀은 Role 접근 그룹이며 Slots·Intro·결제는 Organization에서 관리한다. 운영 배포 여부와 구분한다.
+
 ## 목적
 
 Organization은 회사 사용자가 Harper가 추천한 인재를 빠르게 검토하고,
@@ -31,9 +33,10 @@ hover tooltip과 접근성 label로 제공한다.
 | Inbox | `/org/inbox` | Workspace별 추천 인재, 미열람/연결 대기 필터 |
 | Jobs | `/org/jobs` | 전체 Role 및 Role별 pipeline |
 | 새 역할 등록 | `/org/new` | 왼쪽 company-side LLM 채팅, 오른쪽 Role/Company/Setting/Calibration 상세 영역 |
+| Organization 추가 | `/org/new?create=organization` | 홈페이지 입력 후 새 조직의 기존 회사 온보딩으로 이동 |
 | Team | `/org/team` | 회사 정보, 초대, 멤버/권한 |
 | Settings | `/org/settings` | 회사 공용 Slack 연결, 개인 Google Calendar 연결, 알림 설정 |
-| Slots | `/org/slots` | 슬롯 목록·크레딧 사용 내역 |
+| Slots | `/org/slots` | 슬롯 목록·Intro 사용 내역 |
 | Billing | `/org/billing` | Owner 전용 현재 플랜·결제 내역·서류 |
 | Help | `/org/help` | Harper 사용 안내, FAQ |
 
@@ -68,6 +71,46 @@ role action을 각각의 hook으로 읽고, 모든 값을 하나의 거대한 co
 그 컴포넌트의 `useState`로 유지한다.
 
 공통 사이드바, 페이지 헤더 등 반복 UI는 `components/org/workspace`에 둔다.
+
+## Organization 추가와 온보딩
+
+사이드바 상단 회사명은 조직이 하나여도 클릭할 수 있다. 드롭다운에 접근 가능한
+조직 목록과 현재 선택 표시를 보여주고 마지막에 `Organization 추가하기`를 둔다.
+모바일 메뉴도 같은 조직 선택·추가 기능을 사용한다.
+
+기존 Organization에 접근할 수 있는 인증된 팀원은 현재 권한과 관계없이 새 조직을
+만들 수 있다. 홈페이지로 회사를 지정하며 로그인 이메일과 다른 회사도 허용한다.
+생성자는 새 조직의 Owner가 되고 Free로 시작한다. 홈페이지를 제출하기 전에는
+조직을 생성하지 않는다. 요금제 선택이나 Role 자동 생성은 추가 흐름에 포함하지 않는다.
+
+회사 정보 조회·확인, 선택적 Pitch 입력과 Slack 연결, 완료 화면은 기존 온보딩을
+사용한다. 저장된 이름·직함이 있으면 개인 프로필 단계는 생략한다. 조회 실패 시에도
+직접 입력할 수 있다. 완료 후 새 조직 Home으로 이동하며 중간에 나간 경우 해당 조직을
+선택하면 온보딩을 이어간다.
+
+동일 도메인 또는 LinkedIn 회사 페이지로도 별도의 Organization을 만들 수 있다.
+첫 가입에서도 이미 같은 회사의 Organization이 있다는 이유로 가입을 막거나 초대를
+요청하도록 안내하지 않는다. 각 조직의 팀원·권한·채용 정보·결제는 독립적이며,
+같은 회사라는 사실만으로 기존 조직에 접근할 수 없다. 실제 소속이나 이메일 초대가
+있는 첫 가입은 기존 조직으로 이어지는 원래 흐름을 유지한다.
+
+같은 생성 요청의 동시 실행과 응답 유실 후 재시도는 같은 조직을 반환한다.
+생성이 확인된 뒤 다시 `Organization 추가하기`를 누르면 새로운 생성 요청으로 처리한다.
+
+추가 생성 출처와 생성자의 조직별 온보딩 완료는 기존 `signup_state`에 저장한다.
+계정 단위 온보딩 완료 기록을 초기화하지 않으며, 화면 이동과 서버는 같은 완료 판단을
+사용한다. 일반 신규 회사 가입과 결제의 공개 범위는 기존 설정을 따른다.
+
+관련 검증은 `src/lib/org/organizationCreation.test.ts`와 격리된 로컬 DB 전용
+`scripts/localE2e/organizationCreation.py`에서 수행한다. DB 검증은 새 생성 마이그레이션과
+기존 회사 소개 선택 입력 마이그레이션이 적용된 로컬 스키마를 사용하며 정확한 ID로
+테스트 조직·팀원을 정리한다. production 데이터나 Role은 생성하지 않는다.
+
+추가 생성의 `20261012090244_organization_add.sql`에 이어
+`20261012095337_allow_multiple_company_organizations.sql`과
+`20261012100346_allow_shared_company_identity.sql`을 준비한다. 회사 도메인과 공개
+회사 DB 연결의 유일성 제한을 해제하고 조회용 인덱스는 유지한다. 운영 DB 적용과
+앱 배포는 별도 실행 단계다.
 
 ## Home 행동 우선순위
 

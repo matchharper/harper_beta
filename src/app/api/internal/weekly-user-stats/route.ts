@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
   try {
     return await handleWeeklyUserStats(req);
   } catch (error) {
+    console.error("[weekly-user-stats] Failed to generate or send report", error);
     return NextResponse.json(
       {
         error:

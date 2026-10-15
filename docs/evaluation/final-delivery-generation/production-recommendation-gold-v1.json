@@ -1,0 +1,115 @@
+{
+  "version": "production-recommendation-gold-v1",
+  "datasetVersion": "production-recommendation-v1",
+  "author": "Codex, before replay",
+  "independentHumanGold": false,
+  "rubric": [
+    "Every stored selected role and source type must be preserved.",
+    "Facts and fit reasons must be supported by frozen Profile, Brief, Behavior Context and role facts.",
+    "Candidate acceptance, company sharing and company decisions must be distinguished.",
+    "Personalized explanation should retain relevant strengths and meaningful tradeoffs.",
+    "Messages should be clear and natural in the supplied conversation language."
+  ],
+  "criticalGate": "zero unsupported material facts, authorization/state misrepresentation, wrong role identities or structural failures; case review required; this sample is not a full release gate",
+  "cases": [
+    {
+      "id": "FD01",
+      "expectedRoleCount": 1,
+      "expectedRoleHashes": [
+        "8d741305f5cc7c5633e9d71ee634e8c7dc7b48af84fc9b78784cfef734fcb528"
+      ],
+      "locale": "ko"
+    },
+    {
+      "id": "FD02",
+      "expectedRoleCount": 4,
+      "expectedRoleHashes": [
+        "ad6721d6a1f1512bbc90c8cff05d9d0ee6ea3672677eb8f1c39484abe9841941",
+        "b0260fd32e03ba568e9e632a83d30c63ac40b046aca4d4dcc3bf33979ecce74c",
+        "053966e498775010ae87ac18b979e503420af3affbec2cd27470b5f302cfba85",
+        "78ac3d8186d0845ae3ba2a5c6f41d7049c1cc86586be127ef7d7c9fc1433aa6b"
+      ],
+      "locale": "en"
+    },
+    {
+      "id": "FD03",
+      "expectedRoleCount": 4,
+      "expectedRoleHashes": [
+        "48a5eb5d6370d3c872a659d4e0ca5d5e479b72c14140a1157bb1a61d8c653d28",
+        "b537b304980da47cc9d2c13fe0934d4ffc03317e7d0b3e754aec077543b4ffe7",
+        "32323b9381429f665dbbbde73f3279132e5977c4631b17fef1750a0af6d06642",
+        "6053a48f44fff1e881b4d6ac9f9e3118fe5fc75294afd3286634e2a91983427f"
+      ],
+      "locale": "ko"
+    },
+    {
+      "id": "FD04",
+      "expectedRoleCount": 9,
+      "expectedRoleHashes": [
+        "c64d4291d7af3815fba65e135d38969ed25295d8636999034188131b4c589e68",
+        "f74b42a5591812c6090808eb2ead6555e9642742b73c5343add0664ce25e253e",
+        "9faa1f1876d7c52cd6f796c433ac61bf692c81158f8b6cf90870be8f803ca051",
+        "5e29bbfe217b6bbf29971e6887ea66d1cf73169eed61bd265eb176350728bf79",
+        "53b3417bd5daebb331e87f2b232c3b65bfe97274ddde84a14064aecd137392a1",
+        "caed04100c40da2accbaa5c7756728d45e6d40868769763e2363c913e6738d4c",
+        "c8af22d540b41ed7eaeaa62f74341a1000124adaa1fca36ec895e8f3aa03083a",
+        "c0fb63a22551f34a37398c2425efa04225b2f6ec31b4bd3dfdf113c29b7fb58b",
+        "bd508fea609e8981de05a54a59d79c3cfa695316af1e9d10a9590fd8a34b9b42"
+      ],
+      "locale": "ko"
+    },
+    {
+      "id": "FD05",
+      "expectedRoleCount": 4,
+      "expectedRoleHashes": [
+        "98bf0c68d307fefc7f1a1b106439f00e0a5f377eb3b2ce9a7ec22ce8b79651b4",
+        "7d5f718f48ce8181f737cfade84c56eb212a6ebf3fd9cf34ecb6b2b41cebc308",
+        "2618482e7a56a47e0fdac738475ac673b920a94b0485a517f4207d991985c5c4",
+        "d7a21560bebf45f891118cb3ab6bf8382ec720c98f051f8d66ceeb7c4a2ee70b"
+      ],
+      "locale": "en"
+    },
+    {
+      "id": "FD06",
+      "expectedRoleCount": 3,
+      "expectedRoleHashes": [
+        "8d741305f5cc7c5633e9d71ee634e8c7dc7b48af84fc9b78784cfef734fcb528",
+        "fbbeeb3ee14036c1bb5f2e8b2bdfd6a91e5304b32aff6363b6950701aff55907",
+        "2adcd5df78920a479d96703736f0b7867a272d912f968a6d66349f76bd3caf91"
+      ],
+      "locale": "ko"
+    },
+    {
+      "id": "FD07",
+      "expectedRoleCount": 1,
+      "expectedRoleHashes": [
+        "cbb816831b3eb4f6d37d38114ff15bb1059a7ee636841a267e6102009e353272"
+      ],
+      "locale": "ko"
+    },
+    {
+      "id": "FD08",
+      "expectedRoleCount": 1,
+      "expectedRoleHashes": [
+        "cbb816831b3eb4f6d37d38114ff15bb1059a7ee636841a267e6102009e353272"
+      ],
+      "locale": "ko"
+    },
+    {
+      "id": "FD09",
+      "expectedRoleCount": 1,
+      "expectedRoleHashes": [
+        "cbb816831b3eb4f6d37d38114ff15bb1059a7ee636841a267e6102009e353272"
+      ],
+      "locale": "ko"
+    },
+    {
+      "id": "FD10",
+      "expectedRoleCount": 1,
+      "expectedRoleHashes": [
+        "cbb816831b3eb4f6d37d38114ff15bb1059a7ee636841a267e6102009e353272"
+      ],
+      "locale": "ko"
+    }
+  ]
+}

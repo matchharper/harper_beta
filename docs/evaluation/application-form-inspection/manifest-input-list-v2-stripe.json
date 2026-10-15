@@ -1,0 +1,25 @@
+{
+  "task": "application-form-inspection",
+  "datasetVersion": "native-random-v1",
+  "caseId": "random-jd-01",
+  "runId": "stripe-input-list-v2-20261012T134412Z",
+  "outputContractVersion": "input-list-v2",
+  "createdAt": "2026-10-12T13:44:12.545389+00:00",
+  "goldVersion": null,
+  "sampleSha256": "5f55ad085a97a419c3582bd99a8c78d2549c7880839a250783b58fae5676d12f",
+  "runnerSha256": "23657b77dad458d5205e63d51c779e678ddf52b7c2fc5b073c0ab030c9cba67b",
+  "provider": "openai_agents",
+  "model": "gpt-6.1-sol",
+  "reasoning": "provider_default",
+  "sampling": "provider_default",
+  "timeoutSeconds": 600,
+  "metricSummary": {
+    "status": "completed",
+    "elapsedSeconds": 65.44,
+    "browserOperations": 4,
+    "fields": 19,
+    "sessionDeleted404": true
+  },
+  "rawArtifacts": "runs/stripe-input-list-v2-20261012T134412Z",
+  "review": "Unblinded semantic baseline comparison; no independent full gold. Same live URL and model; shorter prompt/output contract."
+}

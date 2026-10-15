@@ -2,9 +2,21 @@ export type CareerDocumentLink = { id: string; title: string };
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const DOCUMENT_LINK = new RegExp(
-  `^\\s*\\[((?:\\\\.|[^\\]\\\\])+)\\]\\(documentId:(${UUID})\\)\\s*$`,
+  `^\\s*\\[((?:\\\\.|[^\\\\])+)\\]\\(documentId:(${UUID})\\)\\s*$`,
   "i"
 );
+
+// Markdown labels may contain balanced, unescaped brackets (e.g. a role's
+// company prefix). Do not merge separate links or malformed labels into a card.
+function balancedLabel(label: string) {
+  let depth = 0;
+  for (let index = 0; index < label.length; index++) {
+    if (label[index] === "\\") index++;
+    else if (label[index] === "[") depth++;
+    else if (label[index] === "]" && --depth < 0) return false;
+  }
+  return depth === 0;
+}
 
 export function formatCareerDocumentLink(document: CareerDocumentLink) {
   const title = document.title
@@ -29,7 +41,7 @@ export function extractCareerDocumentLinks(content: string) {
     }
     if (fence || /^(?: {4}|\t)/.test(line)) return true;
     const match = DOCUMENT_LINK.exec(line);
-    if (!match) return true;
+    if (!match || !balancedLabel(match[1])) return true;
     const id = match[2].toLowerCase();
     if (!seen.has(id)) {
       seen.add(id);
@@ -40,7 +52,7 @@ export function extractCareerDocumentLinks(content: string) {
   return { content: lines.join("\n").trim(), documents };
 }
 
-/** Documents share the profile detail route with call notes. */
+/** Documents and call notes open in the documents workspace. */
 export function getCareerDocumentHref(documentId: string) {
-  return `/career/profile?profileSection=links&documentId=${encodeURIComponent(documentId)}`;
+  return `/career/documents?documentId=${encodeURIComponent(documentId)}`;
 }

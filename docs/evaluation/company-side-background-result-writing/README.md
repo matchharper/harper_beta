@@ -131,6 +131,16 @@ Raw artifact를 공유하거나 commit하지 않는다.
 
 ## 변경 이력
 
+### 2026-10-15 팀원 온보딩 환영 안내: member-welcome-v1
+
+[입력](member-welcome-v1.json), [gold](member-welcome-gold-v1.md), [manifest](member-welcome-manifest-v1.json)은 실행 전에 동결한 합성 4건이다. 평가 단위는 온보딩을 완료한 기존 팀원 1명의 채널 멘션과 환영 스레드이며, 한국어/영어, Calendar 미연결/저장 연결, 작성 중/채용 중/종료 Role, 빈 목록과 채널 공유 권한을 포함한다. 기존 검색 결과 v1 입력과 gold는 보존한다.
+
+Canonical runner는 `scripts/evalOrgOnboardingSlackWelcome.ts`다. `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/evalOrgOnboardingSlackWelcome.ts <fresh-run-id>`로 실행한다. 실제 `sendOrgOnboardingSlackWelcome`의 사실·목적, 공통 `buildCompanyUpdatePrompt`, `buildOrgAgentSystemPrompt`, 기존 company-side completion과 Slack 링크 renderer를 사용한다. 새 일반 회사 사건 input은 원래 회사 요청이나 matching 도구 결과를 꾸며내지 않는다. 기본 Slack 모델·provider·reasoning·temperature, input/gold/source/runner hash와 revision을 run manifest에 기록한다.
+
+Gate는 4/4 전체 안내의 의미 검토와 critical failure 0, 참여 채널·미참여 skip·발송 순서의 단위 검사 통과다. Workspace 가입을 입사로 표현하거나, 저장된 연결만으로 Calendar 및 가능한 시간 사용이 준비됐다고 주장하거나, 권한 밖 Role을 공개하거나, 실행하지 않은 채용 작업을 완료했다고 말하면 실패다. 키워드·문장형태로 안내를 재작성하거나 평가를 통과시키지 않는다.
+
+모든 입력은 합성이다. DB 및 Slack 통신은 차단하고 현재 OpenRouter 모델 provider에 합성 입력만 보낸다. 외부 전송 설정은 기존 completion 계약을 따른다. 원문·raw 출력은 ignored `runs/`의 0700/0600 파일에만 보존한다. 작은 작성자 challenge이며 독립 팀원 검토, 운영 계정/OAuth/발송 및 실제 브라우저 이동은 증명하지 않는다. 결과는 [검증 기록](reports/2026-10-15-member-welcome.md)에 기록한다.
+
 ### 2026-10-08 후보자 카드의 출력 계약
 
 후보자가 포함된 새 결과는 `backgroundResultParts.ts`의 최소 메시지 계약을 사용한다. 원본 회사 측 LLM이 자연스러운 설명을 작성하되 각 메시지에 `candidateId` 또는 `null`을 붙인다. 후보자 설명 뒤에 Slack 카드를 붙이고 인사·마무리·후속 질문은 별도 메시지로 렌더링하기 위한 식별자다. 별도 classifier·추출 LLM·문구 후처리는 없다. 후보자 없는 결과의 기존 prompt와 frozen v1은 유지한다.
@@ -141,3 +151,14 @@ Raw artifact를 공유하거나 commit하지 않는다.
 | --- | --- |
 | 2026-10-01 | 기존 v1 후속 답변 회귀 실행, provider 실패와 첫 결과 coverage 한계 기록 |
 | 2026-09-22 | 실제 0명 결과용 focused prompt, read-only capture와 5-model 동일-input 비교 계약 등록 |
+
+
+### 2026-10-15 draft 설정 제안: member-welcome-v2
+
+`member-welcome-v2.json`, `member-welcome-gold-v2.md`, `member-welcome-manifest-v2.json`은 두 개의 미설정 draft, 실제 현재 채널·담당자 후보를 가진 한국어 첫인사 1건이다. 입력과 의미 gold는 첫 호출 전에 동결했고 v1은 보존했다. Canonical runner는 `scripts/evalOrgOnboardingSlackWelcome.ts <fresh-run-id> v2`이며 동일 production 사실 builder·company-side writer·기본 모델/설정을 쓴다. 합성 adapter가 제공하는 설정 조회는 DB를 호출하지 않는다. 성공 기준은 두 Role의 정확한 상태와 후보 대상에 기반한 자연스러운 승인 제안, 미실행 작업의 완료 주장 0이다. 실행 동의 이후의 4종 대화는 일반 company-side v27에서 별도로 검증한다. 기존 privacy·모델·owner-only 원문 보존 계약을 따른다. 작고 직접 작성한 challenge이며 독립 팀원 검토·실제 Slack 왕복은 포함하지 않는다.
+
+### 2026-10-15 환영 안내의 일반 도구 실행
+
+환영 안내는 이제 도구 없는 작성 adapter 대신 기존 `company_update` 사건 consumer와 `runOrgAgentToolLoop`를 사용한다. 기본 기능과 catalog를 제공하고 필요한 상세 기능을 `load_capabilities`로 읽는다. `send_company_message`의 batch 출력은 같은 사건의 최종 응답으로 저장·전달하고, 보통 답변은 원래 환영 스레드에 전달한다. 기존 채널·팀원 권한과 도구 실행 승인은 유지하며, onboarding 사건 자체는 채용 시작·후보자 연락 승인이 아니다.
+
+동일 frozen `member-welcome-v1`과 gold를 보존했다. Canonical runner `scripts/evalOrgOnboardingSlackWelcome.ts`도 실제 tool loop를 재사용하도록 갱신했다. 입력은 합성이고 추가 조회는 명시적인 unavailable 결과, 메시지 확정은 합성 capture이며 실제 DB/Slack 접근은 차단된다. 모델이 모든 도구를 실제로 실행한 end-to-end 테스트는 아니다. `welcome-tools-20261015-1`에서 4건 모두 일반 환영 답변을 선택했고, 기능 로딩 후 복수 메시지·스레드 출력은 별도 주입형 tool-loop 및 기존 batch 전달 테스트로 확인했다. 세부 결과는 [기록](reports/2026-10-15-member-welcome-tools.md)을 따른다.

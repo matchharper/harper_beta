@@ -1,31 +1,33 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { ProgressBar } from "@/components/ui/progress";
 import { OrgSection, OrgSectionHeader } from "../workspace/OrgSection";
-import { billingErrorCopy, type BillingSummary } from "@/lib/org/billing/types";
+import { type BillingSummary } from "@/lib/org/billing/types";
+import { useBillingClock } from "@/hooks/org/useBillingClock";
 
-export function BillingCredits({
-  summary,
-  locale,
-  date,
-}: {
-  summary: BillingSummary;
-  locale: "ko" | "en";
-  date: (value: string | null, time?: boolean) => string;
-}) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+export function BillingCredits({ summary }: { summary: BillingSummary }) {
+  const { c } = useOrgLocale();
+  const { billingErrorCopy, date, formatBillingDaysUntil } =
+    useOrgBillingFormat();
+  const now = useBillingClock();
   return (
     <OrgSection>
-      <OrgSectionHeader title={c("크레딧", "Credits")} />
+      <OrgSectionHeader title={c("Intro", "Intros")} />
       {summary.model === "scale" || summary.model === "legacy" ? (
         <p className="text-[20px] font-medium">
           {summary.model === "scale" ? c("무제한", "Unlimited") : "—"}
         </p>
       ) : !Array.isArray(summary.creditSlots) ? (
         <p role="alert" className="text-[13px] text-neutral-muted">
-          {billingErrorCopy("billing_unavailable", locale)}
+          {billingErrorCopy("billing_unavailable")}
         </p>
       ) : (
         <ul className="divide-y divide-neutral-1000-a05">
           {summary.creditSlots.map((slot) => {
+            const label =
+              slot.slotId === null
+                ? c("공용 Intro", "Shared Intros")
+                : slot.label;
             const ending =
               !!slot.cancelAt &&
               !!slot.renewsAt &&
@@ -37,11 +39,7 @@ export function BillingCredits({
                 className="grid gap-4 py-5 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_160px_minmax(0,1fr)] sm:items-center sm:gap-6"
               >
                 <div className="min-w-0">
-                  <p className="text-[14px] font-medium">
-                    {slot.slotId === null
-                      ? c("공용 크레딧", "Shared credits")
-                      : slot.label}
-                  </p>
+                  <p className="text-[14px] font-medium">{label}</p>
                   <p
                     className="mt-1 truncate text-[13px] text-neutral-muted"
                     title={slot.roleName ?? undefined}
@@ -62,7 +60,7 @@ export function BillingCredits({
                   </p>
                   <div
                     role="meter"
-                    aria-label={`${slot.label} · ${c("남은 크레딧", "Remaining credits")}`}
+                    aria-label={`${label} · ${c("남은 Intro", "Remaining Intros")}`}
                     aria-valuemin={0}
                     aria-valuemax={slot.allowance}
                     aria-valuenow={slot.remaining}
@@ -79,12 +77,12 @@ export function BillingCredits({
                 {boundary && (
                   <div className="text-[12px] leading-5 text-neutral-muted sm:text-right">
                     <time title={date(boundary, true)} dateTime={boundary}>
-                      {date(boundary)}
+                      {formatBillingDaysUntil(boundary, now)}
                     </time>
                     <p>
                       {ending
                         ? c("이용 종료", "Access ends")
-                        : c("크레딧 갱신", "Credits reset")}
+                        : c("Intro 갱신", "Intros reset")}
                     </p>
                   </div>
                 )}

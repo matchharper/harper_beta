@@ -5,20 +5,19 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { useToastStore } from "@/store/useToastStore";
 
 export function OrgLanguageMenu() {
-  const t = useOrgT();
-  const { locale, setLocale } = useOrgLocale();
+  const { locale, setLocale, c } = useOrgLocale();
   const addToast = useToastStore((state) => state.add);
   const selectLocale = (next: OrgLocale) => {
     void setLocale(next).catch(() => {
       addToast({
-        message: t(
-          "profile.languageSaveFailed",
-          "언어 설정을 저장하지 못했어요. 다시 시도해 주세요."
+        message: c(
+          "언어 설정을 저장하지 못했어요. 다시 시도해 주세요.",
+          "Couldn't save language. Try again."
         ),
         variant: "error",
       });
@@ -29,7 +28,7 @@ export function OrgLanguageMenu() {
     <DropdownMenuSub>
       <DropdownMenuSubTrigger variant="sm">
         <Globe2 className="h-4 w-4" />
-        {t("profile.language", "언어")}
+        {c("언어", "Language")}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
         <DropdownMenuItem
@@ -37,14 +36,14 @@ export function OrgLanguageMenu() {
           selected={locale === "ko"}
           onSelect={() => selectLocale("ko")}
         >
-          {t("profile.korean", "한국어")}
+          {c("한국어", "Korean")}
         </DropdownMenuItem>
         <DropdownMenuItem
           variant="sm"
           selected={locale === "en"}
           onSelect={() => selectLocale("en")}
         >
-          {t("profile.english", "English")}
+          {c("English", "English")}
         </DropdownMenuItem>
       </DropdownMenuSubContent>
     </DropdownMenuSub>

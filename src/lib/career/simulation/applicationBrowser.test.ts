@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import type { ApplicationBrowserRuntime } from "./applicationBrowserRuntime";
+import { applicationBrowserRuntime } from "./applicationBrowserRuntime";
 import {
   createSimulationSession,
   endSimulationSession,
@@ -12,6 +13,7 @@ import {
 import { createPreparation } from "./preparation";
 import {
   askApplicationInput,
+  ASK_APPLICATION_INPUT,
   finishApplicationAnswer,
 } from "./applicationInput";
 import {
@@ -109,11 +111,23 @@ const fixtureRuntime: ApplicationBrowserRuntime = {
   upload:async()=>{throw new Error("Unexpected upload");},
   stop:async()=>{},
 };
+test("pending and unsupported inspections block assisted application before browser creation", async () => {
+  const f = fixture();
+  const record = f.record();
+  record.state.applicationInspection = { status: "running", runId: "test" };
+  await assert.rejects(startApplicationBrowser(f.store, record, { purpose: "Apply" }), /still being checked/);
+  record.state.applicationInspection.status = "completed";
+  for (const status of ["unsupported", "unknown"] as const) {
+    record.state.applicationForm = { status: "unavailable", url: "https://example.test/apply", checkedAt: new Date().toISOString(), fields: [], limitations: [], submission: { status, reason: "Observed access limit" } };
+    await assert.rejects(startApplicationBrowser(f.store, record, { purpose: "Apply" }), /unavailable for this form/);
+    assert.equal(record.state.browser, undefined);
+  }
+});
 test("analysis resume is never implicitly submitted; final selection is owner checked and duplicate starts fail", async () => {
   const f = fixture();
   await assert.rejects(
     () => startApplicationBrowser(f.store, f.record(), { purpose: "Apply" }),
-    /final resume/
+    /ready_for_role/
   );
   let s = f.record().state;
   s.preparation!.finalDocumentId = "someone-elses-file";
@@ -126,13 +140,14 @@ test("analysis resume is never implicitly submitted; final selection is owner ch
   const confirmedFingerprint = s.preparation!.finalDocumentFingerprint;
   s.preparation!.finalDocumentFingerprint = null;
   f.set(s);
-  await assert.rejects(() => startApplicationBrowser(f.store, f.record(), {purpose: "Apply"}), /version-confirmed/);
+  await assert.rejects(() => startApplicationBrowser(f.store, f.record(), {purpose: "Apply"}), /read its current revision and call ready_for_role/);
   s.preparation!.finalDocumentFingerprint = confirmedFingerprint;
   f.set(s);
   const started = await startApplicationBrowser(f.store, f.record(), {
     purpose: "Apply",
-  });
+  }, 123);
   assert.equal(started.state.browser?.documentId, "final-file");
+  assert.equal(started.state.browser?.sourceMessageId, 123);
   assert.equal(started.state.browser?.status, "queued");
   await assert.rejects(
     () =>
@@ -398,7 +413,7 @@ test("terminal notification reconciles pending questions instead of aborting the
   f.set(started.state);
   const original = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ required_actions: [{
-    type: "function_call", call_id: "call-contact", turn_id: "turn-contact", name: "ask_application_input",
+    type: "function_call", call_id: "call-contact", turn_id: "turn-contact", name: ASK_APPLICATION_INPUT,
     arguments: { purpose: "Contact information", items: [{ kind: "question", title: "Which phone number?" }] },
   }] });
   try {
@@ -445,9 +460,12 @@ test("worker receives a terminal stream event but preserves a newly pending brow
   s.preparation!.finalDocumentId = "final-file";
   f.set(s);
   const started = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" });
-  Object.assign(started.state.browser!, { sessionId: "session-test", taskSent: true, status: "running", driver:{name:"fixture-browser",expiresAt:new Date(Date.now()+60000).toISOString()} });
+  Object.assign(started.state.browser!, { sessionId: "session-test", model:"gpt-6-astra", taskSent: true, status: "running", driver:{name:"550e8400-e29b-41d4-a716-446655440000",expiresAt:new Date(Date.now()+60000).toISOString(),provider:"openai",sessionId:"executor-session",environmentId:"executor-env"} });
   f.set(started.state);
   const original = globalThis.fetch;
+  const originalLog = console.log;
+  const logs: any[][] = [];
+  console.log = (...args) => logs.push(args[0] === "[llm-usage]" ? [args[0], JSON.parse(args[1])] : args);
   let streamed = false;
   globalThis.fetch = async (url, init) => {
     assert.notEqual(init?.method, "DELETE", "must not delete a browser awaiting answers");
@@ -455,11 +473,11 @@ test("worker receives a terminal stream event but preserves a newly pending brow
     if (String(url).includes("/events?")) {
       streamed = true;
       const progress = 'data: {"type":"agent.session.turn.output_text.done","item_id":"public-update","text":"지원 페이지를 확인했고 필수 답변을 확인하고 있어요."}\n\n';
-      return new Response(progress + progress + 'data: {"type":"agent.session.turn.completed","turn":{"id":"turn-question"}}\n\n', {headers: {"Content-Type":"text/event-stream"}});
+      return new Response(progress + progress + 'data: {"type":"agent.session.turn.completed","turn":{"id":"turn-question","usage":{"input_tokens":1000,"output_tokens":100}}}\n\n', {headers: {"Content-Type":"text/event-stream"}});
     }
     if (String(url).includes("/turns?")) return Response.json({ data: [{id:"turn-question",status:"in_progress"}] });
-    return Response.json({ required_actions: streamed ? [{
-      type: "function_call", call_id: "call-contact", turn_id: "turn-question", name: "ask_application_input",
+    return Response.json({usage:streamed?{input_tokens:1000,output_tokens:100}:null, required_actions: streamed ? [{
+      type: "function_call", call_id: "call-contact", turn_id: "turn-question", name: ASK_APPLICATION_INPUT,
       arguments: { purpose: "Contact information", items: [{ kind: "question", title: "Which phone number?" }] },
     }] : [] });
   };
@@ -469,7 +487,60 @@ test("worker receives a terminal stream event but preserves a newly pending brow
     assert.equal(f.record().state.browser!.result, undefined);
     assert.equal(f.record().state.activity!.batches.length, 1);
     assert.deepEqual(f.record().state.browser!.progress?.map(p => p.text), ["지원 페이지를 확인했고 필수 답변을 확인하고 있어요."]);
-  } finally { globalThis.fetch = original; }
+    assert.deepEqual(logs.map(([,receipt])=>receipt.usageScope),["agent_turn","agent_session"]);
+    assert.ok(logs.every(([,receipt])=>receipt.model==="gpt-6-astra" && receipt.estimatedCostUsd===0.015));
+  } finally { globalThis.fetch = original; console.log=originalLog; }
+});
+
+test("new conversation-only application planner starts with its task and never dispatches it twice", async () => {
+  const f = fixture();
+  const state = f.record().state;
+  state.preparation!.finalDocumentId = "final-file";
+  f.set(state);
+  const started = await startApplicationBrowser(f.store, f.record(), { purpose: "Apply" });
+  Object.assign(started.state.browser!, {
+    driver: { name: "550e8400-e29b-41d4-a716-446655440000", expiresAt: new Date(Date.now() + 60000).toISOString(), provider: "openai", sessionId: "executor", environmentId: "env" },
+    files: [{ documentId: "final-file", name: "Resume.pdf", path: "/workspace/attachments/synthetic.pdf", hash: started.state.browser!.documentHash, contentHash: createHash("sha256").update("SYNTHETIC RESUME").digest("hex") }],
+  });
+  f.set(started.state);
+  (f.store.admin as any).storage = { from: () => ({ download: async () => ({ data: new Blob(["SYNTHETIC RESUME"]), error: null }) }) };
+  const original = globalThis.fetch;
+  const originalExecute = applicationBrowserRuntime.execute;
+  const snapshot = { url: started.state.browser!.url, title: "Application", text: "Name", elements: [] };
+  applicationBrowserRuntime.execute = async (_ref, action, _files, commandId) => {
+    assert.deepEqual(action, { action: "navigate", url: snapshot.url });
+    assert.equal(commandId, `initial:${started.state.browser!.id}`);
+    return { snapshot };
+  };
+  const originalLog = console.log;
+  console.log = () => {};
+  const posted: any[] = [];
+  globalThis.fetch = async (url, init) => {
+    if (init?.method === "POST") {
+      assert.ok(String(url).endsWith("/agents/sessions"), "No duplicate task message or cancellation");
+      const body = JSON.parse(String(init.body));
+      posted.push(body);
+      assert.equal(body.environment.type, "none");
+      assert.equal(body.agent.model, "gpt-6.1-sol");
+      assert.deepEqual(body.agent.reasoning, { effort: "low" });
+      assert.equal(body.input[0].role, "user");
+      const input = JSON.parse(body.input[0].content[0].text);
+      assert.equal(input.url, "https://example.org/jobs/engineer");
+      assert.equal(input.finalResumeDocumentId, "final-file");
+      assert.deepEqual(input.attachments, [{ documentId: "final-file", name: "Resume.pdf" }]);
+      assert.deepEqual(input.snapshot, snapshot);
+      return Response.json({ id: "new-planner", agent: { model: "gpt-6.1-sol" } });
+    }
+    assert.notEqual(init?.method, "DELETE", "An application awaiting input remains active");
+    return Response.json({ required_actions: [{ type: "function_call", call_id: "contact", turn_id: "turn-contact", name: ASK_APPLICATION_INPUT, arguments: { purpose: "Contact", items: [{ kind: "question", title: "Phone number?" }] } }] });
+  };
+  try {
+    await runApplicationBrowser(f.store, 10);
+    assert.equal(posted.length, 1);
+    assert.equal(f.record().state.browser!.taskSent, true);
+    assert.equal(f.record().state.browser!.sessionId, "new-planner");
+    assert.equal(f.record().state.browser!.status, "waiting");
+  } finally { globalThis.fetch = original; console.log = originalLog; applicationBrowserRuntime.execute = originalExecute; }
 });
 
 test("invalid browser question is returned for correction without ending the session; corrected question waits in the same run", async () => {
@@ -495,7 +566,7 @@ test("invalid browser question is returned for correction without ending the ses
     }
     if (String(url).includes("/turns?")) return Response.json({ data: [{id:"turn-question",status:"in_progress"}] });
     return Response.json({ required_actions: [{
-      type:"function_call",name:"ask_application_input",call_id:corrected ? "fixed" : "bad",turn_id:"turn-question",
+      type:"function_call",name:ASK_APPLICATION_INPUT,call_id:corrected ? "fixed" : "bad",turn_id:"turn-question",
       arguments: { purpose:"Contact",items:[corrected
         ? {kind:"question",title:"Which phone number?"}
         : {actionId:"phone-number",kind:"question",title:"Which phone number?"}] },

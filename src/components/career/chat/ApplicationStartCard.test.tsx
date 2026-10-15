@@ -26,7 +26,6 @@ test("compact start card and disables starting until a resume is selected", () =
   for (const label of [
     "하퍼로 지원하기",
     "이력서를 업로드해 주세요",
-    "약 10분",
     "함께 지원 시작하기",
   ])
     assert.ok(html.includes(label));

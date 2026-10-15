@@ -1,6 +1,6 @@
 ---
 title: "Harper Company Service Terms"
-description: "Terms for company Workspaces, subscriptions, credits, renewal, cancellation, refunds, and candidate data."
+description: "Terms for company Workspaces, subscriptions, Intros, renewal, cancellation, refunds, and candidate data."
 slug: "company-service-terms"
 version: "1.0.0"
 status: "draft"
@@ -11,7 +11,7 @@ contact_email: "chris@matchharper.com"
 
 # Harper Company Service Terms
 
-> Review draft · October 7, 2026. The effective date and US contracting entity remain to be confirmed. This document does not yet apply to customers. Publication checks are recorded in this folder's README.
+> Review draft · October 12, 2026. The effective date and US contracting entity remain to be confirmed. This document does not yet apply to customers. Publication checks are recorded in this folder's README.
 
 These Terms apply to companies using Harper for hiring and team members acting on their behalf. Candidate personal data is also governed by the Privacy Policy and the disclosure consent presented to that candidate for the relevant company.
 
@@ -19,7 +19,7 @@ These Terms apply to companies using Harper for hiring and team members acting o
 
 “Customer” means the company or business using a Workspace. “Harper” means the legal entity identified as the service supplier in the order form or checkout. The supplier, contact details, price, currency, and billing interval must be available before purchase.
 
-A team member accepting these Terms or making a purchase for a company must have authority to act for it. Each Workspace has its own subscriptions, credits, and limits, even when one personal account accesses several Workspaces.
+A team member accepting these Terms or making a purchase for a company must have authority to act for it. Each Workspace has its own subscriptions, Intros, and limits, even when one personal account accesses several Workspaces.
 
 A separately signed Enterprise agreement or order form takes precedence only where it expressly sets different conditions. No agreement limits rights that cannot lawfully be waived.
 
@@ -39,19 +39,19 @@ Only team members with billing management permission may purchase or cancel subs
 
 ## 4. Plans and hiring slots
 
-A “slot” is capacity for one role with hiring in progress at a time. It is not a monthly allowance for creating one new role. Pausing or closing a role releases capacity for another role.
+A “slot” is a subscription that assigns paid features and monthly Intros to one Role. Free and standard Slot plans allow unlimited Roles and hiring activity. Slot counts and Intro balances do not limit Role creation or activation.
 
-| Plan | Concurrent active roles | Monthly credits | Conditions |
+| Plan | Roles | Monthly Intros | Conditions |
 | --- | --- | --- | --- |
-| Free | 1 per Workspace | 5 | Some paid features, including accepting candidates awaiting connection, are restricted |
-| Slot | 1 per valid Slot subscription | 50 per Slot | Each Slot may have a different start and renewal date |
+| Free | Unlimited | 10 shared across all Roles | Some paid features, including accepting candidates awaiting connection, are restricted |
+| Slot | Unlimited | 50 per Slot, with the Workspace's shared 10 retained | Each Slot's paid features apply to one assigned Role. Each Slot may have a different start and renewal date |
 | Enterprise | Specified in the separate agreement | Specified in the separate agreement | Scope and pricing model agreed with Harper upon request |
 
-One paid Slot provides one active role in total; two provide two. Free capacity and credits are not added to the paid allowance. Unlimited Enterprise use applies only where expressly agreed.
+Adding a paid Slot retains the Workspace's separate allowance of 10 shared monthly Intros. Every Role can use shared Intros, but paid features such as accepting candidates awaiting connection require a valid Slot assigned to that Role. An unassigned Role can send contact requests using shared Intros. Unlimited Enterprise Intros apply only where expressly agreed.
 
-Customers may create and save additional roles even when all slots are occupied. Starting hiring requires releasing a slot or purchasing another Slot. Creating a role does not itself create a subscription or charge.
+Customers may create, activate or resume Roles even when all slots are assigned or Intros are exhausted. Role creation or activation does not itself create a subscription or charge.
 
-Available slots are assigned automatically when hiring starts. Customers may change assignments through the available management features. Changing or pausing a role does not reduce subscription fees or change credit renewal dates.
+Available slots are assigned automatically when hiring starts. Customers may change assignments through the available management features. Changing or pausing a role does not reduce subscription fees or change Intro renewal dates.
 
 ## 5. Subscription prices and payment
 
@@ -80,34 +80,34 @@ When proposing a paid transition to an existing free or early-access customer, H
 
 Harper will give advance notice of subscription price changes and will not change the price of an already paid period retroactively. Customers may cancel renewal before the new price takes effect. Any additional notice or consent required by law will be obtained.
 
-A failed or incomplete payment may prevent a new paid period and credit allocation from starting. Already paid periods remain subject to their conditions. After expiry, limits are adjusted to the valid subscriptions remaining.
+A failed or incomplete payment may prevent a new paid period and slot Intro allocation from starting. Already paid periods remain subject to their conditions. After expiry, access to paid features and slot Intros follows the valid subscriptions remaining. Unlimited Roles and shared Intros remain separate.
 
-## 7. Credit allocation and expiry
+## 7. Intro allocation and expiry
 
-Credits measure access to designated features within a Workspace. They are not cash, a deposit, or an asset transferable to another Workspace.
+Intros measure access to designated features within a Workspace. They are not cash, a deposit, or an asset transferable to another Workspace.
 
-Free provides five credits on the Workspace's monthly renewal date. Each paid Slot provides 50 credits every month based on its subscription start date. Annual subscriptions also renew credits monthly; 600 credits are not available upfront. If an anniversary date does not exist in a month, the boundary is adjusted to that month's last day. Exact times are available in billing management.
+Workspaces on Free or standard Slot plans receive 10 Intros shared across all Roles on the Workspace's monthly renewal date. Each paid Slot separately provides 50 Intros every month based on its subscription start date. Annual subscriptions also renew slot Intros monthly; 600 Intros are not available upfront. If an anniversary date does not exist in a month, the boundary is adjusted to that month's last day. Exact times are available in billing management.
 
-Unused credits expire at the end of their own period and do not roll over. When Slots have different renewal dates, only the renewing Slot's credits expire and renew. Credits are allocated to each Slot and may be used only by the Role assigned to that slot. Credits from other slots cannot be used instead. Changing Role assignments preserves each slot’s balance and renewal date.
+Unused Intros expire at the end of their own period and do not roll over. Shared Intros and each Slot follow independent renewal dates. When Slots have different renewal dates, only the renewing Slot's Intros expire and renew. A Role uses its assigned Slot's Intros first, then shared Intros if needed. It cannot use another paid Slot's Intros. Changing Role assignments preserves each slot’s balance and renewal date.
 
-For example, if Slot A renews on the fifth and Slot B on the twentieth, the fifth replaces A's unused credits with A's new allocation of 50. B's remaining credits stay available until B's own renewal.
+For example, if Slot A renews on the fifth and Slot B on the twentieth, the fifth replaces A's unused Intros with A's new allocation of 50. B's remaining Intros stay available until B's own renewal.
 
-The first upgrade from Free starts with a full 50 paid credits. Unused Free credits are not added and previously used Free credits are not deducted. Using all five Free credits still results in 50, not 45. Returning to Free does not carry over paid credits or reset the existing Free monthly renewal schedule.
+The first paid Slot purchase provides that Slot with 50 Intros separately, while preserving the shared Intro balance and renewal date. Purchasing after using all 10 shared Intros still provides the Slot with 50 Intros. A purchase does not restore the shared balance or combine it with the slot balance. Shared Intros retain their existing monthly renewal schedule after paid subscriptions end; unused Intros from an expired Slot do not carry over.
 
-## 8. Actions that use credits
+## 8. Actions that use Intros
 
-| Action | Credits |
+| Action | Intros |
 | --- | --- |
 | Sending a contact request (Intro) to an eligible candidate, accepted by the service | 1 per candidate request |
 | The company accepting a candidate awaiting connection | 1 per acceptance |
-| A candidate accepting an Intro for which a credit was already used | No additional credit |
+| A candidate accepting an Intro for which an Intro was already used | No additional Intro |
 | Viewing or declining candidates; creating, editing, or pausing roles | None |
 
-Retries or duplicate processing of the same request do not use additional credits. Requests not accepted because of an error must not use credits; incorrect usage is corrected after verification.
+Retries or duplicate processing of the same request do not use additional Intros. Requests not accepted because of an error must not use Intros; incorrect usage is corrected after verification.
 
-Credits cover use of the contact-request or connection-acceptance feature. Once a request is successfully accepted by the service, a lack of response, a rejection, or the absence of a hire does not by itself restore the credit.
+Intros cover use of the contact-request or connection-acceptance feature. Once a request is successfully accepted by the service, a lack of response, a rejection, or the absence of a hire does not by itself restore the Intro.
 
-Balances and usage history are available in billing management. If credits are insufficient, the action does not proceed. Customers may contact the Harper team for additional use. A low balance does not trigger an automatic top-up or additional charge. Any separate credit purchase requires disclosed pricing and the Customer's agreement.
+Balances and usage history are available in billing management. If Intros are insufficient, the action does not proceed. Customers may contact the Harper team for additional use. A low balance does not trigger an automatic top-up or additional charge. Any separate Intro purchase requires disclosed pricing and the Customer's agreement.
 
 ## 9. Cancellation and expiry
 
@@ -115,15 +115,15 @@ A team member with billing management permission can cancel renewal for each Slo
 
 Cancellation stops the next renewal. Access continues until the end of the paid period: the monthly period for monthly subscriptions, or the full paid year for annual subscriptions. A monthly subscription running October 7–November 7 ends on November 7 if canceled on October 20, rather than at the end of October.
 
-The canceled subscription's slot is withdrawn at expiry. If another valid paid slot is empty, the role is reassigned automatically; if capacity is insufficient, the role may be paused. Before expiry, Customers may move a role they want to retain to another valid slot. If assignments change after cancellation, the assignment at expiry determines the affected role.
+The canceled subscription's slot is withdrawn at expiry. If another valid slot is empty, the Role is reassigned automatically; otherwise it continues with Free features and shared Intros. Slot expiry alone does not pause a Role. Before expiry, Customers may assign a Role to another valid slot to retain paid features. If assignments change after cancellation, the assignment at expiry determines the affected Role.
 
-Other Slot subscriptions remain in place under their own terms. After the last paid subscription expires, Free limits apply and up to one active role can remain active. Expiry alone does not delete role content or candidate records. Hiring may be restarted within Free capacity.
+Other Slot subscriptions remain in place under their own terms. Roles remain unlimited after the last paid subscription expires, and hiring may continue or resume with Free features and shared Intros. Expiry alone does not delete Role content or candidate records.
 
 Pausing a role, a team member leaving, and disconnecting Slack are separate from cancellation. Customers closing a Workspace should also review active subscriptions. Harper will explain how remaining paid subscriptions are handled when processing a Workspace closure request.
 
 ## 10. Refunds and billing errors
 
-Monthly and annual subscriptions are generally not refunded on a daily or monthly pro-rata basis for a change of mind, hiring plans, partial non-use, or mid-period cancellation. Access continues through the paid period under Section 9. Unused credits are not separately redeemable for cash.
+Monthly and annual subscriptions are generally not refunded on a daily or monthly pro-rata basis for a change of mind, hiring plans, partial non-use, or mid-period cancellation. Access continues through the paid period under Section 9. Unused Intros are not separately redeemable for cash.
 
 This rule is subject to applicable law and appropriate correction, refund, or other remedies for:
 
@@ -147,7 +147,7 @@ These Terms do not automatically change rights or obligations under a separately
 
 Customers may use lawfully received candidate information only as needed for the relevant hiring review and communication. Access must be limited to team members who need it. Unrelated advertising or sales, unauthorized bulk contact, sale of data, or onward disclosure is prohibited. Another purpose requires its own lawful basis.
 
-Paying fees or credits does not replace candidate consent or authorize access to information not available in the service. Disclosure to a specific company requires the candidate's consent or another lawful basis. Candidate acceptance alone must not be assumed to make information automatically available to a company; necessary checks and disclosure steps still apply.
+Paying fees or using Intros does not replace candidate consent or authorize access to information not available in the service. Disclosure to a specific company requires the candidate's consent or another lawful basis. Candidate acceptance alone must not be assumed to make information automatically available to a company; necessary checks and disclosure steps still apply.
 
 Customers must honor the purposes and retention period disclosed to the candidate and delete data when they end, unless a lawful retention ground applies. The current company-specific consent provides for retention for six months after hiring review ends; the actual consent presented to that candidate governs.
 

@@ -1,6 +1,14 @@
+import { publishedCompensation } from "../companyRoles/publishedCompensation";
+import { SEARCH_TITLE_INSTRUCTION, SEARCH_TITLE_NEIGHBOR_LIMIT } from "../externalRecommendationsV2/searchTitles";
+import {
+  SALARY_MARKET_VALUE_INSTRUCTION,
+  SALARY_TARGET_UNIT_INSTRUCTION,
+  SALARY_TARGET_FX_CONTEXT,
+} from "../externalRecommendationsV2/salary";
 import { fetchRecentTalentActivitySummaries } from "@/lib/talentOnboarding/activityEvents";
 import { createHash } from "node:crypto";
 import type { RecommendJobPostingStatus } from "./recommendJobPostingStatus";
+import { RoleSqlExecutionError } from "./jobPostingSearchError";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import { partitionOpportunityFeedbackReasons } from "@/lib/career/opportunityFeedbackSignals";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
@@ -63,6 +71,7 @@ type PostingRecency = {
 };
 
 export type ExternalSearchPlan = {
+  targetSalaryKrw?: number | null;
   ftsKeywords: FtsKeyword[];
   includeContract: boolean;
   includeIntern: boolean;
@@ -76,7 +85,8 @@ export type ExternalSearchPlan = {
   postingRecency: PostingRecency | null;
 };
 
-type RawRoleRow = {
+export type RawRoleRow = {
+  salary_is_predicted?: boolean;
   company_db_description?: string | null;
   company_db_employee_count_range?: unknown;
   company_db_founded_year?: number | string | null;
@@ -105,7 +115,7 @@ type RawRoleRow = {
   work_mode?: string | null;
 };
 
-type RoleCard = {
+export type RoleCard = {
   company: {
     description?: string | null;
     employeeCountRange?: unknown;
@@ -226,7 +236,7 @@ const COMPANY_LEADERSHIP_MAX_EMPLOYEE_COUNT_END = 201;
 const FTS_RANK_WEIGHTS = "ARRAY[0.04,0.57,0.64,1.0]::real[]";
 const MAX_FTS_KEYWORDS = 8;
 const MAX_FTS_TERMS_PER_KEYWORD = 8;
-const MAX_ROLE_TITLES = 12;
+const MAX_ROLE_TITLES = 24;
 const COMPANY_TEST_SCORE_MAX = 20;
 const COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR = 5;
 const RECOMMEND_JOB_POSTINGS_PLAN_MODEL =
@@ -250,6 +260,9 @@ const RECOMMEND_JOB_POSTINGS_SQL_FAILURE_LOG_TYPE =
   "career_tool_sql_failed:recommend_job_postings";
 const ROLE_SQL_TIMEOUT_RETRY_INSTRUCTION =
   "위 쿼리의 범위가 너무 넓어서 timeout이 발생했다. 어느정도 더 좁혀서 작성해라.";
+const SALARY_SEARCH_TARGET_INSTRUCTION = `${SALARY_MARKET_VALUE_INSTRUCTION}
+${SALARY_TARGET_UNIT_INSTRUCTION}
+${SALARY_TARGET_FX_CONTEXT}`;
 
 const PLAN_SYSTEM_PROMPT = `You are Harper's external job-posting search planner.
 Return JSON only.
@@ -262,6 +275,7 @@ The user's latest request is the primary retrieval target. Use the compact user 
 
 Output schema:
 {
+  "targetSalaryKrw": null,
   "searchIntentSummary": "one sentence in the requested user-facing output language focused on the current request",
   "ftsKeywords": [{"terms": ["synonym", "group"], "weight": 1.0}],
   "role_titles": ["role title fragment"],
@@ -276,11 +290,12 @@ Output schema:
 }
 
 Rules:
-- role_titles are the first DB retrieval gate over company_roles.name. ftsKeywords are applied only after title/type/location filtering narrows the candidate pool.
+- role_titles describe the semantic title search. ftsKeywords are applied after the title/type/location search narrows the candidate pool.
 - Use ftsKeywords for role titles, role description, companies, domain, skills, methods, and problem area. Use only important keywords, not broad terms.
 - Return at most 4 ftsKeywords groups, with 4-8 terms in each group. Put only true synonyms or near-equivalent aliases in the same group; do not use extra groups for weak supporting context.
 - 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
 - Avoid standalone broad terms such as "AI", "data", "software".
+- ${SALARY_SEARCH_TARGET_INSTRUCTION}
 - Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "global", or "Seoul" unless that word is literally part of the work domain.
 - 과하게 일반적인 단어는 절대 ftsKeywords에 넣지마라. ex: ai, data, software, LLM, etc
 - locations: Geographic location filters or preferences only. Never put "remote" here. Keep empty if location preference is unknown.
@@ -296,13 +311,7 @@ Rules:
   recentDays: integer 1-3650, the recent-posting window. maxAgeDays: integer 1-3650, the hard age cutoff.
   recentWeight and olderWeight: independent search-rank bonuses from 0 to 20. Use null for any unset value.
 ## role_titles rules
-- role_titles are a hard role-title gate over company_roles.name using ILIKE. Always output 1-15 title fragments.
-  - They must be role/title fragments likely to appear in cr.name, not company names, domains, skills, locations, company stage, or preferences.
-  - English title fragments are preferred for English-market roles; include Korean aliases when Korean postings are relevant.
-  - Recall matters more than precision. Use broad-enough fragments so good roles are not excluded by an overly specific title.
-  - Good: "Engineer", "Developer", "Research Engineer", "Software Engineer", "Backend", "Product Manager", "Designer", "개발자", "엔지니어", "기획자", "공무원".
-  - Bad: "국가직 공기업 공무원" when "공무원" would keep the right roles; "Series B", "remote", "OpenAI", "LLM", "fintech".
-  - Because SQL uses ILIKE substring matching, do not include a narrower value already covered by another output value. Example: if you output "Engineer", do not also output "ML Engineer".
+- ${SEARCH_TITLE_INSTRUCTION}
 
   - include_contract/include_parttime/include_intern are hard employment-type switches over company_roles.type.
   - Set each to true only when the user explicitly accepts or asks for that engagement type.
@@ -314,12 +323,13 @@ Rules:
 - If the request is broad, still produce high-recall ftsKeywords based on user's profile rather than generic "good jobs".
 `;
 
-const FULL_JD_PLAN_SYSTEM_PROMPT = `Create a high-recall search plan for external public job postings. Return JSON only.
+export const FULL_JD_PLAN_SYSTEM_PROMPT = `Create a high-recall search plan for external public job postings. Return JSON only.
 
 The current request is the primary target. Use explicit user settings next. Profile, saved career context, and feedback may help choose aliases and relevant domain terms, but do not turn an inferred or weak preference into a hard database filter.
 
 Return exactly this shape:
 {
+  "targetSalaryKrw": null,
   "searchIntentSummary": "one sentence in the requested output language",
   "ftsKeywords": [{"terms": ["synonyms"], "weight": 1.0}],
   "role_titles": ["broad title fragment"],
@@ -333,10 +343,12 @@ Return exactly this shape:
   "postingRecency": null
 }
 
-role_titles is a hard ILIKE gate over the posting title, so return 1-12 broad title fragments and useful Korean/English aliases. Recall matters more than precision. Do not put company names, skills, location, stage, or prestige in role_titles.
+${SEARCH_TITLE_INSTRUCTION}
 
 ftsKeywords may cover title, responsibilities, domain, skills, and problem area. Group Korean/English synonyms when useful. Avoid generic standalone terms and do not put company stage, funding, investors, salary, culture, brand prestige, location, or work mode in ftsKeywords. Use weights 1-5 to express relevance, not exclusion.
 Return at most 4 ftsKeywords groups, with 4-8 terms per group. A group must contain only true synonyms or near-equivalent aliases; do not spend groups on weak supporting context.
+
+${SALARY_SEARCH_TARGET_INSTRUCTION}
 
 Only use locations when the current request or an explicit setting makes geography a real constraint. Leave locations empty for an inferred profile location or a mild preference. Never put remote in locations. Set remoteOnly only for an explicit remote-only requirement. includeRemote controls whether otherwise matching remote roles are allowed.
 
@@ -1168,7 +1180,7 @@ type PreviousExternalRecommendation = {
   roleName: string;
 };
 
-async function fetchExistingExternalRecommendations(args: {
+export async function fetchExistingExternalRecommendations(args: {
   admin: AdminClient;
   asOf?: string | null;
   userId: string;
@@ -1549,69 +1561,17 @@ function normalizeFtsKeywords(raw: unknown, fallbackText: string) {
 }
 
 function cleanRoleTitle(value: unknown) {
-  return cleanText(value, 80).replace(/[%_]+/g, " ").replace(/\s+/g, " ");
+  return cleanText(value, 80)
+    .replace(/[%_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function isLikelyRoleTitle(value: string) {
-  const lowered = value.toLocaleLowerCase("ko-KR");
-  return /engineer|developer|scientist|research|researcher|manager|designer|analyst|architect|founder|founding|lead|owner|consultant|sales|recruiter|marketer|writer|editor|intern|backend|frontend|front-end|fullstack|full-stack|product|pm|po|개발|엔지니어|연구|리서치|매니저|매니지|기획|디자이너|분석|세일즈|영업|마케팅|인턴|백엔드|프론트엔드|풀스택|공무원/.test(
-    lowered
-  );
-}
-
-function normalizeRoleTitles(
-  raw: unknown,
-  ftsKeywords: FtsKeyword[],
-  fallbackText: string
-) {
-  const candidates = asStringArray(raw, MAX_ROLE_TITLES * 2, 80)
+function normalizeRoleTitles(raw: unknown) {
+  // The planner owns title selection; only normalize the SQL input contract.
+  return asStringArray(raw, MAX_ROLE_TITLES, 80)
     .map(cleanRoleTitle)
-    .filter((title) => title && isLikelyRoleTitle(title));
-  if (candidates.length === 0) {
-    for (const keyword of ftsKeywords) {
-      for (const term of keyword.terms) {
-        const title = cleanRoleTitle(term);
-        if (title && isLikelyRoleTitle(title)) candidates.push(title);
-        if (candidates.length >= MAX_ROLE_TITLES * 2) break;
-      }
-      if (candidates.length >= MAX_ROLE_TITLES * 2) break;
-    }
-  }
-  if (candidates.length === 0) {
-    for (const match of fallbackText.matchAll(
-      /[A-Za-z가-힣][A-Za-z가-힣0-9.+#/-]*(?:\s+[A-Za-z가-힣][A-Za-z가-힣0-9.+#/-]*){0,3}/g
-    )) {
-      const title = cleanRoleTitle(match[0]);
-      if (title && isLikelyRoleTitle(title)) candidates.push(title);
-      if (candidates.length >= MAX_ROLE_TITLES * 2) break;
-    }
-  }
-
-  const unique = new Map<string, string>();
-  for (const candidate of candidates) {
-    const title = cleanRoleTitle(candidate);
-    if (!title) continue;
-    const key = title.toLocaleLowerCase("ko-KR");
-    if (!unique.has(key)) unique.set(key, title);
-  }
-
-  const result: string[] = [];
-  for (const title of Array.from(unique.values()).sort(
-    (a, b) => a.length - b.length
-  )) {
-    const key = title.toLocaleLowerCase("ko-KR");
-    if (
-      result.some((existing) =>
-        key.includes(existing.toLocaleLowerCase("ko-KR"))
-      )
-    ) {
-      continue;
-    }
-    result.push(title);
-    if (result.length >= MAX_ROLE_TITLES) break;
-  }
-
-  return result.length > 0 ? result : ["Engineer"];
+    .filter(Boolean);
 }
 
 function entryPreferenceField(record: JsonRecord, ...keys: string[]) {
@@ -1703,7 +1663,7 @@ function normalizePostingRecency(value: unknown): PostingRecency | null {
     : null;
 }
 
-function normalizeExternalSearchPlan(
+export function normalizeExternalSearchPlan(
   raw: JsonRecord | null,
   request: string,
   outputLanguage = "Korean"
@@ -1751,14 +1711,15 @@ function normalizeExternalSearchPlan(
     ),
     locations: expandLocationSearchTerms(geoLocations),
     remoteOnly,
-    roleTitles: normalizeRoleTitles(
-      source.role_titles ?? source.roleTitles,
-      ftsKeywords,
-      fallbackText
-    ),
+    roleTitles: normalizeRoleTitles(source.role_titles ?? source.roleTitles),
     postingRecency: normalizePostingRecency(
       source.postingRecency ?? source.posting_recency
     ),
+    ...(typeof source.targetSalaryKrw === "number" &&
+    Number.isFinite(source.targetSalaryKrw) &&
+    source.targetSalaryKrw > 0
+      ? { targetSalaryKrw: source.targetSalaryKrw }
+      : {}),
     searchIntentSummary:
       cleanText(source.searchIntentSummary ?? raw?.searchIntentSummary, 260) ||
       careerT(
@@ -1890,7 +1851,7 @@ async function buildFullJdSearchPlan(args: {
   }
 }
 
-function sqlLiteral(value: string) {
+export function sqlLiteral(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
@@ -1904,7 +1865,7 @@ function sqlNumber(value: number) {
   return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "1";
 }
 
-function buildPostingRecencySql(plan: ExternalSearchPlan) {
+export function buildPostingRecencySql(plan: ExternalSearchPlan) {
   const recency = plan.postingRecency;
   if (!recency) return { rankSql: "0", where: [] as string[] };
 
@@ -1954,7 +1915,7 @@ function ftsKeywordQuerySql(keyword: FtsKeyword) {
   return terms.length === 1 ? terms[0] : `(${terms.join(" || ")})`;
 }
 
-function ftsAnyQuerySql(keywords: FtsKeyword[]) {
+export function ftsAnyQuerySql(keywords: FtsKeyword[]) {
   const groups = keywords
     .map(ftsKeywordQuerySql)
     .filter((sql): sql is string => Boolean(sql));
@@ -1962,7 +1923,7 @@ function ftsAnyQuerySql(keywords: FtsKeyword[]) {
   return groups.length === 1 ? groups[0] : `(${groups.join(" || ")})`;
 }
 
-function ftsRankSql(keywords: FtsKeyword[], vectorSql: string) {
+export function ftsRankSql(keywords: FtsKeyword[], vectorSql: string) {
   const parts = keywords
     .map((keyword) => {
       const query = ftsKeywordQuerySql(keyword);
@@ -1973,7 +1934,7 @@ function ftsRankSql(keywords: FtsKeyword[], vectorSql: string) {
   return parts.length > 0 ? `(${parts.join(" + ")})` : "0";
 }
 
-function buildBlockedCompanySql(blockedCompanies: string[]) {
+export function buildBlockedCompanySql(blockedCompanies: string[]) {
   return blockedCompanies
     .map((company) => cleanText(company, 100))
     .filter(Boolean)
@@ -2004,7 +1965,7 @@ function buildExcludedEmploymentTypeSql(types: string[]) {
   )`;
 }
 
-function buildEmploymentTypeSql(plan: ExternalSearchPlan) {
+export function buildEmploymentTypeSql(plan: ExternalSearchPlan) {
   const clauses: string[] = [];
   if (!plan.includeContract) {
     clauses.push(
@@ -2111,7 +2072,7 @@ function isRemoteLocationTerm(location: string) {
   return location.toLocaleLowerCase("ko-KR") === "remote";
 }
 
-function buildLocationSql(plan: ExternalSearchPlan) {
+export function buildLocationSql(plan: ExternalSearchPlan) {
   const locationParts = expandLocationSearchTerms(plan.locations)
     .map((location) => cleanText(location, 100))
     .filter(Boolean)
@@ -2134,7 +2095,7 @@ function buildLocationSql(plan: ExternalSearchPlan) {
   ];
 }
 
-function previouslyRecommendedRoleExclusionSql(
+export function previouslyRecommendedRoleExclusionSql(
   userId: string,
   asOf?: string | null
 ) {
@@ -2159,31 +2120,68 @@ export function buildRoleSearchSql(args: {
   plan: ExternalSearchPlan;
   searchMode: RoleSearchMode;
   userId: string;
+  // Optional SQL lab controls. Normal recommendation calls retain both FTS stages.
+  ftsFiltering?: boolean;
+  ftsRanking?: boolean;
+  titleVector?: number[];
 }) {
+  if (
+    args.titleVector &&
+    (args.titleVector.length !== 1536 ||
+      !args.titleVector.every(Number.isFinite))
+  )
+    throw new Error("Invalid combined title vector");
+  const titleSearchCte = args.titleVector
+    ? `nearest_titles AS MATERIALIZED (
+  SELECT te.title_key,te.title FROM public.external_role_title_embeddings te
+  WHERE te.embedding IS NOT NULL AND te.live_role_count>0
+  ORDER BY (te.embedding::public.halfvec(1536)) OPERATOR(public.<=>) ${sqlLiteral(JSON.stringify(args.titleVector))}::public.halfvec(1536) LIMIT ${SEARCH_TITLE_NEIGHBOR_LIMIT}
+),\n`
+    : "";
+  const ftsFiltering = args.ftsFiltering !== false;
+  const ftsRanking = args.ftsRanking !== false;
   const ftsQuerySql = ftsAnyQuerySql(args.plan.ftsKeywords);
   const companyTestScoreRankSql = `COALESCE(tc.company_test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
   const postingRecencySql = buildPostingRecencySql(args.plan);
-  const searchRankSql = `(${ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv")} + ${companyTestScoreRankSql} + ${entryPreferenceRankSql(args.plan.isPreferEntry, "tc.role_name", "tc.seniority_level")} + ${postingRecencySql.rankSql})`;
+  const keywordRankSql = ftsRanking
+    ? ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv")
+    : "0";
+  const ftsCteSql = ftsFiltering
+    ? `fts AS (\n  SELECT ${ftsQuerySql} AS query\n),\n`
+    : "";
+  const topicalRankSql = `(${keywordRankSql} + ${companyTestScoreRankSql} + ${entryPreferenceRankSql(args.plan.isPreferEntry, "tc.role_name", "tc.seniority_level")} + ${postingRecencySql.rankSql})`;
+  const salaryTarget = args.plan.targetSalaryKrw;
+  if (
+    salaryTarget != null &&
+    (!Number.isFinite(salaryTarget) || salaryTarget <= 0)
+  )
+    throw new Error("Invalid salary target");
+  const searchRankSql = salaryTarget
+    ? `(${topicalRankSql} * (0.65+0.7*public.external_role_salary_satisfaction(tc.salary_min,tc.salary_max,tc.salary_currency,tc.salary_period,${salaryTarget})))`
+    : topicalRankSql;
   const where = [
     "COALESCE(cr.is_expired, false) = false",
     "(cr.expires_at IS NULL OR cr.expires_at > now())",
-    "cr.status NOT IN ('expired', 'closed', 'inactive', 'archived')",
+    "cr.status NOT IN ('ended', 'expired', 'closed', 'inactive', 'archived')",
     "cr.source_type = 'external'",
+    "lower(coalesce(cr.information->>'testOnly','false')) <> 'true'",
     "COALESCE(cr.source_provider, '') <> 'user_submitted'",
     "cw.external_roles_enabled = true",
     previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildEmploymentTypeSql(args.plan),
-    ...buildRoleTitleSql(args.plan.roleTitles),
+    ...(args.titleVector
+      ? [
+          "md5(cr.name)=ANY(ARRAY(SELECT title_key FROM nearest_titles))",
+          "EXISTS (SELECT 1 FROM nearest_titles nt WHERE nt.title_key=md5(cr.name) AND nt.title=cr.name)",
+        ]
+      : buildRoleTitleSql(args.plan.roleTitles)),
     ...buildLocationSql(args.plan),
     ...postingRecencySql.where,
   ].filter((sql): sql is string => Boolean(sql));
 
   return `
-WITH fts AS (
-  SELECT ${ftsQuerySql} AS query
-),
-title_candidates AS MATERIALIZED (
+WITH ${titleSearchCte}${ftsCteSql}title_candidates AS MATERIALIZED (
   SELECT
     cr.role_id::text AS role_id,
     cr.company_workspace_id::text AS company_workspace_id,
@@ -2192,6 +2190,7 @@ title_candidates AS MATERIALIZED (
     cr.posted_at,
     cr.seniority_level,
     cr.updated_at AS role_updated_at,
+    cr.salary_min,cr.salary_max,cr.salary_currency,cr.salary_period,
     cw.test_score AS company_test_score
   FROM public.company_roles cr
   JOIN public.company_workspace cw
@@ -2211,8 +2210,7 @@ candidates AS (
     tc.company_test_score,
     ${searchRankSql} AS search_rank
   FROM title_candidates tc
-  JOIN fts
-    ON tc.opportunity_search_tsv @@ fts.query
+  ${ftsFiltering ? "JOIN fts\n    ON tc.opportunity_search_tsv @@ fts.query" : ""}
 ),
 ranked_candidates AS (
   SELECT
@@ -2242,6 +2240,7 @@ SELECT
   cr.salary_currency,
   cr.salary_period,
   cr.salary_range,
+  cr.salary_is_predicted,
   ranked.seniority_level,
   cr.summary AS role_summary,
   cw.company_name,
@@ -2295,7 +2294,7 @@ function unwrapRpcArray(value: unknown): unknown[] | null {
   return null;
 }
 
-function flattenRpcRows(value: unknown): unknown[] {
+export function flattenRpcRows(value: unknown): unknown[] {
   const parsed = parseMaybeJsonValue(value);
   const topLevel = Array.isArray(parsed) ? parsed : [parsed];
   const rows: unknown[] = [];
@@ -2422,18 +2421,6 @@ function hasRoleData(row: RawRoleRow | null): row is RawRoleRow {
   );
 }
 
-class RoleSqlExecutionError extends Error {
-  readonly sql: string;
-  readonly timedOut: boolean;
-
-  constructor(args: { message: string; sql: string }) {
-    super(args.message);
-    this.name = "RoleSqlExecutionError";
-    this.sql = args.sql;
-    this.timedOut = /statement timeout/i.test(args.message);
-  }
-}
-
 async function executeRoleSql(args: {
   admin: AdminClient;
   asOf?: string | null;
@@ -2443,18 +2430,18 @@ async function executeRoleSql(args: {
   userId: string;
 }) {
   const startedAt = Date.now();
-  const sql = buildRoleSearchSql(args);
+  // The legacy/full-JD recommendation flow shares the same one-text embedding
+  // contract as V2 without changing its downstream scoring or experiment cohort.
+  const { embedSearchTitles } =
+    await import("../externalRecommendationsV2/retrieval");
+  const [titleVector] = await embedSearchTitles(args.plan.roleTitles);
+  const sql = `${buildRoleSearchSql({ ...args, titleVector })}\nLIMIT ${MAX_SEARCH_RESULTS}`;
   const { data, error } = await (args.admin.rpc(
-    "set_timeout_and_execute_raw_sql" as never,
-    {
-      limit_num: MAX_SEARCH_RESULTS,
-      offset_num: 0,
-      page_idx: 0,
-      sql_query: sql,
-    } as never
+    "search_external_roles_v2" as never,
+    { p_sql: sql } as never
   ) as unknown as Promise<{
     data: unknown;
-    error: { message?: string } | null;
+    error: { message?: string; code?: string } | null;
   }>);
 
   if (error) {
@@ -2468,6 +2455,7 @@ async function executeRoleSql(args: {
       userId: args.userId,
     });
     throw new RoleSqlExecutionError({
+      code: error.code,
       message: `[${args.searchMode} role sql] ${errorMessage}`,
       sql,
     });
@@ -2507,7 +2495,7 @@ function roleFingerprint(companyName: unknown, roleName: unknown) {
   return company && role ? `${company}::${role}` : "";
 }
 
-function filterPreviouslyRecommendedExternalRows(
+export function filterPreviouslyRecommendedExternalRows(
   rows: RawRoleRow[],
   existing: PreviousExternalRecommendation[]
 ) {
@@ -2900,7 +2888,7 @@ ORDER BY array_position(${workspaceArray}, ranked.company_workspace_id), company
   return result;
 }
 
-async function attachCompanyContextToCards(args: {
+export async function attachCompanyContextToCards(args: {
   admin: AdminClient;
   cards: RoleCard[];
   languageKey?: string;
@@ -2951,17 +2939,25 @@ function roleSummaryFromValue(value: unknown): JsonRecord | null {
 }
 
 function roleCompensationRange(row: RawRoleRow) {
+  if (row.salary_is_predicted === true) return null;
   const salaryRange = cleanText(row.salary_range, 240);
   if (salaryRange) return salaryRange;
   const salaryMin = cleanText(row.salary_min, 60);
   const salaryMax = cleanText(row.salary_max, 60);
   const salaryCurrency = cleanText(row.salary_currency, 40);
   const salaryPeriod = cleanText(row.salary_period, 40);
-  if (!salaryMin || !salaryMax || !salaryCurrency || !salaryPeriod) return null;
-  return `${salaryPeriod} ${salaryMin}-${salaryMax} ${salaryCurrency}`;
+  if ((!salaryMin && !salaryMax) || !salaryCurrency || !salaryPeriod)
+    return null;
+  const range =
+    salaryMin && salaryMax
+      ? `${salaryMin}-${salaryMax}`
+      : salaryMin
+        ? `≥${salaryMin}`
+        : `≤${salaryMax}`;
+  return `${salaryPeriod} ${range} ${salaryCurrency}`;
 }
 
-function roleCard(row: RawRoleRow): RoleCard {
+export function roleCard(row: RawRoleRow): RoleCard {
   const companyScore = normalizeCompanyTestScore(row.company_test_score);
   const roleSummary = roleSummaryFromValue(row.summary);
   const card: RoleCard = {
@@ -2984,7 +2980,7 @@ function roleCard(row: RawRoleRow): RoleCard {
     roleId: cleanText(row.role_id, 120),
     roleName: cleanText(row.role_name, 180),
     salaryRange: roleCompensationRange(row),
-    row,
+    row: publishedCompensation(row),
     score: companyScore,
     searchRank: Number(row.search_rank ?? 0) || 0,
     seniorityLevel: cleanText(row.seniority_level, 120) || null,
@@ -3104,7 +3100,7 @@ function roleSummaryContent(card: RoleCard, languageKey: string) {
   );
 }
 
-function fullJdRoleSourceHash(card: RoleCard) {
+export function fullJdRoleSourceHash(card: RoleCard) {
   return createHash("sha256")
     .update(
       JSON.stringify({
@@ -3146,24 +3142,43 @@ function fullJdStableUserContext(args: {
     .join("\n");
 }
 
-export function fullJdCacheInputFingerprint(args: {
-  fitContextText: string;
-  plan: ExternalSearchPlan;
-}) {
+export function fullJdCacheInputFingerprint(
+  args: { fitContextText: string; plan: ExternalSearchPlan },
+  legacyEvaluatorKey?: string
+) {
   return createHash("sha256")
     .update(
       JSON.stringify({
-        evaluatorKey: EXTERNAL_FIT_CACHE_EVALUATOR_KEY,
+        ...(legacyEvaluatorKey === undefined
+          ? {}
+          : { evaluatorKey: legacyEvaluatorKey }),
         stableUserContext: fullJdStableUserContext(args),
       })
     )
     .digest("hex");
 }
 
-async function fetchExternalFitCache(args: {
+export function fullJdCacheInputMatches(
+  meta: Record<string, unknown> | null,
+  inputContext: { fitContextText: string; plan: ExternalSearchPlan }
+) {
+  const storedFingerprint = cleanText(meta?.inputFingerprint, 128);
+  if (storedFingerprint === fullJdCacheInputFingerprint(inputContext))
+    return true;
+  // Older hashes included provenance. Reconstruct them using the row's key;
+  // its model/version is never an eligibility condition.
+  return (
+    typeof meta?.evaluatorKey === "string" &&
+    storedFingerprint ===
+      fullJdCacheInputFingerprint(inputContext, meta.evaluatorKey)
+  );
+}
+
+export async function fetchExternalFitCache(args: {
   admin: AdminClient;
   asOf?: string | null;
   inputFingerprint?: string;
+  inputContext?: { fitContextText: string; plan: ExternalSearchPlan };
   roleCards?: RoleCard[];
   roleIds: string[];
   userId: string;
@@ -3208,10 +3223,13 @@ async function fetchExternalFitCache(args: {
       const meta = asRecord(record?.meta);
       if (args.inputFingerprint) {
         const card = cardByRoleId.get(roleId);
+        const storedFingerprint = cleanText(meta?.inputFingerprint, 128);
+        const inputMatches =
+          storedFingerprint === args.inputFingerprint ||
+          (args.inputContext !== undefined &&
+            fullJdCacheInputMatches(meta, args.inputContext));
         if (
-          cleanText(meta?.evaluatorKey, 120) !==
-            EXTERNAL_FIT_CACHE_EVALUATOR_KEY ||
-          cleanText(meta?.inputFingerprint, 128) !== args.inputFingerprint ||
+          !inputMatches ||
           !card ||
           cleanText(meta?.roleSourceHash, 128) !== fullJdRoleSourceHash(card)
         ) {
@@ -3314,7 +3332,7 @@ function seniorityLevelLineForLlm(value: unknown) {
   return `seniority level: ${seniorityLevel}`;
 }
 
-function roleLineForLlm(card: RoleCard, includePostedAt = true) {
+export function roleLineForLlm(card: RoleCard, includePostedAt = true) {
   const role = cleanText(card.roleName, 180) || "Unknown role";
   const company = cleanText(card.companyName, 180) || "Unknown company";
   const details: string[] = [];
@@ -3330,7 +3348,7 @@ function roleLineForLlm(card: RoleCard, includePostedAt = true) {
   return `external : ${role} at ${company}${suffix}`;
 }
 
-function companyLineForLlm(card: RoleCard, includeScore: boolean) {
+export function companyLineForLlm(card: RoleCard, includeScore: boolean) {
   const companyName = cleanText(card.companyName, 180) || "Unknown company";
   const parts: string[] = [];
   const shortDescription = normalizeMultiline(
@@ -3808,7 +3826,7 @@ async function selectFinalRecommendations(args: {
   };
 }
 
-function fullJdPromptCandidate(
+export function fullJdPromptCandidate(
   card: RoleCard,
   languageKey: RoleSummaryLanguageKey
 ): FullJdPromptCandidate {
@@ -4266,7 +4284,7 @@ function roleUrl(role: RawRoleRow) {
   return cleanText(role.external_jd_url, 500) || null;
 }
 
-function rankedFromSelected(
+export function rankedFromSelected(
   selected: SelectedRecommendation[],
   cards: RoleCard[],
   options?: { preferSummaryAsRecommendationText?: boolean }
@@ -4406,7 +4424,7 @@ WHERE role_id = ${sqlLiteral(roleId)}::uuid
   return { skippedLanguageValidation, stored };
 }
 
-async function persistRecommendations(args: {
+export async function persistRecommendations(args: {
   admin: AdminClient;
   outputLanguage: string;
   recommendations: EnrichedRankedRole[];
@@ -4446,11 +4464,19 @@ async function persistRecommendations(args: {
 
   if (rows.length === 0) return args.recommendations;
 
-  const { data, error } = await ((
-    args.admin.from("talent_opportunity_recommendation" as any) as any
-  )
-    .insert(rows)
-    .select("id, role_id") as any);
+  const { externalRunContext, completeRun } =
+    await import("../externalRecommendationsV2/runs");
+  const experimentRunId = externalRunContext.getStore()?.id;
+  const { data, error } = experimentRunId
+    ? {
+        data: await completeRun(args.admin, experimentRunId, rows),
+        error: null,
+      }
+    : await ((
+        args.admin.from("talent_opportunity_recommendation" as any) as any
+      )
+        .insert(rows)
+        .select("id, role_id") as any);
 
   if (error) {
     throw new Error(
@@ -4467,11 +4493,17 @@ async function persistRecommendations(args: {
     }
   }
 
-  return args.recommendations.map((item) => ({
-    ...item,
-    recommendationId:
-      insertedIdsByRoleId.get(cleanText(item.role.role_id, 120)) ?? null,
-  }));
+  return args.recommendations
+    .filter(
+      (item) =>
+        !experimentRunId ||
+        insertedIdsByRoleId.has(cleanText(item.role.role_id, 120))
+    )
+    .map((item) => ({
+      ...item,
+      recommendationId:
+        insertedIdsByRoleId.get(cleanText(item.role.role_id, 120)) ?? null,
+    }));
 }
 
 function extractRequestedPostingCount(request: string) {
@@ -4491,7 +4523,7 @@ function throwIfRecommendationSearchAborted(signal?: AbortSignal) {
   throw error;
 }
 
-function formatAnswerDraft(args: {
+export function formatAnswerDraft(args: {
   candidateCount: number;
   outputLanguage: string;
   plan: ExternalSearchPlan;
@@ -4899,6 +4931,23 @@ export async function runCareerJobPostingRecommendations(args: {
     sql: strictSearch.sql,
   });
 
+  if (!args.evaluation && rows.length) {
+    const { fillExternalRoleSalaries } =
+      await import("../externalRecommendationsV2/salaryEstimation.server");
+    await fillExternalRoleSalaries(
+      args.admin,
+      rows
+        .filter(
+          (r) =>
+            !r.salary_is_predicted &&
+            r.salary_min == null &&
+            r.salary_max == null &&
+            !String(r.salary_range ?? "").trim()
+        )
+        .map((r) => String(r.role_id)),
+      args.abortSignal
+    );
+  }
   const candidateCardsWithoutCache = roleRowsToCards(rows);
   args.onProgress?.({
     state: "running",
@@ -4916,6 +4965,10 @@ export async function runCareerJobPostingRecommendations(args: {
     admin: args.admin,
     asOf: evaluationAsOf,
     inputFingerprint: externalFitInputFingerprint,
+    inputContext:
+      recommendationStrategy === "full_jd"
+        ? { fitContextText: fullJdFitContextText, plan }
+        : undefined,
     roleCards: candidateCardsWithoutCache,
     roleIds: candidateCardsWithoutCache.map((card) => card.roleId),
     userId: args.userId,

@@ -281,8 +281,9 @@ test("application start owns the turn before an activity exists, and retains its
   state.activity={version:1, offerId:10, batches:[], outputs:{}};
   const selected = resolveCareerChatTools({...ordinary, simulationActive:true});
   const plan = buildCareerConversationPromptPlan({channel:'chat',isOnboardingDone:true,conversationMode:'simulation',simulationSession:state,toolNames:selected.toolNames,profile:null,structuredProfileText:'',talentContextSection:''});
-  assert.ok(selected.toolNames.includes('ask_application_input'));
-  assert.ok(selected.stopAfterToolNames.includes('ask_application_input'));
+  assert.ok(selected.toolNames.includes('manage_application_suggestions'));
+  assert.ok(!selected.stopAfterToolNames.includes('manage_application_suggestions'));
+  assert.ok(selected.toolNames.includes('ready_for_role'));
   assert.ok(plan.promptBlocks.some(b => b.key === 'application_preparation_contract'));
   assert.ok(!plan.promptBlocks.some(b => b.key === 'simulation_availability'));
   const context=JSON.parse(plan.promptBlocks.find(b => b.key === 'application_preparation_context')!.text);
@@ -304,7 +305,7 @@ test("application start owns the turn before an activity exists, and retains its
   currentState = undefined;
   const ended = turn.runtime.resolveStep(false);
   assert.ok(!ended.offeredNames.has("manage_simulation_session"));
-  assert.ok(!ended.offeredNames.has("apply_to_role"));
+  assert.ok(!ended.offeredNames.has("apply_for_role"));
   assert.ok(ended.offeredNames.has("research_company"));
   assert.ok(ended.systemBlocks.some(block=>block.key==="capability_catalog"));
 });

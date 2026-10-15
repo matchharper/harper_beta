@@ -1,0 +1,11 @@
+{
+  "version": "storage-pdf-v1",
+  "frozenBeforeExecution": true,
+  "review": "Source PDF reviewed before model execution. Original Storage bytes are unchanged. This version does not overwrite v1.",
+  "expectedFilename": "Harper Storage Test.pdf",
+  "expectedSize": 2748,
+  "expectedSha256": "f71885a38527f96f3a939ad87d4ed7bd06c7a20639faaeb2e78725d83d6aa61c",
+  "nativeGate": "Native computer_use only: actually selected file must be evidenced. Prose alone is not attachment proof. Browser File byte identity is preferred; absent proof remains unverified.",
+  "hostedGate": "Sandbox Playwright File name/size/SHA256 must match; owned receiver must store exactly one matching receipt.",
+  "privacyBoundary": "Existing E2E fixture contains a real contact address. OpenAI internal loopback receiver only; no employer/public-demo upload or submission."
+}

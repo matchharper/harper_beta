@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "v6-execution",
+  "frozenBeforeComparisons": true,
+  "reviewer": "Codex implementation review; independent human gold unavailable",
+  "unit": "same saved plan, vectors, target and exclusions -> existing versus updated SQL",
+  "gates": [
+    "Same country allocation and all existing availability, consent, history, block and test-only filters",
+    "Equal title distance or lexical score must not acquire different relevance from role UUID",
+    "Salary weight remains 0.35; no new per-country salary targets or salary estimation scheduling changes",
+    "Unknown salary remains eligible; no extra downstream model calls",
+    "Compare ordered top-500 overlap, known/unknown/sufficient/short salary counts and top-50 utility without treating estimates as true compensation",
+    "Report observed SQL and wall time separately, including all timeouts; no production-wide latency claim from three cases"
+  ],
+  "limits": ["Live listings can change between reads", "Actual DB has zero predicted salary rows at preflight", "No actual-fit gold; ranking metrics cannot establish recommendation quality"]
+}

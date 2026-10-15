@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
+import { assertOrgWorkspacePermission, assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
 import {
   getSupabaseAdmin,
   requireAuthenticatedUser,
@@ -32,12 +32,14 @@ export async function GET(req: NextRequest) {
     const { data, error } = await (
       admin.from("company_agent_web_action_jobs" as any) as any
     )
-      .select("progress_message_id, role_id, status, terminal_message_id")
+      .select("progress_message_id, role_id, status, terminal_message_id, actor_user_id")
       .eq("id", jobId)
       .eq("company_workspace_id", workspaceId)
       .maybeSingle();
     if (error) throw error;
     if (!data) throw new OrgHttpError(404, "Agent turn not found");
+    if (data.role_id) await assertOrgRoleAccess({ admin, user, workspaceId, roleId: data.role_id });
+    else if (data.actor_user_id !== user.id) throw new OrgHttpError(404, "Agent turn not found");
     const status = String(data.status ?? "").trim();
     return NextResponse.json({
       done: TERMINAL_STATUSES.has(status),

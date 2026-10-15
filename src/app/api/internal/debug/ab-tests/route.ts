@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     await requireInternalApiUser(req);
     const payload = await fetchOpsAbTests({
       days: req.nextUrl.searchParams.get("days"),
+      externalSurface: req.nextUrl.searchParams.get("externalSurface"),
       excludedEmails: req.nextUrl.searchParams.getAll("exclude"),
     });
     return NextResponse.json(payload);

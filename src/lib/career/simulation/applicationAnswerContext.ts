@@ -1,7 +1,7 @@
 import type { SimulationSession } from "./session";
 
 // Each saved response appears once, paired with the immutable question the user saw.
-export function applicationAnswerContext(session: SimulationSession, includeUnsubmitted = false) {
+export function applicationAnswerContext(session: SimulationSession, includeUnsubmitted = false, options?: { compactButtonDecisions?: boolean }) {
   return (session.activity?.batches ?? [])
     .filter(batch => includeUnsubmitted || batch.status === "submitted")
     .map(batch => {
@@ -12,14 +12,18 @@ export function applicationAnswerContext(session: SimulationSession, includeUnsu
         status: batch.status,
         purpose: batch.purpose,
         review: batch.review,
-        questions: items.map(item => ({
+        questions: items.map(item => {
+          const compact = options?.compactButtonDecisions && ["accept", "ignore"].includes(batch.responses[item.id]?.decision);
+          return ({
           itemId: item.id,
           question: item.title,
-          contentShown: item.proposal,
+          contentShown: compact ? undefined : item.draftText ?? item.proposal,
+          editsShown: compact ? undefined : item.edits,
+          reason: compact ? undefined : item.reason,
           options: item.options,
           response: batch.responses[item.id],
           selectedOption: item.options?.find(option => option.id === batch.responses[item.id]?.optionId),
-        })),
+        });}),
         // Only records without a question snapshot need the legacy fallback.
         ...(Object.keys(batch.responses).some(id => !represented.has(id)) ? {
           answers: Object.fromEntries(Object.entries(batch.responses).filter(([id]) => !represented.has(id))),

@@ -1,3 +1,6 @@
+import { throwIfToolControlError } from "@/lib/llm/toolError";
+import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
+import { formatToolError, serializeToolResultForModel, toolResultDiagnostics } from "@/lib/llm/toolError";
 import "server-only";
 import { companyCompletionTokenBudget, companyCompletionProviderHint, validateCompanyCompletion } from "./completionContract";
 
@@ -35,6 +38,7 @@ import {
 import {
   createOrResumeDraftRole,
   fetchRoleCreationState,
+  summarizeRoleCreationNotificationSettings,
   type RoleCreationState,
   updateRoleCreationConversationMetadata,
 } from "@/lib/org/agent/roleCreationState";
@@ -191,16 +195,15 @@ function parseArguments(value: string) {
   }
 }
 
-function roleCreationToolErrorResult(args: { error: unknown; name: string; savedRole?: unknown }) {
+export function roleCreationToolErrorResult(args: { error: unknown; name: string; savedRole?: unknown; savedNotificationSettings?: unknown; executed?: boolean }) {
   const inputError =
     args.error instanceof RoleCreationToolInputError ||
     (args.error instanceof OrgHttpError && args.error.status < 500);
-  const message =
-    inputError && args.error instanceof Error
-      ? args.error.message
-      : "The tool could not be completed.";
+  const message = formatToolError(args.error);
   const recovery =
-    args.name === "confirm_pending_role_creation"
+    args.name === "set_role_notification"
+      ? "Compare the requested change with currentNotificationSettings, which contains only the settings verified by reading them back. Do not claim an unverified channel or assignee was saved. Correct an unavailable target using the current draft when the user's intent is clear; ask only for a missing or ambiguous selection, without repeating an already clear approval. If read-back is unavailable, the save result is unknown; verify the current settings before retrying."
+      : args.name === "confirm_pending_role_creation"
       ? "Do not claim the Role was activated. If the result is uncertain, do not activate again until the current Role status is verified; otherwise explain the missing or stale confirmation and ask for the smallest necessary next action."
       : args.name === "calibrate_role_hiring_brief"
         ? inputError
@@ -210,9 +213,10 @@ function roleCreationToolErrorResult(args: { error: unknown; name: string; saved
           ? "Correct the arguments from the saved Role state and retry when the user's intent is still clear. Continue any independent unfinished part of the request."
           : "Do not claim the save or external effect succeeded and do not blindly repeat the action. Use the next step to verify current saved state when possible, continue independent work, or explain the blocker.";
   return JSON.stringify({
-    effectStatus: inputError ? "not_executed" : "unknown",
+    effectStatus: args.executed === false ? "not_executed" : "unknown",
     error: message,
     ...(args.savedRole ? { currentSavedRole: args.savedRole } : {}),
+    ...(args.savedNotificationSettings ? { currentNotificationSettings: args.savedNotificationSettings } : {}),
     instruction: `${recovery} Write user-facing explanations without tool names or internal diagnostics.`,
     ok: false,
   });
@@ -431,6 +435,7 @@ export async function runOrgRoleCreationChat(args: {
   model?: OrgAgentModelId | string | null;
   responseLocale?: OrgLocale;
   roleId?: string | null;
+  slackContext?: { channelId: string; channelName: string } | null;
   slackAssistantUserId?: string | null;
   slackThreadId?: string | null;
   slackUserId?: string | null;
@@ -602,6 +607,7 @@ export async function runOrgRoleCreationChat(args: {
     examples: serviceAnswerExamples.examples,
   });
   const roleInput = {
+    slackContext: args.slackContext,
     attachments,
     history: historyPage.messages
       .filter((item) => item.id !== userMessage.id)
@@ -714,17 +720,21 @@ export async function runOrgRoleCreationChat(args: {
       };
       logs = upsertOrgAgentThinkingLog(logs, startedLog);
       args.emit?.("tool_status", startedLog);
+      let executorStarted = false;
+      let capturedDiagnostics: readonly unknown[] = [];
       try {
         if (!isRoleCreationToolName(call.function.name)) {
           throw new RoleCreationToolInputError("Unknown role creation tool");
         }
+        const executionToolName = call.function.name;
         const toolInput = parseArguments(call.function.arguments);
-        const execution = await executeRoleCreationTool({
+        executorStarted = true;
+        const toolCapture = await runToolCall(() => executeRoleCreationTool({
           actorLabel: state.currentUser.name,
           allowCompletedRole: true,
           companySideContext: companySideUserPrompt,
           input: toolInput,
-          name: call.function.name,
+          name: executionToolName,
           onToolProgress: (label) => {
             const progressLog = {
               at: new Date().toISOString(),
@@ -743,7 +753,9 @@ export async function runOrgRoleCreationChat(args: {
           user: args.user,
           userMessage: message,
           workspaceId: args.workspaceId,
-        });
+        }), { callId: call.id, name: call.function.name });
+          capturedDiagnostics = toolCapture.diagnostics;
+          const execution = unwrapToolCall(toolCapture);
         if (execution.updateSummary) {
           updateSummaries.push(execution.updateSummary);
         }
@@ -794,18 +806,24 @@ export async function runOrgRoleCreationChat(args: {
           summary: execution.updateSummary ?? doneLog.label,
         });
         messages.push({
-          content: JSON.stringify(execution.result),
+          content: serializeToolResultForModel(execution.result, value => JSON.stringify(value), [...toolResultDiagnostics(execution.result, false), ...toolCapture.diagnostics]),
           role: "tool",
           tool_call_id: call.id,
         });
       } catch (error) {
+        throwIfToolControlError(error);
         // A write can fail after an earlier field was committed. Recover its
         // actual state instead of leaving the model with an optimistic draft.
         let savedRole: unknown;
-        if (call.function.name === "update_role_draft") {
+        let savedNotificationSettings: unknown;
+        if (call.function.name === "update_role_draft" || call.function.name === "set_role_notification") {
           try {
-            savedRole = (await fetchRoleCreationState({ roleId, user: args.user, workspaceId: args.workspaceId, allowCompletedRole: true })).role;
-          } catch { /* Preserve the original uncertainty if read-back also fails. */ }
+            const savedState = await fetchRoleCreationState({ roleId, user: args.user, workspaceId: args.workspaceId, allowCompletedRole: true });
+            if (call.function.name === "update_role_draft") savedRole = savedState.role;
+            else savedNotificationSettings = summarizeRoleCreationNotificationSettings(savedState);
+          } catch (readError) {
+            capturedDiagnostics = [...capturedDiagnostics, { error: readError, source: "saved_state_refresh" }];
+          }
         }
         const failedLog = {
           at: new Date().toISOString(),
@@ -823,11 +841,13 @@ export async function runOrgRoleCreationChat(args: {
           summary: failedLog.label,
         });
         messages.push({
-          content: roleCreationToolErrorResult({
+          content: serializeToolResultForModel(error, () => roleCreationToolErrorResult({
             error,
+            executed: executorStarted,
             name: call.function.name,
             savedRole,
-          }),
+            savedNotificationSettings,
+          }), capturedDiagnostics),
           role: "tool",
           tool_call_id: call.id,
         });

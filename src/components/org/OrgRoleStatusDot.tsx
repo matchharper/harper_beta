@@ -1,4 +1,4 @@
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { StatusDot, type StatusDotProps } from "@/components/ui/status-dot";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 
@@ -12,7 +12,7 @@ export function OrgRoleStatusDot({
   status,
   ...props
 }: OrgRoleStatusDotProps) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const presentation = getOrgRoleStatusPresentation(status);
 
@@ -21,7 +21,7 @@ export function OrgRoleStatusDot({
       label={
         decorative
           ? undefined
-          : t("OrgRoleStatusDot.7dc173ba", "역할 상태: {p0}", {
+          : c("역할 상태: {p0}", "Role status: {p0}", {
               p0: sourceT(presentation.label),
             })
       }

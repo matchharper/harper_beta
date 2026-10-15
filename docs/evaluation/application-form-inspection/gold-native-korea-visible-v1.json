@@ -1,0 +1,48 @@
+{
+  "goldVersion": "native-korea-visible-v1",
+  "datasetVersion": "native-korea-v1",
+  "createdAt": "2026-10-13T02:19:55.856428+00:00",
+  "clientDate": "2026-10-13",
+  "reviewer": "Codex manual semantic review",
+  "provenance": {
+    "source": "Prior independently rendered, read-only browser assessments after the earlier provider-default model run; unblinded historical review, frozen before this low-effort comparison.",
+    "sourceSha256": "6b0ea4ed975b0074b3a500ee6f90afcb4a9c956f61af3227dd3c3876214d51ca"
+  },
+  "contract": "Represent each visible applicant information item, including consent requirements, in concise Korean. Equivalent labels and grouped portfolio file/URL are allowed. No option enumeration, applicant values, upload, consent selection or submit.",
+  "limitations": "Historical as-of observations on mutable public pages; not independent human gold, not hidden/conditional-question coverage or a production release gate. Required-state accuracy is not scored.",
+  "cases": [
+    {
+      "caseId": "korea-v1-jd-04",
+      "visibleControlCount": 12,
+      "expectedInformation": [
+        "이력서 및 경력기술서",
+        "이름",
+        "이메일",
+        "연락처",
+        "포트폴리오",
+        "링크",
+        "본 채용 소식을 처음 접한 경로",
+        "장애사항",
+        "보훈여부",
+        "개인정보 필수 항목 수집/이용 동의",
+        "개인정보 선택 항목 수집/이용 동의",
+        "민감정보 수집/이용 동의"
+      ]
+    },
+    {
+      "caseId": "korea-v1-jd-05",
+      "visibleControlCount": 9,
+      "expectedInformation": [
+        "이름",
+        "연락처",
+        "이메일",
+        "지원경로",
+        "이력서",
+        "포트폴리오 파일",
+        "포트폴리오 URL",
+        "선택 항목 수집 및 이용 동의",
+        "인재풀 활용 동의"
+      ]
+    }
+  ]
+}

@@ -29,10 +29,10 @@ test("shared Hiring Brief contract keeps anchors concrete without copying biogra
 test("authoring preserves evidence breadth across public and private views", () => {
   assert.ok(HIRING_BRIEF_AUTHORING_PROMPT.startsWith(ROLE_SOURCE_AUTHORING_PROMPT));
   assert.doesNotMatch(ROLE_SOURCE_AUTHORING_PROMPT, /professional_reference_calibration_contract/);
-  assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /Public Description, private Hiring Brief and optional Evaluation Criteria/);
+  assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /Public Description, private Hiring Brief and Evaluation Criteria/);
   assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /Private team preferences stay in the Brief/);
   assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /Do not automatically synchronize all three documents/);
-  assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /Leave optional structured Evaluation Criteria empty unless/);
+  assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /the LLM must author and save/);
   assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /Preserve existing Criteria on edits/);
   assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /independent interview threshold/);
   assert.match(HIRING_BRIEF_AUTHORING_PROMPT, /Do not invent such a bar/);

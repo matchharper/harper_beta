@@ -1,4 +1,7 @@
+import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
+import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import type { User } from "@supabase/supabase-js";
+import { readOrgRoleAccess, scopeOrgRoleQuery, assertOrgTeamRoleAccess, visibleOrgRoleIds } from "@/lib/org/teamAccess";
 import {
   fetchOrgBoard,
   OrgHttpError,
@@ -37,6 +40,7 @@ export type OrgAgentAdminClient = ReturnType<typeof getSupabaseAdmin>;
 
 export type OrgAgentRole = OrgRole & {
   hasMemory?: boolean;
+  promotionDemand?: { level: string; reason: string; updatedAt: string; validUntil: string } | null;
 };
 
 export type OrgAgentRoleInclude =
@@ -149,6 +153,12 @@ function compactProgressText(row: Pick<ProgressRow, "kind" | "text">) {
 }
 
 function companyProgressDetails(row: Pick<ProgressRow, "kind" | "metadata">) {
+  if (row.kind === "company_followup") {
+    const meta = objectValue(row.metadata);
+    return { event: meta.eventType, scheduledAt: meta.dueAt, previousScheduledAt: meta.previousDueAt,
+      sentAt: meta.sentAt ?? null, importedFromLegacy: meta.importedFromLegacy === true,
+      contactRef: meta.followupId ? `followup:${meta.followupId}` : null };
+  }
   if (row.kind !== "org_candidate_activity") return null;
   const requestContext = clip(objectValue(row.metadata).requestContext, 500);
   return requestContext ? { requestContext } : null;
@@ -208,19 +218,24 @@ async function fetchTalentsById(args: {
 
 export async function fetchOrgAgentRoles(args: {
   admin: OrgAgentAdminClient;
+  user: User;
   workspaceId: string;
 }) {
-  const { data, error } = await (args.admin.from("company_roles" as any) as any)
+  const access = await readOrgRoleAccess(args);
+  let query = (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at"
+      "role_id, company_workspace_id, company_internal_roles(team_id, is_harper_tailored_role), company_role_assignees(company_users(email)), name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("source_type", "internal")
     .not("is_expired", "is", true)
     .order("updated_at", { ascending: false })
     .order("role_id", { ascending: true });
+  query = scopeOrgRoleQuery(query, access);
+  const { data, error } = await query;
   if (error) throw error;
-  const rows = (data ?? []) as Array<{
+  const rows = (data ?? []).filter(isCompanyVisibleRole) as Array<{
+    company_internal_roles: { team_id: string | null } | null;
     company_workspace_id: string;
     created_at: string;
     description: string | null;
@@ -238,7 +253,7 @@ export async function fetchOrgAgentRoles(args: {
   const [internalResult, memoryResult] = await Promise.all([
     roleIds.length > 0
       ? (args.admin.from("company_internal_roles" as any) as any)
-          .select("role_id, request, criteria, intro_search_date, intro_search_time")
+          .select("role_id, request, criteria, is_company_first_search, is_promote, is_anonymous, promotion_demand, intro_search_date, intro_search_time")
           .in("role_id", roleIds)
       : Promise.resolve({ data: [], error: null }),
     roleIds.length > 0
@@ -267,7 +282,7 @@ export async function fetchOrgAgentRoles(args: {
     ).map((row) => [row.role_id, normalizeOrgRoleCriteria(row.criteria)])
   );
   const scheduleByRoleId = new Map(
-    ((internalResult.data ?? []) as Array<{ role_id: string; intro_search_date: string[]; intro_search_time: number }>).map(
+    ((internalResult.data ?? []) as Array<{ role_id: string; is_company_first_search: boolean | null; is_promote: boolean | null; is_anonymous: boolean | null; promotion_demand?: OrgAgentRole["promotionDemand"]; intro_search_date: string[]; intro_search_time: number }>).map(
       (row) => [row.role_id, row]
     )
   );
@@ -282,11 +297,16 @@ export async function fetchOrgAgentRoles(args: {
   return rows
     .map(
       (row): OrgAgentRole => ({
+        teamId: getCompanyInternalRoleRecord(row.company_internal_roles)?.team_id ?? null,
         criteria: criteriaByRoleId.get(row.role_id) ?? [],
         createdAt: row.created_at,
         description: row.description ?? null,
         employmentTypes: Array.isArray(row.type) ? row.type : [],
         externalJdUrl: row.external_jd_url ?? null,
+        isCompanyFirstSearch: scheduleByRoleId.get(row.role_id)?.is_company_first_search === true,
+        isPromote: scheduleByRoleId.get(row.role_id)?.is_promote === true,
+        isAnonymous: scheduleByRoleId.get(row.role_id)?.is_anonymous === true,
+        promotionDemand: scheduleByRoleId.get(row.role_id)?.promotion_demand ?? null,
         introSearchDate: parseIntroSearchDays(scheduleByRoleId.get(row.role_id)?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
         introSearchTime: parseIntroSearchHour(scheduleByRoleId.get(row.role_id)?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
         hasMemory: memoryRoleIds.has(row.role_id),
@@ -315,6 +335,7 @@ export async function fetchOrgAgentRoles(args: {
 
 async function assertRoleInWorkspace(args: {
   admin: OrgAgentAdminClient;
+  user: User;
   includeCriteria?: boolean;
   includeMemory?: boolean;
   roleId: string;
@@ -322,6 +343,7 @@ async function assertRoleInWorkspace(args: {
 }) {
   const roleId = text(args.roleId);
   if (!roleId) throw new OrgHttpError(400, "roleId is required");
+  await assertOrgTeamRoleAccess({ ...args, roleId });
   return fetchRoleForOrgAgent({
     admin: args.admin,
     includeCriteria: args.includeCriteria,
@@ -363,6 +385,7 @@ function compactBoardItem(
 }
 
 async function fetchVisibleOrgAgentBoard(args: {
+  admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
   recommendationIds?: string[] | null;
   roleId?: string | null;
@@ -377,7 +400,7 @@ async function fetchVisibleOrgAgentBoard(args: {
     audience === "company_safe"
       ? ({ ...args.user, email: undefined } as User)
       : args.user;
-  return fetchOrgBoard({
+  const board = await fetchOrgBoard({
     includeInternalStages: audience === "caller",
     includeProfileLabels: false,
     recommendationIds: args.recommendationIds,
@@ -385,6 +408,13 @@ async function fetchVisibleOrgAgentBoard(args: {
     user: audienceUser,
     workspaceId: args.workspaceId,
   });
+  // The board uses its own service client. Apply the caller's narrower shared
+  // reader scope again before any board data can enter agent context or tools.
+  const allowedRoleIds = await visibleOrgRoleIds(args);
+  if (allowedRoleIds === null) return board;
+  const allowed = new Set(allowedRoleIds);
+  return { ...board, items: board.items.filter(item => allowed.has(item.roleId)),
+    stages: board.stages.filter(stage => !stage.roleId || allowed.has(stage.roleId)) };
 }
 
 function getBoardStageLabel(
@@ -449,6 +479,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
     tagResult,
   ] = await Promise.all([
     fetchVisibleOrgAgentBoard({
+      admin: args.admin,
       audience: args.audience,
       roleId: selectedRoleId || null,
       user: args.user,
@@ -666,6 +697,7 @@ export async function fetchOrgAgentPipelineSnapshot(args: {
     offset += 100
   ) {
     const page = await fetchVisibleOrgAgentBoard({
+      admin: args.admin,
       audience: args.audience,
       recommendationIds: activityRecommendationIds.slice(offset, offset + 100),
       roleId: selectedRoleId || null,
@@ -915,6 +947,7 @@ export async function getOrgAgentTalents(args: {
   const limit = integer(args.limit, 10, 1, limitCap);
   const offset = integer(args.offset, 0, 0, 10_000);
   const board = await fetchVisibleOrgAgentBoard({
+    admin: args.admin,
     audience: args.audience,
     roleId: text(args.roleId) || null,
     user: args.user,
@@ -1354,10 +1387,12 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
       existingFeedback: null, feedbackReason: null, fitReasons: item.fitReasons,
       fitSummary: item.fitSummary, recommendationId: item.recommendationId,
       recommendedAt: item.recommendedAt, roleId: item.roleId, roleName: item.roleName,
-      candidateAccepted: false, closed: false, processClosureNotification: null,
+      candidateAccepted: false, closed: ["closed", "passed"].includes(item.companyIntro!.status), processClosureNotification: null,
       savedStage: null, stage: item.stage, stageLabel: humanizeOrgStage(item.stage),
       talentMemo: null, tradeoffs: null, updatedAt: item.updatedAt,
       companyIntroStatus: item.companyIntro!.status,
+      introCloseReason: item.companyIntro!.closeReason ?? null,
+      talentDecisionAt: item.companyIntro!.talentDecisionAt ?? null,
       introRequestedAt: item.companyIntro!.requestedAt,
       candidateSentAt: item.companyIntro!.candidateSentAt,
       harperRecommendation: item.companyIntro!.harperRecommendation ?? null,
@@ -1368,13 +1403,23 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
     // an observed empty history, and must not imply no response or contact.
     harperSharedInformation: null, meetingHistory: null, requestHistory: null,
     resumeAvailability: { available: false, guidance: "제안 수락 전에는 비공개 이력서를 조회할 수 없어요. 후보자가 직접 공유하도록 요청하는 연락과는 별개예요." },
-    recentProgress: progress.filter((row) => row.talent_id === first.talentId && roleById.has(row.role_id) && row.kind === "internal_followup_sent").map((row) => ({
+    recentProgress: progress.filter((row) => row.talent_id === first.talentId && roleById.has(row.role_id) && ["internal_followup_sent", "company_followup", "candidate_contact_preferences_changed", "company_intro_decision"].includes(row.kind)).map((row) => ({
       at: row.created_at, kind: humanizeOrgProgressKind(row.kind),
-      metadata: null, recommendationId: row.recommendation_id,
+      metadata: row.kind === "candidate_contact_preferences_changed" ? {
+        futureInternalRecommendationsEnabled: objectValue(row.metadata).internalRecommendationEnabled,
+        newCompanyMatchingProfilesAllowed: objectValue(row.metadata).profileVisibility === "open_to_matches",
+        existingIntroDecisionChanged: false,
+      } : companyProgressDetails(row), recommendationId: row.recommendation_id,
       roleId: row.role_id, roleName: roleById.get(row.role_id)!.roleName,
       text: compactProgressText(row) || null,
     })),
   };
+}
+
+async function storedFollowupsForTalent(args: { admin: OrgAgentAdminClient; user: User; workspaceId: string; talentId: string; roleId?: string | null }) {
+  const { listCompanyFollowups } = await import("@/lib/companyTalentRequests/followups");
+  try { return await listCompanyFollowups({ ...args, status: "pending", limit: 10 }); }
+  catch { return { available: false }; }
 }
 
 export async function readOrgAgentTalent(args: {
@@ -1421,7 +1466,8 @@ export async function readOrgAgentTalent(args: {
         .select("id, recommendation_id, role_id")
         .eq("talent_id", talentId)
         .in("role_id", relevantRoleIds)
-        .in("status", ["ready", "awaiting_talent", "connecting"])
+        .in("status", ["ready", "awaiting_talent", "connecting", "closed", "passed"])
+        .or("close_reason.is.null,close_reason.neq.route_replaced")
         .limit(100),
     ]);
   if (introResult.error) throw introResult.error;
@@ -1440,6 +1486,7 @@ export async function readOrgAgentTalent(args: {
   // This keeps a recommendation discoverable after a recent progress/tag
   // event even when the recommendation itself is old.
   const board = await fetchVisibleOrgAgentBoard({
+    admin: args.admin,
     audience: args.audience,
     recommendationIds: [...candidateRecommendationIds, ...introRows.map((row) => `company-intro:${row.id}`)],
     roleId: exactRoleId || null,
@@ -1456,13 +1503,12 @@ export async function readOrgAgentTalent(args: {
   if (visibleItems.every((item) => item.source === "company_intro")) {
     const visibleIntroIds = new Set(visibleIntroItems.map((item) => item.companyIntro!.id));
     const scopedRows = introRows.filter((row) => visibleIntroIds.has(row.id));
-    const progress = scopedRows.some((row) => row.recommendation_id)
+    const progress = scopedRows.length > 0
       ? await (args.admin.from("talent_progress" as any) as any)
           .select("created_at, kind, recommendation_id, role_id, talent_id, text, metadata")
           .eq("talent_id", talentId)
           .in("role_id", scopedRows.map((row) => row.role_id))
-          .in("recommendation_id", scopedRows.flatMap((row) => row.recommendation_id ? [row.recommendation_id] : []))
-          .eq("kind", "internal_followup_sent")
+          .in("kind", ["internal_followup_sent", "company_followup", "candidate_contact_preferences_changed", "company_intro_decision"])
           .eq("open_to_company", true)
           .order("created_at", { ascending: false })
           .limit(integer(args.progressLimit, 10, 1, 30))
@@ -1474,7 +1520,7 @@ export async function readOrgAgentTalent(args: {
       roleById: new Map([...roleById].filter(([id]) => visibleIntroItems.some((item) => item.roleId === id))),
       includeResumeAvailability: false,
     });
-    return { ...projection, requestHistory: contacts.requestHistory };
+    return { ...projection, requestHistory: contacts.requestHistory, scheduledFollowups: await storedFollowupsForTalent(args) };
   }
   const visibleItemByRecommendationId = new Map(
     visibleItems.filter((item) => item.source !== "company_intro").map((item) => [item.recommendationId, item])
@@ -1663,6 +1709,7 @@ export async function readOrgAgentTalent(args: {
     }),
     harperSharedInformation,
     meetingHistory,
+    scheduledFollowups: await storedFollowupsForTalent(args),
     recentProgress: visibleProgress.map((row) => ({
       at: row.created_at,
       kind: humanizeOrgProgressKind(row.kind),
@@ -1901,6 +1948,7 @@ export async function readOrgAgentRole(args: {
   }
   const role = await assertRoleInWorkspace({
     admin: args.admin,
+    user: args.user,
     includeCriteria: include.has("criteria"),
     includeMemory: include.has("memory"),
     roleId,
@@ -2500,11 +2548,16 @@ export function fitOrgAgentMoreDataContent(args: {
 
 export async function getOrgAgentMoreData(args: {
   admin: OrgAgentAdminClient;
+  user?: User;
   fullTextKeys?: string[];
   kinds: OrgAgentMoreDataKind[];
   workspaceId: string;
 }): Promise<OrgAgentMoreDataResult> {
   const requestedKinds = normalizeMoreDataKinds(args.kinds);
+  if (args.user && requestedKinds.includes("workspace_memory")) {
+    const access = await readOrgRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId });
+    if (access.scope === "team") throw new OrgHttpError(403, "Organization 공용 메모는 전체 접근 권한이 필요합니다. 배정된 Role의 메모를 확인해 주세요.");
+  }
   if (requestedKinds.length === 0) {
     throw new OrgHttpError(400, "At least one data kind is required");
   }

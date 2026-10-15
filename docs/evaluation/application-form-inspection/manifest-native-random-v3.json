@@ -1,0 +1,23 @@
+{
+  "task": "application-form-inspection",
+  "datasetVersion": "native-random-v3",
+  "goldVersion": "native-random-v3-visible-v1",
+  "createdAt": "2026-10-13T02:37:01.468622+00:00",
+  "clientDate": "2026-10-13",
+  "sampleSha256": "9422b1283312a665371e21dda440d3c2f35f18e54b92ac64b31af6be79f33ef5",
+  "goldSha256": "1be1954fbc85a537a95576cf4b05735bdd9b872aa2ab94b26c15c2e4e8510ae1",
+  "source": "Verified read-only production capture; full source rows/seed/query in private/native-random-v3/sample.json",
+  "eligibility": "external, is_expired IS DISTINCT FROM TRUE, no elapsed expires_at, no closed/inactive status or testOnly marker, unique URLs excluding all 15 earlier sampled URLs. No provider/country restriction.",
+  "captureRunner": "scripts/captureAgentsApplicationInputSample.py",
+  "canonicalRunner": "scripts/runAgentsApplicationInputBatch.py",
+  "model": "gpt-6.1-sol",
+  "reasoning": "low",
+  "serviceTier": "provider_default",
+  "sampling": "provider_default",
+  "maxConcurrentCases": 3,
+  "timeoutSeconds": 600,
+  "usageWaitSeconds": 20,
+  "taskRetries": 0,
+  "privacy": "Only public JD URLs to OpenAI; no candidate facts, document, authentication, consent or real-employer submission. Gold/reference not sent to the model.",
+  "limitations": "Five random URLs from eligible external rows, no ATS stratification. Live DOM can change. Two visible public forms and three access limits do not measure production accuracy. Hidden and answer-dependent fields are outside the gate."
+}

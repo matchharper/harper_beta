@@ -3,6 +3,8 @@ import { z } from "zod";
 export const preparationResponseSchema = z.object({
   decision: z.enum(["accept", "ignore", "answer", "document", "help", "skip"]),
   text: z.string().max(20000).optional(),
+  edits: z.array(z.object({target:z.string(),originalText:z.string(),suggestedText:z.string().max(20000)})).max(12).optional(),
+  draftText: z.string().max(30000).optional(),
   documentId: z.string().optional(),
   documentName: z.string().optional(),
   applicationMethod: z.enum(["harper", "manual"]).optional(),
@@ -45,6 +47,8 @@ export const preparationSchema = z.object({
   currentItemId: z.string().nullable(),
   showInputs: z.boolean(),
   inputRevision: z.number().int(),
+  preparedInputRevision: z.number().int().optional(),
+  preparedResumeChangesFingerprint: z.string().optional(),
   generation: z.object({
     status: z.enum(["idle", "running", "failed", "ready"]),
     runId: z.string().nullable(),
@@ -106,6 +110,11 @@ export function createPreparation(): Preparation {
 type Item = {
   id: string;
   inputKind?: "change" | "question" | "material" | "choice";
+  draftText?: string;
+  edits?: {target:string;originalText:string;suggestedText:string}[];
+  target?: string;
+  originalText?: string;
+  suggestedText?: string;
   category: string;
   needsConfirmation: boolean;
   options?: { id: string; label: string }[];
@@ -148,7 +157,7 @@ export function respondToPreparation(
     choice: ["answer", "skip"],
     change: ["accept", "ignore", "answer", "skip"],
     question: ["answer", "skip"],
-    material: ["document", "help", "answer", "skip"],
+    material: item.draftText !== undefined ? ["accept", "ignore", "answer", "skip"] : ["document", "help", "answer", "skip"],
   };
   if (!allowed[preparationKind(item)].includes(response.decision))
     throw new Error("Invalid response for this item");
@@ -156,6 +165,9 @@ export function respondToPreparation(
     throw new Error("Answer required");
   if (response.decision === "document" && !response.documentId)
     throw new Error("Document required");
+  const sourceEdits = item.edits?.length ? item.edits : item.originalText || item.suggestedText ? [{target:item.target ?? "",originalText:item.originalText ?? "",suggestedText:item.suggestedText ?? ""}] : [];
+  if (response.edits && (response.decision !== "accept" || preparationKind(item) !== "change" || response.edits.length !== sourceEdits.length || response.edits.some((e,i) => e.target !== sourceEdits[i].target || e.originalText !== sourceEdits[i].originalText))) throw new Error("Edited text must keep the original suggestion targets");
+  if (response.draftText !== undefined && (response.decision !== "accept" || item.draftText === undefined)) throw new Error("Only a proposed material can carry edited text");
   const next = structuredClone(p);
   next.responses[id] = response;
   next.inputRevision++;

@@ -17,6 +17,7 @@ export async function createApplicationStartOffer(args: {
   userId: string;
   conversationId: string;
   replyId?: number;
+  documentId?: string;
   roleName: string;
   roleTitle?: string;
   companyName?: string;
@@ -41,7 +42,9 @@ export async function createApplicationStartOffer(args: {
     userId: args.userId,
     kind: "resume",
   });
+  if (args.documentId && !resumes.some(d => d.id === args.documentId && d.extracted_text?.trim())) throw new Error("Select a readable resume belonging to this user");
   const payload: ApplicationStartOffer = {
+    selectedDocumentId: args.documentId,
     version: 1,
     replyId: args.replyId,
     status: "ready",
@@ -127,6 +130,7 @@ export async function prepareApplicationStartPayload(args: {
   userId: string;
   conversationId: string;
   replyId: number;
+  documentId?: string;
   request: import("./startOfferPayload").StartOfferPayload;
 }) {
   // Shared data readers perform the same visibility checks as role-context lookup.

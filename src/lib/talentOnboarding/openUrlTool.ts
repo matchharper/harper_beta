@@ -1,4 +1,5 @@
 import type { TalentAdminClient } from "./admin";
+import { throwIfToolControlError } from "@/lib/llm/toolError";
 import TurndownService from "turndown";
 import {
   documentExcerpt,
@@ -209,17 +210,26 @@ export async function openUrlWithDocumentsCache(args: {
   }
 
   if (!source) {
-    const response = await (args.exa ?? getExaClient()).getContents(
-      [normalizedUrl],
-      {
-        text: { maxCharacters: EXA_CONTENT_MAX_CHARACTERS },
-      }
-    );
+    let response;
+    try {
+      response = await (args.exa ?? getExaClient()).getContents(
+        [normalizedUrl],
+        { text: { maxCharacters: EXA_CONTENT_MAX_CHARACTERS } }
+      );
+    } catch (error) {
+      throwIfToolControlError(error);
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      throw Object.assign(new Error("The page reader could not retrieve this URL.", { cause: error }), {
+        recovery: "No page content was read. This does not establish that the URL is invalid or the page was removed. Use web search to find another accessible source, or ask for the relevant text. Do not invent details from this page or repeatedly call the same reader without new information.",
+      });
+    }
     const result = response.results[0];
     const text = normalizeDocumentText(String(result?.text ?? ""));
 
     if (!result || !text) {
-      throw new Error("Exa returned no text for the URL.");
+      throw Object.assign(new Error("Exa returned no text for the URL."), {
+        recovery: "The reader returned no usable page text, so the page contents are unverified. This is not proof that the page is missing. Use another accessible source from web search or the text supplied by the user instead of repeating the same empty read.",
+      });
     }
 
     source = {

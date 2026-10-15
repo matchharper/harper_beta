@@ -85,7 +85,7 @@ test("only verified paid subscription cycles supply credit periods", () => {
   assert.equal(
     paidInvoicePeriod(invoice(), afterTrial, true),
     null,
-    "a delayed trial invoice cannot grant credits after the trial ends"
+    "a delayed trial invoice cannot grant Intros after the trial ends"
   );
   const paidRenewal = invoice();
   paidRenewal.lines.data[0].period = {

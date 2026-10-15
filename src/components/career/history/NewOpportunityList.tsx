@@ -1,4 +1,5 @@
 import {
+  ArrowUpFromLine,
   ArrowUpRight,
   Bookmark,
   Building2,
@@ -44,6 +45,7 @@ type NewOpportunityListProps = {
   items: readonly CareerHistoryOpportunity[];
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  onApply: OpportunityAction;
   onNegative: OpportunityAction;
   onKeep: OpportunityAction;
   onOpenCompanyInfo?: OpportunityAction;
@@ -157,6 +159,7 @@ function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
 function NewOpportunityCard({
   expanded,
   item,
+  onApply,
   onNegative,
   onKeep,
   onOpenCompanyInfo,
@@ -166,6 +169,7 @@ function NewOpportunityCard({
   pending,
 }: Pick<
   NewOpportunityListProps,
+  | "onApply"
   | "onNegative"
   | "onKeep"
   | "onOpenCompanyInfo"
@@ -249,8 +253,16 @@ function NewOpportunityCard({
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] font-normal md:font-medium leading-6 text-neutral-primary sm:text-[15px]">
-            {item.title}
+          <span className="flex min-w-0 items-center gap-1.5">
+            {!item.viewedAt ? (
+              <span
+                aria-hidden
+                className="pointer-events-none size-1.5 shrink-0 rounded-full bg-action"
+              />
+            ) : null}
+            <span className="block truncate text-[14px] font-normal md:font-medium leading-6 text-neutral-primary sm:text-[15px]">
+              {item.title}
+            </span>
           </span>
           <div className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1 text-[12px] font-normal leading-5 text-neutral-muted sm:text-[13px]">
             {canOpenCompany ? (
@@ -354,10 +366,11 @@ function NewOpportunityCard({
           className="space-y-6 border-t border-neutral-1000-a05 px-4 pb-4 pt-5 sm:px-5 sm:pb-5"
           id={contentId}
         >
-          {item.recommendationSummary?.trim() ||
+          {item.recommendationNote || item.recommendationSummary?.trim() ||
           item.recommendationReasons.length > 0 ||
           (item.recommendationConcerns?.length ?? 0) > 0 ? (
             <div className="space-y-3 text-[14px] leading-6 text-neutral-primary">
+              {item.recommendationNote ? <RichText variant="career" content={item.recommendationNote} /> : null}
               {item.recommendationSummary?.trim() ? (
                 <RichText
                   variant="career"
@@ -447,6 +460,17 @@ function NewOpportunityCard({
               )}
               {positiveLabel}
             </MuteButton>
+            {!isInternal ? (
+              <MuteButton
+                disabled={pending}
+                onClick={() => onApply(item)}
+                size="md"
+                variant="primary"
+              >
+                <ArrowUpFromLine aria-hidden className="size-4" />
+                {t("career.history.external_application.apply", "지원하기")}
+              </MuteButton>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -497,6 +521,7 @@ export default function NewOpportunityList({
   internalCount,
   items,
   loadingMore = false,
+  onApply,
   onLoadMore,
   onNegative,
   onKeep,
@@ -631,6 +656,7 @@ export default function NewOpportunityList({
                       expanded={expandedOpportunityId === item.id}
                       item={item}
                       key={item.id}
+                      onApply={onApply}
                       onNegative={onNegative}
                       onKeep={onKeep}
                       onOpenCompanyInfo={onOpenCompanyInfo}

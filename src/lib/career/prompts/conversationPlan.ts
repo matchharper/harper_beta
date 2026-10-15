@@ -1,4 +1,5 @@
 import { buildSimulationSessionPrompt } from "../simulation/sessionPrompt";
+import { orderCareerPromptBlocksForCaching } from "./promptCaching";
 import type { SimulationSession } from "../simulation/session";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import {
@@ -214,8 +215,8 @@ export function buildCareerConversationPromptPlan(args: {
 
   const isVoiceCall = args.channel === "voice";
 
-  // 블록 순서는 중요하다: 안정적인 시스템 규칙, 프로필/tool 맥락,
-  // 매 턴 바뀌는 runtime state 순서로 넣는다.
+  // 원본 블록을 조립한 뒤 고정 지침 → Profile → Brief/Memory → 도구 정책·
+  // runtime state 순서로 배치한다. 블록의 본문과 제공 데이터는 보존한다.
   const promptBlocks: CareerPromptBlock[] = [];
   const promptVars = {
     channel_context_rules: channelContextRules,
@@ -238,7 +239,7 @@ export function buildCareerConversationPromptPlan(args: {
       isOnboardingActive: false,
       enabledToolNames: normalizedToolNames,
       toolPolicy,
-      promptBlocks: [
+      promptBlocks: orderCareerPromptBlocksForCaching([
         coreSystemPrompt,
         ...buildSimulationSessionPrompt(args.simulationSession, normalizedToolNames),
         { key: "profile_context", text: profileContextBlock, cacheable: true },
@@ -248,7 +249,7 @@ export function buildCareerConversationPromptPlan(args: {
         ...(args.runtimeInstruction
           ? [{ key: "runtime_instruction", text: args.runtimeInstruction }]
           : []),
-      ],
+      ]),
     };
   }
 
@@ -421,7 +422,8 @@ export function buildCareerConversationPromptPlan(args: {
 
   if (!isOnboardingActive && args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
     key: "application_start_payload",
-    text: 'Recognize application intent in ordinary language: asking whether Harper can apply on their behalf, wanting to apply to a specific role, or wanting help preparing an application. No exact feature name or activation phrase is required. When the target role is known, invite the user to prepare and apply together and briefly explain the useful capabilities: review role fit, tailor the resume and supporting answers, then either assist through a supported application site or hand over the materials for self-submission. Present this as an optional next step; opening the card alone never starts work or promises successful submission. Answer a general capability question briefly and clarify the target if no role is known. For a known target, append [[APPLICATION_START_OFFER]]{"roleId":"the known role identifier"}[[/APPLICATION_START_OFFER]]. For a public Harper posting use {"official_job_slug":"the known slug"} instead. Include exactly one of those identifiers and no other fields. Resolve an ambiguous role before proposing the card. This response payload shows a resume-selection start card after your reply; it does not start analysis or activate a mode. No tool call is needed for the card. The user starts by choosing a resume and pressing its button. Keep the invitation concise and conversational, focused on what the user can do with Harper. Do not narrate card rendering or say that a card was placed below. Avoid a lengthy role assessment before the user starts; analysis belongs inside the mode. The card carries resume selection and start controls.'
+    text: "When the user wants application help for a known role, load opportunities and documents if necessary, choose one readable resume from list_documents, and call simulate_application with the role identifier and document_id. This displays the existing selection/start card; only the user's Start click runs preparation. Judge the current attempt from tools called in this turn: a historical failure does not establish a current blocker. Fulfill a renewed preparation request by making the current tool call, and report its actual result. If the tool is not yet loaded, load the opportunities capability (and documents when needed). If no readable resume exists, offer upload or ask whether Harper should create a simple resume from the profile, then use generate_resume after consent. The successful call ends this turn with the interactive card, which owns resume selection and the next Start action. Let that card explain the flow. Do not output hidden JSON markers or run a lengthy analysis before Start. No exact activation phrase is needed. Resolve an ambiguous target first."
+
   });
   if (args.simulationAvailability) {
     promptBlocks.push({
@@ -533,7 +535,7 @@ export function buildCareerConversationPromptPlan(args: {
   return {
     enabledToolNames: normalizedToolNames,
     isOnboardingActive,
-    promptBlocks,
+    promptBlocks: orderCareerPromptBlocksForCaching(promptBlocks),
     toolPolicy,
   };
 }

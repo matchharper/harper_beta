@@ -1,9 +1,11 @@
 import { withUiStatusMessageParameter } from "@/lib/talentOnboarding/tools";
 import { applyToRoleTool, APPLY_TO_ROLE } from "./simulation/applicationBrowser";
-import { applicationInputTool, ASK_APPLICATION_INPUT } from "./simulation/applicationInput";
+import { manageApplicationSuggestionsTool } from "./simulation/suggestions";
+import { readyForRoleTool } from "./simulation/readyForRole";
 import {
   SIMULATION_TOOL_NAMES,
   simulationSessionTool,
+  applicationPreparationSessionTool,
 } from "./simulation/sessionTool";
 import {
   getOpenAIChatTools,
@@ -24,6 +26,7 @@ export type CareerRealtimeTool = ReturnType<typeof getRealtimeTools>[number];
 
 export type CareerChatToolSelectionArgs = {
   simulationActive?: boolean;
+  simulationPreparation?: boolean;
   allowedToolNames?: readonly string[] | null;
   activeInternalFitHoldQuestion?: boolean | null;
   channel?: TalentToolChannel | null;
@@ -111,6 +114,7 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.READ_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.GENERATE_RESUME,
+  TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
   TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
   // Eligible after onboarding; the capability resolver may defer this schema.
   // Its prompt keeps ordinary chat as the default without an intent classifier.
@@ -182,6 +186,7 @@ function shouldExposeCareerChatTool(
 ) {
   const channel = args.channel === "voice" ? "voice" : "chat";
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
+  if(toolName===TALENT_TOOL_NAMES.SIMULATE_APPLICATION && channel!=="chat") return false;
 
   if (
     toolName === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING &&
@@ -220,23 +225,23 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
     const tools = applyAllowedToolNames([
       ...getOpenAIChatTools("chat", {
         responseLocale: args.responseLocale,
-      }).filter((t) => SIMULATION_TOOL_NAMES.includes(t.function.name)),
-      simulationSessionTool,
-      applicationInputTool,
+      }).filter((t) => SIMULATION_TOOL_NAMES.includes(t.function.name) && (args.simulationPreparation === false || t.function.name !== TALENT_TOOL_NAMES.GENERATE_RESUME)),
+      args.simulationPreparation === false ? simulationSessionTool : applicationPreparationSessionTool,
+      manageApplicationSuggestionsTool,
+      readyForRoleTool,
       applyToRoleTool,
     ].map(tool=>({...tool,function:{...tool.function,parameters:withUiStatusMessageParameter(tool.function.parameters)}})), getOpenAIChatToolName, args.allowedToolNames);
     const names = new Set(tools.map(getOpenAIChatToolName));
     return {
       tools,
       toolNames: tools.map((t) => t.function.name),
-      stopAfterToolNames: [ASK_APPLICATION_INPUT, APPLY_TO_ROLE].filter(name => names.has(name)),
+      stopAfterToolNames: [APPLY_TO_ROLE].filter(name => names.has(name)),
     };
   }
   const selectedTools = applyAllowedToolNames(
     getOpenAIChatTools("chat", {
       responseLocale: args.responseLocale,
     })
-      .filter((tool) => tool.function.name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION)
       .filter((tool) =>
         shouldExposeCareerChatTool(getOpenAIChatToolName(tool), args)
       )
@@ -257,6 +262,11 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
     toolNames,
     tools: selectedTools,
   };
+}
+
+/** Start is authorized by the ordinary-chat capability, before mode-only tools replace it. */
+export function canStartApplication(args: CareerChatToolSelectionArgs) {
+  return resolveCareerChatTools({...args, simulationActive:false}).toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION);
 }
 
 export function getCareerRealtimeToolCandidates(

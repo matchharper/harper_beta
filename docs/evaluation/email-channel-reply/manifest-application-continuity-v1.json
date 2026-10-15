@@ -1,0 +1,19 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-continuity-v1",
+  "goldVersion": "application-continuity-v1",
+  "source": "Synthetic extension of frozen application-v2 to evaluate current/later outcome attribution, natural approval, and essential factual unknown; no production data. Prior failures informed gold before first run.",
+  "frozenBeforeFirstRun": true,
+  "caseCount": 3,
+  "turnCount": 7,
+  "hashes": {
+    "cases-application-continuity-v1.json": "fa52d730ba881f9a9283f2b4b5ee70d0a365b11237ba915f56fb49a4c06f46a3",
+    "gold-application-continuity-v1.json": "c3e4ff037e5da267a47fdc22ec1572cd6c35b93bae34df259e4696b060fde54c"
+  },
+  "privacy": "Loopback DB/mail; existing configured model provider; synthetic JD/form/receipt boundaries",
+  "labelReview": {
+    "reviewer": "Codex",
+    "date": "2026-10-14",
+    "reason": "User requested correcting current execution attribution and approval followed by repeated questions. Earlier outputs were observed; prior datasets/gold remain unchanged."
+  }
+}

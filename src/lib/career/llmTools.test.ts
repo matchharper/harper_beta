@@ -5,6 +5,7 @@ import {
   CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES,
   getCareerRealtimeToolCandidates,
   resolveCareerChatTools,
+  canStartApplication,
 } from "./llmTools";
 import {
   executeTalentTool,
@@ -117,30 +118,35 @@ test("exposes the input-free coaching list after onboarding as plain text", asyn
   assert.match(text, /연봉 협상 연습하기/);
 });
 
-test("analysis tool is excluded from ordinary chat and voice", () => {
+test("start-card tool is available after onboarding in text chat only", () => {
   for (const isOnboardingDone of [false, true]) {
     const chat = resolveCareerChatTools({ channel: "chat", isOnboardingDone, responseLocale: "ko" });
-    assert.ok(!chat.toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
+    assert.equal(chat.toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION),isOnboardingDone);
   }
   assert.ok(!getCareerRealtimeToolCandidates("ko").some(tool => tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION));
 });
 
 test("application questions are mode-only and are an explicit yield boundary",()=>{
   const ordinary=resolveCareerChatTools({isOnboardingDone:true,channel:"chat"});
-  assert.ok(!ordinary.toolNames.includes("ask_application_input"));
-  assert.ok(!ordinary.toolNames.includes("apply_to_role"));
+  assert.ok(!ordinary.toolNames.includes("manage_application_suggestions"));
+  assert.ok(!ordinary.toolNames.includes("apply_for_role"));
   const active=resolveCareerChatTools({isOnboardingDone:true,channel:"chat",simulationActive:true});
-  assert.ok(active.toolNames.includes("ask_application_input"));
-  assert.ok(active.toolNames.includes("apply_to_role"));
-  assert.ok(active.stopAfterToolNames.includes("apply_to_role"));
-  assert.ok(active.stopAfterToolNames.includes("ask_application_input"));
+  assert.ok(active.toolNames.includes("manage_application_suggestions"));
+  assert.ok(active.toolNames.includes("apply_for_role"));
+  assert.ok(active.stopAfterToolNames.includes("apply_for_role"));
+  assert.ok(!active.stopAfterToolNames.includes("manage_application_suggestions"));
+  assert.ok(active.toolNames.includes("ready_for_role"));
+  assert.ok(ordinary.toolNames.includes("simulate_application"));
+  assert.ok(!active.toolNames.includes("simulate_application"));
   assert.ok(!active.toolNames.includes("update_document"));
   assert.ok(!active.toolNames.includes("contact_company"));
 });
 
-test("Apply with Harper exposes resume generation alongside its dedicated question and apply tools", () => {
+test("Apply with Harper uses one guarded resume writer and a compact lifecycle tool", () => {
   const names = resolveCareerChatTools({isOnboardingDone:true, channel:"chat", simulationActive:true}).tools.map(t => t.function.name);
-  for (const name of ["generate_resume", "read_document", "ask_application_input", "apply_to_role"]) assert.ok(names.includes(name), name);
+  for (const name of ["ready_for_role", "read_document", "manage_application_suggestions", "apply_for_role"]) assert.ok(names.includes(name), name);
+  assert.ok(!names.includes("generate_resume"));
+  assert.ok(resolveCareerChatTools({isOnboardingDone:true,simulationActive:true,simulationPreparation:false}).toolNames.includes("generate_resume"));
 });
 
 test("application tools stay inside caller bounds and shared context tools remain available", () => {
@@ -150,9 +156,20 @@ test("application tools stay inside caller bounds and shared context tools remai
   const active = resolveCareerChatTools(base);
   for (const name of ["read_talent_context", "write_talent_context", "update_talent_profile"])
     assert.ok(active.toolNames.includes(name), name);
-  assert.deepEqual(resolveCareerChatTools({...base,allowedToolNames:["ask_application_input"]}).stopAfterToolNames,["ask_application_input"]);
+  assert.deepEqual(resolveCareerChatTools({...base,allowedToolNames:["manage_application_suggestions"]}).stopAfterToolNames,[]);
   for (const args of [{...base,channel:"voice" as const}, {...base,isOnboardingDone:false}]) {
     const names=resolveCareerChatTools(args).toolNames;
-    for(const name of ["apply_to_role","ask_application_input","manage_simulation_session","simulate_application"]) assert.ok(!names.includes(name),name);
+    for(const name of ["apply_for_role","manage_application_suggestions","manage_simulation_session","simulate_application"]) assert.ok(!names.includes(name),name);
   }
+});
+
+test("Start uses ordinary-chat authorization before switching into preparation tools",()=>{
+  const allowed={isOnboardingDone:true,channel:"chat" as const};
+  assert.equal(canStartApplication(allowed),true);
+  assert.equal(canStartApplication({...allowed,simulationActive:true}),true);
+  assert.equal(canStartApplication({...allowed,isOnboardingDone:false}),false);
+  assert.equal(canStartApplication({...allowed,channel:"voice"}),false);
+  assert.equal(canStartApplication({...allowed,allowedToolNames:[]}),false);
+  assert.equal(canStartApplication({...allowed,allowedToolNames:["simulate_application"]}),true);
+  assert.equal(canStartApplication({...allowed,allowedToolNames:["ready_for_role"]}),false);
 });

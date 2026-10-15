@@ -92,11 +92,11 @@ test("new company onboarding shows plans and no invented role step", () => {
       showPlan: true,
       roles: [],
     }),
-    ["profile", "company-details", "company", "slack", "plan", "done"]
+    ["profile", "company-details", "company", "slack", "plan", "guide", "done"]
   );
   assert.deepEqual(
     getOrgOnboardingSteps({ showSlack: false, showCompany: false, roles: [] }),
-    ["profile", "done"]
+    ["profile", "guide", "done"]
   );
 });
 

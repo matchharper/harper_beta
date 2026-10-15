@@ -1,0 +1,19 @@
+{
+  "task": "agents-hosted-resume-upload",
+  "datasetVersion": "storage-live-v1",
+  "goldVersion": "storage-live-v1",
+  "model": "gpt-6.1-sol",
+  "reasoning": "provider_default",
+  "sampling": "provider_default",
+  "method": "hosted_playwright",
+  "canonicalRunner": "scripts/agents_api_hosted_upload_probe.py",
+  "privateSource": "private/storage-live-v1/source.json",
+  "sourcePdfSha256": "f71885a38527f96f3a939ad87d4ed7bd06c7a20639faaeb2e78725d83d6aa61c",
+  "sourcePdfBytes": 2748,
+  "inspectionDatasetVersion": "native-korea-v1",
+  "scope": "Only the two public application forms reached in the five-case sample; no sample replacement, no submission. The other three had login/closed/unresolved paths.",
+  "casesSha256": "9b9796ae93dd764ac5280ff20f9411ad7bace839852e3ee88cf4192976313334",
+  "goldSha256": "f361ad6b195428984c1e7b45cfc9ea4628d7e18dc0f212c2ac0e1a97c051a6b2",
+  "knownLimits": "Mutable ATS, two attachment-only cases, no employment suitability judgment. DOM file identity is not proof of final employer receipt.",
+  "casesPrivatePath": "private/storage-live-v1/cases.json"
+}

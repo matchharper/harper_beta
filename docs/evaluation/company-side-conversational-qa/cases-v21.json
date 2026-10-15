@@ -1,0 +1,41 @@
+{
+  "datasetVersion": "v21",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic general support reports; no production identities or transcripts. Frozen before calls.",
+  "scenarios": [
+    {
+      "id": "CSCQ2101",
+      "variants": [
+        {
+          "id": "report_chat",
+          "surface": "chat",
+          "turns": [
+            "후보자 목록 페이지에서 다음 페이지를 누르면 첫 페이지가 다시 나와요. 이 오류를 Harper 팀에 제보해줘."
+          ]
+        },
+        {
+          "id": "report_slack",
+          "surface": "slack",
+          "turns": [
+            "방금 파일 첨부가 사라졌어요. 원인은 모르겠는데 Harper 팀에 알려주세요."
+          ]
+        },
+        {
+          "id": "unknown_delivery",
+          "surface": "chat",
+          "reportDelivery": "unknown",
+          "turns": [
+            "알림 설정 저장 버튼이 작동하지 않는 문제를 Harper 팀에 전달해줘."
+          ]
+        },
+        {
+          "id": "draft_only",
+          "surface": "chat",
+          "turns": [
+            "첨부파일 업로드 오류를 Harper 팀에 보낼 제보 문구만 작성해줘. 아직 전달하지는 마."
+          ]
+        }
+      ]
+    }
+  ]
+}

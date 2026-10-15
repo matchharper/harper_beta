@@ -2,6 +2,7 @@ import {
   backgroundResultRenderContract,
   type BackgroundResultCandidateTarget,
 } from "./backgroundResultParts";
+import { buildCompanyUpdatePrompt } from "./companyUpdate";
 
 type BackgroundResultMessage = {
   content: string;
@@ -23,6 +24,7 @@ function clean(value: unknown, maxLength: number) {
 }
 
 export function buildOrgAgentBackgroundResultMessages(args: {
+  companyUpdateContext?: Record<string, unknown>;
   candidateTargets?: BackgroundResultCandidateTarget[];
   companyName: string;
   firstCompanyFirstResultDelivery?: boolean;
@@ -38,6 +40,12 @@ export function buildOrgAgentBackgroundResultMessages(args: {
     (args.candidateTargets?.length
       ? backgroundResultRenderContract(args.candidateTargets)
       : "");
+  if (args.companyUpdateContext) {
+    return [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: buildCompanyUpdatePrompt(args.companyUpdateContext) },
+    ];
+  }
   if (args.requestedByCompany === false) {
     return [
       {

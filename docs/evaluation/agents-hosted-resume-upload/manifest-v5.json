@@ -1,0 +1,15 @@
+{
+  "task": "agents-hosted-resume-upload",
+  "datasetVersion": "product-submission-v5",
+  "goldVersion": "product-submission-v5",
+  "createdAt": "2026-10-13",
+  "review": "Frozen before product-planner execution. Synthetic profile and preapproved writing, exact structural gates; no model-generated labels. Earlier versions remain unchanged.",
+  "runner": "scripts/evalApplicationBrowserSubmission.ts",
+  "sourceProvenance": "New isolated receiver version based on UTF-8 v4. Adds independent POST-attempt statistics. Uses synthetic v1 PDF rather than the PII-bearing Storage E2E PDF.",
+  "fileHashes": {
+    "cases-v5.json": "8b193bb61f46462a7b7ebe1ecf17159fa2b37863d9424248796c1c93853231c4",
+    "gold-v5.json": "ed873727f0f0329dbd07de97e054926daf0d64624d15d56efcaa057a716abb30",
+    "fixtures/receipt-server-v5.cjs": "c39b37bb0118d84a22cb713c9691282f954f6b9e144021a3401488cf31464cf9",
+    "fixtures/synthetic-resume-v1.pdf": "267cab6d8295aba43ea2e71dbb76857015221bf91ef1456610b6fe27a29ebd00"
+  }
+}

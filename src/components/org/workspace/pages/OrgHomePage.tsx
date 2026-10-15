@@ -1,4 +1,8 @@
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import {
+  useOrgSourceT,
+  useOrgLocale,
+  type OrgCopy,
+} from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import { UserPlus } from "lucide-react";
 import { useRouter } from "next/router";
@@ -18,7 +22,7 @@ import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgBoard } from "@/hooks/org/useOrg";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { canUseOrgDevControls } from "@/lib/internalAccess";
+import { canUseOrgDevControls, isInternalDomainEmail } from "@/lib/internalAccess";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
 
@@ -113,7 +117,7 @@ function HiringStatusSummaryItem({
   count: number;
   state: HiringRoleState;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const meta = HIRING_ROLE_STATE_META[state];
   return (
@@ -121,9 +125,13 @@ function HiringStatusSummaryItem({
       side="top"
       text={
         state === "waiting"
-          ? t("workspace.pages.OrgHomePage.3dc736b3", "연결 대기 후보자가 {p0}명 이상인 역할 수입니다.", {
-              p0: ORG_PENDING_CONNECTION_PAUSE_THRESHOLD,
-            })
+          ? c(
+              "연결 대기 후보자가 {p0}명 이상인 역할 수입니다.",
+              "Roles with {p0}+ candidates awaiting a decision",
+              {
+                p0: ORG_PENDING_CONNECTION_PAUSE_THRESHOLD,
+              }
+            )
           : sourceT(meta.summaryTooltip)
       }
     >
@@ -179,11 +187,18 @@ function JobRoleRow({
   status: string | null;
   onClick: () => void;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const pendingTooltip =
     pending > 0
-      ? t("workspace.pages.OrgHomePage.7442293b", "{p0}명의 후보자가 연결 결정을 기다리고 있습니다.", { p0: pending })
-      : t("workspace.pages.OrgHomePage.46b39bb4", "연결 결정을 기다리는 후보자가 없습니다.");
+      ? c(
+          "{p0}명의 후보자가 연결 결정을 기다리고 있습니다.",
+          "Candidates awaiting your decision: {p0}.",
+          { p0: pending }
+        )
+      : c(
+          "연결 결정을 기다리는 후보자가 없습니다.",
+          "No candidates ready to connect."
+        );
 
   return (
     <BareButton
@@ -207,8 +222,8 @@ function JobRoleRow({
           )}
         >
           {pending > 0
-            ? t("workspace.pages.OrgHomePage.b1d01fa2", "{p0}명 대기", { p0: pending })
-            : t("workspace.pages.OrgHomePage.dea7294d", "대기 없음")}
+            ? c("{p0}명 대기", "{p0} to review", { p0: pending })
+            : c("대기 없음", "None to review")}
         </span>
       </Tooltips>
     </BareButton>
@@ -216,13 +231,13 @@ function JobRoleRow({
 }
 
 function formatSlackChannelName(
-  t: ReturnType<typeof useOrgT>,
+  c: OrgCopy,
   channel: { channelId: string; channelName: string | null } | null
 ) {
   if (!channel) return null;
   const name = channel.channelName?.trim();
   if (name) return name.startsWith("#") ? name : `#${name}`;
-  return t("workspace.pages.OrgHomePage.f9008f14", "채널 {p0}", { p0: channel.channelId });
+  return c("채널 {p0}", "Channel {p0}", { p0: channel.channelId });
 }
 
 function HomeQuickActions({
@@ -242,13 +257,13 @@ function HomeQuickActions({
   slackChannelName: string | null;
   slackDisconnected: boolean;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const cardCs =
     "sm:min-h-[132px] min-w-0 w-full flex-col items-start gap-1 rounded-xl border-neutral-1000-a10 bg-bg-default p-4 sm:p-4 shadow-none hover:border-neutral-1000-a10 hover:bg-neutral-100";
 
   return (
     <div
-      aria-label={t("workspace.pages.OrgHomePage.6144df49", "Workspace 설정")}
+      aria-label={c("Workspace 설정", "Workspace settings")}
       className="mt-20 grid w-full grid-cols-1 sm:grid-cols-3 gap-3 sm:mt-32"
     >
       <CardButton
@@ -266,7 +281,7 @@ function HomeQuickActions({
           )}
         >
           <Image
-            alt={t("workspace.pages.OrgHomePage.50864563", "")}
+            alt={c("", "")}
             height={18}
             src="/images/logos/slack.svg"
             width={18}
@@ -274,7 +289,7 @@ function HomeQuickActions({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[14px] font-medium">
-            {t("workspace.pages.OrgHomePage.4345fdd2", "Slack")}
+            {c("Slack", "Slack")}
           </span>
           <span
             className={cn(
@@ -283,10 +298,13 @@ function HomeQuickActions({
             )}
           >
             {slackChannelName
-              ? t("workspace.pages.OrgHomePage.46614084", "{p0} 연결됨", {
+              ? c("{p0} 연결됨", "{p0} connected", {
                   p0: slackChannelName,
                 })
-              : t("workspace.pages.OrgHomePage.f4811796", "팀과 함께 추천 소식을 확인하세요.")}
+              : c(
+                  "팀과 함께 추천 소식을 확인하세요.",
+                  "Review recommendations with your team."
+                )}
           </span>
         </span>
       </CardButton>
@@ -294,7 +312,7 @@ function HomeQuickActions({
         <span className="mb-3 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-bg-weak text-[12px] font-medium text-neutral-muted">
           {companyLogoUrl ? (
             <Image
-              alt={t("workspace.pages.OrgHomePage.50864563", "")}
+              alt={c("", "")}
               className="size-8 object-cover"
               height={32}
               src={companyLogoUrl}
@@ -307,10 +325,13 @@ function HomeQuickActions({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[14px] font-medium">
-            {t("workspace.pages.OrgHomePage.fb87e4c9", "Company")}
+            {c("Company", "Company")}
           </span>
           <span className="line-clamp-2 text-[13px] font-light leading-4 text-black/70">
-            {t("workspace.pages.OrgHomePage.5266ecae", "후보자에게 보여질 수 있는 회사 정보를 관리하세요.")}
+            {c(
+              "후보자에게 보여질 수 있는 회사 정보를 관리하세요.",
+              "Manage company info shown to candidates."
+            )}
           </span>
         </span>
       </CardButton>
@@ -320,10 +341,13 @@ function HomeQuickActions({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-[14px] font-medium">
-            {t("workspace.pages.OrgHomePage.adfbeb9f", "Members")}
+            {c("Members", "Members")}
           </span>
           <span className="line-clamp-2 text-[13px] font-light leading-4 text-black/70">
-            {t("workspace.pages.OrgHomePage.d0ac2d04", "함께 후보자를 검토할 팀원을 초대하세요.")}
+            {c(
+              "함께 후보자를 검토할 팀원을 초대하세요.",
+              "Invite teammates to review candidates."
+            )}
           </span>
         </span>
       </CardButton>
@@ -332,7 +356,7 @@ function HomeQuickActions({
 }
 
 export function OrgHomePage() {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const router = useRouter();
   const { permissions, roles, user, workspace } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
@@ -348,7 +372,7 @@ export function OrgHomePage() {
   });
   const slackStatusQuery = useOrgSlackStatus({ workspaceId });
   const primarySlackChannel = slackStatusQuery.data?.channels[0] ?? null;
-  const slackChannelName = formatSlackChannelName(t, primarySlackChannel);
+  const slackChannelName = formatSlackChannelName(c, primarySlackChannel);
   const slackDisconnected = slackStatusQuery.data?.connected === false;
   const board = boardQuery.data;
   const error = boardQuery.error instanceof Error ? boardQuery.error : null;
@@ -454,6 +478,7 @@ export function OrgHomePage() {
   ).length;
   const devControls = canUseOrgDevControls(user.email) ? (
     <OrgRoleMatchingHealthDevControls
+      canRunTalentFirst={isInternalDomainEmail(user.email)}
       key={workspaceId}
       roles={homeRoles}
       workspaceId={workspaceId}
@@ -466,14 +491,15 @@ export function OrgHomePage() {
         <div className="relative h-[calc(100svh-80px)] min-h-[560px]">
           {permissions.canManageCandidates ? (
             <div
-              aria-label={t("workspace.pages.OrgHomePage.3825f363", "새 역할 등록 대화")}
+              aria-label={c(
+                "새 역할 등록 대화",
+                "New role registration dialog"
+              )}
               className="h-full"
             >
               <OrgAgentChatSurface
                 header={
-                  <h1 className="sr-only">
-                    {t("workspace.pages.OrgHomePage.e04cbab8", "새 역할 등록")}
-                  </h1>
+                  <h1 className="sr-only">{c("새 역할 등록", "New role")}</h1>
                 }
                 onRoleCreated={handleRoleCreated}
                 purpose="role-creation"
@@ -482,7 +508,10 @@ export function OrgHomePage() {
             </div>
           ) : (
             <div className="flex h-full items-center justify-center px-6 text-sm text-neutral-muted">
-              {t("workspace.pages.OrgHomePage.0bc13914", "역할을 등록할 권한이 없습니다.")}
+              {c(
+                "역할을 등록할 권한이 없습니다.",
+                "Not authorized to create roles."
+              )}
             </div>
           )}
           <div className="absolute inset-x-0 bottom-0 z-30 bg-bg-default/90 pt-4 backdrop-blur-sm">
@@ -504,7 +533,7 @@ export function OrgHomePage() {
 
   return (
     <div className="space-y-8">
-      <OrgPageHeader title={t("workspace.pages.OrgHomePage.6afe34fc", "Home")} />
+      <OrgPageHeader title={c("Home", "Home")} />
 
       {error ? (
         <OrgErrorState
@@ -519,7 +548,7 @@ export function OrgHomePage() {
         <>
           <OrgSection>
             <OrgSectionHeader
-              title={t("workspace.pages.OrgHomePage.7cf15e71", "Hiring")}
+              title={c("Hiring", "Hiring")}
               description={
                 <HiringStatusSummary
                   active={activeRoleCount}
@@ -531,9 +560,9 @@ export function OrgHomePage() {
             />
             {hiringRoles.length > 0 ? (
               <div className="grid grid-cols-[minmax(0,1fr)_72px] gap-3 pb-2 text-[14px] font-light text-neutral-soft sm:grid-cols-[minmax(0,1fr)_152px]">
-                <span>{t("workspace.pages.OrgHomePage.f3c87312", "Role")}</span>
+                <span>{c("Role", "Role")}</span>
                 <span className="hidden text-right sm:block">
-                  {t("workspace.pages.OrgHomePage.f75cafee", "연결 대기")}
+                  {c("연결 대기", "Ready to connect")}
                 </span>
               </div>
             ) : null}
@@ -551,7 +580,7 @@ export function OrgHomePage() {
               })}
               {hiringRoles.length === 0 ? (
                 <div className="py-9 text-center text-sm font-light text-neutral-muted">
-                  {t("workspace.pages.OrgHomePage.5a84044a", "아직 등록된 Role이 없어요.")}
+                  {c("아직 등록된 Role이 없어요.", "No roles yet.")}
                 </div>
               ) : null}
             </div>

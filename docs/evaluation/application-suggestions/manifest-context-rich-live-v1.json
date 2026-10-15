@@ -1,0 +1,21 @@
+{
+  "task": "application-suggestions",
+  "datasetVersion": "context-rich-live-v1",
+  "createdAt": "2026-10-14",
+  "provenance": "Read-only sampled production career shapes; synthetic names, employers, contact details and added facts. Real public role snapshots are kept private; no production candidate source sent to models.",
+  "canonicalRunner": "scripts/evalApplicationContextJourney.ts",
+  "privacy": "Original capture and raw model outputs only under ignored owner-only private/runs.",
+  "hashes": {
+    "context-rich-live-v1.json": "eb52da3b03423e2dd5c30fe1d85441d38b05558a3aeddecbae7b0ec1c66094f8",
+    "context-rich-live-gold-v1.json": "7b5bcaed0032a1239688f0062a39b32ae4707b8ce56a48eafaef05cd27853873",
+    "private/context-rich-live-v1/inputs.json": "78c144c27fc992d934d033399807ef4aea4a1a3229a1d675dddd94c135dfbb25",
+    "private/context-rich-live-v1/source-resume.pdf": "d08ca9cbb402f5f36b509594e34b6420d4fac27259e64f49d7deb73e704e1831"
+  },
+  "knownLimits": [
+    "private role snapshots required for replay",
+    "live forms can change",
+    "full web UI/auth/production persistence and memory retrieval are outside this unit",
+    "gold assistant-authored and unblinded"
+  ],
+  "goldReview": "Frozen before model calls; diagnostic count is not a quota"
+}

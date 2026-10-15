@@ -2,7 +2,7 @@ import { canUsePendingConnections } from "@/lib/org/billing/types";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
 import { LockKeyhole } from "lucide-react";
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -43,7 +43,7 @@ const INBOX_FILTERS = [
 ] as const;
 
 function OrgInboxMain() {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const [activeFilters, setActiveFilters] = useState<InboxFilter[]>([]);
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
@@ -89,7 +89,7 @@ function OrgInboxMain() {
           item.roleName ||
           roleNames.get(item.roleId) ||
           existingRole?.name ||
-          t("workspace.pages.OrgInboxPage.364caaeb", "이름 없는 역할"),
+          c("이름 없는 역할", "Unnamed role"),
       });
     });
 
@@ -97,19 +97,18 @@ function OrgInboxMain() {
       roleId,
       ...role,
     })).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [items, roles, t]);
+  }, [items, roles, c]);
   const selectedRoleLabel = useMemo(() => {
-    if (selectedRoleIds.length === 0)
-      return t("workspace.pages.OrgInboxPage.6914c4fc", "역할 전체");
+    if (selectedRoleIds.length === 0) return c("역할 전체", "All roles");
     if (selectedRoleIds.length > 1)
-      return t("workspace.pages.OrgInboxPage.7e0fabf1", "역할 {p0}개", {
+      return c("역할 {p0}개", "{p0} roles", {
         p0: selectedRoleIds.length,
       });
     return (
       roleOptions.find((role) => role.roleId === selectedRoleIds[0])?.name ??
-      t("workspace.pages.OrgInboxPage.7633349d", "역할 1개")
+      c("역할 1개", "1 role")
     );
-  }, [roleOptions, selectedRoleIds, t]);
+  }, [roleOptions, selectedRoleIds, c]);
   const unreadOnly = activeFilters.includes("unread");
   const pendingConnectionOnly = activeFilters.includes("pendingConnection");
   const acceptedWaitingOnly = activeFilters.includes("acceptedWaiting");
@@ -184,11 +183,11 @@ function OrgInboxMain() {
   return (
     <div className="space-y-6">
       <OrgPageHeader
-        description={t(
-          "workspace.pages.OrgInboxPage.a2b121d4",
-          "최근 추천된 후보자를 확인해요."
+        description={c(
+          "최근 추천된 후보자를 확인해요.",
+          "Review suggested candidates and those ready to connect."
         )}
-        title={t("workspace.pages.OrgInboxPage.f6f6dae1", "Inbox")}
+        title={c("Inbox", "Inbox")}
       />
 
       {pendingLocked && activeFilters.includes("pendingConnection") && (
@@ -196,23 +195,16 @@ function OrgInboxMain() {
       )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div
-          aria-label={t(
-            "workspace.pages.OrgInboxPage.4e683614",
-            "Inbox 후보자 필터"
-          )}
+          aria-label={c("Inbox 후보자 필터", "Inbox candidate filter")}
           className="flex flex-wrap items-center gap-2"
           role="group"
         >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <MuteButton
-                aria-label={t(
-                  "workspace.pages.OrgInboxPage.f20c1479",
-                  "역할 필터: {p0}",
-                  {
-                    p0: selectedRoleLabel,
-                  }
-                )}
+                aria-label={c("역할 필터: {p0}", "Role filter: {p0}", {
+                  p0: selectedRoleLabel,
+                })}
                 className={cn(
                   "h-8 max-w-52 gap-1.5 text-[13px]",
                   selectedRoleIds.length > 0 &&
@@ -232,7 +224,7 @@ function OrgInboxMain() {
                 selected={selectedRoleIds.length === 0}
                 variant="sm"
               >
-                {t("workspace.pages.OrgInboxPage.b52b17f7", "전체 역할")}
+                {c("전체 역할", "All roles")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {roleOptions.map((role) => (
@@ -288,7 +280,7 @@ function OrgInboxMain() {
                 <Check aria-hidden className="relative z-20 size-3.5" />
               ) : null}
               <span className="relative z-20">
-                {t("workspace.pages.OrgInboxPage.8fd03ff8", "수락 후 대기")}
+                {c("수락 후 대기", "Awaiting Harper review")}
               </span>
             </MuteButton>
           ) : null}
@@ -315,6 +307,11 @@ function OrgInboxMain() {
 
           <MuteButton
             aria-pressed={introAvailableOnly}
+            className={cn(
+              "h-8 gap-1.5 text-[13px]",
+              introAvailableOnly &&
+                "border-primary/25 bg-primary-faded text-primary hover:border-primary/40 hover:bg-accent-200/55"
+            )}
             onClick={() => toggleInboxFilter(INBOX_FILTERS[2].value)}
             size="sm"
             variant={introAvailableOnly ? "neutral" : "default"}
@@ -327,10 +324,7 @@ function OrgInboxMain() {
 
           {searchOpen ? (
             <form
-              aria-label={t(
-                "workspace.pages.OrgInboxPage.b5e4b951",
-                "이름 또는 이메일 검색"
-              )}
+              aria-label={c("이름 또는 이메일 검색", "Search by name or email")}
               className="relative"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -343,10 +337,7 @@ function OrgInboxMain() {
                 className="pointer-events-none absolute left-2.5 top-1/2 z-10 size-3.5 -translate-y-1/2 text-neutral-soft"
               />
               <Input
-                aria-label={t(
-                  "workspace.pages.OrgInboxPage.a4b8b780",
-                  "이름 또는 이메일 검색어"
-                )}
+                aria-label={c("이름 또는 이메일 검색어", "Name or email")}
                 autoFocus
                 className="h-8 w-60 py-0 pl-8 pr-8 text-[13px]"
                 onChange={(event) => setSearchDraft(event.target.value)}
@@ -355,20 +346,17 @@ function OrgInboxMain() {
                   setSearchDraft(searchQuery);
                   setSearchOpen(false);
                 }}
-                placeholder={t(
-                  "workspace.pages.OrgInboxPage.b5e4b951",
-                  "이름 또는 이메일 검색"
+                placeholder={c(
+                  "이름 또는 이메일 검색",
+                  "Search by name or email"
                 )}
                 value={searchDraft}
               />
               <MuteButton
                 aria-label={
                   searchDraft || searchQuery
-                    ? t(
-                        "workspace.pages.OrgInboxPage.0726b098",
-                        "검색어 지우기"
-                      )
-                    : t("workspace.pages.OrgInboxPage.86c5e3e8", "검색 닫기")
+                    ? c("검색어 지우기", "Clear search")
+                    : c("검색 닫기", "Close search")
                 }
                 className="absolute right-1 top-1/2 size-6 -translate-y-1/2 p-0"
                 onClick={() => {
@@ -388,10 +376,7 @@ function OrgInboxMain() {
             </form>
           ) : (
             <MuteButton
-              aria-label={t(
-                "workspace.pages.OrgInboxPage.b5e4b951",
-                "이름 또는 이메일 검색"
-              )}
+              aria-label={c("이름 또는 이메일 검색", "Search by name or email")}
               className={cn(
                 "h-8 px-2",
                 searchQuery &&
@@ -409,10 +394,14 @@ function OrgInboxMain() {
           aria-live="polite"
           className="text-[12px] font-light tabular-nums text-neutral-muted"
         >
-          {t("composed.inboxCount", "{visible}명 표시 · 전체 {total}명", {
-            visible: visibleItems.length,
-            total: items.length,
-          })}
+          {c(
+            "{visible}명 표시 · 전체 {total}명",
+            "Showing {visible} of {total} candidates",
+            {
+              visible: visibleItems.length,
+              total: items.length,
+            }
+          )}
         </div>
       </div>
 
@@ -426,7 +415,7 @@ function OrgInboxMain() {
       ) : visibleItems.length > 0 ? (
         <OrgTalentTable
           companyHeader={null}
-          dateHeader={t("workspace.pages.OrgInboxPage.3cff6bc8", "추천일")}
+          dateHeader={c("추천일", "Date added")}
           onSelect={(item) => {
             markViewed(item.recommendationId);
             selectTalent(item, visibleItems, "Inbox");
@@ -440,19 +429,19 @@ function OrgInboxMain() {
               item.talent.name ||
               item.talent.email ||
               item.talent.headline ||
-              t("workspace.pages.OrgInboxPage.877723d7", "이름 없음"),
+              c("이름 없음", "No name"),
             profilePicture: item.talent.profilePicture,
             roleName: item.roleName,
             statusLabel:
               item.stage === "company_intro"
-                ? t("workspace.pages.OrgInboxPage.08943503", "검토 대기")
+                ? c("검토 대기", "Suggested candidate")
                 : item.stage === "intro_requested"
-                  ? t("shared.introRequested", "Intro Requested")
+                  ? c("Intro Requested", "Intro requested")
                   : item.stage === "accepted"
-                    ? t("workspace.pages.OrgInboxPage.8fd03ff8", "수락 후 대기")
+                    ? c("수락 후 대기", "Awaiting Harper review")
                     : item.stage === "pending_connection"
-                      ? t("workspace.pages.OrgInboxPage.2466e757", "연결 대기")
-                      : t("workspace.pages.OrgInboxPage.b1c76de7", "결정 완료"),
+                      ? c("연결 대기", "Ready to connect")
+                      : c("결정 완료", "Decision made"),
             statusTone:
               item.stage === "company_intro" ||
               item.stage === "accepted" ||
@@ -463,30 +452,30 @@ function OrgInboxMain() {
                   : "muted",
             viewed: isViewed(item.recommendationId),
           }))}
-          statusHeader={t("workspace.pages.OrgInboxPage.4f3f37a3", "연결 상태")}
+          statusHeader={c("연결 상태", "Status")}
         />
       ) : (
         <div className="rounded-lg border border-neutral-1000-a05 bg-bg-floating px-5 py-14 text-center">
           <div className="text-[14px] font-medium text-neutral-primary">
             {hasActiveFilter
-              ? t(
-                  "workspace.pages.OrgInboxPage.b071fd0a",
-                  "조건에 맞는 후보자가 없어요."
+              ? c(
+                  "조건에 맞는 후보자가 없어요.",
+                  "No candidates match the criteria."
                 )
-              : t(
-                  "workspace.pages.OrgInboxPage.bb20c304",
-                  "아직 Inbox에 표시할 후보자가 없어요."
+              : c(
+                  "아직 Inbox에 표시할 후보자가 없어요.",
+                  "No candidates in the Inbox yet."
                 )}
           </div>
           <div className="mt-1 text-[13px] font-light text-neutral-muted">
             {hasActiveFilter
-              ? t(
-                  "workspace.pages.OrgInboxPage.d62e1309",
-                  "필터를 해제하면 추천 후보자 전체를 다시 확인할 수 있어요."
+              ? c(
+                  "필터를 해제하면 추천 후보자 전체를 다시 확인할 수 있어요.",
+                  "Clear filters to view all recommended candidates."
                 )
-              : t(
-                  "workspace.pages.OrgInboxPage.59b486d7",
-                  "먼저 제안할 수 있는 후보자와 수락 이후 연결 검토가 시작된 후보자가 여기에 표시돼요."
+              : c(
+                  "먼저 제안할 수 있는 후보자와 수락 이후 연결 검토가 시작된 후보자가 여기에 표시돼요.",
+                  "Candidates will appear here when they're ready for your review."
                 )}
           </div>
         </div>

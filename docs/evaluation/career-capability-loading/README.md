@@ -40,6 +40,8 @@ Stub는 실제 동시성·DB 권한·PDF 출력·연락 전송을 검증하지 �
 
 ## 결과와 실행 이력
 
+2026-10-15 오류 복구 보강: 같은 frozen v5에서 `resume_revision_conflict`, `resume_storage_failure`만 progressive로 재실행했다. `runs/2026-10-14T15-57-42-218Z/`의 구조 검사와 Codex 원문 의미 검토는 2/2이며, 최신 revision 재조회·다른 편집 보존·실패 시 사본 미생성 설명을 확인했다. 원문은 유지하고 별도 `review.json`에 검토를 기록했다. 합성 실패를 사용하는 부분 회귀이며 전체 Career gate나 실제 DB 저장을 증명하지 않는다. 새 근거 조회·검색/URL 오류 반환은 별도 runtime 단위 테스트로 검증했다. 로컬·미배포다.
+
 [2026-10-09 구현·검증 보고서](reports/2026-10-09-implementation.md)를 참조한다. 초기 core 5개, 공통 근거 문구 보완, 최종 core 6개의 결과는 각각 다른 run으로 보존했다. v1/v2의 코칭 시작 gold 중 “선택 재요구 없음”은 현재 제품의 최초 suggestion card 계약과 충돌해 v3에서 코드 근거를 명시하고 수정했다. 최초 코칭 stub에 실제 executor의 후속 지침이 빠졌던 문제도 수정 후 별도 run으로 재검증했다. 운영 비용/자유 대화 성공률과 독립 human review는 이 synthetic 실행만으로 확정하지 않는다.
 
 ## 로컬 회귀 검사

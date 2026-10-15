@@ -16,19 +16,19 @@ export const CAREER_CAPABILITIES = [
     id: "application_support",
     turns: 1,
     summary:
-      "Continue the user's active application preparation, collect consequential answers, reanalyze the selected source, or assist with an explicitly approved public application. Available only while the server confirms an active application. Other tasks require agreement to end that activity first; shared Profile, Brief and Memory tools remain available inside it.",
+      "Continue the user's active application preparation, resolve suggestions, improve the selected resume, or assist with an explicitly approved public application. Available only while the server confirms an active application. Other tasks require agreement to end that activity first; shared Profile, Brief and Memory tools remain available inside it.",
     tools: [
       ["manage_simulation_session", "manage the active application and its confirmed answers"],
-      ["ask_application_input", "collect application decisions and documents"],
-      ["simulate_application", "reanalyze the confirmed role and resume"],
-      ["apply_to_role", "prepare a public application and request final submission approval"],
+      ["manage_application_suggestions", "resolve, revise or present application suggestions"],
+      ["ready_for_role", "save the tailored resume and offer to apply"],
+      ["apply_for_role", "prepare a public application and request final submission approval"],
     ],
   },
   {
     id: "opportunities",
     turns: 3,
     summary:
-      "Find and compare public or Harper-connected roles; record feedback and priority review. Load before handling role requests or recommendation reactions. Review, acceptance and sharing are distinct.",
+      "Find and compare public or Harper-connected roles, start Apply with Harper by choosing a resume and showing its start card, or record feedback and priority review. Load before handling application preparation, role requests or recommendation reactions. Review, acceptance and sharing are distinct.",
     tools: [
       ["recommend_job_postings", "find public job postings"],
       [
@@ -36,6 +36,7 @@ export const CAREER_CAPABILITIES = [
         "retrieve prior recommendations and progress",
       ],
       ["get_role_context", "read details of already-shown roles"],
+      ["simulate_application", "choose a resume and show the application start card"],
       [
         "update_recommended_opportunity_feedback",
         "record recommendation feedback",

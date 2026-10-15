@@ -1,4 +1,4 @@
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { BillingActionNotice } from "@/components/org/billing/BillingActionNotice";
 import {
   Building2,
@@ -29,7 +29,10 @@ import {
   convertSlackMrkdwnToWebMarkdown,
   renderOrgAgentWebLinks,
 } from "@/lib/org/agent/navigationMarkdown";
-import { hasOrgAgentToolWork, localizeOrgAgentThinkingLogs } from "@/lib/org/agent/thinkingLogs";
+import {
+  hasOrgAgentToolWork,
+  localizeOrgAgentThinkingLogs,
+} from "@/lib/org/agent/thinkingLogs";
 import type {
   OrgAgentMessage,
   OrgAgentMessageAction,
@@ -56,12 +59,11 @@ function formatDateLabel(createdAt: string, locale: "ko" | "en") {
 }
 
 export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const label = formatDateLabel(createdAt, locale);
   return (
     <ChatDateDivider
-      ariaLabel={t("agent.OrgAgentMessage.c92b2dd6", "대화 날짜 {p0}", { p0: label })}
+      ariaLabel={c("대화 날짜 {p0}", "Conversation date {p0}", { p0: label })}
       className="text-[13px] leading-[1.55]"
       label={label}
     />
@@ -69,21 +71,21 @@ export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
 }
 
 function OrgAssistantLabel({ fromSlack = false }: { fromSlack?: boolean }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   return (
     <ChatAssistantLabel>
       <div className="mt-2 mb-1 flex items-center gap-1.5 text-[12px] text-neutral-800 font-light">
         <Image
-          alt={t("agent.OrgAgentMessage.9cc8680f", "Harper")}
+          alt={c("Harper", "Harper")}
           className="rounded-full"
           height={18}
           src="/images/squareface.png"
           width={18}
         />
-        {t("agent.OrgAgentMessage.9cc8680f", "Harper")}
+        {c("Harper", "Harper")}
         {fromSlack ? (
           <Image
-            alt={t("agent.OrgAgentMessage.a1a13f44", "Slack")}
+            alt={c("Slack", "Slack")}
             className="size-3 shrink-0"
             height={12}
             src="/images/logos/slack.svg"
@@ -121,10 +123,13 @@ function OrgCompanyInfoCard({
   className?: string;
   onClick: () => void;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   return (
     <CardButton
-      aria-label={t("agent.OrgAgentMessage.873302db", "역할 설명에 반영한 회사 정보 열기")}
+      aria-label={c(
+        "역할 설명에 반영한 회사 정보 열기",
+        "Open company info used in the role description"
+      )}
       className={cn(
         "w-fit min-w-[min(360px,100%)] rounded-lg border-black/5 items-center gap-3 px-3 pr-6 py-4 mb-2 font-normal hover:bg-neutral-100 hover:border-black/5",
         className
@@ -136,10 +141,13 @@ function OrgCompanyInfoCard({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] text-black font-medium">
-          {t("agent.OrgAgentMessage.698ac66f", "회사 정보")}
+          {c("회사 정보", "Company info")}
         </span>
         <span className="block text-[13px] leading-4 text-black/50">
-          {t("agent.OrgAgentMessage.10586f43", "현재 후보자에게 소개되는 회사 정보를 확인해 보세요.")}
+          {c(
+            "현재 후보자에게 소개되는 회사 정보를 확인해 보세요.",
+            "Review the company info currently shown to the candidate."
+          )}
         </span>
       </span>
     </CardButton>
@@ -225,17 +233,14 @@ function MessageActionView({
   roleId?: string | null;
   workspaceId: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const meetingRequest = useSendOrgAgentMeetingRequest();
 
   if (action.kind === "entity_updated" || action.kind === "request_updated") {
     return (
       <div className="inline-flex items-center gap-1.5 text-[12px] text-positive">
         <Check className="h-3.5 w-3.5" />
-        {locale === "en"
-          ? t("agent.OrgAgentMessage.actionComplete", "처리 완료")
-          : action.label}
+        {locale === "en" ? c("처리 완료", "Action complete") : action.label}
       </div>
     );
   }
@@ -266,7 +271,7 @@ function MessageActionView({
         ) : (
           <CalendarClock className="h-3.5 w-3.5" />
         )}
-        {sent ? t("agent.OrgAgentMessage.0c3e8d1b", "요청 보냄") : action.label}
+        {sent ? c("요청 보냄", "Request sent") : action.label}
       </MuteButton>
     </div>
   );
@@ -305,8 +310,7 @@ export function OrgAgentMessageBubble({
   workActive?: boolean;
   workspaceId: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const isUser = message.role === "user";
   const fromSlack = message.sourceSurface === "slack";
   const visibleMessageContent = fromSlack
@@ -372,11 +376,11 @@ export function OrgAgentMessageBubble({
           <span className="font-medium text-neutral-muted">
             {authorName ||
               (isOwnUserMessage
-                ? t("agent.OrgAgentMessage.3ab7f8af", "나")
-                : t("agent.OrgAgentMessage.a64fe056", "워크스페이스 멤버"))}
+                ? c("나", "Me")
+                : c("워크스페이스 멤버", "Workspace member"))}
             {fromSlack ? (
               <Image
-                alt={t("agent.OrgAgentMessage.a1a13f44", "Slack")}
+                alt={c("Slack", "Slack")}
                 className="ml-1 inline-block size-3 align-[-2px]"
                 height={12}
                 src="/images/logos/slack.svg"
@@ -513,7 +517,7 @@ export function OrgAgentStreamingBubble({
 }
 
 export function OrgAgentPendingBubble() {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   return (
     <div className="flex flex-col gap-2">
       <OrgAssistantLabel />
@@ -523,7 +527,7 @@ export function OrgAgentPendingBubble() {
       >
         <ChatAssistantPending
           className="text-[13px] leading-[1.55]"
-          label={t("agent.OrgAgentMessage.e5934692", "답변 작성 중")}
+          label={c("답변 작성 중", "Composing reply")}
         />
       </ChatMessageBubbleFrame>
     </div>

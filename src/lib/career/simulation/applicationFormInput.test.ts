@@ -35,5 +35,9 @@ test("stale visible input is repaired with real events and retained across a use
     assert.equal(await page.locator("output").innerText(), "Accepted 1");
     await assert.rejects(fill(email, "invalid"), /validation/);
     await assert.rejects(fill(page.locator("input.missing"), "x"), /Expected one/);
+    await page.setContent('<label>Approved answer<textarea></textarea></label><output></output><script>document.querySelector("textarea").addEventListener("input",e=>document.querySelector("output").textContent=e.target.value)</script>');
+    const answer = "승인된 한국어 지원 답변입니다.\n".repeat(200);
+    await fill(page.getByLabel("Approved answer"), answer);
+    assert.equal(await page.locator("output").textContent(), answer);
   } finally { await browser.close(); }
 });

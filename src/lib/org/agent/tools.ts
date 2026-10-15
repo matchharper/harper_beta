@@ -22,6 +22,9 @@ function nullableText(description: string, maxLength: number) {
 }
 
 export const ORG_AGENT_TOOL_NAMES = [
+  "report_issue",
+  "send_company_message",
+  "job_posting_promote",
   "start_role_creation",
   "web_search",
   "open_url",
@@ -33,12 +36,12 @@ export const ORG_AGENT_TOOL_NAMES = [
   "read_role",
   "request_matching_search",
   "calibrate_role_hiring_brief",
-  "record_role_profile_example_feedback",
   "get_more_data",
   "read_conversation_history",
   "update_role_criteria",
   "update_data",
   "change_role_status",
+  "set_role_notification",
   "manage_role_pipeline_stages",
   "contact_talent",
   "move_candidate_stage",
@@ -52,6 +55,50 @@ export const ORG_AGENT_TOOL_NAMES = [
 export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
 
 export const ORG_AGENT_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "send_company_message",
+      description: "Commit the final company-facing Slack message batch to the server-approved audience and end this turn. Complete reads and other work first; call this tool alone. Each text is the actual message body. With no parent it starts a new thread; replyTo refers to an earlier ref in this batch; threadRef continues an existing stored thread in this audience. The server persists all parts atomically and retries delivery using those same bodies and parent references. A committed batch is not proof of recipient readership. No extra final answer is generated.",
+      parameters: {
+        type: "object", additionalProperties: false, required: ["messages"],
+        properties: { messages: { type: "array", minItems: 1, maxItems: 12, items: {
+          type: "object", additionalProperties: false, required: ["ref", "text"],
+          properties: {
+            ref: { type: "string", minLength: 1, maxLength: 80 },
+            text: { type: "string", minLength: 1, maxLength: 12000 },
+            roleId: { type: "string", description: "Exact accessible Role for this message. Replies inherit their parent's Role when omitted." },
+            threadRef: { type: "string", description: "Exact stored thread ID in the approved audience; mutually exclusive with replyTo." },
+            replyTo: { type: "string", description: "An earlier ref in this batch; mutually exclusive with threadRef." },
+          },
+        } } },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "job_posting_promote",
+      description: "Record the latest acquisition demand for an active internal Role already permitting external promotion. The shared LinkedIn posting inventory operator reads this request when allocating its limited purchased slots. This does not publish, schedule or remove a posting and does not guarantee timing, frequency or candidate volume. Check current promotion permission first; never use this to enable promotion or change anonymity. The result reports the actual recorded request and current publicity settings.",
+      parameters: { type: "object", additionalProperties: false, required: ["roleId", "demand", "reason"], properties: {
+        roleId: { type: "string" },
+        demand: { type: "string", enum: ["sufficient", "normal", "more_needed", "urgent"] },
+        reason: { type: "string", minLength: 1, maxLength: 1500, description: "Short current recruiting evidence for the operator; omit private candidate details." },
+      } },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "report_issue",
+      description: "Send a user-requested error report, discrepancy or feedback to Harper team members through the internal support channel. Interpret the user's request in context; do not send merely because a lookup failed. Summarize observed facts, impact and what remains unknown using only information available in this company conversation. Do not attach full transcripts, private candidate reasons or hidden profiles. The server attaches the current workspace, conversation and message references. Call once for the report; if delivery is unknown, explain the uncertainty rather than automatically retrying. A sent result proves delivery only, not investigation, a support ticket, a fix or a reply deadline.",
+      parameters: {
+        type: "object", additionalProperties: false,
+        properties: { summary: { type: "string", minLength: 1, maxLength: 2500, description: "Concise factual report in the user's language, including the requested help and relevant observed discrepancy." } },
+        required: ["summary"],
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -88,7 +135,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "get_talents",
       description:
-        "Search or list the company-visible candidate set across one, multiple, or all Roles. This is the first read for a workspace-wide candidate list or filter; do not call read_role once per Role merely to list candidates. Omit query to list candidates, and use currentCompanyStageId to select an exact current company stage such as pending_connection or a known custom:<id>. Every result includes the candidate's exact current company stage ID and user-facing label for that Role. Default text search covers identity, headline, and Role; set searchProfile when the requested evidence may be in education, structured work history, bio, or extras. Results include matching evidence snippets and pagination facts; when the user asks for every matching candidate, continue with the next offset while hasMore is true. Raw resume text is never searched or returned. Read selected candidates only when more detail is needed; use read_role when the whole Role pipeline and ordered stages are needed.",
+        "Search or list the company-visible candidate set across one, multiple, or all Roles. This population contains candidates already shared with the company, not the full talent pool or unseen talent market; it provides no comparative sourcing evidence for alternate hiring thresholds. A closed stage alone does not establish the reason for closure. This is the first read for a workspace-wide candidate list or filter; do not call read_role once per Role merely to list candidates. Omit query to list candidates, and use currentCompanyStageId to select an exact current company stage such as pending_connection or a known custom:<id>. Every result includes the candidate's exact current company stage ID and user-facing label for that Role. Default text search covers identity, headline, and Role; set searchProfile when the requested evidence may be in education, structured work history, bio, or extras. Results include matching evidence snippets and pagination facts; when the user asks for every matching candidate, continue with the next offset while hasMore is true. Raw resume text is never searched or returned. Read selected candidates only when more detail is needed; use read_role when the whole Role pipeline and ordered stages are needed.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -227,7 +274,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "list_contacts",
       description:
-        "List company-visible candidate communications across the whole workspace without first enumerating candidates. It covers company-requested candidate contacts, interview availability requests, connection introduction emails, standalone connection or Role-change notices, and Harper's recorded process-closure or company-request follow-up notices. Use dateBasis=sent for questions about messages that were actually sent; created and updated are available for draft/history and recent-activity questions. Omit kind to search all supported communication kinds. When recovering a previously created contact, first search by candidate or Role with kind omitted because the user's wording may not match the stored kind. Results are a compact index and intentionally omit subjects and bodies. If the user asks what was sent, requests exact wording, or needs response detail, pass the returned contactRef values to read_contact, batching up to ten. Continue with the next offset while hasMore is true when the user asks for every result. There is no direction filter because one contact can include a company request, a Harper delivery, and a candidate response; the detailed read identifies the actual people involved instead.",
+        "List company-visible candidate communications across the whole workspace without first enumerating candidates. Use kind=followup to read stored future and past company followups, their dates and delivery state; those dates are review eligibility, not guaranteed send times. It covers company-requested candidate contacts, interview availability requests, connection introduction emails, standalone connection or Role-change notices, and Harper's recorded process-closure or company-request follow-up notices. Use dateBasis=sent for questions about messages that were actually sent; created and updated are available for draft/history and recent-activity questions. Omit kind to search all supported communication kinds. When recovering a previously created contact, first search by candidate or Role with kind omitted because the user's wording may not match the stored kind. Results are a compact index and intentionally omit subjects and bodies. If the user asks what was sent, requests exact wording, or needs response detail, pass the returned contactRef values to read_contact, batching up to ten. Continue with the next offset while hasMore is true when the user asks for every result. There is no direction filter because one contact can include a company request, a Harper delivery, and a candidate response; the detailed read identifies the actual people involved instead.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -241,10 +288,11 @@ export const ORG_AGENT_TOOLS = [
               "Optional exclusive ISO date-time upper bound, interpreted using dateBasis. Include Z or an explicit UTC offset such as +09:00.",
             type: "string",
           },
+          followupStatus: { description: "For kind=followup: optional stored status such as pending, delivered, or cancelled. Date filters apply to the planned date by default.", type: "string" },
           dateBasis: {
             description:
               "Which verified timestamp to filter and sort by. sent includes only communications with an actual sent time; updated is the default.",
-            enum: ["created", "sent", "updated"],
+            enum: ["created", "sent", "updated", "scheduled"],
             type: "string",
           },
           kind: {
@@ -255,6 +303,7 @@ export const ORG_AGENT_TOOLS = [
               "interview_request",
               "connection_intro",
               "notice",
+              "followup",
             ],
             type: "string",
           },
@@ -328,7 +377,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_role",
       description:
-        "Read one internal role by roleId or exact title. Use it only for details missing from current context, and choose only the needed criteria, memory, pipeline, or description. criteria returns both the broad internal role request and the optional 0-6 structured evaluation dimensions. pipeline returns the complete ordered stage references with exact stage IDs plus each returned candidate's exact current stage ID; read it before a pipeline structure edit or candidate stage move. For a bounded pending-connection or shortlist result that lacks decision reasons, include pipeline so the answer can explain fit rather than listing names and headlines alone.",
+        "Read one internal role by roleId or exact title. Use it only for details missing from current context, and choose only the needed criteria, memory, pipeline, description, or notification settings. notification returns saved channels, primary assignee, available exact targets, current-user/current-channel markers, and explicit draft selections; it does not start hiring. criteria returns both the broad internal role request and the optional 0-6 structured evaluation dimensions. The request is used for matching even when those optional dimensions are empty; their absence alone does not establish why sourcing results are sparse. This read has no unseen-talent market distribution or counterfactual supply estimates. pipeline returns the complete ordered stage references with exact stage IDs plus each returned candidate's exact current stage ID; read it before a pipeline structure edit or candidate stage move. For a bounded pending-connection or shortlist result that lacks decision reasons, include pipeline so the answer can explain fit rather than listing names and headlines alone.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -342,10 +391,10 @@ export const ORG_AGENT_TOOLS = [
             description:
               "Parts to read. Use pipeline only for stage/count questions; criteria and memory are complete long-text reads.",
             items: {
-              enum: ["criteria", "memory", "pipeline", "description"],
+              enum: ["criteria", "memory", "pipeline", "description", "notification"],
               type: "string",
             },
-            maxItems: 4,
+            maxItems: 5,
             minItems: 1,
             type: "array",
           },
@@ -406,33 +455,13 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "calibrate_role_hiring_brief",
       description:
-        "Calibrate one existing Role's company-level talent bar from a new real-person reference supplied through conversation text, an internal candidate mention, a professional URL, or an attachment. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use it for a newly supplied reference, including a contextual '이런 사람?' after Harper requested one. Do not use it for Profile A-E, a person already in prepared_role_profile_examples, identity questions, profile summaries, or ordinary candidate assessment. It returns the finalized Hiring Brief.",
+        "Calibrate one existing Role's company-level talent bar from a new real-person reference supplied through conversation text, an internal candidate mention, a professional URL, or an attachment. Reference people represent caliber rather than Role fit unless the user explicitly connects them to both. Use it for a newly supplied reference, including a contextual '이런 사람?' after Harper requested one. Do not use it for identity questions, profile summaries, or ordinary candidate assessment. It returns the finalized Hiring Brief.",
       parameters: {
         additionalProperties: false,
         properties: {
           roleId: {
             description:
               "Exact internal Role ID whose Hiring Brief is updated.",
-            type: "string",
-          },
-        },
-        required: ["roleId"],
-        type: "object",
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "record_role_profile_example_feedback",
-      description:
-        "Record the company's natural-language Good or Bad feedback on the existing Profile A-E examples listed in prepared_role_profile_examples for one Role. Use this only when the user is reacting to one or more of those already-prepared examples, whether they refer to a profile letter or its displayed name. This is not a newly supplied ideal-person reference and not a candidate connection decision. The server reads the full prepared profiles, records every judgment in the current message, and changes the Hiring Brief only when the user supplied a reusable reason. The input stays limited to the exact Role ID.",
-      parameters: {
-        additionalProperties: false,
-        properties: {
-          roleId: {
-            description:
-              "Exact Role ID that owns the displayed calibration set.",
             type: "string",
           },
         },
@@ -486,6 +515,7 @@ export const ORG_AGENT_TOOLS = [
       parameters: {
         additionalProperties: false,
         properties: {
+          roleId: { type: "string", description: "Optional exact accessible Role to browse its stored conversations from a workspace review. Omit for the current conversation." },
           cursor: {
             description:
               "Opaque nextCursor from a previous result. For type=all, it continues the thread index. For type=thread, use a selected thread's nextCursor with that one exact threadId to continue older stored messages.",
@@ -529,14 +559,14 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "update_role_criteria",
       description:
-        "Edit or fully replace one role's optional high-level evaluation dimensions after the user explicitly asks. For one or more targeted additions, updates, or deletions, use edits and copy an existing dimension's exact name into targetName. Use criteria only for a full-list replacement. Read the role with include=criteria first when the current criteria are not visible. The final list may contain 0-6 dimensions; when useful, prefer 2-4 without adding filler. Consolidate related technical qualifications into one technical-fit dimension instead of one criterion per technology. Provide exactly one of criteria or edits. For multiple independently requested roles, call this once per exact Role after reviewing each result.",
+        "Edit or fully replace one role's independent candidate comparison elements. For a new draft, author them from known Role facts before completion as part of the authorized Role setup; no separate criteria request is needed. For a registered Role, edit only within the user's requested scope. For targeted additions, updates or deletions, use edits and copy an existing element's exact name into targetName. Use criteria only for a full-list replacement. Read include=criteria first when current criteria are not visible. Zero to six elements may be saved under the storage contract; authoring is the LLM's responsibility. Provide exactly one of criteria or edits. For multiple independently requested roles, call this once per exact Role after reviewing each result.",
       parameters: {
         additionalProperties: false,
         minProperties: 2,
         properties: {
           criteria: {
             description:
-              "Full replacement list of zero to six high-level evaluation dimensions. When useful, prefer two to four without adding filler, and consolidate related technical qualifications into one technical-fit dimension. Do not use for a targeted add, update, or delete.",
+              "Full replacement list of zero to six independent comparison elements under the shared authoring contract. Do not use for a targeted add, update or delete.",
             items: {
               additionalProperties: false,
               properties: {
@@ -612,7 +642,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "update_data",
       description:
-        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. request and memory changes are proposed first and applied only after the user's next explicit confirmation. Read and write Role compensation only through salaryRange as one free-form text value; keep minimum, maximum, currency, equity, bonus, and basis details together rather than creating split compensation fields. Submit salaryRange separately from confirmation-required request or memory fields, though it may share an atomic batch with ordinary direct changes. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
+        "Apply one atomic batch of explicitly requested company/role information changes, or resolve a stored confirmation. Role lifecycle status is intentionally excluded; use change_role_status for 진행, 중단, or 종료. Hiring Brief (role_request) changes are applied directly when authorized in the conversation. Memory changes use a stored proposal and confirmation. Read and write Role compensation only through salaryRange as one free-form text value; keep minimum, maximum, currency, equity, bonus, and basis details together rather than creating split compensation fields. Submit salaryRange separately from confirmation-required memory fields, though it may share an atomic batch with ordinary direct changes. For confirmation, send proposalId and proposalAction; if changes or summary are accidentally repeated with both confirmation fields, the stored proposal takes precedence and the repeated draft fields are ignored. Put changes that should succeed or fail together in one atomic batch; use a later call only when a previous result changes what should happen next.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -693,6 +723,22 @@ export const ORG_AGENT_TOOLS = [
   {
     type: "function",
     function: {
+      name: "set_role_notification",
+      description: "Save the selected Slack notification channels and/or primary assignee for one existing Role, including a draft, without changing its hiring status. Read read_role(include=[notification]) for exact available targets and saved settings. channelIds replaces the selected channel set; assigneeUserId replaces the primary assignee. Omitted settings are preserved. Requires the company's contextual authorization for these targets; no new channel or teammate is created. Returns verified saved settings.",
+      parameters: {
+        type: "object", additionalProperties: false, required: ["roleId"],
+        anyOf: [{ required: ["channelIds"] }, { required: ["assigneeUserId"] }],
+        properties: {
+          roleId: { type: "string" },
+          channelIds: { type: "array", items: { type: "string" }, minItems: 1 },
+          assigneeUserId: { type: "string" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "change_role_status",
       description: `Change the lifecycle status of one exact internal Role, only when the user explicitly asks for that status change.
 Call this once per exact Role. After its result, continue any other explicit, independent work from the user when it is still safe and relevant.
@@ -747,7 +793,7 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
         properties: {
           action: {
             description:
-              "Lifecycle action applied to the singular target or every batch item.",
+              "Lifecycle action applied to the singular target or every batch item. add_followup/reschedule_followup/cancel_followup manage stored future contact dates. For these use singular followup references; inspect each result before the next mutation.",
             enum: [
               "create_draft",
               "send",
@@ -755,9 +801,15 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
               "schedule",
               "immediate",
               "cancel",
+              "add_followup",
+              "reschedule_followup",
+              "cancel_followup",
             ],
             type: "string",
           },
+          contactRef: { description: "For reschedule_followup/cancel_followup: exact followup contactRef from a current read. Only the followup changes, preserving the original request.", type: "string" },
+          sourceContactRef: { description: "For add_followup: exact sourceContactRef from a current read. Supports contact:<id>, intro_request:<id>, meeting_round:<id>, or interview_request:<meeting id>.", type: "string" },
+          scheduledAt: { description: "For add_followup/reschedule_followup: ISO review-eligible date with timezone. Delivery is considered on the next talent three-day check, not promised at this exact time.", type: "string" },
           contactId: {
             description:
               "Exact contact ID from a contact-kind draftAction or deliveryAction, for one target or a shared batch default. Required for revise_draft, schedule, immediate, and cancel. An interview_request meeting ID belongs to move_candidate_stage.meetingScheduleId in candidate_process, not this contact lifecycle.",
@@ -1384,7 +1436,7 @@ export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat") {
   );
   return surface === "slack"
     ? tools
-    : tools.filter((tool) => tool.function.name !== "start_role_creation");
+    : tools.filter((tool) => tool.function.name !== "start_role_creation" && tool.function.name !== "send_company_message");
 }
 
 export function isOrgAgentToolName(value: unknown): value is OrgAgentToolName {

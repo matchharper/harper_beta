@@ -1,12 +1,14 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import { readOrgRoleAccess, scopeOrgRoleQuery, canAccessOrgRole, resolveOrgRoleAccess } from "@/lib/org/teamAccess";
 import {
   applyWebsiteCompanyDataChanges,
   normalizeWebsiteCompanyDataStringList,
 } from "@/lib/org/companyDataWebsite";
 import {
   assertOrgWorkspacePermission,
+  assertOrgRoleAccess,
   OrgHttpError,
   updateOrgRoleCriteria,
   upsertOrgCompanyUser,
@@ -24,11 +26,6 @@ import {
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { Json } from "@/types/database.types";
 import {
-  isUnambiguousFinalRoleNotificationDefault,
-  validateRoleCreationNotificationConsent,
-} from "@/lib/org/agent/roleCreationConsent";
-import {
-  hasCompleteOrgRoleCriteria,
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
 import { stripOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
@@ -79,7 +76,7 @@ export type RoleCreationState = {
     enabled: boolean;
   }>;
   conversation: OrgAgentConversationRow;
-  currentUser: { email: string | null; name: string; userId: string };
+  currentUser: { email: string | null; name: string; userId: string; teamName?: string | null; accessScope?: "organization" | "team"; authority?: string };
   members: Array<{ email: string | null; name: string; userId: string }>;
   metadata: RoleCreationConversationMetadata;
   role: Awaited<ReturnType<typeof fetchRoleForOrgAgent>>;
@@ -274,20 +271,17 @@ export async function createOrResumeDraftRole(args: {
 
   const now = new Date().toISOString();
   if (!existing) {
-    const { error: insertError } = await admin.from("company_roles").insert({
-      company_workspace_id: workspaceId,
-      created_at: now,
-      is_expired: false,
-      name: "새 역할",
-      opportunity_search_tsv: null,
-      role_id: roleId,
-      source_type: "internal",
-      status: "draft",
-      summary: {},
-      type: [],
-      updated_at: now,
+    const { error: insertError } = await (admin.rpc as any)("create_company_team_role_v1", {
+      p_workspace: workspaceId,
+      p_actor: args.user.id,
+      p_role: roleId,
+      p_name: "새 역할",
+      p_information: process.env.HARPER_LOCAL_E2E === "1"
+        ? { testOnly: true, testFixture: "org-team-role-creation", testTalentIds: [] }
+        : {},
     });
     if (insertError) {
+      if (insertError.message === "org_team_role_forbidden") throw new OrgHttpError(403, "Owner에게 팀과 Role 접근 범위 배정을 요청해 주세요.");
       if (insertError.code !== "23505") throw insertError;
       const { data: raced, error: racedError } = await admin
         .from("company_roles")
@@ -308,6 +302,8 @@ export async function createOrResumeDraftRole(args: {
       }
     }
   }
+
+  await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId });
 
   const { error: internalError } = await admin
     .from("company_internal_roles")
@@ -339,12 +335,12 @@ export async function fetchRoleCreationState(args: {
       }),
       fetchWorkspaceForOrgAgent({ admin, workspaceId: args.workspaceId }),
       fetchOrgRoleNotificationSettings(args),
-      admin
-        .from("company_user_workspace")
-        .select("company_user_id, company_users(email, name)")
+      (admin.from("company_user_workspace") as any)
+        .select("company_user_id, authority, access_scope, team_id, company_workspace_team_members(team_id), company_users(email, name)")
         .eq("company_workspace_id", args.workspaceId),
     ]);
   if (membersResult.error) throw membersResult.error;
+  const access = await readOrgRoleAccess({ ...args, admin });
 
   const companyLinksResult = workspace.companyDbId
     ? await admin
@@ -365,11 +361,12 @@ export async function fetchRoleCreationState(args: {
     )
   ).slice(0, 12);
 
-  const members = (membersResult.data ?? []).map((row) => {
+  const rows = (membersResult.data ?? []) as Array<{ company_user_id: string; authority: string; access_scope: "organization" | "team"; team_id: string | null; company_users: unknown }>;
+  const members = rows.filter(row => canAccessOrgRole(resolveOrgRoleAccess(row), role.teamId)).map((row) => {
     const companyUser = record(row.company_users);
     return {
       email: text(companyUser.email) || null,
-      name: text(companyUser.name) || text(companyUser.email) || "멤버",
+      name: text(companyUser.name) || text(companyUser.email) || "팀원",
       userId: row.company_user_id,
     };
   });
@@ -382,6 +379,9 @@ export async function fetchRoleCreationState(args: {
     channels: notificationSettings.channels,
     conversation,
     currentUser: {
+      teamName: access.teamNames.join(", "),
+      accessScope: access.scope,
+      authority: access.authority,
       email: args.user.email ?? null,
       name:
         [currentMember?.name, args.user.user_metadata?.name, args.user.email]
@@ -546,13 +546,25 @@ type RoleCreationNotificationSelectionArgs = {
   allowCompletedRole?: boolean;
   assigneeUserId?: string;
   channelIds?: string[];
-  currentSlackChannelId?: string;
   roleId: string;
   user: User;
   workspaceId: string;
 };
 
-function resolveRoleCreationNotificationSelection(args: {
+export function summarizeRoleCreationNotificationSettings(
+  state: Pick<RoleCreationState, "channels" | "assigneeUserIds" | "members">
+) {
+  return {
+    channels: state.channels
+      .filter((channel) => channel.enabled)
+      .map((channel) => channel.channelName || "Slack 채널"),
+    assignees: state.assigneeUserIds.map((id) =>
+      state.members.find((member) => member.userId === id)?.name || "팀원"
+    ),
+  };
+}
+
+export function resolveRoleCreationNotificationSelection(args: {
   input: RoleCreationNotificationSelectionArgs;
   state: RoleCreationState;
 }) {
@@ -575,29 +587,16 @@ function resolveRoleCreationNotificationSelection(args: {
     state.channels.map((item) => item.channelId)
   );
   if (channelIds.some((channelId) => !availableChannelIds.has(channelId))) {
-    throw new OrgHttpError(400, "Unknown Slack channel");
+    throw new OrgHttpError(400, "Unknown Slack channel. Read the current draft's available channels and use an exact returned channelId.");
   }
   if (
     hasAssignee &&
     !state.members.some((member) => member.userId === assigneeUserId)
   ) {
-    throw new OrgHttpError(400, "Assignee must be an organization member");
+    throw new OrgHttpError(400, "Assignee must be a teammate with access to this Role. Read the current draft's available teammates and use an exact returned userId.");
   }
 
-  const selectedChannels = hasChannels
-    ? state.channels.filter((channel) => channelIds.includes(channel.channelId))
-    : [];
-  const selectedAssignee = hasAssignee
-    ? state.members.find((member) => member.userId === assigneeUserId)
-    : null;
-  return {
-    assigneeUserId,
-    channelIds,
-    hasAssignee,
-    hasChannels,
-    selectedAssignee,
-    selectedChannels,
-  };
+  return { assigneeUserId, channelIds, hasAssignee, hasChannels };
 }
 
 async function persistRoleCreationNotificationSelection(args: {
@@ -641,77 +640,16 @@ async function persistRoleCreationNotificationSelection(args: {
   });
 }
 
+// The company-side LLM resolves the user's selection/consent from the conversation.
+// This executor validates access and exact targets before persisting the tool command.
 export async function setRoleCreationNotification(
-  args: RoleCreationNotificationSelectionArgs & {
-    previousAssistantMessage: string;
-    userMessage: string;
-  }
+  args: RoleCreationNotificationSelectionArgs
 ) {
-  const state = await fetchRoleCreationState(args);
+  const state = await fetchRoleCreationState({ ...args, allowCompletedRole: true });
   const selection = resolveRoleCreationNotificationSelection({
     input: args,
     state,
   });
-  const {
-    assigneeUserId,
-    channelIds,
-    hasAssignee,
-    hasChannels,
-    selectedAssignee,
-    selectedChannels,
-  } = selection;
-  const consent = validateRoleCreationNotificationConsent({
-    previousAssistantMessage: args.previousAssistantMessage,
-    targets: [
-      ...selectedChannels.map((channel) => ({
-        aliases: [
-          `#${channel.channelName ?? ""}`,
-          channel.channelId,
-          ...(channel.channelId === text(args.currentSlackChannelId)
-            ? ["현재 채널", "이 채널"]
-            : []),
-        ],
-        id: `channel:${channel.channelId}`,
-        label: channel.channelName ?? channel.channelId,
-      })),
-      ...(selectedAssignee
-        ? [
-            {
-              aliases: [
-                selectedAssignee.email,
-                selectedAssignee.userId,
-                ...(selectedAssignee.userId === state.currentUser.userId
-                  ? ["저로", "제가", "작성자", "본인"]
-                  : []),
-              ],
-              id: `assignee:${selectedAssignee.userId}`,
-              label: selectedAssignee.name,
-            },
-          ]
-        : []),
-    ],
-    userMessage: args.userMessage,
-  });
-  const transparentFinalDefaults =
-    hasChannels &&
-    hasAssignee &&
-    isUnambiguousFinalRoleNotificationDefault({
-      availableChannelIds: state.channels
-        .filter((channel) => channel.enabled)
-        .map((channel) => channel.channelId),
-      currentUserId: state.currentUser.userId,
-      memberUserIds: state.members.map((member) => member.userId),
-      roleStatus: state.role.status,
-      selectedAssigneeUserId: assigneeUserId,
-      selectedChannelIds: channelIds,
-      unresolvedFields: getRoleCreationMissingFields(state),
-    });
-  if (!consent.ok && !transparentFinalDefaults) {
-    throw new OrgHttpError(
-      409,
-      "Slack channel and assignee changes require explicit user confirmation"
-    );
-  }
   return persistRoleCreationNotificationSelection({
     selection,
     state,
@@ -726,8 +664,6 @@ export function getRoleCreationMissingFields(state: RoleCreationState) {
     missing.push("role_title");
   if (!text(state.role.description)) missing.push("description");
   if (!text(state.role.request)) missing.push("request");
-  if (!hasCompleteOrgRoleCriteria(state.role.criteria))
-    missing.push("criteria");
   if (!text(state.role.locationText)) missing.push("location");
   if (!text(state.role.workMode)) missing.push("work_mode");
   if (state.role.employmentTypes.length === 0) missing.push("employment_type");
@@ -764,10 +700,11 @@ export async function fetchOtherRoleCriteria(args: {
   workspaceId: string;
 }) {
   const state = await fetchRoleCreationState(args);
-  const { data, error } = await getSupabaseAdmin()
+  const access = await readOrgRoleAccess({ ...args, admin: getSupabaseAdmin() });
+  const query = getSupabaseAdmin()
     .from("company_roles")
     .select(
-      "role_id, name, description, salary_range, status, company_internal_roles(request, criteria)"
+      "role_id, name, description, salary_range, status, company_internal_roles(team_id, request, criteria)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("source_type", "internal")
@@ -775,6 +712,7 @@ export async function fetchOtherRoleCriteria(args: {
     .not("is_expired", "is", true)
     .order("updated_at", { ascending: false })
     .limit(8);
+  const { data, error } = await scopeOrgRoleQuery(query, access);
   if (error) throw error;
   const roleIds = (data ?? []).map((role) => role.role_id);
   const memoriesResult =
@@ -816,10 +754,11 @@ export async function fetchOtherRoleDescriptionReferences(args: {
   workspaceId: string;
 }) {
   const state = await fetchRoleCreationState(args);
-  const { data, error } = await getSupabaseAdmin()
+  const access = await readOrgRoleAccess({ ...args, admin: getSupabaseAdmin() });
+  const query = getSupabaseAdmin()
     .from("company_roles")
     .select(
-      "role_id, name, description, external_jd_url, source_type, updated_at"
+      "role_id, name, description, external_jd_url, source_type, updated_at, company_internal_roles(team_id)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .neq("role_id", args.roleId)
@@ -827,6 +766,7 @@ export async function fetchOtherRoleDescriptionReferences(args: {
     .not("description", "is", null)
     .order("updated_at", { ascending: false })
     .limit(5);
+  const { data, error } = await scopeOrgRoleQuery(query, access);
   if (error) throw error;
   return {
     companyName: state.workspace.companyName,

@@ -122,6 +122,9 @@ function harness(
     messages?: any[];
     scopes?: string[];
     experiences?: any[];
+    workspaceId?: string;
+    detailError?: Error;
+    rowError?: Error;
   } = {}
 ) {
   const calls: any[] = [];
@@ -138,10 +141,10 @@ function harness(
     from(table: string) {
       let builder: any;
       builder = query(() => ({
-        error: null,
+        error: table === "company_intro_candidates" ? overrides.rowError ?? null : null,
         data:
           table === "company_intro_candidates"
-            ? (overrides.row ?? row)
+            ? (Object.hasOwn(overrides, "row") ? overrides.row : row)
             : table === "company_role_notification_channels"
               ? overrides.optOut
                 ? [{ channel_id: "disabled" }]
@@ -172,6 +175,11 @@ function harness(
           calls.push({ experienceOrder: { field, options } });
           return builder;
         };
+      const eq = builder.eq;
+      builder.eq = (field: string, value: unknown) => {
+        if (table === "company_intro_candidates" && field === "role_id") calls.push({ candidateRoleFilter: value });
+        return eq(field, value);
+      };
       return builder;
     },
   };
@@ -183,6 +191,7 @@ function harness(
     "@/lib/org/server": {
       fetchOrgTalentDetail: async (args: unknown) => {
         calls.push({ detail: args });
+        if (overrides.detailError) throw overrides.detailError;
         return overrides.detail ?? detail;
       },
     },
@@ -209,6 +218,7 @@ function harness(
       }),
     },
     "@/lib/org/slackHarper": {
+      isHarperSlackAudienceAllowed: async () => true,
       getHarperSlackGrantedScopes: async () =>
         overrides.scopes ?? [
           "links:read",
@@ -218,9 +228,12 @@ function harness(
         ],
       resolveHarperSlackInteractionContext: async (args: any) => {
         if (args.slackTeamId !== "team") throw new Error("Wrong workspace");
+        const workspaceId = overrides.workspaceId ?? "workspace";
+        if (args.workspaceId && args.workspaceId !== workspaceId)
+          throw new Error("Wrong workspace");
         return {
           token: "test-token",
-          workspaceId: "workspace",
+          workspaceId,
           channelId: args.channelId,
         };
       },
@@ -273,6 +286,12 @@ test("card loading uses the latest dated experience and retains requested candid
   assert.equal(calls[0].experienceOrder.field, "start_date");
   assert.equal(calls[0].experienceOrder.options.ascending, false);
   assert.equal(calls[0].experienceOrder.options.nullsFirst, false);
+});
+
+test("event candidate cards use the event's exact Role in addition to its workspace", async () => {
+  const { server, calls } = harness({ row: [] });
+  assert.deepEqual(Array.from(await server.loadSlackCandidateCards({ workspaceId: "workspace", candidateIds: [candidateId], roleId: "role" })), []);
+  assert.equal(calls[0].candidateRoleFilter, "role");
 });
 
 test("the profile panel reads the exact intro through the canonical detail reader and excludes private fields", async () => {
@@ -914,6 +933,7 @@ function slackDeliveryHarness(
       "node:crypto": crypto,
       "@/lib/internalAccess": {},
       "@/lib/org/agent/store": {},
+      "@/lib/org/actionLogs": {},
       "@/lib/org/permissions": {},
       "@/lib/org/slackWorkspaceRouting": {},
       "@/lib/org/slackFiles": {},
@@ -930,6 +950,7 @@ function slackDeliveryHarness(
         }),
       },
       "./slackApiRequest": slackApiRequest,
+      "./slackTeamAccess": { canShareOrgTeamSlackAudience: async () => true },
       "./slackChannelCreation": { SLACK_CHANNEL_CREATION_SCOPES: [] },
     },
     {
@@ -1341,4 +1362,282 @@ test('accepted card opening still returns restricted after pipeline authorizatio
   const response = calls.find(call => call.method === 'entity.presentDetails').args;
   assert.equal(JSON.parse(response.error).status, 'restricted');
   assert.equal(response.metadata, undefined);
+});
+
+const legacyTarget = {
+  workspaceId: "00000000-0000-4000-8000-000000000002",
+  roleId: "00000000-0000-4000-8000-000000000003",
+  talentId: "00000000-0000-4000-8000-000000000004",
+};
+const legacyUrl = `https://matchharper.com/org/role?${new URLSearchParams({
+  orgId: legacyTarget.workspaceId,
+  roleId: legacyTarget.roleId,
+  talentId: legacyTarget.talentId,
+})}`;
+
+test("a deleted proposal's existing card reads the currently authorized profile and preserves the clicked identity", async () => {
+  const { server, calls } = harness({
+    row: null,
+    workspaceId: legacyTarget.workspaceId,
+    detail: {
+      ...detail,
+      companyIntro: null,
+      recommendation: { recommendationId: "current", stage: "connected" },
+    },
+  });
+  await server.presentSlackCandidate({
+    candidateId,
+    entityUrl: `${legacyUrl}&recommendationId=company-intro%3A${candidateId}`,
+    externalRef: { id: candidateId, type: "company_intro" },
+    slackTeamId: "team",
+    slackUserId: "user",
+    channelId: "C1",
+    triggerId: "trigger",
+  });
+  assert.equal(calls[0].detail.recommendationId, undefined);
+  assert.equal(calls[0].detail.workspaceId, legacyTarget.workspaceId);
+  assert.equal(calls[0].detail.roleId, legacyTarget.roleId);
+  assert.equal(calls[0].detail.talentId, legacyTarget.talentId);
+  const entity = JSON.parse(
+    calls.find((call) => call.method === "entity.presentDetails").args.metadata
+  );
+  assert.equal(entity.external_ref.id, candidateId);
+  assert.equal(entity.entity_payload.attributes.title.text, "Candidate");
+  assert.equal(new URL(entity.url).searchParams.get("recommendationId"), null);
+  assert.equal(entity.entity_payload.actions, undefined);
+  assert.ok(!JSON.stringify(entity).includes("PRIVATE_"));
+});
+
+test("legacy URL cards without a company-intro reference can open a profile but cannot act on a newer proposal", async () => {
+  const { server, calls } = harness({
+    row: null,
+    workspaceId: legacyTarget.workspaceId,
+  });
+  await server.presentSlackCandidate({
+    candidateId: null,
+    entityUrl: legacyUrl,
+    externalRef: { id: "old-talent-reference", type: "talent" },
+    slackTeamId: "team",
+    slackUserId: "user",
+    channelId: "C1",
+    triggerId: "trigger",
+  });
+  const entity = JSON.parse(
+    calls.find((call) => call.method === "entity.presentDetails").args.metadata
+  );
+  assert.equal(entity.external_ref.id, "old-talent-reference");
+  assert.equal(entity.external_ref.type, "talent");
+  assert.equal(entity.entity_payload.attributes.title.text, "Candidate");
+  assert.equal(entity.entity_payload.actions, undefined);
+});
+
+test("deleted-card recovery rechecks membership, Role channel access, workspace ownership and current profile visibility", async () => {
+  for (const overrides of [
+    { allowed: false },
+    { optOut: true },
+    { workspaceId: "another-workspace" },
+    { detailError: new Error("Talent not found") },
+  ]) {
+    const { server, calls } = harness({
+      row: null,
+      workspaceId: legacyTarget.workspaceId,
+      ...overrides,
+    });
+    await server.presentSlackCandidate({
+      candidateId,
+      entityUrl: legacyUrl,
+      slackTeamId: "team",
+      slackUserId: "user",
+      channelId: "C1",
+      triggerId: "trigger",
+    });
+    const response = calls.find(
+      (call) => call.method === "entity.presentDetails"
+    ).args;
+    assert.equal(response.metadata, undefined);
+    assert.equal(JSON.parse(response.error).status, "restricted");
+    if (!overrides.detailError) assert.ok(!calls.some((call) => call.detail));
+  }
+});
+
+test("missing proposals and malformed or conflicting profile URLs receive a not-found response without reading a profile", async () => {
+  for (const entityUrl of [
+    undefined,
+    legacyUrl.replace("matchharper.com", "example.com"),
+    legacyUrl.replace("/org/role", "/career"),
+    legacyUrl.replace(legacyTarget.talentId, "invalid"),
+    `${legacyUrl}&detailWorkspaceId=${legacyTarget.roleId}`,
+    `${legacyUrl}&talentId=${legacyTarget.roleId}`,
+    legacyUrl.replace("https://", "https://user:password@"),
+  ]) {
+    const { server, calls } = harness({ row: null });
+    await server.presentSlackCandidate({
+      candidateId,
+      entityUrl,
+      slackTeamId: "team",
+      slackUserId: "user",
+      channelId: "C1",
+      triggerId: "trigger",
+    });
+    assert.ok(!calls.some((call) => call.detail));
+    const response = calls.find(
+      (call) => call.method === "entity.presentDetails"
+    ).args;
+    assert.equal(response.metadata, undefined);
+    assert.equal(JSON.parse(response.error).status, "not_found");
+  }
+});
+
+test("a database failure does not reinterpret an existing proposal as a legacy URL", async () => {
+  const { server, calls } = harness({
+    rowError: new Error("Database unavailable"),
+  });
+  await server.presentSlackCandidate({
+    candidateId,
+    entityUrl: legacyUrl,
+    slackTeamId: "team",
+    slackUserId: "user",
+    channelId: "C1",
+    triggerId: "trigger",
+  });
+  assert.ok(!calls.some((call) => call.detail));
+  assert.equal(
+    calls.find((call) => call.method === "entity.presentDetails").args.metadata,
+    undefined
+  );
+});
+
+test("a replaced company-first proposal follows the canonical pipeline even without the accepted-delivery marker", async () => {
+  const { server, calls } = harness({
+    row: { ...row, status: "closed", close_reason: "route_replaced" },
+    detail: {
+      ...detail,
+      companyIntro: null,
+      recommendation: {
+        recommendationId: "current",
+        stage: "pending_connection",
+      },
+    },
+  });
+  await server.presentSlackCandidate({
+    candidateId,
+    slackTeamId: "team",
+    slackUserId: "user",
+    channelId: "C1",
+    triggerId: "trigger",
+  });
+  const entity = JSON.parse(
+    calls.find((call) => call.method === "entity.presentDetails").args.metadata
+  );
+  assert.equal(entity.entity_payload.attributes.title.text, "Candidate");
+  assert.equal(
+    entity.entity_payload.attributes.display_id,
+    "🟠 수락시 바로 연결"
+  );
+  assert.equal(entity.entity_payload.actions, undefined);
+});
+
+test("a connected proposal opens the current recommendation instead of an empty closed-proposal panel", async () => {
+  const recommendationId = "00000000-0000-4000-8000-000000000005";
+  const { server, calls } = harness({
+    row: { ...row, status: "connected", recommendation_id: recommendationId },
+    detail: {
+      ...detail,
+      companyIntro: null,
+      recommendation: { recommendationId, stage: "connected" },
+    },
+  });
+  await server.presentSlackCandidate({
+    candidateId,
+    slackTeamId: "team",
+    slackUserId: "user",
+    channelId: "C1",
+    triggerId: "trigger",
+  });
+  assert.equal(calls[0].detail.recommendationId, recommendationId);
+  const entity = JSON.parse(
+    calls.find((call) => call.method === "entity.presentDetails").args.metadata
+  );
+  assert.equal(entity.entity_payload.attributes.title.text, "Candidate");
+  assert.equal(new URL(entity.url).searchParams.get("recommendationId"), null);
+  assert.equal(entity.entity_payload.actions, undefined);
+});
+
+test("a legacy reference without a type is preserved, and visibility failure still receives a response without a channel", async () => {
+  for (const hidden of [false, true]) {
+    const { server, calls } = harness({
+      row: null,
+      workspaceId: legacyTarget.workspaceId,
+      ...(hidden ? { detailError: new Error("Talent not found") } : {}),
+    });
+    await server.presentSlackCandidate({
+      candidateId: null,
+      entityUrl: legacyUrl,
+      externalRef: { id: "old-reference" },
+      slackTeamId: "team",
+      slackUserId: "user",
+      triggerId: "trigger",
+    });
+    const response = calls.find(
+      (call) => call.method === "entity.presentDetails"
+    ).args;
+    if (hidden) {
+      assert.equal(response.metadata, undefined);
+      assert.equal(JSON.parse(response.error).status, "restricted");
+    } else {
+      const entity = JSON.parse(response.metadata);
+      assert.equal(entity.external_ref.id, "old-reference");
+      assert.equal(entity.external_ref.type, undefined);
+    }
+  }
+});
+
+test("Slack details events forward legacy identity and URL directly to the presenter, bypassing the conversation queue", async () => {
+  const background: Array<() => Promise<void>> = [];
+  const received: any[] = [];
+  const { server } = harness();
+  const route = loadServer("../../app/api/internal/slack/events/route.ts", {
+    "next/server": {
+      after: (fn: () => Promise<void>) => background.push(fn),
+      NextResponse: { json: (value: unknown) => value },
+    },
+    "@/lib/org/slackHarper": {
+      verifyHarperSlackSignature: () => true,
+      isHarperSlackAppId: () => true,
+    },
+    "@/lib/org/slackTurnQueue": {
+      publishHarperSlackEvent: () => {
+        throw new Error("Details must not enter the queue");
+      },
+    },
+    "@/lib/org/slackCandidateWorkObject.server": {
+      candidateIdFromSlackEntity: server.candidateIdFromSlackEntity,
+      presentSlackCandidate: async (args: unknown) => {
+        received.push(args);
+      },
+      refreshSlackCandidateUnfurls: async () => {},
+    },
+  });
+  const externalRef = { id: "old-talent-reference", type: "talent" };
+  await route.POST({
+    text: async () =>
+      JSON.stringify({
+        team_id: "team",
+        api_app_id: "app",
+        event: {
+          type: "entity_details_requested",
+          external_ref: externalRef,
+          entity_url: legacyUrl,
+          trigger_id: "trigger",
+          user: "user",
+          channel: "C1",
+        },
+      }),
+    headers: { get: () => "signed" },
+  });
+  assert.equal(background.length, 1);
+  await background[0]();
+  assert.equal(received[0].candidateId, null);
+  assert.equal(received[0].entityUrl, legacyUrl);
+  assert.equal(received[0].externalRef.id, externalRef.id);
 });

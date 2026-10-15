@@ -1,6 +1,8 @@
+import { useOrgNavigation } from "@/hooks/org/useOrgNavigation";
+import { OrgPageLoading } from "./OrgPageLoading";
 // Self-serve signup is paused while payments are being tested.
 // import { OrgSignupEntry } from "@/components/org/onboarding/OrgSignupEntry";
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import type { ReactNode } from "react";
@@ -21,6 +23,10 @@ import {
 } from "@/hooks/org/useOrgWorkspace";
 import type { OrgWorkspacePageId } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
+import {
+  isAdditionalOrgCreator,
+  isOrgOnboardingComplete,
+} from "@/lib/org/signup";
 
 export function OrgWorkspaceApp({
   children,
@@ -33,7 +39,7 @@ export function OrgWorkspaceApp({
   legacyEntry?: boolean;
   page: OrgWorkspacePageId;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const router = useRouter();
   const {
     authLoading,
@@ -44,7 +50,10 @@ export function OrgWorkspaceApp({
     user,
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
-  const isRoleWorkspacePage = page === "new-role" || page === "role";
+  const navigation = useOrgNavigation(workspace?.workspaceId ?? "");
+  const displayPage = navigation?.page ?? page;
+  const isRoleWorkspacePage =
+    displayPage === "new-role" || displayPage === "role";
   const isRoleCreationStarted = false;
   // const isRoleCreationStarted =
   //   isRoleCreationPage &&
@@ -52,9 +61,9 @@ export function OrgWorkspaceApp({
   //   Boolean(router.query.roleId.trim());
 
   const useWideLayout =
-    page === "documents" ||
-    page === "inbox" ||
-    page === "jobs" ||
+    displayPage === "documents" ||
+    displayPage === "inbox" ||
+    displayPage === "jobs" ||
     isRoleWorkspacePage;
 
   if (authLoading || !routerReady) {
@@ -88,9 +97,9 @@ export function OrgWorkspaceApp({
           message={
             bootstrapQuery.error instanceof Error
               ? bootstrapQuery.error.message
-              : t(
-                  "workspace.OrgWorkspaceApp.dbaaaa1c",
-                  "Organization을 불러오지 못했습니다."
+              : c(
+                  "Organization을 불러오지 못했습니다.",
+                  "Failed to load organization."
                 )
           }
           onRetry={() => void bootstrapQuery.refetch()}
@@ -112,16 +121,24 @@ export function OrgWorkspaceApp({
   }
 
   const pageTitle = isRoleWorkspacePage
-    ? `${workspace.companyName} · ${page === "new-role" ? t("workspace.OrgWorkspaceApp.5fd3ee91", "새 역할 등록") : t("workspace.OrgWorkspaceApp.2842e7f1", "역할")}`
+    ? `${workspace.companyName} · ${page === "new-role" ? c("새 역할 등록", "Create new role") : c("역할", "Role")}`
     : `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
   const requiresOnboarding =
-    !contextValue.internalOpsAccess &&
+    (!contextValue.internalOpsAccess ||
+      isAdditionalOrgCreator(workspace.signupState, user.id)) &&
     Boolean(contextValue.currentUser) &&
-    !contextValue.currentUser?.onboardingCompletedAt;
+    !isOrgOnboardingComplete(
+      workspace.signupState,
+      contextValue.currentUser,
+      user.id
+    );
+
+  if (navigation && !navigation.sameWorkspace)
+    return <OrgWorkspaceShellSkeleton />;
 
   if (page === "onboarding") {
     return (
-      <OrgWorkspaceProvider value={contextValue}>
+      <OrgWorkspaceProvider value={{ ...contextValue, page: displayPage }}>
         {children}
       </OrgWorkspaceProvider>
     );
@@ -129,7 +146,7 @@ export function OrgWorkspaceApp({
   if (requiresOnboarding) return <OrgWorkspaceShellSkeleton />;
 
   return (
-    <OrgWorkspaceProvider value={contextValue}>
+    <OrgWorkspaceProvider value={{ ...contextValue, page: displayPage }}>
       <Head>
         <title>{pageTitle}</title>
       </Head>
@@ -164,12 +181,12 @@ export function OrgWorkspaceApp({
                 isRoleWorkspacePage ? "full" : useWideLayout ? "wide" : "narrow"
               }
             >
-              {children}
+              {navigation ? <OrgPageLoading page={displayPage} /> : children}
             </PageContainer>
           </div>
         </Page>
       </OrgMobileNavigationProvider>
-      {page === "home" && router.pathname === "/org/home" && (
+      {!navigation && page === "home" && router.pathname === "/org/home" && (
         <OrgAnnouncement userId={user.id} workspaceId={workspace.workspaceId} />
       )}
     </OrgWorkspaceProvider>

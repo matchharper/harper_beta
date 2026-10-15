@@ -1,3 +1,5 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useId, useState } from "react";
 import { CircleCheck, Layers, LoaderCircle, Minus, Plus } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
@@ -7,7 +9,6 @@ import { BillingIntervalTabs } from "./BillingIntervalTabs";
 import {
   BILLING_SUPPORT_HREF,
   MAX_SLOT_PURCHASE_QUANTITY,
-  formatBillingMoney,
   isSlotPurchaseQuantity,
   type BillingCatalog,
   type BillingInterval,
@@ -16,7 +17,6 @@ import {
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  locale: "ko" | "en";
   catalog?: BillingCatalog;
   initialInterval: BillingInterval;
   initialQuantity?: number;
@@ -31,7 +31,6 @@ export function SlotPurchaseDialog(props: Props) {
 
 function SlotPurchaseForm({
   open,
-  locale,
   catalog,
   initialInterval,
   initialQuantity = 1,
@@ -40,7 +39,8 @@ function SlotPurchaseForm({
   onCheckout,
   onOpenChange,
 }: Props) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { c } = useOrgLocale();
+  const { formatBillingMoney } = useOrgBillingFormat();
   const id = useId();
   const [interval, setInterval] = useState(initialInterval);
   const [input, setInput] = useState(
@@ -52,18 +52,21 @@ function SlotPurchaseForm({
   const available = catalog?.available && amount != null && catalog.currency;
   const formId = `${id}-form`;
   const money = (value: number) =>
-    formatBillingMoney(value, catalog?.currency ?? "usd", locale, {
+    formatBillingMoney(value, catalog?.currency ?? "usd", {
       currencyDisplay: "narrowSymbol",
     });
   const features = [
-    c("한 슬롯당 하나의 Role을 배정할 수 있어요.", ""),
     c(
-      "배정된 Role은 직접 intro 요청을 보내지 않아도 Harper가 먼저 후보자에게 역할을 추천하고, 만나보겠다고 한 사람을 소개해드릴 수 있어요. 월 50크레딧을 제공합니다.",
-      ""
+      "한 슬롯당 하나의 Role을 배정할 수 있어요.",
+      "Assign one Role to each slot."
     ),
     c(
-      "전체 Role 공용 월 10크레딧은 별도로 유지돼요. 모든 크레딧은 이월되지 않아요.",
-      ""
+      "배정된 Role은 직접 Intro 요청을 보내지 않아도 Harper가 먼저 후보자에게 역할을 추천하고, 만나보겠다고 한 사람을 소개해드릴 수 있어요. 월 50 Intro를 제공합니다.",
+      "Harper can recommend the assigned Role to candidates and introduce those interested in meeting, without a direct Intro request. Each slot includes 50 Intros per month."
+    ),
+    c(
+      "전체 Role 공용 월 10 Intro는 별도로 유지돼요. 모든 Intro는 이월되지 않아요.",
+      "The 10 monthly Intros shared across all Roles remain available separately. Unused Intros do not roll over."
     ),
     c(
       "슬롯별로 갱신을 취소할 수 있고, 결제한 기간 끝까지 이용할 수 있어요.",
@@ -77,7 +80,6 @@ function SlotPurchaseForm({
       title={c("슬롯 추가하기", "Add slots")}
       headerActions={
         <BillingIntervalTabs
-          locale={locale}
           value={interval}
           onChange={setInterval}
           disabled={busy}

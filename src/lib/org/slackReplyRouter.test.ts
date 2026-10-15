@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-process.env.OPENAI_API_KEY ||= "test-openai-key";
+process.env.OPENROUTER_API_KEY ||= "test-openrouter-key";
 
 const router = import("./slackReplyRouter");
 
@@ -57,45 +57,163 @@ test("keeps only the latest ten messages and caps each message", async () => {
   );
 });
 
-test("accepts only explicit ignore and otherwise defaults to responding", async () => {
+test("accepts a typed Decisions choice and otherwise defaults to responding", async () => {
   const { parseSlackReplyRoutingDecision } = await router;
-  assert.equal(parseSlackReplyRoutingDecision("respond\n"), "respond");
-  assert.equal(parseSlackReplyRoutingDecision("IGNORE"), "ignore");
-  assert.equal(parseSlackReplyRoutingDecision("uncertain"), "respond");
+  const raw = (type: string, choice: unknown) => ({
+    answers: { reply: { type, choice } },
+  });
   assert.equal(
-    parseSlackReplyRoutingDecision("respond because asked"),
+    parseSlackReplyRoutingDecision(raw("choice", "respond")),
     "respond"
   );
-  assert.equal(parseSlackReplyRoutingDecision(""), "respond");
+  assert.equal(
+    parseSlackReplyRoutingDecision(raw("choice", "ignore")),
+    "ignore"
+  );
+  for (const invalid of [
+    raw("noul", "ignore"),
+    raw("choice", "IGNORE"),
+    raw("choice", "uncertain"),
+    {},
+    null,
+    "ignore",
+  ])
+    assert.equal(parseSlackReplyRoutingDecision(invalid), "respond");
 });
 
-test("keeps explicit scheduling answers in Harper's scheduling thread", async () => {
-  const { shouldRespondToSchedulingThreadReply } = await router;
+test("calls native Jev Decisions once and preserves reported cost and request duration", async (t) => {
+  const { decideHarperSlackThreadReply, SLACK_REPLY_ROUTING_ENDPOINT } =
+    await router;
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    calls++;
+    assert.equal(url, SLACK_REPLY_ROUTING_ENDPOINT);
+    const request = JSON.parse(String(init.body));
+    assert.equal(request.model, "typesafe/jev-1.13");
+    assert.equal(request.questions.reply.type, "choice");
+    assert.deepEqual(Object.keys(request.questions.reply.criteria), [
+      "respond",
+      "ignore",
+    ]);
+    assert.deepEqual(request.provider, {
+      data_collection: "deny",
+      allow_fallbacks: false,
+    });
+    assert.equal(request.messages, undefined);
+    assert.equal(request.reasoning, undefined);
+    assert.equal(init.cache, "no-store");
+    return Response.json({
+      model: "typesafe/jev-1.13-20260917",
+      answers: { reply: { type: "choice", choice: "ignore" } },
+      usage: { input_tokens: 500, output_tokens: 25, cost: 0.00001 },
+    });
+  });
+  let receipt: any;
   assert.equal(
-    shouldRespondToSchedulingThreadReply([
+    await decideHarperSlackThreadReply(
+      [
+        {
+          content: "민수님은 어떻게 생각하세요?",
+          role: "user",
+          slackUserId: "U1",
+        },
+      ],
       {
-        content: "가능한 시간을 저장한 뒤 다시 조율해 달라고 말해 주세요.",
-        role: "assistant",
-      },
-      {
-        content: "매주 오전 7시부터 오후 8시까지 가능해.",
-        role: "user",
-        slackUserId: "U1",
-      },
-    ]),
-    true
+        logUsage: false,
+        onDebugCall: (call) => {
+          receipt = call;
+        },
+      }
+    ),
+    "ignore"
   );
+  assert.equal(calls, 1);
+  assert.equal(receipt.model, "typesafe/jev-1.13-20260917");
+  assert.equal(receipt.estimatedCostUsd, 0.00001);
+  assert.equal(receipt.pricingStatus, "provider_reported");
+  assert.ok(receipt.durationMs >= 0);
+});
+
+test("provider errors and invalid answers fail open without a second model call", async (t) => {
+  const { decideHarperSlackThreadReply } = await router;
+  let response: Response;
+  let calls = 0;
+  t.mock.method(console, "warn", () => {});
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    return response;
+  });
+  for (response of [
+    new Response(null, { status: 503 }),
+    Response.json({ answers: {} }),
+    new Response("invalid json"),
+  ]) {
+    assert.equal(
+      await decideHarperSlackThreadReply(
+        [{ content: "후속 정보 알려줘", role: "user" }],
+        { logUsage: false }
+      ),
+      "respond"
+    );
+  }
+  assert.equal(calls, 3);
+});
+
+test("does not call the provider for empty input", async (t) => {
+  const { decideHarperSlackThreadReply } = await router;
+  const fetch = t.mock.method(globalThis, "fetch", () => {
+    throw new Error("unexpected provider call");
+  });
   assert.equal(
-    shouldRespondToSchedulingThreadReply([
-      { content: "이 후보는 B2B 경험이 있어요.", role: "assistant" },
-      {
-        content: "민수님은 어떻게 생각하세요?",
-        role: "user",
-        slackUserId: "U1",
-      },
-    ]),
-    false
+    await decideHarperSlackThreadReply([], { logUsage: false }),
+    "respond"
   );
+  assert.equal(fetch.mock.callCount(), 0);
+});
+
+test("a provider timeout fails open without treating it as caller cancellation", async (t) => {
+  const { decideHarperSlackThreadReply } = await router;
+  t.mock.method(console, "warn", () => {});
+  t.mock.method(AbortSignal, "timeout", () =>
+    AbortSignal.abort(
+      new DOMException("Decision request timed out", "TimeoutError")
+    )
+  );
+  t.mock.method(globalThis, "fetch", async (_: string, init: RequestInit) => {
+    init.signal!.throwIfAborted();
+    throw new Error("timeout signal was not propagated");
+  });
+  assert.equal(
+    await decideHarperSlackThreadReply(
+      [{ content: "후보 정보를 더 알려줘", role: "user" }],
+      { logUsage: false }
+    ),
+    "respond"
+  );
+});
+
+test("cancels an in-flight Decisions request when a newer Slack message arrives", async (t) => {
+  const { decideHarperSlackThreadReply } = await router;
+  t.mock.method(
+    globalThis,
+    "fetch",
+    (_: string, init: RequestInit) =>
+      new Promise((_, reject) => {
+        init.signal!.addEventListener(
+          "abort",
+          () => reject(init.signal!.reason),
+          { once: true }
+        );
+      })
+  );
+  const controller = new AbortController();
+  const reason = new Error("newer Slack message arrived");
+  const request = decideHarperSlackThreadReply(
+    [{ content: "답해줘", role: "user" }],
+    { signal: controller.signal, logUsage: false }
+  );
+  controller.abort(reason);
+  await assert.rejects(request, reason);
 });
 
 test("propagates cancellation instead of converting it to a routing decision", async () => {

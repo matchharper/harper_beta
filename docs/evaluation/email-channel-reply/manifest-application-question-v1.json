@@ -1,0 +1,14 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-question-v1",
+  "goldVersion": "application-question-v1",
+  "source": "synthetic related question; extends application-v2 source fixture without production data",
+  "frozenBeforeFirstRun": true,
+  "caseCount": 1,
+  "turnCount": 3,
+  "hashes": {
+    "cases-application-question-v1.json": "acb78e8dca7a1273bdd4b6db472658e5047d71a4ad8a525b892413283319f5fc",
+    "gold-application-question-v1.json": "de9ab6c2f7877aeeac7302097f0893a8f9479f502f9e68fe747654820a7948a0"
+  },
+  "privacy": "same loopback/capture and real model boundaries as application-v2"
+}

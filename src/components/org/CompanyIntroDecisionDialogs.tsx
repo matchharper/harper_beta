@@ -2,7 +2,7 @@
 
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 
 import { FormEvent, useId, useState } from "react";
@@ -31,8 +31,8 @@ export function CompanyIntroRequestDialog({
   pending: boolean;
 }) {
   const modalFormId1 = useId();
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+
+  const { locale, c } = useOrgLocale();
   const fieldId = useId();
   const [companyAppeal, setCompanyAppeal] = useState("");
   const [emails, setEmails] = useState(defaultEmail?.trim() ?? "");
@@ -51,18 +51,18 @@ export function CompanyIntroRequestDialog({
     const appeal = companyAppeal.trim();
     if (!appeal) {
       setError(
-        t(
-          "CompanyIntroDecisionDialogs.815bee3d",
-          "후보자에게 전할 회사의 관심 이유를 적어 주세요."
+        c(
+          "후보자에게 전할 회사의 관심 이유를 적어 주세요.",
+          "Tell Harper why you're interested. It will share this with the candidate."
         )
       );
       return;
     }
     if (recipientEmails.length === 0) {
       setError(
-        t(
-          "CompanyIntroDecisionDialogs.d6efe059",
-          "후보자가 수락했을 때 CC할 회사 이메일을 입력해 주세요."
+        c(
+          "후보자가 수락했을 때 CC할 회사 이메일을 입력해 주세요.",
+          "Company contact to CC on the intro email"
         )
       );
       return;
@@ -78,9 +78,9 @@ export function CompanyIntroRequestDialog({
         localizedOrgErrorMessage(
           submitError,
           locale,
-          t(
-            "CompanyIntroDecisionDialogs.ba9a9a7b",
-            "제안을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+          c(
+            "제안을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+            "Failed to process the offer. Try again later."
           )
         )
       );
@@ -94,18 +94,18 @@ export function CompanyIntroRequestDialog({
       mobileBottomSheet
       title={
         <>
-          {t(
-            "CompanyIntroDecisionDialogs.5e461bbe",
+          {c(
             "Request Intro: {candidateName}",
+            "Request intro: {candidateName}",
             { candidateName }
           )}
         </>
       }
       description={
         <>
-          {t(
-            "CompanyIntroDecisionDialogs.9bd298a1",
-            "후보자가 수락하면 소개 이메일로 연결하고 연결됨으로 옮겨요."
+          {c(
+            "후보자가 수락하면 소개 이메일로 연결하고 연결됨으로 옮겨요.",
+            "If the candidate accepts, send the intro email and move them to Connected."
           )}
         </>
       }
@@ -119,7 +119,7 @@ export function CompanyIntroRequestDialog({
             type="button"
             form={modalFormId1}
           >
-            {t("CompanyIntroDecisionDialogs.2ab81060", "취소")}
+            {c("취소", "Cancel")}
           </MuteButton>
           <MuteButton
             disabled={pending}
@@ -128,7 +128,7 @@ export function CompanyIntroRequestDialog({
             form={modalFormId1}
           >
             {pending ? <LoaderCircle className="size-4 animate-spin" /> : null}
-            {t("CompanyIntroDecisionDialogs.e0eb989a", "Request Intro")}
+            {c("Request Intro", "Request intro")}
           </MuteButton>
         </div>
       }
@@ -140,19 +140,16 @@ export function CompanyIntroRequestDialog({
               className="mb-2 block font-medium text-neutral-primary"
               htmlFor={`${fieldId}-appeal`}
             >
-              {t(
-                "CompanyIntroDecisionDialogs.efa9700e",
-                "후보자에게 전할 회사의 관심 이유"
-              )}
+              {c("후보자에게 전할 회사의 관심 이유", "Why you're interested")}
             </label>
             <Textarea
               className="min-h-28"
               disabled={pending}
               id={`${fieldId}-appeal`}
               onChange={(event) => setCompanyAppeal(event.target.value)}
-              placeholder={t(
-                "CompanyIntroDecisionDialogs.d286b257",
-                "예: 지금까지 만든 제품과 초기 팀에서의 오너십이 저희가 찾는 역할과 잘 맞습니다. 특히 … 이야기를 나눠보고 싶습니다."
+              placeholder={c(
+                "예: 지금까지 만든 제품과 초기 팀에서의 오너십이 저희가 찾는 역할과 잘 맞습니다. 특히 … 이야기를 나눠보고 싶습니다.",
+                "e.g. Your product work and ownership in early teams stood out. We'd like to discuss this role with you."
               )}
               value={companyAppeal}
             />
@@ -160,9 +157,9 @@ export function CompanyIntroRequestDialog({
         </div>
 
         <label className="mt-4 block text-[13px]">
-          {t(
-            "CompanyIntroDecisionDialogs.f4c1c1d1",
-            "수락 시 소개 이메일을 받을 회사 이메일"
+          {c(
+            "수락 시 소개 이메일을 받을 회사 이메일",
+            "Company contact for the intro email"
           )}
           <Input
             className="mt-2"
@@ -194,7 +191,7 @@ export function CompanyIntroPassDialog({
   open: boolean;
   pending: boolean;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const [error, setError] = useState("");
 
   const confirm = async () => {
@@ -205,9 +202,9 @@ export function CompanyIntroPassDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : t(
-              "CompanyIntroDecisionDialogs.f1c2dd5c",
-              "제안하지 않기를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
+          : c(
+              "제안하지 않기를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+              "Couldn't remove candidate. Try again."
             )
       );
     }
@@ -220,18 +217,16 @@ export function CompanyIntroPassDialog({
       mobileBottomSheet
       title={
         <>
-          {t(
-            "CompanyIntroDecisionDialogs.ba18dc73",
-            "{name}님에게 제안하지 않겠습니까?",
-            { name: candidateName }
-          )}
+          {c("{name}님에게 제안하지 않겠습니까?", "Pass on {name}?", {
+            name: candidateName,
+          })}
         </>
       }
       description={
         <>
-          {t(
-            "CompanyIntroDecisionDialogs.b6defc38",
-            "이 후보자에게 역할을 제안하지 않고 목록에서 제외합니다. 후보자에게 연락하거나 알림을 보내지 않습니다."
+          {c(
+            "이 후보자에게 역할을 제안하지 않고 목록에서 제외합니다. 후보자에게 연락하거나 알림을 보내지 않습니다.",
+            "Remove this candidate from Suggested candidates? Harper won't contact or notify them."
           )}
         </>
       }
@@ -240,7 +235,7 @@ export function CompanyIntroPassDialog({
       footer={
         <div className="flex flex-wrap items-center justify-end gap-2">
           <MuteButton disabled={pending} onClick={onClose} type="button">
-            {t("CompanyIntroDecisionDialogs.2ab81060", "취소")}
+            {c("취소", "Cancel")}
           </MuteButton>
           <MuteButton
             disabled={pending}
@@ -249,7 +244,7 @@ export function CompanyIntroPassDialog({
             variant="dark"
           >
             {pending ? <LoaderCircle className="size-4 animate-spin" /> : null}
-            {t("CompanyIntroDecisionDialogs.3afcab0e", "제안하지 않기")}
+            {c("제안하지 않기", "Pass")}
           </MuteButton>
         </div>
       }

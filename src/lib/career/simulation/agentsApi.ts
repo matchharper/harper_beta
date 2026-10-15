@@ -85,7 +85,7 @@ export async function* browserEvents(sessionId: string, signal: AbortSignal) {
 }
 
 /** Finished runs may retain their provider reference after resource cleanup. */
-export async function stopApplicationBrowser(browser?: {status: string; sessionId?: string; driver?: {name: string; expiresAt: string}}) {
+export async function stopApplicationBrowser(browser?: {status: string; sessionId?: string; driver?: import("./applicationBrowserRuntimeRef").ApplicationBrowserRuntimeRef}) {
   if (browser?.driver) {
     const { applicationBrowserRuntime } = await import("./applicationBrowserRuntime");
     await applicationBrowserRuntime.stop(browser.driver);

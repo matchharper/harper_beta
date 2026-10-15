@@ -1,3 +1,4 @@
+import { recordCandidateProfileView } from "@/lib/org/candidateProfileView";
 import type { Json } from "@/types/database.types";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type {
@@ -341,6 +342,15 @@ export async function logSlackTalentReviewView(args: {
   sourceMessageId: number;
   workspaceId: string;
 }) {
+  await recordCandidateProfileView({
+    admin: getSupabaseAdmin(),
+    companyUserId: args.member.companyUserId,
+    email: args.member.email,
+    roleId: args.candidate.roleId,
+    source: "slack",
+    talentId: args.candidate.talentId,
+    workspaceId: args.workspaceId,
+  });
   const admin: AdminClient = getSupabaseAdmin();
   const { error } = await (admin.from("talent_progress" as any) as any).insert({
     company_user_id: args.member.companyUserId,

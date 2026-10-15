@@ -1,0 +1,22 @@
+{
+  "task": "email-channel-reply",
+  "datasetVersion": "application-question-v1",
+  "createdAt": "2026-10-14",
+  "cases": [
+    {
+      "id": "application-explanation",
+      "locale": "ko",
+      "recommendation": "external_jd",
+      "application": {
+        "submission": "supported",
+        "resume": true
+      },
+      "subject": "Re: 오로라 API 엔지니어 추천",
+      "turns": [
+        "거기 지원해줘.",
+        "멱등성이 무슨 뜻이야? 이력서에 왜 넣는 거야?",
+        "알겠어. 제안한 문구로 이력서 고쳐서 지원해줘."
+      ]
+    }
+  ]
+}

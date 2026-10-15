@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   infiniteQueryOptions,
@@ -178,7 +178,10 @@ function toThinkingLog(value: unknown): OrgAgentThinkingLog | null {
 function sanitizeVisibleAgentError(value: unknown, modelLabel: string) {
   return String(value ?? "")
     .replace(/claude-sonnet-5(?:-[\w.-]+)?/gi, modelLabel)
-    .replace(/(?:deepseek\/)?deepseek-v4(?:\.1)?-flash(?:-0731)?(?:-[\w.-]+)?/gi, modelLabel)
+    .replace(
+      /(?:deepseek\/)?deepseek-v4(?:\.1)?-flash(?:-0731)?(?:-[\w.-]+)?/gi,
+      modelLabel
+    )
     .replace(/gpt-5\.6-luna(?:-[\w.-]+)?/gi, modelLabel)
     .replace(/gpt-5\.6-terra(?:-[\w.-]+)?/gi, modelLabel)
     .trim();
@@ -350,8 +353,7 @@ export function useOrgAgentChat(args: {
   roleId?: string | null;
   workspaceId?: string | null;
 }) {
-  const t = useOrgT();
-  const { locale: responseLocale } = useOrgLocale();
+  const { locale: responseLocale, c } = useOrgLocale();
   const queryClient = useQueryClient();
   const appendMessagesToCache = args.appendMessagesToCache;
   const onRoleCreated = args.onRoleCreated;
@@ -424,7 +426,10 @@ export function useOrgAgentChat(args: {
       if (!accessToken) {
         useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
           assistantStatus: "idle",
-          error: t("hooks.agent.sessionMissing", "로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요."),
+          error: c(
+            "로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.",
+            "Session expired. Sign in again."
+          ),
           isStreaming: false,
           optimisticUserMessage: null,
         });
@@ -488,9 +493,17 @@ export function useOrgAgentChat(args: {
           };
           useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
             error: localizedOrgErrorMessage(
-              new Error(sanitizeVisibleAgentError(payload.error, t("hooks.agent.selectedModel", "선택한 모델"))),
+              new Error(
+                sanitizeVisibleAgentError(
+                  payload.error,
+                  c("선택한 모델", "selected model")
+                )
+              ),
               responseLocale,
-              t("hooks.agent.replyFailed", "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
+              c(
+                "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+                "Couldn't generate a reply. Try again shortly."
+              )
             ),
           });
           return;
@@ -605,15 +618,25 @@ export function useOrgAgentChat(args: {
             } else if (parsed.event === "error") {
               const message = sanitizeVisibleAgentError(
                 (parsed.data as { error?: unknown }).error ??
-                  t("hooks.agent.replyFailed", "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요."),
-                t("hooks.agent.selectedModel", "선택한 모델")
+                  c(
+                    "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+                    "Couldn't generate a reply. Try again shortly."
+                  ),
+                c("선택한 모델", "selected model")
               );
               useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
                 assistantStatus: "idle",
                 isStreaming: false,
               });
               useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
-                error: localizedOrgErrorMessage(new Error(message), responseLocale, t("hooks.agent.replyFailed", "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.")),
+                error: localizedOrgErrorMessage(
+                  new Error(message),
+                  responseLocale,
+                  c(
+                    "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+                    "Couldn't generate a reply. Try again shortly."
+                  )
+                ),
               });
             }
           }
@@ -644,9 +667,17 @@ export function useOrgAgentChat(args: {
         if (streamFinished) return;
         useOrgAgentLiveChatStore.getState().patch(streamLiveChatKey, {
           error: localizedOrgErrorMessage(
-            new Error(sanitizeVisibleAgentError(error instanceof Error ? error.message : "", t("hooks.agent.selectedModel", "선택한 모델"))),
+            new Error(
+              sanitizeVisibleAgentError(
+                error instanceof Error ? error.message : "",
+                c("선택한 모델", "selected model")
+              )
+            ),
             responseLocale,
-            t("hooks.agent.replyFailed", "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.")
+            c(
+              "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+              "Couldn't generate a reply. Try again shortly."
+            )
           ),
         });
       } finally {
@@ -685,7 +716,7 @@ export function useOrgAgentChat(args: {
       onRoleCreated,
       queryClient,
       responseLocale,
-      t,
+      c,
     ]
   );
 

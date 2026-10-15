@@ -1,3 +1,9 @@
+import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
+import { executeApplicationPreparationTool } from "@/lib/career/simulation/toolExecution";
+import { awaitApplicationInspection } from "@/lib/career/simulation/applicationInspection";
+import { MANAGE_APPLICATION_SUGGESTIONS, applicationSuggestionsResult } from "@/lib/career/simulation/suggestions";
+import { READY_FOR_ROLE } from "@/lib/career/simulation/readyForRole";
+import { pendingApplicationBatch } from "@/lib/career/simulation/applicationInput";
 import { applicationSessionToolResult } from "@/lib/career/simulation/sessionTool";
 import { assertApplicationResumeWrite, recordApplicationResume } from "@/lib/career/simulation/resumeWorkflow";
 import { documentFingerprint } from "@/lib/career/simulation/resumeAttachment";
@@ -10,7 +16,7 @@ import { APPLY_TO_ROLE } from "@/lib/career/simulation/applicationBrowser";
 import { startApplicationBrowser, resumeApplicationBrowser, runApplicationBrowser } from "@/lib/career/simulation/applicationBrowserServer";
 import { enqueueApplicationBrowser } from "@/lib/career/simulation/applicationBrowserQueue";
 import { stopApplicationBrowser } from "@/lib/career/simulation/agentsApi";
-import { ASK_APPLICATION_INPUT, askApplicationInput, applicationInputSchema } from "@/lib/career/simulation/applicationInput";
+
 import { allPreparationAnswered } from "@/lib/career/simulation/preparation";
 import { respondPreparationFromChat } from "@/lib/career/simulation/preparationService";
 import { careerT } from "@/lib/career/translatedCareerMessage";
@@ -31,6 +37,7 @@ import {
 import {
   SIMULATION_TOOL_NAMES,
   SIMULATION_SESSION_TOOL,
+  APPLICATION_PREPARATION_SESSION_ACTIONS,
 } from "@/lib/career/simulation/sessionTool";
 import { createCareerCapabilityTurn, isCareerCapabilityTurn } from "@/lib/career/capabilities/server";
 import { getCareerCapabilityMode } from "@/lib/career/capabilities/registry";
@@ -92,7 +99,7 @@ import { fetchActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/inter
 import { commitDeliveredProcessClosureNotices } from "@/lib/talentOnboarding/processClosureNotice";
 import type { PendingProcessClosureNotice } from "@/lib/talentOnboarding/tools";
 import { insertTalentToolUsageLog } from "@/lib/talentOnboarding/toolUsageLog";
-import { resolveCareerChatTools } from "@/lib/career/llmTools";
+import { canStartApplication, resolveCareerChatTools } from "@/lib/career/llmTools";
 import {
   fetchRecentMessagesWithSummary,
   maybeSummarizeTalentConversation,
@@ -596,10 +603,6 @@ export async function POST(req: NextRequest) {
       body.messageType
     );
     const requestChannel = body.channel === "voice" ? "voice" : "chat";
-    const textChatModel = resolveCareerTextChatModelForRequest(
-      body.textChatModel,
-      requestChannel === "chat" && canUseCareerDevControls(user.email)
-    );
     const allowedToolNames = normalizeAllowedToolNames(body.allowedToolNames);
     const canUseInternalFitHoldQuestionTool = false;
     const opportunityMentions = normalizeCareerOpportunityMentions(
@@ -751,9 +754,12 @@ export async function POST(req: NextRequest) {
       if (process.env.NODE_ENV === "development") afterApplicationResponse(() => runApplicationBrowser(simulationStore, record.messageId));
       else await enqueueApplicationBrowser(user.id, conversationId, record.messageId, record.state.revision);
     };
+    if (submission && simulationSession?.state.status === "active" && simulationSession.messageId === submission.sessionMessageId) {
+      simulationSession = await awaitApplicationInspection(simulationStore, simulationSession);
+    }
     if (submission) {
       const batch = simulationSession?.state.activity?.batches.find(b=>b.id===submission.batchId);
-      if (!batch || batch.status!=="submitted" || !["pending","failed"].includes(batch.continuation) || simulationSession?.state.status!=="active" || simulationSession.messageId!==submission.sessionMessageId || simulationSession.state.revision!==submission.expectedRevision) {
+      if (!batch || batch.status!=="submitted" || !["pending","failed"].includes(batch.continuation) || simulationSession?.state.status!=="active" || simulationSession.messageId!==submission.sessionMessageId || simulationSession.state.revision<submission.expectedRevision) {
         return NextResponse.json({error:"Question submission is no longer current"},{status:409});
       }
       if (batch.browser) {
@@ -790,13 +796,12 @@ export async function POST(req: NextRequest) {
           { error: "Invalid application start request" },
           { status: 400 }
         );
-      if (!resolveCareerChatTools({
-        simulationActive: true,
+      if (!canStartApplication({
         channel: requestChannel,
         isOnboardingDone: talentSetting?.is_onboarding_done,
         allowedToolNames,
         responseLocale,
-      }).toolNames.includes(TALENT_TOOL_NAMES.SIMULATE_APPLICATION))
+      }))
         return NextResponse.json({ error: "Application preparation is unavailable in this request." }, { status: 403 });
       if (simulationSession?.state.activity?.offerId === startRequest.data.sessionMessageId) {
         return NextResponse.json({ok:true,alreadyStarted:true,assistantMessages:[],messages:[],conversationId});
@@ -829,6 +834,11 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+    const textChatModel = resolveCareerTextChatModelForRequest(
+      body.textChatModel,
+      requestChannel === "chat" && canUseCareerDevControls(user.email),
+      Boolean(requestedApplicationStart) || simulationSession?.state.status === "active"
+    );
     const simulationCardAction =
       !startRequest && body.simulationAction
         ? cardRequestSchema.safeParse(body.simulationAction)
@@ -1204,7 +1214,15 @@ export async function POST(req: NextRequest) {
       recentLimit: 16,
       userId: user.id,
     });
-    const promptMessages = recentMessages;
+    // The current activity already carries its immutable suggestions, answers,
+    // resume and role facts. Older application transcripts describe other runs
+    // and must not become examples or instructions for this preparation.
+    const applicationHistoryStart = simulationSession?.state.status === "active"
+      ? simulationSession.messageId
+      : null;
+    const promptMessages = applicationHistoryStart !== null
+      ? recentMessages.filter((item) => Number(item.id) >= applicationHistoryStart)
+      : recentMessages;
 
     const llmMessages = promptMessages
       .filter(
@@ -1276,6 +1294,7 @@ export async function POST(req: NextRequest) {
     }
     const toolSelection = resolveCareerChatTools({
       simulationActive: simulationSession?.state.status === "active",
+        simulationPreparation: Boolean(simulationSession?.state.preparation),
       activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
       allowedToolNames,
       channel: requestChannel,
@@ -1431,6 +1450,7 @@ export async function POST(req: NextRequest) {
       getPromptArgs: currentPromptArgs,
       getEligibleTools: () => resolveCareerChatTools({
         simulationActive: simulationSession?.state.status === "active",
+        simulationPreparation: Boolean(simulationSession?.state.preparation),
         activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
         allowedToolNames,
         channel: requestChannel,
@@ -1440,7 +1460,7 @@ export async function POST(req: NextRequest) {
       }).tools,
       preloads: [
         ...(uploadedDocuments.length ? ["documents" as const] : []),
-        ...(selectedInternalOpportunity ? ["opportunities" as const] : []),
+        ...(effectiveOpportunityMentions.length ? ["opportunities" as const] : []),
         ...(selectedCompanyTalentRequest ? ["company_contact" as const] : []),
         ...(coachingActivityAction && careerCoachingActivity && coachingActivityAction.activityMessageId === careerCoachingActivity.messageId && coachingActivityAction.expectedRevision === careerCoachingActivity.revision ? ["career_coaching" as const] : []),
       ],
@@ -1461,6 +1481,7 @@ export async function POST(req: NextRequest) {
       });
       const selected = resolveCareerChatTools({
         simulationActive: simulationSession?.state.status === "active",
+        simulationPreparation: Boolean(simulationSession?.state.preparation),
         allowedToolNames,
         channel: requestChannel,
         hasActiveGmailIntegration: Boolean(activeGmailIntegration),
@@ -1713,7 +1734,7 @@ export async function POST(req: NextRequest) {
       startConfirmed?: boolean;
     }) => {
       const { toolInput } = splitToolUiStatus(toolArgs.input);
-      if (simulationSession?.state.status === "active" && !SIMULATION_TOOL_NAMES.includes(toolArgs.name))
+      if (simulationSession?.state.status === "active" && !toolArgs.startConfirmed && !SIMULATION_TOOL_NAMES.includes(toolArgs.name))
         throw new Error("Tool unavailable in Apply with Harper mode");
       if (toolArgs.name === APPLY_TO_ROLE) {
         if (!simulationSession || simulationSession.state.status !== "active") throw new Error("No active application");
@@ -1725,38 +1746,34 @@ export async function POST(req: NextRequest) {
         thinkingLogs.length=0;
         return {ok:true,applicationInProgress:true};
       }
-      if (toolArgs.name === ASK_APPLICATION_INPUT) {
-        if (simulationSession?.state.browser && ["queued","running","waiting"].includes(simulationSession.state.browser.status)) throw new Error("The application browser owns the pending questions. Answer them or stop the application first.");
-        if (!simulationSession?.state.activity || simulationSession.state.status !== "active") throw new Error("No active application");
-        const input = applicationInputSchema.parse(toolInput);
-        for (const item of input.items) {
-          if (item.documentPurpose !== "final_resume") continue;
-          const documentId = item.documentId ?? simulationSession.state.preparation?.workingResume?.documentId ?? simulationSession.state.preparation?.finalDocumentId ?? simulationSession.state.documentId;
-          if (!documentId) throw new Error("Choose a resume before asking for file confirmation");
-          const {validatePreparationDocument} = await import("@/lib/career/simulation/preparationService");
-          const document = await validatePreparationDocument(simulationStore, documentId, true);
-          item.documentId = document.id;
-          item.documentName = document.file_name;
-          item.documentFingerprint = documentFingerprint(document);
-        }
-
-        // Question turns suppress ordinary prose. Keep verified resume links with
-        // the persisted introduction so the user can review before choosing a file.
-        if (generatedResumeLinks.size) input.introduction = withResumeLinks(input.introduction ?? "");
-
-        const state = askApplicationInput(simulationSession.state, input, `questions:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(input)}`);
-        const saved = await saveSession(simulationStore, simulationSession, state, `questions:${submission?.batchId ?? insertedUserMessage.id}:${JSON.stringify(input)}`);
+      if(toolArgs.name===MANAGE_APPLICATION_SUGGESTIONS) {
+        if(!simulationSession) throw new Error("No active application");
+        const execution = await executeApplicationPreparationTool({ store: simulationStore, record: simulationSession, name: toolArgs.name, input: toolInput, messageId: Number(insertedUserMessage.id), submittedBatchId: submission?.batchId });
+        const saved=execution!.record;
         simulationSession=saved;
         onSimulationMessage(saved.message);
-        applicationQuestionsAsked = true;
-        thinkingLogs.length = 0;
+        const awaitingUserInput=!!pendingApplicationBatch(saved.state);
+        if(awaitingUserInput) {applicationQuestionsAsked=true;thinkingLogs.length=0;}
         await refreshSimulationRuntime();
-        return {ok:true, awaitingUserInput:true};
+        return applicationSuggestionsResult(saved.state);
+      }
+      if(toolArgs.name===READY_FOR_ROLE) {
+        if(!simulationSession) throw new Error("No active application");
+        const prepared=await executeApplicationPreparationTool({ store: simulationStore, record: simulationSession, name: toolArgs.name, input: toolInput, messageId: Number(insertedUserMessage.id), submittedBatchId: submission?.batchId });
+        if (!prepared || !("documentId" in prepared.result)) throw new Error("Prepared document unavailable");
+        simulationSession=prepared.record;
+        onSimulationMessage(prepared.record.message);
+        generatedResumeLinks.set(prepared.result.documentId,prepared.result.documentLink);
+        documentsChanged=true;
+        await refreshSimulationRuntime();
+        return prepared.result;
       }
       if (toolArgs.name === SIMULATION_SESSION_TOOL) {
         if (!simulationSession || simulationSession.state.status !== "active")
           return { ok: false, reason: "No active simulation session." };
         const mutation = sessionMutationSchema.parse(toolInput);
+        if (simulationSession.state.preparation && !APPLICATION_PREPARATION_SESSION_ACTIONS.includes(mutation.action))
+          throw new Error("Use manage_application_suggestions to resolve or revise preparation suggestions.");
         if(simulationSession.state.browser && ["queued","running"].includes(simulationSession.state.browser.status) && !["end","request_switch","cancel_switch"].includes(mutation.action)) throw new Error("The browser is using the current application data. Stop it before changing those details.");
         if (mutation.action === "end") await stopApplicationBrowser(simulationSession.state.browser);
         if (mutation.action === "propose" && analysisCompletedThisTurn && !simulationSession.state.preparation) {
@@ -1826,21 +1843,32 @@ export async function POST(req: NextRequest) {
             userMessageId: insertedUserMessage.id,
             userId: user.id,
             onSimulationMessage,
-            simulationStartConfirmed: toolArgs.startConfirmed === true || simulationSession?.state.status === "active",
+            scheduleAfter: (task) => afterApplicationResponse(task),
+            simulationStartConfirmed: toolArgs.startConfirmed === true,
+            textChatModel: textChatModel.model,
             simulationStartOfferId: toolArgs.startConfirmed ? requestedApplicationStart?.message.id : undefined,
           },
           logging: false,
           name: toolArgs.name,
           input: toolInput,
         });
+        if (toolArgs.startConfirmed) {
+          const preparationRun = simulationResult;
+          afterApplicationResponse(async () => { await preparationRun; });
+        }
         try {
-          return await simulationResult;
+          const result = await simulationResult;
+          if (isRecord(result) && result.startCardDisplayed === true && result.awaitingUserInput === true)
+            applicationQuestionsAsked = true;
+          return result;
         } finally {
-          await refreshSimulationRuntime();
+          try { await refreshSimulationRuntime(); }
+          catch (error) { req.signal.throwIfAborted(); reportToolDiagnostic({ error, source: "context_refresh" }); }
         }
       }
 
       if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && simulationSession?.state.status === "active") {
+        if(simulationSession.state.preparation) throw new Error("Use ready_for_role to preserve the selected source and save the prepared resume");
         assertApplicationResumeWrite(simulationSession.state);
       }
       const result = await executeTalentTool({
@@ -1921,7 +1949,8 @@ export async function POST(req: NextRequest) {
         input: requestedApplicationStart.input,
         startConfirmed: true,
       });
-      applicationStartOutcomeInstruction = `The user pressed the application start card. Verified analysis outcome: ${JSON.stringify(result)}. The analysis card displays the results. On success call ask_application_input directly with consequential preparation questions, with a brief natural introduction in the tool introduction field, without an analysis recap. If no decisions are needed, continue the actual preparation in ordinary chat. The question tool displays the composer and yields to the user. If the analysis failed, briefly explain the blocker and the available next step.`;
+      if(isRecord(result) && result.awaitingUserInput===true) applicationQuestionsAsked=true;
+      applicationStartOutcomeInstruction = `The user pressed Start. Verified preparation outcome: ${JSON.stringify(result)}. Suggestions are already published in the composer when awaitingUserInput is true; do not duplicate them or ask another batch. If preparation succeeded and no suggestions are needed, review the now-inspected required application fields first, propose only essential missing information or materials if needed, otherwise call ready_for_role with action=reuse. Its result decides whether to offer assisted application or provide the direct application link. If preparation failed or was interrupted, distinguish the already displayed start card and started work from the unfinished preparation; do not claim that neither existed. Briefly explain the known blocker without inventing a cancellation reason. The role and selected resume are already known: offer to retry with those, without asking the user to identify them again or directing them to press an already consumed Start button. Include the application link when available.`;
       systemBlocks.push({
         key: "application_start_outcome",
         text: applicationStartOutcomeInstruction,
@@ -2029,7 +2058,7 @@ export async function POST(req: NextRequest) {
             let assistantText: string;
             try {
               await startRequestedApplication();
-              assistantText = await runCareerChatAssistantStream({
+              assistantText = applicationQuestionsAsked ? "" : await runCareerChatAssistantStream({
                 toolRuntime: capabilityTurn?.runtime,
                 chatCompletionReasoningEffort:
                   textChatModel.chatCompletionReasoningEffort,
@@ -2048,7 +2077,7 @@ export async function POST(req: NextRequest) {
                   }
                 },
                 onToolStart: (tool) => {
-                  if (tool.name === ASK_APPLICATION_INPUT || tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) return;
+                  if (tool.name === MANAGE_APPLICATION_SUGGESTIONS || tool.name === TALENT_TOOL_NAMES.SIMULATE_APPLICATION) return;
                   if (tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS) {
                     recommendationToolStarted = true;
                     ensureRecommendationToolPreamble();
@@ -2081,7 +2110,7 @@ export async function POST(req: NextRequest) {
                     );
                     if (languageStatus) recordThinkingLog(languageStatus);
                   }
-                  if (status && name !== ASK_APPLICATION_INPUT && name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION && !(name === SIMULATION_SESSION_TOOL && toolInput.action === "generate_draft")) {
+                  if (status && name !== MANAGE_APPLICATION_SUGGESTIONS && name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION && !(name === SIMULATION_SESSION_TOOL && toolInput.action === "generate_draft")) {
                     recordThinkingLog(status);
                   }
 
@@ -2653,7 +2682,7 @@ export async function POST(req: NextRequest) {
     let assistantText: string;
     try {
       await startRequestedApplication();
-      assistantText = await runCareerChatAssistant({
+      assistantText = applicationQuestionsAsked ? "" : await runCareerChatAssistant({
         toolRuntime: capabilityTurn?.runtime,
         chatCompletionReasoningEffort:
           textChatModel.chatCompletionReasoningEffort,

@@ -1,3 +1,7 @@
+import { throwIfToolControlError } from "@/lib/llm/toolError";
+import { serializeToolResultForModel } from "@/lib/llm/toolError";
+import { executeToolCall } from "@/lib/llm/toolExecution";
+import { formatToolError } from "@/lib/llm/toolError";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
@@ -202,7 +206,7 @@ export async function generateRoleHiringBriefCalibration(args: {
     },
   ];
   const openedUrls = new Map<string, RoleCalibrationReference>();
-  const failedReferenceUrls = new Set<string>();
+  const failedReferenceUrls = new Map<string, string>();
   const readTalentIds = new Set<string>();
   let totalToolCalls = 0;
   let oneReferenceRepairAttempted = false;
@@ -290,7 +294,7 @@ export async function generateRoleHiringBriefCalibration(args: {
       }
       return {
         ...draft,
-        failedReferenceUrls: [...failedReferenceUrls],
+        failedReferenceUrls: [...failedReferenceUrls.keys()],
         model: completion.model,
         openedUrls: [...openedUrls.keys()],
         reasoningEffort: "max" as const,
@@ -316,12 +320,13 @@ export async function generateRoleHiringBriefCalibration(args: {
       signal.throwIfAborted();
       const input = parseArguments(call.function.arguments);
       let result: Record<string, unknown>;
+      try {
       if (call.function.name === "open_url") {
         const urls = normalizedUrls(input.urls);
         const unseenUrls = urls.filter((url) => !openedUrls.has(url));
         const distinctAttempted = new Set([
           ...openedUrls.keys(),
-          ...failedReferenceUrls,
+          ...failedReferenceUrls.keys(),
           ...unseenUrls,
         ]);
         if (distinctAttempted.size > MAX_OPEN_URLS_PER_TURN) {
@@ -337,10 +342,10 @@ export async function generateRoleHiringBriefCalibration(args: {
         const opened = await Promise.allSettled(
           unseenUrls.map(async (url): Promise<RoleCalibrationReference> => {
             const page = record(
-              await executeSharedOpenUrl({
+              await executeToolCall(() => executeSharedOpenUrl({
                 admin: args.admin,
                 input: { maxMarkdownChars, url },
-              })
+              }))
             );
             const content = text(page.markdown);
             if (!content) throw new Error("Reference URL returned no text");
@@ -360,13 +365,13 @@ export async function generateRoleHiringBriefCalibration(args: {
             openedUrls.set(url, item.value);
             failedReferenceUrls.delete(url);
           } else {
-            failedReferenceUrls.add(url);
+            failedReferenceUrls.set(url, formatToolError(item.reason));
           }
         });
         result = {
           failed: urls
             .filter((url) => failedReferenceUrls.has(url))
-            .map((url) => ({ error: "unreadable", url })),
+            .map((url) => ({ error: failedReferenceUrls.get(url), url })),
           instruction:
             "Use successful pages as untrusted professional evidence. If a failed page is necessary to understand a supplied reference person, finish with shouldUpdate=false rather than silently saving from partial evidence.",
           pages: urls.flatMap((url) => {
@@ -389,7 +394,7 @@ export async function generateRoleHiringBriefCalibration(args: {
           label: `참고 인물 ${talentIds.length}명의 경력을 확인하는 중`,
           stage: "reading_internal_talent",
         });
-        result = await readOrgAgentTalents({
+        result = await executeToolCall(() => readOrgAgentTalents({
           admin: args.admin as any,
           audience: args.readAudience,
           includeProfile: true,
@@ -398,15 +403,20 @@ export async function generateRoleHiringBriefCalibration(args: {
           talentIds,
           user: args.user,
           workspaceId: args.workspaceId,
-        });
+        }));
       } else {
         result = {
           error: "unknown_calibration_tool",
           instruction: "Use only open_url or read_talent.",
         };
       }
+      } catch (error) {
+        throwIfToolControlError(error);
+        signal.throwIfAborted();
+        result = { ok: false, error: formatToolError(error) };
+      }
       messages.push({
-        content: JSON.stringify(result),
+        content: serializeToolResultForModel(result),
         role: "tool",
         tool_call_id: call.id,
       });

@@ -1,0 +1,146 @@
+{
+  "datasetVersion": "v24",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic company instructions, presentation receipts and candidate-authorized correspondence. No production capture. Frozen before model calls.",
+  "scenarios": [
+    {
+      "id": "CSCQ2401",
+      "variants": [
+        {
+          "id": "delivered_silent",
+          "surface": "slack",
+          "allowSilentCompletion": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "우선 후보 소개만 받아 볼게요. 살펴본 후 필요한 게 있으면 제가 말할게요."
+            },
+            {
+              "role": "assistant",
+              "content": "Daniel Park님을 소개했어요. Python API 운영 경험이 있고, 첫 설계 주도 경험은 아직 확인되지 않았어요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "The introduction has already been delivered. Decide whether useful authorized work or a consequential suggestion remains; otherwise finish silently.",
+            "facts": {
+              "companyMessageAlreadyDelivered": true,
+              "candidatePresentationDelivered": true
+            }
+          },
+          "turns": [
+            "verified delivery"
+          ]
+        },
+        {
+          "id": "delivered_proposal",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "초기 제품에서 첫 API 설계를 주도해 본 분인지가 중요해요. 일단 후보 소개부터 주세요."
+            },
+            {
+              "role": "assistant",
+              "content": "Daniel Park님을 소개했어요. Python API 운영과 장애 대응은 확인됐고, 첫 API 설계 주도 경험은 아직 확인되지 않았어요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "The introduction has already been delivered. Decide whether consequential useful help remains; otherwise finish silently.",
+            "facts": {
+              "companyMessageAlreadyDelivered": true,
+              "candidatePresentationDelivered": true,
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "roleId": "00000000-0000-4000-8000-000000000101"
+            }
+          },
+          "turns": [
+            "verified delivery"
+          ]
+        },
+        {
+          "id": "delivered_authorized_work",
+          "surface": "slack",
+          "allowSilentCompletion": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel Park님 소개가 끝나면, 본인이 초기 제품의 첫 API 설계를 주도한 경험이 있는지 후보자에게 물어봐 주세요. 그 연락은 따로 승인받지 않고 보내 주세요."
+            },
+            {
+              "role": "assistant",
+              "content": "Daniel Park님을 소개했어요. 확인된 경험은 Python API 운영과 장애 대응이에요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "The introduction has already been delivered. Complete useful work authorized in the actual company conversation; do not repeat the presentation.",
+            "facts": {
+              "companyMessageAlreadyDelivered": true,
+              "candidatePresentationDelivered": true,
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "roleId": "00000000-0000-4000-8000-000000000101"
+            }
+          },
+          "turns": [
+            "verified delivery"
+          ]
+        },
+        {
+          "id": "pending_contact_conditions",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님이 바로 진행에 동의하면 다음 단계로 옮겨 주세요. 조건부 답변이면 그 조건부터 알려주세요."
+            }
+          ],
+          "contactEvent": {
+            "deliveryCompleted": false,
+            "originalDeliveryBody": "연봉 범위를 먼저 알 수 있으면 진행 여부를 결정할 수 있어요. 아직 진행에 동의한 것은 아니에요.",
+            "candidate_contact_ref": {
+              "relayId": "00000000-0000-4000-8000-000000000901",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "roleId": "00000000-0000-4000-8000-000000000101"
+            },
+            "roleName": "백엔드 엔지니어",
+            "currentContact": {
+              "content": "연봉 범위를 먼저 알 수 있으면 진행 여부를 결정할 수 있어요. 아직 진행에 동의한 것은 아니에요.",
+              "documentId": null
+            },
+            "precedingCompanyContacts": [],
+            "subsequentCandidateContacts": []
+          },
+          "turns": [
+            "authorized candidate contact"
+          ]
+        },
+        {
+          "id": "accepted_pending_connection",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "Daniel님께 제안했어요. 수락하면 알려 주세요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "Tell the company that the candidate accepted its connection proposal. Acceptance does not establish a confirmed meeting, employment or completed connection.",
+            "facts": {
+              "candidateName": "Daniel Park",
+              "candidateDecision": "accepted",
+              "roleName": "백엔드 엔지니어",
+              "connectionState": "connecting",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "decisionAt": "2026-09-24T03:00:00Z"
+            }
+          },
+          "turns": [
+            "verified acceptance"
+          ]
+        }
+      ]
+    }
+  ]
+}

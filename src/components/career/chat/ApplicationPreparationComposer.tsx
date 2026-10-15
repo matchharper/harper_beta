@@ -2,6 +2,7 @@ import {
   careerTimelineMessageTextClassName,
   careerTimelineTypographyStyle,
 } from "./careerTimelineTypography";
+import { isApplicationInspectionPending } from "@/lib/career/simulation/applicationForm";
 import {
   applicationQuestionItems,
   pendingApplicationBatch,
@@ -14,6 +15,7 @@ import {
   ArrowUp,
   Pencil,
   Info,
+  Loader2,
 } from "lucide-react";
 import { MuteButton, CardButton } from "@/components/ui/button";
 import { ChatComposerSurface } from "@/components/chat/ChatComposer";
@@ -31,16 +33,15 @@ import { uploadTalentDocument } from "@/lib/talentOnboarding/documentUploadClien
 import { Textarea } from "@/components/ui/textarea";
 import type { SimulationSession } from "@/lib/career/simulation/session";
 import { useApplicationPreparation } from "./ApplicationPreparationContext";
-import {
-  preparationKind,
-  allPreparationAnswered,
-} from "@/lib/career/simulation/preparation";
+import { ApplicationEndConfirmation } from "./ApplicationEndConfirmation";
+import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
+import { preparationKind } from "@/lib/career/simulation/preparation";
 import type { PreparationResponse } from "@/lib/career/simulation/preparation";
 
 const numberedOptionClassName =
-  "flex w-full items-center justify-start gap-3 rounded-xl min-h-11 px-3 py-2 text-left text-[length:inherit] font-normal leading-[inherit]";
+  "flex w-full items-center justify-start gap-2 rounded-xl min-h-10 sm:min-h-9 px-2 py-1 text-left text-[length:inherit] font-normal leading-[inherit]";
 const optionNumberClassName =
-  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-neutral-1000-a10 text-xs text-neutral-muted";
+  "flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-black text-xs text-white";
 
 export function PreparationDocumentPicker({
   resume = false,
@@ -171,13 +172,48 @@ export function ApplicationPreparationComposerSlot({
 }: {
   children: React.ReactNode;
 }) {
-  const { record, renderedReviewId, error, pending, command } = useApplicationPreparation();
+  const { record, renderedReviewId, error, pending, command } =
+    useApplicationPreparation();
   const t = useCareerT();
-  const review = record ? pendingApplicationBatch(record.state)?.review : undefined;
-  return shouldShowPreparationQuestions(record?.state) && (!review || renderedReviewId === review.id) ? (
+  const review = record
+    ? pendingApplicationBatch(record.state)?.review
+    : undefined;
+  const waitingForInspection = record?.state.status === "active" &&
+    isApplicationInspectionPending(record.state) &&
+    record.state.activity?.batches.some(b => b.status === "submitted" && b.continuation !== "done");
+  const canContinue = !pending && !waitingForInspection && record?.state.status === "active" &&
+    record.state.activity?.batches.some(b => b.status === "submitted" && ["pending", "failed"].includes(b.continuation));
+  return shouldShowPreparationQuestions(record?.state) &&
+    (!review || renderedReviewId === review.id) ? (
     <ApplicationPreparationComposer />
   ) : (
-    <>{error && <div role="alert" className="text-sm text-neutral-muted">{error}<MuteButton disabled={pending} onClick={() => void command({operation:"continue"})}>{t("career.application.answers.retry", "답변 전송 다시 시도")}</MuteButton></div>}{children}</>
+    <>
+      {waitingForInspection && (
+        <div role="status" className="mb-3 flex items-center gap-2 text-sm text-neutral-muted">
+          <Loader2 aria-hidden className="size-4 shrink-0 animate-spin motion-reduce:animate-none" />
+          {t("career.application.inspection.waiting", "답변을 저장했어요. 지원에 필요한 항목을 마저 확인하고 있어요.")}
+        </div>
+      )}
+      {error && (
+        <div role="alert" className="text-sm text-neutral-muted">
+          {error}
+          <MuteButton
+            disabled={pending}
+            onClick={() => void command({ operation: "continue" })}
+          >
+            {t("career.application.answers.retry", "답변 전송 다시 시도")}
+          </MuteButton>
+        </div>
+      )}
+      {!error && canContinue && (
+        <div className="mb-3">
+          <MuteButton onClick={() => void command({ operation: "continue" })}>
+            {t("career.application.answers.continue", "저장된 답변으로 준비 계속하기")}
+          </MuteButton>
+        </div>
+      )}
+      {children}
+    </>
   );
 }
 export function ApplicationPreparationReopen() {
@@ -203,33 +239,42 @@ export function ApplicationPreparationReopen() {
 export function ApplicationPreparationComposer() {
   const { record, pending, error, command } = useApplicationPreparation();
   const t = useCareerT();
-  const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
+  const [endConfirmationOpen, setEndConfirmationOpen] = useState(false);
+  const endTriggerRef = useRef<HTMLButtonElement>(null);
+  const draftScope = `harper-application-composer:v1:${record?.state.sessionId}:${record ? pendingApplicationBatch(record.state)?.id : ""}`;
+  const [draftInputs, setDraftInputs, clearInputs] = useApplicationComposerDraft(`${draftScope}:answers`);
+  const [editedTexts, setEditedTexts, clearEdits] = useApplicationComposerDraft(`${draftScope}:edits`);
+  const clearDrafts = () => { clearInputs(); clearEdits(); };
+  const [editor, setEditor] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState<{
+    key: string;
+    index: number;
+  } | null>(null);
+  const [flash, setFlash] = useState<{ key: string; decision: string } | null>(
+    null
+  );
+  const lock = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
   const s = record?.state,
     p = s?.preparation;
   const items = s ? applicationQuestionItems(s) : [];
   const item = items.find((a) => a.id === p?.currentItemId) ?? items[0];
   const index = items.findIndex((a) => a.id === item?.id);
-  const inputKey = `${record?.messageId}:${item?.id}`;
+  const inputKey = `${record?.messageId}:${(s ? pendingApplicationBatch(s)?.id : undefined) ?? ""}:${item?.id}`;
   const text =
     draftInputs[inputKey] ?? (item && p?.responses[item.id]?.text) ?? "";
-  if (!s || !p || !item || !shouldShowPreparationQuestions(s)) return null;
-  const kind = preparationKind(item);
-  const answer = async (response: PreparationResponse) => {
-    const ok = await command({
-      operation: "respond",
-      itemId: item.id,
-      response,
-    });
-    if (ok)
-      setDraftInputs((prev) => {
-        const next = { ...prev };
-        delete next[inputKey];
-        return next;
-      });
-  };
-  const edits = item.edits?.length
+  const kind = item ? preparationKind(item) : "question";
+  const canDecide =
+    kind === "change" || (kind === "material" && item?.draftText !== undefined);
+  const edits = item?.edits?.length
     ? item.edits
-    : item.originalText || item.suggestedText
+    : item?.originalText || item?.suggestedText
       ? [
           {
             target: item.target,
@@ -238,20 +283,162 @@ export function ApplicationPreparationComposer() {
           },
         ]
       : [];
+  const busy = pending || flash?.key === inputKey;
+  const answer = (raw: PreparationResponse) => {
+    if (!item || busy || lock.current) return;
+    lock.current = true;
+    const response = { ...raw };
+    if (response.decision === "accept") {
+      if (kind === "change")
+        response.edits = edits.map((e, i) => ({
+          ...e,
+          suggestedText: editedTexts[`${inputKey}:${i}`] ?? e.suggestedText,
+        }));
+      if (item.draftText !== undefined)
+        response.draftText =
+          editedTexts[`${inputKey}:material`] ?? item.draftText;
+    }
+    setFlash({ key: inputKey, decision: response.decision });
+    timer.current = setTimeout(() => {
+      void command({ operation: "respond", itemId: item.id, response })
+        .then((ok) => {
+          if (ok && index === items.length - 1) { clearDrafts(); return; }
+          if (ok)
+            setDraftInputs((prev) => {
+              const next = { ...prev };
+              delete next[inputKey];
+              return next;
+            });
+        })
+        .finally(() => {
+          lock.current = false;
+          setFlash(null);
+          setHighlight(null);
+        });
+    }, 180);
+  };
+  const navigate = (offset: number) => {
+    const next = items[index + offset];
+    if (next && !busy && !lock.current) {
+      setEditor(null);
+      setHighlight(null);
+      void command({ operation: "navigate", itemId: next.id });
+    }
+  };
+  useEffect(() => {
+    if (!s || !item || !shouldShowPreparationQuestions(s)) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (
+        busy ||
+        endConfirmationOpen ||
+        lock.current ||
+        e.repeat ||
+        e.isComposing ||
+        e.keyCode === 229 ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey ||
+        target?.closest(
+          'input,textarea,select,[contenteditable="true"],[role="dialog"]'
+        )
+      )
+        return;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        navigate(e.key === "ArrowLeft" ? -1 : 1);
+        return;
+      }
+      if (!canDecide) return;
+      if (e.key === "1" || e.key === "2") {
+        e.preventDefault();
+        answer({ decision: e.key === "1" ? "accept" : "ignore" });
+      } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlight({
+          key: inputKey,
+          index:
+            highlight?.key === inputKey
+              ? (highlight.index + 1) % 2
+              : e.key === "ArrowUp"
+                ? 1
+                : 0,
+        });
+      } else if (e.key === "Enter" && highlight?.key === inputKey) {
+        e.preventDefault();
+        answer({ decision: highlight.index === 0 ? "accept" : "ignore" });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+  if (!s || !p || !item || !shouldShowPreparationQuestions(s)) return null;
+  const selected =
+    flash?.key === inputKey
+      ? flash.decision
+      : draftInputs[inputKey] === undefined
+        ? p.responses[item.id]?.decision
+        : undefined;
+  const editable = (value: string, key: string) =>
+    editor === key ? (
+      <Textarea
+        autoFocus
+        autoResize
+        rows={2}
+        value={editedTexts[key] ?? value}
+        aria-label={t("career.application.suggestions.edit", "제안 문구 수정")}
+        className="max-h-48 text-[length:inherit] leading-[inherit]"
+        onChange={(e) =>
+          setEditedTexts((prev) => ({ ...prev, [key]: e.target.value }))
+        }
+        onBlur={(event) => {
+          // Keep the layout stable until the close button's click opens its dialog.
+          if (event.relatedTarget !== endTriggerRef.current) setEditor(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            setEditor(null);
+          }
+        }}
+      />
+    ) : (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => setEditor(key)}
+        aria-label={t("career.application.suggestions.edit", "제안 문구 수정")}
+        className="group block w-full rounded-lg px-2 py-1.5 -mx-2 text-left whitespace-pre-wrap break-words hover:bg-bg-weak focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+      >
+        {(editedTexts[key] ?? value) ||
+          t("career.application.suggestions.deleted", "이 문구 삭제")}
+        <Pencil
+          size={12}
+          aria-hidden
+          className="ml-2 inline text-neutral-soft opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+        />
+      </button>
+    );
   return (
     <ChatComposerSurface
       data-preparation-questions=""
+      data-suggestion-id={item.id}
+      data-response-flash={flash?.key === inputKey ? flash.decision : undefined}
+      aria-busy={busy}
       style={careerTimelineTypographyStyle}
-      className={`flex max-h-[min(360px,55dvh)] flex-col p-3 md:p-4 ${careerTimelineMessageTextClassName}`}
+      className={`flex max-h-[min(540px,70dvh)] flex-col p-3 md:p-4 transition-[background-color,box-shadow] duration-150 motion-reduce:transition-none ${flash?.key === inputKey ? "bg-bg-weak ring-1 ring-primary/20" : ""} ${careerTimelineMessageTextClassName}`}
     >
-      <div className="flex shrink-0 items-start justify-between gap-2 pb-3">
-        <div className="flex min-w-0 items-start gap-2">
+      <div className="grid shrink-0 grid-cols-1 gap-2 pb-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="row-start-2 flex min-w-0 items-start gap-2 sm:row-start-1">
           <strong className="min-w-0 break-words text-inherit font-medium">
             {item.documentPurpose === "final_resume"
-              ? t("career.application.method.title", "어떤 방식으로 지원할까요?")
+              ? t(
+                  "career.application.method.title",
+                  "어떤 방식으로 지원할까요?"
+                )
               : item.title}
           </strong>
-          {kind === "change" && item.reason.trim() && (
+          {canDecide && item.reason.trim() && (
             <ResponsiveLightTooltip
               className="w-auto shrink-0"
               mobileAriaLabel={t("career.simulation.basis", "판단 근거")}
@@ -267,50 +454,43 @@ export function ApplicationPreparationComposer() {
             </ResponsiveLightTooltip>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1 text-xs text-neutral-muted">
+        <div className="row-start-1 flex items-center justify-between gap-2 text-xs text-neutral-muted sm:col-start-2 sm:justify-end">
+          <div className="flex items-center gap-1">
+            <MuteButton
+              variant="transparent"
+              className="border-0 bg-transparent shadow-none"
+              aria-label={t("career.prep.previous", "이전 항목")}
+              disabled={busy || index <= 0}
+              onClick={() => navigate(-1)}
+            >
+              <ChevronLeft size={16} />
+            </MuteButton>
+            <span>
+              {index + 1} / {items.length}
+            </span>
+            <MuteButton
+              variant="transparent"
+              className="border-0 bg-transparent shadow-none"
+              aria-label={t("career.prep.next", "다음 항목")}
+              disabled={busy || index >= items.length - 1}
+              onClick={() => navigate(1)}
+            >
+              <ChevronRight size={16} />
+            </MuteButton>
+          </div>
           <MuteButton
             variant="transparent"
-            className="border-0 bg-transparent shadow-none"
-            aria-label={t("career.prep.previous", "이전 항목")}
-            disabled={pending || index <= 0}
-            onClick={() =>
-              void command({
-                operation: "navigate",
-                itemId: items[index - 1].id,
-              })
-            }
-          >
-            <ChevronLeft size={16} />
-          </MuteButton>
-          <span>
-            {index + 1} / {items.length}
-          </span>
-          <MuteButton
-            variant="transparent"
-            className="border-0 bg-transparent shadow-none"
-            aria-label={t("career.prep.next", "다음 항목")}
-            disabled={pending || index >= items.length - 1}
-            onClick={() =>
-              void command({
-                operation: "navigate",
-                itemId: items[index + 1].id,
-              })
-            }
-          >
-            <ChevronRight size={16} />
-          </MuteButton>
-          <MuteButton
-            variant="transparent"
-            className="border-0 bg-transparent shadow-none"
-            aria-label={t("career.prep.collapse", "접고 채팅하기")}
-            disabled={pending}
-            onClick={() => void command({ operation: "hide" })}
+            aria-label={t("career.application.end.label", "지원 과정 종료")}
+            aria-haspopup="dialog"
+            ref={endTriggerRef}
+            disabled={busy}
+            onClick={() => setEndConfirmationOpen(true)}
           >
             <X size={16} />
           </MuteButton>
         </div>
       </div>
-      <div className="min-h-0 max-h-[min(300px,35dvh)] space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere]">
+      <div className="min-h-0 max-h-[min(300px,38dvh)] space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere]">
         {kind === "change" &&
           edits.map((edit, i) => (
             <div
@@ -330,29 +510,33 @@ export function ApplicationPreparationComposer() {
                   </del>
                 </>
               )}
-              {edit.suggestedText && (
+              {(edit.suggestedText ||
+                editedTexts[`${inputKey}:${i}`] !== undefined) && (
                 <>
                   <p className="text-xs text-neutral-muted">
                     {t("career.prep.example", "수정 예시")}
                   </p>
-                  <p className="whitespace-pre-wrap text-positive">
-                    {edit.suggestedText}
-                  </p>
+                  <div className="text-neutral-primary">
+                    {editable(edit.suggestedText, `${inputKey}:${i}`)}
+                  </div>
                 </>
               )}
             </div>
           ))}
         {kind === "question" && (
-          <p className="whitespace-pre-wrap">
-            {item.questions.length ? item.questions.join("\n") : item.proposal}
-          </p>
+          <p className="whitespace-pre-wrap">{item.reason || item.proposal}</p>
         )}
         {kind === "choice" && item.proposal && (
           <p className="whitespace-pre-wrap">{item.proposal}</p>
         )}
-        {kind === "material" && item.documentPurpose !== "final_resume" && (
-          <p className="whitespace-pre-wrap">{item.proposal}</p>
-        )}
+        {kind === "material" &&
+          item.draftText === undefined &&
+          item.documentPurpose !== "final_resume" && (
+            <p className="whitespace-pre-wrap">{item.proposal}</p>
+          )}
+        {kind === "material" &&
+          item.draftText !== undefined &&
+          editable(item.draftText, `${inputKey}:material`)}
         {kind === "material" && item.documentName && (
           <p className="break-words">{item.documentName}</p>
         )}
@@ -366,21 +550,24 @@ export function ApplicationPreparationComposer() {
           </p>
         )}
       </div>
-      {kind === "change" && (
+      {canDecide && (
         <div className="mt-3 grid auto-rows-fr shrink-0 gap-1">
           {(["accept", "ignore"] as const).map((decision, i) => (
             <CardButton
               key={decision}
-              selected={p.responses[item.id]?.decision === decision}
-              aria-pressed={p.responses[item.id]?.decision === decision}
-              disabled={pending}
+              selected={
+                selected === decision ||
+                (highlight?.key === inputKey && highlight.index === i)
+              }
+              aria-pressed={selected === decision}
+              disabled={busy}
               className={numberedOptionClassName}
               onClick={() => void answer({ decision })}
             >
               <span className={optionNumberClassName}>{i + 1}</span>
               {decision === "accept"
-                ? t("career.prep.accept", "수락")
-                : t("career.prep.no", "아니요")}
+                ? t("career.application.suggestions.accept", "적용")
+                : t("career.application.suggestions.ignore", "적용하지 않기")}
             </CardButton>
           ))}
         </div>
@@ -390,7 +577,7 @@ export function ApplicationPreparationComposer() {
           {item.options?.map((option, i) => (
             <CardButton
               key={option.id}
-              disabled={pending}
+              disabled={busy}
               className={numberedOptionClassName}
               selected={p.responses[item.id]?.text === option.label}
               onClick={() =>
@@ -410,12 +597,12 @@ export function ApplicationPreparationComposer() {
           ))}
         </div>
       )}
-      {kind === "material" && (
+      {kind === "material" && item.draftText === undefined && (
         <div className="mt-3 grid auto-rows-fr shrink-0 gap-1">
           {item.documentPurpose !== "final_resume" && (
             <CardButton
               className={numberedOptionClassName}
-              disabled={pending}
+              disabled={busy}
               onClick={() => void answer({ decision: "help" })}
             >
               <span className={optionNumberClassName}>1</span>
@@ -425,44 +612,70 @@ export function ApplicationPreparationComposer() {
           {item.documentId && (
             <CardButton
               className={numberedOptionClassName}
-              disabled={pending}
+              disabled={busy}
               onClick={() =>
                 void answer({
                   decision: "document",
                   documentId: item.documentId,
-                  ...(item.documentPurpose === "final_resume" ? {applicationMethod: "harper" as const, text: t("career.application.method.harper", "하퍼가 대신 지원하기: 브라우저로 지원을 진행하고, 실패하면 알려드려요.")} : {}),
+                  ...(item.documentPurpose === "final_resume"
+                    ? {
+                        applicationMethod: "harper" as const,
+                        text: t(
+                          "career.application.method.harper",
+                          "하퍼가 대신 지원하기: 브라우저로 지원을 진행하고, 실패하면 알려드려요."
+                        ),
+                      }
+                    : {}),
                 })
               }
             >
-              <span className={optionNumberClassName}>{item.documentPurpose === "final_resume" ? 1 : 2}</span>
+              <span className={optionNumberClassName}>
+                {item.documentPurpose === "final_resume" ? 1 : 2}
+              </span>
               {item.documentPurpose === "final_resume"
-                ? t("career.application.method.harper", "하퍼가 대신 지원하기: 브라우저로 지원을 진행하고, 실패하면 알려드려요.")
+                ? t(
+                    "career.application.method.harper",
+                    "하퍼가 대신 지원하기: 브라우저로 지원을 진행하고, 실패하면 알려드려요."
+                  )
                 : t("career.application.file.use", "이 파일로 지원하기")}
             </CardButton>
           )}
           <CardButton
             className={numberedOptionClassName}
-            disabled={pending}
+            disabled={busy}
             onClick={() =>
               void answer({
-                ...(item.documentPurpose === "final_resume" ? {
-                  decision: item.documentId ? "document" as const : "answer" as const,
-                  documentId: item.documentId,
-                  applicationMethod: "manual" as const,
-                  text: t("career.application.method.manual", "직접 지원하기: 확정한 이력서와 부수 자료를 받아 직접 제출할게요."),
-                } : {decision: "answer" as const,
-                text: t(
-                  "career.application.file.changeRequest",
-                  "다른 파일을 사용할게요. 일반 채팅에서 파일을 첨부하거나 Docs에서 선택할게요."
-                )}),
+                ...(item.documentPurpose === "final_resume"
+                  ? {
+                      decision: item.documentId
+                        ? ("document" as const)
+                        : ("answer" as const),
+                      documentId: item.documentId,
+                      applicationMethod: "manual" as const,
+                      text: t(
+                        "career.application.method.manual",
+                        "직접 지원하기: 확정한 이력서와 부수 자료를 받아 직접 제출할게요."
+                      ),
+                    }
+                  : {
+                      decision: "answer" as const,
+                      text: t(
+                        "career.application.file.changeRequest",
+                        "다른 파일을 사용할게요. 일반 채팅에서 파일을 첨부하거나 Docs에서 선택할게요."
+                      ),
+                    }),
               })
             }
           >
             <span className={optionNumberClassName}>
-              {(item.documentPurpose === "final_resume" ? 0 : 1) + (item.documentId ? 2 : 1)}
+              {(item.documentPurpose === "final_resume" ? 0 : 1) +
+                (item.documentId ? 2 : 1)}
             </span>
             {item.documentPurpose === "final_resume"
-              ? t("career.application.method.manual", "직접 지원하기: 확정한 이력서와 부수 자료를 받아 직접 제출할게요.")
+              ? t(
+                  "career.application.method.manual",
+                  "직접 지원하기: 확정한 이력서와 부수 자료를 받아 직접 제출할게요."
+                )
               : t("career.application.file.change", "다른 파일 사용하기")}
           </CardButton>
         </div>
@@ -471,11 +684,9 @@ export function ApplicationPreparationComposer() {
         className="mt-3 flex shrink-0 items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (text.trim() && !pending)
-            void answer({ decision: "answer", text });
+          if (text.trim() && !busy) void answer({ decision: "answer", text });
         }}
       >
-        <Pencil size={16} className="mb-2 shrink-0 text-neutral-muted" />
         <Textarea
           unstyled
           autoResize
@@ -483,7 +694,7 @@ export function ApplicationPreparationComposer() {
           rows={1}
           className="min-h-8 max-h-24 flex-1 resize-none bg-transparent outline-none focus:ring-0 focus:shadow-none focus:bg-transparent py-1 text-[length:inherit] leading-[inherit]"
           value={text}
-          disabled={pending}
+          disabled={busy}
           aria-label={
             kind === "question"
               ? t("career.prep.answerInput", "답변 입력")
@@ -504,17 +715,22 @@ export function ApplicationPreparationComposer() {
             )
               return;
             e.preventDefault();
-            if (!e.repeat && text.trim() && !pending)
+            if (!e.repeat && text.trim() && !busy)
               void answer({ decision: "answer", text });
           }}
-          onChange={(e) =>
-            setDraftInputs((prev) => ({ ...prev, [inputKey]: e.target.value }))
-          }
+          onChange={(e) => {
+            setDraftInputs((prev) => ({ ...prev, [inputKey]: e.target.value }));
+            setHighlight(null);
+            if (p.responses[item.id])
+              void command({ operation: "clear", itemId: item.id });
+          }}
         />
         {text.trim() && (
           <MuteButton
             type="submit"
-            disabled={pending}
+            variant="primary"
+            className="size-8 rounded-full p-0"
+            disabled={busy}
             aria-label={t("career.prep.saveNext", "답변 저장 후 다음")}
           >
             <ArrowUp size={16} />
@@ -522,7 +738,7 @@ export function ApplicationPreparationComposer() {
         )}
         <MuteButton
           type="button"
-          disabled={pending}
+          disabled={busy}
           onClick={() => void answer({ decision: "skip" })}
         >
           {t("career.prep.skip", "건너뛰기")}
@@ -533,17 +749,11 @@ export function ApplicationPreparationComposer() {
           {error}
         </p>
       )}
-      {allPreparationAnswered(p, s.actions) && (
-        <MuteButton
-          className="mt-2"
-          disabled={pending}
-          onClick={() => void command({ operation: "generate" })}
-        >
-          {p.draftVersion
-            ? t("career.prep.regenerate", "변경 내용으로 초안 다시 만들기")
-            : t("career.prep.generate", "전체 초안 만들기")}
-        </MuteButton>
-      )}
+      <ApplicationEndConfirmation
+        open={endConfirmationOpen}
+        onClose={() => setEndConfirmationOpen(false)}
+        onEnded={clearDrafts}
+      />
     </ChatComposerSurface>
   );
 }

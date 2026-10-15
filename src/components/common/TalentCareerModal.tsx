@@ -1,3 +1,4 @@
+import { FloatingPortalContainer } from "@/components/ui/floating-portal";
 import { X } from "lucide-react";
 import React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -66,6 +67,8 @@ const TalentCareerModal = ({
   const t = useCareerT();
   const orgT = useOrgT();
   const isOrg = useIsOrgLocaleProvided();
+  const [portalContainer, setPortalContainer] =
+    React.useState<HTMLDivElement | null>(null);
   const returnFocusRef = React.useRef<HTMLElement | null>(null);
   const hasTitle = title !== undefined && title !== null;
   const hasDescription = description !== undefined && description !== null;
@@ -102,6 +105,7 @@ const TalentCareerModal = ({
           )}
         >
           <DialogPrimitive.Content
+            ref={setPortalContainer}
             aria-label={!hasTitle ? ariaLabel : undefined}
             onOpenAutoFocus={() => {
               returnFocusRef.current =
@@ -139,115 +143,117 @@ const TalentCareerModal = ({
               panelClassName
             )}
           >
-            {mobileBottomSheet ? (
-              <div
-                aria-hidden="true"
-                className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-neutral-1000-a10 sm:hidden"
-              />
-            ) : null}
-            {showCloseButton ? (
-              <DialogPrimitive.Close
-                className={cn(
-                  "absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-black/5",
-                  closeButtonClassName
-                )}
-                aria-label={resolvedCloseButtonAriaLabel}
-              >
-                <X className="h-4 w-4" />
-              </DialogPrimitive.Close>
-            ) : null}
-            {!hasTitle ? (
-              <DialogPrimitive.Title className="sr-only">
-                {fallbackAccessibleTitle}
-              </DialogPrimitive.Title>
-            ) : null}
-            {!hasDescription ? (
-              <DialogPrimitive.Description className="sr-only">
-                {fallbackAccessibleTitle}
-              </DialogPrimitive.Description>
-            ) : null}
-            {eyebrow || hasTitle || hasDescription || headerActions ? (
-              <header
-                className={cn(
-                  "shrink-0 px-4 py-5 sm:px-5",
-                  mobileBottomSheet && "max-sm:shrink-0",
-                  headerClassName
-                )}
-              >
-                {eyebrow && (
-                  <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-soft">
-                    {eyebrow}
-                  </div>
-                )}
-                {headerActions ? (
-                  <div
-                    className={cn(
-                      "flex flex-wrap items-center justify-between gap-x-4 gap-y-3",
-                      showCloseButton && "sm:pr-8"
-                    )}
-                  >
-                    {hasTitle && (
-                      <DialogPrimitive.Title
-                        className={cn(
-                          "mt-0 text-base font-medium tracking-[-0.02em] text-neutral-primary",
-                          showCloseButton && "max-sm:pr-8"
-                        )}
-                      >
-                        {title}
-                      </DialogPrimitive.Title>
-                    )}
-                    <div className="ml-auto shrink-0 max-sm:flex max-sm:w-full max-sm:justify-end">
-                      {headerActions}
+            <FloatingPortalContainer.Provider value={portalContainer}>
+              {mobileBottomSheet ? (
+                <div
+                  aria-hidden="true"
+                  className="mx-auto mt-3 h-1.5 w-12 shrink-0 rounded-full bg-neutral-1000-a10 sm:hidden"
+                />
+              ) : null}
+              {showCloseButton ? (
+                <DialogPrimitive.Close
+                  className={cn(
+                    "absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-black/5",
+                    closeButtonClassName
+                  )}
+                  aria-label={resolvedCloseButtonAriaLabel}
+                >
+                  <X className="h-4 w-4" />
+                </DialogPrimitive.Close>
+              ) : null}
+              {!hasTitle ? (
+                <DialogPrimitive.Title className="sr-only">
+                  {fallbackAccessibleTitle}
+                </DialogPrimitive.Title>
+              ) : null}
+              {!hasDescription ? (
+                <DialogPrimitive.Description className="sr-only">
+                  {fallbackAccessibleTitle}
+                </DialogPrimitive.Description>
+              ) : null}
+              {eyebrow || hasTitle || hasDescription || headerActions ? (
+                <header
+                  className={cn(
+                    "shrink-0 px-4 py-5 sm:px-5",
+                    mobileBottomSheet && "max-sm:shrink-0",
+                    headerClassName
+                  )}
+                >
+                  {eyebrow && (
+                    <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-neutral-soft">
+                      {eyebrow}
                     </div>
-                  </div>
-                ) : (
-                  hasTitle && (
-                    <DialogPrimitive.Title className="mt-0 text-base font-medium tracking-[-0.02em] text-neutral-primary">
-                      {title}
-                    </DialogPrimitive.Title>
-                  )
-                )}
-                {hasDescription &&
-                  (typeof description === "string" ? (
-                    <DialogPrimitive.Description
+                  )}
+                  {headerActions ? (
+                    <div
                       className={cn(
-                        "mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted",
-                        descriptionClassName
-                      )}
-                      dangerouslySetInnerHTML={{ __html: description }}
-                    />
-                  ) : (
-                    <DialogPrimitive.Description
-                      className={cn(
-                        "mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted",
-                        descriptionClassName
+                        "flex flex-wrap items-center justify-between gap-x-4 gap-y-3",
+                        showCloseButton && "sm:pr-8"
                       )}
                     >
-                      {description}
-                    </DialogPrimitive.Description>
-                  ))}
-              </header>
-            ) : null}
-            <div
-              className={cn(
-                "min-h-0 overflow-y-auto py-0",
-                mobileBottomSheet && "max-sm:min-h-0 max-sm:overflow-y-auto",
-                bodyClassName
-              )}
-            >
-              {children}
-            </div>
-            {footer && (
-              <footer
+                      {hasTitle && (
+                        <DialogPrimitive.Title
+                          className={cn(
+                            "mt-0 text-base font-medium tracking-[-0.02em] text-neutral-primary",
+                            showCloseButton && "max-sm:pr-8"
+                          )}
+                        >
+                          {title}
+                        </DialogPrimitive.Title>
+                      )}
+                      <div className="ml-auto shrink-0 max-sm:flex max-sm:w-full max-sm:justify-end">
+                        {headerActions}
+                      </div>
+                    </div>
+                  ) : (
+                    hasTitle && (
+                      <DialogPrimitive.Title className="mt-0 text-base font-medium tracking-[-0.02em] text-neutral-primary">
+                        {title}
+                      </DialogPrimitive.Title>
+                    )
+                  )}
+                  {hasDescription &&
+                    (typeof description === "string" ? (
+                      <DialogPrimitive.Description
+                        className={cn(
+                          "mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted",
+                          descriptionClassName
+                        )}
+                        dangerouslySetInnerHTML={{ __html: description }}
+                      />
+                    ) : (
+                      <DialogPrimitive.Description
+                        className={cn(
+                          "mt-2 max-w-[56ch] text-sm leading-relaxed text-neutral-muted",
+                          descriptionClassName
+                        )}
+                      >
+                        {description}
+                      </DialogPrimitive.Description>
+                    ))}
+                </header>
+              ) : null}
+              <div
                 className={cn(
-                  "shrink-0 px-4 py-5 sm:px-5",
-                  mobileBottomSheet && "max-sm:shrink-0 pt-1 sm:pt-5",
-                  footerClassName
+                  "min-h-0 overflow-y-auto py-0",
+                  mobileBottomSheet && "max-sm:min-h-0 max-sm:overflow-y-auto",
+                  bodyClassName
                 )}
               >
-                {footer}
-              </footer>
-            )}
+                {children}
+              </div>
+              {footer && (
+                <footer
+                  className={cn(
+                    "shrink-0 px-4 py-5 sm:px-5",
+                    mobileBottomSheet && "max-sm:shrink-0 pt-1 sm:pt-5",
+                    footerClassName
+                  )}
+                >
+                  {footer}
+                </footer>
+              )}
+            </FloatingPortalContainer.Provider>
           </DialogPrimitive.Content>
         </div>
       </DialogPrimitive.Portal>

@@ -59,14 +59,12 @@ async function main() {
     prompt,
     roleState,
     roleTools,
-    { validateRoleCreationNotificationConsent },
   ] = await Promise.all([
     import("../src/lib/llm/llm"),
     import("../src/lib/org/agent/modelConfig"),
     import("../src/lib/org/agent/roleCreationPrompt"),
     import("../src/lib/org/agent/roleCreationState"),
     import("../src/lib/org/agent/roleCreationTools"),
-    import("../src/lib/org/agent/roleCreationConsent"),
   ]);
   const selectedModel = modelConfig.resolveOrgAgentModel(
     modelConfig.DEFAULT_ORG_AGENT_MODEL
@@ -177,12 +175,10 @@ async function main() {
     turn: number;
   }> = [];
   let confirmationRequested = false;
-  let previousAssistantMessage = "";
 
   const applyTool = (
     name: string,
-    input: Record<string, unknown>,
-    userMessage: string
+    input: Record<string, unknown>
   ) => {
     assert(roleTools.isRoleCreationToolName(name), `unknown tool ${name}`);
     if (name === "update_role_draft") {
@@ -214,36 +210,8 @@ async function main() {
         ? input.channelIds.map(text).filter(Boolean)
         : [];
       const assigneeUserId = text(input.assigneeUserId);
-      const targets = [
-        ...state.channels
-          .filter((channel) => selectedChannelIds.includes(channel.channelId))
-          .map((channel) => ({
-            aliases: [
-              `#${channel.channelName ?? channel.channelId}`,
-              channel.channelId,
-            ],
-            id: `channel:${channel.channelId}`,
-            label: channel.channelName ?? channel.channelId,
-          })),
-        ...(assigneeUserId === userId
-          ? [
-              {
-                aliases: ["smoke@example.com", userId, "저로", "제가"],
-                id: `assignee:${userId}`,
-                label: "김테스트",
-              },
-            ]
-          : []),
-      ];
-      const consent = validateRoleCreationNotificationConsent({
-        previousAssistantMessage,
-        targets,
-        userMessage,
-      });
-      assert(
-        consent.ok,
-        `notification consent rejected: ${consent.missingTargetIds.join(",")}`
-      );
+      assert(selectedChannelIds.every(id => state.channels.some(c => c.channelId === id)), "unknown channel");
+      assert(!assigneeUserId || state.members.some(m => m.userId === assigneeUserId), "unknown assignee");
       if (selectedChannelIds.length > 0) {
         state.metadata.confirmedSlackChannelIds = selectedChannelIds;
       }
@@ -357,7 +325,7 @@ async function main() {
           name: call.function.name,
           turn: turnIndex + 1,
         });
-        const result = applyTool(call.function.name, input, userMessage);
+        const result = applyTool(call.function.name, input);
         if (record(result).presentationRequired === true) {
           awaitingConfirmationNarrative = true;
         }
@@ -376,7 +344,6 @@ async function main() {
     console.log(`\nTURN ${turnIndex + 1} HARPER\n${finalReply}`);
     history.push({ content: userMessage, role: "user" });
     history.push({ content: finalReply, role: "assistant" });
-    previousAssistantMessage = finalReply;
   }
 
   const missingFields = roleState.getRoleCreationMissingFields(state);

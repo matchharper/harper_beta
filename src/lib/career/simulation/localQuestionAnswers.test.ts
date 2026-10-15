@@ -39,3 +39,14 @@ test("batch submit validates all answers and saves atomically once; retry cannot
  await executePreparationRequest(store,input);assert.equal(writes,1);assert.equal(state.activity!.batches[0].status,"submitted");
  await assert.rejects(()=>executePreparationRequest(store,input));assert.equal(writes,1);
 });
+test("typing over a previously saved answer clears it only in the local projection",()=>{
+ const record=fixture(),batch=record.state.activity!.batches[0],id=batch.itemIds[0];
+ record.state.preparation!.responses[id]={decision:"answer",text:"Earlier answer"};
+ const local:LocalQuestionAnswers={batchId:batch.id,requestId:"edit",responses:{},clearedItemIds:[id],currentItemId:id};
+ const projected=projectLocalAnswers(record,local);
+ assert.equal(projected.state.preparation!.responses[id],undefined);
+ assert.equal(projected.state.activity!.batches[0].status,"waiting");
+ assert.equal(record.state.preparation!.responses[id].text,"Earlier answer");
+ local.responses[id]={decision:"answer",text:"Corrected answer"};
+ assert.equal(projectLocalAnswers(record,local).state.preparation!.responses[id].text,"Corrected answer");
+});

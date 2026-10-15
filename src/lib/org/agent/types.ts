@@ -145,6 +145,8 @@ export type OrgAgentMessageAction =
     };
 
 export type OrgAgentMessageMetadata = {
+  companyMessageBatch?: { batchId: string; ref: string; sourceMessageId: number; channelDbId: string; replyToMessageId?: number | null; threadRef?: string | null };
+  companyMessageReceipt?: { channelId: string; slackMessageTs: string; threadId: string };
   /** Rendered by web/Slack only; excluded from conversation and summary inputs. */
   billingNotice?: BillingActionNotice;
   /** Stable browser submission identity for company onboarding recovery. */
@@ -213,11 +215,6 @@ export type OrgAgentMessageMetadata = {
   model?: string | null;
   /** Server-authored role context used to resolve Slack candidate links. */
   preferredRoleId?: string | null;
-  postCalibrationReview?: {
-    calibrationId: string;
-    idempotencyKey: string;
-    runId: string;
-  };
   requestChange?: {
     after: string | null;
     before: string | null;
@@ -230,10 +227,6 @@ export type OrgAgentMessageMetadata = {
     changeSummary: string;
     scope: "company" | "role";
   }>;
-  roleCalibration?: {
-    calibrationId: string;
-    profileIds: string[];
-  };
   retainedDataActivations?: OrgAgentRetainedDataActivation[];
   slackChoiceSourceJobId?: string;
   /** Server-only marker for exact Slack messages transferred into a new role thread. */

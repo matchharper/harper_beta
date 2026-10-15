@@ -1,3 +1,4 @@
+import { isApplicationInspectionPending } from "@/lib/career/simulation/applicationForm";
 import { projectLocalAnswers, type LocalQuestionAnswers } from "@/lib/career/simulation/localQuestionAnswers";
 import { pendingApplicationBatch } from "@/lib/career/simulation/applicationInput";
 import { applicationQuestionMessages } from "@/lib/career/simulation/questionHistory";
@@ -20,6 +21,7 @@ import {
 import type { CareerMessage } from "../types";
 export type PreparationCommand = {
   operation:
+    | "clear"
     | "continue"
     | "respond"
     | "navigate"
@@ -76,6 +78,7 @@ export function ApplicationPreparationProvider({
     try { if(value) localStorage.setItem(storageKey, JSON.stringify(value)); else localStorage.removeItem(storageKey); } catch { /* In-memory answers remain available. */ }
   }, [storageKey]);
   const conversationRef = useRef(conversationId);
+  const hydratedConversation = useRef<string | null>(null);
   useEffect(() => {
     conversationRef.current = conversationId;
     return () => {
@@ -90,6 +93,7 @@ export function ApplicationPreparationProvider({
     if (!response.ok) return;
     const data = await response.json();
     if (conversationRef.current !== conversationId) return;
+    hydratedConversation.current = conversationId;
     if (data.session) {
       if (!serverRecord.current || data.session.messageId !== serverRecord.current.messageId || data.session.state.revision >= serverRecord.current.state.revision) serverRecord.current=data.session;
       if (!localAnswers.current) { try { localAnswers.current=JSON.parse(localStorage.getItem(storageKey) || "null"); } catch {} }
@@ -99,12 +103,14 @@ export function ApplicationPreparationProvider({
         setError(t("career.application.answers.unsent", "답변이 이 기기에 저장되어 있어요. 전송을 다시 시도해 주세요."));
       }
     }
+    const incoming: SessionRecord | null = data.session ?? null;
     setRecord((prev) =>
-      prev &&
-      data.session?.messageId === prev.messageId &&
-      data.session.state.revision < prev.state.revision
+      (prev &&
+        incoming?.messageId === prev.messageId &&
+        incoming.state.revision < prev.state.revision) ||
+      JSON.stringify(prev) === JSON.stringify(incoming)
         ? prev
-        : data.session
+        : incoming
     );
     const refreshedDrafts = (data.drafts ?? []).flatMap(
       (row: { id: number; payload: unknown; created_at: string }) => {
@@ -131,16 +137,42 @@ export function ApplicationPreparationProvider({
         : refreshedDrafts
     );
   }, [conversationId, fetchWithAuth, storageKey, persistLocal, t]);
+  const messageCount = messages.length;
+  const latestMessageId = messages.at(-1)?.id;
   useEffect(() => {
-    void refresh().catch(() => {});
-  }, [refresh, messages, chatPending]);
-  const activeSessionId =
-    record?.state.status === "active" ? record.messageId : null;
+    // A responsive layout can remount this provider during a chat turn. Hydrate
+    // its saved activity once even then; later token updates belong to the stream.
+    if (!chatPending || hydratedConversation.current !== conversationId)
+      void refresh().catch(() => {});
+  }, [refresh, messageCount, latestMessageId, chatPending, conversationId]);
+  const state = record?.state;
+  const pollingSessionId =
+    record && state?.status === "active" &&
+    (state.analysisStatus === "running" ||
+      isApplicationInspectionPending(state) ||
+      state.preparation?.generation.status === "running" ||
+      state.activity?.batches.some((batch) => batch.continuation === "running") ||
+      (state.browser &&
+        !state.browser.resultMessageId &&
+        state.browser.status !== "waiting" &&
+        state.browser.status !== "cancelled"))
+      ? record.messageId
+      : null;
+  const inspectionPending = !!state && isApplicationInspectionPending(state);
   useEffect(() => {
-    if (!activeSessionId) return;
-    const id = setInterval(() => void refresh().catch(() => {}), 3000);
-    return () => clearInterval(id);
-  }, [activeSessionId, refresh]);
+    if (!pollingSessionId || ((chatPending || pending) && !inspectionPending)) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await refresh().catch(() => {});
+      if (!disposed) timer = setTimeout(poll, 3000);
+    };
+    timer = setTimeout(poll, 3000);
+    return () => {
+      disposed = true;
+      clearTimeout(timer);
+    };
+  }, [pollingSessionId, refresh, chatPending, pending, inspectionPending]);
   const command = useCallback(
     async (input: PreparationCommand) => {
       if (!record || !conversationId || lock.current || chatPending)
@@ -148,15 +180,22 @@ export function ApplicationPreparationProvider({
       let submission: LocalQuestionAnswers | null = null;
       const source=serverRecord.current ?? record;
       const batch=pendingApplicationBatch(source.state);
-      if (batch && ["respond", "navigate", "hide", "show"].includes(input.operation)) {
+      if (batch && ["respond", "clear", "navigate", "hide", "show"].includes(input.operation)) {
         const local=localAnswers.current?.batchId === batch.id ? structuredClone(localAnswers.current) : {batchId:batch.id,responses:{},requestId:crypto.randomUUID()} as LocalQuestionAnswers;
+        for(const id of batch.itemIds) if(!local.responses[id] && !local.clearedItemIds?.includes(id) && source.state.preparation?.responses[id]) local.responses[id]=source.state.preparation.responses[id];
         if (input.operation === "respond" && input.itemId && input.response) {
           local.responses[input.itemId]=input.response;
-          local.currentItemId=undefined;
-        } else if(input.operation === "navigate") local.currentItemId=input.itemId;
+          local.clearedItemIds=local.clearedItemIds?.filter(id=>id!==input.itemId);
+          const index=batch.itemIds.indexOf(input.itemId);
+          local.currentItemId=batch.itemIds[index+1] ?? input.itemId;
+          // Last-item submission includes explicit skips for earlier unanswered items.
+          if(index===batch.itemIds.length-1) for(const id of batch.itemIds) if(!local.responses[id]) local.responses[id]={decision:"skip"};
+        } else if(input.operation === "clear" && input.itemId) {delete local.responses[input.itemId]; local.clearedItemIds=Array.from(new Set([...(local.clearedItemIds ?? []),input.itemId])); local.currentItemId=input.itemId;}
+        else if(input.operation === "navigate") local.currentItemId=input.itemId;
         if(input.operation === "hide") local.showInputs=false;
         else local.showInputs=true;
-        const projected=projectLocalAnswers(source,local);
+        let projected: SessionRecord;
+        try {projected=projectLocalAnswers(source,local);} catch {setError(t("career.prep.error", "처리하지 못했어요. 입력은 유지됩니다. 상태를 확인한 뒤 다시 시도해 주세요.")); return false;}
         persistLocal(local);
         setRecord(projected);
         setError("");
@@ -209,7 +248,7 @@ export function ApplicationPreparationProvider({
             const incoming = data.session;
             submittedRecord = incoming;
             serverRecord.current=incoming;
-            if(submission) persistLocal(null);
+            if(submission || incoming.state.status !== "active") persistLocal(null);
             setRecord((prev) =>
               prev &&
               incoming.messageId === prev.messageId &&

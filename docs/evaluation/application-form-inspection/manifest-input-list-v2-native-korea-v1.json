@@ -1,0 +1,72 @@
+{
+  "task": "application-form-inspection",
+  "datasetVersion": "native-korea-v1",
+  "outputContractVersion": "input-list-v2",
+  "runId": "input-list-v2-native-korea-v1-20261012T153221Z",
+  "clientDate": "2026-10-13",
+  "sampleSha256": "8665c17e6de522a083250ca61904bc13225f95a3d881d9a45a458983d8adf742",
+  "notebookSha256AtRun": "6767fcbe5e728494de0f984fd37a3f37b5f69ba56f3e69cc1ffabf52aae3e2f6",
+  "launcherSha256AtRun": "afb87e1efc728b8bb676c49074755b136fcb331ae8167797b6e1c3693406af51",
+  "canonicalRunner": "scripts/runAgentsApplicationInputBatch.py (imports standalone notebook)",
+  "provider": "openai_agents",
+  "model": "gpt-6.1-sol",
+  "reasoning": "provider_default",
+  "sampling": "provider_default",
+  "timeoutSeconds": 600,
+  "maxConcurrentCases": 3,
+  "taskRetries": 0,
+  "goldVersion": null,
+  "privateCapture": "private/native-korea-v1",
+  "rawArtifacts": "runs/input-list-v2-native-korea-v1-20261012T153221Z",
+  "metrics": {
+    "caseCount": 5,
+    "inspectionMeanSeconds": 121.39,
+    "inspectionMedianSeconds": 81.51,
+    "inspectionBatchSecondsIncludingAccounting": 313.58,
+    "timeDefinition": "Each model task ran once. Inspection/attachment time includes environment setup, work, transport/artifact download and cleanup; only separate post-turn accounting capture is excluded. User clarification waiting and independent local QA are not included.",
+    "qualityCounts": {
+      "visible_form_information_returned": 2,
+      "login_gated": 1,
+      "application_stopped": 1,
+      "application_path_unresolved": 1
+    },
+    "realAttachmentCounts": {
+      "UI_attachment_confirmed": 1,
+      "blocked_before_attachment": 1,
+      "not_attempted_without_reached_form": 3
+    },
+    "createdSessionsDeleted404": 9,
+    "createdEnvironmentsDeleted404": 9
+  },
+  "cost": {
+    "pricingDate": "2026-10-13",
+    "sources": [
+      "https://developers.openai.com/api/docs/pricing",
+      "https://developers.openai.com/api/docs/guides/agents-api/environments/openai-hosted",
+      "https://developers.openai.com/api/docs/guides/agents-api/observability"
+    ],
+    "model": "gpt-6.1-sol",
+    "standardShortContextRatesPerMillionUSD": {
+      "input": 2,
+      "cached_input": 0.1,
+      "cache_write": 2.5,
+      "output": 10
+    },
+    "inspectionFivePartialModelUSD": 0.5719438,
+    "actualAttachmentTwoPartialModelUSD": 0.1852362,
+    "ownedValidationTwoPartialModelUSD": 0.1589086,
+    "allNinePartialModelUSD": 0.9160886,
+    "allNineUsageAvailable": true,
+    "container20MinuteReferenceUSD": {
+      "inspectionFive": 0.6,
+      "actualAttachmentTwo": 0.24,
+      "ownedValidationTwo": 0.24,
+      "allNine": 1.08
+    },
+    "exactTotalUSD": null,
+    "excluded": "Separate cache-write counts are unavailable. Short-context is assumed, per-call context-tier usage unavailable. Eligible container sessions may use minute billing with a five-minute minimum. API usage is best effort, not a final bill.",
+    "preflightFailure": "One invalid session-creation request took 0.22 seconds before session/model creation. Preserved separately; not counted as a created sandbox or a model-task retry."
+  },
+  "attachmentEvaluation": "../agents-hosted-resume-upload/README.md: storage-pdf-v1 / storage-live-v1",
+  "scope": "Random within eligible unique Zighang-sourced external URLs, excluding prior samples. Not a full Korean-market or provider-stratified sample."
+}

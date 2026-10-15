@@ -1,0 +1,119 @@
+import { useRef, useState } from "react";
+import { ArrowUpRight, Loader2 } from "lucide-react";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
+import { MuteButton } from "@/components/ui/button";
+import { useCareerT } from "@/i18n/useCareerT";
+import type { CareerHistoryOpportunity } from "../types";
+import ApplyWithHarperButton from "./ApplyWithHarperButton";
+
+export default function ExternalOpportunityApplyModal({
+  item,
+  pending,
+  error,
+  onClose,
+  onSave,
+  onApplied,
+  onOpenLink,
+  onOpenChat,
+}: {
+  item: CareerHistoryOpportunity;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSave: (
+    stage: "saved" | "applied"
+  ) => boolean | void | Promise<boolean | void>;
+  onApplied: () => void;
+  onOpenLink: (url: string) => void;
+  onOpenChat: () => void;
+}) {
+  const t = useCareerT();
+  const applyingRef = useRef(false);
+  const [applying, setApplying] = useState(false);
+  const busy = pending || applying;
+
+  const apply = async (
+    action: () => boolean | void | Promise<boolean | void>
+  ) => {
+    if (busy || applyingRef.current) return false;
+    applyingRef.current = true;
+    setApplying(true);
+    try {
+      return (await action()) === true;
+    } finally {
+      applyingRef.current = false;
+      setApplying(false);
+    }
+  };
+
+  return (
+    <TalentCareerModal
+      open
+      mobileBottomSheet
+      panelClassName="max-w-[440px]"
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+      closeOnBackdrop={!busy}
+      showCloseButton={!busy}
+      title={t("career.history.external_application.apply", "지원하기")}
+      description={t(
+        "career.history.external_application.description",
+        "Harper가 이 포지션의 지원 준비부터 실제 지원까지 도와드릴 수 있어요. 직접 지원하거나 Harper와 함께 시작해 보세요."
+      )}
+      bodyClassName="px-4 sm:px-5"
+      footer={
+        <div className="flex w-full flex-col gap-2">
+          <MuteButton
+            className="w-full"
+            size="lg"
+            disabled={busy}
+            aria-busy={applying}
+            onClick={() =>
+              void apply(async () => {
+                const url = item.externalJdUrl ?? item.href;
+                if (url) onOpenLink(url);
+                if ((await onSave("applied")) !== true) return false;
+                onClose();
+                onApplied();
+                return true;
+              })
+            }
+          >
+            {applying ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <ArrowUpRight className="size-4" aria-hidden />
+            )}
+            {t("career.history.external_application.direct", "직접 지원하기")}
+          </MuteButton>
+          <ApplyWithHarperButton
+            item={item}
+            className="w-full"
+            size="lg"
+            pending={busy}
+            onBeforeStart={() => apply(() => onSave("saved"))}
+            onOpenChat={() => {
+              onClose();
+              onOpenChat();
+            }}
+          >
+            {t(
+              "career.history.external_application.with_harper",
+              "Harper와 지원하기"
+            )}
+          </ApplyWithHarperButton>
+        </div>
+      }
+    >
+      <p className="text-sm leading-6 text-neutral-primary">
+        {item.companyName} · {item.title}
+      </p>
+      {error ? (
+        <p role="alert" className="mt-3 text-sm text-critical">
+          {error}
+        </p>
+      ) : null}
+    </TalentCareerModal>
+  );
+}

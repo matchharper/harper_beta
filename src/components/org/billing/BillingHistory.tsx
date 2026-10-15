@@ -1,3 +1,5 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -11,45 +13,40 @@ import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+  OrgTable as Table,
+  OrgTableBody as TableBody,
+  OrgTableCell as TableCell,
+  OrgTableHead as TableHead,
+  OrgTableHeader as TableHeader,
+  OrgTableRow as TableRow,
+} from "../workspace/OrgTable";
 import { OrgSection, OrgSectionHeader } from "../workspace/OrgSection";
 import {
   orgBillingInvoicesOptions,
   orgBillingUsageOptions,
 } from "@/hooks/org/useOrgBilling";
-import { formatBillingMoney } from "@/lib/org/billing/types";
+
 import type { BillingInvoice } from "@/lib/org/billing/types";
 import { useOrgBillingPreview } from "@/store/useOrgBillingPreviewStore";
 
 type HistoryProps = {
   workspaceId: string;
-  locale: "ko" | "en";
-  date: (value: string | null, time?: boolean) => string;
 };
-const rowClass = "border-neutral-1000-a05 hover:bg-transparent";
-const cellClass = "px-5 py-3 text-[13px]";
 
 function HistoryState({
   loading,
   error,
   empty,
   columns,
-  locale,
   onRetry,
 }: {
   loading: boolean;
   error: boolean;
   empty: string;
   columns: number;
-  locale: "ko" | "en";
   onRetry: () => void;
 }) {
+  const { c } = useOrgLocale();
   return (
     <TableRow className="hover:bg-transparent">
       <TableCell
@@ -60,17 +57,15 @@ function HistoryState({
           {loading ? (
             <Skeleton
               className="mx-auto h-4 w-44"
-              aria-label={locale === "ko" ? "불러오는 중" : "Loading"}
+              aria-label={c("불러오는 중", "Loading")}
             />
           ) : error ? (
             <div role="alert">
               <p>
-                {locale === "ko"
-                  ? "내역을 불러오지 못했어요."
-                  : "History couldn’t be loaded."}
+                {c("내역을 불러오지 못했어요.", "History couldn’t be loaded.")}
               </p>
               <MuteButton className="mt-3" onClick={onRetry}>
-                {locale === "ko" ? "다시 시도" : "Try again"}
+                {c("다시 시도", "Try again")}
               </MuteButton>
             </div>
           ) : (
@@ -87,7 +82,6 @@ function HistoryPagination({
   pageCount,
   busy,
   hasMore,
-  locale,
   onPrevious,
   onNext,
 }: {
@@ -95,11 +89,10 @@ function HistoryPagination({
   pageCount?: number;
   busy: boolean;
   hasMore: boolean;
-  locale: "ko" | "en";
   onPrevious: () => void;
   onNext: () => void;
 }) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { c } = useOrgLocale();
   return (
     <nav
       aria-label={c("내역 페이지", "History pages")}
@@ -134,12 +127,9 @@ function HistoryPagination({
   );
 }
 
-export function BillingUsageHistory({
-  workspaceId,
-  locale,
-  date,
-}: HistoryProps) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+export function BillingUsageHistory({ workspaceId }: HistoryProps) {
+  const { c } = useOrgLocale();
+  const { date } = useOrgBillingFormat();
   const [page, setPage] = useState(0);
   const { preview } = useOrgBillingPreview(workspaceId);
   const usage = useQuery({
@@ -150,28 +140,21 @@ export function BillingUsageHistory({
   const pageCount = Math.max(1, Math.ceil((usage.data?.total ?? 0) / 20));
   return (
     <OrgSection className="border-b-0 pb-0">
-      <OrgSectionHeader title={c("크레딧 사용 내역", "Credit usage history")} />
-      <div
-        className="overflow-hidden rounded-xl border border-neutral-1000-a05"
-        aria-busy={usage.isFetching}
-      >
+      <OrgSectionHeader title={c("Intro 사용 내역", "Intro usage history")} />
+      <div aria-busy={usage.isFetching}>
         <Table
           className={`min-w-[600px] ${usage.isPlaceholderData ? "opacity-50" : ""}`}
         >
-          <TableHeader className="bg-bg-weak">
-            <TableRow className={rowClass}>
+          <TableHeader>
+            <TableRow>
               {[
                 c("사용일", "Date"),
                 c("활동", "Activity"),
                 "Role",
-                c("사용한 크레딧", "Credit source"),
-                c("크레딧", "Credits"),
+                c("사용 구분", "Source"),
+                c("Intro", "Intros"),
               ].map((label) => (
-                <TableHead
-                  key={label}
-                  scope="col"
-                  className="h-10 whitespace-nowrap px-5 text-[12px] font-normal last:text-right"
-                >
+                <TableHead key={label} scope="col" className="last:text-right">
                   {label}
                 </TableHead>
               ))}
@@ -183,19 +166,16 @@ export function BillingUsageHistory({
                 loading={usage.isPending}
                 error={usage.isError}
                 empty={c(
-                  "아직 크레딧 사용 내역이 없어요.",
-                  "No credit usage yet."
+                  "아직 Intro 사용 내역이 없어요.",
+                  "No Intro usage yet."
                 )}
                 columns={5}
-                locale={locale}
                 onRetry={() => void usage.refetch()}
               />
             ) : (
               rows.map((item) => (
-                <TableRow key={item.id} className={rowClass}>
-                  <TableCell
-                    className={`${cellClass} whitespace-nowrap text-neutral-muted`}
-                  >
+                <TableRow key={item.id}>
+                  <TableCell className={`whitespace-nowrap text-neutral-muted`}>
                     <time
                       dateTime={item.createdAt}
                       title={date(item.createdAt, true)}
@@ -203,23 +183,22 @@ export function BillingUsageHistory({
                       {date(item.createdAt, true)}
                     </time>
                   </TableCell>
-                  <TableCell className={`${cellClass} whitespace-nowrap`}>
+                  <TableCell className={`whitespace-nowrap`}>
                     {item.action === "intro_request"
                       ? c("Intro 요청", "Intro request")
                       : c("연결 수락", "Connection accepted")}
                   </TableCell>
-                  <TableCell className={`${cellClass} max-w-[250px]`}>
+                  <TableCell className={`max-w-[250px]`}>
                     <span className="line-clamp-2">{item.roleName ?? "—"}</span>
                   </TableCell>
-                  <TableCell
-                    className={`${cellClass} whitespace-nowrap text-neutral-muted`}
-                  >
-                    {item.slotLabel === "Shared credits" ||
+                  <TableCell className={`whitespace-nowrap text-neutral-muted`}>
+                    {item.slotLabel === "Shared Intros" ||
+                    item.slotLabel === "Shared credits" ||
                     item.slotLabel === "Free"
-                      ? c("공용 크레딧", "Shared credits")
+                      ? c("공용 Intro", "Shared Intros")
                       : (item.slotLabel ?? "—")}
                   </TableCell>
-                  <TableCell className={`${cellClass} text-right tabular-nums`}>
+                  <TableCell className={`text-right tabular-nums`}>
                     {item.delta === 0 ? (
                       <span className="text-neutral-muted">
                         {c("포함", "Included")}
@@ -239,7 +218,6 @@ export function BillingUsageHistory({
         pageCount={pageCount}
         busy={usage.isFetching}
         hasMore={!usage.isError && (usage.data?.hasMore ?? false)}
-        locale={locale}
         onPrevious={() => setPage((value) => Math.max(0, value - 1))}
         onNext={() => setPage((value) => value + 1)}
       />
@@ -247,12 +225,9 @@ export function BillingUsageHistory({
   );
 }
 
-export function BillingInvoiceHistory({
-  workspaceId,
-  locale,
-  date,
-}: HistoryProps) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+export function BillingInvoiceHistory({ workspaceId }: HistoryProps) {
+  const { c } = useOrgLocale();
+  const { formatBillingMoney, date } = useOrgBillingFormat();
   const [cursors, setCursors] = useState([""]);
   const { preview } = useOrgBillingPreview(workspaceId);
   const [previewInvoice, setPreviewInvoice] = useState<BillingInvoice | null>(
@@ -279,13 +254,10 @@ export function BillingInvoiceHistory({
           "View invoices and payment receipts."
         )}
       />
-      <div
-        className="overflow-hidden rounded-xl border border-neutral-1000-a05"
-        aria-busy={invoices.isFetching}
-      >
+      <div aria-busy={invoices.isFetching}>
         <Table className="min-w-[640px]">
           <TableHeader className="bg-bg-weak">
-            <TableRow className={rowClass}>
+            <TableRow>
               {[
                 c("플랜", "Plan"),
                 c("금액", "Amount"),
@@ -293,11 +265,7 @@ export function BillingInvoiceHistory({
                 c("결제 상태", "Payment status"),
                 c("서류", "Documents"),
               ].map((label) => (
-                <TableHead
-                  key={label}
-                  scope="col"
-                  className="h-10 whitespace-nowrap px-5 text-[12px] font-normal last:text-right"
-                >
+                <TableHead key={label} scope="col" className="last:text-right">
                   {label}
                 </TableHead>
               ))}
@@ -313,13 +281,12 @@ export function BillingInvoiceHistory({
                   "No billing history yet. Documents will be available here after checkout."
                 )}
                 columns={5}
-                locale={locale}
                 onRetry={() => void invoices.refetch()}
               />
             ) : (
               rows.map((invoice) => (
-                <TableRow key={invoice.id} className={rowClass}>
-                  <TableCell className={`${cellClass} max-w-[260px]`}>
+                <TableRow key={invoice.id}>
+                  <TableCell className={`max-w-[260px]`}>
                     <p className="line-clamp-2">
                       {invoice.planName ?? "Harper Slot"}
                     </p>
@@ -329,23 +296,18 @@ export function BillingInvoiceHistory({
                       </p>
                     )}
                   </TableCell>
-                  <TableCell
-                    className={`${cellClass} whitespace-nowrap tabular-nums`}
-                  >
+                  <TableCell className={`whitespace-nowrap tabular-nums`}>
                     {formatBillingMoney(
                       invoice.status === "paid"
                         ? invoice.amountPaid
                         : invoice.amountDue,
-                      invoice.currency,
-                      locale
+                      invoice.currency
                     )}
                   </TableCell>
-                  <TableCell
-                    className={`${cellClass} whitespace-nowrap text-neutral-muted`}
-                  >
+                  <TableCell className={`whitespace-nowrap text-neutral-muted`}>
                     {date(invoice.date)}
                   </TableCell>
-                  <TableCell className={`${cellClass} whitespace-nowrap`}>
+                  <TableCell className={`whitespace-nowrap`}>
                     <Badge
                       size="sm"
                       variant="outline"
@@ -359,7 +321,7 @@ export function BillingInvoiceHistory({
                       {statusLabel(invoice.status)}
                     </Badge>
                   </TableCell>
-                  <TableCell className={cellClass}>
+                  <TableCell>
                     <div className="flex justify-end gap-1">
                       {preview && (
                         <MuteButton
@@ -425,7 +387,6 @@ export function BillingInvoiceHistory({
         page={page}
         busy={invoices.isFetching}
         hasMore={!invoices.isError && (invoices.data?.hasMore ?? false)}
-        locale={locale}
         onPrevious={() => setCursors((values) => values.slice(0, -1))}
         onNext={() => {
           const next = invoices.data?.next;
@@ -467,8 +428,7 @@ export function BillingInvoiceHistory({
             <dd>
               {formatBillingMoney(
                 previewInvoice.amountDue,
-                previewInvoice.currency,
-                locale
+                previewInvoice.currency
               )}
             </dd>
             <dt>{c("날짜", "Date")}</dt>

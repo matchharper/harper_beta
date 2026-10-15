@@ -1,6 +1,10 @@
 export const CLAUDE_MODEL = "claude-sonnet-5-5";
 
+export const CLAUDE_HAIKU_MODEL = "claude-haiku-5-5" as const;
+
 export const GPT_6_LUNA_MODEL = "gpt-6-luna" as const;
+
+export const OPENROUTER_JEV_MODEL = "typesafe/jev-1.13" as const;
 
 export const GPT_56_TERRA_MODEL = "gpt-5.6-terra" as const;
 

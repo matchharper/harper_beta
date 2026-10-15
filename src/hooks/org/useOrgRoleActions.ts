@@ -1,4 +1,4 @@
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { useUpdateOrgRole } from "@/hooks/org/useOrg";
 import type { OrgRole } from "@/lib/org/server";
@@ -12,8 +12,7 @@ export function useOrgRoleActions(args: {
   canManageCandidates: boolean;
   workspaceId: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const addToast = useToastStore((state) => state.add);
   const updateRole = useUpdateOrgRole();
   const updateRoleLifecycle = async (
@@ -32,15 +31,22 @@ export function useOrgRoleActions(args: {
       addToast({
         message:
           action === "delete"
-            ? t("hooks.role.deleted", "역할을 삭제했습니다.")
+            ? c("역할을 삭제했습니다.", "Role deleted.")
             : action === "pause"
-              ? t("hooks.role.paused", "역할을 일시 중지했습니다.")
-              : t("hooks.role.resumed", "역할을 다시 시작했습니다."),
+              ? c("역할을 일시 중지했습니다.", "Role paused.")
+              : c("역할을 다시 시작했습니다.", "Role resumed."),
         variant: "success",
       });
     } catch (error) {
       addToast({
-        message: localizedOrgErrorMessage(error, locale, t("hooks.role.failed", "역할 상태를 변경하지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          c(
+            "역할 상태를 변경하지 못했습니다.",
+            "Couldn't change role status. Try again."
+          )
+        ),
         variant: "error",
       });
     }

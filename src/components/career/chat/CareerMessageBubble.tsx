@@ -647,9 +647,7 @@ const CareerMessageBubble = ({
             {marker.resumePromptNeeded && (
               <BareButton
                 type="button"
-                onClick={() =>
-                  void router.push("/career/profile?profileSection=links")
-                }
+                onClick={() => void router.push("/career/documents")}
                 className="h-9 w-full text-center inline-flex items-center gap-1.5 rounded-[8px] border border-neutral-1000-a10 bg-bg-weak px-2.5 py-1.5 text-xs text-neutral-primary transition-colors hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <FileText className="h-3.5 w-3.5" />

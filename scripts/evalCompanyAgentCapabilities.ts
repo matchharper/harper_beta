@@ -1,7 +1,13 @@
+import { formatToolError } from "../src/lib/llm/toolError";
+import { buildCompanyUpdatePrompt } from "../src/lib/org/agent/companyUpdate";
+import { buildCompanyContactEventPrompt } from "../src/lib/org/agent/contactEventPrompt";
+import { buildCompanyProactiveReviewPrompt } from "../src/lib/org/agent/proactiveReview";
+import { parseCompanyMessages } from "../src/lib/org/agent/companyMessaging";
 /** Actual production model loop + isolated synthetic tool adapter. NOT delivery E2E. */
+import { reportOrgAgentIssue } from "../src/lib/org/agent/issueReport";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync } from "node:fs";
 import path from "node:path";
 import { config } from "dotenv";
 import { normalizeInterviewDuration, buildMeetingRequestIdempotencyKey } from "../src/lib/meetings/scheduleDraft";
@@ -12,7 +18,7 @@ import { humanizeOrgRoleStatus, humanizeOrgWorkMode, humanizeOrgEmploymentType }
 import type { OrgAgentLoopDependencies } from "../src/lib/org/agent/chat";
 import type { OrgAgentConversationInput } from "../src/lib/org/agent/conversationInput";
 import { WorkspaceBillingError } from "../src/lib/org/billing/types";
-import { readFrozenDataset, evaluateContactLifecycle, fixtureRoleName, evaluationExecutionComplete, createEvaluationReadAdmin } from "./lib/companyAgentEvaluationContract";
+import { readFrozenDataset, evaluateContactLifecycle, fixtureRoleName, evaluationExecutionComplete, createEvaluationReadAdmin, companyEvaluationTurn, companyEvaluationRoleRead } from "./lib/companyAgentEvaluationContract";
 
 async function main() {
 const root = path.resolve(__dirname, "..");
@@ -30,6 +36,7 @@ const mode = option("mode") ?? "progressive";
 const streaming = option("stream") === "true";
 const copyMode = option("copy") ?? "synthetic";
 const responseLocale = option("response-locale") ?? null;
+const requestedEvaluationModel = option("model") ?? "google/gemini-3.8-flash";
 if (responseLocale !== null && responseLocale !== "ko" && responseLocale !== "en") {
   throw Error("response-locale must be ko or en");
 }
@@ -51,7 +58,7 @@ let providerCallSequence = 0;
 const providerCaptures: Promise<void>[] = [];
 globalThis.fetch = (async (input: any, init?: any) => {
   const url = new URL(typeof input === "string" ? input : input.url ?? String(input));
-  const allowed = copyMode === "real" ? ["openrouter.ai", "api.anthropic.com", "api.openai.com"] : ["openrouter.ai"];
+  const allowed = copyMode === "real" ? ["openrouter.ai", "api.anthropic.com", "api.openai.com"] : requestedEvaluationModel === "gpt-6.1-sol" ? ["api.openai.com"] : ["openrouter.ai"];
   if (!allowed.includes(url.hostname)) throw Error(`Evaluation network blocked: ${url.hostname}`);
   // Keep secondary writer calls as evidence too, without request headers/keys.
   // A syntactically valid body is not automatically a semantically valid email.
@@ -65,11 +72,11 @@ globalThis.fetch = (async (input: any, init?: any) => {
     providerCaptures.push(response.clone().text().then((raw) => {
       save(`provider-${sequence}.json`, { endpoint: `${url.origin}${url.pathname}`, startedAt, request, status: response.status, response: raw });
     }).catch((error) => {
-      save(`provider-${sequence}.json`, { endpoint: `${url.origin}${url.pathname}`, startedAt, request, status: response.status, error: String(error) });
+      save(`provider-${sequence}.json`, { endpoint: `${url.origin}${url.pathname}`, startedAt, request, status: response.status, error: formatToolError(error) });
     }));
     return response;
   } catch (error) {
-    save(`provider-${sequence}.json`, { endpoint: `${url.origin}${url.pathname}`, startedAt, request, error: String(error) });
+    save(`provider-${sequence}.json`, { endpoint: `${url.origin}${url.pathname}`, startedAt, request, error: formatToolError(error) });
     throw error;
   }
 }) as typeof fetch;
@@ -77,9 +84,9 @@ globalThis.fetch = (async (input: any, init?: any) => {
 // is reachable through the synthetic path.
 const { runOrgAgentToolLoop, runOrgAgentCompletion, appendRequiredPresentations } = await import("../src/lib/org/agent/chat");
 const { ORG_AGENT_GEMINI_FLASH_MODEL, isOrgAgentModelId, getOrgAgentReasoningEffort } = await import("../src/lib/org/agent/modelConfig");
-const evaluationModel = option("model") ?? ORG_AGENT_GEMINI_FLASH_MODEL;
-if (!isOrgAgentModelId(evaluationModel) || !evaluationModel.includes("/")) {
-  throw Error("A supported OpenRouter company-side model is required");
+const evaluationModel = requestedEvaluationModel;
+if (!isOrgAgentModelId(evaluationModel) || (!evaluationModel.includes("/") && evaluationModel !== "gpt-6.1-sol")) {
+  throw Error("A supported OpenRouter company-side model or gpt-6.1-sol is required");
 }
 const { conversationCompatibilityText } = await import("../src/lib/org/agent/conversationInput");
 const { parseOrgAgentContactRef } = await import("../src/lib/org/agent/contacts");
@@ -90,13 +97,13 @@ const { readMatchingRunHistory } = await import("../src/lib/companyFirstSearch/h
 const { formatMatchingRunHistory } = await import("../src/lib/org/agent/promptFormat");
 const { executeOrgAgentTool } = await import("../src/lib/org/agent/toolExecution");
 const { buildCompanyIntroTalentRead } = await import("../src/lib/org/agent/data");
-const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/org/slackMemberAccess.ts", "src/lib/companyFirstSearch/history.ts", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "src/i18n/org", "src/app/api/internal/org-agent/slack-turn/route.ts", "src/app/api/org/locale/route.ts", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").sort();
+const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/org/slackMemberAccess.ts", "src/lib/org/teamAccess.ts", "src/lib/org/slackHarper.ts", "src/lib/org/slackCandidateWorkObject.server.ts", "src/lib/companyFirstSearch/history.ts", "src/lib/companyTalentRequests", "src/lib/serviceAnswerExamples.ts", "src/lib/serviceAnswerExampleCache.ts", "src/lib/org/serviceFaq.ts", "src/lib/llm", "src/i18n/org", "src/app/api/internal/org-agent/slack-turn/route.ts", "src/app/api/org/locale/route.ts", "scripts/evalCompanyAgentCapabilities.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").filter((file) => existsSync(path.join(root, file))).sort();
 const sourceFingerprint = sha(sourceFiles.map((file) => `${file}:${sha(readFileSync(path.join(root, file)))}`).join("\n"));
 const manifest: any = {
   task: "company-side-conversational-qa", datasetVersion: version, runId, createdAt: new Date().toISOString(),
   sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
   dirty: true, sourceFingerprint, datasetFiles: frozen.files,
-  model: evaluationModel, provider: "OpenRouter", reasoning: getOrgAgentReasoningEffort(evaluationModel), temperature: evaluationModel === "anthropic/claude-haiku-5.5" ? null : 0.5,
+  model: evaluationModel, provider: evaluationModel === "gpt-6.1-sol" ? "OpenAI Responses" : "OpenRouter", reasoning: getOrgAgentReasoningEffort(evaluationModel), temperature: ["anthropic/claude-haiku-5.5", "gpt-6.1-sol"].includes(evaluationModel) ? null : 0.5,
   mode, streaming, responseLocale, timeoutMsPerTurn: 120_000, layer: "real-model-production-loop-synthetic-tools",
   copyMode, copyModelContract: "Direct send preserves main-agent final copy via production prepareDirectCandidateMessage. Review drafts use existing copy.ts (Claude, Luna fallback). No delivery or DB calls.",
   rawArtifactPath: runDir, metricSummary: "Pending manual semantic review; structural execution is not a quality pass.",
@@ -122,11 +129,13 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
   const history: OrgAgentConversationInput[] = (variant.history ?? []).map((m: any, i: number) => ({ id: i + 1, createdAt: dataset.clock, speaker: m.role === "user" ? "팀원 A" : "Harper", source: m.source ?? (m.role === "user" ? "company" : "harper"), references: m.references ?? "", complete: true, ...m }));
   const messageMetadata: Array<{ role: string; metadata: unknown }> = history.map((m) => ({ role: m.role, metadata: {} }));
   const trace: any[] = [], effects: any[] = [], outputs: any[] = [], completions: any[] = [];
+  const notifications = new Map<string, any>(Object.entries(structuredClone(variant.notifications ?? {})));
   const contacts = new Map<string, any>((variant.contacts ?? []).map((c: any) => [c.contactId, { roleId: role.roleId, revision: 1, ...c }]));
   const meetings = new Map<string, any>((variant.meetings ?? []).map((m: any) => [m.scheduleId, { ...m }]));
   const decisions = new Map<string, any>();
   let meetingSequence = 800;
   let contactSequence = 400 + contacts.size, currentSourceId = 0;
+  let companyMessagePreview: ReturnType<typeof parseCompanyMessages> = [];
   const injectedFaults = new Set<number>();
   const candidate = (id: unknown) => {
     const found = candidates.find((c: any) => c.talentId === id);
@@ -169,6 +178,14 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
     trace.push(traceEntry);
     try {
     let result: any;
+    if (args.name === "send_company_message") {
+      companyMessagePreview = parseCompanyMessages(x);
+      for (const part of companyMessagePreview) if (part.roleId) assertRole(part.roleId);
+      args.state.companyMessageBatch = { batchId: `synthetic-batch-${currentSourceId}`, messageIds: companyMessagePreview.map((_, i) => currentSourceId * 100 + i) };
+      traceEntry.result = { status: "committed", ...args.state.companyMessageBatch };
+      effects.push({ name: args.name, messages: companyMessagePreview, simulated: true });
+      return traceEntry.result;
+    }
     const fault = (phase: string) => {
       for (const [i, f] of (variant.faults ?? []).entries()) {
         if ((!f.repeat && injectedFaults.has(i)) || f.phase !== phase || f.tool !== args.name || (f.action && f.action !== x.action) || (f.talentId && f.talentId !== x.talentId)) continue;
@@ -178,7 +195,13 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       }
     };
     fault("before");
-    if (args.name === "get_talents") {
+    if (args.name === "report_issue") {
+      result = await reportOrgAgentIssue({ workspaceId, conversationId, messageId: args.currentUserMessageId, actorId, summary: x.summary }, async (message) => {
+        if (variant.reportDelivery === "unknown") throw Error("Synthetic response loss");
+        effects.push({ name: args.name, input: x, message });
+        return { channel: "synthetic-support", timestamp: "123.456" };
+      });
+    } else if (args.name === "get_talents") {
       const q = String(x.query ?? "").toLowerCase();
       const list = visibleCandidates.flatMap(positions).filter((c: any) => (!q || `${c.name} ${c.headline} ${c.roleName}`.toLowerCase().includes(q)) && (!x.roleId || c.roleId === x.roleId) && (!x.currentCompanyStageId || c.stage === x.currentCompanyStageId));
       result = { ...page(list.map((c: any) => ({
@@ -194,8 +217,29 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
     } else if (args.name === "read_role") {
       assertRole(x.roleId);
       const selected = roles.find((r: any) => r.roleId === x.roleId);
-      const people = candidates.flatMap(positions).filter((c: any) => c.roleId === x.roleId && (!x.stage || c.stage === x.stage)).map((c: any) => ({ ...c, currentStageId: c.stage, currentStageLabel: c.stageLabel }));
-      result = { role: { ...selected, status: humanizeOrgRoleStatus(selected.status), workMode: humanizeOrgWorkMode(selected.workMode), employmentTypes: (selected.employmentTypes ?? []).map(humanizeOrgEmploymentType) }, fieldCompleteness: { role_request: { included: true, complete: true }, role_criteria: { included: true, complete: true } }, availableStages: [{ id: "pending_connection", label: "연결 대기" }, { id: "connected", label: "연결됨" }, ...(variant.stages ?? [])], stageCounts: [], countsComplete: true, people: page(people, { offset: x.peopleOffset, limit: x.peopleLimit }) };
+      const allPeople = candidates.flatMap(positions).filter((c: any) => c.roleId === x.roleId).map((c: any) => ({ ...c, currentStageId: c.stage, currentStageLabel: c.stageLabel }));
+      const people = allPeople.filter((c: any) => !x.stage || c.stage === x.stage);
+      const stages = [{ stageId: "company_intro", label: "먼저 제안 가능한 후보" }, { stageId: "intro_requested", label: "Intro Requested" }, { stageId: "pending_connection", label: "연결 대기" }, { stageId: "connected", label: "연결됨" }, { stageId: "process_stopped", label: "진행 종료" }, ...(variant.stages ?? []).map((s: any) => ({ ...s, stageId: s.stageId ?? s.id }))];
+      result = companyEvaluationRoleRead({
+        role: { ...selected, status: humanizeOrgRoleStatus(selected.status), workMode: humanizeOrgWorkMode(selected.workMode), employmentTypes: (selected.employmentTypes ?? []).map(humanizeOrgEmploymentType) },
+        include: x.include,
+        pipeline: { availableStages: stages, stageCounts: stages.map(s => ({ stage: s.label, count: allPeople.filter((c: any) => c.currentStageId === s.stageId).length })), countsComplete: true, people: page(people, { offset: x.peopleOffset, limit: x.peopleLimit ?? 10 }) },
+      });
+      if (x.include?.includes("notification")) {
+        if (!notifications.has(x.roleId)) throw Error("Missing frozen notification context");
+        result.notification = structuredClone(notifications.get(x.roleId));
+      }
+    } else if (args.name === "set_role_notification") {
+      assertRole(x.roleId);
+      const saved = notifications.get(x.roleId);
+      if (!saved) throw Error("Missing frozen notification context");
+      if (x.assigneeUserId && !saved.availableAssignees.some((m: any) => m.userId === x.assigneeUserId)) throw Error("Unavailable assignee");
+      if (x.channelIds?.some((id: string) => !saved.channels.some((c: any) => c.channelId === id))) throw Error("Unavailable channel");
+      if (x.assigneeUserId) { saved.assigneeUserIds = [x.assigneeUserId]; saved.confirmedAssigneeUserId = x.assigneeUserId; }
+      if (x.channelIds) { saved.channels.forEach((c: any) => c.enabled = x.channelIds.includes(c.channelId)); saved.confirmedChannelIds = x.channelIds; }
+      effects.push({ name: args.name, input: x });
+      result = { status: "saved", roleId: x.roleId, roleStatus: roles.find((r: any) => r.roleId === x.roleId)?.status,
+        assignees: saved.availableAssignees.filter((m: any) => saved.assigneeUserIds.includes(m.userId)), channels: saved.channels.filter((c: any) => c.enabled), hiringStatusChanged: false };
     } else if (args.name === "prepare_candidate_connection" || args.name === "decide_candidate_connection" || args.name === "decide_company_intro") {
       assertRole(x.roleId); const c = candidate(x.talentId);
       const intro = args.name === "decide_company_intro";
@@ -261,7 +305,7 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
             const result = await executeTool({ ...args, callId: `${args.callId}:${index}`, input: { ...x, ...item, items: undefined, presentedDrafts: undefined } });
             captureOrgAgentContactDraftState({ input: { ...x, ...item }, state: args.state });
             outcomes.push({ ...result, completed: true, index, target: item });
-          } catch (error) { outcomes.push({ completed: false, index, target: item, status: "execution_uncertain", reason: String(error), nextAction: "Read the saved contact before retrying only this target." }); }
+          } catch (error) { outcomes.push({ completed: false, index, target: item, status: "execution_uncertain", reason: formatToolError(error), nextAction: "Read the saved contact before retrying only this target." }); }
         }
         const completedCount = outcomes.filter((o) => o.completed).length;
         result = { action: x.action, status: completedCount === items.length ? "batch_complete" : "batch_partial", items: outcomes, requestedCount: items.length, completedCount, incompleteCount: items.length - completedCount };
@@ -315,7 +359,27 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         effects.push({ name: args.name, input: x, ...record });
         result = { ...record, status: x.action === "revise_draft" ? "draft_revised" : record.status, candidateName: candidate(record.talentId).name, roleName: fixtureRoleName(roles, record.roleId), candidateContactState: record.status, candidateMessageSent: false, ...lifecycle };
       }
-    } else if (args.name === "change_role_status") { assertRole(x.roleId); const r = roles.find((r: any) => r.roleId === x.roleId)!; const previousStatus = r.status; r.status = x.status; effects.push({ name: args.name, input: x }); result = { status: "updated", role: r, previousStatus }; }
+    } else if (args.name === "change_role_status") { assertRole(x.roleId); const r = roles.find((r: any) => r.roleId === x.roleId)!; const previousStatus = r.status;
+      const notification = notifications.get(x.roleId);
+      if (notification && r.status === "draft" && x.status === "active") {
+        if (x.assigneeUserId) {
+          if (!notification.availableAssignees.some((m: any) => m.userId === x.assigneeUserId)) throw Error("Unavailable assignee");
+          notification.assigneeUserIds = [x.assigneeUserId]; notification.confirmedAssigneeUserId = x.assigneeUserId;
+        }
+        if (x.notificationChannelIds) {
+          if (x.notificationChannelIds.some((id: string) => !notification.channels.some((c: any) => c.channelId === id))) throw Error("Unavailable channel");
+          notification.channels.forEach((c: any) => c.enabled = x.notificationChannelIds.includes(c.channelId));
+          notification.confirmedChannelIds = x.notificationChannelIds;
+        }
+        const missing = [...(notification.confirmedAssigneeUserId ? [] : ["담당자"]), ...(notification.confirmedChannelIds.length ? [] : ["Slack 채널"]), ...(variant.activationMissingFields?.[x.roleId] ?? [])];
+        if (missing.length) {
+          const notificationSelectionSaved = Boolean(x.assigneeUserId || x.notificationChannelIds);
+          if (notificationSelectionSaved) effects.push({ name: args.name, input: x, notificationSelectionSaved, activated: false });
+          result = { status: "role_creation_incomplete", roleStatus: "draft", roleName: r.name, missingFields: missing, notificationSelectionSaved };
+          traceEntry.result = result; return result;
+        }
+      }
+      r.status = x.status; effects.push({ name: args.name, input: x }); result = { status: "updated", role: r, previousStatus }; }
     else if (args.name === "add_candidate_note") { assertRole(x.roleId); const c = candidate(x.talentId); effects.push({ name: args.name, input: x }); result = { status: "created", candidateName: c.name, roleName: role.name, note: x.note }; }
     else if (args.name === "list_contacts") {
       const basis = x.dateBasis ?? "updated";
@@ -376,24 +440,43 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       effects.push({ name: args.name, input: x, changes: resolved.changes });
       result = { status: resolved.changes.length ? "updated" : "already_reflected", summary: resolved.summary };
     }
+    else if (args.name === "request_matching_search" && variant.matchingSearchRpc) {
+      assertRole(x.roleId);
+      const searchAdmin = createEvaluationReadAdmin({ company_roles: roles.map((r: any) => ({
+        role_id: r.roleId, company_workspace_id: workspaceId, source_type: "internal", company_internal_roles: { team_id: null },
+      })) });
+      result = await executeOrgAgentTool({ ...args,
+        user: { ...args.user, email: "operator@matchharper.com" },
+        admin: { ...searchAdmin, rpc: async (name: string) => {
+          if (name !== "enqueue_company_matching_search_v1") throw Error("Unexpected evaluation RPC");
+          return structuredClone(variant.matchingSearchRpc);
+        } } as any,
+      });
+      if (result.status === "queued") effects.push({ name: args.name, input: x });
+    }
     else if (args.name === "request_matching_search") { assertRole(x.roleId); effects.push({ name: args.name, input: x }); result = { status: "queued", requestedRoleName: role.name }; }
     else if (args.name === "get_more_data" && readAdmin) {
       result = await executeOrgAgentTool({ ...args, admin: readAdmin as any });
     }
     else if (args.name === "get_more_data") result = { requestedKinds: x.kinds ?? [], members: { complete: true, items: [], totalCount: 0, returnedCount: 0 } };
     else throw Error(`Fixture adapter has no implementation for ${args.name}; not a success.`);
-    if (!(args.name === "get_more_data" && readAdmin)) args.state.toolResults.push({ callId: args.callId, name: args.name, status: "success", summary: "Synthetic tool adapter result" });
+    if (!(args.name === "get_more_data" && readAdmin) && !(args.name === "request_matching_search" && variant.matchingSearchRpc)) args.state.toolResults.push({ callId: args.callId, name: args.name, status: "success", summary: "Synthetic tool adapter result" });
     traceEntry.result = structuredClone(result);
     fault("after");
     return result;
-    } catch (error) { traceEntry.error = String(error); throw error; }
+    } catch (error) { traceEntry.error = formatToolError(error); throw error; }
   };
   let error: string | null = null;
   const started = Date.now();
-  for (const userMessage of variant.turns) {
-    const currentId = history.length + 1;
+  let messageSequence = history.length;
+  for (const [turnIndex] of variant.turns.entries()) {
+    const turn = companyEvaluationTurn(variant, turnIndex);
+    const userMessage = turn.message;
+    const currentId = ++messageSequence;
     currentSourceId = currentId;
+    companyMessagePreview = [];
     const context = {
+      ...(variant.accessText ? { accessText: variant.accessText } : {}),
       companyText: "company=Synthetic Labs; workspace_id=" + workspaceId,
       workspace: { workspaceId, companyName: "Synthetic Labs", pitch: "초기 제품을 만드는 팀", companyDescription: "합성 평가 회사", logoUrl: null, homepageUrl: null, linkedinUrl: null },
       roles, completeRoleRequestIds: [],
@@ -408,8 +491,13 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         conversation: { id: conversationId, company_workspace_id: workspaceId, role_id: variant.currentRoleId === null ? null : roles[0]?.roleId ?? null } as any,
         currentUserMessageId: currentId, mentions: [], model: evaluationModel,
         readAudience: "company_safe", scopeKey: `synthetic-${version}`, source: variant.surface ?? "slack", responseLocale: responseLocale ?? undefined,
+        capabilityMode: mode,
+        backgroundOrigin: turn.origin === "scheduled_review" ? "scheduled_review" : undefined,
+        slackExecutionContext: variant.slackExecutionContext,
         slackThreadId: null, user: { id: actorId, email: "user@example.invalid" } as any,
-        userLabel: "팀원 A", userMessage, allowSilentCompletion: variant.allowSilentCompletion === true,
+        userLabel: turn.origin === "scheduled_review" ? "optional scheduled review" : turn.origin === "product_event" ? "verified product event" : "팀원 A",
+        userMessage: turn.origin === "scheduled_review" ? buildCompanyProactiveReviewPrompt(turn.awareness!) : turn.origin === "product_event" && variant.companyUpdate ? buildCompanyUpdatePrompt({ ...variant.companyUpdate, facts: { companyMessageAlreadyDelivered: false, ...variant.companyUpdate.facts } }) : turn.origin === "product_event" && variant.contactEvent ? buildCompanyContactEventPrompt(variant.contactEvent) : userMessage,
+        allowSilentCompletion: turn.allowSilentCompletion,
         serviceAnswerExamplesText: variant.serviceAnswerExamplesText ?? null,
         signal: AbortSignal.timeout(120_000),
         ...(streaming ? { onTextDelta: () => {}, onTextReset: () => {} } : {}),
@@ -429,19 +517,23 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
           } : {}) });
           call.response = result.response;
           return result;
-        } catch (error) { call.error = String(error); throw error; }
+        } catch (error) { call.error = formatToolError(error); throw error; }
         finally { call.latencyMs = Date.now() - t; save(`${unit}-completions.json`, completions); }
       } });
-      const reply = appendRequiredPresentations({ requiredTexts: getOrgAgentRequiredPresentationTexts(result.state), reply: enforceOrgAgentReplyInvariants(result.state, result.reply) });
+      const reply = result.state.companyMessageBatch ? companyMessagePreview.map(part => part.text).join("\n\n")
+        : appendRequiredPresentations({ requiredTexts: getOrgAgentRequiredPresentationTexts(result.state), reply: enforceOrgAgentReplyInvariants(result.state, result.reply) });
       if ("completionError" in result && result.completionError) error = String(result.completionError);
-      outputs.push({ userMessage, reply, usage: result.usage, toolResults: result.state.toolResults, billingNotice: result.state.billingNotice ?? null, completionError: "completionError" in result ? result.completionError : null });
-      history.push({ id: currentId, role: "user", content: userMessage, speaker: "팀원 A", source: "company", complete: true, references: "" });
+      outputs.push({ userMessage, origin: turn.origin, reply, companyMessagePreview, usage: result.usage, toolResults: result.state.toolResults, billingNotice: result.state.billingNotice ?? null, completionError: "completionError" in result ? result.completionError : null });
+      if (turn.recordCompanyMessage) history.push({ id: currentId, role: "user", content: userMessage, speaker: "팀원 A", source: "company", complete: true, references: "" });
       const refs = result.state.contactDraftRefs.length ? result.state.contactDraftRefs : result.state.contactDraftRef ? [result.state.contactDraftRef] : [];
-      history.push({ id: currentId + 1, role: "assistant", content: reply, speaker: "Harper", source: "harper", complete: true, toolNames: [...new Set(result.state.toolResults.map((result) => result.name))], references: refs.map((ref) => `candidate_contact_ref{contact_id=${ref.contactId};revision=${ref.revision}}`).join(",") });
-      messageMetadata.push({ role: "user", metadata: {} }, { role: "assistant", metadata: { contactDraftRefs: refs } });
+      if (reply) {
+        history.push({ id: ++messageSequence, role: "assistant", content: reply, speaker: "Harper", source: "harper", complete: true, toolNames: [...new Set(result.state.toolResults.map((result) => result.name))], references: refs.map((ref) => `candidate_contact_ref{contact_id=${ref.contactId};revision=${ref.revision}}`).join(",") });
+        if (turn.recordCompanyMessage) messageMetadata.push({ role: "user", metadata: {} });
+        messageMetadata.push({ role: "assistant", metadata: { contactDraftRefs: refs } });
+      }
     } catch (e) { error = String(e); break; }
   }
-  save(`${unit}.json`, { outputs, trace, effects, error, contacts: [...contacts.values()], meetings: [...meetings.values()] });
+  save(`${unit}.json`, { outputs, trace, effects, error, contacts: [...contacts.values()], meetings: [...meetings.values()], roles, notifications: Object.fromEntries(notifications) });
   const summary = { unit, turns: outputs.length, expectedTurns: variant.turns.length, error, durationMs: Date.now() - started, completionCount: completions.length, promptFingerprint: sha(completions.map((c) => c.promptFingerprint).join("\n")), quality: "pending_manual_review" };
   manifest.results.push(summary); save("manifest.json", manifest);
   console.log(JSON.stringify({ ...summary, replies: outputs.map((o) => o.reply) }));

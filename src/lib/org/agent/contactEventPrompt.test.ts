@@ -48,7 +48,7 @@ test("the contact event reuses the company-side LLM tool loop and delivery retry
   assert.match(eventRunner, /completed_silent/);
   const consumer = readFileSync(
     new URL(
-      "../../../app/api/queues/process-company-agent-web-action/route.ts",
+      "./webActionProcessor.server.ts",
       import.meta.url
     ),
     "utf8"

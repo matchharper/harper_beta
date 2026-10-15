@@ -1,3 +1,4 @@
+import { OrgLocaleScope } from "@/i18n/org/OrgLocaleProvider";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -45,11 +46,9 @@ test("credits render independent slot balances, assignments and dates without a 
   for (const locale of ["ko", "en"] as const) {
     const dom = new JSDOM(
       renderToStaticMarkup(
-        <BillingCredits
-          summary={summary}
-          locale={locale}
-          date={(value) => value ?? "—"}
-        />
+        <OrgLocaleScope locale={locale}>
+          <BillingCredits summary={summary} />
+        </OrgLocaleScope>
       )
     );
     try {
@@ -109,11 +108,9 @@ test("Free has an unassigned ten-credit shared pool; Enterprise has no finite cr
   ]) {
     const dom = new JSDOM(
       renderToStaticMarkup(
-        <BillingCredits
-          summary={current}
-          locale="ko"
-          date={(value) => value ?? "—"}
-        />
+        <OrgLocaleScope locale="ko">
+          <BillingCredits summary={current} />
+        </OrgLocaleScope>
       )
     );
     try {
@@ -134,11 +131,11 @@ test("missing or malformed credit slots show an error instead of crashing or cla
       for (const creditSlots of [undefined, null, {}, "invalid"]) {
         const dom = new JSDOM(
           renderToStaticMarkup(
-            <BillingCredits
-              summary={{ ...summary, model, creditSlots } as BillingSummary}
-              locale={locale}
-              date={(value) => value ?? "—"}
-            />
+            <OrgLocaleScope locale={locale}>
+              <BillingCredits
+                summary={{ ...summary, model, creditSlots } as BillingSummary}
+              />
+            </OrgLocaleScope>
           )
         );
         try {
@@ -167,11 +164,9 @@ test("an empty slot array and unlimited plans remain distinct from unavailable c
   ]) {
     const dom = new JSDOM(
       renderToStaticMarkup(
-        <BillingCredits
-          summary={current as BillingSummary}
-          locale="ko"
-          date={(value) => value ?? "—"}
-        />
+        <OrgLocaleScope locale="ko">
+          <BillingCredits summary={current as BillingSummary} />
+        </OrgLocaleScope>
       )
     );
     try {

@@ -134,6 +134,7 @@ const createEmptyHistoryCounts = () => ({
   archived: 0,
   new: 0,
   newInternal: 0,
+  newExternalUnread: 0,
   saved: 0,
   savedStages: {
     saved: 0,

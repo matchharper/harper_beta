@@ -1020,8 +1020,8 @@ export function CompanyConceptGettingStarted({
       <p className={styles.startFootnote}>
         {text(
           locale,
-          "회사 이메일로 가입 · Free로 시작 · 유료 기능과 크레딧은 요금제에서 확인",
-          "Sign up with your work email · Start on Free · See plans for paid features and credits"
+          "회사 이메일로 가입 · Free로 시작 · 유료 기능과 Intro는 요금제에서 확인",
+          "Sign up with your work email · Start on Free · See plans for paid features and Intros"
         )}
       </p>
     </ConceptSection>
@@ -1057,7 +1057,7 @@ export function CompanyConceptFaq({
           [
             "비용은 어떻게 되나요?",
             <span key="pricing">
-              Free에서도 Role은 무제한이며 월 10크레딧을 함께 사용합니다. 유료
+              Free에서도 Role은 무제한이며 월 10 Intro를 함께 사용합니다. 유료
               기능이 필요한 Role에 슬롯을 추가할 수 있습니다. Free와 표준 슬롯
               구독에는 채용 성공보수가 없습니다. Enterprise와 기존 별도 계약은
               합의한 조건을 따릅니다.{" "}
@@ -1087,7 +1087,7 @@ export function CompanyConceptFaq({
           [
             "How does pricing work?",
             <span key="pricing">
-              Free includes unlimited roles with 10 monthly credits shared
+              Free includes unlimited roles with 10 monthly Intros shared
               across them. Add slots to roles that need paid features. Free and
               standard slot subscriptions have no hiring success fee. Enterprise
               and existing agreements follow their agreed terms.{" "}

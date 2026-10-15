@@ -29,7 +29,7 @@ export default function OpportunityRecommendationPreview({
     [item.recommendationConcerns]
   );
   const hasContent = Boolean(
-    recommendationSummary ||
+    item.recommendationNote || recommendationSummary ||
       recommendationReasons.length > 0 ||
       recommendationConcerns.length > 0
   );
@@ -58,6 +58,7 @@ export default function OpportunityRecommendationPreview({
     recommendationConcerns,
     recommendationReasons,
     recommendationSummary,
+    item.recommendationNote,
   ]);
 
   if (!hasContent) return null;
@@ -73,6 +74,7 @@ export default function OpportunityRecommendationPreview({
           id={contentId}
           ref={contentRef}
         >
+          {item.recommendationNote ? <p className="leading-6">{item.recommendationNote}</p> : null}
           {recommendationSummary ? <div>{recommendationSummary}</div> : null}
           {recommendationReasons.map((reason, index) => (
             <div

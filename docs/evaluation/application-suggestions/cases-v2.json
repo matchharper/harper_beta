@@ -1,0 +1,18 @@
+[
+  {
+    "id": "grounded-edits",
+    "language": "Korean",
+    "candidate": "Name: Alex Example. Profile memo: owned API design and on-call incident response; shipped weekly. Search Brief: remote preferred. Private memory: does not want current employer to know. Links: https://example.test/alex",
+    "resume": "Alex Example\\nBackend Engineer — Example Studio, 2022–2025\\nBuilt APIs.\\nEducation: Example University, BSc Computer Science, 2022.",
+    "role": "Backend engineer. Own API design and production operations. Company builds developer tools.",
+    "application": "{\"status\": \"pending\", \"url\": \"https://example.test/apply\", \"instruction\": \"Application inspection runs in the background. Focus on the existing resume and important role-specific experience gaps.\"}"
+  },
+  {
+    "id": "distinct-role-gaps-pending",
+    "language": "Korean",
+    "candidate": "Alex Example, backend engineer. Known experience: API design. No model training or evaluation experience recorded.",
+    "resume": "Alex Example\\nBackend engineer\\nDesigned APIs and maintained services.",
+    "role": "ML platform engineer. Build reliable model serving APIs, model evaluation pipelines and production observability. API design is known; no information yet about evaluation or observability ownership.",
+    "application": "{\"status\": \"pending\", \"url\": \"https://example.test/apply\", \"instruction\": \"Application inspection runs in the background. Focus on the existing resume and important role-specific experience gaps.\"}"
+  }
+]

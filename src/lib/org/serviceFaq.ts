@@ -1,41 +1,47 @@
 export type CompanyServiceFaqItem = {
   answer: string;
+  category: string;
   key: string;
   question: string;
   showInDocuments?: boolean;
   tags: readonly string[];
 };
 
+// Shared factual guidance for Company retrieval and /org/documents.
 export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
   {
     key: "service-overview",
     question:
       "Harper는 뭘 해주는 서비스인가요? 회사 채용팀을 위해 어떤 일을 해주나요?",
     answer:
-      "저희는 후보자 목록만 보여드리는 게 아니라, 회사와 함께 채용을 진행하는 파트너예요. 채용할 역할과 판단 기준을 정리하고, 그 기준에 맞는 분들의 경력을 검토한 뒤 후보자에게 회사와 역할을 설명하고 대화 의향을 확인해요. 대화해 보고 싶다고 답한 후보자를 Inbox의 연결 대기 상태로 회사에 소개해요. 회사가 연결을 수락한 뒤에는 Pipeline에서 다음 전형과 결과를 관리할 수 있어요. 별도의 먼저 제안 가능한 후보 탭에서는 이 역할을 아직 수락하지 않은 후보에게 회사가 먼저 제안할지 결정할 수 있어요.",
+      "저희는 회사와 함께 채용을 진행하는 파트너예요. 역할과 판단 기준을 정리하고, 맞는 후보자를 찾아 경력과 근무 조건을 검토해요. 먼저 제안 가능한 후보에서는 회사가 만나보고 싶은 사람을 고르고 Intro를 요청할 수 있어요. 후보자가 수락하면 미리 선택한 팀원과 소개 이메일로 연결해요. 슬롯이 배정된 Role의 연결 대기에서는 Harper가 먼저 역할을 소개하고 대화 의사를 확인한 후보자를 검토해 회사가 연결 여부를 결정해요. 기존 별도 계약의 이용 범위는 해당 계약을 따르며, 연결 후에는 후보자 연락과 일정 조율을 맡기고 Pipeline에서 전형을 관리할 수 있어요.",
     tags: ["locale:ko", "topic:service-overview"],
+    category: "시작과 역할",
   },
   {
     key: "getting-started",
     question: "처음 가입했어요. 이제 뭘 하면 되나요?",
     answer:
-      "네~ 먼저 Roles부터 같이 보시면 돼요. 아직 만든 역할이 없다면 웹 왼쪽 사이드바의 New role을 열거나 Slack에서 Harper에게 “백엔드 엔지니어를 채용하고 싶어요”처럼 편하게 말하면 돼요. 완성된 JD가 없어도 Harper가 대화로 역할과 매칭 기준을 함께 정리하고, 최종 내용을 확인해 등록하면 후보자 탐색을 시작해요. 작성 중인 역할이 있다면 해당 역할 대화에서 등록을 마무리해 주세요. 이미 채용 중인 역할이 있다면 역할 정보가 최신인지와 Inbox에 연결 대기 후보자가 있는지, 역할의 먼저 제안 가능한 후보 탭에 먼저 연락해 볼 사람이 있는지 확인해 주세요. 먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람으로, 이전에 Harper의 추천을 받았거나 거절한 경우도 있어요. 회사가 먼저 제안하기를 선택하면 Harper가 회사를 대신해 연락해요. 검토할 후보가 없다면 화면을 계속 열어 둘 필요 없이 기다리면 돼요. 역할에 맞고 회사와 대화할 의사가 확인된 후보자가 생기면 Inbox와 Slack으로 알려드려요. 등록한 역할은 필요할 때 중단하거나 삭제할 수 있어요.",
+      "먼저 회사 정보와 Pitch를 확인하고, 함께 채용할 팀원과 Slack 알림 채널을 준비해 주세요. 역할이 없다면 웹의 New role을 열거나 Slack에서 Harper에게 채용하고 싶은 역할을 말하면 돼요. 완성된 JD 없이도 대화로 Description과 Hiring Brief를 정리할 수 있어요. 작성 중인 역할은 등록을 마무리하고, 채용 중인 역할은 Settings의 추천 후보 검색과 요일·시각을 확인해 주세요. 먼저 제안 가능한 후보에서 Intro를 요청하고, 이용 가능한 Role의 Inbox에 연결 대기 후보자가 있으면 연결 여부를 결정하면 돼요. 검토할 후보가 없다면 화면을 계속 열어 둘 필요는 없어요. 역할은 필요할 때 중단하거나 삭제할 수 있어요.",
     tags: ["locale:ko", "topic:getting-started", "topic:role-creation"],
+    category: "시작과 역할",
   },
   {
     key: "pricing-overview",
     question: "Harper 비용은 어떻게 되나요? 월 구독료나 채용 수수료가 있나요?",
     answer:
-      "Free에서도 Role을 무제한으로 만들고 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10크레딧은 유료 슬롯을 추가해도 별도로 유지돼요. 유료 슬롯은 배정한 Role 하나에 유료 기능과 월 50크레딧을 제공해요. 해당 슬롯 크레딧을 먼저 쓰고 부족하면 공용 크레딧을 사용하며, 다른 슬롯의 크레딧은 사용할 수 없어요. Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. 요청하신 Enterprise에는 별도로 합의한 비용 모델이 적용될 수 있어요. 현재 판매 가격은 /pricing에서, 회사에 적용된 구독과 결제 내역은 Organization의 Slots와 Billing에서 확인해 주세요. 기존에 별도 계약을 맺었다면 그 계약이 유지돼요.",
+      "Free에서도 Role을 무제한으로 만들고 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10 Intro는 슬롯을 추가해도 별도로 유지돼요. 표준 슬롯은 배정한 Role 하나에 유료 기능과 월 50 Intro를 제공하고, Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. Enterprise와 기존 별도 계약은 합의한 조건을 따라요. 현재 새 회사의 직접 가입과 일반 회사의 셀프서비스 결제는 일시 중단되어 있어요. Slots와 Billing 메뉴가 표시되는 Workspace에서는 배정·구독·결제 내역을 확인할 수 있고, 메뉴가 없거나 적용 조건이 궁금하면 문의하기로 Harper 팀에 확인해 주세요. /pricing의 공개 상품 설명만으로 회사의 실제 계약이나 잔액을 판단하지 않아요.",
     tags: ["locale:ko", "topic:pricing"],
+    category: "슬롯과 비용",
   },
   {
     key: "pricing-subscription",
     question: "월 구독료나 사용료가 따로 있나요? 무료인가요?",
     answer:
-      "무료로 시작할 수 있는 Free와 유료 슬롯 구독이 있어요. 슬롯은 월간 또는 연간으로 결제하고, 추가한 슬롯은 각각 관리하거나 구독을 취소할 수 있어요. 연간은 1년 이용료를 한 번에 결제해요. 최신 금액은 /pricing에, 회사의 현재 구독은 Organization의 Slots와 Billing에 표시돼요. Enterprise와 기존 별도 계약의 조건은 Harper 팀에 확인해 주세요.",
+      "Free와 월간·연간 표준 슬롯 구독이 있어요. 연간 구독은 1년 이용료를 한 번에 결제하지만 Intro는 월 단위로 갱신돼요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 바로 슬롯을 구매하도록 안내하지 않아요. 결제 메뉴가 표시되는 Workspace에서는 Slots와 Billing에서 현재 구독을 확인하고, 메뉴가 없으면 Harper 팀에 적용 계약과 이용 범위를 문의해 주세요.",
     showInDocuments: false,
     tags: ["locale:ko", "topic:pricing"],
+    category: "슬롯과 비용",
   },
   {
     key: "pricing-success-fee",
@@ -44,34 +50,39 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
       "Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. 요청하신 Enterprise에는 성공보수를 포함한 별도 비용 모델을 합의할 수 있어요. 기존에 별도 계약이 있다면 해당 계약의 조건을 따라요. 회사에 적용되는 조건과 금액은 Harper 팀에 회사명을 알려주시면 확인할 수 있어요.",
     showInDocuments: false,
     tags: ["locale:ko", "topic:pricing"],
+    category: "슬롯과 비용",
   },
   {
     key: "recommendation-timing",
     question: "역할을 등록했는데 왜 후보자 추천이 바로 오지 않나요?",
     answer:
-      "첫 추천까지는 시간이 조금 걸릴 수 있어요. Harper는 단순히 검색된 후보자를 바로 보여드리지 않고, 역할에 맞는 분을 찾고 경력을 검토한 뒤 회사와 역할을 먼저 설명해 실제 대화 의사까지 확인해요. 그래서 Inbox에는 회사가 바로 검토할 수 있는 후보자가 도착하지만, 정확한 추천 시점을 미리 약속하기는 어려워요. 꼭 필요한 조건과 제외 기준, 후보자에게 잘 전달되어야 할 회사의 장점이 최신인지 역할 대화에서 확인해 주세요. 예상보다 오래 걸린다고 느껴지면 프로필 메뉴의 문의하기에 역할 이름을 남겨 주세요.",
+      "역할 등록은 후보자가 발견되거나 연락이 끝났다는 뜻은 아니에요. 현재 기준에 맞는 후보자를 찾고 검토하는 데 시간이 필요해요. 먼저 제안 가능한 후보는 후보자의 수락 전에 회사가 검토하는 목록이고, 연결 대기는 Harper의 추천을 수락한 후보자를 소개한 상태예요. 두 목록의 도착 시점은 다를 수 있고 적합한 후보가 없으면 새 항목이 없을 수도 있어요. Settings의 검색 설정과 저장된 Hiring Brief를 확인하고, 지금 새 후보를 찾고 싶으면 역할 대화의 Run Search를 사용할 수 있어요. 이 요청도 추천 수나 도착 시점을 보장하지는 않아요.",
     tags: ["locale:ko", "topic:recommendation-timing"],
+    category: "검색과 추천",
   },
   {
     key: "pending-connection",
     question: "연결 대기와 먼저 제안 가능한 후보는 어떻게 다른가요?",
     answer:
-      "연결 대기는 후보자가 회사와 역할에 대한 설명을 듣고 대화해 볼 의사를 밝힌 뒤, 회사의 결정을 기다리는 상태예요. 단순히 검색에서 찾은 사람이나 Harper가 일방적으로 올린 후보자가 아니에요. 추천 이유와 자료를 검토한 뒤 Inbox에서 연결을 수락할지 거절할지 알려 주세요. 결정하기에 정보가 부족하다면 먼저 Harper에게 후보자 확인을 요청할 수 있어요. 먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람에게 회사가 먼저 연락해 보도록 제안하는 별도 흐름이에요. 먼저 제안하기를 선택하면 후보자는 Intro Requested로 이동하고, Harper가 회사의 관심 이유를 담아 연락해요. 후보자가 수락하면 미리 정한 담당자와 소개 이메일로 연결하고 연결됨으로 이동해요. Intro Requested 카드에는 제안 준비 중인지 후보자 답변 대기인지 표시돼요. 제안하지 않기를 선택하면 후보자에게 연락하지 않고 목록에서 제외해요.",
+      "먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람을 회사가 먼저 검토하는 목록이에요. 이전에 Harper의 추천을 받았거나 거절한 경우도 있으므로 처음 보는 역할이거나 관심이 확인된 후보라고 단정하지 않아요. Intro 요청을 확정하면 Harper가 회사의 관심 이유를 담아 제안하고, 후보자가 수락하면 미리 고른 팀원과 소개 이메일로 연결해요. 연결 대기는 후보자가 회사와 역할에 대한 설명을 듣고 대화해 볼 의사를 밝힌 뒤 회사의 결정을 기다리는 상태예요. 슬롯이 배정된 Role 또는 해당 기능이 포함된 기존 계약에서 이용하며, 회사가 연결을 수락하거나 거절해야 해요. 후보자의 수락과 회사에 실제로 소개가 전달된 시점은 다를 수 있어요.",
     tags: ["locale:ko", "topic:pending-connection"],
+    category: "제안과 연결",
   },
   {
     key: "recommendation-paused",
     question: "추천이 오다가 멈췄어요. 새 후보자가 더 안 오는 이유가 뭔가요?",
     answer:
-      "먼저 역할이 중단되거나 종료된 상태인지, Inbox의 연결 대기 후보자가 해당 역할의 검토 한도에 도달했는지 확인해 주세요. 중단된 역할을 다시 진행하거나 기존 후보자의 연결을 수락하거나 거절해 대기가 줄면 새 추천이 이어질 수 있어요. 위 상황이 아니라면 역할에 잘 맞고 실제로 대화할 의사가 있는 분을 연결해 드리기 위해 탐색과 확인에 시간이 조금 더 걸리는 중일 수 있어요. 문제가 생겼다고 생각되면 프로필 메뉴의 문의하기에 역할 이름과 현재 상황을 함께 남겨 주세요.",
+      "역할이 중단·종료된 상태인지, Settings의 추천 후보 검색이 켜져 있는지와 다음 검색 요일·시각을 먼저 확인해 주세요. 연결 대기가 해당 역할의 검토 한도에 도달하면 새 후보자에게 먼저 추천하는 일부 탐색이 제한돼요. 기존 후보자의 연결을 수락하거나 거절해 대기가 줄면 그 제한이 풀릴 수 있지만, 먼저 제안 가능한 후보 검색까지 모두 멈춘다는 뜻은 아니에요. 슬롯이나 기존 계약의 이용 범위, 미처리 제안, 적합한 후보의 유무도 영향을 줄 수 있어요. Harper에게 최근 검색 이력을 물어 현재 확인되는 범위를 보고, 해결되지 않으면 문의하기에 역할 이름과 상황을 남겨 주세요.",
     tags: ["locale:ko", "topic:recommendation-paused"],
+    category: "검색과 추천",
   },
   {
     key: "recommendation-feedback",
     question: "추천된 후보자들이 제가 찾는 방향과 조금 달라요.",
     answer:
-      "어떤 점이 달랐는지 후보자 이름과 함께 편하게 말씀해 주세요. 한 후보자만의 아쉬움인지, 이후 추천에도 적용할 공통 기준인지 구분해 반영할게요. 공통 기준이라면 역할의 Hiring Brief나 Evaluation Criteria를 바꾸고 다음 후보자 탐색에 사용해요. 해당 후보자와 진행하지 않으려면 Inbox에서 연결을 거절할 수 있지만, 연결 거절은 보류가 아니라 이번 역할의 진행을 끝내는 결정이에요. 이미 연결 대기에 온 후보자는 이전 기준으로 소개됐을 수 있으므로 새 기준에 맞는지 따로 검토해 주세요.",
+      "어떤 점이 달랐는지 후보자 이름과 함께 말씀해 주세요. 한 후보자에 대한 판단인지 이후 추천에도 적용할 공통 기준인지 구분해 반영할게요. 공통 기준이라면 Hiring Brief나 Evaluation Criteria의 수정안을 확인한 뒤 다음 탐색에 사용해요. 먼저 제안 가능한 후보의 Pass는 연락 없이 목록에서 제외하는 결정이고, 연결 대기의 연결 거절은 보류가 아니라 이번 역할의 진행을 끝내는 결정이에요. 이미 소개된 후보자는 이전 기준으로 검토됐을 수 있어 새 기준에서도 맞는지 따로 확인해야 해요.",
     tags: ["locale:ko", "topic:recommendation-feedback", "topic:role-editing"],
+    category: "검색과 추천",
   },
   {
     key: "connect",
@@ -80,6 +91,7 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     answer:
       "연결 수락은 이 후보자와 직접 대화를 시작하고 싶다는 회사의 결정이에요. 기본 방식인 Email intro를 선택하면 Harper가 후보자와 회사가 고른 담당자를 같은 이메일에 연결해 드려요. 보내기 전에는 연결 방식과 받을 사람을 다시 확인하므로, 질문만 했다고 바로 이메일이 나가지는 않아요. 후보자는 이미 회사와 역할을 듣고 대화 의사를 밝힌 상태이니, 소개 이메일에서는 회사 담당자가 전체 답장으로 인사하고 가능한 일정을 제안하면 돼요. 연결을 수락한다고 인터뷰 일정이 자동 확정되지는 않으며 이후 진행은 Pipeline에서 관리해요.",
     tags: ["locale:ko", "topic:connect"],
+    category: "제안과 연결",
   },
   {
     key: "reject",
@@ -88,13 +100,15 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     answer:
       "연결 거절은 잠시 보류하는 기능이 아니라, 회사가 이 후보자와 이번 역할의 채용을 더 진행하지 않겠다는 결정이에요. 선택하면 소개 이메일은 보내지 않고, 회사가 진행을 종료했다는 사실이 후보자에게 보이며 Harper가 종료 안내를 시작해요. 후보자가 이미 보거나 전달받은 안내는 나중에 마음이 바뀌어도 회수할 수 없으니 신중하게 선택해 주세요. 아직 판단할 정보가 부족하다면 연결을 거절하기 전에 Harper에게 질문이나 최신 이력서 요청을 맡길 수 있어요. 거절 이유를 남기면 후보자에게 그대로 전달하지 않고 다음 추천을 더 잘 맞추는 데 참고해요.",
     tags: ["locale:ko", "topic:reject"],
+    category: "제안과 연결",
   },
   {
     key: "intro-email",
     question: "소개 이메일에는 누가 들어가나요? Email intro 수신자가 궁금해요.",
     answer:
-      "Email intro에서는 후보자가 받는 사람에 들어가고, 회사가 선택한 팀원는 CC에 들어가요. 이메일을 받은 뒤 실제로 후보자에게 인사하고 다음 일정을 조율할 담당자를 선택해 주세요. 채용 담당자와 현업 리더가 함께 대화를 이어가야 한다면 두 사람을 모두 포함할 수 있어요. 필요한 담당자가 목록에 보이지 않으면 먼저 Organization의 Members에서 초대해야 해요.",
+      "소개 이메일은 후보자에게 보내고 회사가 선택한 팀원을 CC에 넣어요. 후보자에게 인사하고 다음 일정을 조율할 담당자를 선택해 주세요. 여러 팀원을 함께 포함할 수 있으며, 필요한 팀원이 목록에 없다면 Owner가 Organization의 Members에서 초대해야 해요. 회사가 Intro를 요청할 때는 후보자가 수락한 뒤 이 팀원들에게 소개 이메일이 전달되므로 수신자를 미리 정해요.",
     tags: ["locale:ko", "topic:intro-email"],
+    category: "제안과 연결",
   },
   {
     key: "direct-contact",
@@ -102,20 +116,23 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     answer:
       "네, 가능해요. Direct contact를 요청하면 Harper는 소개 이메일을 보내지 않고 후보자와의 연결이 시작된 것으로 기록해요. 그 뒤 첫 연락과 일정 조율은 회사가 직접 해야 하므로, 바로 연락할 담당자와 연락 방법이 준비됐을 때 선택하는 것이 좋아요. 질문만으로 상태를 바꾸지는 않고, Harper가 이메일을 보내지 않는다는 점과 회사가 직접 연락해야 한다는 점을 다시 확인한 뒤 진행해요. 양쪽을 같은 이메일에서 자연스럽게 이어 주길 원한다면 기본 방식인 Email intro가 더 잘 맞아요.",
     tags: ["locale:ko", "topic:direct-contact"],
+    category: "제안과 연결",
   },
   {
     key: "candidate-contact",
     question: "후보자에게 질문하거나 최신 이력서를 요청해 줄 수 있나요?",
     answer:
-      "네~ 연결 대기에서 연결 여부를 정하기 전에도, 연결 후 채용 절차를 진행하는 동안에도 필요한 경력 내용을 묻거나 최신 이력서를 요청할 수 있어요. 회사의 Intro 요청 전인 먼저 제안 가능한 후보라면 먼저 역할을 제안해야 해요. 제안이 전달된 뒤 답변을 기다리는 중에는 필요한 내용을 추가로 물어볼 수 있고요. 무엇을 전달할지 명확하게 부탁하시면 Harper가 바로 연락하고, 문구부터 보고 싶으시면 초안을 보여드리고 수정한 뒤 보내요. 후보자는 답하지 않거나 요청을 거절할 수도 있어요. 답변이나 자료 제출이 없고 요청이 계속 유효하면, 최초 전달 후 최소 3일이 지난 뒤 Harper가 부담되지 않게 후속 확인 이메일을 한 번 보내요. 추가 연락을 부탁하시면 최근 자동 연락까지 확인해 중복되지 않게 챙겨요. 답변이 오면 요청을 시작한 대화에서 알려드리므로, 새로 확인한 내용을 바탕으로 연결 여부나 다음 진행을 결정하면 돼요.",
+      "네, 연결 대기에서 결정하기 전이나 연결 후 진행 중에도 질문·이력서 요청·정보 전달을 맡길 수 있어요. Intro Requested에서도 제안이 전달되어 후보자 답변을 기다리는 중이라면 추가 연락을 요청할 수 있어요. 아직 Intro를 요청하지 않은 후보에게는 먼저 역할 제안 절차가 필요해요. 대상과 전달할 내용이 명확한 일상적인 연락은 바로 전달하고, 첫 연락이나 회사의 인상이 중요한 제안은 초안을 먼저 확인해요. 초안을 만들거나 고친 것만으로 발송되지는 않아요. 답변이나 자료 제출을 요청했고 그 요청이 계속 유효하면 최초 전달 후 최소 3일 뒤 후속 확인 이메일을 한 번 보낼 수 있어요. 답변이 오면 요청을 시작한 대화에서 알려드려요. 추가 연락이 후보자의 수락이나 연결을 대신하지는 않아요.",
     tags: ["locale:ko", "topic:candidate-contact"],
+    category: "후보자 소통과 전형",
   },
   {
     key: "compensation",
     question: "이 후보자의 현재 연봉이나 희망 보상을 알려줄 수 있나요?",
     answer:
-      "후보자가 회사에 공유하도록 허용하지 않은 현재 연봉이나 희망 보상은 바로 전달하지 않아요. 필요하다면 Harper가 후보자에게 지금 공유 가능한 보상 정보를 새로 물어볼 수 있어요. 정확한 금액 또는 범위, 기본급 또는 총보상, 통화 중 어떤 형태로 답할지도 후보자가 선택할 수 있게 요청해요. 회사에는 발송 전에 실제 질문 문구를 보여드리므로, 채용 판단에 필요한 범위만 물어보도록 조정할 수 있어요. 이렇게 하면 회사는 후보자의 최신 답변을 받고, 후보자는 공유 범위를 직접 정할 수 있어요.",
+      "후보자가 회사에 공유하도록 허용하지 않은 현재 연봉이나 희망 보상 수치는 전달하지 않아요. 프로필과 Harper Note에도 비공개 보상 정보를 그대로 표시하지 않아요. 필요하다면 후보자에게 새로 물어보고 회사에 공유할 범위를 직접 정하도록 요청할 수 있어요. 정확한 금액이나 범위, 기본급 또는 총보상, 통화 등 판단에 필요한 내용만 알려 주세요. 공유가 허용된 실제 답변을 확인한 뒤 회사에 전달하며, 답변이 없으면 금액을 추정하지 않아요.",
     tags: ["locale:ko", "topic:compensation", "topic:privacy"],
+    category: "후보자 소통과 전형",
   },
   {
     key: "role-status",
@@ -123,6 +140,7 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     answer:
       "잠시 쉬었다가 채용을 다시 이어갈 계획이라면 중단을 선택해 주세요. 새 추천만 멈추고, 이미 진행 중인 후보자는 그대로 검토할 수 있어요. 종료를 선택하면 새 추천이 멈추고 역할이 종료 상태로 바뀌어요. 이 상태 변경과 동시에 안내가 발송되는 것은 아니지만, 유예 기간이 지나면 수락 후 진행 중인 후보자에게 Harper가 종료를 안내하고 해당 후보자의 채용 진행을 종료해요. 1차 인터뷰 같은 중간 단계도 동일하게 처리하며, 최종 오퍼 단계만 자동 종료에서 제외해 따로 관리해요.",
     tags: ["locale:ko", "topic:role-status"],
+    category: "후보자 소통과 전형",
   },
   {
     key: "pipeline",
@@ -131,20 +149,23 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     answer:
       "아니요. Pipeline에서 후보자를 다른 단계로 옮기는 것은 채용팀이 실제 진행 상황을 함께 관리하기 위한 기록이에요. 단계만 옮기면 후보자에게 이메일이나 Harper 메시지가 가지 않고 인터뷰 일정도 만들어지지 않아요. 다음 전형 안내나 일정 조율이 필요하면 단계 이동과 함께 Harper에게 후보자 연락 또는 인터뷰 일정 조율을 요청하거나, 회사가 직접 연락해야 해요. 채용을 끝내려는 경우에도 단순히 칸만 옮기지 말고 후보자 종료 결정과 안내가 필요한지 함께 확인해 주세요.",
     tags: ["locale:ko", "topic:pipeline"],
+    category: "후보자 소통과 전형",
   },
   {
     key: "scheduling",
     question: "면접 일정도 Harper가 조율해 주나요?",
     answer:
-      "네, 일정 조율도 도와드릴 수 있어요. 일정 담당자가 Google Calendar를 연결하고 가능한 시간을 설정해 두면 Harper가 일정 조율을 맡을 수 있어요. 이미 바쁜 시간을 제외한 선택지를 후보자에게 보내고, 후보자가 시간을 고르면 회사 참석자와 후보자의 Google Calendar에 일정을 만들고 Google Meet 링크를 함께 전달해요. Google Calendar 연결이나 담당자의 가능 시간 설정이 없다면 먼저 준비해야 하며, 후보자를 Pipeline의 다른 단계로 옮기는 것만으로 일정 요청이 자동 발송되지는 않아요.",
+      "네. 일정 담당자가 Settings의 일정 저장에서 Google Calendar를 연결하고 가능한 시간을 설정하면 Harper가 면접 일정을 조율할 수 있어요. 연결된 Calendar에서 이미 바쁜 시간을 제외해 후보자에게 선택지를 보내고, 후보자가 시간을 고르면 회사 참석자와 후보자에게 Calendar 초대와 Google Meet 링크를 전달해요. 누구와 어떤 역할의 무슨 대화를 할지 알려 주세요. 후보자가 아직 회사 제안을 수락하지 않았다면 먼저 수락이 필요해요. Pipeline의 다른 단계로 옮기는 것만으로 일정 요청이 발송되지는 않으며, 기존 미팅이 확정됐다는 사실만으로 새 미팅의 초대가 전달됐다고 판단하지 않아요.",
     tags: ["locale:ko", "topic:scheduling", "topic:limitation"],
+    category: "후보자 소통과 전형",
   },
   {
     key: "permissions",
     question: "Owner, Admin, Viewer 권한은 어떻게 다른가요?",
     answer:
-      "Owner는 팀원 초대와 권한 변경을 포함해 Workspace의 모든 기능을 관리할 수 있어요. Admin은 후보자, Roles, 회사 정보와 Integrations를 관리하고 연결 수락 또는 연결 거절을 결정할 수 있지만, 팀원 초대·제거와 권한 변경은 할 수 없어요. Viewer는 후보자와 회사 정보를 함께 검토할 수 있지만 내용을 변경하거나 연결 여부를 결정할 수는 없어요. 함께 검토만 할 동료는 Viewer로, 후보자 결정과 역할 관리를 맡길 동료는 Admin으로 초대하면 돼요. 팀원 권한 자체를 바꿔야 한다면 Owner에게 요청해 주세요.",
+      "Owner는 팀원 초대·제거와 권한 변경을 포함해 Workspace를 관리해요. Admin은 후보자, Roles, 회사 정보와 Integrations를 관리하고 연결 여부를 결정할 수 있지만 팀원 관리와 결제 관리는 Owner의 영역이에요. Viewer는 회사와 후보자 정보를 검토할 수 있지만 내용 변경이나 연결 결정은 할 수 없어요. 검토만 함께할 팀원은 Viewer로, 후보자 결정과 역할 관리를 맡길 팀원은 Admin으로 초대하면 돼요. Slack에서도 연결된 팀원의 권한을 따르므로 채널에 들어와 있다는 이유만으로 변경 권한이 생기지는 않아요.",
     tags: ["locale:ko", "topic:permissions"],
+    category: "팀과 연동",
   },
   {
     key: "slack-notifications",
@@ -152,6 +173,7 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     answer:
       "Organization의 Integrations에서 Slack이 연결되어 있는지, 해당 역할의 알림을 받을 채널이 선택되어 있는지 먼저 확인해 주세요. 비공개 채널이라면 Slack에서 `/invite @Harper`로 Harper를 초대한 뒤 Integrations에서 채널을 다시 추가해야 해요. 회사에서 Slack 앱 설치 승인이 필요한 경우에는 Slack 관리자가 Harper 설치를 승인했는지도 확인해 주세요. 후보자 정보가 전달되는 채널이므로 실제 채용에 참여하는 팀원만 있는 채널을 권해요. 모두 확인했는데도 알림이 오지 않으면 프로필 메뉴의 문의하기에 역할 이름과 Slack 채널 이름을 함께 남겨 주세요.",
     tags: ["locale:ko", "topic:slack"],
+    category: "팀과 연동",
   },
   {
     key: "role-creation",
@@ -160,21 +182,157 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     answer:
       "그럼요 ㅎㅎ 완성된 JD가 없어도 시작할 수 있어요. 왜 지금 채용하는지, 입사한 분이 맡을 일, 꼭 필요한 경험과 근무 조건을 아는 만큼 편하게 알려주시면 돼요. 원하는 수준을 말로 설명하기 어렵다면 기준이 될 만한 사람의 LinkedIn·GitHub·소개 자료와 함께 어떤 점을 참고하면 좋을지도 알려 주세요. Harper는 그 사람을 곧바로 후보자로 판단하지 않고, 팀이 중요하게 보는 수준과 강점을 역할 기준에 반영해요. 역할을 등록하기 전에는 알림을 받을 Slack 채널과 주 담당자 한 명도 정해야 해요. 등록한 뒤에도 역할 대화에서 기준을 바꿀 수 있지만, 이미 연결 대기에 있는 후보자는 이전 기준으로 소개됐을 수 있어요. 기준을 크게 바꿨다면 기존 후보자도 새 기준으로 만나볼 분인지 한 명씩 다시 확인해 주세요.",
     tags: ["locale:ko", "topic:role-creation", "topic:role-editing"],
+    category: "시작과 역할",
   },
   {
     key: "exploratory-hiring",
     question:
       "채용 계획이 아직 구체적이지 않아요. 좋은 분이 있으면 일단 만나보고 싶어요.",
     answer:
-      "괜찮아요. 완성된 JD나 모든 조건이 정해져 있을 필요는 없어요. 다만 Harper는 후보자 목록을 먼저 둘러보는 방식이 아니라, 등록된 역할의 실제 업무와 기준에 맞춰 후보자를 찾아요. 아직 정하지 못한 조건은 New role 대화에서 열린 내용으로 알려 주고, 지금 분명한 핵심 업무와 꼭 필요한 기준부터 함께 정리해 등록해 주세요. 등록이 끝나면 그 기준으로 후보자를 검토하고, 회사와 역할을 설명한 뒤 실제로 대화할 의사가 있는 분만 Inbox의 연결 대기로 소개해요.",
+      "괜찮아요. 완성된 JD가 없어도 등록된 역할의 실제 업무와 기준부터 함께 정리할 수 있어요. 아직 정하지 못한 조건은 New role 대화에서 열린 내용으로 알려 주세요. 등록 후 먼저 제안 가능한 후보에서 회사가 먼저 만나보고 싶은 사람을 고를 수 있어요. 이 목록은 관심이나 지원 의사가 이미 확인됐다는 뜻은 아니며, Intro 요청을 보내고 후보자가 수락해야 연결돼요. 이용 가능한 Role에서는 Harper가 먼저 역할을 소개하고 실제로 대화할 의사가 있는 분만 연결 대기로 소개하는 방식도 함께 사용할 수 있어요.",
     tags: ["locale:ko", "topic:exploratory-hiring", "topic:role-creation"],
+    category: "시작과 역할",
   },
   {
     key: "role-visibility",
     question:
       "Description과 Hiring Brief, Evaluation Criteria는 후보자에게 다 보이나요?",
     answer:
-      "모두 후보자에게 보이는 것은 아니에요. Description은 후보자가 회사와 역할을 이해하고 이 기회에 관심을 가질지 판단할 수 있도록 보여주는 설명이에요. Hiring Brief, Evaluation Criteria, Context for Harper에는 회사와 Harper가 후보자를 찾고 검토할 때 사용할 내부 기준을 둘 수 있으며, 공개 JD처럼 후보자에게 자동으로 표시되지는 않아요. 후보자가 미리 알아야 올바르게 판단할 수 있는 업무, 근무 방식, 고용 형태와 중요한 조건은 Description에 정확히 적어 주세요. 내부 항목이라고 해서 직무와 무관한 민감 정보나 차별적인 기준을 적어도 되는 것은 아니에요.",
+      "Description은 후보자가 회사와 역할을 이해하는 데 쓰이는 공개 설명이에요. Hiring Brief와 Evaluation Criteria는 회사와 Harper가 후보자를 검토하는 내부 기준이고, Context for Harper는 지속적으로 참고할 회사·역할 맥락이에요. 내부 문서가 공개 JD처럼 자동 표시되지는 않아요. 새 Role의 기본 작성물은 Description과 Hiring Brief이며 Evaluation Criteria는 필요한 경우 별도로 정리해요. 한 문서를 바꿨다고 나머지 문서를 자동으로 전부 다시 쓰지는 않아요. 후보자가 판단에 필요한 업무·근무 조건은 Description에 정확히 담고, 외부 공고 노출과 회사명 공개 여부는 Role Settings에서 별도로 확인해 주세요.",
     tags: ["locale:ko", "topic:role-visibility", "topic:privacy"],
+    category: "시작과 역할",
+  },
+  {
+    key: "signup-invitations",
+    category: "시작과 역할",
+    question: "회사 Workspace에 가입하거나 팀원을 초대하려면 어떻게 하나요?",
+    answer:
+      "현재 새 회사가 직접 Workspace를 만드는 가입은 일시 중단되어 있어요. 이미 초대받았다면 초대한 이메일로 로그인해 초대를 수락하고, 회사에 Workspace가 있다면 Owner에게 팀원 초대를 요청해 주세요. 같은 회사 이메일 주소로 로그인한다고 자동으로 팀원이 되지는 않아요. 새 회사의 도입은 회사 페이지의 상담 요청이나 문의하기로 Harper 팀과 상의할 수 있어요.",
+    tags: ["locale:ko", "topic:signup-invitations"],
+  },
+  {
+    key: "company-pitch-memory",
+    category: "시작과 역할",
+    question: "회사 소개와 Pitch, Context for Harper에는 무엇을 적나요?",
+    answer:
+      "Pitch에는 회사가 무엇을 만들고 어떤 성과·문화·혜택 때문에 합류할 만한지 후보자에게 설명할 근거를 적어요. 회사 전체에 계속 참고할 배경이나 운영 맥락은 Context for Harper에, 특정 Role의 필수·선호 기준은 Hiring Brief에 정리해요. Harper에게 회사 정보나 기억을 물어보고 수정할 수 있으며, 기억이나 Hiring Brief 변경은 수정안을 확인한 뒤 반영해요. 후보자 한 명의 일시적인 상황을 회사 전체의 기준으로 저장하지 않아요.",
+    tags: ["locale:ko", "topic:company-pitch-memory"],
+  },
+  {
+    key: "role-reference",
+    category: "시작과 역할",
+    question: "참고 인물로 채용 기준을 맞출 수 있나요?",
+    answer:
+      "네. 참고할 실제 인물의 LinkedIn·GitHub·소개 자료와 중요한 강점을 전달해 주세요. 확인된 경력과 판단 이유를 바탕으로 Hiring Brief를 다듬어요. 참고 인물은 회사가 별도로 후보 평가를 요청하지 않았다면 바로 후보자로 취급하지 않아요.",
+    tags: ["locale:ko", "topic:role-reference"],
+  },
+  {
+    key: "regular-search",
+    category: "검색과 추천",
+    question:
+      "정기 후보 검색은 언제 실행되나요? 요일과 시간을 바꾸거나 끌 수 있나요?",
+    answer:
+      "Role Settings의 추천 후보 검색에서 켜기·끄기와 요일·시각을 정해요. 새 Role의 기본은 켜짐, 한국 시간 월·수·금 오전 9시이며 기존 Role은 저장된 설정을 따라요. 이 설정은 회사가 먼저 검토할 후보의 정기 탐색을 관리해요. 꺼도 명시적인 Run Search 요청은 별도로 가능하고, 슬롯·기존 계약에서 허용되는 후보자 선추천까지 모두 끄는 설정은 아니에요. 설정 변경으로 이미 시작한 검색이나 전달된 제안이 취소되지는 않아요.",
+    tags: ["locale:ko", "topic:regular-search"],
+  },
+  {
+    key: "run-search",
+    category: "검색과 추천",
+    question:
+      "Run Search를 누르면 무엇이 달라지나요? 후보자에게 바로 연락하나요?",
+    answer:
+      "Run Search는 저장된 현재 Hiring Brief를 바탕으로 회사가 먼저 Intro를 요청할 만한 새 후보를 찾는 요청이에요. 기존 후보 목록을 다시 보여 달라는 요청과 다르고 정기 예약 시각을 기다리지 않아요. 찾은 후보는 검토한 뒤 먼저 제안 가능한 후보로 소개할 수 있지만 검색만으로 후보자에게 회사 제안을 보내지는 않아요. 실제 연락은 회사가 Intro 요청을 확정한 뒤 시작해요. 진행 중인 같은 검색이 있으면 그 상태를 확인하며, 결과는 적거나 없을 수도 있어요.",
+    tags: ["locale:ko", "topic:run-search"],
+  },
+  {
+    key: "search-history",
+    category: "검색과 추천",
+    question: "최근 후보 검색이 언제 있었고 몇 명을 검토했는지 알 수 있나요?",
+    answer:
+      "Harper에게 최근 검색 이력을 물어보면 확인된 실행 시각·계기, 검토 인원과 선정 집계를 설명해요. 더 오래된 기록도 요청할 수 있어요. 선정 인원은 실제 발송이나 후보자의 수락 인원과 같지 않고, 기록이 없는 수치를 0명으로 설명하지 않아요. 후보자에게 먼저 추천한 개인별 내역과 비공개 판단은 회사에 공개하지 않으며, 실제 전달·응답은 회사에 공유된 후보자의 확인 가능한 기록으로 따로 봐야 해요.",
+    tags: ["locale:ko", "topic:search-history"],
+  },
+  {
+    key: "candidate-profile-summary",
+    category: "검색과 추천",
+    question: "후보자 프로필의 TL;DR, Harper Note와 적합성은 무엇인가요?",
+    answer:
+      "TL;DR은 확인된 경력과 실제 기여를 짧게 요약하고, Harper Note는 공유 가능한 다음 업무·책임·근무 조건·합류 시점 등의 맥락을 설명해요. 적합성과 기준별 평가는 저장된 Role 기준에 대한 참고 자료이지 후보자의 지원·수락이나 채용 성공을 보장하지 않아요. 없는 정보는 확인할 부분으로 남겨 두고, 비공개 보상 수치나 다른 회사와의 대화 내역은 공개하지 않아요. 먼저 제안 가능한 후보의 자료는 제한된 공개 범위이며, 수락 전 이력서나 연락처를 요청한다고 바로 열리지는 않아요.",
+    tags: ["locale:ko", "topic:candidate-profile-summary"],
+  },
+  {
+    key: "intro-request",
+    category: "제안과 연결",
+    question: "Intro 요청에는 무엇이 필요하고 Pass와 어떻게 다른가요?",
+    answer:
+      "Intro 요청에는 이 후보자를 만나보고 싶은 구체적인 이유와, 수락 후 소개 이메일을 받을 회사 팀원이 필요해요. 내용을 확인해 요청을 확정하면 Harper가 회사와 역할을 소개하며 후보자에게 대화 의사를 물어요. 후보자가 수락하면 미리 선택한 팀원과 이메일로 연결되고 기본적으로 연결됨으로 이동하므로 회사의 두 번째 연결 승인을 기다리지 않아요. 별도 전형 단계는 필수가 아니에요. Pass는 후보자에게 연락하거나 알림을 보내지 않고 해당 제안을 목록에서 제외하는 결정이에요.",
+    tags: ["locale:ko", "topic:intro-request"],
+  },
+  {
+    key: "intro-awaiting",
+    category: "제안과 연결",
+    question:
+      "Intro Requested는 무엇을 기다리는 상태인가요? 답이 없으면 거절인가요?",
+    answer:
+      "Intro Requested는 회사가 Intro를 요청한 뒤 제안 준비나 후보자 응답을 기다리는 상태예요. 카드에서 제안 준비 중, 후보자 답변 대기, 후보자 수락 · 연결 준비 중을 구분해 볼 수 있어요. 요청을 했다는 사실만으로 전달이나 수락을 확정하지 않아요. 답변이 없으면 수락도 거절도 아니며, 추가 연락은 제안이 실제 전달된 뒤 부탁할 수 있어요. 수락 전에는 면접 조율이나 일반 Pipeline 이동을 진행하지 않아요. 후보자가 수락하면 추가 회사 승인 없이 소개 이메일로 연결하고, 거절하면 제안을 종료해 회사에 알려요.",
+    tags: ["locale:ko", "topic:intro-awaiting"],
+  },
+  {
+    key: "connection-access",
+    category: "슬롯과 비용",
+    question:
+      "연결 대기는 왜 잠겨 있나요? 공용 Intro가 있으면 이용할 수 있나요?",
+    answer:
+      "표준 구독에서 연결 대기는 해당 Role에 슬롯이 배정되어 있어야 이용할 수 있어요. 공용 Intro는 Intro 요청 등에 쓸 수 있지만 연결 대기 접근 권한을 만들지는 않아요. 한 Role의 슬롯이 다른 Role의 유료 기능까지 열어 주지도 않아요. 기존 계약이나 Enterprise의 범위는 별도 조건을 따라요. Slots 메뉴가 표시되면 배정을 확인하고, 메뉴가 없으면 문의하기로 Harper 팀에 이용 범위를 확인해 주세요.",
+    tags: ["locale:ko", "topic:connection-access"],
+  },
+  {
+    key: "slots-and-credits",
+    category: "슬롯과 비용",
+    question: "Free 공용 Intro와 슬롯 Intro는 어떻게 다른가요?",
+    answer:
+      "Free와 표준 슬롯 이용 회사에는 전체 Role이 함께 쓰는 월 10개의 공용 Intro가 있어요. 슬롯 하나는 배정한 Role에 월 50개의 슬롯 Intro를 추가로 제공해요. 공용 Intro는 특정 Role에 배정하는 무료 슬롯이 아니고, Role 생성 수나 채용 인원 수의 한도도 아니에요. Intro는 월 단위로 갱신되며 남은 Intro는 다음 기간으로 이월되지 않아요. 실제 잔액·갱신일과 기존 계약의 예외는 회사에 적용된 정보로 확인해야 해요.",
+    tags: ["locale:ko", "topic:slots-and-credits"],
+  },
+  {
+    key: "credit-spending",
+    category: "슬롯과 비용",
+    question: "Intro는 언제 차감되나요? 슬롯 Intro가 없으면 어떻게 되나요?",
+    answer:
+      "표준 요금에서는 회사가 Intro 요청을 확정하거나 연결 대기의 연결 수락을 실행할 때 1 Intro를 사용해요. 해당 Role의 슬롯 Intro를 먼저 쓰고 부족하면 공용 Intro를 사용해요. 다른 Role 슬롯의 Intro를 가져오지는 않아요. 검색 요청·Role 생성·Pass·연결 거절은 이 두 유료 액션과 달라요. 사용 가능한 Intro가 모두 없으면 해당 요청을 완료할 수 없지만 Role 생성과 채용 시작 자체가 제한되지는 않아요. 실제 차단 시 화면이나 Slack에 표시되는 안내를 확인하고 Harper 팀에 문의해 주세요.",
+    tags: ["locale:ko", "topic:credit-spending"],
+  },
+  {
+    key: "slot-management",
+    category: "슬롯과 비용",
+    question:
+      "슬롯을 다른 Role에 배정하거나 구독을 취소하면 Role도 중단되나요?",
+    answer:
+      "결제 기능이 제공되는 Workspace의 Slots에서 슬롯 배정을 관리해요. 구독 취소는 해당 슬롯 단위로 처리하며, 사용 종료 시점은 화면의 구독 정보에서 확인해야 해요. 슬롯이 만료되면 그 슬롯에 의존한 유료 기능을 더 사용할 수 없지만 Role이 자동으로 중단되지는 않아요. Role은 Free 기능과 공용 Intro 범위에서 계속 진행할 수 있어요. 다른 Role로 배정을 옮길 때는 기존 Role이 잃는 기능도 확인해 주세요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 메뉴가 없으면 Harper 팀에 문의해야 해요.",
+    tags: ["locale:ko", "topic:slot-management"],
+  },
+  {
+    key: "role-public-promotion",
+    category: "시작과 역할",
+    question: "외부 공고 노출과 회사명 비공개를 설정하면 무엇이 바뀌나요?",
+    answer:
+      "Role Settings의 외부 공고 노출을 켜면 Harper가 LinkedIn 등 외부에 역할을 소개할 수 있어요. 켰다는 사실만으로 공고가 즉시 게시됐다는 뜻은 아니에요. 회사명 공개 여부에서 회사명을 비공개로 설정할 수 있지만 기존에 게시된 외부 공고는 이 설정 변경만으로 자동 수정되지 않아요. 공개 Description에 회사가 드러나는 표현이 있으면 내용도 함께 확인해 주세요. 외부 노출을 꺼도 내부 역할을 삭제하거나 채용 자체를 중단하는 것은 아니에요.",
+    tags: ["locale:ko", "topic:role-public-promotion"],
+  },
+  {
+    key: "workspace-language",
+    category: "팀과 연동",
+    question: "웹과 Slack의 Harper 언어를 바꿀 수 있나요?",
+    answer:
+      "웹에서 선택한 한국어·영어는 해당 팀원의 설정으로 저장되고 Slack의 개인 대화에도 기본으로 사용돼요. 아직 설정이 없으면 현재 회사 대화의 언어를 따르며, 이번 답변의 언어를 직접 요청할 수도 있어요. Workspace 전체에 보내는 정기 소개나 공지는 회사 Headquarters 기준으로 한국이면 한국어, 그 외에는 영어를 사용해요. 답변 언어를 바꿨다고 Role 문서나 후보자에게 보낼 연락의 언어가 자동으로 바뀌지는 않아요.",
+    tags: ["locale:ko", "topic:workspace-language"],
+  },
+  {
+    key: "contact-drafts",
+    category: "후보자 소통과 전형",
+    question: "연락 초안을 수정하거나 승인하면 언제 보내나요?",
+    answer:
+      "초안을 만들거나 수정하는 동안에는 후보자에게 발송하지 않아요. 표시된 최종 문구를 확인해 발송을 승인하면 일반적으로 짧은 대기 시간 뒤 전달하며, 지금 보내 달라고 명확히 요청하면 바로 전달할 수 있어요. 대기 중인 연락은 취소 가능한 상태에서만 취소할 수 있고 이미 전달된 연락은 회수되지 않아요. 승인 전에 내용을 바꿨다면 수정한 최신 초안을 확인해야 해요. 명확한 일상적인 연락은 별도 초안 검토 없이 전달할 수도 있어요.",
+    tags: ["locale:ko", "topic:contact-drafts"],
   },
 ];

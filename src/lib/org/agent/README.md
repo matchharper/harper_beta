@@ -25,10 +25,10 @@
 ## 현재 데이터 원칙
 
 - role의 broad matching instruction·hard constraint·preference는
-  `company_internal_roles.request`, 선택적인 0~6개의 reviewer-facing 평가 차원은
-  `company_internal_roles.criteria`에 저장한다. 충분한 내용이 있으면 3~6개를
-  권장하지만 저장이나 역할 완료의 필수 조건은 아니다. company-side LLM과 다른
-  runtime 경로는 매칭에서 두 값을 함께 사용한다.
+  `company_internal_roles.request`, 독립적인 후보 비교 요소는
+  `company_internal_roles.criteria`에 저장한다. 새 Role 완료 전 작성은 LLM의 업무 지침이며,
+  유무·개수로 등록을 막는 DB·코드 제약은 없다. 알려진 채용 맥락으로 먼저 작성해 알리고
+  대화를 이어가며, 별도 criteria 선택·승인은 필수가 아니다. 전체 충족 필터로 해석하지 않는다.
 - `company_memories`는 workspace memory(`role_id is null`)와 role memory를 저장한다.
   request는 “누구를 매칭할지”, memory는 그 밖의 지속적으로 기억할 맥락이다.
 - `company_workspace.pitch` 전문은 모든 호출에 들어가는 canonical 회사 정보

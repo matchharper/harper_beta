@@ -1,0 +1,18 @@
+{
+  "datasetVersion": "v28",
+  "frozenAt": "2026-10-15T02:52:37.479301+00:00",
+  "files": {
+    "cases-v28.json": "a8bc9b683daf94d21e2287b205374e5603264e787ab1e234e6aee76a60daa991",
+    "gold-v28.md": "cb45b2285fffa23151908cfb205d3cf88927215a8565d9229e6707042090a0f7",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v28 --run=<fresh>",
+  "labelReview": {
+    "reviewer": "Codex",
+    "previousVersion": "v27",
+    "reason": "Correct contradictory missing_info location; gold unchanged; unblinded fixture audit"
+  },
+  "releaseGate": "4/4 mandatory meanings/effects; critical 0; identical unaffected v27 slices may be cited separately, not called a full v28 run",
+  "privacy": "Synthetic only; raw ignored 0700/0600; no DB/Slack/mail",
+  "knownLimitations": "Synthetic executor; authored challenge; independent review pending"
+}

@@ -4,6 +4,8 @@ export type BrowserTurn = {
   id: string;
   status: string;
   subagent_id?: string | null;
+  model?: string;
+  usage?: Record<string, unknown> | null;
   error?: { code?: string; message?: string } | null;
 };
 

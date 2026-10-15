@@ -3,6 +3,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { buildOrgHref } from "@/lib/org/routes";
 import { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
+import { createCompanyTalentRelayRecord } from "@/lib/companyTalentRequests/relayRecord";
 import {
   companyTalentRequestCandidateEmailWasSent,
   humanizeCompanyTalentRequestStatus,
@@ -201,12 +202,15 @@ export async function createCompanyTalentContactDraft(args: {
   talentId: string;
   workspaceId: string;
 }) {
-  const eligibility = await args.admin.rpc("company_talent_pair_is_contactable_v1", {
+  // Company authorization comes from the caller. This shared check validates
+  // only the target's identifiers, current availability, and test isolation;
+  // prior hiring stages or correspondence do not qualify a contact.
+  const target = await args.admin.rpc("company_talent_pair_is_contactable_v1", {
     p_workspace_id: args.workspaceId, p_role_id: args.roleId,
     p_talent_id: args.talentId, p_recommendation_id: args.recommendationId,
   });
-  if (eligibility.error) throw eligibility.error;
-  if (eligibility.data !== true) throw new Error("company_talent_request_target_not_active");
+  if (target.error) throw target.error;
+  if (target.data !== true) throw new Error("company_talent_request_target_not_active");
   const context = validateCompanyContactContext(args.requestContext);
   const { data, error } = await args.admin
     .from("company_talent_requests")
@@ -1038,8 +1042,8 @@ export async function createCompanyTalentRelay(args: {
     }
     recommendationId = contact.recommendation_id;
   }
-  const { data, error } = await args.admin.rpc(
-    "create_company_talent_relay_v2",
+  const data = await createCompanyTalentRelayRecord(
+    args.admin,
     {
       p_document_id: args.documentId ?? null,
       p_recommendation_id: recommendationId,
@@ -1049,7 +1053,6 @@ export async function createCompanyTalentRelay(args: {
       p_talent_id: args.talentId,
     }
   );
-  if (error) throw error;
   const result = data as {
     connectionId?: string;
     contentMismatch?: boolean;

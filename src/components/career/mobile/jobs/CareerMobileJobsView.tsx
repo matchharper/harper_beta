@@ -39,6 +39,7 @@ type CareerMobileJobsViewProps = {
   internalOpportunityCount: number;
   totalOpportunityCount: number;
   onToggleOpportunity: (item: CareerHistoryOpportunity) => void;
+  onApply: (item: CareerHistoryOpportunity) => void;
   onPositive: (item: CareerHistoryOpportunity) => void;
   onNegative: (item: CareerHistoryOpportunity) => void;
   onKeep: (item: CareerHistoryOpportunity) => void;
@@ -94,6 +95,7 @@ export default function CareerMobileJobsView({
   internalOpportunityCount,
   totalOpportunityCount,
   onToggleOpportunity,
+  onApply,
   onPositive,
   onNegative,
   onKeep,
@@ -229,6 +231,7 @@ export default function CareerMobileJobsView({
                 internalCount={internalOpportunityCount}
                 items={opportunities}
                 loadingMore={loadingMore}
+                onApply={onApply}
                 onLoadMore={onLoadMoreOpportunities}
                 onNegative={onNegative}
                 onKeep={onKeep}

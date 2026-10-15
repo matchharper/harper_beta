@@ -1,0 +1,87 @@
+[
+  {
+    "id": "SRR001",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR002",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR003",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR004",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR005",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR006",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR007",
+    "expected": [
+      "respond"
+    ],
+    "rationale": "수신자가 다른 팀원으로 특정되지 않은 Harper 답변의 후속 반응은 현행 conservative 계약에 따라 respond. 모델 실행 전 기존 계약 모순을 정정."
+  },
+  {
+    "id": "SRR008",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR009",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR010",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR011",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR012",
+    "expected": [
+      "respond"
+    ]
+  },
+  {
+    "id": "SRR013",
+    "expected": [
+      "ignore"
+    ]
+  },
+  {
+    "id": "SRR014",
+    "expected": [
+      "respond"
+    ]
+  }
+]

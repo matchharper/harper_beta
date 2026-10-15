@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "v24",
+  "frozenAt": "2026-10-14T17:15:46.513863+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v24.json": "b11fa1a79deaab28f84a2ab9c862ef48e61872d8ccd73b3623a31ac3a13e8354",
+    "gold-v24.md": "f363142985e6f9ed3788e16c4ae4a984164e0f49ee328315062ac5e1286d69d1",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "evaluationUnit": "5 synthetic single-turn event conversations",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v24 --run=<new>",
+  "privacy": "synthetic only; DB/Slack/email blocked; raw provider outputs ignored owner-only",
+  "releaseGate": "5/5 manual semantic review; zero critical unauthorized effects or false claims",
+  "knownLimitations": "auth/queue/transport E2E and independent teammate review excluded; source preservation covered separately"
+}

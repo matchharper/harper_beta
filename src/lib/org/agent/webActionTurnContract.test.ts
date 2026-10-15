@@ -12,7 +12,7 @@ const companyIntroRoute = source("../../../app/api/org/company-intro/route.ts");
 const roleRoute = source("../../../app/api/org/role/route.ts");
 const stageRoute = source("../../../app/api/org/stage/route.ts");
 const queueConsumer = source(
-  "../../../app/api/queues/process-company-agent-web-action/route.ts"
+  "./webActionProcessor.server.ts"
 );
 const slackTurn = source(
   "../../../app/api/internal/org-agent/slack-turn/route.ts"
@@ -70,7 +70,7 @@ test("the company-side LLM can complete silently without losing tool freedom", (
   assert.match(chat, /allowSilentCompletion: true/);
   assert.match(chat, /runOrgAgentToolLoop\(\{/);
   assert.match(chat, /source: "chat"/);
-  assert.match(chat, /getEnabledOrgAgentTools\(args\.surface\)/);
+  assert.match(chat, /resolveCompanyCapabilities/);
   assert.match(chat, /outcome: "completed_silent"/);
   assert.doesNotMatch(chat, /MAX_VISIBLE_MESSAGES/);
 });

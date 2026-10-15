@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "journeys-v1",
+  "createdAt": "2026-10-12",
+  "provenance": "Assistant-authored synthetic challenges, frozen before model execution; no production data",
+  "labelReview": "Assistant-authored before execution; no independent review",
+  "files": {
+    "journeys-v1.json": "40a379c99a6aec6d7b83e6e639089f56c719d5131d195cffaab044ca0342399c",
+    "journey-gold-v1.json": "fc0b4dfdb8272984ed2405030379e935e14d1db81b1a0c8f71d310b0ff361cd0"
+  },
+  "runner": "scripts/evalApplicationPreparationJourney.ts",
+  "evaluationUnit": "8 synthetic application preparation journeys, 11 turns",
+  "model": "claude-haiku-5-5",
+  "productionWrites": false
+}

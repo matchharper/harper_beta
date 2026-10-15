@@ -1,3 +1,5 @@
+import { executeToolCall } from "@/lib/llm/toolExecution";
+import { formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
 import {
   executeSharedOpenUrl,
   executeSharedWebSearch,
@@ -329,14 +331,14 @@ export async function generateAutoIntroWorkspaceMessage(
     if (calls.length === 0) {
       if (content) {
         try {
-          return await returnSubmission(
+          return await executeToolCall(() => returnSubmission(
             JSON.parse(
               content
                 .replace(/^```json\s*/i, "")
                 .replace(/^```\s*/i, "")
                 .replace(/\s*```$/i, "")
             )
-          );
+          ));
         } catch (error) {
           messages.push({
             content: buildAutoIntroLlmSubmissionCorrection(error, group),
@@ -389,9 +391,9 @@ export async function generateAutoIntroWorkspaceMessage(
       const submitCall = submitCalls[0];
       await announceToolStart(submitCall);
       try {
-        return await returnSubmission(
+        return await executeToolCall(() => returnSubmission(
           parseToolArguments(submitCall.function.arguments)
-        );
+        ));
       } catch (error) {
         await addToolResult(
           submitCall,
@@ -429,20 +431,20 @@ export async function generateAutoIntroWorkspaceMessage(
         const input = parseToolArguments(call.function.arguments);
         const toolResult =
           call.function.name === "web_search"
-            ? await executeSharedWebSearch(input, { admin })
-            : await executeSharedOpenUrl({ admin, input });
+            ? await executeToolCall(() => executeSharedWebSearch(input, { admin }))
+            : await executeToolCall(() => executeSharedOpenUrl({ admin, input }));
         await addToolResult(
           call,
-          verbalizeAutoIntroWebToolResult(
+          serializeToolResultForModel(toolResult, value => verbalizeAutoIntroWebToolResult(
             call.function.name as "open_url" | "web_search",
-            toolResult
-          )
+            value as typeof toolResult
+          ))
         );
       } catch (error) {
         await addToolResult(
           call,
           `Tool error: ${
-            error instanceof Error ? error.message : String(error)
+            formatToolError(error)
           }`
         );
       }
@@ -623,7 +625,7 @@ export async function runVercelCronAutoIntroToCompany(args?: {
         };
       } catch (error) {
         return {
-          error: error instanceof Error ? error.message : String(error),
+          error: formatToolError(error),
           message: null,
           model: null,
           roleId,

@@ -77,3 +77,30 @@ test("does not report zero cost when a provider omits usage", () => {
   assert.equal(summary.estimatedCostUsd, null);
   assert.equal(summary.pricingStatus, "usage_unavailable");
 });
+
+test("uses reported Decisions cost, including free calls, before token estimates", () => {
+  for (const providerCostUsd of [0, 0.00001]) {
+    const call = createLlmDebugCall({
+      model: "typesafe/jev-1.13-20260917",
+      response: { usage: { input_tokens: 500, output_tokens: 25 } },
+      providerCostUsd,
+      durationMs: 150,
+      step: "slack_reply_routing",
+    });
+    assert.equal(call.estimatedCostUsd, providerCostUsd);
+    assert.equal(call.pricingStatus, "provider_reported");
+    assert.equal(call.durationMs, 150);
+    assert.equal(
+      summarizeLlmDebugCalls([call]).pricingStatus,
+      "estimated"
+    );
+  }
+  const estimate = createLlmDebugCall({
+    model: "typesafe/jev-1.13",
+    response: { usage: { input_tokens: 500, output_tokens: 25 } },
+    step: "slack_reply_routing",
+    providerCostUsd: -1,
+  });
+  assert.equal(estimate.estimatedCostUsd, 0.000021);
+  assert.equal(estimate.pricingStatus, "estimated");
+});

@@ -1,18 +1,36 @@
+import { runApplicationInspection } from "./applicationInspection";
 import { inspectApplicationForm } from "./applicationFormInspection";
 import { createPreparation } from "./preparation";
-import { executeSharedOpenUrl } from "@/lib/agentTools/web";
+import { askApplicationInput } from "./applicationInput";
+import { writeApplicationSuggestions } from "./suggestionWriter";
+import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
+import {
+  fetchTalentContextPromptSnapshot,
+  renderTalentContextPrompt,
+} from "@/lib/talentOnboarding/talentContexts";
+import {
+  executeSharedWebSearch,
+  executeSharedOpenUrl,
+} from "@/lib/agentTools/web";
 import { readSimulationJdSource, buildSimulationRoleInput } from "./jdSource";
 import { careerT } from "@/lib/career/translatedCareerMessage";
-import { createSimulationSession, finishSimulationAnalysis } from "./session";
+import {
+  createSimulationSession,
+  endSimulationSession,
+  finishSimulationAnalysis,
+} from "./session";
 import { sessionOperation, saveSession } from "./sessionStore";
 
-import { completeSimulationStage, SIMULATION_TIMEOUT_MS } from "./completion";
+import { SIMULATION_TIMEOUT_MS } from "./completion";
 
 import {
   fetchTalentDocuments,
   fetchTalentDocument,
 } from "@/lib/talentOnboarding/documentStore";
-import { fetchTalentStructuredProfile } from "@/lib/talentOnboarding/profileStore";
+import {
+  fetchTalentStructuredProfile,
+  fetchTalentUserProfile,
+} from "@/lib/talentOnboarding/profileStore";
 import {
   toTalentMessageResponse,
   type TalentMessageRow,
@@ -21,30 +39,56 @@ import {
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import type { Json } from "@/types/database.types";
-import {
-  SIMULATION_MESSAGE_TYPE,
-  LIGHT_SIMULATION_STEPS,
-  type ApplicationSimulation,
-} from "./types";
+import { SIMULATION_MESSAGE_TYPE, type ApplicationSimulation } from "./types";
 import { simulationProfileSnapshot } from "./profileSnapshot";
-import { runSimulationWorkflow } from "./workflow";
 
-export async function executeApplicationSimulation(args: {
-  admin: TalentAdminClient;
-  userId: string;
-  conversationId: string;
-  documentId?: string;
-  profileOnly?: boolean;
-  roleName: string;
-  roleRef: string;
-  requestKey: string;
-  startOfferId?: number;
-  role: Record<string, unknown>;
-  loadSavedRole?: () => Promise<Record<string, unknown>>;
-  locale?: string | null;
-  signal?: AbortSignal;
-  onMessage?: (message: TalentMessageResponse) => void;
-}) {
+const productionDependencies = {
+  fetchTalentStructuredProfile,
+  fetchTalentDocuments,
+  fetchTalentDocument,
+  fetchTalentContextPromptSnapshot,
+  fetchTalentUserProfile,
+  executeSharedWebSearch,
+  executeSharedOpenUrl,
+  inspectApplicationForm,
+  writeApplicationSuggestions,
+};
+
+export async function executeApplicationSimulation(
+  args: {
+    admin: TalentAdminClient;
+    userId: string;
+    conversationId: string;
+    documentId?: string;
+    profileOnly?: boolean;
+    roleName: string;
+    roleRef: string;
+    requestKey: string;
+    startOfferId?: number;
+    emailSourceMessageId?: number;
+    deferPreparation?: boolean;
+    resumeMessageId?: number;
+    role: Record<string, unknown>;
+    loadSavedRole?: () => Promise<Record<string, unknown>>;
+    locale?: string | null;
+    textChatModel?: CareerTextChatModelId;
+    signal?: AbortSignal;
+    scheduleAfter?: (task: () => Promise<void>) => void;
+    onMessage?: (message: TalentMessageResponse) => void;
+  },
+  dependencies: typeof productionDependencies = productionDependencies
+) {
+  const {
+    fetchTalentStructuredProfile,
+    fetchTalentDocuments,
+    fetchTalentDocument,
+    fetchTalentContextPromptSnapshot,
+    fetchTalentUserProfile,
+    executeSharedWebSearch,
+    executeSharedOpenUrl,
+    inspectApplicationForm,
+    writeApplicationSuggestions,
+  } = dependencies;
   // Scope every read and write to the authenticated user. The tool cannot choose an owner.
   const { data: conversation, error } = await args.admin
     .from("talent_conversations")
@@ -75,6 +119,8 @@ export async function executeApplicationSimulation(args: {
           documentId: args.documentId,
         })
       : (documents.find((d) => d.is_primary) ?? documents[0] ?? null);
+  if (args.emailSourceMessageId && !document)
+    return { ok: false, reason: "A readable resume is required for email application preparation. Use existing document reads, or create a resume from confirmed facts with the user’s authorization before starting." };
   if (args.documentId && !document)
     return {
       ok: false,
@@ -107,16 +153,22 @@ export async function executeApplicationSimulation(args: {
     userId: args.userId,
     conversationId: args.conversationId,
   };
-  let current = await sessionOperation({ ...store, operation: "read" });
-  if (current?.state.status === "active") {
+  let current = await sessionOperation({ ...store, operation: "read", messageId: args.resumeMessageId });
+  const email = Boolean(args.emailSourceMessageId);
+  if (args.resumeMessageId && (!current || current.state.status !== "active" || current.state.activity?.sourceMessageId !== args.emailSourceMessageId))
+    throw new Error("Application continuation unavailable");
+  if (args.resumeMessageId && current) {
+    if (current.state.analysisStatus === "completed") return { ok: true, alreadyStarted: true, status: "completed", sessionMessageId: current.messageId };
+  } else if (current?.state.status === "active") {
     if (
-      args.startOfferId &&
-      current.state.activity?.offerId === args.startOfferId
+      (args.startOfferId && current.state.activity?.offerId === args.startOfferId) ||
+      (email && current.state.activity?.sourceMessageId === args.emailSourceMessageId)
     )
       return {
         ok: true,
         alreadyStarted: true,
         status: current.state.analysisStatus,
+        sessionMessageId: current.messageId,
       };
     if (
       current.state.roleRef !== args.roleRef ||
@@ -150,7 +202,7 @@ export async function executeApplicationSimulation(args: {
       args.requestKey + ":retry"
     );
   } else {
-    if (!args.startOfferId) throw new Error("Start card required");
+    if (!args.startOfferId && !email) throw new Error("Start card required");
     current = await sessionOperation({
       ...store,
       operation: "begin",
@@ -167,7 +219,9 @@ export async function executeApplicationSimulation(args: {
         preparation: createPreparation(),
         activity: {
           version: 1,
-          offerId: args.startOfferId!,
+          offerId: args.startOfferId,
+          ...(email ? { channel: "email" as const, sourceMessageId: args.emailSourceMessageId,
+            preparationRequest: { role: await (args.loadSavedRole ?? (async () => args.role))(), requestKey: args.requestKey } } : {}),
           outputs: {},
           batches: [],
         },
@@ -175,14 +229,18 @@ export async function executeApplicationSimulation(args: {
     });
   }
   if (!current) throw new Error("Could not start simulation session");
-  if (args.startOfferId && !current.created)
+  if (!args.resumeMessageId && args.startOfferId && !current.created)
     return {
       ok: true,
       alreadyStarted: true,
       status: current.state.analysisStatus,
     };
   args.onMessage?.(current.message);
+  if (args.deferPreparation) return { ok: true, preparationPending: true, sessionMessageId: current.messageId };
+  const startedAt = Date.now();
+  let phase = "candidate";
   try {
+    if (!current.state.analysisMessageId) {
     const { data: notice, error: noticeError } = await args.admin
       .from("talent_messages")
       .insert({
@@ -201,15 +259,18 @@ export async function executeApplicationSimulation(args: {
     if (noticeError) throw new Error("Failed to save simulation introduction");
     if (notice)
       args.onMessage?.(toTalentMessageResponse(notice as TalentMessageRow));
+    }
     const state: ApplicationSimulation = {
-      version: 5,
+      version: 6,
+      progress: "candidate",
       roleName: args.roleName,
       documentName: document?.file_name ?? null,
       status: "running",
       updatedAt: new Date().toISOString(),
-      steps: LIGHT_SIMULATION_STEPS.map((key) => ({ key, status: "pending" })),
+      steps: [{ key: "review", status: "running" }],
     };
-    const { data: message, error: insertError } = await args.admin
+    const previousOutput = current.state.activity?.outputs[String(current.state.analysisMessageId)];
+    const { data: message, error: insertError } = previousOutput ? { data: { id: current.state.analysisMessageId!, created_at: previousOutput.createdAt, content: previousOutput.content }, error: null } : await args.admin
       .from("talent_messages")
       .insert({
         conversation_id: args.conversationId,
@@ -264,85 +325,187 @@ export async function executeApplicationSimulation(args: {
     const signal = args.signal
       ? AbortSignal.any([args.signal, timeout])
       : timeout;
-    // A bounded snapshot is frozen once; later stages use exactly these same facts.
-    const bounded = (text: string, limit: number) =>
-      text.length <= limit
-        ? text
-        : `${text.slice(0, limit)}\n[Source truncated; absence beyond this point is unknown.]`;
-    const savedRole = await (args.loadSavedRole ?? (async () => args.role))();
-    const hasSavedJd = typeof savedRole.description === "string" && savedRole.description.trim();
-    const [jdSource, applicationForm] = await Promise.all([
-      hasSavedJd
-        ? Promise.resolve({ status: "unavailable", reason: "Saved JD provided; live JD lookup is unnecessary." })
-        : readSimulationJdSource(args.role.externalJdUrl, url => executeSharedOpenUrl({ admin: args.admin, input: { url, maxMarkdownChars: 20000 } })),
-      inspectApplicationForm(args.role.externalJdUrl, signal),
-    ]);
-    signal?.throwIfAborted();
-    current = await saveSession(store, current!, { ...current!.state, applicationForm, applicationUrl: applicationForm.status !== "unavailable" ? applicationForm.url : current!.state.applicationUrl }, args.requestKey + ":form");
-    args.onMessage?.(current.message);
-    const result = await runSimulationWorkflow({
-      state,
-      signal,
-      input: {
-        role: await buildSimulationRoleInput(
-          args.roleName,
-          jdSource,
-          async () => savedRole,
-          applicationForm
+    const publish = async (snapshot: ApplicationSimulation) => {
+      const content = [
+        `Apply with Harper: ${args.roleName}`,
+        `Status: ${snapshot.status}`,
+        ...snapshot.steps.flatMap((s) =>
+          s.result ? [`${s.key}: ${s.result.report}`] : []
         ),
-        candidate: bounded(simulationProfileSnapshot(profile), 60000),
-        resume: resume
-          ? bounded(resume, 40000)
-          : "No resume selected or available. Evaluate the profile and disclose this limitation.",
-        language: getCareerPromptLanguageName(args.locale),
-      },
-      complete: completeSimulationStage,
-      publish: async (snapshot) => {
-        const content = [
-          `Apply with Harper: ${args.roleName}`,
-          `Status: ${snapshot.status}`,
-          ...snapshot.steps.flatMap((s) =>
-            s.result ? [`${s.key}: ${s.result.report}`] : []
-          ),
-        ].join("\n\n");
-        current = await saveSession(
-          store,
-          current!,
-          {
-            ...current!.state,
-            activity: {
-              ...current!.state.activity!,
-              outputs: {
-                ...current!.state.activity!.outputs,
-                [message.id]: {
-                  messageType: SIMULATION_MESSAGE_TYPE,
-                  createdAt: message.created_at,
-                  content,
-                  payload: snapshot,
-                },
+      ].join("\n\n");
+      current = await saveSession(
+        store,
+        current!,
+        {
+          ...current!.state,
+          activity: {
+            ...current!.state.activity!,
+            outputs: {
+              ...current!.state.activity!.outputs,
+              [message.id]: {
+                messageType: SIMULATION_MESSAGE_TYPE,
+                createdAt: message.created_at,
+                content,
+                payload: snapshot,
               },
             },
           },
-          `${args.requestKey}:progress:${crypto.randomUUID()}`
-        );
-        args.onMessage?.(current.message);
-        args.onMessage?.(
-          toTalentMessageResponse({
-            ...message,
-            message_type: SIMULATION_MESSAGE_TYPE,
-            content,
-            payload: snapshot as unknown as Json,
-          } as TalentMessageRow)
-        );
-      },
+        },
+        `${args.requestKey}:progress:${crypto.randomUUID()}`
+      );
+      args.onMessage?.(current.message);
+      args.onMessage?.(
+        toTalentMessageResponse({
+          ...message,
+          message_type: SIMULATION_MESSAGE_TYPE,
+          content,
+          payload: snapshot as unknown as Json,
+        } as TalentMessageRow)
+      );
+    };
+    const progress = async (
+      nextPhase: NonNullable<ApplicationSimulation["progress"]>
+    ) => {
+      phase = nextPhase;
+      state.progress = nextPhase;
+      console.info("[application-preparation] stage", JSON.stringify({ sessionMessageId: current!.messageId, phase, durationMs: Date.now() - startedAt }));
+      state.updatedAt = new Date().toISOString();
+      await publish(structuredClone(state));
+    };
+    await progress("candidate");
+    const [memorySnapshot, userProfile] = await Promise.all([
+      fetchTalentContextPromptSnapshot({
+        admin: args.admin,
+        userId: args.userId,
+        query: args.roleName,
+        memoryTokenBudget: 4000,
+      }),
+      fetchTalentUserProfile({ admin: args.admin, userId: args.userId }),
+    ]);
+    const candidate = [
+      simulationProfileSnapshot(profile),
+      JSON.stringify({
+        name: userProfile?.name,
+        email: userProfile?.email,
+        phone: userProfile?.phone_number,
+        links: userProfile?.resume_links,
+      }),
+      renderTalentContextPrompt(memorySnapshot),
+    ].join("\n\n");
+    signal.throwIfAborted();
+    await progress("role");
+    const savedRole = await (args.loadSavedRole ?? (async () => args.role))();
+    const company =
+      typeof savedRole.company === "string"
+        ? savedRole.company
+        : (savedRole.company as { name?: string } | undefined)?.name;
+    const [jdSource, research] = await Promise.all([
+      savedRole.description && !email
+        ? Promise.resolve({
+            status: "unavailable",
+            reason: "Saved JD supplied.",
+          })
+        : readSimulationJdSource(args.role.externalJdUrl, (url) =>
+            executeSharedOpenUrl({
+              admin: args.admin,
+              input: { url, maxMarkdownChars: 30000 },
+            })
+          ),
+      company
+        ? executeSharedWebSearch(
+            {
+              query: `${company} company official products mission`,
+              maxResults: 3,
+            },
+            { admin: args.admin }
+          ).catch(() => ({
+            status: "unavailable",
+            reason:
+              "Company research could not be completed; use saved company context.",
+          }))
+        : Promise.resolve({
+            status: "unavailable",
+            reason: "Company not identified",
+          }),
+    ]);
+    let role = await buildSimulationRoleInput(
+      args.roleName,
+      jdSource,
+      async () => savedRole
+    );
+    if (email) {
+      // Read the live JD and inventory before proposing any changes in email.
+      if (jdSource.status === "read") role += "\nLive JD:\n" + JSON.stringify(jdSource);
+      if (!current.state.applicationInspection) {
+        current = await saveSession(store, current, { ...current.state,
+          applicationUrl: String(args.role.externalJdUrl ?? ""),
+          applicationInspection: { status: "queued", runId: crypto.randomUUID() },
+        }, args.requestKey + ":inspection");
+      }
+      await runApplicationInspection(store, current.messageId, inspectApplicationForm);
+      current = (await sessionOperation({ ...store, operation: "read", messageId: current.messageId }))!;
+      if (["queued", "running"].includes(current.state.applicationInspection?.status ?? ""))
+        return { ok: true, preparationPending: true, sessionMessageId: current.messageId };
+    }
+    signal.throwIfAborted();
+    await progress("suggestions");
+    state.suggestions = await writeApplicationSuggestions({
+      admin: args.admin,
+      userId: args.userId,
+      candidate,
+      resume,
+      role: role + "\nCompany research:\n" + JSON.stringify(research),
+      application: JSON.stringify(email ? current.state.applicationForm : { status: "pending", url: current.state.applicationUrl, instruction: "Application requirements are being inspected separately. Focus this first batch on meaningful resume improvements and important role-related experience gaps. Do not ask about application fields or draft additional materials before they are observed." }),
+      language: getCareerPromptLanguageName(args.locale),
+      model: args.textChatModel,
+      signal,
     });
+    state.status = "completed";
+    state.updatedAt = new Date().toISOString();
+    state.steps = [
+      {
+        key: "review",
+        status: "completed",
+        result: { summary: "Application suggestions prepared", report: "" },
+      },
+    ];
+    await publish(state);
+    const result = state;
+    let prepared = finishSimulationAnalysis(
+      current!.state,
+      result,
+      Number(message.id)
+    );
+    if (prepared.actions.length)
+      prepared = askApplicationInput(
+        prepared,
+        {
+          purpose: "suggestions",
+          items: prepared.actions.map((a) => ({ actionId: a.id })),
+        },
+        args.requestKey + ":suggestions"
+      );
+
+    if (!email) prepared.applicationInspection = { status: "queued", runId: crypto.randomUUID() };
+    if (prepared.activity) delete prepared.activity.preparationRequest;
     const saved = await saveSession(
       store,
       current,
-      finishSimulationAnalysis(current.state, result, Number(message.id)),
+      prepared,
       args.requestKey + ":result"
     );
+    current = saved;
     args.onMessage?.(saved.message);
+    const inspect = async () => {
+      await runApplicationInspection(store, saved.messageId, inspectApplicationForm);
+    };
+    if (email) { /* Inspection already persisted before suggestions. */ }
+    else if (prepared.actions.length && args.scheduleAfter) args.scheduleAfter(inspect);
+    else {
+      await inspect();
+      current = (await sessionOperation({ ...store, operation: "read", messageId: saved.messageId })) ?? saved;
+      args.onMessage?.((current as typeof saved).message ?? saved.message);
+    }
     return {
       ok: result.status === "completed",
       status: result.status,
@@ -352,33 +515,40 @@ export async function executeApplicationSimulation(args: {
         result.steps.at(-1)?.result?.summary ??
         result.steps.findLast((s) => s.result)?.result?.summary ??
         null,
-      ...(result.status === "failed"
-        ? {
-            failure: {
-              stage: result.steps.find((s) => s.status === "failed")?.key,
-              reason:
-                result.steps.find((s) => s.status === "failed")
-                  ?.failureReason === "invalid_output"
-                  ? "The analysis output failed consistency validation. This is an analysis execution error, not a finding about candidate eligibility or fit."
-                  : "The analysis could not finish because of an execution error.",
-              retryable: true,
-            },
-          }
-        : {}),
       resultsDisplayedInChat: true,
+      awaitingUserInput: prepared.actions.length > 0,
     };
   } catch (error) {
+    const reason = error instanceof Error ? error.message.trim() : String(error ?? "");
+    console.error("[application-preparation] failed", JSON.stringify({
+      sessionMessageId: current.messageId, phase, durationMs: Date.now() - startedAt,
+      name: error instanceof Error ? error.name : "Error", reason,
+      requestAborted: args.signal?.aborted ?? false,
+      abortReason: args.signal?.reason instanceof Error ? { name: args.signal.reason.name, message: args.signal.reason.message } : undefined,
+    }));
     // A concurrent stop or newer run owns its state; never overwrite it with this run's failure.
     const latest = await sessionOperation({ ...store, operation: "read" });
     if (
       latest?.messageId === current.messageId &&
       latest.state.revision === current.state.revision
     ) {
+      const failedState = structuredClone(latest.state);
+      const output =
+        failedState.activity?.outputs[String(failedState.analysisMessageId)];
+      if (output && output.payload && typeof output.payload === "object") {
+        const analysis = output.payload as ApplicationSimulation;
+        analysis.status = args.signal?.aborted ? "cancelled" : "failed";
+        analysis.updatedAt = new Date().toISOString();
+        analysis.steps = analysis.steps.map((step) => ({
+          ...step,
+          status: analysis.status === "cancelled" ? "cancelled" : "failed",
+        }));
+      }
       const saved = await saveSession(
         store,
         latest,
         {
-          ...latest.state,
+          ...endSimulationSession(failedState, "failed"),
           analysisStatus: args.signal?.aborted ? "cancelled" : "failed",
           lastActivityAt: new Date().toISOString(),
         },
@@ -386,6 +556,14 @@ export async function executeApplicationSimulation(args: {
       );
       args.onMessage?.(saved.message);
     }
-    throw error;
+    return {
+      ok: false,
+      status: args.signal?.aborted ? "cancelled" : "failed",
+      startCardDisplayed: true,
+      preparationStarted: true,
+      reason: reason || (args.signal?.aborted ? "The request connection was interrupted during preparation." : "Preparation stopped before suggestions were produced."),
+      failedStage: phase,
+      applicationUrl: current.state.applicationUrl,
+    };
   }
 }

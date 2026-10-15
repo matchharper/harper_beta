@@ -97,7 +97,8 @@ export async function executePreparationRequest(
   input: z.infer<typeof preparationRequestSchema>,
   generate: typeof generateApplicationDraft = async (...args) =>
     (await import("./draft")).generateApplicationDraft(...args),
-  onState?: (record: SessionRecord) => void
+  onState?: (record: SessionRecord) => void,
+  conflictAttempt = 0
 ) {
   let record = await sessionOperation({
     ...store,
@@ -105,7 +106,14 @@ export async function executePreparationRequest(
     messageId: input.sessionMessageId,
   });
   if (!record?.state.preparation) throw new Error("Preparation unavailable");
-  if (record.state.revision !== input.expectedRevision)
+  // A background form inspection may advance the revision while the user edits
+  // an immutable suggestion batch. Batch identity/status still guard its answers.
+  const sameWaitingBatch = input.operation === "submit_answers" && record.state.activity?.batches.some(
+    b => b.id === input.batchId && b.status === "waiting"
+  );
+  // Ending this exact session remains valid when a background result arrives.
+  const canRebase = sameWaitingBatch || input.operation === "end";
+  if (record.state.revision !== input.expectedRevision && !(canRebase && record.state.revision > input.expectedRevision))
     throw new Error("Session revision conflict");
   if (["generate", "approve", "resume"].includes(input.operation))
     throw new Error("This operation is no longer supported");
@@ -209,7 +217,14 @@ export async function executePreparationRequest(
     state = mutateSimulationSession(state, { action: "end" }, 0);
   }
   state.lastActivityAt = new Date().toISOString();
-  const saved = await saveSession(store, record, state, input.requestId);
+  let saved;
+  try {
+    saved = await saveSession(store, record, state, input.requestId);
+  } catch (error) {
+    if (canRebase && conflictAttempt < 3 && error instanceof Error && error.message === "Session revision conflict")
+      return executePreparationRequest(store, input, generate, onState, conflictAttempt + 1);
+    throw error;
+  }
   onState?.(saved);
   return saved;
 }

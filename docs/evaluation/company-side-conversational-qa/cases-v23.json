@@ -1,0 +1,74 @@
+[
+  {
+    "id": "ready",
+    "companyName": "합성회사",
+    "roleId": "00000000-0000-4000-8000-000000000101",
+    "roleName": "백엔드 엔지니어",
+    "surface": "slack",
+    "responseLocale": "ko",
+    "requestedByCompany": false,
+    "userMessage": "",
+    "candidateTargets": [
+      {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "name": "합성후보",
+        "profileUrl": "https://example.invalid/candidate/901"
+      }
+    ],
+    "context": {
+      "purpose": "Explain the completed candidate selection and the company's available next steps.",
+      "facts": {
+        "candidateName": "합성후보",
+        "roleName": "백엔드 엔지니어",
+        "companyVisibleSummary": "결제 API 운영과 장애 대응을 담당했습니다.",
+        "candidateAcceptedExactRole": false,
+        "companyCanDecideConnection": false,
+        "introRequested": false,
+        "connectionCompleted": false,
+        "firstDelivery": false
+      },
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "결제 서비스 운영 경험이 있는 분을 찾고 있어요."
+        }
+      ]
+    }
+  },
+  {
+    "id": "accepted",
+    "companyName": "합성회사",
+    "roleId": "00000000-0000-4000-8000-000000000101",
+    "roleName": "백엔드 엔지니어",
+    "surface": "slack",
+    "responseLocale": "ko",
+    "requestedByCompany": false,
+    "userMessage": "",
+    "candidateTargets": [
+      {
+        "id": "00000000-0000-4000-8000-000000000901",
+        "name": "합성후보",
+        "profileUrl": "https://example.invalid/candidate/901"
+      }
+    ],
+    "context": {
+      "purpose": "Explain the completed candidate selection and the company's available next steps.",
+      "facts": {
+        "candidateName": "합성후보",
+        "roleName": "백엔드 엔지니어",
+        "companyVisibleSummary": "결제 API 운영과 장애 대응을 담당했습니다.",
+        "candidateAcceptedExactRole": true,
+        "companyCanDecideConnection": true,
+        "introRequested": false,
+        "connectionCompleted": false,
+        "firstDelivery": false
+      },
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "결제 서비스 운영 경험이 있는 분을 찾고 있어요."
+        }
+      ]
+    }
+  }
+]

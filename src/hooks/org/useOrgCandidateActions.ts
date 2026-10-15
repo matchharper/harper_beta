@@ -1,4 +1,4 @@
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -29,8 +29,7 @@ export function useOrgCandidateActions(args: {
   detail?: OrgTalentDetailResponse | null;
   workspaceId: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const addToast = useToastStore((state) => state.add);
   const setStage = useSetOrgCandidateStage();
   const pendingStageMutations = usePendingOrgCandidateStageMutations();
@@ -94,7 +93,10 @@ export function useOrgCandidateActions(args: {
       ) {
         setCandidateReengagement(null);
         addToast({
-          message: t("hooks.candidate.reengagementRequested", "Harper가 후보자에게 다시 진행할 의향을 물어볼게요. 답변이 오면 회사에 알려드립니다."),
+          message: c(
+            "Harper가 후보자에게 다시 진행할 의향을 물어볼게요. 답변이 오면 회사에 알려드립니다.",
+            "Harper will ask the candidate if they'd like to continue. We'll let your team know when they reply."
+          ),
           variant: "success",
         });
         return null;
@@ -126,14 +128,24 @@ export function useOrgCandidateActions(args: {
       });
       if (resolution === "company_confirmed" && result) {
         addToast({
-          message: t("hooks.candidate.reengagementApplied", "후보자의 진행 상태를 복구하고 요청한 변경을 반영했습니다."),
+          message: c(
+            "후보자의 진행 상태를 복구하고 요청한 변경을 반영했습니다.",
+            "Candidate progress restored and the requested change applied."
+          ),
           variant: "success",
         });
       }
       return result;
     } catch (error) {
       addToast({
-        message: localizedOrgErrorMessage(error, locale, t("hooks.candidate.reengagementFailed", "후보자 재진행 요청을 처리하지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          c(
+            "후보자 재진행 요청을 처리하지 못했습니다.",
+            "Couldn't request candidate reengagement. Try again."
+          )
+        ),
         variant: "error",
       });
       return null;
@@ -170,14 +182,12 @@ export function useOrgCandidateActions(args: {
       onCompanyConfirmed,
       response: {
         candidateName:
-          item.talent.name ||
-          item.talent.email ||
-          t("hooks.candidate.fallbackName", "후보자"),
+          item.talent.name || item.talent.email || c("후보자", "Candidate"),
         currentStage: item.stage,
         ok: true,
         requestedStage: requestStage,
         roleId: item.roleId,
-        roleName: item.roleName ?? t("hooks.candidate.fallbackRole", "해당 역할"),
+        roleName: item.roleName ?? c("해당 역할", "this role"),
         status: "candidate_reengagement_required",
         talentId: item.talentId,
       },
@@ -219,15 +229,25 @@ export function useOrgCandidateActions(args: {
       if (!changed) return;
       addToast({
         message: options?.scheduleInterview
-          ? t("hooks.candidate.connectedWithMeeting", "연결을 시작했고, 미팅 정보를 준비해두었어요.")
-          : t("hooks.candidate.stageChanged", "후보자 상태를 변경했습니다."),
+          ? c(
+              "연결을 시작했고, 미팅 정보를 준비해두었어요.",
+              "Connection started and meeting details prepared."
+            )
+          : c("후보자 상태를 변경했습니다.", "Candidate status updated."),
         variant: "success",
       });
       return changed;
     } catch (error) {
       if (errorPresentation === "toast") {
         addToast({
-          message: localizedOrgErrorMessage(error, locale, t("hooks.candidate.stageChangeFailed", "후보자 상태를 변경하지 못했습니다.")),
+          message: localizedOrgErrorMessage(
+            error,
+            locale,
+            c(
+              "후보자 상태를 변경하지 못했습니다.",
+              "Couldn't update candidate status. Try again."
+            )
+          ),
           variant: "error",
         });
       }
@@ -292,8 +312,11 @@ export function useOrgCandidateActions(args: {
     if (!changed) return;
     addToast({
       message: scheduleInterview
-        ? t("hooks.candidate.connectedWithMeeting", "연결을 시작했고, 미팅 정보를 준비해두었어요.")
-        : t("hooks.candidate.connected", "후보자 연결을 시작했어요."),
+        ? c(
+            "연결을 시작했고, 미팅 정보를 준비해두었어요.",
+            "Connection started and meeting details prepared."
+          )
+        : c("후보자 연결을 시작했어요.", "Candidate connection started."),
       variant: "success",
     });
     return changed;
@@ -323,8 +346,14 @@ export function useOrgCandidateActions(args: {
       args.detail.recommendation.stage !== "pending_connection";
     addToast({
       message: endedExistingConnection
-        ? t("hooks.candidate.connectionEnded", "후보자 연결을 종료했어요. Harper가 후보자에게 종료를 안내해요.")
-        : t("hooks.candidate.connectionRejected", "후보자 연결을 거절했어요. 회사의 종료 결정이 후보자에게 안내돼요."),
+        ? c(
+            "후보자 연결을 종료했어요. Harper가 후보자에게 종료를 안내해요.",
+            "Connection ended. Harper will notify the candidate."
+          )
+        : c(
+            "후보자 연결을 거절했어요. 회사의 종료 결정이 후보자에게 안내돼요.",
+            "Connection declined. The candidate will be notified of your decision."
+          ),
       variant: "success",
     });
   };
@@ -354,12 +383,22 @@ export function useOrgCandidateActions(args: {
       });
       if (!changed) return;
       addToast({
-        message: t("hooks.candidate.pendingConnection", "연결 대기 상태로 옮겼습니다."),
+        message: c(
+          "연결 대기 상태로 옮겼습니다.",
+          "Moved to Ready to connect."
+        ),
         variant: "success",
       });
     } catch (error) {
       addToast({
-        message: localizedOrgErrorMessage(error, locale, t("hooks.candidate.pendingConnectionFailed", "연결 대기 상태로 옮기지 못했습니다.")),
+        message: localizedOrgErrorMessage(
+          error,
+          locale,
+          c(
+            "연결 대기 상태로 옮기지 못했습니다.",
+            "Couldn't move to Ready to connect. Try again."
+          )
+        ),
         variant: "error",
       });
       throw error;

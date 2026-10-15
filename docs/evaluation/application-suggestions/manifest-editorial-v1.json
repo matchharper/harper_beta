@@ -1,0 +1,10 @@
+{
+  "version": "editorial-v1",
+  "createdAt": "2026-10-14",
+  "provenance": "assistant-authored synthetic; no production data; frozen before baseline and prompt change",
+  "labelReview": "assistant-authored rubric, independent human review pending",
+  "hashes": {
+    "cases-editorial-v1.json": "ef620969c4957ae28289830259a0eeffcbbbe25cfa8e61b24f330ae3c5d3b849",
+    "gold-editorial-v1.json": "5c66916ea9bcef83ca476c3772b31123ec43f75b55cb14eabe0737dc8c6e2b21"
+  }
+}

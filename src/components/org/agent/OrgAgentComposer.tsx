@@ -1,4 +1,4 @@
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { ArrowUp, FileText, FileUp, LoaderCircle, Plus, X } from "lucide-react";
 import Image from "next/image";
@@ -90,14 +90,14 @@ function TalentMentionAvatar({
   name: string;
   src?: string | null;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const profilePicture = getDisplayableProfileImageUrl(src);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
 
   if (profilePicture && failedImageSrc !== profilePicture) {
     return (
       <Image
-        alt={t("agent.OrgAgentComposer.94a1593a", "")}
+        alt={c("", "")}
         className="size-6 shrink-0 rounded-full object-cover"
         height={24}
         onError={() => setFailedImageSrc(profilePicture)}
@@ -124,26 +124,29 @@ function ModelSelector({
   onChange: (model: OrgAgentModelId) => void;
   visible: boolean;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const options: Array<{ label: string; value: OrgAgentModelId }> = [
     {
-      label: t("agent.OrgAgentComposer.477bbe8b", "Gemini 3.8 Flash · OpenRouter"),
+      label: c(
+        "Gemini 3.8 Flash · OpenRouter",
+        "Gemini 3.8 Flash · OpenRouter"
+      ),
       value: ORG_AGENT_GEMINI_FLASH_MODEL,
     },
     {
-      label: t("agent.OrgAgentComposer.494ba81d", "GLM 5.3 Flash · OpenRouter"),
+      label: c("GLM 5.3 Flash · OpenRouter", "GLM 5.3 Flash · OpenRouter"),
       value: ORG_AGENT_GLM_53_FLASH_MODEL,
     },
     {
-      label: t("agent.OrgAgentComposer.a6732deb", "Luna · GPT-5.6"),
+      label: c("Luna · GPT-5.6", "Luna · GPT-5.6"),
       value: ORG_AGENT_LUNA_MODEL,
     },
     {
-      label: t("agent.OrgAgentComposer.06624003", "Terra · GPT-5.6"),
+      label: c("Terra · GPT-5.6", "Terra · GPT-5.6"),
       value: ORG_AGENT_TERRA_MODEL,
     },
     {
-      label: t("agent.OrgAgentComposer.dce4f9ef", "Claude Sonnet 5.5"),
+      label: c("Claude Sonnet 5.5", "Claude Sonnet 5.5"),
       value: ORG_AGENT_CLAUDE_MODEL,
     },
   ];
@@ -158,7 +161,7 @@ function ModelSelector({
       }}
     >
       <SelectTrigger
-        aria-label={t("agent.OrgAgentComposer.99dd37af", "Harper 모델 선택")}
+        aria-label={c("Harper 모델 선택", "Select Harper model")}
         className="w-56 text-xs"
         size="sm"
       >
@@ -208,8 +211,7 @@ export function OrgAgentComposer({
   submitBlocked?: boolean;
   workspaceId: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const mentionListId = useId();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const mentionHighlightRef = useRef<HTMLDivElement | null>(null);
@@ -307,18 +309,18 @@ export function OrgAgentComposer({
   );
   const mentionPickerCountLabel =
     mentionCandidates.totalCount > candidates.length
-      ? t("agent.OrgAgentComposer.d014d059", "{p0}/{p1}명", {
+      ? c("{p0}/{p1}명", "{p0}/{p1} members", {
           p0: candidates.length,
           p1: mentionCandidates.totalCount,
         })
       : candidates.length > 0
-        ? t("agent.OrgAgentComposer.e5ebe876", "{p0}명", { p0: candidates.length })
+        ? c("{p0}명", "{p0} members", { p0: candidates.length })
         : undefined;
   const normalizedRoleId = roleId?.trim() ?? "";
   const mentionPickerItems: ChatComposerPickerItem[] = [
     {
       id: "title",
-      text: t("agent.OrgAgentComposer.8eb292db", "연결 목록"),
+      text: c("연결 목록", "Connections"),
       trailingText: mentionPickerCountLabel,
       type: "text",
     },
@@ -327,7 +329,7 @@ export function OrgAgentComposer({
           {
             announcement: "status" as const,
             id: "loading",
-            text: t("agent.OrgAgentComposer.2644bab0", "Searching..."),
+            text: c("Searching...", "Searching..."),
             type: "text" as const,
           },
         ]
@@ -336,7 +338,10 @@ export function OrgAgentComposer({
             {
               announcement: "alert" as const,
               id: "error",
-              text: t("agent.OrgAgentComposer.7b559de8", "후보자를 불러오지 못했어요."),
+              text: c(
+                "후보자를 불러오지 못했어요.",
+                "Failed to load candidates."
+              ),
               type: "text" as const,
             },
           ]
@@ -344,7 +349,10 @@ export function OrgAgentComposer({
           ? [
               {
                 id: "empty",
-                text: t("agent.OrgAgentComposer.dcd8f2dc", "아직 연결된 후보자가 없어요."),
+                text: c(
+                  "아직 연결된 후보자가 없어요.",
+                  "No connected candidates yet."
+                ),
                 type: "text" as const,
               },
             ]
@@ -378,7 +386,7 @@ export function OrgAgentComposer({
             onSelect: () => {
               void mentionCandidates.fetchNextPage();
             },
-            text: t("agent.OrgAgentComposer.345609ca", "더 불러오기"),
+            text: c("더 불러오기", "Load more"),
             type: "action" as const,
           },
         ]
@@ -480,7 +488,13 @@ export function OrgAgentComposer({
         message: serialized.text,
       });
     } catch (error) {
-      setAttachmentError(localizedOrgErrorMessage(error, locale, t("agent.OrgAgentComposer.0672e615", "파일을 읽지 못했습니다.")));
+      setAttachmentError(
+        localizedOrgErrorMessage(
+          error,
+          locale,
+          c("파일을 읽지 못했습니다.", "Failed to read file.")
+        )
+      );
     } finally {
       submissionPendingRef.current = false;
       setIsPreparingAttachments(false);
@@ -498,7 +512,13 @@ export function OrgAgentComposer({
       setAttachments(next);
       setAttachmentError("");
     } catch (error) {
-      setAttachmentError(localizedOrgErrorMessage(error, locale, t("agent.OrgAgentComposer.8aadbdab", "파일을 첨부하지 못했습니다.")));
+      setAttachmentError(
+        localizedOrgErrorMessage(
+          error,
+          locale,
+          c("파일을 첨부하지 못했습니다.", "Failed to attach file.")
+        )
+      );
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -507,10 +527,10 @@ export function OrgAgentComposer({
       disabled: disabled || isPreparingAttachments || isStreaming,
       icon: <FileUp />,
       id: "upload-file",
-      label: t("agent.OrgAgentComposer.37d8f362", "파일 업로드"),
+      label: c("파일 업로드", "Upload file"),
       loading: isPreparingAttachments,
       onSelect: () => fileInputRef.current?.click(),
-      sectionLabel: t("agent.OrgAgentComposer.53ee5ea2", "도구"),
+      sectionLabel: c("도구", "Tools"),
       trailingText: "PDF, DOCX",
     },
   ];
@@ -525,7 +545,7 @@ export function OrgAgentComposer({
             <FileText className="size-3.5 shrink-0 text-neutral-muted" />
             <span className="max-w-56 truncate">{attachment.name}</span>
             <MuteButton
-              aria-label={t("agent.OrgAgentComposer.0213338a", "{p0} 제거", {
+              aria-label={c("{p0} 제거", "Remove {p0}", {
                 p0: attachment.name,
               })}
               disabled={isPreparingAttachments || isStreaming}
@@ -579,13 +599,16 @@ export function OrgAgentComposer({
           aria-autocomplete="list"
           aria-controls={mentionSearch ? mentionListId : undefined}
           aria-expanded={Boolean(mentionSearch)}
-          placeholder={t("agent.OrgAgentComposer.3e1ad435", "Ask anything, @ for choosing talent")}
+          placeholder={c(
+            "Ask anything, @ for choosing talent",
+            "Ask Harper anything. Use @ to mention a candidate."
+          )}
           mobileLeadingAction={
             allowAttachments ? (
               <ChatComposerActionMenu
                 disabled={disabled || isPreparingAttachments || isStreaming}
                 items={attachmentMenuItems}
-                triggerAriaLabel={t("agent.OrgAgentComposer.actionMenu", "추가 메뉴 열기")}
+                triggerAriaLabel={c("추가 메뉴 열기", "More actions")}
               />
             ) : undefined
           }
@@ -630,12 +653,12 @@ export function OrgAgentComposer({
                   className="hidden md:inline-flex"
                   disabled={disabled || isPreparingAttachments || isStreaming}
                   items={attachmentMenuItems}
-                  triggerAriaLabel={t("agent.OrgAgentComposer.actionMenu", "추가 메뉴 열기")}
+                  triggerAriaLabel={c("추가 메뉴 열기", "More actions")}
                 />
               ) : null}
               <MuteButton
                 type="submit"
-                aria-label={t("agent.OrgAgentComposer.d343e2d9", "메시지 보내기")}
+                aria-label={c("메시지 보내기", "Send message")}
                 aria-disabled={submitBlocked || undefined}
                 variant="primary"
                 className={cn(

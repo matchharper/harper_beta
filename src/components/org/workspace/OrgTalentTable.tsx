@@ -1,4 +1,4 @@
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
@@ -64,7 +64,7 @@ function TalentAvatar({
   name: string;
   src?: string | null;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const profilePicture = getDisplayableProfileImageUrl(src);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
   const size = mobile ? 40 : 28;
@@ -72,7 +72,7 @@ function TalentAvatar({
   if (profilePicture && failedImageSrc !== profilePicture) {
     return (
       <Image
-        alt={t("workspace.OrgTalentTable.1d75cba8", "")}
+        alt={c("", "")}
         className={cn(
           "rounded-full object-cover",
           mobile ? "size-10" : "size-7"
@@ -146,13 +146,14 @@ function OrgTalentMobileList<Item>({
   roleHeader: string;
   rows: readonly OrgTalentTableRow<Item>[];
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   return (
     <div className="border-y border-neutral-1000-a05 bg-bg-default md:hidden">
       {rows.map((row) => (
         <div
-          aria-label={t("workspace.OrgTalentTable.091ee7f9", "{p0} 상세 열기", { p0: row.name })}
+          aria-label={c("{p0} 상세 열기", "Open {p0} details", {
+            p0: row.name,
+          })}
           className="group flex cursor-pointer items-start gap-3 border-b border-neutral-1000-a05 px-1 py-4 outline-none transition last:border-b-0 hover:bg-bg-weak focus-visible:bg-bg-weak"
           key={row.key}
           onClick={() => onSelect(row.item)}
@@ -173,10 +174,10 @@ function OrgTalentMobileList<Item>({
               </span>
               {middleColumn === "memo" && !row.viewed ? (
                 <span
-                  aria-label={t("workspace.OrgTalentTable.bd192d45", "미검토")}
+                  aria-label={c("미검토", "Unreviewed")}
                   className="size-1.5 shrink-0 rounded-full bg-primary"
                   role="status"
-                  title={t("workspace.OrgTalentTable.bd192d45", "미검토")}
+                  title={c("미검토", "Unreviewed")}
                 />
               ) : null}
             </div>
@@ -217,7 +218,7 @@ function OrgTalentMobileList<Item>({
                   </div>
                 ) : null}
                 <div className="truncate text-[12px]">
-                  {row.memoPreview || t("workspace.OrgTalentTable.b217f440", "메모 없음")}
+                  {row.memoPreview || c("메모 없음", "No notes")}
                 </div>
               </div>
             ) : null}
@@ -230,8 +231,8 @@ function OrgTalentMobileList<Item>({
               {middleColumn === "viewed" ? (
                 <span className="text-[11px] text-neutral-soft">
                   {row.viewed
-                    ? t("workspace.OrgTalentTable.0d494035", "검토")
-                    : t("workspace.OrgTalentTable.bd192d45", "미검토")}
+                    ? c("검토", "Reviewed")
+                    : c("미검토", "Unreviewed")}
                 </span>
               ) : null}
             </div>
@@ -268,12 +269,11 @@ export function OrgTalentTable<Item>({
   rows: readonly OrgTalentTableRow<Item>[];
   statusHeader: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   if (companyHeader === undefined) {
-    companyHeader = t("workspace.OrgTalentTable.e53ac65b", "회사");
+    companyHeader = c("회사", "Company");
   }
-  roleHeader ??= t("workspace.OrgTalentTable.1e4b7d53", "포지션");
+  roleHeader ??= c("포지션", "Role");
   const showCompany = companyHeader !== null;
   const desktopColumnWidths = {
     company: compactRoleCompanyColumns
@@ -331,22 +331,20 @@ export function OrgTalentTable<Item>({
           <thead className="bg-neutral-200/35">
             <tr className="border-b border-neutral-1000-a05 text-[12px] font-light text-neutral-soft">
               <th className="py-2.5 pl-4 pr-2 font-normal">
-                {t("workspace.OrgTalentTable.0f2af15f", "사진")}
+                {c("사진", "Photo")}
               </th>
-              <th className="px-3 py-2.5 font-normal">
-                {t("workspace.OrgTalentTable.473feb66", "이름")}
-              </th>
+              <th className="px-3 py-2.5 font-normal">{c("이름", "Name")}</th>
               <th className="px-3 py-2.5 font-normal">{roleHeader}</th>
               {showCompany ? (
                 <th className="px-3 py-2.5 font-normal">{companyHeader}</th>
               ) : null}
               {middleColumn === "memo" ? (
                 <th className="px-3 py-2.5 font-normal">
-                  {t("workspace.OrgTalentTable.bd4209d5", "메모")}
+                  {c("메모", "Notes")}
                 </th>
               ) : (
                 <th className="px-3 py-2.5 font-normal">
-                  {t("workspace.OrgTalentTable.c3139196", "검토 여부")}
+                  {c("검토 여부", "Review status")}
                 </th>
               )}
               <th className="px-3 py-2.5 font-normal">{statusHeader}</th>
@@ -358,7 +356,7 @@ export function OrgTalentTable<Item>({
           <tbody>
             {rows.map((row) => (
               <tr
-                aria-label={t("workspace.OrgTalentTable.091ee7f9", "{p0} 상세 열기", {
+                aria-label={c("{p0} 상세 열기", "Open {p0} details", {
                   p0: row.name,
                 })}
                 className="group cursor-pointer border-b border-neutral-1000-a05 outline-none transition last:border-b-0 hover:bg-neutral-1000-a03 focus-visible:bg-neutral-1000-a05"
@@ -383,10 +381,10 @@ export function OrgTalentTable<Item>({
                     </span>
                     {middleColumn === "memo" && !row.viewed ? (
                       <span
-                        aria-label={t("workspace.OrgTalentTable.bd192d45", "미검토")}
+                        aria-label={c("미검토", "Unreviewed")}
                         className="size-1.5 shrink-0 rounded-full bg-primary"
                         role="status"
-                        title={t("workspace.OrgTalentTable.bd192d45", "미검토")}
+                        title={c("미검토", "Unreviewed")}
                       />
                     ) : null}
                   </div>
@@ -441,8 +439,8 @@ export function OrgTalentTable<Item>({
                   <td className="px-3 py-3">
                     <StatusLabel tone={row.viewed ? "muted" : "primary"}>
                       {row.viewed
-                        ? t("workspace.OrgTalentTable.0d494035", "검토")
-                        : t("workspace.OrgTalentTable.bd192d45", "미검토")}
+                        ? c("검토", "Reviewed")
+                        : c("미검토", "Unreviewed")}
                     </StatusLabel>
                   </td>
                 )}

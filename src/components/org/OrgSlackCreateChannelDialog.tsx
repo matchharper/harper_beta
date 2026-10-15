@@ -1,5 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { LoaderCircle, Lock } from "lucide-react";
 import { useId, useState } from "react";
@@ -30,8 +30,8 @@ export function OrgSlackCreateChannelDialog({
   workspaceId: string;
 }) {
   const modalFormId1 = useId();
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+
+  const { locale, c } = useOrgLocale();
   const addToast = useToastStore((state) => state.add);
   const createSlackChannel = useCreateOrgSlackChannel(workspaceId);
   const nameId = useId();
@@ -62,20 +62,20 @@ export function OrgSlackCreateChannelDialog({
       const name = payload.channel.channelName || payload.channel.channelId;
       const formattedName = name.startsWith("#") ? name : `#${name}`;
       const followUp = !payload.creatingUserInvited
-        ? t(
-            "workspace.pages.OrgSettingsPage.fcfadfe7",
-            " Slack 계정을 찾지 못해 본인은 자동으로 초대하지 못했어요. Slack 관리자에게 채널 초대를 요청해 주세요."
+        ? c(
+            " Slack 계정을 찾지 못해 본인은 자동으로 초대하지 못했어요. Slack 관리자에게 채널 초대를 요청해 주세요.",
+            " Harper couldn't find a Slack account and couldn't auto-invite itself. Request a channel invite from a Slack admin."
           )
         : !payload.welcomeMessageSent
-          ? t(
-              "workspace.pages.OrgSettingsPage.35d14bc9",
-              " Harper의 첫 안내 메시지는 보내지 못했지만 채널 연결은 유지돼요."
+          ? c(
+              " Harper의 첫 안내 메시지는 보내지 못했지만 채널 연결은 유지돼요.",
+              " Harper's initial welcome message couldn't be sent, but the channel connection remains."
             )
           : "";
       addToast({
-        message: t(
-          "workspace.pages.OrgSettingsPage.7ea9391f",
+        message: c(
           "{p0} 채널을 만들고 Harper에 연결했어요.{p1}",
+          "Created {p0} channel and connected it to Harper. {p1}",
           {
             p0: formattedName,
             p1: followUp,
@@ -88,9 +88,9 @@ export function OrgSlackCreateChannelDialog({
         message: localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "workspace.pages.OrgSettingsPage.86b4038a",
-            "Slack 채널을 만들지 못했어요. 잠시 후 다시 시도해 주세요."
+          c(
+            "Slack 채널을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
+            "Failed to create Slack channel. Try again later."
           )
         ),
         variant: "error",
@@ -103,16 +103,12 @@ export function OrgSlackCreateChannelDialog({
       open={open}
       onClose={() => changeOpen(false)}
       mobileBottomSheet
-      title={
-        <>
-          {t("workspace.pages.OrgSettingsPage.950b7834", "Slack 채널 만들기")}
-        </>
-      }
+      title={<>{c("Slack 채널 만들기", "Create Slack channel")}</>}
       description={
         <>
-          {t(
-            "workspace.pages.OrgSettingsPage.0d89bd18",
-            "채널을 만들면 Harper가 바로 참여하고 연결돼요."
+          {c(
+            "채널을 만들면 Harper가 바로 참여하고 연결돼요.",
+            "Harper joins and connects automatically when the channel is created."
           )}
         </>
       }
@@ -127,7 +123,7 @@ export function OrgSlackCreateChannelDialog({
             type="button"
             form={modalFormId1}
           >
-            {t("workspace.pages.OrgSettingsPage.084f2f6a", "취소")}
+            {c("취소", "Cancel")}
           </MuteButton>
           <MuteButton
             disabled={createSlackChannel.isPending || !channelName.trim()}
@@ -139,10 +135,7 @@ export function OrgSlackCreateChannelDialog({
             {createSlackChannel.isPending ? (
               <LoaderCircle className="size-4 animate-spin" />
             ) : null}
-            {t(
-              "workspace.pages.OrgSettingsPage.67b22260",
-              "채널 만들고 연결하기"
-            )}
+            {c("채널 만들고 연결하기", "Create and connect channel")}
           </MuteButton>
         </div>
       }
@@ -160,7 +153,7 @@ export function OrgSlackCreateChannelDialog({
             className="text-[13px] font-medium text-neutral-primary"
             htmlFor={nameId}
           >
-            {t("workspace.pages.OrgSettingsPage.68d018f6", "채널 이름")}
+            {c("채널 이름", "Channel name")}
           </label>
           <Input
             aria-describedby={`${nameId}-message`}
@@ -175,10 +168,7 @@ export function OrgSlackCreateChannelDialog({
               setChannelName(event.target.value);
               setNameError(null);
             }}
-            placeholder={t(
-              "workspace.pages.OrgSettingsPage.d2073417",
-              "예: hiring-team"
-            )}
+            placeholder={c("예: hiring-team", "e.g. hiring-team")}
             spellCheck={false}
             value={channelName}
           />
@@ -190,9 +180,9 @@ export function OrgSlackCreateChannelDialog({
             id={`${nameId}-message`}
           >
             {nameError ??
-              t(
-                "workspace.pages.OrgSettingsPage.5ae0f4ac",
-                "영문 소문자, 숫자, 하이픈(-), 밑줄(_)을 사용할 수 있어요."
+              c(
+                "영문 소문자, 숫자, 하이픈(-), 밑줄(_)을 사용할 수 있어요.",
+                "Lowercase letters, numbers, hyphens (-), and underscores (_) allowed."
               )}
           </p>
         </div>
@@ -204,15 +194,15 @@ export function OrgSlackCreateChannelDialog({
               id={`${nameId}-private-label`}
             >
               <Lock className="size-3" />
-              {t("workspace.pages.OrgSettingsPage.cbcc58af", "비공개 채널")}
+              {c("비공개 채널", "Private channel")}
             </div>
             <p
               className="mt-1 text-[12px] font-light leading-5 text-neutral-muted"
               id={`${nameId}-private-description`}
             >
-              {t(
-                "workspace.pages.OrgSettingsPage.ad77d0ac",
-                "제한된 Slack 멤버만 참여를 허용합니다."
+              {c(
+                "제한된 Slack 멤버만 참여를 허용합니다.",
+                "Only selected Slack members can join."
               )}
             </p>
           </div>

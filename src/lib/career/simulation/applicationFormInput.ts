@@ -4,8 +4,7 @@ import type { Locator, Page } from "playwright-core";
  * script left the DOM displaying the intended value without updating the app. */
 export async function fillApplicationText(field: Locator, value: string) {
   if (await field.count() !== 1) throw new Error("Expected one application field");
-  await field.fill("");
-  if (value) await field.pressSequentially(value);
+  await field.fill(value);
   await field.press("Tab");
   const actual = await field.inputValue();
   if (actual !== value) throw new Error("Application field did not retain the requested value");

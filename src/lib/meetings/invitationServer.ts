@@ -811,74 +811,28 @@ async function loadInvitationContext(
 }
 
 export async function notifyCompanyOfMeetingConfirmation(args: {
-  companyMessage: string;
+  facts: Record<string, unknown>;
   roundId: string;
   sourceCompanyMessageId: number | null;
   workspaceId: string;
 }) {
-  if (!args.sourceCompanyMessageId || !clean(args.companyMessage, 800)) return;
   const admin = getSupabaseAdmin();
-  const metadata = {
-    meetingScheduleRoundId: args.roundId,
-    source: "meeting_schedule_confirmation",
-  };
-  const { data: existing, error: existingError } = await (
-    admin.from("company_messages" as any) as any
-  )
-    .select("id")
-    .eq("company_workspace_id", args.workspaceId)
-    .contains("metadata", metadata)
-    .limit(1)
-    .maybeSingle();
-  if (existingError) throw existingError;
-  if (existing) return;
-
-  const { data: sourceMessage, error: sourceError } = await (
-    admin.from("company_messages" as any) as any
-  )
-    .select("conversation_id, role_id, slack_thread_id")
-    .eq("id", args.sourceCompanyMessageId)
-    .eq("company_workspace_id", args.workspaceId)
-    .maybeSingle();
-  if (sourceError) throw sourceError;
-  if (!sourceMessage?.conversation_id) return;
-  const { data: conversation, error: conversationError } = await (
-    admin.from("company_conversations" as any) as any
-  )
-    .select("*")
-    .eq("id", sourceMessage.conversation_id)
-    .eq("company_workspace_id", args.workspaceId)
-    .maybeSingle();
-  if (conversationError) throw conversationError;
-  if (!conversation) return;
-
-  let slackMessageTs: string | null = null;
-  let slackUserId: string | null = null;
-  if (sourceMessage.slack_thread_id) {
-    try {
-      const posted = await sendHarperSlackThreadReply({
-        idempotencyKey: `meeting:${args.roundId}:company_schedule_notice:slack`,
-        text: args.companyMessage,
-        threadId: sourceMessage.slack_thread_id,
-        workspaceId: args.workspaceId,
-      });
-      slackMessageTs = posted.slackMessageTs;
-      slackUserId = posted.botUserId;
-    } catch (error) {
-      console.error("[meeting-schedule/company-confirmation-slack]", error);
-    }
-  }
-  await insertOrgAgentMessage({
-    admin,
-    content: args.companyMessage,
-    conversation,
-    messageType: sourceMessage.slack_thread_id ? "slack" : "chat",
-    metadata,
-    role: "assistant",
-    roleId: sourceMessage.role_id,
-    slackMessageTs,
-    slackThreadId: sourceMessage.slack_thread_id,
-    slackUserId,
+  const { data: source, error } = await (admin.from("company_messages" as any) as any)
+    .select("role_id").eq("id", args.sourceCompanyMessageId ?? -1)
+    .eq("company_workspace_id", args.workspaceId).maybeSingle();
+  if (error) throw error;
+  // The schedule carries the exact Role even when the original request was workspace-wide.
+  const { data: round, error: roundError } = await (admin.from("meeting_schedule_rounds" as any) as any)
+    .select("schedule:meeting_schedules!inner(role_id,talent_id)").eq("id", args.roundId).maybeSingle();
+  if (roundError) throw roundError;
+  const schedule = Array.isArray(round?.schedule) ? round.schedule[0] : round?.schedule;
+  const roleId = schedule?.role_id ?? source?.role_id;
+  if (!roleId) throw new Error("Meeting notification Role missing");
+  const { enqueueCompanyUpdate } = await import("@/lib/org/agent/companyUpdate.server");
+  await enqueueCompanyUpdate({
+    workspaceId: args.workspaceId, roleId, eventKey: `meeting-confirmed:${args.roundId}`,
+    purpose: "Explain the confirmed meeting time and actual Calendar delivery outcome in the company's conversation.",
+    facts: { ...args.facts, roleId, talentId: schedule?.talent_id },
   });
 }
 
@@ -1136,11 +1090,13 @@ export async function submitPublicMeetingOptions(args: {
   }
   try {
     await notifyCompanyOfMeetingConfirmation({
-      companyMessage: buildMeetingCalendarDeliveryNotice({
-        calendar,
-        companyMessage: selection.companyMessage,
-        locale: workspaceLocale,
-      }),
+      facts: {
+        candidateName: context.invitationSnapshot.candidate.name,
+        confirmedStartAt: chosen.startAt, confirmedEndAt: chosen.endAt,
+        timezone: available.timezone,
+        candidateOptions: selected.map(option => ({ startAt: option.startAt, endAt: option.endAt })),
+        calendarInvitation: { status: calendar.status, meetUrl: calendar.meetUrl, calendarUrl: calendar.calendarUrl },
+      },
       roundId: context.roundId,
       sourceCompanyMessageId: context.sourceCompanyMessageId,
       workspaceId: context.workspaceId,

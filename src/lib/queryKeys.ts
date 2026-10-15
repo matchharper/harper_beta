@@ -4,6 +4,28 @@ import { OPS_OPPORTUNITY_COMPANY_PAGE_SIZE } from "@/lib/ops/opportunityConstant
 
 export type QueryKey = readonly unknown[];
 
+type OrgBoardQueryFilters = {
+  query?: string | null;
+  recommendedDate?: string | null;
+  recommendedFromDate?: string | null;
+  recommendedToDate?: string | null;
+  roleId?: string | null;
+  workspaceId?: string | null;
+};
+
+function orgBoardQueryKey(filters?: OrgBoardQueryFilters) {
+  return [
+    "org",
+    "board",
+    filters?.workspaceId?.trim() ?? "",
+    filters?.roleId?.trim() ?? "",
+    filters?.recommendedDate?.trim() ?? "",
+    filters?.recommendedFromDate?.trim() ?? "",
+    filters?.recommendedToDate?.trim() ?? "",
+    filters?.query?.trim() ?? "",
+  ] as const;
+}
+
 export const queryKeys = {
   candidate: {
     all: ["candidate"] as const,
@@ -123,31 +145,13 @@ export const queryKeys = {
     meetingAvailabilityAll: ["org", "meetingAvailability"] as const,
     meetingSchedulesAll: ["org", "meetingSchedules"] as const,
     roleNotificationsAll: ["org", "roleNotifications"] as const,
-    roleCalibrationsAll: ["org", "roleCalibrations"] as const,
     slackAll: ["org", "slack"] as const,
     bootstrap: (orgId?: string | null) =>
       ["org", "bootstrap", orgId ?? ""] as const,
     invitePreview: (orgId?: string | null) =>
       ["org", "invitePreview", orgId ?? ""] as const,
     acceptedTalents: ["org", "acceptedTalents"] as const,
-    board: (filters?: {
-      query?: string | null;
-      recommendedDate?: string | null;
-      recommendedFromDate?: string | null;
-      recommendedToDate?: string | null;
-      roleId?: string | null;
-      workspaceId?: string | null;
-    }) =>
-      [
-        "org",
-        "board",
-        filters?.workspaceId ?? "",
-        filters?.roleId ?? "all",
-        filters?.recommendedDate ?? "",
-        filters?.recommendedFromDate ?? "",
-        filters?.recommendedToDate ?? "",
-        filters?.query ?? "",
-      ] as const,
+    board: orgBoardQueryKey,
     boardProfileLabels: (filters?: {
       recommendationIds?: string[];
       workspaceId?: string | null;
@@ -160,7 +164,7 @@ export const queryKeys = {
         filters?.recommendationIds ?? [],
       ] as const,
     inbox: (workspaceId?: string | null) =>
-      ["org", "board", "inbox", workspaceId ?? ""] as const,
+      orgBoardQueryKey({ workspaceId }),
     detail: (filters?: {
       recommendationId?: string | null;
       roleId?: string | null;
@@ -196,20 +200,6 @@ export const queryKeys = {
       ["org", "meetingSchedules", workspaceId ?? "", scheduleId ?? ""] as const,
     roleNotifications: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "roleNotifications", workspaceId ?? "", roleId ?? ""] as const,
-    roleCalibration: (
-      workspaceId?: string | null,
-      roleId?: string | null,
-      calibrationId?: string | null,
-      profileId?: string | null
-    ) =>
-      [
-        "org",
-        "roleCalibrations",
-        workspaceId ?? "",
-        roleId ?? "",
-        calibrationId ?? "latest",
-        profileId ?? "list",
-      ] as const,
     internalTalent: (filters?: {
       talentId?: string | null;
       workspaceId?: string | null;

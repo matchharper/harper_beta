@@ -1,0 +1,52 @@
+{
+  "datasetVersion": "v7-users-combined-titles",
+  "goldVersion": "v7-users-combined-titles-1",
+  "frozenBeforePaidCalls": true,
+  "reviewer": "Codex source-context review; independent human labels unavailable",
+  "unit": "frozen user -> production planner -> local-language title aliases -> one comma-joined embedding",
+  "common": [
+    "No production writes or downstream recommendations/fit/messages",
+    "No Brief/Memory facts changed",
+    "No hard salary cutoff or exclusion of unknown salary",
+    "Same production planner and monetary-unit contract as Ops preview",
+    "All role_titles are comma-space joined without semantic rewriting into exactly one search embedding",
+    "No country-dependent salary or weight experiment; performance comparison retains v6 target/country/filters",
+    "Use natural titles in the relevant search-country language as well as English; do not select language solely by chat locale"
+  ],
+  "cases": [
+    {
+      "caseId": "user-1",
+      "salary": "Must return a positive career-based annual BASE salary benchmark in KRW, grounded in actual responsibilities and the relevant local hiring market. Desired pay does not define this value.",
+      "direction": "Product-owning senior AI individual contribution, domestic-first direction; original Brief and Behavior are authoritative",
+      "geography": "Domestic emphasis, no invented existing foreign work authorization",
+      "titleLanguage": "Korean plus English"
+    },
+    {
+      "caseId": "user-2",
+      "salary": "Must return a positive career-based annual BASE salary benchmark in KRW, grounded in actual responsibilities and the relevant local hiring market. Desired pay does not define this value. Estimate Japan-market pay then convert to KRW; do not emit JPY units as KRW.",
+      "direction": "General software engineering beyond an infrastructure-only search; clear ownership",
+      "geography": "Japan-oriented search; posting country is not proof of language or work eligibility; hybrid/remote preference needs final-role verification",
+      "titleLanguage": "Japanese plus English"
+    },
+    {
+      "caseId": "user-3",
+      "salary": "Must return a positive career-based annual BASE salary benchmark in KRW, grounded in actual responsibilities and the relevant local hiring market. Desired pay does not define this value. Compensation indifference and the withdrawn minimum must not cause null or a nominal low fallback; estimate from demonstrated professional history for the Australian market.",
+      "direction": "Customer-facing deployment/solutions engineering supported by data engineering background",
+      "geography": "Australia-oriented exploration; sponsorship remains unverified by initial SQL, not assumed true",
+      "titleLanguage": "English"
+    }
+  ],
+  "limitations": [
+    "Three existing purpose samples, not independent holdout or calibrated actual-pay gold",
+    "Positive output and evidence-grounded market reasoning are contract checks, not proof of salary accuracy",
+    "No new SQL ranking evaluation; ranking arithmetic unchanged",
+    "One planner output each; multilingual semantic fidelity reviewed by Codex only",
+    "Combining distinct role concepts may change recall; report pool/list changes rather than claiming equivalence"
+  ],
+  "labelChange": {
+    "date": "2026-10-15",
+    "reviewer": "Codex implementing explicit user request before paid v7 calls",
+    "reason": "Require preferred-country language aliases and one combined embedding; preserve salary semantics.",
+    "priorVersion": "v5-users-market-value; source input unchanged"
+  }
+}

@@ -45,11 +45,10 @@ test("active mode retains the chat-based stop contract", () => {
 test("ordinary application intent offers the feature without requiring its name or starting work", () => {
  const plan=buildCareerConversationPromptPlan({...base,simulationAvailability:"inactive"});
  const contract=plan.promptBlocks.find(b=>b.key==="application_start_payload")!.text;
- assert.match(contract,/apply on their behalf/);
- assert.match(contract,/No exact feature name/);
- assert.match(contract,/Do not narrate card rendering/);
- assert.match(contract,/does not start analysis or activate a mode/);
- assert.match(contract,/official_job_slug/);
+ assert.ok(contract.includes("simulate_application"));
+ assert.ok(contract.includes("document_id"));
+ assert.ok(!contract.includes("[[APPLICATION_START_OFFER]]"));
+
 });
 
 test("application prompt includes the actual shared Profile, Brief and Memory plus their tool policies", () => {

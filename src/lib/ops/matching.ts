@@ -654,7 +654,7 @@ export type OpsMatchingFitItem = {
   reevaluationCheckedAt: string | null;
   reevaluationCriteria: TalentOpportunityFitRecordRow["reevaluation_criteria"];
   role: OpsMatchingFitRole;
-  score: number;
+  score: number | null;
   talent: OpsMatchingTalentItem;
 };
 

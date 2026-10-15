@@ -1,4 +1,5 @@
 type CompanyInternalRoleRecord = {
+  team_id?: string | null;
   considerations?: unknown;
   criteria?: unknown;
   is_company_first_search?: boolean | null;

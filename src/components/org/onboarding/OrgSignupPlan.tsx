@@ -1,3 +1,4 @@
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -9,22 +10,24 @@ import { signupErrorMessage } from "@/lib/org/signup";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { signupRequest } from "./signupClient";
 import type { BillingInterval } from "@/lib/org/billing/types";
+import { previewCatalog } from "@/lib/org/billing/preview";
 
 export function OrgSignupPlan({
   workspaceId,
-  locale,
   onSelected,
   onBusyChange,
+  preview = false,
 }: {
   workspaceId: string;
-  locale: "ko" | "en";
   onSelected: () => void;
   onBusyChange: (busy: boolean) => void;
+  preview?: boolean;
 }) {
+  const { locale, c } = useOrgLocale();
   const router = useRouter();
   const client = useQueryClient();
-  const billing = useOrgBilling(workspaceId, true);
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const billing = useOrgBilling(workspaceId, !preview);
+  const catalog = preview ? previewCatalog() : billing.data?.catalog;
   const [purchaseInterval, setPurchaseInterval] =
     useState<BillingInterval | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,14 +41,18 @@ export function OrgSignupPlan({
   }, [busy, confirming, onBusyChange]);
   const select = useCallback(
     async (plan: "free" | "slot") => {
+      if (preview) {
+        onSelected();
+        return;
+      }
       await signupRequest(workspaceId, "plan", { plan });
       await client.invalidateQueries({ queryKey: ["org", "bootstrap"] });
       onSelected();
     },
-    [client, onSelected, workspaceId]
+    [client, onSelected, workspaceId, preview]
   );
   useEffect(() => {
-    if (!session || router.query.checkout !== "success") return;
+    if (preview || !session || router.query.checkout !== "success") return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     setConfirming(true);
@@ -79,13 +86,18 @@ export function OrgSignupPlan({
       stopped = true;
       clearTimeout(timer);
     };
-  }, [session, router.query.checkout, workspaceId, locale, select]);
+  }, [session, router.query.checkout, workspaceId, locale, select, preview]);
   async function act(
     plan: "free" | "slot",
     interval?: BillingInterval,
     quantity = 1
   ) {
     if (busy || confirming) return;
+    if (preview) {
+      setPurchaseInterval(null);
+      onSelected();
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -136,8 +148,7 @@ export function OrgSignupPlan({
         </MuteButton>
       ) : (
         <WorkspacePlans
-          locale={locale}
-          catalog={billing.data?.catalog}
+          catalog={catalog}
           initialInterval={router.query.interval === "month" ? "month" : "year"}
           busy={busy || confirming}
           onFree={() => void act("free")}
@@ -152,8 +163,7 @@ export function OrgSignupPlan({
         onOpenChange={(open) => {
           if (!open) setPurchaseInterval(null);
         }}
-        locale={locale}
-        catalog={billing.data?.catalog}
+        catalog={catalog}
         initialInterval={purchaseInterval ?? "year"}
         initialQuantity={Number(router.query.quantity ?? 1)}
         busy={busy || confirming}

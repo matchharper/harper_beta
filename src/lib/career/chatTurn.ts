@@ -4,6 +4,7 @@ import { initialCareerCapabilityPayload } from "@/lib/career/capabilities/lease"
 import { hydrateMockInterviewOffers } from "@/lib/career/mockInterviewOffers.server";
 import { after } from "next/server";
 import type { OpenAIResponsesReasoningEffort } from "@/lib/llm/responsesChatAdapter";
+import type { ChatCompletionReasoningEffort } from "@/lib/llm/llm";
 import {
   buildCareerInsightExtractionPrompt,
   buildCareerConversationPromptPlan,
@@ -134,11 +135,32 @@ type CompanySnapshotToolResult = {
 
 export type CareerChatTurnChannel = "chat" | "voice";
 
+// Server channels can reuse the existing turn without changing the web route,
+// its prompt builder, provider loop, or domain tool registry.
+export type CareerTextTurnAdapter = {
+  onboardingActive?: boolean;
+  sourceMessage: TalentMessageRow;
+  adaptPromptBlocks: (blocks: Parameters<typeof runCareerChatAssistant>[0]["systemBlocks"]) => Parameters<typeof runCareerChatAssistant>[0]["systemBlocks"];
+  adaptTools: (selection: ReturnType<typeof resolveCareerChatTools>) => ReturnType<typeof resolveCareerChatTools>;
+  executeTool: (args: {
+    name: string;
+    input: Record<string, unknown>;
+    executeDefault: () => Promise<unknown>;
+  }) => Promise<unknown>;
+  beforeAssistantFinalization?: () => Promise<void>;
+  persistAssistant: (args: {
+    content: string;
+    notices: PendingProcessClosureNotice[];
+  }) => Promise<TalentMessageRow>;
+};
+
 export type RunCareerChatTurnArgs = {
+  adapter?: CareerTextTurnAdapter;
   admin: TalentAdminClient;
   assistantMessagePayload?: TalentMessageRow["payload"];
   allowedToolNames?: readonly string[] | null;
   assistantModel?: string;
+  assistantChatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   assistantMessagePrefix?: string | null;
   assistantOpenAIResponsesReasoningEffort?: OpenAIResponsesReasoningEffort;
   assistantTemperature?: number;
@@ -407,6 +429,9 @@ export async function runCareerChatTurn(
     userId,
   } = args;
   const requestChannel = args.channel === "voice" ? "voice" : "chat";
+  if (args.adapter && (args.adapter.sourceMessage.user_id !== userId || args.adapter.sourceMessage.conversation_id !== conversationId || args.adapter.sourceMessage.role !== "user")) {
+    throw new Error("Server channel source message does not belong to this turn");
+  }
   const assistantMessageType =
     String(args.assistantMessageType ?? "").trim() || "chat";
   const isMobile = args.isMobile;
@@ -582,7 +607,8 @@ export async function runCareerChatTurn(
   const talentContextSection = renderTalentContextPrompt(talentContextSnapshot);
   let responseLocale = talentSetting?.preferred_locale ?? null;
   const isOnboardingActiveForTurn =
-    !Boolean(talentSetting?.is_onboarding_done) && !suppressOnboarding;
+    !Boolean(talentSetting?.is_onboarding_done) &&
+    (!suppressOnboarding || args.adapter?.onboardingActive === true);
   const onboardingChecklistCoverage = isOnboardingActiveForTurn
     ? await getCareerOnboardingChecklistCoverage({
         admin,
@@ -591,7 +617,7 @@ export async function runCareerChatTurn(
         userId,
       })
     : null;
-  const shouldAutoExtractInsights = isOnboardingActiveForTurn;
+  const shouldAutoExtractInsights = isOnboardingActiveForTurn && !suppressOnboarding;
   const savedProfileChangesForExtraction = new Set<string>();
   const canUseInternalFitHoldQuestionTool = false;
   const activeInternalFitHoldQuestion =
@@ -635,13 +661,13 @@ export async function runCareerChatTurn(
       : Promise.resolve(0);
 
   const capabilityMode = getCareerCapabilityMode();
-  const trackCapabilities = isCareerCapabilityTurn({ channel: requestChannel, isOnboardingDone: !isOnboardingActiveForTurn, allowedToolNames: args.allowedToolNames });
+  const trackCapabilities = !args.adapter && isCareerCapabilityTurn({ channel: requestChannel, isOnboardingDone: !isOnboardingActiveForTurn, allowedToolNames: args.allowedToolNames });
   const careerCoachingActivity = trackCapabilities ? await readCareerCapabilityCoaching({ admin, userId, conversationId, expire: true }) : null;
-  let insertedUserMessage: TalentMessageRow | null = null;
+  let insertedUserMessage: TalentMessageRow | null = args.adapter?.sourceMessage ?? null;
   const normalizedContent = link
     ? `${rawUserMessage}\n\nReference link: ${link}`
     : rawUserMessage;
-  if (rawUserMessage) {
+  if (rawUserMessage && !insertedUserMessage) {
     const { data, error } = await admin
       .from("talent_messages")
       .insert(
@@ -698,7 +724,15 @@ export async function runCareerChatTurn(
     messages: recentMessages,
   });
 
-  const llmMessages = recentMessages
+  // Durable continuation answers the original inbound message. Background
+  // output after that message is supplied as current runtime context, not as
+  // an assistant prefill or a new user instruction.
+  const sourceWindow = args.adapter
+    ? recentMessages.filter(item => Number(item.id) <= Number(args.adapter!.sourceMessage.id))
+    : recentMessages;
+  if (args.adapter && !sourceWindow.some(item => Number(item.id) === Number(args.adapter!.sourceMessage.id)))
+    sourceWindow.push(args.adapter.sourceMessage);
+  const llmMessages = sourceWindow
     .filter(
       (item) =>
         item.message_type !==
@@ -728,7 +762,7 @@ export async function runCareerChatTurn(
     });
   }
 
-  const toolSelection = resolveCareerChatTools({
+  const defaultToolSelection = resolveCareerChatTools({
     activeInternalFitHoldQuestion: Boolean(activeInternalFitHoldQuestion),
     allowedToolNames: args.allowedToolNames,
     channel: requestChannel,
@@ -736,6 +770,7 @@ export async function runCareerChatTurn(
     isOnboardingDone: !isOnboardingActiveForTurn,
     responseLocale,
   });
+  const toolSelection = args.adapter?.adaptTools(defaultToolSelection) ?? defaultToolSelection;
   const gmailCapability = activeGmailIntegration
     ? toolSelection.toolNames.includes(TALENT_TOOL_NAMES.SEARCH_CONNECTED_GMAIL)
       ? ("available" as const)
@@ -810,7 +845,8 @@ export async function runCareerChatTurn(
   }) : undefined;
   const initialCapabilityStep = capabilityTurn?.runtime.resolveStep(false);
   if (initialCapabilityStep) toolDefinitions = initialCapabilityStep.tools;
-  const systemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
+  const defaultSystemBlocks = initialCapabilityStep?.systemBlocks ?? promptBlocks;
+  const systemBlocks = args.adapter?.adaptPromptBlocks(defaultSystemBlocks) ?? defaultSystemBlocks;
 
   const preparedCompanySnapshotRef: {
     current: CompanySnapshotToolResult | null;
@@ -976,6 +1012,14 @@ export async function runCareerChatTurn(
           recordThinkingLog(status);
         }
 
+        if (args.adapter) {
+          return args.adapter.executeTool({
+            name,
+            input: toolInput,
+            executeDefault: () => executeDefaultTalentTool({ name, input: toolInput }),
+          });
+        }
+
         if (name === TALENT_TOOL_NAMES.RESEARCH_COMPANY) {
           await insertTalentToolUsageLog({
             admin,
@@ -1124,6 +1168,9 @@ export async function runCareerChatTurn(
       },
       isOnboardingActive,
       messages: assistantTurnMessages,
+      ...(args.assistantChatCompletionReasoningEffort
+        ? { chatCompletionReasoningEffort: args.assistantChatCompletionReasoningEffort }
+        : {}),
       openAIResponsesReasoningEffort:
         args.assistantOpenAIResponsesReasoningEffort,
       primaryModel: args.assistantModel,
@@ -1249,6 +1296,9 @@ export async function runCareerChatTurn(
     return buildResult(messagesWithThinkingLogs);
   }
 
+  // A transport may yield durable work before generating a reply that cannot
+  // yet be delivered. Persistence rechecks ownership after finalization.
+  await args.adapter?.beforeAssistantFinalization?.();
   let assistantTextSource = assistantText.trim();
   if (recommendationReceiptRef.current) {
     assistantTextSource = recommendationReceiptRef.current.answerDraft;
@@ -1256,6 +1306,7 @@ export async function runCareerChatTurn(
   if (!assistantTextSource && !noMessageMarker) {
     assistantTextSource = (
       await recoverCareerChatAssistantText({
+        primaryModel: args.assistantModel,
         latestUserMessage: normalizedContent || proactiveContext,
         messages: assistantTurnMessages,
         responseLocale,
@@ -1315,6 +1366,7 @@ export async function runCareerChatTurn(
   if (!safeAssistantText) {
     const recoveredText = (
       await recoverCareerChatAssistantText({
+        primaryModel: args.assistantModel,
         latestUserMessage: normalizedContent || proactiveContext,
         messages: assistantTurnMessages,
         responseLocale,
@@ -1334,11 +1386,14 @@ export async function runCareerChatTurn(
       stripTalentOnboardingCompletionMarker(assistantTextWithMarkers)
     );
   }
-  safeAssistantText = ensureStandalonePostingLinksInText(
+  // Web cards need fallback links/markers. Transport adapters author their
+  // complete reply through the model and supply usable links in its context.
+  if (!args.adapter) safeAssistantText = ensureStandalonePostingLinksInText(
     safeAssistantText,
     pendingRecommendationPostingRoleIds
   );
   if (
+    !args.adapter &&
     recommendationReceiptRef.current?.statusRunId &&
     recommendationReceiptRef.current.statusRelation
   ) {
@@ -1380,7 +1435,9 @@ export async function runCareerChatTurn(
     };
   }
 
-  const { data: insertedAssistantMessage, error: assistantError } = await admin
+  const { data: insertedAssistantMessage, error: assistantError } = args.adapter
+    ? { data: await args.adapter.persistAssistant({ content: safeAssistantText, notices: Array.from(pendingProcessClosureNotices.values()) }), error: null }
+    : await admin
     .from("talent_messages")
     .insert(
       withIsMobile(
@@ -1420,11 +1477,13 @@ export async function runCareerChatTurn(
     );
   }
 
-  await commitDeliveredProcessClosureNotices({
-    admin,
-    notices: pendingProcessClosureNotices.values(),
-    talentId: userId,
-  });
+  if (!args.adapter) {
+    await commitDeliveredProcessClosureNotices({
+      admin,
+      notices: pendingProcessClosureNotices.values(),
+      talentId: userId,
+    });
+  }
 
   await persistInsightExtractionForAssistantMessage({
     content: stripCareerReengagementActions(

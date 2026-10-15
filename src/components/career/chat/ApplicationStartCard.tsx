@@ -30,7 +30,10 @@ export function ApplicationStartCard({
 }) {
   const t = useCareerT();
   const [documentId, setDocumentId] = useState(
-    offer.resumes.find((r) => r.primary)?.id ?? offer.resumes[0]?.id ?? "none"
+    offer.selectedDocumentId ??
+      offer.resumes.find((r) => r.primary)?.id ??
+      offer.resumes[0]?.id ??
+      "none"
   );
   const { fetchWithAuth } = useCareerApi();
   const [resumes, setResumes] = useState(offer.resumes);
@@ -132,13 +135,12 @@ export function ApplicationStartCard({
   };
   return (
     <section className="w-full max-w-[640px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm">
-      <header className="border-b border-neutral-1000-a05 p-4">
+      <header className="p-4 pb-0">
         <h3 className="font-medium">
           {t("career.apply.title", "하퍼로 지원하기")}
         </h3>
       </header>
       <div className="space-y-2 p-4">
-
         <div className="space-y-2">
           <p className="text-sm font-medium">
             {t("career.apply.role", "지원할 포지션")}
@@ -234,16 +236,10 @@ export function ApplicationStartCard({
             )}
           </>
         )}
-        <p className="text-sm text-neutral-muted">
-          {t(
-            "career.apply.invitation",
-            "함께 시작해볼까요? 전체 활동을 함께 진행하면 약 10분 정도 걸려요."
-          )}
-        </p>
         <MuteButton
           variant="primary"
           size="md"
-          className="w-full"
+          className="w-full mt-2"
           disabled={
             disabled ||
             pending ||

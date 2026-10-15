@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import { readOrgRoleAccess, scopeOrgRoleQuery } from "@/lib/org/teamAccess";
 import {
   createOrResumeDraftRole,
   parseRoleCreationConversationMetadata,
@@ -540,18 +541,21 @@ export async function resolveDraftRoleCreationForSlackThread(args: {
 
 async function loadInProgressSlackRoleCreations(args: {
   admin: AdminClient;
+  user?: User;
   workspaceId: string;
 }): Promise<InProgressSlackRoleCreation[]> {
-  const { data: roles, error: rolesError } = await (
+  let query = (
     args.admin.from("company_roles" as any) as any
   )
-    .select("role_id, name")
+    .select("role_id, name, company_internal_roles(team_id)")
     .eq("company_workspace_id", args.workspaceId)
     .eq("source_type", "internal")
     .eq("status", "draft")
     .not("is_expired", "is", true)
     .order("updated_at", { ascending: false })
     .limit(10);
+  if (args.user) query = scopeOrgRoleQuery(query, await readOrgRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId }));
+  const { data: roles, error: rolesError } = await query;
   if (rolesError) throw rolesError;
   const roleIds = (roles ?? []).map((role: any) => text(role.role_id));
   if (roleIds.length === 0) return [];
@@ -591,6 +595,7 @@ async function loadInProgressSlackRoleCreations(args: {
 
 export async function formatInProgressSlackRoleCreations(args: {
   admin: AdminClient;
+  user?: User;
   workspaceId: string;
 }) {
   const roles = await loadInProgressSlackRoleCreations(args);
@@ -606,6 +611,7 @@ export async function formatInProgressSlackRoleCreations(args: {
 
 export async function appendMissingInProgressSlackRoleLinks(args: {
   admin: AdminClient;
+  user?: User;
   message: string;
   workspaceId: string;
 }) {

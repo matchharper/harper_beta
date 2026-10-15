@@ -1,8 +1,9 @@
 import { browserProgressEntrySchema } from "./browserProgress";
 import { z } from "zod";
 import { browserRequestSchema } from "./applicationBrowserActions";
+import { applicationBrowserRuntimeRefSchema } from "./applicationBrowserRuntimeRef";
 
-export const APPLY_TO_ROLE = "apply_to_role";
+export const APPLY_TO_ROLE = "apply_for_role";
 export const browserStateSchema = z.object({
   id: z.string(),
   status: z.enum([
@@ -15,8 +16,9 @@ export const browserStateSchema = z.object({
     "cancelled",
   ]),
   sessionId: z.string().optional(),
+  model: z.string().optional(),
   environmentId: z.string().optional(),
-  driver: z.object({ name: z.string(), expiresAt: z.string() }).optional(),
+  driver: applicationBrowserRuntimeRefSchema.optional(),
   pendingRequest: browserRequestSchema.optional(),
   files: z
     .array(
@@ -35,6 +37,7 @@ export const browserStateSchema = z.object({
   documentHash: z.string(),
   url: z.string(),
   purpose: z.string(),
+  sourceMessageId: z.number().int().positive().optional(),
   progress: browserProgressEntrySchema.array().max(40).optional(),
   cursor: z.string().optional(),
   leaseUntil: z.string().optional(),
@@ -52,6 +55,7 @@ export const browserStateSchema = z.object({
       approved: z.boolean(),
       summary: z.string(),
       requestId: z.string().optional(),
+      evidenceMessageId: z.number().optional(),
       executed: z.boolean().optional(),
     })
     .optional(),
@@ -84,7 +88,7 @@ export const applyToRoleTool = {
   function: {
     name: APPLY_TO_ROLE,
     description:
-      "Fill the current role's public application form using the user's selected final resume and confirmed answers. Available only in Apply with Harper after completed analysis, final file selection and user review of all known required supporting documents and substantive written answers. Prepare missing materials before invoking this tool. Saves a resumable browser run, can ask for missing information, and requires user confirmation before final submission. Login and CAPTCHA are unsupported. Ends this turn; the application delivers questions or a verified outcome later.",
+      "Fill the current role's public application form using the user's selected final resume and confirmed answers. Available only in Apply with Harper after ready_for_role and the user authorizes applying with the prepared resume, plus review of all known required supporting documents and substantive written answers. Prepare missing materials before invoking this tool. Saves a resumable browser run, can ask for missing information, and requires user confirmation before final submission. Login and CAPTCHA are unsupported. Ends this turn; the application delivers questions or a verified outcome later.",
     parameters: {
       type: "object",
       additionalProperties: false,

@@ -1,3 +1,5 @@
+import { RecommendationSearchProgress } from "./RecommendationSearchProgress";
+import { isApplicationInspectionPending } from "@/lib/career/simulation/applicationForm";
 import {
   type SimulationCardRequest,
   type SimulationSession,
@@ -14,6 +16,7 @@ import {
 export function ApplicationSimulationCard({
   simulation: supplied,
   messageId,
+  sessionMessage,
 }: {
   simulation: ApplicationSimulation;
   messageId: string | number;
@@ -34,7 +37,7 @@ export function ApplicationSimulationCard({
     restored && restored.updatedAt > supplied.updatedAt ? restored : supplied;
   const stale =
     simulation.status === "running" &&
-    now - Date.parse(simulation.updatedAt) > 240_000;
+    now - Date.parse(simulation.updatedAt) > 450_000;
   // SSE owns live progress. Polling restores an in-flight card after a page reload.
   useEffect(() => {
     if (simulation.status !== "running" || stale) return;
@@ -65,12 +68,15 @@ export function ApplicationSimulationCard({
     };
   }, [fetchWithAuth, messageId, simulation.status, stale]);
   const t = useCareerT();
+  const session = sessionMessage?.simulationSession;
+  const inspection = session?.applicationInspection;
   const titles = {
     role: t("career.simulation.role", "Role·기업 분석"),
     comparison: t("career.simulation.comparison", "근거 대조·진단"),
-    review: simulation.version >= 4
-      ? t("career.prep.combinedAnalysis", "근거 대조·준비 항목")
-      : t("career.simulation.review", "검증·액션 제안"),
+    review:
+      simulation.version >= 4
+        ? t("career.prep.combinedAnalysis", "근거 대조·준비 항목")
+        : t("career.simulation.review", "검증·액션 제안"),
   };
   const labels = {
     pending: t("career.simulation.pending", "대기 중"),
@@ -79,7 +85,10 @@ export function ApplicationSimulationCard({
     failed: t("career.simulation.failed", "분석 중단"),
     cancelled: t("career.simulation.cancelled", "취소됨"),
   };
-  const review = simulation.steps.findLast(step => step.status === "completed" && step.result?.data?.kind === "review")?.result?.data;
+  const review = simulation.steps.findLast(
+    (step) =>
+      step.status === "completed" && step.result?.data?.kind === "review"
+  )?.result?.data;
   const verdict = review?.kind === "review" ? review.fitVerdict : undefined;
   const verdictLabels = {
     strong: t("career.simulation.fitStrong", "강한 핏"),
@@ -87,7 +96,84 @@ export function ApplicationSimulationCard({
     weak: t("career.simulation.fitWeak", "약한 핏"),
     stretch: t("career.simulation.fitStretch", "Stretch · 현실적으로 어려움"),
   };
-  const verdictColors = {strong: "text-positive", moderate: "text-info", weak: "text-critical", stretch: "text-critical"};
+  const verdictColors = {
+    strong: "text-positive",
+    moderate: "text-info",
+    weak: "text-critical",
+    stretch: "text-critical",
+  };
+  if (simulation.version === 6)
+    return (
+      <section
+        className="w-full max-w-[420px] rounded-md p-3 border border-neutral-1000-a10"
+        aria-label={t("career.apply.title", "하퍼로 지원하기")}
+      >
+        <RecommendationSearchProgress
+          keepVisual
+          showAnimation={simulation.status === "running" && !stale}
+          progress={{
+            activeStep: [
+              "candidate",
+              "role",
+              "suggestions",
+            ].indexOf(simulation.progress === "application" ? "suggestions" : simulation.progress ?? "candidate"),
+            completed: simulation.status === "completed",
+            running: simulation.status === "running" && !stale,
+          }}
+          steps={[
+            {
+              key: "candidate",
+              label: t(
+                "career.application.progress.candidate",
+                "이력과 프로필 읽기"
+              ),
+            },
+            {
+              key: "role",
+              label: t(
+                "career.application.progress.role",
+                "포지션과 회사 알아보기"
+              ),
+            },
+            {
+              key: "suggestions",
+              label: t(
+                "career.application.progress.suggestions",
+                "맞춤 제안 작성"
+              ),
+            },
+          ]}
+        />
+        {inspection && (
+          <div className="mt-3 flex items-center gap-2 border-t border-neutral-1000-a05 px-2 pt-3 text-xs text-neutral-muted">
+            {session?.status === "active" && isApplicationInspectionPending(session) ? (
+              <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
+            ) : inspection.status === "completed" ? (
+              <CheckCircle2 aria-hidden className="size-3.5 shrink-0" />
+            ) : (
+              <AlertCircle aria-hidden className="size-3.5 shrink-0" />
+            )}
+            <span>{t("career.application.progress.application", "지원에 필요한 항목 확인")}</span>
+            <span className="ml-auto shrink-0 text-neutral-soft">
+              {session?.status !== "active" && isApplicationInspectionPending(session ?? {})
+                ? labels.cancelled
+                : inspection.status === "completed" ? labels.completed
+                  : inspection.status === "failed" ? labels.failed : labels.running}
+            </span>
+          </div>
+        )}
+        {(simulation.status === "failed" ||
+          simulation.status === "cancelled" ||
+          stale) && (
+          <p role="status" className="px-2 pt-3 text-sm text-neutral-muted">
+            {t(
+              "career.application.progress.failed",
+              "준비를 완료하지 못했어요. 채팅에서 이어서 도와드릴게요."
+            )}
+          </p>
+        )}
+      </section>
+    );
   return (
     <section
       className="w-full max-w-[740px] overflow-hidden rounded-xl border border-neutral-1000-a10 bg-bg-floating"
@@ -150,9 +236,18 @@ export function ApplicationSimulationCard({
           </div>
         ))}
         {verdict && (
-          <div className="min-w-0 space-y-2 rounded-lg border border-neutral-1000-a05 p-3" data-fit-verdict={verdict.level}>
-            <p className="text-sm font-medium">{t("career.simulation.fitVerdict", "종합 적합도")}</p>
-            <p className={`text-sm font-medium ${verdictColors[verdict.level]}`}>{verdictLabels[verdict.level]}</p>
+          <div
+            className="min-w-0 space-y-2 rounded-lg border border-neutral-1000-a05 p-3"
+            data-fit-verdict={verdict.level}
+          >
+            <p className="text-sm font-medium">
+              {t("career.simulation.fitVerdict", "종합 적합도")}
+            </p>
+            <p
+              className={`text-sm font-medium ${verdictColors[verdict.level]}`}
+            >
+              {verdictLabels[verdict.level]}
+            </p>
             <p className="text-sm">{verdict.reason}</p>
           </div>
         )}

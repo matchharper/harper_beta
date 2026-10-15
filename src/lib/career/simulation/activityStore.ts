@@ -67,7 +67,7 @@ export async function activityOperation(
     p_key: args.key
       ? createHash("sha256").update(args.key).digest("hex")
       : null,
-    p_offer_id: args.state?.activity?.offerId ?? null,
+    p_offer_id: args.state?.activity?.offerId ?? args.state?.activity?.sourceMessageId ?? null,
   });
   if (error)
     throw Object.assign(new Error(error.message), { code: error.code });

@@ -17,7 +17,6 @@ type AnnouncementCardProps = {
   children: ReactNode;
   media?: ReactNode;
   action?: AnnouncementCardAction;
-  closeLabel: string;
 };
 
 /** A persistent, non-modal notice. The caller owns its audience and seen state. */
@@ -28,7 +27,6 @@ export function AnnouncementCard({
   children,
   media,
   action,
-  closeLabel,
 }: AnnouncementCardProps) {
   const titleId = useId();
   const reducedMotion = useReducedMotion();
@@ -44,25 +42,15 @@ export function AnnouncementCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: reducedMotion ? 0 : 0.2, ease: "easeOut" }}
     >
-      <Card className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-lg shadow-none">
-        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-4 pb-3">
-          <h2
-            id={titleId}
-            className="min-w-0 self-center text-[15px] font-medium wrap-break-word"
-          >
-            {title}
-          </h2>
-          <MuteButton
-            type="button"
-            variant="transparent"
-            aria-label={closeLabel}
-            onClick={onClose}
-            className="-mr-2 shrink-0"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </MuteButton>
-        </div>
-        <div className="min-h-0 overflow-y-auto overscroll-contain">
+      <Card className="flex relative max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-lg shadow-none">
+        <MuteButton
+          type="button"
+          onClick={onClose}
+          className="absolute top-1.5 right-1.5 border-none"
+        >
+          <X className="h-4 w-4" />
+        </MuteButton>
+        <div className="min-h-0 overflow-y-auto overscroll-contain pt-4">
           {media && (
             <div className="px-4">
               <div className="overflow-hidden rounded-md bg-primary-faded">
@@ -70,10 +58,18 @@ export function AnnouncementCard({
               </div>
             </div>
           )}
-          <div className="min-h-[110px] flex flex-col justify-between px-5 pt-6 pb-6 text-[13px] wrap-break-word">
+          <div className="flex shrink-0 items-start justify-between gap-3 px-5 mt-4">
+            <h2
+              id={titleId}
+              className="min-w-0 self-center text-[15px] font-medium wrap-break-word"
+            >
+              {title}
+            </h2>
+          </div>
+          <div className="min-h-[110px] flex flex-col justify-between px-5 pb-6 text-[13px] wrap-break-word text-neutral-800">
             {children}
             {action && (
-              <div className="mt-6">
+              <div className="mt-6 flex flex-row justify-between gap-2">
                 {action.href !== undefined ? (
                   <MuteButton
                     asChild

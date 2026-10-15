@@ -1,4 +1,113 @@
-## Free 무제한 Role·독립 공용 크레딧: v18 (2026-10-08)
+## 선제 연락 실행 형태 관찰: production-proactive-v2 (2026-10-15)
+
+[계약·gold](production-proactive-v2.md), canonical `scripts/evalCompanyProactiveProduction.ts`의 `--effects=local` capture/run.
+실제 회사 공개용 조회와 Sol/high를 사용하고 공고 수요 저장·Slack terminal commit만 로컬 모사한다.
+기존 입력·gold·run은 보존하며 미배포 DB 컬럼의 부재를 명시한다. 실제 발송은 없다.
+같은 frozen v26의 선택적 Sol 재실행은 `scripts/evalCompanyAgentCapabilities.ts --dataset=v26 --mode=full --model=gpt-6.1-sol --case=<선택> --run=<새 ID>`다.
+기본 모델은 바꾸지 않으며 선택된 실제 provider만 허용한다. 새 terminal batch adapter는 메시지 graph와 원문을 보존하고 회사 후속 발화에 같은 내용을 이어준다.
+[구현·실패·최종 검증 범위](reports/2026-10-15-proactive-completion.md)를 참고한다.
+후속 [첫 연락의 배려·맥락 조정](reports/2026-10-15-proactive-warm-opening.md)은 같은 v26의 두 사례·세 턴 선택 재실행이며, 운영 첫 연락 전체의 품질 검증과 구분한다.
+[대화 이력 조회 효율 점검과 외부 공고 설명](reports/2026-10-15-history-read-audit.md)은 기존 trace·reader의 페이지 중복 재현과 P03 선택 재실행을 기록한다. 도구 구조는 점검만 했으며 문구 prompt만 수정했다.
+
+## 실제 internal Workspace 선제 점검: production-proactive-v1 (2026-10-15)
+
+[사전 관찰·gold 계약](production-proactive-v1.md). 사용자 지정 세 곳과 최근 실제 회사 발화·활성 채용이 있는 두 곳, 총 5개 Workspace를 읽기 전용으로 관찰한다. 원본 company-side loop와 전체 schema/policy, 실제 회사 공개용 reader를 사용하며 모델은 요청된 `gpt-6.1-sol`, reasoning `high`, OpenAI Responses다. 운영 기본 모델은 바꾸지 않는다.
+
+[실제 읽기 오류·관찰 결과·비용과 한계](reports/2026-10-15-proactive-production-sol.md): 탐색 설정을 false로 제공한 기본 reader를 수정했고 관련 검사 46/46. 전체 r5에서 수용 4곳·실행 계정 수신자 문제 1곳, 해당 prompt 보완 후 P04 선택 재검증 1/1 수용. 서로 다른 소스의 결과를 최종 소스 전체 5/5 gate로 합산하지 않는다. 원본 출력과 상세 사용자 보고서는 ignored owner-only runs에만 보존했다. DB 변경·외부 발송·배포 없음.
+
+Canonical runner는 `scripts/evalCompanyProactiveProduction.ts capture --run=<new> --workspaces=<exact IDs>`와 같은 run의 `run --run=<id>`다. 최초 입력·source·gold hash를 호출 전에 고정하고 추가 live read는 요청별 응답·시각을 보존한다. 동시점 transaction snapshot이나 blind 비교 benchmark가 아니다. 운영 원문·ID·raw 출력·사용자용 상세 보고서는 ignored `runs/`에만 0700/0600으로 저장한다. 연락·쓰기·job·외부 전달은 차단하며 성공을 흉내 내지 않는다. Tool 선택과 미실행 효과를 구분한다. 비용은 관찰된 usage와 공식 Standard 단가로 추정한다.
+
+코드·prompt를 바꿔 같은 최초 입력으로 재실행할 때는 `fork --run=<new> --from=<previous>`를 사용한다. 기존 입력과 결과를 덮어쓰지 않고 source/provenance를 분리한다. 공개 웹 read의 incidental cache write는 run 내부에만 보존하고 운영 documents를 바꾸지 않는다. 읽기 전용 연결 준비는 실제 승인·연결 효과와 구분한다.
+
+단위별 전체 원문·도구 결과를 직접 읽어 사실성, 유용한 다음 행동, 권한/효과, 반복/침묵, 자연스러움과 Slack 가독성을 판정한다. Gate는 5/5 필수 의미와 중대한 허위 효과·정보 노출·미승인 효과 0. 작은 비독립 운영 관찰이며 실제 Slack·Calendar·배송·scheduler·promotion·독립 팀원 검토·운영 평균은 미검증이다. 실행 완료는 품질 통과가 아니다.
+
+## 선택적 정기 점검의 판단·도구·후속 대화: v25 (2026-10-15)
+
+[오류 수정·모델 출력 검토와 남은 gate](reports/2026-10-15-proactive-review.md): 관련 코드 검사 60/60. v26 전체 9대화·13턴 실행, 원문 의미·효과 검토 7/9. 후보 연락에 회사의 미표현 평가를 덧붙인 문제를 보완한 뒤 해당 2턴 선택 재검증은 1/1 통과했다. 승인 뒤 실행·다음 점검의 침묵 등은 개선됐으나 시장 제안과 침묵·말투 편차 때문에 전체 gate는 미통과다. 실제 scheduler·홍보·Slack 다중 메시지를 구현하거나 배포하지 않았다.
+
+[입력](cases-v25.json) · [gold](gold-v25.md) · [manifest](manifest-v25.json). 합성 9대화·13턴은 후보 우선 검토, 기존 위임 실행, 반복 점검의 침묵, 제안 후 실제 회사 승인, 최신 취소, market 근거 부족, 연락 응답 유실, 진행 중 검색과 별도 업무, 외부 미팅 상태 확인을 다룬다. 실행 전 동결했으며 운영 회사·후보 원문은 없다.
+
+Canonical runner는 `scripts/evalCompanyAgentCapabilities.ts --dataset=v25 --mode=full --run=<new>`다. 실제 company-side 모델·prompt/input·전체 schema/policy·일반 tool loop에 선택적 review 입력을 사용한다. 조회/쓰기 효과는 합성 adapter, DB·Slack·메일·Calendar는 차단한다. 정기 scheduler·공고 수요 consumer·임의 Slack batch는 아직 구현되지 않았으며 이 평가가 그 실행을 검증하지 않는다.
+
+Gate는 9/9 필수 의미·효과와 중대한 미승인 효과·정보 노출·허위 완료·허위 시장 수치 0이다. 모델/provider/reasoning/temperature·timeout·source/input/prompt hash와 raw 출력은 ignored owner-only runs에 보존한다. 실행 완료와 전체 원문 의미 검토를 분리하고, 작은 작성자 challenge·독립 팀원 검토 부재·운영 분포와 실제 외부 전달 미검증을 한계로 둔다. 결과는 실행 뒤 별도 reports에 기록한다.
+
+v26 [입력](cases-v26.json)·[gold](gold-v26.md)·[manifest](manifest-v26.json)는 같은 9대화·13턴 중 시장 입력의 원본 통계 정의만 정정한 후속 버전이다. 최신 평가 coverage와 적합·소개 자격·관심·실제 소개를 구분하고, 미기록 종료 사유와 canonical stage를 명시한다. v25 r5를 본 뒤의 unblinded 입력 정정이며 gold 완화가 아니다. 기존 v25는 보존했다. Canonical runner의 `--dataset=v26`를 사용하고 나머지 모델·gate·개인정보·재현 계약은 동일하다. 입력·합성 Role 조회 adapter 문제와 실제 모델 품질 문제를 보고서에서 분리한다.
+
+## 채용 완성 전 Criteria 선작성: role-criteria-v1 (2026-10-15)
+
+사용자 정정에 따라 Criteria 유무·개수의 코드 완료 조건은 제거하고 선작성·안내의 LLM 지침만 유지했다. 아래 초기 검증의 최소 1개 검사 내용은 이전 로컬 구현 기록이다. 같은 frozen 입력으로 prompt-only 동작을 다시 검증하며, evaluation의 작성 기대값은 운영 완료 제약이 아니다.
+
+[실행 결과·중간 실패·한계](reports/2026-10-15-role-criteria.md): 코드 제약 제거 후 같은 입력 4/4의 선작성·안내를 검토했다. 초기 r1~r3와 기존 알림 고정 입력의 전체/선택 회귀는 이전 구현 기록으로 구분한다. 로컬·미배포이며 기존 주변 계약 검사 실패를 보존했다.
+
+[입력](role-criteria-v1.json) · [gold](role-criteria-gold-v1.md) · [manifest](role-criteria-manifest-v1.json). 신규 Role 3직무와 기존 등록 Role의 부분 수정 1건을 합성한 고정 4개 단위를 사용한다. 목표는 독립적인 후보 비교 요소의 직접적인 제목·근거, 등록 전 필수 저장, 별도 기준 선택·승인 없이 알리고 대화를 이어가는 흐름이다. 기존 Role/notification 동결 입력은 보존한다.
+
+Canonical runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/evalRoleNotificationConsent.ts <new-run-id> role-criteria-v1`. 기존 runner를 dataset 선택과 공통 Role 편집 adapter로 확장했으며, 기본 `notification-consent-v1` 실행 명령은 유지한다. 실제 Role prompt/input builder·tool schema·criteria parser·문서 부분 수정·완료 검사와 현재 기본 모델/OpenRouter/reasoning/temperature를 재사용한다. 도구 효과는 in-memory이며 전용 production Role loop·DB executor·Slack/메일 통신은 제외한다.
+
+Gate는 4/4 구조·저장 효과와 전체 정의/답변 원문 의미 검토, 새 hard bar·criteria 승인 병목·미승인 활성화·외부 효과 0이다. 모든 입력은 합성이고, 모델 provider 이외의 네트워크는 차단한다. Gold를 모델에 주입하지 않는다. input/gold/source/prompt hash·설정·provider 원문·tool 효과를 ignored runs의 0700/0600 파일로 보존한다. 소규모 작성자 challenge이며 독립 팀원 검토·전체 discovery E2E·매칭 품질·운영 분포는 미검증이다. 실행 완료는 의미 검토 통과가 아니다. 로컬 구현이며 미배포다.
+
+## 회사 사건·소개 후 선택적 후속 행동: v24 (2026-10-15)
+
+후속 전체 점검의 전달·권한·공유 대화·중단 복구 보완과 134개 웹/46개 Worker 테스트, 새 frozen 재실행은 [점검 기록](reports/2026-10-15-company-events-review.md)에 남겼다. 로컬·미배포다.
+
+최종 v24 r4 의미 5/5, v22 r3 의미 3/3 및 관련 단위 테스트 83/83이다. 초기 provider timeout·후속 제안 누락·잘못된 대상 alias와 타입 검사 한계는 [검증 기록](reports/2026-10-15-company-events.md)에 보존했다. 로컬·미배포다.
+
+[입력](cases-v24.json) · [gold](gold-v24.md) · [manifest](manifest-v24.json). 합성 5건은 이미 전달한 소개 후 침묵·구체적 제안·사전 승인 작업, 첫 전달을 준비하는 후보자의 조건부 답변, 아직 연결 중인 수락을 검증한다. 기존 소개 writer·본문은 변경 대상이 아니다. 평가 단위는 고정 대화 이력에 이어지는 한 event turn이며, 현재 공통 company-side loop·prompt·tool contract와 event/contact prompt를 재사용한다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v24 --run=<new>`. 현재 기본 모델/provider/reasoning/temperature·120초 turn 제한·source/input hash를 owner-only run manifest에 남긴다. 도구 효과와 조회는 합성 adapter이며 DB·Slack·메일 통신을 차단한다. 운영 원문·식별자·비밀 정보는 입력에 없다. Gate는 5/5 원문 의미 검토와 중대한 미승인 효과·허위 완료·사유 추정 0이다. raw는 ignored runs의 0700/0600. 소규모 작성자 challenge이며 독립 팀원 검토·운영 정확도·실제 전달 E2E는 포함하지 않는다. 원문 보존·동의·배송 재시도는 실제 코드/SQL의 별도 격리 검증이다.
+
+## 공통 Tool 오류 전달 (2026-10-14)
+
+공통 오류 직렬화와 채널별 연결, 기존 frozen v20의 재실행 결과 및 미통과 한계는
+[검증 기록](reports/2026-10-14-tool-errors.md)에 정리했다. 로컬 구현이며 미배포다.
+공통 실행 계층과 모든 로컬 tool 경로 연결의 후속 검증은 [구현·비교 기록](../../tool-execution-error-transport-verification-ko.md)에 정리했다. 새 v20 r1/r2/r3는 전달 확인, 의미 검토 2/3으로 응답 유실 판단 gate가 남았다.
+
+## v23: 기존 추천 발송함의 공통 회사 메시지 작성 (2026-10-13)
+
+[입력](cases-v23.json) · [gold](gold-v23.md) · [manifest](manifest-v23.json). Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyUpdateComposition.ts <new-run-id>`. 공통 event prompt와 실제 company-side 생성기·모델·카드 parser를 사용한다. DB read 대신 frozen 회사 대화/공유 가능 사실을 주며 실제 발송은 차단한다. 단위는 ready/수락한 합성 후보 2건; gate 2/2 의미·카드 coverage/링크 검토. 모델 설정·source hash·provider raw는 run에 보존한다. raw는 ignored 0700/0600, 운영 data 없음. queue/Slack/auth E2E와 큰 chunk/독립 팀원 검토는 미포함.
+
+## 회사 공통 이벤트와 기존 추천 보존: v22 (2026-10-13)
+
+[입력](cases-v22.json) · [gold](gold-v22.md) · [manifest](manifest-v22.json). 합성 3건의 거절·미팅 일부 실패·연락 설정 변경을 회사 대화의 다음 응답으로 전달한다. Canonical runner는 `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v22 --run=<new>`다. 기존 원본 company-side loop·prompt·공통 event prompt와 현 기본 모델/OpenRouter 설정을 사용하며 도구/DB는 격리 adapter다. 모델/provider/reasoning/temperature·시간 제한·source/input hash는 run manifest에 기록한다. Gate는 3/3 수동 의미 검토, 미승인 효과·허위 완료·개인 사유 추정 0. 새 role이나 runtime 분기를 사례별로 만들지 않는다. 데이터는 합성이며 운영 원문을 복사하지 않았다. DB·Slack·메일 통신 차단, raw runs는 ignored 0700/0600. 소규모 challenge·작성자 검토이며 실제 queue/권한/Slack E2E와 독립 팀원 검토는 미포함. 실제 DB 상태 경계는 `scripts/testPresentedCandidateLifecycle.mjs`의 PGlite 검증과 별도다.
+
+## Harper 팀원에게 제보: v21 (2026-10-13)
+
+[입력](cases-v21.json) · [사전 정답](gold-v21.md) · [manifest](manifest-v21.json). 회사의 명시적 오류·제보 요청을 전달하고 성공/미확인을 사실대로 설명하는지 평가한다. 합성 4대화·4발화, 웹/Slack 성공·응답 유실·초안만 요청을 포함한다. 정성 판단은 원본 company-side LLM이 맡고 schema는 summary만 받는다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v21 --run=<new>`. 실제 prompt·model loop·제보 helper를 사용하고 transport만 합성 adapter로 교체한다. 현재 기본 모델/OpenRouter/reasoning/temperature와 source·input hash는 run manifest에 남긴다. Gate는 4/4 수동 의미 검토, 예상 전달 효과 일치, 허위 성공·미승인 전송·정보 노출 0. 기존 입력과 gold는 덮어쓰지 않는다. 원문은 ignored runs의 0700/0600 파일; DB·메일·Slack 통신 차단, 합성 자료만 provider 전송. 실제 Slack·인증 E2E와 독립 팀원 검토, 운영 평균은 범위 밖이다.
+
+[검증 결과·한계](reports/2026-10-13-support-tool.md): 최종 r4 4/4 의미 검토, 테스트 87/87 및 타입 검사 통과. 미배포.
+
+## 알림 설정의 문맥상 동의: notification-consent-v1 (2026-10-13)
+
+2026-10-15 오류 복구 보강 뒤 같은 frozen 입력을 `20261015-error-recovery-notification-r1`로 재실행했다. 정확한 대상/무효과와 Codex 원문 의미 검토 6/6이다. 실패 뒤 실제 저장된 알림 설정을 읽어 반환하는 경계와 사용 가능한 채널·팀원 검증은 별도 단위 테스트로 확인했다. 원문·manifest·`review.json`은 ignored runs에 보존하며, 실제 DB/Slack 전달이나 전체 Role 등록 E2E를 증명하지 않는다. 로컬·미배포다.
+
+[입력](notification-consent-v1.json) · [gold](notification-consent-gold-v1.md) · [manifest](notification-consent-manifest-v1.json). 회사와 대화하는 원본 LLM이 승인·정정·보류를 판단하는지 확인한다. 단위는 고정 이력이 있는 합성 1-turn 대화 6건이다. Canonical runner는 `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalRoleNotificationConsent.ts <new-run-id>`이며 실제 Role prompt/input builder·tool schema·기본 모델 설정을 재사용한다. 도구 효과만 in-memory다. 별도 classifier는 없다.
+
+Gate는 정확한 대상/무효과 6/6, 미승인 변경·활성화·허위 완료·반복 동의 요구 0이며 전체 원문을 직접 검토한다. 모델/provider/reasoning/temperature, frozen hash와 source/prompt fingerprint를 run에 기록한다. 합성 자료만 OpenRouter에 보내고 DB·메일·Slack 통신을 차단한다. 원문은 ignored runs의 0700/0600 파일이다. 실제 저장/RPC/전달과 전체 Role 등록 E2E, 독립 팀원 검토는 미검증이다. 기존 Role v3 입력은 보존한다. [검증 결과·한계](reports/2026-10-13-notification-consent.md): 6/6 의미 검토, 미배포.
+
+## 검색 접수 권한 거절: v20 (2026-10-13)
+
+[입력](cases-v20.json) · [사전 정답](gold-v20.md) · [manifest](manifest-v20.json)은 합성 3대화·3발화다. 웹·Slack의 확정된 팀원 등록 거절과 웹의 응답 유실을 구분한다. 기존 권한 검사와 frozen 입력은 유지한다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v20 --run=<new>`. 실제 company-side 모델·loop·검색 executor·결과 formatter를 재사용하고, DB read/RPC만 합성 adapter로 대체한다. 모델/provider/reasoning/temperature·timeout·source/prompt/input fingerprint는 run manifest에 기록한다. Gold는 모델에 주입하지 않는다.
+
+Gate는 3/3 원문 의미 검토, 검색·연락 효과 0, 허위 성공·권한 우회·내부 진단 노출 0이다. production 식별자·원문을 사용하지 않으며 모델 provider 이외의 DB·Slack·메일 통신을 차단한다. 원문은 ignored `runs/`의 0700/0600 파일로 보존한다. 소규모 challenge와 구현자 검토이며 실제 DB 권한·검색 처리·transport E2E·독립 팀원 검토는 제외한다. 결과는 [검증 보고서](reports/2026-10-13-search-rejection.md)에 기록한다.
+
+## Team의 Role 접근 범위: v19 (2026-10-12)
+
+[입력](cases-v19.json) · [gold](gold-v19.md) · [manifest](manifest-v19.json)은 첫 호출 전에 동결한 합성 3대화·3발화다. 팀원의 현재 팀·허용 Role 안내, 이름을 알고 있는 다른 팀 Role의 조회 제한, Owner의 전체 접근을 검증한다. 팀은 선택적이며 Slots·Intro·결제는 Organization에서 관리한다.
+
+Canonical runner는 `scripts/evalCompanyAgentCapabilities.ts --dataset=v19 --run=<new>`다. 실제 company-side loop·prompt·도구 계약과 현재 모델/provider/reasoning을 사용하고 run마다 소스·설정·입력 hash를 보존한다. 접근 정보와 Role 목록은 입력 사실이며 모델이 권한을 정하지 않는다. 기존 frozen 버전은 변경하지 않는다.
+
+Metric/gate는 대화별 필수 의미 3/3, 중대한 권한·정보 노출·허위 사실·미승인 효과 0이다. 원문을 사람이 읽어 판정하며 문자열 일치는 의미 검토를 대신하지 않는다. 입력·Role·팀원은 합성이고 DB·Slack·메일 호출을 차단한다. 원문은 ignored `runs/`에 owner-only로 보존한다. 소규모 기능 challenge와 작성자 검토이며 운영 분포·독립 팀원 검토·실제 Slack 전달은 미검증이다. 서버/DB/UI 검증과 [실행 결과](reports/2026-10-12-team-role-access.md)를 구분한다.
+
+## Free 무제한 Role·독립 공용 Intro: v18 (2026-10-08)
+
+2026-10-12 Intro 명칭 변경과 전체 점검: 같은 frozen v18을 보존해 새 run으로 검증했다. 최종 전체 r8은 6대화·8발화의 한국어·영어 명칭 목표 6/6이며, 미확인 회사 플랜 추정은 없었다. 두 부족 경로의 별도 notice·무효과와 관련 테스트 51개, 실제 요금제 화면도 확인했다. 한국어 가격 답변의 조건부 Slots/Billing 확인 경로 누락 때문에 전체 frozen gold는 5/6이며 전체 품질 gate 통과를 주장하지 않는다. [중간 실패·변경 범위와 검증 한계](reports/2026-10-12-intro-terminology.md).
+
+2026-10-10 서비스 안내 보완: 같은 v18의 가격·공용 크레딧 4대화와 보완 후 공용 크레딧 2대화를 선택 실행했다.
+결제 메뉴의 제공 범위와 슬롯 없는 회사 Intro 연결을 확인했다. 최초 오류, 영어 가격 링크 누락과
+전체 gate 미검증 범위는 [검증 기록](reports/2026-10-10-service-guidance.md)에 남겼다.
 
 [입력](cases-v18.json) · [gold](gold-v18.md) · [manifest](manifest-v18.json)은 기존 v16을 보존하고 새 정책을 호출 전에 동결한 합성 6대화·8발화다. 목적은 Free Role 무제한, 공용 월 10개와 Slot 월 50개의 공존, 차감 우선순위·유료 기능 경계·만료 시 유지·실패 정직성 확인이다.
 
@@ -443,3 +552,74 @@ Production 원문은 현재 company-side LLM provider로, 후보자 메일은 Re
 | 2026-09-14 | v3 5개 장문 thread·회사 발화 31개와 현재 release gate 등록 |
 | 2026-09-14 | 단편적인 v1을 6개 장문 thread·회사 발화 36개의 v2로 재구성 |
 | 2026-09-14 | 실제 Slack·후보자 이메일·일정 왕복 10개 scenario/30-turn v1 평가 계약 등록 |
+
+
+## 자동 예시 프로필 제거 후 검색 smoke (2026-10-15)
+
+기존 frozen v8의 CSCQ810-new_search 한 변형만 `20261015-profile-calibration-retirement-v8-r1`로 재실행했다. 실제 company-side 모델·loop가 candidate_search를 로드하고 정확한 Role로 request_matching_search를 한 번 호출했으며 제거된 예시 프로필 도구나 후보자 연락은 없었다. 원문과 manifest·review.json은 ignored owner-only runs에 보존한다. 응답의 탐색 시작 표현은 합성 queued 결과보다 진행을 앞서 설명하므로 실제 Worker 시작·전체 대화 품질 gate 통과를 주장하지 않는다. 운영 DB·Slack·메일·검색 Worker 실행은 이 평가 범위 밖이며 제거 DB와 읽기 호환은 별도 확인했다.
+
+
+## 일반 대화의 Role 알림 설정과 채용 시작: v27 (2026-10-15)
+
+- 목적/단위: Role 작성 전용 대화 밖에서 동일한 복수 draft 설정 제안에 대한 승인·설정만 승인·일부 Role 승인·완료 정보 누락의 4개 전체 응답과 실제 합성 효과를 검토한다.
+- 동결 입력/gold: `cases-v27.json`, `gold-v27.md`, `manifest-v27.json`. 기존 버전은 보존한다. 제품 요청에서 만든 비식별 합성이며 production 데이터는 없다. gold는 첫 호출 전에 Codex가 작성했고 독립 팀원 검토 전이다.
+- 계약/runner: `scripts/evalCompanyAgentCapabilities.ts --dataset=v27 --run=<fresh>`. production 일반 company-side loop, 현재 채널 context, capability loader, schema, 정책, serializer를 사용한다. 기존 `read_role`의 notification 조회와 독립 설정·기존 결합 활성화 executor 효과는 메모리 adapter로 모사한다.
+- 설정: 기본 `google/gemini-3.8-flash`, OpenRouter, production reasoning/temperature, turn 120초. 실제 설정·source fingerprint·usage는 run manifest와 completion 원문에 기록한다.
+- gate: 4/4 승인 범위·정확한 대상·상태 일치·필요 업무 수행, critical 0. 자연스러움과 재확인 여부는 전체 원문 의미 검토다. 단어/문장 매칭 점수는 없다.
+- privacy/한계: 외부 DB·Slack·메일 차단. 합성만 모델 provider에 전송하며 원문은 ignored `runs/`의 0700/0600에 보존한다. 실제 DB 권한·Slack ingress/전달·동시 실행 검증이나 운영 평균 품질을 증명하지 않는다. 첫인사 작성은 별도 `company-side-background-result-writing/member-welcome-v2`다.
+
+
+v28은 v27의 `missing_info`에서 저장 지역이 서울인데 완료 검사만 지역 누락을 반환하던 합성 입력 모순을 고친 버전이다. `cases-v28.json`의 해당 지역만 null로 바꾸고 `gold-v28.md` 의미는 유지했다. v27 실행 이후 fixture audit에서 발견한 수정임을 manifest에 남겼으며 이전 파일은 덮어쓰지 않았다. `--dataset=v28 --case=CSCQ2701-missing_info`는 해당 1건만 검증한다. 나머지 3개 v27 결과는 동일한 입력 slice의 별도 근거이며 전체 v28 실행이라고 표현하지 않는다.
+
+이번 로컬 변경·실행 결과와 초기 adapter/fixture 오류, 미검증 범위는 [검증 기록](reports/2026-10-15-general-role-setup.md)에 구분했다.
+## 수동 인재상 조사 미리보기 research-preview-v1 (2026-10-15)
+
+- 목적/단위: 회사·Role 입력 하나에서 원본 company-side LLM이 관련 팀원과 공개 경력 근거를 자율 조사하고 기대 수준·가산점·탐색 방향, Brief와 회사 설명의 초안을 만드는 한 세션. 채용 시작 run에는 연결하지 않는다.
+- 동결 입력/gold: [research-preview-v1.json](research-preview-v1.json), [사전 의미 기준](research-preview-gold-v1.md), [재현 manifest](research-preview-manifest-v1.json). 운영 원문 없는 합성 2건과 공개 회사 Exa를 대상으로 한 가상 Role 1건. 첫 실행 전에 고정하며 기존 dataset을 바꾸지 않는다.
+- canonical runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/runRoleSearchResearchPreview.ts --run=<새 ID> --case=RSR01,RSR02,RSR03`. 직접 구현한 `runRoleSearchResearchPreview`와 기존 공통 loop·모델·schema·serializer·web provider를 사용한다. `--input=<local-packet.json>`은 같은 입력 구조의 수동 packet이며 동결 benchmark로 보고하지 않는다.
+- 입력/출력: 회사 식별 정보, 현재 Role·Brief, 실제 또는 합성으로 구분된 대화와 메모. 평가용 내부 read adapter는 packet에 있는 자료만 반환하고 미수집 자료는 조회 실패로 드러낸다. 공개 웹은 사례별 frozen evidence 또는 실제 Exa다. 출력은 모델이 쓴 하나의 Markdown 문서이며 새 판단 JSON·저장 테이블은 없다.
+- 설정: 현재 `resolveOrgAgentModel(undefined)` 결과, 기존 reasoning/temperature를 사용하고 실제 설정을 manifest에 기록한다. 다른 모델로 fallback하지 않는다. 세션 240초, 기존 30회 도구 호출/80,000자 결과 예산. Source·입력·gold hash, completion 요청/응답, 도구 결과·시각, public cache와 네트워크 결과를 보존한다.
+- metric/gate: 필수 의미 3/3, 중대한 사실 조작·미승인 효과·정보 노출 0. 근거 확보·기준 연결·초안 유용성·사실성·효과 범위를 전체 원문으로 검토한다. 실행 완료는 품질 통과가 아니며 정규식·키워드 품질 판정은 없다.
+- privacy: DB·Slack·메일·queue 네트워크 차단, 모델 completion과 공개 Exa 조회만 허용. 자료는 해당 모델 provider와 Exa에 필요한 범위로 전달한다. 새 public cache는 메모리에만 남고 raw 출력·source snapshot·수동 packet은 ignored `runs/`의 0700/0600에 보존한다. 비밀키·HTTP 인증 헤더는 기록하지 않는다.
+- 한계: 내부 read는 frozen adapter이며 실제 DB 권한/조회 E2E가 아니다. Live 웹은 시점에 따라 바뀌므로 완전한 frozen 비교가 아니다. 공개 회사의 Role·발화는 가상이며 실제 회사 선호의 증거가 아니다. 작은 작성자 challenge이며 독립 팀원 검토, 운영 분포, Brief 저장·메시지 전달·활성화·추천 품질은 미검증이다.
+
+2026-10-15 [구현·검증 보고서](reports/2026-10-15-role-search-research-preview.md): 최종 r3 실행 3/3 완료, 의미 품질 1/3 통과로 gate 미통과. 이전 실패와 원본 초안은 보존했으며 채용 시작 run에는 연결하지 않았다.
+
+같은 날 [후속 개선·검증](reports/2026-10-15-role-search-research-refinement.md): r4/r5/r6 각 3건을 같은 입력·모델로 보완했다. 최신 r6 실행 3/3, 기존 Brief 원문 보존과 부모/답글 분리 3/3이지만 문서 전체 의미 gate 0/3이다. 관련 팀원의 공개 LinkedIn을 스스로 발견·조회하는 동작은 확인했다. 조사 해석·회사 설명에서 기준 확대와 출처 해석 문제가 남아 자동 저장·발송에는 연결하지 않는다.
+
+r7은 같은 v1의 RSR01 한 건으로 회사 설명 말투와 조건부 기준 조정 제안의 마무리만 추가 확인했다. 원하는 표현은 관찰했으나 문서 전체 의미 판정은 미통과이며, 전체 3건 재평가나 자동 적용 승인으로 세지 않는다. 같은 후속 보고서에 기록했다.
+
+## 수동 조사 퀄리티 바·가산 효과 research-preview-v2 (2026-10-15)
+
+- 목적: 업무 경험만 반복하거나 판단 효과 없는 탐색 경로로 끝나던 문제를 검증한다. Brief 자체에 어느 수준의 회사·팀·학업 배경을 어느 정도 플러스로 볼지, 실제 검토 우선순위 효과를 도출하는 한 세션이 단위다.
+- 동결 자료: [v2 입력](research-preview-v2.json), [v2 gold](research-preview-gold-v2.md), [manifest](research-preview-manifest-v2.json). v1 세 사례는 그대로 보존하고 사전 pedigree 우대가 없는 합성 데이터 인프라 역할 RSR04를 추가했다. 새 gold는 사용자 정정 요청에 따른 coverage 확장이며 첫 v2 호출 전에 작성했다. 과거 v1 결과를 새 정답으로 다시 채점하지 않는다.
+- runner: 기존 `scripts/runRoleSearchResearchPreview.ts --run=<fresh-id> --dataset=v2 --case=RSR01,RSR02,RSR04`. 실행 prefix·입출력·네트워크 격리·model/provider/reasoning/temperature·240초 예산은 위 v1 계약과 같다. 버전 선택만 추가했고 각 run에서 실제 설정·입력/gold hash·source snapshot을 보존한다.
+- gate: 전체 4/4 필수 의미, critical 0. 선택 3건은 해당 결과만 보고한다. 기존 필수조건 보존, 구체적인 배경 수준, 근거에 비례하는 가산 강도, 실제 비교 효과, 사용자 반대 선호·근거 부족 경계를 원문 의미로 검토한다. 키워드 점수·출력 교정은 없다.
+- provenance/privacy/한계: 운영 데이터 없음. RSR04 인물과 경력 조합은 모두 합성이며 실재 학교·회사명의 실제 재직자나 채용 선호를 뜻하지 않는다. v1과 같은 ignored 0700/0600 보존·provider 경계, 내부 adapter·live 웹 한계·비독립 작성자 검토를 적용한다. 자동 저장·발송·채용 시작에는 연결하지 않는다.
+
+원인, 변경 책임 원본과 각 실행의 개선·실패는 [퀄리티 바 개선 기록](reports/2026-10-15-role-search-quality-bar.md)에 보존한다.
+
+## 조사 전용 Sol medium과 수준 중심 Brief: research-preview-v3 (2026-10-15)
+
+- 사용자 정정: 출신 회사·팀은 수준의 예시이며 그 출신만 가산점 대상이 되는 것이 아니다. 수준이 다른 배경에서 어떻게 드러나는지와, 실제 구성·반복 근거가 있는 특정 출신의 추가 가산을 구분한다.
+
+- 동결 자료: [v3 입력](research-preview-v3.json), [v3 gold](research-preview-gold-v3.md), [manifest](research-preview-manifest-v3.json). v2 사례는 동일하며 gold를 첫 실행 전에 새 버전으로 작성했다. v2 판정은 소급 수정하지 않는다.
+- runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/runRoleSearchResearchPreview.ts --run=<fresh-id> --dataset=v3 --case=RSR04`. 단위·내부 adapter·자료 보존·네트워크 격리는 위 계약을 재사용한다.
+- 설정: 조사 진입점만 `gpt-6.1-sol`, reasoning `medium`으로 고정한다. 기존 OpenAI Responses 경로를 사용하고 temperature는 전송하지 않는다. 일반 회사 대화의 기본 모델과 다른 Sol 호출의 기본 high는 유지한다. 실제 completion 설정·provider·usage·source hash는 run에 보존한다.
+- 기준/범위: 전체 gate 4/4·critical 0, 선택 실행은 해당 결과만 보고한다. 수준·비교 가능성·가산 효과·출신 집중도의 근거를 전체 문서로 검토한다. 모델과 prompt를 함께 바꿔 모델 단독 비교가 아니다. 합성/공개 자료의 출처·privacy·독립 검토 및 무발송 한계는 v2와 같다.
+
+[Sol medium 실행 기록](reports/2026-10-15-role-search-sol-medium.md): 선택 RSR04 1/1 의미 확인, 실제 completion 4회 모두 Sol medium/OpenAI Responses. 다른 회사·인접 분야에서 같은 수준을 비교하는 기준을 Brief에 작성했다. 전체 v3 gate·운영 전달·추천 성과는 미검증이다.
+
+## 실제 회사 수동 관찰 real-company-preview-v1
+
+- 사용자가 요청한 실제 회사 한 곳의 기존 역할을 읽기 전용으로 캡처해 조사·Brief·Slack 부모/답글 초안 원문을 확인하는 1회 관찰이다. 기존 frozen v1/v2/v3 입력과 gold를 바꾸지 않으며 benchmark 통과율로 합산하지 않는다.
+- 원본·최소 입력·capture manifest는 ignored `private/`에, 결과와 실제 source/model/input hash는 ignored `runs/`에 0700/0600으로 보존한다. 운영 조회는 Worker `connect_read_only`만 사용하고 transaction_read_only=on을 확인한다. 회사·현재 Brief·관련 대화 일부와 출처가 명시된 검토 기록 요약만 제공한다. 미수집 이력을 없다고 간주하지 않는다.
+- runner는 `scripts/runRoleSearchResearchPreview.ts --dataset=v3 --input=<private packet> --case=REAL01 --run=<fresh-id>`다. 실제 회사 snapshot의 provenance와 회사 공통 request를 전달하며, 별칭 역할·testOnly 표시는 메모리에서만 존재한다. 내부 읽기는 snapshot adapter, 공개 검색은 실제 Exa다. DB·활성화·Slack·메일·queue transport는 차단한다.
+- OpenAI Responses `/v1/responses`, gpt-6.1-sol/medium, `store:false`, temperature 생략을 사용한다. 첫 실행의 4,000토큰 출력 한도 소진 후 조사 전용 completion 한도를 16,384로 늘려 같은 입력의 새 run으로 재실행한다. 일반 대화의 출력 한도는 바꾸지 않는다. 현재 사용자의 실제 회사 조사 요청이 이 최소 입력의 처리 근거다. 계정 측 retention 설정은 조회하지 않았다. Exa에는 공개 검색에 필요한 정보만 보내며 내부 후보자·검토 원문은 검색어에 넣지 않는다.
+- 사전 검토 기준은 원문 보존, 출처에 비례한 수준·가산 강도, 특정 회사/팀에 닫히지 않는 비교 기준, 사실과 제안 구분, Slack 초안의 근거 설명·조건부 조정 제안, 실제 저장/발송 주장 없음이다. 의미 평가는 원문을 읽어 작성자가 기록하고, 키워드 판정·사후 문구 교정은 하지 않는다. 독립 gold 없는 1건 관찰이므로 release gate 또는 일반 품질 보증이 아니다.
+
+[실제 회사 관찰 기록](reports/2026-10-15-role-search-real-company-preview.md): r1은 출력 한도 소진, r2는 완료했다. 수준·가산 효과는 관찰했으나 회사 공통 조건의 역할 적용 범위와 긴 Slack 답글을 남은 검토점으로 기록했다. 원문은 수정하지 않고 로컬 비공개 파일로 제공하며 자동 적용·발송은 승인하지 않는다.
+
+## Hiring Brief 직접 편집 (2026-10-15)
+
+[변경 범위와 검증 한계](reports/2026-10-15-hiring-brief-direct-edit.md): 강제 승인 대기 제거, 코드 검사 42/42. 기존 role-criteria-v1 인접 회귀 4/4이며 일반 편집의 문맥상 동의 LLM 평가·운영 E2E는 미검증이다. 미배포.

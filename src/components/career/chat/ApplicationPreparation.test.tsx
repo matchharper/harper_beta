@@ -231,7 +231,7 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     );
     assert.equal(dom.window.document.querySelectorAll("del").length, 1);
     assert.equal(
-      dom.window.document.querySelectorAll("p.text-positive").length,
+      dom.window.document.querySelectorAll('button[aria-label="제안 문구 수정"]').length,
       2
     );
     assert.match(dom.window.document.body.textContent!, /1 \/ 2/);
@@ -241,11 +241,14 @@ test("composer collects decisions without chat turns, restores answers, and sepa
       dom.window.document.body.textContent!,
       /PRIVATE|진행하기/
     );
-    await act(async () => button("수락").click());
+    await act(async () => button("적용").click());
+    assert.equal(commands.length,0);
+    assert.equal(dom.window.document.querySelector("[data-response-flash]")?.getAttribute("data-response-flash"),"accept");
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,200));});
     assert.deepEqual(commands.at(-1), {
       operation: "respond",
       itemId: "C",
-      response: { decision: "accept" },
+      response: { decision: "accept", edits: state.actions[0].edits },
     });
     assert.equal(chatCalls, 0);
     state = mutateSimulationSession(
@@ -292,6 +295,7 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     assert.equal((await sendKey({ shiftKey: true })).defaultPrevented, false);
     assert.equal(commands.length, beforeEnter);
     assert.equal((await sendKey({})).defaultPrevented, true);
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,200));});
     assert.equal(commands.length, beforeEnter + 1);
     assert.deepEqual(commands.at(-1), {
       operation: "respond",
@@ -302,12 +306,14 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     assert.equal(commands.length, beforeEnter + 1);
     saveSucceeds = false;
     await act(async () => button("답변 저장 후 다음").click());
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,200));});
     assert.equal(
       dom.window.document.querySelector("textarea")?.value,
       "Owned A dashboard and B API"
     );
     saveSucceeds = true;
     await act(async () => button("답변 저장 후 다음").click());
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,200));});
     assert.equal(commands.at(-1)?.operation, "respond");
     assert.equal(chatCalls, 0);
     assert.equal(chatCalls, 0);
@@ -561,15 +567,15 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     state = askApplicationInput(
       state,
       {
-        purpose: "Choose a preparation path",
-        introduction: "How would you like to prepare the wording?",
+        purpose: "Confirm application details",
+        introduction: "Choose the confirmed availability.",
         items: [
           {
             kind: "choice",
-            title: "How should we prepare the resume?",
+            title: "When could you start?",
             options: [
-              { id: "self", label: "직접 수정할게요", description: "수정한 파일을 첨부해요" },
-              { id: "help", label: "초안을 도와주세요" },
+              { id: "one-month", label: "한 달 뒤 가능해요", description: "현재 업무를 인계할 시간이 필요해요" },
+              { id: "discuss", label: "일정을 더 이야기하고 싶어요" },
             ],
           },
         ],
@@ -578,17 +584,18 @@ test("composer collects decisions without chat turns, restores answers, and sepa
     );
     await render();
     const choice = [...dom.window.document.querySelectorAll("button")].find(
-      (b) => b.textContent?.includes("직접 수정할게요")
+      (b) => b.textContent?.includes("한 달 뒤 가능해요")
     )!;
-    assert.match(choice.textContent!, /직접 수정할게요: 수정한 파일을 첨부해요/);
+    assert.match(choice.textContent!, /한 달 뒤 가능해요: 현재 업무를 인계할 시간이 필요해요/);
     assert.equal(choice.querySelector("small, strong"), null);
     assert.ok(choice.className.includes("font-normal"));
     assert.equal(dom.window.document.querySelector('svg[aria-label="판단 근거"]'), null);
     await act(async () => choice.click());
+    await act(async()=>{await new Promise(resolve=>setTimeout(resolve,200));});
     assert.deepEqual(commands.at(-1)?.response, {
       decision: "answer",
-      text: "직접 수정할게요",
-      optionId: "self",
+      text: "한 달 뒤 가능해요",
+      optionId: "one-month",
     });
     const questionId = state.preparation!.currentItemId!;
     state = finishApplicationAnswer(
@@ -597,7 +604,7 @@ test("composer collects decisions without chat turns, restores answers, and sepa
         {
           action: "respond",
           actionId: questionId,
-          response: { decision: "answer", text: "직접 수정할게요" },
+          response: { decision: "answer", text: "한 달 뒤 가능해요" },
         },
         99
       )
@@ -717,6 +724,26 @@ test("review questions remain closed until the matching chat review has rendered
   assert.doesNotMatch(html,/Ordinary input/);
   assert.match(html,/Use this\?/);
   assert.doesNotMatch(html,/Review this before deciding/);
+});
+
+test("saved answers show inspection waiting, then a recoverable continuation without a duplicate composer", async () => {
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { ApplicationPreparationContext } = await import("./ApplicationPreparationContext");
+  const { ApplicationPreparationComposerSlot } = await import("./ApplicationPreparationComposer");
+  const state = createSimulationSession({ roleName: "Role", roleRef: "job:test", documentId: "cv", documentName: "CV" });
+  state.analysisStatus = "completed";
+  state.preparation = createPreparation();
+  state.preparation.showInputs = false;
+  state.activity = { version: 1, offerId: 1, outputs: {}, batches: [{ id: "saved", key: "saved", purpose: "suggestions", itemIds: [], status: "submitted", continuation: "pending", responses: {}, createdAt: new Date().toISOString() }] };
+  state.applicationInspection = { status: "running", runId: "inspection" };
+  const render = (pending = false) => renderToStaticMarkup(<MessagesProvider locale="en"><ApplicationPreparationContext.Provider value={{ record: { state, messageId: 1 }, drafts: [], pending, error: "", command: async () => true }}><ApplicationPreparationComposerSlot><span>Ordinary input</span></ApplicationPreparationComposerSlot></ApplicationPreparationContext.Provider></MessagesProvider>);
+  assert.match(render(true), /Your answers are saved/);
+  assert.doesNotMatch(render(true), /Continue with saved answers|data-preparation-questions/);
+  state.applicationInspection.status = "completed";
+  assert.doesNotMatch(render(), /Your answers are saved/);
+  assert.match(render(), /Continue with saved answers/);
+  state.activity.batches[0].continuation = "done";
+  assert.doesNotMatch(render(), /Continue with saved answers/);
 });
 
 test("all question choice surfaces use the same numbered buttons; writing remains open ended", async () => {

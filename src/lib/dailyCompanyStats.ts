@@ -1,7 +1,7 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import { isTestOnlyInternalRole } from "@/lib/internalRoleSafety";
+import { fetchAllStatsRows as fetchAllRows } from "@/lib/statsQuery";
 
-const BATCH_SIZE = 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const ACTIVE_ROLE_STATUSES = new Set(["active", "top_priority"]);
 const ACTIVE_COMPANY_INTRO_STATUSES = new Set([
@@ -116,11 +116,6 @@ type TalentProgressRow = {
   recommendation_id: string | null;
   role_id: string;
   talent_id: string;
-};
-
-type FetchPageResult<T> = {
-  data: T[] | null;
-  error: { message?: string } | null;
 };
 
 export type DailyCompanyUsageKind = "accepted" | "chat" | "rejected" | "slack";
@@ -1238,21 +1233,6 @@ export function compileDailyCompanyStatsReport(args: {
     tools,
     totals,
   };
-}
-
-async function fetchAllRows<T>(
-  loadPage: (from: number, to: number) => PromiseLike<FetchPageResult<T>>
-) {
-  const rows: T[] = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await loadPage(from, from + BATCH_SIZE - 1);
-    if (error) throw new Error(error.message ?? "Failed to load company stats");
-    const page = data ?? [];
-    rows.push(...page);
-    if (page.length < BATCH_SIZE) return rows;
-    from += BATCH_SIZE;
-  }
 }
 
 export async function buildDailyCompanyStatsReport(

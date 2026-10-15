@@ -1,5 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -43,7 +43,7 @@ export function OrgRoleActionsMenu({
   pending?: boolean;
   role?: OrgRole | null;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const [lifecycleAction, setLifecycleAction] =
     useState<RoleLifecycleAction | null>(null);
   const isDisabled = disabled || pending || !role;
@@ -56,10 +56,7 @@ export function OrgRoleActionsMenu({
     return (
       <button
         type="button"
-        aria-label={t(
-          "OrgRoleActionsMenu.44fb80c9",
-          "Role actions unavailable"
-        )}
+        aria-label={c("Role actions unavailable", "Role actions unavailable")}
         disabled
         className={buttonClassName}
       >
@@ -72,10 +69,10 @@ export function OrgRoleActionsMenu({
 
   const actionLabel =
     lifecycleAction === "delete"
-      ? t("OrgRoleActionsMenu.afe7c956", "삭제")
+      ? c("삭제", "Delete")
       : lifecycleAction === "pause"
-        ? t("OrgRoleActionsMenu.3daa9fe3", "일시 중지")
-        : t("OrgRoleActionsMenu.deabb863", "다시 시작");
+        ? c("일시 중지", "Pause")
+        : c("다시 시작", "Resume");
 
   const confirmLifecycleAction = () => {
     if (!lifecycleAction) return;
@@ -92,7 +89,7 @@ export function OrgRoleActionsMenu({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={t("OrgRoleActionsMenu.31f058fc", "{p0} 역할 작업", {
+            aria-label={c("{p0} 역할 작업", "{p0} role actions", {
               p0: role.name,
             })}
             disabled={isDisabled}
@@ -111,16 +108,14 @@ export function OrgRoleActionsMenu({
             disabled={isDisabled}
             onSelect={() => onEdit(role)}
           >
-            {t("OrgRoleActionsMenu.9f7830df", "역할 수정")}
+            {c("역할 수정", "Edit role")}
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="sm"
             disabled={isDisabled}
             onSelect={() => setLifecycleAction(paused ? "resume" : "pause")}
           >
-            {paused
-              ? t("OrgRoleActionsMenu.deabb863", "다시 시작")
-              : t("OrgRoleActionsMenu.3daa9fe3", "일시 중지")}
+            {paused ? c("다시 시작", "Resume") : c("일시 중지", "Pause")}
           </DropdownMenuItem>
           <DropdownMenuItem
             variant="sm"
@@ -128,7 +123,7 @@ export function OrgRoleActionsMenu({
             tone="danger"
             onSelect={() => setLifecycleAction("delete")}
           >
-            {t("OrgRoleActionsMenu.71e516b3", "역할 삭제")}
+            {c("역할 삭제", "Delete role")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -139,27 +134,27 @@ export function OrgRoleActionsMenu({
         mobileBottomSheet
         title={
           <>
-            {t("OrgRoleActionsMenu.98238b00", "역할")}
+            {c("역할", "Role")}
             {actionLabel}
           </>
         }
         description={
           <>
             {lifecycleAction === "delete"
-              ? t(
-                  "OrgRoleActionsMenu.881904c4",
+              ? c(
                   "“{p0}” 역할을 삭제합니다. 계속할까요?",
+                  'Delete role "{p0}". Continue?',
                   { p0: role.name }
                 )
               : lifecycleAction === "pause"
-                ? t(
-                    "OrgRoleActionsMenu.f0433675",
+                ? c(
                     "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?",
+                    'Pause new recommendations for "{p0}"?',
                     { p0: role.name }
                   )
-                : t(
-                    "OrgRoleActionsMenu.11685c0d",
+                : c(
                     "“{p0}” 역할의 후보자 연결을 다시 시작할까요?",
+                    'Resume recommendations for "{p0}"?',
                     { p0: role.name }
                   )}
           </>
@@ -173,7 +168,7 @@ export function OrgRoleActionsMenu({
               size="md"
               type="button"
             >
-              {t("OrgRoleActionsMenu.3c93b478", "취소")}
+              {c("취소", "Cancel")}
             </MuteButton>
             <MuteButton
               onClick={confirmLifecycleAction}

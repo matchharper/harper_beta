@@ -1,3 +1,4 @@
+import { needsApplicationInspection, runApplicationInspection } from "@/lib/career/simulation/applicationInspection";
 import { after } from "next/server";
 import { runApplicationBrowser } from "@/lib/career/simulation/applicationBrowserServer";
 import { enqueueApplicationBrowser } from "@/lib/career/simulation/applicationBrowserQueue";
@@ -103,6 +104,10 @@ export async function GET(req: NextRequest) {
       records[records.indexOf(active)] = refreshed;
       active = refreshed;
     }
+  }
+  if (active && needsApplicationInspection(active)) {
+    const messageId = active.messageId;
+    after(() => runApplicationInspection({ ...store, admin }, messageId).then(() => {}));
   }
   const browser = active?.state.browser;
   if (

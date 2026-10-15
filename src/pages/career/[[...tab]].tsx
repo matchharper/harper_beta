@@ -20,6 +20,7 @@ const CAREER_TAB_PATHS = [
   "/career/watchlist",
   "/career/profile",
   "/career/brief",
+  "/career/documents",
 ];
 
 const CareerTabPage = ({ activeTab }: CareerTabPageProps) => (

@@ -11,9 +11,11 @@ import { escapeSlackText, getOrgPublicSiteUrl } from "@/lib/org/slackMessages";
 import { resolveHarperSlackWorkspaceAccess } from "@/lib/org/slackMemberAccess";
 import {
   getHarperSlackGrantedScopes,
+  isHarperSlackAudienceAllowed,
   resolveHarperSlackInteractionContext,
   sendHarperWorkspaceSlackMessage,
   slackApi,
+  type HarperSlackInteractionContext,
 } from "@/lib/org/slackHarper";
 import type { OrgAgentMessageMetadata } from "@/lib/org/agent/types";
 import type { HarperSlackBlock } from "@/lib/org/slackChoiceButtons";
@@ -30,20 +32,27 @@ import {
 
 const clean = (value: unknown) => String(value ?? "").trim();
 
-function isAcceptedConnectionArtifact(row: {
+function isReplacedCandidate(row: {
   status: string;
   close_reason?: string | null;
-  presentation?: { deliveryKind?: string } | null;
+}) {
+  return row.status === "closed" && row.close_reason === "route_replaced";
+}
+
+function hasCandidatePipeline(row: {
+  status: string;
+  close_reason?: string | null;
+  recommendation_id?: string | null;
 }) {
   return (
-    row.status === "closed" &&
-    row.close_reason === "route_replaced" &&
-    row.presentation?.deliveryKind === "accepted_connection"
+    isReplacedCandidate(row) ||
+    (row.status === "connected" &&
+      Boolean(candidateEntityId(row.recommendation_id)))
   );
 }
 
 export function slackCandidateProfileUrl(row: {
-  id: string;
+  id: string | null;
   company_workspace_id: string;
   role_id: string;
   talent_id: string;
@@ -52,7 +61,7 @@ export function slackCandidateProfileUrl(row: {
     orgId: row.company_workspace_id,
     roleId: row.role_id,
     talentId: row.talent_id,
-    recommendationId: `company-intro:${row.id}`,
+    ...(row.id ? { recommendationId: `company-intro:${row.id}` } : {}),
     detailRoleId: row.role_id,
     detailWorkspaceId: row.company_workspace_id,
     tab: "pipeline",
@@ -64,11 +73,12 @@ export function slackCandidateProfileUrl(row: {
 
 export async function loadSlackCandidateCards(args: {
   candidateIds: string[];
+  roleId?: string | null;
   workspaceId: string;
 }) {
   const admin = getSupabaseAdmin();
   if (!args.candidateIds.length) return [];
-  const { data, error } = await (
+  let query = (
     admin.from("company_intro_candidates" as any) as any
   )
     .select(
@@ -76,6 +86,8 @@ export async function loadSlackCandidateCards(args: {
     )
     .eq("company_workspace_id", args.workspaceId)
     .in("id", args.candidateIds);
+  if (args.roleId) query = query.eq("role_id", args.roleId);
+  const { data, error } = await query;
   if (error) throw error;
   if (!data?.length) return [];
   const talentIds = [
@@ -129,7 +141,7 @@ export async function loadSlackCandidateCards(args: {
 
 export type SlackCandidatePostReceipts = Record<
   string,
-  { channelId: string; slackMessageTs: string }
+  { channelId: string; slackMessageTs: string; threadId?: string }
 >;
 export async function sendSlackCandidateResult(args: {
   text: string;
@@ -164,9 +176,11 @@ export async function sendSlackCandidateResult(args: {
     if (optOutError) throw optOutError;
     excluded = new Set((optOuts ?? []).map((row: any) => row.channel_id));
   }
-  const destinations = (channels ?? []).filter(
+  const candidateDestinations = (channels ?? []).filter(
     (channel: any) => !excluded.has(channel.id)
   );
+  const destinations = (await Promise.all(candidateDestinations.map(async (channel: any) =>
+    await isHarperSlackAudienceAllowed({ workspaceId: args.workspaceId, roleId: args.roleId, channelId: channel.slack_channel_id }) ? channel : null))).filter(Boolean);
   if (!destinations.length) return false;
   const scopes = args.candidates.length
     ? await getHarperSlackGrantedScopes(args.workspaceId)
@@ -232,7 +246,7 @@ export async function sendSlackCandidateResult(args: {
         postKey: post.key,
         channelId: channel.slack_channel_id,
       };
-      let receipt: { channelId: string; slackMessageTs: string } | null = null;
+      let receipt: { channelId: string; slackMessageTs: string; threadId?: string } | null = null;
       const sent = await sendHarperWorkspaceSlackMessage({
         blocks: useText ? args.blocks : undefined,
         channelId: channel.slack_channel_id,
@@ -257,6 +271,7 @@ export async function sendSlackCandidateResult(args: {
           receipt = {
             channelId: posted.channelId,
             slackMessageTs: posted.slackMessageTs,
+            threadId: posted.threadId,
           };
         },
       });
@@ -267,6 +282,30 @@ export async function sendSlackCandidateResult(args: {
     }
   }
   return true;
+}
+
+class SlackCandidateNotFoundError extends Error {
+  constructor() {
+    super("Candidate not found");
+  }
+}
+
+async function assertSlackCandidateChannel(
+  context: HarperSlackInteractionContext,
+  roleId: string
+) {
+  if (!context.channelId) return;
+  const { data, error } = await (
+    getSupabaseAdmin().from("company_role_notification_channels" as any) as any
+  )
+    .select(
+      "channel_id, channel:company_slack_channels!inner(slack_channel_id)"
+    )
+    .eq("role_id", roleId)
+    .eq("channel.slack_channel_id", context.channelId)
+    .limit(1);
+  if (error) throw error;
+  if (data?.length) throw new Error("Role is not available in this channel");
 }
 
 export async function resolveSlackCandidate(args: {
@@ -281,44 +320,28 @@ export async function resolveSlackCandidate(args: {
     admin.from("company_intro_candidates" as any) as any
   )
     .select(
-      "id, company_workspace_id, role_id, talent_id, status, close_reason, candidate_sent_at, presentation"
+      "id, company_workspace_id, role_id, talent_id, status, close_reason, recommendation_id, candidate_sent_at, presentation"
     )
     .eq("id", args.candidateId)
     .maybeSingle();
   if (error) throw error;
-  if (!row) throw new Error("Candidate not found");
+  if (!row) throw new SlackCandidateNotFoundError();
   const context = await resolveHarperSlackInteractionContext({
     slackTeamId: args.slackTeamId,
     channelId: args.channelId,
     workspaceId: row.company_workspace_id,
   });
-  if (context.channelId) {
-    const { data: optOut, error: optOutError } = await (
-      admin.from("company_role_notification_channels" as any) as any
-    )
-      .select(
-        "channel_id, channel:company_slack_channels!inner(slack_channel_id)"
-      )
-      .eq("role_id", row.role_id)
-      .eq("channel.slack_channel_id", context.channelId)
-      .limit(1);
-    if (optOutError) throw optOutError;
-    if (optOut?.length)
-      throw new Error("Role is not available in this channel");
-  }
+  await assertSlackCandidateChannel(context, row.role_id);
   return { context, row };
 }
 
-export async function authorizeSlackCandidate(args: {
-  candidateId: string;
-  slackTeamId: string;
-  slackUserId: string;
-  channelId?: string | null;
-}) {
-  const { context, row } = await resolveSlackCandidate(args);
+async function authorizeSlackCandidateContext(
+  context: HarperSlackInteractionContext,
+  slackUserId: string
+) {
   const access = await resolveHarperSlackWorkspaceAccess({
     token: context.token,
-    slackUserId: args.slackUserId,
+    slackUserId,
     workspaceId: context.workspaceId,
   });
   if (!access.allowed) throw new Error("Workspace access required");
@@ -328,7 +351,21 @@ export async function authorizeSlackCandidate(args: {
   );
   if (error) throw error;
   if (!data.user) throw new Error("Workspace access required");
-  return { context, row, member: access.member, user: data.user as User };
+  return { member: access.member, user: data.user as User };
+}
+
+export async function authorizeSlackCandidate(args: {
+  candidateId: string;
+  slackTeamId: string;
+  slackUserId: string;
+  channelId?: string | null;
+}) {
+  const { context, row } = await resolveSlackCandidate(args);
+  return {
+    context,
+    row,
+    ...(await authorizeSlackCandidateContext(context, args.slackUserId)),
+  };
 }
 
 export async function readSlackCandidate(
@@ -336,14 +373,17 @@ export async function readSlackCandidate(
 ) {
   const authorized = await authorizeSlackCandidate(args);
   const detail = await fetchOrgTalentDetail({
-    recommendationId: `company-intro:${args.candidateId}`,
+    recommendationId:
+      authorized.row.status === "connected" && authorized.row.recommendation_id
+        ? authorized.row.recommendation_id
+        : `company-intro:${args.candidateId}`,
     roleId: authorized.row.role_id,
     talentId: authorized.row.talent_id,
     user: authorized.user,
     workspaceId: authorized.context.workspaceId,
   });
-  const acceptedConnection = authorized.row.presentation?.deliveryKind === "accepted_connection";
-  if (detail.companyIntro?.id !== args.candidateId && !(acceptedConnection && authorized.row.status === "closed" && authorized.row.close_reason === "route_replaced"))
+  const acceptedConnection = hasCandidatePipeline(authorized.row);
+  if (detail.companyIntro?.id !== args.candidateId && !acceptedConnection)
     throw new Error("Candidate suggestion is no longer active");
   const locale =
     authorized.member.locale ??
@@ -359,12 +399,79 @@ export async function readSlackCandidate(
         }
       : null,
     roleName: detail.role.name || "Role",
-    profileUrl: slackCandidateProfileUrl(authorized.row),
-    status: acceptedConnection ? detail.recommendation.stage : detail.companyIntro!.status,
+    profileUrl: slackCandidateProfileUrl({
+      ...authorized.row,
+      id: acceptedConnection ? null : authorized.row.id,
+    }),
+    status: acceptedConnection
+      ? detail.recommendation.stage
+      : detail.companyIntro!.status,
     acceptedConnection,
     candidateSentAt: detail.companyIntro?.candidateSentAt,
   };
   return { ...authorized, detail, locale, candidate };
+}
+
+/** Old Work Objects can outlive their proposal. The URL identifies the talent
+ * and Role, but never grants access or revives a decision on the old proposal. */
+export function slackCandidateTargetFromUrl(value: unknown) {
+  try {
+    const url = new URL(clean(value));
+    if (
+      url.origin !== new URL(getOrgPublicSiteUrl()).origin ||
+      url.pathname !== "/org/role" ||
+      url.username ||
+      url.password
+    )
+      return null;
+    const identifier = (keys: string[]) => {
+      const values = keys.flatMap((key) => url.searchParams.getAll(key));
+      return values.length && values.every((value) => value === values[0])
+        ? candidateEntityId(values[0])
+        : null;
+    };
+    const workspaceId = identifier(["orgId", "detailWorkspaceId"]);
+    const roleId = identifier(["roleId", "detailRoleId"]);
+    const talentId = identifier(["talentId"]);
+    return workspaceId && roleId && talentId
+      ? { workspaceId, roleId, talentId }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readSlackCandidateAtTarget(
+  target: NonNullable<ReturnType<typeof slackCandidateTargetFromUrl>>,
+  context: HarperSlackInteractionContext,
+  slackUserId: string
+) {
+  await assertSlackCandidateChannel(context, target.roleId);
+  const actor = await authorizeSlackCandidateContext(context, slackUserId);
+  // Use the same current visibility, consent and Role checks as the web page.
+  // A deleted proposal ID must not be passed back into the canonical reader.
+  const detail = await fetchOrgTalentDetail({
+    ...target,
+    user: actor.user,
+  });
+  const locale =
+    actor.member.locale ?? (await getOrgWorkspaceLocale(context.workspaceId));
+  const candidate: SlackCandidateCard = {
+    id: detail.companyIntro?.id ?? detail.recommendation.recommendationId,
+    name: detail.talent.name || "Candidate",
+    headline: detail.talent.headline,
+    profileUrl: slackCandidateProfileUrl({
+      id: detail.companyIntro?.id ?? null,
+      company_workspace_id: target.workspaceId,
+      role_id: target.roleId,
+      talent_id: target.talentId,
+    }),
+    roleName: detail.role.name || "Role",
+    status: detail.companyIntro?.status ?? detail.recommendation.stage,
+    acceptedConnection: !detail.companyIntro,
+    candidateSentAt: detail.companyIntro?.candidateSentAt,
+  };
+  return { context, ...actor, detail, locale, candidate };
 }
 
 // These limits only shorten the displayed preview; source profile data is intact.
@@ -630,71 +737,157 @@ export function slackCandidateProfileFields(
   return entries.filter((entry) => entry.value);
 }
 
+function withSlackCandidateIdentity(
+  entity: ReturnType<typeof buildSlackCandidateEntity>,
+  args: {
+    candidateId: string | null;
+    externalRef?: { id?: unknown; type?: unknown };
+  }
+) {
+  const metadata: Record<string, unknown> = { ...entity };
+  const ref = args.externalRef;
+  if (
+    typeof ref?.id === "string" &&
+    ref.id &&
+    (ref.type === undefined ||
+      (typeof ref.type === "string" && ref.type.length <= 20))
+  ) {
+    metadata.external_ref = {
+      id: ref.id,
+      ...(ref.type === undefined ? {} : { type: ref.type }),
+    };
+  } else if (args.candidateId) {
+    metadata.external_ref = {
+      id: args.candidateId,
+      type: SLACK_CANDIDATE_REF_TYPE,
+    };
+  }
+  return metadata;
+}
+
 export async function presentSlackCandidate(args: {
-  candidateId: string;
+  candidateId: string | null;
+  entityUrl?: string | null;
+  externalRef?: { id?: unknown; type?: unknown };
   slackTeamId: string;
   slackUserId: string;
   channelId?: string | null;
   triggerId: string;
 }) {
-  const resolved = await resolveSlackCandidate(args);
+  let context: HarperSlackInteractionContext | null = null;
   try {
+    let resolved: Awaited<ReturnType<typeof resolveSlackCandidate>> | null =
+      null;
+    if (args.candidateId) {
+      try {
+        resolved = await resolveSlackCandidate({
+          ...args,
+          candidateId: args.candidateId,
+        });
+        context = resolved.context;
+      } catch (error) {
+        if (!(error instanceof SlackCandidateNotFoundError)) throw error;
+      }
+    }
     if (
+      resolved &&
       ["passed", "closed", "connected"].includes(resolved.row.status) &&
-      !isAcceptedConnectionArtifact(resolved.row)
+      !hasCandidatePipeline(resolved.row)
     ) {
-      const actor = await authorizeSlackCandidate(args);
+      const actor = await authorizeSlackCandidate({
+        ...args,
+        candidateId: resolved.row.id,
+      });
       const locale =
         actor.member.locale ??
         (await getOrgWorkspaceLocale(actor.context.workspaceId));
       await slackApi(actor.context.token, "entity.presentDetails", {
         trigger_id: args.triggerId,
         metadata: JSON.stringify(
-          buildSlackCandidateEntity({
-            candidate: {
-              id: args.candidateId,
-              name: locale === "ko" ? "후보자 제안" : "Candidate suggestion",
-              profileUrl: slackCandidateProfileUrl(actor.row),
-              roleName: "",
-              status: actor.row.status,
-            },
-            locale,
-            canDecide: false,
-            surface: "details",
-          })
+          withSlackCandidateIdentity(
+            buildSlackCandidateEntity({
+              candidate: {
+                id: resolved.row.id,
+                name: locale === "ko" ? "후보자 제안" : "Candidate suggestion",
+                profileUrl: slackCandidateProfileUrl(actor.row),
+                roleName: "",
+                status: actor.row.status,
+              },
+              locale,
+              canDecide: false,
+              surface: "details",
+            }),
+            args
+          )
         ),
       });
       return;
     }
-    const read = await readSlackCandidate(args);
+    let read;
+    if (resolved) {
+      read = await readSlackCandidate({
+        ...args,
+        candidateId: resolved.row.id,
+      });
+    } else {
+      const target = slackCandidateTargetFromUrl(args.entityUrl);
+      if (!target) throw new SlackCandidateNotFoundError();
+      context = await resolveHarperSlackInteractionContext({
+        workspaceId: target.workspaceId,
+        slackTeamId: args.slackTeamId,
+        channelId: args.channelId,
+      });
+      read = await readSlackCandidateAtTarget(
+        target,
+        context,
+        args.slackUserId
+      );
+    }
+    context = read.context;
+    // Slack checks the identity against the original click, even when the
+    // canonical proposal was replaced or removed after this card was posted.
+    const metadata = withSlackCandidateIdentity(
+      buildSlackCandidateEntity({
+        candidate: read.candidate,
+        locale: read.locale,
+        surface: "details",
+        // A recovered link is read-only: an old card cannot act on a newer Intro.
+        canDecide: Boolean(resolved) && read.member.canManageCandidates,
+        canRequestIntro: read.detail.capabilities.requestIntro,
+        canPass: read.detail.capabilities.pass,
+        documents: slackCandidateDocumentLinks(
+          read.detail,
+          read.candidate.profileUrl,
+          read.locale
+        ),
+        details: slackCandidateProfileFields(read.detail, read.locale),
+      }),
+      args
+    );
     await slackApi(read.context.token, "entity.presentDetails", {
       trigger_id: args.triggerId,
-      metadata: JSON.stringify(
-        buildSlackCandidateEntity({
-          candidate: read.candidate,
-          locale: read.locale,
-          surface: "details",
-          canDecide: read.member.canManageCandidates,
-          canRequestIntro: read.detail.capabilities.requestIntro,
-          canPass: read.detail.capabilities.pass,
-          documents: slackCandidateDocumentLinks(
-            read.detail,
-            read.candidate.profileUrl,
-            read.locale
-          ),
-          details: slackCandidateProfileFields(read.detail, read.locale),
-        })
-      ),
+      metadata: JSON.stringify(metadata),
     });
   } catch (error) {
-    // No profile or snapshot is returned when current membership/privacy fails.
-    await slackApi(resolved.context.token, "entity.presentDetails", {
-      trigger_id: args.triggerId,
-      error: JSON.stringify({ status: "restricted" }),
-    });
     console.warn("[harper-slack/candidate:details]", {
       candidateId: args.candidateId,
       error: error instanceof Error ? error.message : String(error),
+    });
+    // No profile or snapshot is returned when current membership/privacy fails.
+    // Resolve the requesting channel even when the proposal lookup failed, so
+    // Slack receives a response instead of waiting until its generic timeout.
+    context ??= await resolveHarperSlackInteractionContext({
+      slackTeamId: args.slackTeamId,
+      channelId: args.channelId,
+    });
+    await slackApi(context.token, "entity.presentDetails", {
+      trigger_id: args.triggerId,
+      error: JSON.stringify({
+        status:
+          error instanceof SlackCandidateNotFoundError
+            ? "not_found"
+            : "restricted",
+      }),
     });
   }
 }
@@ -721,7 +914,7 @@ export async function refreshSlackCandidateUnfurls(
       });
       if (
         ["passed", "closed", "connected"].includes(resolved.row.status) &&
-        !isAcceptedConnectionArtifact(resolved.row)
+        !hasCandidatePipeline(resolved.row)
       ) {
         const actor = await authorizeSlackCandidate({
           candidateId,

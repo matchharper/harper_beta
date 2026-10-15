@@ -723,7 +723,9 @@ export async function POST(req: NextRequest) {
         p_prompt: roleQuickAction.message,
         p_slack_event_id: promptActionKey,
         p_slack_files: [],
-        p_slack_message_ts: sourceMessageTs,
+        // The click is a new user turn. Keep the source message timestamp for
+        // updating its buttons, as in the regular button-choice queue path.
+        p_slack_message_ts: actionTs,
         p_slack_user_id: slackUserId,
         p_thread_id: thread.id,
         p_trigger_kind: "button_choice",

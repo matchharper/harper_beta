@@ -1,10 +1,28 @@
-// Korean copy for shared source translations; useOrgT reads UI copy from its call site.
+// Shared source labels, FAQs, and compatibility copy. Org UI uses inline c(ko, en).
 export const ko = {
-  "OrgRoleTalentBoard.harperEmailSent": "Harper가 후보자에게도 이 역할을 추천하는 메일을 보냈어요.",
-  "OrgRoleTalentBoard.harperCardAvailable": "후보자의 추천함에도 이 역할이 추가되어 있어요.",
-  "TalentDetailSimpleView.feed.actorFallback": "팀원",
+  "teams.duplicateName":
+    "같은 이름의 팀이 이미 있어요. 다른 이름을 입력해 주세요.",
+  "teams.ownerOnly": "Owner만 팀과 접근 범위를 관리할 수 있습니다.",
+  "teams.notFound": "팀을 찾을 수 없습니다.",
+  "teams.invalidMembers": "선택한 팀원을 확인해 주세요.",
+  "teams.invalidRoles": "선택한 Role을 확인해 주세요.",
+  "teams.invalidScope": "접근 범위를 확인해 주세요.",
+  "teams.invalidTarget": "선택한 대상을 확인해 주세요.",
+  "teams.nameLength": "팀 이름을 100자 이내로 입력해 주세요.",
+  "teams.title": "팀",
+  "teams.saveError": "팀 설정을 저장하지 못했습니다.",
+  "teams.deleteTitle": "팀 삭제",
+  "teams.cancel": "취소",
+  "teams.save": "변경 저장",
+  "teams.deleteBlocked":
+    "배정된 Role을 다른 팀 또는 미배정으로 옮긴 뒤 팀을 삭제해 주세요.",
+  "teams.members": "팀원",
+  "teams.unassigned": "미배정",
+  "teams.noResults": "검색 결과가 없습니다.",
+  "teams.membersTab": "Members",
+  "onboarding.OrgOrganizationCreationPage.back": "돌아가기",
+  "onboarding.OrgOrganizationCreationPage.continue": "계속하기",
   "TalentDetailSimpleView.feed.body": "본문",
-  "TalentDetailSimpleView.feed.cancel": "취소",
   "TalentDetailSimpleView.feed.delete": "삭제",
   "TalentDetailSimpleView.feed.deleteProgress": "Progress 삭제",
   "TalentDetailSimpleView.feed.edit": "수정",
@@ -14,7 +32,6 @@ export const ko = {
   "TalentDetailSimpleView.feed.subject": "제목",
   "TalentDetailSimpleView.feed.viewContent": "내용 보기",
   "TalentDetailSimpleView.feed.submit": "메모 추가",
-  "TalentDetailSimpleView.requestIntroHeading": "Request Intro:{candidateName}",
   "agent.quickAction.pipelineSummary": "Pipeline summary",
   "agent.quickAction.pipelineSummaryMessage":
     "현재 연결된 후보자 파이프라인을 요약해서 설명해줘",
@@ -24,32 +41,10 @@ export const ko = {
   "agent.quickAction.runSearchMessage":
     "이 역할에 대해 우리가 먼저 Intro를 요청해볼 만한 후보자를 찾아줘.",
   "shared.introRequested": "Intro Requested",
-  "OrgRoleTalentBoard.recommendationActive": "Harper가 소개하고 있어요",
-  "OrgRoleTalentBoard.recommendationPaused": "후보자 추천 중단",
-  "OrgRoleTalentBoard.recommendationEnded": "후보자 추천 종료",
-  "OrgRoleTalentBoard.recommendationActiveDescription":
-    "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
-  "OrgRoleTalentBoard.recommendationPausedDescription":
-    "역할이 중단되어 새로운 후보자 추천도 쉬고 있어요. 역할을 다시 진행하면 추천도 이어집니다.",
-  "OrgRoleTalentBoard.recommendationEndedDescription":
-    "이 역할의 채용이 종료되어 새로운 후보자를 추천하지 않아요.",
-  "OrgAllRolesOverview.candidateCountOne": "{count}명",
-  "OrgAllRolesOverview.candidateCountOther": "{count}명",
-  "composed.memberCountOne": "{members}명",
-  "composed.memberCountOther": "{members}명",
-  "composed.memberAndInviteCountOneOne": "{members}명 · 초대 대기 {invites}명",
-  "composed.memberAndInviteCountOneOther":
-    "{members}명 · 초대 대기 {invites}명",
-  "composed.memberAndInviteCountOtherOne":
-    "{members}명 · 초대 대기 {invites}명",
-  "composed.memberAndInviteCountOtherOther":
-    "{members}명 · 초대 대기 {invites}명",
   "announcement.welcome.title": "환영합니다.",
-  "announcement.welcome.action": "새 포지션 만들기",
-  "announcement.welcome.description": "Harper는 반대편에서 뛰어난 여러 후보자와 대화하며 그들의 니즈를 듣고 있어요. 적합한 사람을 바로 연결해드릴게요.",
+  "announcement.welcome.description":
+    "Harper는 반대편에서 뛰어난 여러 후보자와 대화하며 그들의 니즈를 듣고 있어요. 적합한 사람을 바로 연결해드릴게요.",
   "announcement.close": "안내 닫기",
-  "dev.announcement.preview": "Welcome 안내 띄우기",
-  "dev.announcement.close": "안내 닫기",
   "dev.palette.title": "색상 미리보기",
   "dev.palette.current": "1. 현재",
   "dev.palette.soft": "2. 누런끼 조금 제거",
@@ -63,48 +58,14 @@ export const ko = {
     "배경과 글자를 중성 회색에 가깝게, 따뜻한 강조 배경은 더 차분하게 표시해요.",
   "dev.palette.monoDescription":
     "primary 포인트를 제외한 공통 UI 색상을 흰색·검정·회색으로 표시해요.",
-  "dev.palette.footnote":
-    "primary는 모든 옵션에서 유지돼요. 이 브라우저의 Career·Org 화면에만 적용되며, ‘현재’를 누르면 원래 색상으로 돌아가요.",
-  "dev.health.internal": "Harper 내부 전용 · Dev controls",
-  "dev.health.title": "Role matching health",
-  "dev.health.description":
-    "Role과 focus를 선택해 read-tool result를 미리 봅니다. 아직 company-side LLM에는 연결되지 않았으며 데이터도 변경하지 않습니다.",
-  "dev.health.role": "대상 Role",
-  "dev.health.roleAria": "Matching health 대상 Role",
   "dev.health.rolePlaceholder": "Role 선택",
-  "dev.health.focus": "조회 Focus",
-  "dev.health.focusAria": "Matching health 조회 Focus",
-  "dev.health.focusPlaceholder": "Focus 선택",
-  "dev.health.overview": "전체 통계",
-  "dev.health.nearMatches": "아쉽게 매칭되지 않은 이유",
-  "dev.health.coverage": "매칭 판단 범위와 최신성",
-  "dev.health.feedback": "후보자 거절 사유",
-  "dev.health.load": "Tool result 불러오기",
-  "dev.health.loadError": "결과를 불러오지 못했습니다.",
-  "dev.health.dialogDescription":
-    "아직 company-side LLM에 연결하지 않은 read-tool result 미리보기입니다.",
   "dev.health.copied": "복사됨",
-  "dev.health.copy": "텍스트 복사",
-  "dev.health.loading": "Tool result를 불러오는 중",
   "workspace.pages.OrgTeamPage.documentTitle": "Company Description",
   "agent.quickAction.runSearch": "Run Search",
-  "workspace.pages.OrgSettingsPage.connectedChannelCount":
-    "연결된 채널{count}개",
-  "OrgSlackPanel.connectedChannelCount": "{teamName} · {count}개 채널",
-  "workspace.pages.OrgTeamPage.memberCountOne": "{count}명",
-  "workspace.pages.OrgTeamPage.memberCountOther": "{count}명",
-  "workspace.pages.OrgTeamPage.invitationCountOne": " · 수락 대기 {count}명",
-  "workspace.pages.OrgTeamPage.invitationCountOther": " · 수락 대기 {count}명",
-  "document.open": "{title} 문서 열기",
-  "document.content": "{title} 문서 내용",
   "document.showMore": "더보기",
   "document.showLess": "접기",
   "document.emptyPreview": "내용을 작성해 주세요.",
-  "document.meta": "마지막 변경: {changedAt}, {count} 글자",
   "document.justNow": "방금 전",
-  "document.minutesAgo": "{count}분 전",
-  "document.hoursAgo": "{count}시간 전",
-  "document.daysAgo": "{count}일 전",
   "document.copyLabel": "복사",
   "document.copySuccess": "문서 내용을 복사했어요.",
   "document.copyError": "문서 내용을 복사하지 못했어요. 다시 시도해 주세요.",
@@ -148,26 +109,7 @@ export const ko = {
   "pipeline.saving": "저장 중...",
   "pipeline.edit": "수정",
   "pipeline.add": "추가",
-  "composed.memberCount": "{members}명",
-  "composed.memberAndInviteCount": "{members}명 · 초대 대기 {invites}명",
-  "composed.reengagementNotice":
-    "{candidateName}님께 {roleName} 역할의 진행이 끝났다고 이미 안내했습니다. 다시 진행하려면 후보자의 새로운 의사를 확인하는 편이 안전해요.",
-  "composed.viewCandidateDetails": "{name} 후보자 상세 보기",
-  "composed.continueDraftRole": "{roleName} 역할 작성을 이어가세요.",
-  "composed.deletePipelineColumn":
-    "“{stageLabel}” 칼럼을 삭제합니다. 후보자가 남아 있다면 먼저 다른 칼럼으로 이동해 주세요.",
-  "composed.privateChannel": "비공개 채널 {name}",
-  "composed.deleteRole": "“{roleName}” 역할을 삭제합니다. 계속할까요?",
-  "composed.inboxCount": "{visible}명 표시 · 전체 {total}명",
-  "composed.removeMember":
-    "{memberName}를 Organization에서 제거합니다. 제거한 멤버는 더 이상 이 Organization에 접근할 수 없습니다.",
-  "composed.removeNotificationChannel":
-    "{channelName}로는 더 이상 Organization 알림이 발송되지 않습니다.",
   "meetingSummary.none": "반복 시간 없음",
-  "meetingSummary.daily": "매일 {intervals}",
-  "meetingSummary.weekdays": "평일 {intervals}",
-  "meetingSummary.weekly": "주 {days}일 설정",
-  "meetingSummary.exceptions": "예외 {days}일",
   "shared.weekday.monday": "월요일",
   "shared.weekday.tuesday": "화요일",
   "shared.weekday.wednesday": "수요일",
@@ -193,47 +135,23 @@ export const ko = {
   "profile.experience": "경력",
   "profile.unknownRole": "역할 미상",
   "profile.resources": "등록 자료",
-  "hooks.role.deleted": "역할을 삭제했습니다.",
-  "hooks.role.paused": "역할을 일시 중지했습니다.",
-  "hooks.role.resumed": "역할을 다시 시작했습니다.",
-  "hooks.role.failed": "역할 상태를 변경하지 못했습니다.",
-  "hooks.candidate.reengagementRequested":
-    "Harper가 후보자에게 다시 진행할 의향을 물어볼게요. 답변이 오면 회사에 알려드립니다.",
-  "hooks.candidate.reengagementApplied":
-    "후보자의 진행 상태를 복구하고 요청한 변경을 반영했습니다.",
-  "hooks.candidate.reengagementFailed":
-    "후보자 재진행 요청을 처리하지 못했습니다.",
   "hooks.candidate.fallbackName": "후보자",
   "hooks.candidate.fallbackRole": "해당 역할",
-  "hooks.candidate.connectedWithMeeting":
-    "연결을 시작했고, 미팅 정보를 준비해두었어요.",
-  "hooks.candidate.stageChanged": "후보자 상태를 변경했습니다.",
   "hooks.candidate.stageChangeFailed": "후보자 상태를 변경하지 못했습니다.",
-  "hooks.candidate.connected": "후보자 연결을 시작했어요.",
-  "hooks.candidate.connectionEnded":
-    "후보자 연결을 종료했어요. Harper가 후보자에게 종료를 안내해요.",
-  "hooks.candidate.connectionRejected":
-    "후보자 연결을 거절했어요. 회사의 종료 결정이 후보자에게 안내돼요.",
-  "hooks.candidate.pendingConnection": "연결 대기 상태로 옮겼습니다.",
-  "hooks.candidate.pendingConnectionFailed":
-    "연결 대기 상태로 옮기지 못했습니다.",
-  "hooks.agent.selectedModel": "선택한 모델",
   "hooks.agent.sessionMissing":
     "로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.",
-  "hooks.agent.replyFailed":
-    "답변을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
   "hooks.invite.previewFailed": "초대 정보를 불러오지 못했습니다.",
   "hooks.unsavedChanges":
     "저장하지 않은 변경사항이 있습니다. 지금 이동하면 변경사항이 반영되지 않습니다. 그래도 이동할까요?",
   "shared.permission.owner":
-    "멤버 초대와 권한 변경을 포함해 모든 기능을 관리합니다.",
+    "팀원 초대와 권한 변경을 포함해 모든 기능을 관리합니다.",
   "shared.permission.admin":
-    "후보자와 Jobs, 회사 정보 및 연동을 관리합니다. 멤버 초대 및 제거는 할 수 없습니다.",
+    "후보자와 Jobs, 회사 정보 및 연동을 관리합니다. 팀원 초대 및 제거는 할 수 없습니다.",
   "shared.permission.viewer":
     "후보자와 회사 정보를 확인할 수 있지만 변경할 수 없습니다.",
   "shared.onboarding.draftTitle": "미리 준비해 둔 역할이 있어요.",
   "shared.onboarding.draftDescription":
-    "아직 채용을 진행하고 있지는 않아요. 시작한 뒤 원하는 인재의 기준을 더 자세히 알려주세요. 함께 다듬고, 준비되면 채용을 시작할 수 있어요. Harper에게 채용 시작해라고 말해주세요.",
+    "아직 채용을 진행하고 있지는 않아요. 시작한 뒤 원하는 인재의 기준을 더 자세히 알려주세요. 함께 다듬고, 준비되면 채용을 시작할 수 있어요.",
   "shared.onboarding.activeTitle": "현재 채용 중인 역할이 있어요.",
   "shared.onboarding.otherTitle": "회사의 채용 역할을 확인해 보세요.",
   "shared.onboarding.description":
@@ -241,18 +159,18 @@ export const ko = {
   "faq.service-overview.question":
     "Harper는 뭘 해주는 서비스인가요? 회사 채용팀을 위해 어떤 일을 해주나요?",
   "faq.service-overview.answer":
-    "저희는 후보자 목록만 보여드리는 게 아니라, 회사와 함께 채용을 진행하는 파트너예요. 채용할 역할과 판단 기준을 정리하고, 그 기준에 맞는 분들의 경력을 검토한 뒤 후보자에게 회사와 역할을 설명하고 대화 의향을 확인해요. 대화해 보고 싶다고 답한 후보자를 Inbox의 연결 대기 상태로 회사에 소개해요. 회사가 연결을 수락한 뒤에는 Pipeline에서 다음 전형과 결과를 관리할 수 있어요. 별도의 먼저 제안 가능한 후보 탭에서는 이 역할을 아직 수락하지 않은 후보에게 회사가 먼저 제안할지 결정할 수 있어요.",
+    "저희는 회사와 함께 채용을 진행하는 파트너예요. 역할과 판단 기준을 정리하고, 맞는 후보자를 찾아 경력과 근무 조건을 검토해요. 먼저 제안 가능한 후보에서는 회사가 만나보고 싶은 사람을 고르고 Intro를 요청할 수 있어요. 후보자가 수락하면 미리 선택한 팀원과 소개 이메일로 연결해요. 슬롯이 배정된 Role의 연결 대기에서는 Harper가 먼저 역할을 소개하고 대화 의사를 확인한 후보자를 검토해 회사가 연결 여부를 결정해요. 기존 별도 계약의 이용 범위는 해당 계약을 따르며, 연결 후에는 후보자 연락과 일정 조율을 맡기고 Pipeline에서 전형을 관리할 수 있어요.",
   "faq.getting-started.question": "처음 가입했어요. 이제 뭘 하면 되나요?",
   "faq.getting-started.answer":
-    "네~ 먼저 Roles부터 같이 보시면 돼요. 아직 만든 역할이 없다면 웹 왼쪽 사이드바의 New role을 열거나 Slack에서 Harper에게 “백엔드 엔지니어를 채용하고 싶어요”처럼 편하게 말하면 돼요. 완성된 JD가 없어도 Harper가 대화로 역할과 매칭 기준을 함께 정리하고, 최종 내용을 확인해 등록하면 후보자 탐색을 시작해요. 작성 중인 역할이 있다면 해당 역할 대화에서 등록을 마무리해 주세요. 이미 채용 중인 역할이 있다면 역할 정보가 최신인지와 Inbox에 연결 대기 후보자가 있는지, 역할의 먼저 제안 가능한 후보 탭에 먼저 연락해 볼 사람이 있는지 확인해 주세요. 먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람으로, 이전에 Harper의 추천을 받았거나 거절한 경우도 있어요. 회사가 먼저 제안하기를 선택하면 Harper가 회사를 대신해 연락해요. 검토할 후보가 없다면 화면을 계속 열어 둘 필요 없이 기다리면 돼요. 역할에 맞고 회사와 대화할 의사가 확인된 후보자가 생기면 Inbox와 Slack으로 알려드려요. 등록한 역할은 필요할 때 중단하거나 삭제할 수 있어요.",
+    "먼저 회사 정보와 Pitch를 확인하고, 함께 채용할 팀원과 Slack 알림 채널을 준비해 주세요. 역할이 없다면 웹의 New role을 열거나 Slack에서 Harper에게 채용하고 싶은 역할을 말하면 돼요. 완성된 JD 없이도 대화로 Description과 Hiring Brief를 정리할 수 있어요. 작성 중인 역할은 등록을 마무리하고, 채용 중인 역할은 Settings의 추천 후보 검색과 요일·시각을 확인해 주세요. 먼저 제안 가능한 후보에서 Intro를 요청하고, 이용 가능한 Role의 Inbox에 연결 대기 후보자가 있으면 연결 여부를 결정하면 돼요. 검토할 후보가 없다면 화면을 계속 열어 둘 필요는 없어요. 역할은 필요할 때 중단하거나 삭제할 수 있어요.",
   "faq.pricing-overview.question":
     "Harper 비용은 어떻게 되나요? 월 구독료나 채용 수수료가 있나요?",
   "faq.pricing-overview.answer":
-    "Free에서도 Role을 무제한으로 만들고 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10크레딧은 유료 슬롯을 추가해도 별도로 유지돼요. 유료 슬롯은 배정한 Role 하나에 유료 기능과 월 50크레딧을 제공해요. 해당 슬롯 크레딧을 먼저 쓰고 부족하면 공용 크레딧을 사용하며, 다른 슬롯의 크레딧은 사용할 수 없어요. Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. 요청하신 Enterprise에는 별도로 합의한 비용 모델이 적용될 수 있어요. 현재 판매 가격은 /pricing에서, 회사에 적용된 구독과 결제 내역은 Organization의 Slots와 Billing에서 확인해 주세요. 기존에 별도 계약을 맺었다면 그 계약이 유지돼요.",
+    "Free에서도 Role을 무제한으로 만들고 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10 Intro는 슬롯을 추가해도 별도로 유지돼요. 표준 슬롯은 배정한 Role 하나에 유료 기능과 월 50 Intro를 제공하고, Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. Enterprise와 기존 별도 계약은 합의한 조건을 따라요. 현재 새 회사의 직접 가입과 일반 회사의 셀프서비스 결제는 일시 중단되어 있어요. Slots와 Billing 메뉴가 표시되는 Workspace에서는 배정·구독·결제 내역을 확인할 수 있고, 메뉴가 없거나 적용 조건이 궁금하면 문의하기로 Harper 팀에 확인해 주세요. /pricing의 공개 상품 설명만으로 회사의 실제 계약이나 잔액을 판단하지 않아요.",
   "faq.pricing-subscription.question":
     "월 구독료나 사용료가 따로 있나요? 무료인가요?",
   "faq.pricing-subscription.answer":
-    "무료로 시작할 수 있는 Free와 유료 슬롯 구독이 있어요. 슬롯은 월간 또는 연간으로 결제하고, 추가한 슬롯은 각각 관리하거나 구독을 취소할 수 있어요. 연간은 1년 이용료를 한 번에 결제해요. 최신 금액은 /pricing에, 회사의 현재 구독은 Organization의 Slots와 Billing에 표시돼요. Enterprise와 기존 별도 계약의 조건은 Harper 팀에 확인해 주세요.",
+    "Free와 월간·연간 표준 슬롯 구독이 있어요. 연간 구독은 1년 이용료를 한 번에 결제하지만 Intro는 월 단위로 갱신돼요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 바로 슬롯을 구매하도록 안내하지 않아요. 결제 메뉴가 표시되는 Workspace에서는 Slots와 Billing에서 현재 구독을 확인하고, 메뉴가 없으면 Harper 팀에 적용 계약과 이용 범위를 문의해 주세요.",
   "faq.pricing-success-fee.question":
     "채용이 성사되면 비용은 얼마인가요? 수수료율이 정해져 있나요?",
   "faq.pricing-success-fee.answer":
@@ -260,19 +178,19 @@ export const ko = {
   "faq.recommendation-timing.question":
     "역할을 등록했는데 왜 후보자 추천이 바로 오지 않나요?",
   "faq.recommendation-timing.answer":
-    "첫 추천까지는 시간이 조금 걸릴 수 있어요. Harper는 단순히 검색된 후보자를 바로 보여드리지 않고, 역할에 맞는 분을 찾고 경력을 검토한 뒤 회사와 역할을 먼저 설명해 실제 대화 의사까지 확인해요. 그래서 Inbox에는 회사가 바로 검토할 수 있는 후보자가 도착하지만, 정확한 추천 시점을 미리 약속하기는 어려워요. 꼭 필요한 조건과 제외 기준, 후보자에게 잘 전달되어야 할 회사의 장점이 최신인지 역할 대화에서 확인해 주세요. 예상보다 오래 걸린다고 느껴지면 프로필 메뉴의 문의하기에 역할 이름을 남겨 주세요.",
+    "역할 등록은 후보자가 발견되거나 연락이 끝났다는 뜻은 아니에요. 현재 기준에 맞는 후보자를 찾고 검토하는 데 시간이 필요해요. 먼저 제안 가능한 후보는 후보자의 수락 전에 회사가 검토하는 목록이고, 연결 대기는 Harper의 추천을 수락한 후보자를 소개한 상태예요. 두 목록의 도착 시점은 다를 수 있고 적합한 후보가 없으면 새 항목이 없을 수도 있어요. Settings의 검색 설정과 저장된 Hiring Brief를 확인하고, 지금 새 후보를 찾고 싶으면 역할 대화의 Run Search를 사용할 수 있어요. 이 요청도 추천 수나 도착 시점을 보장하지는 않아요.",
   "faq.pending-connection.question":
     "연결 대기와 먼저 제안 가능한 후보는 어떻게 다른가요?",
   "faq.pending-connection.answer":
-    "연결 대기는 후보자가 회사와 역할에 대한 설명을 듣고 대화해 볼 의사를 밝힌 뒤, 회사의 결정을 기다리는 상태예요. 단순히 검색에서 찾은 사람이나 Harper가 일방적으로 올린 후보자가 아니에요. 추천 이유와 자료를 검토한 뒤 Inbox에서 연결을 수락할지 거절할지 알려 주세요. 결정하기에 정보가 부족하다면 먼저 Harper에게 후보자 확인을 요청할 수 있어요. 먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람에게 회사가 먼저 연락해 보도록 제안하는 별도 흐름이에요. 먼저 제안하기를 선택하면 후보자는 Intro Requested로 이동하고, Harper가 회사의 관심 이유를 담아 연락해요. 후보자가 수락하면 미리 정한 담당자와 소개 이메일로 연결하고 연결됨으로 이동해요. Intro Requested 카드에는 제안 준비 중인지 후보자 답변 대기인지 표시돼요. 제안하지 않기를 선택하면 후보자에게 연락하지 않고 목록에서 제외해요.",
+    "먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람을 회사가 먼저 검토하는 목록이에요. 이전에 Harper의 추천을 받았거나 거절한 경우도 있으므로 처음 보는 역할이거나 관심이 확인된 후보라고 단정하지 않아요. Intro 요청을 확정하면 Harper가 회사의 관심 이유를 담아 제안하고, 후보자가 수락하면 미리 고른 팀원과 소개 이메일로 연결해요. 연결 대기는 후보자가 회사와 역할에 대한 설명을 듣고 대화해 볼 의사를 밝힌 뒤 회사의 결정을 기다리는 상태예요. 슬롯이 배정된 Role 또는 해당 기능이 포함된 기존 계약에서 이용하며, 회사가 연결을 수락하거나 거절해야 해요. 후보자의 수락과 회사에 실제로 소개가 전달된 시점은 다를 수 있어요.",
   "faq.recommendation-paused.question":
     "추천이 오다가 멈췄어요. 새 후보자가 더 안 오는 이유가 뭔가요?",
   "faq.recommendation-paused.answer":
-    "먼저 역할이 중단되거나 종료된 상태인지, Inbox의 연결 대기 후보자가 해당 역할의 검토 한도에 도달했는지 확인해 주세요. 중단된 역할을 다시 진행하거나 기존 후보자의 연결을 수락하거나 거절해 대기가 줄면 새 추천이 이어질 수 있어요. 위 상황이 아니라면 역할에 잘 맞고 실제로 대화할 의사가 있는 분을 연결해 드리기 위해 탐색과 확인에 시간이 조금 더 걸리는 중일 수 있어요. 문제가 생겼다고 생각되면 프로필 메뉴의 문의하기에 역할 이름과 현재 상황을 함께 남겨 주세요.",
+    "역할이 중단·종료된 상태인지, Settings의 추천 후보 검색이 켜져 있는지와 다음 검색 요일·시각을 먼저 확인해 주세요. 연결 대기가 해당 역할의 검토 한도에 도달하면 새 후보자에게 먼저 추천하는 일부 탐색이 제한돼요. 기존 후보자의 연결을 수락하거나 거절해 대기가 줄면 그 제한이 풀릴 수 있지만, 먼저 제안 가능한 후보 검색까지 모두 멈춘다는 뜻은 아니에요. 슬롯이나 기존 계약의 이용 범위, 미처리 제안, 적합한 후보의 유무도 영향을 줄 수 있어요. Harper에게 최근 검색 이력을 물어 현재 확인되는 범위를 보고, 해결되지 않으면 문의하기에 역할 이름과 상황을 남겨 주세요.",
   "faq.recommendation-feedback.question":
     "추천된 후보자들이 제가 찾는 방향과 조금 달라요.",
   "faq.recommendation-feedback.answer":
-    "어떤 점이 달랐는지 후보자 이름과 함께 편하게 말씀해 주세요. 한 후보자만의 아쉬움인지, 이후 추천에도 적용할 공통 기준인지 구분해 반영할게요. 공통 기준이라면 역할의 Hiring Brief나 Evaluation Criteria를 바꾸고 다음 후보자 탐색에 사용해요. 해당 후보자와 진행하지 않으려면 Inbox에서 연결을 거절할 수 있지만, 연결 거절은 보류가 아니라 이번 역할의 진행을 끝내는 결정이에요. 이미 연결 대기에 온 후보자는 이전 기준으로 소개됐을 수 있으므로 새 기준에 맞는지 따로 검토해 주세요.",
+    "어떤 점이 달랐는지 후보자 이름과 함께 말씀해 주세요. 한 후보자에 대한 판단인지 이후 추천에도 적용할 공통 기준인지 구분해 반영할게요. 공통 기준이라면 Hiring Brief나 Evaluation Criteria의 수정안을 확인한 뒤 다음 탐색에 사용해요. 먼저 제안 가능한 후보의 Pass는 연락 없이 목록에서 제외하는 결정이고, 연결 대기의 연결 거절은 보류가 아니라 이번 역할의 진행을 끝내는 결정이에요. 이미 소개된 후보자는 이전 기준으로 검토됐을 수 있어 새 기준에서도 맞는지 따로 확인해야 해요.",
   "faq.connect.question":
     "이 후보자의 연결 수락은 어떤 의미인가요? Connect 버튼을 누르면 바로 어떻게 되나요?",
   "faq.connect.answer":
@@ -284,7 +202,7 @@ export const ko = {
   "faq.intro-email.question":
     "소개 이메일에는 누가 들어가나요? Email intro 수신자가 궁금해요.",
   "faq.intro-email.answer":
-    "Email intro에서는 후보자가 받는 사람에 들어가고, 회사가 선택한 팀원는 CC에 들어가요. 이메일을 받은 뒤 실제로 후보자에게 인사하고 다음 일정을 조율할 담당자를 선택해 주세요. 채용 담당자와 현업 리더가 함께 대화를 이어가야 한다면 두 사람을 모두 포함할 수 있어요. 필요한 담당자가 목록에 보이지 않으면 먼저 Organization의 Members에서 초대해야 해요.",
+    "소개 이메일은 후보자에게 보내고 회사가 선택한 팀원을 CC에 넣어요. 후보자에게 인사하고 다음 일정을 조율할 담당자를 선택해 주세요. 여러 팀원을 함께 포함할 수 있으며, 필요한 팀원이 목록에 없다면 Owner가 Organization의 Members에서 초대해야 해요. 회사가 Intro를 요청할 때는 후보자가 수락한 뒤 이 팀원들에게 소개 이메일이 전달되므로 수신자를 미리 정해요.",
   "faq.direct-contact.question":
     "Harper 소개 메일 없이 우리가 후보자에게 직접 연락해도 되나요?",
   "faq.direct-contact.answer":
@@ -292,11 +210,11 @@ export const ko = {
   "faq.candidate-contact.question":
     "후보자에게 질문하거나 최신 이력서를 요청해 줄 수 있나요?",
   "faq.candidate-contact.answer":
-    "네~ 연결 대기에서 연결 여부를 정하기 전에도, 연결 후 채용 절차를 진행하는 동안에도 필요한 경력 내용을 묻거나 최신 이력서를 요청할 수 있어요. 회사의 Intro 요청 전인 먼저 제안 가능한 후보라면 먼저 역할을 제안해야 해요. 제안이 전달된 뒤 답변을 기다리는 중에는 필요한 내용을 추가로 물어볼 수 있고요. 무엇을 전달할지 명확하게 부탁하시면 Harper가 바로 연락하고, 문구부터 보고 싶으시면 초안을 보여드리고 수정한 뒤 보내요. 후보자는 답하지 않거나 요청을 거절할 수도 있어요. 답변이나 자료 제출이 없고 요청이 계속 유효하면, 최초 전달 후 최소 3일이 지난 뒤 Harper가 부담되지 않게 후속 확인 이메일을 한 번 보내요. 추가 연락을 부탁하시면 최근 자동 연락까지 확인해 중복되지 않게 챙겨요. 답변이 오면 요청을 시작한 대화에서 알려드리므로, 새로 확인한 내용을 바탕으로 연결 여부나 다음 진행을 결정하면 돼요.",
+    "네, 연결 대기에서 결정하기 전이나 연결 후 진행 중에도 질문·이력서 요청·정보 전달을 맡길 수 있어요. Intro Requested에서도 제안이 전달되어 후보자 답변을 기다리는 중이라면 추가 연락을 요청할 수 있어요. 아직 Intro를 요청하지 않은 후보에게는 먼저 역할 제안 절차가 필요해요. 대상과 전달할 내용이 명확한 일상적인 연락은 바로 전달하고, 첫 연락이나 회사의 인상이 중요한 제안은 초안을 먼저 확인해요. 초안을 만들거나 고친 것만으로 발송되지는 않아요. 답변이나 자료 제출을 요청했고 그 요청이 계속 유효하면 최초 전달 후 최소 3일 뒤 후속 확인 이메일을 한 번 보낼 수 있어요. 답변이 오면 요청을 시작한 대화에서 알려드려요. 추가 연락이 후보자의 수락이나 연결을 대신하지는 않아요.",
   "faq.compensation.question":
     "이 후보자의 현재 연봉이나 희망 보상을 알려줄 수 있나요?",
   "faq.compensation.answer":
-    "후보자가 회사에 공유하도록 허용하지 않은 현재 연봉이나 희망 보상은 바로 전달하지 않아요. 필요하다면 Harper가 후보자에게 지금 공유 가능한 보상 정보를 새로 물어볼 수 있어요. 정확한 금액 또는 범위, 기본급 또는 총보상, 통화 중 어떤 형태로 답할지도 후보자가 선택할 수 있게 요청해요. 회사에는 발송 전에 실제 질문 문구를 보여드리므로, 채용 판단에 필요한 범위만 물어보도록 조정할 수 있어요. 이렇게 하면 회사는 후보자의 최신 답변을 받고, 후보자는 공유 범위를 직접 정할 수 있어요.",
+    "후보자가 회사에 공유하도록 허용하지 않은 현재 연봉이나 희망 보상 수치는 전달하지 않아요. 프로필과 Harper Note에도 비공개 보상 정보를 그대로 표시하지 않아요. 필요하다면 후보자에게 새로 물어보고 회사에 공유할 범위를 직접 정하도록 요청할 수 있어요. 정확한 금액이나 범위, 기본급 또는 총보상, 통화 등 판단에 필요한 내용만 알려 주세요. 공유가 허용된 실제 답변을 확인한 뒤 회사에 전달하며, 답변이 없으면 금액을 추정하지 않아요.",
   "faq.role-status.question":
     "역할을 잠시 중단하는 것과 완전히 종료하는 것은 뭐가 다른가요?",
   "faq.role-status.answer":
@@ -307,10 +225,10 @@ export const ko = {
     "아니요. Pipeline에서 후보자를 다른 단계로 옮기는 것은 채용팀이 실제 진행 상황을 함께 관리하기 위한 기록이에요. 단계만 옮기면 후보자에게 이메일이나 Harper 메시지가 가지 않고 인터뷰 일정도 만들어지지 않아요. 다음 전형 안내나 일정 조율이 필요하면 단계 이동과 함께 Harper에게 후보자 연락 또는 인터뷰 일정 조율을 요청하거나, 회사가 직접 연락해야 해요. 채용을 끝내려는 경우에도 단순히 칸만 옮기지 말고 후보자 종료 결정과 안내가 필요한지 함께 확인해 주세요.",
   "faq.scheduling.question": "면접 일정도 Harper가 조율해 주나요?",
   "faq.scheduling.answer":
-    "네, 일정 조율도 도와드릴 수 있어요. 일정 담당자가 Google Calendar를 연결하고 가능한 시간을 설정해 두면 Harper가 일정 조율을 맡을 수 있어요. 이미 바쁜 시간을 제외한 선택지를 후보자에게 보내고, 후보자가 시간을 고르면 회사 참석자와 후보자의 Google Calendar에 일정을 만들고 Google Meet 링크를 함께 전달해요. Google Calendar 연결이나 담당자의 가능 시간 설정이 없다면 먼저 준비해야 하며, 후보자를 Pipeline의 다른 단계로 옮기는 것만으로 일정 요청이 자동 발송되지는 않아요.",
+    "네. 일정 담당자가 Settings의 일정 저장에서 Google Calendar를 연결하고 가능한 시간을 설정하면 Harper가 면접 일정을 조율할 수 있어요. 연결된 Calendar에서 이미 바쁜 시간을 제외해 후보자에게 선택지를 보내고, 후보자가 시간을 고르면 회사 참석자와 후보자에게 Calendar 초대와 Google Meet 링크를 전달해요. 누구와 어떤 역할의 무슨 대화를 할지 알려 주세요. 후보자가 아직 회사 제안을 수락하지 않았다면 먼저 수락이 필요해요. Pipeline의 다른 단계로 옮기는 것만으로 일정 요청이 발송되지는 않으며, 기존 미팅이 확정됐다는 사실만으로 새 미팅의 초대가 전달됐다고 판단하지 않아요.",
   "faq.permissions.question": "Owner, Admin, Viewer 권한은 어떻게 다른가요?",
   "faq.permissions.answer":
-    "Owner는 팀원 초대와 권한 변경을 포함해 Workspace의 모든 기능을 관리할 수 있어요. Admin은 후보자, Roles, 회사 정보와 Integrations를 관리하고 연결 수락 또는 연결 거절을 결정할 수 있지만, 팀원 초대·제거와 권한 변경은 할 수 없어요. Viewer는 후보자와 회사 정보를 함께 검토할 수 있지만 내용을 변경하거나 연결 여부를 결정할 수는 없어요. 함께 검토만 할 동료는 Viewer로, 후보자 결정과 역할 관리를 맡길 동료는 Admin으로 초대하면 돼요. 팀원 권한 자체를 바꿔야 한다면 Owner에게 요청해 주세요.",
+    "Owner는 팀원 초대·제거와 권한 변경을 포함해 Workspace를 관리해요. Admin은 후보자, Roles, 회사 정보와 Integrations를 관리하고 연결 여부를 결정할 수 있지만 팀원 관리와 결제 관리는 Owner의 영역이에요. Viewer는 회사와 후보자 정보를 검토할 수 있지만 내용 변경이나 연결 결정은 할 수 없어요. 검토만 함께할 팀원은 Viewer로, 후보자 결정과 역할 관리를 맡길 팀원은 Admin으로 초대하면 돼요. Slack에서도 연결된 팀원의 권한을 따르므로 채널에 들어와 있다는 이유만으로 변경 권한이 생기지는 않아요.",
   "faq.slack-notifications.question":
     "Slack에 후보자 추천 알림이 안 와요. 무엇을 확인해야 하나요?",
   "faq.slack-notifications.answer":
@@ -322,11 +240,11 @@ export const ko = {
   "faq.exploratory-hiring.question":
     "채용 계획이 아직 구체적이지 않아요. 좋은 분이 있으면 일단 만나보고 싶어요.",
   "faq.exploratory-hiring.answer":
-    "괜찮아요. 완성된 JD나 모든 조건이 정해져 있을 필요는 없어요. 다만 Harper는 후보자 목록을 먼저 둘러보는 방식이 아니라, 등록된 역할의 실제 업무와 기준에 맞춰 후보자를 찾아요. 아직 정하지 못한 조건은 New role 대화에서 열린 내용으로 알려 주고, 지금 분명한 핵심 업무와 꼭 필요한 기준부터 함께 정리해 등록해 주세요. 등록이 끝나면 그 기준으로 후보자를 검토하고, 회사와 역할을 설명한 뒤 실제로 대화할 의사가 있는 분만 Inbox의 연결 대기로 소개해요.",
+    "괜찮아요. 완성된 JD가 없어도 등록된 역할의 실제 업무와 기준부터 함께 정리할 수 있어요. 아직 정하지 못한 조건은 New role 대화에서 열린 내용으로 알려 주세요. 등록 후 먼저 제안 가능한 후보에서 회사가 먼저 만나보고 싶은 사람을 고를 수 있어요. 이 목록은 관심이나 지원 의사가 이미 확인됐다는 뜻은 아니며, Intro 요청을 보내고 후보자가 수락해야 연결돼요. 이용 가능한 Role에서는 Harper가 먼저 역할을 소개하고 실제로 대화할 의사가 있는 분만 연결 대기로 소개하는 방식도 함께 사용할 수 있어요.",
   "faq.role-visibility.question":
     "Description과 Hiring Brief, Evaluation Criteria는 후보자에게 다 보이나요?",
   "faq.role-visibility.answer":
-    "모두 후보자에게 보이는 것은 아니에요. Description은 후보자가 회사와 역할을 이해하고 이 기회에 관심을 가질지 판단할 수 있도록 보여주는 설명이에요. Hiring Brief, Evaluation Criteria, Context for Harper에는 회사와 Harper가 후보자를 찾고 검토할 때 사용할 내부 기준을 둘 수 있으며, 공개 JD처럼 후보자에게 자동으로 표시되지는 않아요. 후보자가 미리 알아야 올바르게 판단할 수 있는 업무, 근무 방식, 고용 형태와 중요한 조건은 Description에 정확히 적어 주세요. 내부 항목이라고 해서 직무와 무관한 민감 정보나 차별적인 기준을 적어도 되는 것은 아니에요.",
+    "Description은 후보자가 회사와 역할을 이해하는 데 쓰이는 공개 설명이에요. Hiring Brief와 Evaluation Criteria는 회사와 Harper가 후보자를 검토하는 내부 기준이고, Context for Harper는 지속적으로 참고할 회사·역할 맥락이에요. 내부 문서가 공개 JD처럼 자동 표시되지는 않아요. 새 Role의 기본 작성물은 Description과 Hiring Brief이며 Evaluation Criteria는 필요한 경우 별도로 정리해요. 한 문서를 바꿨다고 나머지 문서를 자동으로 전부 다시 쓰지는 않아요. 후보자가 판단에 필요한 업무·근무 조건은 Description에 정확히 담고, 외부 공고 노출과 회사명 공개 여부는 Role Settings에서 별도로 확인해 주세요.",
   "shared.5f41a68b":
     "이 역할을 아직 수락하지 않은 후보에게 회사가 제안할 수 있습니다. Harper의 이전 추천이나 거절 이력이 있을 수 있습니다. 제안을 요청하면 Intro Requested로 이동합니다.",
   "shared.b7c09ff5":
@@ -335,6 +253,7 @@ export const ko = {
     "이미 이 역할을 추천받고 수락한 후보입니다. 회사가 연결을 수락하면 Harper가 소개 이메일로 연결해 인터뷰 등 다음 과정을 시작할 수 있습니다.",
   "shared.58ae8bef": "후보자 수락 · 연결 준비 중",
   "shared.25da2e1a": "후보자 답변 대기",
+  "shared.company_intro_closed": "제안 종료",
   "shared.003ae54f": "제안 준비 중",
   "shared.4d496020": "제안 상태 확인 필요",
   "shared.507214f6": "내부 수락",
@@ -388,7 +307,6 @@ export const ko = {
   "shared.43222784": "최우선 진행 중",
   "shared.43786979": "일시 중단",
   "shared.c5936fb2": "채용 종료",
-  "OrgAllRolesOverview.f10d24b2": "삭제",
   "OrgAllRolesOverview.78030db5": "보관",
   "OrgAllRolesOverview.0d82485a": "상태 없음",
   "OrgCandidateCard.d1bbdca5": "이름 없음",
@@ -400,9 +318,6 @@ export const ko = {
   "OrgSlackChannelPicker.aeac8317": "비공개 채널이 보이지 않나요?",
   "OrgSlackChannelPicker.48943ede":
     "Slack의 해당 채널에서 /invite @Harper를 입력한 뒤 아래의 새로고침 버튼을 눌러 주세요.",
-  "OrgSlackPanel.0b596162":
-    "Slack 요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
-  "TalentDetailSimpleView.de36fc91": "내부 데이터를 불러오는 중",
   "TalentDetailSimpleView.33ed97cc": "웹사이트",
   "TalentDetailSimpleView.4f82ff31": "후보자에게 회사 요청을 다시 안내했어요",
   "TalentDetailSimpleView.4fcea3c6": "프로세스 종료 안내",
@@ -419,8 +334,6 @@ export const ko = {
   "TalentDetailSimpleView.7098d7de": "이력서 열람",
   "TalentDetailSimpleView.de6c5e2e": "활동",
   "TalentDetailSimpleView.7a4243fe": "발신자 정보 없음",
-  "agent.OrgAgentMessage.actionComplete": "처리 완료",
-  "workspace.OrgErrorState.failed": "정보를 불러오지 못했습니다.",
   "meetings.OrgInterviewAvailabilityDialog.conflict":
     "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요.",
   "meetings.OrgMeetingScheduleDialog.d68b2f7e":
@@ -432,7 +345,6 @@ export const ko = {
   "meetings.OrgMeetingScheduleDialog.bb68f800":
     "후보자에게 보낼 일정 선택 이메일을 준비 중이에요. 아직 발송이 끝난 것은 아니에요.",
   "role.overview.OrgRoleDetailsContent.eeb54181": "저장된 정보가 없습니다.",
-  "workspace.OrgDocumentsMarkdown.871ede61": "연결 결정",
   "workspace.OrgDocumentsMarkdown.36225b87": "후보자 추가 확인",
   "workspace.OrgDocumentsMarkdown.68d1b680": "채용 기준 정리",
   "workspace.OrgDocumentsMarkdown.a4385282": "도움말",
@@ -441,15 +353,11 @@ export const ko = {
   "workspace.OrgDocumentsMarkdown.e9c65565": "연결 이후 관리",
   "workspace.OrgDocumentsMarkdown.d5edbdb8": "후보자 검토",
   "workspace.OrgDocumentsMarkdown.0d1660c5": "알림과 팀 협업",
-  "workspace.OrgDocumentsMarkdown.2baaa33d": "복사됨",
-  "workspace.OrgDocumentsMarkdown.cb4f5366": "페이지 복사",
-  "workspace.pages.OrgHomePage.a48ccf47": "진행 중",
+  "workspace.OrgDocumentsMarkdown.cb4f5366": "섹션 복사",
   "workspace.pages.OrgHomePage.d24df388":
     "현재 채용을 진행 중인 역할 수입니다.",
-  "workspace.pages.OrgHomePage.5282fc77": "중단",
   "workspace.pages.OrgHomePage.92d1f529":
     "새 후보자 추천을 중단한 역할 수예요.",
-  "workspace.pages.OrgHomePage.8e9dcfc0": "종료",
   "workspace.pages.OrgHomePage.a1cbfbd9": "채용이 종료된 역할 수입니다.",
   "workspace.pages.OrgHomePage.84515170": "연결 검토 필요",
   "workspace.pages.OrgInboxPage.e1870a8a": "미열람",
@@ -459,7 +367,6 @@ export const ko = {
   "workspace.pages.OrgRoleCreationPage.b51b60b9": "설정",
   "workspace.pages.OrgRoleCreationPage.e5840f76": "인박스",
   "workspace.pages.OrgRoleCreationPage.40de5359": "채팅",
-  "workspace.pages.OrgSettingsPage.28b3e71c": "선택한 채널",
   "workspace.pages.OrgTeamPage.c4cfad40": "1–10명",
   "workspace.pages.OrgTeamPage.a229ec4c": "11–50명",
   "workspace.pages.OrgTeamPage.7c8f577d": "51–200명",
@@ -468,1280 +375,299 @@ export const ko = {
   "workspace.pages.OrgTeamPage.66dd822f": "1,001–5,000명",
   "workspace.pages.OrgTeamPage.09fefbd3": "5,001–10,000명",
   "workspace.pages.OrgTeamPage.abd86984": "10,001명 이상",
-  "OrgAllRolesOverview.fb2dd197": "{p0} 외 {p1}",
-  "OrgAppBar.57d1e70c": "한 번에 최대 {p0}명까지 초대할 수 있습니다.",
-  "OrgAppBar.c7949354": "{p0}은 이미 참여 중입니다.",
-  "OrgAppBar.2f34cd08": "{p0}은 이미 초대 수락을 기다리고 있습니다.",
-  "OrgAppBar.db4bf67e": "{p0}의 형식을 확인해 주세요.",
-  "OrgAppBar.932217bb":
-    "{p0}은 이미 수락 대기중입니다. 아래에서 다시 보내기를 이용해 주세요.",
-  "OrgAppBar.dbf7a530": "{p0}명에게 초대 메일을 보냈습니다.",
-  "OrgAppBar.91c2f4c3": "{p0}로 초대 메일을 다시 보냈습니다.",
-  "OrgAppBar.12a18675": "{p0} Organization에서 탈퇴했습니다.",
-  "OrgAppBar.1237091d": "{p0} 제거",
-  "OrgAppBar.13a73bdd": " · 초대 대기 {p0}명",
-  "OrgCandidateCard.04d06eed": "{p0}월 {p1}일",
-  "OrgCandidateDecisionDialogs.56d3f654": "{p0} 단계로",
-  "OrgCandidateDecisionDialogs.2bb1794e":
-    "{p0} 옮기기 전에 미팅의 시간과 참석자를 확인해 주세요. 아직 후보자에게는 메일을 보내지 않아요.",
-  "OrgCandidateDecisionDialogs.4c24987d":
-    "후보자를 {p0} 표시하지만 Harper는 이메일을 보내지 않아요. 회사가 후보자에게 직접 연락해야 해요.",
-  "OrgCandidateDecisionDialogs.5f6219d3":
-    "{p0} 사이에서 향후 2주 내의 일정을 제안해요.",
-  "OrgCandidateDecisionDialogs.c7ea9bc3": "{p0} 소개 메일에서 제외",
-  "OrgCandidateDecisionDialogs.acd25265": "{p0} 소개 메일에 추가",
-  "OrgCandidateDecisionDialogs.0911b33c": "{p0}님",
-  "OrgCandidateDecisionDialogs.025e0467":
-    "{p0}에게 회사가 이번 연결을 진행하지 않기로 했다는 종료 결정이 표시되고 Harper가 이를 안내해요. 실행 후 후보자에게 보이거나 전달된 안내는 회수할 수 없어요.",
-  "OrgRoleActionsMenu.31f058fc": "{p0} 역할 작업",
-  "OrgRoleActionsMenu.881904c4": "“{p0}” 역할을 삭제합니다. 계속할까요?",
-  "OrgRoleActionsMenu.f0433675":
-    "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?",
-  "OrgRoleActionsMenu.11685c0d": "“{p0}” 역할의 후보자 연결을 다시 시작할까요?",
-  "OrgRoleStatusDot.7dc173ba": "역할 상태: {p0}",
-  "OrgRoleTalentBoard.f15e21d3": "{p0} 후보자 상세 보기",
-  "OrgSlackChannelPicker.2842bef6": "{p0}에 Harper 초대",
-  "TalentDetailSimpleView.90c95e18": "후보자 {p0} / {p1}",
-  "agent.OrgAgentComposer.d014d059": "{p0}/{p1}명",
-  "agent.OrgAgentComposer.e5ebe876": "{p0}명",
-  "agent.OrgAgentComposer.0213338a": "{p0} 제거",
-  "agent.OrgAgentMessage.c92b2dd6": "대화 날짜 {p0}",
-  "meetings.OrgInterviewAvailabilityDialog.3f69c500": "시작 시간 {p0}",
-  "meetings.OrgInterviewAvailabilityDialog.117a7810": "종료 시간 {p0}",
-  "meetings.OrgInterviewAvailabilityDialog.fb96a68d": "{p0}부터 {p1} 시간 삭제",
-  "meetings.OrgInterviewAvailabilityDialog.5fc14372": "{p0}부터 {p1}까지 {p2}",
-  "meetings.OrgMeetingScheduleDialog.f4d45ba8":
-    "미팅 시간은 그대로 확정되어 있어요. {p0}",
-  "meetings.OrgMeetingScheduleDialog.d740017d": "{p0} · 향후 {p1}주",
-  "meetings.OrgMeetingScheduleDialog.589ed8fb":
-    "{p0}님의 가능 시간이 아직 설정되지 않았어요.",
-  "onboarding.OrgOnboardingPage.95fd5799": "{p0}님, 환영합니다.",
-  "role.overview.OrgRoleCalibrationSection.ce6bb083": "{p0} {p1} 프로필 보기",
-  "role.overview.OrgRoleCalibrationSection.e0b67027": "{p0} 프로필 그룹",
-  "role.overview.OrgRoleMatchingContent.fcc2b5c5": "기준 {p0} 삭제",
-  "role.overview.OrgRoleMatchingContent.be42d318": "기준 {p0} 이름",
-  "role.overview.OrgRoleMatchingContent.36f3b5cf": "기준 {p0} 상세 내용",
-  "role.overview.OrgRoleSettingsContent.2e05f635": "{p0} 알림",
-  "role.overview.OrgRoleSettingsContent.4aea62bd": "{p0} 제외",
-  "role.overview.RoleOverviewShared.755ae33b": "{p0} 안내",
-  "workspace.OrgTalentTable.091ee7f9": "{p0} 상세 열기",
-  "workspace.OrgWorkspaceSidebar.c32de3c9": "{p0} Workspace 변경",
-  "workspace.OrgWorkspaceSidebar.3f669e7e": "{p0} · 연결 대기 {p1}명",
-  "workspace.OrgWorkspaceSidebar.fad130e6": "연결 대기 {p0}명",
-  "workspace.pages.OrgHomePage.3dc736b3":
-    "연결 대기 후보자가 {p0}명 이상인 역할 수입니다.",
-  "workspace.pages.OrgHomePage.7442293b":
-    "{p0}명의 후보자가 연결 결정을 기다리고 있습니다.",
-  "workspace.pages.OrgHomePage.b1d01fa2": "{p0}명 대기",
-  "workspace.pages.OrgHomePage.f9008f14": "채널 {p0}",
-  "workspace.pages.OrgHomePage.46614084": "{p0} 연결됨",
-  "workspace.pages.OrgInboxPage.7e0fabf1": "역할 {p0}개",
-  "workspace.pages.OrgInboxPage.f20c1479": "역할 필터: {p0}",
-  "workspace.pages.OrgRoleCreationPage.1e8c9520": "표시 방식: {p0}",
-  "workspace.pages.OrgSettingsPage.ab4db132": "채널 {p0}",
-  "workspace.pages.OrgSettingsPage.52869ac5":
-    "{p0}을 Harper 채널로 추가했습니다.",
-  "workspace.pages.OrgSettingsPage.7ea9391f":
-    "{p0} 채널을 만들고 Harper에 연결했어요.{p1}",
-  "workspace.pages.OrgSettingsPage.a5be1731": "{p0} 연결을 제거했습니다.",
-  "workspace.pages.OrgSettingsPage.a2cbf911": "{p0} 작업",
-  "workspace.pages.OrgTeamPage.f0ee7157": "{p0}–{p1}명",
-  "workspace.pages.OrgTeamPage.b3616b18": "{p0}명 이상",
-  "workspace.pages.OrgTeamPage.493ee17e": "{p0}명 이하",
-  "workspace.pages.OrgTeamPage.80f1814b": "{p0}로 초대 메일을 보냈습니다.",
-  "workspace.pages.OrgTeamPage.02a46744": "{p0}의 권한을 {p1}로 변경했습니다.",
-  "workspace.pages.OrgTeamPage.e57b768c":
-    "{p0}를 Organization에서 제거했습니다.",
-  "workspace.pages.OrgTeamPage.6bf42b2f": "{p0}년",
-  "workspace.pages.OrgTeamPage.172e48f3": " · 수락 대기 {p0}명",
-  "workspace.pages.OrgTeamPage.3833c612": "{p0} 작업",
-  "workspace.pages.OrgTeamPage.6c146095": "{p0} 초대 작업",
   "profile.language": "언어",
   "profile.korean": "한국어",
   "profile.english": "English",
-  "profile.languageSaveFailed":
-    "언어 설정을 저장하지 못했어요. 다시 시도해 주세요.",
-  "CompanyIntroDecisionDialogs.2ab81060": "취소",
-  "CompanyIntroDecisionDialogs.3afcab0e": "제안하지 않기",
-  "CompanyIntroDecisionDialogs.5e461bbe": "Request Intro: {candidateName}",
-  "CompanyIntroDecisionDialogs.815bee3d":
-    "후보자에게 전할 회사의 관심 이유를 적어 주세요.",
-  "CompanyIntroDecisionDialogs.9bd298a1":
-    "후보자가 수락하면 소개 이메일로 연결하고 연결됨으로 옮겨요.",
-  "CompanyIntroDecisionDialogs.b6defc38":
-    "이 후보자에게 역할을 제안하지 않고 목록에서 제외합니다. 후보자에게 연락하거나 알림을 보내지 않습니다.",
-  "CompanyIntroDecisionDialogs.ba18dc73": "{name}님에게 제안하지 않겠습니까?",
-  "CompanyIntroDecisionDialogs.ba9a9a7b":
-    "제안을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-  "CompanyIntroDecisionDialogs.d286b257":
-    "예: 지금까지 만든 제품과 초기 팀에서의 오너십이 저희가 찾는 역할과 잘 맞습니다. 특히 … 이야기를 나눠보고 싶습니다.",
-  "CompanyIntroDecisionDialogs.d6efe059":
-    "후보자가 수락했을 때 CC할 회사 이메일을 입력해 주세요.",
   "CompanyIntroDecisionDialogs.e0eb989a": "Request Intro",
-  "CompanyIntroDecisionDialogs.efa9700e": "후보자에게 전할 회사의 관심 이유",
-  "CompanyIntroDecisionDialogs.f1c2dd5c":
-    "제안하지 않기를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-  "CompanyIntroDecisionDialogs.f4c1c1d1":
-    "수락 시 소개 이메일을 받을 회사 이메일",
   "OrgAllRolesOverview.00381055": "Updated",
-  "OrgAllRolesOverview.3cb12f42": "전체 후보자",
   "OrgAllRolesOverview.6883bd4c": "불러오는 중",
-  "OrgAllRolesOverview.89a9f675": "총계",
-  "OrgAllRolesOverview.8ebe08f8": "결정이 필요합니다.",
-  "OrgAllRolesOverview.92030972": "이어서 작성",
   "OrgAllRolesOverview.d145476b": "Roles",
-  "OrgAllRolesOverview.db03a371": " 역할 작성을 이어가세요.",
-  "OrgAllRolesOverview.e98387be": "중단",
-  "OrgAllRolesOverview.f0fd477e": "조건에 맞는 역할이 없어요.",
-  "OrgAllRolesOverview.candidateCount": "{count}명",
-  "OrgAllRolesOverview.f4a3b31e": "Status 전체",
   "OrgAppBar.05cfb2ab": "Slack",
-  "OrgAppBar.1389dcf6": "관리자",
-  "OrgAppBar.1d1bdecc": "이름 없음",
-  "OrgAppBar.23fe412b": "워크스페이스 관리",
   "OrgAppBar.2acd6035": "초대할 이메일을 입력해 주세요.",
   "OrgAppBar.2d8f3055": "발송 중",
-  "OrgAppBar.33c5cf8b": "초대 메일을 보내지 못했습니다. 다시 시도해 주세요.",
-  "OrgAppBar.4171927e": "계정 메뉴",
-  "OrgAppBar.447339bd": "회사 정보 수정",
-  "OrgAppBar.46d20264": "연결됨",
   "OrgAppBar.47e3a0eb": "나",
   "OrgAppBar.5815e707": "확인 중",
   "OrgAppBar.5e25a1ac": "초대 메일을 보내지 못했습니다.",
   "OrgAppBar.5eefbd11": "탈퇴하기",
   "OrgAppBar.6118ed2a": "Slack 연결을 완료하지 못했습니다.",
-  "OrgAppBar.764702ec": "수락 대기중",
-  "OrgAppBar.794fa223": "구성원을 워크스페이스에 초대하세요.",
-  "OrgAppBar.82c00914":
-    "Workspace에 더 이상 접근할 수 없습니다. Harper 계정과 다른 Workspace는 그대로 유지됩니다.",
   "OrgAppBar.8b30f7c6": "이메일 형식을 확인해 주세요.",
   "OrgAppBar.91ce0989": "Slack 연결",
-  "OrgAppBar.959dc6fb":
-    "발송하지 못한 주소가 남아 있습니다. 확인 후 다시 시도해 주세요.",
-  "OrgAppBar.993bb22c": "멤버",
-  "OrgAppBar.99b810e6": "이미 추가한 이메일은 제외했습니다.",
-  "OrgAppBar.9c22d5f4": "Docs",
-  "OrgAppBar.a6f02166": "탈퇴",
-  "OrgAppBar.ad054ad6": "취소",
-  "OrgAppBar.b291ae88": "Organization에서 탈퇴하지 못했습니다.",
   "OrgAppBar.ba27826d": "발송",
-  "OrgAppBar.ba94fd43": "멤버 초대",
-  "OrgAppBar.bb3a2f09": "Slack 채널을 연결했습니다.",
-  "OrgAppBar.c0d0890a": "다시 보내기",
-  "OrgAppBar.c52a0574": "탈퇴하는 중",
-  "OrgAppBar.c5cc79d7": "이메일로 초대 링크 발송",
   "OrgAppBar.c636f3b2": "",
-  "OrgAppBar.ce25e903": "미연결",
   "OrgAppBar.d2aa9bcd": "로그아웃",
-  "OrgAppBar.d2b07645": "입력한 이메일은 이미 참여 중입니다.",
-  "OrgAppBar.db08b9a6": "워크스페이스",
-  "OrgAppBar.e7cb82f3": "이메일 추가",
-  "OrgAppBar.ea4b0124": "보내는 중",
-  "OrgAppBar.ebea6b3e": "확인 실패",
   "OrgAppBar.f477a11b": "초대하기",
-  "OrgAppBar.f6a5d0f6": "Organization에서 탈퇴할까요?",
   "OrgAppBar.f8cde280": "명",
-  "OrgCandidateCard.11222a5c": "후보자 이동",
-  "OrgCandidateCard.2b387928": "먼저 제안하기",
-  "OrgCandidateCard.5e1edcf5": "경력·학력 정보를 불러오지 못했습니다.",
-  "OrgCandidateCard.7f214f44": "정보 없음",
-  "OrgCandidateCard.8f93e58e": "Interview 예정",
-  "OrgCandidateCard.9e88e552": "",
-  "OrgCandidateCard.b7d71d97": "결정이 필요합니다",
-  "OrgCandidateCard.b9d63ba7": "아직 열람하지 않음",
-  "OrgCandidateCard.c2bb3a3d": "프로세스 종료 안내됨",
   "OrgCandidateCard.d5014512": "추천",
-  "OrgCandidateCard.ed540185": "제안하지 않기",
-  "OrgCandidateCard.fbe6976f": "회사에 제안",
-  "OrgCandidateDecisionDialogs.0456ab20": "후보자",
-  "OrgCandidateDecisionDialogs.096c8271": "미팅 주제",
-  "OrgCandidateDecisionDialogs.0de5f1b8": "· 선택",
   "OrgCandidateDecisionDialogs.10f75496": "받는 사람",
-  "OrgCandidateDecisionDialogs.12feaff5": "연결을 거절하는 이유",
-  "OrgCandidateDecisionDialogs.19240f5a":
-    "Email intro에는 회사 담당자 이메일이 1개 이상 필요해요.",
-  "OrgCandidateDecisionDialogs.1a337777":
-    "후보자 이메일이 없어 일정 요청을 준비할 수 없어요.",
-  "OrgCandidateDecisionDialogs.3083a365":
-    "예: 현재 찾는 역할보다 경력이 조금 주니어해요.",
-  "OrgCandidateDecisionDialogs.319831b5": "제목",
-  "OrgCandidateDecisionDialogs.34a3c453":
-    "후보자 연결 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 현재 상태와 메일을 먼저 확인해 주세요.",
-  "OrgCandidateDecisionDialogs.35259341":
-    "후보자에게도 이 내용과 미팅 길이를 함께 안내해요.",
-  "OrgCandidateDecisionDialogs.3c9ea26b": "길이",
-  "OrgCandidateDecisionDialogs.3f4e6e2a": "가능 시간 설정하기",
-  "OrgCandidateDecisionDialogs.3fd12ed0": "담당자를 1명 이상 선택해 주세요.",
   "OrgCandidateDecisionDialogs.406f15cd": "연결 방식",
   "OrgCandidateDecisionDialogs.42684022": "분",
-  "OrgCandidateDecisionDialogs.4f3da836": "연결됨",
-  "OrgCandidateDecisionDialogs.53e34876":
-    "예: 가벼운 기술적인 이야기와 서로의 기대 확인",
   "OrgCandidateDecisionDialogs.561f236a": "참석자",
-  "OrgCandidateDecisionDialogs.59bfe85b":
-    "후보자에게 보낼 이메일에 자연스럽게 담을게요. 아직 메일이 보내지는 것은 아니에요.",
-  "OrgCandidateDecisionDialogs.5c25c9fa": "후보자 이메일 없음",
-  "OrgCandidateDecisionDialogs.5c5bb0de":
-    "작성해주시면 다음 후보 추천에 반영됩니다.",
-  "OrgCandidateDecisionDialogs.5d711ec4": "Connect candidate",
   "OrgCandidateDecisionDialogs.5db6feff": "님",
-  "OrgCandidateDecisionDialogs.6612d04a":
-    "이미 보낸 소개 이메일이나 회사에서 시작한 연락은 회수할 수 없어요. 현재 연결을 종료하면 Harper가 후보자에게 회사가 프로세스를 종료했다는 안내를 보내요. 이미 보이거나 전달된 안내도 회수할 수 없어요.",
-  "OrgCandidateDecisionDialogs.665a8239": "일정 초안 저장하고 연결하기",
-  "OrgCandidateDecisionDialogs.emailBracketed": "<{email}>",
   "OrgCandidateDecisionDialogs.6c1cce40": "Recipients",
-  "OrgCandidateDecisionDialogs.716750e7": "설정한 가능 시간을 확인하고 있어요.",
   "OrgCandidateDecisionDialogs.747ee859": "Direct contact",
   "OrgCandidateDecisionDialogs.76556b18": "인터뷰 제목을 입력해 주세요.",
-  "OrgCandidateDecisionDialogs.7fd71359":
-    "예: 팀과 현재 풀고 있는 문제를 가볍게 소개드리고 싶어요.",
-  "OrgCandidateDecisionDialogs.80a4c3ba":
-    "먼저 평소에 미팅이 가능한 시간을 알려주세요.",
-  "OrgCandidateDecisionDialogs.87e5859e":
-    "가능 시간을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.",
-  "OrgCandidateDecisionDialogs.8bdb5734":
-    "상태만 저장하고 Harper는 소개 이메일을 보내지 않아요. 회사 담당자가 후보자에게 직접 연락해 다음 단계를 진행해 주세요.",
-  "OrgCandidateDecisionDialogs.91962053": "취소",
-  "OrgCandidateDecisionDialogs.91e20d1e":
-    "인터뷰 가능 시간을 먼저 설정해 주세요.",
-  "OrgCandidateDecisionDialogs.95b48245":
-    "Harper가 후보자와 소개 이메일로 연결해요.",
-  "OrgCandidateDecisionDialogs.9d6cab7b":
-    "종료 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 후보자의 현재 상태를 먼저 확인해 주세요.",
   "OrgCandidateDecisionDialogs.a5ce18fd": "Email intro",
-  "OrgCandidateDecisionDialogs.a64960f6":
-    "예: 가능하면 가장 빠른 시간으로 부탁드려요.",
-  "OrgCandidateDecisionDialogs.abda8861": "함께 전할 내용",
-  "OrgCandidateDecisionDialogs.b2acf2bb": "미팅에서 나눌 주제를 알려주세요.",
-  "OrgCandidateDecisionDialogs.c0ac9bcd": "추가 메시지",
-  "OrgCandidateDecisionDialogs.d89aae92": "{candidateName}님에게 제안할 일정",
-  "OrgCandidateDecisionDialogs.df50283f":
-    "소개 이메일이나 후보자에게는 공유되지 않으며, 이후 후보 추천 기준을 다듬는 데 참고합니다.",
-  "OrgCandidateDecisionDialogs.ea70bf61":
-    "후보자 이메일이 없어 소개 이메일을 보낼 수 없어요.",
-  "OrgCandidateDecisionDialogs.f2c84a61":
-    "예: ML infra 경험이 이번 역할과 특히 잘 맞아요.",
-  "OrgCandidateDecisionDialogs.f431cd2f": "인터뷰 일정 조율",
-  "OrgCandidateDecisionDialogs.f8a7865a":
-    "다음 추천을 개선하는 데 참고합니다. 후보자에게는 공유되지 않아요.",
-  "OrgCandidateReengagementDialog.2d492c91": "취소",
-  "OrgCandidateReengagementDialog.4bc27208":
-    "Harper가 회사 대신 다시 진행할 생각이 있는지 물어보고, 긍정 답변이 오면 자동으로 상태를 복구할 수 있어요. 회사에서 이미 직접 확인했다면 하려던 단계를 이어서 진행할 수 있어요.",
-  "OrgCandidateReengagementDialog.4fabef2d": "님께 ",
-  "OrgCandidateReengagementDialog.7c555864": "Harper가 먼저 물어보기",
-  "OrgCandidateReengagementDialog.c40dfa94":
-    "역할의 진행이 끝났다고 이미 안내했습니다. 다시 진행하려면 후보자의 새로운 의사를 확인하는 편이 안전해요.",
-  "OrgCandidateReengagementDialog.d8d05b9f": "회사에서 이미 확인했어요",
-  "OrgCandidateReengagementDialog.e08d9398":
-    "후보자에게 종료 안내가 전달됐어요",
-  "OrgDocsModal.02077a44": "연결 수락과 연결 거절",
-  "OrgDocsModal.0be10b10": "Docs 목차",
-  "OrgDocsModal.0c126027": "후보자 검토",
   "OrgDocsModal.0c99ff6a": "3.",
   "OrgDocsModal.1a172f6f": "최종 오퍼",
-  "OrgDocsModal.1ffcf7e5": "연결됨",
-  "OrgDocsModal.2051a73c": "역할 수정",
-  "OrgDocsModal.2f7f843d": "Product Lead",
   "OrgDocsModal.34114b8f": "2.",
-  "OrgDocsModal.3d89a437":
-    "웹에서는 Connect와 Reject 버튼으로 표시됩니다. 연결을 수락하면 대화를 시작하고, 연결을 거절하면 회사의 종료 결정을 후보자에게 안내합니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
-  "OrgDocsModal.49f85501": "이력서와 등록 링크를 확인합니다.",
-  "OrgDocsModal.5037e079":
-    "Pitch에는 후보자에게 어필할 내용을, Role에는 원하는 인재의 조건을 적습니다.",
   "OrgDocsModal.538214a1": "Connect",
-  "OrgDocsModal.57cb564e": "연결 대기",
-  "OrgDocsModal.784f10ba": "메모 추가",
-  "OrgDocsModal.830ec95e": "추천 이유와 경력을 확인합니다.",
   "OrgDocsModal.90f06ed4": "회사",
   "OrgDocsModal.9ff5b96b": "1.",
-  "OrgDocsModal.a8553543":
-    "연결 거절은 임시 보류가 아니에요. 후보자에게 회사의 종료 결정이 안내되며 이미 보이거나 전달된 안내는 회수할 수 없어요.",
   "OrgDocsModal.a9f86905": "Reject",
-  "OrgDocsModal.ae627760":
-    "피드에는 상태 변경, 연결 시작·거절과 이유, 회사 멤버가 남긴 메모만 표시됩니다. 자신이 남긴 메모는 수정하거나 삭제할 수 있습니다.",
   "OrgDocsModal.c387abc5": "회사와 Role",
-  "OrgDocsModal.c7cb6f49": "메모",
   "OrgDocsModal.cb0b11bc": "프로세스 중단",
-  "OrgDocsModal.d836cb4a":
-    "회사 정보와 채용 기준이 바뀌면 바로 수정하세요. Harper는 최신 내용을 추천과 후보자 안내에 사용합니다.",
-  "OrgDocsModal.dab18874":
-    "후보자 카드를 실제 진행 상태에 맞게 옮기세요. Role별 인터뷰 단계가 더 필요하면 + 버튼으로 추가할 수 있습니다.",
-  "OrgDocsModal.dd1b62dc": "Harper Docs",
-  "OrgDocsModal.dd283c89": "후보자를 검토하고 관리하는 방법입니다.",
-  "OrgDocsModal.df0aeddf": "피드에서 이전 판단과 메모를 확인합니다.",
-  "OrgDocsModal.e09fb8d8":
-    "Role 탭에서 후보자 카드를 누르세요. 상세 화면에서 추천 이유, 경력, 이력서와 링크, 이전 피드를 확인할 수 있습니다.",
   "OrgDocsModal.f26705aa": "파이프라인",
-  "OrgDocsModal.f7031253":
-    "다음 인터뷰에서는 0-1 제품 의사결정 사례를 확인해 주세요.",
   "OrgLoginScreen.01b16a8f": "Workspace",
-  "OrgLoginScreen.062fd580": "미팅을 했지만 아직 초대 링크를 받지 못하셨다면",
-  "OrgLoginScreen.09ce137c": "Organization으로 돌아가기",
-  "OrgLoginScreen.10a8920c": "아래에서 회사이메일로 로그인해주세요.",
-  "OrgLoginScreen.19ac59ac": "Google로 로그인",
-  "OrgLoginScreen.2103aec7": "Harper · Organization",
-  "OrgLoginScreen.2d2c8cf9": "확인",
-  "OrgLoginScreen.2ece7000":
-    "링크가 잘렸거나 더 이상 유효하지 않을 수 있습니다. 초대한 사람에게 새 링크를 요청해 주세요.",
   "OrgLoginScreen.362a63ea": "Harper",
-  "OrgLoginScreen.39ffc282": "로그아웃",
-  "OrgLoginScreen.4b4eecbc": "초대 정보를 확인하는 중입니다.",
   "OrgLoginScreen.5346243f": "name@company.com",
   "OrgLoginScreen.5670ec7e": "Company",
-  "OrgLoginScreen.6c83ad23": "답장받을 이메일도 알려주세요.",
-  "OrgLoginScreen.77d4cd03": "아래를 통해 문의를 남겨주세요.",
-  "OrgLoginScreen.7eba3972": "Harper 회사 페이지로 이동",
-  "OrgLoginScreen.8055386b":
-    "현재 초대받은 팀에 한해서 채용을 도와드리고 있습니다.",
-  "OrgLoginScreen.86020d72": "로그아웃 중",
   "OrgLoginScreen.8a25c44c": "Harper 팀과 나눈 내용을 간단히 적어 주세요.",
-  "OrgLoginScreen.a1d70544":
-    "내용을 확인한 뒤{email}로 초대 링크를 안내드리겠습니다.",
-  "OrgLoginScreen.a2c2c7d0":
-    "초대를 받은 계정만 해당 워크스페이스에 접근할 수 있습니다.",
-  "OrgLoginScreen.a8507ac0": "받으신 초대 링크를 통해 접속해주세요.",
-  "OrgLoginScreen.af0ba776": "",
-  "OrgLoginScreen.b08d8e8d": "이메일 형식을 확인해 주세요.",
-  "OrgLoginScreen.ba9ea9bb": "예: 지난주 AI 엔지니어 채용에 관해 미팅했습니다.",
   "OrgLoginScreen.bd40208e": "답장받을 이메일을 입력해 주세요.",
-  "OrgLoginScreen.c22028ec": "초대 링크 요청을 보내지 못했습니다.",
   "OrgLoginScreen.ca1356e7": "제출 중",
-  "OrgLoginScreen.cfa2774c": "초대 링크를 확인할 수 없습니다.",
   "OrgLoginScreen.d032699c": "Google",
   "OrgLoginScreen.e04a3165": "보내기",
-  "OrgLoginScreen.e292ea20": "요청을 보냈습니다.",
-  "OrgLoginScreen.e8e75376": "ORGANIZATION",
-  "OrgLoginScreen.f33114ed": "아직 가입된 Workspace가 없습니다.",
-  "OrgMemberProfileDialog.07c64625": "예: 채용 매니저, CTO",
   "OrgMemberProfileDialog.165b8c8f": "성",
   "OrgMemberProfileDialog.24d9371a": "이름",
-  "OrgMemberProfileDialog.4f8c874b": "프로필을 저장하지 못했습니다.",
-  "OrgMemberProfileDialog.6344aaa8": "이름, 성, 직함을 모두 입력해 주세요.",
   "OrgMemberProfileDialog.8a337ab3": "직함",
-  "OrgMemberProfileDialog.91fa967f": "프로필을 완성해 주세요",
   "OrgMemberProfileDialog.d36d1676": "시작하기",
-  "OrgPipeline.15403e87": "취소",
   "OrgPipeline.50f5036c": "칼럼을 삭제하지 못했습니다.",
-  "OrgPipeline.5a1f1bb5": "삭제",
-  "OrgPipeline.5bcdc5fb": "칼럼 삭제",
   "OrgPipeline.6b47dbef": "칼럼 이름을 입력해 주세요.",
   "OrgPipeline.73b69cb3": "칼럼을 저장하지 못했습니다.",
-  "OrgPipeline.97ce8c8a": "불러오는 중",
-  "OrgPipeline.996bc47c":
-    "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
   "OrgPipeline.a60bc63f": "제안을 처리하지 못했습니다.",
-  "OrgPipeline.ddb7afc1": "후보자에게 제안하지 않고 목록에서 제외했습니다.",
-  "OrgRoleActionsMenu.3c93b478": "취소",
   "OrgRoleActionsMenu.3daa9fe3": "일시 중지",
-  "OrgRoleActionsMenu.44fb80c9": "Role actions unavailable",
   "OrgRoleActionsMenu.71e516b3": "역할 삭제",
   "OrgRoleActionsMenu.98238b00": "역할",
-  "OrgRoleActionsMenu.9f7830df": "역할 수정",
-  "OrgRoleActionsMenu.afe7c956": "삭제",
-  "OrgRoleActionsMenu.deabb863": "다시 시작",
   "OrgRolePicker.2bb56ee8": "All",
-  "OrgRolePicker.3b3ae885": "Roles",
   "OrgRolePicker.57f510b2": "All roles",
-  "OrgRolePicker.9d114b75": "Role 선택",
-  "OrgRoleTalentBoard.2e9b2805":
-    "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
-  "OrgRoleTalentBoard.361dc090": "",
-  "OrgRoleTalentBoard.3767a293": "후보자 보드",
-  "OrgRoleTalentBoard.3f651826": "표시할 단계가 없습니다.",
-  "OrgRoleTalentBoard.4458527b": "보드 단계 선택",
-  "OrgRoleTalentBoard.5c285374": "프로세스 종료 안내됨",
-  "OrgRoleTalentBoard.67c29c35": " 후보자 상세 보기",
-  "OrgRoleTalentBoard.74a26c33": "평가 기준별 적합도",
-  "OrgRoleTalentBoard.7720ce33": "Interview 예정",
   "OrgRoleTalentBoard.7d253420": "최근 경력",
-  "OrgRoleTalentBoard.7d2cc265": "제안을 처리하지 못했습니다.",
-  "OrgRoleTalentBoard.8a6c6d35": "후보자를 불러오는 중입니다.",
-  "OrgRoleTalentBoard.964b74fd": "이 단계에는 아직 후보자가 없습니다.",
   "OrgRoleTalentBoard.c6d68c5d": "이 후보자",
-  "OrgRoleTalentBoard.ce127878":
-    "후보자에게 제안하지 않고 목록에서 제외했습니다.",
-  "OrgRoleTalentBoard.f227651c": "이름 없음",
   "OrgRoleTalentBoard.f4e85c84": "Intro 요청",
-  "OrgSlackChannelPicker.239c8b40": "초대할 수 있는 채널이 없어요.",
-  "OrgSlackChannelPicker.26e32c5c": "채널 목록 새로고침",
   "OrgSlackChannelPicker.3d6eafd2": "초대 중",
-  "OrgSlackChannelPicker.48228793": "비공개 채널 ",
-  "OrgSlackChannelPicker.62fbda7c": "초대할 Slack 채널",
   "OrgSlackChannelPicker.a35bd973": "초대",
-  "OrgSlackChannelPicker.c202e21b": "일치하는 채널이 없어요.",
-  "OrgSlackChannelPicker.f510275a": "채널 검색",
   "OrgSlackChannelPicker.f9c0c08b": "새 채널 만들기",
-  "OrgSlackPanel.06e3e327": "역할 등록과 후보자 탐색 시작",
-  "OrgSlackPanel.1813e57c": "이 Workspace의 Slack 연결을 해제할까요?",
-  "OrgSlackPanel.1c4d61cb": "Organization 멤버 합류",
-  "OrgSlackPanel.24ebaded":
-    "역할과 후보자 진행 상황, 멤버 변경 알림을 선택한 채널로 보내요.",
   "OrgSlackPanel.490039f9": "개 채널",
-  "OrgSlackPanel.71413681": "연결됨",
-  "OrgSlackPanel.7aa46fa0":
-    "Harper 멤버 확인과 PDF, DOCX, TXT 파일 읽기를 사용하려면 아래 다시 연결을 눌러 새 권한을 승인해 주세요.",
   "OrgSlackPanel.8687b3bd": "후보자 연결 거절",
-  "OrgSlackPanel.9f3a7347": "Slack을 다시 연결해 주세요",
   "OrgSlackPanel.adcf7319": "연결 해제",
-  "OrgSlackPanel.b8066e27": "Slack notifications",
-  "OrgSlackPanel.ba56a582": "Slack에 연결",
-  "OrgSlackPanel.c1f9301b": "Slack",
-  "OrgSlackPanel.c966e0e1": "{companyName}의 Organization 알림 채널",
-  "OrgSlackPanel.cb72f2f9": "Slack에서 바로 확인하세요",
   "OrgSlackPanel.d93fc452": "다시 연결",
-  "OrgSlackPanel.db644a28": "후보자 연결 시작",
-  "OrgSlackPanel.f1d157b7": "Slack 연결을 해제했어요.",
-  "TalentDetailSimpleView.058c3864":
-    "새 창을 열지 못했습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해 주세요.",
-  "TalentDetailSimpleView.102a021b": "진행 중인 프로세스를 종료하시겠습니까?",
-  "TalentDetailSimpleView.1d2364f2": "후보자 문의를 취소하지 못했습니다.",
-  "TalentDetailSimpleView.1ea87077": "메모.",
-  "TalentDetailSimpleView.1fdb022f": "{name}님과 연결을 진행할까요?",
-  "TalentDetailSimpleView.26440e1f":
-    "회사 측의 페이지에 현재 후보자가 표시되며, 회사 측에서 연결을 받을지 결정하는 단계로 넘어갑니다.",
-  "TalentDetailSimpleView.2ae3bc51": "다른 역할에서 기록된 내용이 없어요.",
   "TalentDetailSimpleView.2fc1c257": "아직 피드가 없습니다.",
-  "TalentDetailSimpleView.32ae6476": "메모를 불러오는 중",
-  "TalentDetailSimpleView.35f9d8c1": "연결 여부를 결정해 주세요",
-  "TalentDetailSimpleView.373d26fb": "후보자 연결 결정",
-  "TalentDetailSimpleView.37609523": "연결 대기 상태로 옮기시겠습니까?",
-  "TalentDetailSimpleView.3b1be38f": "Harper의 추천 이유",
-  "TalentDetailSimpleView.4034123e":
-    "후보자에게 제안하지 않고 목록에서 제외했습니다.",
   "TalentDetailSimpleView.452acc9c": "LinkedIn",
-  "TalentDetailSimpleView.465bd72b": "메일 상태를 변경하지 못했습니다.",
-  "TalentDetailSimpleView.48c8a063": "문서 열기",
-  "TalentDetailSimpleView.4c426b79": "시스템 활동을 불러오는 중",
-  "TalentDetailSimpleView.4fc3f9f9":
-    "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다.",
   "TalentDetailSimpleView.556631d5": "가입 날짜",
   "TalentDetailSimpleView.56b436f3": "다음 후보자",
-  "TalentDetailSimpleView.5899dd6e": "시스템 활동을 불러오지 못했습니다.",
   "TalentDetailSimpleView.59d76d8e": "닫기",
-  "TalentDetailSimpleView.5a0204aa": "이력서 열기",
-  "TalentDetailSimpleView.5a6a678e": "다른 역할의 기록을 불러오지 못했습니다.",
   "TalentDetailSimpleView.65bec4e3": "이력서",
-  "TalentDetailSimpleView.690647f9": "먼저 제안하기",
-  "TalentDetailSimpleView.78af6bc0":
-    "회사가 먼저 제안을 요청한 후보입니다. 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다.",
-  "TalentDetailSimpleView.7fd07122": "연결 종료하기",
-  "TalentDetailSimpleView.80752f3e": "Request Intro",
   "TalentDetailSimpleView.83eac800": "소개",
-  "TalentDetailSimpleView.84d7bc3b": "Harper 내부 정보",
-  "TalentDetailSimpleView.8dc293e8":
-    "이력서를 열지 못했습니다. 다시 시도해 주세요.",
-  "TalentDetailSimpleView.91f8ef14": "후보자 상세 보기",
   "TalentDetailSimpleView.992961fa": "프로필",
   "TalentDetailSimpleView.9e543b47": "Pass",
-  "TalentDetailSimpleView.a0865986": "확인 후 열기",
-  "TalentDetailSimpleView.a291badd": "진행 중인 후보자 연결 종료",
-  "TalentDetailSimpleView.a35ca647": "제안하지 않기",
-  "TalentDetailSimpleView.a63c3d92": "회사 공개 프로필",
-  "TalentDetailSimpleView.afa4d0e2": "",
-  "TalentDetailSimpleView.b0d573bb": "등록된 Harper 메모가 없습니다.",
-  "TalentDetailSimpleView.b12ed832": "Request Intro:",
   "TalentDetailSimpleView.b5c85132": "이전 후보자",
-  "TalentDetailSimpleView.b81cd952": "공개 문서",
-  "TalentDetailSimpleView.c40f8d91": "저장된 이력서 파일",
-  "TalentDetailSimpleView.c6e14e96": "다른 역할의 기록을 불러오는 중",
-  "TalentDetailSimpleView.c702a21a": "연결 대기 상태로 이동",
-  "TalentDetailSimpleView.c88fdf18": "제안을 처리하지 못했습니다.",
-  "TalentDetailSimpleView.cb05015b": "이름 없음",
-  "TalentDetailSimpleView.cc49f754":
-    "이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유해서는 안됩니다.",
   "TalentDetailSimpleView.ccd83f11": "다시 시도",
-  "TalentDetailSimpleView.ce7acd4f": "Harper 메모",
-  "TalentDetailSimpleView.d0a09857": "불러오는 중",
-  "TalentDetailSimpleView.d1850640": "취소",
-  "TalentDetailSimpleView.d685802e":
-    "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
-  "TalentDetailSimpleView.d90be781": "피드",
   "TalentDetailSimpleView.dc2ed073": "최근 사용",
-  "TalentDetailSimpleView.dd04379c":
-    "연결 전에는 추가 연락이나 인터뷰 요청을 할 수 없습니다.",
-  "TalentDetailSimpleView.e12d499e":
-    "연결을 종료하면 Harper가 후보자에게 회사의 종료 결정을 안내해요. 이미 보이거나 전달된 안내는 회수할 수 없어요.",
   "TalentDetailSimpleView.e3559795": "이 메모를 삭제할까요?",
-  "TalentDetailSimpleView.e7aa5c7b": "다른 역할에서 기록된 내용 보기",
   "TalentDetailSimpleView.f49011b1": "최근 로그인",
-  "TalentDetailSimpleView.f5eaedc4": "연결 대기로 이동",
-  "agent.OrgAgentComposer.06624003": "Terra · GPT-5.6",
   "agent.OrgAgentComposer.actionMenu": "추가 메뉴 열기",
   "agent.OrgAgentComposer.0672e615": "파일을 읽지 못했습니다.",
   "agent.OrgAgentComposer.2644bab0": "Searching...",
   "agent.OrgAgentComposer.345609ca": "더 불러오기",
   "agent.OrgAgentComposer.37d8f362": "파일 업로드",
-  "agent.OrgAgentComposer.3e1ad435": "Ask anything, @ for choosing talent",
-  "agent.OrgAgentComposer.477bbe8b": "Gemini 3.8 Flash · OpenRouter",
-  "agent.OrgAgentComposer.494ba81d": "GLM 5.3 Flash · OpenRouter",
-  "agent.OrgAgentComposer.53ee5ea2": "도구",
-  "agent.OrgAgentComposer.7b559de8": "후보자를 불러오지 못했어요.",
-  "agent.OrgAgentComposer.8aadbdab": "파일을 첨부하지 못했습니다.",
-  "agent.OrgAgentComposer.8eb292db": "연결 목록",
-  "agent.OrgAgentComposer.94a1593a": "",
-  "agent.OrgAgentComposer.99dd37af": "Harper 모델 선택",
-  "agent.OrgAgentComposer.a6732deb": "Luna · GPT-5.6",
   "agent.OrgAgentComposer.d343e2d9": "메시지 보내기",
-  "agent.OrgAgentComposer.dcd8f2dc": "아직 연결된 후보자가 없어요.",
   "agent.OrgAgentComposer.dce4f9ef": "Claude Sonnet 5.5",
-  "agent.OrgAgentMessage.0c3e8d1b": "요청 보냄",
-  "agent.OrgAgentMessage.10586f43":
-    "현재 후보자에게 소개되는 회사 정보를 확인해 보세요.",
-  "agent.OrgAgentMessage.3ab7f8af": "나",
   "agent.OrgAgentMessage.698ac66f": "회사 정보",
-  "agent.OrgAgentMessage.873302db": "역할 설명에 반영한 회사 정보 열기",
-  "agent.OrgAgentMessage.9cc8680f": "Harper",
-  "agent.OrgAgentMessage.a1a13f44": "Slack",
-  "agent.OrgAgentMessage.a64fe056": "워크스페이스 멤버",
   "agent.OrgAgentMessage.e5934692": "답변 작성 중",
-  "agent.OrgAgentPanel.3f50e521":
-    "JD 링크 혹은 파일로 시작하거나, 편하게 설명해주셔도 좋습니다.",
-  "agent.OrgAgentPanel.670ef3b7":
-    "역할이나 후보자에 대해 물어보거나 원하시는 사항을 요청해주세요.",
   "agent.OrgAgentPanel.681bf4b1": "불러오는 중...",
-  "agent.OrgAgentPanel.6d053126":
-    "안녕하세요. 새롭게 채용을 원하는 역할에 대해 알려주세요.",
-  "agent.OrgAgentPanel.77d8bedb": "채팅 안내",
   "agent.OrgAgentPanel.83f5617e": "이전 대화 더 보기",
-  "agent.OrgAgentPanel.bfaf2f40": "대화 불러오는 중",
-  "agent.OrgAgentPanel.e9f9aabc":
-    "후보자와 역할을 찾고, 회사 정보와 채용 기준을 확인하거나 바꿀 수 있어요. 후보자는 이름이나 @로 지정해 주세요.",
-  "agent.OrgAgentPanel.f859b023":
-    "외부 연락과 중요한 상태 변경은 대상과 결과를 설명한 뒤 확인받아요.",
-  "meetings.OrgInterviewAvailabilityDialog.07947f81":
-    "Google Calendar 일정을 미팅 가능한 시간으로 바꿨어요.",
   "meetings.OrgInterviewAvailabilityDialog.09b26d24":
     "Google Calendar 일정을 바꾸지 못했어요.",
-  "meetings.OrgInterviewAvailabilityDialog.0ffe674b":
-    "미팅 스케줄링을 허용할 요일과 시간을 설정하세요.",
-  "meetings.OrgInterviewAvailabilityDialog.12ab7148": "닫기",
   "meetings.OrgInterviewAvailabilityDialog.16af96e5": "가능한 시간",
   "meetings.OrgInterviewAvailabilityDialog.171e7494": "주말",
   "meetings.OrgInterviewAvailabilityDialog.1a2ea03c": "다시 불러오기",
-  "meetings.OrgInterviewAvailabilityDialog.23285385":
-    "인터뷰 가능 시간을 불러오지 못했어요.",
-  "meetings.OrgInterviewAvailabilityDialog.306556cb": "가능 시간에서 빼기",
-  "meetings.OrgInterviewAvailabilityDialog.3494eaf7": "연동됨",
-  "meetings.OrgInterviewAvailabilityDialog.350f4173": "저장하지 않고 닫기",
-  "meetings.OrgInterviewAvailabilityDialog.3eafb604": "최신 설정 불러오기",
-  "meetings.OrgInterviewAvailabilityDialog.44e02ff5": "가능한 일정",
-  "meetings.OrgInterviewAvailabilityDialog.4aca135e":
-    "Google Calendar 일정에서 제외됨. 가능한 시간으로 변경",
-  "meetings.OrgInterviewAvailabilityDialog.504dfeb1": "가능 시간 저장하기",
-  "meetings.OrgInterviewAvailabilityDialog.5213df10":
-    "날짜를 선택하면 그날의 일정만 조정할 수 있어요.",
-  "meetings.OrgInterviewAvailabilityDialog.6046f5e0": "",
-  "meetings.OrgInterviewAvailabilityDialog.63a2a753":
-    "최신 가능 시간을 불러오지 못했어요.",
   "meetings.OrgInterviewAvailabilityDialog.64354f3d": "평일",
-  "meetings.OrgInterviewAvailabilityDialog.66ce0bd1": "돌아가기",
   "meetings.OrgInterviewAvailabilityDialog.7016ae17": "매일",
-  "meetings.OrgInterviewAvailabilityDialog.74a4bfef":
-    "알려주신 가능 시간으로 설정해두었어요.",
-  "meetings.OrgInterviewAvailabilityDialog.7638de53":
-    "자동으로 일정을 읽어와 불가능한 시간을 처리합니다.",
-  "meetings.OrgInterviewAvailabilityDialog.8732a0bf":
-    "방금 바꾼 반복 시간과 날짜별 예외는 저장되지 않아요.",
   "meetings.OrgInterviewAvailabilityDialog.8b8b4211": "적용",
   "meetings.OrgInterviewAvailabilityDialog.8c287dac":
     "가능 시간 설정을 확인해 주세요.",
-  "meetings.OrgInterviewAvailabilityDialog.8ea2df5f": "미팅 가능한 일정",
-  "meetings.OrgInterviewAvailabilityDialog.8f895515": "초기화",
-  "meetings.OrgInterviewAvailabilityDialog.925e6509": "시간대",
-  "meetings.OrgInterviewAvailabilityDialog.969e86f9":
-    "잠시 후 다시 시도해 주세요.",
-  "meetings.OrgInterviewAvailabilityDialog.a6d86254": "시간대 검색",
-  "meetings.OrgInterviewAvailabilityDialog.a78f6e6d": "M월 d일 EEEE",
-  "meetings.OrgInterviewAvailabilityDialog.a8b83f5d": "반복 종료 시간",
-  "meetings.OrgInterviewAvailabilityDialog.a8e6792e": "적용할 요일",
-  "meetings.OrgInterviewAvailabilityDialog.ad77ed75": "자동 불가 처리",
-  "meetings.OrgInterviewAvailabilityDialog.b1664689": "미팅 불가",
-  "meetings.OrgInterviewAvailabilityDialog.bf91e7b5":
-    "일치하는 시간대가 없습니다.",
-  "meetings.OrgInterviewAvailabilityDialog.c1bc0b9e": "가능 시간으로 추가",
-  "meetings.OrgInterviewAvailabilityDialog.c4a130bf": "추가",
-  "meetings.OrgInterviewAvailabilityDialog.c828b04f": "저장하지 않고 닫을까요?",
-  "meetings.OrgInterviewAvailabilityDialog.db8194db": "가능한 시간 없음",
-  "meetings.OrgInterviewAvailabilityDialog.e07606a0":
-    "인터뷰 가능 시간을 저장하지 못했습니다.",
   "meetings.OrgInterviewAvailabilityDialog.e2ac1a28": "다른 화면",
-  "meetings.OrgInterviewAvailabilityDialog.e8136d58": "계속 편집",
-  "meetings.OrgInterviewAvailabilityDialog.e8ae3f8e": "연동 안 됨",
   "meetings.OrgInterviewAvailabilityDialog.eff96fca": "반복",
-  "meetings.OrgInterviewAvailabilityDialog.ff39fb21": "반복 시작 시간",
-  "meetings.OrgMeetingScheduleDialog.0a7d2554":
-    "후보자가 제출한 가능 시간 중 하나로 확정된 일정입니다.",
   "meetings.OrgMeetingScheduleDialog.1743f372": "공개 범위",
-  "meetings.OrgMeetingScheduleDialog.1b046400": "후보자에게 보낼 이메일",
-  "meetings.OrgMeetingScheduleDialog.2e255651":
-    "Calendar 초대는 보냈지만 연결된 Google 계정에서 Meet 링크를 만들지 못했어요. Calendar 일정에서 화상회의 링크를 직접 추가해 주세요.",
-  "meetings.OrgMeetingScheduleDialog.30dfc264": "후보자가 제출한 시간",
-  "meetings.OrgMeetingScheduleDialog.3141ecfd": "참석자",
-  "meetings.OrgMeetingScheduleDialog.31afca01": "후보자 답변 대기 중",
-  "meetings.OrgMeetingScheduleDialog.36a5735c": "후보자에게 보낼 메일 준비하기",
   "meetings.OrgMeetingScheduleDialog.3de052c6": "Role",
-  "meetings.OrgMeetingScheduleDialog.3ef97382":
-    "후보자에게 보낼 메일을 준비하지 못했어요.",
-  "meetings.OrgMeetingScheduleDialog.426e8fc1":
-    "Calendar 초대와 Google Meet 링크를 만들었어요.",
-  "meetings.OrgMeetingScheduleDialog.42b86f9b":
-    "미팅 시간은 확정되어 있고, Calendar 초대와 Google Meet 링크를 만들고 있어요.",
-  "meetings.OrgMeetingScheduleDialog.5137bfdc": "다시 불러오기",
   "meetings.OrgMeetingScheduleDialog.53111d24": "회사와 후보자",
-  "meetings.OrgMeetingScheduleDialog.54056198": "인터뷰 제목을 입력해 주세요.",
-  "meetings.OrgMeetingScheduleDialog.54a2d2da":
-    "이메일을 보내면 후보자가 가능한 시간을 고를 수 있어요. 후보자가 시간을 제출해 확정되면 담당자의 Google Calendar에서 양측 초대와 Google Meet 링크를 만들어요.",
-  "meetings.OrgMeetingScheduleDialog.589b708b": "가능 시간 열기",
-  "meetings.OrgMeetingScheduleDialog.59b68c60":
-    "후보자의 언어에 맞춰 작성했어요. 제목과 본문을 직접 고칠 수 있어요. 일정 선택 링크는 발송할 때 생성돼요.",
-  "meetings.OrgMeetingScheduleDialog.5a0c38be": "제안할 가능 시간",
   "meetings.OrgMeetingScheduleDialog.5aadb613":
     "후보자에게 보낼 메일 제목과 본문을 확인해 주세요.",
-  "meetings.OrgMeetingScheduleDialog.5d4744dd":
-    "예: 가능하면 가장 빠른 시간으로 부탁드려요.",
   "meetings.OrgMeetingScheduleDialog.5d5c76d2": "미팅 시간이 확정됐어요",
-  "meetings.OrgMeetingScheduleDialog.5d65b6b0":
-    "가능 시간을 열면 아직 적용하지 않은 변경은 사라져요. 계속할까요?",
-  "meetings.OrgMeetingScheduleDialog.61665e52":
-    "Calendar 초대와 Google Meet 링크를 아직 만들지 못했어요.",
-  "meetings.OrgMeetingScheduleDialog.76d2aad1": "후보자에게만",
-  "meetings.OrgMeetingScheduleDialog.7d8911ae":
-    "일정 요청 이메일 전달을 시작했어요. 아직 발송 완료는 아니에요.",
-  "meetings.OrgMeetingScheduleDialog.82424454": "후보자에게 보여줄 시간",
-  "meetings.OrgMeetingScheduleDialog.89e435b3": "닫기",
-  "meetings.OrgMeetingScheduleDialog.95e59a9c": "Calendar 초대 다시 만들기",
-  "meetings.OrgMeetingScheduleDialog.995af5ef": "추가 메시지",
-  "meetings.OrgMeetingScheduleDialog.9a3bf75c": "일정 요청 이메일 보내기",
   "meetings.OrgMeetingScheduleDialog.9bf8cbe2": "미팅",
-  "meetings.OrgMeetingScheduleDialog.a1445753": "링크 만료 ·",
   "meetings.OrgMeetingScheduleDialog.a92b5c71": "담당자",
-  "meetings.OrgMeetingScheduleDialog.a9f5012f": "인터뷰 제목",
-  "meetings.OrgMeetingScheduleDialog.ac854694":
-    "저장하지 않은 변경 내용이 있어요. 이대로 닫을까요?",
-  "meetings.OrgMeetingScheduleDialog.aeba19db":
-    "후보자와 회사 참석자에게 Calendar 초대를 보냈고 Google Meet 링크를 만들었어요.",
-  "meetings.OrgMeetingScheduleDialog.b0612e1d": "돌아가기",
-  "meetings.OrgMeetingScheduleDialog.b510ca9f": "분 · ",
-  "meetings.OrgMeetingScheduleDialog.b5e3cc85": "변경사항 저장하기",
-  "meetings.OrgMeetingScheduleDialog.bab473f6":
-    "후보자에게 가능한 시간을 요청했고 답변을 기다리고 있어요.",
-  "meetings.OrgMeetingScheduleDialog.bae5b97e": "후보자",
-  "meetings.OrgMeetingScheduleDialog.bc52e602": "개의 시간을 제안해요 ·",
-  "meetings.OrgMeetingScheduleDialog.be617d7e": "전달 상태 다시 확인",
-  "meetings.OrgMeetingScheduleDialog.bf6ccadb": "제목",
   "meetings.OrgMeetingScheduleDialog.c06754b0":
     "미팅 정보를 저장하지 못했어요.",
-  "meetings.OrgMeetingScheduleDialog.c649491e": "부터 ·",
-  "meetings.OrgMeetingScheduleDialog.c697ab23":
-    "Calendar 초대 전달 상태를 다시 확인하고 있어요.",
-  "meetings.OrgMeetingScheduleDialog.c738ea8a": "인터뷰 일정 요청",
-  "meetings.OrgMeetingScheduleDialog.c8d337b1": "본문",
-  "meetings.OrgMeetingScheduleDialog.cf4c2819":
-    "Calendar 초대를 다시 만들지 못했어요.",
-  "meetings.OrgMeetingScheduleDialog.d1a1dda5": "회사 내부만",
-  "meetings.OrgMeetingScheduleDialog.d4259ebb":
-    "일정 요청 전달을 시작하지 못했어요.",
-  "meetings.OrgMeetingScheduleDialog.dbb9748d": "분",
-  "meetings.OrgMeetingScheduleDialog.dc182940":
-    "후보자에게 보낼 일정과 이메일을 확인해 주세요. 아직 후보자에게는 아무것도 보내지 않았어요.",
-  "meetings.OrgMeetingScheduleDialog.e6cba348":
-    "일정 요청을 불러오지 못했어요.",
-  "meetings.OrgMeetingScheduleDialog.e7005a94": "Calendar 일정 열기",
   "meetings.OrgMeetingScheduleDialog.ea527744": "Google Meet 열기",
-  "meetings.OrgMeetingScheduleDialog.f143e804": "길이",
-  "meetings.OrgMeetingScheduleDialog.fa25f65b":
-    "변경한 미팅 정보로 준비해두었어요.",
-  "meetings.OrgMeetingScheduleDialog.fc8336dc": "· 선택",
-  "meetings.OrgMeetingScheduleDialog.fe036c5b":
-    "Calendar 초대는 보냈지만 Google Meet 링크는 만들지 못했어요.",
   "onboarding.OrgOnboardingPage.0251370f": "건너뛰기",
   "onboarding.OrgOnboardingPage.previous": "이전",
-  "onboarding.OrgOnboardingPage.02f4532a": "회사 이야기를 읽고 있어요…",
-  "onboarding.OrgOnboardingPage.0317c702": "직함",
-  "onboarding.OrgOnboardingPage.03b11155":
-    "어떤 일을 맡을 분인가요? 지금 팀에서 가장 먼저 해결하고 싶은 문제부터 알려주세요.\n\n꼭 필요한 경험과 함께 일하는 방식을 듣고, 찾는 분의 기준을 같이 정리할게요.",
   "onboarding.OrgOnboardingPage.0c35bf35": "press",
-  "onboarding.OrgOnboardingPage.179e76c6":
-    "인재에게 회사를 소개할 때 사용할 정보를 알려주세요. 외부에 공개되지 않은 특별한 포인트라면 더 좋아요. 직접적으로 공개되지 않고, Harper가 적절한 순간에 활용합니다.",
-  "onboarding.OrgOnboardingPage.1a83ccc5":
-    "이제 채용 이야기를 함께 시작해요.\n연결한 채널에서 @Harper를 불러주세요.\n찾는 인재, 후보자에 대한 의견, 궁금한 점까지 편하게 말씀해 주세요.",
-  "onboarding.OrgOnboardingPage.1e11e063":
-    "혹시 Slack이 다른 계정에 연결되어 있으신가요?",
-  "onboarding.OrgOnboardingPage.393a9329": " · Welcome to Harper",
-  "onboarding.OrgOnboardingPage.3c2cd29f":
-    "이제 채용 이야기를 함께 시작해요.\n회사 화면에서 역할을 열고 Harper에게 말씀해 주세요.\n원하는 인재의 기준부터 함께 정리할 수 있어요.",
-  "onboarding.OrgOnboardingPage.3f57e537":
-    "ex. 최근에 공격적으로 팀을 확장하고 있습니다. 미국 비자 Sponsorship 가능합니다. 등",
   "onboarding.OrgOnboardingPage.4953a7e7": "Pitch",
-  "onboarding.OrgOnboardingPage.5707cfeb":
-    "Harper와 함께하게 되신 것을 환영합니다. 가벼운 정보를 알려주세요.",
-  "onboarding.OrgOnboardingPage.59f8e5bf": "준비된 초안",
-  "onboarding.OrgOnboardingPage.62894398": "회사 정보에 반영하기",
-  "onboarding.OrgOnboardingPage.6e73b3d2":
-    "Slack을 통해 실제 리크루터처럼 소통하실 수 있어요.",
-  "onboarding.OrgOnboardingPage.79481742": "회사에 대해서 더 알려주세요.",
-  "onboarding.OrgOnboardingPage.804ddd01": "이름",
-  "onboarding.OrgOnboardingPage.88c0c168": "뛰어난 엔지니어를 찾고 있어요.",
-  "onboarding.OrgOnboardingPage.88c4db4a": "온보딩을 준비하고 있어요",
-  "onboarding.OrgOnboardingPage.9302739c": "Harper",
-  "onboarding.OrgOnboardingPage.9e63d497":
-    "저장하지 못했어요. 다시 시도해 주세요.",
-  "onboarding.OrgOnboardingPage.9e9ab39e":
-    "온보딩을 완료하지 못했어요. 다시 시도해 주세요.",
-  "onboarding.OrgOnboardingPage.a0588f69":
-    "Slack 연결 정보를 불러오지 못했어요.",
   "onboarding.OrgOnboardingPage.a5793d01": "Enter",
   "onboarding.OrgOnboardingPage.aa00736d": "저장 중…",
   "onboarding.OrgOnboardingPage.b99b64ae": "완료",
   "onboarding.OrgOnboardingPage.bb465a3e": "다음",
-  "onboarding.OrgOnboardingPage.c4d1e087": "다시 불러오기",
-  "onboarding.OrgOnboardingPage.c7e72135":
-    "회사 이야기를 읽고, 기존 정보와 함께 정리하고 있어요.",
-  "onboarding.OrgOnboardingPage.companyResultUnconfirmed":
-    "회사 정보 반영 결과를 아직 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
-  "onboarding.OrgOnboardingPage.c88b931d": "Harper와 슬랙을 통해",
-  "onboarding.OrgOnboardingPage.c9aeaf34": "이렇게 이야기를 시작해 보세요",
-  "onboarding.OrgOnboardingPage.d14c40ea": "시작하기",
-  "onboarding.OrgOnboardingPage.d2ce6f77": "예: CEO, CTO, 채용 매니저",
-  "onboarding.OrgOnboardingPage.ee3edc24": "소통하세요.",
-  "onboarding.OrgOnboardingSlack.179a29d2": "새 채널 이름",
-  "onboarding.OrgOnboardingSlack.1bf3f5aa": "확인",
-  "onboarding.OrgOnboardingSlack.317d1a3c":
-    "로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤 Slack을 연결해 주세요.",
-  "onboarding.OrgOnboardingSlack.43672e3f": "채널을 연결하지 못했어요.",
-  "onboarding.OrgOnboardingSlack.50a5d55c": "초대 메일을 보내지 못했어요.",
-  "onboarding.OrgOnboardingSlack.63966ac6": "초대 메일 보내기",
-  "onboarding.OrgOnboardingSlack.78e40040": "채널 만들고 연결하기",
-  "onboarding.OrgOnboardingSlack.83480060": "회사 이메일로 초대 보내기",
-  "onboarding.OrgOnboardingSlack.8c703d6f": "비공개 채널로 만들기",
-  "onboarding.OrgOnboardingSlack.9042181e": "기존 채널 보기",
-  "onboarding.OrgOnboardingSlack.9121da14": "Slack으로 이동 중…",
-  "onboarding.OrgOnboardingSlack.9b3e78dc":
-    "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요.",
-  "onboarding.OrgOnboardingSlack.9eaf444d": "초대 보내는 중…",
   "onboarding.OrgOnboardingSlack.af9cd0e0": "Slack 연결하기",
-  "onboarding.OrgOnboardingSlack.b1845655": "Slack 연결을 시작하지 못했어요.",
   "onboarding.OrgOnboardingSlack.be15f47f": "회사 이메일",
-  "onboarding.OrgOnboardingSlack.eba14c55": "Slack",
-  "onboarding.OrgOnboardingSlack.f2cd61bc": "채널 생성 권한 추가하기",
-  "onboarding.OrgOnboardingSlack.f6ca7fef":
-    "Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재 계정과 같은 권한으로 참여할 수 있어요.",
-  "onboarding.OrgOnboardingSlack.f70b7d30":
-    "채널에서 @Harper를 불러 대화를 시작할 수 있어요.",
-  "role.overview.OrgCalibrationProfilePanel.0a1ad8d2": "목록으로 돌아가기",
-  "role.overview.OrgCalibrationProfilePanel.0fea2d83": "채팅에",
-  "role.overview.OrgCalibrationProfilePanel.45608d4a":
-    "프로필을 불러오지 못했어요. 다시 시도해 주세요.",
-  "role.overview.OrgCalibrationProfilePanel.49517b93": "Calibration",
-  "role.overview.OrgCalibrationProfilePanel.62a398da": "소개",
   "role.overview.OrgCalibrationProfilePanel.661560b3": "Profile",
-  "role.overview.OrgCalibrationProfilePanel.7d2e2882":
-    "평가 이유는 아직 없어요. 채팅에서 덧붙일 수 있어요.",
-  "role.overview.OrgCalibrationProfilePanel.7d3979d0": "Harper가 고른 이유",
-  "role.overview.OrgCalibrationProfilePanel.89c99106": "",
-  "role.overview.OrgCalibrationProfilePanel.95985cb0": "확인하고 싶은 점:",
-  "role.overview.OrgCalibrationProfilePanel.acf37716": "프로필",
   "role.overview.OrgCalibrationProfilePanel.b58f6a82": "평가",
-  "role.overview.OrgCalibrationProfilePanel.cebdb33e": "다시 불러오기",
-  "role.overview.OrgCalibrationProfilePanel.da1217c9":
-    "이 프로필을 찾을 수 없어요. 목록에서 다시 선택해 주세요.",
-  "role.overview.OrgCalibrationProfilePanel.dfe4b1d8": "프로필을 불러오는 중",
-  "role.overview.OrgCalibrationProfilePanel.e03824fa":
-    "Calibration 목록으로 돌아가기",
-  "role.overview.OrgCalibrationProfilePanel.eefd8d25":
-    "의 Good / Bad 평가와 이유를 알려주세요.",
   "role.overview.OrgCalibrationReviewBadge.75a7bf62": "미평가",
-  "role.overview.OrgRoleCalibrationSection.020aab99": "Calibration",
-  "role.overview.OrgRoleCalibrationSection.0abe009b":
-    "아직 예시 프로필이 없어요.",
-  "role.overview.OrgRoleCalibrationSection.12aa70b1": "Calibration 프로필 목록",
-  "role.overview.OrgRoleCalibrationSection.35b7e63f":
-    "예시 프로필을 불러오는 중",
-  "role.overview.OrgRoleCalibrationSection.3e1dd459":
-    "예시 프로필을 불러오지 못했어요. 다시 시도해 주세요.",
-  "role.overview.OrgRoleCalibrationSection.64798569":
-    "Harper가 예시 프로필을 준비하고 있어요.",
-  "role.overview.OrgRoleCalibrationSection.7cb72836":
-    "예시 프로필을 살펴보고, 우리 팀의 채용 기준과 맞는지 알려주세요.",
-  "role.overview.OrgRoleCalibrationSection.8aecae80": "“A는 Good”",
-  "role.overview.OrgRoleCalibrationSection.instruction":
-    "채팅에“A는 Good”, “C는 경력이 짧아서 Bad”처럼 이유와 함께 말씀해 주세요.",
-  "role.overview.OrgRoleCalibrationSection.9b5aeb2d": "",
-  "role.overview.OrgRoleCalibrationSection.b77626b4": "채팅에",
-  "role.overview.OrgRoleCalibrationSection.c2f15f14": "“C는 경력이 짧아서 Bad”",
-  "role.overview.OrgRoleCalibrationSection.f47e77d3":
-    "이번에는 예시 프로필을 준비하지 못했어요.",
-  "role.overview.OrgRoleCalibrationSection.f6fdf743": "미평가",
-  "role.overview.OrgRoleCalibrationSection.f86c68cb":
-    "처럼 이유와 함께 말씀해 주세요.",
-  "role.overview.OrgRoleCalibrationSection.fa54234e": "다시 불러오기",
-  "role.overview.OrgRoleDetailsContent.23b78126": "정보를 저장하지 못했습니다.",
-  "role.overview.OrgRoleDetailsContent.3586667d": "근무 형태",
   "role.overview.OrgRoleDetailsContent.4cfb6b66": "Description",
-  "role.overview.OrgRoleDetailsContent.5b8b3d0f":
-    "후보자에게 보여줄 역할 설명을 문서처럼 작성해 주세요.",
-  "role.overview.OrgRoleDetailsContent.72f68a7c": "보상 정보",
-  "role.overview.OrgRoleDetailsContent.79548c5f": "Description 수정",
-  "role.overview.OrgRoleDetailsContent.95fa4cf7": "정보를 저장했습니다.",
   "role.overview.OrgRoleDetailsContent.e0017f75": "역할명",
   "role.overview.OrgRoleDetailsContent.f23cdd3e": "근무 지역",
-  "role.overview.OrgRoleMatchingContent.0381977c":
-    "Harper가 후보자를 탐색하고 판단할 때 알아야 할 내부 기준을 알려주세요.",
   "role.overview.OrgRoleMatchingContent.358e2561": "Evaluation Criteria",
-  "role.overview.OrgRoleMatchingContent.3760c5ec":
-    "아직 Evaluation Criteria가 없어요. Harper가 역할 내용과 Hiring Brief를 바탕으로 먼저 초안을 작성합니다.",
-  "role.overview.OrgRoleMatchingContent.538986c1": "기준 추가하기",
   "role.overview.OrgRoleMatchingContent.63ca402b": "기준",
   "role.overview.OrgRoleMatchingContent.69f8bc73": "Hiring Brief",
   "role.overview.OrgRoleMatchingContent.86797548": "Hiring Brief 수정",
-  "role.overview.OrgRoleMatchingContent.87feed59":
-    "이 내용은 후보자를 탐색하고 추천할 때 내부 기준으로 사용해요. 여러 기준이 있다면 우선순위와 허용할 수 있는 tradeoff를 함께 적어 주세요.",
-  "role.overview.OrgRoleMatchingContent.8d5d739c": "정보를 저장했습니다.",
-  "role.overview.OrgRoleMatchingContent.c63bee85": "작성하기",
-  "role.overview.OrgRoleMatchingContent.de6df743":
-    "이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적어요. 2–4개를 권장하며 최대 6개까지 추가할 수 있어요.",
-  "role.overview.OrgRoleMatchingContent.e80f358d": "예: Experience level",
-  "role.overview.OrgRoleMatchingContent.e87c4f62":
-    "정보를 저장하지 못했습니다.",
-  "role.overview.OrgRoleMatchingContent.f02ef6d2":
-    "필요한 수준, 판단 근거, 가산점과 우려 요소를 구체적으로 적어주세요.",
   "role.overview.OrgRoleMatchingContent.fcb66725": "수정하기",
-  "role.overview.OrgRoleMatchingContent.fee3a60b":
-    "외부에 공개하기 어려운 내부 기준도 작성할 수 있어요.",
-  "role.overview.OrgRoleSettingsContent.1012c29a": "채용을 일시정지할까요?",
-  "role.overview.OrgRoleSettingsContent.159f1f79": "삭제",
-  "role.overview.OrgRoleSettingsContent.161cc7fa": "담당자 변경",
-  "role.overview.OrgRoleSettingsContent.18b90ff6": "정기 후보 검색을 켰습니다.",
-  "role.overview.OrgRoleSettingsContent.19cfb822":
-    "아직 채용을 시작하지 않았습니다.",
-  "role.overview.OrgRoleSettingsContent.1ac8fc2c": "채용 진행 중",
-  "role.overview.OrgRoleSettingsContent.1da82cc0": "일시정지",
-  "role.overview.OrgRoleSettingsContent.1f56c008":
-    "후보자 추천을 잠시 멈춘 상태입니다.",
-  "role.overview.OrgRoleSettingsContent.2a42cf23":
-    "이 역할의 알림과 후보자 진행을 맡을 담당자를 선택하세요.",
-  "role.overview.OrgRoleSettingsContent.2c72320b": "역할 삭제",
-  "role.overview.OrgRoleSettingsContent.33d36939":
-    "Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. 연락하고 싶은 후보자가 있다면 ‘Intro 요청’을 눌러 주세요. 이 설정을 꺼도 Harper는 후보자에게 역할을 추천할 수 있으며, 회사에는 수락한 후보자만 보여드려요.",
-  "role.overview.OrgRoleSettingsContent.3408aeeb":
-    "후보자 추천을 다시 시작하고 채용을 진행합니다.",
-  "role.overview.OrgRoleSettingsContent.3685bc8a": "담당자 추가",
-  "role.overview.OrgRoleSettingsContent.42d8e7d8": "채용을 다시 진행할까요?",
-  "role.overview.OrgRoleSettingsContent.439dfda4": "이름 없음",
-  "role.overview.OrgRoleSettingsContent.44a852d9": "채용을 종료할까요?",
-  "role.overview.OrgRoleSettingsContent.478c7aff": "역할을 삭제했습니다.",
-  "role.overview.OrgRoleSettingsContent.4970de57": "채용 상태를 변경했습니다.",
-  "role.overview.OrgRoleSettingsContent.4aa053f3": "채용 일시정지",
-  "role.overview.OrgRoleSettingsContent.4d1f132d": "역할 삭제하기",
-  "role.overview.OrgRoleSettingsContent.52a0084f": "정기 후보 검색을 껐습니다.",
-  "role.overview.OrgRoleSettingsContent.56fe698d": "채용 종료",
-  "role.overview.OrgRoleSettingsContent.604bd6ec":
-    "채용 상태를 변경하지 못했습니다.",
   "role.overview.OrgRoleSettingsContent.60895fe9": "꺼짐",
-  "role.overview.OrgRoleSettingsContent.682ff28c":
-    "Slack 알림 채널과 담당자는 나중에 설정할 수 있습니다. 이 역할의 채용을 진행할까요?",
-  "role.overview.OrgRoleSettingsContent.68a6ae1d":
-    "후보자 추천을 종료하고, 현재 연결된 후보자들에게 채용 종료 알림을 보냅니다. 이미 전달된 알림은 다시 채용을 진행해도 되돌릴 수 없습니다.",
-  "role.overview.OrgRoleSettingsContent.69ab4392":
-    "현재 후보자를 추천받고 채용을 진행하고 있습니다.",
-  "role.overview.OrgRoleSettingsContent.6a0f98e8":
-    "이 역할의 새로운 연결 소식을 받을 Slack 채널을 선택하세요.",
-  "role.overview.OrgRoleSettingsContent.6b1d3baa": "채용을 진행할까요?",
-  "role.overview.OrgRoleSettingsContent.72b94fe1": "취소",
-  "role.overview.OrgRoleSettingsContent.7e825e96":
-    "정기 후보 검색 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
-  "role.overview.OrgRoleSettingsContent.822f041c":
-    "켜짐: Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. ‘Intro 요청’을 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
-  "role.overview.OrgRoleSettingsContent.85160f6c": "작성 중",
-  "role.overview.OrgRoleSettingsContent.85c9b083":
-    "추가할 수 있는 멤버가 없습니다.",
   "role.overview.OrgRoleSettingsContent.9622450d": "알림 채널",
-  "role.overview.OrgRoleSettingsContent.985456b6":
-    "역할을 삭제하지 못했습니다.",
-  "role.overview.OrgRoleSettingsContent.99c692d0": "Role 설정을 저장했습니다.",
   "role.overview.OrgRoleSettingsContent.9a89d1f5": "켜짐",
   "role.overview.OrgRoleSettingsContent.promotionTitle": "외부 공고 노출",
-  "role.overview.OrgRoleSettingsContent.promotionDescription":
-    "Harper가 이 역할에 더 적합한 인재를 찾기 위해 LinkedIn 등 외부에 채용 정보를 소개할 수 있어요.",
   "role.overview.OrgRoleSettingsContent.promotionExample": "예시",
   "role.overview.OrgRoleSettingsContent.anonymityTitle": "회사명 공개 여부",
-  "role.overview.OrgRoleSettingsContent.anonymityDescription":
-    "켜면 Harper 공고는 공개 문구 검토 전까지 숨겨집니다. 이미 게시된 LinkedIn 공고는 자동으로 바뀌지 않으므로 먼저 별도로 수정하거나 종료해야 합니다.",
   "role.overview.OrgRoleSettingsContent.anonymousState": "회사명 비공개",
   "role.overview.OrgRoleSettingsContent.namedState": "회사명 공개",
-  "role.overview.OrgRoleSettingsContent.anonymousCompanyExample": "비공개 회사",
-  "role.overview.OrgRoleSettingsContent.anonymitySaved":
-    "회사명 공개 설정을 저장했습니다.",
-  "role.overview.OrgRoleSettingsContent.anonymitySaveError":
-    "회사명 공개 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
-  "role.overview.OrgRoleSettingsContent.linkedinJob": "LinkedIn 채용 공고",
-  "role.overview.OrgRoleSettingsContent.harperJob": "지원하기",
-  "role.overview.OrgRoleSettingsContent.promotionSaved":
-    "공개 공고 설정을 저장했습니다.",
-  "role.overview.OrgRoleSettingsContent.promotionSaveError":
-    "공개 공고 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
-  "role.overview.OrgRoleSettingsContent.9a9afcd0":
-    "변경사항을 저장하거나 취소한 후 삭제할 수 있습니다.",
   "role.overview.OrgRoleSettingsContent.9b8461a2": "Status",
-  "role.overview.OrgRoleSettingsContent.9c01f9cd": "담당자",
-  "role.overview.OrgRoleSettingsContent.a48f4536": "Slack 연결",
-  "role.overview.OrgRoleSettingsContent.a5f6aa4e":
-    "Role 설정을 저장하지 못했습니다.",
-  "role.overview.OrgRoleSettingsContent.ac0ccdc8": "채용 종료하기",
   "role.overview.OrgRoleSettingsContent.adbf70e1": "추천 후보 검색",
-  "role.overview.OrgRoleSettingsContent.ae41dfab":
-    "채용이 종료되어 후보자를 추천받지 않습니다.",
-  "role.overview.OrgRoleSettingsContent.b9f19f4c":
-    "Role 설정을 불러오지 못했습니다.",
-  "role.overview.OrgRoleSettingsContent.ba0dad4c": "채용 진행하기",
-  "role.overview.OrgRoleSettingsContent.c2142493": "다시 시도",
-  "role.overview.OrgRoleSettingsContent.d8ef567b":
-    "담당자로 설정한 멤버는 이 역할의 후보자와 연결될 때 소개 이메일 CC에 자동으로 포함됩니다.",
-  "role.overview.OrgRoleSettingsContent.e8766b1d":
-    "후보자 추천을 일시정지합니다. 언제든 다시 진행할 수 있습니다.",
-  "role.overview.OrgRoleSettingsContent.ef5ded84":
-    "이 역할의 후보자 연결을 함께 담당할 멤버를 선택하세요.",
   "role.overview.OrgRoleSettingsContent.f3674383": "이메일 없음",
-  "workspace.OrgErrorState.69d6aa8c": "다시 시도",
-  "workspace.OrgGoogleCalendarIntegration.0204b951": "",
   "workspace.OrgGoogleCalendarIntegration.074866b9":
     "인터뷰 링크를 만들고 초대하기 위해 연결이 필요해요.",
-  "workspace.OrgGoogleCalendarIntegration.12a65c39": "취소",
-  "workspace.OrgGoogleCalendarIntegration.13ae6a5f":
-    "Google Calendar 연결이 만료되었거나 해제됐어요. 사용하려면 다시 연결해 주세요.",
-  "workspace.OrgGoogleCalendarIntegration.14016533": "연결됨",
-  "workspace.OrgGoogleCalendarIntegration.19d3b8e8":
-    "Google Calendar 계정을 연결했어요.",
-  "workspace.OrgGoogleCalendarIntegration.3c4d5d65": "다시 연결",
-  "workspace.OrgGoogleCalendarIntegration.4fa7af97": "연결 해제 중",
-  "workspace.OrgGoogleCalendarIntegration.6193d97f":
-    "Harper의 접근은 차단되어 있어요. 외부 계정 연결 해제를 마치려면 다시 시도해 주세요.",
-  "workspace.OrgGoogleCalendarIntegration.6b72efe4":
-    "Google Calendar 계정이 연결되어 있어요.",
-  "workspace.OrgGoogleCalendarIntegration.6d57f9e9": "연결 확인 중",
   "workspace.OrgGoogleCalendarIntegration.6d825a32": "Google Calendar",
-  "workspace.OrgGoogleCalendarIntegration.7c8515ff":
-    "Google Calendar 연결 결과를 저장하지 못했어요.",
-  "workspace.OrgGoogleCalendarIntegration.8f9bbd63": "저장 다시 시도",
-  "workspace.OrgGoogleCalendarIntegration.99ecaea2":
-    "Google Calendar 연결을 해제했어요.",
-  "workspace.OrgGoogleCalendarIntegration.a2bb4f91":
-    "Google Calendar 연결을 완료하지 않았어요.",
   "workspace.OrgGoogleCalendarIntegration.a865cf6c": "연결 해제 다시 시도",
-  "workspace.OrgGoogleCalendarIntegration.b0aa7f1c": "연결 상태 확인 중",
   "workspace.OrgGoogleCalendarIntegration.b34542e1":
     "미팅 가능 시간을 확인하고,",
-  "workspace.OrgGoogleCalendarIntegration.bd28fbec":
-    "Google Calendar 연결을 시작하지 못했어요.",
-  "workspace.OrgGoogleCalendarIntegration.bec31b55":
-    "Google Calendar 연결 해제를 완료하지 못했어요.",
-  "workspace.OrgGoogleCalendarIntegration.c43dd4cf":
-    "Google Calendar 연결을 해제할까요?",
-  "workspace.OrgGoogleCalendarIntegration.d1157882": "연결 해제",
-  "workspace.OrgGoogleCalendarIntegration.d2f44c02": "연결 중",
   "workspace.OrgGoogleCalendarIntegration.db12bd89": "연결",
-  "workspace.OrgGoogleCalendarIntegration.dea4eeb2":
-    "내 Harper 계정의 연결만 해제해요. 기존 Google Calendar 일정과 다른 팀원의 연결은 변경하지 않아요.",
   "workspace.OrgTalentTable.0d494035": "검토",
-  "workspace.OrgTalentTable.0f2af15f": "사진",
-  "workspace.OrgTalentTable.1d75cba8": "",
   "workspace.OrgTalentTable.1e4b7d53": "포지션",
-  "workspace.OrgTalentTable.473feb66": "이름",
   "workspace.OrgTalentTable.b217f440": "메모 없음",
   "workspace.OrgTalentTable.bd192d45": "미검토",
-  "workspace.OrgTalentTable.bd4209d5": "메모",
-  "workspace.OrgTalentTable.c3139196": "검토 여부",
-  "workspace.OrgTalentTable.e53ac65b": "회사",
-  "workspace.OrgUnsavedChangesBar.3d21ca87":
-    "저장하지 않은 변경사항이 있습니다.",
-  "workspace.OrgUnsavedChangesBar.470659ff": "변경사항 저장",
-  "workspace.OrgUnsavedChangesBar.5999985e": "정보를 수정하고 있습니다.",
-  "workspace.OrgUnsavedChangesBar.706548cf":
-    "저장하지 않고 이동하면 변경사항이 반영되지 않습니다.",
-  "workspace.OrgUnsavedChangesBar.a19ec0e1": "수정 취소",
-  "workspace.OrgUnsavedChangesBar.fb3e0ddf": "값을 변경한 뒤 저장해 주세요.",
-  "workspace.OrgWorkspaceApp.2842e7f1": "역할",
   "workspace.OrgWorkspaceApp.5fd3ee91": "새 역할 등록",
-  "workspace.OrgWorkspaceApp.dbaaaa1c": "Organization을 불러오지 못했습니다.",
-  "workspace.OrgWorkspaceSidebar.001e565e": "Recent roles",
   "workspace.OrgWorkspaceSidebar.007899a8": "프로필 메뉴",
-  "workspace.OrgWorkspaceSidebar.0426880f": "로그아웃",
   "workspace.OrgWorkspaceSidebar.04ffd41a": "Documents",
-  "workspace.OrgWorkspaceSidebar.08960a8a": "Recent 역할 상태 필터",
-  "workspace.OrgWorkspaceSidebar.130f61dd": "",
-  "workspace.OrgWorkspaceSidebar.2db0c774": "선택한 상태의 역할이 없습니다.",
   "workspace.OrgWorkspaceSidebar.44d8d4c9": "메뉴 열기",
-  "workspace.OrgWorkspaceSidebar.49e6718f": "돌아가기",
-  "workspace.OrgWorkspaceSidebar.5100cfe8": "이름 없음",
   "workspace.OrgWorkspaceSidebar.562916df": "문의하기",
   "workspace.OrgWorkspaceSidebar.5b4f72fc": "Organization",
-  "workspace.OrgWorkspaceSidebar.5fd5921b": "Organization 메뉴",
-  "workspace.OrgWorkspaceSidebar.75e0c031": "Workspace",
-  "workspace.OrgWorkspaceSidebar.83af8599": "Slack 연결하기",
-  "workspace.OrgWorkspaceSidebar.97a471ba": "Slack을 연결해 주세요",
-  "workspace.OrgWorkspaceSidebar.cd244a4b": "메뉴 닫기",
-  "workspace.OrgWorkspaceSidebar.cdaf4d25": "표시할 상태",
   "workspace.OrgWorkspaceSidebar.d2aab2e3": "전체 상태",
-  "workspace.OrgWorkspaceSidebar.d825bbe1": "Organization 설정",
-  "workspace.OrgWorkspaceSidebar.e32d503b":
-    "채용 진행 알림과 역할 생성, 기준 변경 등 모든 작업을 Slack으로 할 수 있어요.",
-  "workspace.OrgWorkspaceSidebar.eb3ad908": "로그아웃 중",
   "workspace.OrgWorkspaceSidebar.ec0a3091": "일정 저장",
-  "workspace.OrgWorkspaceSidebar.f5e2ee13": "Slack 연결 안내",
-  "workspace.pages.OrgDocumentsPage.04177e0b": "Documents 목차",
   "workspace.pages.OrgDocumentsPage.51aa3f5e": "문서 내용",
-  "workspace.pages.OrgDocumentsPage.75a8a0b9":
-    "문의하기를 통해 Harper 팀에 직접 문의를 남겨주시면 최대한 빠르게 응답드리겠습니다. 보고 있던 역할이나 후보자 이름, 궁금한 내용을 함께 남겨주시면 더 정확하게 확인할 수 있습니다.",
-  "workspace.pages.OrgDocumentsPage.b9dd1d00": "문의하기",
   "workspace.pages.OrgDocumentsPage.bd6b70f0": "자주 묻는 질문",
-  "workspace.pages.OrgHomePage.0bc13914": "역할을 등록할 권한이 없습니다.",
-  "workspace.pages.OrgHomePage.3825f363": "새 역할 등록 대화",
-  "workspace.pages.OrgHomePage.4345fdd2": "Slack",
-  "workspace.pages.OrgHomePage.46b39bb4":
-    "연결 결정을 기다리는 후보자가 없습니다.",
-  "workspace.pages.OrgHomePage.50864563": "",
-  "workspace.pages.OrgHomePage.5266ecae":
-    "후보자에게 보여질 수 있는 회사 정보를 관리하세요.",
-  "workspace.pages.OrgHomePage.5a84044a": "아직 등록된 Role이 없어요.",
-  "workspace.pages.OrgHomePage.6144df49": "Workspace 설정",
   "workspace.pages.OrgHomePage.6afe34fc": "Home",
   "workspace.pages.OrgHomePage.7cf15e71": "Hiring",
-  "workspace.pages.OrgHomePage.adfbeb9f": "Members",
-  "workspace.pages.OrgHomePage.d0ac2d04":
-    "함께 후보자를 검토할 팀원을 초대하세요.",
   "workspace.pages.OrgHomePage.dea7294d": "대기 없음",
-  "workspace.pages.OrgHomePage.e04cbab8": "새 역할 등록",
-  "workspace.pages.OrgHomePage.f3c87312": "Role",
-  "workspace.pages.OrgHomePage.f4811796": "팀과 함께 추천 소식을 확인하세요.",
-  "workspace.pages.OrgHomePage.f75cafee": "연결 대기",
-  "workspace.pages.OrgHomePage.fb87e4c9": "Company",
   "workspace.pages.OrgInboxPage.0726b098": "검색어 지우기",
   "workspace.pages.OrgInboxPage.08943503": "검토 대기",
-  "workspace.pages.OrgInboxPage.2466e757": "연결 대기",
-  "workspace.pages.OrgInboxPage.2dc59f6d": "명 표시 · 전체 ",
   "workspace.pages.OrgInboxPage.364caaeb": "이름 없는 역할",
   "workspace.pages.OrgInboxPage.3cff6bc8": "추천일",
-  "workspace.pages.OrgInboxPage.4e683614": "Inbox 후보자 필터",
-  "workspace.pages.OrgInboxPage.4f3f37a3": "연결 상태",
-  "workspace.pages.OrgInboxPage.59b486d7":
-    "먼저 제안할 수 있는 후보자와 수락 이후 연결 검토가 시작된 후보자가 여기에 표시돼요.",
-  "workspace.pages.OrgInboxPage.6914c4fc": "역할 전체",
-  "workspace.pages.OrgInboxPage.7633349d": "역할 1개",
-  "workspace.pages.OrgInboxPage.86c5e3e8": "검색 닫기",
-  "workspace.pages.OrgInboxPage.877723d7": "이름 없음",
-  "workspace.pages.OrgInboxPage.8a96fa8a": "명",
   "workspace.pages.OrgInboxPage.8fd03ff8": "수락 후 대기",
-  "workspace.pages.OrgInboxPage.a2b121d4": "최근 추천된 후보자를 확인해요.",
-  "workspace.pages.OrgInboxPage.a4b8b780": "이름 또는 이메일 검색어",
-  "workspace.pages.OrgInboxPage.b071fd0a": "조건에 맞는 후보자가 없어요.",
-  "workspace.pages.OrgInboxPage.b1c76de7": "결정 완료",
-  "workspace.pages.OrgInboxPage.b52b17f7": "전체 역할",
-  "workspace.pages.OrgInboxPage.b5e4b951": "이름 또는 이메일 검색",
-  "workspace.pages.OrgInboxPage.bb20c304":
-    "아직 Inbox에 표시할 후보자가 없어요.",
-  "workspace.pages.OrgInboxPage.d62e1309":
-    "필터를 해제하면 추천 후보자 전체를 다시 확인할 수 있어요.",
   "workspace.pages.OrgInboxPage.f6f6dae1": "Inbox",
-  "workspace.pages.OrgRoleCreationPage.012479bc": "Setting 탭 내용",
-  "workspace.pages.OrgRoleCreationPage.0ba669d2": "역할 상세 닫기",
-  "workspace.pages.OrgRoleCreationPage.2320cf8f": "인박스 탭 내용",
-  "workspace.pages.OrgRoleCreationPage.2ce1419d": "분할 화면으로 보기",
-  "workspace.pages.OrgRoleCreationPage.2ee10b6b": "역할 대화 패널 너비 조절",
-  "workspace.pages.OrgRoleCreationPage.3a073344": "전체 화면으로 보기",
-  "workspace.pages.OrgRoleCreationPage.3bb985b9": "메뉴 열기",
-  "workspace.pages.OrgRoleCreationPage.3ea2c40a": "새 역할 정보",
-  "workspace.pages.OrgRoleCreationPage.548f7898":
-    "역할 정보를 불러오는 중입니다.",
-  "workspace.pages.OrgRoleCreationPage.6034f8df": "역할 상세 열기",
-  "workspace.pages.OrgRoleCreationPage.66151d3c": "보드",
-  "workspace.pages.OrgRoleCreationPage.6ded0155": "매칭 기준 탭 내용",
-  "workspace.pages.OrgRoleCreationPage.75d1f1fb": "파이프라인 탭 내용",
-  "workspace.pages.OrgRoleCreationPage.7c332120":
-    "역할을 등록할 권한이 없습니다.",
   "workspace.pages.OrgRoleCreationPage.7df56925": "역할 대화",
-  "workspace.pages.OrgRoleCreationPage.af3ffc67": "역할 정보 탭 내용",
-  "workspace.pages.OrgRoleCreationPage.bc7ac4c7": "파이프라인",
-  "workspace.pages.OrgRoleCreationPage.c0fac685": "회사 정보 상세 내용",
-  "workspace.pages.OrgRoleCreationPage.c5bb73aa": "역할 불러오는 중",
   "workspace.pages.OrgRoleCreationPage.ceed6860": "Pipeline",
-  "workspace.pages.OrgRoleCreationPage.cf791d49": "새 역할 등록 상세",
-  "workspace.pages.OrgRoleCreationPage.d9d673d2": "새 역할 등록",
-  "workspace.pages.OrgRoleCreationPage.df1ae4cb": "회사 정보 상세",
-  "workspace.pages.OrgRoleCreationPage.fb3f0cac": "새 역할 등록 대화",
-  "workspace.pages.OrgSettingsPage.04ca06f9": "Slack 다시 연결",
-  "workspace.pages.OrgSettingsPage.05923ed7": "Slack 연결 관리",
-  "workspace.pages.OrgSettingsPage.084f2f6a": "취소",
-  "workspace.pages.OrgSettingsPage.0d89bd18":
-    "채널을 만들면 Harper가 바로 참여하고 연결돼요.",
-  "workspace.pages.OrgSettingsPage.11687265":
-    "미팅이 가능한 일정을 관리하세요.",
-  "workspace.pages.OrgSettingsPage.1247f2b6": "설정됨",
-  "workspace.pages.OrgSettingsPage.12f2e7da": "채널에 Harper 초대",
   "workspace.pages.OrgSettingsPage.16c1f28c": "인터뷰 일정",
-  "workspace.pages.OrgSettingsPage.240219bb": "Slack 채널을 제거할까요?",
-  "workspace.pages.OrgSettingsPage.256325d1": "채널을 연결하지 못했어요.",
-  "workspace.pages.OrgSettingsPage.2d16b5b1":
-    "팀과 함께 추천 소식과 채용 결정을 확인하세요.",
   "workspace.pages.OrgSettingsPage.31a5eb8e": "개",
-  "workspace.pages.OrgSettingsPage.32b5a622": "Slack 연결을 해제할까요?",
-  "workspace.pages.OrgSettingsPage.35d14bc9":
-    " Harper의 첫 안내 메시지는 보내지 못했지만 채널 연결은 유지돼요.",
-  "workspace.pages.OrgSettingsPage.36d91fa0": "채널 추가",
-  "workspace.pages.OrgSettingsPage.37cc3a0a": "Slack 채널 생성 권한이 필요해요",
-  "workspace.pages.OrgSettingsPage.500a2a19": "내 인터뷰 가능 시간 설정 열기",
-  "workspace.pages.OrgSettingsPage.51f89a54": "",
-  "workspace.pages.OrgSettingsPage.59834c28": "연동 선택",
-  "workspace.pages.OrgSettingsPage.5ae0f4ac":
-    "영문 소문자, 숫자, 하이픈(-), 밑줄(_)을 사용할 수 있어요.",
-  "workspace.pages.OrgSettingsPage.5c497790":
-    "후보자 추천과 검토, 역할 기준 변경, 후보자 프로세스 종료를 Slack 채널에서 팀원과 함께 진행하세요.",
-  "workspace.pages.OrgSettingsPage.6031fd88":
-    "로는 더 이상 Organization 알림이 발송되지 않습니다.",
-  "workspace.pages.OrgSettingsPage.64087ac3": "알림 전용",
-  "workspace.pages.OrgSettingsPage.6692784b":
-    "Slack 상태를 불러오지 못했습니다.",
-  "workspace.pages.OrgSettingsPage.66be02f6":
-    "Slack 채널을 제거하지 못했습니다.",
-  "workspace.pages.OrgSettingsPage.67b22260": "채널 만들고 연결하기",
-  "workspace.pages.OrgSettingsPage.68d018f6": "채널 이름",
-  "workspace.pages.OrgSettingsPage.6d65249d":
-    "후보자에게 인터뷰 일정을 요청할 때 Harper가 제안할 수 있는 내 일정을 관리하세요.",
-  "workspace.pages.OrgSettingsPage.74c24122": "Slack 연결을 해제했습니다.",
-  "workspace.pages.OrgSettingsPage.75e213dd": "연결된 채널",
-  "workspace.pages.OrgSettingsPage.76e9fc6a": "Slack",
-  "workspace.pages.OrgSettingsPage.86b4038a":
-    "Slack 채널을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
-  "workspace.pages.OrgSettingsPage.8aa4c361": "연결 끊기",
-  "workspace.pages.OrgSettingsPage.8ab9ecf4":
-    "Slack 채널을 추가하지 못했습니다.",
-  "workspace.pages.OrgSettingsPage.950b7834": "Slack 채널 만들기",
-  "workspace.pages.OrgSettingsPage.a00e20e7": "Slack을 연결했어요.",
-  "workspace.pages.OrgSettingsPage.a0d32edc": " · Harper 스레드 답글 활성",
-  "workspace.pages.OrgSettingsPage.abb54617":
-    "Slack 연결을 해제하지 못했습니다.",
-  "workspace.pages.OrgSettingsPage.ad77d0ac":
-    "제한된 Slack 멤버만 참여를 허용합니다.",
-  "workspace.pages.OrgSettingsPage.b2ad6ffc": "연결 해제",
-  "workspace.pages.OrgSettingsPage.b4914589":
-    "Slack 연결은 Owner 또는 Admin이 설정할 수 있습니다.",
   "workspace.pages.OrgSettingsPage.b568de28":
     "Slack 요청을 처리하지 못했습니다.",
-  "workspace.pages.OrgSettingsPage.b650b03e": "@Harper 활성",
   "workspace.pages.OrgSettingsPage.b66e3d0a": "Calendar",
-  "workspace.pages.OrgSettingsPage.c6012c4f":
-    "Slack 연결을 시작하지 못했습니다.",
   "workspace.pages.OrgSettingsPage.cbcc58af": "비공개 채널",
   "workspace.pages.OrgSettingsPage.d0572490": "열기",
-  "workspace.pages.OrgSettingsPage.d2073417": "예: hiring-team",
-  "workspace.pages.OrgSettingsPage.d2a39938":
-    "Slack 연결을 완료하지 못했습니다.",
-  "workspace.pages.OrgSettingsPage.da111017": "메시지에서 Role 자동 선택",
-  "workspace.pages.OrgSettingsPage.e4140993":
-    "Slack을 다시 연결해 공개·비공개 채널 생성 권한을 승인해 주세요. 기존 채널 연결은 유지돼요.",
-  "workspace.pages.OrgSettingsPage.e5adcf6e": "Slack 연결",
   "workspace.pages.OrgSettingsPage.e5d67468": "Integrations",
-  "workspace.pages.OrgSettingsPage.e916576c": "연결됨",
-  "workspace.pages.OrgSettingsPage.f35f4dc1":
-    "연결된 모든 채널로 더 이상 Organization 알림이 발송되지 않습니다.",
-  "workspace.pages.OrgSettingsPage.f50205f9": "채널 제거",
-  "workspace.pages.OrgSettingsPage.f6b71758":
-    "팀이 중요한 채용 변화를 놓치지 않도록 연동과 알림을 설정하세요.",
-  "workspace.pages.OrgSettingsPage.fcfadfe7":
-    " Slack 계정을 찾지 못해 본인은 자동으로 초대하지 못했어요. Slack 관리자에게 채널 초대를 요청해 주세요.",
-  "workspace.pages.OrgTeamPage.02174dd7": "직함 수정",
-  "workspace.pages.OrgTeamPage.03919413": "",
-  "workspace.pages.OrgTeamPage.04c48139": "회사 정보를 저장했습니다.",
-  "workspace.pages.OrgTeamPage.05e031c6": "팀원 수",
-  "workspace.pages.OrgTeamPage.0f78e79f": "닫기",
   "workspace.pages.OrgTeamPage.165fe503": "미입력",
-  "workspace.pages.OrgTeamPage.172e3632": "초대 메일을 다시 보냈습니다.",
-  "workspace.pages.OrgTeamPage.1cd502ee": "멤버를 제거하지 못했습니다.",
-  "workspace.pages.OrgTeamPage.1ecd9e9f":
-    "Harper가 후보자에게 회사를 정확히 설명할 때 사용하는 정보예요. 모든 역할에 공통으로 적용되며, 후보자의 관심사와 질문에 맞춰 필요한 내용을 자연스럽게 활용해요.",
-  "workspace.pages.OrgTeamPage.1f8abbb8": "선택한 멤버",
-  "workspace.pages.OrgTeamPage.2449ca63": "이미 참여 중인 멤버입니다.",
-  "workspace.pages.OrgTeamPage.2b87ee2f": "열기",
-  "workspace.pages.OrgTeamPage.2fd8af36": "멤버 초대",
-  "workspace.pages.OrgTeamPage.352d7b74":
-    "{memberName}의 팀 내 직함을 입력해 주세요.",
-  "workspace.pages.OrgTeamPage.3988b6dd": "Company",
-  "workspace.pages.OrgTeamPage.3aa5e7cf":
-    "함께 후보자를 검토할 팀원을 초대하고 역할에 맞는 권한을 부여하세요.",
-  "workspace.pages.OrgTeamPage.3c76bb96": "권한으로 초대됨",
-  "workspace.pages.OrgTeamPage.483c50d9": "초대 보내기",
-  "workspace.pages.OrgTeamPage.4b13652a": "예: 채용 매니저, VP of Engineering",
-  "workspace.pages.OrgTeamPage.4bac2d7a": "팀원 수 범위",
+  "workspace.pages.OrgTeamPage.1f8abbb8": "선택한 팀원",
+  "workspace.pages.OrgTeamPage.2fd8af36": "팀원 초대",
   "workspace.pages.OrgTeamPage.511e7c42": "이메일",
-  "workspace.pages.OrgTeamPage.58662f23": "수정하기",
-  "workspace.pages.OrgTeamPage.5e9a93f3": "멤버 직함을 저장했습니다.",
-  "workspace.pages.OrgTeamPage.6694247b": "웹사이트",
-  "workspace.pages.OrgTeamPage.671916fe": "초대를 취소했습니다.",
-  "workspace.pages.OrgTeamPage.6f13b7a6": "초대하기",
-  "workspace.pages.OrgTeamPage.6f9f8bcd": "멤버 작업",
-  "workspace.pages.OrgTeamPage.73dc066c": "초대 메일을 보내지 못했습니다.",
-  "workspace.pages.OrgTeamPage.76baa3f3": "직함을 입력해 주세요.",
-  "workspace.pages.OrgTeamPage.790649a8": "LinkedIn",
-  "workspace.pages.OrgTeamPage.7ec08c8b": "회사 정보를 저장하지 못했습니다.",
-  "workspace.pages.OrgTeamPage.8010390b":
-    "{email}에 부여한 Organization 초대 권한을 취소합니다.",
-  "workspace.pages.OrgTeamPage.81fd9e74": "직함을 저장하지 못했습니다.",
-  "workspace.pages.OrgTeamPage.828bdb23": "명",
-  "workspace.pages.OrgTeamPage.86366704": "돌아가기",
-  "workspace.pages.OrgTeamPage.8935c28b": "가입 멤버",
-  "workspace.pages.OrgTeamPage.8af47b03": "취소",
   "workspace.pages.OrgTeamPage.948045e5": "https://",
-  "workspace.pages.OrgTeamPage.978127ea":
-    "를 Organization에서 제거합니다. 제거한 멤버는 더 이상 이 Organization에 접근할 수 없습니다.",
-  "workspace.pages.OrgTeamPage.978a08f7": "Company Description",
-  "workspace.pages.OrgTeamPage.981fd715": "저장",
-  "workspace.pages.OrgTeamPage.9c0a40e7": "Company Description 수정",
-  "workspace.pages.OrgTeamPage.9d1096bd": "초대 취소",
   "workspace.pages.OrgTeamPage.a0aa3e23": "본사 위치",
-  "workspace.pages.OrgTeamPage.a59ac604": "이메일 없음",
-  "workspace.pages.OrgTeamPage.abb8cc7a": "나",
   "workspace.pages.OrgTeamPage.b6ed6379": "회사명을 입력해 주세요.",
   "workspace.pages.OrgTeamPage.b7428b09": "설립 연도",
-  "workspace.pages.OrgTeamPage.beff575b": "이름",
-  "workspace.pages.OrgTeamPage.bf14c9c8": "최근 투자 라운드",
-  "workspace.pages.OrgTeamPage.c0151c95":
-    "후보자에게 회사를 소개할 때 강조할 내용을 작성해 주세요.",
   "workspace.pages.OrgTeamPage.c196286e": "최근 투자 단계",
-  "workspace.pages.OrgTeamPage.c1a6e224": "name@company.com",
   "workspace.pages.OrgTeamPage.c5b7908f": "권한",
-  "workspace.pages.OrgTeamPage.c6b5fec2": "가입 날짜",
-  "workspace.pages.OrgTeamPage.c944f2f3": "직함",
-  "workspace.pages.OrgTeamPage.d3f293e6":
-    "이메일과 Organization에서 사용할 권한을 선택하세요.",
-  "workspace.pages.OrgTeamPage.de5b63f1": "권한을 변경하지 못했습니다.",
-  "workspace.pages.OrgTeamPage.e094f135": "멤버 제거",
-  "workspace.pages.OrgTeamPage.e2dcb5e4": "수락 대기",
-  "workspace.pages.OrgTeamPage.e36c56d1": "누적 투자 유치액",
-  "workspace.pages.OrgTeamPage.e5a2f418": "멤버",
-  "workspace.pages.OrgTeamPage.ee2cb2dc": "Members",
-  "workspace.pages.OrgTeamPage.f1ba5e59": "정보 없음",
-  "workspace.pages.OrgTeamPage.f306c439": "초대를 취소하지 못했습니다.",
-  "workspace.pages.OrgTeamPage.f3853baf": "변경 후 저장 버튼을 눌러주세요.",
-  "workspace.pages.OrgTeamPage.f3f990ba":
-    "이미 초대 대기 중입니다. 멤버 목록의 더보기에서 다시 보내기를 선택해 주세요.",
-  "workspace.pages.OrgTeamPage.f6a0553b": "다시 보내기",
-  "workspace.pages.OrgTeamPage.fa9bbccf": "이름 없음",
+  "workspace.pages.OrgTeamPage.e094f135": "팀원 제거",
   "workspace.pages.OrgTeamPage.fd1593d1": "올바른 이메일을 입력해 주세요.",
   "role.overview.OrgRoleSettingsContent.scheduleDays": "검색 요일",
-  "role.overview.OrgRoleSettingsContent.scheduleDaysDescription":
-    "이 요일에 새 후보자를 검색합니다.",
-  "role.overview.OrgRoleSettingsContent.scheduleDaysDisabledDescription":
-    "검색을 켜면 이 요일에 다시 검색합니다.",
   "role.overview.OrgRoleSettingsContent.scheduleTime": "검색 시간",
-  "role.overview.OrgRoleSettingsContent.scheduleTimeDescription":
-    "설정한 요일의 이 시간에 검색을 시작합니다.",
-  "role.overview.OrgRoleSettingsContent.scheduleTimeDisabledDescription":
-    "검색을 켜면 이 시간에 다시 검색합니다.",
-  "role.overview.OrgRoleSettingsContent.scheduleCancel": "취소",
-  "role.overview.OrgRoleSettingsContent.scheduleSave": "일정 저장",
-  "role.overview.OrgRoleSettingsContent.scheduleSaved":
-    "검색 일정을 저장했습니다.",
-  "role.overview.OrgRoleSettingsContent.scheduleSaveError":
-    "검색 일정을 저장하지 못했습니다. 다시 시도해 주세요.",
+  "faq.signup-invitations.question":
+    "회사 Workspace에 가입하거나 팀원을 초대하려면 어떻게 하나요?",
+  "faq.signup-invitations.answer":
+    "현재 새 회사가 직접 Workspace를 만드는 가입은 일시 중단되어 있어요. 이미 초대받았다면 초대한 이메일로 로그인해 초대를 수락하고, 회사에 Workspace가 있다면 Owner에게 팀원 초대를 요청해 주세요. 같은 회사 이메일 주소로 로그인한다고 자동으로 팀원이 되지는 않아요. 새 회사의 도입은 회사 페이지의 상담 요청이나 문의하기로 Harper 팀과 상의할 수 있어요.",
+  "faq.company-pitch-memory.question":
+    "회사 소개와 Pitch, Context for Harper에는 무엇을 적나요?",
+  "faq.company-pitch-memory.answer":
+    "Pitch에는 회사가 무엇을 만들고 어떤 성과·문화·혜택 때문에 합류할 만한지 후보자에게 설명할 근거를 적어요. 회사 전체에 계속 참고할 배경이나 운영 맥락은 Context for Harper에, 특정 Role의 필수·선호 기준은 Hiring Brief에 정리해요. Harper에게 회사 정보나 기억을 물어보고 수정할 수 있으며, 기억이나 Hiring Brief 변경은 수정안을 확인한 뒤 반영해요. 후보자 한 명의 일시적인 상황을 회사 전체의 기준으로 저장하지 않아요.",
+  "faq.role-reference.question":
+    "참고 인물로 채용 기준을 맞출 수 있나요?",
+  "faq.role-reference.answer":
+    "네. 참고할 실제 인물의 LinkedIn·GitHub·소개 자료와 중요한 강점을 전달해 주세요. 확인된 경력과 판단 이유를 바탕으로 Hiring Brief를 다듬어요. 참고 인물은 회사가 별도로 후보 평가를 요청하지 않았다면 바로 후보자로 취급하지 않아요.",
+  "faq.regular-search.question":
+    "정기 후보 검색은 언제 실행되나요? 요일과 시간을 바꾸거나 끌 수 있나요?",
+  "faq.regular-search.answer":
+    "Role Settings의 추천 후보 검색에서 켜기·끄기와 요일·시각을 정해요. 새 Role의 기본은 켜짐, 한국 시간 월·수·금 오전 9시이며 기존 Role은 저장된 설정을 따라요. 이 설정은 회사가 먼저 검토할 후보의 정기 탐색을 관리해요. 꺼도 명시적인 Run Search 요청은 별도로 가능하고, 슬롯·기존 계약에서 허용되는 후보자 선추천까지 모두 끄는 설정은 아니에요. 설정 변경으로 이미 시작한 검색이나 전달된 제안이 취소되지는 않아요.",
+  "faq.run-search.question":
+    "Run Search를 누르면 무엇이 달라지나요? 후보자에게 바로 연락하나요?",
+  "faq.run-search.answer":
+    "Run Search는 저장된 현재 Hiring Brief를 바탕으로 회사가 먼저 Intro를 요청할 만한 새 후보를 찾는 요청이에요. 기존 후보 목록을 다시 보여 달라는 요청과 다르고 정기 예약 시각을 기다리지 않아요. 찾은 후보는 검토한 뒤 먼저 제안 가능한 후보로 소개할 수 있지만 검색만으로 후보자에게 회사 제안을 보내지는 않아요. 실제 연락은 회사가 Intro 요청을 확정한 뒤 시작해요. 진행 중인 같은 검색이 있으면 그 상태를 확인하며, 결과는 적거나 없을 수도 있어요.",
+  "faq.search-history.question":
+    "최근 후보 검색이 언제 있었고 몇 명을 검토했는지 알 수 있나요?",
+  "faq.search-history.answer":
+    "Harper에게 최근 검색 이력을 물어보면 확인된 실행 시각·계기, 검토 인원과 선정 집계를 설명해요. 더 오래된 기록도 요청할 수 있어요. 선정 인원은 실제 발송이나 후보자의 수락 인원과 같지 않고, 기록이 없는 수치를 0명으로 설명하지 않아요. 후보자에게 먼저 추천한 개인별 내역과 비공개 판단은 회사에 공개하지 않으며, 실제 전달·응답은 회사에 공유된 후보자의 확인 가능한 기록으로 따로 봐야 해요.",
+  "faq.candidate-profile-summary.question":
+    "후보자 프로필의 TL;DR, Harper Note와 적합성은 무엇인가요?",
+  "faq.candidate-profile-summary.answer":
+    "TL;DR은 확인된 경력과 실제 기여를 짧게 요약하고, Harper Note는 공유 가능한 다음 업무·책임·근무 조건·합류 시점 등의 맥락을 설명해요. 적합성과 기준별 평가는 저장된 Role 기준에 대한 참고 자료이지 후보자의 지원·수락이나 채용 성공을 보장하지 않아요. 없는 정보는 확인할 부분으로 남겨 두고, 비공개 보상 수치나 다른 회사와의 대화 내역은 공개하지 않아요. 먼저 제안 가능한 후보의 자료는 제한된 공개 범위이며, 수락 전 이력서나 연락처를 요청한다고 바로 열리지는 않아요.",
+  "faq.intro-request.question":
+    "Intro 요청에는 무엇이 필요하고 Pass와 어떻게 다른가요?",
+  "faq.intro-request.answer":
+    "Intro 요청에는 이 후보자를 만나보고 싶은 구체적인 이유와, 수락 후 소개 이메일을 받을 회사 팀원이 필요해요. 내용을 확인해 요청을 확정하면 Harper가 회사와 역할을 소개하며 후보자에게 대화 의사를 물어요. 후보자가 수락하면 미리 선택한 팀원과 이메일로 연결되고 기본적으로 연결됨으로 이동하므로 회사의 두 번째 연결 승인을 기다리지 않아요. 별도 전형 단계는 필수가 아니에요. Pass는 후보자에게 연락하거나 알림을 보내지 않고 해당 제안을 목록에서 제외하는 결정이에요.",
+  "faq.intro-awaiting.question":
+    "Intro Requested는 무엇을 기다리는 상태인가요? 답이 없으면 거절인가요?",
+  "faq.intro-awaiting.answer":
+    "Intro Requested는 회사가 Intro를 요청한 뒤 제안 준비나 후보자 응답을 기다리는 상태예요. 카드에서 제안 준비 중, 후보자 답변 대기, 후보자 수락 · 연결 준비 중을 구분해 볼 수 있어요. 요청을 했다는 사실만으로 전달이나 수락을 확정하지 않아요. 답변이 없으면 수락도 거절도 아니며, 추가 연락은 제안이 실제 전달된 뒤 부탁할 수 있어요. 수락 전에는 면접 조율이나 일반 Pipeline 이동을 진행하지 않아요. 후보자가 수락하면 추가 회사 승인 없이 소개 이메일로 연결하고, 거절하면 제안을 종료해 회사에 알려요.",
+  "faq.connection-access.question":
+    "연결 대기는 왜 잠겨 있나요? 공용 Intro가 있으면 이용할 수 있나요?",
+  "faq.connection-access.answer":
+    "표준 구독에서 연결 대기는 해당 Role에 슬롯이 배정되어 있어야 이용할 수 있어요. 공용 Intro는 Intro 요청 등에 쓸 수 있지만 연결 대기 접근 권한을 만들지는 않아요. 한 Role의 슬롯이 다른 Role의 유료 기능까지 열어 주지도 않아요. 기존 계약이나 Enterprise의 범위는 별도 조건을 따라요. Slots 메뉴가 표시되면 배정을 확인하고, 메뉴가 없으면 문의하기로 Harper 팀에 이용 범위를 확인해 주세요.",
+  "faq.slots-and-credits.question":
+    "Free 공용 Intro와 슬롯 Intro는 어떻게 다른가요?",
+  "faq.slots-and-credits.answer":
+    "Free와 표준 슬롯 이용 회사에는 전체 Role이 함께 쓰는 월 10개의 공용 Intro가 있어요. 슬롯 하나는 배정한 Role에 월 50개의 슬롯 Intro를 추가로 제공해요. 공용 Intro는 특정 Role에 배정하는 무료 슬롯이 아니고, Role 생성 수나 채용 인원 수의 한도도 아니에요. Intro는 월 단위로 갱신되며 남은 Intro는 다음 기간으로 이월되지 않아요. 실제 잔액·갱신일과 기존 계약의 예외는 회사에 적용된 정보로 확인해야 해요.",
+  "faq.credit-spending.question":
+    "Intro는 언제 차감되나요? 슬롯 Intro가 없으면 어떻게 되나요?",
+  "faq.credit-spending.answer":
+    "표준 요금에서는 회사가 Intro 요청을 확정하거나 연결 대기의 연결 수락을 실행할 때 1 Intro를 사용해요. 해당 Role의 슬롯 Intro를 먼저 쓰고 부족하면 공용 Intro를 사용해요. 다른 Role 슬롯의 Intro를 가져오지는 않아요. 검색 요청·Role 생성·Pass·연결 거절은 이 두 유료 액션과 달라요. 사용 가능한 Intro가 모두 없으면 해당 요청을 완료할 수 없지만 Role 생성과 채용 시작 자체가 제한되지는 않아요. 실제 차단 시 화면이나 Slack에 표시되는 안내를 확인하고 Harper 팀에 문의해 주세요.",
+  "faq.slot-management.question":
+    "슬롯을 다른 Role에 배정하거나 구독을 취소하면 Role도 중단되나요?",
+  "faq.slot-management.answer":
+    "결제 기능이 제공되는 Workspace의 Slots에서 슬롯 배정을 관리해요. 구독 취소는 해당 슬롯 단위로 처리하며, 사용 종료 시점은 화면의 구독 정보에서 확인해야 해요. 슬롯이 만료되면 그 슬롯에 의존한 유료 기능을 더 사용할 수 없지만 Role이 자동으로 중단되지는 않아요. Role은 Free 기능과 공용 Intro 범위에서 계속 진행할 수 있어요. 다른 Role로 배정을 옮길 때는 기존 Role이 잃는 기능도 확인해 주세요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 메뉴가 없으면 Harper 팀에 문의해야 해요.",
+  "faq.role-public-promotion.question":
+    "외부 공고 노출과 회사명 비공개를 설정하면 무엇이 바뀌나요?",
+  "faq.role-public-promotion.answer":
+    "Role Settings의 외부 공고 노출을 켜면 Harper가 LinkedIn 등 외부에 역할을 소개할 수 있어요. 켰다는 사실만으로 공고가 즉시 게시됐다는 뜻은 아니에요. 회사명 공개 여부에서 회사명을 비공개로 설정할 수 있지만 기존에 게시된 외부 공고는 이 설정 변경만으로 자동 수정되지 않아요. 공개 Description에 회사가 드러나는 표현이 있으면 내용도 함께 확인해 주세요. 외부 노출을 꺼도 내부 역할을 삭제하거나 채용 자체를 중단하는 것은 아니에요.",
+  "faq.workspace-language.question":
+    "웹과 Slack의 Harper 언어를 바꿀 수 있나요?",
+  "faq.workspace-language.answer":
+    "웹에서 선택한 한국어·영어는 해당 팀원의 설정으로 저장되고 Slack의 개인 대화에도 기본으로 사용돼요. 아직 설정이 없으면 현재 회사 대화의 언어를 따르며, 이번 답변의 언어를 직접 요청할 수도 있어요. Workspace 전체에 보내는 정기 소개나 공지는 회사 Headquarters 기준으로 한국이면 한국어, 그 외에는 영어를 사용해요. 답변 언어를 바꿨다고 Role 문서나 후보자에게 보낼 연락의 언어가 자동으로 바뀌지는 않아요.",
+  "faq.contact-drafts.question":
+    "연락 초안을 수정하거나 승인하면 언제 보내나요?",
+  "faq.contact-drafts.answer":
+    "초안을 만들거나 수정하는 동안에는 후보자에게 발송하지 않아요. 표시된 최종 문구를 확인해 발송을 승인하면 일반적으로 짧은 대기 시간 뒤 전달하며, 지금 보내 달라고 명확히 요청하면 바로 전달할 수 있어요. 대기 중인 연락은 취소 가능한 상태에서만 취소할 수 있고 이미 전달된 연락은 회수되지 않아요. 승인 전에 내용을 바꿨다면 수정한 최신 초안을 확인해야 해요. 명확한 일상적인 연락은 별도 초안 검토 없이 전달할 수도 있어요.",
+  "faq.category.0": "시작과 역할",
+  "faq.category.1": "검색과 추천",
+  "faq.category.2": "제안과 연결",
+  "faq.category.3": "후보자 소통과 전형",
+  "faq.category.4": "팀과 연동",
+  "faq.category.5": "슬롯과 비용",
+  "documents.heading.harper-introduction": "Harper 소개",
+  "documents.heading.company-and-team": "회사와 팀 관리",
+  "documents.heading.slack": "Slack에서 사용하기",
+  "documents.heading.create-a-role": "역할 등록하기",
+  "documents.heading.candidate-search": "후보자 검색 관리",
+  "documents.heading.review-recommendations": "추천 검토하기",
+  "documents.heading.accept-or-decline": "제안과 연결 결정",
+  "documents.heading.ask-harper": "후보자와의 소통",
+  "documents.heading.pipeline": "Pipeline과 일정 관리",
+  "documents.heading.slots-and-credits": "슬롯과 Intro",
+  "documents.heading.public-job-visibility": "외부 공고와 회사명 공개",
+  "documents.eyebrow.company-and-team": "회사와 팀원",
+  "documents.eyebrow.candidate-search": "탐색 설정과 이력",
+  "documents.eyebrow.slots-and-credits": "이용 범위와 비용",
+  "documents.eyebrow.public-job-visibility": "공개 설정",
 } as const;
 
 export type OrgMessageKey = keyof typeof ko;

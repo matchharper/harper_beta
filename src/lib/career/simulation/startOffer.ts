@@ -9,6 +9,7 @@ export const applicationStartOfferSchema = z.object({
   companyLogoUrl: z.string().nullable().optional(),
   roleId: z.string().optional(),
   official_job_slug: z.string().optional(),
+  selectedDocumentId: z.string().optional(),
   resumes: z.array(
     z.object({ id: z.string(), name: z.string(), primary: z.boolean() })
   ),

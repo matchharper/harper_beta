@@ -1,9 +1,9 @@
+import { GithubLogo as Github } from "@/components/common/BrandLogos";
 import { CandidateTypeWithConnection } from "@/hooks/search/useSearchChatCandidates";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
   FileText,
-  Github,
   GraduationCap,
   Plus,
   StarIcon,

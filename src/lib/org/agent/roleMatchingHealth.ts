@@ -259,7 +259,7 @@ function unique(values: string[]) {
 
 function sortFits(rows: RoleMatchingHealthFitRow[]) {
   return [...rows].sort((left, right) => {
-    const scoreDifference = right.score - left.score;
+    const scoreDifference = (right.score ?? 0) - (left.score ?? 0);
     if (scoreDifference !== 0) return scoreDifference;
     return (
       timestamp(right.last_evaluated_at || right.created_at) -

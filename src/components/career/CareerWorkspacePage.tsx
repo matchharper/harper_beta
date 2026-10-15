@@ -1,3 +1,4 @@
+import { useStartDailyExternalRecommendations } from "@/hooks/career/useDailyExternalRecommendations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Head from "next/head";
@@ -218,6 +219,7 @@ const CareerWorkspacePage = ({
       userId: user?.id ?? null,
     });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
+  useStartDailyExternalRecommendations(user?.id, !authLoading && isRouterReady && isOnboardingStatusReady && !needsOnboarding && router.pathname !== "/career/preview");
 
   useEffect(() => {
     return subscribeCareerReferralModalOpen(() => {
@@ -619,6 +621,7 @@ const CareerWorkspacePage = ({
         settingsDataEnabled={
           settingsModalOpen ||
           currentActiveTab === "profile" ||
+          currentActiveTab === "documents" ||
           currentActiveTab === "brief"
         }
       >

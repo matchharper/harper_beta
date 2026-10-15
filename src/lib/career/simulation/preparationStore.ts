@@ -35,7 +35,7 @@ export function expirePreparation(s: SimulationSession, now = Date.now()) {
     }
     return next;
   }
-  return now - Date.parse(next.lastActivityAt) > SESSION_IDLE_MS
+  return now - Date.parse(next.lastActivityAt) > (next.activity?.channel === "email" ? 30 * 24 * 60 * 60_000 : SESSION_IDLE_MS)
     ? endSimulationSession(next, "expired", new Date(now).toISOString())
     : next;
 }

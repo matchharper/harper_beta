@@ -47,7 +47,7 @@ test("role request appends hard and preferred criteria without classifying legac
   });
 
   assert.equal(result.changes.length, 1);
-  assert.equal(result.confirmationRequired, true);
+  assert.equal(result.confirmationRequired, false);
   assert.equal(
     result.changes[0].value,
     [
@@ -134,6 +134,7 @@ test("exact replace keeps a legacy role request free-form", () => {
     }),
   });
 
+  assert.equal(result.confirmationRequired, false);
   assert.equal(result.changes[0].value, "백엔드 경력 5년 이상, B2B 경험 우대");
   assert.doesNotMatch(result.changes[0].value as string, /## Hard constraints/);
   assert.match(result.changes[0].preview, /\+ 5년 이상/);
@@ -822,4 +823,24 @@ test("mutation snapshot reads the canonical search setting without losing false"
   assert.equal(values.get("role_is_company_first_search:role-1")?.expected, false);
   assert.ok(seen.find(call => call.table === "company_internal_roles")?.fields?.includes("is_company_first_search"));
   assert.deepEqual(seen.find(call => call.table === "company_roles")?.filters, [["company_workspace_id", "workspace-1"], ["source_type", "internal"], ["is_expired", false]]);
+});
+
+
+test("Hiring Brief rewrite and compensation can be saved together without confirmation", () => {
+  const request = "## Hard constraints\n- 고객 대응 경험\n\n## Preferred criteria\n- B2B 경험 우대";
+  const parsed = parseCompanyDataChanges({
+    changes: [
+      { key: "role_request", kind: "rewrite", roleId: "role-1", value: request },
+      { key: "salaryRange", kind: "rewrite", roleId: "role-1", value: "협의" },
+    ],
+    summary: "채용 기준과 보상 수정",
+  });
+  const result = resolveCompanyDataMutation({
+    ...parsed,
+    isComplete: () => true,
+    snapshot: snapshot({ "role_request:role-1": null, "salaryRange:role-1": null }),
+  });
+  assert.equal(result.confirmationRequired, false);
+  assert.equal(result.changes.length, 2);
+  assert.equal(result.changes[0].value, request);
 });

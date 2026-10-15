@@ -50,7 +50,7 @@ test("mode advertises real resume capability and reopens source-specific writing
   assert.equal(simulationSessionContext(s, SIMULATION_TOOL_NAMES).selectedResume.directEditingAvailable, true);
   assert.equal(simulationSessionContext(s, []).selectedResume.directEditingAvailable, false);
   const prompt = buildPreparationPrompt(s, SIMULATION_TOOL_NAMES).map(b => b.text).join("\n");
-  assert.match(prompt, /Recreating an uploaded resume uses create, not copy/);
+  assert.ok(SIMULATION_TOOL_NAMES.includes("ready_for_role"));
   assert.doesNotMatch(prompt, /tools are not connected yet/);
 });
 
@@ -86,13 +86,16 @@ test("real generated PDF survives question and approval waits before local form 
 
 test("simulation prompt early return still includes the shared resume authoring contract", async () => {
   const {buildCareerConversationPromptPlan} = await import("../prompts/conversationPlan");
+  const {resolveCareerChatTools} = await import("../llmTools");
   const s = createSimulationSession({roleRef:"job:test",roleName:"Engineer",documentId:"d",documentName:"Resume"});
   s.preparation = createPreparation();
-  const plan = buildCareerConversationPromptPlan({channel:"chat",conversationMode:"simulation",simulationSession:s,toolNames:SIMULATION_TOOL_NAMES,isOnboardingDone:true,profile:null,structuredProfileText:"",talentContextSection:""});
+  const {toolNames} = resolveCareerChatTools({channel:"chat",isOnboardingDone:true,simulationActive:true,simulationPreparation:true});
+  const plan = buildCareerConversationPromptPlan({channel:"chat",conversationMode:"simulation",simulationSession:s,toolNames,isOnboardingDone:true,profile:null,structuredProfileText:"",talentContextSection:""});
   const block = plan.promptBlocks.find(b => b.key === "tool_policy");
   assert.ok(block);
   assert.match(block.text, /read_document\(format=structured\)/);
-  assert.match(block.text, /explicit resume\/CV create\/edit\/copy request/);
+  assert.match(block.text, /accepted suggestions and explicit editing instructions/);
+  assert.doesNotMatch(block.text, /Call generate_resume/);
 });
 
  test("public submission names use the person name while uploaded supporting files retain readable names", () => {

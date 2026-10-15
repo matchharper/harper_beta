@@ -1,27 +1,35 @@
 import type { DocumentEditorCopy } from "@/components/ui/document-editor";
-import { useOrgLocale, useOrgT } from "./OrgLocaleProvider";
+import { useOrgLocale } from "./OrgLocaleProvider";
 
 export function useOrgDocumentEditorCopy() {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const copy: DocumentEditorCopy = {
-    openDocument: (title) => t("document.open", "{title} 문서 열기", { title }),
-    documentContent: (title) => t("document.content", "{title} 문서 내용", { title }),
-    showMore: t("document.showMore", "더보기"),
-    showLess: t("document.showLess", "접기"),
-    emptyPreview: t("document.emptyPreview", "내용을 작성해 주세요."),
-    meta: (changedAt, count) => t("document.meta", "마지막 변경: {changedAt}, {count} 글자", { changedAt, count }),
-    justNow: t("document.justNow", "방금 전"),
-    minutesAgo: (count) => t("document.minutesAgo", "{count}분 전", { count }),
-    hoursAgo: (count) => t("document.hoursAgo", "{count}시간 전", { count }),
-    daysAgo: (count) => t("document.daysAgo", "{count}일 전", { count }),
+    openDocument: (title) => c("{title} 문서 열기", "Open {title}", { title }),
+    documentContent: (title) =>
+      c("{title} 문서 내용", "{title} content", { title }),
+    showMore: c("더보기", "Show more"),
+    showLess: c("접기", "Show less"),
+    emptyPreview: c("내용을 작성해 주세요.", "Add content."),
+    meta: (changedAt, count) =>
+      c(
+        "마지막 변경: {changedAt}, {count} 글자",
+        "Last changed: {changedAt} · {count} characters",
+        { changedAt, count }
+      ),
+    justNow: c("방금 전", "Just now"),
+    minutesAgo: (count) => c("{count}분 전", "{count} min ago", { count }),
+    hoursAgo: (count) => c("{count}시간 전", "{count} hr ago", { count }),
+    daysAgo: (count) => c("{count}일 전", "{count} days ago", { count }),
     locale,
   };
   return {
     copy,
-    copyLabel: t("document.copyLabel", "복사"),
-    copySuccessMessage: t("document.copySuccess", "문서 내용을 복사했어요."),
-    copyErrorMessage: t("document.copyError", "문서 내용을 복사하지 못했어요. 다시 시도해 주세요."),
-    loadingLabel: t("document.loading", "문서 불러오는 중"),
+    copyLabel: c("복사", "Copy"),
+    copySuccessMessage: c("문서 내용을 복사했어요.", "Document copied."),
+    copyErrorMessage: c(
+      "문서 내용을 복사하지 못했어요. 다시 시도해 주세요.",
+      "Couldn't copy the document. Try again."
+    ),
+    loadingLabel: c("문서 불러오는 중", "Loading document"),
   };
 }

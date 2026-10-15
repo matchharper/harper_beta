@@ -162,7 +162,10 @@ test("profile snapshot keeps career evidence and omits account metadata", async 
       location: "Seoul",
       name: "Name",
     },
-    talentExperiences: [],
+    talentExperiences: [{
+      role: "Nurse", company_name: "Hospital", start_date: "2020-01-01",
+      end_date: null, months: 24, memo: "Emergency care",
+    }],
     talentEducations: [],
     talentExtras: [
       {
@@ -174,10 +177,17 @@ test("profile snapshot keeps career evidence and omits account metadata", async 
       },
     ],
   };
-  const snapshot = simulationProfileSnapshot(profile);
+  // The synthetic fixture omits database-only row metadata.
+  const snapshot = simulationProfileSnapshot(
+    profile as unknown as Parameters<typeof simulationProfileSnapshot>[0]
+  );
   assert.match(snapshot, /Emergency care/);
   assert.match(snapshot, /Credential evidence/);
   assert.doesNotMatch(snapshot, /private|visibility|blocked/);
+  const experience = JSON.parse(snapshot).experiences[0];
+  assert.equal(experience.startDate, "2020-01-01");
+  assert.equal(Object.hasOwn(experience, "endDate"), false);
+  assert.equal(experience.recordedDurationMonths, 24);
 });
 
 test("a stage timeout is recorded distinctly while completed stages survive", async () => {

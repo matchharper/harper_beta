@@ -355,6 +355,7 @@ export type CareerHistoryOpportunityCounts = {
   archived: number;
   new: number;
   newInternal: number;
+  newExternalUnread: number;
   saved: number;
   savedStages: Record<CareerOpportunitySavedStage, number>;
   total: number;
@@ -415,6 +416,7 @@ export type CareerHistoryOpportunity = {
   preferenceFit?: CareerPreferenceFitItem[];
   recommendationRank?: number | null;
   recommendedAt: string;
+  recommendationNote?: string | null;
   recommendationConcerns?: string[];
   recommendationReasons: string[];
   recommendationScore?: number | null;

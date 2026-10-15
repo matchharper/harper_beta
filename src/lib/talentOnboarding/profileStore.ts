@@ -201,7 +201,8 @@ function formatDateRange(
   const end = String(endDate ?? "").trim();
   if (!start && !end) return "";
   if (start && end) return `${start} ~ ${end}`;
-  if (start) return `${start} ~ Present`;
+  // Missing data is not confirmation that employment or education is ongoing.
+  if (start) return `${start} ~ (end date not recorded)`;
   return end;
 }
 
@@ -410,7 +411,7 @@ export function buildTalentProfileContext(args: {
       );
       if (dateRange) parts.push(`Dates: ${dateRange}`);
       if (experience.months && experience.months > 0) {
-        parts.push(`Months: ${experience.months}`);
+        parts.push(`Recorded work duration: ${experience.months} months (duration summary, not a separate calendar end date)`);
       }
       if (experience.employment_type) {
         parts.push(`Employment type: ${experience.employment_type}`);

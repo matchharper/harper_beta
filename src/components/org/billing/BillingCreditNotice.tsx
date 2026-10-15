@@ -2,7 +2,11 @@ import Link from "next/link";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { Tooltips } from "@/components/ui/tooltip";
-import { creditSlotForRole, isLowCreditBalance } from "@/lib/org/billing/types";
+import {
+  creditSlotForRole,
+  formatIntroCount,
+  isLowCreditBalance,
+} from "@/lib/org/billing/types";
 import { cn } from "@/lib/utils";
 import { canUseWorkspaceBilling } from "@/lib/org/billing/rollout";
 
@@ -23,13 +27,13 @@ export function BillingCreditNotice({
   if (!canUseWorkspaceBilling(workspaceId) || isError || !slot || !isLowCreditBalance(slot.remaining)) return null;
   const label =
     locale === "ko"
-      ? `${slot.remaining} 크레딧 남음`
-      : `${slot.remaining} credits left`;
+      ? `${formatIntroCount(slot.remaining, locale)} 남음`
+      : `${formatIntroCount(slot.remaining, locale)} left`;
   const poolLabel =
     slot.slotId === null
       ? locale === "ko"
-        ? "공용 크레딧"
-        : "Shared credits"
+        ? "공용 Intro"
+        : "Shared Intros"
       : slot.label;
   const description = `${slot.roleName ?? poolLabel} · ${label}`;
   const className = cn(

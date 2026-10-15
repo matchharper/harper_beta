@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   fitOrgAgentToolResultToBudget,
+  fitOrgAgentDiagnosticSupplements,
   ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
   ORG_AGENT_TOOL_RESULT_BUDGET_MARKER,
 } from "@/lib/org/agent/toolResultBudget";
@@ -46,4 +47,20 @@ test("a complete result inside the remaining budget is preserved exactly", () =>
   });
 
   assert.deepEqual(result, { complete: true, content: serializedResult });
+});
+
+test("supplemental errors cannot displace authored base results or exceed remaining space", () => {
+  const base = "기존 안내 전체";
+  const deliveries = [{ content: base, diagnosticText: "details".repeat(1000) }];
+  assert.deepEqual(fitOrgAgentDiagnosticSupplements(deliveries, 0), [base]);
+  for (const available of [10, 100, 2000]) {
+    const [content] = fitOrgAgentDiagnosticSupplements(deliveries, available);
+    assert.ok(content.startsWith(base)); assert.ok(content.length <= base.length + available);
+  }
+});
+test("later base results reclaim space from earlier diagnostics", () => {
+  const deliveries = [{ content: "first", diagnosticText: "first error" }, { content: "second", diagnosticText: "second error" }];
+  const broad = fitOrgAgentDiagnosticSupplements(deliveries, 200);
+  assert.match(broad[0], /first error/); assert.match(broad[1], /second error/);
+  assert.deepEqual(fitOrgAgentDiagnosticSupplements(deliveries, 0), ["first", "second"]);
 });

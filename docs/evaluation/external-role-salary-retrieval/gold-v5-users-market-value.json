@@ -1,0 +1,44 @@
+{
+  "datasetVersion": "v5-users-market-value",
+  "goldVersion": "v5-users-market-value-1",
+  "frozenBeforePaidCalls": true,
+  "reviewer": "Codex source-context review; independent human labels unavailable",
+  "unit": "same frozen actual user context -> production search planner -> professional-market salary benchmark",
+  "common": [
+    "No production writes or downstream recommendations/fit/messages",
+    "No Brief/Memory facts changed",
+    "No hard salary cutoff or exclusion of unknown salary",
+    "Same production planner and monetary-unit contract as Ops preview"
+  ],
+  "cases": [
+    {
+      "caseId": "user-1",
+      "salary": "Must return a positive career-based annual BASE salary benchmark in KRW, grounded in actual responsibilities and the relevant local hiring market. Desired pay does not define this value.",
+      "direction": "Product-owning senior AI individual contribution, domestic-first direction; original Brief and Behavior are authoritative",
+      "geography": "Domestic emphasis, no invented existing foreign work authorization"
+    },
+    {
+      "caseId": "user-2",
+      "salary": "Must return a positive career-based annual BASE salary benchmark in KRW, grounded in actual responsibilities and the relevant local hiring market. Desired pay does not define this value. Estimate Japan-market pay then convert to KRW; do not emit JPY units as KRW.",
+      "direction": "General software engineering beyond an infrastructure-only search; clear ownership",
+      "geography": "Japan-oriented search; posting country is not proof of language or work eligibility; hybrid/remote preference needs final-role verification"
+    },
+    {
+      "caseId": "user-3",
+      "salary": "Must return a positive career-based annual BASE salary benchmark in KRW, grounded in actual responsibilities and the relevant local hiring market. Desired pay does not define this value. Compensation indifference and the withdrawn minimum must not cause null or a nominal low fallback; estimate from demonstrated professional history for the Australian market.",
+      "direction": "Customer-facing deployment/solutions engineering supported by data engineering background",
+      "geography": "Australia-oriented exploration; sponsorship remains unverified by initial SQL, not assumed true"
+    }
+  ],
+  "limitations": [
+    "Three existing purpose samples, not independent holdout or calibrated actual-pay gold",
+    "Positive output and evidence-grounded market reasoning are contract checks, not proof of salary accuracy",
+    "No new SQL ranking evaluation; ranking arithmetic unchanged"
+  ],
+  "labelChange": {
+    "date": "2026-10-15",
+    "reviewer": "Codex implementing explicit user instruction, before v5 paid calls",
+    "reason": "User requested career-based market value even when compensation is irrelevant; v4 indifference=null contract intentionally superseded.",
+    "priorVersion": "v4-users; input snapshots unchanged"
+  }
+}

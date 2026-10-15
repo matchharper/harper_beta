@@ -1,0 +1,17 @@
+{
+  "task": "slack-reply-routing",
+  "datasetVersion": "v1",
+  "createdAt": "2026-10-14T17:39:21.133Z",
+  "evaluationUnit": "One shared Slack thread and its latest human message",
+  "caseCount": 8,
+  "inputSha256": "6c2a55e0b85882ccf3337d71f03af562a805455b72a0395e579a6f0cf111b78f",
+  "goldSha256": "b232c9d51c35003d568423c4ed4ec42a3ab18c8d495ea6731eb4233fb5235545",
+  "provenance": "Exact synthetic cases and labels preserved from the legacy inline evalSlackReplyRouterLive.ts; no prior response reused.",
+  "labelReview": {
+    "reviewer": "Codex",
+    "reviewedBeforeModelRun": true,
+    "independentHumanReview": false
+  },
+  "canonicalRunner": "scripts/evalSlackReplyRouterLive.ts",
+  "privacyBoundary": "Synthetic only; raw responses are ignored owner-only runs; no database reads/writes or Slack deliveries."
+}

@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
 import Face from "@/components/common/Face";
 import { Text } from "@/components/ui/text";
@@ -113,8 +114,16 @@ const OnboardingTopBar = ({
       showProgress ? "h-16 gap-4" : "h-8"
     )}
   >
-    <div className="font-hedvig font-bold text-[21px] leading-none text-neutral-primary">
-      Harper
+    <div className="leading-none text-neutral-primary">
+      <Image
+        src="/images/logotext.svg"
+        alt=""
+        aria-hidden
+        width={72}
+        height={20}
+        className="shrink-0 object-contain -mb-1"
+        loading="eager"
+      />
     </div>
     {showProgress ? <ProgressBar step={step} totalSteps={totalSteps} /> : null}
   </div>
@@ -182,7 +191,8 @@ export const OnboardingFrame = ({
             ) : (
               titleSlot
             )}
-            <section className="min-h-0 flex-1 overflow-visible py-6 pr-1 lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-thin lg:scrollbar-track-transparent lg:scrollbar-thumb-neutral-1000-a10 lg:hover:scrollbar-thumb-neutral-1000-a50">
+            {/* Keep outer focus rings inside the scroll viewport without shifting fields. */}
+            <section className="-ml-1 min-h-0 flex-1 overflow-visible py-6 pl-1 pr-1 lg:overflow-y-auto lg:overscroll-contain lg:scrollbar-thin lg:scrollbar-track-transparent lg:scrollbar-thumb-neutral-1000-a10 lg:hover:scrollbar-thumb-neutral-1000-a50">
               {children}
             </section>
             <footer className="shrink-0 pt-4">{footer}</footer>
@@ -217,7 +227,7 @@ export const OnboardingFrame = ({
 
           <section
             className={cn(
-              "py-8 pr-1",
+              "-ml-1 py-8 pl-1 pr-1",
               expandContent
                 ? "shrink-0 overflow-visible"
                 : "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 hover:scrollbar-thumb-neutral-1000-a50"
@@ -235,33 +245,48 @@ export const OnboardingFrame = ({
 
 export const OnboardingStepHeader = ({
   stepDefinition,
+  titleLeading,
 }: {
   stepDefinition: OnboardingStepDefinition;
-}) => (
-  <header className={stepDefinition.headerClassName}>
-    <Text
-      as="h1"
-      variant="head1"
-      tone="primary"
-      className={stepDefinition.titleClassName}
-    >
-      {stepDefinition.title.map((line, index) => (
-        <span
-          key={`${index}-${line}`}
-          className="block text-balance break-keep"
-          dangerouslySetInnerHTML={{ __html: line }}
-        />
-      ))}
-    </Text>
-    <Text as="p" variant="body" tone="subtle" className="mt-2 w-full">
-      {stepDefinition.description.map((line, index) => (
-        <span key={`${index}-${line}`} className="block break-keep">
-          {line}
-        </span>
-      ))}
-    </Text>
-  </header>
-);
+  titleLeading?: ReactNode;
+}) => {
+  const titleLines = stepDefinition.title.map((line, index) => (
+    <span
+      key={`${index}-${line}`}
+      className="block text-balance break-keep"
+      dangerouslySetInnerHTML={{ __html: line }}
+    />
+  ));
+  return (
+    <header className={stepDefinition.headerClassName}>
+      <Text
+        as="h1"
+        variant="head1"
+        tone="primary"
+        className={cn(
+          stepDefinition.titleClassName,
+          titleLeading && "flex items-start gap-3"
+        )}
+      >
+        {titleLeading ? (
+          <>
+            {titleLeading}
+            <span>{titleLines}</span>
+          </>
+        ) : (
+          titleLines
+        )}
+      </Text>
+      <Text as="p" variant="body" tone="subtle" className="mt-2 w-full">
+        {stepDefinition.description.map((line, index) => (
+          <span key={`${index}-${line}`} className="block break-keep">
+            {line}
+          </span>
+        ))}
+      </Text>
+    </header>
+  );
+};
 
 export const OnboardingFieldLabel = ({
   children,
@@ -342,7 +367,7 @@ export const OnboardingReadyBody = ({
   badge,
 }: {
   title: ReactNode;
-  description: string;
+  description: ReactNode;
   badge?: string;
 }) => {
   return (
@@ -385,11 +410,13 @@ export const OnboardingReadyBody = ({
         variant="body"
         className="mt-3 max-w-[390px] text-[14px] md:text-[15px] font-light leading-5"
       >
-        {description.split("\n").map((line) => (
-          <span key={line} className="block">
-            {line}
-          </span>
-        ))}
+        {typeof description === "string"
+          ? description.split("\n").map((line) => (
+              <span key={line} className="block">
+                {line}
+              </span>
+            ))
+          : description}
       </Text>
     </div>
   );
@@ -422,8 +449,16 @@ export const OnboardingConversationPreview = ({
           </div>
 
           <div className="mt-4 flex items-start gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-floating font-hedvig text-[18px] font-bold text-neutral-primary shadow-sm">
-              h.
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-floating shadow-sm">
+              <Image
+                src="/images/squareface.png"
+                alt=""
+                aria-hidden
+                width={36}
+                height={36}
+                className="shrink-0 object-contain"
+                loading="eager"
+              />
             </div>
             <div className="min-w-0 flex-1 space-y-2.5">
               {paragraphs.map((paragraph, index) => (

@@ -1,3 +1,4 @@
+import { CareerDailyExternalStatus } from "../CareerDailyExternalRecommendations";
 import { ApplicationPreparationComposerSlot, ApplicationPreparationReopen } from "./ApplicationPreparationComposer";
 import { useApplicationPreparation } from "./ApplicationPreparationContext";
 import React, {
@@ -1248,7 +1249,7 @@ const CareerComposerSection = ({
           )
         : t(
             "career.common.conversation_starters.more_open_positions",
-            "오픈 포지션 더 추천받기"
+            "포지션 더 추천받기"
           ),
       loading: recommendationRequestPending,
       onSelect: () => void handleRequestMoreOpenPositions(),
@@ -1259,7 +1260,7 @@ const CareerComposerSection = ({
       id: "conversation-starter-career-coaching",
       label: t(
         "career.common.conversation_starters.1sfi8z4",
-        "커리어 고민과 다음 커리어에 대해서 이야기하기"
+        "커리어 상담"
       ),
       loading: conversationStarterPending,
       onSelect: () => void handleStartConversationStarter("career_coaching"),
@@ -1270,7 +1271,7 @@ const CareerComposerSection = ({
       id: "conversation-starter-match-quality",
       label: t(
         "career.common.conversation_starters.07qcswd",
-        "더 이야기하고 더 좋은 연결 받기"
+        "더 좋은 연결 받기"
       ),
       loading: conversationStarterPending,
       onSelect: () => void handleStartConversationStarter("match_quality"),
@@ -1284,6 +1285,7 @@ const CareerComposerSection = ({
       className="shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-6 md:pt-0"
     >
       <div className="mx-auto w-full max-w-[1120px]">
+        <CareerDailyExternalStatus />
         <ApplicationPreparationComposerSlot>
           {initialOpportunitySearchStatus ? (
             <CareerInitialOpportunitySearchStatus
