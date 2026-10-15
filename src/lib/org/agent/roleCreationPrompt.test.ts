@@ -41,7 +41,7 @@ test("one compact authoring contract retains discovery and confirmation boundari
     "read_other_roles once", "salaryRange is one free-form value", "never average or choose silently",
     "descriptionSourceResearch is the durable one-attempt marker", "Never combine postings",
     "calibrate_role_hiring_brief", "caliber evidence, not a candidate", "Ask at most one follow-up",
-    "Translate protected traits or proxies", "availableSlackChannels is empty",
+    "Translate protected traits other than age", "availableSlackChannels is empty",
     "role cannot be registered until Slack is connected", "[Slack 연결하기](/org/settings)",
     "set_role_notification", "request_role_creation_confirmation", "confirm_pending_role_creation",
     "same turn", "never activates", "immediately following authorization",
