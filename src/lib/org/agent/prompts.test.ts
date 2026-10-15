@@ -4,6 +4,7 @@ import {
   buildOrgAgentSystemPrompt,
   buildOrgAgentUserPrompt,
 } from "@/lib/org/agent/prompts";
+import { buildRoleCreationSystemPrompt } from "@/lib/org/agent/roleCreationPrompt";
 
 test("company prompt assembles common invariants and full capability policies without copy templates", () => {
   const prompt = buildOrgAgentSystemPrompt();
@@ -37,6 +38,24 @@ test("company prompt assembles common invariants and full capability policies wi
   ]) assert.ok(prompt.includes(fragment), fragment);
   assert.doesNotMatch(prompt, /One considerate follow-up is allowed only after 72/);
   assert.doesNotMatch(prompt, /김호진|E2E-MEET|workspaceId=/);
+});
+
+test("company chat and role creation share one age rule", () => {
+  const roleCreation = buildRoleCreationSystemPrompt();
+  for (const prompt of [
+    buildOrgAgentSystemPrompt(),
+    buildOrgAgentSystemPrompt({ surface: "slack" }),
+    roleCreation,
+    buildRoleCreationSystemPrompt({ surface: "slack" }),
+  ]) {
+    for (const fragment of [
+      "Age is a usable hiring condition",
+      "do not replace it with a proxy",
+      "do not add one the company did not state",
+      "say it is an estimate",
+    ]) assert.ok(prompt.includes(fragment), fragment);
+  }
+  assert.ok(roleCreation.includes("Translate protected traits other than age"));
 });
 
 test("web response locale selects voice and exact stage names without changing lifecycle policy", () => {
