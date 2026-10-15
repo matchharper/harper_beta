@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { localeFromHeadquarters } from "./workspaceLocale";
 
-test("workspace language follows Headquarters country, with English for unknown locations", () => {
+test("workspace language follows Headquarters country, with Korean for a blank Headquarters", () => {
   assert.equal(localeFromHeadquarters("Seoul, South Korea"), "ko");
   assert.equal(localeFromHeadquarters("대한민국 서울"), "ko");
   assert.equal(localeFromHeadquarters("서울"), "ko");
@@ -12,6 +12,9 @@ test("workspace language follows Headquarters country, with English for unknown 
     localeFromHeadquarters("San Francisco, CA, United States"),
     "en"
   );
+  assert.equal(localeFromHeadquarters("Singapore, Singapore"), "en");
   assert.equal(localeFromHeadquarters("Seoul, North Korea"), "en");
-  assert.equal(localeFromHeadquarters(null), "en");
+  assert.equal(localeFromHeadquarters(null), "ko");
+  assert.equal(localeFromHeadquarters(""), "ko");
+  assert.equal(localeFromHeadquarters("  "), "ko");
 });

@@ -1,10 +1,11 @@
 import type { OrgLocale } from "@/i18n/org/locale";
 
-// Headquarters is free text in company_db.location. A missing or ambiguous
-// location follows the product's non-Korean default.
+// Headquarters is free text in company_db.location. A missing location only
+// means the address is unknown and defaults to Korean; an ambiguous location
+// follows the product's non-Korean default.
 export function localeFromHeadquarters(location: unknown): OrgLocale {
   const value = String(location ?? "").trim();
-  if (!value) return "en";
+  if (!value) return "ko";
   if (
     /north korea|democratic people.s republic of korea|korea, democratic people.s republic|북한|조선민주주의인민공화국/i.test(
       value
