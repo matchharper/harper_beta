@@ -354,6 +354,7 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
   workspace: OrgSlackWorkspace;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
+  const acceptReason = escapeSlackText(args.acceptReason);
   if (args.locale === "en") {
     const candidateName = escapeSlackText(
       args.candidate.name || "the candidate"
@@ -365,7 +366,7 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
       `- *Role*: ${formatSlackLink(roleUrl, args.roleName)}`,
       `- *Candidate*: ${formatCandidate(args.candidate)}`,
       `- *Connection method*: ${args.contactDirectly ? "Direct contact" : "Email intro"}`,
-      `- *Reason*: ${escapeSlackText(args.acceptReason) || "None provided"}`,
+      ...(acceptReason ? [`- *Reason*: ${acceptReason}`] : []),
     ];
     if (!args.contactDirectly)
       lines.splice(
@@ -399,7 +400,7 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
     `- *역할*: ${formatSlackLink(roleUrl, args.roleName)}`,
     `- *연결 대상*: ${formatCandidate(args.candidate)}`,
     `- *연결 방식*: ${connectionMethod}`,
-    `- *선택 이유*: ${formatOptional(args.acceptReason)}`,
+    ...(acceptReason ? [`- *선택 이유*: ${acceptReason}`] : []),
   ];
   if (!args.contactDirectly) {
     lines.splice(
@@ -439,6 +440,7 @@ export function buildOrgCandidateRejectedSlackMessage(args: {
   workspace: OrgSlackWorkspace;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
+  const stopNote = escapeSlackText(args.stopNote);
   const rejectingPendingConnection =
     !args.previousStage || args.previousStage === "pending_connection";
   if (args.locale === "en")
@@ -449,7 +451,7 @@ export function buildOrgCandidateRejectedSlackMessage(args: {
       `- *Role*: ${formatSlackLink(roleUrl, args.roleName)}`,
       `- *Candidate*: ${formatCandidate(args.candidate)}`,
       `- *Decided by*: ${formatPerson(args.actor)}`,
-      `- *Reason*: ${escapeSlackText(args.stopNote) || "None provided"}`,
+      ...(stopNote ? [`- *Reason*: ${stopNote}`] : []),
       rejectingPendingConnection
         ? "The decision appears in the candidate's view, and Harper will notify them that the company is not moving forward. Notices already shown or sent cannot be recalled."
         : "Harper will notify the candidate that the process has ended. Earlier introductions, direct contact, and notices already shown or sent cannot be recalled.",
@@ -465,7 +467,7 @@ export function buildOrgCandidateRejectedSlackMessage(args: {
     `- *역할*: ${formatSlackLink(roleUrl, args.roleName)}`,
     `- *연결 대상*: ${formatCandidate(args.candidate)}`,
     `- *결정한 분*: ${formatPerson(args.actor)}`,
-    `- *남긴 이유*: ${formatOptional(args.stopNote)}`,
+    ...(stopNote ? [`- *남긴 이유*: ${stopNote}`] : []),
     rejectingPendingConnection
       ? "회사가 더 진행하지 않기로 했다는 종료 결정이 후보자 화면에 표시되고, Harper가 후보자에게 종료 안내를 진행해요. 이미 표시되거나 전달된 안내는 회수할 수 없어요."
       : "Harper가 후보자에게 회사가 프로세스를 종료했다는 안내를 진행해요. 이미 보낸 소개 이메일이나 회사의 직접 연락, 후보자에게 표시되거나 전달된 종료 안내는 회수할 수 없어요.",

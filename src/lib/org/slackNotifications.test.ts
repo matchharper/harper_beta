@@ -65,6 +65,16 @@ test("connection Slack guidance explains the next action and closes warmly", () 
     roleName: "Founding Engineer",
     workspace,
   });
+  const withReason = buildOrgCandidateAcceptedSlackMessage({
+    acceptReason: "리드 경험이 역할과 잘 맞아요",
+    actor,
+    candidate: { name: "김후보", talentId: "talent-1" },
+    contactDirectly: false,
+    introEmails: ["recruiter@example.com"],
+    roleId: "role-1",
+    roleName: "Founding Engineer",
+    workspace,
+  });
 
   assert.match(emailed, /같은 이메일에서 인사하고 다음 일정을 직접 조율/);
   assert.match(emailed, /김후보님과 연결해드렸어요/);
@@ -75,6 +85,12 @@ test("connection Slack guidance explains the next action and closes warmly", () 
   assert.match(direct, /회사에서 후보자에게 직접 연락/);
   assert.match(direct, /연결 방식\*: 직접 연락/);
   assert.match(direct, /서로에게 좋은 기회가 되길 바랄게요/);
+  assert.match(emailed, /소개 이메일\n- \*회사 수신자\*: recruiter@example\.com\n\n/);
+  assert.doesNotMatch(`${emailed}\n${direct}`, /선택 이유|없음/);
+  assert.match(
+    withReason,
+    /^- \*회사 수신자\*: recruiter@example\.com\n- \*선택 이유\*: 리드 경험이 역할과 잘 맞아요$/m
+  );
 });
 
 test("reactivation Slack guidance distinguishes sent and unsent closure notices", () => {
@@ -128,6 +144,8 @@ test("connection rejection Slack guidance names the person without raw labels", 
   assert.doesNotMatch(pending, /후보자 연결을 거절|\bReject\b/);
   assert.match(connected, /이후보님과의 연결을 종료했어요/);
   assert.match(connected, /이미 보낸 소개 이메일/);
+  assert.match(pending, /^- \*남긴 이유\*: 이번 역할과의 경험 차이$/m);
+  assert.doesNotMatch(connected, /남긴 이유|없음/);
 });
 
 test("English workspace notifications use clear connection terms", () => {
@@ -151,10 +169,41 @@ test("English workspace notifications use clear connection terms", () => {
     candidate: { name: "Alex", talentId: "talent-1" },
     previousStage: "pending_connection",
   });
+  const blankReason = buildOrgCandidateRejectedSlackMessage({
+    ...common,
+    candidate: { name: "Alex", talentId: "talent-1" },
+    previousStage: "pending_connection",
+    stopNote: "   ",
+  });
+  const acceptedWithReason = buildOrgCandidateAcceptedSlackMessage({
+    ...common,
+    acceptReason: "Strong backend depth",
+    candidate: { name: "Alex", talentId: "talent-1" },
+    introEmails: ["sam@acme.com"],
+  });
+  const rejectedWithReason = buildOrgCandidateRejectedSlackMessage({
+    ...common,
+    candidate: { name: "Alex", talentId: "talent-1" },
+    previousStage: "pending_connection",
+    stopNote: "Needs more frontend experience",
+  });
   assert.match(created, /Ready to connect/);
   assert.match(created, /Company-first suggestions are on/);
   assert.match(created, /every Mon, Wed, Fri at 09:00 KST/);
   assert.match(accepted, /Introduction email/);
   assert.match(rejected, /Alex/);
   assert.doesNotMatch(`${created}\n${accepted}\n${rejected}`, /[가-힣]/);
+  assert.match(accepted, /Email intro\n- \*Company recipients\*: sam@acme\.com\n\n/);
+  assert.doesNotMatch(
+    `${accepted}\n${rejected}\n${blankReason}`,
+    /\*Reason\*|None provided/
+  );
+  assert.match(
+    acceptedWithReason,
+    /^- \*Company recipients\*: sam@acme\.com\n- \*Reason\*: Strong backend depth$/m
+  );
+  assert.match(
+    rejectedWithReason,
+    /^- \*Reason\*: Needs more frontend experience$/m
+  );
 });
