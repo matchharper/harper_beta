@@ -15,6 +15,9 @@ import { enqueueOrgAgentWebActionTurn } from "./webActionTurn";
 
 type ProactiveReviewSchedule = { daysOfWeek: number[]; startTimeKst: string; windowMinutes: number };
 
+// Emergency stop: re-enabling proactive outreach requires an explicit code release.
+export function isCompanyProactiveReviewEnabled() { return false; }
+
 export function parseProactiveReviewSchedule(raw?: string): ProactiveReviewSchedule {
   const value = raw?.trim() ? JSON.parse(raw) : {};
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("COMPANY_PROACTIVE_REVIEW_SCHEDULE must be an object");
@@ -60,6 +63,7 @@ async function* enabledProactiveChannels(admin: ReturnType<typeof getSupabaseAdm
 export async function enqueueDueCompanyProactiveReviews(now = new Date(), dependencies = {
   admin: getSupabaseAdmin, allowed: isHarperSlackAudienceAllowed, enqueue: enqueueOrgAgentWebActionTurn,
 }) {
+  if (!isCompanyProactiveReviewEnabled()) return 0;
   const window = proactiveReviewWindow(now, parseProactiveReviewSchedule(process.env.COMPANY_PROACTIVE_REVIEW_SCHEDULE));
   if (!window.due) return 0;
   const admin = dependencies.admin();
@@ -129,6 +133,7 @@ export async function runCompanyProactiveReview(args: {
   user: User; conversation: OrgAgentConversationRow; anchorMessageId: number; jobId: string;
   actionContext: Record<string, unknown>; responseLocale?: "ko" | "en" | "auto";
 }) {
+  if (!isCompanyProactiveReviewEnabled()) throw new OrgAgentWebActionSupersededError();
   const admin: any = getSupabaseAdmin();
   const workspaceId = args.conversation.company_workspace_id;
   await assertOrgWorkspacePermission({ admin, user: args.user, workspaceId, permission: "manage_candidates" });
