@@ -147,6 +147,19 @@ test("actual executor rejects two incompatible contact target forms before any D
   await assert.rejects(executeOrgAgentTool({ ...f, audience: "company_safe", callId: "contact", name: "contact_talent", state: createOrgAgentToolExecutionState(f.context), input: { action: "send", relayId: "relay", talentId: "talent", roleId: "role", messageContent: "확인 부탁드려요" } }), /not both target forms/);
 });
 
+test("actual search request fallback promises an outcome notice, not the best of the whole pool", async () => {
+  for (const [status, expected] of [["queued", /검색을 요청했어요/], ["already_running", /이미 진행 중/]] as const) {
+    const f = fixture();
+    const state = createOrgAgentToolExecutionState(f.context);
+    state.roleById.set("role", { roleId: "role", name: "Backend" } as any);
+    const admin = { rpc: async () => ({ data: { status }, error: null }) };
+    await executeOrgAgentTool({ ...f, admin: admin as any, audience: "company_safe", callId: "search", name: "request_matching_search", state, input: { roleId: "role" } });
+    assert.match(state.fallbackReply ?? "", expected);
+    assert.match(state.fallbackReply ?? "", /결과를 따로 알려드릴게요/);
+    assert.doesNotMatch(state.fallbackReply ?? "", /전체|풀|가장 적합한/);
+  }
+});
+
 test("repeated loading consumes the ordinary tool budget and ends with a tool-free completion", async () => {
   let completions = 0, final = false;
   await runOrgAgentToolLoop(fixture(), { complete: async (args) => {

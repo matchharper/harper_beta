@@ -2201,7 +2201,7 @@ export function serializeOrgAgentToolResult(
             "result_meaning=No new search was started. Use the verified reason to respond naturally in the current conversation; mention a next step only when it is genuinely useful.",
           ]
         : [
-            "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating the pool can take time, and the completed outcome will be shared separately.",
+            "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating likely matches can take time, and the completed outcome will be shared separately.",
           ]),
       ...formatOptionalResponseGuidance(result),
     ].join("\n");

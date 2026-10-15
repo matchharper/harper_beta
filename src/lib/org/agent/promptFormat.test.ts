@@ -1816,6 +1816,7 @@ test("matching search result gives facts without prescribing acknowledgement cop
   assert.match(compact, /requested_role=Founding Engineer/);
   assert.match(compact, /saved current Hiring Brief/);
   assert.match(compact, /completed outcome will be shared separately/);
+  assert.doesNotMatch(compact, /pool/);
   assert.doesNotMatch(compact, /naturally in the current conversation/);
   assert.doesNotMatch(compact, /say|one brief acknowledgement only/);
   assert.doesNotMatch(compact, /search_scope/);
