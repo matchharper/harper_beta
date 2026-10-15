@@ -41,3 +41,18 @@ test("posts user feedback to the code-owned support channel", async () => {
     else process.env.SLACK_BOT_TOKEN = originalBotToken;
   }
 });
+
+
+test("support delivery propagates Slack rejection instead of reporting success", async () => {
+  const originalFetch = globalThis.fetch;
+  const token = process.env.SLACK_BOT_TOKEN;
+  process.env.SLACK_BOT_TOKEN = "test-token";
+  globalThis.fetch = async () => new Response(JSON.stringify({ ok: false, error: "channel_not_found" }));
+  try {
+    await assert.rejects(postUserFeedbackSlackMessage({ text: "synthetic" }), /channel_not_found/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (token === undefined) delete process.env.SLACK_BOT_TOKEN;
+    else process.env.SLACK_BOT_TOKEN = token;
+  }
+});

@@ -185,7 +185,7 @@ test("billing routes enforce Owner-only financial access and paginate workspace 
         assert.equal(result.total, 45);
         assert.equal(result.usage.length, page === 2 ? 5 : 20);
         assert.equal(result.hasMore, page < 2);
-        assert.equal(result.usage[0].slotLabel, "Shared credits");
+        assert.equal(result.usage[0].slotLabel, "Shared Intros");
         ids.push(...result.usage.map((row: { id: string }) => row.id));
       }
       assert.equal(new Set(ids).size, 45);

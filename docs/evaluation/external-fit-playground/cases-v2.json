@@ -1,0 +1,466 @@
+{
+  "datasetVersion": "v2",
+  "cases": [
+    {
+      "caseId": "quality-strong",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Staff backend engineer",
+            "experiences": [
+              {
+                "role": "Staff backend engineer",
+                "company_name": "Synthetic Infrastructure Group",
+                "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+              }
+            ],
+            "educations": [
+              {
+                "school": "Synthetic Technical University",
+                "degree": "MSc",
+                "field": "Computer Science",
+                "description": "Research on distributed systems."
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Company environment",
+              "content": "I want a product company with technically strong colleagues and a competitive product. Company size is flexible."
+            },
+            {
+              "ref": 2,
+              "label": "Compensation",
+              "content": "I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum."
+            }
+          ],
+          "behavior_context": null
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": 220000000,
+              "salary_max": 260000000,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    },
+    {
+      "caseId": "quality-weak",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Staff backend engineer",
+            "experiences": [
+              {
+                "role": "Staff backend engineer",
+                "company_name": "Synthetic Infrastructure Group",
+                "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+              }
+            ],
+            "educations": [
+              {
+                "school": "Synthetic Technical University",
+                "degree": "MSc",
+                "field": "Computer Science",
+                "description": "Research on distributed systems."
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Company environment",
+              "content": "I want a product company with technically strong colleagues and a competitive product. Company size is flexible."
+            },
+            {
+              "ref": 2,
+              "label": "Compensation",
+              "content": "I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum."
+            }
+          ],
+          "behavior_context": null
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": 220000000,
+              "salary_max": 260000000,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 2,000-person profitable product company with a funded hiring budget. The engineering team has little distributed-systems experience, no technical review or mentoring practice, and persistent known reliability problems. Its product is undifferentiated and has stagnant adoption, though its existing contracts provide stable revenue."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    },
+    {
+      "caseId": "quality-unknown",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Staff backend engineer",
+            "experiences": [
+              {
+                "role": "Staff backend engineer",
+                "company_name": "Synthetic Infrastructure Group",
+                "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+              }
+            ],
+            "educations": [
+              {
+                "school": "Synthetic Technical University",
+                "degree": "MSc",
+                "field": "Computer Science",
+                "description": "Research on distributed systems."
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Company environment",
+              "content": "I want a product company with technically strong colleagues and a competitive product. Company size is flexible."
+            },
+            {
+              "ref": 2,
+              "label": "Compensation",
+              "content": "I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum."
+            }
+          ],
+          "behavior_context": null
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": null,
+              "salary_max": null,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 2,000-person product company. No supplied information about team expertise, technical practices, product competitiveness, financial condition, or compensation budget."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    },
+    {
+      "caseId": "compensation-shortfall",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Staff backend engineer",
+            "experiences": [
+              {
+                "role": "Staff backend engineer",
+                "company_name": "Synthetic Infrastructure Group",
+                "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+              }
+            ],
+            "educations": [
+              {
+                "school": "Synthetic Technical University",
+                "degree": "MSc",
+                "field": "Computer Science",
+                "description": "Research on distributed systems."
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Company environment",
+              "content": "I want a product company with technically strong colleagues and a competitive product. Company size is flexible."
+            },
+            {
+              "ref": 2,
+              "label": "Compensation",
+              "content": "I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum."
+            }
+          ],
+          "behavior_context": null
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": 110000000,
+              "salary_max": 130000000,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    },
+    {
+      "caseId": "quality-small-strong",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Staff backend engineer",
+            "experiences": [
+              {
+                "role": "Staff backend engineer",
+                "company_name": "Synthetic Infrastructure Group",
+                "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+              }
+            ],
+            "educations": [
+              {
+                "school": "Synthetic Technical University",
+                "degree": "MSc",
+                "field": "Computer Science",
+                "description": "Research on distributed systems."
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Company environment",
+              "content": "I want a product company with technically strong colleagues and a competitive product. Company size is flexible."
+            },
+            {
+              "ref": 2,
+              "label": "Compensation",
+              "content": "I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum."
+            }
+          ],
+          "behavior_context": null
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": 220000000,
+              "salary_max": 260000000,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 25-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    },
+    {
+      "caseId": "explicit-tradeoff",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Staff backend engineer",
+            "experiences": [
+              {
+                "role": "Staff backend engineer",
+                "company_name": "Synthetic Infrastructure Group",
+                "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+              }
+            ],
+            "educations": [
+              {
+                "school": "Synthetic Technical University",
+                "degree": "MSc",
+                "field": "Computer Science",
+                "description": "Research on distributed systems."
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Current direction",
+              "content": "I previously sought technically exceptional colleagues, but I now want a stable profitable company, predictable work, and autonomy to improve existing systems. I knowingly accept ordinary technical practices and an undifferentiated product in exchange for stability and good pay. Company size is flexible."
+            },
+            {
+              "ref": 2,
+              "label": "Compensation",
+              "content": "I prefer annual base pay around KRW 200 million or more; it is not a hard minimum."
+            }
+          ],
+          "behavior_context": "Older tentative inference: the candidate preferred exceptional technical colleagues and ambitious product innovation. This predates the current Brief."
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": 220000000,
+              "salary_max": 260000000,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 2,000-person profitable product company with a funded hiring budget. The engineering team has little distributed-systems experience, no technical review or mentoring practice, and persistent known reliability problems. Its product is undifferentiated and has stagnant adoption, though its existing contracts provide stable revenue."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    },
+    {
+      "caseId": "capability-gap",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Marketing coordinator",
+            "experiences": [
+              {
+                "role": "Marketing coordinator",
+                "description": "Three years writing campaigns; no software engineering, programming, backend operations or mentoring experience."
+              }
+            ],
+            "educations": [
+              {
+                "degree": "BA",
+                "field": "Communications"
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Interest",
+              "content": "I admire product companies with technically excellent teams and would like to explore working with them."
+            }
+          ],
+          "behavior_context": null
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": 220000000,
+              "salary_max": 260000000,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    },
+    {
+      "caseId": "hard-conflict",
+      "state": {
+        "current_date": "2026-10-13",
+        "user_context": {
+          "profile": {
+            "headline": "Staff backend engineer",
+            "experiences": [
+              {
+                "role": "Staff backend engineer",
+                "company_name": "Synthetic Infrastructure Group",
+                "description": "Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists."
+              }
+            ],
+            "educations": [
+              {
+                "school": "Synthetic Technical University",
+                "degree": "MSc",
+                "field": "Computer Science",
+                "description": "Research on distributed systems."
+              }
+            ]
+          },
+          "search_brief": [
+            {
+              "ref": 1,
+              "label": "Company environment",
+              "content": "I want a product company with technically strong colleagues and a competitive product. Company size is flexible."
+            },
+            {
+              "ref": 2,
+              "label": "Compensation",
+              "content": "I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum."
+            },
+            {
+              "ref": 3,
+              "label": "Hard condition",
+              "content": "Fully remote from anywhere in Korea is nonnegotiable. I will not consider roles requiring office attendance."
+            }
+          ],
+          "behavior_context": null
+        },
+        "candidate_context": {
+          "roles": [
+            {
+              "name": "Senior Backend Engineer",
+              "description": "Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Seoul, hybrid.",
+              "salary_min": 220000000,
+              "salary_max": 260000000,
+              "salary_currency": "KRW",
+              "salary_period": "year",
+              "company_workspace": {
+                "company_name": "Synthetic Product Company",
+                "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget."
+              }
+            }
+          ]
+        },
+        "run_context": {
+          "evaluation_goal": "Synthetic candidate-company quality challenge. No database writes, recommendation or delivery."
+        }
+      }
+    }
+  ]
+}

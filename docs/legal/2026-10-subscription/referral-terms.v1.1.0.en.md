@@ -96,7 +96,7 @@ Harper does not provide the Referrer with detailed recruiting information about 
 
 ### Company subscriptions and referral rewards
 
-Free and standard Slot subscriptions have no hiring success fee. Their monthly or annual subscription fees and credit charges are not “hiring fees” for calculating the rewards below. A hire by such a company does not alone create a hiring charge for that company or a fixed or percentage reward for the referrer.
+Free and standard Slot subscriptions have no hiring success fee. Their monthly or annual subscription fees and Intro charges are not “hiring fees” for calculating the rewards below. A hire by such a company does not alone create a hiring charge for that company or a fixed or percentage reward for the referrer.
 
 If a customer-requested Enterprise agreement lawfully provides for a separate hiring fee and Harper has received it or payment is confirmed, the applicable referral terms and requirements below may support a reward. The Enterprise label alone creates neither a success fee nor a reward. A separate reward campaign must specify eligibility, amounts, conditions, and dates before participation.
 

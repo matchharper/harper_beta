@@ -1,9 +1,30 @@
 import { COMPANY_SERVICE_FAQ_ITEMS } from "../src/lib/org/serviceFaq";
+import { en } from "../src/i18n/org/en";
+
+// Index both authored languages so English questions need not cross the
+// similarity threshold against Korean-only question embeddings.
+const seedItems = COMPANY_SERVICE_FAQ_ITEMS.flatMap((item) => {
+  const question = en[`faq.${item.key}.question` as keyof typeof en];
+  const answer = en[`faq.${item.key}.answer` as keyof typeof en];
+  if (!question || !answer) {
+    throw new Error(`Missing English FAQ translation: ${item.key}`);
+  }
+  return [
+    item,
+    {
+      ...item,
+      key: `${item.key}:en`,
+      question,
+      answer,
+      tags: ["locale:en", ...item.tags.filter((tag) => tag !== "locale:ko")],
+    },
+  ];
+});
 
 async function main() {
   if (!process.argv.includes("--apply")) {
     console.log(
-      `Dry run: ${COMPANY_SERVICE_FAQ_ITEMS.length} Company FAQ rows are ready. Pass --apply after the audience migration is live.`
+      `Dry run: ${seedItems.length} Company FAQ rows (${COMPANY_SERVICE_FAQ_ITEMS.length} Q&A pairs in Korean and English) are ready. Pass --apply after the audience migration is live.`
     );
     return;
   }
@@ -19,12 +40,12 @@ async function main() {
   let inserted = 0;
   let updated = 0;
   const tagSetCounts = new Map<string, number>();
-  for (const item of COMPANY_SERVICE_FAQ_ITEMS) {
+  for (const item of seedItems) {
     const tagSet = [...item.tags].sort().join("|");
     tagSetCounts.set(tagSet, (tagSetCounts.get(tagSet) ?? 0) + 1);
   }
 
-  for (const item of COMPANY_SERVICE_FAQ_ITEMS) {
+  for (const item of seedItems) {
     const userExampleHash = hashAnswerExampleUserText(item.question);
     const stableNote = `Company FAQ seed key: ${item.key}. Canonical copy shared with /org/documents.`;
     const { data, error } = await admin

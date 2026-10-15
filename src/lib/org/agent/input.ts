@@ -9,12 +9,14 @@ export function buildCompanySystemInput(args: {
   surface: "chat" | "slack";
   responseLocale?: CompanyResponseLocale;
   allowSilentCompletion?: boolean;
+  backgroundOrigin?: "scheduled_review";
 }) {
   return buildOrgAgentSystemPrompt({
     surface: args.surface,
     responseLocale: args.responseLocale,
     enableSlackChoiceButtons: args.surface === "slack",
     allowSilentCompletion: args.allowSilentCompletion,
+    backgroundOrigin: args.backgroundOrigin,
     capabilityCatalogText: args.resolved.catalogText,
     capabilityPolicyText: args.resolved.policyText,
   });

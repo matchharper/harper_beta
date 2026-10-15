@@ -1,0 +1,12 @@
+{
+  "version": "live-v3",
+  "createdAt": "2026-10-12",
+  "provenance": "Public company/ATS pages captured independently through Playwright. live-v2 remains frozen; live-v3 adds the independently rendered 11-question WorkOS inventory. Label review is unblinded after live-v2 baseline/output review; source UI controls are evidence, not model outputs. No candidate/company private records.",
+  "frozenInputs": {
+    "cases-live-v2.json": "b58f4e26f181d20d2ca8cf018080fcdfbdc81f74f3f20ca195b7e3ece33a47d2",
+    "gold-live-v2.json": "4d54c47d9585ff7ea63eadfdaca80be7be16c7c75cda389dae3a579f09b5290a",
+    "cases-live-v3.json": "ca7f4d130dd2e86b22c6d3c3a26a46b42ef7897efe8796f238b2e04b703955f7",
+    "gold-live-v3.json": "c72a992d09444f1386694d4c50f1951502353f7cd11ad93b1e600e0e4dd5ca4c"
+  },
+  "canonicalRunner": "scripts/evalLiveApplicationForms.ts"
+}

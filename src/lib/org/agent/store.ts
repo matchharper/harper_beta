@@ -1,7 +1,11 @@
+import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
 import type { User } from "@supabase/supabase-js";
+import { getEmailDomain, INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
+import { orgGeneralConversationTeamScope, readOrgRoleAccess } from "@/lib/org/teamAccess";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   assertOrgWorkspacePermission,
+  assertOrgRoleAccess,
   OrgHttpError,
   type OrgRole,
   upsertOrgCompanyUser,
@@ -39,6 +43,8 @@ export {
 type SupabaseAdminClient = ReturnType<typeof getSupabaseAdmin>;
 
 export type OrgAgentConversationRow = {
+  team_id?: string | null;
+  team_scope?: string[];
   company_workspace_id: string;
   created_at: string;
   hidden_through_message_id?: number | null;
@@ -73,6 +79,7 @@ export type OrgAgentMessageRow = {
 
 export type OrgAgentPromptMessageScope =
   | { kind: "chat" }
+  | { kind: "conversation" }
   | { kind: "slack"; slackThreadId: string };
 
 export type OrgAgentPromptMessageView = {
@@ -247,7 +254,9 @@ function applyPromptMessageScope(
       .eq("message_type", "slack")
       .eq("slack_thread_id", scope.slackThreadId);
   }
-  return query.eq("message_type", "chat");
+  return scope.kind === "conversation"
+    ? query.in("message_type", ["chat", "slack"]).is("metadata->companyEventUiDuplicateOf", null)
+    : query.eq("message_type", "chat");
 }
 
 function normalizeMessageStatus(value: unknown): OrgAgentMessageStatus {
@@ -305,14 +314,19 @@ export async function ensureOrgAgentConversation(args: {
     workspaceId,
   });
 
+  const access = await readOrgRoleAccess({ admin, user: args.user, workspaceId });
+  if (access.scope === "team" && !access.teamIds.length) throw new OrgHttpError(403, "Owner에게 팀 배정을 요청해 주세요.");
+  const teamScope = orgGeneralConversationTeamScope(access);
+  const teamId = teamScope.length === 1 ? teamScope[0] : null;
   const { data: existing, error: existingError } = await (
     admin.from("company_conversations" as any) as any
   )
     .select(
-      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+      "id, company_workspace_id, role_id, team_id, team_scope, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .is("role_id", null)
+    .eq("team_scope", `{${teamScope.join(",")}}`)
     .maybeSingle();
 
   if (existingError) throw existingError;
@@ -326,6 +340,8 @@ export async function ensureOrgAgentConversation(args: {
   )
     .insert({
       company_workspace_id: workspaceId,
+      team_id: teamId,
+      team_scope: teamScope,
       created_at: now,
       metadata: {},
       role_id: null,
@@ -333,7 +349,7 @@ export async function ensureOrgAgentConversation(args: {
       updated_at: now,
     })
     .select(
-      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+      "id, company_workspace_id, role_id, team_id, team_scope, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
     )
     .single();
 
@@ -347,10 +363,11 @@ export async function ensureOrgAgentConversation(args: {
     admin.from("company_conversations" as any) as any
   )
     .select(
-      "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
+      "id, company_workspace_id, role_id, team_id, team_scope, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .is("role_id", null)
+    .eq("team_scope", `{${teamScope.join(",")}}`)
     .single();
 
   if (racedError) throw racedError;
@@ -379,12 +396,7 @@ export async function ensureOrgRoleCreationConversation(args: {
   }
 
   await upsertOrgCompanyUser(admin, args.user);
-  await assertOrgWorkspacePermission({
-    admin,
-    permission: "manage_candidates",
-    user: args.user,
-    workspaceId,
-  });
+  await assertOrgRoleAccess({ admin, permission: "manage_candidates", user: args.user, workspaceId, roleId });
 
   const { data: role, error: roleError } = await (
     admin.from("company_roles" as any) as any
@@ -470,12 +482,7 @@ async function findOrgRoleConversationForRead(args: {
     throw new OrgHttpError(400, "workspaceId and roleId are required");
   }
 
-  await assertOrgWorkspacePermission({
-    admin,
-    permission: "view",
-    user: args.user,
-    workspaceId,
-  });
+  await assertOrgRoleAccess({ admin, permission: "view", user: args.user, workspaceId, roleId });
 
   const { data: role, error: roleError } = await (
     admin.from("company_roles" as any) as any
@@ -544,10 +551,24 @@ export async function fetchOrgAgentMessages(args: {
   const hiddenThroughMessageId = roleScoped
     ? conversation.hidden_through_message_id
     : null;
-  let query = (admin.from("company_messages" as any) as any)
-    .select(
-      "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
-    )
+  const hideInternalAuthors =
+    roleScoped && getEmailDomain(args.user.email) !== INTERNAL_EMAIL_DOMAIN;
+  const selectVisibleMessages = (columns: string) => {
+    const query = (admin.from("company_messages" as any) as any).select(
+      hideInternalAuthors
+        ? `${columns}, internal_author:company_users!company_messages_company_user_id_fkey()`
+        : columns
+    ).is("metadata->companyEventUiDuplicateOf", null);
+    // Anti-join before pagination, preserving messages without a human author.
+    return hideInternalAuthors
+      ? query
+          .ilike("internal_author.email", `%@${INTERNAL_EMAIL_DOMAIN}`)
+          .is("internal_author", null)
+      : query;
+  };
+  let query = selectVisibleMessages(
+    "id, conversation_id, company_workspace_id, role_id, company_user_id, role, content, message_type, model, status, mentions, thinking_logs, metadata, created_at"
+  )
     .eq("conversation_id", conversation.id)
     .order("id", { ascending: false })
     .limit(limit + 1);
@@ -567,8 +588,7 @@ export async function fetchOrgAgentMessages(args: {
 
   const { data, error } = await query;
   if (error) throw error;
-  let latestUserMessageQuery = (admin.from("company_messages" as any) as any)
-    .select("created_at")
+  let latestUserMessageQuery = selectVisibleMessages("created_at")
     .eq("conversation_id", conversation.id)
     .eq("role", "user")
     .order("id", { ascending: false })
@@ -1079,7 +1099,7 @@ export async function fetchRoleForOrgAgent(args: {
 }): Promise<OrgAgentStoredRole> {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at"
+      "role_id, company_internal_roles(is_harper_tailored_role), company_role_assignees(company_users(email)), company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("role_id", args.roleId)
@@ -1088,7 +1108,7 @@ export async function fetchRoleForOrgAgent(args: {
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw new OrgHttpError(404, "Role not found");
+  if (!data || !isCompanyVisibleRole(data)) throw new OrgHttpError(404, "Role not found");
   const row = data as {
     company_workspace_id: string;
     created_at: string;
@@ -1097,6 +1117,7 @@ export async function fetchRoleForOrgAgent(args: {
     location_text: string | null;
     name: string;
     role_id: string;
+
     salary_range: string | null;
     status: string | null;
     type: string[] | null;
@@ -1107,8 +1128,8 @@ export async function fetchRoleForOrgAgent(args: {
     (args.admin.from("company_internal_roles" as any) as any)
       .select(
         args.includeCriteria === false
-          ? "is_company_first_search, intro_search_date, intro_search_time"
-          : "request, criteria, is_company_first_search, intro_search_date, intro_search_time"
+          ? "team_id, is_company_first_search, intro_search_date, intro_search_time"
+          : "team_id, request, criteria, is_company_first_search, intro_search_date, intro_search_time"
       )
       .eq("role_id", args.roleId)
       .maybeSingle(),
@@ -1124,6 +1145,7 @@ export async function fetchRoleForOrgAgent(args: {
   if (memoryResult.error) throw memoryResult.error;
   const memory = normalizeText(memoryResult.data?.content) || null;
   return {
+    teamId: internalResult.data?.team_id ?? null,
     criteria: normalizeOrgRoleCriteria(internalResult.data?.criteria),
     isCompanyFirstSearch: internalResult.data?.is_company_first_search === true,
     introSearchDate: internalResult.data?.intro_search_date ?? ["Mon", "Wed", "Fri"],
@@ -1207,7 +1229,7 @@ export async function updateOrgAgentAssistantMessageMetadata(args: {
   const { data: row, error: rowError } = await (
     admin.from("company_messages" as any) as any
   )
-    .select("id, company_workspace_id")
+    .select("id, company_workspace_id, conversation_id")
     .eq("id", args.messageId)
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -1220,6 +1242,18 @@ export async function updateOrgAgentAssistantMessageMetadata(args: {
     user: args.user,
     workspaceId,
   });
+
+  const conversation = await (admin.from("company_conversations" as any) as any)
+    .select("role_id, team_id, team_scope").eq("id", row.conversation_id).eq("company_workspace_id", workspaceId).maybeSingle();
+  if (conversation.error) throw conversation.error;
+  if (!conversation.data) throw new OrgHttpError(404, "Message not found");
+  if (conversation.data.role_id) {
+    await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId: conversation.data.role_id });
+  } else {
+    const access = await readOrgRoleAccess({ admin, user: args.user, workspaceId });
+    if (access.scope === "team" && (!access.teamIds.length || JSON.stringify(orgGeneralConversationTeamScope(access)) !== JSON.stringify(conversation.data.team_scope ?? [])))
+      throw new OrgHttpError(404, "Message not found");
+  }
 
   const { error } = await (admin.from("company_messages" as any) as any)
     .update({ metadata: args.metadata as Json })

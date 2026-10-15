@@ -1,11 +1,13 @@
+import {
+  GithubLogo as Github,
+  LinkedinLogo as Linkedin,
+} from "@/components/common/BrandLogos";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { NextPage } from "next";
 import { motion } from "motion/react";
 import {
   ArrowUp,
-  Github,
   GraduationCap,
-  Linkedin,
   Loader2,
   MessageSquareIcon,
 } from "lucide-react";
@@ -55,7 +57,7 @@ type SearchSourceConfig = {
     label: string;
     query: string;
   }>;
-  Icon: typeof Linkedin;
+  Icon: React.ComponentType<{ className?: string }>;
 };
 
 const Home: NextPage = () => {

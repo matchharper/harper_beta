@@ -1,0 +1,72 @@
+{
+  "goldVersion": "native-random-v3-visible-v1",
+  "datasetVersion": "native-random-v3",
+  "createdAt": "2026-10-13T02:37:01.468622+00:00",
+  "clientDate": "2026-10-13",
+  "reviewMethod": "Codex independently opened all five frozen URLs in a background browser before the new model run. Read visible form labels without option expansion or applicant input. No model outputs were available during reference capture. No independent human review.",
+  "contract": "Concise semantic applicant information coverage; equivalent Korean wording and alternative file/link grouping allowed. Auth controls, autofill helpers, job alerts and CAPTCHA are not application questions. Required-state accuracy is not scored.",
+  "cases": [
+    {
+      "caseId": "native-random-v3-jd-01",
+      "expectedStatus": "visible_application",
+      "expectedInformation": [
+        "First Name",
+        "Last Name",
+        "Preferred First Name",
+        "Email",
+        "Country for phone number",
+        "Phone",
+        "Resume/CV",
+        "Cover Letter",
+        "LinkedIn Profile",
+        "Website"
+      ],
+      "visibleInformationItems": 10
+    },
+    {
+      "caseId": "native-random-v3-jd-02",
+      "expectedStatus": "original_job_unavailable",
+      "expectedInformation": [],
+      "visibleInformationItems": 0,
+      "evidence": "Source redirected to a generic job search with expired_jd_redirect in the destination URL."
+    },
+    {
+      "caseId": "native-random-v3-jd-03",
+      "expectedStatus": "authentication_gate",
+      "expectedInformation": [],
+      "visibleInformationItems": null,
+      "evidence": "Actual Apply -> Apply Manually -> Create Account/Sign In, first of seven steps. Application fields beyond that gate are not inspected."
+    },
+    {
+      "caseId": "native-random-v3-jd-04",
+      "expectedStatus": "visible_application",
+      "expectedInformation": [
+        "First Name",
+        "Last Name",
+        "Email",
+        "Country for phone number",
+        "Phone",
+        "Location (City)",
+        "Resume/CV",
+        "Cover Letter",
+        "LinkedIn Profile",
+        "How did you hear about this job?",
+        "What appeals to you about joining the team?",
+        "Current or future US visa sponsorship need",
+        "Currently live in NYC or planning to relocate",
+        "Gender",
+        "Hispanic/Latino identity",
+        "Veteran Status"
+      ],
+      "visibleInformationItems": 16
+    },
+    {
+      "caseId": "native-random-v3-jd-05",
+      "expectedStatus": "authentication_gate",
+      "expectedInformation": [],
+      "visibleInformationItems": null,
+      "evidence": "Actual Apply opened an account-login page; no applicant answers or sign-in supplied."
+    }
+  ],
+  "limitations": "Five random URLs from eligible external rows, no ATS stratification. Live DOM can change. Two visible public forms and three access limits do not measure production accuracy. Hidden and answer-dependent fields are outside the gate."
+}

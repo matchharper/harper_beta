@@ -1,3 +1,6 @@
+import { buildSimulationSessionPrompt } from "../simulation/sessionPrompt";
+import { orderCareerPromptBlocksForCaching } from "./promptCaching";
+import type { SimulationSession } from "../simulation/session";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
 import {
   getCareerPromptLanguageName,
@@ -140,6 +143,8 @@ export function buildCareerConversationPromptPlan(args: {
   recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
   runtimeInstruction?: string | null;
+  simulationSession?: SimulationSession;
+  simulationAvailability?: "inactive" | "unavailable";
   structuredProfileText: string;
   timeZone?: string | null;
   toolNames?: readonly string[] | string;
@@ -157,7 +162,7 @@ export function buildCareerConversationPromptPlan(args: {
   }
 
   const channelType = getCareerChannelType(args.channel);
-  const channelContextRules = buildCareerChannelContextRules(args.channel);
+  const channelContextRules = buildCareerChannelContextRules(args.channel, args.simulationSession?.status !== "active");
 
   const outputLanguage = getCareerPromptLanguageName(
     args.currentPreferences?.preferredLocale
@@ -210,8 +215,8 @@ export function buildCareerConversationPromptPlan(args: {
 
   const isVoiceCall = args.channel === "voice";
 
-  // 블록 순서는 중요하다: 안정적인 시스템 규칙, 프로필/tool 맥락,
-  // 매 턴 바뀌는 runtime state 순서로 넣는다.
+  // 원본 블록을 조립한 뒤 고정 지침 → Profile → Brief/Memory → 도구 정책·
+  // runtime state 순서로 배치한다. 블록의 본문과 제공 데이터는 보존한다.
   const promptBlocks: CareerPromptBlock[] = [];
   const promptVars = {
     channel_context_rules: channelContextRules,
@@ -228,6 +233,25 @@ export function buildCareerConversationPromptPlan(args: {
     ),
     cacheable: true,
   };
+
+  if (args.conversationMode === "simulation" && args.simulationSession) {
+    return {
+      isOnboardingActive: false,
+      enabledToolNames: normalizedToolNames,
+      toolPolicy,
+      promptBlocks: orderCareerPromptBlocksForCaching([
+        coreSystemPrompt,
+        ...buildSimulationSessionPrompt(args.simulationSession, normalizedToolNames),
+        { key: "profile_context", text: profileContextBlock, cacheable: true },
+        ...(futureMatchingInsightsSection ? [{ key: "future_matching_insights", text: futureMatchingInsightsSection, cacheable: true }] : []),
+        ...(capabilities?.catalogText ? [{ key: "capability_catalog", text: capabilities.catalogText, cacheable: true }] : []),
+        ...(toolPolicy ? [{ key: "tool_policy", text: toolPolicy, cacheable: true }] : []),
+        ...(args.runtimeInstruction
+          ? [{ key: "runtime_instruction", text: args.runtimeInstruction }]
+          : []),
+      ]),
+    };
+  }
 
   const conversationGuidePrompt = () => {
     if (isOnboardingActive)
@@ -396,6 +420,20 @@ export function buildCareerConversationPromptPlan(args: {
     });
   }
 
+  if (!isOnboardingActive && args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
+    key: "application_start_payload",
+    text: "When the user wants application help for a known role, load opportunities and documents if necessary, choose one readable resume from list_documents, and call simulate_application with the role identifier and document_id. This displays the existing selection/start card; only the user's Start click runs preparation. Judge the current attempt from tools called in this turn: a historical failure does not establish a current blocker. Fulfill a renewed preparation request by making the current tool call, and report its actual result. If the tool is not yet loaded, load the opportunities capability (and documents when needed). If no readable resume exists, offer upload or ask whether Harper should create a simple resume from the profile, then use generate_resume after consent. The successful call ends this turn with the interactive card, which owns resume selection and the next Start action. Let that card explain the flow. Do not output hidden JSON markers or run a lengthy analysis before Start. No exact activation phrase is needed. Resolve an ambiguous target first."
+
+  });
+  if (args.simulationAvailability) {
+    promptBlocks.push({
+      key: "simulation_availability",
+      text: args.simulationAvailability === "inactive"
+        ? "Current server-verified Apply with Harper state: no active 함께 지원 모드 in this conversation. This current state takes precedence over historical chat, old analysis cards and earlier claims that a mode was open. If the user asks to stop it, explain briefly that no mode is currently active and continue normally; no closing action or UI button is needed. Do not claim you just closed it, infer why or when it ended, or describe the missing management tool as an inability to close a still-active mode. Mention this state only when relevant to the user's request."
+        : "The current Apply with Harper state could not be verified because the capability is unavailable. Past conversation does not establish that a mode is still active. If the user asks about stopping it, explain the verification limitation briefly without asserting it is open or closed or inventing a required UI action.",
+    });
+  }
+
   if (futureMatchingInsightsSection) {
     promptBlocks.push({
       key: "future_matching_insights",
@@ -497,7 +535,7 @@ export function buildCareerConversationPromptPlan(args: {
   return {
     enabledToolNames: normalizedToolNames,
     isOnboardingActive,
-    promptBlocks,
+    promptBlocks: orderCareerPromptBlocksForCaching(promptBlocks),
     toolPolicy,
   };
 }

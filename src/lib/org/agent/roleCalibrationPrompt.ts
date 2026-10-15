@@ -109,9 +109,6 @@ SUCCESS CRITERIA
 AVAILABLE CONTEXT
 The input contains the current Role, existing Hiring Brief, company context, relevant conversation, supplied attachments, and possibly criteria from other Roles. Treat the current Role fields as authoritative when older conversation text differs.
 
-SCOPE BOUNDARY
-This task accepts a new real-person reference supplied by the user. A person already listed in prepared_role_profile_examples or identified by role_profile_example_context is a prepared example, not a new reference. If the current request only evaluates such a prepared example, make no Hiring Brief change in this task. State that scope accurately in the summary so the calling Harper can continue through the prepared-example feedback path. Do not reinterpret a prepared display profile as a new user-supplied reference.
-
 EVIDENCE
 - A reason the user states is the strongest evidence of what the company values.
 - Verified professional facts may support that reason and may also reveal a small number of distinctive, job-relevant strengths the user reasonably could be pointing to.

@@ -820,7 +820,12 @@ const CareerWorkspacePreview = ({
   const activeTab = isCareerWorkspaceTab(requestedTab)
     ? requestedTab === "profile" && router.query.profileSection === "brief"
       ? "brief"
-      : requestedTab
+      : requestedTab === "profile" &&
+          (["links", "connections"].includes(
+            String(router.query.profileSection ?? "")
+          ) || router.query.documentId || router.query.callNoteId)
+        ? "documents"
+        : requestedTab
     : activeTabState;
   const workspaceActiveTab = activeTab === "chat" ? "home" : activeTab;
   const [autoLoopEnabled, setAutoLoopEnabled] = useState(

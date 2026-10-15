@@ -30,7 +30,7 @@ export function getCareerChannelType(channel: CareerPromptChannel) {
 }
 
 /** 채널별 출력 규칙을 만든다. voice에는 voice 규칙만, text에는 markdown/chat 규칙만 넣는다. */
-export function buildCareerChannelContextRules(channel: CareerPromptChannel) {
+export function buildCareerChannelContextRules(channel: CareerPromptChannel, allowChoiceButtons = true) {
   if (channel === "voice") {
     return [
       "The candidate is currently communicating through Voice Call.",
@@ -46,12 +46,14 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel) {
     "- Do not begin a reply with a timestamp or relative-time label.",
     "- Use short headings, bullets, bold text for important terms such as role or company names, lists, links, or code blocks.",
     "- Do not use emojis.",
+    ...(allowChoiceButtons ? [
     "- When asking a question to the user to choose one of 2 answer options, you can append exactly one raw choice button block after the visible question. But do not use this too frequently.",
     "  [[CAREER_CHOICE_BUTTONS]]",
     '  {"choices":["Option A","Option B"]}',
     "  [[/CAREER_CHOICE_BUTTONS]]",
     "- Keep each choice short and self-contained, including simple yes/no choices. The front end will render the choices as vertical full-width buttons and send the selected choice text back as the user's reply.",
     "- Do not put the choice button block inside a Markdown code block.",
+    ] : ["Use ask_application_input for structured questions in Apply with Harper mode; ordinary chat replies contain prose, not choice-button payloads."]),
     CAREER_HARPER_LINK_OUTPUT_RULE,
     "",
   ].join("\n");

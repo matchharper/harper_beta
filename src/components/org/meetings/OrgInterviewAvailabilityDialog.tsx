@@ -1,9 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import {
-  useOrgLocale,
-  useOrgSourceT,
-  useOrgT,
-} from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   ArrowLeft,
@@ -240,7 +236,7 @@ function IntervalEditor({
   onChange: (intervals: MeetingAvailabilityInterval[]) => void;
   portalContainer: HTMLElement | null;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const updateInterval = (
     index: number,
     field: "end" | "start",
@@ -269,13 +265,9 @@ function IntervalEditor({
           key={`${index}-${interval.start}-${interval.end}`}
         >
           <TimeSelect
-            label={t(
-              "meetings.OrgInterviewAvailabilityDialog.3f69c500",
-              "시작 시간 {p0}",
-              {
-                p0: index + 1,
-              }
-            )}
+            label={c("시작 시간 {p0}", "Start time {p0}", {
+              p0: index + 1,
+            })}
             onChange={(value) => updateInterval(index, "start", value)}
             portalContainer={portalContainer}
             value={interval.start}
@@ -283,21 +275,17 @@ function IntervalEditor({
           <span className="text-[12px] text-neutral-soft">–</span>
           <TimeSelect
             endOfDay
-            label={t(
-              "meetings.OrgInterviewAvailabilityDialog.117a7810",
-              "종료 시간 {p0}",
-              {
-                p0: index + 1,
-              }
-            )}
+            label={c("종료 시간 {p0}", "End time {p0}", {
+              p0: index + 1,
+            })}
             onChange={(value) => updateInterval(index, "end", value)}
             portalContainer={portalContainer}
             value={interval.end}
           />
           <MuteButton
-            aria-label={t(
-              "meetings.OrgInterviewAvailabilityDialog.fb96a68d",
+            aria-label={c(
               "{p0}부터 {p1} 시간 삭제",
+              "Delete {p1} hours starting at {p0}",
               {
                 p0: interval.start,
                 p1: interval.end,
@@ -324,7 +312,7 @@ function IntervalEditor({
               variant="transparent"
             >
               <Plus className="size-3.5" />
-              {t("meetings.OrgInterviewAvailabilityDialog.c4a130bf", "추가")}
+              {c("추가", "Add")}
             </MuteButton>
           ) : null}
         </div>
@@ -344,7 +332,7 @@ function WeekdayRow({
   onChange: (intervals: MeetingAvailabilityInterval[]) => void;
   portalContainer: HTMLElement | null;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   return (
     <div className="grid gap-3 border-t border-neutral-1000-a05 py-3 sm:grid-cols-[112px_minmax(0,1fr)]">
       <div className="pt-1">
@@ -361,10 +349,7 @@ function WeekdayRow({
       ) : (
         <div className="flex min-h-8 items-center justify-between gap-3">
           <p className="text-[13px] text-neutral-soft">
-            {t(
-              "meetings.OrgInterviewAvailabilityDialog.db8194db",
-              "가능한 시간 없음"
-            )}
+            {c("가능한 시간 없음", "No available times")}
           </p>
           <MuteButton
             onClick={() => onChange([{ end: "19:00", start: "10:00" }])}
@@ -372,7 +357,7 @@ function WeekdayRow({
             variant="transparent"
           >
             <Plus className="size-3.5" />
-            {t("meetings.OrgInterviewAvailabilityDialog.c4a130bf", "추가")}
+            {c("추가", "Add")}
           </MuteButton>
         </div>
       )}
@@ -399,7 +384,7 @@ function HourTimeline({
   onToggle: (block: MeetingAvailabilityInterval, available: boolean) => void;
   timezone: string;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -442,24 +427,18 @@ function HourTimeline({
           const calendarBlocked = blockingCalendarBusyBlocks.length > 0;
           const effectivelyAvailable = available && !calendarBlocked;
           const actionLabel = calendarBlocked
-            ? t(
-                "meetings.OrgInterviewAvailabilityDialog.4aca135e",
-                "Google Calendar 일정에서 제외됨. 가능한 시간으로 변경"
+            ? c(
+                "Google Calendar 일정에서 제외됨. 가능한 시간으로 변경",
+                "Excluded by Google Calendar event. Change to available."
               )
             : available
-              ? t(
-                  "meetings.OrgInterviewAvailabilityDialog.306556cb",
-                  "가능 시간에서 빼기"
-                )
-              : t(
-                  "meetings.OrgInterviewAvailabilityDialog.c1bc0b9e",
-                  "가능 시간으로 추가"
-                );
+              ? c("가능 시간에서 빼기", "Remove from availability")
+              : c("가능 시간으로 추가", "Add to availability");
           return (
             <MeetingAvailabilityTimeButton
-              aria-label={t(
-                "meetings.OrgInterviewAvailabilityDialog.5fc14372",
+              aria-label={c(
                 "{p0}부터 {p1}까지 {p2}",
+                "{p2} from {p0} to {p1}",
                 { p0: block.start, p1: block.end, p2: actionLabel }
               )}
               aria-pressed={effectivelyAvailable}
@@ -485,19 +464,13 @@ function HourTimeline({
               {calendarBlocked ? (
                 <span className="flex items-center gap-1.5 text-[10px] font-normal text-neutral-muted">
                   <Image
-                    alt={t(
-                      "meetings.OrgInterviewAvailabilityDialog.6046f5e0",
-                      ""
-                    )}
+                    alt={c("", "")}
                     aria-hidden="true"
                     height={14}
                     src="/images/logos/calendar.png"
                     width={14}
                   />
-                  {t(
-                    "meetings.OrgInterviewAvailabilityDialog.ad77ed75",
-                    "자동 불가 처리"
-                  )}
+                  {c("자동 불가 처리", "Auto mark unavailable")}
                 </span>
               ) : available ? (
                 <Check className="size-4 text-primary" />
@@ -529,7 +502,7 @@ function DateOverridePanel({
     busyBlocks: MeetingCalendarBusyBlock[]
   ) => void;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const key = dateKey(date);
   const weekdayKey = isoWeekdayKey(date);
   const weekday = ISO_WEEKDAYS.find((item) => item.key === weekdayKey)!;
@@ -583,24 +556,17 @@ function DateOverridePanel({
     <div className="min-h-full p-5 sm:p-6">
       <MuteButton onClick={onBack} size="sm" variant="transparent">
         <ArrowLeft className="size-4" />
-        {t("meetings.OrgInterviewAvailabilityDialog.66ce0bd1", "돌아가기")}
+        {c("돌아가기", "Back")}
       </MuteButton>
       <h3 className="mt-4 text-[16px] font-medium text-neutral-primary">
-        {format(
-          date,
-          t("meetings.OrgInterviewAvailabilityDialog.a78f6e6d", "M월 d일 EEEE"),
-          {
-            locale: ko,
-          }
-        )}
+        {format(date, c("M월 d일 EEEE", "M d, EEEE"), {
+          locale: ko,
+        })}
       </h3>
       <div className="mt-5 flex items-center justify-between gap-3">
         <Checkbox
           checked={unavailable}
-          label={t(
-            "meetings.OrgInterviewAvailabilityDialog.b1664689",
-            "미팅 불가"
-          )}
+          label={c("미팅 불가", "Unavailable for meetings")}
           onChange={(event) => {
             if (event.target.checked) {
               setDateIntervals([]);
@@ -624,7 +590,7 @@ function DateOverridePanel({
             size="sm"
             variant="transparent"
           >
-            {t("meetings.OrgInterviewAvailabilityDialog.8f895515", "초기화")}
+            {c("초기화", "Reset")}
           </MuteButton>
         ) : null}
       </div>
@@ -633,10 +599,7 @@ function DateOverridePanel({
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-[13px] font-medium text-neutral-primary">
-              {t(
-                "meetings.OrgInterviewAvailabilityDialog.16af96e5",
-                "가능한 시간"
-              )}
+              {c("가능한 시간", "Available times")}
             </p>
           </div>
           {/* <span className="text-[11px] text-neutral-muted">
@@ -675,7 +638,7 @@ function WeeklyEditor({
   onChange: (availability: MeetingAvailabilityDocument) => void;
   portalContainer: HTMLElement | null;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const [presetDays, setPresetDays] = useState<PresetDays>("weekdays");
   const [presetEnd, setPresetEnd] = useState("19:00");
@@ -705,20 +668,17 @@ function WeeklyEditor({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[16px] font-medium text-neutral-primary">
-            {t(
-              "meetings.OrgInterviewAvailabilityDialog.44e02ff5",
-              "가능한 일정"
-            )}
+            {c("가능한 일정", "Available schedule")}
           </h3>
           <p className="mt-1 text-[12px] font-light leading-4 text-neutral-muted">
-            {t(
-              "meetings.OrgInterviewAvailabilityDialog.0ffe674b",
-              "미팅 스케줄링을 허용할 요일과 시간을 설정하세요."
+            {c(
+              "미팅 스케줄링을 허용할 요일과 시간을 설정하세요.",
+              "Set days and times when meetings can be scheduled."
             )}
             <br />
-            {t(
-              "meetings.OrgInterviewAvailabilityDialog.5213df10",
-              "날짜를 선택하면 그날의 일정만 조정할 수 있어요."
+            {c(
+              "날짜를 선택하면 그날의 일정만 조정할 수 있어요.",
+              "Selecting a date adjusts only that day's schedule."
             )}
           </p>
         </div>
@@ -730,7 +690,7 @@ function WeeklyEditor({
               size="sm"
               variant="neutral"
             >
-              {t("meetings.OrgInterviewAvailabilityDialog.eff96fca", "반복")}
+              {c("반복", "Repeat")}
               <ChevronDown
                 className={cn(
                   "size-3.5 transition-transform",
@@ -760,10 +720,7 @@ function WeeklyEditor({
                   value={presetDays}
                 >
                   <SelectTrigger
-                    aria-label={t(
-                      "meetings.OrgInterviewAvailabilityDialog.a8e6792e",
-                      "적용할 요일"
-                    )}
+                    aria-label={c("적용할 요일", "Days to apply")}
                     className="col-span-2"
                     size="sm"
                   >
@@ -777,31 +734,17 @@ function WeeklyEditor({
                     container={portalContainer}
                   >
                     <SelectItem value="weekdays">
-                      {t(
-                        "meetings.OrgInterviewAvailabilityDialog.64354f3d",
-                        "평일"
-                      )}
+                      {c("평일", "Weekdays")}
                     </SelectItem>
                     <SelectItem value="weekends">
-                      {t(
-                        "meetings.OrgInterviewAvailabilityDialog.171e7494",
-                        "주말"
-                      )}
+                      {c("주말", "Weekends")}
                     </SelectItem>
-                    <SelectItem value="all">
-                      {t(
-                        "meetings.OrgInterviewAvailabilityDialog.7016ae17",
-                        "매일"
-                      )}
-                    </SelectItem>
+                    <SelectItem value="all">{c("매일", "Daily")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <TimeSelect
                   className="w-full"
-                  label={t(
-                    "meetings.OrgInterviewAvailabilityDialog.ff39fb21",
-                    "반복 시작 시간"
-                  )}
+                  label={c("반복 시작 시간", "Repeat start time")}
                   onChange={(value) => {
                     setPresetStart(value);
                     const startMinutes = meetingTimeToMinutes(value) ?? 0;
@@ -819,10 +762,7 @@ function WeeklyEditor({
                 <TimeSelect
                   className="w-full"
                   endOfDay
-                  label={t(
-                    "meetings.OrgInterviewAvailabilityDialog.a8b83f5d",
-                    "반복 종료 시간"
-                  )}
+                  label={c("반복 종료 시간", "Repeat end time")}
                   onChange={(value) => {
                     setPresetEnd(value);
                     const endMinutes = meetingTimeToMinutes(value, true) ?? 0;
@@ -845,10 +785,7 @@ function WeeklyEditor({
                   size="sm"
                   variant="dark"
                 >
-                  {t(
-                    "meetings.OrgInterviewAvailabilityDialog.8b8b4211",
-                    "적용"
-                  )}
+                  {c("적용", "Apply")}
                 </MuteButton>
               </div>
             </Popover.Content>
@@ -886,8 +823,7 @@ export function OrgInterviewAvailabilityDialog({
   userId: string;
   workspaceId: string;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const availabilityQuery = useOrgMeetingAvailability({
@@ -993,10 +929,7 @@ export function OrgInterviewAvailabilityDialog({
         localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "meetings.OrgInterviewAvailabilityDialog.8c287dac",
-            "가능 시간 설정을 확인해 주세요."
-          )
+          c("가능 시간 설정을 확인해 주세요.", "Confirm availability settings.")
         )
       );
       return;
@@ -1013,9 +946,9 @@ export function OrgInterviewAvailabilityDialog({
       setExpectedVersion(payload.availability.version);
       allowPopNavigationRef.current = true;
       addToast({
-        message: t(
-          "meetings.OrgInterviewAvailabilityDialog.74a4bfef",
-          "알려주신 가능 시간으로 설정해두었어요."
+        message: c(
+          "알려주신 가능 시간으로 설정해두었어요.",
+          "Availability set to the times provided."
         ),
         variant: "success",
       });
@@ -1026,16 +959,16 @@ export function OrgInterviewAvailabilityDialog({
       setConflict(conflict);
       setEditorError(
         conflict
-          ? t(
-              "meetings.OrgInterviewAvailabilityDialog.conflict",
-              "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요."
+          ? c(
+              "다른 화면에서 가능 시간이 바뀌었어요. 최신 설정을 다시 불러와 주세요.",
+              "Availability changed in another window. Reload the latest settings."
             )
           : localizedOrgErrorMessage(
               error,
               locale,
-              t(
-                "meetings.OrgInterviewAvailabilityDialog.e07606a0",
-                "인터뷰 가능 시간을 저장하지 못했습니다."
+              c(
+                "인터뷰 가능 시간을 저장하지 못했습니다.",
+                "Unable to save interview availability."
               )
             )
       );
@@ -1050,9 +983,9 @@ export function OrgInterviewAvailabilityDialog({
         localizedOrgErrorMessage(
           result.error,
           locale,
-          t(
-            "meetings.OrgInterviewAvailabilityDialog.63a2a753",
-            "최신 가능 시간을 불러오지 못했어요."
+          c(
+            "최신 가능 시간을 불러오지 못했어요.",
+            "Unable to load latest availability."
           )
         )
       );
@@ -1089,9 +1022,9 @@ export function OrgInterviewAvailabilityDialog({
         )
       );
       addToast({
-        message: t(
-          "meetings.OrgInterviewAvailabilityDialog.07947f81",
-          "Google Calendar 일정을 미팅 가능한 시간으로 바꿨어요."
+        message: c(
+          "Google Calendar 일정을 미팅 가능한 시간으로 바꿨어요.",
+          "Converted Google Calendar events to available times."
         ),
         variant: "success",
       });
@@ -1100,9 +1033,9 @@ export function OrgInterviewAvailabilityDialog({
         message: localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "meetings.OrgInterviewAvailabilityDialog.09b26d24",
-            "Google Calendar 일정을 바꾸지 못했어요."
+          c(
+            "Google Calendar 일정을 바꾸지 못했어요.",
+            "Unable to change Google Calendar events."
           )
         ),
         variant: "error",
@@ -1154,17 +1087,11 @@ export function OrgInterviewAvailabilityDialog({
           <header className="flex min-h-[60px] items-center justify-between gap-4 border-b border-neutral-1000-a05 px-5 py-3 sm:px-6">
             <div className="min-w-0">
               <DialogTitle className="text-[18px]">
-                {t(
-                  "meetings.OrgInterviewAvailabilityDialog.8ea2df5f",
-                  "미팅 가능한 일정"
-                )}
+                {c("미팅 가능한 일정", "Meeting availability")}
               </DialogTitle>
             </div>
             <MuteButton
-              aria-label={t(
-                "meetings.OrgInterviewAvailabilityDialog.12ab7148",
-                "닫기"
-              )}
+              aria-label={c("닫기", "Close")}
               disabled={saveAvailability.isPending}
               onClick={requestClose}
               variant="transparent"
@@ -1180,26 +1107,20 @@ export function OrgInterviewAvailabilityDialog({
           ) : availabilityQuery.error ? (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
               <p className="text-[14px] text-neutral-primary">
-                {t(
-                  "meetings.OrgInterviewAvailabilityDialog.23285385",
-                  "인터뷰 가능 시간을 불러오지 못했어요."
+                {c(
+                  "인터뷰 가능 시간을 불러오지 못했어요.",
+                  "Unable to load interview availability."
                 )}
               </p>
               <p className="max-w-sm text-[12px] text-neutral-muted">
                 {localizedOrgErrorMessage(
                   availabilityQuery.error,
                   locale,
-                  t(
-                    "meetings.OrgInterviewAvailabilityDialog.969e86f9",
-                    "잠시 후 다시 시도해 주세요."
-                  )
+                  c("잠시 후 다시 시도해 주세요.", "Try again later.")
                 )}
               </p>
               <MuteButton onClick={() => void availabilityQuery.refetch()}>
-                {t(
-                  "meetings.OrgInterviewAvailabilityDialog.1a2ea03c",
-                  "다시 불러오기"
-                )}
+                {c("다시 불러오기", "Reload")}
               </MuteButton>
             </div>
           ) : !baseline ? (
@@ -1237,10 +1158,7 @@ export function OrgInterviewAvailabilityDialog({
                       className="text-[12px] font-medium text-neutral-primary"
                       htmlFor="availability-timezone"
                     >
-                      {t(
-                        "meetings.OrgInterviewAvailabilityDialog.925e6509",
-                        "시간대"
-                      )}
+                      {c("시간대", "Timezone")}
                     </label>
                     <Combobox
                       autoHighlight
@@ -1255,16 +1173,10 @@ export function OrgInterviewAvailabilityDialog({
                       value={draft.timezone}
                     >
                       <ComboboxInput
-                        aria-label={t(
-                          "meetings.OrgInterviewAvailabilityDialog.a6d86254",
-                          "시간대 검색"
-                        )}
+                        aria-label={c("시간대 검색", "Search timezones")}
                         className="mt-2 h-10 bg-bg-floating"
                         id="availability-timezone"
-                        placeholder={t(
-                          "meetings.OrgInterviewAvailabilityDialog.a6d86254",
-                          "시간대 검색"
-                        )}
+                        placeholder={c("시간대 검색", "Search timezones")}
                         showClear={false}
                       />
                       <ComboboxContent
@@ -1272,9 +1184,9 @@ export function OrgInterviewAvailabilityDialog({
                         container={portalContainer}
                       >
                         <ComboboxEmpty>
-                          {t(
-                            "meetings.OrgInterviewAvailabilityDialog.bf91e7b5",
-                            "일치하는 시간대가 없습니다."
+                          {c(
+                            "일치하는 시간대가 없습니다.",
+                            "No matching timezones."
                           )}
                         </ComboboxEmpty>
                         <ComboboxList>
@@ -1320,26 +1232,20 @@ export function OrgInterviewAvailabilityDialog({
               {calendar.statusQuery.data?.status === "active" ? (
                 <Tooltips
                   side="top"
-                  text={t(
-                    "meetings.OrgInterviewAvailabilityDialog.7638de53",
-                    "자동으로 일정을 읽어와 불가능한 시간을 처리합니다."
+                  text={c(
+                    "자동으로 일정을 읽어와 불가능한 시간을 처리합니다.",
+                    "Automatically read calendars and mark unavailable times."
                   )}
                 >
                   <div className="flex flex-row items-center gap-1.5 rounded-md bg-black/5 px-2 py-1 text-neutral-primary">
                     <Image
                       src="/images/logos/calendar.png"
-                      alt={t(
-                        "meetings.OrgInterviewAvailabilityDialog.6046f5e0",
-                        ""
-                      )}
+                      alt={c("", "")}
                       width={16}
                       height={16}
                     />
                     <span className="text-[12px] leading-5">
-                      {t(
-                        "meetings.OrgInterviewAvailabilityDialog.3494eaf7",
-                        "연동됨"
-                      )}
+                      {c("연동됨", "Connected")}
                     </span>
                   </div>
                 </Tooltips>
@@ -1347,17 +1253,11 @@ export function OrgInterviewAvailabilityDialog({
                 <span className="inline-flex items-center gap-1.5 text-[12px] leading-5 text-neutral-muted">
                   <Image
                     src="/images/logos/calendar.png"
-                    alt={t(
-                      "meetings.OrgInterviewAvailabilityDialog.6046f5e0",
-                      ""
-                    )}
+                    alt={c("", "")}
                     width={16}
                     height={16}
                   />
-                  {t(
-                    "meetings.OrgInterviewAvailabilityDialog.e8ae3f8e",
-                    "연동 안 됨"
-                  )}
+                  {c("연동 안 됨", "Not connected")}
                 </span>
               ) : null}
               {editorError ? (
@@ -1369,10 +1269,7 @@ export function OrgInterviewAvailabilityDialog({
                       size="sm"
                       variant="transparent"
                     >
-                      {t(
-                        "meetings.OrgInterviewAvailabilityDialog.3eafb604",
-                        "최신 설정 불러오기"
-                      )}
+                      {c("최신 설정 불러오기", "Load latest settings")}
                     </MuteButton>
                   ) : null}
                 </div>
@@ -1384,7 +1281,7 @@ export function OrgInterviewAvailabilityDialog({
                 onClick={requestClose}
                 size="lg"
               >
-                {t("meetings.OrgInterviewAvailabilityDialog.12ab7148", "닫기")}
+                {c("닫기", "Close")}
               </MuteButton>
               <MuteButton
                 disabled={!canSave}
@@ -1395,10 +1292,7 @@ export function OrgInterviewAvailabilityDialog({
                 {saveAvailability.isPending ? (
                   <LoaderCircle className="size-4 animate-spin" />
                 ) : null}
-                {t(
-                  "meetings.OrgInterviewAvailabilityDialog.504dfeb1",
-                  "가능 시간 저장하기"
-                )}
+                {c("가능 시간 저장하기", "Save availability")}
               </MuteButton>
             </div>
           </footer>
@@ -1409,19 +1303,12 @@ export function OrgInterviewAvailabilityDialog({
         open={discardOpen}
         onClose={() => setDiscardOpen(false)}
         mobileBottomSheet
-        title={
-          <>
-            {t(
-              "meetings.OrgInterviewAvailabilityDialog.c828b04f",
-              "저장하지 않고 닫을까요?"
-            )}
-          </>
-        }
+        title={<>{c("저장하지 않고 닫을까요?", "Close without saving?")}</>}
         description={
           <>
-            {t(
-              "meetings.OrgInterviewAvailabilityDialog.8732a0bf",
-              "방금 바꾼 반복 시간과 날짜별 예외는 저장되지 않아요."
+            {c(
+              "방금 바꾼 반복 시간과 날짜별 예외는 저장되지 않아요.",
+              "Recent changes to recurring times and date exceptions won't be saved."
             )}
           </>
         }
@@ -1430,10 +1317,7 @@ export function OrgInterviewAvailabilityDialog({
         footer={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <MuteButton onClick={() => setDiscardOpen(false)}>
-              {t(
-                "meetings.OrgInterviewAvailabilityDialog.e8136d58",
-                "계속 편집"
-              )}
+              {c("계속 편집", "Continue editing")}
             </MuteButton>
             <MuteButton
               onClick={() => {
@@ -1443,10 +1327,7 @@ export function OrgInterviewAvailabilityDialog({
               }}
               variant="warn"
             >
-              {t(
-                "meetings.OrgInterviewAvailabilityDialog.350f4173",
-                "저장하지 않고 닫기"
-              )}
+              {c("저장하지 않고 닫기", "Close without saving")}
             </MuteButton>
           </div>
         }

@@ -1,7 +1,10 @@
+import { buildResumePolicy } from "./resumePolicy";
 import { getCareerPromptLanguageName } from "@/lib/career/promptLocale";
 import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
 import { COMPANY_RELAY_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
+
+export const WEB_APPLICATION_START_POLICY = "Call the experience Apply with Harper (하퍼로 지원하기), and the active mode 함께 지원 모드. simulate_application displays a resume-selection start card for one known role and document_id. List/read the user's resumes and choose one. Resolve references such as the previously selected source from the available session and document identifiers; do not ask the user to select again when the source is already identifiable. The card itself allows changing the chosen resume. Previous inspection failures are historical evidence, not a current determination that another or retried application requires self-submission; let the new preparation verify access. If none exists, offer upload or creation from the profile with consent. Only the Start button runs preparation. The successful call ends the turn with the interactive card; wait for its Start action. Never output hidden start-payload markers or claim preparation/submission succeeded without evidence.";
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
@@ -18,6 +21,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? "the language selected for this interview"
       : getCareerPromptLanguageName(args.preferredLocale);
   const toolNameText = toolNames.join(", ");
+  const simulationPolicy = toolNames.includes("simulate_application") ? WEB_APPLICATION_START_POLICY : "";
   const hasEndCallTool = toolNames.includes("end_call");
   const hasStatusMessageTools = toolNames.some(
     (name) => name !== "end_call" && name !== "update_language_setting"
@@ -86,8 +90,11 @@ export function buildCareerToolPolicyPrompt(args: {
     : "- Do not use tools for the normal onboarding interview flow if you can continue from the existing conversation context.";
 
   return [
+    simulationPolicy,
     "## Tool Use Policy",
     `Callable tools in this response: ${toolNameText}`,
+    "Use current tool results and this turn's capability catalog as evidence of what happened and what you can do. Earlier assistant claims about unavailable features may be stale or wrong; never repeat them over a later successful tool result. Answer the latest request without reviving already completed tasks.",
+    "When an action fails, use the verified cause and execution outcome to find a solution through existing tools, and propose or seek confirmation only when additional permission or action beyond the user's authorization is needed.",
     hasStatusMessageTools
       ? `When a tool schema includes \`_uiStatusMessage\`, include a specific user-facing Thinking log sentence in ${outputLanguage} for that call. Say what is being changed, checked, searched, or prepared. If searching jobs, describe the kind of opportunities being searched for. If changing saved information, mention the concrete field/value being adjusted; old-to-new is optional only when it is naturally available. Do not use vague text like 'updating', 'checking', or 'searching' by itself. Do not mention internal tool names, storage names, or implementation details. Keep it under 160 characters.`
       : "",
@@ -138,6 +145,7 @@ export function buildCareerToolPolicyPrompt(args: {
     ...(hasRecommendedOpportunitiesTool
       ? [
           "- Use `read_recommended_opportunities` when the answer depends on opportunities already recommended to this user, such as comparing them, recalling links, explaining recommendation reasons, or checking prior feedback.",
+          "- To prepare an application from a posting URL without a known roleId, look it up with `read_recommended_opportunities(postingUrl=the supplied URL)` first. `get_internal_roles` covers only Harper-connected roles; an empty or unrelated result cannot establish that a public posting is absent. A failed filtered lookup establishes only that this query found no match, not that the role is unregistered.",
           "- If the user asks what happened after accepting a Harper-first internal recommendation, call `read_recommended_opportunities` and answer from the returned `progress.message` when it is present. Do not infer company-side progress from savedStage or stale internal fields.",
           "- When `companyRequestIntroProgress.origin=company_request_intro`, do not apply the Harper-first 7-day/21-day progress wording. Reason from the returned factual timestamps and statuses in the conversation's current context. Use natural wording rather than a fixed sentence or fixed elapsed-day threshold. If `canRelayToCompany=true` and the user is concerned or aksed about silence, you may offer to contact the company.",
           "- Pass `only_internal: true` to `read_recommended_opportunities` when the user is asking specifically about internal recommendations, accepted internal opportunities, or internal connection/review status.",
@@ -241,21 +249,17 @@ export function buildCareerToolPolicyPrompt(args: {
             ? "- Use `read_document` only when the answer needs saved document content. For a current-turn upload that already includes content_excerpt, start from its next_offset; for an earlier saved document, start with offset=0. Use max_chars=4000, then continue from nextOffset only when hasMore is true and the missing portion matters. A binary-only file may have textAvailable=false."
             : "",
           hasUpdateDocumentTool
-            ? `- Use 'update_document' to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Use generate_resume for generated resume content changes; preserve uploaded originals. Never expose internal field names in the user-facing reply.
+            ? `- Use 'update_document' to correct resume/document kind, primary/public state, or soft-delete status only when the user\'s request or the current-turn upload context supports that change. Use ${toolNames.includes("ready_for_role") ? "ready_for_role" : "generate_resume"} for generated resume content changes; preserve uploaded originals. Never expose internal field names in the user-facing reply.
   - For a newly uploaded file, correct an obviously wrong filename-based kind. Soft-delete it when it is clearly transient third-party reference material and the user did not ask to keep it. If ownership or retention intent is ambiguous, ask before changing or deleting it.
   - Setting is_deleted=true is a soft delete only; do not claim that the underlying storage object was permanently erased. Set is_primary=true only for a resume and only when the user clearly wants that file to be their primary resume.`
             : "",
         ]
       : []),
-    ...(toolNames.includes("generate_resume") ? [
-      "### Resume creation and revision",
-      "- Call generate_resume only for an explicit resume/CV create/edit/copy request or clear acceptance of Harper's specific offer. Interpret consent in context; never infer it from casual disclosures, corrections, uploads, review requests, or Profile/Memory updates, or extend it beyond the agreed task.",
-      "- Do not routinely propose resume edits after career disclosures or reconfirm authorized work. Clarify only ambiguous sources, targets, or essential facts; a general resume needs no employer.",
-      "- Start from the uploaded resume when available, or confirmed Profile and conversation facts. For edits, read the current document; use relevant career memos and Memory when needed. Acknowledge incomplete source text. Respect the latest correction. Do not invent names, dates, metrics, or achievements, or turn inferred preferences or private concerns into resume claims. A wording edit does not change Profile or Memory.",
-      "- Use create for a new resume, update for the same generated document, and copy for a separate named version. Before update or copy, read_document(format=structured) and send only the requested changes. Keep uploaded originals untouched. Follow a requested name; otherwise choose a descriptive one without separate confirmation.",
-      "- Keep the resume concise and omit unsupported fields and introductory summaries, profiles, or objectives. Prefer one page without dropping necessary facts; the template controls layout.",
-      "- After success, briefly explain what was created or changed and put the exact returned documentLink on its own line. PDF is generated on download, and this tool does not share or submit the resume. On failure do not claim success; after a revision conflict, reread the current document before retrying.",
-    ] : []),
+    ...(toolNames.includes("ready_for_role")
+      ? buildResumePolicy("ready_for_role")
+      : toolNames.includes("generate_resume")
+        ? buildResumePolicy("generate_resume")
+        : []),
     ...(hasUpdateSettingTool
       ? [
           "",
@@ -327,6 +331,10 @@ export function buildCareerToolPolicyPrompt(args: {
           hasWriteTalentContextTool
             ? "- Save only facts the user stated; never infer or add details the user did not provide. For a Brief, do not repeat its label in content."
             : "",
+          hasWriteTalentContextTool
+            ? "- An explicit correction or retraction supersedes the earlier statement and its saved copy. If the user says previously supplied information was hypothetical or incorrect, read the relevant saved rows and update/delete those exact facts while preserving unrelated content. Do not defend a saved fact as true merely because it already exists. Confirm removal only after a successful write; a profile correction alone does not also remove a separate Memory row."
+            : "",
+          "- When reusing career facts, the latest explicit correction overrides older messages, summaries and generated documents. A historical summary describing what an earlier resume contained is not fresh evidence that those claims remain true. Use current Profile/Memory and the selected source alongside subsequent user corrections; do not reintroduce withdrawn claims from an older draft.",
           hasWriteTalentContextTool
             ? "- Use a free user-readable label plus complete content for a new Brief. A new Memory needs complete content. Do not invent an internal key or choose from a fixed topic list."
             : "",

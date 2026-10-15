@@ -1,15 +1,8 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import {
-  ArrowUpRight,
-  BriefcaseBusiness,
-  Check,
-  ChevronDown,
-  Info,
-  MoreHorizontal,
-  Plus,
-} from "lucide-react";
-import { CardButton, MuteButton } from "@/components/ui/button";
+import { Check, ChevronDown, Info, Plus } from "lucide-react";
+import { MuteButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ProgressBar } from "@/components/ui/progress";
@@ -17,7 +10,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { OrgSection, OrgSectionHeader } from "../workspace/OrgSection";
@@ -40,17 +32,16 @@ import {
   type BillingSummary,
 } from "@/lib/org/billing/types";
 import { Tooltips } from "@/components/ui/tooltip";
+import { useBillingClock } from "@/hooks/org/useBillingClock";
+import { BillingSlotMenu } from "./BillingSlotMenu";
 
 export function BillingSlots({
   summary,
-  locale,
   busy,
   canManage,
   canViewBilling,
-  canAssign,
   roles = [],
   preview = false,
-  date,
   onAddSlot,
   onCancel,
   onResume,
@@ -58,31 +49,23 @@ export function BillingSlots({
   onPortal,
 }: {
   summary: BillingSummary;
-  locale: "ko" | "en";
   busy: boolean;
   canManage: boolean;
   canViewBilling: boolean;
-  canAssign: boolean;
   roles?: BillingAssignmentRole[];
   preview?: boolean;
-  date: (value: string | null, time?: boolean) => string;
   onAddSlot: () => void;
   onCancel: (slot: BillingSlot) => void;
   onResume: (slot: BillingSlot) => void;
   onAssign: (slot: BillingAssignmentSlot, roleId: string) => void;
   onPortal: () => void;
 }) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const slots = summary.slots.filter((slot) => !isEndedBillingSlot(slot));
+  const { c } = useOrgLocale();
+  const { formatBillingDaysUntil, date, formatIntroCount } =
+    useOrgBillingFormat();
+  const now = useBillingClock();
+  const slots = summary.slots.filter((slot) => !isEndedBillingSlot(slot, now));
   const free = summary.creditSlots.find((slot) => slot.slotId === null);
-  const daysUntil = (value: string) =>
-    Math.max(0, Math.ceil((Date.parse(value) - now) / 86_400_000));
-  const resetDays = free?.renewsAt ? daysUntil(free.renewsAt) : null;
   const contactOnly =
     summary.model === "scale" ||
     (summary.model === "legacy" && summary.activeRoles > 1);
@@ -100,85 +83,6 @@ export function BillingSlots({
     preview || isOrgRoleCountedAsActive(role.status);
   const roleHref = (roleId: string) =>
     buildOrgHref({ page: "jobs", orgId: summary.workspaceId, roleId });
-  const roleAssignment = (
-    role: Pick<BillingCreditSlot, "roleId" | "roleName">,
-    slotId: string
-  ) => {
-    const target = assignmentSlots.find((slot) => slot.id === slotId);
-    return (
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          {canManage && target ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <MuteButton
-                  size="sm"
-                  className="min-w-0 max-w-full"
-                  disabled={busy || !canAssign}
-                  aria-label={c(
-                    `${target.label} Role 배정`,
-                    `Assign a Role to ${target.label}`
-                  )}
-                >
-                  <BriefcaseBusiness
-                    className="size-3.5 shrink-0"
-                    aria-hidden
-                  />
-                  <span className="truncate">
-                    {role.roleName ?? c("Role 선택", "Select a Role")}
-                  </span>
-                  <ChevronDown className="size-3 shrink-0" aria-hidden />
-                </MuteButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="max-h-80 w-72 max-w-[calc(100vw-2rem)]"
-              >
-                {visibleRoles.map((option) => (
-                  <DropdownMenuItem
-                    key={option.roleId}
-                    variant="sm"
-                    selected={option.roleId === role.roleId}
-                    disabled={
-                      !canAssignRole(option) || option.roleId === role.roleId
-                    }
-                    onSelect={() => onAssign(target, option.roleId)}
-                  >
-                    <OrgRoleStatusDot status={option.status} />
-                    <span className="min-w-0 flex-1 break-words">
-                      {option.name}
-                    </span>
-                    <span className="shrink-0 text-[11px] text-neutral-muted">
-                      {slotByRole.get(option.roleId)?.label ??
-                        c("미배정", "Unassigned")}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-                {!visibleRoles.length && (
-                  <p className="px-3 py-2 text-[12px] text-neutral-muted">
-                    {c("배정할 Role이 없어요", "No Roles available")}
-                  </p>
-                )}
-                {!preview &&
-                  visibleRoles.some((option) => !canAssignRole(option)) && (
-                    <p className="px-3 py-2 text-[11px] text-neutral-muted">
-                      {c(
-                        "채용 중인 Role을 배정할 수 있어요",
-                        "Only active Roles can be assigned"
-                      )}
-                    </p>
-                  )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <span className="truncate text-[13px] text-neutral-muted">
-              {role.roleName ?? c("미배정", "Unassigned")}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  };
   const slotDetails = (
     slot: BillingCreditSlot | undefined,
     allowance: number,
@@ -189,22 +93,16 @@ export function BillingSlots({
       (!slot.renewsAt || Date.parse(slot.cancelAt) <= Date.parse(slot.renewsAt))
     );
     const boundary = expiresBeforeRenewal ? slot?.cancelAt : slot?.renewsAt;
-    const days = boundary ? daysUntil(boundary) : null;
+    const relative = formatBillingDaysUntil(boundary, now);
     return (
-      <div className="mb-3 mt-1.5">
+      <div className="mt-3">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12px] text-neutral-600">
           <p>
             {boundary ? (
               <time dateTime={boundary} title={date(boundary, true)}>
                 {expiresBeforeRenewal
-                  ? c(
-                      `${days}일 후 만료`,
-                      `Expires in ${days} ${days === 1 ? "day" : "days"}`
-                    )
-                  : c(
-                      `${days}일 후 갱신`,
-                      `Resets in ${days} ${days === 1 ? "day" : "days"}`
-                    )}
+                  ? c(`${relative} 만료`, `Expires ${relative}`)
+                  : c(`${relative} 갱신`, `Resets ${relative}`)}
               </time>
             ) : (
               c("갱신 예정 없음", "No reset scheduled")
@@ -212,8 +110,8 @@ export function BillingSlots({
           </p>
           <p className="ml-auto whitespace-nowrap tabular-nums">
             {c(
-              `${remaining ?? "—"}개 남음`,
-              `${remaining ?? "—"} credits left`
+              `${formatIntroCount(remaining)} 남음`,
+              `${formatIntroCount(remaining)} left`
             )}
           </p>
         </div>
@@ -221,13 +119,13 @@ export function BillingSlots({
           <div
             className="mt-1.5"
             role="meter"
-            aria-label={`${slot?.label} · ${c("남은 크레딧", "Remaining credits")}`}
+            aria-label={`${slot?.label} · ${c("남은 Intro", "Remaining Intros")}`}
             aria-valuemin={0}
             aria-valuemax={allowance}
             aria-valuenow={remaining}
             aria-valuetext={c(
               `${allowance}개 중 ${remaining}개 남음`,
-              `${remaining} of ${allowance} credits left`
+              `${remaining} of ${allowance} Intros left`
             )}
           >
             <ProgressBar
@@ -249,9 +147,9 @@ export function BillingSlots({
       {free && (
         <div className="mb-12">
           <OrgSectionHeader
-            title={c("공용 크레딧", "Shared credits")}
+            title={c("공용 Intro", "Shared Intros")}
             description={c(
-              "매월 제공되는 기본 크레딧입니다. 모든 역할에 공통적으로 사용됩니다.",
+              "매월 제공되는 기본 Intro입니다. 모든 역할에 공통적으로 사용됩니다.",
               "Provided monthly. Shared across all Roles."
             )}
           />
@@ -267,8 +165,8 @@ export function BillingSlots({
                     title={date(free.renewsAt, true)}
                   >
                     {c(
-                      `${resetDays}일 후 갱신`,
-                      `Resets in ${resetDays} ${resetDays === 1 ? "day" : "days"}`
+                      `${formatBillingDaysUntil(free.renewsAt, now)} 갱신`,
+                      `Resets ${formatBillingDaysUntil(free.renewsAt, now)}`
                     )}
                   </time>
                 </p>
@@ -278,26 +176,26 @@ export function BillingSlots({
               <p
                 className="ml-auto whitespace-nowrap tabular-nums"
                 aria-label={c(
-                  `공용 크레딧 ${free.remaining}개 남음`,
-                  `${free.remaining} shared credits left`
+                  `공용 Intro ${free.remaining}개 남음`,
+                  `${free.remaining} shared ${free.remaining === 1 ? "Intro" : "Intros"} left`
                 )}
               >
                 {c(
-                  `${free.remaining}개 남음`,
-                  `${free.remaining} credits left`
+                  `${formatIntroCount(free.remaining)} 남음`,
+                  `${formatIntroCount(free.remaining)} left`
                 )}
               </p>
             </div>
             <div
               className="mt-1.5"
               role="meter"
-              aria-label={c("남은 공용 크레딧", "Shared credits remaining")}
+              aria-label={c("남은 공용 Intro", "Shared Intros remaining")}
               aria-valuemin={0}
               aria-valuemax={free.allowance}
               aria-valuenow={free.remaining}
               aria-valuetext={c(
                 `${free.allowance}개 중 ${free.remaining}개 남음`,
-                `${free.remaining} of ${free.allowance} credits left`
+                `${free.remaining} of ${free.allowance} Intros left`
               )}
             >
               <ProgressBar
@@ -315,8 +213,8 @@ export function BillingSlots({
         description={
           summary.model === "scale"
             ? c(
-                "Enterprise에서는 Role과 크레딧에 제한이 없어요.",
-                "Enterprise includes unlimited Roles and credits."
+                "Enterprise에서는 Role과 Intro에 제한이 없어요.",
+                "Enterprise includes unlimited Roles and Intros."
               )
             : c(
                 `슬롯 ${slots.filter((slot) => slot.active).length}개 · 채용 중인 Role ${summary.activeRoles}개`,
@@ -340,30 +238,17 @@ export function BillingSlots({
           </div>
         }
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-1 xl:grid-cols-1">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {slots.map((slot) => {
           const credit = creditBySlot.get(slot.id);
           const granted = slot.source === "grant";
           const paymentDue = ["past_due", "unpaid", "incomplete"].includes(
             slot.status
           );
-          const subscription = granted
-            ? c(
-                "Harper 제공 · 자동 결제 없음",
-                "Provided by Harper · No automatic charge"
-              )
-            : slot.cancelAt
-              ? c(
-                  `${date(slot.cancelAt)} 이용 종료`,
-                  `Access ends ${date(slot.cancelAt)}`
-                )
-              : paymentDue
-                ? c("결제 수단을 확인해 주세요", "Review your payment method")
-                : `${slot.billingInterval === "year" ? c("연간 구독", "Yearly subscription") : c("월간 구독", "Monthly subscription")} · ${c(`${date(slot.periodEnd)} 자동 갱신`, `Renews ${date(slot.periodEnd)}`)}`;
           return (
             <Card
               key={slot.id}
-              className="flex flex-col rounded-[20px] bg-bg-default px-5 py-3.5 shadow-none"
+              className="flex min-w-0 flex-col rounded-[20px] bg-bg-default px-5 py-4 shadow-none"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -387,63 +272,28 @@ export function BillingSlots({
                     />
                   )}
                 </div>
-                {canManage && !granted && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <MuteButton
-                        variant="transparent"
-                        size="sm"
-                        disabled={busy}
-                        aria-label={c(
-                          `${slot.label} 관리`,
-                          `Manage ${slot.label}`
-                        )}
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </MuteButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {!granted && canViewBilling && (
-                        <DropdownMenuItem onSelect={onPortal} variant="sm">
-                          {c("결제 수단 관리", "Manage payment method")}
-                        </DropdownMenuItem>
-                      )}
-                      {!granted &&
-                        (slot.cancelAt ? (
-                          <DropdownMenuItem
-                            onSelect={() => onResume(slot)}
-                            variant="sm"
-                          >
-                            {c("구독 유지", "Keep subscription")}
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            onSelect={() => onCancel(slot)}
-                            variant="sm"
-                            className="text-critical focus:text-critical"
-                          >
-                            {c("구독 취소", "Cancel subscription")}
-                          </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
+                <BillingSlotMenu
+                  slot={slot}
+                  now={now}
+                  busy={busy}
+                  canManage={canManage}
+                  canViewBilling={canViewBilling}
+                  onPortal={onPortal}
+                  onCancel={onCancel}
+                  onResume={onResume}
+                />
               </div>
               {slotDetails(
                 credit,
                 credit?.allowance ?? SLOT_MONTHLY_CREDITS,
                 credit?.remaining ?? null
               )}
-              <div className="flex flex-row items-center justify-between gap-4">
-                <p className="min-w-0 text-right text-[11px] leading-4 text-neutral-600">
-                  {subscription}
-                </p>
-                {roleAssignment(slot, slot.id)}
-              </div>
             </Card>
           );
         })}
-        <span className="max-w-[230px] text-[12px] font-normal leading-5 text-neutral-muted">
+      </div>
+      {(!canManage || contactOnly) && (
+        <p className="mt-3 max-w-[230px] text-[12px] font-normal leading-5 text-neutral-muted">
           {!canManage
             ? c("Owner가 추가할 수 있어요", "An Owner can add slots")
             : contactOnly
@@ -452,8 +302,8 @@ export function BillingSlots({
                   "Contact Harper to expand your plan"
                 )
               : ""}
-        </span>
-      </div>
+        </p>
+      )}
       {contactOnly && (
         <div className="mt-4">
           <MuteButton asChild>
@@ -471,8 +321,8 @@ export function BillingSlots({
           </span>
           <Tooltips
             text={c(
-              "슬롯에 배정되지 않은 채용 중인 Role도 공용 크레딧으로 이용할 수 있어요. 유료 기능이 필요한 Role을 슬롯에 배정하세요.",
-              "Active Roles without a slot can use shared credits. Assign a slot to a Role that needs paid features."
+              "슬롯에 배정되지 않은 채용 중인 Role도 공용 Intro로 이용할 수 있어요. 유료 기능이 필요한 Role을 슬롯에 배정하세요.",
+              "Active Roles without a slot can use shared Intros. Assign a slot to a Role that needs paid features."
             )}
           >
             <Info
@@ -490,7 +340,7 @@ export function BillingSlots({
             const isAssigned = Boolean(assigned);
             const unassignedLabel =
               free && isOrgRoleCountedAsActive(role.status)
-                ? c("공용 크레딧", "Shared credits")
+                ? c("공용 Intro", "Shared Intros")
                 : c("미배정", "Unassigned");
             return (
               <li

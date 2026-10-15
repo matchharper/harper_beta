@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildCareerChannelContextRules,
   buildExtractionInsightChecklistSection,
   buildOnboardingRuntimeStateSection,
   buildOpportunityStatusSection,
@@ -169,4 +170,10 @@ test("keeps recommendation feedback separate from inferred durable context", () 
     CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
     /counts as durable signal for future similar recommendations/
   );
+});
+
+
+test("application channel rules omit legacy choice payload instructions", () => {
+  assert.doesNotMatch(buildCareerChannelContextRules("chat", false), /CAREER_CHOICE_BUTTONS/);
+  assert.match(buildCareerChannelContextRules("chat"), /CAREER_CHOICE_BUTTONS/);
 });

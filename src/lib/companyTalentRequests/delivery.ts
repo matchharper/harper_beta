@@ -1,10 +1,7 @@
 import "server-only";
 import { dispatchOrgAgentWebActionJob } from "@/lib/org/agent/webActionTurn";
-import {
-  sendHarperSlackThreadReply,
-  sendHarperWorkspaceSlackMessage,
-} from "@/lib/org/slackHarper";
-import { getCompanyTalentRelaySlackDestination } from "./slackDelivery";
+import { enqueueCompanyContactEvent } from "@/lib/org/agent/contactEvent.server";
+import { processCompanyAgentWebActionJob, WebActionQueueRetryError } from "@/lib/org/agent/webActionProcessor.server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getOrgPublicSiteUrl } from "@/lib/org/slackMessages";
 
@@ -289,7 +286,6 @@ export async function deliverCompanyTalentRelay(args: {
       const { data: document, error: documentError } = await admin
         .from("talent_documents")
         .select("file_name")
-        .or("origin_type.is.null,origin_type.neq.harper_generated_resume")
         .eq("id", relay.document_id)
         .eq("talent_id", request.talent_id)
         .eq("is_public", true)
@@ -309,6 +305,10 @@ export async function deliverCompanyTalentRelay(args: {
     if (stored.error) throw stored.error;
   }
   if (relayDelivery?.status === "sent") {
+    const { data: owned, error: ownedError } = await (admin.from("company_agent_web_action_jobs" as any) as any)
+      .select("action_context").eq("idempotency_key", `candidate-contact:${relayId}`).maybeSingle();
+    if (ownedError) throw ownedError;
+    if (owned?.action_context?.contactPendingDelivery === true) return { ok: true, idempotent: true };
     if (relayBody) {
       await mirrorRelayToRoleConversation({
         admin,
@@ -323,52 +323,17 @@ export async function deliverCompanyTalentRelay(args: {
     throw new Error("Relay body has not been prepared");
   }
 
-  let slackMessageTs: string | null = null;
-  let slackBotUserId: string | null = null;
-  const sourceMessage = Array.isArray(request.source_message)
-    ? request.source_message[0]
-    : request.source_message;
-  const slackDestination = getCompanyTalentRelaySlackDestination(
-    sourceMessage?.slack_thread_id
-  );
-  if (slackDestination.kind === "thread") {
-    const posted = await sendHarperSlackThreadReply({
-      idempotencyKey: relayId,
-      text: relayBody,
-      threadId: slackDestination.threadId,
-      workspaceId: request.company_workspace_id,
-    });
-    slackMessageTs = posted.slackMessageTs;
-    slackBotUserId = posted.botUserId;
-  } else {
-    await sendHarperWorkspaceSlackMessage({
-      idempotencyKey: relayId,
-      recordConversationMessage: false,
-      roleId: request.role_id,
-      text: relayBody,
-      workspaceId: request.company_workspace_id,
-    });
+  const { jobId } = await enqueueCompanyContactEvent(relayId, request.company_workspace_id);
+  try {
+    await processCompanyAgentWebActionJob(
+      { jobId, kind: "web_action_job", version: 1 },
+      { messageId: `candidate-contact-inline:${relayId}` }
+    );
+  } catch (error) {
+    // A concurrent conversation turn or transient failure must not lose the
+    // authorized contact. The same durable job resumes; no raw-copy bypass.
+    await dispatchOrgAgentWebActionJob({ admin, jobId });
+    if (!(error instanceof WebActionQueueRetryError)) throw error;
   }
-
-  const { data: finalized, error: finalizeError } = await (admin.rpc as any)(
-    "finalize_company_talent_relay_delivery_v1",
-    {
-      p_relay_id: relayId,
-      p_slack_bot_user_id: slackBotUserId,
-      p_slack_message_ts: slackMessageTs,
-    }
-  );
-  if (finalizeError) throw finalizeError;
-  await mirrorRelayToRoleConversation({
-    admin,
-    relayBody,
-    relayId,
-    request,
-  });
-  console.info("[company-talent-relay] delivered", {
-    relayId,
-    requestId: request.id ?? null,
-    slackThread: slackDestination.kind === "thread",
-  });
-  return { ok: true, result: finalized };
+  return { ok: true, jobId };
 }

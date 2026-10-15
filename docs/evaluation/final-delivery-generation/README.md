@@ -20,6 +20,51 @@
 
 평가는 DB write, 추천 저장, discovery run 생성, 메일 발송을 하지 않는다. 실제 사용자·role·메일 내용은 local-only다. 완료 run에서 현재 live context를 재구성하므로 과거 실행 당시의 완전한 causal replay는 아니며, 한국어 품질은 충분한 한국어 표본 없이 일반화하지 않는다.
 
+## 실제 Sonnet 발송 사례 비교: production-recommendation-v1
+
+- 목적/단위: 실제 Sonnet 5.5 final delivery로 발송된 10건을 가져와, 재구성 후 동결한 동일 요청에서 새 Sonnet control과 Haiku 5.5 high의 메일을 비교한다. 과거 실제 메일은 별도 원본으로 보존한다.
+- 선정: 최근 한 달의 실제 `sent` 메일과 Sonnet 5.5 usage를 모두 확인한 완료 run 중 현재 canonical role/fit reader를 통과하는 최신 사례. 내부 추천 5건·혼합 추천 5건, 서로 다른 후보자, 한국어 8건·영어 2건이다. 단순 추천 action만 포함하며 질문·follow-up·lifecycle 전용 action은 제외한다.
+- frozen 입력/정답: `production-recommendation-manifest-v1.json`, `production-recommendation-gold-v1.json`. 입력 원문은 ignored `private/production-recommendation-v1/cases.json`에 있으며 전체 fixture 및 각 prompt/input hash를 고정했다. Gold는 실행 전 작성한 구조적 기대와 의미 검토 rubric이며 독립 human gold가 아니다.
+- 입력 계약: 기존 comparison harness의 case builder, 현재 runtime prompt·role reader·formatter·후처리를 재사용한다. Profile + 전체 Search Brief + 이미 저장된 Behavior Context를 읽고 새 Behavior를 생성하지 않는다. 당시 요청 trace가 없으므로 현재 profile/role/fit/cache와 일부 이후 사실이 포함될 수 있다. 과거 입력과 완전히 같다고 주장하지 않는다.
+- canonical runner: [`compare_production_recommendations.py`](../../../../harper_worker/llm_evals/final_delivery/compare_production_recommendations.py). 기존 checkout을 사용하며 worktree를 생성하지 않는다. `--capture <새 private 경로>`로 동결하고, `--fixture <동결 경로> --output <새 runs 경로>`로 재생성한다. 성공/실패 원문은 보존하며 동일 성공 파일을 자동 재호출하지 않는다.
+- 모델/실행: direct Anthropic Messages, Sonnet 5.5는 thinking·effort를 생략한 현재 production 요청이며 공식 기본값은 adaptive/high, Haiku 5.5는 adaptive/high를 명시한다. 두 arm의 effective effort는 high다. 지원하지 않는 sampling 필드만 evaluation transport에서 제거하고 prompt·input·structured schema는 보존한다. 두 사례씩 병렬 처리하므로 시간 측정은 별도 통제된 latency benchmark가 아니다. 현재 공식 단가로 cache read/write와 output usage를 계산한다.
+- metrics/gate: 구조/선택 보존, 입력 근거에 없는 중요한 사실, 동의·공유·회사 결정의 잘못된 서술, 개인화·tradeoff·언어를 사례별로 검토한다. Critical 오류 0과 전체 원문 검토가 이 표본의 최소 gate다. 10건 결과를 production 전체 품질이나 완전한 배포 gate로 해석하지 않는다.
+- provenance/privacy: 2026-10-12 사용자가 실제 사례의 Haiku 비교를 명시적으로 요청했다. capture는 canonical `connect_read_only()`로 `transaction_read_only=on`을 확인한다. 모델 입력은 기존 direct Anthropic provider에 전송하며 새 data-collection opt-in은 없다. raw production 데이터·모델 출력·비교 화면은 ignored private/runs, directory 0700/file 0600만 사용한다. secret은 산출물에 저장하지 않는다. DB/cache/추천/메일 쓰기와 배포는 없다.
+- 한계: 최신 eligible recommendation 사례이므로 대표 random sample이 아니다. 내부-only 5건 중 4건은 같은 Aeolo Role의 서로 다른 후보자다. 캐시된 역할 소개를 두 arm이 함께 사용하므로 신규 역할 소개 생성 품질을 충분히 검증하지 않는다. 과거 원문과 새 출력의 차이는 입력·prompt·상태 변화도 포함하므로 모델 효과는 동일 입력 control끼리 판단한다.
+
+### 2026-10-12 동일 입력 비교 결과
+
+20개 호출이 모두 한 번에 성공했다. 10쌍의 system prompt·messages·max tokens·structured schema가 같으며,
+선택된 role ID와 본문의 role 링크도 주어진 범위를 벗어나지 않았다. Sonnet 현재 기본 요청 설정의
+10건 총 추정 비용은 $0.6487818, Haiku adaptive/high는 $0.06925567로 89.33% 낮았다.
+응답 시간 중앙값은 각각 25.349초와 47.6665초다. Sonnet의 생략된 effort는 [공식 기본값 high](https://platform.claude.com/docs/en/build-with-claude/effort)라 두 arm 모두 adaptive/high다. 앞서 effort가 다르다고 한 설명을 정정한다. 캐시 상태·고정 모델 호출 순서·병렬 실행이 있어 통제된 latency benchmark는 아니다. 원문 생성 결과와 비용은 바꾸지 않았다.
+
+전체 원문과 입력 근거를 읽은 자체 판정은 Haiku 우세 5건, 비슷함 3건, Sonnet 우세 2건이다.
+Haiku는 보상·직급·선호 방향의 차이를 잘 짚은 반면, 일부 반복 질문과 길어진 설명이 있었다.
+FD04는 회사 소개에 있는 다른 직무의 범위를 해당 SE 직무에 귀속한 것으로 보여 확인이 필요하다.
+해당 역할의 캐시 소개가 중간에 잘려 있어 입력만으로 정확한 업무 범위를 확정할 수 없으며,
+환각으로 확정하지 않는다. 이 우려와 질문/follow-up/신규 역할 소개의 미검증 범위 때문에
+Final delivery 전체 기본값의 무조건 전환 gate는 보류한다. 동결 gold는 변경하지 않았다.
+
+비식별 aggregate는 [production-recommendation-v1-result-20261012.json](production-recommendation-v1-result-20261012.json),
+private 원문·case별 검토·비교 화면은 ignored
+`runs/production-recommendation-v1-haiku-high-20261012/{review.json,summary.json,comparison.html}`에 있다.
+운영 모델 변경·DB 쓰기·추천 저장·메일 발송·배포는 수행하지 않았다.
+
+### 2026-10-12 사용자 요청에 따른 모델 변경 · 미배포
+
+위 평가의 한계를 설명한 뒤 사용자가 Sonnet final delivery를 Haiku 5.5 adaptive/high로
+바꾸도록 명시적으로 요청했다. Worker의 기본 `FINAL_DELIVERY_CALL`과 직접 Anthropic 요청에
+해당 설정을 반영했다. 기존 external-only Luna override와 prompt·입력·선택/발송 계약은 유지한다.
+unsupported sampling 필드를 제거하고 Haiku의 cache·long-prompt 단가도 공통 가격표에 등록했다.
+
+실제 네트워크를 호출하지 않는 transport 검증에서 새 production 요청 10건이 앞서 실행한
+Haiku 요청과 정확히 일치했다. 원문 모델 생성은 재실행하지 않았고 frozen fixture/gold도 바꾸지 않았다.
+검증 기록은 ignored run의 `runtime-request-parity-20261012.json`에 있다.
+관련 단위 검사 245개 중 244개 통과, 기존 legacy prompt 문구 assertion 1개는
+prompt와 해당 test가 HEAD와 동일한 상태에서도 실패하는 것을 확인했다. 모델 변경과 무관한
+프롬프트·test 수정은 하지 않았다. Python 문법·diff 검사는 통과했다. 배포·DB 쓰기·메일 발송은 없다.
+
 
 ## 후보자 질문·추천 전달 challenge: contact-delivery-v2
 

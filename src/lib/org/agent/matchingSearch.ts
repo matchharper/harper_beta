@@ -40,7 +40,22 @@ export async function enqueueOrgMatchingSearch(args: {
       p_role_id: args.roleId,
     }
   );
-  if (error) throw error;
+  if (error) {
+    const failure = record(error);
+    // This RPC rejects membership before any queue write. Only this verified
+    // machine error establishes non-enqueue; transport/unknown errors do not.
+    if (
+      failure.code === "42501" &&
+      failure.message === "company_matching_search_workspace_forbidden"
+    ) {
+      return {
+        reason: "workspace_forbidden",
+        startsAfterCurrentRun: false,
+        status: "not_queued",
+      };
+    }
+    throw error;
+  }
   const payload = record(data);
   const status = String(payload.status ?? "").trim();
   if (

@@ -1,3 +1,6 @@
+import { throwIfToolControlError } from "@/lib/llm/toolError";
+import { runToolCall, unwrapToolCall, prepareToolDelivery, observeToolCall } from "@/lib/llm/toolExecution";
+import { toolErrorResult, serializeToolResultForModel } from "@/lib/llm/toolError";
 import type { CareerCapabilityRuntime } from "@/lib/career/capabilities/runtime";
 import {
   createChatCompletionStreamWithFallback,
@@ -136,6 +139,7 @@ function getOpenAiResponseToolCallNames(response: any) {
 }
 
 async function createTalentChatCompletion(args: {
+  abortSignal?: AbortSignal;
   anthropicOverloadFallbackModel?: string;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
   fallbackModel?: string;
@@ -167,6 +171,7 @@ async function createTalentChatCompletion(args: {
       : undefined;
 
   const completionArgs = {
+    signal: args.abortSignal,
     anthropicOverloadFallbackModel,
     ...(chatCompletionReasoningEffort
       ? {
@@ -224,7 +229,14 @@ async function createTalentChatCompletion(args: {
   return response;
 }
 
+export type TalentCompletionMetadata = {
+  model: string;
+  finishReason: string | null;
+  completionTokens?: number;
+};
+
 export async function runTalentAssistantCompletion(args: {
+  onCompletionMetadata?: (metadata: TalentCompletionMetadata) => void;
   abortSignal?: AbortSignal;
   anthropicOverloadFallbackModel?: string;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
@@ -322,10 +334,17 @@ export async function runTalentAssistantCompletion(args: {
     model,
     response,
   });
+  args.onCompletionMetadata?.({
+    model,
+    finishReason: response.choices[0]?.finish_reason ?? null,
+    completionTokens: response.usage?.completion_tokens,
+  });
   return cleanModelText(getMessageContent(response.choices[0]?.message));
 }
 
 export async function runTalentAssistantToolLoop(args: {
+  abortSignal?: AbortSignal;
+  getSystemPrompt?: () => string;
   toolRuntime?: CareerCapabilityRuntime;
   executeTool: (args: {
     input: Record<string, unknown>;
@@ -383,7 +402,9 @@ export async function runTalentAssistantToolLoop(args: {
   }
 
   if (tools.length === 0) {
+    args.abortSignal?.throwIfAborted();
     const response = await createTalentChatCompletion({
+      abortSignal: args.abortSignal,
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
       chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
@@ -399,11 +420,21 @@ export async function runTalentAssistantToolLoop(args: {
   }
 
   const workingMessages = [...messages];
-  const stopAfterToolNameSet = new Set(stopAfterToolNames);
   let totalToolCalls = 0;
   let pendingToolResultAttribution: string[] = [];
 
-  for (let loop = 0; loop < (args.toolRuntime?.maxToolLoops ?? maxToolLoops); loop += 1) {
+  const refreshSystem = () => {
+    if (!args.getSystemPrompt) return;
+    const index = workingMessages.findIndex((m) => m.role === "system");
+    if (index >= 0)
+      workingMessages[index] = {
+        role: "system",
+        content: args.getSystemPrompt(),
+      };
+  };
+  for (let loop = 0; loop < (args.toolRuntime?.maxToolLoops ?? (tools.some(t => t.function.name === "manage_simulation_session") ? Math.max(8, maxToolLoops) : maxToolLoops)); loop += 1) {
+    const stopAfterToolNameSet = new Set(args.stopAfterToolNames ?? stopAfterToolNames);
+    refreshSystem();
     const capabilityStep = args.toolRuntime?.resolveStep();
     const stepTools = capabilityStep?.tools ?? tools;
     const offeredNames = new Set(stepTools.map(tool => tool.function.name));
@@ -420,7 +451,9 @@ export async function runTalentAssistantToolLoop(args: {
           }
         : undefined;
     pendingToolResultAttribution = [];
+    args.abortSignal?.throwIfAborted();
     const response = await createTalentChatCompletion({
+      abortSignal: args.abortSignal,
       anthropicOverloadFallbackModel:
         modelConfig?.anthropicOverloadFallbackModel,
       chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
@@ -470,7 +503,7 @@ export async function runTalentAssistantToolLoop(args: {
       })),
     });
 
-    const remainingToolCalls = (args.toolRuntime?.maxToolCalls ?? maxTotalToolCalls) - totalToolCalls;
+    const remainingToolCalls = (args.toolRuntime?.maxToolCalls ?? (tools.some(t => t.function.name === "manage_simulation_session") ? Math.max(8, maxTotalToolCalls) : maxTotalToolCalls)) - totalToolCalls;
     const executableToolCalls =
       remainingToolCalls > 0 ? toolCalls.slice(0, remainingToolCalls) : [];
     const skippedToolCalls = toolCalls.slice(executableToolCalls.length);
@@ -506,8 +539,9 @@ export async function runTalentAssistantToolLoop(args: {
       const callError = capabilityStep ? args.toolRuntime!.claimCall(toolName, capabilityStep)
         : !offeredNames.has(toolName) ? "tool_not_offered" : null;
       if (callError || args.toolRuntime?.isInternalTool(toolName)) {
-        const result = callError ? { ok: false, error: callError } : args.toolRuntime!.load(parsedArguments, capabilityStep!);
-        workingMessages.push({ role: "tool", tool_call_id: toolCallId, name: toolName, content: JSON.stringify(result) });
+        const loadCapture = await runToolCall(async () => callError ? { ok: false, error: callError } : args.toolRuntime!.load(parsedArguments, capabilityStep!), { callId: toolCallId, name: toolName });
+        if (!loadCapture.returned) throwIfToolControlError(loadCapture.error);
+        workingMessages.push({ role: "tool", tool_call_id: toolCallId, name: toolName, content: prepareToolDelivery(loadCapture, value => JSON.stringify(value)) });
         continue;
       }
       attemptedToolNames.push(toolName);
@@ -519,29 +553,37 @@ export async function runTalentAssistantToolLoop(args: {
         source: usageLabel ?? "talent-assistant-tool-loop",
       });
       const toolStartedAt = Date.now();
+      let capturedDiagnostics: readonly unknown[] = [];
       try {
-        await onToolStart?.({
+        await observeToolCall(() => onToolStart?.({
           id: toolCallId,
           name: toolName,
           input: parsedArguments,
-        });
+        }));
         if (stopAfterToolNameSet.has(toolName)) {
-          await onStopToolStart?.({
+          await observeToolCall(() => onStopToolStart?.({
             id: toolCallId,
             name: toolName,
             input: parsedArguments,
-          });
+          }));
         }
-        const result = await executeTool({
+        const toolCapture = await runToolCall(async () => {
+            const result = await executeTool({
           name: toolName,
           input: parsedArguments,
         });
-        if (capabilityStep) await args.toolRuntime!.recordResult(toolName, result, capabilityStep);
+            if (capabilityStep) await observeToolCall(() => args.toolRuntime!.recordResult(toolName, result, capabilityStep));
+            return result;
+          }, { callId: toolCallId, name: toolName });
+          capturedDiagnostics = toolCapture.diagnostics;
+          const result = unwrapToolCall(toolCapture);
+
         logTalentToolResult({
           callId: toolCallId,
           durationMs: Date.now() - toolStartedAt,
           name: toolName,
           result,
+          diagnostics: toolCapture.diagnostics,
           source: usageLabel ?? "talent-assistant-tool-loop",
         });
 
@@ -549,9 +591,9 @@ export async function runTalentAssistantToolLoop(args: {
           role: "tool",
           tool_call_id: toolCallId,
           name: toolName,
-          content: JSON.stringify(result),
+          content: prepareToolDelivery(toolCapture, value => JSON.stringify(value)),
         });
-        if (stopAfterToolNameSet.has(toolName)) {
+        if (stopAfterToolNameSet.has(toolName) || (result !== null && typeof result === "object" && "awaitingUserInput" in result && result.awaitingUserInput === true)) {
           for (const pending of executableToolCalls.slice(executableToolCalls.indexOf(toolCall) + 1)) {
             workingMessages.push({ role: "tool", tool_call_id: pending.id, name: pending.function?.name,
               content: JSON.stringify({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
@@ -559,6 +601,8 @@ export async function runTalentAssistantToolLoop(args: {
           return "";
         }
       } catch (error) {
+        throwIfToolControlError(error);
+        args.abortSignal?.throwIfAborted();
         logTalentToolError({
           callId: toolCallId,
           durationMs: Date.now() - toolStartedAt,
@@ -570,16 +614,14 @@ export async function runTalentAssistantToolLoop(args: {
           role: "tool",
           tool_call_id: toolCallId,
           name: toolName,
-          content: JSON.stringify({
-            error:
-              error instanceof Error ? error.message : "Tool execution failed",
-          }),
+          content: serializeToolResultForModel(toolErrorResult(error), value => JSON.stringify(value), capturedDiagnostics),
         });
       }
     }
     pendingToolResultAttribution = attemptedToolNames;
   }
 
+  refreshSystem();
   if (args.toolRuntime) {
     const finalStep = args.toolRuntime.resolveStep();
     const content = finalStep.systemBlocks.map(block => block.text).join("\n\n") +
@@ -589,6 +631,7 @@ export async function runTalentAssistantToolLoop(args: {
   }
 
   const fallback = await createTalentChatCompletion({
+      abortSignal: args.abortSignal,
     anthropicOverloadFallbackModel: modelConfig?.anthropicOverloadFallbackModel,
     chatCompletionReasoningEffort: modelConfig?.chatCompletionReasoningEffort,
     fallbackModel: modelConfig?.fallbackModel,

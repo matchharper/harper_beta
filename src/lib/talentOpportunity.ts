@@ -8,6 +8,7 @@ import {
 } from "@/lib/career/postingLinks";
 import {
   OpportunityType,
+  compareSavedOpportunityHistoryOrder,
   isOpportunityType,
   paginateNewOpportunityHistory,
 } from "@/lib/opportunityType";
@@ -42,6 +43,7 @@ type RawRecommendationRow = {
   role_id: string;
   saved_stage: string | null;
   score: number | null;
+  evidence?: Json;
   tradeoffs: Json;
   viewed_at: string | null;
   company_role: {
@@ -113,6 +115,7 @@ type RawPostingRecommendationRow = {
   preference_fit: Json | null;
   fit_reasons: Json;
   saved_stage: string | null;
+  evidence?: Json;
   tradeoffs: Json;
   viewed_at: string | null;
 };
@@ -174,6 +177,7 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   fit_summary,
   created_at,
   fit_reasons,
+  evidence,
   tradeoffs,
   feedback,
   feedback_at,
@@ -288,6 +292,7 @@ const TALENT_POSTING_ROLE_SELECT = `
     fit_summary,
     created_at,
     fit_reasons,
+    evidence,
     tradeoffs,
     feedback,
     feedback_at,
@@ -444,6 +449,7 @@ export type TalentOpportunityHistoryItem = {
   preferenceFit: TalentOpportunityPreferenceFitItem[];
   recommendationRank: number | null;
   recommendedAt: string;
+  recommendationNote?: string | null;
   recommendationConcerns: string[];
   recommendationReasons: string[];
   recommendationScore: number | null;
@@ -510,6 +516,7 @@ export type TalentOpportunityHistoryCounts = {
   archived: number;
   new: number;
   newInternal: number;
+  newExternalUnread: number;
   saved: number;
   savedStages: Record<TalentOpportunitySavedStage, number>;
   total: number;
@@ -1017,7 +1024,10 @@ export function formatTalentRoleActivitiesForPrompt(
         2,
         "0"
       )} ${parts.hour}:${parts.minute} KST`;
-      const content = compactTalentRoleActivityContent(item.content);
+      const content = compactTalentRoleActivityContent(
+        item.content,
+        item.kind === "application_preparation_summary" ? 2400 : 240
+      );
       if (item.kind === "memo") {
         return content ? `${timestamp} memo: ${content}` : "";
       }
@@ -1169,6 +1179,7 @@ const createEmptyHistoryCounts = (): TalentOpportunityHistoryCounts => ({
   archived: 0,
   new: 0,
   newInternal: 0,
+  newExternalUnread: 0,
   saved: 0,
   savedStages: {
     saved: 0,
@@ -1473,6 +1484,7 @@ async function countTalentOpportunityRecommendations(args: {
   historyTab: TalentOpportunityHistoryTab;
   savedStage?: TalentOpportunitySavedStage;
   sourceType?: TalentOpportunitySourceType;
+  unreadOnly?: boolean;
   userId: string;
 }) {
   let query = (
@@ -1504,6 +1516,10 @@ async function countTalentOpportunityRecommendations(args: {
 
   if (args.sourceType) {
     query = query.eq("company_role.source_type", args.sourceType);
+  }
+
+  if (args.unreadOnly) {
+    query = query.is("viewed_at", null);
   }
 
   const { count, error } = await query;
@@ -1551,6 +1567,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   const [
     newCount,
     newInternalCount,
+    newExternalUnreadCount,
     savedCount,
     archivedCount,
     savedStageCount,
@@ -1569,6 +1586,13 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
       admin: args.admin,
       historyTab: "new",
       sourceType: "internal",
+      userId: args.userId,
+    }),
+    countTalentOpportunityRecommendations({
+      admin: args.admin,
+      historyTab: "new",
+      sourceType: "external",
+      unreadOnly: true,
       userId: args.userId,
     }),
     countTalentOpportunityRecommendations({
@@ -1620,6 +1644,7 @@ export async function fetchTalentOpportunityHistoryCounts(args: {
   const counts = createEmptyHistoryCounts();
   counts.new = newCount;
   counts.newInternal = newInternalCount;
+  counts.newExternalUnread = newExternalUnreadCount;
   counts.saved = savedCount;
   counts.archived = archivedCount;
   counts.total = newCount + savedCount + archivedCount;
@@ -1722,6 +1747,12 @@ function mapCompanyDataRow(
     : null;
 }
 
+function externalRecommendationNote(row: {evidence?:Json;tradeoffs?:Json} | null | undefined) {
+  const evidence=row?.evidence as Record<string,any> | undefined;
+  return evidence?.externalVersion==="v2" || evidence?.candidate?.externalVersion==="v2"
+    ? normalizeTextList(row?.tradeoffs ?? [],1)[0] ?? null : null;
+}
+
 function mapRecommendationRow(
   row: RawRecommendationRow,
   locale?: string | null
@@ -1788,7 +1819,8 @@ function mapRecommendationRow(
         ? row.rank
         : null,
     recommendedAt: row.created_at,
-    recommendationConcerns: normalizeTextList(row.tradeoffs, 3),
+    recommendationNote: externalRecommendationNote(row),
+    recommendationConcerns: externalRecommendationNote(row) ? [] : normalizeTextList(row.tradeoffs, 3),
     updatedAt: row.updated_at ?? null,
     recommendationReasons: normalizeTextList(row.fit_reasons),
     recommendationScore:
@@ -1918,7 +1950,8 @@ function mapPostingRoleRow(
       row.posted_at ??
       fallbackRecommendedAt,
     updatedAt: existingRecommendation?.updated_at ?? null,
-    recommendationConcerns: normalizeTextList(
+    recommendationNote: externalRecommendationNote(existingRecommendation),
+    recommendationConcerns: externalRecommendationNote(existingRecommendation) ? [] : normalizeTextList(
       existingRecommendation?.tradeoffs ?? [],
       3
     ),
@@ -2586,9 +2619,10 @@ function filterHistoryItemsForSavedStage(
   items: TalentOpportunityHistoryItem[],
   savedStage?: TalentOpportunitySavedStageFilter
 ) {
-  if (!savedStage) return items;
+  const sortedItems = [...items].sort(compareSavedOpportunityHistoryOrder);
+  if (!savedStage) return sortedItems;
 
-  return items.filter((item) => {
+  return sortedItems.filter((item) => {
     const resolvedStage = getResolvedTalentOpportunitySavedStage(item);
     if (savedStage === "all") return resolvedStage !== "hidden";
     return resolvedStage === savedStage;
@@ -3350,7 +3384,9 @@ export async function updateTalentOpportunityHistoryItem(args: {
   )
     .update(payload)
     .eq("talent_id", args.userId)
-    .eq("id", opportunityId) as any);
+    .eq("id", opportunityId)
+    // Preserve first interaction for fixed-window recommendation measurement.
+    .is(args.action === "view" ? "viewed_at" : "clicked_at", null) as any);
 
   if (error) {
     throw new Error(error.message ?? "Failed to update opportunity state");

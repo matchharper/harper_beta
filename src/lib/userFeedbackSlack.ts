@@ -8,6 +8,8 @@ export const USER_FEEDBACK_SLACK_CHANNEL_ID = "C0BQWKFD058";
 type SlackBlock = Record<string, unknown>;
 
 type UserFeedbackSlackMessage = {
+  client_msg_id?: string;
+  mrkdwn?: boolean;
   blocks?: SlackBlock[];
   text: string;
 };
@@ -32,6 +34,8 @@ export async function postUserFeedbackSlackMessage(
     method: "POST",
   });
   const result = (await response.json().catch(() => null)) as {
+    channel?: string;
+    ts?: string;
     error?: string;
     ok?: boolean;
   } | null;
@@ -41,4 +45,5 @@ export async function postUserFeedbackSlackMessage(
       `Slack chat.postMessage failed: ${result?.error ?? response.status}`
     );
   }
+  return { channel: result.channel ?? USER_FEEDBACK_SLACK_CHANNEL_ID, timestamp: result.ts ?? null };
 }

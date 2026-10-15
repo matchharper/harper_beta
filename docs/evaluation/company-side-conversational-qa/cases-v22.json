@@ -1,0 +1,82 @@
+{
+  "datasetVersion": "v22",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic product events and conversational history; no production identities or private source messages.",
+  "scenarios": [
+    {
+      "id": "CSCQ2201",
+      "variants": [
+        {
+          "id": "decline",
+          "surface": "slack",
+          "allowSilentCompletion": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "서류가 좋아 보여서 이 분께 먼저 제안했어요. 답변 오면 알려주세요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "Inform the company of the candidate decision.",
+            "facts": {
+              "candidateName": "합성후보 윤",
+              "roleName": "백엔드 엔지니어",
+              "candidateDecision": "declined",
+              "privateReasonShared": false,
+              "candidateReceivedIntroAt": "2026-09-20T03:00:00Z"
+            }
+          },
+          "turns": [
+            "verified event"
+          ]
+        },
+        {
+          "id": "meeting_partial",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "companyUpdate": {
+            "purpose": "Explain the confirmed meeting and Calendar outcome.",
+            "facts": {
+              "candidateName": "합성후보 박",
+              "confirmedStartAt": "2026-09-24T05:00:00Z",
+              "confirmedEndAt": "2026-09-24T06:00:00Z",
+              "timezone": "Asia/Seoul",
+              "calendarInvitation": {
+                "status": "failed",
+                "meetUrl": null,
+                "calendarUrl": null
+              }
+            }
+          },
+          "turns": [
+            "verified event"
+          ]
+        },
+        {
+          "id": "preferences_preserved",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "history": [
+            {
+              "role": "user",
+              "content": "어제 먼저 소개해 준 후보자는 어떻게 됐나요?"
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "Explain the verified change relevant to the existing introduction.",
+            "facts": {
+              "candidateName": "합성후보 이",
+              "newMatchingContactAllowed": false,
+              "existingCompanyProfileRetained": true,
+              "introDecision": "awaiting_candidate",
+              "candidateDeclined": false
+            }
+          },
+          "turns": [
+            "verified event"
+          ]
+        }
+      ]
+    }
+  ]
+}

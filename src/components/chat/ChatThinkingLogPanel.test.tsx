@@ -87,3 +87,16 @@ test("shows Working during tool execution and Worked with elapsed time after com
   assert.match(workingHtml, />Working</);
   assert.match(workedHtml, /Worked · 8m 4s/);
 });
+
+test("application question wait reuses the work panel without an active spinner", () => {
+  const html = renderToStaticMarkup(
+    <ChatThinkingLogPanel
+      active={false}
+      statusLabel="답변을 기다리고 있어요"
+      logs={[{id:"update",label:"지원 페이지의 필수 항목을 확인했어요."}]}
+    />
+  );
+  assert.match(html, /답변을 기다리고 있어요/);
+  assert.doesNotMatch(html, /animate-spin|>Working</);
+  assert.match(html, /aria-expanded="false"/);
+});

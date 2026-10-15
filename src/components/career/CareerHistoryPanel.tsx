@@ -47,7 +47,10 @@ import {
   getCareerOpportunityTypeLabel,
   getCareerPositiveActionLabel,
 } from "./opportunityTypeMeta";
-import { compareNewOpportunityHistoryOrder } from "@/lib/opportunityType";
+import {
+  compareNewOpportunityHistoryOrder,
+  compareSavedOpportunityHistoryOrder,
+} from "@/lib/opportunityType";
 import {
   HistoryNegativeFeedbackModal,
   hasExternalAlreadyAppliedFeedbackReason,
@@ -61,6 +64,7 @@ import SavedOpportunityBoard, {
 import { HistoryOpportunityInlinePage } from "./history/HistoryOpportunityDetailContent";
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import NewOpportunityList from "./history/NewOpportunityList";
+import ExternalOpportunityApplyModal from "./history/ExternalOpportunityApplyModal";
 import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
 import InternalConnectionAcceptanceModal from "./InternalConnectionAcceptanceModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -664,9 +668,12 @@ const CareerHistoryPanel = ({
   const feedbackRoleQueryIgnoreRef = useRef<string | null>(null);
   const missingRoleIdRef = useRef<string | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const requestedSavedFirstPagesRef = useRef<Set<string>>(new Set());
   const [loadingRoleId, setLoadingRoleId] = useState<string | null>(null);
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
+  const [externalApplyOpportunity, setExternalApplyOpportunity] =
+    useState<CareerHistoryOpportunity | null>(null);
   const [
     internalConnectionAcceptanceOpportunity,
     setInternalConnectionAcceptanceOpportunity,
@@ -899,7 +906,7 @@ const CareerHistoryPanel = ({
         ...savedItemsByStage.connected,
         ...savedItemsByStage.closed,
         ...savedItemsByStage.hidden,
-      ].sort(compareRecommendedAtDesc),
+      ].sort(compareSavedOpportunityHistoryOrder),
     [
       savedItemsByStage.saved,
       savedItemsByStage.applied,
@@ -1207,6 +1214,7 @@ const CareerHistoryPanel = ({
       options?: {
         feedbackReason?: string | null;
         savedStage?: CareerOpportunitySavedStage | null;
+        promptImmediately?: boolean;
       }
     ) => {
       if (activeTab === "new" && feedback !== null) {
@@ -1216,10 +1224,11 @@ const CareerHistoryPanel = ({
         feedbackReason: options?.feedbackReason ?? null,
         interactionSource: "position_tab",
         promptImmediately:
-          feedback !== null &&
-          activeTab === "new" &&
-          item.feedback === null &&
-          historyOpportunityCounts.new <= 1,
+          options?.promptImmediately ??
+          (feedback !== null &&
+            activeTab === "new" &&
+            item.feedback === null &&
+            historyOpportunityCounts.new <= 1),
         savedStage:
           feedback === "positive"
             ? (options?.savedStage ?? getResolvedSavedStage(item))
@@ -1546,7 +1555,7 @@ const CareerHistoryPanel = ({
         .filter(
           (item) => getSavedOpportunityManagementStatus(item) !== "hidden"
         )
-        .sort(compareRecommendedAtDesc),
+        .sort(compareSavedOpportunityHistoryOrder),
     [savedItems]
   );
   const savedBoardColumnLoadState = useMemo<
@@ -1663,17 +1672,26 @@ const CareerHistoryPanel = ({
     ) {
       return;
     }
+    const needsSavedFirstPage =
+      activeTab === "saved" &&
+      !requestedSavedFirstPagesRef.current.has(activeSavedStatus);
     if (
       !hasMoreListItems ||
-      listItems.length >= Math.min(listTotal, SAVED_LIST_INITIAL_PAGE_SIZE)
+      historyLoadingMore ||
+      (!needsSavedFirstPage &&
+        listItems.length >= Math.min(listTotal, SAVED_LIST_INITIAL_PAGE_SIZE))
     ) {
       return;
+    }
+    if (needsSavedFirstPage) {
+      requestedSavedFirstPagesRef.current.add(activeSavedStatus);
     }
     loadMoreListItems();
   }, [
     activeSavedStatus,
     activeTab,
     hasMoreListItems,
+    historyLoadingMore,
     listItems.length,
     listTotal,
     loadMoreListItems,
@@ -1698,13 +1716,15 @@ const CareerHistoryPanel = ({
       );
       if (
         targetCount === 0 ||
-        loadState.loadedCount >= targetCount ||
+        (requestedSavedFirstPagesRef.current.has(status) &&
+          loadState.loadedCount >= targetCount) ||
         !loadState.hasMore ||
         loadState.loading
       ) {
         continue;
       }
 
+      requestedSavedFirstPagesRef.current.add(status);
       statusesToLoad.push(status);
     }
 
@@ -1826,6 +1846,10 @@ const CareerHistoryPanel = ({
               internalCount={historyOpportunityCounts.newInternal}
               items={newItems}
               loadingMore={historyLoadingMore}
+              onApply={(item) => {
+                logCareerEvent("click_history_external_apply");
+                setExternalApplyOpportunity(item);
+              }}
               onLoadMore={loadMoreNewOpportunities}
               onNegative={handleNegativeAction}
               onKeep={(item) => void updateFeedbackForItem(item, "keep")}
@@ -1841,6 +1865,7 @@ const CareerHistoryPanel = ({
           {showInlineOpportunityPage && modalOpportunity && (
             <HistoryOpportunityInlinePage
               item={modalOpportunity}
+              onOpenChat={() => openChatTab("click_history_apply_with_harper")}
               pending={pendingOpportunityIds.has(modalOpportunity.id)}
               savedStatus={getCareerOpportunityManagementStatus(
                 modalOpportunity
@@ -2103,6 +2128,30 @@ const CareerHistoryPanel = ({
         opportunityType={infoOpportunityType}
         onClose={() => setInfoOpportunityType(null)}
       />
+
+      {externalApplyOpportunity ? (
+        <ExternalOpportunityApplyModal
+          key={externalApplyOpportunity.id}
+          item={externalApplyOpportunity}
+          pending={pendingOpportunityIds.has(externalApplyOpportunity.id)}
+          error={historyUpdateError}
+          onClose={() => setExternalApplyOpportunity(null)}
+          onSave={(savedStage) => {
+            logCareerEvent(
+              savedStage === "applied"
+                ? "click_history_external_apply_directly"
+                : "click_history_external_apply_with_harper"
+            );
+            return updateFeedbackForItem(externalApplyOpportunity, "positive", {
+              savedStage,
+              promptImmediately: false,
+            });
+          }}
+          onApplied={() => updateHistoryLocation("saved", "applied")}
+          onOpenLink={(url) => openHistoryLink(externalApplyOpportunity, url)}
+          onOpenChat={() => openChatTab("click_history_apply_with_harper")}
+        />
+      ) : null}
 
       <InternalConnectionAcceptanceModal
         item={internalConnectionAcceptanceOpportunity}

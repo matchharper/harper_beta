@@ -1,0 +1,10 @@
+{
+  "version": "v1",
+  "provenance": "Invented employer pages and empty controls only. Gold frozen before model execution. No production data.",
+  "frozenInputs": {
+    "cases-v1.json": "dfe439a257b523d0866fa801bd442f7173d796930a3a36c3c2dd7c18d3fc15c9",
+    "gold-v1.json": "5a7a5abdd5af268a5d0532d2603592448e285bec1c94ebd92f972ff46d241547",
+    "fixtures/server-v1.cjs": "09d52b677ce4046c10bd9ea43a11e14ab76b396459bb5ec8911aea4a8d1b85ab"
+  },
+  "runner": "scripts/evalApplicationFormInspection.ts"
+}

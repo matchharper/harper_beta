@@ -35,6 +35,7 @@ export const createEmptyHistoryOpportunityCounts =
     archived: 0,
     new: 0,
     newInternal: 0,
+    newExternalUnread: 0,
     saved: 0,
     savedStages: {
       saved: 0,
@@ -66,6 +67,7 @@ export const normalizeHistoryOpportunityCounts = (
 
   counts.new = normalizeCount(record.new);
   counts.newInternal = normalizeCount(record.newInternal);
+  counts.newExternalUnread = normalizeCount(record.newExternalUnread);
   counts.saved = normalizeCount(record.saved);
   counts.archived = normalizeCount(record.archived);
   counts.total = normalizeCount(record.total);
@@ -107,6 +109,8 @@ export const deriveHistoryOpportunityCounts = (
     counts.new += 1;
     if (item.sourceType === "internal" || item.isInternal) {
       counts.newInternal += 1;
+    } else if (!item.viewedAt) {
+      counts.newExternalUnread += 1;
     }
   }
 

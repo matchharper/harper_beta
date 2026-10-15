@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "v1",
+  "caseId": "synthetic-backend-remote",
+  "state": {
+    "current_date": "2026-10-13",
+    "user_context": {
+      "profile": { "headline": "Backend engineer", "experiences": [{ "role": "Backend engineer", "description": "Five years building and operating Python APIs and PostgreSQL services; led incident response and mentored two engineers." }] },
+      "search_brief": [{ "ref": 1, "label": "Next role", "content": "Interested in a senior backend role with hands-on development. Fully remote work within Korea is nonnegotiable." }],
+      "behavior_context": null
+    },
+    "candidate_context": { "roles": [{ "name": "Senior Backend Engineer", "company": "Synthetic Example", "description": "Own Python APIs and PostgreSQL reliability. Requires four years of relevant backend engineering. Fully remote within Korea. Compensation is not provided." }] },
+    "run_context": { "evaluation_goal": "Synthetic protocol smoke. No recommendation or message." }
+  }
+}

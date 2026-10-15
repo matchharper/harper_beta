@@ -1,3 +1,9 @@
+import { throwIfToolControlError } from "@/lib/llm/toolError";
+import { formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
+import { runToolCall, unwrapToolCall, prepareToolDeliveryParts } from "@/lib/llm/toolExecution";
+import { buildCompanyUpdatePrompt } from "./companyUpdate";
+import { companyConversationReadAdmin } from "./companyReadScope.server";
+import { recordOrgAgentFailure } from "./errorLogging";
 import { buildCompanyContactEventPrompt } from "@/lib/org/agent/contactEventPrompt";
 import { billingActionNotice } from "@/lib/org/billing/types";
 import type { OrgLocale } from "@/i18n/org/locale";
@@ -21,6 +27,7 @@ import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
   DEFAULT_ORG_AGENT_MODEL,
   getOrgAgentFallbackModel,
+  getSlackOrgAgentModel,
   getOrgAgentReasoningEffort,
   ORG_AGENT_TEMPERATURE,
   ORG_AGENT_GEMINI_FLASH_MODEL,
@@ -57,12 +64,13 @@ import {
   continuationCapabilities,
   getCompanyCapabilityMode,
   resolveCompanyCapabilities,
+  type CompanyCapabilityMode,
 } from "./capabilities/resolver";
 import { loadCompanyCapabilities } from "./capabilities/loader";
 import { capabilityForTool } from "./capabilities/registry";
 import {
   serializeOrgAgentToolError,
-  serializeOrgAgentToolResult,
+  formatOrgAgentToolResult,
 } from "@/lib/org/agent/promptFormat";
 import { maybeSummarizeOrgAgentConversation } from "@/lib/org/agent/summary";
 import {
@@ -84,6 +92,7 @@ import {
 } from "@/lib/org/agent/toolExecution";
 import { isOrgAgentToolName } from "@/lib/org/agent/tools";
 import type { CompanyCapabilityId } from "./capabilities/registry";
+import type { CompanyMessageAudience } from "./companyMessaging";
 import type { SlackRoleCreationExecutionContext } from "@/lib/org/agent/slackRoleCreation";
 import {
   getOrgAgentToolCompletionMaxTokens,
@@ -91,6 +100,7 @@ import {
 } from "@/lib/org/agent/toolCompletionBudget";
 import {
   fitOrgAgentToolResultToBudget,
+  fitOrgAgentDiagnosticSupplements,
   ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
 } from "@/lib/org/agent/toolResultBudget";
 import {
@@ -207,6 +217,8 @@ const MAX_TOTAL_TOOL_CALLS = 30;
 const TOOL_FREE_FINAL_MAX_TOKENS = 2_000;
 
 export async function generateOrgAgentBackgroundResultReply(args: {
+  companyUpdateContext?: Record<string, unknown>;
+  model?: unknown;
   candidateTargets?: BackgroundResultCandidateTarget[];
   companyName: string;
   firstCompanyFirstResultDelivery?: boolean;
@@ -222,7 +234,7 @@ export async function generateOrgAgentBackgroundResultReply(args: {
   if (!resultText) {
     throw new OrgHttpError(400, "background result is required");
   }
-  const modelConfig = resolveOrgAgentModel(undefined);
+  const modelConfig = resolveOrgAgentModel(args.model);
   const surface = args.surface ?? "chat";
   const completion = await runCompletion({
     responseFormat: args.candidateTargets?.length
@@ -231,6 +243,7 @@ export async function generateOrgAgentBackgroundResultReply(args: {
     allowTools: false,
     maxTokens: TOOL_FREE_FINAL_MAX_TOKENS + (args.candidateTargets?.length ?? 0) * 100,
     messages: buildOrgAgentBackgroundResultMessages({
+      companyUpdateContext: args.companyUpdateContext,
       candidateTargets: args.candidateTargets,
       companyName: args.companyName,
       firstCompanyFirstResultDelivery: args.firstCompanyFirstResultDelivery,
@@ -545,7 +558,7 @@ export async function runOrgAgentCompletion(args: {
       streaming: Boolean(args.onTextDelta),
       durationMs: Math.round(performance.now() - startedAt),
       firstTextMs,
-      error: getLlmErrorMessage(error),
+      error: formatToolError(error),
     });
     throw error;
   }
@@ -564,6 +577,9 @@ export type OrgAgentLoopDependencies = {
 export async function runOrgAgentToolLoop(
   args: {
     allowSilentCompletion?: boolean;
+    backgroundOrigin?: "scheduled_review";
+    capabilityMode?: CompanyCapabilityMode;
+    companyMessageAudience?: CompanyMessageAudience;
     actorId: string;
     actorLabel: string;
     admin: ReturnType<typeof getSupabaseAdmin>;
@@ -584,7 +600,11 @@ export async function runOrgAgentToolLoop(
     assertCanContinue?: () => Promise<void>;
     mentions: OrgAgentMention[];
     model: OrgAgentModelId;
+    /** Trusted caller override for this execution; shared model defaults stay unchanged. */
+    reasoningEffort?: OrgAgentReasoningEffort;
     initialCapabilities?: readonly CompanyCapabilityId[];
+    /** Server-owned execution boundary; never taken from model or request data. */
+    allowedToolNames?: ReadonlySet<string>;
     responseLocale?: OrgLocale | "auto";
     readAudience: "caller" | "company_safe";
     referenceAttachments?: ChatAttachmentPayload[];
@@ -616,7 +636,7 @@ export async function runOrgAgentToolLoop(
     userMessage: args.userMessage,
     requestTime: dependencies.requestTime,
   });
-  const capabilityMode = getCompanyCapabilityMode();
+  const capabilityMode = args.capabilityMode ?? getCompanyCapabilityMode();
   const loadedCapabilities = continuationCapabilities(
     args.context.conversationMessages
   );
@@ -647,11 +667,16 @@ export async function runOrgAgentToolLoop(
   const state = createOrgAgentToolExecutionState(args.context);
   let activeModel = args.model;
   let activeReasoningEffort: OrgAgentReasoningEffort =
-    getOrgAgentReasoningEffort(activeModel);
+    args.reasoningEffort ?? getOrgAgentReasoningEffort(activeModel);
   let calibrationCompleted = false;
   let fallbackReason: ChatCompletionFallbackReason | null = null;
   let totalToolCalls = 0;
   let totalToolResultChars = 0;
+  const supplementalResults: Array<{ index: number; content: string; diagnosticText?: string }> = [];
+  const refreshSupplementalResults = () => {
+    const refreshed = fitOrgAgentDiagnosticSupplements(supplementalResults, ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars);
+    supplementalResults.forEach((entry, index) => { messages[entry.index]!.content = refreshed[index]!; });
+  };
   let toolBudgetReached = false;
   const usage = createTurnUsage();
   const debugCalls: LlmDebugCall[] = [];
@@ -663,6 +688,7 @@ export async function runOrgAgentToolLoop(
       surface: args.source,
       mode: capabilityMode,
       loaded: loadedCapabilities,
+      allowedToolNames: args.allowedToolNames,
     });
     const offeredTools = resolved.offeredToolNames;
     messages[0] = {
@@ -672,8 +698,10 @@ export async function runOrgAgentToolLoop(
         surface: args.source,
         responseLocale: args.responseLocale,
         allowSilentCompletion: args.allowSilentCompletion,
+        backgroundOrigin: args.backgroundOrigin,
       }),
     };
+    refreshSupplementalResults();
     let completion: Awaited<ReturnType<typeof runCompletion>>;
     try {
       completion = await (dependencies.complete ?? runCompletion)({
@@ -743,8 +771,16 @@ export async function runOrgAgentToolLoop(
 
     await args.assertCanContinue?.();
 
+    // A terminal delivery command cannot partially execute alongside other work.
+    if (toolCalls.some(call => call.function.name === "send_company_message") && toolCalls.length !== 1) {
+      messages.push({ role: "assistant", content: assistantText || null, tool_calls: toolCalls } as OrgAgentLlmMessage);
+      for (const call of toolCalls) messages.push({ role: "tool", tool_call_id: call.id, name: call.function.name,
+        content: JSON.stringify({ error: "terminal_command_must_be_alone", message: "No calls in this batch executed. Finish other work first, then commit the final company message batch alone." }) });
+      continue;
+    }
+
     const shouldAttemptVisibleProgress = Boolean(
-      assistantText && !visibleProgressPublished && args.onVisibleProgress
+      assistantText && !visibleProgressPublished && args.onVisibleProgress && !toolCalls.some(call => call.function.name === "send_company_message")
     );
     let deliveredThisStep = false;
     if (shouldAttemptVisibleProgress) {
@@ -935,6 +971,8 @@ export async function runOrgAgentToolLoop(
       const completeBefore = new Set(state.completeLongTextTargets);
       const observedBefore = new Map(state.observedLongTextFingerprints);
       const pendingRoleReadsBefore = new Set(state.pendingFullRoleRequestIds);
+      let executorStarted = false;
+      let capturedDiagnostics: readonly unknown[] = [];
       try {
         if (toolName === "contact_talent") {
           if (
@@ -951,8 +989,11 @@ export async function runOrgAgentToolLoop(
           state.requiredPresentationText = null;
         }
         const toolInput = parseToolArguments(toolCall.function.arguments);
-        const result = await (dependencies.executeTool ?? executeOrgAgentTool)({
+        executorStarted = true;
+        const toolCapture = await runToolCall(() => (dependencies.executeTool ?? executeOrgAgentTool)({
           actorId: args.actorId,
+          companyMessageAudience: args.companyMessageAudience,
+          model: activeModel,
           actorLabel: args.actorLabel,
           admin: args.admin,
           audience: args.readAudience,
@@ -973,7 +1014,9 @@ export async function runOrgAgentToolLoop(
           user: args.user,
           recentConversationContext: args.context.conversationText,
           userMessage: args.userMessage,
-        });
+        }), { callId: toolCall.id, name: toolName });
+          capturedDiagnostics = toolCapture.diagnostics;
+          const result = unwrapToolCall(toolCapture);
         if (toolName === "contact_talent") {
           captureOrgAgentContactDraftState({ input: toolInput, state });
         } else if (
@@ -987,7 +1030,8 @@ export async function runOrgAgentToolLoop(
         if (toolName === "calibrate_role_hiring_brief") {
           calibrationCompleted = true;
         }
-        const serializedResult = serializeOrgAgentToolResult(toolName, result);
+        const preparedResult = prepareToolDeliveryParts(toolCapture, value => formatOrgAgentToolResult(toolName, value));
+        const serializedResult = preparedResult.content;
         const remainingResultChars = Math.max(
           0,
           ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars
@@ -1013,6 +1057,9 @@ export async function runOrgAgentToolLoop(
           role: "tool",
           tool_call_id: toolCall.id,
         });
+        supplementalResults.push({ index: messages.length - 1, content: boundedResult,
+          ...(preparedResult.diagnosticText ? { diagnosticText: preparedResult.diagnosticText } : {}) });
+        refreshSupplementalResults();
         const resultMetadata = state.toolResults.findLast(
           (item) => item.callId === toolCall.id
         );
@@ -1027,6 +1074,7 @@ export async function runOrgAgentToolLoop(
           }),
         });
       } catch (error) {
+        throwIfToolControlError(error);
         args.signal?.throwIfAborted();
         const billingNotice = billingActionNotice(error);
         if (billingNotice) state.billingNotice = billingNotice;
@@ -1039,12 +1087,12 @@ export async function runOrgAgentToolLoop(
         const isInputError =
           error instanceof OrgAgentToolInputError ||
           (error instanceof OrgHttpError && error.status < 500);
-        const errorMessage = isInputError
-          ? error.message
-          : "The tool could not be completed. Do not claim success.";
+        const errorMessage = billingNotice
+          ? "This action is blocked; repeating the same request will not resolve it."
+          : error;
         console.error("[org/agent:tool]", {
           callId: toolCall.id,
-          error: getLlmErrorMessage(error),
+          error: formatToolError(error),
           name: toolName,
         });
         state.toolResults.push({
@@ -1055,11 +1103,12 @@ export async function runOrgAgentToolLoop(
         });
         emitToolStatus("error");
         messages.push({
-          content: serializeOrgAgentToolError({
+          content: serializeToolResultForModel(error, () => serializeOrgAgentToolError({
             kind: billingNotice ? "blocked" : isInputError ? "input" : "execution",
+            executed: executorStarted,
             message: errorMessage,
             name: toolName,
-          }),
+          }), billingNotice ? [] : capturedDiagnostics),
           name: toolName,
           role: "tool",
           tool_call_id: toolCall.id,
@@ -1082,9 +1131,11 @@ export async function runOrgAgentToolLoop(
       });
     }
     promoteOrgAgentToolReadVisibility(state);
+    if (state.companyMessageBatch) return { debugCalls, fallbackReason, model: activeModel, reply: "", state, usage };
     if (toolBudgetReached || totalToolCalls >= MAX_TOTAL_TOOL_CALLS) break;
   }
 
+  refreshSupplementalResults();
   let finalCompletion: Awaited<ReturnType<typeof runCompletion>>;
   try {
     finalCompletion = await (dependencies.complete ?? runCompletion)({
@@ -1294,6 +1345,7 @@ export class OrgAgentWebActionSupersededError extends Error {
 export type OrgAgentWebActionTurnResult =
   | {
       outcome: "completed_message";
+      batchId?: string;
       progressMessageId: number | null;
       terminalMessageId: number;
     }
@@ -1318,14 +1370,18 @@ export async function runOrgAgentWebActionTurn(args: {
   jobId: string;
   roleId: string | null;
   user: User;
+  responseLocale?: OrgLocale | "auto";
 }): Promise<OrgAgentWebActionTurnResult> {
-  const admin = getSupabaseAdmin();
-  const modelConfig = resolveOrgAgentModel(undefined);
+  const admin = await companyConversationReadAdmin({
+    admin: getSupabaseAdmin(), workspaceId: args.conversation.company_workspace_id,
+    roleId: String(args.actionContext.relatedRoleId ?? args.roleId ?? "").trim() || null,
+  });
+  const modelConfig = resolveOrgAgentModel(args.actionContext.slackThreadId ? getSlackOrgAgentModel() : undefined);
   const runId = args.jobId;
   const isCandidateContact = args.actionName === "candidate_contact_received";
-  const slackThreadId = isCandidateContact
-    ? String(args.actionContext.slackThreadId ?? "").trim() || null
-    : null;
+  const isCompanyUpdate = args.actionName === "company_update";
+  const slackThreadId = String(args.actionContext.slackThreadId ?? "").trim() || null;
+  const companyMessageAlreadyDelivered = (args.actionContext.facts as Record<string, unknown> | undefined)?.companyMessageAlreadyDelivered === true;
   const trigger = isCandidateContact
     ? ("candidate_contact" as const)
     : ("web_action" as const);
@@ -1349,7 +1405,7 @@ export async function runOrgAgentWebActionTurn(args: {
   const existingTerminal = existingMessages.find(
     (message) => message.metadata.agentTurn?.phase === "terminal"
   );
-  let progressMessageId = existingProgress?.id ?? null;
+  const progressMessageId = existingProgress?.id ?? null;
   if (existingTerminal) {
     return {
       outcome: "completed_message",
@@ -1358,7 +1414,39 @@ export async function runOrgAgentWebActionTurn(args: {
     };
   }
 
+  let companyMessageAudience: CompanyMessageAudience | undefined;
+  let slackExecutionContext: SlackRoleCreationExecutionContext | undefined;
+  if (isCompanyUpdate && slackThreadId) {
+    const { data: thread, error: threadError } = await (admin.from("company_slack_threads") as any)
+      .select("channel_id").eq("id", slackThreadId).single();
+    if (threadError) throw threadError;
+    const { data: channel, error: channelError } = await (admin.from("company_slack_channels") as any)
+      .select("id,slack_channel_id,slack_channel_name,slack_team_id,is_enabled")
+      .eq("id", thread.channel_id).eq("company_workspace_id", args.conversation.company_workspace_id).single();
+    if (channelError) throw channelError;
+    if (!channel.is_enabled) throw new Error("Company update Slack channel is disabled");
+    companyMessageAudience = { channelDbId: channel.id, channelId: channel.slack_channel_id, jobId: args.jobId };
+    if (typeof args.actionContext.slackUserId === "string") {
+      const { resolveHarperSlackInteractionContext } = await import("../slackHarper");
+      const { getOrgPublicSiteUrl } = await import("../slackMessages");
+      const installation = await resolveHarperSlackInteractionContext({ workspaceId: args.conversation.company_workspace_id,
+        channelId: channel.slack_channel_id, slackTeamId: channel.slack_team_id });
+      slackExecutionContext = { channelDbId: channel.id, channelId: channel.slack_channel_id,
+        channelName: channel.slack_channel_name ?? "", publicSiteUrl: getOrgPublicSiteUrl(),
+        slackUserId: args.actionContext.slackUserId, sourceKey: args.jobId, token: installation.token };
+    }
+    const { data: batchRows, error: batchError } = await (admin.from("company_messages") as any)
+      .select("id,metadata").eq("company_workspace_id", args.conversation.company_workspace_id)
+      .contains("metadata", { webActionJobId: args.jobId }).eq("role", "assistant")
+      .not("metadata->companyMessageBatch", "is", null).order("id");
+    if (batchError) throw batchError;
+    if (batchRows?.length) return { outcome: "completed_message", progressMessageId,
+      terminalMessageId: Number(batchRows[0].id), batchId: batchRows[0].metadata.companyMessageBatch.batchId };
+  }
+
   const assertCanContinue = async () => {
+    // A new company turn does not erase a committed, undelivered event.
+    if (isCompanyUpdate || isCandidateContact) return;
     let query = (admin.from("company_messages" as any) as any)
       .select("id")
       .eq("conversation_id", args.conversation.id)
@@ -1371,32 +1459,31 @@ export async function runOrgAgentWebActionTurn(args: {
     const { data, error } = await query.maybeSingle();
     if (error) throw error;
     if (data) throw new OrgAgentWebActionSupersededError();
-    if (isCandidateContact && args.actionContext.recommendationId) {
-      const { data: newer, error: newerError } = await (
-        admin.from("company_agent_web_action_jobs" as any) as any
-      )
-        .select("id")
-        .eq("company_workspace_id", args.conversation.company_workspace_id)
-        .eq("action_name", "candidate_contact_received")
-        .contains("action_context", {
-          recommendationId: args.actionContext.recommendationId,
-        })
-        .gt("anchor_message_id", args.anchorMessageId)
-        .limit(1)
-        .maybeSingle();
-      if (newerError) throw newerError;
-      if (newer) throw new OrgAgentWebActionSupersededError();
-    }
+
   };
 
   await assertCanContinue();
+  let contextConversation = args.conversation;
+  const relatedRoleId = String(args.actionContext.relatedRoleId ?? args.roleId ?? "").trim();
+  if (!contextConversation.role_id && relatedRoleId) {
+    // The original private workspace conversation remains the output destination.
+    // Read the shared Role history here; its relevant original instructions are
+    // also available through the candidate's exact related company contacts.
+    const { data, error } = await (admin.from("company_conversations" as any) as any)
+      .select("id,company_workspace_id,role_id,metadata")
+      .eq("company_workspace_id", args.conversation.company_workspace_id)
+      .eq("role_id", relatedRoleId).single();
+    if (error) throw error;
+    contextConversation = { ...args.conversation, ...data };
+  }
   const context = await buildOrgAgentPromptContext({
     admin,
-    beforeMessageId: args.anchorMessageId,
-    conversation: args.conversation,
+    beforeMessageId: isCompanyUpdate || isCandidateContact ? undefined : args.anchorMessageId,
+    includeSharedConversation: true,
+    conversation: contextConversation,
     currentUserMessageId: args.anchorMessageId,
     messageType: slackThreadId ? "slack" : "chat",
-    readAudience: "caller",
+    readAudience: "company_safe",
     scopeKey: slackThreadId
       ? `slack:${slackThreadId}`
       : `chat:${args.conversation.id}`,
@@ -1404,14 +1491,18 @@ export async function runOrgAgentWebActionTurn(args: {
     user: args.user,
   });
   let thinkingLogs: OrgAgentThinkingLog[] = [];
+  const contactContext = isCandidateContact
+    ? await loadCompanyContactEventContext({
+        relayId: String(args.actionContext.relayId ?? ""),
+        workspaceId: args.conversation.company_workspace_id,
+        allowPendingDelivery: args.actionContext.contactPendingDelivery === true,
+      })
+    : null;
   const eventContext = JSON.stringify(args.actionContext).slice(0, 24_000);
-  const eventPrompt = isCandidateContact
-    ? buildCompanyContactEventPrompt(
-        await loadCompanyContactEventContext({
-          relayId: String(args.actionContext.relayId ?? ""),
-          workspaceId: args.conversation.company_workspace_id,
-        })
-      )
+  const eventPrompt = isCompanyUpdate
+    ? buildCompanyUpdatePrompt(args.actionContext)
+    : isCandidateContact
+    ? buildCompanyContactEventPrompt(contactContext!)
     : [
         "<authenticated_web_action_event>",
         `action_name=${args.actionName}`,
@@ -1421,59 +1512,23 @@ export async function runOrgAgentWebActionTurn(args: {
       ].join("\n");
 
   const llmResult = await runOrgAgentToolLoop({
-    allowSilentCompletion: true,
-    responseLocale: "auto",
+    allowSilentCompletion: !isCompanyUpdate || companyMessageAlreadyDelivered,
+    companyMessageAudience,
+    slackExecutionContext,
+    responseLocale: args.responseLocale ?? "auto",
     actorId: args.user.id,
     actorLabel: args.actorLabel,
     admin,
     assertCanContinue,
     context,
-    conversation: args.conversation,
+    conversation: contextConversation,
     currentUserMessageId: args.anchorMessageId,
     mentions: [],
     model: modelConfig.model,
     onToolStatus: (log) => {
       thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
     },
-    onVisibleProgress: existingProgress
-      ? undefined
-      : async ({ model, text }) => {
-          await assertCanContinue();
-          const progressMessage = await insertOrgAgentMessage({
-            admin,
-            content: text,
-            conversation: args.conversation,
-            metadata: {
-              agentTurn: {
-                phase: "progress",
-                runId,
-                sequence: 0,
-                trigger,
-              },
-              model,
-              source: "org_agent_web_action_progress",
-              webActionJobId: args.jobId,
-            },
-            messageType: "chat",
-            model,
-            role: "assistant",
-            roleId: args.roleId,
-            thinkingLogs,
-          });
-          const { error } = await (
-            admin.from("company_agent_web_action_jobs" as any) as any
-          )
-            .update({
-              progress_message_id: progressMessage.id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", args.jobId)
-            .eq("status", "processing");
-          if (error) throw error;
-          progressMessageId = progressMessage.id;
-          return true;
-        },
-    readAudience: "caller",
+    readAudience: "company_safe",
     scopeKey: slackThreadId
       ? `slack:${slackThreadId}`
       : `chat:${args.conversation.id}`,
@@ -1487,10 +1542,25 @@ export async function runOrgAgentWebActionTurn(args: {
     visibleProgressPublished: Boolean(existingProgress),
   });
 
+  if (llmResult.state.companyMessageBatch) return {
+    outcome: "completed_message", progressMessageId,
+    terminalMessageId: llmResult.state.companyMessageBatch.messageIds[0],
+    batchId: llmResult.state.companyMessageBatch.batchId,
+  };
+
+  if (isCompanyUpdate && !companyMessageAlreadyDelivered && !llmResult.reply.trim()) throw new Error("Company update requires a message; retry without fabricating a fallback");
   const requiredPresentationTexts = getOrgAgentRequiredPresentationTexts(
     llmResult.state
   );
+  const preservedPresentation = (args.actionContext.facts as any)?.preservedPresentation;
+  if (preservedPresentation?.text) requiredPresentationTexts.push(preservedPresentation.text);
+  if (contactContext?.deliveryCompleted === false) {
+    // Exact candidate-authorized content is a preserved source, not generated
+    // Harper copy. Quote formatting does not reinterpret its meaning.
+    requiredPresentationTexts.push(contactContext.originalDeliveryBody.split("\n").map(line => `> ${line}`).join("\n"));
+  }
   const metadata: OrgAgentMessageMetadata = {
+    ...(preservedPresentation?.metadata ?? {}),
     ...buildAssistantMetadata(llmResult),
     agentTurn: {
       phase: "terminal",
@@ -1501,15 +1571,17 @@ export async function runOrgAgentWebActionTurn(args: {
     source: "org_agent_web_action",
     webActionJobId: args.jobId,
   };
+  if (preservedPresentation) Object.assign(metadata, {
+    companyUpdatePresentation: preservedPresentation,
+    companyUpdateReply: llmResult.reply,
+  });
+  const matchingRunId = (args.actionContext.facts as Record<string, unknown> | undefined)?.matchingSearchRunId;
+  if (typeof matchingRunId === "string") {
+    metadata.source = "company_matching_search_result";
+    metadata.companyMatchingSearchResult = { runId: matchingRunId, idempotencyKey: args.jobId };
+  }
   const reply = appendRequiredPresentations({
-    // Once a visible progress message exists, the turn must not disappear
-    // into a silent terminal state. This fallback is used only as a recovery
-    // boundary when the model violates that delivery contract.
-    reply:
-      llmResult.reply ||
-      (progressMessageId
-        ? llmResult.state.fallbackReply || buildFallbackReply(llmResult.state)
-        : ""),
+    reply: llmResult.reply,
     requiredTexts: requiredPresentationTexts,
   });
 
@@ -1524,10 +1596,10 @@ export async function runOrgAgentWebActionTurn(args: {
       admin,
       conversationId: args.conversation.id,
       messageMetadata: metadata,
-      messageType: "chat",
+      messageType: slackThreadId ? "slack" : "chat",
       model: llmResult.model,
       presentationText,
-      slackThreadId: null,
+      slackThreadId,
       state: llmResult.state,
       thinkingLogs,
       userMessageId: args.anchorMessageId,
@@ -1564,10 +1636,11 @@ export async function runOrgAgentWebActionTurn(args: {
     content: reply,
     conversation: args.conversation,
     metadata,
-    messageType: "chat",
+    messageType: slackThreadId ? "slack" : "chat",
     model: llmResult.model,
     role: "assistant",
     roleId: args.roleId,
+    slackThreadId,
     thinkingLogs,
   });
   scheduleOrgAgentSummary({
@@ -1660,7 +1733,7 @@ export async function runOrgAgentChat(args: {
     thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
     args.emit?.("tool_status", log);
   };
-  const { admin, conversation } = requestedRoleId
+  const { admin: conversationAdmin, conversation } = requestedRoleId
     ? await ensureOrgRoleCreationConversation({
         allowCompletedRole: true,
         roleId: requestedRoleId,
@@ -1672,6 +1745,7 @@ export async function runOrgAgentChat(args: {
         workspaceId: args.workspaceId,
       });
   const roleId = conversation.role_id;
+  const admin = await companyConversationReadAdmin({ admin: conversationAdmin, roleId, workspaceId: conversation.company_workspace_id });
 
   let mentions: OrgAgentMention[] = [];
   try {
@@ -1747,6 +1821,19 @@ export async function runOrgAgentChat(args: {
   }
   args.emit?.("user_message", userMessage);
 
+  if (args.slackExecutionContext) {
+    const { data: batchRows, error: batchError } = await (admin.from("company_messages") as any).select("*")
+      .eq("company_workspace_id", args.workspaceId).eq("role", "assistant")
+      .contains("metadata", { companyMessageBatch: { sourceMessageId: userMessage.id,
+        channelDbId: args.slackExecutionContext.channelDbId } }).order("id");
+    if (batchError) throw batchError;
+    if (batchRows?.length) {
+      const messages = (batchRows as OrgAgentMessageRow[]).map(toOrgAgentMessage);
+      return { kind: "message" as const, assistantMessage: messages[0], assistantMessages: messages,
+        conversationId: conversation.id, model: modelConfig.model, userMessage };
+    }
+  }
+
   if (args.slackThreadId && args.turnRunId) {
     const { data: priorProgress, error: priorProgressError } = await (
       admin.from("company_messages" as any) as any
@@ -1770,6 +1857,7 @@ export async function runOrgAgentChat(args: {
     }
   }
 
+  let failureStage = "context";
   try {
     recordThinkingLog(
       nowLog("회사와 최근 추천 정보를 읽는 중", "running", {
@@ -1812,6 +1900,7 @@ export async function runOrgAgentChat(args: {
       nowLog("응답 생성 중", "running", { icon: "run", id: "response" })
     );
 
+    failureStage = "tool_loop";
     const llmResult = await runOrgAgentToolLoop({
       actorId: args.slackUserId ?? args.user.id,
       actorLabel:
@@ -1896,6 +1985,16 @@ export async function runOrgAgentChat(args: {
         (message) => message.metadata.agentTurn?.phase === "progress"
       ),
     });
+    failureStage = "response_persistence_and_presentation";
+    if (llmResult.state.companyMessageBatch) {
+      const { data: rows, error } = await (admin.from("company_messages") as any).select("*")
+        .eq("company_workspace_id", args.workspaceId).in("id", llmResult.state.companyMessageBatch.messageIds).order("id");
+      if (error) throw error;
+      const batchMessages = (rows as OrgAgentMessageRow[]).map(toOrgAgentMessage);
+      if (!batchMessages.length) throw new Error("Committed messages disappeared");
+      return { kind: "message" as const, assistantMessage: batchMessages[0], assistantMessages: batchMessages,
+        conversationId: conversation.id, model: llmResult.model, userMessage };
+    }
     const requiredPresentationTexts = getOrgAgentRequiredPresentationTexts(
       llmResult.state
     );
@@ -2026,6 +2125,19 @@ export async function runOrgAgentChat(args: {
     };
   } catch (error) {
     args.signal?.throwIfAborted();
+    await recordOrgAgentFailure({
+      admin,
+      error,
+      userId: args.user.id,
+      workspaceId: conversation.company_workspace_id,
+      conversationId: conversation.id,
+      userMessageId: userMessage.id,
+      runId: directTurnRunId,
+      slackThreadId: args.slackThreadId ?? null,
+      slackReplyJobId: normalizeText(args.assistantMessageMetadata?.slackReplyJobId) || null,
+      model: modelConfig.model,
+      stage: failureStage,
+    });
     thinkingLogs = upsertOrgAgentThinkingLog(
       thinkingLogs,
       nowLog("응답 생성 실패", "error", { icon: "run", id: "response" })

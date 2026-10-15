@@ -4,6 +4,7 @@ import * as React from "react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
+import { useFloatingPortalContainer } from "./floating-portal";
 import { cn } from "@/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -73,8 +74,11 @@ function SelectContent({
     "align" | "alignItemWithTrigger" | "alignOffset" | "side" | "sideOffset"
   > &
   Pick<SelectPrimitive.Portal.Props, "container">) {
+  const modalContainer = useFloatingPortalContainer();
   return (
-    <SelectPrimitive.Portal container={container}>
+    <SelectPrimitive.Portal
+      container={container ?? modalContainer ?? undefined}
+    >
       <SelectPrimitive.Positioner
         align={align}
         alignItemWithTrigger={alignItemWithTrigger}

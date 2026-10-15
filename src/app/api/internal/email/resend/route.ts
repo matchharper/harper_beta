@@ -112,6 +112,10 @@ export async function POST(req: Request) {
       event: typedEvent,
       providerEventId: svixId,
     });
+    if (process.env.EMAIL_RUNTIME_TARGET === "vercel_queue") {
+      const { dispatchEmailInboundEvent } = await import("@/lib/email/runtime/queue");
+      await dispatchEmailInboundEvent(result.inboundEventId);
+    }
     return NextResponse.json({ ok: true, ...result }, { status: 200 });
   } catch (error) {
     const message =

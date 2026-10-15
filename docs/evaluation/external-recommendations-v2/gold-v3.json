@@ -1,0 +1,15 @@
+{
+  "version": "v3",
+  "authoredBeforeModelRun": true,
+  "reviewer": "Codex; independent human review pending",
+  "orderingChecks": [],
+  "constraintChecks": [],
+  "reviewChecks": [
+    "Worker purpose connects operational-duty feedback with tentative research ownership exploration, without inventing rejection of ML Engineer as a job family.",
+    "Worker plan should include credible research titles and KR; explore must not overwrite a default based on unconfirmed preference inference.",
+    "Worker rerank receives the current purpose and selects a credible role from actual facts; purpose cannot waive qualifications or explicit constraints.",
+    "Final delivery can naturally explain the research direction without claiming the user changed preferences or exposing experimentation mechanics. Selected IDs stay locked.",
+    "Web planner follows the explicit deployment/serving request and receives neither autonomous worker instructions nor worker search history, despite the same Behavior evidence."
+  ],
+  "releaseGate": "Read all planner/rerank/delivery text for factual and constraint consistency; structural transport tests must pass. No online response-rate or provider-ranking conclusion."
+}

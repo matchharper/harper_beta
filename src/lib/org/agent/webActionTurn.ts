@@ -14,6 +14,15 @@ function clean(value: unknown) {
   return String(value ?? "").trim();
 }
 
+/** The normal dispatcher resumes interrupted work under its original job ID. */
+export async function recoverOrgAgentWebActionJobs(admin = getSupabaseAdmin()) {
+  const { data, error } = await (admin.rpc as any)("recover_company_agent_web_action_jobs_v1", {
+    p_stale_after_seconds: 360, p_max_attempts: 5, p_limit: 20,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 export async function enqueueOrgAgentWebActionTurn(args: {
   actionContext: JsonObject;
   actionName: string;
@@ -21,6 +30,8 @@ export async function enqueueOrgAgentWebActionTurn(args: {
   roleId?: string | null;
   user: User;
   workspaceId: string;
+  dispatch?: boolean;
+  conversationId?: string;
 }) {
   const workspaceId = clean(args.workspaceId);
   const roleId = clean(args.roleId) || null;
@@ -44,6 +55,17 @@ export async function enqueueOrgAgentWebActionTurn(args: {
       })
     : await ensureOrgAgentConversation({ user: args.user, workspaceId });
   const admin = scoped.admin;
+  let conversation = scoped.conversation;
+  if (args.conversationId) {
+    const { data, error } = await (admin.from("company_conversations" as any) as any)
+      .select("id,role_id").eq("id", args.conversationId)
+      .eq("company_workspace_id", workspaceId).single();
+    if (error) throw error;
+    // The authenticated scope above verifies the related Role. The original
+    // company conversation can be workspace-wide or that same Role.
+    if (data.role_id && data.role_id !== roleId) throw new Error("Company event conversation Role mismatch");
+    conversation = { ...conversation, id: data.id, role_id: data.role_id };
+  }
   const { data, error } = await (admin.rpc as any)(
     "enqueue_company_agent_web_action_v1",
     {
@@ -51,9 +73,9 @@ export async function enqueueOrgAgentWebActionTurn(args: {
       p_action_name: actionName,
       p_actor_user_id: args.user.id,
       p_company_workspace_id: workspaceId,
-      p_conversation_id: scoped.conversation.id,
+      p_conversation_id: conversation.id,
       p_idempotency_key: idempotencyKey,
-      p_role_id: roleId,
+      p_role_id: conversation.role_id,
     }
   );
   if (error) throw error;
@@ -62,7 +84,7 @@ export async function enqueueOrgAgentWebActionTurn(args: {
   if (!jobId)
     throw new Error("Company agent web-action enqueue returned no job");
 
-  const dispatched = await dispatchOrgAgentWebActionJob({ admin, jobId });
+  const dispatched = args.dispatch === false ? false : await dispatchOrgAgentWebActionJob({ admin, jobId });
 
   return { created: row?.created === true, dispatched, jobId };
 }
@@ -114,6 +136,7 @@ export async function dispatchOrgAgentWebActionJob(args: {
       .update({
         queue_dispatch_attempt_count: attempts,
         queue_dispatch_status: terminal ? "failed" : "retry",
+        ...(terminal ? { status: "failed", last_error: message } : {}),
         queue_last_error: message,
         queue_next_attempt_at: new Date(
           Date.now() + Math.min(300, 2 ** attempts * 15) * 1_000

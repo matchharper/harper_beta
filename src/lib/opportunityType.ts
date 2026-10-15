@@ -28,6 +28,21 @@ type NewOpportunityHistoryOrderItem = {
   recommendedAt: string;
 };
 
+type SavedOpportunityHistoryOrderItem = {
+  feedbackAt: string | null;
+  id: string;
+  recommendedAt: string;
+};
+
+export const compareSavedOpportunityHistoryOrder = (
+  left: SavedOpportunityHistoryOrderItem,
+  right: SavedOpportunityHistoryOrderItem
+) =>
+  Date.parse(right.feedbackAt ?? right.recommendedAt) -
+    Date.parse(left.feedbackAt ?? left.recommendedAt) ||
+  Date.parse(right.recommendedAt) - Date.parse(left.recommendedAt) ||
+  left.id.localeCompare(right.id);
+
 export const compareNewOpportunityHistoryOrder = (
   left: NewOpportunityHistoryOrderItem,
   right: NewOpportunityHistoryOrderItem

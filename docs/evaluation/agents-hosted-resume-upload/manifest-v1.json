@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "v1",
+  "frozenBeforeHostedRuns": true,
+  "createdAt": "2026-10-12",
+  "sourceRevision": "d61b9029f1f4b4d5030e93cf5b783e28917a8a7a",
+  "sha256": {
+    "cases-v1.json": "9bac4585ca1d3f85bceb824f1b037e0109966072de026599c018c8682f203932",
+    "gold-v1.json": "52492e8534d579ab5276df5b35c699c45ed0e9ca492fad41b4557fe5961c9a6b",
+    "fixtures/hosted-files-v1.json": "0e96f4bf43e52fc46680245819c769c14db47417b9e4c236d47161fa663107ce",
+    "fixtures/receipt-server-v1.cjs": "74826f750b45f58b94a24c4ea16159662d7cc2db2570f6b4908ff30ad23bf2c2"
+  },
+  "goldReview": "Codex direct authoring before first run; independent human review pending",
+  "nativeProvenance": "First native run already records fixture/prompt/runner hashes before its API call; shared catalog generated while that run was in progress."
+}

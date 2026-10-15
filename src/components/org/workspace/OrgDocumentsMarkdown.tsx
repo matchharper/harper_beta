@@ -93,6 +93,10 @@ export const ORG_DOCUMENTS_SECTION_EYEBROWS: Record<string, string> = {
   pipeline: "연결 이후 관리",
   "review-recommendations": "후보자 검토",
   slack: "알림과 팀 협업",
+  "company-and-team": "회사와 팀원",
+  "candidate-search": "탐색 설정과 이력",
+  "slots-and-credits": "이용 범위와 비용",
+  "public-job-visibility": "공개 설정",
 };
 
 const HEADING_ID_COMMENT = /\s*<!--\s*id:\s*[A-Za-z0-9_-]+\s*-->\s*$/;
@@ -200,7 +204,7 @@ export function splitOrgDocumentsMarkdown(markdown: string) {
 
 function removeHeadingIdComments(markdown: string) {
   return markdown.replace(
-    /^(#{1,2}\s+.*?)\s*<!--\s*id:\s*[A-Za-z0-9_-]+\s*-->\s*$/gm,
+    /^(#{1,3}\s+.*?)\s*<!--\s*id:\s*[A-Za-z0-9_-]+\s*-->\s*$/gm,
     "$1"
   );
 }

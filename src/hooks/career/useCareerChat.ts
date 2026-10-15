@@ -1,3 +1,4 @@
+import type { SimulationCardRequest } from "@/lib/career/simulation/session";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import type {
@@ -32,6 +33,8 @@ import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 import type { CareerCoachingActivity } from "@/lib/career/careerCoachingActivitySchema";
 
 type SendChatArgs = {
+  applicationInputSubmission?: {batchId:string; sessionMessageId:number; expectedRevision:number};
+  simulationAction?:SimulationCardRequest;
   allowedToolNames?: readonly string[];
   files?: File[];
   channel?: "chat" | "voice";
@@ -148,6 +151,8 @@ const replaceMessageById = (
     return [...messages, nextMessage];
   }
 
+  const previous=messages[nextIndex]?.applicationActivity, incoming=nextMessage.applicationActivity;
+  if(previous && incoming && previous.activityId===incoming.activityId && previous.revision>incoming.revision) return messages;
   const nextMessages = [...messages];
   nextMessages[nextIndex] = nextMessage;
   return nextMessages;
@@ -700,7 +705,7 @@ export const useCareerChat = ({
       const text = args.text.trim();
       const link = (args.link ?? "").trim();
       const files = (args.files ?? []).slice(0, 5);
-      if (!text && files.length === 0) return;
+      if (!text && files.length === 0 && !args.applicationInputSubmission) return;
 
       const explicitConversationStarterId = args.conversationStarterId;
       if (
@@ -737,7 +742,7 @@ export const useCareerChat = ({
       activeStreamAssistantIdRef.current = null;
       activeStreamAssistantRef.current = null;
       setChatPending(true);
-      setLocalMessages((prev) => [
+      if (!args.applicationInputSubmission) setLocalMessages((prev) => [
         ...prev,
         {
           attachments: optimisticAttachments,
@@ -782,6 +787,8 @@ export const useCareerChat = ({
           body: JSON.stringify({
             allowedToolNames: args.allowedToolNames,
             channel: args.channel ?? "chat",
+            simulationAction: args.simulationAction,
+            applicationInputSubmission: args.applicationInputSubmission,
             coachingActivityAction: args.coachingActivityAction,
             conversationStarterId: activeConversationStarterId,
             conversationId,
@@ -816,6 +823,7 @@ export const useCareerChat = ({
           let lastMessagesChangedKey = "";
           let streamAssistantVisible = false;
           let streamDone = false;
+          let suppressRolePreviews = false;
 
           const ensureStreamAssistant = () => {
             if (streamAssistantVisible) return;
@@ -823,6 +831,7 @@ export const useCareerChat = ({
             activeStreamAssistantIdRef.current = streamAssistantId;
             const streamAssistant: CareerMessage = {
               id: streamAssistantId,
+              suppressRolePreviews,
               role: "assistant",
               content: "",
               messageType: "chat",
@@ -905,7 +914,7 @@ export const useCareerChat = ({
               (message) => String(message.id) !== streamAssistantId
             );
 
-            return payloads.reduce(
+            const merged=payloads.reduce(
               (nextMessages, payload) =>
                 replaceMessageById(
                   nextMessages,
@@ -914,6 +923,10 @@ export const useCareerChat = ({
                 ),
               withoutStreamPlaceholder
             );
+            if(payloads.some(p=>p.applicationActivity||p.applicationDraft||p.simulation||p.simulationSession||p.simulationAction||p.applicationStartOffer)){
+              return merged.sort((a,b)=>Number.isFinite(Number(a.id))&&Number.isFinite(Number(b.id))?Number(a.id)-Number(b.id):0);
+            }
+            return merged;
           };
 
           const settleAssistantMessage = (payload: CareerMessagePayload) => {
@@ -980,6 +993,21 @@ export const useCareerChat = ({
               return;
             }
 
+            if ((event === "application_mode" || event === "simulation_message") && isRecord(data) && data.suppressRolePreviews === true) {
+              suppressRolePreviews=true;
+              if(activeStreamAssistantRef.current) activeStreamAssistantRef.current={...activeStreamAssistantRef.current,suppressRolePreviews:true};
+              setLocalMessages(prev=>prev.map(item=>String(item.id)===streamAssistantId?{...item,suppressRolePreviews:true}:item));
+              if(event === "application_mode")return;
+            }
+            if (event === "simulation_message") {
+              const payload = isRecord(data) ? toStreamMessagePayload(data.message) : null;
+              if (!payload) return;
+              setLocalMessages((prev) => replaceMessageById(prev, payload.id, toUiMessage(payload)));
+              await onMessagesChanged?.([payload]);
+              setScrollTick((t) => t + 1);
+              return;
+            }
+
             if (event === "text_delta") {
               const delta =
                 isRecord(data) && typeof data.delta === "string"
@@ -1020,6 +1048,16 @@ export const useCareerChat = ({
             }
 
             if (event === "assistant_text_done") {
+              if (isRecord(data) && data.discard === true) {
+                setLocalMessages(prev => prev.filter(item => String(item.id) !== streamAssistantId));
+                activeStreamAssistantRef.current = null;
+                activeStreamAssistantIdRef.current = null;
+                pendingAssistantMessageId = null;
+                streamAssistantVisible = false;
+                setAssistantTyping(false);
+                resetActiveThinkingLogs();
+                return;
+              }
               const currentAssistant = activeStreamAssistantRef.current;
               if (currentAssistant) {
                 activeStreamAssistantRef.current = {
@@ -1149,7 +1187,7 @@ export const useCareerChat = ({
                       )
                   : [];
               if (payloads.length === 0) return;
-              attachThinkingLogsToMessage(payloads[0].id);
+              attachThinkingLogsToMessage((payloads.find(p=>p.messageType==="chat")??payloads[0]).id);
               resetActiveThinkingLogs();
               setLocalMessages((prev) => {
                 return upsertFinalAssistantMessages(prev, payloads);
@@ -1358,21 +1396,26 @@ export const useCareerChat = ({
           ).catch(() => undefined);
         }
 
-        const assistantPayloads = Array.isArray(payload.assistantMessages)
-          ? (payload.assistantMessages as CareerMessagePayload[])
-          : payload.assistantMessage
-            ? [payload.assistantMessage as CareerMessagePayload]
-            : [];
+        const assistantPayloads = (
+          Array.isArray(payload.assistantMessages)
+            ? payload.assistantMessages
+            : [payload.assistantMessage]
+        ).filter(isCareerMessagePayload);
+        const userPayload = toStreamMessagePayload(payload.userMessage);
 
+        // Browser-question resumes and duplicate-start acknowledgements may
+        // succeed without creating a chat message. Remove the optimistic copy.
         setLocalMessages((prev) =>
-          replaceMessageById(prev, tempId, toUiMessage(payload.userMessage))
+          userPayload
+            ? replaceMessageById(prev, tempId, toUiMessage(userPayload))
+            : prev.filter((message) => message.id !== tempId)
         );
         for (const assistantPayload of assistantPayloads) {
           await enqueueAssistantTypewriter(toUiMessage(assistantPayload));
         }
         setScrollTick((t) => t + 1);
         await onMessagesChanged?.([
-          payload.userMessage as CareerMessagePayload,
+          ...(userPayload ? [userPayload] : []),
           ...assistantPayloads,
         ]);
 

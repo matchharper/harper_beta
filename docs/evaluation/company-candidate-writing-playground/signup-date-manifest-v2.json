@@ -1,0 +1,16 @@
+{
+  "task": "company-candidate-writing-playground",
+  "datasetVersion": "signup-date-v2",
+  "frozenAt": "2026-10-15",
+  "files": {
+    "signup-date-cases-v2.json": "5a0e448b5a944dd3d17281b4fdb2dd7186ed59a18419dd0ae4a290e81b2968aa",
+    "signup-date-gold-v2.md": "9da489d113481d95c6fd0b50e64b61228b6e7309b298afcc532d69e50656ff50"
+  },
+  "canonicalRunner": "harper_worker/llm_evals/company_candidate_writing/playground.py run --request <request>",
+  "inputContract": "Frozen case fixture; settings/prompts come from current deployed-baseline writer plus signup guidance. stage=writer, sendSlack=false. No DB or Slack calls.",
+  "models": "Deployed writer default GPT-6.1 Sol, high; run manifests record effective configuration.",
+  "provenance": "Synthetic duplicate of playground-v1/UCIP003 professional evidence with explicit public summary; synthetic identities and calendar dates. Prior datasets unchanged.",
+  "privacy": "No production candidate data; raw model input/output in ignored runs with owner-only permissions.",
+  "metricsAndGate": "2/2 execution, coverage and manual meaning review; critical errors zero.",
+  "limitations": "No old/new model benchmark, representative quality estimate, actual queue/Slack E2E, or independent review."
+}

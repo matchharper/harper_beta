@@ -1,4 +1,4 @@
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useId, useState } from "react";
 import { Hash, LoaderCircle, Lock, Plus, RefreshCw } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
@@ -29,7 +29,7 @@ export function OrgSlackChannelPicker({
   onCreate?: () => void;
   onRefresh: () => void;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const searchId = useId();
   const [search, setSearch] = useState("");
   const query = search.trim().replace(/^#/, "").toLocaleLowerCase();
@@ -44,13 +44,13 @@ export function OrgSlackChannelPicker({
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex shrink-0 items-center gap-2">
         <label className="sr-only" htmlFor={searchId}>
-          {t("OrgSlackChannelPicker.f510275a", "채널 검색")}
+          {c("채널 검색", "Search channels")}
         </label>
         <Input
           id={searchId}
           type="search"
           autoComplete="off"
-          placeholder={t("OrgSlackChannelPicker.f510275a", "채널 검색")}
+          placeholder={c("채널 검색", "Search channels")}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           className="min-w-0 flex-1"
@@ -58,7 +58,7 @@ export function OrgSlackChannelPicker({
         <MuteButton
           variant="transparent"
           size="sm"
-          aria-label={t("OrgSlackChannelPicker.26e32c5c", "채널 목록 새로고침")}
+          aria-label={c("채널 목록 새로고침", "Refresh channel list")}
           disabled={busy || refreshing}
           onClick={onRefresh}
           className="shrink-0"
@@ -71,7 +71,7 @@ export function OrgSlackChannelPicker({
       <div className="max-h-[378px] min-h-[76px] overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 [scrollbar-gutter:stable]">
         {visibleChannels.length ? (
           <ul
-            aria-label={t("OrgSlackChannelPicker.62fbda7c", "초대할 Slack 채널")}
+            aria-label={c("초대할 Slack 채널", "Slack channel to invite")}
             className="space-y-0.5"
           >
             {visibleChannels.map((channel) => {
@@ -93,7 +93,9 @@ export function OrgSlackChannelPicker({
                   >
                     {channel.isPrivate ? (
                       <span className="sr-only">
-                        {t("composed.privateChannel", "비공개 채널 {name}", { name })}
+                        {c("비공개 채널 {name}", "Private channel {name}", {
+                          name,
+                        })}
                       </span>
                     ) : null}
                     <span aria-hidden={channel.isPrivate}>{name}</span>
@@ -102,9 +104,13 @@ export function OrgSlackChannelPicker({
                     variant="dark"
                     size="sm"
                     disabled={busy}
-                    aria-label={t("OrgSlackChannelPicker.2842bef6", "{p0}에 Harper 초대", {
-                      p0: name,
-                    })}
+                    aria-label={c(
+                      "{p0}에 Harper 초대",
+                      "Invite Harper to {p0}",
+                      {
+                        p0: name,
+                      }
+                    )}
                     onClick={() => onInvite(channel.channelId)}
                     className="shrink-0"
                   >
@@ -114,9 +120,7 @@ export function OrgSlackChannelPicker({
                         aria-hidden="true"
                       />
                     ) : null}
-                    {pending
-                      ? t("OrgSlackChannelPicker.3d6eafd2", "초대 중")
-                      : t("OrgSlackChannelPicker.a35bd973", "초대")}
+                    {pending ? c("초대 중", "Inviting") : c("초대", "Invite")}
                   </MuteButton>
                 </li>
               );
@@ -128,8 +132,11 @@ export function OrgSlackChannelPicker({
             className="px-2 py-7 text-center text-[13px] text-neutral-soft"
           >
             {query
-              ? t("OrgSlackChannelPicker.c202e21b", "일치하는 채널이 없어요.")
-              : t("OrgSlackChannelPicker.239c8b40", "초대할 수 있는 채널이 없어요.")}
+              ? c("일치하는 채널이 없어요.", "No matching channels.")
+              : c(
+                  "초대할 수 있는 채널이 없어요.",
+                  "No channels available to invite."
+                )}
           </p>
         )}
       </div>
@@ -142,7 +149,7 @@ export function OrgSlackChannelPicker({
             disabled={busy}
           >
             <Plus className="size-3.5" />
-            {t("OrgSlackChannelPicker.f9c0c08b", "새 채널 만들기")}
+            {c("새 채널 만들기", "Create new channel")}
           </MuteButton>
         </div>
       ) : null}

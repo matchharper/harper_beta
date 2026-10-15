@@ -6,6 +6,12 @@ import {
   ORG_ONBOARDING_COMPANY_AGENT_OPTIONS,
 } from "@/lib/org/agent/onboardingPrompt";
 import { canProvideOrgCompanyContext } from "@/lib/org/onboarding";
+import { sendOrgOnboardingSlackWelcome } from "@/lib/org/onboardingSlack.server";
+import {
+  isAdditionalOrgCreator,
+  isOrgOnboardingComplete,
+} from "@/lib/org/signup";
+import { signupRpc } from "@/lib/org/signupServer";
 import {
   assertOrgWorkspacePermission,
   fetchOrgBootstrap,
@@ -175,7 +181,25 @@ export async function POST(req: NextRequest) {
     if (!member || bootstrap.workspace?.workspaceId !== workspaceId) {
       throw new OrgHttpError(403, "이 회사에 접근할 수 없습니다.");
     }
+    const additionalOrg = isAdditionalOrgCreator(
+      bootstrap.workspace.signupState,
+      user.id
+    );
+    const onboardingComplete = isOrgOnboardingComplete(
+      bootstrap.workspace.signupState,
+      member,
+      user.id
+    );
+    if (additionalOrg && member.authority !== "owner")
+      throw new OrgHttpError(403, "이 회사 설정을 완료할 권한이 없습니다.");
     if (body.action === "complete") {
+      if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
+        throw new OrgHttpError(400, "Invalid response locale");
+      }
+      const welcome = (completedAt: string) => sendOrgOnboardingSlackWelcome({
+        user, workspaceId, completedAt, member, roles: bootstrap.roles,
+        responseLocale: isOrgLocale(body.responseLocale) ? body.responseLocale : undefined,
+      });
       const signup = bootstrap.workspace?.signupState;
       if (signup && (!signup.companyConfirmedAt || !signup.planSelectedAt)) {
         throw new OrgHttpError(409, "signup_setup_required");
@@ -183,7 +207,27 @@ export async function POST(req: NextRequest) {
       if (!member.name?.trim() || !member.role?.trim()) {
         throw new OrgHttpError(400, "이름과 직함을 먼저 입력해 주세요.");
       }
-      if (member.onboardingCompletedAt) {
+      if (additionalOrg) {
+        const result = await signupRpc<{ ok: true; completedAt: string }>(
+          "workspace_signup_update_v1",
+          {
+            p_user: user.id,
+            p_workspace: workspaceId,
+            p_action: "complete",
+          }
+        );
+        if (!member.onboardingCompletedAt) {
+          const { error } = await getSupabaseAdmin()
+            .from("company_users")
+            .update({ onboarding_completed_at: result.completedAt })
+            .eq("user_id", user.id)
+            .is("onboarding_completed_at", null);
+          if (error) throw error;
+        }
+        const slackUrl = onboardingComplete ? null : await welcome(result.completedAt);
+        return NextResponse.json({ ...result, slackUrl });
+      }
+      if (onboardingComplete) {
         return NextResponse.json({
           ok: true,
           completedAt: member.onboardingCompletedAt,
@@ -210,10 +254,10 @@ export async function POST(req: NextRequest) {
           completedAt: saved.onboarding_completed_at,
         });
       }
-      return NextResponse.json({ ok: true, completedAt });
+      return NextResponse.json({ ok: true, completedAt, slackUrl: await welcome(completedAt) });
     }
     if (
-      member.onboardingCompletedAt &&
+      onboardingComplete &&
       body.action === "company" &&
       validSubmissionId(body.submissionId)
     ) {
@@ -234,7 +278,7 @@ export async function POST(req: NextRequest) {
         return companySubmissionResponse(existing);
       }
     }
-    if (member.onboardingCompletedAt) {
+    if (onboardingComplete) {
       throw new OrgHttpError(
         409,
         "온보딩을 이미 완료했어요. 회사 화면에서 이어서 진행해 주세요."
@@ -258,7 +302,10 @@ export async function POST(req: NextRequest) {
       if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
         throw new OrgHttpError(400, "Invalid response locale");
       }
-      if (!canProvideOrgCompanyContext(bootstrap.members, member)) {
+      if (
+        !additionalOrg &&
+        !canProvideOrgCompanyContext(bootstrap.members, member)
+      ) {
         throw new OrgHttpError(
           403,
           "첫 번째 팀원만 온보딩에서 회사 정보를 추가할 수 있어요."

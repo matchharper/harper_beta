@@ -149,6 +149,10 @@ const incrementCountsForItem = (
     counts.newInternal += 1;
   }
 
+  if (bucket === "new" && !isInternalHistoryOpportunity(item) && !item.viewedAt) {
+    counts.newExternalUnread += 1;
+  }
+
   if (bucket === "saved") {
     const stage = item.savedStage ?? getDefaultSavedStage(item);
     counts.savedStages[stage] += 1;
@@ -599,6 +603,24 @@ export function useCareerHistoryState(args: {
 
         if (nextBucket === "new" && isInternalHistoryOpportunity(nextItem)) {
           nextCounts.newInternal += 1;
+        }
+
+        if (
+          previousBucket === "new" &&
+          !isInternalHistoryOpportunity(previousItem) &&
+          !previousItem.viewedAt
+        ) {
+          nextCounts.newExternalUnread = Math.max(
+            0,
+            nextCounts.newExternalUnread - 1
+          );
+        }
+        if (
+          nextBucket === "new" &&
+          !isInternalHistoryOpportunity(nextItem) &&
+          !nextItem.viewedAt
+        ) {
+          nextCounts.newExternalUnread += 1;
         }
 
         if (previousBucket === "saved") {
@@ -1279,10 +1301,9 @@ export function useCareerHistoryState(args: {
       if (!currentItem || currentItem.viewedAt) return;
       const now = new Date().toISOString();
 
-      updateHistoryOpportunityLocally(normalizedOpportunityId, (item) => ({
-        ...item,
-        viewedAt: now,
-      }));
+      const viewedItem = { ...currentItem, viewedAt: now };
+      updateHistoryOpportunityLocally(normalizedOpportunityId, () => viewedItem);
+      applyHistoryOpportunityCountsTransition(currentItem, viewedItem);
 
       try {
         await patchHistoryOpportunity({
@@ -1291,6 +1312,7 @@ export function useCareerHistoryState(args: {
         });
       } catch (error) {
         restoreHistoryOpportunity(normalizedOpportunityId, currentItem);
+        applyHistoryOpportunityCountsTransition(viewedItem, currentItem);
         setHistoryUpdateError(
           error instanceof Error
             ? error.message
@@ -1299,6 +1321,7 @@ export function useCareerHistoryState(args: {
       }
     },
     [
+      applyHistoryOpportunityCountsTransition,
       historyOpportunityById,
       patchHistoryOpportunity,
       restoreHistoryOpportunity,
@@ -1569,11 +1592,13 @@ export function useCareerHistoryState(args: {
       const recoveringCompletedFilter = currentState?.nextOffset === null;
       const offset =
         currentState?.nextOffset ??
-        getLoadedHistoryFilterPageOffset(
-          currentData,
-          filter,
-          CAREER_HISTORY_PAGE_SIZE
-        );
+        (filter.historyTab === "saved"
+          ? 0
+          : getLoadedHistoryFilterPageOffset(
+              currentData,
+              filter,
+              CAREER_HISTORY_PAGE_SIZE
+            ));
       updateFilteredPageState((current) => ({
         ...current,
         [filterKey]: {

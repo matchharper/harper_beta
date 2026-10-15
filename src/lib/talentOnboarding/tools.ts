@@ -1,3 +1,5 @@
+import { formatToolError } from "@/lib/llm/toolError";
+import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 import { buildCareerCoachingResultInstruction } from "@/lib/career/prompts/cases/coachingPrompts";
 import { GENERATE_RESUME_PARAMETERS } from "@/lib/resumes/schema";
 import { readTalentContactHistory } from "@/lib/career/talentContactHistory";
@@ -29,7 +31,7 @@ import {
   normalizePostingRoleId,
   toPostingOpportunityId,
 } from "@/lib/career/postingLinks";
-import { runCareerJobPostingRecommendations } from "./jobPostingRecommendations";
+import { runExperimentJobRecommendations as runCareerJobPostingRecommendations } from "../externalRecommendationsV2/web";
 import {
   fetchTalentUserProfile,
   mutateEducationMemo,
@@ -135,6 +137,10 @@ import {
 } from "@/lib/career/careerCoachingActivity";
 import { readCareerCoachingListText } from "@/lib/career/careerCoachingList";
 
+import { executeApplicationSimulation } from "@/lib/career/simulation/server";
+import type { CareerTextChatModelId } from "@/lib/career/textChatModelConfig";
+import type { TalentMessageResponse } from "./models";
+
 export type TalentToolChannel = "chat" | "voice";
 
 export type PendingProcessClosureNotice = {
@@ -147,6 +153,12 @@ export type PendingProcessClosureNotice = {
 };
 
 export type TalentToolExecutionContext = {
+  textChatModel?: CareerTextChatModelId;
+  suppressCommonAssistantInstruction?: boolean;
+  simulationStartConfirmed?: boolean;
+  simulationStartOfferId?: number;
+  applicationChannel?: "email";
+  onSimulationMessage?: (message: TalentMessageResponse) => void;
   onRecommendationSearchProgress?: (
     status: import("./recommendJobPostingStatus").RecommendJobPostingStatus
   ) => void;
@@ -229,6 +241,7 @@ export class TalentToolError extends Error {
 }
 
 export const TALENT_TOOL_NAMES = {
+  SIMULATE_APPLICATION: "simulate_application",
   END_CALL: "end_call",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
   READ_RECOMMENDED_OPPORTUNITIES: "read_recommended_opportunities",
@@ -265,6 +278,7 @@ export type TalentToolName =
   (typeof TALENT_TOOL_NAMES)[keyof typeof TALENT_TOOL_NAMES];
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
   TALENT_TOOL_NAMES.END_CALL,
   TALENT_TOOL_NAMES.WEB_SEARCH,
   TALENT_TOOL_NAMES.OPEN_URL,
@@ -346,10 +360,11 @@ function isTalentToolResultRecord(
 }
 
 export function withTalentToolAssistantInstruction(
-  result: unknown
+  result: unknown,
+  includeCommonInstruction = true
 ): Record<string, unknown> {
   if (isTalentToolResultRecord(result)) {
-    if (result.skipCommonAssistantInstruction === true) {
+    if (result.skipCommonAssistantInstruction === true || !includeCommonInstruction) {
       const { skipCommonAssistantInstruction: _skip, ...rest } = result;
       return {
         ...rest,
@@ -365,7 +380,7 @@ export function withTalentToolAssistantInstruction(
   }
 
   return {
-    assistantInstruction: buildCommonTalentToolAssistantInstruction(null),
+    assistantInstruction: includeCommonInstruction ? buildCommonTalentToolAssistantInstruction(null) : null,
     ok: true,
     result,
   };
@@ -659,8 +674,10 @@ const ROLE_CONTEXT_ROLE_SELECT = `
   ),
   company_workspace:company_workspace!inner (
     company_name,
+    logo_url,
     company_db:company_db (
       name,
+      logo,
       short_description,
       description,
       location,
@@ -742,7 +759,7 @@ function pickLatestRoleContextRecommendation(
   })[0];
 }
 
-async function runGetRoleContext(args: {
+export async function runGetRoleContext(args: {
   activityOffset: number;
   admin: any;
   includeJd: boolean;
@@ -752,7 +769,7 @@ async function runGetRoleContext(args: {
   const [roleResponse, recommendationResponse, fitResponse] = await Promise.all(
     [
       (args.admin.from("company_roles" as any) as any)
-        .select(ROLE_CONTEXT_ROLE_SELECT)
+        .select(args.includeJd ? ROLE_CONTEXT_ROLE_SELECT : ROLE_CONTEXT_ROLE_SELECT.replace("  description,\n", ""))
         .in("role_id", args.roleIds),
       (args.admin.from("talent_opportunity_recommendation" as any) as any)
         .select(ROLE_CONTEXT_RECOMMENDATION_SELECT)
@@ -917,9 +934,10 @@ async function runGetRoleContext(args: {
         ),
       },
       companyDb: {
+        logoUrl: resolveCompanyLogoUrl({ companyDbLogoUrl: optionalToolString(companyDb?.logo), workspaceLogoUrl: optionalToolString(workspace?.logo_url) }),
         name: isInternalRole
           ? workspaceCompanyName
-          : optionalToolString(companyDb?.name),
+          : optionalToolString(companyDb?.name) ?? workspaceCompanyName,
         shortDescription: optionalToolString(companyDb?.short_description),
         description: optionalClippedToolString(
           companyDb?.description,
@@ -1385,7 +1403,7 @@ async function updateRecommendedOpportunityFeedback(args: {
       console.error(
         "[recommended-opportunity-feedback] failed to read other roles at company",
         {
-          error: error instanceof Error ? error.message : String(error),
+          error: formatToolError(error),
           roleId: updatedOpportunity.roleId,
           userId: args.userId,
         }
@@ -2428,7 +2446,7 @@ async function updateInternalRolePriorityReview(args: {
         });
       } catch (error) {
         console.error("[internal-role-priority-review] slack notify failed", {
-          error: error instanceof Error ? error.message : String(error),
+          error: formatToolError(error),
           roleId,
           userId: args.userId,
         });
@@ -2775,15 +2793,18 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         console.warn(
           "[recommend_job_postings] async drain guard unavailable; refusing an overlapping sync search",
           {
-            error: error instanceof Error ? error.message : String(error),
+            error: formatToolError(error),
             userId,
           }
         );
-        return buildOnDemandJobSearchStatusUnknownResult({
-          locale: context?.responseLocale,
-          maxResultsInput: input.max_results,
-          request,
-        });
+        return {
+          ...buildOnDemandJobSearchStatusUnknownResult({
+            locale: context?.responseLocale,
+            maxResultsInput: input.max_results,
+            request,
+          }),
+          error: formatToolError(error),
+        };
       }
 
       if (activeAsyncRun) {
@@ -3113,10 +3134,14 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES]: {
     name: TALENT_TOOL_NAMES.READ_RECOMMENDED_OPPORTUNITIES,
     description:
-      "Read the user's existing recommended opportunities so the assistant can answer questions about previously recommended companies, roles, links, reasons, user feedback, recent role activity, upcoming Harper-connected meetings, and connection/review status. Treat feedback=negative and rejected as Talent-side rejection records, not company rejections. For archived and stopped processes, follow progress.message and treat progress.stopReason as authoritative.",
+      "Read the user's existing recommended public AND Harper-connected opportunities, including recovering a roleId for Apply with Harper from a provided posting URL. Use postingUrl for an exact URL lookup regardless of the company name's language. Treat feedback=negative and rejected as Talent-side rejection records, not company rejections. For archived and stopped processes, follow progress.message and treat progress.stopReason as authoritative.",
     parameters: {
       type: "object",
       properties: {
+        postingUrl: {
+          type: "string",
+          description: "Optional exact JD/application URL from the user or an earlier result. Matches the stored posting URL; omit companyName when using this identifier.",
+        },
         companyName: {
           type: "array",
           description:
@@ -3162,6 +3187,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         .filter((name): name is string => Boolean(name));
       const limit = normalizeToolLimit(input.limit, 8);
       const onlyInternal = input.only_internal === true;
+      const postingUrl = optionalToolString(input.postingUrl);
       const companyFilters = companyNames.map((name) =>
         name.toLocaleLowerCase("ko-KR")
       );
@@ -3171,6 +3197,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         userId,
       });
       const filtered = opportunities.filter((item) => {
+        if (postingUrl && item.externalJdUrl !== postingUrl) return false;
         if (onlyInternal && item.sourceType !== "internal") {
           return false;
         }
@@ -3232,6 +3259,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       return {
         ...(assistantInstruction ? { assistantInstruction } : {}),
         filters: {
+          postingUrl: postingUrl ?? null,
           companyName: companyNames.length > 0 ? companyNames : null,
           limit,
           only_internal: onlyInternal,
@@ -3436,6 +3464,70 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         source: "career_chat",
         userId,
         userMessageId: context?.userMessageId ?? null,
+      });
+    },
+  },
+  [TALENT_TOOL_NAMES.SIMULATE_APPLICATION]: {
+    name: TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
+    description: "Show the Apply with Harper start card for one known role and one chosen resume. Read/list the user's resumes and select document_id before calling. If there is no readable resume, offer upload or ask whether to create a simple resume from their profile, then use generate_resume with consent. The card lets the user change the selection and press Start; only that button starts preparation. Harper improves the existing resume for the role, prepares needed application materials with the user, and can help submit with confirmations. This call does not run analysis, edit files or apply.",
+    channels: ["chat"],
+    parameters: {
+      type: "object", additionalProperties: false,
+      required: ["document_id"],
+      properties: {
+        roleId: { type: "string", description: "Exact known Harper role ID. Supply this or official_job_slug, never both." },
+        official_job_slug: { type: "string", description: "Known public Harper /jobs slug." },
+        document_id: { type: "string", description: "Selected readable resume ID belonging to this user." },
+      },
+    },
+    async execute(input, context) {
+      if (!context?.admin || !context.userId || !context.conversationId) throw new TalentToolError("Simulation requires an authenticated conversation.");
+      if (!context.simulationStartConfirmed && context.applicationChannel !== "email") {
+        const documentId=optionalToolString(input.document_id);
+        if (!documentId) return {ok:false,reason:"Choose a readable resume first. If none exists, offer upload or creation from the profile with the user's consent."};
+        if (Boolean(input.roleId) === Boolean(input.official_job_slug)) throw new TalentToolError("Choose exactly one role identifier");
+        const {prepareApplicationStartPayload}=await import("@/lib/career/simulation/startOfferStore");
+        const message=await prepareApplicationStartPayload({admin:context.admin as TalentAdminClient,userId:context.userId,conversationId:context.conversationId,replyId:Number(context.userMessageId),documentId,request: input.official_job_slug ? {official_job_slug:String(input.official_job_slug)} : {roleId:String(input.roleId)}});
+        context.onSimulationMessage?.(message);
+        return {ok:true,startCardDisplayed:true,awaitingUserInput:true,assistantInstruction:"The displayed card owns resume selection and Start. Wait for the user's button action."};
+      }
+      let role: Record<string, unknown> | null = null;
+      let roleName = "";
+      let loadSavedRole: (() => Promise<Record<string, unknown>>) | undefined;
+      if (typeof input.official_job_slug === "string" && input.official_job_slug.trim()) {
+        const { getPublicOfficialJobBySlug } = await import("@/lib/officialJobs/server");
+        const job = await getPublicOfficialJobBySlug(input.official_job_slug.trim());
+        if (job) {
+          roleName = `${job.companyName} · ${job.roleTitle}`;
+          role = { name: job.roleTitle, company: job.companyName, description: job.roleDescriptionMarkdown, companyDescription: job.shortDescription, location: job.location, compensation: job.compensation, seniority: job.seniority };
+          const linked = job.roleId ? await (context.admin as TalentAdminClient).from("company_roles").select("external_jd_url").eq("role_id",job.roleId).maybeSingle() : null;
+          role.externalJdUrl = linked?.data?.external_jd_url || `https://matchharper.com/jobs/${job.slug}`;
+        }
+      } else {
+        const roleIds = normalizeRoleContextRoleIds([input.roleId]);
+        if (roleIds.length !== 1) throw new TalentToolError("Select one valid role before simulation.");
+        const lookup = await runGetRoleContext({ admin: context.admin, userId: context.userId, roleIds, includeJd: false, activityOffset: 0 });
+        const item = lookup.roles[0];
+        if (item?.found && item.role) {
+          // Explicit allowlist: never forward internalRequest, stored fit decisions or company feedback.
+          const r = item.role;
+          loadSavedRole = async () => {
+            const fallback = await runGetRoleContext({ admin: context.admin, userId: context.userId!, roleIds, includeJd: true, activityOffset: 0 });
+            return { ...role, description: fallback.roles[0]?.role?.description };
+          };
+          roleName = [item.companyDb?.name, r.name].filter(Boolean).join(" · ");
+          role = { name: r.name, description: r.description, location: r.locationText, workMode: r.workMode, seniority: r.seniorityLevel, compensation: r.salaryRange, company: item.companyDb, externalJdUrl: r.externalJdUrl };
+        }
+      }
+      if (!role) return { ok: false, reason: "A readable role description is unavailable. Ask the user to select a visible Harper role or its public /jobs posting." };
+      return executeApplicationSimulation({
+      startOfferId: context.simulationStartOfferId,
+        emailSourceMessageId: context.applicationChannel === "email" ? Number(context.userMessageId) : undefined,
+        deferPreparation: context.applicationChannel === "email",
+        admin: context.admin as TalentAdminClient, userId: context.userId, conversationId: context.conversationId,
+        roleRef: typeof input.official_job_slug === "string" ? `job:${input.official_job_slug}` : `role:${input.roleId}`, requestKey: `simulation:${context.userMessageId ?? context.toolCallId ?? crypto.randomUUID()}`,
+        role, loadSavedRole, roleName, documentId: typeof input.document_id === "string" ? input.document_id : undefined, profileOnly: input.profile_only === true,
+        locale: context.responseLocale, textChatModel: context.textChatModel, scheduleAfter: context.scheduleAfter, onMessage: context.onSimulationMessage,
       });
     },
   },
@@ -3910,13 +4002,24 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         });
       }
 
+      let remainingInternalRoles: ReturnType<typeof compactOpportunityForTool>[] | null = null;
+      try {
+        remainingInternalRoles = (await fetchTalentOpportunityHistory({ admin, userId, sourceType: "internal", limit: 100 })).map(compactOpportunityForTool);
+      } catch (historyError) {
+        // A supplementary read failure must not turn the committed setting into a failed write.
+        console.error("[update-setting/internal-history]", historyError);
+      }
       const responseLanguage = getTalentToolResponseLanguage(context);
       return {
         assistantInstruction: [
           `Continue the conversation naturally in ${responseLanguage} now.`,
+          "Settings do not withdraw existing company introductions or decide remaining internal Roles. Use the returned existing opportunities and the user's intent to ask how they want to handle unresolved proposals when relevant. Previously shared company profiles remain available; new matching/contact follows the updated preferences. Do not infer a decline from a settings change.",
           "If recommendation/contact subscription scope changed, explain the practical consequence in the user's language: which recommendations or matching contacts Harper will include or avoid from now on, and how the user can adjust it later.",
           "Do not make the saved-setting acknowledgement the whole answer; continue naturally from the user's intent.",
         ].join(" "),
+        remainingInternalRoles,
+        internalRoleHistoryAvailable: remainingInternalRoles !== null,
+        internalRoleHistoryLimit: 100,
         action,
         impactLevel: "high",
         ok: true,
@@ -4236,7 +4339,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           userId,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatToolError(error);
         if (!/revision conflict|open career coaching activity/i.test(message)) {
           console.error("[career-coaching] activity mutation failed", {
             action,
@@ -4248,6 +4351,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             assistantInstruction:
               "The focused activity change was not applied. Do not claim that a coaching card is visible, that coaching started or ended, or expose technical details. Continue the user's underlying career conversation normally. If the missing activity state matters to the request, say briefly that the focused conversation could not be opened right now and invite the user to retry later.",
             error: "activity_unavailable",
+            errorDetails: formatToolError(error),
             ok: false,
             status: "unavailable",
             skipCommonAssistantInstruction: true,
@@ -4966,7 +5070,7 @@ const UI_STATUS_MESSAGE_PARAMETER = {
   type: "string",
 };
 
-function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
+export function withUiStatusMessageParameter(parameters: Record<string, unknown>) {
   const properties =
     parameters.properties &&
     typeof parameters.properties === "object" &&
@@ -5126,7 +5230,9 @@ export async function executeTalentTool(args: {
     const result = withTalentToolAssistantInstruction(
       tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
         ? withRecommendJobPostingsAssistantInstruction(rawResult)
-        : rawResult
+        : rawResult,
+      tool.name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION &&
+        executionContext?.suppressCommonAssistantInstruction !== true
     );
     if (shouldLog) {
       logTalentToolResult({

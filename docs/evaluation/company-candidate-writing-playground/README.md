@@ -77,3 +77,9 @@ QA Slack에 실험 안내·공개 Presentation·writer 문장을 3개 메시지�
 QA 채널에 안내 1개 및 intro·후보 소개·closing 3개의 독립 메시지를 전송하고 Slack 표시를 확인했다.
 Python 112개 및 Node 41개 테스트 통과. 별도 크레딧 부족 안내 문구 테스트 1개는 이번 변경을 제거해도
 동일하게 실패한다. 원문·설정·receipt·검토 기록은 이 run의 ignored 디렉터리에 보존한다.
+
+## 가입일 표시 회귀: signup-date-v2 (2026-10-15, 로컬·미배포)
+
+[입력](signup-date-cases-v2.json) · [사전 정답](signup-date-gold-v2.md) · [manifest](signup-date-manifest-v2.json). 기존 v1은 유지한다. 운영 확인 기준은 Worker `5c6ba484`와 웹 `b49471af`다. 두 소개 작성 프롬프트·모델을 보존하고 날짜만 추가한다. 소개 뒤 선택적 회사 에이전트는 별도 실행이다. Canonical runner는 기존 `playground.py run --request <request>`이며, frozen fixture를 현재 writer 설정·프롬프트와 함께 writer-only/발송 OFF로 실행한다. 새 run의 설정·source/input hash·전체 원문을 ignored owner-only runs에 보존한다.
+
+단위는 company-first/연결 대기 각 2명인 합성 2묶음이다. 두 호출 모두 최근 가입자의 날짜만 가볍게 설명하고, 오래된 가입·역할 수락·현재 탐색 의사를 혼동하지 않는지 전체 원문으로 검토한다. Gate는 2/2 구조·의미와 critical 0. 실제 DB 날짜 projection은 별도 read-only smoke이며, Slack 전달·정기 검색 전체·평균 작성 품질·독립 검토는 포함하지 않는다.

@@ -28,11 +28,13 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json().catch(() => ({}))) as {
+      teamId?: string | null;
       emails?: unknown;
       role?: unknown;
       workspaceId?: string;
     };
     const payload = await sendOrgWorkspaceInvitations({
+      teamId: body.teamId,
       emails: body.emails,
       role: body.role,
       siteUrl: getPublicSiteUrlFromRequest(req),

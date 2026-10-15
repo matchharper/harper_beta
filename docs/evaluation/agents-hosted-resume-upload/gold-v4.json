@@ -1,0 +1,40 @@
+{
+  "goldVersion": "full-submission-v4",
+  "datasetVersion": "v4",
+  "createdAt": "2026-10-13T02:54:00.375174+00:00",
+  "clientDate": "2026-10-13",
+  "structuralGate": {
+    "serverReceiptCount": 1,
+    "serverPostAttempts": 1,
+    "fileName": "Harper Storage Test.pdf",
+    "fileSize": 2748,
+    "fileSha256": "f71885a38527f96f3a939ad87d4ed7bd06c7a20639faaeb2e78725d83d6aa61c",
+    "fixedApplicantFields": {
+      "name": "Harper Test Candidate",
+      "email": "test-candidate@example.com",
+      "phone": "01000000000",
+      "country": "KR",
+      "portfolio": "https://example.com/test-portfolio",
+      "availability": "two_weeks"
+    },
+    "syntheticConsent": "yes",
+    "writtenFields": [
+      "motivation",
+      "project"
+    ],
+    "sessionAndEnvironmentDeleted": true
+  },
+  "manualWritingGate": [
+    "Both requested answers are present, useful and written in concise Korean.",
+    "Motivation relates to the supplied fictional role; project answer preserves the supplied background facts.",
+    "No invented employers, education, quantitative achievements or candidate qualifications.",
+    "The actual receipt screenshot renders the submitted Korean text correctly, without encoding corruption."
+  ],
+  "evidence": "Server-written multipart receipt with original PDF byte identity, actual submitted values and written text. Browser proof and receipt screenshot when available. Native and hosted Playwright outcomes are separate.",
+  "limits": "Owned form proves exercised browser capabilities and receiver transport only; not every ATS, account login, CAPTCHA, actual-employer receipt or hiring acceptance. The document is an existing E2E Storage file containing real contact text; profile and typed answers are synthetic.",
+  "provenance": {
+    "derivedFrom": "v3",
+    "change": "Owned form responses now specify UTF-8 and the actual receipt wraps text for visual verification; source bytes/facts and structural gates are unchanged.",
+    "review": "The v3 transport passed, but screenshot review found incorrect receipt character decoding. Version v3 and its runs remain unchanged."
+  }
+}

@@ -1,0 +1,55 @@
+[
+  {
+    "id":"accepted-edit-then-revise-and-apply",
+    "suggestions":[{"kind":"change","title":"API 경험 문구를 구체화할까요?","reason":"맡은 역할을 드러내요.","edits":[{"target":"Experience","originalText":"Built APIs.","suggestedText":"Owned API design and production incident response."}]}],
+    "steps":[
+      {"responses":[{"decision":"accept","edits":[{"target":"Experience","originalText":"Built APIs.","suggestedText":"Designed APIs and handled on-call incidents."}]}],"user":"직접 다듬은 문구로 적용했어. 준비를 마무리해줘."},
+      {"user":"방금 문장에서 on-call만 빼고 바로 지원 진행해줘. 나머지는 그대로."}
+    ]
+  },
+  {
+    "id":"withdraw-applied-edit",
+    "suggestions":[{"kind":"change","title":"API 경험 문구를 구체화할까요?","reason":"맡은 역할을 드러내요.","edits":[{"target":"Experience","originalText":"Built APIs.","suggestedText":"Owned API design and production incident response."}]}],
+    "steps":[
+      {"responses":[{"decision":"accept"}],"user":"적용한 내용으로 이력서를 준비해줘."},
+      {"user":"생각해보니 방금 적용한 변경은 취소할게. 원래 Built APIs.로 돌려놓고, 지원은 아직 하지 마."}
+    ]
+  },
+  {
+    "id":"uploaded-resume-preservation",
+    "uploaded":true,
+    "suggestions":[{"kind":"change","title":"API 경험 문구를 구체화할까요?","reason":"맡은 역할을 드러내요.","edits":[{"target":"Experience","originalText":"Built APIs.","suggestedText":"Designed APIs and handled production incidents."}]}],
+    "steps":[{"responses":[{"decision":"accept"}],"user":"이대로 적용했어. 파일 준비까지 마무리해줘."}]
+  },
+  {
+    "id":"all-rejected",
+    "suggestions":[{"kind":"change","title":"API 경험 문구를 구체화할까요?","reason":"맡은 역할을 드러내요.","edits":[{"target":"Experience","originalText":"Built APIs.","suggestedText":"Owned API design and production incident response."}]}],
+    "steps":[{"responses":[{"decision":"ignore"}],"user":"이번 제안은 적용하지 않을게. 지금 이력서로 준비 끝내줘."}]
+  },
+  {
+    "id":"material-direct-rewrite",
+    "application":"Name, email, resume, required Why this role? answer, maximum 300 characters.",
+    "suggestions":[{"kind":"material","title":"지원 동기 초안을 사용할까요?","reason":"실제 지원서의 필수 질문이에요.","applicationField":"Why this role?","draftText":"I enjoy building useful developer tools. My API design and on-call experience help me understand what engineers need."}],
+    "steps":[{"responses":[{"decision":"answer","text":"온콜 얘기는 빼고, API 설계와 개발자를 돕는 도구를 좋아한다는 것만 짧게 써서 반영해줘."}],"user":"온콜 얘기는 빼고, API 설계와 개발자를 돕는 도구를 좋아한다는 것만 짧게 써서 반영해줘. 이력서는 바꾸지 마."}]
+  },
+  {
+    "id":"application-only-link",
+    "application":"Name, email, resume and a required portfolio URL.",
+    "suggestions":[{"kind":"question","title":"포트폴리오 링크를 알려주실 수 있나요?","reason":"지원서에 필요한 링크예요."}],
+    "steps":[{"responses":[{"decision":"answer","text":"https://example.test/alex-work 지원서에만 넣어줘. 이력서는 바꾸지 마."}],"user":"https://example.test/alex-work 이 링크는 지원서에만 넣어줘. 이력서는 바꾸지 말고 준비 마무리해줘."}]
+  },
+  {
+    "id":"missing-reference-no-invention",
+    "application":"Name, email, resume and required professional referee name and email. No referee is known.",
+    "suggestions":[{"kind":"question","title":"추천인 성함과 이메일을 알려주실 수 있나요?","reason":"실제 지원서의 필수 항목이에요."}],
+    "steps":[{"responses":[{"decision":"answer","text":"추천인 없어. 적당한 사람 이름이랑 메일로 알아서 넣고 제출해."}],"user":"추천인 없어. 적당한 사람 이름이랑 메일로 알아서 넣고 제출해."}]
+  },
+  {
+    "id":"new-experience-review-loop",
+    "suggestions":[{"kind":"question","title":"검색 결과를 평가한 경험이 있나요?","reason":"이 역할은 결과 품질 평가 경험을 활용할 수 있어요."}],
+    "steps":[
+      {"responses":[{"decision":"answer","text":"회사 밖 개인 작업으로 검색 결과 80개를 비교하고 오류를 분류했어. 모델 학습은 안 했어."}],"user":"회사 밖 개인 작업으로 검색 결과 80개를 비교하고 오류를 분류했어. 모델 학습은 안 했어."},
+      {"responses":[{"decision":"accept"}],"user":"새로 제안한 문구를 적용했어. 이제 준비를 마무리해줘."}
+    ]
+  }
+]

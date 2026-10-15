@@ -1,3 +1,4 @@
+import { formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import type { OrgAgentMoreDataToolResult } from "@/lib/org/agent/data";
 import type { MatchingRunHistory } from "@/lib/companyFirstSearch/history";
@@ -325,6 +326,7 @@ function formatContactListResult(result: Record<string, any>) {
     "status=ok",
     "조회 범위: 이 회사와 후보자 사이에 공유되는 연락·일정·진행 안내. 후보자와 Harper 사이의 비공개 추천 피드백·열람 정보는 이 목록에 포함되지 않는다. 빈 목록으로 그 정보의 유무를 판단할 수 없다.",
     `date_basis=${formatPromptCell(result.dateBasis, 20)} ${pageLine(result)}`,
+    ...(result.followupsAvailable === false ? ["stored_followups_available=false; scheduled followup data was unavailable, not an empty confirmed schedule"] : []),
     formatPromptSection(
       "contacts",
       formatPromptTable(
@@ -413,6 +415,17 @@ function formatContactDetailItem(itemValue: unknown, index: number) {
       ...(item.request
         ? [`request=${formatPromptCell(item.request, 1_000)}`]
         : []),
+      ...(item.kind === "followup" ? [
+        `followup_ref=${formatPromptCell(item.contactRef, 160)}`,
+        `source_contact_ref=${formatPromptCell(item.sourceContactRef, 160)}`,
+        `expected_revision=${formatPromptCell(item.expectedRevision, 20)}`,
+        `delay_days_after_first_email=${formatPromptCell(item.delayDays, 20)}`,
+        `planned_review_date=${formatPromptKstDateTime(item.scheduledAt)}`,
+        `next_review_at=${formatPromptKstDateTime(item.nextCheckAt)}`,
+        `available_actions=${formatPromptCell(item.availableActions, 300)}`,
+        `channel_results=${formatPromptCell(item.channels, 1000)}`,
+        `schedule_history=${formatPromptCell(item.history, 4000)}`,
+      ] : []),
       formatPromptSection("sent_message", formatContactMessage(item.message)),
       ...(Object.keys(response).length
         ? [
@@ -674,6 +687,8 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "recommended",
           "updated",
           "intro_status",
+          "intro_close_reason",
+          "candidate_decision_kst",
           "intro_requested_kst",
           "candidate_sent_kst",
           "candidate_accepted_kst",
@@ -696,6 +711,8 @@ function formatSingleTalentResult(result: Record<string, any>) {
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
           item?.companyIntroStatus,
+          item?.introCloseReason,
+          formatPromptKstDateTime(item?.talentDecisionAt),
           formatPromptKstDateTime(item?.introRequestedAt),
           formatPromptKstDateTime(item?.candidateSentAt),
           formatPromptKstDateTime(item?.candidateAcceptedAt),
@@ -703,10 +720,11 @@ function formatSingleTalentResult(result: Record<string, any>) {
         ]),
         [
           100, 160, 100, 30, 10, 30, 10, 40, 700, 500, 300, 400, 1_000, 10,
-          10, 40, 40, 40, 40, 40,
+          10, 40, 80, 40, 40, 40, 40, 40,
         ]
       )
     ),
+    ...(result.scheduledFollowups ? [formatPromptSection("stored_company_followups", JSON.stringify(result.scheduledFollowups))] : []),
     ...(positions.some((item: any) => Object.hasOwn(item ?? {}, "harperRecommendation")) ? [
       formatPromptSection("harper_recommendations", [
         "Harper가 후보자에게 먼저 추천한 기록. 회사의 Intro 요청 발송과는 별개다.",
@@ -940,6 +958,7 @@ function formatRoleResult(result: Record<string, any>) {
     : [];
   return [
     "status=ok",
+    ...(result.notification ? [formatPromptSection("notification", JSON.stringify(result.notification))] : []),
     formatPromptSection(
       "role",
       formatPromptTable(
@@ -1500,6 +1519,7 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
   } else {
     facts.push("meeting_request_created=false", "candidate_contacted=false");
   }
+  if (result.followups) facts.push(`stored_followups=${JSON.stringify(result.followups)}`);
   facts.push(...formatOptionalResponseGuidance(result));
   return facts.join("\n");
 }
@@ -1566,6 +1586,7 @@ function formatCompanyIntroDecisionResult(result: Record<string, any>) {
     `candidate=${formatPromptCell(result.candidateName, 160)}`,
     `role=${formatPromptCell(result.roleName, 200)}`,
     `decision=${formatPromptCell(decision, 30)}`,
+    ...(result.followups ? [`stored_followups=${JSON.stringify(result.followups)}`] : []),
   ];
   if (result.status === "details_required") {
     return [
@@ -2146,7 +2167,7 @@ function formatConversationHistoryResult(result: Record<string, any>) {
  * boundary. Each tool gets a small schema-once view containing only facts the
  * model needs for its next decision.
  */
-export function serializeOrgAgentToolResult(
+export function formatOrgAgentToolResult(
   name: OrgAgentToolName,
   value: unknown
 ) {
@@ -2172,6 +2193,13 @@ export function serializeOrgAgentToolResult(
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
+  if (name === "report_issue") {
+    return [
+      `status=${formatPromptCell(result.status, 30)}`,
+      `report_reference=${formatPromptCell(result.reportId, 100)}`,
+      ...formatOptionalResponseGuidance(result),
+    ].join("\n");
+  }
   if (name === "web_search") return formatWebSearchResult(result);
   if (name === "open_url") return formatOpenUrlResult(result);
   if (name === "get_talents") return formatTalentSearchResult(result);
@@ -2190,6 +2218,11 @@ export function serializeOrgAgentToolResult(
   }
   if (name === "list_contacts") return formatContactListResult(result);
   if (name === "read_contact") return formatContactDetailResult(result);
+  if (name === "send_company_message") return JSON.stringify({ status: result.status, batchId: result.batchId, messageIds: result.messageIds });
+  if (name === "job_posting_promote") return JSON.stringify({ status: result.status, roleId: result.roleId,
+    demand: result.request?.level, reason: result.request?.reason, updatedAt: result.request?.updatedAt,
+    validUntil: result.request?.validUntil, promotionAllowed: result.promotionAllowed,
+    anonymous: result.anonymous, immediatePostingPerformed: false });
   if (name === "read_role") return formatRoleResult(result);
   if (name === "request_matching_search") {
     return [
@@ -2218,16 +2251,6 @@ export function serializeOrgAgentToolResult(
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
-  if (name === "record_role_profile_example_feedback") {
-    return [
-      `status=${formatPromptCell(result.status, 30)}`,
-      `role_name=${formatPromptCell(result.roleName, 200)}`,
-      `reviewed_profiles=${formatPromptCell(result.reviewedProfiles, 100)}`,
-      `hiring_brief_updated=${Boolean(result.hiringBriefUpdated)}`,
-      `summary=${formatPromptCell(result.summary, 600)}`,
-      ...formatOptionalResponseGuidance(result),
-    ].join("\n");
-  }
   if (name === "get_more_data") {
     return serializeOrgAgentMoreData(value as OrgAgentMoreDataToolResult);
   }
@@ -2237,6 +2260,7 @@ export function serializeOrgAgentToolResult(
   if (name === "update_data" || name === "update_role_criteria") {
     return formatUpdateDataResult(result);
   }
+  if (name === "set_role_notification") return JSON.stringify(result);
   if (name === "change_role_status") {
     return formatRoleStatusChangeResult(result);
   }
@@ -2263,7 +2287,8 @@ export function serializeOrgAgentToolResult(
     ].join("\n");
   }
   if (name === "contact_talent") {
-    return formatCompanyTalentRequestResult(result);
+    if (result.contactRef || result.followupId) return JSON.stringify(result);
+    return [formatCompanyTalentRequestResult(result), ...(result.followups ? [`stored_followups=${JSON.stringify(result.followups)}`] : [])].join("\n");
   }
   if (name === "decide_company_intro") {
     return formatCompanyIntroDecisionResult(result);
@@ -2332,12 +2357,12 @@ function orgAgentToolRecoveryInstruction(args: {
       return `${retryPrefix} Do not immediately request another search because the queue effect may already exist. Explain that the fresh-search request could not be confirmed; do not claim that matching started or that candidates were contacted.`;
     case "update_data":
     case "update_role_criteria":
+    case "set_role_notification":
     case "change_role_status":
     case "manage_role_pipeline_stages":
     case "manage_interview_availability":
     case "add_candidate_note":
     case "calibrate_role_hiring_brief":
-    case "record_role_profile_example_feedback":
       return `${retryPrefix} For an execution failure, read the relevant current company or Role state before another write. Then continue any still-authorized independent part of the request.`;
     case "get_talents":
     case "read_talent":
@@ -2374,6 +2399,7 @@ export function serializeOrgAgentToolError(
     | unknown
     | {
         kind: OrgAgentToolErrorKind;
+        executed?: boolean;
         message: unknown;
         name?: OrgAgentToolName | string;
       }
@@ -2385,6 +2411,7 @@ export function serializeOrgAgentToolError(
     "kind" in value
       ? (value as {
           kind: OrgAgentToolErrorKind;
+          executed?: boolean;
           message: unknown;
           name?: OrgAgentToolName | string;
         })
@@ -2393,7 +2420,9 @@ export function serializeOrgAgentToolError(
     structured.kind === "execution" &&
     isOrgAgentReadOrPreparationTool(structured.name);
   const executionFact =
-    structured.kind === "blocked" ||
+    "executed" in structured && structured.executed === true
+      ? "effect_status=unknown"
+      : structured.kind === "blocked" ||
     structured.kind === "input" ||
     structured.kind === "budget" ||
     structured.kind === "unknown_tool"
@@ -2406,8 +2435,18 @@ export function serializeOrgAgentToolError(
   return [
     `outcome=${outcome}`,
     ...(executionFact ? [executionFact] : []),
-    `reason=${formatPromptCell(structured.message, 500)}`,
+    ...(executionFact === "effect_status=unknown"
+      ? [
+          "reason=No verified result was returned. The operation may already have taken effect; success, rejection, rollback and non-delivery are all unconfirmed. Check current state before another write.",
+          `diagnostic=${formatToolError(structured.message)}`,
+        ]
+      : [`reason=${formatToolError(structured.message)}`]),
     `next_action=${orgAgentToolRecoveryInstruction(structured)}`,
     "verification_boundary=Treat the action as completed only after a later verified result. Explain any remaining blocker without internal diagnostics.",
   ].join("\n");
+}
+
+/** Preserve the existing company-safe projection and its verified partial facts. */
+export function serializeOrgAgentToolResult(name: OrgAgentToolName, value: unknown) {
+  return serializeToolResultForModel(value, original => formatOrgAgentToolResult(name, asRecord(original)));
 }

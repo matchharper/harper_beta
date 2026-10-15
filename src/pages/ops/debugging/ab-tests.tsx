@@ -15,6 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOpsAbTests } from "@/hooks/ops/useOpsAbTests";
@@ -46,6 +54,7 @@ function formatDuration(value: number | null) {
 
 function formatMetric(metric: OpsAbTestMetric) {
   if (metric.value === null) return "-";
+  if (metric.format === "usd") return `$${metric.value.toFixed(5)}`;
   if (metric.format === "rate") return formatPercent(metric.value);
   if (metric.format === "duration_seconds") return formatDuration(metric.value);
   if (metric.format === "number") return metric.value.toFixed(1);
@@ -54,6 +63,7 @@ function formatMetric(metric: OpsAbTestMetric) {
 
 function formatDifference(metric: OpsAbTestMetric, difference: number) {
   const magnitude = Math.abs(difference);
+  if (metric.format === "usd") return `$${magnitude.toFixed(5)}`;
   if (metric.format === "rate") {
     return formatSignedPercentagePoint(magnitude).replace("+", "");
   }
@@ -69,7 +79,12 @@ function getDifferenceLabel(
 ) {
   if (firstValue === null || secondValue === null) return "비교 대기";
   const difference = secondValue - firstValue;
-  const equalityThreshold = metric.format === "rate" ? 0.0005 : 0.05;
+  const equalityThreshold =
+    metric.format === "usd"
+      ? 0.000005
+      : metric.format === "rate"
+        ? 0.0005
+        : 0.05;
   if (Math.abs(difference) < equalityThreshold) return "동일";
   return `${difference > 0 ? "B" : "A"} ${formatDifference(
     metric,
@@ -87,18 +102,22 @@ function ConclusionBadge({ experiment }: { experiment: OpsAbTestSummary }) {
         : { tone: "neutral", variant: "solid" };
   return (
     <Badge {...props} size="sm">
-      {state === "leader"
-        ? "우세 확인"
-        : state === "no_clear_difference"
-          ? experiment.conclusion.observedLeaderVariantId
-            ? "잠정 우세"
-            : "동률"
-          : "수집 중"}
+      {state === "descriptive"
+        ? "관측값"
+        : state === "leader"
+          ? "우세 확인"
+          : state === "no_clear_difference"
+            ? experiment.conclusion.observedLeaderVariantId
+              ? "잠정 우세"
+              : "동률"
+            : "수집 중"}
     </Badge>
   );
 }
 
 function getConclusionHeadline(experiment: OpsAbTestSummary) {
+  if (experiment.conclusion.state === "descriptive")
+    return "관측 차이 · 승패 판정 전";
   if (experiment.conclusion.state === "collecting") return "표본 수집 중";
   const leader = experiment.variants.find(
     (variant) => variant.id === experiment.conclusion.observedLeaderVariantId
@@ -307,9 +326,11 @@ function PrimaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
       {experiment.conclusion.observedLeaderVariantId ? (
         <Text className="mt-1 text-center" tone="muted" variant="subtle">
           {experiment.primaryMetricLabel} 기준
-          {experiment.conclusion.state === "no_clear_difference"
-            ? " · 우세 확정에는 추가 표본 필요"
-            : " · 95% 구간에서 차이 확인"}
+          {experiment.conclusion.state === "descriptive"
+            ? " · 반복 관찰용 참고치"
+            : experiment.conclusion.state === "no_clear_difference"
+              ? " · 우세 확정에는 추가 표본 필요"
+              : " · 95% 구간에서 차이 확인"}
         </Text>
       ) : null}
 
@@ -416,8 +437,16 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
             <Text as="h2" className="font-normal" variant="head2">
               {experiment.title}
             </Text>
-            <Badge size="sm" tone="positive" variant="faded">
-              진행 중
+            <Badge
+              size="sm"
+              tone={experiment.status === "running" ? "positive" : "neutral"}
+              variant="faded"
+            >
+              {experiment.status === "awaiting_data"
+                ? "운영 표본 대기"
+                : experiment.status === "observing"
+                  ? "한쪽 그룹만 관측"
+                  : "진행 중"}
             </Badge>
           </div>
           <Text className="mt-1 font-mono" tone="subtle" variant="subtle">
@@ -432,7 +461,32 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
       </div>
 
       <PrimaryComparison experiment={experiment} />
-      <DetailMetricComparisons variants={experiment.variants} />
+      {experiment.metricLayout === "table" ? (
+        <Table aria-label={`${experiment.title} 세부 지표`}>
+          <TableHeader>
+            <TableRow>
+              <TableHead>지표</TableHead>
+              <TableHead className="text-right">A · 기존</TableHead>
+              <TableHead className="text-right">B · V2</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {experiment.variants[0].metrics.map((metric, i) => (
+              <TableRow key={metric.label}>
+                <TableCell>{metric.label}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatMetric(metric)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatMetric(experiment.variants[1].metrics[i])}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <DetailMetricComparisons variants={experiment.variants} />
+      )}
 
       <div className="mt-3 flex flex-wrap justify-between gap-2 px-1">
         <Text tone="subtle" variant="subtle">
@@ -472,7 +526,15 @@ export default function OpsAbTestsPage() {
     (state) => state.emailExclusionTerms
   );
   const [days, setDays] = useState(30);
-  const query = useOpsAbTests({ days, enabled: canFetch, excludedEmails });
+  const [externalSurface, setExternalSurface] = useState<
+    "web" | "worker" | "daily"
+  >("web");
+  const query = useOpsAbTests({
+    days,
+    externalSurface,
+    enabled: canFetch,
+    excludedEmails,
+  });
   const experiments = query.data?.experiments ?? [];
   const clearResultCount = experiments.filter(
     (experiment) => experiment.conclusion.state === "leader"
@@ -495,6 +557,29 @@ export default function OpsAbTestsPage() {
           ))}
         </SelectContent>
       </Select>
+      <Select
+        value={externalSurface}
+        onValueChange={(v) => setExternalSurface(v as typeof externalSurface)}
+      >
+        <SelectTrigger
+          size="sm"
+          className="w-40"
+          aria-label="외부 추천 비교 경로"
+        >
+          <SelectValue>
+            {externalSurface === "web"
+              ? "외부 · 요청 추천"
+              : externalSurface === "worker"
+                ? "외부 · Worker 추천"
+                : "외부 · 매일 추천"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="web">외부 · 요청 추천</SelectItem>
+          <SelectItem value="worker">외부 · Worker 추천</SelectItem>
+          <SelectItem value="daily">외부 · 매일 추천</SelectItem>
+        </SelectContent>
+      </Select>
       <MuteButton
         aria-label="새로고침"
         size="sm"
@@ -507,7 +592,7 @@ export default function OpsAbTestsPage() {
       </MuteButton>
       {query.data ? (
         <Text tone="subtle" variant="subtle">
-          {formatAbsoluteKst(query.data.generatedAt)} 기준
+          {formatAbsoluteKst(query.data.generatedAt)} 기준 · 30초 갱신
         </Text>
       ) : null}
     </div>
@@ -536,7 +621,7 @@ export default function OpsAbTestsPage() {
                 진행 중
               </Text>
               <div className="mt-2 text-2xl font-normal tabular-nums text-neutral-primary">
-                {experiments.length}
+                {experiments.filter((e) => e.status === "running").length}
               </div>
             </div>
             <div className={cx(opsTheme.panel, "p-4")}>

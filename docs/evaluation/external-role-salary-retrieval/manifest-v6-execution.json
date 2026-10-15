@@ -1,0 +1,14 @@
+{
+  "datasetVersion": "v6-execution",
+  "parentInput": "v5-users-market-value",
+  "caseHashes": {
+    "user-1": "706166aa3215787f5b829e462647f8106036c07403f1771363bb049c407b0112",
+    "user-2": "16c246476921951398585125869b5fa37f05ec5edd6513a3a55d5550984bd899",
+    "user-3": "cae162a0e896dccff58639f39179047b02878c5c4bce1bbcf2e1af7a25f5165a"
+  },
+  "canonicalRunner": "scripts/evalExternalRetrievalExecution.ts",
+  "capturedAt": "2026-10-15T03:08:43.084Z",
+  "baselineSourceHash": "7ba0fef91be1b2f9f913ef56f5e795235c73a6e456c36f127e192cf2f230e654",
+  "frozenBeforeComparisons": true,
+  "privacy": "owner-only private/runs; no model calls or production writes"
+}

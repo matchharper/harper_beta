@@ -7,7 +7,7 @@ import {
   fetchWithInternalAuth,
   fetchResponseWithInternalAuth,
 } from "@/lib/internalApiClient";
-import { useCareerT } from "@/i18n/useCareerT";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { ResumeContent } from "@/lib/resumes/schema";
 import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
 
@@ -20,7 +20,7 @@ type Document = {
 };
 export default function SharedResumePage() {
   const router = useRouter();
-  const t = useCareerT();
+  const { c } = useOrgLocale();
   const [loaded, setLoaded] = useState<{
     key: string;
     document: Document | null;
@@ -139,27 +139,27 @@ export default function SharedResumePage() {
             ) : (
               <Download className="h-4 w-4" />
             )}
-            {t("career.profile.documents.download_pdf", "PDF 다운로드")}
+            {c("PDF 다운로드", "Download PDF")}
           </MuteButton>
         </header>
         {downloadFailed && (
           <p role="alert">
-            {t(
-              "career.profile.documents.pdf_failed",
-              "PDF를 만들지 못했습니다. 다시 시도해 주세요."
+            {c(
+              "PDF를 만들지 못했습니다. 다시 시도해 주세요.",
+              "Could not create the PDF. Please try again."
             )}
           </p>
         )}
         {failed ? (
           <div role="alert">
             <p>
-              {t(
-                "career.profile.documents.preview_failed",
-                "문서를 불러오지 못했습니다. 삭제되었거나 접근할 수 없는 문서일 수 있습니다."
+              {c(
+                "문서를 불러오지 못했습니다. 삭제되었거나 접근할 수 없는 문서일 수 있습니다.",
+                "Unable to load this document. It may have been deleted or you may not have access."
               )}
             </p>
             <MuteButton onClick={() => setAttempt((n) => n + 1)}>
-              {t("career.profile.documents.gmail_history_retry", "다시 시도")}
+              {c("다시 시도", "Try again")}
             </MuteButton>
           </div>
         ) : document ? (

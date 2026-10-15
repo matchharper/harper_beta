@@ -27,6 +27,7 @@ test(
         language: "ko",
         basics: {
           name: "김하늘",
+          email: "haneul@example.com",
           links: [
             {
               label: "Portfolio",
@@ -90,6 +91,7 @@ test(
       );
       assert.ok(!ready.error);
       assert.ok(ready.pageCount > 1);
+      assert.match(await frame.locator(".pagedjs_pages .contacts").innerText(), /haneul@example.com · example\.com\//);
       // A covered iframe must finish pagination; hiding the iframe itself can
       // suspend the frame callbacks used by Paged.js in browsers.
       await page.locator("#loading").waitFor({ state: "detached" });

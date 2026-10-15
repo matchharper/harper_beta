@@ -8,6 +8,11 @@ import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 import { CLAUDE_MODEL } from "@/lib/llm/modelConfig";
 import { supportsSamplingParametersForModel } from "@/lib/llm/llm";
 import { canUseCareerDevControls } from "@/lib/internalAccess";
+import {
+  CAREER_DEV_EXTERNAL_FITS_PAGE_SIZE,
+  type CareerDevExternalFitsMonths,
+  type CareerDevExternalFitsPage,
+} from "./devExternalFits";
 
 export const CAREER_DEV_SQL_MODEL = CLAUDE_MODEL;
 
@@ -139,6 +144,79 @@ function getCareerDevSqlClient() {
 
 function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+export async function fetchCareerDevExternalFits(
+  args: { userId: string; months: CareerDevExternalFitsMonths; offset: number },
+  db = getCareerDevSqlClient()
+): Promise<CareerDevExternalFitsPage> {
+  // created_at is refreshed on each fit upsert, so it is the last check date.
+  // Keep expired postings: this is a fit history viewer, not a recommendation pool.
+  const [result] = await db.begin("read only", async (tx) => {
+    await tx`set local statement_timeout = '15000ms'`;
+    return tx<{
+      total_count: number;
+      items: {
+        role_id: string;
+        company_name: string | null;
+        role_name: string;
+        score: number | null;
+        checked_at: string;
+      }[];
+    }[]>`
+      with fits as (
+        select f.role_id, cw.company_name, r.name as role_name,
+          f.created_at as checked_at,
+          nullif(trim(f.meta->>'score100'), '') as score100,
+          coalesce(nullif(trim(f.meta->>'score100'), ''),
+            nullif(trim(f.meta->>'score'), ''),
+            nullif(trim(f.meta->>'fitScore'), '')) as raw_score
+        from public.talent_external_fit f
+        join public.company_roles r on r.role_id = f.role_id
+        left join public.company_workspace cw
+          on cw.company_workspace_id = r.company_workspace_id
+        where f.talent_id = ${args.userId}::uuid
+          and f.created_at >= now() - ${args.months}::integer * interval '1 month'
+          and r.source_type = 'external'
+          and coalesce(r.information->>'testOnly', 'false') <> 'true'
+      ), parsed as (
+        select *, case when raw_score ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'
+          then raw_score::numeric else null end as numeric_score
+        from fits
+      ), scored as (
+        select role_id, company_name, role_name, checked_at,
+          case when numeric_score is null then null
+            else round(greatest(0, least(100,
+              case when score100 is null and numeric_score between 0 and 1
+                then numeric_score * 100 else numeric_score end)))::integer
+          end as score
+        from parsed
+      ), page as (
+        select * from scored
+        order by score desc nulls last, checked_at desc, role_id
+        limit ${CAREER_DEV_EXTERNAL_FITS_PAGE_SIZE} offset ${args.offset}
+      )
+      select (select count(*)::integer from scored) as total_count,
+        coalesce(jsonb_agg(to_jsonb(page)
+          order by score desc nulls last, checked_at desc, role_id), '[]'::jsonb) as items
+      from page
+    `;
+  });
+  const items = result.items.map((row) => ({
+    roleId: row.role_id,
+    companyName: row.company_name,
+    roleName: row.role_name,
+    score: row.score,
+    checkedAt: row.checked_at,
+  }));
+  return {
+    items,
+    totalCount: result.total_count,
+    nextOffset:
+      args.offset + items.length < result.total_count
+        ? args.offset + CAREER_DEV_EXTERNAL_FITS_PAGE_SIZE
+        : null,
+  };
 }
 
 function normalizeStringList(value: unknown) {

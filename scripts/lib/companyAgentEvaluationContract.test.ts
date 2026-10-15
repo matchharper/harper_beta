@@ -1,8 +1,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateContactLifecycle, fixtureRoleName, evaluationExecutionComplete, assertContactEvaluationStep, contactEvaluationSteps } from "./companyAgentEvaluationContract";
+import { evaluateContactLifecycle, fixtureRoleName, evaluationExecutionComplete, assertContactEvaluationStep, contactEvaluationSteps, companyEvaluationTurn, companyEvaluationRoleRead } from "./companyAgentEvaluationContract";
 
 const clock = "2026-09-25T06:00:00.000Z";
+test("requested Role fields are complete even when empty, and unrequested pipeline data stays absent", () => {
+  const role = { name: "Synthetic", request: "known brief", criteria: [], description: null };
+  const result = companyEvaluationRoleRead({ role, include: ["description"], pipeline: { people: { items: ["must not leak"] } } });
+  assert.equal(result.fieldCompleteness.role_description.included, true);
+  assert.equal(result.fieldCompleteness.role_description.complete, true);
+  assert.equal(result.role.description, null);
+  assert.equal(Object.hasOwn(result.role, "request"), false);
+  assert.equal(Object.hasOwn(result, "people"), false);
+});
+test("Role fixture includes only the explicitly requested complete sources", () => {
+  const result = companyEvaluationRoleRead({ role: { name: "Synthetic", request: "known brief", memory: "saved note" }, include: ["criteria", "memory", "pipeline"], pipeline: { countsComplete: true, people: { items: [] } } });
+  assert.equal(result.role.request, "known brief");
+  assert.deepEqual(result.role.criteria, []);
+  assert.deepEqual(result.memory, { content: "saved note", exists: true });
+  assert.equal(result.fieldCompleteness.role_description.included, false);
+  assert.equal(result.countsComplete, true);
+});
+test("an event opening never replaces the subsequent company's actual instruction", () => {
+  for (const key of ["companyUpdate", "contactEvent"]) {
+    const input = { turns: ["event anchor", "Mina에게 그 질문을 보내줘"], [key]: { facts: {} }, allowSilentCompletion: true };
+    assert.equal(companyEvaluationTurn(input, 0).origin, "product_event");
+    const followup = companyEvaluationTurn(input, 1);
+    assert.equal(followup.origin, "company");
+    assert.equal(followup.message, input.turns[1]);
+    assert.equal(followup.allowSilentCompletion, false);
+    assert.equal(followup.recordCompanyMessage, true);
+  }
+});
+test("a scheduled review remains a hidden trigger and does not invent company authority", () => {
+  const input = { turns: [{ origin: "scheduled_review", awareness: { lastSentAt: clock } }, "아직 보내지 말고 기다려줘"] };
+  const review = companyEvaluationTurn(input, 0);
+  assert.equal(review.origin, "scheduled_review");
+  assert.equal(review.allowSilentCompletion, true);
+  assert.equal(review.recordCompanyMessage, false);
+  assert.equal(companyEvaluationTurn(input, 1).recordCompanyMessage, true);
+  assert.throws(() => companyEvaluationTurn({ turns: [{ origin: "company", awareness: {} }] }, 0));
+});
+test("legacy explicit silent-event fixtures do not become company messages", () => {
+  const input = { turns: ["legacy event input", "회사 답변"], allowSilentCompletion: true };
+  assert.equal(companyEvaluationTurn(input, 0).recordCompanyMessage, false);
+  assert.equal(companyEvaluationTurn(input, 1).origin, "company");
+  assert.equal(companyEvaluationTurn(input, 1).allowSilentCompletion, false);
+});
 test("frozen dialogue protocol prevents final acknowledgement before the candidate's opening", () => {
   const input = { candidateFirst: "frozen opening" };
   assert.throws(() => assertContactEvaluationStep(input, [], "candidate"));

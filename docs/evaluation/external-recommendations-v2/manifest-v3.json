@@ -1,0 +1,15 @@
+{
+  "version": "v3",
+  "createdAt": "2026-10-14T04:24:01.742412+00:00",
+  "provenance": "Synthetic worker exploration / explicit web request counterpart. Copied v1 synthetic company facts; new candidate, roles, grounded feedback interpretation and compact search episodes. No production data.",
+  "labelReviewHistory": [
+    {
+      "reviewer": "Codex; independent human review pending",
+      "change": "Initial worker hypothesis and web boundary review rubric, authored before run."
+    }
+  ],
+  "files": {
+    "cases-v3.json": "cb1fced52533c9896409b494d3ee9d5d89703fcc1f770c7d3948be218769d98f",
+    "gold-v3.json": "1c7cc118c530000a574f102901bbc056d54d04efacc9a68631a31781ddac372c"
+  }
+}

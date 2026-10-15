@@ -1,5 +1,13 @@
 import { OrgWorkspaceApp } from "@/components/org/workspace/OrgWorkspaceApp";
-import { OrgBillingPage } from "@/components/org/workspace/pages/OrgBillingPage";
+import dynamic from "next/dynamic";
+import { OrgPageLoading } from "@/components/org/workspace/OrgPageLoading";
+const OrgBillingPage = dynamic(
+  () =>
+    import("@/components/org/workspace/pages/OrgBillingPage").then(
+      (module) => module.OrgBillingPage
+    ),
+  { loading: () => <OrgPageLoading page="billing" /> }
+);
 import { isSlotPurchase } from "@/lib/org/billing/compat";
 import { useRouter } from "next/router";
 import { useEffect } from "react";

@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import { ChevronDown, Settings } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CareerProfileMenu from "@/components/career/CareerProfileMenu";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -63,7 +63,6 @@ export default function CareerMobileTopBar({
   const hasUnseenReferral = useCareerReferralAttention(user?.id);
   const activeOption =
     options.find((opt) => opt.id === activeTab) ?? options[0];
-  const ActiveIcon = activeOption?.icon;
   const todayLabel = React.useMemo(
     () => formatTodayLabel(new Date(), locale, t),
     [locale, t]
@@ -87,18 +86,13 @@ export default function CareerMobileTopBar({
         onChangeTab={onChangeTab}
         options={options}
       >
-        <BareButton
+        <MuteButton
           type="button"
-          className="relative z-10 inline-flex h-11 max-w-[calc(100vw-112px)] items-center gap-1 rounded-md px-2.5 text-base font-medium text-neutral-primary transition active:bg-bg-weak"
+          variant="transparent"
+          aria-label={t("career.workspace.expand_sidebar", "메뉴 펼치기")}
+          className="relative z-10 inline-flex h-11 max-w-[calc(100vw-112px)] items-center gap-2 rounded-md px-2.5 text-base font-medium text-neutral-primary transition active:bg-bg-weak"
         >
-          {ActiveIcon && (
-            <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center text-neutral-primary">
-              <ActiveIcon
-                className="h-4 w-4"
-                strokeWidth={activeOption.id === "home" ? undefined : 1.5}
-              />
-            </span>
-          )}
+          <Menu aria-hidden className="h-5 w-5 shrink-0" />
           <span className="min-w-0 truncate">{activeOption?.label}</span>
           {(activeOption?.badgeCount ?? 0) > 0 ? (
             <Badge
@@ -109,11 +103,12 @@ export default function CareerMobileTopBar({
               radius="full"
               size="sm"
             >
-              {activeOption.badgeCount}
+              {activeOption.id === "inbox" && (activeOption.badgeCount ?? 0) >= 99
+                ? "99+"
+                : activeOption.badgeCount}
             </Badge>
           ) : null}
-          <ChevronDown className="h-5 w-5 shrink-0 text-neutral-muted" />
-        </BareButton>
+        </MuteButton>
       </CareerMobileNavigationMenu>
 
       <div className="relative z-10 flex shrink-0 items-center gap-0">

@@ -1,5 +1,15 @@
 {
   "functions": {
+    "src/app/api/queues/process-email/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "harper-email-runtime-v1",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
+    },
     "src/app/api/queues/process-gmail-career-history/route.ts": {
       "experimentalTriggers": [
         {
@@ -29,9 +39,33 @@
           "initialDelaySeconds": 0
         }
       ]
+    },
+    "src/app/api/queues/process-application-browser/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "career-application-browser-v1",
+          "retryAfterSeconds": 15,
+          "initialDelaySeconds": 0
+        }
+      ]
+    },
+    "src/app/api/queues/process-daily-external/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "career-daily-external-v1",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
     }
   },
   "crons": [
+    {
+      "path": "/api/internal/email/dispatch",
+      "schedule": "* * * * *"
+    },
     {
       "path": "/api/internal/zighang/watchdog",
       "schedule": "0 12 * * *"
@@ -71,6 +105,14 @@
     {
       "path": "/api/internal/org/billing/reconcile",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/external-recommendations/dispatch",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/internal/external-recommendations/embeddings",
+      "schedule": "15 * * * *"
     }
   ]
 }

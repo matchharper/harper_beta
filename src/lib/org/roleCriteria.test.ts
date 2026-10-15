@@ -20,9 +20,12 @@ const completeCriteria = [
   },
 ];
 
-test("accepts zero to six complete structured role criteria", () => {
+test("empty criteria remain structurally valid", () => {
   assert.equal(hasCompleteOrgRoleCriteria([]), true);
   assert.deepEqual(parseOrgRoleCriteria([]), []);
+});
+
+test("accepts complete criteria without a creation minimum", () => {
   assert.equal(hasCompleteOrgRoleCriteria(completeCriteria.slice(0, 1)), true);
   assert.equal(hasCompleteOrgRoleCriteria(completeCriteria.slice(0, 2)), true);
   assert.equal(hasCompleteOrgRoleCriteria(completeCriteria), true);

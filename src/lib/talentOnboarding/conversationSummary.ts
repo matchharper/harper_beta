@@ -133,6 +133,7 @@ function buildSummarySystemPrompt(preferredLocale?: string | null) {
     "Treat the existing summary as prior state to merge and rewrite, not text to append.",
     "If a fact appears in both the existing summary and new messages, mention it once.",
     "If new messages correct or supersede an older fact, keep the corrected version only.",
+    "Preserve the scope of explicit retractions: identify which prior claims were withdrawn so future turns do not revive them from old drafts or assistant statements. A generated document's contents are an artifact history, not independently confirmed career facts. Do not present withdrawn, hypothetical or assistant-invented claims as the user's experience.",
     "Opportunity feedback notes such as saved/dismissed roles are action logs, not full user utterances. Compact many similar feedback notes into concise preference/status changes; do not let role-save logs dominate the summary.",
     "Do not invent facts. Do not include routine greetings or filler.",
   ].join("\n");
@@ -314,6 +315,7 @@ export async function maybeSummarizeTalentConversation(args: {
 }
 
 function isVisibleSummaryRecentMessage(message: TalentMessageRow) {
+  if(["simulation_session","simulation_action","application_start_offer"].includes(message.message_type??""))return false;
   if (
     message.message_type ===
       TALENT_MESSAGE_TYPE_ONBOARDING_ADDITIONAL_QUESTION_SELECTION ||

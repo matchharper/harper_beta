@@ -1,0 +1,104 @@
+{
+  "datasetVersion": "v7-search50",
+  "goldVersion": "web-review-v1",
+  "reviewer": "Codex source audit, no independent human review",
+  "unblinded": true,
+  "cases": [
+    {
+      "caseId": "KR03",
+      "metricGroup": "partial",
+      "min": 40000000,
+      "max": null,
+      "currency": "KRW",
+      "period": "year"
+    },
+    {
+      "caseId": "KR04",
+      "metricGroup": "same_role_secondary",
+      "min": 36000000,
+      "max": 40000000,
+      "currency": "KRW",
+      "period": "year"
+    },
+    {
+      "caseId": "KR06",
+      "metricGroup": "partial",
+      "min": 38180000,
+      "max": null,
+      "currency": "KRW",
+      "period": "year"
+    },
+    {
+      "caseId": "KR13",
+      "metricGroup": "same_role_secondary",
+      "min": 40000000,
+      "max": 50000000,
+      "currency": "KRW",
+      "period": "year"
+    },
+    {
+      "caseId": "US03",
+      "metricGroup": "same_role_secondary",
+      "min": 144000,
+      "max": 216000,
+      "currency": "USD",
+      "period": "year"
+    },
+    {
+      "caseId": "US04",
+      "metricGroup": "primary_base",
+      "min": 100000,
+      "max": 150000,
+      "currency": "USD",
+      "period": "year"
+    },
+    {
+      "caseId": "US12",
+      "metricGroup": "primary_base",
+      "min": 84351,
+      "max": 137071,
+      "currency": "USD",
+      "period": "year"
+    },
+    {
+      "caseId": "US15",
+      "metricGroup": "primary_base",
+      "min": 70000,
+      "max": 75000,
+      "currency": "USD",
+      "period": "year"
+    },
+    {
+      "caseId": "US18",
+      "metricGroup": "primary_base",
+      "min": 90000,
+      "max": 143000,
+      "currency": "USD",
+      "period": "year"
+    },
+    {
+      "caseId": "US19",
+      "metricGroup": "same_role_secondary",
+      "min": 386000,
+      "max": 400000,
+      "currency": "USD",
+      "period": "year"
+    },
+    {
+      "caseId": "US22",
+      "metricGroup": "primary_base",
+      "min": 100000,
+      "max": 140000,
+      "currency": "USD",
+      "period": "year"
+    },
+    {
+      "caseId": "US23",
+      "metricGroup": "primary_base",
+      "min": 260000,
+      "max": 320000,
+      "currency": "USD",
+      "period": "year"
+    }
+  ]
+}

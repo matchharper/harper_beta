@@ -25,6 +25,7 @@ function fakeAdmin(rows = Array.from({ length: 11 }, (_, i) => run(i)), options 
     queries.push(query);
     const builder: any = {
       select(value: string) { query.selected = value; return builder; },
+      or(value: string) { query.filters.push(["or", value]); return builder; },
       eq(key: string, value: unknown) { query.filters.push([key, value]); return builder; },
       is(key: string, value: unknown) { query.filters.push([key, value]); return builder; },
       in(key: string, value: unknown) { query.filters.push([key, value]); return builder; },
@@ -32,6 +33,7 @@ function fakeAdmin(rows = Array.from({ length: 11 }, (_, i) => run(i)), options 
       range(from: number, to: number) { query.range = [from, to]; return builder; },
       maybeSingle() { return builder; },
       then(resolve: (value: unknown) => unknown) {
+        if (table === "company_user_workspace") return Promise.resolve(resolve({ data: { authority: "owner", access_scope: "organization", team_id: null }, error: null }));
         if (table === "company_first_search_runs") return Promise.resolve(resolve({ data: query.range ? rows.slice(query.range[0], query.range[1] + 1) : rows, error: options.error }));
         if (table === "company_roles") return Promise.resolve(resolve({ data: [{ role_id: roleId, name: "Backend" }, { role_id: otherRoleId, name: "Product" }], error: null }));
         if (table === "company_memories") return Promise.resolve(resolve({ data: { content: options.memory }, error: null }));
@@ -184,4 +186,14 @@ for (const input of [
   const admin = fakeAdmin();
   await assert.rejects(execute(input, admin));
   assert.equal(admin.queries.length, 0);
+});
+
+
+test("role history filters before pagination, including legacy arrays", async () => {
+  const admin = fakeAdmin();
+  await readMatchingRunHistory({ admin: admin as any, workspaceId, roleId, offset: 20, limit: 20 });
+  const query = admin.queries.find(item => item.table === "company_first_search_runs")!;
+  assert.deepEqual(query.range, [20, 40]);
+  assert.ok(query.filters.some(([key, value]) => key === "or" && value ===
+    `role_id.eq.${roleId},scheduled_role_ids.cs.{${roleId}},requested_role_ids.cs.{${roleId}}`));
 });

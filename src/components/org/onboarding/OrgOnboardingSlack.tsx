@@ -1,5 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { useEffect, useState } from "react";
 import { Check, LoaderCircle, Plus } from "lucide-react";
@@ -44,10 +44,8 @@ export function OrgOnboardingSlack({
   onInviteOpenChange: (open: boolean) => void;
   preview?: OrgOnboardingSlackPreview;
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
-  const preview =
-    process.env.NODE_ENV !== "production" ? previewOptions : undefined;
+  const { locale, c } = useOrgLocale();
+  const preview = previewOptions;
   const { workspace, permissions } = useOrgWorkspace();
   const workspaceId = workspace.workspaceId;
   const connect = useConnectOrgSlack();
@@ -82,9 +80,9 @@ export function OrgOnboardingSlack({
         localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "onboarding.OrgOnboardingSlack.b1845655",
-            "Slack 연결을 시작하지 못했어요."
+          c(
+            "Slack 연결을 시작하지 못했어요.",
+            "Unable to start Slack connection."
           )
         )
       );
@@ -104,10 +102,7 @@ export function OrgOnboardingSlack({
         localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "onboarding.OrgOnboardingSlack.43672e3f",
-            "채널을 연결하지 못했어요."
-          )
+          c("채널을 연결하지 못했어요.", "Failed to connect channel.")
         )
       );
     }
@@ -126,10 +121,7 @@ export function OrgOnboardingSlack({
         localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "onboarding.OrgOnboardingSlack.43672e3f",
-            "채널을 연결하지 못했어요."
-          )
+          c("채널을 연결하지 못했어요.", "Failed to connect channel.")
         )
       );
     }
@@ -151,10 +143,7 @@ export function OrgOnboardingSlack({
       if (delivery?.status !== "sent")
         throw new Error(
           delivery?.message ||
-            t(
-              "onboarding.OrgOnboardingSlack.50a5d55c",
-              "초대 메일을 보내지 못했어요."
-            )
+            c("초대 메일을 보내지 못했어요.", "Failed to send invite email.")
         );
       setInvitedEmail(delivery.email);
     } catch (error) {
@@ -162,10 +151,7 @@ export function OrgOnboardingSlack({
         localizedOrgErrorMessage(
           error,
           locale,
-          t(
-            "onboarding.OrgOnboardingSlack.50a5d55c",
-            "초대 메일을 보내지 못했어요."
-          )
+          c("초대 메일을 보내지 못했어요.", "Failed to send invite email.")
         )
       );
     } finally {
@@ -179,9 +165,9 @@ export function OrgOnboardingSlack({
     <div className="flex h-full min-h-0 flex-col gap-6">
       {!permissions.canManageIntegrations ? (
         <p className="text-[13px] leading-6 text-neutral-muted">
-          {t(
-            "onboarding.OrgOnboardingSlack.9b3e78dc",
-            "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요."
+          {c(
+            "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요.",
+            "Slack connection must be configured by the company Owner or Admin. Skip for now and explore Harper."
           )}
         </p>
       ) : !status?.connected ? (
@@ -193,29 +179,29 @@ export function OrgOnboardingSlack({
         >
           <Image
             src="/images/logos/slack.svg"
-            alt={t("onboarding.OrgOnboardingSlack.eba14c55", "Slack")}
+            alt={c("Slack", "Slack")}
             width={16}
             height={16}
           />
           {connect.isPending
-            ? t("onboarding.OrgOnboardingSlack.9121da14", "Slack으로 이동 중…")
-            : t("onboarding.OrgOnboardingSlack.af9cd0e0", "Slack 연결하기")}
+            ? c("Slack으로 이동 중…", "Redirecting to Slack…")
+            : c("Slack 연결하기", "Connect Slack")}
         </MuteButton>
       ) : connectedChannels.length ? (
         <div className="space-y-3">
           {connectedChannels.map((channel) => (
             <div
               key={channel.channelId}
-              className="flex items-center gap-2 rounded-lg border border-neutral-1000-a10 p-4 text-[14px]"
+              className="flex items-center gap-2 rounded-full border border-neutral-1000-a10 px-3 py-2.5 text-[14px] text-neutral-800 shadow-xs"
             >
-              <Check className="size-4 text-positive" />
+              <Check className="size-3.5 text-positive" />
               <span>#{channel.channelName || channel.channelId}</span>
             </div>
           ))}
           <p className="text-[13px] leading-6 text-neutral-muted">
-            {t(
-              "onboarding.OrgOnboardingSlack.f70b7d30",
-              "채널에서 @Harper를 불러 대화를 시작할 수 있어요."
+            {c(
+              "채널에서 @Harper를 불러 대화를 시작할 수 있어요.",
+              "Mention @Harper in a channel to start a conversation."
             )}
           </p>
         </div>
@@ -240,9 +226,9 @@ export function OrgOnboardingSlack({
               />
               {!status.canCreateChannels ? (
                 <MuteButton onClick={() => void connectSlack()} disabled={busy}>
-                  {t(
-                    "onboarding.OrgOnboardingSlack.f2cd61bc",
-                    "채널 생성 권한 추가하기"
+                  {c(
+                    "채널 생성 권한 추가하기",
+                    "Grant channel creation permission"
                   )}
                 </MuteButton>
               ) : null}
@@ -259,7 +245,7 @@ export function OrgOnboardingSlack({
                 className="grid gap-2 text-[13px]"
                 htmlFor="org-onboarding-new-channel"
               >
-                {t("onboarding.OrgOnboardingSlack.179a29d2", "새 채널 이름")}
+                {c("새 채널 이름", "New channel name")}
                 <Input
                   id="org-onboarding-new-channel"
                   value={channelName}
@@ -273,10 +259,7 @@ export function OrgOnboardingSlack({
                   checked={isPrivate}
                   onChange={(event) => setIsPrivate(event.target.checked)}
                 />
-                {t(
-                  "onboarding.OrgOnboardingSlack.8c703d6f",
-                  "비공개 채널로 만들기"
-                )}
+                {c("비공개 채널로 만들기", "Make channel private")}
               </label>
               <MuteButton
                 type="submit"
@@ -290,24 +273,21 @@ export function OrgOnboardingSlack({
                 ) : (
                   <Plus className="size-4" />
                 )}
-                {t(
-                  "onboarding.OrgOnboardingSlack.78e40040",
-                  "채널 만들고 연결하기"
-                )}
+                {c("채널 만들고 연결하기", "Create and connect channel")}
               </MuteButton>
               <MuteButton
                 variant="transparent"
                 onClick={() => setCreateMode(false)}
                 disabled={busy}
               >
-                {t("onboarding.OrgOnboardingSlack.9042181e", "기존 채널 보기")}
+                {c("기존 채널 보기", "View existing channels")}
               </MuteButton>
             </form>
           ) : (
             <MuteButton onClick={() => void connectSlack()} disabled={busy}>
-              {t(
-                "onboarding.OrgOnboardingSlack.f2cd61bc",
-                "채널 생성 권한 추가하기"
+              {c(
+                "채널 생성 권한 추가하기",
+                "Grant channel creation permission"
               )}
             </MuteButton>
           )}
@@ -325,18 +305,13 @@ export function OrgOnboardingSlack({
         }}
         mobileBottomSheet
         title={
-          <>
-            {t(
-              "onboarding.OrgOnboardingSlack.83480060",
-              "회사 이메일로 초대 보내기"
-            )}
-          </>
+          <>{c("회사 이메일로 초대 보내기", "Send invite to company email")}</>
         }
         description={
           <>
-            {t(
-              "onboarding.OrgOnboardingSlack.f6ca7fef",
-              "Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재 계정과 같은 권한으로 참여할 수 있어요."
+            {c(
+              "Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재 계정과 같은 권한으로 참여할 수 있어요.",
+              "Send the company's invite to the email used for Slack. The invited account will join with the same permissions as the current account."
             )}
           </>
         }
@@ -347,14 +322,14 @@ export function OrgOnboardingSlack({
           <>
             <p role="status" className="text-[14px] leading-6">
               {invitedEmail}
-              {t(
-                "onboarding.OrgOnboardingSlack.317d1a3c",
-                "로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤 Slack을 연결해 주세요."
+              {c(
+                "로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤 Slack을 연결해 주세요.",
+                "Sent an invite to that email. Sign in with that email, then connect Slack."
               )}
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-end gap-2 ">
               <MuteButton onClick={() => onInviteOpenChange(false)}>
-                {t("onboarding.OrgOnboardingSlack.1bf3f5aa", "확인")}
+                {c("확인", "OK")}
               </MuteButton>
             </div>
           </>
@@ -370,7 +345,7 @@ export function OrgOnboardingSlack({
               htmlFor="org-onboarding-invite-email"
               className="grid gap-2 text-[13px]"
             >
-              {t("onboarding.OrgOnboardingSlack.be15f47f", "회사 이메일")}
+              {c("회사 이메일", "Company email")}
               <Input
                 autoFocus
                 id="org-onboarding-invite-email"
@@ -394,14 +369,8 @@ export function OrgOnboardingSlack({
                 disabled={invitePending}
               >
                 {invitePending
-                  ? t(
-                      "onboarding.OrgOnboardingSlack.9eaf444d",
-                      "초대 보내는 중…"
-                    )
-                  : t(
-                      "onboarding.OrgOnboardingSlack.63966ac6",
-                      "초대 메일 보내기"
-                    )}
+                  ? c("초대 보내는 중…", "Sending invite…")
+                  : c("초대 메일 보내기", "Send invite email")}
               </MuteButton>
             </div>
           </form>

@@ -1,0 +1,25 @@
+{
+  "task": "agents-hosted-resume-upload",
+  "datasetVersion": "v4",
+  "goldVersion": "full-submission-v4",
+  "createdAt": "2026-10-13T02:54:00.375174+00:00",
+  "clientDate": "2026-10-13",
+  "objective": "Exercise PDF attachment, supplied applicant values, model-written answers, select/checkbox controls, final UI submission and receiver verification on an isolated owned form.",
+  "canonicalRunner": "scripts/agents_api_hosted_upload_probe.py",
+  "model": "gpt-6.1-sol",
+  "reasoning": "low",
+  "methods": [
+    "hosted"
+  ],
+  "timeoutSeconds": 420,
+  "taskRetries": 0,
+  "provider": "openai_agents",
+  "privacy": "Exact previously authorized Storage E2E PDF remains only in OpenAI and its owned loopback receiver. No API key or Storage credential enters the sandbox. No real-employer upload or submission, DB write, migration or deployment.",
+  "fixtureSha256": "dbfbbdf368f9be74f7e6f718848901b2ff27fa4ca45850e7e261165038db730f",
+  "source": "Existing byte-verified private Storage PDF; synthetic candidate facts; newly frozen owned form.",
+  "knownLimitations": "Owned form proves exercised browser capabilities and receiver transport only; not every ATS, account login, CAPTCHA, actual-employer receipt or hiring acceptance. The document is an existing E2E Storage file containing real contact text; profile and typed answers are synthetic.",
+  "casesSha256": "c469c7f1c4ed328af0f8f5abb67c0a16cf737a2ee03fcb710708c07aa6244e0d",
+  "goldSha256": "31311b585dc15bf52b0361ca22c468505ee00789c5d7ea94bb2ee652dccb6bb8",
+  "derivedFrom": "v3",
+  "change": "Owned form responses now specify UTF-8 and the actual receipt wraps text for visual verification; source bytes/facts and structural gates are unchanged."
+}

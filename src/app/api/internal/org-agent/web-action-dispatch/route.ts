@@ -1,7 +1,9 @@
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { dispatchOrgAgentWebActionJob } from "@/lib/org/agent/webActionTurn";
+import { dispatchOrgAgentWebActionJob, recoverOrgAgentWebActionJobs } from "@/lib/org/agent/webActionTurn";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { releasePendingCompanyUpdates } from "@/lib/org/agent/companyUpdate.server";
+import { enqueueDueCompanyProactiveReviews } from "@/lib/org/agent/proactiveReview.server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -26,6 +28,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const admin = getSupabaseAdmin();
+    await releasePendingCompanyUpdates();
+    const recovered = await recoverOrgAgentWebActionJobs(admin);
+    const proactiveEnqueued = await enqueueDueCompanyProactiveReviews();
     const { data: jobs, error } = await (
       admin.from("company_agent_web_action_jobs" as any) as any
     )
@@ -47,6 +52,8 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({
       attempted: (jobs ?? []).length,
+      recovered,
+      proactiveEnqueued,
       dispatched,
       failedJobIds,
       ok: failedJobIds.length === 0,

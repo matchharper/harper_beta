@@ -44,6 +44,53 @@ export function evaluationExecutionComplete(results: Array<{ error: unknown; tur
   return results.length > 0 && results.every(result => !result.error && result.expectedTurns > 0 && result.turns === result.expectedTurns);
 }
 
+/** Explicit frozen turn origin, never inferred from prose or used in production. */
+export function companyEvaluationTurn(input: {
+  turns: unknown[];
+  companyUpdate?: unknown;
+  contactEvent?: unknown;
+  allowSilentCompletion?: boolean;
+}, index: number) {
+  const turn = input.turns[index];
+  if (turn && typeof turn === "object" && !Array.isArray(turn)) {
+    const value = turn as { origin?: unknown; awareness?: unknown };
+    if (value.origin !== "scheduled_review" || !value.awareness || typeof value.awareness !== "object" || Array.isArray(value.awareness)) {
+      throw Error("Invalid frozen background turn");
+    }
+    return { origin: "scheduled_review" as const, message: "scheduled recruiting review", awareness: value.awareness as Record<string, unknown>, allowSilentCompletion: true, recordCompanyMessage: false };
+  }
+  if (typeof turn !== "string") throw Error("Invalid frozen company turn");
+  // Legacy event fixtures establish the opening only. Later strings are real
+  // company replies and must not replay the event or remain optionally silent.
+  if (index === 0 && (input.companyUpdate || input.contactEvent || input.allowSilentCompletion === true)) {
+    return { origin: "product_event" as const, message: turn, allowSilentCompletion: input.allowSilentCompletion === true, recordCompanyMessage: false };
+  }
+  return { origin: "company" as const, message: turn, allowSilentCompletion: index === 0 && input.allowSilentCompletion === true, recordCompanyMessage: true };
+}
+
+/** Synthetic reader mirrors readOrgAgentRole's explicit include/completeness contract. */
+export function companyEvaluationRoleRead(args: {
+  role: Record<string, any>;
+  include?: string[];
+  pipeline: Record<string, unknown>;
+}) {
+  const include = new Set(args.include ?? []);
+  const { request, criteria, description, memory, ...baseRole } = args.role;
+  return {
+    role: { ...baseRole,
+      ...(include.has("criteria") ? { request: request ?? null, criteria: criteria ?? [] } : {}),
+      ...(include.has("description") ? { description: description ?? null } : {}),
+    },
+    included: [...include],
+    fieldCompleteness: Object.fromEntries([
+      ["role_request", "criteria"], ["role_criteria", "criteria"],
+      ["role_description", "description"], ["role_memory", "memory"],
+    ].map(([field, part]) => [field, { included: include.has(part), complete: include.has(part), truncated: false }])),
+    ...(include.has("memory") ? { memory: { content: memory ?? null, exists: Boolean(memory) } } : {}),
+    ...(include.has("pipeline") ? args.pipeline : {}),
+  };
+}
+
 /** Frozen dialogue protocol only; never used by the production agent. */
 export function contactEvaluationSteps(input: { candidateFirst?: string }): string[] {
   return input.candidateFirst

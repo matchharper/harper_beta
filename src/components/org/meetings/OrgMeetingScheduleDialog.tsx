@@ -1,8 +1,4 @@
-import {
-  useOrgLocale,
-  useOrgSourceT,
-  useOrgT,
-} from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { formatOrgMeetingAvailabilitySummary } from "@/i18n/org/meetingSummary";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { CalendarClock, Check, LoaderCircle, Mail, Users } from "lucide-react";
@@ -98,9 +94,8 @@ export function OrgMeetingScheduleDialog({
   open: boolean;
   scheduleId: string;
 }) {
-  const t = useOrgT();
   const sourceT = useOrgSourceT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const { bootstrap, permissions, workspace } = useOrgWorkspace();
@@ -246,9 +241,9 @@ export function OrgMeetingScheduleDialog({
       setError(
         previewError instanceof Error
           ? previewError.message
-          : t(
-              "meetings.OrgMeetingScheduleDialog.3ef97382",
-              "후보자에게 보낼 메일을 준비하지 못했어요."
+          : c(
+              "후보자에게 보낼 메일을 준비하지 못했어요.",
+              "Failed to prepare email for candidate."
             )
       );
     }
@@ -257,9 +252,9 @@ export function OrgMeetingScheduleDialog({
   const handleSendInvitation = async () => {
     if (!schedule || !invitationSubject.trim() || !invitationBody.trim()) {
       setError(
-        t(
-          "meetings.OrgMeetingScheduleDialog.5aadb613",
-          "후보자에게 보낼 메일 제목과 본문을 확인해 주세요."
+        c(
+          "후보자에게 보낼 메일 제목과 본문을 확인해 주세요.",
+          "Review the email subject and body for the candidate."
         )
       );
       return;
@@ -276,9 +271,9 @@ export function OrgMeetingScheduleDialog({
       setInvitationSubject("");
       setInvitationBody("");
       addToast({
-        message: t(
-          "meetings.OrgMeetingScheduleDialog.7d8911ae",
-          "일정 요청 이메일 전달을 시작했어요. 아직 발송 완료는 아니에요."
+        message: c(
+          "일정 요청 이메일 전달을 시작했어요. 아직 발송 완료는 아니에요.",
+          "Started delivering schedule request email. Sending not complete yet."
         ),
         variant: "success",
       });
@@ -286,9 +281,9 @@ export function OrgMeetingScheduleDialog({
       setError(
         sendError instanceof Error
           ? sendError.message
-          : t(
-              "meetings.OrgMeetingScheduleDialog.d4259ebb",
-              "일정 요청 전달을 시작하지 못했어요."
+          : c(
+              "일정 요청 전달을 시작하지 못했어요.",
+              "Failed to start delivering schedule request."
             )
       );
     }
@@ -300,18 +295,18 @@ export function OrgMeetingScheduleDialog({
       addToast({
         message:
           result.calendar.status === "created"
-            ? t(
-                "meetings.OrgMeetingScheduleDialog.426e8fc1",
-                "Calendar 초대와 Google Meet 링크를 만들었어요."
+            ? c(
+                "Calendar 초대와 Google Meet 링크를 만들었어요.",
+                "Created calendar invite and Google Meet link."
               )
             : result.calendar.status === "created_without_meet"
-              ? t(
-                  "meetings.OrgMeetingScheduleDialog.fe036c5b",
-                  "Calendar 초대는 보냈지만 Google Meet 링크는 만들지 못했어요."
+              ? c(
+                  "Calendar 초대는 보냈지만 Google Meet 링크는 만들지 못했어요.",
+                  "Sent calendar invite but failed to create Google Meet link."
                 )
-              : t(
-                  "meetings.OrgMeetingScheduleDialog.c697ab23",
-                  "Calendar 초대 전달 상태를 다시 확인하고 있어요."
+              : c(
+                  "Calendar 초대 전달 상태를 다시 확인하고 있어요.",
+                  "Rechecking calendar invite delivery status."
                 ),
         variant: result.calendar.status === "created" ? "success" : "default",
       });
@@ -320,9 +315,9 @@ export function OrgMeetingScheduleDialog({
         message:
           retryError instanceof Error
             ? retryError.message
-            : t(
-                "meetings.OrgMeetingScheduleDialog.cf4c2819",
-                "Calendar 초대를 다시 만들지 못했어요."
+            : c(
+                "Calendar 초대를 다시 만들지 못했어요.",
+                "Failed to recreate calendar invite."
               ),
         variant: "error",
       });
@@ -332,12 +327,7 @@ export function OrgMeetingScheduleDialog({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!schedule || !draft || !draft.title.trim()) {
-      setError(
-        t(
-          "meetings.OrgMeetingScheduleDialog.54056198",
-          "인터뷰 제목을 입력해 주세요."
-        )
-      );
+      setError(c("인터뷰 제목을 입력해 주세요.", "Enter interview title"));
       return;
     }
     setError("");
@@ -352,9 +342,9 @@ export function OrgMeetingScheduleDialog({
       });
       setEditorDraft(null);
       addToast({
-        message: t(
-          "meetings.OrgMeetingScheduleDialog.fa25f65b",
-          "변경한 미팅 정보로 준비해두었어요."
+        message: c(
+          "변경한 미팅 정보로 준비해두었어요.",
+          "Prepared with updated meeting details."
         ),
         variant: "success",
       });
@@ -362,9 +352,9 @@ export function OrgMeetingScheduleDialog({
       setError(
         submitError instanceof Error
           ? submitError.message
-          : t(
-              "meetings.OrgMeetingScheduleDialog.c06754b0",
-              "미팅 정보를 저장하지 못했어요."
+          : c(
+              "미팅 정보를 저장하지 못했어요.",
+              "Failed to save meeting details."
             )
       );
     }
@@ -399,18 +389,18 @@ export function OrgMeetingScheduleDialog({
         closeOnBackdrop={!isBusy}
         description={
           schedule?.status === "confirmed"
-            ? t(
-                "meetings.OrgMeetingScheduleDialog.0a7d2554",
-                "후보자가 제출한 가능 시간 중 하나로 확정된 일정입니다."
+            ? c(
+                "후보자가 제출한 가능 시간 중 하나로 확정된 일정입니다.",
+                "Confirmed using one of the candidate's submitted times."
               )
             : schedule?.status === "awaiting_talent"
-              ? t(
-                  "meetings.OrgMeetingScheduleDialog.bab473f6",
-                  "후보자에게 가능한 시간을 요청했고 답변을 기다리고 있어요."
+              ? c(
+                  "후보자에게 가능한 시간을 요청했고 답변을 기다리고 있어요.",
+                  "Requested availability from candidate. Awaiting response."
                 )
-              : t(
-                  "meetings.OrgMeetingScheduleDialog.dc182940",
-                  "후보자에게 보낼 일정과 이메일을 확인해 주세요. 아직 후보자에게는 아무것도 보내지 않았어요."
+              : c(
+                  "후보자에게 보낼 일정과 이메일을 확인해 주세요. 아직 후보자에게는 아무것도 보내지 않았어요.",
+                  "Review the schedule and email for the candidate. Nothing has been sent yet."
                 )
         }
         footer={
@@ -424,7 +414,7 @@ export function OrgMeetingScheduleDialog({
                   type="button"
                   variant="default"
                 >
-                  {t("meetings.OrgMeetingScheduleDialog.89e435b3", "닫기")}
+                  {c("닫기", "Close")}
                 </MuteButton>
               ) : null}
               {isEditable && invitationPreview ? (
@@ -439,10 +429,7 @@ export function OrgMeetingScheduleDialog({
                     type="button"
                     variant="default"
                   >
-                    {t(
-                      "meetings.OrgMeetingScheduleDialog.b0612e1d",
-                      "돌아가기"
-                    )}
+                    {c("돌아가기", "Back")}
                   </MuteButton>
                   <MuteButton
                     disabled={
@@ -459,10 +446,7 @@ export function OrgMeetingScheduleDialog({
                     {sendInvitation.isPending ? (
                       <LoaderCircle className="size-4 animate-spin" />
                     ) : null}
-                    {t(
-                      "meetings.OrgMeetingScheduleDialog.9a3bf75c",
-                      "일정 요청 이메일 보내기"
-                    )}
+                    {c("일정 요청 이메일 보내기", "Send scheduling email")}
                   </MuteButton>
                 </>
               ) : isEditable ? (
@@ -480,13 +464,10 @@ export function OrgMeetingScheduleDialog({
                     <LoaderCircle className="size-4 animate-spin" />
                   ) : null}
                   {isDirty
-                    ? t(
-                        "meetings.OrgMeetingScheduleDialog.b5e3cc85",
-                        "변경사항 저장하기"
-                      )
-                    : t(
-                        "meetings.OrgMeetingScheduleDialog.36a5735c",
-                        "후보자에게 보낼 메일 준비하기"
+                    ? c("변경사항 저장하기", "Save changes")
+                    : c(
+                        "후보자에게 보낼 메일 준비하기",
+                        "Prepare email for candidate"
                       )}
                 </MuteButton>
               ) : null}
@@ -502,10 +483,7 @@ export function OrgMeetingScheduleDialog({
         open={open}
         panelClassName="max-w-2xl border-neutral-1000-a05 bg-bg-floating"
         showCloseButton={!isBusy}
-        title={t(
-          "meetings.OrgMeetingScheduleDialog.c738ea8a",
-          "인터뷰 일정 요청"
-        )}
+        title={c("인터뷰 일정 요청", "Interview scheduling request")}
       >
         {scheduleQuery.isLoading ? (
           <div className="space-y-4">
@@ -519,9 +497,9 @@ export function OrgMeetingScheduleDialog({
               {localizedOrgErrorMessage(
                 scheduleQuery.error,
                 locale,
-                t(
-                  "meetings.OrgMeetingScheduleDialog.e6cba348",
-                  "일정 요청을 불러오지 못했어요."
+                c(
+                  "일정 요청을 불러오지 못했어요.",
+                  "Failed to load schedule request."
                 )
               )}
             </p>
@@ -531,7 +509,7 @@ export function OrgMeetingScheduleDialog({
               size="sm"
               variant="default"
             >
-              {t("meetings.OrgMeetingScheduleDialog.5137bfdc", "다시 불러오기")}
+              {c("다시 불러오기", "Reload")}
             </MuteButton>
           </div>
         ) : schedule && invitationPreview ? (
@@ -539,7 +517,7 @@ export function OrgMeetingScheduleDialog({
             <div className="grid gap-3 rounded-lg bg-bg-weak p-4 sm:grid-cols-2">
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {t("meetings.OrgMeetingScheduleDialog.bae5b97e", "후보자")}
+                  {c("후보자", "Candidate")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.candidate.name}
@@ -552,7 +530,7 @@ export function OrgMeetingScheduleDialog({
               </div>
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {t("meetings.OrgMeetingScheduleDialog.3de052c6", "Role")}
+                  {c("Role", "Role")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.role.name}
@@ -563,23 +541,17 @@ export function OrgMeetingScheduleDialog({
             <section className="rounded-lg border border-neutral-1000-a05 p-4">
               <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                 <CalendarClock className="size-4 text-neutral-muted" />
-                {t(
-                  "meetings.OrgMeetingScheduleDialog.82424454",
-                  "후보자에게 보여줄 시간"
-                )}
+                {c("후보자에게 보여줄 시간", "Times shown to candidate")}
               </div>
               <p className="mt-1.5 text-[12px] leading-5 text-neutral-muted">
                 {invitationPreview.slotSummary.slotCount}
-                {t(
-                  "meetings.OrgMeetingScheduleDialog.bc52e602",
-                  "개의 시간을 제안해요 ·"
-                )}{" "}
+                {c("개의 시간을 제안해요 ·", "suggested times ·")}{" "}
                 {formatScheduleTime(
                   invitationPreview.slotSummary.firstSlotAt,
                   invitationPreview.slotSummary.timezone,
                   locale
                 )}
-                {t("meetings.OrgMeetingScheduleDialog.c649491e", "부터 ·")}
+                {c("부터 ·", "from ·")}
                 {invitationPreview.slotSummary.timezone}
               </p>
             </section>
@@ -588,21 +560,18 @@ export function OrgMeetingScheduleDialog({
               <div>
                 <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                   <Mail className="size-4 text-neutral-muted" />
-                  {t(
-                    "meetings.OrgMeetingScheduleDialog.1b046400",
-                    "후보자에게 보낼 이메일"
-                  )}
+                  {c("후보자에게 보낼 이메일", "Email to candidate")}
                 </div>
                 <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
-                  {t(
-                    "meetings.OrgMeetingScheduleDialog.59b68c60",
-                    "후보자의 언어에 맞춰 작성했어요. 제목과 본문을 직접 고칠 수 있어요. 일정 선택 링크는 발송할 때 생성돼요."
+                  {c(
+                    "후보자의 언어에 맞춰 작성했어요. 제목과 본문을 직접 고칠 수 있어요. 일정 선택 링크는 발송할 때 생성돼요.",
+                    "Drafted in the candidate's language. Edit the subject and body. Schedule selection link is generated when sending."
                   )}
                 </p>
               </div>
               <label className="block">
                 <span className="text-[12px] font-medium text-neutral-primary">
-                  {t("meetings.OrgMeetingScheduleDialog.bf6ccadb", "제목")}
+                  {c("제목", "Subject")}
                 </span>
                 <Input
                   className="mt-1.5"
@@ -614,7 +583,7 @@ export function OrgMeetingScheduleDialog({
               </label>
               <label className="block">
                 <span className="text-[12px] font-medium text-neutral-primary">
-                  {t("meetings.OrgMeetingScheduleDialog.c8d337b1", "본문")}
+                  {c("본문", "Body")}
                 </span>
                 <Textarea
                   className="mt-1.5 min-h-64 text-[13px] leading-6"
@@ -625,9 +594,9 @@ export function OrgMeetingScheduleDialog({
                 />
               </label>
               <p className="rounded-lg bg-bg-weak p-3 text-[12px] leading-5 text-neutral-muted">
-                {t(
-                  "meetings.OrgMeetingScheduleDialog.54a2d2da",
-                  "이메일을 보내면 후보자가 가능한 시간을 고를 수 있어요. 후보자가 시간을 제출해 확정되면 담당자의 Google Calendar에서 양측 초대와 Google Meet 링크를 만들어요."
+                {c(
+                  "이메일을 보내면 후보자가 가능한 시간을 고를 수 있어요. 후보자가 시간을 제출해 확정되면 담당자의 Google Calendar에서 양측 초대와 Google Meet 링크를 만들어요.",
+                  "Email lets the candidate pick available times. When the candidate submits a time and it's confirmed, invites and a Google Meet link are created on the organizer's Google Calendar."
                 )}
               </p>
             </section>
@@ -642,10 +611,7 @@ export function OrgMeetingScheduleDialog({
             <div className="rounded-lg bg-positive-faded p-4">
               <div className="flex items-center gap-2 text-[13px] font-medium text-positive">
                 <Check className="size-4" />
-                {t(
-                  "meetings.OrgMeetingScheduleDialog.5d5c76d2",
-                  "미팅 시간이 확정됐어요"
-                )}
+                {c("미팅 시간이 확정됐어요", "Meeting time confirmed")}
               </div>
               {schedule.confirmedStartAt ? (
                 <p className="mt-2 text-[16px] font-medium text-neutral-primary">
@@ -660,7 +626,7 @@ export function OrgMeetingScheduleDialog({
               ) : null}
               <p className="mt-1 text-[12px] text-neutral-muted">
                 {schedule.config.durationMinutes}
-                {t("meetings.OrgMeetingScheduleDialog.b510ca9f", "분 · ")}
+                {c("분 · ", "min · ")}
                 {schedule.config.title}
               </p>
             </div>
@@ -672,10 +638,7 @@ export function OrgMeetingScheduleDialog({
             {schedule.round.candidateOptions.length > 1 ? (
               <section>
                 <div className="text-[12px] font-medium text-neutral-primary">
-                  {t(
-                    "meetings.OrgMeetingScheduleDialog.30dfc264",
-                    "후보자가 제출한 시간"
-                  )}
+                  {c("후보자가 제출한 시간", "Candidate-submitted time")}
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {schedule.round.candidateOptions.map((option) => (
@@ -697,9 +660,9 @@ export function OrgMeetingScheduleDialog({
             ) : null}
             {schedule.calendar?.status === "created" ? (
               <div className="rounded-lg bg-positive-faded p-3 text-[12px] leading-5 text-neutral-muted">
-                {t(
-                  "meetings.OrgMeetingScheduleDialog.aeba19db",
-                  "후보자와 회사 참석자에게 Calendar 초대를 보냈고 Google Meet 링크를 만들었어요."
+                {c(
+                  "후보자와 회사 참석자에게 Calendar 초대를 보냈고 Google Meet 링크를 만들었어요.",
+                  "Sent calendar invites to candidate and company attendees and created a Google Meet link."
                 )}
                 <div className="mt-2 flex flex-wrap gap-3">
                   {schedule.calendar.meetUrl ? (
@@ -709,10 +672,7 @@ export function OrgMeetingScheduleDialog({
                       rel="noreferrer"
                       target="_blank"
                     >
-                      {t(
-                        "meetings.OrgMeetingScheduleDialog.ea527744",
-                        "Google Meet 열기"
-                      )}
+                      {c("Google Meet 열기", "Open Google Meet")}
                     </a>
                   ) : null}
                   {schedule.calendar.calendarUrl ? (
@@ -722,19 +682,16 @@ export function OrgMeetingScheduleDialog({
                       rel="noreferrer"
                       target="_blank"
                     >
-                      {t(
-                        "meetings.OrgMeetingScheduleDialog.e7005a94",
-                        "Calendar 일정 열기"
-                      )}
+                      {c("Calendar 일정 열기", "Open calendar event")}
                     </a>
                   ) : null}
                 </div>
               </div>
             ) : schedule.calendar?.status === "created_without_meet" ? (
               <div className="rounded-lg bg-info-faded p-3 text-[12px] leading-5 text-neutral-muted">
-                {t(
-                  "meetings.OrgMeetingScheduleDialog.2e255651",
-                  "Calendar 초대는 보냈지만 연결된 Google 계정에서 Meet 링크를 만들지 못했어요. Calendar 일정에서 화상회의 링크를 직접 추가해 주세요."
+                {c(
+                  "Calendar 초대는 보냈지만 연결된 Google 계정에서 Meet 링크를 만들지 못했어요. Calendar 일정에서 화상회의 링크를 직접 추가해 주세요.",
+                  "Calendar invite sent but couldn't create a Meet link on the connected Google account. Add a video meeting link directly in the calendar event."
                 )}
                 {schedule.calendar.calendarUrl ? (
                   <div className="mt-2">
@@ -744,10 +701,7 @@ export function OrgMeetingScheduleDialog({
                       rel="noreferrer"
                       target="_blank"
                     >
-                      {t(
-                        "meetings.OrgMeetingScheduleDialog.e7005a94",
-                        "Calendar 일정 열기"
-                      )}
+                      {c("Calendar 일정 열기", "Open calendar event")}
                     </a>
                   </div>
                 ) : null}
@@ -756,19 +710,19 @@ export function OrgMeetingScheduleDialog({
               <div className="rounded-lg bg-bg-weak p-3 text-[12px] leading-5 text-neutral-muted">
                 <p>
                   {schedule.calendar?.status === "creating"
-                    ? t(
-                        "meetings.OrgMeetingScheduleDialog.42b86f9b",
-                        "미팅 시간은 확정되어 있고, Calendar 초대와 Google Meet 링크를 만들고 있어요."
+                    ? c(
+                        "미팅 시간은 확정되어 있고, Calendar 초대와 Google Meet 링크를 만들고 있어요.",
+                        "Meeting time confirmed. Creating calendar invite and Google Meet link."
                       )
-                    : t(
-                        "meetings.OrgMeetingScheduleDialog.f4d45ba8",
+                    : c(
                         "미팅 시간은 그대로 확정되어 있어요. {p0}",
+                        "The meeting time remains confirmed. {p0}",
                         {
                           p0:
                             schedule.calendar?.error ??
-                            t(
-                              "meetings.OrgMeetingScheduleDialog.61665e52",
-                              "Calendar 초대와 Google Meet 링크를 아직 만들지 못했어요."
+                            c(
+                              "Calendar 초대와 Google Meet 링크를 아직 만들지 못했어요.",
+                              "Calendar invite and Google Meet link not created."
                             ),
                         }
                       )}
@@ -784,13 +738,10 @@ export function OrgMeetingScheduleDialog({
                       <LoaderCircle className="size-4 animate-spin" />
                     ) : null}
                     {schedule.calendar?.status === "creating"
-                      ? t(
-                          "meetings.OrgMeetingScheduleDialog.be617d7e",
-                          "전달 상태 다시 확인"
-                        )
-                      : t(
-                          "meetings.OrgMeetingScheduleDialog.95e59a9c",
-                          "Calendar 초대 다시 만들기"
+                      ? c("전달 상태 다시 확인", "Recheck delivery status")
+                      : c(
+                          "Calendar 초대 다시 만들기",
+                          "Recreate calendar invite"
                         )}
                   </MuteButton>
                 ) : null}
@@ -802,20 +753,14 @@ export function OrgMeetingScheduleDialog({
             <div className="rounded-lg bg-bg-weak p-4">
               <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                 <Mail className="size-4 text-neutral-muted" />
-                {t(
-                  "meetings.OrgMeetingScheduleDialog.31afca01",
-                  "후보자 답변 대기 중"
-                )}
+                {c("후보자 답변 대기 중", "Awaiting candidate response")}
               </div>
               <p className="mt-2 text-[12px] leading-5 text-neutral-muted">
                 {sourceT(deliveryStatusCopy(schedule))}
               </p>
               {schedule.round.expiresAt ? (
                 <p className="mt-2 text-[11px] text-neutral-soft">
-                  {t(
-                    "meetings.OrgMeetingScheduleDialog.a1445753",
-                    "링크 만료 ·"
-                  )}{" "}
+                  {c("링크 만료 ·", "Link expired ·")}{" "}
                   {formatScheduleTime(
                     schedule.round.expiresAt,
                     schedule.round.timezone ??
@@ -829,7 +774,7 @@ export function OrgMeetingScheduleDialog({
             <div className="grid gap-3 rounded-lg border border-neutral-1000-a05 p-4 sm:grid-cols-2">
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {t("meetings.OrgMeetingScheduleDialog.bae5b97e", "후보자")}
+                  {c("후보자", "Candidate")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.candidate.name}
@@ -837,11 +782,11 @@ export function OrgMeetingScheduleDialog({
               </div>
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {t("meetings.OrgMeetingScheduleDialog.9bf8cbe2", "미팅")}
+                  {c("미팅", "Meeting")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.config.title} · {schedule.config.durationMinutes}
-                  {t("meetings.OrgMeetingScheduleDialog.dbb9748d", "분")}
+                  {c("분", "min")}
                 </div>
               </div>
             </div>
@@ -855,7 +800,7 @@ export function OrgMeetingScheduleDialog({
             <div className="grid gap-3 rounded-lg bg-bg-weak p-4 sm:grid-cols-2">
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {t("meetings.OrgMeetingScheduleDialog.bae5b97e", "후보자")}
+                  {c("후보자", "Candidate")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.candidate.name}
@@ -863,7 +808,7 @@ export function OrgMeetingScheduleDialog({
               </div>
               <div>
                 <div className="text-[11px] text-neutral-soft">
-                  {t("meetings.OrgMeetingScheduleDialog.3de052c6", "Role")}
+                  {c("Role", "Role")}
                 </div>
                 <div className="mt-1 text-[13px] font-medium text-neutral-primary">
                   {schedule.role.name}
@@ -876,27 +821,20 @@ export function OrgMeetingScheduleDialog({
                 <div>
                   <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                     <CalendarClock className="size-4 text-neutral-muted" />
-                    {t(
-                      "meetings.OrgMeetingScheduleDialog.5a0c38be",
-                      "제안할 가능 시간"
-                    )}
+                    {c("제안할 가능 시간", "Available times to propose")}
                   </div>
                   <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
                     {schedule.availability
-                      ? t(
-                          "meetings.OrgMeetingScheduleDialog.d740017d",
-                          "{p0} · 향후 {p1}주",
-                          {
-                            p0: formatOrgMeetingAvailabilitySummary(
-                              schedule.availability,
-                              t
-                            ),
-                            p1: schedule.config.offerWindowDays / 7,
-                          }
-                        )
-                      : t(
-                          "meetings.OrgMeetingScheduleDialog.589ed8fb",
+                      ? c("{p0} · 향후 {p1}주", "{p0} · next {p1} weeks", {
+                          p0: formatOrgMeetingAvailabilitySummary(
+                            schedule.availability,
+                            c
+                          ),
+                          p1: schedule.config.offerWindowDays / 7,
+                        })
+                      : c(
                           "{p0}님의 가능 시간이 아직 설정되지 않았어요.",
+                          "{p0} hasn't set availability yet.",
                           {
                             p0: schedule.config.organizer.name,
                           }
@@ -909,10 +847,7 @@ export function OrgMeetingScheduleDialog({
                   type="button"
                   variant="default"
                 >
-                  {t(
-                    "meetings.OrgMeetingScheduleDialog.589b708b",
-                    "가능 시간 열기"
-                  )}
+                  {c("가능 시간 열기", "Open availability")}
                 </MuteButton>
               </div>
             </section>
@@ -920,10 +855,7 @@ export function OrgMeetingScheduleDialog({
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_140px]">
               <label className="block">
                 <span className="text-[12px] font-medium text-neutral-primary">
-                  {t(
-                    "meetings.OrgMeetingScheduleDialog.a9f5012f",
-                    "인터뷰 제목"
-                  )}
+                  {c("인터뷰 제목", "Interview title")}
                 </span>
                 <Input
                   className="mt-1.5 h-10 text-[13px]"
@@ -937,7 +869,7 @@ export function OrgMeetingScheduleDialog({
               </label>
               <label className="block">
                 <span className="text-[12px] font-medium text-neutral-primary">
-                  {t("meetings.OrgMeetingScheduleDialog.f143e804", "길이")}
+                  {c("길이", "Length")}
                 </span>
                 <Select
                   disabled={updateSchedule.isPending}
@@ -949,14 +881,14 @@ export function OrgMeetingScheduleDialog({
                   <SelectTrigger className="mt-1.5">
                     <SelectValue>
                       {draft.durationMinutes}
-                      {t("meetings.OrgMeetingScheduleDialog.dbb9748d", "분")}
+                      {c("분", "min")}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent align="start">
                     {DURATION_OPTIONS.map((duration) => (
                       <SelectItem key={duration} value={String(duration)}>
                         {duration}
-                        {t("meetings.OrgMeetingScheduleDialog.dbb9748d", "분")}
+                        {c("분", "min")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -967,7 +899,7 @@ export function OrgMeetingScheduleDialog({
             <section>
               <div className="flex items-center gap-2 text-[12px] font-medium text-neutral-primary">
                 <Users className="size-4 text-neutral-muted" />
-                {t("meetings.OrgMeetingScheduleDialog.3141ecfd", "참석자")}
+                {c("참석자", "Attendees")}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {members.map((member) => {
@@ -992,10 +924,7 @@ export function OrgMeetingScheduleDialog({
                       {member.name}
                       {organizer ? (
                         <span className="text-[11px] text-neutral-soft">
-                          {t(
-                            "meetings.OrgMeetingScheduleDialog.a92b5c71",
-                            "담당자"
-                          )}
+                          {c("담당자", "Organizer")}
                         </span>
                       ) : null}
                     </MuteButton>
@@ -1007,12 +936,9 @@ export function OrgMeetingScheduleDialog({
             <section className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_170px]">
               <label className="block">
                 <span className="text-[12px] font-medium text-neutral-primary">
-                  {t(
-                    "meetings.OrgMeetingScheduleDialog.995af5ef",
-                    "추가 메시지"
-                  )}{" "}
+                  {c("추가 메시지", "Additional message")}{" "}
                   <span className="font-normal text-neutral-soft">
-                    {t("meetings.OrgMeetingScheduleDialog.fc8336dc", "· 선택")}
+                    {c("· 선택", "· optional")}
                   </span>
                 </span>
                 <Textarea
@@ -1022,16 +948,16 @@ export function OrgMeetingScheduleDialog({
                   onChange={(event) =>
                     updateEditorDraft({ additionalMessage: event.target.value })
                   }
-                  placeholder={t(
-                    "meetings.OrgMeetingScheduleDialog.5d4744dd",
-                    "예: 가능하면 가장 빠른 시간으로 부탁드려요."
+                  placeholder={c(
+                    "예: 가능하면 가장 빠른 시간으로 부탁드려요.",
+                    "e.g., prefer the earliest possible time."
                   )}
                   value={draft.additionalMessage}
                 />
               </label>
               <label className="block">
                 <span className="text-[12px] font-medium text-neutral-primary">
-                  {t("meetings.OrgMeetingScheduleDialog.1743f372", "공개 범위")}
+                  {c("공개 범위", "Visibility")}
                 </span>
                 <Select
                   disabled={
@@ -1049,22 +975,13 @@ export function OrgMeetingScheduleDialog({
                   </SelectTrigger>
                   <SelectContent align="start">
                     <SelectItem value="both">
-                      {t(
-                        "meetings.OrgMeetingScheduleDialog.53111d24",
-                        "회사와 후보자"
-                      )}
+                      {c("회사와 후보자", "Company and candidate")}
                     </SelectItem>
                     <SelectItem value="candidate">
-                      {t(
-                        "meetings.OrgMeetingScheduleDialog.76d2aad1",
-                        "후보자에게만"
-                      )}
+                      {c("후보자에게만", "Candidate only")}
                     </SelectItem>
                     <SelectItem value="internal">
-                      {t(
-                        "meetings.OrgMeetingScheduleDialog.d1a1dda5",
-                        "회사 내부만"
-                      )}
+                      {c("회사 내부만", "Company internal only")}
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -1086,22 +1003,19 @@ export function OrgMeetingScheduleDialog({
         panelClassName="max-w-sm"
         title={
           discardAction === "availability"
-            ? t(
-                "meetings.OrgMeetingScheduleDialog.5d65b6b0",
-                "가능 시간을 열면 아직 적용하지 않은 변경은 사라져요. 계속할까요?"
+            ? c(
+                "가능 시간을 열면 아직 적용하지 않은 변경은 사라져요. 계속할까요?",
+                "Opening availability will discard unapplied changes. Continue?"
               )
-            : t(
-                "meetings.OrgMeetingScheduleDialog.ac854694",
-                "저장하지 않은 변경 내용이 있어요. 이대로 닫을까요?"
+            : c(
+                "저장하지 않은 변경 내용이 있어요. 이대로 닫을까요?",
+                "There are unsaved changes. Close anyway?"
               )
         }
         footer={
           <div className="flex flex-wrap justify-end gap-2">
             <MuteButton onClick={() => setDiscardAction(null)}>
-              {t(
-                "meetings.OrgInterviewAvailabilityDialog.e8136d58",
-                "계속 편집"
-              )}
+              {c("계속 편집", "Continue editing")}
             </MuteButton>
             <MuteButton
               disabled={isBusy}
@@ -1115,14 +1029,8 @@ export function OrgMeetingScheduleDialog({
               }}
             >
               {discardAction === "availability"
-                ? t(
-                    "meetings.OrgMeetingScheduleDialog.589b708b",
-                    "가능 시간 열기"
-                  )
-                : t(
-                    "meetings.OrgInterviewAvailabilityDialog.350f4173",
-                    "저장하지 않고 닫기"
-                  )}
+                ? c("가능 시간 열기", "Open availability")
+                : c("저장하지 않고 닫기", "Close without saving")}
             </MuteButton>
           </div>
         }

@@ -1,4 +1,9 @@
 import "server-only";
+import {
+  buildExternalRecommendationExperiment,
+  type ExternalSurface,
+} from "./externalRecommendationExperiment";
+import { fetchExternalExperimentRows } from "./externalRecommendationExperimentServer";
 import { buildOfficialJobsExperiment } from "./officialJobsExperiment";
 import {
   buildOnboardingStepOrderExperiment,
@@ -47,7 +52,7 @@ import type { Database, Json } from "@/types/database.types";
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const BATCH_SIZE = 1_000;
 const USER_ID_CHUNK_SIZE = 300;
-const CACHE_TTL_MS = 2 * 60 * 1_000;
+const CACHE_TTL_MS = 30_000;
 const responseCache = new Map<
   string,
   { expiresAt: number; value: OpsAbTestsResponse }
@@ -563,28 +568,51 @@ function buildSearchExperiment(
 
 export async function fetchOpsAbTests(args: {
   days?: unknown;
+  externalSurface?: unknown;
   excludedEmails?: readonly string[];
 }) {
   const days = parseDays(args.days);
+  const externalSurface: ExternalSurface =
+    args.externalSurface === "worker" || args.externalSurface === "daily"
+      ? args.externalSurface
+      : "web";
+  const now = Date.now();
   const exclusionTerms = normalizeExclusionTerms(args.excludedEmails ?? []);
-  const cacheKey = JSON.stringify({ days, exclusionTerms });
+  const cacheKey = JSON.stringify({ days, exclusionTerms, externalSurface });
   const cached = responseCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const startIso = new Date(Date.now() - days * DAY_MS).toISOString();
-  const [voiceRows, searchRows, jobsRows, onboardingRows] = await Promise.all([
-    fetchVoiceRows(startIso),
-    fetchLandingRows(startIso, [
-      SEARCH_LANDING_ABTEST_TYPE_A,
-      SEARCH_LANDING_ABTEST_TYPE_B,
-    ]),
-    fetchLandingRows(startIso, [
-      OFFICIAL_JOBS_LAYOUT_ABTEST_A,
-      OFFICIAL_JOBS_LAYOUT_ABTEST_B,
-    ]),
-    fetchOnboardingStepOrderRows(startIso),
-  ]);
+  const [voiceRows, searchRows, jobsRows, onboardingRows, externalRows] =
+    await Promise.all([
+      fetchVoiceRows(startIso),
+      fetchLandingRows(startIso, [
+        SEARCH_LANDING_ABTEST_TYPE_A,
+        SEARCH_LANDING_ABTEST_TYPE_B,
+      ]),
+      fetchLandingRows(startIso, [
+        OFFICIAL_JOBS_LAYOUT_ABTEST_A,
+        OFFICIAL_JOBS_LAYOUT_ABTEST_B,
+      ]),
+      fetchOnboardingStepOrderRows(startIso),
+      fetchExternalExperimentRows(
+        getTalentSupabaseAdmin(),
+        startIso,
+        new Date(now).toISOString(),
+        externalSurface
+      ),
+    ]);
   const experiments = await Promise.all([
+    (async () =>
+      buildExternalRecommendationExperiment({
+        ...externalRows,
+        surface: externalSurface,
+        now,
+        excludedUserIds: await fetchExcludedUserIds(
+          [...new Set(externalRows.runs.map((r) => r.talent_id))],
+          exclusionTerms
+        ),
+      }))(),
     buildVoiceExperiment(voiceRows, exclusionTerms),
     Promise.resolve(buildSearchExperiment(searchRows, exclusionTerms)),
     Promise.resolve(

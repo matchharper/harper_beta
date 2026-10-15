@@ -1,27 +1,34 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { MuteButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { OrgSection, OrgSectionHeader } from "../workspace/OrgSection";
+import { OrgSection } from "../workspace/OrgSection";
+import { useBillingClock } from "@/hooks/org/useBillingClock";
+import { BillingSlotSubscriptions } from "./BillingSlotSubscriptions";
+import type { BillingSlotActions } from "./BillingSlotMenu";
 import {
   BILLING_SUPPORT_HREF,
   type BillingSummary,
 } from "@/lib/org/billing/types";
+import { ArrowUpRight } from "lucide-react";
 
 export function BillingPlanSummary({
   summary,
-  locale,
   busy,
-  date,
   onPortal,
   onAddSlot,
-}: {
+  canManage,
+  onCancel,
+  onResume,
+}: BillingSlotActions & {
   summary: BillingSummary;
-  locale: "ko" | "en";
   busy: boolean;
-  date: (value: string | null) => string;
-  onPortal: () => void;
+  canManage: boolean;
   onAddSlot: () => void;
 }) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { c } = useOrgLocale();
+  const { formatBillingDaysUntil } = useOrgBillingFormat();
+  const now = useBillingClock();
   const active = summary.slots.filter((slot) => slot.active);
   const paid = active.filter((slot) => slot.source !== "grant");
   const nextPayment = paid
@@ -51,8 +58,8 @@ export function BillingPlanSummary({
   const description =
     summary.model === "free"
       ? c(
-          "Role은 무제한이며, 모든 Role이 매월 공용 크레딧 10개를 함께 사용해요. 슬롯을 추가해도 공용 크레딧은 별도로 유지돼요.",
-          "Unlimited Roles share 10 credits every month. Shared credits remain available separately when you add paid slots."
+          "채용 역할 생성은 무제한이며, 모든 Role이 매월 공용 Intro 10개를 함께 사용해요. 슬롯을 추가해도 공용 Intro는 별도로 유지돼요.",
+          "Unlimited Roles share 10 Intros every month. Shared Intros remain available separately when you add paid slots."
         )
       : summary.model === "slot"
         ? paid.length === 0
@@ -62,8 +69,8 @@ export function BillingPlanSummary({
             )
           : nextPayment
             ? c(
-                `다음 구독 결제는 ${date(nextPayment)}이에요.`,
-                `Your next subscription payment is ${date(nextPayment)}.`
+                `다음 구독 결제는 ${formatBillingDaysUntil(nextPayment, now)}예요.`,
+                `Your next subscription payment is ${formatBillingDaysUntil(nextPayment, now)}.`
               )
             : paid.length > 0 && paid.every((slot) => slot.cancelAt)
               ? c(
@@ -85,7 +92,15 @@ export function BillingPlanSummary({
         <div className="min-w-0">
           <h3 className="text-[15px]">{plan}</h3>
           <p className="mt-1 max-w-2xl text-[13px] leading-6 text-neutral-muted">
-            {description}
+            {description}{" "}
+            <span
+              className="text-action cursor-pointer inline-flex items-center gap-0.5 ml-0.5 hover:underline"
+              onClick={() =>
+                window.open("https://matchharper.com/pricing", "_blank")
+              }
+            >
+              More <ArrowUpRight className="w-4 h-4" />
+            </span>
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -107,6 +122,15 @@ export function BillingPlanSummary({
           )}
         </div>
       </Card>
+      <BillingSlotSubscriptions
+        slots={summary.slots}
+        now={now}
+        busy={busy}
+        canManage={canManage}
+        onPortal={onPortal}
+        onCancel={onCancel}
+        onResume={onResume}
+      />
     </OrgSection>
   );
 }

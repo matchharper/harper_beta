@@ -1,3 +1,4 @@
+import { GithubLogo as Github } from "@/components/common/BrandLogos";
 import Animate from "@/components/landing/Animate";
 import { BaseSectionLayout } from "@/components/landing/GridSectionLayout";
 import Head1 from "@/components/landing/Head1";
@@ -31,11 +32,9 @@ import {
   ArrowUp,
   BookOpen,
   FolderOpen,
-  Github,
   GraduationCap,
   Quote,
   Search,
-  type LucideIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Head from "next/head";
@@ -177,7 +176,7 @@ const outputItems: OutputItem[] = [
 const heroPlaceholderTexts = outputItems.map((item) => item.queryPlaceholder);
 
 const coverageStats: Array<{
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   value: string;
   label: string;
 }> = [
@@ -250,7 +249,7 @@ function CoverageCard({
   value,
   label,
 }: {
-  icon: LucideIcon;
+  icon: React.ComponentType<{ className?: string }>;
   value: string;
   label: string;
 }) {

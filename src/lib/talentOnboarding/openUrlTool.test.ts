@@ -5,6 +5,7 @@ import {
   openUrlWithDocumentsCache,
 } from "@/lib/talentOnboarding/openUrlTool";
 import { saveDocumentCache } from "@/lib/tools/documentCache";
+import { formatToolError } from "@/lib/llm/toolError";
 
 function createOpenUrlAdmin(cached: Record<string, unknown> | null = null) {
   let inserted: Record<string, unknown> | null = null;
@@ -95,6 +96,46 @@ test("returns a documents cache hit without calling Exa", async () => {
 
   assert.equal(result.cached, true);
   assert.equal(result.markdown, "Cached full text");
+});
+
+test("empty page reads preserve uncertainty and offer another source without caching empty content", async () => {
+  const { admin, getInserted } = createOpenUrlAdmin();
+  await assert.rejects(openUrlWithDocumentsCache({
+    admin, url: "https://example.com/unreadable",
+    exa: { getContents: async () => ({ results: [{ text: "" }] }) } as never,
+  }), error => {
+    const diagnostic = JSON.parse(formatToolError(error));
+    assert.match(diagnostic.message, /no text/);
+    assert.match(diagnostic.recovery, /not proof|not.*missing/);
+    assert.match(diagnostic.recovery, /web search/);
+    return true;
+  });
+  assert.equal(getInserted(), null);
+});
+
+test("reader failures retain the underlying cause and explain that no content was read", async () => {
+  const { admin, getInserted } = createOpenUrlAdmin();
+  const cause = { code: "upstream_unavailable", status: 503, message: "reader temporarily unavailable" };
+  await assert.rejects(openUrlWithDocumentsCache({
+    admin, url: "https://example.com/article",
+    exa: { getContents: async () => { throw cause; } } as never,
+  }), error => {
+    const diagnostic = JSON.parse(formatToolError(error));
+    assert.equal(diagnostic.cause.code, cause.code);
+    assert.equal(diagnostic.cause.status, 503);
+    assert.match(diagnostic.recovery, /No page content was read/);
+    return true;
+  });
+  assert.equal(getInserted(), null);
+});
+
+test("reader cancellation remains a cancellation instead of a recoverable page error", async () => {
+  const { admin } = createOpenUrlAdmin();
+  const abort = new DOMException("Cancelled", "AbortError");
+  await assert.rejects(openUrlWithDocumentsCache({
+    admin, url: "https://example.com/article",
+    exa: { getContents: async () => { throw abort; } } as never,
+  }), error => error === abort);
 });
 
 test("gets uncached LinkedIn content from Exa and saves it under the canonical URL", async () => {

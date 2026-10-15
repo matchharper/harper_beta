@@ -1,5 +1,11 @@
 # Harper Repository Instructions
 
+## DB 확장성과 검증 범위
+
+- DB schema에는 실제 권한·소유권·멱등성에 필요한 최소 제약만 둔다. 확장 가능한 text/JSON을 우선하고, LLM 입력이나 향후 기능을 좁히는 enum·값 목록 CHECK·시나리오별 개수/순서 제약은 추가하지 않는다. 새 constraint는 막아야 할 구체적인 데이터 무결성 오류가 있을 때만 정당화한다.
+- 변경한 경로의 짧고 의미 있는 검증을 우선한다. 전체 테스트·전수 LLM 평가·범위 밖 점검을 기본으로 요구하지 않는다.
+- Tool result/prompt에 특정 사실의 필수 언급이나 고정 성공 문장을 넣지 않는다. Intro·인터뷰 follow-up 예약 사실도 정보로만 제공하며, 언급 여부와 설명은 company-side LLM이 대화 맥락으로 판단한다.
+
 ## Production deployment
 
 - Pushing the intended release commit to `origin/main` automatically triggers the production Vercel deployment. For the ordinary production path, do not run a separate manual Vercel deploy; verify the Git-triggered deployment and released commit after the push.
@@ -126,3 +132,26 @@
 - Before creating UI markup or a local component, search in this order: `src/components/ui/`, `src/components/common/`, then the relevant domain directory under `src/components/`. Reuse a suitable component or established composition before creating a new primitive.
 - Never reimplement modal infrastructure such as portals, overlays, focus management, Escape handling, outside-click handling, or ARIA dialog wiring in a feature component. For `/career`, use `src/components/common/TalentCareerModal.tsx`; for generic Radix dialogs, use `src/components/ui/dialog.tsx`. A local wrapper may own domain content and actions, but not modal infrastructure.
 - Keep the shared-component catalog and discovery rules in `src/styles/Design.md` current whenever a new reusable UI primitive or preferred composition is introduced.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+
+## 기존 추천 보존과 회사 메시지의 단일 작성 경로
+
+- 후보자의 전체 연락 중단·프로필 공개·추천 설정 변경은 향후 추천/연락 범위를 바꾼다. 이미 회사에 소개한 후보자의 프로필·추천·Intro·진행 이력을 숨기거나 삭제하거나 자동 거절·종료하지 않는다. 설정 변경은 기존 pair의 talent_progress와 일반 조회 결과에 남긴다. 후보자와 대화하는 원본 LLM이 남은 내부 제안을 어떻게 할지 문맥에 맞게 확인하며, 명시적인 역할별 결정은 기존 결정 도구로 처리한다. 신규 공유/연락 자격, 계정 삭제, 회사별 차단과 test-only 격리는 별도 hard boundary다.
+- Harper가 회사에 자연어로 전달할 새 소식은 `harper_beta/src/lib/org/agent/companyUpdate.server.ts`의 `enqueueCompanyUpdate`로 목적과 최소한의 회사 공유 가능 사실을 넘긴다. 기존 company-side LLM이 실제 대화·일반 read/write 도구와 공통 문체 계약을 사용해 설명과 유용한 다음 제안을 판단한다. 별도 업무 LLM이 회사용 문구를 만들거나 발신 코드에 사람처럼 말하라는 prompt를 복제하지 않는다. 실패 때 고정 성공 문구로 대체하지 않는다.
+- 회사 거절/후보 거절, 미팅 등 실제 상태 변경은 DB가 책임지고, 메시지 생성·전달은 기존 회사 작업 큐가 멱등 재시도한다. 이미 전달된 사용자/후보자의 승인 원문·첨부는 보존한다. 추가 Harper 해석은 같은 company-side LLM 경로로 한다. 명시적으로 정형화된 시스템 알림(역할 채용 시작, 채널 진입 등)은 예외다. 정기 회사 선추천·연결 대기 후보 소개는 예외로, 배포 기준의 Worker `write_slack_message`와 `SLACK_WRITER_SYSTEM`/`ACCEPTED_SLACK_WRITER_SYSTEM`을 유지해 완성 문장을 기존 durable 카드 outbox로 전달한다. 소개 뒤에는 `messageAlreadyDelivered=true`인 공통 회사 이벤트를 한 번 enqueue해 company-side LLM이 유용한 후속 행동이나 발언만 선택적으로 수행한다. 소개 본문을 company-side LLM이나 정형 TL;DR/Note 조립으로 대체하지 않는다.
+- 제안 거절·공개 중단·이직은 서로 다른 사실이다. 개인 사유를 공개 가능 여부 확인 없이 회사에 넘기거나, 설정 변경을 역할별 거절로 추론하지 않는다.
+
+- 2026-10-13 DB-first rollout 주의: 운영 DB migration `20261013120149`(`preserve_presented_candidates_and_intro_decisions`)는 적용됐다. 구 웹이 새 `company_update`를 잘못 소비하지 않도록 해당 event는 `failed/company_update_runtime_required`로 보관한다. 새 웹의 공통 enqueue와 dispatch recovery만 이를 queued로 전환한다. 첫 웹 배포 전에 이 보류 event를 확인하고, 구 웹의 정형 거절 알림이 이미 전달된 event는 실제 Slack 전달 증거와 대조해 중복 안내하지 않도록 정리한다. 단순 queue 상태로 전달 완료를 추정하지 않는다. 기존 사건을 재발송하거나 미기록 거절을 복원하는 것은 migration의 효과가 아니다. Worker는 beta의 facts-outbox 처리 코드가 배포된 다음 순차 배포한다.
+
+- 2026-10-15 운영 DB 선반영: `company_contact_agent_first`, `company_presentation_agent_followup`, `company_agent_event_delivery_recovery`, `company_intro_acceptance_update`는 운영 이력 `20261014192900`~`20261014192906`으로 적용됐다. 로컬 파일 timestamp와 운영 이력 version은 다르며 실제 함수 본문을 대조해 확인했다. 이번 요청은 DB만 적용했고 웹·Worker는 배포하지 않았다. `company_update`의 기존 보류 계약은 유지되며 당시 보류·실행 가능 사건은 0건이었다. 이후 배포에서는 현재 사건과 실제 전달 근거를 다시 확인하고 이 migration을 일괄 재적용하지 않는다. 상세 기록: `docs/evaluation/company-side-conversational-qa/reports/2026-10-15-company-events-review.md`.
+
+- 2026-10-15 배포 전 DB 누락 보완(웹·Worker 미배포): 사용자 승인으로 운영 DB의 실제 정의를 대조한 뒤 `company_proactive_recruiting`(20261015051036), `manual_talent_first_search`(20261015051041), `email_vercel_runtime`(20261015051046), `organization_add_and_shared_company_identity`(20261015051054)를 적용했다. 조직 묶음은 로컬 `20261012090244`, `20261012095337`, `20261012100346`의 조직 추가·동일 회사의 독립 조직 허용 변경이다. 새 함수 13개의 서버 전용 실행 권한과 수동 검색 보호 조건·조직 완료 분기를 확인했다. 추가 `email_runtime_legacy_claim_access` migration으로 기존 이메일 reply/onboarding claim 함수 2개도 anon/authenticated 실행을 차단했으며 로컬 이메일 migration에 동일 권한을 반영했다. 이메일 작업은 모두 `legacy`이며 runtime 활성화·서비스 종료는 하지 않았다. `email_application_start`는 이미 적용된 함수 본문을 확인해 재적용하지 않았다. 확인 당시 `company_update_runtime_required` 보류 사건 1건은 변경·재발송하지 않았다. 이후 웹 배포 전에 실제 Slack 전달 근거를 대조해야 한다. 로컬 timestamp와 운영 migration 번호가 다르므로 일괄 재적용하지 않는다.

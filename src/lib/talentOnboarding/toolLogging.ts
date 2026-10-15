@@ -1,3 +1,4 @@
+import { formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
 function safeSerialize(value: unknown, maxLength = 3000) {
   let serialized: string;
   try {
@@ -12,7 +13,7 @@ function safeSerialize(value: unknown, maxLength = 3000) {
 }
 
 function sanitizeTalentToolResultForLog(name: string, result: unknown) {
-  if (name === "generate_resume" || name === "read_document") return { redacted: true };
+  if (name === "generate_resume" || name === "read_document" || name === "ready_for_role") return { redacted: true };
   if (name !== "search_connected_gmail") return result;
 
   const record =
@@ -46,7 +47,7 @@ export function logTalentToolCall(args: {
       args.callId ? `callId: ${args.callId}` : null,
       typeof args.loop === "number" ? `loop: ${args.loop}` : null,
       "input:",
-      safeSerialize(args.name === "generate_resume" ? { redacted: true } : args.input ?? {}),
+      safeSerialize(args.name === "generate_resume" || args.name === "ready_for_role" ? { redacted: true } : args.input ?? {}),
       "============================================================",
       "",
     ]
@@ -60,6 +61,7 @@ export function logTalentToolResult(args: {
   durationMs: number;
   name: string;
   result?: unknown;
+  diagnostics?: readonly unknown[];
   source: string;
 }) {
   console.warn(
@@ -71,10 +73,11 @@ export function logTalentToolResult(args: {
       `tool: ${args.name}`,
       args.callId ? `callId: ${args.callId}` : null,
       `durationMs: ${Math.round(args.durationMs)}`,
+      ...(args.diagnostics ?? []).map(value => `diagnostic: ${formatToolError(value)}`),
       "result:",
-      safeSerialize(
+      serializeToolResultForModel(
         sanitizeTalentToolResultForLog(args.name, args.result ?? {}),
-        1500
+        value => safeSerialize(value, 1500)
       ),
       "============================================================",
       "",
@@ -101,9 +104,7 @@ export function logTalentToolError(args: {
       args.callId ? `callId: ${args.callId}` : null,
       `durationMs: ${Math.round(args.durationMs)}`,
       "error:",
-      args.error instanceof Error
-        ? args.error.stack || args.error.message
-        : String(args.error),
+      formatToolError(args.error),
       "============================================================",
       "",
     ]

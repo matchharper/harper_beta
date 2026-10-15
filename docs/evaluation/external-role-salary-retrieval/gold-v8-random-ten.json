@@ -1,0 +1,66 @@
+{
+  "datasetVersion": "v8-random-ten",
+  "frozenBeforeModelCalls": true,
+  "unit": "new randomly selected user -> current planner + one combined title embedding + initial 500-role retrieval",
+  "reviewer": "Codex; independent human fit gold unavailable",
+  "gates": [
+    "Exactly ten distinct eligible users, disjoint from all three users-v4 accounts; keep failed cases rather than replacing them",
+    "No planner, embedding or SQL errors/timeouts; preserve all first-attempt outcomes",
+    "At most 500 unique role IDs with title/company; missing posting URLs reported",
+    "All returned roles honor chosen countries/remote conditions, active external availability, company enablement, history exclusions, blocked companies and testOnly isolation",
+    "One comma-joined title input and one embedding vector; local languages appropriate to the search countries",
+    "Inspect each user's Profile/Brief, generated plan and top-ten role titles/descriptions for obvious unrelated job families or misread requirements; report uncertainty separately from hard violations",
+    "Empty or small lists require explanation; a nonempty list alone does not establish relevance",
+    "Preserve fixed salary weight 0.35 and existing country policy; no salary prediction persistence or scheduling change",
+    "Report first-attempt timings by context/planner/embedding/retrieval and API cost including failed attempts; separate any diagnostic costs/timing"
+  ],
+  "knownLimits": [
+    "Eligible sample requires existing Profile, Brief and Behavior and excludes previous three cases; not all registered users",
+    "Source roles are live and audit is a separate read",
+    "Only initial retrieval is evaluated; salary filling, full scoring/reranking, recommendation writes and messages are excluded",
+    "Manual top-ten inspection is not independent relevance gold or a review of every JD",
+    "A single run per user does not measure production p95 or long-term reliability"
+  ],
+  "cases": [
+    {
+      "caseId": "random-01",
+      "direction": "Senior strategic IT business partnership; Australian search with city preference. Do not equate hands-on developer roles with strategic business leadership."
+    },
+    {
+      "caseId": "random-02",
+      "direction": "Marketing background with broad exploration; remote preferred across named APAC countries. User compensation currency is unspecified; market estimate must not present it as stated currency."
+    },
+    {
+      "caseId": "random-03",
+      "direction": "Senior finance/FP&A or strategy/operations leadership in technology; Canada plus US remote only when working from Canada is supported. Company-size and city conditions need downstream evidence."
+    },
+    {
+      "caseId": "random-04",
+      "direction": "Experienced valuation/investment/M&A/corporate-finance work in Korea; no salary floor does not mean no market estimate."
+    },
+    {
+      "caseId": "random-05",
+      "direction": "Partner-equivalent venture investment responsibility; include Korea, flexible geography. Non-investment executive or junior investment work is weak."
+    },
+    {
+      "caseId": "random-06",
+      "direction": "Consulting-to-applied-AI business/product/process/solutions work in Korea. Explicitly excludes Engineer and Solutions Architect titles; self-study is not production engineering experience."
+    },
+    {
+      "caseId": "random-07",
+      "direction": "FDE/Java backend/software roles. Final opportunities require explicit Indonesia-remote permission or supported relocation/visa route; do not infer these from country/remote labels."
+    },
+    {
+      "caseId": "random-08",
+      "direction": "Korea-based technology country GM/Managing Director with P&L or business-growth ownership; ordinary manager/sales IC work is weak."
+    },
+    {
+      "caseId": "random-09",
+      "direction": "Finance-to-business-development/business-management/strategy at established companies. Korean-company overseas local hires excluded; overseas HQ assignments distinct."
+    },
+    {
+      "caseId": "random-10",
+      "direction": "Web publishing preferred, simple office work also acceptable; avoid treating the user as an experienced application developer. Korea commute preferences and low spoken-English ability require role evidence; part-time allowed."
+    }
+  ]
+}

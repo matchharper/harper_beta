@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "v7-execution",
+  "parentInput": "v6-execution + v7-users-combined-titles",
+  "caseHashes": {
+    "user-1": "a06da67c1d21e8317b44b35b5c2b6e76d1c53152467919c32845184a499743e2",
+    "user-2": "5975c11aee70c8354fc6a84d40c2b8f7ff0d05b4cffdea628e477efb8b2a578c",
+    "user-3": "4c21891bf11e73cf57ad18cc14cff4c70beb629459c14ee167ba94ff5b4ed37f"
+  },
+  "canonicalRunner": "scripts/evalExternalRetrievalExecution.ts",
+  "capturedAt": "2026-10-15T03:24:32.481Z",
+  "baselineSourceHash": "7ba0fef91be1b2f9f913ef56f5e795235c73a6e456c36f127e192cf2f230e654",
+  "frozenBeforeComparisons": true,
+  "privacy": "owner-only private/runs; no model calls or production writes",
+  "combinedPlanRun": "docs/evaluation/external-role-salary-retrieval/runs/users-2026-10-15T03-22-00-213Z",
+  "changedInputs": "Only roleTitles and their one combined vector; original scalar salary targets, countries, FTS, filters and baseline SQL remain frozen"
+}

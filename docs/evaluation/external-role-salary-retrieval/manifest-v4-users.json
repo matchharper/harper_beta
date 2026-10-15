@@ -1,0 +1,16 @@
+{
+  "datasetVersion": "v4-users",
+  "role": "actual user planner and initial 500-role salary retrieval",
+  "frozenInputHash": "4a53859e931c0dba181f7a51bf45d82d8edf340ea137371df25ce93e4d0b20f8",
+  "capturedAt": "2026-10-15T00:28:45.004Z",
+  "caseIds": [
+    "user-1",
+    "user-2",
+    "user-3"
+  ],
+  "selection": "user-requested Daniel and two fixed-seed hash-random eligible accounts",
+  "canonicalRunner": "scripts/evalExternalSalaryUserRetrieval.ts",
+  "readOnly": true,
+  "gold": "gold-v4-users.json",
+  "privacy": "raw identities/profile/Brief/Behavior only in ignored owner-only private/runs"
+}

@@ -294,9 +294,7 @@ const MessageBubble = ({
     <article
       className={cn(
         "w-fit whitespace-pre-line wrap-break-word",
-        compact
-          ? "text-[15px] leading-[1.72]"
-          : "text-[14px] leading-[1.8]",
+        compact ? "text-[15px] leading-[1.72]" : "text-[14px] leading-[1.8]",
         isUser
           ? "ml-auto max-w-[min(740px,92%)] rounded-[14px] bg-black px-3 py-1.5 text-neutral-00"
           : "max-w-[min(740px,100%)] text-neutral-primary"
@@ -446,7 +444,9 @@ const StaticTaskSection = ({
     <div className="flex items-center gap-2">
       <h2 className="text-[16px] font-medium">{title}</h2>
       {count ? (
-        <span className="mb-[1px] text-[13px] font-normal tracking-wider text-neutral-muted">({count})</span>
+        <span className="mb-[1px] text-[13px] font-normal tracking-wider text-neutral-muted">
+          ({count})
+        </span>
       ) : null}
     </div>
     <div>{children}</div>

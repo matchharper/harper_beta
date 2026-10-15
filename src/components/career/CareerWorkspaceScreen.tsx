@@ -1,6 +1,7 @@
 import {
   BriefcaseBusiness,
   House,
+  Files,
   Inbox,
   Loader2,
   SlidersHorizontal,
@@ -37,6 +38,7 @@ import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
 import { DocumentEditorPanelProvider } from "@/components/ui/document-editor";
 import { SectionTitle } from "@/components/ui/section-header";
 import CareerMobileJobsView from "@/components/career/mobile/jobs/CareerMobileJobsView";
+import ExternalOpportunityApplyModal from "@/components/career/history/ExternalOpportunityApplyModal";
 import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileChatLauncher";
 import { CareerMobileChatLauncherVisibilityProvider } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
 import CareerMobileHomeView from "@/components/career/mobile/CareerMobileHomeView";
@@ -191,6 +193,11 @@ const getMobileWorkspaceTabOptions = (
     icon: User,
   },
   {
+    id: "documents",
+    label: t("career.profile.career_profile_workspace.14bifvm", "이력서/링크"),
+    icon: Files,
+  },
+  {
     id: "brief",
     label: t(
       "career.profile.career_profile_workspace.search_brief_tab",
@@ -270,7 +277,13 @@ const CareerWorkspaceContent = ({
   return (
     <CareerCanvas>
       <CareerProfileWorkspace
-        view={activeTab === "brief" ? "brief" : "profile"}
+        view={
+          activeTab === "documents"
+            ? "documents"
+            : activeTab === "brief"
+              ? "brief"
+              : "profile"
+        }
         onDetailOpen={onOpenRightPanelDetail}
       />
     </CareerCanvas>
@@ -420,8 +433,7 @@ const CareerWorkspaceRoot = ({
     rightPanelScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, []);
   const pendingInternalRoleFeedbackCount = historyOpportunityCounts.newInternal;
-  const pendingExternalRoleFeedbackCount =
-    historyOpportunityCounts.new - pendingInternalRoleFeedbackCount;
+  const unreadExternalRoleCount = historyOpportunityCounts.newExternalUnread;
   const desktopActiveTab = activeTab === "home" ? "tasks" : activeTab;
   const requestedHistoryTab = getSingleQueryValue(router.query.historyTab);
   const desktopNavTab: CareerDesktopNavTab | null =
@@ -449,7 +461,7 @@ const CareerWorkspaceRoot = ({
         initialChatOpen={initialMobileChatOpen}
         onChangeTab={handleChangeTab}
         pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
-        pendingExternalRoleFeedbackCount={pendingExternalRoleFeedbackCount}
+        unreadExternalRoleCount={unreadExternalRoleCount}
         decisionCount={decisionCount}
       />
     );
@@ -468,7 +480,7 @@ const CareerWorkspaceRoot = ({
         activeTab={desktopNavTab}
         decisionCount={decisionCount}
         pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
-        pendingExternalRoleFeedbackCount={pendingExternalRoleFeedbackCount}
+        unreadExternalRoleCount={unreadExternalRoleCount}
         onChangeTab={(tab) => {
           if (tab === "new" || tab === "saved") {
             handleChangeTab("history", {
@@ -705,6 +717,8 @@ const CareerWorkspaceMobileHistoryView = ({
     useState<CareerHistoryOpportunity | null>(null);
   const [infoOpportunityType, setInfoOpportunityType] =
     useState<CareerOpportunityType | null>(null);
+  const [externalApplyOpportunity, setExternalApplyOpportunity] =
+    useState<CareerHistoryOpportunity | null>(null);
   const [
     internalConnectionAcceptanceOpportunity,
     setInternalConnectionAcceptanceOpportunity,
@@ -1219,6 +1233,10 @@ const CareerWorkspaceMobileHistoryView = ({
         internalOpportunityCount={historyOpportunityCounts.newInternal}
         totalOpportunityCount={historyOpportunityCounts.new}
         onToggleOpportunity={handleToggleNewOpportunity}
+        onApply={(item) => {
+          logCareerEvent("click_mobile_history_external_apply");
+          setExternalApplyOpportunity(item);
+        }}
         onPositive={handleTrack}
         onNegative={handleDismiss}
         onKeep={(item) => void onUpdateHistoryOpportunityFeedback(item.id, "keep", {fallbackOpportunity: item, interactionSource: "position_tab"})}
@@ -1269,6 +1287,38 @@ const CareerWorkspaceMobileHistoryView = ({
       >
         <CareerChatPanel />
       </CareerMobileChatLauncher>
+      {externalApplyOpportunity ? (
+        <ExternalOpportunityApplyModal
+          key={externalApplyOpportunity.id}
+          item={externalApplyOpportunity}
+          pending={pendingOpportunityIds.has(externalApplyOpportunity.id)}
+          error={historyUpdateError || null}
+          onClose={() => setExternalApplyOpportunity(null)}
+          onSave={(savedStage) => {
+            logCareerEvent(
+              savedStage === "applied"
+                ? "click_mobile_history_external_apply_directly"
+                : "click_mobile_history_external_apply_with_harper"
+            );
+            return onUpdateHistoryOpportunityFeedback(
+              externalApplyOpportunity.id,
+              "positive",
+              {
+                fallbackOpportunity: externalApplyOpportunity,
+                interactionSource: "position_tab",
+                promptImmediately: false,
+                savedStage,
+              }
+            );
+          }}
+          onApplied={() => handleChangeJobsTab("applied")}
+          onOpenLink={(url) => handleOpenLink(externalApplyOpportunity, url)}
+          onOpenChat={() => {
+            closeDecidedOpportunityInLocation(externalApplyOpportunity);
+            setChatOpen(true);
+          }}
+        />
+      ) : null}
       <InternalConnectionAcceptanceModal
         item={internalConnectionAcceptanceOpportunity}
         isOnboardingComplete={isCareerOnboardingComplete}
@@ -1365,7 +1415,7 @@ const CareerWorkspaceMobileLayout = ({
   initialChatOpen,
   onChangeTab,
   pendingInternalRoleFeedbackCount,
-  pendingExternalRoleFeedbackCount,
+  unreadExternalRoleCount,
   decisionCount,
 }: {
   activeTab: CareerWorkspaceTab;
@@ -1375,7 +1425,7 @@ const CareerWorkspaceMobileLayout = ({
     options?: CareerWorkspaceNavigationOptions
   ) => void;
   pendingInternalRoleFeedbackCount: number;
-  pendingExternalRoleFeedbackCount: number;
+  unreadExternalRoleCount: number;
   decisionCount: number;
 }) => {
   const t = useCareerT();
@@ -1457,7 +1507,7 @@ const CareerWorkspaceMobileLayout = ({
                 badgeCount:
                   pendingInternalRoleFeedbackCount > 0
                     ? pendingInternalRoleFeedbackCount
-                    : pendingExternalRoleFeedbackCount,
+                    : unreadExternalRoleCount,
                 badgeClassName:
                   pendingInternalRoleFeedbackCount > 0
                     ? undefined
@@ -1468,7 +1518,7 @@ const CareerWorkspaceMobileLayout = ({
     [
       baseWorkspaceTabOptions,
       pendingInternalRoleFeedbackCount,
-      pendingExternalRoleFeedbackCount,
+      unreadExternalRoleCount,
       decisionCount,
     ]
   );
@@ -1547,7 +1597,13 @@ const CareerWorkspaceMobileLayout = ({
                   ) : (
                     <div className="px-4 pb-[140px] pt-2">
                       <CareerProfileWorkspace
-                        view={activeTab === "brief" ? "brief" : "profile"}
+                        view={
+                          activeTab === "documents"
+                            ? "documents"
+                            : activeTab === "brief"
+                              ? "brief"
+                              : "profile"
+                        }
                         onDetailOpen={closeChatForDocument}
                       />
                     </div>

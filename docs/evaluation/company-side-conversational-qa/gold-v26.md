@@ -1,0 +1,9 @@
+# Proactive review input-contract correction v26
+
+Frozen before v26 model calls. All required judgments, actions and privacy boundaries in [gold-v25](gold-v25.md) remain unchanged. No expected label is weakened to accommodate model output.
+
+The market fixture in v25 used freshFitPeople for fresh evaluation coverage and omitted the window definition for presentedPeople. v25 r5 read those 18 records as positively fitting candidates. This version replaces that ambiguous object with compact readable source facts: 30 unique evaluated people in the review window, 18 currently fresh evaluations independent of fit outcome, no provided positive-fit/eligibility/interest count, zero actual introductions in that window, no criterion distribution or recorded closure reason. It also corrects the fixture stage from legacy closed to canonical process_stopped. This is an unblinded input adjudication by Codex on 2026-10-15, not a blind holdout.
+
+Objective: useful action or concrete proposal grounded in known facts, including silence and real company follow-up. Unit: the same 9 conversations / 13 turns as v25. The current-role request and 7-year preference are unchanged. Existing v25 files and all runs are preserved. Canonical runner: scripts/evalCompanyAgentCapabilities.ts --dataset=v26 --mode=full --run=<new>.
+
+Gate: all selected mandatory meanings/effects, zero unauthorized effects, wrong recipients, privacy leaks, false completion, invented cohort/count/cause. Runtime model/provider/reasoning/temperature, bounded timeout, source/input/prompt hash are recorded per run. Synthetic-only provider input; DB/Slack/email/Calendar blocked. Raw artifacts remain ignored 0700/0600. Small authored, previously inspected challenge, synthetic adapter and absent scheduler/promotion/Slack batch/transport; no independent review or operational accuracy claim. A selected replay covers only the selected cases, not all 9.

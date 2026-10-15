@@ -1,0 +1,12 @@
+{
+  "version": "runtime-v2",
+  "provenance": "Same frozen synthetic PDF and receipt server as v1. Added production executor integration, deterministic commands, isolated HTTPS wrapper, authorization and cleanup gates. No model tasks.",
+  "frozenInputs": {
+    "cases-v2.json": "694d9dd86afff421270b18ccd77cc6730c82f4f6d0806100efc5ace891eda9fa",
+    "gold-v2.json": "0083feea94fc36e8195a79d1c65507aac96db83f4cda6983ffba989c65d293c0",
+    "fixtures/synthetic-resume-v1.pdf": "267cab6d8295aba43ea2e71dbb76857015221bf91ef1456610b6fe27a29ebd00",
+    "fixtures/receipt-server-v1.cjs": "74826f750b45f58b94a24c4ea16159662d7cc2db2570f6b4908ff30ad23bf2c2"
+  },
+  "runner": "scripts/verifyAgentsHostedApplicationRuntime.ts",
+  "sourcePolicy": "Each run records current runtime/driver/transport source hashes; do not overwrite v1 frozen assets."
+}

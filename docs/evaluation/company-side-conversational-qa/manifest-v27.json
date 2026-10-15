@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "v27",
+  "frozenAt": "2026-10-15T02:46:42.098801+00:00",
+  "files": {
+    "cases-v27.json": "ce0e33c1ec403fae609b34727eaf1022da79668b86311869431ec64e27002588",
+    "gold-v27.md": "399c6ca5e2c86f20507793e5db55f3c570b7f59c94fde4c56ff0060b3ba745ed",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v27 --run=<fresh>",
+  "releaseGate": "4/4 mandatory meaning/effects; critical 0",
+  "privacy": "Synthetic only; ignored owner-only runs; no DB, Slack or email",
+  "knownLimitations": "Authored challenge, synthetic executor, independent human review pending"
+}

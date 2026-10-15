@@ -1,4 +1,4 @@
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgDocumentEditorCopy } from "@/i18n/org/useOrgDocumentEditorCopy";
 import { useState } from "react";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
@@ -39,7 +39,7 @@ export function OrgRoleDetailsContent({
   role: OrgRole;
   workspaceId: string;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const getRoleOverviewErrorMessage = useRoleOverviewErrorMessage();
   const sourceT = useOrgSourceT();
   const documentEditorCopy = useOrgDocumentEditorCopy();
@@ -54,19 +54,19 @@ export function OrgRoleDetailsContent({
   const currentDraft = draft ?? toRoleDetailsDraft(role);
   const roleDetails = [
     {
-      label: t("role.overview.OrgRoleDetailsContent.e0017f75", "역할명"),
+      label: c("역할명", "Role name"),
       value: role.name.trim(),
     },
     {
-      label: t("role.overview.OrgRoleDetailsContent.72f68a7c", "보상 정보"),
+      label: c("보상 정보", "Compensation"),
       value: role.salaryRange?.trim() ?? "",
     },
     {
-      label: t("role.overview.OrgRoleDetailsContent.f23cdd3e", "근무 지역"),
+      label: c("근무 지역", "Work location"),
       value: role.locationText?.trim() ?? "",
     },
     {
-      label: t("role.overview.OrgRoleDetailsContent.3586667d", "근무 형태"),
+      label: c("근무 형태", "Work arrangement"),
       value: role.employmentTypes
         .filter((employmentType) => employmentType.trim())
         .map((employmentType) =>
@@ -114,13 +114,13 @@ export function OrgRoleDetailsContent({
       setDraft(null);
       setEditingField(null);
       addToast({
-        message: t("role.overview.OrgRoleDetailsContent.95fa4cf7", "정보를 저장했습니다."),
+        message: c("정보를 저장했습니다.", "Information saved."),
         variant: "success",
       });
     } catch (error) {
       const message = getRoleOverviewErrorMessage(
         error,
-        t("role.overview.OrgRoleDetailsContent.23b78126", "정보를 저장하지 못했습니다.")
+        c("정보를 저장하지 못했습니다.", "Failed to save information.")
       );
       setSaveError(message);
       addToast({ message, variant: "error" });
@@ -140,7 +140,7 @@ export function OrgRoleDetailsContent({
         <div className="mb-5">
           <RoleSectionHeading
             size="large"
-            title={t("role.overview.OrgRoleDetailsContent.4cfb6b66", "Description")}
+            title={c("Description", "Description")}
           />
         </div>
         <dl className="mb-8 grid grid-cols-2 gap-x-4 gap-y-4">
@@ -167,7 +167,7 @@ export function OrgRoleDetailsContent({
         </dl>
         <DocumentEditor
           {...documentEditorCopy}
-          aria-label={t("role.overview.OrgRoleDetailsContent.79548c5f", "Description 수정")}
+          aria-label={c("Description 수정", "Edit description")}
           disabled={updateRole.isPending}
           documentTitle="Description"
           errorMessage={editingField === "description" ? saveError : ""}
@@ -176,7 +176,10 @@ export function OrgRoleDetailsContent({
           onValueChange={(description) =>
             changeDraft({ description }, "description")
           }
-          placeholder={t("role.overview.OrgRoleDetailsContent.5b8b3d0f", "후보자에게 보여줄 역할 설명을 문서처럼 작성해 주세요.")}
+          placeholder={c(
+            "후보자에게 보여줄 역할 설명을 문서처럼 작성해 주세요.",
+            "Write the role description shown to candidates as a document."
+          )}
           readOnly={!canManage}
           rows={7}
           savedValue={role.description ?? ""}

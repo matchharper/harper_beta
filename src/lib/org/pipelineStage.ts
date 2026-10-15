@@ -22,8 +22,9 @@ export function isOrgInboxStage(stageId: string) {
 }
 
 export function getOrgCompanyIntroBoardStage(
-  status: "ready" | "awaiting_talent" | "connecting"
+  status: "ready" | "awaiting_talent" | "connecting" | "closed" | "passed"
 ) {
+  if (status === "closed" || status === "passed") return "process_stopped";
   return status === "ready" ? "company_intro" : "intro_requested";
 }
 
@@ -31,6 +32,7 @@ export function humanizeOrgCompanyIntroStatus(intro: {
   status: string;
   candidateSentAt?: string | null;
 }) {
+  if (intro.status === "closed" || intro.status === "passed") return "제안 종료";
   if (intro.status === "ready") return "";
   if (intro.status === "connecting") return "후보자 수락 · 연결 준비 중";
   if (intro.status === "awaiting_talent") {
@@ -82,7 +84,10 @@ const FEEDBACK_LABELS: Record<string, string> = {
 };
 
 const PROGRESS_KIND_LABELS: Record<string, string> = {
+  candidate_contact_preferences_changed: "후보자 추천·연락 설정 변경",
+  company_intro_decision: "후보자 제안 결정",
   internal_followup_sent: "Harper 자동 팔로업 발송",
+  company_followup: "회사 요청 후속 연락 기록",
   company_request_followup_sent: "회사 요청 팔로업 발송",
   internal_process_reactivated: "후보자 프로세스 재개",
   internal_process_reengagement_required: "후보자 재진행 의사 확인 필요",
@@ -96,6 +101,9 @@ const PROGRESS_KIND_LABELS: Record<string, string> = {
 
 const CANDIDATE_ACTIVITY_LABELS: Record<string, string> = {
   company_request_followup_sent: "회사 요청 팔로업 발송",
+  candidate_contact_scheduled: "후보자 연락 발송 예약",
+  candidate_contact_failed: "후보자 연락 발송 처리 오류",
+  candidate_contact_cancelled: "후보자 연락 발송 취소",
   candidate_contact_sent: "후보자에게 요청 전달",
   candidate_message_delivered: "후보자 메시지 전달",
   candidate_response_received: "후보자 답변 수신",

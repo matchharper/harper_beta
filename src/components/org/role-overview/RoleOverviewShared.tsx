@@ -1,4 +1,4 @@
-import { useOrgLocale, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import { Info } from "lucide-react";
 import type { ReactNode } from "react";
@@ -23,7 +23,7 @@ export function RoleSectionHeading({
   size?: "default" | "large";
   title: string;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   return (
     <div>
       <div className="flex items-center gap-1.5">
@@ -38,7 +38,7 @@ export function RoleSectionHeading({
         {info ? (
           <Tooltips side="right" text={info}>
             <span
-              aria-label={t("role.overview.RoleOverviewShared.755ae33b", "{p0} 안내", {
+              aria-label={c("{p0} 안내", "{p0} info", {
                 p0: title,
               })}
               className="inline-flex cursor-help text-neutral-soft hover:text-neutral-primary"

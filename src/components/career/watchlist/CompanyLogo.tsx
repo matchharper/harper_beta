@@ -7,16 +7,18 @@ export const CompanyLogo = ({
 }: {
   logoUrl: string | null;
   name: string;
-  size?: "xs" | "sm" | "md" | "lg";
+  size?: "xs" | "xm" | "sm" | "md" | "lg";
 }) => {
   const className =
     size === "xs"
       ? "h-4 w-4 rounded-[3px]"
-      : size === "lg"
-        ? "h-14 w-14 rounded-[8px]"
-        : size === "sm"
-          ? "h-9 w-9 rounded-[11px]"
-          : "h-11 w-11 rounded-[8px]";
+      : size === "xm"
+        ? "h-6 w-6 rounded-[6px]"
+        : size === "lg"
+          ? "h-14 w-14 rounded-[8px]"
+          : size === "sm"
+            ? "h-9 w-9 rounded-[11px]"
+            : "h-11 w-11 rounded-[8px]";
 
   if (logoUrl) {
     return (
@@ -24,7 +26,7 @@ export const CompanyLogo = ({
       <img
         src={logoUrl}
         alt={name}
-        className={`${className} shrink-0 border border-neutral-1000-a05 bg-bg-default object-contain ${size === "xs" ? "p-0.5" : "p-1"}`}
+        className={`${className} shrink-0 border border-neutral-1000-a05 bg-bg-default object-contain ${size === "xs" ? "p-0.5" : size === "xm" ? "p-0.5" : "p-1"}`}
       />
     );
   }
@@ -35,7 +37,13 @@ export const CompanyLogo = ({
     >
       <Building2
         className={
-          size === "xs" ? "h-2.5 w-2.5" : size === "lg" ? "h-5 w-5" : "h-4 w-4"
+          size === "xs"
+            ? "h-2.5 w-2.5"
+            : size === "xm"
+              ? "h-3 w-3"
+              : size === "lg"
+                ? "h-5 w-5"
+                : "h-4 w-4"
         }
       />
     </span>

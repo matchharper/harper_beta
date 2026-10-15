@@ -81,3 +81,16 @@ test("scheduled capacity update does not impersonate a company search request", 
   assert.ok(messages.every(message => !message.tool_calls));
   assert.ok(messages.every(message => !message.content.includes("unrelated old company message")));
 });
+
+test("a teammate event uses the common company-side prompt without inventing a matching request", () => {
+  const messages = buildOrgAgentBackgroundResultMessages({
+    companyName: "Example", roleId: "", roleName: "", requestMessage: "", resultText: "verified event",
+    systemPrompt: "full company-side instructions",
+    companyUpdateContext: { purpose: "Welcome a teammate", facts: { name: "Alex", calendarSettingsUrl: "https://example.invalid/calendar" } },
+  });
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0]?.content, "full company-side instructions");
+  assert.ok(messages[1]?.content.includes("Welcome a teammate"));
+  assert.ok(messages[1]?.content.includes("https://example.invalid/calendar"));
+  assert.ok(messages.every(message => !message.tool_calls));
+});

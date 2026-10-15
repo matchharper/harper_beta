@@ -1,0 +1,142 @@
+[
+  {
+    "id": "required-fields-after-feedback",
+    "suggestions": [
+      {
+        "kind": "change",
+        "title": "API 경험 문구를 구체화할까요?",
+        "reason": "맡은 역할을 드러내요.",
+        "edits": [
+          {
+            "target": "Experience",
+            "originalText": "Built APIs.",
+            "suggestedText": "Owned API design and production incident response."
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "accept"
+          }
+        ],
+        "user": "제안한 수정은 적용했어. 필요한 준비를 이어서 해줘."
+      }
+    ],
+    "applicationForm": {
+      "status": "read",
+      "fields": [
+        {
+          "label": "LinkedIn URL",
+          "type": "url",
+          "required": true,
+          "instructions": "",
+          "options": [],
+          "fileTypes": [],
+          "maxLength": null
+        },
+        {
+          "label": "Why this role?",
+          "type": "textarea",
+          "required": true,
+          "instructions": "",
+          "options": [],
+          "fileTypes": [],
+          "maxLength": 600
+        }
+      ],
+      "limitations": [],
+      "submission": {
+        "status": "supported",
+        "reason": "Public application form is accessible."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-13T00:00:00.000Z"
+    },
+    "application": "{\"status\": \"read\", \"fields\": [{\"label\": \"LinkedIn URL\", \"type\": \"url\", \"required\": true, \"instructions\": \"\", \"options\": [], \"fileTypes\": [], \"maxLength\": null}, {\"label\": \"Why this role?\", \"type\": \"textarea\", \"required\": true, \"instructions\": \"\", \"options\": [], \"fileTypes\": [], \"maxLength\": 600}], \"limitations\": [], \"submission\": {\"status\": \"supported\", \"reason\": \"Public application form is accessible.\"}, \"url\": \"https://example.test/apply\", \"checkedAt\": \"2026-10-13T00:00:00.000Z\"}"
+  },
+  {
+    "id": "login-required-manual-handoff",
+    "suggestions": [
+      {
+        "kind": "change",
+        "title": "API 경험 문구를 구체화할까요?",
+        "reason": "맡은 역할을 드러내요.",
+        "edits": [
+          {
+            "target": "Experience",
+            "originalText": "Built APIs.",
+            "suggestedText": "Owned API design and production incident response."
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "accept"
+          }
+        ],
+        "user": "제안한 수정은 적용했어. 필요한 준비를 이어서 해줘."
+      }
+    ],
+    "applicationForm": {
+      "status": "unavailable",
+      "fields": [],
+      "limitations": [
+        "A personal account login is required before the application form opens."
+      ],
+      "submission": {
+        "status": "unsupported",
+        "reason": "The application requires the applicant to sign in."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-13T00:00:00.000Z"
+    },
+    "application": "{\"status\": \"unavailable\", \"fields\": [], \"limitations\": [\"A personal account login is required before the application form opens.\"], \"submission\": {\"status\": \"unsupported\", \"reason\": \"The application requires the applicant to sign in.\"}, \"url\": \"https://example.test/apply\", \"checkedAt\": \"2026-10-13T00:00:00.000Z\"}"
+  },
+  {
+    "id": "unverified-access-manual-handoff",
+    "suggestions": [
+      {
+        "kind": "change",
+        "title": "API 경험 문구를 구체화할까요?",
+        "reason": "맡은 역할을 드러내요.",
+        "edits": [
+          {
+            "target": "Experience",
+            "originalText": "Built APIs.",
+            "suggestedText": "Owned API design and production incident response."
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "responses": [
+          {
+            "decision": "accept"
+          }
+        ],
+        "user": "제안한 수정은 적용했어. 필요한 준비를 이어서 해줘."
+      }
+    ],
+    "applicationForm": {
+      "status": "unavailable",
+      "fields": [],
+      "limitations": [
+        "Inspection timed out before the form could be verified."
+      ],
+      "submission": {
+        "status": "unknown",
+        "reason": "Public application access could not be verified."
+      },
+      "url": "https://example.test/apply",
+      "checkedAt": "2026-10-13T00:00:00.000Z"
+    },
+    "application": "{\"status\": \"unavailable\", \"fields\": [], \"limitations\": [\"Inspection timed out before the form could be verified.\"], \"submission\": {\"status\": \"unknown\", \"reason\": \"Public application access could not be verified.\"}, \"url\": \"https://example.test/apply\", \"checkedAt\": \"2026-10-13T00:00:00.000Z\"}"
+  }
+]

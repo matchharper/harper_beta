@@ -16,7 +16,10 @@ function hasId(value: unknown): boolean {
   );
 }
 
-function arrayIndex(array: unknown[], selector: string, append = false) {
+const pointer = (parts: string[]) =>
+  parts.map((part) => `/${part.replace(/~/g, "~0").replace(/\//g, "~1")}`).join("");
+
+function arrayIndex(array: unknown[], selector: string, append = false, parentPath = "") {
   if (append && selector === "-") return array.length;
   // Objects with IDs are selected by their stable ID, not their current position.
   const byId = array.findIndex(
@@ -31,8 +34,15 @@ function arrayIndex(array: unknown[], selector: string, append = false) {
     if (index < array.length || (append && index === array.length))
       return index;
   }
+  const ids = array.flatMap((item) =>
+    isObject(item) && typeof item.id === "string" ? [item.id] : []
+  );
   throw new Error(
-    "Resume change target not found. Read the current JSON before editing."
+    `Resume change target not found at ${JSON.stringify(parentPath + pointer([selector]))}. ` +
+    (ids.length
+      ? `This collection uses stable entry IDs, not numeric positions. Available IDs: ${JSON.stringify(ids)}. `
+      : `This array has ${array.length} items; use a valid numeric index${append ? " or - to append" : ""}. `) +
+    "Read the current JSON to identify the intended entry, then retry the complete changes. No edits from this command were saved."
   );
 }
 
@@ -64,14 +74,14 @@ export function applyResumeChanges<T>(original: T, changes: ResumeChange[]): T {
     if (change.op === "remove" && owns(change, "value"))
       throw new Error("remove must not include a value.");
     let parent: unknown = result;
-    for (const part of parts.slice(0, -1)) {
-      if (Array.isArray(parent)) parent = parent[arrayIndex(parent, part)];
+    for (const [index, part] of parts.slice(0, -1).entries()) {
+      if (Array.isArray(parent)) parent = parent[arrayIndex(parent, part, false, pointer(parts.slice(0, index)))];
       else if (isObject(parent) && owns(parent, part)) parent = parent[part];
       else throw new Error("Resume change parent not found.");
     }
     const key = parts.at(-1)!;
     if (Array.isArray(parent)) {
-      const index = arrayIndex(parent, key, change.op === "add");
+      const index = arrayIndex(parent, key, change.op === "add", pointer(parts.slice(0, -1)));
       if (change.op === "add")
         parent.splice(index, 0, structuredClone(change.value));
       else if (change.op === "remove") parent.splice(index, 1);

@@ -7,10 +7,15 @@ export type LlmDebugCall = {
   cacheCreationInputTokens: number;
   cacheReadInputTokens: number;
   estimatedCostUsd: number | null;
+  durationMs?: number;
   inputTokens: number;
   model: string;
   outputTokens: number;
-  pricingStatus: "estimated" | "unpriced" | "usage_unavailable";
+  pricingStatus:
+    | "estimated"
+    | "provider_reported"
+    | "unpriced"
+    | "usage_unavailable";
   processedInputTokens: number;
   step: string;
   totalTokens: number;
@@ -25,7 +30,11 @@ export type LlmDebugSummary = {
   inputTokens: number;
   models: string[];
   outputTokens: number;
-  pricingStatus: "estimated" | "partial" | "unpriced" | "usage_unavailable";
+  pricingStatus:
+    | "estimated"
+    | "partial"
+    | "unpriced"
+    | "usage_unavailable";
   processedInputTokens: number;
   totalTokens: number;
 };
@@ -39,7 +48,9 @@ function roundCost(value: number) {
 }
 
 export function createLlmDebugCall(args: {
+  durationMs?: number;
   model: string;
+  providerCostUsd?: number | null;
   response: any;
   step: string;
 }): LlmDebugCall {
@@ -52,18 +63,28 @@ export function createLlmDebugCall(args: {
     usage.totalTokens,
   ].some((value) => value !== null);
   const cost = hasUsage ? estimateLlmUsageCost(args.model, usage) : null;
+  const providerCostUsd =
+    typeof args.providerCostUsd === "number" &&
+    Number.isFinite(args.providerCostUsd) &&
+    args.providerCostUsd >= 0
+      ? args.providerCostUsd
+      : null;
   return {
     cacheCreationInputTokens: numberOrZero(usage.cacheCreationInputTokens),
     cacheReadInputTokens: numberOrZero(usage.cacheReadInputTokens),
-    estimatedCostUsd: cost?.estimatedCostUsd ?? null,
+    estimatedCostUsd: providerCostUsd ?? cost?.estimatedCostUsd ?? null,
+    ...(args.durationMs !== undefined ? { durationMs: args.durationMs } : {}),
     inputTokens: numberOrZero(usage.inputTokens),
     model: String(args.model || "unknown"),
     outputTokens: numberOrZero(usage.outputTokens),
-    pricingStatus: !hasUsage
-      ? "usage_unavailable"
-      : cost
-        ? "estimated"
-        : "unpriced",
+    pricingStatus:
+      providerCostUsd !== null
+        ? "provider_reported"
+        : !hasUsage
+          ? "usage_unavailable"
+          : cost
+            ? "estimated"
+            : "unpriced",
     processedInputTokens: numberOrZero(usage.totalProcessedInputTokens),
     step: args.step,
     totalTokens: numberOrZero(usage.totalTokens),

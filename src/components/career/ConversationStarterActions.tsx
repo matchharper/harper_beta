@@ -76,7 +76,7 @@ function getStarterDisplayCopy(
     return {
       label: t(
         "career.common.conversation_starters.1sfi8z4",
-        "커리어 고민과 다음 커리어에 대해서 이야기하기"
+        "커리어 상담"
       ),
       labelKey: "career.common.conversation_starters.1sfi8z4",
       shortLabel: t(
@@ -90,7 +90,7 @@ function getStarterDisplayCopy(
   return {
     label: t(
       "career.common.conversation_starters.07qcswd",
-      "더 이야기하고 더 좋은 연결 받기"
+      "더 좋은 연결 받기"
     ),
     labelKey: "career.common.conversation_starters.07qcswd",
     shortLabel: t(
@@ -167,7 +167,7 @@ export function ConversationStarterActions({
     pendingAction?.kind === "open_position_recommendation_request";
   const openPositionRequestLabel = t(
     "career.common.conversation_starters.more_open_positions",
-    "오픈 포지션 더 추천받기"
+    "포지션 더 추천받기"
   );
 
   return (

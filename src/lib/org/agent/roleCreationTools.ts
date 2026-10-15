@@ -1,3 +1,5 @@
+import { formatToolError } from "@/lib/llm/toolError";
+import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
@@ -14,6 +16,7 @@ import {
   fetchRoleCreationState,
   getRoleCreationMissingFields,
   setRoleCreationNotification,
+  summarizeRoleCreationNotificationSettings,
   updateRoleCreationDraft,
   updateRoleCreationConversationMetadata,
 } from "@/lib/org/agent/roleCreationState";
@@ -117,7 +120,7 @@ export const ROLE_CREATION_TOOLS = [
             minItems: 0,
             maxItems: 6,
             description:
-              "Optional high-level evaluation dimensions, only when requested under the shared authoring contract. Omit this field to preserve existing Criteria. Zero to six may be saved; there is no target count. Each dimension must organize confirmed company evidence, not add a screening bar. name is a concise label; criteria explains the supported judgment.",
+              "Independent candidate comparison elements under the shared authoring contract. Author them from known Role facts as part of drafting. Omit this field to preserve existing Criteria during unrelated edits. Storage accepts zero to six elements; authoring is the LLM's responsibility rather than a completion gate. Each element must organize supported evidence, not add a screening bar. name directly identifies the experience, supported seniority range or established background being checked; criteria defines the evidence for that signal.",
             items: {
               type: "object",
               additionalProperties: false,
@@ -214,7 +217,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "set_role_notification",
       description:
-        "Save the Slack channel and primary assignee selected or accepted by the user. For a new draft's final review only, Harper may also save the single available Slack channel and the active current author as transparent defaults; name both defaults clearly and make them easy to change. In that unambiguous-default case, do not stop or ask a separate setup-confirmation question: review this result, then call request_role_creation_confirmation in the same user turn so the final settings and Create role / Keep editing choices arrive together. Omitted fields are preserved.",
+        "Save the Slack channel and primary assignee selected or accepted by the user. Determine that selection and consent from the whole conversation, including contextual acceptance of an earlier proposal and subsequent corrections or withdrawal. Ask only when the intended targets or authorization remain unclear; approval of unrelated settings does not authorize this change. For a new draft's final review only, Harper may also save the single available Slack channel and the active current author as transparent defaults; name both defaults clearly and make them easy to change. In that unambiguous-default case, do not stop or ask a separate setup-confirmation question: review this result, then call request_role_creation_confirmation in the same user turn so the final settings and Create role / Keep editing choices arrive together. Omitted fields are preserved.",
       parameters: {
         type: "object",
         minProperties: 1,
@@ -413,8 +416,9 @@ export async function executeRoleCreationTool(args: {
         { admin: getSupabaseAdmin() as unknown as TalentAdminClient }
       );
     } catch (error) {
+      reportToolDiagnostic(error);
       searchFailed = true;
-      console.warn("[org/agent:role-description-source-research]", error);
+      console.warn("[org/agent:role-description-source-research]", formatToolError(error));
     }
     let otherRoles: Awaited<
       ReturnType<typeof fetchOtherRoleDescriptionReferences>
@@ -422,7 +426,8 @@ export async function executeRoleCreationTool(args: {
     try {
       otherRoles = await fetchOtherRoleDescriptionReferences(args);
     } catch (error) {
-      console.warn("[org/agent:role-description-fallback-roles]", error);
+      reportToolDiagnostic(error);
+      console.warn("[org/agent:role-description-fallback-roles]", formatToolError(error));
     }
     const research = {
       attemptedAt: new Date().toISOString(),
@@ -603,6 +608,7 @@ export async function executeRoleCreationTool(args: {
         ...(editingRegisteredRole
           ? { registeredRole: true }
           : { missingFields: getRoleCreationMissingFields(state) }),
+        notificationSettings: summarizeRoleCreationNotificationSettings(state),
         ok: true,
       },
       updateSummary: "역할 정보를 저장했어요.",
@@ -675,9 +681,7 @@ export async function executeRoleCreationTool(args: {
         ? { channelIds: stringList(args.input.channelIds) }
         : {}),
       roleId: args.roleId,
-      previousAssistantMessage: args.previousAssistantMessage,
       user: args.user,
-      userMessage: args.userMessage,
       workspaceId: args.workspaceId,
     });
     const editingRegisteredRole = state.role.status !== "draft";

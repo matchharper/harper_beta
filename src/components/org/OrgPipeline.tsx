@@ -1,5 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { useOrgSourceT, useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
 import { type DragEvent, type FormEvent, useMemo, useState } from "react";
 import { opsTheme } from "@/components/ops/theme";
@@ -58,7 +58,7 @@ function getCustomStageDbId(stageId: OrgStageId) {
 }
 
 export function OrgPipeline() {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const { board, boardQuery, profileLabelsError, profileLabelsLoading } =
     useOrgJobsBoard();
@@ -260,7 +260,7 @@ export function OrgPipeline() {
     const label = customStageLabel.trim();
     if (!label) {
       setCustomStageError(
-        t("OrgPipeline.6b47dbef", "칼럼 이름을 입력해 주세요.")
+        c("칼럼 이름을 입력해 주세요.", "Enter column name.")
       );
       return;
     }
@@ -288,7 +288,7 @@ export function OrgPipeline() {
       setCustomStageActionError(
         submitError instanceof Error
           ? submitError.message
-          : t("OrgPipeline.73b69cb3", "칼럼을 저장하지 못했습니다.")
+          : c("칼럼을 저장하지 못했습니다.", "Failed to save column.")
       );
     }
   };
@@ -317,7 +317,7 @@ export function OrgPipeline() {
       setCustomStageActionError(
         deleteError instanceof Error
           ? deleteError.message
-          : t("OrgPipeline.50f5036c", "칼럼을 삭제하지 못했습니다.")
+          : c("칼럼을 삭제하지 못했습니다.", "Failed to delete column.")
       );
     }
   };
@@ -453,7 +453,7 @@ export function OrgPipeline() {
       {isLoading ? (
         <div className="flex h-48 items-center justify-center text-[13px] text-neutral-muted">
           <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-          {t("OrgPipeline.97ce8c8a", "불러오는 중")}
+          {c("불러오는 중", "Loading")}
         </div>
       ) : (
         <div
@@ -491,12 +491,12 @@ export function OrgPipeline() {
           if (!deleteCustomStage.isPending) setStageToDelete(null);
         }}
         mobileBottomSheet
-        title={<>{t("OrgPipeline.5bcdc5fb", "칼럼 삭제")}</>}
+        title={<>{c("칼럼 삭제", "Delete column")}</>}
         description={
           <>
-            {t(
-              "composed.deletePipelineColumn",
+            {c(
               "“{stageLabel}” 칼럼을 삭제합니다. 후보자가 남아 있다면 먼저 다른 칼럼으로 이동해 주세요.",
+              "Delete the “{stageLabel}” column? Move any candidates to another column first.",
               {
                 stageLabel: stageToDelete?.label ?? "",
               }
@@ -513,7 +513,7 @@ export function OrgPipeline() {
               size="md"
               type="button"
             >
-              {t("OrgPipeline.15403e87", "취소")}
+              {c("취소", "Cancel")}
             </MuteButton>
             <MuteButton
               disabled={deleteCustomStage.isPending}
@@ -525,7 +525,7 @@ export function OrgPipeline() {
               {deleteCustomStage.isPending ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
-              {t("OrgPipeline.5a1f1bb5", "삭제")}
+              {c("삭제", "Delete")}
             </MuteButton>
           </div>
         }
@@ -642,9 +642,9 @@ export function OrgPipeline() {
           });
           setCompanyIntroRequest(null);
           addToast({
-            message: t(
-              "OrgPipeline.996bc47c",
-              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다."
+            message: c(
+              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
+              "Started preparing an offer for the candidate. After sending, wait for the candidate's response."
             ),
             variant: "success",
           });
@@ -668,9 +668,9 @@ export function OrgPipeline() {
           });
           setCompanyIntroPass(null);
           addToast({
-            message: t(
-              "OrgPipeline.ddb7afc1",
-              "후보자에게 제안하지 않고 목록에서 제외했습니다."
+            message: c(
+              "후보자에게 제안하지 않고 목록에서 제외했습니다.",
+              "Removed candidate from list without offering."
             ),
             variant: "success",
           });

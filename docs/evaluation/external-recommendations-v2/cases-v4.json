@@ -1,0 +1,240 @@
+{
+  "version": "v4",
+  "provenance": "Synthetic strong-blocker boundary challenge. New candidate and roles derived only from v2 synthetic company context; no production data. Prior v1/v2/v3 are unchanged.",
+  "batches": [
+    {
+      "userContext": {
+        "profile": {
+          "headline": "Backend engineer",
+          "experiences": [
+            {
+              "role": "Backend engineer",
+              "company_name": "Synthetic Software Company",
+              "description": "Six years building production Python APIs and PostgreSQL services. Independently owns services and sometimes mentors peers. No executive, organizational leadership, clinical, or medical-licensure experience. No Java or Kafka production experience."
+            }
+          ]
+        },
+        "search_brief": [
+          {
+            "ref": 1,
+            "label": "Direction",
+            "content": "백엔드가 가장 익숙하지만 인접한 데이터 플랫폼 업무도 검토할 수 있어요. 직함이나 몇 년 차를 정확히 맞출 필요는 없고, 기술 스택은 배울 수 있어요."
+          },
+          {
+            "ref": 2,
+            "label": "Working conditions",
+            "content": "한국에서 원격으로만 일할 수 있어요. 해외 이주는 불가능하고 출근은 할 수 없어요. 야간이나 주말 당직도 할 수 없습니다."
+          },
+          {
+            "ref": 3,
+            "label": "Compensation",
+            "content": "기본 연봉 9천만 원 미만은 불가능합니다. 공고에 연봉이 없으면 먼저 확인해볼 수는 있어요."
+          }
+        ],
+        "behavior_context": "Tentative pattern: often reads backend posts more than adjacent data roles. This is not an exclusion of other job families."
+      },
+      "roles": [
+        {
+          "caseId": "strong-compatible",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000301",
+            "role_name": "Backend Engineer",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Build Python APIs and PostgreSQL services. Requires five years of production backend experience.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000301",
+            "company_name": "Synthetic Constraint Company 301",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        },
+        {
+          "caseId": "ordinary-adjacent-role",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000302",
+            "role_name": "Data Platform Engineer",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Build Python ingestion APIs, data transformation jobs and PostgreSQL analytical data services. Individual contributor; four years of relevant software engineering. Some data modeling is new to the candidate.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000302",
+            "company_name": "Synthetic Constraint Company 302",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        },
+        {
+          "caseId": "ordinary-seniority-gap",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000303",
+            "role_name": "Senior Backend Engineer",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Build and independently own Python APIs and PostgreSQL services; mentor peers. Eight or more years of backend experience requested. Individual contributor, no management responsibility.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000303",
+            "company_name": "Synthetic Constraint Company 303",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": "8+ years"
+          }
+        },
+        {
+          "caseId": "ordinary-technology-gap",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000304",
+            "role_name": "Backend Engineer - Java Kafka",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Develop production backend services with Java and Kafka. Requires relevant backend experience; these technologies are used daily. Individual contributor with peer onboarding.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000304",
+            "company_name": "Synthetic Constraint Company 304",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        },
+        {
+          "caseId": "unknown-compensation",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000305",
+            "role_name": "Backend Engineer",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Build Python APIs and PostgreSQL services. Requires five years of relevant production backend experience. Salary is not published and is discussed in the first call.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000305",
+            "company_name": "Synthetic Constraint Company 305",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": null,
+            "salary_max": null,
+            "salary_currency": null,
+            "salary_period": null,
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        },
+        {
+          "caseId": "hard-onsite",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000306",
+            "role_name": "Backend Engineer",
+            "description": "Full-time onsite attendance in Seoul five days per week is compulsory. Remote work is unavailable. Weekday daytime only, no on-call. Build Python APIs and PostgreSQL services; five years of backend experience.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000306",
+            "company_name": "Synthetic Constraint Company 306",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "onsite",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        },
+        {
+          "caseId": "hard-schedule",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000307",
+            "role_name": "Backend Engineer",
+            "description": "Fully remote from South Korea. Build Python APIs and PostgreSQL services; five years of experience. Mandatory rotating overnight and weekend incident response, with no opt-out.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000307",
+            "company_name": "Synthetic Constraint Company 307",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        },
+        {
+          "caseId": "hard-compensation",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000308",
+            "role_name": "Backend Engineer",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Build Python APIs and PostgreSQL services; five years of backend experience. Fixed annual base salary range KRW 65–75 million, with no flexibility above the range.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000308",
+            "company_name": "Synthetic Constraint Company 308",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 65000000,
+            "salary_max": 75000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        },
+        {
+          "caseId": "extreme-responsibility-gap",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000309",
+            "role_name": "Executive Vice President of Engineering",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Lead a 2,000-engineer organization with multiple VPs, own a large global engineering budget, board-level strategy and acquisitions. Requires 25 years of industry experience including 15 years leading executive organizations of this scale. This is an executive appointment, with no junior or individual-contributor scope.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000309",
+            "company_name": "Synthetic Constraint Company 309",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": "25+ years"
+          }
+        },
+        {
+          "caseId": "hard-essential-credential",
+          "row": {
+            "role_id": "00000000-0000-4000-8000-000000000310",
+            "role_name": "Licensed Physician",
+            "description": "Fully remote from South Korea, no office attendance or relocation. Daytime weekdays only, no night/weekend on-call. Personally diagnose and treat patients in a licensed clinical practice. Holding a current physician license is an essential prerequisite before starting; this is not a software role and the employer offers no alternative or training route to licensure.",
+            "company_workspace_id": "00000000-0000-4000-9000-000000000310",
+            "company_name": "Synthetic Constraint Company 310",
+            "company_description": "A 2,000-person product company. The engineering team has documented production distributed-systems expertise, regular technical reviews, and effective mentorship. Its product has growing recurring revenue and strong customer retention; the company is profitable and has funding for this hiring budget.",
+            "salary_min": 100000000,
+            "salary_max": 130000000,
+            "salary_currency": "KRW",
+            "salary_period": "year",
+            "source_type": "external",
+            "location_text": "South Korea",
+            "work_mode": "remote",
+            "country_code": "KR",
+            "seniority_level": ""
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,4 @@
-import {
-  useOrgLocale,
-  useOrgSourceT,
-  useOrgT,
-} from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import {
   BriefcaseBusiness,
   ChevronDown,
@@ -90,7 +86,7 @@ function StageCountCell({
   onClick: () => void;
   stageId: OrgStageId;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const borderClassName =
     count > 0
       ? stageId === "process_stopped"
@@ -127,7 +123,7 @@ function StageCountCell({
       </div>
       {stageId === "pending_connection" && count > 0 && (
         <div className="mt-1 text-[12px] font-medium leading-4 text-primary">
-          {t("OrgAllRolesOverview.8ebe08f8", "결정이 필요합니다.")}
+          {c("결정이 필요합니다.", "Decision needed.")}
         </div>
       )}
     </button>
@@ -272,9 +268,8 @@ export function OrgRolesOverview({
   roleActionPending?: boolean;
   roles: OrgRole[];
 }) {
-  const t = useOrgT();
   const sourceT = useOrgSourceT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const [roleStatusFilters, setRoleStatusFilters] = useState<
     RoleStatusFilterValue[]
   >([]);
@@ -302,10 +297,10 @@ export function OrgRolesOverview({
   );
   const selectedStatusLabel =
     selectedStatusOptions.length === 0
-      ? t("OrgAllRolesOverview.f4a3b31e", "Status 전체")
+      ? c("Status 전체", "All statuses")
       : selectedStatusOptions.length === 1
         ? sourceT(selectedStatusOptions[0].label)
-        : t("OrgAllRolesOverview.fb2dd197", "{p0} 외 {p1}", {
+        : c("{p0} 외 {p1}", "{p0} and {p1} more", {
             p0: sourceT(selectedStatusOptions[0].label),
             p1: selectedStatusOptions.length - 1,
           });
@@ -406,7 +401,7 @@ export function OrgRolesOverview({
       <section className="space-y-3 bg-bg-basement p-4">
         <div className="flex items-center justify-between">
           <div className="text-[15px] font-medium text-neutral-primary">
-            {t("OrgAllRolesOverview.d145476b", "Roles")}
+            {c("Roles", "Roles")}
             <span className="ml-2 text-[12px] font-normal text-neutral-muted">
               {hasActiveFilter
                 ? `${filteredRoles.length} / ${roles.length}`
@@ -418,13 +413,16 @@ export function OrgRolesOverview({
         {isLoading ? (
           <div className="flex h-48 items-center justify-center text-[13px] text-neutral-muted">
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-            {t("OrgAllRolesOverview.6883bd4c", "불러오는 중")}
+            {c("불러오는 중", "Loading")}
           </div>
         ) : (
           <div className="space-y-3">
             {filteredRoles.length === 0 ? (
               <div className="flex h-32 items-center justify-center border border-neutral-1000-a05 bg-bg-floating text-[13px] text-neutral-muted">
-                {t("OrgAllRolesOverview.f0fd477e", "조건에 맞는 역할이 없어요.")}
+                {c(
+                  "조건에 맞는 역할이 없어요.",
+                  "No roles match the criteria."
+                )}
               </div>
             ) : null}
             {filteredRoles.map((role) => {
@@ -469,7 +467,7 @@ export function OrgRolesOverview({
                     </div>
                     <div className="flex flex-wrap items-center justify-start gap-1.5">
                       <RoleMetaChip>
-                        {t("OrgAllRolesOverview.00381055", "Updated")}{" "}
+                        {c("Updated", "Updated")}{" "}
                         {formatKstRelativeDate(role.updatedAt, {
                           maxRelativeDays: 365,
                           locale,
@@ -488,11 +486,15 @@ export function OrgRolesOverview({
                         </RoleMetaChip>
                       ) : null}
                       <RoleMetaChip>
-                        {t(totalCount === 1
-                          ? "OrgAllRolesOverview.candidateCountOne"
-                          : "OrgAllRolesOverview.candidateCountOther", "{count}명", {
-                          count: totalCount,
-                        })}
+                        {c(
+                          "{count}명",
+                          totalCount === 1
+                            ? "{count} candidate"
+                            : "{count} candidates",
+                          {
+                            count: totalCount,
+                          }
+                        )}
                       </RoleMetaChip>
                       <RoleStatusBadge status={role.status} />
                     </div>
@@ -501,25 +503,29 @@ export function OrgRolesOverview({
                   {normalizeRoleStatus(role.status) === "draft" ? (
                     <div className="flex min-h-[52px] items-center justify-between gap-4 px-3.5 py-1 text-[13px] text-neutral-muted">
                       <span>
-                        {t("composed.continueDraftRole", "{roleName} 역할 작성을 이어가세요.", {
-                          roleName: role.name,
-                        })}
+                        {c(
+                          "{roleName} 역할 작성을 이어가세요.",
+                          "Continue drafting {roleName}.",
+                          {
+                            roleName: role.name,
+                          }
+                        )}
                       </span>
                       <MuteButton onClick={() => onOpenRole(role)} size="md">
-                        {t("OrgAllRolesOverview.92030972", "이어서 작성")}
+                        {c("이어서 작성", "Continue")}
                       </MuteButton>
                     </div>
                   ) : (
                     <div className="md:hidden">
                       <div className="grid grid-cols-2 border-b border-neutral-1000-a05 bg-bg-weak/45 px-3.5 py-2.5 text-[12px] text-neutral-muted">
                         <div className="flex items-center justify-between border-r border-neutral-1000-a05 pr-3">
-                          <span>{t("OrgAllRolesOverview.3cb12f42", "전체 후보자")}</span>
+                          <span>{c("전체 후보자", "All candidates")}</span>
                           <span className="text-[14px] font-medium text-neutral-primary">
                             {totalCount}
                           </span>
                         </div>
                         <div className="flex items-center justify-between pl-3">
-                          <span>{t("OrgAllRolesOverview.e98387be", "중단")}</span>
+                          <span>{c("중단", "Paused")}</span>
                           <span className="text-[14px] font-medium text-neutral-primary">
                             {counts.get(`${role.roleId}:process_stopped`) ?? 0}
                           </span>
@@ -561,13 +567,13 @@ export function OrgRolesOverview({
                     <div className="hidden min-h-[76px] overflow-x-auto md:flex">
                       <div className="flex w-[116px] shrink-0 flex-col justify-center gap-1.5 border-r border-neutral-1000-a05 px-3 text-[12px] text-neutral-muted">
                         <div className="flex justify-between gap-2">
-                          <span>{t("OrgAllRolesOverview.89a9f675", "총계")}</span>
+                          <span>{c("총계", "Total")}</span>
                           <span className="font-medium text-neutral-primary">
                             {totalCount}
                           </span>
                         </div>
                         <div className="flex justify-between gap-2">
-                          <span>{t("OrgAllRolesOverview.e98387be", "중단")}</span>
+                          <span>{c("중단", "Paused")}</span>
                           <span className="font-medium text-neutral-primary">
                             {counts.get(`${role.roleId}:process_stopped`) ?? 0}
                           </span>

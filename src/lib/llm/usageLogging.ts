@@ -108,9 +108,11 @@ function toNullableNumber(value: unknown): number | null {
 
 function resolvePricingForUsage(
   pricing: LlmModelPricing,
-  usage: LlmTokenUsage
+  usage: LlmTokenUsage,
+  useStandardRates = false
 ) {
   const shouldUseLongContextPricing =
+    !useStandardRates &&
     pricing.longContextThresholdTokens !== undefined &&
     (usage.totalProcessedInputTokens ?? 0) >
       pricing.longContextThresholdTokens;
@@ -209,12 +211,14 @@ export function extractLlmTokenUsage(response: any): LlmTokenUsage {
 export function estimateLlmUsageCost(
   model: string,
   usage: LlmTokenUsage,
-  options: { at?: Date } = {}
+  options: { at?: Date; useStandardRates?: boolean } = {}
 ) {
   const basePricing = getLlmModelPricing(model, options);
   if (!basePricing) return null;
 
-  const pricing = resolvePricingForUsage(basePricing, usage);
+  const pricing = resolvePricingForUsage(
+    basePricing, usage, options.useStandardRates
+  );
   const cacheCreationInputTokens = usage.cacheCreationInputTokens ?? 0;
   const cacheReadInputTokens = usage.cacheReadInputTokens ?? 0;
   const inputTokens = usage.inputTokens ?? 0;
@@ -426,18 +430,86 @@ export function estimateRealtimeLlmUsageCost(
   };
 }
 
-export function logLlmTokenUsage(args: {
+type LlmUsageLogArgs = {
+  durationMs?: number;
   extraEstimatedCostUsd?: number;
   label?: string;
   meta?: Record<string, unknown>;
   model: string;
+  providerCostUsd?: number | null;
   response: any;
-}) {
+};
+
+function validProviderCost(value: unknown) {
+  const cost = toNullableNumber(value);
+  return cost !== null && cost >= 0 ? cost : null;
+}
+
+/** A content-free console receipt for one provider request, including unregistered labels. */
+export function logLlmUsageToConsole(
+  args: LlmUsageLogArgs,
+  options: {
+    usageScope?: "request" | "agent_turn" | "agent_session";
+    sessionId?: string;
+    turnId?: string;
+  } = {}
+) {
+  const usage = extractLlmTokenUsage(args.response);
+  const model = typeof args.response?.model === "string"
+    ? args.response.model : args.model;
+  const aggregate = Boolean(options.usageScope && options.usageScope !== "request");
+  const hasUsage = usage.inputTokens !== null && usage.outputTokens !== null;
+  // Agent aggregates do not reveal each call's context size or cache writes.
+  const cost = hasUsage
+    ? estimateLlmUsageCost(model, usage, { useStandardRates: aggregate })
+    : null;
+  const extra =
+    typeof args.extraEstimatedCostUsd === "number" &&
+    Number.isFinite(args.extraEstimatedCostUsd) ? args.extraEstimatedCostUsd : 0;
+  const context = getLlmUsageContext();
+  const providerCostUsd = validProviderCost(args.providerCostUsd);
+  console.log("[llm-usage]", JSON.stringify({
+    label: args.label ?? "unlabeled",
+    model,
+    configuredModel: args.model,
+    responseId: typeof args.response?.id === "string" ? args.response.id : null,
+    requestId: context?.requestId ?? null,
+    conversationId: context?.conversationId ?? null,
+    sourceMessageId: context?.sourceMessageId ?? null,
+    usageScope: options.usageScope ?? "request",
+    ...(aggregate
+      ? {
+          aggregation: "cumulative_snapshot_do_not_sum",
+          sessionId: options.sessionId,
+          turnId: options.turnId,
+          costLimitations: [
+            "cache_write_tokens_unavailable", "per_call_context_size_unavailable",
+          ],
+        }
+      : {}),
+    ...usage,
+    ...(args.durationMs !== undefined ? { durationMs: args.durationMs } : {}),
+    costStatus: providerCostUsd !== null ? "provider_reported"
+      : !hasUsage ? "usage_unavailable" : !cost ? "unpriced"
+        : aggregate ? "estimated_partial" : "estimated",
+    estimatedCostUsd: providerCostUsd !== null || cost
+      ? Number(((providerCostUsd ?? cost?.estimatedCostUsd ?? 0) + extra).toFixed(8))
+      : null,
+    extraEstimatedCostUsd: extra,
+    costBreakdown: providerCostUsd !== null
+      ? { source: "provider_reported", estimatedCostUsd: providerCostUsd }
+      : cost,
+  }));
+}
+
+export function logLlmTokenUsage(args: LlmUsageLogArgs) {
+  logLlmUsageToConsole(args);
   if (!args.label) return;
 
   const usage = extractLlmTokenUsage(args.response);
   const pricingModel = resolvePricingModel(args.model, args.response);
-  const cost = estimateLlmUsageCost(pricingModel, usage);
+  const hasUsage = usage.inputTokens !== null && usage.outputTokens !== null;
+  const cost = hasUsage ? estimateLlmUsageCost(pricingModel, usage) : null;
   const extraEstimatedCostUsd =
     typeof args.extraEstimatedCostUsd === "number" &&
     Number.isFinite(args.extraEstimatedCostUsd)
@@ -445,16 +517,21 @@ export function logLlmTokenUsage(args: {
       : 0;
   const target = resolveLlmLogTarget(args.label);
   if (!target) return;
+  const providerCostUsd = validProviderCost(args.providerCostUsd);
   const costStatus =
-    cost || extraEstimatedCostUsd > 0 ? "estimated" : "unpriced";
+    providerCostUsd !== null ? "provider_reported" :
+      cost || extraEstimatedCostUsd > 0 ? "estimated" : "unpriced";
 
   void insertLlmLog({
     costStatus,
-    estimatedCostUsd: (cost?.estimatedCostUsd ?? 0) + extraEstimatedCostUsd,
+    estimatedCostUsd: (providerCostUsd ?? cost?.estimatedCostUsd ?? 0) + extraEstimatedCostUsd,
     meta: {
       ...(args.meta ?? {}),
       ...(extraEstimatedCostUsd > 0 ? { extraEstimatedCostUsd } : {}),
-      costBreakdown: cost ?? { source: "unpriced" },
+      ...(args.durationMs !== undefined ? { durationMs: args.durationMs } : {}),
+      costBreakdown: providerCostUsd !== null
+        ? { source: "provider_reported", estimatedCostUsd: providerCostUsd }
+        : cost ?? { source: "unpriced" },
       costKind: costStatus,
       costStatus,
       label: args.label,
@@ -465,19 +542,6 @@ export function logLlmTokenUsage(args: {
     model: args.model,
     source: target.source,
   });
-  // console.info("[llm-usage]", {
-  //   label: args.label,
-  //   model: args.model,
-  //   cacheCreationInputTokens: usage.cacheCreationInputTokens,
-  //   cacheHit: (usage.cacheReadInputTokens ?? 0) > 0,
-  //   cacheReadInputTokens: usage.cacheReadInputTokens,
-  //   inputTokens: usage.inputTokens,
-  //   outputTokens: usage.outputTokens,
-  //   totalProcessedInputTokens: usage.totalProcessedInputTokens,
-  //   totalTokens: usage.totalTokens,
-  //   estimatedCostUsd: cost?.estimatedCostUsd ?? null,
-  //   costBreakdown: cost,
-  // });
 }
 
 export function logLlmTokenUsageForToolCalls(args: {

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 
 test("role search materializes only ranking fields before FTS", async () => {
   process.env.OPENAI_API_KEY ??= "test-openai-key";
@@ -110,4 +111,37 @@ test("full-JD fit cache changes with the actual user and search context", async 
       plan: { ...plan, searchIntentSummary: "Research roles" },
     })
   );
+});
+
+test("full-JD fit reuses legacy evaluator hashes without ignoring changed evidence", async () => {
+  process.env.OPENAI_API_KEY ??= "test-openai-key";
+  const { fullJdCacheInputFingerprint, fullJdCacheInputMatches } =
+    await import("@/lib/talentOnboarding/jobPostingRecommendations");
+  const input = {
+    fitContextText: "Search Brief: Seoul or remote",
+    plan: {
+      ftsKeywords: [{ terms: ["inference infrastructure"], weight: 5 }],
+      includeContract: false, includeIntern: false, includeParttime: false,
+      includeRemote: true, isPreferEntry: -1 as const, locations: ["Seoul"],
+      postingRecency: null, remoteOnly: false,
+      roleTitles: ["ML Infrastructure Engineer"], searchIntentSummary: "Infrastructure roles",
+    },
+  };
+  const stableUserContext = [input.fitContextText, "[NORMALIZED SEARCH INTENT]",
+    input.plan.searchIntentSummary, "[SEARCH ROLE TITLES]", input.plan.roleTitles.join(", "),
+    "[SEARCH DOMAIN TERMS]", "inference infrastructure"].join("\n");
+  const canonicalHash = createHash("sha256").update(JSON.stringify({ stableUserContext })).digest("hex");
+  assert.equal(fullJdCacheInputFingerprint(input), canonicalHash);
+  assert.ok(fullJdCacheInputMatches({ inputFingerprint: canonicalHash }, input));
+  for (const evaluatorKey of ["beta-full-jd-v1", "another-provider-future-version"]) {
+    const inputFingerprint = createHash("sha256")
+      .update(JSON.stringify({ evaluatorKey, stableUserContext })).digest("hex");
+    const meta = { evaluatorKey, inputFingerprint };
+    assert.ok(fullJdCacheInputMatches(meta, input));
+    assert.equal(fullJdCacheInputMatches(meta, { ...input, fitContextText: "Tokyo only" }), false);
+    assert.equal(fullJdCacheInputMatches(meta, {
+      ...input, plan: { ...input.plan, searchIntentSummary: "Research roles" },
+    }), false);
+  }
+  assert.equal(fullJdCacheInputMatches({}, input), false);
 });

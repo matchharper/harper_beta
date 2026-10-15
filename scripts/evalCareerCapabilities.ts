@@ -123,6 +123,10 @@ async function main() {
     { buildCareerCoachingResultInstruction },
     { formatRelayableCompanyTalentConnections },
     { COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT },
+    { createSimulationSession, mutateSimulationSession },
+    { createPreparation },
+    { applicationSessionToolResult },
+    { askApplicationInput, applicationInputSchema },
   ] = await Promise.all([
     import("@/lib/career/llmTools"),
     import("@/lib/career/capabilities/runtime"),
@@ -137,6 +141,10 @@ async function main() {
     import("@/lib/career/prompts/cases/coachingPrompts"),
     import("@/lib/companyTalentRequests/server"),
     import("@/lib/companyTalentRequests/relayContract"),
+    import("@/lib/career/simulation/session"),
+    import("@/lib/career/simulation/preparation"),
+    import("@/lib/career/simulation/sessionTool"),
+    import("@/lib/career/simulation/applicationInput"),
   ]);
   const model = option("--model") ?? CAREER_LLM_CONFIG.assistant.primaryModel;
   const manifest: any = {
@@ -187,6 +195,11 @@ async function main() {
     "src/lib/llm/usageLogging.ts",
     "src/lib/llm/modelConfig.ts",
     "src/lib/career/llmTools.ts",
+    "src/lib/career/simulation/sessionTool.ts",
+    "src/lib/career/simulation/session.ts",
+    "src/lib/career/simulation/sessionPrompt.ts",
+    "src/lib/career/simulation/preparationPrompt.ts",
+    "src/lib/career/simulation/applicationInput.ts",
     "src/lib/career/promptLocale.ts",
     "src/lib/companyTalentRequests/server.ts",
     "src/lib/companyTalentRequests/relayContract.ts",
@@ -217,16 +230,22 @@ async function main() {
       if (mode !== "full" && mode !== "progressive")
         throw new Error("Invalid mode");
       const expected = gold.cases.find((row: any) => row.id === fixture.id);
-      const selection = resolveCareerChatTools({
+      let application = fixture.activeApplication ? createSimulationSession({roleRef:"job:synthetic-engineer",roleName:"합성 소프트웨어 백엔드 엔지니어",documentId,documentName:"민재_백엔드.pdf"}) : undefined;
+      if(application) {application.analysisStatus="completed";application.preparation=createPreparation();application.activity={version:1,offerId:1,batches:[],outputs:{}};}
+      let profileText = fixture.profileText;
+      const select = () => resolveCareerChatTools({
         channel: "chat",
         isOnboardingDone: true,
         responseLocale: "ko",
         hasActiveGmailIntegration: Boolean(fixture.gmail),
         allowedToolNames: fixture.allowed,
+        simulationActive: application?.status === "active",
       });
+      let selection = select();
+      const stopAfterToolNames = [...selection.stopAfterToolNames];
       const ajv = new Ajv({ strict: false, allErrors: true });
       const validators = new Map(
-        selection.tools.map((tool) => [
+        resolveCareerChatTools({channel:"chat",isOnboardingDone:true}).tools.concat(selection.tools).map((tool) => [
           tool.function.name,
           ajv.compile(tool.function.parameters),
         ])
@@ -317,6 +336,7 @@ async function main() {
         const runtime = new CareerCapabilityRuntime({
           mode,
           eligibleTools: selection.tools,
+          getEligibleTools: () => selection.tools,
           remembered: restoreCareerCapabilityLeases({
             currentCreatedAt: createdAt,
             rows: records.slice(-3).reverse(),
@@ -327,7 +347,8 @@ async function main() {
             profile: null,
             careerCoachingActivity: activity,
             conversationMode:
-              activity?.status === "active" ? "career_coaching" : "default",
+              application?.status === "active" ? "simulation" : activity?.status === "active" ? "career_coaching" : "default",
+            simulationSession: application?.status === "active" ? application : undefined,
             currentPreferences: {
               preferredLocale: "ko",
               profileVisibility: "open_to_matches",
@@ -338,7 +359,7 @@ async function main() {
                 : "available"
               : "not_connected",
             structuredProfileText:
-              fixture.profileText ??
+              profileText ??
               "민재. 합성 소프트웨어 회사의 백엔드 엔지니어. 2023년부터 API 개발 업무. 저장된 Harper 생성 이력서: 민재_백엔드.pdf. 성과 수치는 사용자가 확인해 준 경우만 사용.",
             talentContextSection: contextRows
               ? renderTalentContextPrompt({
@@ -371,14 +392,28 @@ async function main() {
           const call: any = { turnIndex, name, input: structuredClone(input) };
           calls.push(call);
           try {
+            const { _uiStatusMessage, ...data } = input;
             const validate = validators.get(name);
-            if (!validate || !validate(input))
+            if (!validate || !validate(data))
               throw new Error(
                 `Invalid tool input: ${JSON.stringify(validate?.errors)}`
               );
-            const { _uiStatusMessage, ...data } = input;
             let result: any;
-            if (name === "list_documents")
+            if(name === "manage_simulation_session") {
+              if(!application || application.status!=="active") throw new Error("No active fixture application");
+              application = mutateSimulationSession(application,data,100+turnIndex);
+              selection=select();
+              stopAfterToolNames.splice(0,stopAfterToolNames.length,...selection.stopAfterToolNames);
+              result=applicationSessionToolResult(application,String(data.action));
+            }
+            else if(name === "ask_application_input") {
+              if(!application || application.status!=="active") throw new Error("No active fixture application");
+              const question = applicationInputSchema.parse(data);
+              application = askApplicationInput(application,question,`eval:${turnIndex}:${calls.length}`);
+              preparedReply = question.introduction ?? question.items.map(item=>item.title).join("\n");
+              result={ok:true,awaitingUserInput:true};
+            }
+            else if (name === "list_documents")
               result = {
                 documents: [...documents.values()].map((d) => ({
                   id: d.id,
@@ -683,7 +718,10 @@ async function main() {
                 "update_language_setting",
               ].includes(name)
             )
-              result = { ok: true, applied: data };
+              {
+                if(name === "update_talent_profile") profileText = (profileText ?? "민재. 백엔드 엔지니어.") + "\n현재 턴에서 실제 저장된 Profile 변경: " + JSON.stringify(data);
+                result = { ok: true, applied: data };
+              }
             else throw new Error(`No external effect allowed: ${name}`);
             call.result = structuredClone(result);
             return result;
@@ -707,7 +745,7 @@ async function main() {
                 messages: history,
                 responseLocale: "ko",
                 executeTool,
-                stopAfterToolNames: selection.stopAfterToolNames,
+                stopAfterToolNames,
                 usageLabel: "career/chat:capability-evaluation",
               })
           );

@@ -1,0 +1,17 @@
+{
+  "task": "slack-reply-routing",
+  "datasetVersion": "v2",
+  "createdAt": "2026-10-14T17:39:21.158Z",
+  "evaluationUnit": "One shared Slack thread and its latest human message",
+  "caseCount": 14,
+  "inputSha256": "2fc2e9bc3c8d70d8a09a0be0e5f5964d8b991c5830823b5c99462f44d51be13b",
+  "goldSha256": "a3f8a032b58932ce0a507e5282a2bd09ef63f66d8d9f2d713b30fab2b4ef2019",
+  "provenance": "v1 inputs preserved, plus six synthetic boundaries. SRR007 gold corrected to the existing conservative runtime contract before any Jev call.",
+  "labelReview": {
+    "reviewer": "Codex",
+    "reviewedBeforeModelRun": true,
+    "independentHumanReview": false
+  },
+  "canonicalRunner": "scripts/evalSlackReplyRouterLive.ts",
+  "privacyBoundary": "Synthetic only; raw responses are ignored owner-only runs; no database reads/writes or Slack deliveries."
+}

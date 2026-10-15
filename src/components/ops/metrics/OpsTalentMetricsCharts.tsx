@@ -437,7 +437,7 @@ export function OpsTalentMetricsConversionCharts({
       />
       <MetricChart
         data={trend}
-        description="각 기간에 명시적으로 수락·거절된 추천 수와 거절 1건당 수락 건수입니다. 거절이 0건인 기간에는 비율선을 표시하지 않습니다."
+        description="회색 선은 각 기간에 추천한 전체 공고 수로, 미응답을 포함하며 같은 공고를 여러 후보자에게 추천하면 각각 집계합니다. 수락·거절은 결정한 시점 기준입니다. 왼쪽 축은 건수, 오른쪽 축은 거절 1건당 수락 건수이며, 거절이 0건인 기간에는 비율선을 표시하지 않습니다."
         rightAxisFormatter={formatAcceptRejectRatio}
         series={[
           {
@@ -451,6 +451,13 @@ export function OpsTalentMetricsConversionCharts({
             key: "recommendationRejectedCount",
             label: "거절",
             type: "bar",
+          },
+          {
+            color: "var(--color-neutral-600)",
+            formatter: (value) => `${value.toLocaleString("ko-KR")}건`,
+            key: "recommendationCount",
+            label: "전체 추천 공고 수",
+            type: "line",
           },
           {
             axis: "right",

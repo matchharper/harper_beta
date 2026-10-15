@@ -1,3 +1,5 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
@@ -13,16 +15,13 @@ import { OrgSection, OrgSectionHeader } from "../workspace/OrgSection";
 import {
   BILLING_SUPPORT_HREF,
   isEndedBillingSlot,
-  formatBillingMoney,
   type BillingSlot,
   type BillingSummary,
 } from "@/lib/org/billing/types";
 
 export function BillingSubscriptionOverview({
   summary,
-  locale,
   busy,
-  date,
   canAssign,
   onAddSlot,
   onCredits,
@@ -32,9 +31,7 @@ export function BillingSubscriptionOverview({
   onPortal,
 }: {
   summary: BillingSummary;
-  locale: "ko" | "en";
   busy: boolean;
-  date: (value: string | null, time?: boolean) => string;
   canAssign: boolean;
   onAddSlot: () => void;
   onCredits: () => void;
@@ -43,7 +40,8 @@ export function BillingSubscriptionOverview({
   onResume: (slot: BillingSlot) => void;
   onAssign: (slot: BillingSlot) => void;
 }) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { c } = useOrgLocale();
+  const { date, formatBillingMoney } = useOrgBillingFormat();
   const paid = summary.slots.filter((a) => a.active);
   const slots = summary.slots.filter((a) => !isEndedBillingSlot(a));
   const ended = summary.slots.filter((a) => !slots.includes(a));
@@ -83,8 +81,8 @@ export function BillingSubscriptionOverview({
             </p>
             <p className="mt-1 text-neutral-muted">
               {c(
-                "결제를 완료하면 해당 슬롯의 이용과 크레딧이 다시 시작돼요.",
-                "Complete the payment to restore that slot’s access and credits."
+                "결제를 완료하면 해당 슬롯을 다시 이용할 수 있고 Intro도 제공돼요.",
+                "Complete the payment to restore access to that slot and receive its Intros."
               )}
             </p>
           </div>
@@ -135,8 +133,8 @@ export function BillingSubscriptionOverview({
           <div className="sm:px-6">
             <dt className="text-[12px] text-neutral-muted">
               {paid.length
-                ? c("슬롯당 월 크레딧", "Monthly credits per slot")
-                : c("월 공용 크레딧", "Monthly shared credits")}
+                ? c("슬롯당 월 Intro", "Monthly Intros per slot")
+                : c("월 공용 Intro", "Monthly shared Intros")}
             </dt>
             <dd className="mt-2 text-[22px] font-medium tabular-nums">
               {unlimited ? "∞" : legacy ? "—" : paid.length ? 50 : 10}
@@ -218,11 +216,7 @@ export function BillingSubscriptionOverview({
                     : c("월간", "Monthly")}
                   {slot.recurringAmount != null && slot.currency && (
                     <p className="mt-1 text-[12px] tabular-nums text-neutral-muted">
-                      {formatBillingMoney(
-                        slot.recurringAmount,
-                        slot.currency,
-                        locale
-                      )}
+                      {formatBillingMoney(slot.recurringAmount, slot.currency)}
                     </p>
                   )}
                 </div>
@@ -337,8 +331,8 @@ export function BillingSubscriptionOverview({
             </p>
             <p className="mt-1 text-neutral-muted">
               {c(
-                "Enterprise는 채용 수와 크레딧 제한 없이 함께해요.",
-                "Enterprise includes unlimited active Roles and credits."
+                "Enterprise는 채용 수와 Intro 제한 없이 함께해요.",
+                "Enterprise includes unlimited active Roles and Intros."
               )}
             </p>
           </div>

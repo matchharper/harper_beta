@@ -1,0 +1,8 @@
+{
+  "version": "runtime-v2",
+  "frozenBeforeSuccessfulRun": true,
+  "owned_fixture": { "noReceiptBeforeApproval": true, "rejectForgedScope": true, "receiptCount": 1, "duplicateApprovalWithoutResubmission": true, "fileByteIdentity": true, "retainedInputAfterWait": true },
+  "ashby_demo": { "selectedFilename": "Harper Test Resume.pdf", "submit": false, "thirdPartyWriteApproval": false },
+  "all": { "executorModelTurns": 0, "openaiHostedBrowserOnly": true, "providerCleanup404": true, "privateEncryptedTemporaryResultsCleaned": true },
+  "limitations": "Demo filename selection does not establish that the ATS uploaded or accepted the file; unknown/multi-request transmissions stay approval-gated. No live applicant data."
+}

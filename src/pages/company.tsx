@@ -12,7 +12,6 @@ import {
   Check,
   CheckCircle2,
   CircleHelp,
-  Github,
   HelpCircle,
   Lightbulb,
   LucideLink,
@@ -181,7 +180,7 @@ const COMPANY_PAGE_COPY = {
       requestCard: {
         title: "원하는 인재에 대해 자세히 알려주세요.",
         description:
-          "역할명보다 팀 상황, 기술적 요구사항, 충족되어야 하는 내부적 기준을 전부 알려주세요. Harper가 후보자와 직접 대화해 정보를 얻고, 메일로 소개합니다.",
+          "역할명보다 팀 상황, 기술적 요구사항, 충족되어야 하는 내부적 기준을 전부 알려주세요. Harper가 후보자와 직접 대화해 정보를 얻고, 연결합니다.",
       },
       verifiedCard: {
         title: "이미 대화하고 검증한 인재만 연결합니다.",

@@ -1,0 +1,38 @@
+{
+  "datasetVersion": "v4-users",
+  "goldVersion": "v4-users-1",
+  "frozenBeforePaidCalls": true,
+  "reviewer": "Codex source-context review; independent human labels unavailable",
+  "unit": "actual user context -> one planner output -> two SQL lists",
+  "common": [
+    "No recommendations, defaults, Brief, Memory, fit, messages or salary written by the evaluation",
+    "Same generated plan and country eligibility across salary weights",
+    "At most 500 active external non-test roles, excluding prior recommendations and blocked companies",
+    "Unknown salary is eligible; predictions are not true-salary gold",
+    "Financial target is inferred only for soft ranking, never stored as a user fact"
+  ],
+  "cases": [
+    {
+      "caseId": "user-1",
+      "salary": "A tentative positive salary expectation is permitted; absence of a numeric floor and equity/impact tradeoffs must not become a hard cutoff",
+      "direction": "Product-owning senior AI individual contribution, domestic-first direction; original Brief and Behavior are authoritative",
+      "geography": "Domestic emphasis, no invented existing foreign work authorization"
+    },
+    {
+      "caseId": "user-2",
+      "salary": "A locally grounded Japan-market salary target converted into KRW is permitted; no explicit numeric minimum",
+      "direction": "General software engineering beyond an infrastructure-only search; clear ownership",
+      "geography": "Japan-oriented search; posting country is not proof of language or work eligibility; hybrid/remote preference needs final-role verification"
+    },
+    {
+      "caseId": "user-3",
+      "salary": "targetSalaryKrw must be null: user explicitly accepts any compensation when sponsorship is offered and withdrew the prior minimum",
+      "direction": "Customer-facing deployment/solutions engineering supported by data engineering background",
+      "geography": "Australia-oriented exploration; sponsorship remains unverified by initial SQL, not assumed true"
+    }
+  ],
+  "limitations": [
+    "Three purpose samples, one planner call each; not a calibrated minimum-pay gold set",
+    "Company/JD facts and inferred salary do not establish user interest, fit or an offer"
+  ]
+}

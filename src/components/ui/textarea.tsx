@@ -35,7 +35,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 
       textarea.style.height = "auto";
       textarea.style.height = `${textarea.scrollHeight}px`;
-      textarea.style.overflowY = "hidden";
+      textarea.style.overflowY = textarea.scrollHeight > textarea.clientHeight ? "auto" : "hidden";
     }, [autoResize, props.value]);
 
     return (

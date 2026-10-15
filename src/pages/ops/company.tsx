@@ -13,10 +13,10 @@ import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import OpsShell from "@/components/ops/OpsShell";
 import { cx, opsTheme } from "@/components/ops/theme";
 import { showToast } from "@/components/toast/toast";
-import { BareButton } from "@/components/ui/button";
+import { BareButton, MuteButton } from "@/components/ui/button";
 import { Input as UiInput } from "@/components/ui/input";
 import { TabBoxes } from "@/components/ui/tab-boxes";
-import { Tooltips } from "@/components/ui/tooltip";
+import { Tooltips, ResponsiveLightTooltip } from "@/components/ui/tooltip";
 import {
   OPS_COMPANY_ACTIVITY_PAGE_SIZE,
   useOpsCompanyActivity,
@@ -269,34 +269,31 @@ function activityAccentClassName(kind: OpsCompanyActivityItem["kind"]) {
 
 function ActivityRow({ item }: { item: OpsCompanyActivityItem }) {
   return (
-    <div className="grid grid-cols-[12px_minmax(0,1fr)_120px] items-start gap-3 border-b border-neutral-1000-a05 px-3 py-3 last:border-b-0 max-md:grid-cols-[12px_minmax(0,1fr)]">
-      <span
-        className={cx(
-          "mt-1 h-2.5 w-2.5 rounded-full",
-          activityAccentClassName(item.kind)
-        )}
-      />
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="min-w-0 text-sm font-medium text-neutral-primary">
+    <ResponsiveLightTooltip
+      className="border-b border-neutral-1000-a05 last:border-b-0"
+      triggerClassName="flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left"
+      mobileAriaLabel="활동 상세"
+      trigger={
+        <>
+          <span
+            aria-hidden
+            className={cx("h-2 w-2 shrink-0 rounded-full", activityAccentClassName(item.kind))}
+          />
+          <span className="min-w-0 flex-1 truncate text-sm text-neutral-primary">
             {item.title}
-          </div>
-          {item.meta ? (
-            <span className="shrink-0 rounded-md bg-bg-weak px-2 py-0.5 text-[11px] text-neutral-muted">
-              {item.meta}
-            </span>
-          ) : null}
-        </div>
-        {item.subtitle ? (
-          <div className="mt-1 line-clamp-2 text-xs leading-5 text-neutral-muted">
-            {item.subtitle}
-          </div>
-        ) : null}
+          </span>
+          <time dateTime={item.occurredAt} className="shrink-0 whitespace-nowrap text-xs text-neutral-muted">
+            {formatKstRelativeDate(item.occurredAt)}
+          </time>
+        </>
+      }
+    >
+      <div className="space-y-2">
+        <div className="font-medium">{item.title}</div>
+        {item.subtitle ? <div>{item.subtitle}</div> : null}
+        <div className="text-xs text-neutral-muted">{formatUpdatedAt(item.occurredAt)}</div>
       </div>
-      <div className="text-right text-xs text-neutral-muted max-md:hidden">
-        {formatUpdatedAt(item.occurredAt)}
-      </div>
-    </div>
+    </ResponsiveLightTooltip>
   );
 }
 
@@ -316,7 +313,6 @@ export default function OpsCompanyPage() {
   );
   const [memberSearch, setMemberSearch] = useState("");
   const [appliedMemberSearch, setAppliedMemberSearch] = useState("");
-  const [isWorkspaceSearchOpen, setIsWorkspaceSearchOpen] = useState(false);
 
   const catalog = useOpsOpportunityCatalogController({
     canFetchInternal,
@@ -459,36 +455,6 @@ export default function OpsCompanyPage() {
         title="Company Ops"
         actions={
           <div className="flex items-center gap-2">
-            <form
-              className="flex items-center gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!isWorkspaceSearchOpen) {
-                  setIsWorkspaceSearchOpen(true);
-                  return;
-                }
-                catalog.onWorkspaceSearchSubmit();
-              }}
-            >
-              {isWorkspaceSearchOpen ? (
-                <UiInput
-                  autoFocus
-                  value={catalog.workspaceSearch}
-                  onChange={(event) =>
-                    catalog.onWorkspaceSearchChange(event.target.value)
-                  }
-                  placeholder="회사명 검색"
-                  className="h-10 w-48 sm:w-64"
-                />
-              ) : null}
-              <BareButton
-                aria-label="회사명 검색"
-                className={cx(opsTheme.buttonSecondary, "h-10 w-10")}
-                type="submit"
-              >
-                <Search className="h-4 w-4" />
-              </BareButton>
-            </form>
             <BareButton
               type="button"
               onClick={handleRefresh}
@@ -529,6 +495,28 @@ export default function OpsCompanyPage() {
                   </div>
                 ) : null}
               </div>
+
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  catalog.onWorkspaceSearchSubmit();
+                }}
+              >
+                <UiInput
+                  type="search"
+                  aria-label="회사명 검색"
+                  value={catalog.workspaceSearch}
+                  onChange={(event) =>
+                    catalog.onWorkspaceSearchChange(event.target.value)
+                  }
+                  placeholder="회사명 검색"
+                  className="min-w-0 flex-1"
+                />
+                <MuteButton aria-label="회사 검색" type="submit">
+                  <Search className="h-4 w-4" />
+                </MuteButton>
+              </form>
 
               <div className="space-y-2">
                 {catalog.catalogLoading ? (

@@ -1,0 +1,90 @@
+import "server-only";
+import type { TalentAdminClient } from "../talentOnboarding/admin";
+import { EXPERIMENT } from "../externalRecommendationsV2/contract";
+import { EXTERNAL_MEASUREMENT_VERSION } from "../externalRecommendationsV2/measurement";
+import type {
+  ExternalExperimentRun,
+  ExternalExperimentRecommendation,
+  ExternalExperimentReceipt,
+  ExternalSurface,
+} from "./externalRecommendationExperiment";
+
+const METRIC_KEYS = [
+  "measurementVersion",
+  "retrievalMs",
+  "salaryFillMs",
+  "scoringMs",
+  "rerankMs",
+  "externalWorkerCostRecords",
+  "scoringUnknownCostAttempts",
+] as const;
+type RunProjection = Omit<ExternalExperimentRun, "metrics"> &
+  Record<(typeof METRIC_KEYS)[number], unknown>;
+
+// Read only; never run models/searches while refreshing the dashboard.
+async function pages<T>(query: () => any): Promise<T[]> {
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await query().range(offset, offset + 999);
+    if (error) throw new Error(`외부 추천 실험 조회 실패: ${error.message}`);
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < 1000) return rows;
+  }
+}
+export async function fetchExternalExperimentRows(
+  admin: TalentAdminClient,
+  start: string,
+  end: string,
+  surface: ExternalSurface
+) {
+  const projectedRuns = await pages<RunProjection>(() =>
+    (admin.from("external_recommendation_runs" as never) as any)
+      .select(
+        "id,talent_id,experiment,variant,surface,status,created_at,finished_at," +
+          METRIC_KEYS.map((key) => `${key}:metrics->${key}`).join(",")
+      )
+      .eq("experiment", EXPERIMENT)
+      .eq("surface", surface)
+      .gte("created_at", start)
+      .lte("created_at", end)
+      .order("id")
+  );
+  const runs: ExternalExperimentRun[] = projectedRuns.map((row) => ({
+    ...row,
+    metrics: Object.fromEntries(METRIC_KEYS.map((key) => [key, row[key]])),
+  }));
+  const ids = runs
+    .filter(
+      (r) => r.metrics.measurementVersion === EXTERNAL_MEASUREMENT_VERSION
+    )
+    .map((r) => r.id);
+  const recommendations: ExternalExperimentRecommendation[] = [];
+  const receipts: ExternalExperimentReceipt[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const [recPage, costPage] = await Promise.all([
+      pages<ExternalExperimentRecommendation>(() =>
+        admin
+          .from("talent_opportunity_recommendation")
+          .select(
+            "id,talent_id,external_experiment_run_id,recommended_at,clicked_at,viewed_at,feedback,feedback_at"
+          )
+          .in("external_experiment_run_id", chunk)
+          .lte("recommended_at", end)
+          .order("id")
+      ),
+      pages<ExternalExperimentReceipt>(() =>
+        admin
+          .from("llm_logs")
+          .select("request_id:meta->>requestId,estimated_cost_usd,cost_status")
+          .in("meta->>requestId", chunk)
+          .gte("created_at", start)
+          .lte("created_at", end)
+          .order("id")
+      ),
+    ]);
+    recommendations.push(...recPage);
+    receipts.push(...costPage);
+  }
+  return { runs, recommendations, receipts };
+}

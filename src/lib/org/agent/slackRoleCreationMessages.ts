@@ -26,11 +26,11 @@ export function buildSlackRoleCreationStartMessage(args: {
 }) {
   const title = escapeSlackText(args.roleTitle);
   return [
-    `*${title} 역할 작성을 시작했어요*`,
+    `*${title} 채용을 위한 준비를 시작했어요.*`,
     "",
     "방금 대화에서 받은 내용을 이 스레드로 옮겼어요. 아직 초안이며, Harper가 역할 설명과 팀에서 중요하게 보는 기준을 정리하고 있어요.",
     "",
-    `이 스레드에서 정보를 더 보내거나 <${args.webUrl}|웹에서 계속 작성하기>를 선택할 수 있어요.`,
+    `이 스레드에서 정보를 알려주시거나 <${args.webUrl}|웹에서 계속 작성하기>를 선택할 수 있어요.`,
   ].join("\n");
 }
 

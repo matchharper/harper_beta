@@ -1,0 +1,8 @@
+{
+  "version": "v1",
+  "cases": [
+    {"id": "ashby_demo", "url": "https://www.ashbyhq.com/job-board-embed-examples/application-form-only", "submit": false},
+    {"id": "owned_fixture", "url": "http://127.0.0.1:8765/application", "submit": true}
+  ],
+  "resume": {"name": "Harper Test Resume.pdf", "generator": "scripts/agents_api_application_probe.py:synthetic_resume_pdf"}
+}

@@ -157,6 +157,30 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/ab-tests",
       },
       {
+        description: "Jev로 외부 역할과 후보자의 양방향 관심·적합도 테스트",
+        href: "/ops/debugging/external-fit",
+        label: "External Fit Lab",
+        matchPrefix: "/ops/debugging/external-fit",
+      },
+      {
+        description: "텍스트와 역할 제목의 임베딩 유사도 검색",
+        href: "/ops/debugging/job-search-sql",
+        label: "제목 유사도 검색",
+        matchPrefix: "/ops/debugging/job-search-sql",
+      },
+      {
+        description: "사용자를 선택해 초기 공고 검색 목록 확인",
+        href: "/ops/debugging/external-search",
+        label: "사용자별 공고 검색",
+        matchPrefix: "/ops/debugging/external-search",
+      },
+      {
+        description: "역할을 선택해 연봉 추정 실행",
+        href: "/ops/debugging/role-salary",
+        label: "연봉 추정",
+        matchPrefix: "/ops/debugging/role-salary",
+      },
+      {
         description: "company_workspace score와 quality label",
         href: "/ops/companies",
         label: "회사 관리",

@@ -19,6 +19,10 @@ import type {
 } from "@/lib/org/server";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOrgWorkspaceStore } from "@/store/useOrgWorkspaceStore";
+import {
+  isAdditionalOrgCreator,
+  isOrgOnboardingComplete,
+} from "@/lib/org/signup";
 
 function getQueryText(value: string | string[] | undefined) {
   return typeof value === "string" ? value.trim() : "";
@@ -98,8 +102,8 @@ export function useOrgWorkspaceController({
   const workspace = bootstrap?.workspace ?? null;
   const currentUser = bootstrap?.currentUser ?? null;
   const permissions = useMemo(
-    () => getOrgPermissions(currentUser?.authority),
-    [currentUser?.authority]
+    () => getOrgPermissions(currentUser?.authority, currentUser?.accessScope),
+    [currentUser?.authority, currentUser?.accessScope]
   );
   const internalOpsAccess = isInternalDomainEmail(user?.email);
   const roles = useMemo(() => bootstrap?.roles ?? [], [bootstrap?.roles]);
@@ -146,9 +150,10 @@ export function useOrgWorkspaceController({
       return;
     }
     if (
-      !internalOpsAccess &&
+      (!internalOpsAccess ||
+        isAdditionalOrgCreator(workspace.signupState, user.id)) &&
       currentUser &&
-      !currentUser.onboardingCompletedAt &&
+      !isOrgOnboardingComplete(workspace.signupState, currentUser, user.id) &&
       page !== "onboarding"
     ) {
       const params = new URLSearchParams({

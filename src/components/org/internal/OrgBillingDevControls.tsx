@@ -31,8 +31,7 @@ export function OrgBillingDevControls({
 }: {
   workspaceId: string;
 }) {
-  const { locale } = useOrgLocale();
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { locale, c } = useOrgLocale();
   const { available, preview, setPreview, userId } =
     useOrgBillingPreview(workspaceId);
   const inputId = useId();
@@ -127,7 +126,7 @@ export function OrgBillingDevControls({
           }
         />
         <PreviewSelect
-          label={c("남은 크레딧", "Credit balance")}
+          label={c("남은 Intro", "Intro balance")}
           value={preview?.credits ?? "full"}
           options={[
             { value: "full", label: c("전부 남음", "Full") },
@@ -216,7 +215,6 @@ export function OrgBillingDevControls({
         </div>
         {preview && preview.slotCount > 0 && (
           <BillingIntervalTabs
-            locale={locale}
             value={preview.interval}
             onChange={(interval) => select(preview.slotCount, interval)}
           />
@@ -228,8 +226,8 @@ export function OrgBillingDevControls({
       >
         {preview
           ? c(
-              `${preview.slotCount === 0 ? "Free · 공용 10크레딧" : `유료 슬롯 ${preview.slotCount}개`} 미리보기 중이에요.`,
-              `Previewing ${preview.slotCount === 0 ? "Free · 10 shared credits" : `${preview.slotCount} paid ${preview.slotCount === 1 ? "slot" : "slots"}`}.`
+              `${preview.slotCount === 0 ? "Free · 공용 10 Intro" : `유료 슬롯 ${preview.slotCount}개`} 미리보기 중이에요.`,
+              `Previewing ${preview.slotCount === 0 ? "Free · 10 shared Intros" : `${preview.slotCount} paid ${preview.slotCount === 1 ? "slot" : "slots"}`}.`
             )
           : c("실제 플랜을 표시하고 있어요.", "Showing the actual plan.")}{" "}
         {c(
@@ -297,8 +295,7 @@ export function OrgBillingPreviewNotice({
   workspaceId: string;
   onRestore?: () => void;
 }) {
-  const { locale } = useOrgLocale();
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { c } = useOrgLocale();
   const { preview, setPreview } = useOrgBillingPreview(workspaceId);
   if (!preview) return null;
   return (

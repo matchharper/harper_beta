@@ -1,5 +1,13 @@
 import { OrgWorkspaceApp } from "@/components/org/workspace/OrgWorkspaceApp";
-import { OrgInboxPage } from "@/components/org/workspace/pages/OrgInboxPage";
+import dynamic from "next/dynamic";
+import { OrgPageLoading } from "@/components/org/workspace/OrgPageLoading";
+const OrgInboxPage = dynamic(
+  () =>
+    import("@/components/org/workspace/pages/OrgInboxPage").then(
+      (module) => module.OrgInboxPage
+    ),
+  { loading: () => <OrgPageLoading page="inbox" /> }
+);
 
 export default function OrgInboxRoute() {
   return (

@@ -1,0 +1,57 @@
+{
+  "datasetVersion": "role-criteria-v1",
+  "frozenAt": "2026-10-15",
+  "provenance": "Synthetic cases authored from the requested mandatory, proactive comparison-criteria contract; no production records copied.",
+  "state": {
+    "assigneeUserIds": [],
+    "channels": [{ "channelId": "channel-a", "channelName": "hiring", "enabled": true }, { "channelId": "channel-b", "channelName": "team", "enabled": true }],
+    "currentUser": { "userId": "user-a", "name": "김민수", "email": "minsu@example.com" },
+    "members": [{ "userId": "user-a", "name": "김민수", "email": "minsu@example.com" }],
+    "metadata": { "phase": "collecting", "scope": "role_creation", "confirmedSlackChannelIds": [], "confirmedAssigneeUserId": null },
+    "role": {
+      "roleId": "role-a", "name": "Sales Associate", "status": "draft",
+      "description": "B2B 고객을 발굴하고 계약을 체결하는 영업 실무 역할입니다. B2B 영업 경험이 필요합니다.",
+      "request": "## Hard constraints\n- B2B 영업 경험\n## Preferred criteria\n- 고객과 직접 문제를 확인해 계약까지 이어간 경험은 우대",
+      "criteria": [], "locationText": "서울", "workMode": "onsite", "employmentTypes": ["full_time"], "salaryRange": null, "memory": null
+    },
+    "workspace": { "companyName": "합성회사", "pitch": "기업 고객을 위한 서비스를 만듭니다.", "request": null, "relatedLinks": [] }
+  },
+  "cases": [
+    {
+      "id": "RC01", "surface": "chat",
+      "stateOverrides": {
+        "role": { "name": "Investment Associate", "description": "스타트업 투자 검토와 실사를 맡습니다. 관련 경력 3~6년의 실무자를 찾습니다.", "request": "## Hard constraints\n- 투자 검토와 실사 경험\n## Preferred criteria\n- 관련 경력 3~6년을 선호하되 범위 밖도 검토\n- VC 투자 경험과 MBB·주요 글로벌 IB 이력은 각각 독립적인 가산점이며 필수는 아님" },
+        "workspace": { "companyName": "합성투자사", "pitch": "초기 스타트업에 투자합니다." }
+      },
+      "history": [{ "role": "assistant", "content": "근무 조건 외에 선호하는 경력이나 배경이 있나요?" }, { "role": "user", "content": "관련 경력 3~6년을 선호해요. VC 투자 경험과 MBB나 주요 글로벌 IB 이력은 각각 가산점이지 필수는 아니에요." }],
+      "message": "네, 그게 저희 생각이에요. 알림 설정은 나중에 하고 다른 얘기 이어가죠.",
+      "expectedCriteria": "authored", "expectedSelection": null, "expectedConfirmationRequests": 0
+    },
+    {
+      "id": "RC02", "surface": "slack",
+      "stateOverrides": {
+        "role": { "name": "Communications Specialist", "description": "보도자료와 뉴스레터를 직접 작성하고 파트너 행사를 운영합니다. 대외 커뮤니케이션 경험이 필요합니다.", "request": "## Hard constraints\n- 대외 커뮤니케이션 경험\n## Preferred criteria\n- 파트너 행사 기획·운영 경험은 우대\n- 학교나 회사 인지도는 평가하지 않음" }
+      },
+      "history": [{ "role": "assistant", "content": "공고 외의 선호나 피하고 싶은 배경이 있나요?" }, { "role": "user", "content": "행사를 직접 운영한 경험이 있으면 좋지만 꼭 있어야 하지는 않아요. 학교나 유명 회사 출신 여부는 상관없어요." }],
+      "message": "지금까지 내용은 맞아요. 연봉은 나중에 정하고 계속 진행해 주세요.",
+      "expectedCriteria": "authored", "expectedSelection": null, "expectedConfirmationRequests": 0
+    },
+    {
+      "id": "RC03", "surface": "chat",
+      "stateOverrides": {
+        "assigneeUserIds": ["user-a"],
+        "metadata": { "confirmedSlackChannelIds": ["channel-a"], "confirmedAssigneeUserId": "user-a" }
+      },
+      "history": [{ "role": "assistant", "content": "공고 밖에 선호나 피하고 싶은 점이 있나요?" }, { "role": "user", "content": "고객과 직접 문제를 확인해 계약까지 이어간 경험이면 좋아요. 다른 조건은 없어요." }, { "role": "assistant", "content": "기준점으로 삼을 참고 인물이나 배경이 있을까요?" }, { "role": "user", "content": "없어요. 연봉도 나중에요. 알림은 hiring, 담당자는 저로 확정해요." }],
+      "message": "지금까지 내용으로 등록 확인 단계까지 진행해 주세요.",
+      "expectedCriteria": "authored", "expectedSelection": null, "expectedConfirmationRequests": 1
+    },
+    {
+      "id": "RC04", "surface": "chat",
+      "stateOverrides": { "role": { "status": "active" } },
+      "history": [], "message": "이 역할의 근무 지역을 서울에서 부산으로 바꿔 주세요.",
+      "expectedCriteria": "preserved", "expectedSelection": null, "expectedConfirmationRequests": 0,
+      "expectedRoleFields": { "locationText": "부산" }
+    }
+  ]
+}

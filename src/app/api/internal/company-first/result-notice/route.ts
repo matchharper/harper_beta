@@ -13,14 +13,13 @@ import {
   requireInternalWorkerSecret,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import { generateOrgAgentBackgroundResultReply } from "@/lib/org/agent/chat";
+import { enqueueCompanyUpdate } from "@/lib/org/agent/companyUpdate.server";
 import {
   parseBackgroundResultParts,
   type BackgroundResultPart,
 } from "@/lib/org/agent/backgroundResultParts";
 import {
   ensureOrgRoleCreationConversation,
-  insertOrgAgentMessage,
   type OrgAgentConversationRow,
 } from "@/lib/org/agent/store";
 import type { OrgAgentMessageMetadata } from "@/lib/org/agent/types";
@@ -36,6 +35,7 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 function text(value: unknown, maxLength = 4_000) {
@@ -252,13 +252,11 @@ async function deliverRunNotice(args: {
       talentId: text(row.talent_id, 100),
     };
   });
-  const workspace = Array.isArray(run.workspace)
-    ? run.workspace[0]
-    : run.workspace;
-  const companyName = text(workspace?.company_name, 300) || "현재 회사";
   const primaryRoleId = roleRows[0]!.id;
   const idempotencyKey = companyRequested
-    ? `company_matching_result:${runId}`
+    ? existingNotice.companyMessageId && !existingNotice.jobId
+      ? `company_matching_result:${runId}`
+      : `company_matching_result:${runId}:${primaryRoleId}`
     : `company_matching_capacity_notice:${runId}:${primaryRoleId}`;
   const metadata: OrgAgentMessageMetadata = {
     companyMatchingSearchResult: { idempotencyKey, runId },
@@ -314,7 +312,7 @@ async function deliverRunNotice(args: {
     : undefined;
   let model = text(existingMessage?.model, 200) || null;
   let companyMessageId = Number(existingMessage?.id) || null;
-  if (!message) {
+  if (!message || existingMessage?.metadata?.webActionJobId) {
     const firstCompanyFirstResultDelivery =
       run.status === "succeeded" &&
       candidates.length > 0 &&
@@ -327,63 +325,34 @@ async function deliverRunNotice(args: {
       candidateOutreachPauses: readCandidateOutreachPauses(runResult),
       requestedByCompany: companyRequested,
     });
-    const scheduledSlot = text(run.scheduled_slot, 100);
-    const recentQuery = (admin.from("company_messages" as any) as any)
-      .select("id, role, content")
-      .eq("conversation_id", conversation.id)
-      .eq("message_type", "chat")
-      .eq("role", "user")
-      .order("id", { ascending: false })
-      .limit(1);
-    const { data: recentRows, error: recentError } = await (scheduledSlot
-      ? recentQuery.lte("created_at", scheduledSlot)
-      : recentQuery);
-    if (recentError) throw recentError;
-    const conversationMessages = (recentRows ?? [])
-      .toReversed()
-      .map((row: any) => ({
-        content: text(row.content, 4_000),
-        role: row.role === "user" ? ("user" as const) : ("assistant" as const),
-      }))
-      .filter((row: { content: string }) => Boolean(row.content));
-    const requestMessage = conversationMessages[0]?.content || "";
-    const generated = await generateOrgAgentBackgroundResultReply({
-      candidateTargets: candidates.map(
-        (candidate: { id: string; name: string; profileUrl: string }) => ({
-          id: candidate.id,
-          name: candidate.name,
-          profileUrl: candidate.profileUrl,
-        })
-      ),
-      companyName,
-      firstCompanyFirstResultDelivery,
-      requestedByCompany: companyRequested,
-      responseLocale: await getOrgWorkspaceLocale(workspaceId, admin),
-      resultText: firstResultContext,
-      roleId: primaryRoleId,
-      roleName: roleNameById.get(primaryRoleId) || "현재 채용",
-      surface: "chat",
-      userMessage:
-        requestMessage ||
-        `현재 채용의 매칭 확인 결과와 연락 제한을 알려주세요.`,
+    const { jobId } = await enqueueCompanyUpdate({
+      workspaceId, roleId: primaryRoleId, eventKey: idempotencyKey,
+      purpose: companyRequested
+        ? "Continue the company's candidate-search request. Explain its verified outcome and complete any still-authorized useful work; propose a concrete next step when helpful."
+        : "Explain the verified restriction on new candidate recommendations and its practical scope in the company's hiring conversation.",
+      facts: {
+        result: firstResultContext,
+        candidateIds,
+        matchingSearchRunId: runId,
+        firstDelivery: firstCompanyFirstResultDelivery,
+      },
+      immediate: true,
     });
-    message = generated.reply;
-    messageParts = generated.parts;
-    if (messageParts)
-      metadata.companyMatchingSearchResult!.parts = messageParts;
-    model = text(generated.model, 200) || null;
-    const stored = await insertOrgAgentMessage({
-      admin,
-      content: message,
-      conversation,
-      messageType: "chat",
-      metadata,
-      model,
-      role: "assistant",
-      roleId: primaryRoleId,
-      userId: null,
-    });
-    companyMessageId = stored.id;
+    const { data: job, error: jobError } = await (admin.from("company_agent_web_action_jobs" as any) as any)
+      .select("status,terminal_message_id").eq("id", jobId).single();
+    if (jobError) throw jobError;
+    const { data: written, error: writtenError } = await (admin.from("company_messages" as any) as any)
+      .select("id,content,model,metadata").eq("id", job.terminal_message_id).single();
+    if (writtenError) throw writtenError;
+    return {
+      message: written.content,
+      notice: {
+        ...existingNotice, jobId, companyMessageId: written.id, model: written.model,
+        deliveredAt: new Date().toISOString(),
+        slackStatus: written.metadata?.contactEventSlackStatus ?? "not_configured",
+        status: written.metadata?.contactEventSlackStatus === "sent" ? "sent" : "not_configured",
+      },
+    };
   }
 
   let slackStatus = text(existingNotice.slackStatus, 40) || "pending";
@@ -524,24 +493,23 @@ export async function POST(req: NextRequest) {
 
     // Scheduled capacity notices are scoped per Role so a channel that opted out
     // of another Role cannot receive that Role's candidates or capacity facts.
-    const scopes = companyRequested
-      ? [roleIds]
-      : roleIds.map((roleId) => [roleId]);
+    // An already started legacy delivery retains its persisted body, receipts
+    // and grouping. New agent-owned deliveries are independently scoped by Role.
+    const priorNotice = record(runResult.companyNotice);
+    const resumeLegacyNotice = companyRequested && Boolean(priorNotice.companyMessageId)
+      && !priorNotice.jobId && !priorNotice.roles;
+    const scopes = resumeLegacyNotice ? [roleIds] : roleIds.map((roleId) => [roleId]);
     const messages: string[] = [];
     for (const [index, scope] of scopes.entries()) {
       const current = record(runResult.companyNotice);
-      const scopedNotice = companyRequested
-        ? current
-        : record(record(current.roles)[scope[0]!]);
+      const scopedNotice = resumeLegacyNotice ? current : record(record(current.roles)[scope[0]!]);
       const persistNotice = async (
         scoped: Record<string, any>,
         complete = false
       ) => {
         const latest = record(runResult.companyNotice);
         const roles = { ...record(latest.roles), [scope[0]!]: scoped };
-        const notice = companyRequested
-          ? scoped
-          : {
+        const notice = resumeLegacyNotice ? scoped : {
               ...latest,
               roles,
               ...(complete ? { deliveredAt: new Date().toISOString() } : {}),

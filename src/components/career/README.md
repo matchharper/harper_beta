@@ -28,14 +28,16 @@
 
 - `CareerWorkspaceNav.tsx`
   - 데스크톱 왼쪽 메인 nav. 상단 AppBar와 오른쪽의 workspace 탭을 대체합니다.
-  - 할 일 / 새 기회 / 내 기회 / 프로필 / 선호 기준을 표시하고,
+  - 할 일 / 새 기회 / 내 기회 / 프로필 / 이력서·링크 / 선호 기준을 표시하고,
     새 기회·내 기회는 기존 history 화면의 `new`·`saved` 목록으로 연결합니다.
+  - 새 기회 배지는 응답 대기 중인 Harper 연결 포지션 수를 우선 표시하며, 없으면
+    아직 열람하지 않은 새 jobs 수를 표시합니다. 99 이상은 `99+`, 0은 숨깁니다.
   - 펼친 너비 244px, 접힌 너비 64px, 행 높이 36px, 메뉴 간격 4px이며,
     선택 상태는 `/org` sidebar를 참고합니다.
     너비·여백은 `aside`, 행 디자인은 `NAV_ITEM_CLASS_NAME`에서 수정합니다.
   - Harper 오른쪽 버튼으로 접고 펼칩니다. 접으면 메뉴 아이콘과 28px 프로필 사진을
     표시하며, 선택한 상태는 `useCareerWorkspaceUiStore.ts`에서 브라우저에 저장합니다.
-  - 정보 탭은 `home | tasks | history | profile | brief | watchlist`이고, 대화는 별도 패널입니다.
+  - 정보 탭은 `home | tasks | history | profile | documents | brief | watchlist`이고, 대화는 별도 패널입니다.
   - 하단의 설정 버튼이 `CareerSettingsModal` 을 엽니다.
   - 하단 사진·이름·이메일은 `CareerProfileMenu.tsx`의 `sidebar` variant입니다.
 
@@ -60,7 +62,7 @@
     최신 4개 회사 로고를 2×2로 표시하고, 추천 확인 버튼은 가장 최근 새 기회 상세로 이동합니다.
     사용자가 직접 추가한 기회와 숨긴 기회는 제외합니다. 피드백·목록 갱신 후 다시 조회합니다.
   - 저장된 개인 링크 수 + 활성 Gmail 연결(1/0)이 1 이하이면 아직 없는 자료의
-    추가를 요청하는 Link2 아이콘과 `/career/profile?profileSection=links` 이동 버튼을 표시합니다.
+    추가를 요청하는 Link2 아이콘과 `/career/documents` 이동 버튼을 표시합니다.
     미저장 초안은 세지 않으며, 링크가 이미 2개 이상이면 Gmail 조회도 생략합니다.
     각 추가 제안만 skeleton을 표시하므로 다른 할 일의 표시를 기다리게 하지 않습니다.
     외부 추천 피드백·자료 보완 항목은 기존 통화·질문 제안 뒤에 항상 마지막으로 표시합니다.
@@ -68,9 +70,16 @@
     `profileLinks=0|1|2`, `gmail=0|1`로 자료 보완 표시 경계를 확인할 수 있습니다.
 
 - `profile/CareerProfileWorkspace.tsx`
-  - `/career/profile`은 구조화 프로필·이력서/링크의 기존 in-page tab shell입니다.
+  - `/career/profile`은 구조화 프로필을 보여주며, 내부 탭은 두지 않습니다.
+  - `/career/documents`는 `view="documents"`로 이력서·링크와 문서 상세를 보여줍니다.
+  - 문서 카드는 모바일 2열, md 이상 3열로 가로 공간을 채웁니다.
+  - 기존 `profileSection=links|connections` 및 문서·콜노트 상세 주소도 새 문서 탭으로 전환합니다.
   - `/career/brief`는 `view="brief"`로 같은 선호 기준·차단 기업 UI를 별도 탭에서 보여줍니다.
   - 기존 `/career/profile?profileSection=brief` 링크는 `/career/brief`로 전환합니다.
+
+- `mobile/CareerMobileNavigationMenu.tsx`
+  - 상단 메뉴 버튼과 펼친 채팅에서 공통으로 쓰는 왼쪽 슬라이드 메뉴입니다.
+  - 공통 Dialog로 포커스·Escape·배경 클릭 닫기를 처리하고 항목 선택 시 메뉴를 닫습니다.
 
 - `CareerSettingsModal.tsx`
   - 데스크톱 왼쪽 하단 또는 모바일 상단의 설정 버튼으로 여는 모달.

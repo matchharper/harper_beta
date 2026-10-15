@@ -1,5 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { OrgLanguageMenu } from "@/components/org/OrgLanguageMenu";
-import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   useLeaveOrgWorkspace,
@@ -72,7 +72,7 @@ function WorkspaceLogo({
   size?: "md" | "sm";
   workspace: OrgWorkspace;
 }) {
-  const t = useOrgT();
+  const { c } = useOrgLocale();
   const className = size === "sm" ? "h-6 w-6 rounded-md" : "h-7 w-7 rounded-md";
 
   if (workspace.logoUrl) {
@@ -80,7 +80,7 @@ function WorkspaceLogo({
     return (
       <Image
         src={workspace.logoUrl}
-        alt={t("OrgAppBar.c636f3b2", "")}
+        alt={c("", "")}
         width={imageSize}
         height={imageSize}
         unoptimized
@@ -155,8 +155,7 @@ export function OrgAppBar({
   workspace: OrgWorkspace;
   workspaces?: OrgWorkspace[];
 }) {
-  const t = useOrgT();
-  const { locale } = useOrgLocale();
+  const { locale, c } = useOrgLocale();
   const router = useRouter();
   const queryClient = useQueryClient();
   const addToast = useToastStore((state) => state.add);
@@ -185,12 +184,12 @@ export function OrgAppBar({
   const leaveWorkspace = useLeaveOrgWorkspace();
   const currentUserName = currentUser?.name || currentUser?.email || "User";
   const slackStatusText = slackStatusQuery.isLoading
-    ? t("OrgAppBar.5815e707", "확인 중")
+    ? c("확인 중", "Verifying")
     : slackStatusQuery.error
-      ? t("OrgAppBar.ebea6b3e", "확인 실패")
+      ? c("확인 실패", "Verification failed")
       : slackStatusQuery.data?.connected
-        ? t("OrgAppBar.46d20264", "연결됨")
-        : t("OrgAppBar.ce25e903", "미연결");
+        ? c("연결됨", "Connected")
+        : c("미연결", "Not connected");
   const addInviteEmails = (values: string[]) => {
     const normalized = values.map(normalizeInviteEmail).filter(Boolean);
     if (normalized.length === 0) return false;
@@ -234,9 +233,9 @@ export function OrgAppBar({
 
     if (nextEmails.length > available) {
       addToast({
-        message: t(
-          "OrgAppBar.57d1e70c",
+        message: c(
           "한 번에 최대 {p0}명까지 초대할 수 있습니다.",
+          "Invite up to {p0} members at once.",
           { p0: MAX_INVITE_EMAILS }
         ),
         variant: "error",
@@ -244,7 +243,7 @@ export function OrgAppBar({
     }
     if (existingMemberEmail) {
       addToast({
-        message: t("OrgAppBar.c7949354", "{p0}은 이미 참여 중입니다.", {
+        message: c("{p0}은 이미 참여 중입니다.", "{p0} is already a member.", {
           p0: existingMemberEmail,
         }),
         variant: "error",
@@ -252,9 +251,9 @@ export function OrgAppBar({
     }
     if (pendingInvitationEmail) {
       addToast({
-        message: t(
-          "OrgAppBar.2f34cd08",
+        message: c(
           "{p0}은 이미 초대 수락을 기다리고 있습니다.",
+          "{p0} is already awaiting invitation acceptance.",
           { p0: pendingInvitationEmail }
         ),
         variant: "error",
@@ -270,11 +269,14 @@ export function OrgAppBar({
     }
     setInviteInputError(
       invalidEmails.length > 0
-        ? t("OrgAppBar.db4bf67e", "{p0}의 형식을 확인해 주세요.", {
+        ? c("{p0}의 형식을 확인해 주세요.", "Check the format for {p0}.", {
             p0: invalidEmails[0],
           })
         : skippedDuplicate
-          ? t("OrgAppBar.99b810e6", "이미 추가한 이메일은 제외했습니다.")
+          ? c(
+              "이미 추가한 이메일은 제외했습니다.",
+              "Already-added emails were excluded."
+            )
           : ""
     );
     return acceptedEmails.length > 0;
@@ -310,7 +312,7 @@ export function OrgAppBar({
     if (tail) {
       if (tail.length > 320 || !EMAIL_PATTERN.test(tail)) {
         setInviteInputError(
-          t("OrgAppBar.8b30f7c6", "이메일 형식을 확인해 주세요.")
+          c("이메일 형식을 확인해 주세요.", "Check the email format.")
         );
         return;
       }
@@ -320,15 +322,17 @@ export function OrgAppBar({
         )
       ) {
         setInviteInputError(
-          t("OrgAppBar.c7949354", "{p0}은 이미 참여 중입니다.", { p0: tail })
+          c("{p0}은 이미 참여 중입니다.", "{p0} is already a member.", {
+            p0: tail,
+          })
         );
         return;
       }
       if (invitations.some((invitation) => invitation.email === tail)) {
         setInviteInputError(
-          t(
-            "OrgAppBar.932217bb",
+          c(
             "{p0}은 이미 수락 대기중입니다. 아래에서 다시 보내기를 이용해 주세요.",
+            "{p0} is already awaiting acceptance. Use Resend below.",
             { p0: tail }
           )
         );
@@ -338,15 +342,15 @@ export function OrgAppBar({
     }
     if (emails.length === 0) {
       setInviteInputError(
-        t("OrgAppBar.2acd6035", "초대할 이메일을 입력해 주세요.")
+        c("초대할 이메일을 입력해 주세요.", "Enter email to invite.")
       );
       return;
     }
     if (emails.length > MAX_INVITE_EMAILS) {
       addToast({
-        message: t(
-          "OrgAppBar.57d1e70c",
+        message: c(
           "한 번에 최대 {p0}명까지 초대할 수 있습니다.",
+          "Invite up to {p0} members at once.",
           { p0: MAX_INVITE_EMAILS }
         ),
         variant: "error",
@@ -371,7 +375,7 @@ export function OrgAppBar({
           failures[result.email] = localizedOrgErrorMessage(
             new Error(result.message),
             locale,
-            t("OrgAppBar.5e25a1ac", "초대 메일을 보내지 못했습니다.")
+            c("초대 메일을 보내지 못했습니다.", "Failed to send invite email.")
           );
         }
       }
@@ -387,27 +391,27 @@ export function OrgAppBar({
 
       if (sentCount > 0) {
         addToast({
-          message: t(
-            "OrgAppBar.dbf7a530",
+          message: c(
             "{p0}명에게 초대 메일을 보냈습니다.",
+            "Sent invitation emails to {p0} members.",
             { p0: sentCount }
           ),
           variant: failedEmails.length > 0 ? "error" : "success",
         });
       } else if (alreadyMemberCount > 0 && failedEmails.length === 0) {
         addToast({
-          message: t(
-            "OrgAppBar.d2b07645",
-            "입력한 이메일은 이미 참여 중입니다."
+          message: c(
+            "입력한 이메일은 이미 참여 중입니다.",
+            "The entered email is already a member."
           ),
           variant: "error",
         });
       }
       if (failedEmails.length > 0 && sentCount === 0) {
         addToast({
-          message: t(
-            "OrgAppBar.33c5cf8b",
-            "초대 메일을 보내지 못했습니다. 다시 시도해 주세요."
+          message: c(
+            "초대 메일을 보내지 못했습니다. 다시 시도해 주세요.",
+            "Failed to send invite email. Try again."
           ),
           variant: "error",
         });
@@ -416,7 +420,7 @@ export function OrgAppBar({
       const message = localizedOrgErrorMessage(
         error,
         locale,
-        t("OrgAppBar.5e25a1ac", "초대 메일을 보내지 못했습니다.")
+        c("초대 메일을 보내지 못했습니다.", "Failed to send invite email.")
       );
       setFailedInviteEmails(
         Object.fromEntries(emails.map((email) => [email, message]))
@@ -441,13 +445,13 @@ export function OrgAppBar({
       ) {
         throw new Error(
           result?.message ||
-            t("OrgAppBar.5e25a1ac", "초대 메일을 보내지 못했습니다.")
+            c("초대 메일을 보내지 못했습니다.", "Failed to send invite email.")
         );
       }
       addToast({
-        message: t(
-          "OrgAppBar.91c2f4c3",
+        message: c(
           "{p0}로 초대 메일을 다시 보냈습니다.",
+          "Resent invitation to {p0}.",
           { p0: email }
         ),
         variant: "success",
@@ -457,7 +461,7 @@ export function OrgAppBar({
         message: localizedOrgErrorMessage(
           error,
           locale,
-          t("OrgAppBar.5e25a1ac", "초대 메일을 보내지 못했습니다.")
+          c("초대 메일을 보내지 못했습니다.", "Failed to send invite email.")
         ),
         variant: "error",
       });
@@ -478,7 +482,10 @@ export function OrgAppBar({
         message: localizedOrgErrorMessage(
           error,
           locale,
-          t("OrgAppBar.b291ae88", "Organization에서 탈퇴하지 못했습니다.")
+          c(
+            "Organization에서 탈퇴하지 못했습니다.",
+            "Failed to leave organization."
+          )
         ),
         variant: "error",
       });
@@ -487,9 +494,13 @@ export function OrgAppBar({
 
     setLeaveDialogOpen(false);
     addToast({
-      message: t("OrgAppBar.12a18675", "{p0} Organization에서 탈퇴했습니다.", {
-        p0: workspace.companyName,
-      }),
+      message: c(
+        "{p0} Organization에서 탈퇴했습니다.",
+        "{p0} left the workspace.",
+        {
+          p0: workspace.companyName,
+        }
+      ),
       variant: "success",
     });
     const nextHref = nextWorkspaceId
@@ -520,9 +531,12 @@ export function OrgAppBar({
     addToast({
       message:
         result === "connected"
-          ? t("OrgAppBar.bb3a2f09", "Slack 채널을 연결했습니다.")
+          ? c("Slack 채널을 연결했습니다.", "Slack channel connected.")
           : message ||
-            t("OrgAppBar.6118ed2a", "Slack 연결을 완료하지 못했습니다."),
+            c(
+              "Slack 연결을 완료하지 못했습니다.",
+              "Failed to complete Slack connection."
+            ),
       variant: result === "connected" ? "success" : "error",
     });
     const nextQuery = { ...router.query };
@@ -533,7 +547,7 @@ export function OrgAppBar({
       undefined,
       { shallow: true }
     );
-  }, [addToast, router, router.query.slack, router.query.slackMessage, t]);
+  }, [addToast, router, router.query.slack, router.query.slackMessage, c]);
 
   return (
     <>
@@ -588,7 +602,7 @@ export function OrgAppBar({
               className="hidden sm:inline-flex border-none bg-black/5"
             >
               <FileText className="h-4 w-4" />
-              {t("OrgAppBar.447339bd", "회사 정보 수정")}
+              {c("회사 정보 수정", "Edit company info")}
             </Button>
             <Button
               type="button"
@@ -598,13 +612,13 @@ export function OrgAppBar({
               className="hidden sm:inline-flex border-none bg-black/5"
             >
               <Users className="h-4 w-4" />
-              {t("OrgAppBar.23fe412b", "워크스페이스 관리")}
+              {c("워크스페이스 관리", "Manage workspace")}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <BareButton
                   type="button"
-                  aria-label={t("OrgAppBar.4171927e", "계정 메뉴")}
+                  aria-label={c("계정 메뉴", "Account menu")}
                   className="flex h-8 w-8 items-center justify-center rounded-md outline-none transition hover:ring-4 hover:ring-neutral-1000-a10 focus-visible:ring-4 focus-visible:ring-neutral-1000-a10"
                 >
                   <UserAvatar member={currentUser} />
@@ -631,11 +645,11 @@ export function OrgAppBar({
                   className="sm:hidden"
                 >
                   <Users className="h-4 w-4" />
-                  {t("OrgAppBar.db08b9a6", "워크스페이스")}
+                  {c("워크스페이스", "Workspace")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setDocsOpen(true)}>
                   <BookOpenText className="h-4 w-4" />
-                  {t("OrgAppBar.9c22d5f4", "Docs")}
+                  {c("Docs", "Docs")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => setSlackOpen(true)}
@@ -644,12 +658,12 @@ export function OrgAppBar({
                   <span className="flex min-w-0 items-center gap-2">
                     <Image
                       src="/images/logos/slack.svg"
-                      alt={t("OrgAppBar.05cfb2ab", "Slack")}
+                      alt={c("Slack", "Slack")}
                       width={16}
                       height={16}
                     />
                     <span className="truncate">
-                      {t("OrgAppBar.91ce0989", "Slack 연결")}
+                      {c("Slack 연결", "Connect Slack")}
                     </span>
                   </span>
                   <span className="shrink-0 text-xs text-neutral-soft">
@@ -668,7 +682,7 @@ export function OrgAppBar({
                   ) : (
                     <LogOut className="h-4 w-4" />
                   )}
-                  {t("OrgAppBar.d2aa9bcd", "로그아웃")}
+                  {c("로그아웃", "Log out")}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   tone="danger"
@@ -676,7 +690,7 @@ export function OrgAppBar({
                   onSelect={() => setLeaveDialogOpen(true)}
                 >
                   <UserMinus className="h-4 w-4" />
-                  {workspace.companyName} {t("OrgAppBar.a6f02166", "탈퇴")}
+                  {workspace.companyName} {c("탈퇴", "Leave")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -688,9 +702,14 @@ export function OrgAppBar({
         open={open}
         onClose={() => setOpen(false)}
         mobileBottomSheet
-        title={<>{t("OrgAppBar.ba94fd43", "팀원 초대")}</>}
+        title={<>{c("팀원 초대", "Invite members")}</>}
         description={
-          <>{t("OrgAppBar.794fa223", "팀원을 워크스페이스에 초대하세요.")}</>
+          <>
+            {c(
+              "팀원을 워크스페이스에 초대하세요.",
+              "Invite team members to the workspace."
+            )}
+          </>
         }
         panelClassName="max-w-xl"
         bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
@@ -708,7 +727,7 @@ export function OrgAppBar({
                 htmlFor="org-invite-email"
                 className="text-[13px] font-medium text-neutral-primary mb-1"
               >
-                {t("OrgAppBar.c5cc79d7", "이메일로 초대 링크 발송")}
+                {c("이메일로 초대 링크 발송", "Send invite link via email")}
               </label>
             </div>
 
@@ -735,7 +754,7 @@ export function OrgAppBar({
                       <span className="max-w-[260px] truncate">{email}</span>
                       <button
                         type="button"
-                        aria-label={t("OrgAppBar.1237091d", "{p0} 제거", {
+                        aria-label={c("{p0} 제거", "Remove {p0}", {
                           p0: email,
                         })}
                         disabled={sendInvitations.isPending}
@@ -784,7 +803,7 @@ export function OrgAppBar({
                   placeholder={
                     inviteEmails.length === 0
                       ? "name@company.com"
-                      : t("OrgAppBar.e7cb82f3", "이메일 추가")
+                      : c("이메일 추가", "Add email")
                   }
                   spellCheck={false}
                   type="text"
@@ -805,8 +824,8 @@ export function OrgAppBar({
                   <LoaderCircle className="h-4 w-4 animate-spin" />
                 ) : null}
                 {sendInvitations.isPending
-                  ? t("OrgAppBar.2d8f3055", "발송 중")
-                  : t("OrgAppBar.f477a11b", "초대하기")}
+                  ? c("발송 중", "Sending")
+                  : c("초대하기", "Invite")}
               </button>
             </div>
             {inviteInputError ? (
@@ -818,9 +837,9 @@ export function OrgAppBar({
               </p>
             ) : Object.keys(failedInviteEmails).length > 0 ? (
               <p className="mt-1.5 text-xs text-critical">
-                {t(
-                  "OrgAppBar.959dc6fb",
-                  "발송하지 못한 주소가 남아 있습니다. 확인 후 다시 시도해 주세요."
+                {c(
+                  "발송하지 못한 주소가 남아 있습니다. 확인 후 다시 시도해 주세요.",
+                  "Some addresses couldn't be sent. Review and try again."
                 )}
               </p>
             ) : null}
@@ -829,29 +848,29 @@ export function OrgAppBar({
           <div className="pt-6">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div className="text-sm font-medium text-neutral-primary">
-                {t("OrgAppBar.993bb22c", "멤버")}
+                {c("멤버", "Members")}
               </div>
               <span className="text-xs text-neutral-soft">
                 {invitations.length > 0
-                  ? t(
+                  ? c(
+                      "{members}명 · 초대 대기 {invites}명",
                       members.length === 1
                         ? invitations.length === 1
-                          ? "composed.memberAndInviteCountOneOne"
-                          : "composed.memberAndInviteCountOneOther"
+                          ? "{members} member · {invites} pending invite"
+                          : "{members} member · {invites} pending invites"
                         : invitations.length === 1
-                          ? "composed.memberAndInviteCountOtherOne"
-                          : "composed.memberAndInviteCountOtherOther",
-                      "{members}명 · 초대 대기 {invites}명",
+                          ? "{members} members · {invites} pending invite"
+                          : "{members} members · {invites} pending invites",
                       {
                         members: members.length,
                         invites: invitations.length,
                       }
                     )
-                  : t(
-                      members.length === 1
-                        ? "composed.memberCountOne"
-                        : "composed.memberCountOther",
+                  : c(
                       "{members}명",
+                      members.length === 1
+                        ? "{members} member"
+                        : "{members} members",
                       { members: members.length }
                     )}
               </span>
@@ -871,12 +890,12 @@ export function OrgAppBar({
                     </div>
                     <div className="mt-0.5 text-xs text-neutral-soft">
                       {formatInvitationDate(invitation.lastSentAt, locale)}{" "}
-                      {t("OrgAppBar.ba27826d", "발송")}
+                      {c("발송", "Sent")}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2.5">
                     <span className="rounded-full bg-bg-weak px-2 py-1 text-[11px] font-normal text-neutral-muted">
-                      {t("OrgAppBar.764702ec", "수락 대기중")}
+                      {c("수락 대기중", "Pending acceptance")}
                     </span>
                     <BareButton
                       type="button"
@@ -885,24 +904,22 @@ export function OrgAppBar({
                       className="text-xs font-medium text-neutral-muted underline-offset-4 transition hover:text-neutral-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {resendingEmail === invitation.email
-                        ? t("OrgAppBar.ea4b0124", "보내는 중")
-                        : t("OrgAppBar.c0d0890a", "다시 보내기")}
+                        ? c("보내는 중", "Sending")
+                        : c("다시 보내기", "Resend")}
                     </BareButton>
                   </div>
                 </div>
               ))}
               {members.map((member) => {
                 const name =
-                  member.name ||
-                  member.email ||
-                  t("OrgAppBar.1d1bdecc", "이름 없음");
+                  member.name || member.email || c("이름 없음", "No name");
                 const roleLabel =
                   member.userId === currentUser?.userId
-                    ? t("OrgAppBar.47e3a0eb", "나")
+                    ? c("나", "Me")
                     : member.authority === "admin" ||
                         member.authority === "owner"
-                      ? t("OrgAppBar.1389dcf6", "관리자")
-                      : t("OrgAppBar.993bb22c", "멤버");
+                      ? c("관리자", "Admin")
+                      : c("멤버", "Members");
                 return (
                   <div
                     key={member.userId}
@@ -911,7 +928,7 @@ export function OrgAppBar({
                     {member.profilePicture ? (
                       <Image
                         src={member.profilePicture}
-                        alt={t("OrgAppBar.c636f3b2", "")}
+                        alt={c("", "")}
                         width={28}
                         height={28}
                         unoptimized
@@ -947,13 +964,13 @@ export function OrgAppBar({
           if (!leaveWorkspace.isPending) setLeaveDialogOpen(false);
         }}
         mobileBottomSheet
-        title={<>{t("OrgAppBar.f6a5d0f6", "Organization에서 탈퇴할까요?")}</>}
+        title={<>{c("Organization에서 탈퇴할까요?", "Leave organization?")}</>}
         description={
           <>
             {workspace.companyName}{" "}
-            {t(
-              "OrgAppBar.82c00914",
-              "Workspace에 더 이상 접근할 수 없습니다. Harper 계정과 다른 Workspace는 그대로 유지됩니다."
+            {c(
+              "Workspace에 더 이상 접근할 수 없습니다. Harper 계정과 다른 Workspace는 그대로 유지됩니다.",
+              "Access to this workspace will be removed. Harper account and other Workspaces will remain unchanged."
             )}
           </>
         }
@@ -969,7 +986,7 @@ export function OrgAppBar({
               onClick={() => setLeaveDialogOpen(false)}
               className="font-normal"
             >
-              {t("OrgAppBar.ad054ad6", "취소")}
+              {c("취소", "Cancel")}
             </Button>
             <Button
               type="button"
@@ -982,8 +999,8 @@ export function OrgAppBar({
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
               {leaveWorkspace.isPending
-                ? t("OrgAppBar.c52a0574", "탈퇴하는 중")
-                : t("OrgAppBar.5eefbd11", "탈퇴하기")}
+                ? c("탈퇴하는 중", "Leaving")
+                : c("탈퇴하기", "Leave")}
             </Button>
           </div>
         }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CLAUDE_HAIKU_MODEL,
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
   GPT_61_SOL_MODEL,
@@ -47,15 +48,10 @@ test("uses Sonnet 5.5 by default and maps model-specific reasoning effort", () =
 });
 
 test("ignores a per-request model override without dev-control access", () => {
-  assert.deepEqual(
-    resolveCareerTextChatModelForRequest(OPENROUTER_GLM_53_FLASH_MODEL, false),
-    {
+  for (const model of [CLAUDE_HAIKU_MODEL, OPENROUTER_GLM_53_FLASH_MODEL]) {
+    assert.deepEqual(resolveCareerTextChatModelForRequest(model, false), {
       model: CLAUDE_MODEL,
-    }
-  );
-  assert.equal(
-    resolveCareerTextChatModelForRequest(OPENROUTER_GLM_53_FLASH_MODEL, true)
-      .model,
-    OPENROUTER_GLM_53_FLASH_MODEL
-  );
+    });
+    assert.equal(resolveCareerTextChatModelForRequest(model, true).model, model);
+  }
 });

@@ -1,3 +1,5 @@
+import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
+import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Link from "next/link";
 import { useState } from "react";
 import { Check, ArrowUpRight } from "lucide-react";
@@ -5,13 +7,11 @@ import { BillingIntervalTabs } from "./BillingIntervalTabs";
 import { MuteButton } from "@/components/ui/button";
 import {
   BILLING_SUPPORT_HREF,
-  formatBillingMoney,
   type BillingCatalog,
   type BillingInterval,
 } from "@/lib/org/billing/types";
 
 export function WorkspacePlans({
-  locale,
   catalog,
   onAddSlot,
   onFree,
@@ -20,7 +20,6 @@ export function WorkspacePlans({
   initialInterval = "year",
   contactHref,
 }: {
-  locale: "ko" | "en";
   catalog: BillingCatalog | undefined;
   onAddSlot: (interval: BillingInterval) => void;
   onFree?: () => void;
@@ -29,7 +28,8 @@ export function WorkspacePlans({
   initialInterval?: BillingInterval;
   contactHref?: string;
 }) {
-  const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
+  const { locale, c } = useOrgLocale();
+  const { formatBillingMoney } = useOrgBillingFormat();
   const [interval, setInterval] = useState<BillingInterval>(initialInterval);
   const priceDisplay = {
     minimumFractionDigits: 0,
@@ -41,7 +41,6 @@ export function WorkspacePlans({
       ? formatBillingMoney(
           amount / (interval === "year" ? 12 : 1),
           catalog.currency,
-          locale,
           priceDisplay
         )
       : null;
@@ -52,10 +51,7 @@ export function WorkspacePlans({
       detail: c("이용료 없음", "No monthly fee"),
       features: [
         c("Role 무제한", "Unlimited Roles"),
-        c(
-          "모든 Role이 함께 쓰는 월 10 크레딧",
-          "10 shared credits every month"
-        ),
+        c("모든 Role이 함께 쓰는 월 10 Intro", "10 shared Intros every month"),
         c("Slack 연결 지원", "Slack integration included"),
         c("채용 성공보수 없음", "No hiring success fee"),
       ],
@@ -91,8 +87,8 @@ export function WorkspacePlans({
         price && amount != null && catalog?.currency
           ? interval === "year"
             ? c(
-                `연 ${formatBillingMoney(amount, catalog.currency, locale, priceDisplay)} 일시 결제`,
-                `${formatBillingMoney(amount, catalog.currency, locale, priceDisplay)} billed yearly`
+                `연 ${formatBillingMoney(amount, catalog.currency, priceDisplay)} 일시 결제`,
+                `${formatBillingMoney(amount, catalog.currency, priceDisplay)} billed yearly`
               )
             : c("매월 결제", "Billed monthly")
           : !catalog
@@ -102,18 +98,14 @@ export function WorkspacePlans({
                 "Try again shortly or contact Harper."
               ),
       features: [
+        c("슬롯당 매월 50 Intro", "50 monthly Intros per slot"),
         c(
-          "Role 하나에 유료 기능을 연결",
-          "Paid features for one Role per slot"
-        ),
-        c("슬롯당 매월 50 크레딧", "50 monthly credits per slot"),
-        c(
-          "공용 월 10 크레딧도 계속 제공",
-          "10 shared monthly credits remain included"
+          "공용 월 10 Intro도 계속 제공",
+          "10 shared monthly Intros remain included"
         ),
         c(
-          "Harper가 먼저 후보자를 찾고, 수락한 사람만 연결",
-          "Harper reaches out; connect with interested candidates"
+          "Harper-first 채용: Harper가 먼저 후보자를 찾고, 역할을 소개하고, 수락한 사람만 연결",
+          ""
         ),
         c("Slack 연결 지원", "Slack integration included"),
         c("채용 성공보수 없음", "No hiring success fee"),
@@ -151,8 +143,8 @@ export function WorkspacePlans({
       price: c("문의 요청", "Talk to us"),
       detail: c("별도 협의", "Custom pricing"),
       features: [
-        c("채용 진행 역할 무제한", "Unlimited active roles"),
-        c("크레딧 무제한", "Unlimited credits"),
+        c("채용 진행 역할 수 제한 없음", "Unlimited active roles"),
+        c("무제한 Intro", "Unlimited Intros"),
         c("Harper 팀의 도입 지원", "Onboarding support from Harper"),
       ],
       action: (
@@ -170,7 +162,6 @@ export function WorkspacePlans({
     <div className="space-y-6">
       <div className={compact ? "" : "flex justify-center"}>
         <BillingIntervalTabs
-          locale={locale}
           value={interval}
           onChange={setInterval}
           disabled={busy}
@@ -197,7 +188,7 @@ export function WorkspacePlans({
               className={
                 compact
                   ? "sm:w-1/3"
-                  : `flex min-h-[228px] flex-col px-7 pb-7 pt-8 lg:px-8 ${plan.top}`
+                  : `flex min-h-[180px] flex-col px-7 pb-4 pt-8 lg:px-8 ${plan.top}`
               }
             >
               <h2 className="text-[24px] font-normal tracking-tight">
@@ -207,12 +198,12 @@ export function WorkspacePlans({
                 <p className="flex flex-row items-end gap-2 text-[36px] font-normal leading-tight tracking-tight lg:text-[44px]">
                   {plan.price}
                   {plan.unit && (
-                    <span className="text-[13px] tracking-normal mb-1 font-light text-neutral-muted">
+                    <span className="text-[13px] tracking-normal mb-1 font-normal text-neutral-muted">
                       {plan.unit}
                     </span>
                   )}
                 </p>
-                <p className="mt-2 min-h-10 text-[13px] font-light leading-5 text-neutral-muted">
+                <p className="mt-2 min-h-10 text-[14px] font-normal leading-5 text-neutral-800">
                   {plan.detail}
                 </p>
               </div>
@@ -224,12 +215,12 @@ export function WorkspacePlans({
                   : `flex flex-1 flex-col px-7 py-8 lg:px-8 ${plan.bottom}`
               }
             >
-              <ul className="space-y-2 text-[14px] font-light leading-6 text-neutral-muted lg:text-[15px]">
+              <ul className="space-y-2 text-[14px] font-normal leading-6 text-neutral-muted lg:text-[15px]">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex gap-2.5">
                     <Check
                       aria-hidden
-                      className="mt-1 size-3.5 shrink-0 text-neutral-soft"
+                      className="mt-1 size-3.5 shrink-0 text-neutral-muted"
                     />
                     {feature}
                   </li>
