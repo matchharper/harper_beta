@@ -10,6 +10,7 @@ import {
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
 import { runOrgAgentChat } from "@/lib/org/agent/chat";
+import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
 import { runOrgRoleCreationChat } from "@/lib/org/agent/roleCreationChat";
 import { confirmRoleCreationChoice } from "@/lib/org/agent/roleCreationConfirmation";
 import {
@@ -846,6 +847,14 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           });
         if (activeCandidateWorkflow) {
           routingMode = "candidate_workflow_bypass";
+        } else if (
+          await hasPendingOrgAgentUpdateProposal({
+            admin,
+            scopeKey: `slack:${thread.id}`,
+            workspaceId: channel.company_workspace_id,
+          })
+        ) {
+          routingMode = "pending_update_proposal_bypass";
         } else {
           const routingMessages = await loadSlackReplyRoutingMessages({
             admin,
