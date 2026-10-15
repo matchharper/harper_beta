@@ -27,6 +27,7 @@ import {
   isUnambiguousFinalRoleNotificationDefault,
   validateRoleCreationNotificationConsent,
 } from "@/lib/org/agent/roleCreationConsent";
+import { approvesRoleNotificationProposal } from "@/lib/org/agent/roleCreationConsentJudge";
 import {
   hasCompleteOrgRoleCriteria,
   type OrgRoleCriterion,
@@ -660,7 +661,8 @@ export async function setRoleCreationNotification(
     selectedAssignee,
     selectedChannels,
   } = selection;
-  const consent = validateRoleCreationNotificationConsent({
+  const consent = await validateRoleCreationNotificationConsent({
+    approvesProposal: approvesRoleNotificationProposal,
     previousAssistantMessage: args.previousAssistantMessage,
     targets: [
       ...selectedChannels.map((channel) => ({
@@ -672,6 +674,7 @@ export async function setRoleCreationNotification(
             : []),
         ],
         id: `channel:${channel.channelId}`,
+        kind: "channel" as const,
         label: channel.channelName ?? channel.channelId,
       })),
       ...(selectedAssignee
@@ -685,6 +688,7 @@ export async function setRoleCreationNotification(
                   : []),
               ],
               id: `assignee:${selectedAssignee.userId}`,
+              kind: "assignee" as const,
               label: selectedAssignee.name,
             },
           ]

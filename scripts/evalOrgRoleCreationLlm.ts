@@ -60,6 +60,7 @@ async function main() {
     roleState,
     roleTools,
     { validateRoleCreationNotificationConsent },
+    { approvesRoleNotificationProposal },
   ] = await Promise.all([
     import("../src/lib/llm/llm"),
     import("../src/lib/org/agent/modelConfig"),
@@ -67,6 +68,7 @@ async function main() {
     import("../src/lib/org/agent/roleCreationState"),
     import("../src/lib/org/agent/roleCreationTools"),
     import("../src/lib/org/agent/roleCreationConsent"),
+    import("../src/lib/org/agent/roleCreationConsentJudge"),
   ]);
   const selectedModel = modelConfig.resolveOrgAgentModel(
     modelConfig.DEFAULT_ORG_AGENT_MODEL
@@ -179,7 +181,7 @@ async function main() {
   let confirmationRequested = false;
   let previousAssistantMessage = "";
 
-  const applyTool = (
+  const applyTool = async (
     name: string,
     input: Record<string, unknown>,
     userMessage: string
@@ -223,6 +225,7 @@ async function main() {
               channel.channelId,
             ],
             id: `channel:${channel.channelId}`,
+            kind: "channel" as const,
             label: channel.channelName ?? channel.channelId,
           })),
         ...(assigneeUserId === userId
@@ -230,12 +233,14 @@ async function main() {
               {
                 aliases: ["smoke@example.com", userId, "저로", "제가"],
                 id: `assignee:${userId}`,
+                kind: "assignee" as const,
                 label: "김테스트",
               },
             ]
           : []),
       ];
-      const consent = validateRoleCreationNotificationConsent({
+      const consent = await validateRoleCreationNotificationConsent({
+        approvesProposal: approvesRoleNotificationProposal,
         previousAssistantMessage,
         targets,
         userMessage,
@@ -357,7 +362,7 @@ async function main() {
           name: call.function.name,
           turn: turnIndex + 1,
         });
-        const result = applyTool(call.function.name, input, userMessage);
+        const result = await applyTool(call.function.name, input, userMessage);
         if (record(result).presentationRequired === true) {
           awaitingConfirmationNarrative = true;
         }
