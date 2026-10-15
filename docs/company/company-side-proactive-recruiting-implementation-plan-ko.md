@@ -23,8 +23,12 @@
 - `windowMinutes`: 시작 후 새 점검을 접수하고 실행할 수 있는 시간. 1~1440분이며 실행 간격이 아니다.
 - 생략한 필드는 기본값을 쓴다. 잘못된 값은 오류로 알리며 임의 시각으로 대체하지 않는다.
 
-기존 `COMPANY_PROACTIVE_REVIEW_AUDIENCES`의 대상 회사·채널 설정은 별개로 필요하다.
-시간 설정은 설정된 대상 전체에 공통 적용하며, 회사별 관리자 화면 설정은 아니다.
+활성화된 Slack 채널이 연결된 모든 Workspace를 자동 조회한다. 별도 대상 등록은 필요하지 않으며
+기존 `COMPANY_PROACTIVE_REVIEW_AUDIENCES` 환경변수는 더 이상 사용하지 않는다. Workspace에 활성 채널이
+여러 개면 채널별로 하루 한 번 점검한다. 채널은 페이지를 끝까지 조회하고, 접수 직전에 활성 상태를 다시 확인한다.
+실행 계정은 해당 Workspace의 Owner 중 가입 시각·membership ID 순으로 첫 계정을 선택한다. Owner가 없으면
+건너뛰며, 기존 채널 공유 권한 검사와 실행·발송 단계의 권한 확인은 유지한다.
+시간 설정은 자동 조회한 대상 전체에 공통 적용하며, 회사별 관리자 화면 설정은 아니다.
 환경변수가 실제 실행 프로세스에 반영된 뒤 다음 5분 dispatcher부터 읽는다. 따라서 지정 시각은
 정확한 발송 시각이 아니며, 최근 회사 대화에 따른 연기와 queue 처리·모델 판단에 따라 달라진다.
 5분보다 짧은 실행 창은 점검 주기와 맞지 않으면 실행되지 않을 수 있다. 마감까지 기회가 없으면
@@ -139,12 +143,12 @@ flowchart TD
 
 새 스케줄 인프라나 장기 실행 프로세스를 만들지 않는다. 기존 인증된 dispatch/recovery route에 가벼운 due check를 추가한다. 이 route는 LLM을 직접 실행하지 않고 대상 조회와 기존 job enqueue만 수행한다.
 
-1. 운영 allowlist/feature flag에 들어온 Workspace의 승인된 기본 수신 범위를 구한다.
+1. 활성 Slack 채널이 연결된 모든 Workspace를 자동 조회하고 Owner·채널 공유 권한을 확인한다.
 2. 외부 시간 설정의 실행 창에 해당하는지 계산한다. 기본값은 KST 평일 17:00~19:00이다.
 3. `workspaceId + audienceScopeId + KST date`로 기존 작업 또는 완료 이력을 조회한다.
 4. 실제 대화와 현재 claim으로 실행 가능 시각을 구하고, 검색·전달·최근 발송은 해당 실행 context에 넣는다.
 5. 실행 가능하면 동일 키의 job을 한 번 생성한다. 대기가 필요하면 같은 job의 기존 `next_attempt_at`을 사용한다.
-6. 18:00까지 실행 조건이 맞지 않으면 그날은 종료한다. 다음 날 과거 날짜 작업을 몰아서 만들지 않는다.
+6. 설정된 실행 창의 마감(기본 19:00)까지 실행 조건이 맞지 않으면 그날은 종료한다. 다음 날 과거 날짜 작업을 몰아서 만들지 않는다.
 
 시간대는 초기에는 KST로 고정한다. 미래에 Workspace 시간대를 지원할 때도 시간 계산은 서버가 하고, LLM에는 절대 시각과 경과 시간을 제공한다. LLM에게 예약 날짜 산술을 맡기지 않는다.
 
@@ -595,7 +599,7 @@ Hidden anchor는 idempotency와 도구 원본 식별을 위한 서버 기록이�
 | 메시지 묶음 확정 시각 | 기존 job의 최소 nullable 필드 | 재시도가 LLM을 다시 부르지 않게 함 |
 | 최신 공고 유입 요청 | internal role의 `promotion_demand` JSONB 하나 | 다음 실제 GTM 운영 |
 | 홍보·익명 여부 | 기존 `is_promote`, `is_anonymous` | 회사가 허용한 노출 범위 |
-| 운영 allowlist·초기 실행값 | 기존 운영 feature configuration 패턴 | rollout·중지·기본 시간과 일일 실행 한도 |
+| 실행 대상·시간 | 활성 Slack 채널과 기존 Owner·공유 권한 / 시간 환경변수 | 자동 대상 조회·중지·기본 시간과 일일 실행 한도 |
 
 처음부터 별도 scheduler·message plan·role urgency history·market snapshot·review agenda 테이블을 만들지 않는다. Workspace별 영구적인 시간 설정 UI가 필요해질 때도 기존 운영 설정에 적합한 저장 방법을 선택한다. 사용자별 특수 메시지 상태나 시나리오 enum은 필요하지 않다.
 
@@ -730,7 +734,7 @@ Frozen input/gold와 version·모델·prompt·데이터 출처를 기록한다. 
 
 ## 17. Rollout과 중지
 
-구현 후에는 feature flag/운영 allowlist로 작은 범위를 활성화한다. 처음에는 승인된 수신 채널과 역할 범위가 명확한 internal Workspace 한 곳으로 동작을 관찰한다. 이 문서는 그 활성화나 실제 선제 발송을 승인·실행한 기록이 아니다.
+후속 사용자 요청으로 별도 운영 allowlist 없이 활성 Slack 채널이 연결된 모든 Workspace를 자동 대상으로 삼는다. 기존 Owner·채널 공유 권한 검사와 중복 방지는 유지한다. 이 문서는 배포나 실제 선제 발송을 실행한 기록이 아니다.
 
 운영 출시 순서는 reader·permission·receipt 경계를 먼저 준비하고, optional wake를 켜는 순서다. GTM consumer가 준비되기 전에 promotion tool을 켜지 않는다. 다중 message recovery가 준비되기 전에 모델에 임의 스레드 기능을 약속하지 않는다. Market mapping은 별도 검증 후 켠다.
 
