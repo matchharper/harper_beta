@@ -869,8 +869,12 @@ async function executeRequestMatchingSearch(args: {
     };
   }
 
+  // Only the retrieved likely matches are evaluated, and a search may select
+  // no one, so the fallback promises an outcome notice, not candidates.
   args.state.fallbackReply =
-    "좋아요. 현재 Hiring Brief를 기준으로 전체 후보자를 찾고 있어요. 전체 풀을 평가해서 조금 걸리지만, 끝나는 대로 가장 적합한 분들을 공유할게요.";
+    status === "already_running"
+      ? "현재 Hiring Brief를 기준으로 한 새 후보자 검색이 이미 진행 중이에요. 검색이 끝나면 결과를 따로 알려드릴게요."
+      : "좋아요. 현재 Hiring Brief를 기준으로 새 후보자 검색을 요청했어요. 검색이 끝나면 결과를 따로 알려드릴게요.";
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
