@@ -1,5 +1,7 @@
 # Company-side Harper 선제적 채용 업무 구현 계획
 
+> 2026-10-16 운영 반영: beta `d30ff764`가 운영에 배포되어 정기 선제 검토를 다시 활성화했다. 활성 Slack 채널·현재 권한·운영 `COMPANY_PROACTIVE_REVIEW_SCHEDULE`에 따라 실행하며, 아래 기본 시간은 운영 설정을 덮어쓰지 않는다. 개별 메시지 발송 여부는 실행 기록으로 확인한다. 아래 로컬·미배포 표기는 작성 당시 이력이다.
+
 - 문서 기준: 2026-10-15
 - 상태: 정기 실행 enqueue, 원본 company-side Sol/high와 전체 도구, 공고 유입 요청, Slack 메시지 묶음·역할별 스레드와 전달 복구를 로컬 구현했다. 운영 DB migration·설정 활성화·실제 발송·배포는 수행하지 않았다. 본문은 최초 설계의 이력을 포함하며 현재 구현·검증 범위는 [후속 완료 기록](../evaluation/company-side-conversational-qa/reports/2026-10-15-proactive-completion.md)이 우선한다.
 - 목표: 기존 company-side LLM이 회사의 현재 채용 상황과 실제 대화를 주기적으로 확인하고, 도움이 되는 일을 수행하거나 구체적인 제안을 하며, 필요가 없으면 아무 메시지도 보내지 않는다.
