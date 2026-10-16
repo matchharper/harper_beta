@@ -29,8 +29,8 @@ test("role creation history returns web and Slack messages from one conversation
   );
   assert.equal(
     slackEvents.match(/roleId: conversationRoleId/g)?.length,
-    2,
-    "both stored thread-event paths must preserve the Slack thread role after activation"
+    4,
+    "every stored thread-event path must preserve the Slack thread role after activation"
   );
 });
 

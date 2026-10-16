@@ -1,6 +1,9 @@
 import "server-only";
 
-import { storeHarperSlackThreadEvent } from "@/lib/org/slackHarper";
+import {
+  storeHarperSlackThreadEvent,
+  storeOtherSlackBotThreadEvent,
+} from "@/lib/org/slackHarper";
 import {
   buildHarperSlackFileFallbackPrompt,
   compactHarperSlackFilesForQueue,
@@ -8,7 +11,11 @@ import {
 } from "@/lib/org/slackFiles";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { resolveDraftRoleCreationForSlackThread } from "@/lib/org/agent/slackRoleCreation";
-import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
+import {
+  isOtherSlackBotMessage,
+  mentionsOnlyOtherSlackMembers,
+  stripSlackSentUsingAttribution,
+} from "@/lib/org/slackMessageText";
 
 export type SlackEventEnvelope = {
   api_app_id?: string;
@@ -53,7 +60,13 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
 
   if (!event || !eventId || !teamId || !channelId || !messageTs)
     return { ignored: "missing_fields" };
-  if (event.bot_id || (event.subtype && event.subtype !== "file_share")) {
+  // Other apps' messages are recorded below but never start a Harper turn.
+  const isBotEvent = Boolean(event.bot_id) || event.subtype === "bot_message";
+  if (
+    event.subtype &&
+    event.subtype !== "file_share" &&
+    event.subtype !== "bot_message"
+  ) {
     return { ignored: "bot_or_subtype" };
   }
 
@@ -78,12 +91,19 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
     .maybeSingle();
   if (integrationError) throw integrationError;
   if (!integration) return { ignored: "installation_not_found" };
+  if (
+    isBotEvent &&
+    !isOtherSlackBotMessage(event, clean(integration.slack_bot_user_id))
+  ) {
+    return { ignored: "bot_or_subtype" };
+  }
 
   const threadTs = clean(event.thread_ts || event.ts);
   const isMention = event.type === "app_mention";
   let triggerKind: "mention" | "thread_reply";
   let thread: Record<string, any> | null = null;
   if (
+    !isBotEvent &&
     event.type === "message" &&
     clean(event.text).includes(`<@${integration.slack_bot_user_id}>`)
   ) {
@@ -120,6 +140,20 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
   // conversation as soon as the role is no longer a draft.
   const conversationRoleId =
     draftRoleCreation?.roleId || clean(thread?.role_id) || null;
+
+  if (isBotEvent) {
+    if (!thread || event.type !== "message") return { ignored: "other_bot" };
+    await storeOtherSlackBotThreadEvent({
+      content: prompt,
+      roleId: conversationRoleId,
+      slackBotId: clean(event.bot_id) || null,
+      slackMessageTs: messageTs,
+      slackUserId: clean(event.user) || null,
+      threadId: thread.id,
+      workspaceId: integration.company_workspace_id,
+    });
+    return { ignored: "other_bot", stored: true };
+  }
 
   if (isMention) {
     triggerKind = "mention";
@@ -161,6 +195,23 @@ export async function queueHarperSlackEvent(envelope: SlackEventEnvelope) {
     (channel.reply_to_harper_threads || draftRoleCreation)
   ) {
     if (!thread?.created_by_harper) return { ignored: "unmanaged_thread" };
+    // A reply that mentions only other people or bots is addressed to them.
+    if (
+      mentionsOnlyOtherSlackMembers(
+        event.text,
+        clean(integration.slack_bot_user_id)
+      )
+    ) {
+      await storeHarperSlackThreadEvent({
+        content: prompt,
+        roleId: conversationRoleId,
+        slackMessageTs: messageTs,
+        slackUserId: clean(event.user) || null,
+        threadId: thread.id,
+        workspaceId: integration.company_workspace_id,
+      });
+      return { ignored: "addressed_to_other_member", stored: true };
+    }
     triggerKind = "thread_reply";
   } else if (event.type === "message" && event.thread_ts && thread) {
     await storeHarperSlackThreadEvent({

@@ -19,6 +19,7 @@ import type {
 import {
   fetchActiveOrgAgentRetainedDataActivations,
   fetchRecentOrgAgentPromptMessages,
+  fetchRecentOtherSlackAppPromptMessages,
   fetchRecentOrgAgentSummaries,
   fetchWorkspaceForOrgAgent,
 } from "@/lib/org/agent/store";
@@ -100,6 +101,9 @@ export const DEFAULT_ROLE_INDEX_MAX_CHARS = 10_000;
 export const RECENT_CONVERSATION_MESSAGE_LIMIT = 24;
 export const CONVERSATION_MESSAGE_MAX_CHARS = 6_000;
 export const CONVERSATION_CONTEXT_MAX_CHARS = 50_000;
+export const OTHER_SLACK_APP_MESSAGE_LIMIT = 5;
+export const OTHER_SLACK_APP_MESSAGE_MAX_CHARS = 2_000;
+const OTHER_SLACK_APP_SPEAKER = "Other Slack app";
 export {
   enforceOrgAgentContextBudget,
   formatRecentRecommendations,
@@ -297,10 +301,13 @@ function formatRoles(
 
 export function formatOrgAgentConversation(
   page: Awaited<ReturnType<typeof fetchRecentOrgAgentPromptMessages>>,
-  slackThreadId: string | null
+  slackThreadId: string | null,
+  otherSlackAppMessages: Awaited<
+    ReturnType<typeof fetchRecentOtherSlackAppPromptMessages>
+  > = []
 ) {
   const messages = page.messages.filter((message) => message.role === "user" || message.role === "assistant");
-  if (messages.length === 0) {
+  if (messages.length === 0 && otherSlackAppMessages.length === 0) {
     return { conversationText: slackThreadId
       ? `scope=current_thread thread_id=${slackThreadId} returned_items=0 has_more=false`
       : "-", conversationMessages: [] as OrgAgentConversationInput[], conversationHistoryInfo: { hasMore: page.hasMore, threadId: slackThreadId, returnedItems: 0 } };
@@ -412,12 +419,53 @@ export function formatOrgAgentConversation(
     };
   });
 
+  // Other Slack apps' messages are placed by Slack time and quoted as
+  // evidence. They are never company user turns.
+  const timeline: Array<{
+    cells: Array<string | null>;
+    id: number;
+    native: OrgAgentConversationInput;
+  }> = [...rows];
+  const oldestShownAt = page.hasMore
+    ? Date.parse(rows[0]?.native.createdAt ?? "")
+    : Number.NEGATIVE_INFINITY;
+  for (const message of otherSlackAppMessages) {
+    const postedAt = Date.parse(message.createdAt);
+    if (!Number.isFinite(postedAt) || postedAt < oldestShownAt) continue;
+    const content = clipPromptText(
+      message.content,
+      OTHER_SLACK_APP_MESSAGE_MAX_CHARS
+    );
+    const appName = clipPromptText(message.metadata.slackUserName, 80);
+    const references = appName ? `slack_app=${appName}` : "";
+    const next = timeline.findIndex(
+      (row) => Date.parse(row.native.createdAt ?? "") > postedAt
+    );
+    timeline.splice(next < 0 ? timeline.length : next, 0, {
+      cells: [OTHER_SLACK_APP_SPEAKER, references || null, content],
+      id: message.id,
+      native: {
+        id: message.id,
+        createdAt: message.createdAt,
+        role: "user",
+        content,
+        speaker: OTHER_SLACK_APP_SPEAKER,
+        references,
+        toolNames: [],
+        source: "other_slack_app",
+        complete:
+          String(message.content ?? "").trim().length <=
+          OTHER_SLACK_APP_MESSAGE_MAX_CHARS,
+      },
+    });
+  }
+
   // Keep newest turns when several messages are long. Older durable facts are
   // retained by the conversation summary.
-  const selected: typeof rows = [];
+  const selected: typeof timeline = [];
   let totalChars = 0;
-  for (let index = rows.length - 1; index >= 0; index -= 1) {
-    const row = rows[index]!;
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const row = timeline[index]!;
     const rowChars = row.cells.reduce<number>(
       (sum, value) => sum + String(value ?? "").length,
       0
@@ -432,7 +480,7 @@ export function formatOrgAgentConversation(
   }
   const conversationMessages = selected.map((row) => row.native);
   const table = conversationCompatibilityText(conversationMessages);
-  const hasMore = page.hasMore || selected.length < messages.length;
+  const hasMore = page.hasMore || selected.length < timeline.length;
   const conversationHistoryInfo = { hasMore, threadId: slackThreadId, returnedItems: selected.length };
   if (!slackThreadId) return { conversationText: table, conversationMessages, conversationHistoryInfo };
   const pageMetadata = `scope=current_thread thread_id=${slackThreadId} returned_items=${selected.length} has_more=${hasMore}`;
@@ -570,6 +618,7 @@ export async function buildOrgAgentPromptContext(args: {
     contactSummary,
     pendingUpdate,
     matchingRuns,
+    otherSlackAppMessages,
   ] = await Promise.all([
     fetchOrgAgentRoles({ admin: args.admin, user: args.user, workspaceId }),
     fetchOrgAgentWorkspaceAvailability({ admin: args.admin, workspace }),
@@ -634,6 +683,21 @@ export async function buildOrgAgentPromptContext(args: {
     optionalContext({fallback:null,label:"matching_runs",
       onError:()=>notes.push("matching run history unavailable; do not infer that no searches ran"),
       task:()=>readMatchingRunHistory({admin:args.admin,workspaceId,user:args.user,limit:5})}),
+    // Only a company user's Slack turn can refer to another app's message.
+    scope.kind === "slack" && currentUserMessageId
+      ? optionalContext({
+          fallback: [],
+          label: "other_slack_app_messages",
+          task: () =>
+            fetchRecentOtherSlackAppPromptMessages({
+              admin: args.admin,
+              currentUserMessageId,
+              limit: OTHER_SLACK_APP_MESSAGE_LIMIT,
+              slackThreadId: scope.slackThreadId,
+              workspaceId,
+            }),
+        })
+      : Promise.resolve([]),
   ]);
   const inProgressRoleCreationsText =
     scope.kind === "slack"
@@ -753,7 +817,8 @@ export async function buildOrgAgentPromptContext(args: {
     contextNotesText: [...notes, ...(matchingRuns ? [formatMatchingRunHistory(matchingRuns)] : [])].join("\n\n") || "-",
     ...formatOrgAgentConversation(
       messages,
-      scope.kind === "slack" ? scope.slackThreadId : null
+      scope.kind === "slack" ? scope.slackThreadId : null,
+      otherSlackAppMessages
     ),
     defaultLongTextObservations,
     inProgressRoleCreationsText,

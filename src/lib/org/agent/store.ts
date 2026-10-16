@@ -32,7 +32,10 @@ import {
   mergeOrgAgentMessageMetadata,
   resolveAdoptableSlackUserMessageIdentity,
 } from "@/lib/org/agent/messageIdempotency";
-import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
+import {
+  OTHER_SLACK_BOT_MESSAGE_TYPE,
+  stripSlackSentUsingAttribution,
+} from "@/lib/org/slackMessageText";
 
 export {
   isOrgAgentRetainedDataActivationActive,
@@ -948,6 +951,63 @@ export async function fetchRecentOrgAgentSlackThreadPromptMessages(args: {
     messages: selected.reverse().map(toPromptMessageView),
     nextCursor: null,
   };
+}
+
+/**
+ * Other Slack apps' messages in one thread, posted no later than the current
+ * company user message (by Slack time, since sync can store them late).
+ */
+export async function fetchRecentOtherSlackAppPromptMessages(args: {
+  admin: SupabaseAdminClient;
+  currentUserMessageId: number;
+  limit: number;
+  slackThreadId: string;
+  workspaceId: string;
+}): Promise<OrgAgentPromptMessageView[]> {
+  const { data: current, error: currentError } = await (
+    args.admin.from("company_messages" as any) as any
+  )
+    .select("created_at, slack_message_ts")
+    .eq("id", args.currentUserMessageId)
+    .eq("company_workspace_id", args.workspaceId)
+    .maybeSingle();
+  if (currentError) throw currentError;
+  const slackSeconds = Number(
+    normalizeText(current?.slack_message_ts).split(".")[0]
+  );
+  const postedAt =
+    Number.isFinite(slackSeconds) && slackSeconds > 0
+      ? new Date(slackSeconds * 1_000).toISOString()
+      : normalizeText(current?.created_at);
+  if (!postedAt) return [];
+  const { data, error } = await (
+    args.admin.from("company_messages" as any) as any
+  )
+    .select(
+      "id, role, content, created_at, mentions, metadata, message_type, slack_thread_id, slack_user_id"
+    )
+    .eq("company_workspace_id", args.workspaceId)
+    .eq("message_type", OTHER_SLACK_BOT_MESSAGE_TYPE)
+    .eq("slack_thread_id", args.slackThreadId)
+    .lte("created_at", postedAt)
+    .order("created_at", { ascending: false })
+    .limit(args.limit);
+  if (error) throw error;
+  return (
+    (data ?? []) as Array<{
+      content: string;
+      created_at: string;
+      id: number;
+      metadata: Json;
+      message_type: string;
+      mentions: Json;
+      role: OrgAgentMessageRole;
+      slack_thread_id: string | null;
+      slack_user_id: string | null;
+    }>
+  )
+    .reverse()
+    .map(toPromptMessageView);
 }
 
 export async function countStartedCompanyAgentTurns(args: {
