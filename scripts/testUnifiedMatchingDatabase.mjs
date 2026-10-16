@@ -40,7 +40,7 @@ try {
    const stop=source.indexOf(opening[1]+';',begin+opening.index+opening[0].length);
    await exec(source.slice(begin,stop+opening[1].length+1));
  }
- const migrations=(await fs.readdir(path.join(root,'supabase/migrations'))).filter(n=>(/^202610071[23]/.test(n) && !/workspace_billing|workspace_slot_free|role_anonymous_visibility/.test(n)) || /_(role_based_priority_review|priority_review_presentation_v2|priority_review_rating_eligibility|stop_recommendation_conflict_retries)\.sql$/.test(n)).sort();
+ const migrations=(await fs.readdir(path.join(root,'supabase/migrations'))).filter(n=>(/^202610071[23]/.test(n) && !/workspace_billing|workspace_slot_free|role_anonymous_visibility/.test(n)) || /_(role_based_priority_review|priority_review_presentation_v2|priority_review_rating_eligibility|stop_recommendation_conflict_retries|matching_source_invalidation_after_insert)\.sql$/.test(n)).sort();
  for(const name of migrations){await exec(await fs.readFile(path.join(root,'supabase/migrations',name),'utf8'));console.log('PASS migration',name);}
  await exec(`create trigger talent_progress_company_intro_route before insert or update of kind,role_id,talent_id on public.talent_progress for each row when(new.kind='candidate_requested_connection') execute function public.route_candidate_priority_request_v1();`);
  await exec(`insert into public.talent_users(user_id,name) values($1,'Local fixture')`,[talent]);
@@ -167,4 +167,44 @@ try {
  await exec("update public.company_intro_candidates set status='closed',close_reason='privacy_withdrawn' where talent_id=$1",[talent]);
  assert.equal((await candidateDelivery(workspace)).rows.length,0,'closed private proposal grants no delivery access');
  console.log('PASS company delivery facts: visibility, actual sent evidence, no private feedback, workspace scope');
+ // Re-saving unchanged source content with an upsert must not expire fits or close
+ // unsent decisions; a real change or a newly inserted source row still does.
+ const sourceTalent='66666666-6666-4666-8666-666666666666';
+ const sourceRole='77777777-7777-4777-8777-777777777777';
+ await exec(`insert into public.talent_users(user_id,name) values($1,'Source fixture')`,[sourceTalent]);
+ await exec(`insert into public.talent_setting(user_id,is_onboarding_done,get_internal_recommendation,profile_visibility) values($1,true,true,'open_to_matches')`,[sourceTalent]);
+ await exec(`insert into public.talent_behavior_contexts(talent_id,context_text,context_version) values($1,'Context',1)`,[sourceTalent]);
+ await exec(`insert into public.company_roles(role_id,company_workspace_id,name,status,source_type) values($1,$2,'Paused fixture','paused','internal')`,[sourceRole,workspace]);
+ await exec(`insert into public.company_internal_roles(role_id,request) values($1,'Fixture request') on conflict(role_id) do update set request=excluded.request`,[sourceRole]);
+ const seedSource=async()=>{
+   await exec('delete from public.talent_opportunity_fit where talent_id=$1',[sourceTalent]);
+   await exec('delete from public.talent_opportunity_matching_review where talent_id=$1',[sourceTalent]);
+   await exec(`insert into public.talent_opportunity_fit(talent_id,opportunity_id,fit_contract_version,evaluated_stage,stage_one_result,role_fit,candidate_fit,company_fit,
+     candidate_reason,company_reason,input_fingerprint,evaluation_started_at,expires_at) values($1,$2,'talent_role_fit_v2',2,'continue','good','good','good',
+     'Fixture','Fixture','source-test',now(),now()+interval '30 days')`,[sourceTalent,sourceRole]);
+   await exec(`insert into public.talent_opportunity_matching_review(run_id,talent_id,opportunity_id,decision,reason,input_fingerprint)
+     values(gen_random_uuid(),$1,$2,'candidate_first','Fixture','source-test')`,[sourceTalent,sourceRole]);
+ };
+ const sourceState=async()=>scalar(`select (select expires_at>now() from public.talent_opportunity_fit where talent_id=$1) as fit_valid,
+   (select closed_at is null from public.talent_opportunity_matching_review where talent_id=$1) as decision_open`,[sourceTalent]);
+ const behaviorUpsert=text=>exec(`insert into public.talent_behavior_contexts(talent_id,context_text,context_version) values($1,$2,1)
+   on conflict(talent_id) do update set context_text=excluded.context_text,context_version=excluded.context_version,updated_at=now()`,[sourceTalent,text]);
+ const settingUpsert=()=>exec(`insert into public.talent_setting(user_id,profile_visibility,is_onboarding_done,get_internal_recommendation,updated_at)
+   values($1,'open_to_matches',true,true,now()) on conflict(user_id) do update set profile_visibility=excluded.profile_visibility,
+   is_onboarding_done=excluded.is_onboarding_done,get_internal_recommendation=excluded.get_internal_recommendation,updated_at=excluded.updated_at`,[sourceTalent]);
+ const roleRequestUpsert=request=>exec(`insert into public.company_internal_roles(role_id,request) values($1,$2)
+   on conflict(role_id) do update set request=excluded.request,updated_at=now()`,[sourceRole,request]);
+ for (const [label,write,expected] of [
+   ['unchanged Behavior Context upsert',()=>behaviorUpsert('Context'),true],
+   ['unchanged setting upsert',settingUpsert,true],
+   ['existing setting with on conflict do nothing',()=>exec('insert into public.talent_setting(user_id) values($1) on conflict do nothing',[sourceTalent]),true],
+   ['unchanged role request upsert',()=>roleRequestUpsert('Fixture request'),true],
+   ['changed Behavior Context upsert',()=>behaviorUpsert('Changed context'),false],
+   ['changed role request upsert',()=>roleRequestUpsert('Changed request'),false],
+   ['new source row',()=>exec(`insert into public.talent_experiences(talent_id,role) values($1,'Fixture experience')`,[sourceTalent]),false],
+ ]) {
+   await seedSource(); await write();
+   assert.deepEqual(await sourceState(),{fit_valid:expected,decision_open:expected},label);
+ }
+ console.log('PASS source invalidation: unchanged upserts keep fits and decisions; real changes and new rows expire and close them');
 } finally {await db.close();}
