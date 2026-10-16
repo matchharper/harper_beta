@@ -273,6 +273,7 @@ export function buildOrgCandidateRejectedSlackMessage(args: {
   previousStage?: string | null;
   roleId: string;
   roleName: string;
+  notifyCandidateOnClosure?: boolean;
   stopNote?: string | null;
   workspace: OrgSlackWorkspace;
 }) {
@@ -288,7 +289,9 @@ export function buildOrgCandidateRejectedSlackMessage(args: {
       `- *Candidate*: ${formatCandidate(args.candidate)}`,
       `- *Decided by*: ${formatPerson(args.actor)}`,
       `- *Reason*: ${escapeSlackText(args.stopNote) || "None provided"}`,
-      rejectingPendingConnection
+      args.notifyCandidateOnClosure === false
+        ? "The closed status appears to the candidate. Harper will not send a separate closure notice."
+        : rejectingPendingConnection
         ? "The decision appears in the candidate's view, and Harper will notify them that the company is not moving forward. Notices already shown or sent cannot be recalled."
         : "Harper will notify the candidate that the process has ended. Earlier introductions, direct contact, and notices already shown or sent cannot be recalled.",
     ].join("\n");
@@ -304,7 +307,9 @@ export function buildOrgCandidateRejectedSlackMessage(args: {
     `- *연결 대상*: ${formatCandidate(args.candidate)}`,
     `- *결정한 분*: ${formatPerson(args.actor)}`,
     `- *남긴 이유*: ${formatOptional(args.stopNote)}`,
-    rejectingPendingConnection
+    args.notifyCandidateOnClosure === false
+      ? "종료 상태는 후보자 화면에도 표시되며, Harper의 별도 종료 안내는 보내지 않아요."
+      : rejectingPendingConnection
       ? "회사가 더 진행하지 않기로 했다는 종료 결정이 후보자 화면에 표시되고, Harper가 후보자에게 종료 안내를 진행해요. 이미 표시되거나 전달된 안내는 회수할 수 없어요."
       : "Harper가 후보자에게 회사가 프로세스를 종료했다는 안내를 진행해요. 이미 보낸 소개 이메일이나 회사의 직접 연락, 후보자에게 표시되거나 전달된 종료 안내는 회수할 수 없어요.",
   ].join("\n");

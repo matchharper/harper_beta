@@ -1907,3 +1907,19 @@ test("current talent reader carries acceptance origin into the company prompt", 
   assert.match(result, /2026년 9월 28일 12:00 KST/);
   assert.match(result, /harper_recommendation/);
 });
+
+
+test("closure notice opt-out survives preparation and decision result projection", () => {
+  for (const name of ["prepare_candidate_connection", "decide_candidate_connection"] as const) {
+    const prepared = serializeOrgAgentToolResult(name, {
+      status: name === "prepare_candidate_connection" ? "decision_context_ready" : "confirmation_required",
+      decision: "decline", notifyCandidateOnClosure: false,
+    });
+    assert.match(prepared, /closure_notice_enabled=false/);
+  }
+  const completed = serializeOrgAgentToolResult("decide_candidate_connection", {
+    status: "updated", decision: "decline", notifyCandidateOnClosure: false,
+  });
+  assert.match(completed, /candidate_process_closed=true/);
+  assert.match(completed, /closure_notice_flow_started=false/);
+});

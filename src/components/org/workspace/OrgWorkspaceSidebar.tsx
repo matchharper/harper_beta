@@ -18,6 +18,7 @@ import {
   LogOut,
   PanelLeftClose,
   Plus,
+  Settings2,
   Users,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -36,7 +37,6 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocumentsMarkdown";
-import { OrgLanguageMenu } from "@/components/org/OrgLanguageMenu";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
 import {
@@ -1086,7 +1086,13 @@ export function OrgWorkspaceSidebar({
                 />
                 {c("일정 저장", "Save schedule")}
               </DropdownMenuItem>
-              <OrgLanguageMenu />
+              <DropdownMenuItem
+                variant="sm"
+                onSelect={() => void router.push(navHref("personal-settings"))}
+              >
+                <Settings2 />
+                {c("개인 설정", "Personal settings")}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={signOutPending}
@@ -1382,7 +1388,15 @@ export function OrgWorkspaceSidebar({
                     />
                     {c("일정 저장", "Save schedule")}
                   </DropdownMenuItem>
-                  <OrgLanguageMenu />
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      closeNavigation();
+                      void router.push(navHref("personal-settings"));
+                    }}
+                  >
+                    <Settings2 />
+                    {c("개인 설정", "Personal settings")}
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     disabled={signOutPending}

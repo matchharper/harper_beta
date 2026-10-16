@@ -13,6 +13,7 @@ import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import {
   OrgTalentTable,
   OrgTalentTableLoading,
+  type OrgTalentTableStatusTone,
 } from "@/components/org/workspace/OrgTalentTable";
 import { MuteButton } from "@/components/ui/button";
 import {
@@ -29,6 +30,9 @@ import { OrgJobsProvider, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { cn } from "@/lib/utils";
+import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
+import type { OrgBoardItem } from "@/lib/org/server";
+import type { OrgCopy } from "@/i18n/org/OrgLocaleProvider";
 
 type InboxFilter =
   | "acceptedWaiting"
@@ -41,6 +45,79 @@ const INBOX_FILTERS = [
   { label: "연결 대기", value: "pendingConnection" },
   { label: "Intro 요청 가능", value: "introAvailable" },
 ] as const;
+
+function getInboxStatus(
+  item: OrgBoardItem,
+  c: OrgCopy,
+  sourceT: (source: string) => string
+): {
+  statusLabel: string;
+  statusDescription: string;
+  statusTone: OrgTalentTableStatusTone;
+} {
+  if (item.companyIntro?.closeReason === "talent_declined") {
+    return {
+      statusLabel: c("Intro 거절됨", "Intro declined"),
+      statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.intro_declined),
+      statusTone: "muted",
+    };
+  }
+  if (item.stage === "process_stopped") {
+    return {
+      statusLabel: c("프로세스 종료", "Process ended"),
+      statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.process_stopped),
+      statusTone: "muted",
+    };
+  }
+  if (
+    item.companyIntro?.status === "connecting" ||
+    item.stage === "connected" ||
+    item.stage === "final_offer" ||
+    item.stage.startsWith("custom:")
+  ) {
+    return {
+      statusLabel: c("연결됨", "Connected"),
+      statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.connected),
+      statusTone: "positive",
+    };
+  }
+  if (item.stage === "company_intro") {
+    return {
+      statusLabel: c("먼저 제안 가능한 후보", "Suggested candidate"),
+      statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.company_intro),
+      statusTone: "primary",
+    };
+  }
+  if (item.stage === "intro_requested") {
+    return {
+      statusLabel: c("Intro 요청 전달됨", "Intro Sent"),
+      statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.intro_requested),
+      statusTone: "action",
+    };
+  }
+  if (item.stage === "accepted") {
+    return {
+      statusLabel: c("수락 후 대기", "Awaiting Harper review"),
+      statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.accepted),
+      statusTone: "primary",
+    };
+  }
+  if (item.stage === "pending_connection") {
+    return {
+      statusLabel: c(
+        "연결 대기 · 회사 결정 필요",
+        "Candidate accepted · Awaiting connection"
+      ),
+      statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.pending_connection),
+      statusTone: "primary",
+    };
+  }
+  return {
+    statusLabel: c("결정 완료", "Decision made"),
+    statusDescription: sourceT(ORG_STAGE_DESCRIPTIONS.decision_made),
+    statusTone: "muted",
+  };
+}
 
 function OrgInboxMain() {
   const { c } = useOrgLocale();
@@ -425,6 +502,7 @@ function OrgInboxMain() {
             date: item.recommendedAt,
             item,
             key: item.recommendationId,
+            internalOnly: item.stage === "accepted",
             name:
               item.talent.name ||
               item.talent.email ||
@@ -432,27 +510,11 @@ function OrgInboxMain() {
               c("이름 없음", "No name"),
             profilePicture: item.talent.profilePicture,
             roleName: item.roleName,
-            statusLabel:
-              item.stage === "company_intro"
-                ? c("검토 대기", "Suggested candidate")
-                : item.stage === "intro_requested"
-                  ? c("Intro Requested", "Intro requested")
-                  : item.stage === "accepted"
-                    ? c("수락 후 대기", "Awaiting Harper review")
-                    : item.stage === "pending_connection"
-                      ? c("연결 대기", "Ready to connect")
-                      : c("결정 완료", "Decision made"),
-            statusTone:
-              item.stage === "company_intro" ||
-              item.stage === "accepted" ||
-              item.stage === "pending_connection"
-                ? "primary"
-                : item.stage === "intro_requested"
-                  ? "action"
-                  : "muted",
+            ...getInboxStatus(item, c, sourceT),
             viewed: isViewed(item.recommendationId),
           }))}
           statusHeader={c("연결 상태", "Status")}
+          statusColumnWidth={280}
         />
       ) : (
         <div className="rounded-lg border border-neutral-1000-a05 bg-bg-floating px-5 py-14 text-center">

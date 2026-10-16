@@ -136,7 +136,10 @@ export default function PricingPage() {
               {c("채용은 Harper와 함께 하세요.", "Hire with Harper.")}
             </h1>
             <p className="mt-4 text-[15px] font-light leading-7 text-neutral-muted md:text-base">
-              {c("언제든지 채용 상황에 맞게 사용량을 조절할 수 있습니다.", "")}
+              {c(
+                "언제든지 채용 상황에 맞게 사용량을 조절할 수 있습니다.",
+                "Adjust your usage anytime to match your hiring needs."
+              )}
             </p>
           </header>
           <OrgLocaleScope locale={locale} setLocale={setLocale}>

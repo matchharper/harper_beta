@@ -26,6 +26,7 @@ export type OrgCandidateStageMutationInput = {
   scheduleInterview?: OrgStageChangeOptions["scheduleInterview"];
   sourceStage?: OrgStageChangeOptions["sourceStage"];
   stage: OrgStageId;
+  notifyCandidateOnClosure?: boolean;
   stopNote?: OrgStageChangeOptions["stopNote"];
   talentId: string;
   title?: OrgStageChangeOptions["title"];

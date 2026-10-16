@@ -2968,6 +2968,7 @@ export type Database = {
           company_description: string | null
           created_at: string
           email: string | null
+          email_preferences: Json
           is_authenticated: boolean
           is_custom: boolean
           locale: string | null
@@ -2983,6 +2984,7 @@ export type Database = {
           company_description?: string | null
           created_at?: string
           email?: string | null
+          email_preferences?: Json
           is_authenticated?: boolean
           is_custom?: boolean
           locale?: string | null
@@ -2998,6 +3000,7 @@ export type Database = {
           company_description?: string | null
           created_at?: string
           email?: string | null
+          email_preferences?: Json
           is_authenticated?: boolean
           is_custom?: boolean
           locale?: string | null
@@ -14877,6 +14880,7 @@ export type Database = {
         Returns: Json
       }
       search_external_roles_v2: { Args: { p_sql: string }; Returns: Json[] }
+      search_external_roles_filter_first: { Args: { p_sql: string }; Returns: Json[] }
       send_company_talent_contact_v1: {
         Args: {
           p_body: string

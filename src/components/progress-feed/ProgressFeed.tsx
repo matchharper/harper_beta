@@ -34,6 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 export type ProgressFeedIcon =
+  | "harper"
   | "check"
   | "eye"
   | "mail"
@@ -121,6 +122,8 @@ type ProgressFeedProps = {
 };
 
 function ProgressIcon({ icon }: { icon?: ProgressFeedIcon }) {
+  if (icon === "harper")
+    return <Image src="/svgs/face.svg" alt="" width={14} height={14} />;
   if (icon === "check") return <CheckCircle2 className="h-3.5 w-3.5" />;
   if (icon === "eye") return <Eye className="h-3.5 w-3.5" />;
   if (icon === "mail") return <Mail className="h-3.5 w-3.5" />;
@@ -415,7 +418,9 @@ const ProgressFeedItemRow = memo(function ProgressFeedItemRow({
                   <Mail className="h-3.5 w-3.5" />
                   {delivery.label || labels.viewContent}
                 </MuteButton>
-                {expanded ? <DeliveryPreview delivery={delivery} labels={labels} /> : null}
+                {expanded ? (
+                  <DeliveryPreview delivery={delivery} labels={labels} />
+                ) : null}
               </div>
             ) : null}
           </div>

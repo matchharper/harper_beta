@@ -27,7 +27,9 @@ export const countriesSchema = z
     "Countries must be unique"
   );
 export type CountryWeight = z.infer<typeof countriesSchema>[number];
-export type V2SearchPlan = ExternalSearchPlan & { countries: CountryWeight[] };
+export type V2SearchPlan = Omit<ExternalSearchPlan, "locations"> & {
+  countries: CountryWeight[];
+};
 
 // Largest remainder allocation preserves the exact requested total, including small weights.
 export function countryQuotas(countries: CountryWeight[], total: number) {

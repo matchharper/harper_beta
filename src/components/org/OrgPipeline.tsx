@@ -609,12 +609,13 @@ export function OrgPipeline() {
         open={Boolean(stopItem)}
         pending={Boolean(stopItem && isCandidateStagePending(stopItem))}
         onClose={() => setStopItem(null)}
-        onSubmit={async ({ note }) => {
+        onSubmit={async ({ note, notifyCandidateOnClosure }) => {
           if (!stopItem) return;
           await onStageChange(
             stopItem,
             "process_stopped",
             {
+              notifyCandidateOnClosure,
               stopNote: note,
             },
             "inline"

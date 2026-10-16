@@ -1,7 +1,8 @@
+import { countriesSchema, type CountryWeight, type V2SearchPlan } from "../externalRecommendationsV2/countries";
+import { roleTitleNeighborsSql } from "../externalRecommendationsV2/roleTitleSearchSql";
 import { publishedCompensation } from "../companyRoles/publishedCompensation";
 import {
   SEARCH_TITLE_INSTRUCTION,
-  SEARCH_TITLE_NEIGHBOR_LIMIT,
 } from "../externalRecommendationsV2/searchTitles";
 import {
   SALARY_MARKET_VALUE_INSTRUCTION,
@@ -81,7 +82,9 @@ export type ExternalSearchPlan = {
   includeParttime: boolean;
   includeRemote: boolean;
   isPreferEntry: EntryPreference;
-  locations: string[];
+  /** Only the original SQL lab accepts legacy locations. Production uses countries. */
+  locations?: string[];
+  countries?: CountryWeight[];
   remoteOnly: boolean;
   roleTitles: string[];
   searchIntentSummary: string;
@@ -210,7 +213,7 @@ type JobPostingTalentSetting = {
   user_id?: string | null;
 };
 
-const MAX_SEARCH_RESULTS = 150;
+const MAX_SEARCH_RESULTS = 200;
 const PREVIOUSLY_RECOMMENDED_ROLE_ID_PAGE_SIZE = 1000;
 const RECENT_TALENT_ACTIVITY_SUMMARY_LIMIT = 10;
 const RECENT_CONVERSATION_SUMMARY_LIMIT = 3;
@@ -261,8 +264,6 @@ const DEBUG_RECOMMEND_JOB_POSTINGS =
   process.env.DEBUG_RECOMMEND_JOB_POSTINGS === "1";
 const RECOMMEND_JOB_POSTINGS_SQL_FAILURE_LOG_TYPE =
   "career_tool_sql_failed:recommend_job_postings";
-const ROLE_SQL_TIMEOUT_RETRY_INSTRUCTION =
-  "위 쿼리의 범위가 너무 넓어서 timeout이 발생했다. 어느정도 더 좁혀서 작성해라.";
 const SALARY_SEARCH_TARGET_INSTRUCTION = `${SALARY_MARKET_VALUE_INSTRUCTION}
 ${SALARY_TARGET_UNIT_INSTRUCTION}
 ${SALARY_TARGET_FX_CONTEXT}`;
@@ -288,12 +289,12 @@ Output schema:
   "includeRemote": true,
   "remoteOnly": false,
   "is_prefer_entry": 0,
-  "locations": [],
+  "countries": [{"countryCode":"KR","weight":1,"remoteOnly":false}],
   "postingRecency": null
 }
 
 Rules:
-- role_titles describe the semantic title search. ftsKeywords are applied after the title/type/location search narrows the candidate pool.
+- role_titles describe the semantic title search. ftsKeywords are applied after the title/type/country search narrows the candidate pool.
 - Use ftsKeywords for role titles, role description, companies, domain, skills, methods, and problem area. Use only important keywords, not broad terms.
 - Return at most 4 ftsKeywords groups, with 4-8 terms in each group. Put only true synonyms or near-equivalent aliases in the same group; do not use extra groups for weak supporting context.
 - 만약 한국의 공고도 검색한다면, terms에 영어 뿐만 아니라 한글 동의어도 포함해라. ex) "Research Engineer", "Machine leaning", "리서치 엔지니어", "머신러닝", "개발자", "Developer"
@@ -301,12 +302,10 @@ Rules:
 - ${SALARY_SEARCH_TARGET_INSTRUCTION}
 - Do not put pure preferences in ftsKeywords: company stage, company size, funding, investors, location, remote/hybrid/onsite, salary, culture, brand prestige, "startup", "Series A", "global", or "Seoul" unless that word is literally part of the work domain.
 - 과하게 일반적인 단어는 절대 ftsKeywords에 넣지마라. ex: ai, data, software, LLM, etc
-- locations: Geographic location filters or preferences only. Never put "remote" here. Keep empty if location preference is unknown.
-  - Examples: "Seoul", "Korea", ", CA", "United States",  "Japan", "New York"
-  - 유저가 명시적으로 한국만을 원한다고 하지 않은 경우에는 기본적으로 한국과 미국 둘다 열어둬라. 
-- includeRemote: true means remote rows are allowed if they otherwise match the query. It must not broaden location SQL with "remote OR location". false means SQL must exclude rows where work_mode is remote.
+- countries: Return 1-12 unique ISO alpha-2 posting country codes (KR, US, GB; never cities or KO/UK), positive weights and remoteOnly flags. Choose the complete search country mix from the current request and Brief; the schema example is illustrative, not a default. Never output locations. SQL applies exact country filters to all roles including remote. Weights allocate the final retrieval shortlist proportionally after the company cap; shortages are redistributed among the listed countries with remaining candidates. They do not change individual fit scores. Unknown/unlisted countries are excluded. Country-specific remoteOnly must stay conditional. If geography is unstated, choose a reasonable tentative mix from context; do not infer work authorization.
+- includeRemote: true means remote rows are allowed if they otherwise match the query. It must not bypass country filters. false means SQL must exclude rows where work_mode is remote.
 - remoteOnly: true only when remote is a hard requirement, e.g. "remote only", "완전 원격만", "원격 아니면 제외".
-  - If remoteOnly=true and locations has geo values, SQL will require both remote work mode and one of those geographies, e.g. "US remote only".
+  - If remoteOnly=true, SQL requires remote work mode and one of the listed countries, e.g. "US remote only".
   - If remoteOnly=true, includeRemote is effectively true because remote is required.
   - If the user only mildly prefers remote, set includeRemote=true and remoteOnly=false, then let shortlist/final selection handle it as a preference.
 - postingRecency MUST be null unless the current user request explicitly asks for posting freshness, a posting-age window, or recency weights.
@@ -342,7 +341,7 @@ Return exactly this shape:
   "includeRemote": true,
   "remoteOnly": false,
   "is_prefer_entry": 0,
-  "locations": [],
+  "countries": [{"countryCode":"KR","weight":1,"remoteOnly":false}],
   "postingRecency": null
 }
 
@@ -353,7 +352,7 @@ Return at most 4 ftsKeywords groups, with 4-8 terms per group. A group must cont
 
 ${SALARY_SEARCH_TARGET_INSTRUCTION}
 
-Only use locations when the current request or an explicit setting makes geography a real constraint. Leave locations empty for an inferred profile location or a mild preference. Never put remote in locations. Set remoteOnly only for an explicit remote-only requirement. includeRemote controls whether otherwise matching remote roles are allowed.
+Return countries with 1-12 unique ISO alpha-2 codes, positive weights and remoteOnly flags. Choose countries from the current request and complete Brief; the schema example is not a default. Never output locations or city filters. Country is a hard posting-country filter, including remote roles. Unknown/unlisted countries are excluded. Weights allocate the final retrieval shortlist proportionally after the company cap; shortages are redistributed among the listed countries with remaining candidates. They do not change individual fit scores. Preserve country-specific remoteOnly conditions. If geography is unstated, choose a tentative exploration mix from context; do not infer work authorization. Global remoteOnly requires remote everywhere; includeRemote=false excludes remote everywhere and must not conflict with any remoteOnly=true.
 
 Employment-type switches are hard filters. Enable contract, part-time, or internship only when the request or explicit settings accept them. is_prefer_entry is 1 for entry/junior preference, -1 for non-entry preference, and 0 when neutral. postingRecency must be null unless the current request explicitly asks for freshness; otherwise use recentDays/maxAgeDays/recentWeight/olderWeight values between 1-3650 days and 0-20 weights.
 
@@ -465,23 +464,6 @@ function cleanText(value: unknown, maxLength = 4000) {
 function normalizeMultiline(value: unknown, maxLength = 4000) {
   const text = typeof value === "string" ? value.replace(/\r/g, "").trim() : "";
   return text ? text.slice(0, maxLength) : "";
-}
-
-export function appendRoleSqlTimeoutRetryContext(
-  prompt: string,
-  previousTimedOutSql?: string
-) {
-  const sql = String(previousTimedOutSql ?? "").trim();
-  if (!sql) return prompt;
-
-  return [
-    prompt,
-    "",
-    "[이전 SQL]",
-    sql,
-    "",
-    ROLE_SQL_TIMEOUT_RETRY_INSTRUCTION,
-  ].join("\n");
 }
 
 function debugLog(label: string, payload: Record<string, unknown>) {
@@ -1670,16 +1652,11 @@ export function normalizeExternalSearchPlan(
   raw: JsonRecord | null,
   request: string,
   outputLanguage = "Korean"
-): ExternalSearchPlan {
+): V2SearchPlan {
   const locale = outputLanguage === "English" ? "en" : "ko";
   const source = asRecord(raw?.external) ?? raw ?? {};
   const fallbackText = cleanText(request, 500) || "engineer";
   const ftsKeywords = normalizeFtsKeywords(source.ftsKeywords, fallbackText);
-  const rawLocations = asStringArray(source.locations, 8, 120);
-  const geoLocations = rawLocations.filter(
-    (location) => !isRemoteLocationTerm(location)
-  );
-  const hasRemoteLocation = rawLocations.length > geoLocations.length;
   const explicitRemoteOnly = booleanField(
     source,
     "remoteOnly",
@@ -1688,7 +1665,7 @@ export function normalizeExternalSearchPlan(
     "is_remote_only"
   );
   const remoteOnly =
-    explicitRemoteOnly ?? (hasRemoteLocation && geoLocations.length === 0);
+    explicitRemoteOnly ?? false;
   const explicitIncludeRemote = booleanField(
     source,
     "includeRemote",
@@ -1712,7 +1689,7 @@ export function normalizeExternalSearchPlan(
       "preferEntry",
       "entryPreference"
     ),
-    locations: expandLocationSearchTerms(geoLocations),
+    countries: countriesSchema.parse(source.countries),
     remoteOnly,
     roleTitles: normalizeRoleTitles(source.role_titles ?? source.roleTitles),
     postingRecency: normalizePostingRecency(
@@ -1736,25 +1713,21 @@ export function normalizeExternalSearchPlan(
 async function buildSearchPlan(args: {
   llmUserProfile: JsonRecord;
   outputLanguage: string;
-  previousTimedOutSql?: string;
   previousDeliveryTexts: string[];
   recentDeliveryMeta: string[];
   request: string;
   usageLabel?: string;
 }) {
-  const userPrompt = appendRoleSqlTimeoutRetryContext(
-    JSON.stringify({
-      config: {
-        externalSearchLimit: MAX_SEARCH_RESULTS,
-        sourceType: "external_only",
-      },
-      previousDeliveryTexts: args.previousDeliveryTexts,
-      recentDeliveryMeta: args.recentDeliveryMeta,
-      request: args.request,
-      user_profile: args.llmUserProfile,
-    }),
-    args.previousTimedOutSql
-  );
+  const userPrompt = JSON.stringify({
+    config: {
+      externalSearchLimit: MAX_SEARCH_RESULTS,
+      sourceType: "external_only",
+    },
+    previousDeliveryTexts: args.previousDeliveryTexts,
+    recentDeliveryMeta: args.recentDeliveryMeta,
+    request: args.request,
+    user_profile: args.llmUserProfile,
+  });
   const raw = await runTalentAssistantCompletion({
     anthropicOverloadFallbackModel:
       RECOMMEND_JOB_POSTINGS_ANTHROPIC_OVERLOAD_FALLBACK_MODEL,
@@ -1787,7 +1760,6 @@ async function buildSearchPlan(args: {
 
 async function buildFullJdSearchPlan(args: {
   outputLanguage: string;
-  previousTimedOutSql?: string;
   previousDeliveryTexts: string[];
   recentDeliveryMeta: string[];
   request: string;
@@ -1804,19 +1776,16 @@ async function buildFullJdSearchPlan(args: {
         `delivery meta ${index + 1}: ${normalizeMultiline(item, 500)}`
     ),
   ].filter(Boolean);
-  const userPrompt = appendRoleSqlTimeoutRetryContext(
-    [
-      "[USER AND CURRENT REQUEST CONTEXT]",
-      args.searchContextText,
-      deliveryLines.length > 0
-        ? `\n[RECENT DELIVERY CONTEXT]\n${deliveryLines.join("\n")}`
-        : "",
-      "\nReturn only the search-plan JSON object from the schema in the system prompt.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-    args.previousTimedOutSql
-  );
+  const userPrompt = [
+    "[USER AND CURRENT REQUEST CONTEXT]",
+    args.searchContextText,
+    deliveryLines.length > 0
+      ? `\n[RECENT DELIVERY CONTEXT]\n${deliveryLines.join("\n")}`
+      : "",
+    "\nReturn only the search-plan JSON object from the schema in the system prompt.",
+  ]
+    .filter(Boolean)
+    .join("\n");
   try {
     const raw = await runTalentAssistantCompletion({
       anthropicOverloadFallbackModel:
@@ -1847,10 +1816,10 @@ async function buildFullJdSearchPlan(args: {
     );
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw error;
-    infoJson("full JD search plan unavailable; using heuristic plan", {
+    infoJson("full JD search plan unavailable", {
       message: error instanceof Error ? error.message : String(error),
     });
-    return normalizeExternalSearchPlan(null, args.request, args.outputLanguage);
+    throw error;
   }
 }
 
@@ -1868,7 +1837,9 @@ function sqlNumber(value: number) {
   return Number.isFinite(value) ? String(Math.round(value * 100) / 100) : "1";
 }
 
-export function buildPostingRecencySql(plan: ExternalSearchPlan) {
+export function buildPostingRecencySql(
+  plan: Pick<ExternalSearchPlan, "postingRecency">
+) {
   const recency = plan.postingRecency;
   if (!recency) return { rankSql: "0", where: [] as string[] };
 
@@ -1968,7 +1939,12 @@ function buildExcludedEmploymentTypeSql(types: string[]) {
   )`;
 }
 
-export function buildEmploymentTypeSql(plan: ExternalSearchPlan) {
+export function buildEmploymentTypeSql(
+  plan: Pick<
+    ExternalSearchPlan,
+    "includeContract" | "includeIntern" | "includeParttime"
+  >
+) {
   const clauses: string[] = [];
   if (!plan.includeContract) {
     clauses.push(
@@ -2002,7 +1978,7 @@ export function buildEmploymentTypeSql(plan: ExternalSearchPlan) {
   return clauses;
 }
 
-function entryPreferenceRankSql(
+export function entryPreferenceRankSql(
   preference: EntryPreference,
   roleNameSql = "cr.name",
   seniorityLevelSql = "cr.seniority_level"
@@ -2071,12 +2047,8 @@ function expandLocationSearchTerms(locations: string[]) {
   return terms;
 }
 
-function isRemoteLocationTerm(location: string) {
-  return location.toLocaleLowerCase("ko-KR") === "remote";
-}
-
 export function buildLocationSql(plan: ExternalSearchPlan) {
-  const locationParts = expandLocationSearchTerms(plan.locations)
+  const locationParts = expandLocationSearchTerms(plan.locations ?? [])
     .map((location) => cleanText(location, 100))
     .filter(Boolean)
     .slice(0, 12)
@@ -2138,11 +2110,7 @@ export function buildRoleSearchSql(args: {
   const titleSearchCte = args.titleNeighbors
     ? `nearest_titles AS MATERIALIZED (SELECT * FROM jsonb_to_recordset(${sqlLiteral(JSON.stringify(args.titleNeighbors))}::jsonb) AS n(title_key text,title text,distance double precision)),\n`
     : args.titleVector
-      ? `nearest_titles AS MATERIALIZED (
-  SELECT te.title_key,te.title FROM public.external_role_title_embeddings te
-  WHERE te.embedding IS NOT NULL AND te.live_role_count>0
-  ORDER BY (te.embedding::public.halfvec(1536)) OPERATOR(public.<=>) ${sqlLiteral(JSON.stringify(args.titleVector))}::public.halfvec(1536) LIMIT ${SEARCH_TITLE_NEIGHBOR_LIMIT}
-),\n`
+      ? `nearest_titles AS MATERIALIZED (${roleTitleNeighborsSql(sqlLiteral(JSON.stringify(args.titleVector)))}),\n`
       : "";
   const ftsFiltering = args.ftsFiltering !== false;
   const ftsRanking = args.ftsRanking !== false;
@@ -2420,6 +2388,12 @@ function normalizeRoleRow(value: unknown): RawRoleRow | null {
     posted_at: stringField(record, "posted_at", "postedAt"),
     role_id: stringField(record, "role_id", "roleId"),
     role_name: stringField(record, "role_name", "roleName", "name"),
+    salary_min: record.salary_min == null ? null : numberField(record, "salary_min"),
+    salary_max: record.salary_max == null ? null : numberField(record, "salary_max"),
+    salary_currency: stringField(record, "salary_currency"),
+    salary_period: stringField(record, "salary_period"),
+    salary_range: stringField(record, "salary_range"),
+    salary_is_predicted: booleanField(record, "salary_is_predicted") === true,
     search_rank: numberField(record, "search_rank", "searchRank"),
     seniority_level: stringField(record, "seniority_level", "seniorityLevel"),
     summary: parseMaybeJsonValue(record.role_summary ?? record.summary),
@@ -2441,43 +2415,68 @@ function hasRoleData(row: RawRoleRow | null): row is RawRoleRow {
 
 async function executeRoleSql(args: {
   admin: AdminClient;
+  abortSignal?: AbortSignal;
   asOf?: string | null;
   blockedCompanies: string[];
   plan: ExternalSearchPlan;
   searchMode: RoleSearchMode;
   userId: string;
 }) {
-  const startedAt = Date.now();
-  // The legacy/full-JD recommendation flow shares the same one-text embedding
-  // contract as V2 without changing its downstream scoring or experiment cohort.
-  const { embedSearchTitles, fetchTitleNeighbors } =
-    await import("../externalRecommendationsV2/retrieval");
-  const [titleVector] = await embedSearchTitles(args.plan.roleTitles);
-  const titleNeighbors = await fetchTitleNeighbors(args.admin, titleVector);
-  const sql = `${buildRoleSearchSql({ ...args, titleVector, titleNeighbors })}\nLIMIT ${MAX_SEARCH_RESULTS}`;
-  const { data, error } = await (args.admin.rpc(
-    "search_external_roles_v2" as never,
-    { p_sql: sql } as never
-  ) as unknown as Promise<{
-    data: unknown;
-    error: { message?: string; code?: string } | null;
-  }>);
+  const { embedSearchTitles } = await import("../externalRecommendationsV2/retrieval");
+  const { buildFilterFirstRoleSql } = await import("../externalRecommendationsV2/filterFirstSql");
+  const [titleVector] = await embedSearchTitles(args.plan.roleTitles, args.abortSignal);
+  const sql = buildFilterFirstRoleSql({ ...args, plan: { ...args.plan, countries: countriesSchema.parse(args.plan.countries) }, vector: titleVector, limit: MAX_SEARCH_RESULTS, targetSalaryKrw: args.plan.targetSalaryKrw });
+  return executePreparedRoleSql({ ...args, sql });
+}
 
-  if (error) {
-    const errorMessage = error.message ?? "Failed to search company roles";
-    await persistRoleSqlFailure({
-      admin: args.admin,
-      durationMs: Date.now() - startedAt,
-      errorMessage,
+export async function executePreparedRoleSql(args: {
+  admin: AdminClient;
+  abortSignal?: AbortSignal;
+  searchMode: RoleSearchMode;
+  sql: string;
+  userId: string;
+}) {
+  const { sql } = args;
+  const startedAt = Date.now();
+  const execute = async () => {
+    throwIfRecommendationSearchAborted(args.abortSignal);
+    const request = args.admin.rpc(
+      "search_external_roles_filter_first" as never,
+      { p_sql: sql } as never
+    );
+    const { data, error } = await (args.abortSignal
+      ? request.abortSignal(args.abortSignal)
+      : request);
+
+    if (error) {
+      const errorMessage = error.message ?? "Failed to search company roles";
+      await persistRoleSqlFailure({
+        admin: args.admin,
+        durationMs: Date.now() - startedAt,
+        errorMessage,
+        searchMode: args.searchMode,
+        sql,
+        userId: args.userId,
+      });
+      throw new RoleSqlExecutionError({
+        code: error.code,
+        message: `[${args.searchMode} role sql] ${errorMessage}`,
+        sql,
+      });
+    }
+    return data;
+  };
+
+  let data: unknown;
+  try {
+    data = await execute();
+  } catch (error) {
+    if (!(error instanceof RoleSqlExecutionError) || !error.timedOut) throw error;
+    infoJson("role sql timed out; retrying the same SQL once", {
+      sqlSha256: createHash("sha256").update(sql).digest("hex"),
       searchMode: args.searchMode,
-      sql,
-      userId: args.userId,
     });
-    throw new RoleSqlExecutionError({
-      code: error.code,
-      message: `[${args.searchMode} role sql] ${errorMessage}`,
-      sql,
-    });
+    data = await execute();
   }
   const rawRows = flattenRpcRows(data);
   const rows = rawRows.map(normalizeRoleRow).filter(hasRoleData);
@@ -4838,31 +4837,22 @@ export async function runCareerJobPostingRecommendations(args: {
   const blockedCompanies = normalizeTalentBlockedCompanies(
     (asRecord(setting)?.blocked_companies as unknown) ?? []
   );
-  const createSearchPlan = (previousTimedOutSql?: string) =>
-    recommendationStrategy === "full_jd"
-      ? buildFullJdSearchPlan({
-          outputLanguage,
-          previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
-          previousTimedOutSql,
-          recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
-          request,
-          searchContextText: fullJdSearchContextText,
-          usageLabel: previousTimedOutSql
-            ? `${fullJdPlanUsageLabel}.timeout_retry`
-            : fullJdPlanUsageLabel,
-        })
-      : buildSearchPlan({
-          llmUserProfile,
-          outputLanguage,
-          previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
-          previousTimedOutSql,
-          recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
-          request,
-          usageLabel: previousTimedOutSql
-            ? "career_tool:recommend_job_postings:plan.timeout_retry"
-            : undefined,
-        });
-  let plan = await createSearchPlan();
+  const plan = await (recommendationStrategy === "full_jd"
+    ? buildFullJdSearchPlan({
+        outputLanguage,
+        previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+        recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
+        request,
+        searchContextText: fullJdSearchContextText,
+        usageLabel: fullJdPlanUsageLabel,
+      })
+    : buildSearchPlan({
+        llmUserProfile,
+        outputLanguage,
+        previousDeliveryTexts: deliveryContext.previousDeliveryTexts,
+        recentDeliveryMeta: deliveryContext.recentDeliveryMeta,
+        request,
+      }));
   throwIfRecommendationSearchAborted(args.abortSignal);
   infoJson("external search plan", {
     ftsKeywords: plan.ftsKeywords,
@@ -4871,7 +4861,7 @@ export async function runCareerJobPostingRecommendations(args: {
     include_parttime: plan.includeParttime,
     includeRemote: plan.includeRemote,
     is_prefer_entry: plan.isPreferEntry,
-    locations: plan.locations,
+    countries: plan.countries,
     postingRecency: plan.postingRecency,
     remoteOnly: plan.remoteOnly,
     role_titles: plan.roleTitles,
@@ -4880,52 +4870,15 @@ export async function runCareerJobPostingRecommendations(args: {
     targetRecommendationCount,
   });
 
-  let strictSearch: Awaited<ReturnType<typeof executeRoleSql>>;
-  try {
-    strictSearch = await executeRoleSql({
-      admin: args.admin,
-      asOf: evaluationAsOf,
-      blockedCompanies,
-      plan,
-      searchMode: "strict",
-      userId: args.userId,
-    });
-  } catch (error) {
-    if (!(error instanceof RoleSqlExecutionError) || !error.timedOut) {
-      throw error;
-    }
-
-    throwIfRecommendationSearchAborted(args.abortSignal);
-    infoJson("role sql timed out; rebuilding search plan once", {
-      previousSqlSha256: createHash("sha256").update(error.sql).digest("hex"),
-      recommendationStrategy,
-    });
-    plan = await createSearchPlan(error.sql);
-    throwIfRecommendationSearchAborted(args.abortSignal);
-    infoJson("external search plan after sql timeout", {
-      ftsKeywords: plan.ftsKeywords,
-      include_contract: plan.includeContract,
-      include_intern: plan.includeIntern,
-      include_parttime: plan.includeParttime,
-      includeRemote: plan.includeRemote,
-      is_prefer_entry: plan.isPreferEntry,
-      locations: plan.locations,
-      postingRecency: plan.postingRecency,
-      remoteOnly: plan.remoteOnly,
-      role_titles: plan.roleTitles,
-      searchIntentSummary: plan.searchIntentSummary,
-      recommendationStrategy,
-      targetRecommendationCount,
-    });
-    strictSearch = await executeRoleSql({
-      admin: args.admin,
-      asOf: evaluationAsOf,
-      blockedCompanies,
-      plan,
-      searchMode: "strict",
-      userId: args.userId,
-    });
-  }
+  const strictSearch = await executeRoleSql({
+    admin: args.admin,
+    abortSignal: args.abortSignal,
+    asOf: evaluationAsOf,
+    blockedCompanies,
+    plan,
+    searchMode: "strict",
+    userId: args.userId,
+  });
   throwIfRecommendationSearchAborted(args.abortSignal);
   let rows = strictSearch.rows;
   rows = filterPreviouslyRecommendedExternalRows(
@@ -5086,7 +5039,7 @@ export async function runCareerJobPostingRecommendations(args: {
         include_parttime: plan.includeParttime,
         includeRemote: plan.includeRemote,
         is_prefer_entry: plan.isPreferEntry,
-        locations: plan.locations,
+        countries: plan.countries,
         postingRecency: plan.postingRecency,
         remoteOnly: plan.remoteOnly,
         role_titles: plan.roleTitles,
@@ -5265,7 +5218,7 @@ export async function runCareerJobPostingRecommendations(args: {
       include_parttime: plan.includeParttime,
       includeRemote: plan.includeRemote,
       is_prefer_entry: plan.isPreferEntry,
-      locations: plan.locations,
+      countries: plan.countries,
       postingRecency: plan.postingRecency,
       remoteOnly: plan.remoteOnly,
       role_titles: plan.roleTitles,

@@ -21,7 +21,7 @@ export const ORG_MEMBERSHIP_ROLE_OPTIONS: Array<{
   },
   {
     description:
-      "후보자와 Jobs, 회사 정보 및 연동을 관리합니다. 팀원 초대 및 제거는 할 수 없습니다.",
+      "후보자와 Role, 회사 정보 및 연동을 관리합니다. 팀원 초대 및 제거는 할 수 없습니다.",
     label: "Admin",
     value: "admin",
   },
@@ -56,9 +56,11 @@ export function getOrgPermissions(
   return {
     canManageCandidates,
     canManageTeams: isOwner,
-    canManageIntegrations: canManageCandidates && (isOwner || accessScope === "organization"),
+    canManageIntegrations:
+      canManageCandidates && (isOwner || accessScope === "organization"),
     canManageMembers: isOwner,
-    canManageWorkspace: canManageCandidates && (isOwner || accessScope === "organization"),
+    canManageWorkspace:
+      canManageCandidates && (isOwner || accessScope === "organization"),
     role,
   };
 }

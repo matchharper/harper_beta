@@ -1,3 +1,4 @@
+import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import { buildOrgHref } from "@/lib/org/routes";
 import {
   HARPER_ROLE_QUICK_ACTION_BLOCK_ID,
@@ -23,6 +24,7 @@ export type AutoIntroSlackProfile = {
 };
 
 export type AutoIntroRoleSummaryItem = {
+  talentFirstCapacityBlocked?: boolean;
   pendingDecisionCount: number;
   roleId: string;
   roleTitle: string;
@@ -381,7 +383,7 @@ export function buildAutoIntroRoleSummaryText(args: {
       })}|${escapeSlackLinkLabel(role.roleTitle)}> | ${autoIntroRoleStatusLabel(
         role.status,
         args.locale
-      )} | ${args.locale === "en" ? `${role.pendingDecisionCount} ready to connect` : `${role.pendingDecisionCount}명`}`
+      )} | ${args.locale === "en" ? `${role.pendingDecisionCount} ready to connect` : `${role.pendingDecisionCount}명`}${role.talentFirstCapacityBlocked ? ` | ${TALENT_FIRST_CAPACITY_NOTICE[args.locale ?? "ko"]}` : ""}`
   );
   const reminderText = buildAutoIntroRoleSummaryReminderText(args);
   return [
@@ -468,16 +470,26 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
   if (args.summary.roles.length > 99) {
     throw new Error("Role summary exceeds the Slack table row limit");
   }
+  const showCapacityNotice = args.summary.roles.some(
+    (role) => role.talentFirstCapacityBlocked
+  );
+  const capacityHeader =
+    args.locale === "en" ? "Candidate recommendations" : "후보자 추천 안내";
+  const capacityNotice = (role: AutoIntroRoleSummaryItem) =>
+    role.talentFirstCapacityBlocked
+      ? TALENT_FIRST_CAPACITY_NOTICE[args.locale ?? "ko"]
+      : "—";
   const tableCharacterCount = args.summary.roles.reduce(
     (total, role) =>
       total +
       role.roleTitle.length +
       autoIntroRoleStatusLabel(role.status, args.locale).length +
-      String(role.pendingDecisionCount).length,
+      String(role.pendingDecisionCount).length +
+      (showCapacityNotice ? capacityNotice(role).length : 0),
     (args.locale === "en"
       ? "RoleStatusReady to connect"
       : "Role상태연결 결정 대기"
-    ).length
+    ).length + (showCapacityNotice ? capacityHeader.length : 0)
   );
   if (tableCharacterCount > 10_000) {
     throw new Error("Role summary exceeds the Slack table character limit");
@@ -510,6 +522,7 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
         { is_wrapped: true },
         { align: "center" },
         { align: "right" },
+        ...(showCapacityNotice ? [{ is_wrapped: true }] : []),
       ],
       rows: [
         [
@@ -519,6 +532,9 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
             text: args.locale === "en" ? "Ready to connect" : "연결 결정 대기",
             type: "raw_text",
           },
+          ...(showCapacityNotice
+            ? [{ text: capacityHeader, type: "raw_text" }]
+            : []),
         ],
         ...args.summary.roles.map((role) => [
           {
@@ -551,6 +567,9 @@ export function buildAutoIntroRoleSummarySlackBlocks(args: {
                 : `${role.pendingDecisionCount}명`,
             type: "raw_text",
           },
+          ...(showCapacityNotice
+            ? [{ text: capacityNotice(role), type: "raw_text" }]
+            : []),
         ]),
       ],
       type: "table",

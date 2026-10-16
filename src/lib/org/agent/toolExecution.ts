@@ -2352,6 +2352,7 @@ function sameMeetingDraft(
 }
 
 async function immediatelyPresentedCandidateDecision(args: {
+  notifyCandidateOnClosure?: boolean;
   actorId: string;
   admin: OrgAgentAdminClient;
   conversationId: string;
@@ -2428,6 +2429,12 @@ async function immediatelyPresentedCandidateDecision(args: {
       ) {
         return false;
       }
+      if (
+        args.notifyCandidateOnClosure !== undefined &&
+        args.notifyCandidateOnClosure !== (value.notifyCandidateOnClosure !== false)
+      ) {
+        return false;
+      }
       const confirmationReason = text(value.reason) || null;
       return (
         args.reason === undefined ||
@@ -2440,6 +2447,7 @@ async function immediatelyPresentedCandidateDecision(args: {
   );
   const confirmationReason = text(confirmation.reason) || null;
   return {
+    notifyCandidateOnClosure: confirmation.notifyCandidateOnClosure !== false,
     connectionMethod,
     introEmails: normalizedDecisionEmails(confirmation.introEmails),
     meetingDraft:
@@ -2452,6 +2460,7 @@ async function immediatelyPresentedCandidateDecision(args: {
 }
 
 function candidateDecisionConfirmationText(args: {
+  notifyCandidateOnClosure?: boolean;
   candidateEmail: string;
   candidateName: string;
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
@@ -2463,6 +2472,9 @@ function candidateDecisionConfirmationText(args: {
   roleName: string;
 }) {
   if (args.decision === "decline") {
+    if (args.notifyCandidateOnClosure === false) {
+      return `${args.candidateName}님과 ${args.roleName} 역할의 연결을 종료하고 Harper의 별도 종료 안내는 보내지 않을게요. 종료 상태는 후보자 화면에도 표시돼요. 이대로 종료할까요?`;
+    }
     if (args.previousStage !== "pending_connection") {
       return `${args.candidateName}님과 진행 중인 ${args.roleName} 역할의 연결을 종료하려고 해요.\n\n종료하면 Harper가 후보자에게 회사가 더 진행하지 않기로 했다고 안내하고, 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않아요. 이미 보낸 소개 이메일이나 회사의 직접 연락, 후보자에게 보이거나 전달된 종료 안내는 회수할 수 없어요.\n\n남겨주신 이유는 후보자에게 그대로 전하지 않고 다음 추천 기준에 참고할게요. 연결 종료를 진행할까요?`;
     }
@@ -4397,6 +4409,7 @@ async function executeMoveCandidateStage(args: {
       scheduleInterview,
       skipAutomaticContact: !scheduleInterview,
       stage: targetStage,
+      notifyCandidateOnClosure: args.input.notifyCandidateOnClosure as boolean | undefined,
       talentId,
       user: args.user,
       workspaceId: args.workspaceId,
@@ -4489,6 +4502,7 @@ async function executeMoveCandidateStage(args: {
     summary,
   });
   return {
+    notifyCandidateOnClosure: targetStage === "process_stopped" ? args.input.notifyCandidateOnClosure !== false : undefined,
     candidateName,
     ...(schedule && preparedMeeting && queuedMeeting
       ? {
@@ -5161,6 +5175,7 @@ async function executeCompanyIntroDecision(args: {
 }
 
 function stageCandidateDecisionContext(args: {
+  notifyCandidateOnClosure?: boolean;
   actorId: string;
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
   decision: OrgAgentCandidateDecision;
@@ -5176,6 +5191,7 @@ function stageCandidateDecisionContext(args: {
 }) {
   const context: OrgAgentCandidateDecisionConfirmation = {
     actorId: args.actorId,
+    notifyCandidateOnClosure: args.notifyCandidateOnClosure !== false,
     connectionMethod: args.connectionMethod,
     decision: args.decision,
     introEmails: args.introEmails,
@@ -5388,6 +5404,7 @@ async function executePrepareCandidateConnection(args: {
     : null;
   if (!meetingDraftBlocked) {
     stageCandidateDecisionContext({
+      notifyCandidateOnClosure: args.input.notifyCandidateOnClosure as boolean | undefined,
       actorId: args.actorId,
       connectionMethod,
       decision,
@@ -5417,6 +5434,7 @@ async function executePrepareCandidateConnection(args: {
   return {
     candidateEmail: talent.candidate.email,
     candidateName: talent.candidate.name,
+    notifyCandidateOnClosure: args.input.notifyCandidateOnClosure !== false,
     closureNotificationDelivered:
       position.processClosureNotification?.status === "sent",
     closureNotificationDeliveredAt:
@@ -5605,6 +5623,7 @@ async function executeCandidateConnectionDecision(args: {
     };
   }
   const confirmed = await immediatelyPresentedCandidateDecision({
+    notifyCandidateOnClosure: args.input.notifyCandidateOnClosure as boolean | undefined,
     actorId: args.actorId,
     admin: args.admin,
     conversationId: args.conversation.id,
@@ -5637,6 +5656,7 @@ async function executeCandidateConnectionDecision(args: {
   });
   if (!confirmed) {
     stageCandidateDecisionContext({
+      notifyCandidateOnClosure: args.input.notifyCandidateOnClosure as boolean | undefined,
       actorId: args.actorId,
       connectionMethod: proposedConnectionMethod,
       decision,
@@ -5655,6 +5675,7 @@ async function executeCandidateConnectionDecision(args: {
       talentId,
     });
     args.state.fallbackReply = candidateDecisionConfirmationText({
+      notifyCandidateOnClosure: args.input.notifyCandidateOnClosure as boolean | undefined,
       candidateEmail,
       candidateName: text(talent.candidate.name) || "후보자",
       connectionMethod: proposedConnectionMethod,
@@ -5681,6 +5702,7 @@ async function executeCandidateConnectionDecision(args: {
       introEmails: proposedIntroEmails,
       responseGuidance:
         "Summarize the proposed candidate decision and ask for confirmation once.",
+      notifyCandidateOnClosure: args.input.notifyCandidateOnClosure !== false,
       status: "confirmation_required",
     };
   }
@@ -5727,6 +5749,7 @@ async function executeCandidateConnectionDecision(args: {
       ? (confirmed.processStageId as OrgStageId)
       : "connected";
     stageCandidateDecisionContext({
+      notifyCandidateOnClosure: confirmed.notifyCandidateOnClosure,
       actorId: args.actorId,
       connectionMethod: confirmed.connectionMethod,
       decision,
@@ -5774,13 +5797,15 @@ async function executeCandidateConnectionDecision(args: {
       recommendationId: position.recommendationId,
       roleId: current.roleId,
       stage: "process_stopped",
+      notifyCandidateOnClosure: confirmed.notifyCandidateOnClosure,
       stopNote: finalReason,
       talentId,
       user: args.user,
       workspaceId: args.workspaceId,
     });
-    const changeSummary =
-      position.stage === "pending_connection"
+    const changeSummary = confirmed.notifyCandidateOnClosure === false
+      ? `${candidateName}님과의 연결을 종료했어요. 종료 상태는 후보자에게 표시되며 Harper의 별도 종료 안내는 보내지 않아요.`
+      : position.stage === "pending_connection"
         ? `${candidateName}님과의 연결을 거절했어요. 회사가 더 진행하지 않기로 했다는 종료 결정이 후보자에게 표시되고 Harper가 이를 안내해요.`
         : `${candidateName}님과 진행 중이던 연결을 종료했어요. 이전에 보낸 소개 이메일이나 회사의 직접 연락은 회수되지 않으며, Harper가 후보자에게 종료를 안내해요.`;
     args.state.updateSummaries.push(changeSummary);
@@ -5794,8 +5819,10 @@ async function executeCandidateConnectionDecision(args: {
       candidateName,
       changeSummary,
       decision,
-      nextProcess:
-        "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 안내하고, 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않아요.",
+      notifyCandidateOnClosure: confirmed.notifyCandidateOnClosure,
+      nextProcess: confirmed.notifyCandidateOnClosure === false
+        ? "종료 상태는 후보자에게 표시되며 Harper의 별도 종료 안내는 보내지 않아요."
+        : "Harper가 후보자에게 회사가 이번 연결을 더 진행하지 않기로 했다고 안내하고, 이 후보자는 해당 역할의 연결 과정에서 더 이상 진행되지 않아요.",
       previousStage: position.stage,
       responseGuidance:
         "결정이 후보자에게 어떻게 안내되고 이후 매칭에 어떻게 반영되는지 다정하고 분명하게 설명하세요.",
@@ -6101,6 +6128,12 @@ export async function executeOrgAgentTool(args: {
   assertOrgAgentToolAvailable(args.name);
   args.signal?.throwIfAborted();
   const input = record(args.input);
+  if (
+    input.notifyCandidateOnClosure !== undefined &&
+    typeof input.notifyCandidateOnClosure !== "boolean"
+  ) {
+    throw new OrgAgentToolInputError("notifyCandidateOnClosure must be a boolean");
+  }
   const workspaceId = args.conversation.company_workspace_id;
   // These are structural Role identifiers in tool commands, not conversational judgments.
   const referencedRoleIds = [

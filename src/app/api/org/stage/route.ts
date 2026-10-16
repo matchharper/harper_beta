@@ -9,6 +9,19 @@ import {
 import type { InternalConnectionConfirmationEmailMode } from "@/lib/ops/connectionConfirmationEmail";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
 
+import {
+  createMeetingScheduleDraft,
+  prepareMeetingScheduleDraftForStage,
+  fetchMeetingScheduleDetail,
+} from "@/lib/meetings/scheduleDraftServer";
+import {
+  prepareMeetingInvitationPreview,
+  queueMeetingInvitation,
+} from "@/lib/meetings/invitationServer";
+import { getPublicSiteUrlFromRequest } from "@/lib/siteUrl";
+
+export const maxDuration = 120;
+
 function actionIdentity(value: unknown) {
   return (
     String(value ?? "")
@@ -64,11 +77,18 @@ export async function POST(req: NextRequest) {
       scheduleInterview?: boolean;
       sourceStage?: OrgStageId;
       stage?: OrgStageId;
+      notifyCandidateOnClosure?: boolean;
       stopNote?: string | null;
       talentId?: string;
       title?: unknown;
       workspaceId?: string;
     };
+    if (
+      body.notifyCandidateOnClosure !== undefined &&
+      typeof body.notifyCandidateOnClosure !== "boolean"
+    ) {
+      throw new OrgHttpError(400, "종료 안내 여부를 확인해 주세요.");
+    }
     const emailMode = String(body.emailMode ?? "schedule").trim();
     if (!["schedule", "send_now", "skip"].includes(emailMode)) {
       throw new OrgHttpError(400, "이메일 전달 방식을 확인해 주세요.");
@@ -83,10 +103,63 @@ export async function POST(req: NextRequest) {
     ) {
       throw new OrgHttpError(400, "복구 진행 방식을 확인해 주세요.");
     }
-    if (body.scheduleInterview === true) {
+    const schedulesInterview = body.scheduleInterview === true;
+    if (
+      schedulesInterview &&
+      ((stage !== "connected" && !stage.startsWith("custom:")) ||
+        body.contactDirectly ||
+        body.sourceStage !== "pending_connection")
+    ) {
       throw new OrgHttpError(
-        410,
-        "인터뷰 일정 조율은 Harper에게 채팅으로 요청해 주세요."
+        400,
+        "연결 대기 후보자를 선택해 인터뷰를 요청해 주세요."
+      );
+    }
+    // Validate setup and prepare the invitation before accepting the candidate.
+    // The initial connection has one durable schedule per recommendation, even
+    // if a client loses the response and submits again with a new action ID.
+    const prepared = schedulesInterview
+      ? await prepareMeetingScheduleDraftForStage({
+          attendeeEmails: body.attendeeEmails,
+          durationMinutes: body.durationMinutes,
+          meetingCandidateMessage: body.meetingCandidateMessage,
+          meetingPurpose: body.meetingPurpose,
+          recommendationId: body.recommendationId ?? "",
+          roleId: body.roleId ?? "",
+          sourceStage: body.sourceStage,
+          stageId: stage.startsWith("custom:") ? stage.slice(7) : null,
+          talentId: body.talentId ?? "",
+          title: body.title,
+          user,
+          workspaceId: body.workspaceId ?? "",
+        })
+      : null;
+    const meeting = prepared
+      ? await createMeetingScheduleDraft({
+          ...prepared,
+          sourceCompanyMessageId: null,
+          webRequestKey: "initial-connection",
+        })
+      : null;
+    const meetingDetail = meeting
+      ? await fetchMeetingScheduleDetail({
+          scheduleId: meeting.scheduleId,
+          user,
+          workspaceId: body.workspaceId ?? "",
+        })
+      : null;
+    const invitation =
+      meeting && meetingDetail?.schedule.status === "preparing"
+        ? await prepareMeetingInvitationPreview({
+            scheduleId: meeting.scheduleId,
+            user,
+            workspaceId: body.workspaceId ?? "",
+          })
+        : null;
+    if (meeting && !invitation) {
+      throw new OrgHttpError(
+        409,
+        "이미 인터뷰 요청이 시작되었어요. 후보자의 현재 진행 상황을 확인해 주세요."
       );
     }
 
@@ -105,13 +178,35 @@ export async function POST(req: NextRequest) {
         ? (reengagementResolution as "ask_candidate" | "company_confirmed")
         : null,
       roleId: body.roleId ?? "",
-      scheduleInterview: false,
+      scheduleInterview: schedulesInterview,
       stage,
+      notifyCandidateOnClosure: body.notifyCandidateOnClosure,
       stopNote: body.stopNote ?? null,
       talentId: body.talentId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
     });
+    if (meeting && invitation && meetingDetail && "stage" in payload) {
+      try {
+        await queueMeetingInvitation({
+          baseUrl: getPublicSiteUrlFromRequest(req),
+          body: invitation.email.body,
+          candidateMessage: invitation.email.candidateMessage,
+          expectedVersion: meetingDetail.schedule.version,
+          scheduleId: meeting.scheduleId,
+          sendImmediately: true,
+          subject: invitation.email.subject,
+          user,
+          workspaceId: body.workspaceId ?? "",
+        });
+      } catch (error) {
+        console.error("[org/stage:interview-invitation]", error);
+        throw new OrgHttpError(
+          502,
+          "후보자 연결은 완료했지만 인터뷰 요청 메일의 발송 상태를 확인하지 못했어요. Harper 채팅에서 이 후보자의 인터뷰 요청 상태를 확인해 주세요."
+        );
+      }
+    }
     let agentJobId: string | null = null;
     try {
       const queued = await enqueueOrgAgentWebActionTurn({
@@ -120,6 +215,8 @@ export async function POST(req: NextRequest) {
             "closureNotificationDelivered" in payload
               ? payload.closureNotificationDelivered
               : null,
+          meetingScheduleId: meeting?.scheduleId ?? null,
+          interviewInvitationRequested: Boolean(meeting && "stage" in payload),
           previousStage: body.sourceStage ?? null,
           recommendationId: body.recommendationId ?? "",
           roleId: payload.roleId,
@@ -149,7 +246,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ...payload,
       agentJobId,
-      meetingSchedule: null,
+      meetingSchedule:
+        meeting && "stage" in payload
+          ? { ...meeting, detailPath: "", status: "awaiting_talent" }
+          : null,
     });
   } catch (error) {
     return toErrorResponse(error);

@@ -325,7 +325,8 @@ export async function createMeetingScheduleDraft(args: {
   draft: PreparedMeetingScheduleDraft;
   recommendationId: string;
   roleId: string;
-  sourceCompanyMessageId: number;
+  sourceCompanyMessageId: number | null;
+  webRequestKey?: string;
   talentId: string;
   workspaceId: string;
 }) {
@@ -342,11 +343,23 @@ export async function createMeetingScheduleDraft(args: {
     );
   }
   const { config } = args.draft;
-  const idempotencyKey = buildMeetingRequestIdempotencyKey({
-    workspaceId: args.workspaceId,
-    recommendationId: args.recommendationId,
-    sourceCompanyMessageId: args.sourceCompanyMessageId,
-  });
+  // Web actions have no chat message; retain the RPC's nullable audit source.
+  if (args.sourceCompanyMessageId === null && !args.webRequestKey) {
+    throw new OrgHttpError(400, "일정 요청 정보를 확인해 주세요.");
+  }
+  const idempotencyKey =
+    args.sourceCompanyMessageId === null
+      ? [
+          "meeting_web_request",
+          args.workspaceId,
+          args.recommendationId,
+          args.webRequestKey,
+        ].join(":")
+      : buildMeetingRequestIdempotencyKey({
+          workspaceId: args.workspaceId,
+          recommendationId: args.recommendationId,
+          sourceCompanyMessageId: args.sourceCompanyMessageId,
+        });
   const { data, error } = await (args.admin.rpc as any)(
     "create_meeting_schedule_draft_v1",
     {

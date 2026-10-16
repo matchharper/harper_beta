@@ -1,3 +1,4 @@
+import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
@@ -82,7 +83,7 @@ function getBoardStageLabel(
   sourceT: (source: string) => string
 ) {
   const label = sourceT(getStageLabel(stage, roleName));
-  if (ORG_STAGE_DESCRIPTIONS[stage.id]) {
+  if (stage.id !== "accepted" && ORG_STAGE_DESCRIPTIONS[stage.id]) {
     return (
       <span className="inline-flex items-center gap-1.5">
         {label}
@@ -101,20 +102,26 @@ function getBoardStageLabel(
 }
 
 function OrgRoleRecommendationStatus({
+  capacityBlocked,
   roleStatus,
 }: {
+  capacityBlocked: boolean;
   roleStatus: OrgRole["status"];
 }) {
   const { c } = useOrgLocale();
   const status = getOrgRoleStatusPresentation(roleStatus).status;
   const active = status === "active" || status === "top_priority";
-  const label = active
+  const label = active && capacityBlocked
+    ? c("연결 결정이 필요해요", "Connection decisions needed")
+    : active
     ? c("Harper가 소개하고 있어요", "Harper is introducing your role")
     : status === "paused"
       ? c("후보자 추천 중단", "Recommendations paused")
       : c("후보자 추천 종료", "Recommendations ended");
 
-  const description = active
+  const description = active && capacityBlocked
+    ? c(TALENT_FIRST_CAPACITY_NOTICE.ko, TALENT_FIRST_CAPACITY_NOTICE.en)
+    : active
     ? c(
         "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
         "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role, Harper prepares their introduction and recommends them in Ready to connect."
@@ -142,13 +149,13 @@ function OrgRoleRecommendationStatus({
             aria-hidden="true"
             className="relative flex size-3 items-center justify-center"
           >
-            {active ? (
+            {active && !capacityBlocked ? (
               <StatusDot
                 className="absolute opacity-40 motion-safe:animate-ping motion-safe:[animation-duration:3s]"
                 tone="positive"
               />
             ) : null}
-            <StatusDot tone={active ? "positive" : "neutral"} />
+            <StatusDot tone={active && capacityBlocked ? "info" : active ? "positive" : "neutral"} />
           </span>
           <span>{label}</span>
           {/* <Info aria-hidden="true" className="size-3 text-neutral-soft" /> */}
@@ -566,7 +573,10 @@ export function OrgRoleTalentBoard({
   );
   const recommendationStatus =
     section === "inbox" && activeRole ? (
-      <OrgRoleRecommendationStatus roleStatus={activeRole.status} />
+      <OrgRoleRecommendationStatus
+        capacityBlocked={board?.talentFirstCapacityBlockedRoleIds?.includes(activeRole.roleId) ?? false}
+        roleStatus={activeRole.status}
+      />
     ) : null;
 
   const continueMove = (
@@ -839,12 +849,12 @@ export function OrgRoleTalentBoard({
           stopItem && stopItem.stage !== "pending_connection"
         )}
         onClose={() => setStopItem(null)}
-        onSubmit={async ({ note }) => {
+        onSubmit={async ({ note, notifyCandidateOnClosure }) => {
           if (!stopItem) return;
           await changeStage(
             stopItem,
             "process_stopped",
-            { stopNote: note },
+            { notifyCandidateOnClosure, stopNote: note },
             "inline"
           );
           setStopItem(null);

@@ -3,7 +3,7 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ko } from "date-fns/locale";
-import { CalendarCheck, Check, LoaderCircle } from "lucide-react";
+import { CalendarCheck, Check, InfoIcon, LoaderCircle } from "lucide-react";
 import {
   MeetingAvailabilityCalendar,
   MeetingAvailabilitySplitLayout,
@@ -18,6 +18,7 @@ import type {
 } from "@/lib/meetings/invitation";
 import { getDisplayableCompanyLogoUrl } from "@/lib/imageUrl";
 import { cn } from "@/lib/utils";
+import { Tooltips } from "@/components/ui/tooltip";
 
 type Copy = {
   alreadySubmitted: string;
@@ -107,7 +108,7 @@ const COPY: Record<"en" | "ko", Copy> = {
     submitError: "가능한 시간을 제출하지 못했어요. 잠시 후 다시 시도해 주세요.",
     submitting: "Submitting",
     timezoneNotice: (candidate, timezone) =>
-      `${candidate}님의 시간대(${timezone})에 맞게 변경하여 표시했습니다.`,
+      `${candidate}님의 시간대(${timezone})에 맞게 변경하여 표시했습니다. 편하게 선택해주세요.`,
     title: "인터뷰 가능 시간",
   },
 };
@@ -181,7 +182,57 @@ function formatTimeRange(
   return `${formatter.format(new Date(slot.startAt))}–${formatter.format(new Date(slot.endAt))}`;
 }
 
+function isDesignPreview(token: string) {
+  return (
+    process.env.NODE_ENV === "development" &&
+    (token === "preview" || token === "preview-en")
+  );
+}
+
+function designPreviewInvitation(token: string): PublicMeetingInvitation {
+  const slots: PublicMeetingSlot[] = [];
+  for (let day = 1; day <= 10; day++) {
+    const date = new Date();
+    date.setDate(date.getDate() + day);
+    if (date.getDay() === 0 || date.getDay() === 6) continue;
+    for (const hour of [10, 11, 14, 15, 16]) {
+      date.setHours(hour, 0, 0, 0);
+      slots.push({
+        slotId: `preview-${day}-${hour}`,
+        dateKey: dateKeyInTimezone(date.toISOString(), "Asia/Seoul"),
+        startAt: date.toISOString(),
+        endAt: new Date(date.getTime() + 60 * 60_000).toISOString(),
+      });
+    }
+  }
+  return {
+    calendar: null,
+    candidateName: "김하퍼",
+    companyLogoUrl: null,
+    companyName: "Example Company",
+    confirmedAt: null,
+    durationMinutes: 60,
+    expiresAt: new Date(Date.now() + 14 * 86_400_000).toISOString(),
+    locale: token === "preview-en" ? "en" : "ko",
+    message:
+      token === "preview-en"
+        ? "We'd love to hear about your recent projects and introduce our team."
+        : "최근 진행하신 프로젝트 이야기를 듣고, 저희 팀과 역할을 소개해 드리고 싶어요.",
+    organizerName: "이지원",
+    roleName: "Product Engineer",
+    slots,
+    state: "available",
+    timezone: "Asia/Seoul",
+    title: "Example Company · 첫 인터뷰",
+  };
+}
+
 async function fetchInvitation(token: string) {
+  if (isDesignPreview(token))
+    return {
+      ok: true,
+      invitation: designPreviewInvitation(token),
+    } as PublicMeetingInvitationResponse;
   const response = await fetch(`/api/meeting/${encodeURIComponent(token)}`, {
     cache: "no-store",
   });
@@ -370,6 +421,12 @@ export default function MeetingInvitationPage() {
 
   const submit = async () => {
     if (!token || selectedSlotIds.length === 0) return;
+    if (isDesignPreview(token)) {
+      setError(
+        "디자인 미리보기예요. 선택한 일정은 저장하거나 발송하지 않아요."
+      );
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -461,7 +518,7 @@ export default function MeetingInvitationPage() {
           title={copy.confirmed}
         />
       ) : invitation ? (
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-4xl">
           <OrgPageHeader
             description={
               <span className="flex items-center gap-2">
@@ -480,16 +537,13 @@ export default function MeetingInvitationPage() {
             }
             title={invitation.title}
           />
-          <p className="mt-0 text-[13px] leading-5 text-neutral-muted">
-            {copy.timezoneNotice(invitation.candidateName, displayTimezone)}
-          </p>
           {invitation.message ? (
             <p className="mt-2 max-w-3xl text-[14px] leading-6 text-neutral-muted">
-              {invitation.message}
+              {invitation.companyName} : {invitation.message}
             </p>
           ) : null}
 
-          <div className="mt-4 flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-floating shadow-sm md:h-[min(620px,calc(100svh-12rem))] md:min-h-[520px]">
+          <div className="mt-6 flex flex-col overflow-hidden rounded-2xl border border-neutral-1000-a05 bg-bg-floating shadow-sm md:h-[min(520px,calc(100svh-12rem))]">
             <MeetingAvailabilitySplitLayout
               calendar={
                 <MeetingAvailabilityCalendar
@@ -517,12 +571,22 @@ export default function MeetingInvitationPage() {
                 />
               }
               className="min-h-0 flex-1"
-              contentPaneClassName="flex min-h-[420px] flex-col md:overflow-hidden"
+              contentPaneClassName="flex flex-col md:overflow-hidden"
             >
               <div
                 className="relative min-h-0 flex-1 overflow-y-auto px-5 [scrollbar-gutter:stable] sm:px-6"
                 ref={slotListRef}
               >
+                <div className="absolute top-2 right-2">
+                  <Tooltips
+                    text={copy.timezoneNotice(
+                      invitation.candidateName,
+                      displayTimezone
+                    )}
+                  >
+                    <InfoIcon className="size-4 text-neutral-muted" />
+                  </Tooltips>
+                </div>
                 {slotGroups.map((group, index) => (
                   <section
                     className={cn(
@@ -604,7 +668,6 @@ export default function MeetingInvitationPage() {
                   className="w-full"
                   disabled={submitting}
                   onClick={() => void submit()}
-                  size="lg"
                   variant="primary"
                 >
                   {submitting ? (

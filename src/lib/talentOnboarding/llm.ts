@@ -237,6 +237,7 @@ export type TalentCompletionMetadata = {
 
 export async function runTalentAssistantCompletion(args: {
   onCompletionMetadata?: (metadata: TalentCompletionMetadata) => void;
+  onUsage?: (metadata: { model: string; usage: unknown }) => void;
   abortSignal?: AbortSignal;
   anthropicOverloadFallbackModel?: string;
   chatCompletionReasoningEffort?: ChatCompletionReasoningEffort;
@@ -339,6 +340,7 @@ export async function runTalentAssistantCompletion(args: {
     finishReason: response.choices[0]?.finish_reason ?? null,
     completionTokens: response.usage?.completion_tokens,
   });
+  args.onUsage?.({ model, usage: response.usage });
   return cleanModelText(getMessageContent(response.choices[0]?.message));
 }
 

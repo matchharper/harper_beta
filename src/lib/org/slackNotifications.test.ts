@@ -170,3 +170,15 @@ test("English workspace notifications use clear connection terms", () => {
   assert.match(rejected, /Alex/);
   assert.doesNotMatch(`${created}\n${accepted}\n${rejected}`, /[가-힣]/);
 });
+
+
+test("candidate closure notice opt-out is reflected in company Slack", () => {
+  for (const locale of ["ko", "en"] as const) {
+    const result = buildOrgCandidateRejectedSlackMessage({
+      actor, candidate: { name: "Test Candidate", talentId: "talent-1" },
+      roleId: "role-1", roleName: "Engineer", workspace, locale,
+      notifyCandidateOnClosure: false,
+    });
+    assert.match(result, locale === "ko" ? /별도 종료 안내는 보내지 않아요/ : /will not send a separate closure notice/);
+  }
+});

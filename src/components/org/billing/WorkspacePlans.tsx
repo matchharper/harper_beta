@@ -105,7 +105,7 @@ export function WorkspacePlans({
         ),
         c(
           "Harper-first 채용: Harper가 먼저 후보자를 찾고, 역할을 소개하고, 수락한 사람만 연결",
-          ""
+          "Harper-first hiring: Harper finds candidates, introduces the role, and connects you only with those who accept."
         ),
         c("Slack 연결 지원", "Slack integration included"),
         c("채용 성공보수 없음", "No hiring success fee"),

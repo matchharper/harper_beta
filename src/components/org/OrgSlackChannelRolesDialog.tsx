@@ -137,7 +137,10 @@ export function OrgSlackChannelRolesDialog({
       showCloseButton={!saving}
       panelClassName="max-w-lg"
       bodyClassName="space-y-4 px-4 sm:px-5"
-      title={c("이 채널에 어떤 Role을 할당할까요?", "")}
+      title={c(
+        "이 채널에 어떤 Role을 할당할까요?",
+        "Which Roles would you like to assign to this channel?"
+      )}
       footer={
         <div className="flex justify-end gap-2">
           <MuteButton disabled={saving} onClick={onClose}>

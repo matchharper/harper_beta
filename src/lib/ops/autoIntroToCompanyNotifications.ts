@@ -1,3 +1,4 @@
+import { readTalentFirstCapacityBlockedRoleIds } from "@/lib/org/talentFirstCapacity.server";
 import { parseCompanyCandidatePresentation } from "@/lib/companyFirstSearch/presentation";
 import { createHash, randomUUID } from "crypto";
 import type { OrgLocale } from "@/i18n/org/locale";
@@ -725,6 +726,7 @@ async function fetchCurrentRoleSummaries(
   if (currentRoles.length === 0) return [];
 
   const roleIds = uniqueTexts(currentRoles.map((role) => role.role_id));
+  const capacityBlockedRoleIds = new Set(await readTalentFirstCapacityBlockedRoleIds(admin, roleIds, now));
   const pendingTags: TagRow[] = [];
   for (const roleIdChunk of chunkValues(roleIds)) {
     pendingTags.push(
@@ -858,6 +860,7 @@ async function fetchCurrentRoleSummaries(
         upcomingMeetings: upcomingMeetingsByWorkspaceId.get(workspaceId) ?? [],
       },
       roles: workspaceRoles.map((role) => ({
+        talentFirstCapacityBlocked: capacityBlockedRoleIds.has(role.role_id),
         pendingDecisionCount: pendingCountByRoleId.get(role.role_id) ?? 0,
         roleId: role.role_id,
         roleTitle: normalizeText(role.name) || "Role",

@@ -51,28 +51,69 @@ test("role search materializes only ranking fields before FTS", async () => {
   );
 });
 
-test("SQL timeout retry context is appended after the cacheable prompt", async () => {
+test("role SQL retries the identical query once only after a timeout", async (t) => {
   process.env.OPENAI_API_KEY ??= "test-openai-key";
-  const { appendRoleSqlTimeoutRetryContext } =
+  const { executePreparedRoleSql } =
     await import("@/lib/talentOnboarding/jobPostingRecommendations");
-  const originalPrompt = '{"request":"backend roles"}';
-  const previousSql = "SELECT role_id FROM company_roles";
-  const retryPrompt = appendRoleSqlTimeoutRetryContext(
-    originalPrompt,
-    previousSql
-  );
+  const sql = "SELECT role_id FROM public.company_roles LIMIT 200";
+  const timeout = { code: "57014", message: "canceling statement due to statement timeout" };
+  const syntaxError = { code: "42601", message: "syntax error" };
+  const row = { role_id: "00000000-0000-4000-8000-000000000001" };
 
-  assert.equal(
-    retryPrompt,
-    [
-      originalPrompt,
-      "",
-      "[이전 SQL]",
-      previousSql,
-      "",
-      "위 쿼리의 범위가 너무 넓어서 timeout이 발생했다. 어느정도 더 좁혀서 작성해라.",
-    ].join("\n")
-  );
+  for (const scenario of [
+    { name: "success needs no retry", errors: [null], expectedCalls: 1 },
+    { name: "timeout then success", errors: [timeout, null], expectedCalls: 2 },
+    { name: "two timeouts propagate the second error", errors: [timeout, timeout], expectedCalls: 2, failure: timeout },
+    { name: "retry failure keeps its own error", errors: [timeout, syntaxError], expectedCalls: 2, failure: syntaxError },
+    { name: "other errors are not retried", errors: [syntaxError], expectedCalls: 1, failure: syntaxError },
+    { name: "cancellation prevents retry", errors: [timeout], expectedCalls: 1, abort: true },
+  ]) {
+    await t.test(scenario.name, async () => {
+      const calls: unknown[] = [];
+      const failures: Array<{ meta_data: { sql: string } }> = [];
+      const controller = new AbortController();
+      const admin = {
+        rpc: (name: string, params: unknown) => {
+          calls.push({ name, params });
+          const error = scenario.errors[calls.length - 1];
+          assert.notEqual(error, undefined, "unexpected extra SQL call");
+          if (scenario.abort) controller.abort();
+          return { abortSignal: () => Promise.resolve({ data: error ? null : [row], error }) };
+        },
+        from: (table: string) => {
+          assert.equal(table, "logs");
+          return { insert: async (entry: { meta_data: { sql: string } }) => {
+            failures.push(entry);
+            return { error: null };
+          } };
+        },
+      };
+      const result = executePreparedRoleSql({
+        admin: admin as unknown as Parameters<typeof executePreparedRoleSql>[0]["admin"],
+        abortSignal: controller.signal,
+        searchMode: "strict",
+        sql,
+        userId: row.role_id,
+      });
+      if (scenario.abort) {
+        await assert.rejects(result, { name: "AbortError" });
+      } else if (scenario.failure) {
+        await assert.rejects(result, {
+          name: "RoleSqlExecutionError",
+          sql,
+          message: `[strict role sql] ${scenario.failure.message}`,
+          timedOut: scenario.failure === timeout,
+        });
+      } else {
+        assert.equal((await result).rows[0].role_id, row.role_id);
+      }
+      assert.deepEqual(calls, Array.from({ length: scenario.expectedCalls }, () => ({
+        name: "search_external_roles_filter_first", params: { p_sql: sql },
+      })));
+      assert.equal(failures.length, scenario.errors.filter(Boolean).length);
+      assert.ok(failures.every((entry) => entry.meta_data.sql === sql));
+    });
+  }
 });
 
 test("full-JD fit cache changes with the actual user and search context", async () => {

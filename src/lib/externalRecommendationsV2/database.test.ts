@@ -21,7 +21,6 @@ const plan: V2SearchPlan = {
   includeRemote: true,
   remoteOnly: false,
   isPreferEntry: 0,
-  locations: [],
   countries: [{ countryCode: "KR", weight: 1, remoteOnly: false }],
   postingRecency: null,
 };
@@ -30,7 +29,7 @@ async function setup() {
   const db = new PGlite({ extensions: { vector } });
   await db.exec(`create schema extensions; create role anon; create role authenticated; create role service_role;
     create table company_db(id bigint primary key,name text,description text,short_description text,location text,founded_year int,employee_count_range jsonb);
-    create table company_workspace(company_workspace_id uuid primary key,company_db_id bigint,company_name text,company_description text,external_roles_enabled boolean default true);
+    create table company_workspace(company_workspace_id uuid primary key,company_db_id bigint,company_name text,company_description text,test_score numeric,external_roles_enabled boolean default true);
     create table talent_users(user_id uuid primary key,deleted_at timestamptz);
     create table talent_setting(user_id uuid primary key,get_external_recommendation boolean default true,is_onboarding_done boolean default true,status text default 'active',blocked_companies text[] default '{}');
     create table company_roles(role_id uuid primary key,company_workspace_id uuid,name text,description text,source_type text default 'external',source_provider text,is_expired boolean default false,expires_at timestamptz,status text default 'active',information jsonb default '{}',summary jsonb,
@@ -121,7 +120,7 @@ async function setup() {
   );
   return db;
 }
-test("real pgvector hybrid SQL includes unembedded FTS roles and enforces all eligibility filters", async () => {
+test("real pgvector filter-first SQL excludes missing embeddings and enforces all eligibility filters", async () => {
   const db = await setup();
   try {
     const sql = buildHybridSql({
@@ -136,48 +135,7 @@ test("real pgvector hybrid SQL includes unembedded FTS roles and enforces all el
     }>("select search_external_roles_v2($1)", [sql]);
     assert.deepEqual(
       rows.rows.map((r) => r.search_external_roles_v2.role_id),
-      [uuid(10), uuid(11)]
-    );
-    const titleNeighbors = await fetchTitleNeighbors(
-      {
-        rpc: async (_name: string, params: { p_sql: string }) => ({
-          data: (
-            await db.query<{ search_external_roles_v2: unknown }>(
-              "select search_external_roles_v2($1)",
-              [params.p_sql]
-            )
-          ).rows.map((r) => r.search_external_roles_v2),
-          error: null,
-        }),
-      } as any,
-      v
-    );
-    const split = await db.query("select search_external_roles_v2($1)", [
-      buildHybridSql({
-        plan,
-        vectors: [v],
-        userId: uuid(1),
-        blockedCompanies: ["Blocked"],
-        limit: 200,
-        titleNeighbors,
-      }),
-    ]);
-    assert.deepEqual(split.rows, rows.rows);
-    const emptyTitles = await db.query<{
-      search_external_roles_v2: { role_id: string };
-    }>("select search_external_roles_v2($1)", [
-      buildHybridSql({
-        plan,
-        vectors: [v],
-        userId: uuid(1),
-        blockedCompanies: ["Blocked"],
-        limit: 200,
-        titleNeighbors: [],
-      }),
-    ]);
-    assert.deepEqual(
-      emptyTitles.rows.map((r) => r.search_external_roles_v2.role_id),
-      [uuid(11)]
+      [uuid(10)]
     );
     const preview = await db.query<{
       search_external_roles_v2: Record<string, unknown>;
@@ -193,7 +151,7 @@ test("real pgvector hybrid SQL includes unembedded FTS roles and enforces all el
     ]);
     assert.deepEqual(
       preview.rows.map((r) => r.search_external_roles_v2.role_id),
-      [uuid(10), uuid(11)]
+      [uuid(10)]
     );
     assert.ok(
       preview.rows.every((r) => !("description" in r.search_external_roles_v2))
@@ -229,6 +187,27 @@ test("real pgvector hybrid SQL includes unembedded FTS roles and enforces all el
     await db.close();
   }
 });
+test("shared retrieval preserves countries, history cutoff, extra exclusions and full salary fields", async () => {
+  const { buildFilterFirstRoleSql } = await import("./filterFirstSql");
+  const db = await setup();
+  try {
+    await db.exec(`update company_roles set location_text='Seoul',salary_min=80000000,salary_currency='KRW',salary_period='year';
+      update company_workspace set test_score=7;`);
+    const input = { plan, vector: v, userId: uuid(1), blockedCompanies: ["Blocked"] };
+    const rows = (await db.query<any>(buildFilterFirstRoleSql(input))).rows;
+    assert.deepEqual(rows.map(r => r.role_id), [uuid(10)]);
+    assert.equal(Number(rows[0].salary_min), 80000000);
+    assert.equal(Number(rows[0].company_test_score), 7);
+    assert.equal(rows[0].description, "Synthetic backend evidence");
+    assert.deepEqual((await db.query(buildFilterFirstRoleSql({ ...input, excludeRoleIds: [uuid(10)] }))).rows, []);
+    await db.query("insert into talent_opportunity_recommendation(talent_id,role_id,opportunity_type,created_at) values($1,$2,'external_jd',now())", [uuid(1), uuid(10)]);
+    assert.deepEqual((await db.query(buildFilterFirstRoleSql(input))).rows, []);
+    assert.equal((await db.query(buildFilterFirstRoleSql({ ...input, asOf: "2020-01-01" }))).rows.length, 1);
+    await db.query("delete from talent_opportunity_recommendation");
+    await db.query("update company_roles set posted_at=now()-interval '361 days' where role_id=$1", [uuid(10)]);
+    assert.equal((await db.query(buildFilterFirstRoleSql(input))).rows.length, 1);
+  } finally { await db.close(); }
+});
 test("equal title and keyword evidence keeps equal relevance and salary can rescue a role beyond the old UUID cutoff", async () => {
   const db = await setup();
   try {
@@ -241,8 +220,12 @@ test("equal title and keyword evidence keeps equal relevance and salary can resc
       from generate_series(1000,2301) n`,
       [uuid(2)]
     );
+    // Keep these ranking/country fixtures independent of the per-company cap.
+    await db.exec(`insert into company_workspace(company_workspace_id,company_name)
+      select role_id,'Synthetic' from company_roles;
+      update company_roles set company_workspace_id=role_id;`);
     await db.query(
-      "update external_role_title_embeddings set embedding=$1::vector where title='Shared Backend Title'",
+      "update company_roles set title_embedding=$1::vector,title_embedding_text=name where name='Shared Backend Title'",
       [JSON.stringify(v)]
     );
     const rows = (
@@ -653,7 +636,7 @@ test("country weights are unique ISO codes and quotas sum to the exact budget", 
     false
   );
 });
-test("real SQL keeps country quotas before global limits, exact codes, conditional remote and shortage spillover", async () => {
+test("real SQL allocates weighted country quotas after ANN and keeps exact codes and conditional remote", async () => {
   const db = await setup();
   try {
     await db.exec("delete from company_roles");
@@ -665,8 +648,12 @@ test("real SQL keeps country quotas before global limits, exact codes, condition
       from generate_series(1000,2000) n`,
       [uuid(2)]
     );
+    // Keep these ranking/country fixtures independent of the per-company cap.
+    await db.exec(`insert into company_workspace(company_workspace_id,company_name)
+      select role_id,'Synthetic' from company_roles;
+      update company_roles set company_workspace_id=role_id;`);
     await db.query(
-      "update external_role_title_embeddings set embedding=$1::vector where title='Shared Backend Title'",
+      "update company_roles set title_embedding=$1::vector,title_embedding_text=name where name='Shared Backend Title'",
       [JSON.stringify(v)]
     );
     const mixed = {
@@ -692,14 +679,8 @@ test("real SQL keeps country quotas before global limits, exact codes, condition
       const rows = await retrieve(limit);
       assert.equal(rows.length, limit);
       assert.equal(new Set(rows.map((r) => r.role_id)).size, limit);
-      assert.equal(
-        rows.filter((r) => r.country_code === "KR").length,
-        limit * 0.8
-      );
-      assert.equal(
-        rows.filter((r) => r.country_code === "US").length,
-        limit * 0.2
-      );
+      assert.ok(rows.every((r) => ["KR", "US"].includes(r.country_code)));
+      assert.equal(rows.filter((r) => r.country_code === "US").length, limit * 0.2);
       assert.ok(
         rows
           .filter((r) => r.country_code === "US")
@@ -832,13 +813,13 @@ test("salary persistence is conditional, preserves actual pay, excludes test fix
 });
 
 
-test("recommend_job_postings control SQL searches a single combined vector without literal title gates", async () => {
+test("original SQL debugging lab still supports the legacy combined-title SQL", async () => {
   const { buildRoleSearchSql } = await import("../talentOnboarding/jobPostingRecommendations");
   const db = await setup();
   try {
-    await db.exec("alter table company_workspace add column test_score numeric; alter table company_roles add column updated_at timestamptz default now();");
+    await db.exec("alter table company_roles add column updated_at timestamptz default now();");
     const sql = buildRoleSearchSql({
-      plan: { ...plan, roleTitles: ["인공지능 엔지니어", "AI Engineer"] },
+      plan: { ...plan, locations: [], roleTitles: ["인공지능 엔지니어", "AI Engineer"] },
       titleVector: v, userId: uuid(1), blockedCompanies: ["Blocked"], searchMode: "strict",
     });
     assert.equal((sql.match(/nearest_titles AS MATERIALIZED/g) ?? []).length, 1);
@@ -860,7 +841,7 @@ test("recommend_job_postings control SQL searches a single combined vector witho
       v
     );
     const split = buildRoleSearchSql({
-      plan,
+      plan: { ...plan, locations: [] },
       titleNeighbors,
       userId: uuid(1),
       blockedCompanies: ["Blocked"],

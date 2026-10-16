@@ -1124,7 +1124,7 @@ export function formatMatchingRunHistory(value: MatchingRunHistory) {
     `### 검색 ${value.offset + index + 1} · ${formatPromptCell(statuses[item.status] ?? item.status, 50)}`,
     `실행: ${formatPromptKstDateTime(item.createdAt)}, ${formatPromptCell(triggers[item.trigger] ?? item.trigger, 80)}`,
     `대상 역할: ${item.roles.map(role => `${formatPromptCell(role.name, 250)} (${role.roleId})`).join(", ") || missing}`,
-    `전체 검토: ${measure(item.reviewedTalents ?? null, "명")}`,
+    `전체 검토: ${measure(item.reviewedTalents ?? null, "명")}, 추천 가능하지만 이번에 추천하지 않음: ${measure(item.rerankPool != null && item.selected != null && item.rerankPool >= item.selected ? item.rerankPool - item.selected : null, "명")}`,
     `회사에게 먼저 추천할 후보자 선정: ${measure(item.companyProposals, "명")} · 후보자에게 먼저 추천 선정: ${measure(item.candidateProposalsSelected, "명")}`,
     ...(item.candidateOutreachPauses?.length ? [
       `후보자에게 먼저 제안하는 경로 중단: ${item.candidateOutreachPauses.map(fact =>
@@ -1483,6 +1483,7 @@ function formatCandidateStageMoveResult(result: Record<string, any>) {
     `previous_stage=${from}`,
     `current_stage=${to}`,
     `stage_changed=${from !== to}`,
+    ...(result.notifyCandidateOnClosure !== undefined ? [`closure_notice_enabled=${result.notifyCandidateOnClosure}`] : []),
   ];
 
   if (result.scheduleId) {
@@ -1710,6 +1711,7 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
       `connection_method=${formatPromptCell(connectionMethod, 40)}`,
       `current_stage=${formatPromptCell(result.currentStage, 100)}`,
       `requested_stage=${formatPromptCell(result.requestedStage, 100)}`,
+      `closure_notice_enabled=${result.notifyCandidateOnClosure !== false}`,
       "candidate_changed=false",
       "candidate_contacted=false",
       formatPromptSection(
@@ -1742,7 +1744,7 @@ function formatCandidateConnectionDecisionResult(result: Record<string, any>) {
     `introduction_email_sent=${decision === "accept" && connectionMethod === "intro_email"}`,
     `direct_company_contact_required=${decision === "accept" && connectionMethod === "direct_contact"}`,
     `candidate_process_closed=${decision === "decline"}`,
-    `closure_notice_flow_started=${decision === "decline"}`,
+    `closure_notice_flow_started=${decision === "decline" && result.notifyCandidateOnClosure !== false}`,
     `closure_notice_already_delivered=${Boolean(result.closureNotificationDelivered)}`,
     `closure_notice_delivered_at=${formatPromptCell(result.closureNotificationDeliveredAt, 100)}`,
     `closure_notice_channel=${formatPromptCell(result.closureNotificationSentChannel, 80)}`,
@@ -1806,6 +1808,7 @@ function formatCandidateConnectionPreparationResult(
       100
     )}`,
     `reactivation=${Boolean(result.reactivation)}`,
+    `closure_notice_enabled=${result.notifyCandidateOnClosure !== false}`,
     `closure_notice_delivered=${Boolean(result.closureNotificationDelivered)}`,
     `closure_notice_delivered_at=${formatPromptCell(
       result.closureNotificationDeliveredAt,

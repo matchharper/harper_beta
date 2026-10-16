@@ -14,7 +14,14 @@ export type OpsDailyCostPoint = {
   date: string;
 };
 
+export type OpsCostBreakdownItem = {
+  label: string;
+  points: OpsDailyCostPoint[];
+  total: number;
+};
+
 export type OpsCostProviderResult = {
+  breakdown?: OpsCostBreakdownItem[];
   currency: "USD";
   id: OpsCostProviderId;
   label: string;

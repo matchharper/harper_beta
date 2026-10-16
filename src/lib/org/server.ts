@@ -1,3 +1,7 @@
+import { readTalentFirstCapacityBlockedRoleIds } from "@/lib/org/talentFirstCapacity.server";
+import { readAutomaticFollowupFeed } from "@/lib/org/automaticFollowupFeed";
+import { isCompanyFeedProgressVisible } from "@/lib/org/companyFeedVisibility";
+import { getCompanyFollowupProgress, type CompanyFollowupProgress } from "@/lib/org/companyFollowupProgress";
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
 import { recordOrgAction, recordOrgIntroDecision } from "@/lib/org/actionLogs";
 import type { OrgWorkspaceCreateResult, WorkspaceSignupState } from "./signup";
@@ -184,7 +188,9 @@ type TalentOpportunityTagRow =
   Database["public"]["Tables"]["talent_opportunity_tag"]["Row"];
 type TalentOpportunityFitRow =
   Database["public"]["Tables"]["talent_opportunity_fit"]["Row"];
-type TalentProgressRow = Database["public"]["Tables"]["talent_progress"]["Row"];
+type TalentProgressRow = Database["public"]["Tables"]["talent_progress"]["Row"] & {
+  talent_opportunity_recommendation?: { opportunity_type: string | null } | null;
+};
 type CareerEmailMessageRow =
   Database["public"]["Tables"]["career_email_messages"]["Row"];
 
@@ -481,6 +487,7 @@ export type OrgBoardItem = {
 };
 
 export type OrgBoardResponse = {
+  talentFirstCapacityBlockedRoleIds?: string[];
   dependencyCompleteness?: {
     connectedProgress: boolean;
     customStages: boolean;
@@ -554,6 +561,7 @@ export type OrgFeedActor = {
 };
 
 export type OrgFeedItem = {
+  followup?: CompanyFollowupProgress;
   activity: {
     eventType:
       | "candidate_contact_sent"
@@ -707,6 +715,8 @@ export type OrgTalentDetailResponse = {
 };
 
 export type OrgOtherRoleFeedItem = {
+  followup?: CompanyFollowupProgress;
+  progressKind?: string;
   createdAt: string;
   id: string;
   kind:
@@ -783,6 +793,7 @@ export type OrgStageChangeOptions = {
   reengagementResolution?: "company_confirmed";
   scheduleInterview?: boolean;
   sourceStage?: OrgStageId;
+  notifyCandidateOnClosure?: boolean;
   stopNote?: string | null;
   title?: string | null;
 };
@@ -3114,6 +3125,7 @@ export async function fetchOrgBoard(args: {
         customStages: customStages.complete,
         tags: true,
       },
+      talentFirstCapacityBlockedRoleIds: await readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
       items: [],
       roleId: selectedRoleId,
       stages: buildBoardStages({
@@ -3468,6 +3480,7 @@ export async function fetchOrgBoard(args: {
       customStages: customStages.complete,
       tags: tagsByKey.complete,
     },
+    talentFirstCapacityBlockedRoleIds: await readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
     items,
     roleId: selectedRoleId,
     stages,
@@ -4863,6 +4876,7 @@ export async function setOrgCandidateStage(args: {
   scheduleInterview?: boolean;
   skipAutomaticContact?: boolean;
   stage: OrgStageId;
+  notifyCandidateOnClosure?: boolean;
   stopNote?: string | null;
   talentId: string;
   user: User;
@@ -4892,6 +4906,12 @@ export async function setOrgCandidateStage(args: {
     !skipAutomaticContact
       ? normalizeLooseEmailList(args.introEmails)
       : [];
+  if (
+    args.notifyCandidateOnClosure !== undefined &&
+    typeof args.notifyCandidateOnClosure !== "boolean"
+  ) {
+    throw new OrgHttpError(400, "종료 안내 여부를 확인해 주세요.");
+  }
   const stopNote = normalizeText(args.stopNote);
 
   if (!workspaceId || !roleId || !talentId || !recommendationId || !stage) {
@@ -5396,6 +5416,7 @@ export async function setOrgCandidateStage(args: {
       scheduleInterview,
       skipAutomaticContact,
       stage,
+      notifyCandidateOnClosure: stage === "process_stopped" ? args.notifyCandidateOnClosure !== false : null,
       stopNote: stage === "process_stopped" ? stopNote : null,
       stopReason: null,
       tag: nextTag,
@@ -5492,6 +5513,7 @@ export async function setOrgCandidateStage(args: {
             await notifyOrgCandidateRejectedSlack({
               ...slackBaseArgs,
               previousStage,
+              notifyCandidateOnClosure: args.notifyCandidateOnClosure !== false,
               stopNote,
             });
           }
@@ -6117,10 +6139,11 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
     meetingsResult,
     noticesResult,
     recommendationsResult,
+    automaticFollowups,
   ] = await Promise.all([
     (admin.from("talent_progress" as any) as any)
       .select(
-        "id, talent_id, role_id, recommendation_id, text, open_to_company, kind, metadata, company_user_id, user_id, created_at"
+        "id, talent_id, role_id, recommendation_id, text, open_to_company, kind, metadata, company_user_id, user_id, created_at, talent_opportunity_recommendation(opportunity_type)"
       )
       .eq("talent_id", talentId)
       .in("role_id", roleIds)
@@ -6154,13 +6177,14 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
       .select("id, role_id")
       .eq("talent_id", talentId)
       .in("role_id", roleIds),
+    readAutomaticFollowupFeed(admin, workspaceId, talentId, roleIds),
   ]);
 
   const progressRows = optionalRows<TalentProgressRow>(
     progressResult,
     "other role progress"
   );
-  const progressItems: OrgOtherRoleFeedItem[] = progressRows.flatMap((row) => {
+  const progressItems: OrgOtherRoleFeedItem[] = progressRows.filter(isCompanyFeedProgressVisible).filter(automaticFollowups.showProgress).flatMap((row) => {
     const roleName = roleNameById.get(row.role_id);
     if (!roleName) return [];
     const metadata = getJsonRecord(row.metadata);
@@ -6191,6 +6215,8 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
         createdAt: row.created_at,
         id: `progress:${row.id}`,
         kind: "progress" as const,
+        progressKind: row.kind,
+        followup: getCompanyFollowupProgress(row.kind, row.metadata),
         roleId: row.role_id,
         roleName,
         text: getOrgProgressFeedText(row),
@@ -6337,6 +6363,10 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
 
   return {
     items: [
+      ...automaticFollowups.introGuides.map(guide => ({
+        ...guide, kind: "progress" as const, progressKind: "company_intro_followup_policy",
+        roleName: roleNameById.get(guide.roleId) ?? "", title: "Harper", text: "",
+      })),
       ...progressItems,
       ...requestItems,
       ...meetingItems,
@@ -6555,6 +6585,7 @@ export async function fetchOrgTalentDetail(args: {
     meetingSchedulesResult,
     processClosureNotifications,
     criteriaEvaluationsByKey,
+    automaticFollowups,
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
       .select(
@@ -6589,7 +6620,7 @@ export async function fetchOrgTalentDetail(args: {
       .eq("talent_id", talentId),
     (admin.from("talent_progress" as any) as any)
       .select(
-        "id, talent_id, role_id, recommendation_id, text, open_to_company, kind, metadata, company_user_id, user_id, created_at"
+        "id, talent_id, role_id, recommendation_id, text, open_to_company, kind, metadata, company_user_id, user_id, created_at, talent_opportunity_recommendation(opportunity_type)"
       )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
@@ -6599,7 +6630,7 @@ export async function fetchOrgTalentDetail(args: {
       .limit(50),
     (admin.from("talent_progress" as any) as any)
       .select(
-        "id, talent_id, role_id, recommendation_id, text, open_to_company, kind, metadata, company_user_id, user_id, created_at"
+        "id, talent_id, role_id, recommendation_id, text, open_to_company, kind, metadata, company_user_id, user_id, created_at, talent_opportunity_recommendation(opportunity_type)"
       )
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
@@ -6668,6 +6699,7 @@ export async function fetchOrgTalentDetail(args: {
       admin,
       recommendationRows: [recommendation],
     }),
+    readAutomaticFollowupFeed(admin, workspaceId, talentId, [recommendation.role_id]),
   ]);
 
   const talent = talentResult.data as TalentUserRow | null;
@@ -6947,7 +6979,7 @@ export async function fetchOrgTalentDetail(args: {
     return new Map<string, OrgFeedActor>();
   });
 
-  const progressFeedItems: OrgFeedItem[] = progressRows.map((row) => {
+  const progressFeedItems: OrgFeedItem[] = progressRows.filter(isCompanyFeedProgressVisible).filter(automaticFollowups.showProgress).map((row) => {
     const actorKey = row.company_user_id;
     return {
       activity: null,
@@ -6957,6 +6989,7 @@ export async function fetchOrgTalentDetail(args: {
       delivery: null,
       id: row.id,
       kind: getOrgStageChangeFeedKind(row),
+      followup: getCompanyFollowupProgress(row.kind, row.metadata),
       recommendationId: row.recommendation_id ?? null,
       roleId: row.role_id,
       roleName: roleRow.name,
@@ -7066,6 +7099,10 @@ export async function fetchOrgTalentDetail(args: {
     companyRequestHistory,
     connectionConfirmationEmails,
     feed: sortOrgFeedItems([
+      ...automaticFollowups.introGuides.map(guide => ({
+        ...guide, kind: "company_intro_followup_policy", activity: null, actor: null,
+        companyUserId: null, delivery: null, recommendationId: null, roleName: roleRow.name, text: "",
+      })),
       ...progressFeedItems,
       ...candidateActivityFeedItems,
     ]).slice(0, 50),

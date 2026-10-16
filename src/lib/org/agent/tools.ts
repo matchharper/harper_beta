@@ -1003,6 +1003,10 @@ Meeting scheduling is available from any company-visible active stage: pending_c
       parameters: {
         additionalProperties: false,
         properties: {
+          notifyCandidateOnClosure: {
+            type: "boolean",
+            description: "For a process closure, whether Harper should send the separate candidate closure notice. Defaults to true. Set false when the company asks to end without notifying. The candidate-visible closed status is unchanged.",
+          },
           expectedCurrentStageId: {
             description:
               "Exact current stage ID from a fresh read_role pipeline result.",
@@ -1318,6 +1322,10 @@ Call this once per exact candidate Role change and review the result before anot
       parameters: {
         additionalProperties: false,
         properties: {
+          notifyCandidateOnClosure: {
+            type: "boolean",
+            description: "For a process closure, whether Harper should send the separate candidate closure notice. Defaults to true. Set false when the company asks to end without notifying. The candidate-visible closed status is unchanged.",
+          },
           connectionMethod: {
             description:
               "For accept only. Omit or use intro_email for the default CC introduction. Use direct_contact only when the company explicitly asked to contact the candidate itself. Meeting scheduling uses move_candidate_stage instead.",
@@ -1375,6 +1383,10 @@ Call this once per exact candidate Role change and review the result before anot
       parameters: {
         additionalProperties: false,
         properties: {
+          notifyCandidateOnClosure: {
+            type: "boolean",
+            description: "For a process closure, whether Harper should send the separate candidate closure notice. Defaults to true. Set false when the company asks to end without notifying. The candidate-visible closed status is unchanged.",
+          },
           connectionMethod: {
             description:
               "For accept, omit or use intro_email for the default warm introduction. Use direct_contact only after an explicit company request. Meeting scheduling uses move_candidate_stage instead.",

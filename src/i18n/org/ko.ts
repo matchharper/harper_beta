@@ -246,11 +246,11 @@ export const ko = {
   "faq.role-visibility.answer":
     "Description은 후보자가 회사와 역할을 이해하는 데 쓰이는 공개 설명이에요. Hiring Brief와 Evaluation Criteria는 회사와 Harper가 후보자를 검토하는 내부 기준이고, Context for Harper는 지속적으로 참고할 회사·역할 맥락이에요. 내부 문서가 공개 JD처럼 자동 표시되지는 않아요. 새 Role의 기본 작성물은 Description과 Hiring Brief이며 Evaluation Criteria는 필요한 경우 별도로 정리해요. 한 문서를 바꿨다고 나머지 문서를 자동으로 전부 다시 쓰지는 않아요. 후보자가 판단에 필요한 업무·근무 조건은 Description에 정확히 담고, 외부 공고 노출과 회사명 공개 여부는 Role Settings에서 별도로 확인해 주세요.",
   "shared.5f41a68b":
-    "이 역할을 아직 수락하지 않은 후보에게 회사가 제안할 수 있습니다. Harper의 이전 추천이나 거절 이력이 있을 수 있습니다. 제안을 요청하면 Intro Requested로 이동합니다.",
+    "이 역할을 아직 수락하지 않은 후보에게 회사가 제안할 수 있습니다. Harper의 이전 추천이나 거절 이력이 있을 수 있습니다. Intro를 요청하면 Harper가 후보자에게 제안을 전달합니다.",
   "shared.b7c09ff5":
-    "회사가 먼저 제안을 요청한 후보입니다. Harper가 제안을 전달하고 후보자의 답변을 기다리며, 수락하면 소개 이메일로 연결하고 연결됨으로 이동합니다.",
+    "회사가 먼저 Intro를 요청한 후보입니다. Harper가 제안을 준비·전달하고 후보자의 답변을 기다립니다. 후보자가 수락하면 연결됨으로 표시하며 소개 이메일로 연결을 진행합니다.",
   "shared.01f06f3c":
-    "이미 이 역할을 추천받고 수락한 후보입니다. 회사가 연결을 수락하면 Harper가 소개 이메일로 연결해 인터뷰 등 다음 과정을 시작할 수 있습니다.",
+    "Harper가 이 역할을 추천했고, 그걸 수락한 후보자입니다. 회사가 연결을 수락하거나 인터뷰를 요청하면 Harper가 연결하고 다음 과정을 시작할 수 있습니다.",
   "shared.58ae8bef": "후보자 수락 · 연결 준비 중",
   "shared.25da2e1a": "후보자 답변 대기",
   "shared.company_intro_closed": "제안 종료",
@@ -591,8 +591,7 @@ export const ko = {
     "회사 소개와 Pitch, Context for Harper에는 무엇을 적나요?",
   "faq.company-pitch-memory.answer":
     "Pitch에는 회사가 무엇을 만들고 어떤 성과·문화·혜택 때문에 합류할 만한지 후보자에게 설명할 근거를 적어요. 회사 전체에 계속 참고할 배경이나 운영 맥락은 Context for Harper에, 특정 Role의 필수·선호 기준은 Hiring Brief에 정리해요. Harper에게 회사 정보나 기억을 물어보고 수정할 수 있으며, 기억이나 Hiring Brief 변경은 수정안을 확인한 뒤 반영해요. 후보자 한 명의 일시적인 상황을 회사 전체의 기준으로 저장하지 않아요.",
-  "faq.role-reference.question":
-    "참고 인물로 채용 기준을 맞출 수 있나요?",
+  "faq.role-reference.question": "참고 인물로 채용 기준을 맞출 수 있나요?",
   "faq.role-reference.answer":
     "네. 참고할 실제 인물의 LinkedIn·GitHub·소개 자료와 중요한 강점을 전달해 주세요. 확인된 경력과 판단 이유를 바탕으로 Hiring Brief를 다듬어요. 참고 인물은 회사가 별도로 후보 평가를 요청하지 않았다면 바로 후보자로 취급하지 않아요.",
   "faq.regular-search.question":
@@ -668,6 +667,16 @@ export const ko = {
   "documents.eyebrow.candidate-search": "탐색 설정과 이력",
   "documents.eyebrow.slots-and-credits": "이용 범위와 비용",
   "documents.eyebrow.public-job-visibility": "공개 설정",
+  "shared.stageDescription.accepted":
+    "후보자가 역할을 수락했지만 아직 회사가 연결 여부를 결정하는 단계로 넘어가지 않았습니다. Harper의 후속 처리를 기다리는 내부 운영용 상태이며, 별도의 팀원 승인 단계는 아닙니다.",
+  "shared.stageDescription.connected":
+    "후보자가 회사의 Intro를 수락했거나, 후보자 수락 후 회사가 연결을 수락한 상태입니다. 소개 이메일이나 다음 단계의 연결 절차가 진행 중일 수 있습니다. 구체적인 전형 진행 상황은 Pipeline에서 확인할 수 있습니다.",
+  "shared.stageDescription.intro_declined":
+    "후보자가 회사의 Intro 제안을 거절해 이번 제안이 종료됐습니다. 후보자가 답하지 않은 상태와는 다릅니다.",
+  "shared.stageDescription.process_stopped":
+    "이번 역할의 진행이 종료된 상태입니다. 회사가 연결을 거절한 경우도 포함됩니다. 종료 사유와 이전 진행 이력은 후보자 상세에서 확인할 수 있습니다.",
+  "shared.stageDescription.decision_made":
+    "이번 후보자에 대한 결정이 기록됐습니다. 구체적인 결정과 진행 이력은 후보자 상세에서 확인할 수 있습니다.",
 } as const;
 
 export type OrgMessageKey = keyof typeof ko;

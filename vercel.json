@@ -111,10 +111,6 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/internal/external-recommendations/embeddings",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/internal/email/company-connection",
       "schedule": "*/5 * * * *"
     }

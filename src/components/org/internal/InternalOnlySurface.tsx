@@ -1,19 +1,15 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-const HATCH_BACKGROUND =
+export const INTERNAL_ONLY_HATCH_BACKGROUND =
   "repeating-linear-gradient(135deg, transparent 0, transparent 5px, rgba(0, 0, 0, 0.05) 5px, rgba(0, 0, 0, 0.05) 6px)";
 
-export function InternalOnlyHatch({
-  className,
-}: {
-  className?: string;
-}) {
+export function InternalOnlyHatch({ className }: { className?: string }) {
   return (
     <span
       aria-hidden
       className={cn("pointer-events-none absolute inset-0 z-10", className)}
-      style={{ backgroundImage: HATCH_BACKGROUND }}
+      style={{ backgroundImage: INTERNAL_ONLY_HATCH_BACKGROUND }}
     />
   );
 }

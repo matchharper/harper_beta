@@ -1,62 +1,111 @@
 import { InternalApiError } from "@/lib/internalApi";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import {
-  EMBEDDING_MODEL,
-  embedTitles,
-} from "@/lib/externalRecommendationsV2/retrieval";
+import { embedTitles } from "@/lib/externalRecommendationsV2/retrieval";
 import { flattenRpcRows } from "@/lib/talentOnboarding/jobPostingRecommendations";
 import {
+  jobTitleSimilarityCandidateLimitSchema,
+  jobTitleSimilarityLimitSchema,
   jobTitleSimilarityRequestSchema,
-  type JobTitleSimilarityRow,
+  jobTitleSimilaritySourceSchema,
+  type JobTitleSimilaritySource,
+  type JobTitleSimilarityResult,
 } from "./jobTitleSimilarity";
 
-export function buildJobTitleSimilaritySql(vector: number[]) {
+export function buildJobTitleSimilaritySql(
+  vector: number[],
+  limit?: number,
+  candidateLimit?: number,
+  source?: JobTitleSimilaritySource
+) {
+  const searchSource = jobTitleSimilaritySourceSchema.parse(source);
+  const resultLimit = jobTitleSimilarityLimitSchema.parse(limit);
+  const roleCandidateLimit =
+    jobTitleSimilarityCandidateLimitSchema.parse(candidateLimit);
   if (vector.length !== 1536 || !vector.every(Number.isFinite))
     throw new Error("Invalid title embedding");
 
-  // The dictionary is the current title embedding source; the role column is legacy.
-  // Reuse the live-title ANN index, then score its neighbors in full precision.
   const queryVector = `'${JSON.stringify(vector)}'`;
-  return `WITH nearest_titles AS MATERIALIZED (
-    SELECT te.title_key, te.title, te.embedding
-    FROM public.external_role_title_embeddings te
-    WHERE te.embedding IS NOT NULL
-      AND te.live_role_count > 0
-      AND te.model = '${EMBEDDING_MODEL}'
-    ORDER BY te.embedding::public.halfvec(1536) OPERATOR(public.<=>) ${queryVector}::public.halfvec(1536)
-    LIMIT 1000
-  ), scored_titles AS MATERIALIZED (
-    SELECT title_key, title,
-      1 - (embedding OPERATOR(public.<=>) ${queryVector}::public.vector(1536)) AS similarity
-    FROM nearest_titles
+  const eligibleRoles = `r.source_type = 'external'
+      AND coalesce(r.is_expired, false) = false
+      AND (r.expires_at IS NULL OR r.expires_at > now())
+      AND r.status NOT IN ('ended', 'expired', 'closed', 'inactive', 'archived')
+      AND coalesce(r.source_provider, '') <> 'user_submitted'
+      AND lower(coalesce(r.information->>'testOnly', 'false')) <> 'true'`;
+  if (searchSource === "external_role_title_embeddings") {
+    // Return ANN-selected titles directly, preserving scan order without reranking.
+    return `WITH search_started AS MATERIALIZED (
+      SELECT clock_timestamp() AS at
+    ), nearest_titles AS MATERIALIZED (
+      SELECT te.title_key, te.title
+      FROM public.external_role_title_embeddings te
+      WHERE te.embedding IS NOT NULL AND te.live_role_count > 0
+        AND (SELECT at FROM search_started) IS NOT NULL
+      ORDER BY te.embedding::public.halfvec(1536) OPERATOR(public.<=>) ${queryVector}::public.halfvec(1536)
+      LIMIT ${roleCandidateLimit}
+    ), result_rows AS MATERIALIZED (
+      SELECT coalesce(jsonb_agg(n), '[]'::jsonb) AS rows,
+        clock_timestamp() AS finished_at
+      FROM nearest_titles n
+    )
+    SELECT result.rows, jsonb_build_object(
+      'candidateSearchMs', extract(epoch FROM (result.finished_at - started.at)) * 1000,
+      'rerankAndFetchMs', 0
+    ) AS timings
+    FROM search_started started CROSS JOIN result_rows result`;
+  }
+  const candidates = `SELECT r.role_id, r.name AS role_name, r.company_workspace_id, r.title_embedding
+    FROM public.company_roles r
+    WHERE r.title_embedding IS NOT NULL
+      AND r.title_embedding_text = r.name
+      AND ${eligibleRoles}
+      AND (SELECT at FROM search_started) IS NOT NULL
+    ORDER BY r.title_embedding::public.halfvec(1536) OPERATOR(public.<=>) ${queryVector}::public.halfvec(1536)
+    LIMIT ${roleCandidateLimit}`;
+  const scoredRoles = `SELECT role_id, role_name, company_workspace_id,
+      1 - (title_embedding OPERATOR(public.<=>) ${queryVector}::public.vector(1536)) AS similarity
+    FROM nearest_roles
+    WHERE (SELECT at FROM search_finished) IS NOT NULL`;
+  // Aggregate barriers consume each stage before recording its completion.
+  // Scalar dependencies preserve timing order without changing the distance ordering.
+  return `WITH search_started AS MATERIALIZED (
+    SELECT clock_timestamp() AS at
+  ), nearest_roles AS MATERIALIZED (
+    ${candidates}
+  ), search_finished AS MATERIALIZED (
+    SELECT count(*) AS role_count, clock_timestamp() AS at FROM nearest_roles
+  ), scored_roles AS MATERIALIZED (
+    ${scoredRoles}
   ), ranked AS MATERIALIZED (
-    SELECT cr.role_id, cr.name AS role_name, cr.company_workspace_id, nt.similarity
-    FROM scored_titles nt
-    JOIN LATERAL (
-      SELECT r.role_id, r.name, r.company_workspace_id
-      FROM public.company_roles r
-      WHERE r.source_type = 'external'
-        AND md5(r.name) = nt.title_key AND r.name = nt.title
-        AND coalesce(r.is_expired, false) = false
-        AND (r.expires_at IS NULL OR r.expires_at > now())
-        AND r.status NOT IN ('ended', 'expired', 'closed', 'inactive', 'archived')
-        AND coalesce(r.source_provider, '') <> 'user_submitted'
-        AND lower(coalesce(r.information->>'testOnly', 'false')) <> 'true'
-      OFFSET 0
-    ) cr ON true
-    ORDER BY similarity DESC, cr.role_id
-    LIMIT 20
+    SELECT role_id, role_name, company_workspace_id, similarity
+    FROM scored_roles
+    ORDER BY similarity DESC, role_id
+    LIMIT ${resultLimit}
+  ), result_rows AS MATERIALIZED (
+    SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'role_id', r.role_id::text,
+      'role_name', r.role_name,
+      'company_name', cw.company_name,
+      'similarity', r.similarity
+    ) ORDER BY r.similarity DESC, r.role_id), '[]'::jsonb) AS rows
+    FROM ranked r
+    LEFT JOIN public.company_workspace cw
+      ON cw.company_workspace_id = r.company_workspace_id
+  ), results_finished AS MATERIALIZED (
+    SELECT rows, clock_timestamp() AS at FROM result_rows
+    WHERE (SELECT at FROM search_finished) IS NOT NULL
   )
-  SELECT r.role_id::text, r.role_name, cw.company_name, r.similarity
-  FROM ranked r
-  LEFT JOIN public.company_workspace cw
-    ON cw.company_workspace_id = r.company_workspace_id
-  ORDER BY r.similarity DESC, r.role_id`;
+  SELECT result.rows, jsonb_build_object(
+    'candidateSearchMs', extract(epoch FROM (searched.at - started.at)) * 1000,
+    'rerankAndFetchMs', extract(epoch FROM (result.at - searched.at)) * 1000
+  ) AS timings
+  FROM search_started started
+  CROSS JOIN search_finished searched
+  CROSS JOIN results_finished result`;
 }
 
 export async function searchJobTitleSimilarity(
   input: unknown
-): Promise<JobTitleSimilarityRow[]> {
+): Promise<JobTitleSimilarityResult> {
   const parsed = jobTitleSimilarityRequestSchema.safeParse(input);
   if (!parsed.success)
     throw new InternalApiError(400, parsed.error.issues[0].message);
@@ -64,8 +113,17 @@ export async function searchJobTitleSimilarity(
   const [vector] = await embedTitles([parsed.data.text]);
   const { data, error } = await getSupabaseAdmin().rpc(
     "search_external_roles_v2",
-    { p_sql: buildJobTitleSimilaritySql(vector) }
+    {
+      p_sql: buildJobTitleSimilaritySql(
+        vector,
+        parsed.data.limit,
+        parsed.data.candidateLimit,
+        parsed.data.source
+      ),
+    }
   );
   if (error) throw new Error(error.message);
-  return flattenRpcRows(data) as JobTitleSimilarityRow[];
+  const [result] = flattenRpcRows(data) as JobTitleSimilarityResult[];
+  if (!result) throw new Error("검색 결과를 받지 못했습니다.");
+  return result;
 }
