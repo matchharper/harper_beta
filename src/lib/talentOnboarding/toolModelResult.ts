@@ -11,6 +11,8 @@ function pick(value: Data, keys: string[]): Data {
 }
 
 // Keep transport/UI receipts intact; only the provider-facing serialization is reduced.
+export function withCompactTalentToolModelResult(name: string, result: Data): Data;
+export function withCompactTalentToolModelResult(name: string, result: unknown): unknown;
 export function withCompactTalentToolModelResult(name: string, result: unknown): unknown {
   const raw = record(result);
   if (!raw || typeof raw.modelOutput === "string") return result;
