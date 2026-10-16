@@ -1,5 +1,8 @@
 import { publishedCompensation } from "../companyRoles/publishedCompensation";
-import { SEARCH_TITLE_INSTRUCTION, SEARCH_TITLE_NEIGHBOR_LIMIT } from "../externalRecommendationsV2/searchTitles";
+import {
+  SEARCH_TITLE_INSTRUCTION,
+  SEARCH_TITLE_NEIGHBOR_LIMIT,
+} from "../externalRecommendationsV2/searchTitles";
 import {
   SALARY_MARKET_VALUE_INSTRUCTION,
   SALARY_TARGET_UNIT_INSTRUCTION,
@@ -2124,6 +2127,7 @@ export function buildRoleSearchSql(args: {
   ftsFiltering?: boolean;
   ftsRanking?: boolean;
   titleVector?: number[];
+  titleNeighbors?: import("../externalRecommendationsV2/retrieval").TitleNeighbor[];
 }) {
   if (
     args.titleVector &&
@@ -2131,20 +2135,27 @@ export function buildRoleSearchSql(args: {
       !args.titleVector.every(Number.isFinite))
   )
     throw new Error("Invalid combined title vector");
-  const titleSearchCte = args.titleVector
-    ? `nearest_titles AS MATERIALIZED (
+  const titleSearchCte = args.titleNeighbors
+    ? `nearest_titles AS MATERIALIZED (SELECT * FROM jsonb_to_recordset(${sqlLiteral(JSON.stringify(args.titleNeighbors))}::jsonb) AS n(title_key text,title text,distance double precision)),\n`
+    : args.titleVector
+      ? `nearest_titles AS MATERIALIZED (
   SELECT te.title_key,te.title FROM public.external_role_title_embeddings te
   WHERE te.embedding IS NOT NULL AND te.live_role_count>0
   ORDER BY (te.embedding::public.halfvec(1536)) OPERATOR(public.<=>) ${sqlLiteral(JSON.stringify(args.titleVector))}::public.halfvec(1536) LIMIT ${SEARCH_TITLE_NEIGHBOR_LIMIT}
 ),\n`
-    : "";
+      : "";
   const ftsFiltering = args.ftsFiltering !== false;
   const ftsRanking = args.ftsRanking !== false;
   const ftsQuerySql = ftsAnyQuerySql(args.plan.ftsKeywords);
   const companyTestScoreRankSql = `COALESCE(tc.company_test_score, 0) / ${COMPANY_TEST_SCORE_SEARCH_RANK_DIVISOR}.0`;
   const postingRecencySql = buildPostingRecencySql(args.plan);
+  // Match V2's frequency rank: positional cover enumeration can dominate a
+  // broad multi-alias query. Materialize the resulting score once below.
   const keywordRankSql = ftsRanking
-    ? ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv")
+    ? ftsRankSql(args.plan.ftsKeywords, "tc.opportunity_search_tsv").replaceAll(
+        "ts_rank_cd(",
+        "ts_rank("
+      )
     : "0";
   const ftsCteSql = ftsFiltering
     ? `fts AS (\n  SELECT ${ftsQuerySql} AS query\n),\n`
@@ -2170,18 +2181,24 @@ export function buildRoleSearchSql(args: {
     previouslyRecommendedRoleExclusionSql(args.userId, args.asOf),
     ...buildBlockedCompanySql(args.blockedCompanies),
     ...buildEmploymentTypeSql(args.plan),
-    ...(args.titleVector
-      ? [
-          "md5(cr.name)=ANY(ARRAY(SELECT title_key FROM nearest_titles))",
-          "EXISTS (SELECT 1 FROM nearest_titles nt WHERE nt.title_key=md5(cr.name) AND nt.title=cr.name)",
-        ]
+    ...(args.titleVector || args.titleNeighbors
+      ? []
       : buildRoleTitleSql(args.plan.roleTitles)),
     ...buildLocationSql(args.plan),
     ...postingRecencySql.where,
   ].filter((sql): sql is string => Boolean(sql));
 
   return `
-WITH ${titleSearchCte}${ftsCteSql}title_candidates AS MATERIALIZED (
+WITH ${titleSearchCte}${ftsCteSql}${
+    args.titleVector || args.titleNeighbors
+      ? `title_matches AS MATERIALIZED (
+  SELECT cr.role_id FROM public.company_roles cr
+  JOIN nearest_titles nt ON nt.title_key=md5(cr.name) AND nt.title=cr.name
+  WHERE cr.source_type='external'
+    AND md5(cr.name)=ANY(ARRAY(SELECT title_key FROM nearest_titles))
+),\n`
+      : ""
+  }title_candidates AS MATERIALIZED (
   SELECT
     cr.role_id::text AS role_id,
     cr.company_workspace_id::text AS company_workspace_id,
@@ -2193,13 +2210,14 @@ WITH ${titleSearchCte}${ftsCteSql}title_candidates AS MATERIALIZED (
     cr.salary_min,cr.salary_max,cr.salary_currency,cr.salary_period,
     cw.test_score AS company_test_score
   FROM public.company_roles cr
+  ${args.titleVector || args.titleNeighbors ? "JOIN title_matches tm ON tm.role_id=cr.role_id" : ""}
   JOIN public.company_workspace cw
     ON cw.company_workspace_id = cr.company_workspace_id
   LEFT JOIN public.company_db cd
     ON cd.id = cw.company_db_id
   WHERE ${where.join("\n    AND ")}
 ),
-candidates AS (
+candidates AS MATERIALIZED (
   SELECT
     tc.role_id,
     tc.company_workspace_id,
@@ -2432,10 +2450,11 @@ async function executeRoleSql(args: {
   const startedAt = Date.now();
   // The legacy/full-JD recommendation flow shares the same one-text embedding
   // contract as V2 without changing its downstream scoring or experiment cohort.
-  const { embedSearchTitles } =
+  const { embedSearchTitles, fetchTitleNeighbors } =
     await import("../externalRecommendationsV2/retrieval");
   const [titleVector] = await embedSearchTitles(args.plan.roleTitles);
-  const sql = `${buildRoleSearchSql({ ...args, titleVector })}\nLIMIT ${MAX_SEARCH_RESULTS}`;
+  const titleNeighbors = await fetchTitleNeighbors(args.admin, titleVector);
+  const sql = `${buildRoleSearchSql({ ...args, titleVector, titleNeighbors })}\nLIMIT ${MAX_SEARCH_RESULTS}`;
   const { data, error } = await (args.admin.rpc(
     "search_external_roles_v2" as never,
     { p_sql: sql } as never

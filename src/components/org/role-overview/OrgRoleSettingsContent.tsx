@@ -243,8 +243,8 @@ export function OrgRoleSettingsContent({
       ? roleCreation
         ? {
             description: c(
-              "Slack 알림 채널과 담당자는 나중에 설정할 수 있습니다. 이 역할의 채용을 진행할까요?",
-              "Slack notification channel and owner can be set later. Start hiring for this role?"
+              "이 역할의 채용을 시작하고 후보자 추천을 받을까요?",
+              "Start hiring and receiving candidate recommendations for this role?"
             ),
             title: c("채용을 진행할까요?", "Start hiring?"),
           }
@@ -316,6 +316,32 @@ export function OrgRoleSettingsContent({
         )
       );
     }
+  };
+
+  const requestHiringStart = async () => {
+    if (!canManage || updateRoleStatus.isPending || settingsPending) return;
+    const settings = await settingsQuery.refetch();
+    if (settings.isError || !settings.data) {
+      addToast({
+        message: c(
+          "담당자 설정을 확인하지 못했습니다. 다시 시도해 주세요.",
+          "Could not check the role owner. Please try again."
+        ),
+        variant: "error",
+      });
+      return;
+    }
+    if (settings.data.assigneeUserIds.length === 0) {
+      addToast({
+        message: c(
+          "채용을 시작하려면 담당자를 설정하고 저장해 주세요.",
+          "Set and save a role owner before starting hiring."
+        ),
+        variant: "error",
+      });
+      return;
+    }
+    setStatusToConfirm("active");
   };
 
   const confirmStatusChange = async () => {
@@ -543,8 +569,11 @@ export function OrgRoleSettingsContent({
             {roleCreation ? (
               canManage ? (
                 <MuteButton
-                  disabled={!canManage || updateRoleStatus.isPending}
-                  onClick={() => setStatusToConfirm("active")}
+                  disabled={
+                    !canManage || updateRoleStatus.isPending ||
+                    settingsPending || settingsQuery.isFetching
+                  }
+                  onClick={() => void requestHiringStart()}
                   variant="default"
                 >
                   <Play className="size-4" />

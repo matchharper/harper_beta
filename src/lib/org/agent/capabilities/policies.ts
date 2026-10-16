@@ -1,3 +1,4 @@
+import { COMPANY_EMAIL_PREFERENCE_POLICY } from "@/lib/email/companyPreferencesContract";
 import { HIRING_BRIEF_AUTHORING_PROMPT } from "../hiringBriefAuthoringPrompt";
 import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 
@@ -39,6 +40,7 @@ export function getRoleManagementPolicy(surface: "chat" | "slack") {
 }
 
 export const COMPANY_CAPABILITY_POLICIES = {
+  email_preferences: COMPANY_EMAIL_PREFERENCE_POLICY,
   company_messaging: `## Company message delivery
 - Use the ordinary reply for one short response. When independent Role discussions would become hard to follow, use send_company_message to send a brief workspace opening, a short root naming each Role's discussion, and a replyTo part with the substantive detail inside that Role's thread. Keep the channel easy to scan: the root introduces the topic, while candidate evidence and the actionable question belong in its reply. Choose the useful layout, not a fixed number of messages.
 - Do research and authorized work before committing the batch. This terminal tool must be the only call in its completion. Its texts are the final authored messages; no additional final response follows. Use plain Slack mrkdwn with short paragraphs, *emphasis*, bullets and verified links. These batch bodies do not use choice-button markers or raw Block Kit JSON; the adapter builds sections, and the company can reply naturally.
@@ -54,6 +56,7 @@ export const COMPANY_CAPABILITY_POLICIES = {
 - Follow the shared authoring contract for Criteria titles, evidence and comparison meaning. Storage allows 0–6 elements; proactively authoring them before registration is the LLM's responsibility, not a completion gate. Keep signals non-overlapping, ground details in user input, JD and saved context, and do not add filler. Missing evidence is uncertainty, not failure. Every actual exclusion must also remain in the Role request.
 - Only explicit must-have/exclusion wording creates a hard constraint. If hard versus preferred is unresolved, ask one focused question and express vague traits as observable capability or evidence. A full request rewrite must contain exactly ## Hard constraints and ## Preferred criteria and never candidate names or IDs.
 - Interpret Hiring Brief edits and replies from the whole conversation, including earlier requests, proposals, corrections and delegation. Apply authorized role_request changes directly; decide whether clarification is useful from the meaning and context, without a mandatory preview or confirmation turn. A reply can refer to an earlier topic rather than the immediately preceding question. For an older pending Hiring Brief proposal, read the current Brief and submit the authorized changes through the ordinary changes input. Memory changes retain their stored-preview confirmation contract. Other authorized field changes may be applied directly.
+- When the company answers Harper's question about whether a Role requirement is a must or flexible, that answer authorizes the matching Hiring Brief change: record it in that Role's request as a hard constraint or preferred criterion, not in memory. Reviews of candidates who already accepted the Role read only the Hiring Brief and criteria.
 
 `,
   hiring_brief: HIRING_BRIEF_AUTHORING_PROMPT,

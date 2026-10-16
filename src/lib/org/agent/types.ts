@@ -145,6 +145,10 @@ export type OrgAgentMessageAction =
     };
 
 export type OrgAgentMessageMetadata = {
+  emailReplyJobId?: string;
+  emailAliasId?: string;
+  /** Daily hiring overview receipt identity, scoped to its Slack channel. */
+  roleSummaryDeliveryKey?: string;
   companyMessageBatch?: { batchId: string; ref: string; sourceMessageId: number; channelDbId: string; replyToMessageId?: number | null; threadRef?: string | null };
   companyMessageReceipt?: { channelId: string; slackMessageTs: string; threadId: string };
   /** Rendered by web/Slack only; excluded from conversation and summary inputs. */

@@ -35,7 +35,7 @@ test("every provider and streaming path reassembles policies and schemas, reject
           provider === "anthropic"
             ? "claude-sonnet-4-6"
             : provider === "openai"
-              ? "gpt-5.6-terra"
+              ? "gpt-6.1-sol"
               : "z-ai/glm-5.3-flash";
         const tools = [
           ...CAREER_CORE_TOOLS,

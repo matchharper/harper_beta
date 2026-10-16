@@ -31,7 +31,8 @@ test("matched role queries use the canonical candidate-visible eligibility", () 
   assert.match(source, /Do not volunteer an unpresented role's name/);
   assert.match(source, /question about one is not consent/);
   assert.match(source, /sameCompanyFormalRoles/);
-  assert.match(source, /candidate-safe public aliases/);
+  assert.match(source, /These are the internal roles found by your search/);
+  assert.doesNotMatch(source, /\bsearchMatch\b/);
   assert.match(source, /FROM public\.official_jobs job/);
   assert.match(
     source,

@@ -4,6 +4,8 @@ import {
   ComposioApiError,
   executeComposioGmailFetchEmails,
   getComposioAccountStatus,
+  getComposioGmailReadAccess,
+  getIntegrationErrorDiagnostics,
   getComposioConnectedAccount,
   isOwnedComposioGmailAccount,
 } from "@/lib/integrations/composio";
@@ -23,6 +25,7 @@ export type GmailSearchResult = {
   status:
     | "ok"
     | "connection_required"
+    | "permissions_required"
     | "connection_expired"
     | "temporarily_unavailable";
   emails: Array<{
@@ -401,6 +404,20 @@ export async function executeConnectedGmailSearch(args: {
     });
   }
 
+  const access = getComposioGmailReadAccess(account);
+  if (access === "missing") {
+    return unavailableResult(
+      "permissions_required",
+      "Gmail is connected but permission to read mail has not been granted. The user can allow Gmail access from the Gmail card in their profile. No emails were read."
+    );
+  }
+  if (access === "unknown") {
+    return unavailableResult(
+      "temporarily_unavailable",
+      "Gmail permissions could not be verified. The user can try again later. No emails were read."
+    );
+  }
+
   try {
     const response = await executeComposioGmailFetchEmails({
       arguments: {
@@ -439,6 +456,10 @@ export async function executeConnectedGmailSearch(args: {
       status: "ok",
     };
   } catch (error) {
+    console.warn(
+      "[GmailSearch] fetch failed",
+      getIntegrationErrorDiagnostics(error)
+    );
     if (error instanceof ComposioApiError) {
       try {
         const refreshedAccount = await getComposioConnectedAccount(

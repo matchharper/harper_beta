@@ -1,3 +1,11 @@
+## 다른 Slack 앱 메시지 인용: v34 (2026-10-15)
+
+- 동결 입력/gold: `cases-v34.json`, `gold-v34.md`, `manifest-v34.json`. v6 회사 맥락에 다른 Slack 앱 메시지가 인용된 합성 Slack 스레드 3건이다. production 데이터는 없다.
+- 계약/runner: `scripts/evalCompanyAgentCapabilities.ts --dataset=v34 --run=<fresh>`. 앱 초안을 팀원이 가리킨 경우, 앱의 지시, 앱의 승인처럼 보이는 답을 본다. 앱 메시지는 회사 팀원의 말이 아니며 지시나 승인이 될 수 없다.
+- 아직 실행하지 않았다. 작성 환경에 OpenRouter 키가 없었다.
+
+- 2026-10-16 통합 시 로컬 CC 첫 답장 v29와 파일명이 충돌하여 원격 v29를 v34로 번호만 분리했다. 원본 입력·gold 의미와 출처는 manifest에 보존했다.
+
 ## 선제 연락 실행 형태 관찰: production-proactive-v2 (2026-10-15)
 
 [계약·gold](production-proactive-v2.md), canonical `scripts/evalCompanyProactiveProduction.ts`의 `--effects=local` capture/run.
@@ -623,3 +631,64 @@ r7은 같은 v1의 RSR01 한 건으로 회사 설명 말투와 조건부 기준 
 ## Hiring Brief 직접 편집 (2026-10-15)
 
 [변경 범위와 검증 한계](reports/2026-10-15-hiring-brief-direct-edit.md): 강제 승인 대기 제거, 코드 검사 42/42. 기존 role-criteria-v1 인접 회귀 4/4이며 일반 편집의 문맥상 동의 LLM 평가·운영 E2E는 미검증이다. 미배포.
+
+## 회사 이메일 surface: 기존 v19 재실행 (2026-10-15)
+
+입력·gold·manifest v19를 변경하지 않고 canonical `scripts/evalCompanyAgentCapabilities.ts`의
+`--response-surface=email`로 같은 공통 tool loop와 이메일 표현 지침을 검증했다. 도구 제공·권한은
+기존 chat 실행 계약을 유지한다. 모델/provider/reasoning은 기본값 그대로이며, `--response-locale=ko`는
+실제 저장된 팀원 언어 설정이 있는 경로, 옵션 생략은 설정 없는 경로다. 이 설정도 각 run manifest에 남긴다.
+합성 입력만 provider에 보내며 기존 네트워크 차단·0700/0600 원문 보관을 유지한다.
+권한 의미 gate 3/3과 별도로 전체 답변 문체·이메일 링크 렌더링을 검토한다. v19는 수신·SMTP·첨부·재시도
+E2E나 이메일 특화 품질 전체를 검증하지 않는다. 이 경계는 격리 단위/SQL 검사와 구분한다.
+[결과와 남은 범위](reports/2026-10-15-company-email.md).
+
+
+## 2026-10-15 Terra → Sol 호출 설정
+
+환경변수를 제외한 Terra 호출 설정과 선택 UI를 Sol로 전환했다. 기존 frozen v6의
+`CSCQ501-web` 1건을 Sol로 재실행한 [검증과 한계](reports/2026-10-15-terra-to-sol.md)를
+기록했다. 실제 호출 2회·오류 0이며 전체 품질 gate와 운영 배포를 뜻하지 않는다.
+
+
+## CC 연결 첫 답장 넛지: v29 (2026-10-15)
+
+합성 후보 Daniel Park의 첫 답장 사건 1건. [입력](cases-v29.json), [의미 기준](gold-v29.md), [manifest](manifest-v29.json)를 실행 전에 동결했다. 실제 company-side loop·공통 event prompt와 기본 Gemini/medium을 사용한다. `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v29 --run=<new>`로 재현한다. 목적은 간단한 첫 답장 알림이며 정확한 문장 정답은 없다. 기준은 첫 답장 사실과 대상의 정확성, 짧고 자연스러운 안내, 본문·열람·후속 발송 등 미확인 주장과 미승인 효과 0이다. 합성 도구를 사용하고 DB·Slack·메일 네트워크는 차단한다. 원문/provider 결과·source hash·실행 설정은 ignored runs의 0700/0600에 보관한다. 단일 작성 예시로 실제 운영 채널 전달이나 광범위 품질 검증을 뜻하지 않는다. DB trigger·멱등성은 `scripts/testIntroFirstReplyCompanyUpdate.mjs`로 별도 확인한다.
+
+후속 v30은 v29의 불필요한 후속 제안과 미확인 회사 수신함 도착 단정을 기록한 뒤, 사건 목적과 제공되지 않은 사실 범위를 보완한 새 입력이다. [입력](cases-v30.json) · [gold](gold-v30.md) · [manifest](manifest-v30.json). 나머지 실행·평가·개인정보 경계는 v29와 같고 `--dataset=v30`으로 실행한다. 이전 입력과 결과는 보존한다.
+
+최종 v31은 v30에서도 남은 회사 수신함 확인 가능 단정을 막기 위해 Harper 수신 사본과 회사 수신 증거를 구분한다. [입력](cases-v31.json) · [gold](gold-v31.md) · [manifest](manifest-v31.json). 동일 runner의 `--dataset=v31`이며 나머지 계약은 v29와 같다. 이전 결과는 보존한다.
+
+실행 결과: v29 r1은 불필요한 제안과 회사 수신함 도착 추론, v30 r1은 수신함 확인 가능 단정으로 의미 gate 미통과다. `intro-first-reply-v31-r1`은 실제 Gemini 1회(17.8초)로 첫 답장 사실만 짧게 알렸고 도구 실행·발송·미확인 수신함 주장이 없어 단일 예시 의미 검토 통과다. 운영 회사 대화·Slack 전송 E2E는 제외한다. 모든 이전 실행 원문은 보존했다.
+
+## Intro 수락 후 연결 완료 안내: v32 (2026-10-15)
+
+[입력](cases-v32.json) · [gold](gold-v32.md) · [manifest](manifest-v32.json). 목적은 과거 제안 시점·후보자 수락·완료된 소개를 자연스럽게 연결하는 회사 Slack 안내다. 합성 2건의 개별 event turn이 단위이고 기존 production `buildCompanyUpdatePrompt`·company-side loop·공통 문체/도구를 사용한다. `scripts/evalCompanyAgentCapabilities.ts --dataset=v32 --response-locale=ko --run=<new>`가 canonical runner다. 기본 Gemini 3.8 Flash/OpenRouter·medium·temperature 0.5·120초이며 실제 설정/source/input hash와 raw는 ignored runs 0700/0600에 보존한다. Gate는 2/2 수동 의미·사실·자연스러움 검토와 미승인 효과 0이다. 사용자 제보 유형으로 만든 비식별 합성이며 기존 frozen 자료는 보존한다. 실제 DB·Slack·메일 네트워크는 차단한다. 작은 작성자 검토로 운영 전송/독립 검토/전체 분포를 증명하지 않는다. DB 연결 완료 trigger와 receipt 사실은 `scripts/testIntroConnectionCompanyUpdate.mjs`의 격리 PostgreSQL로 별도 검증한다.
+
+v32 첫 출력은 수락·완료 사실은 맞았지만 제안 시점을 생략했다. 목적에 이전 제안의 대상·역할·시점 맥락을 명확히 한 [v33 입력](cases-v33.json)·[gold](gold-v33.md)·[manifest](manifest-v33.json)를 새로 동결했다. 같은 runner의 `--dataset=v33`이며 나머지 단위·설정·gate·privacy·한계는 v32와 같다.
+
+v33 최종 run `intro-connected-v33-r1`은 실제 기본 모델 2회로 2/2 원문 의미 확인, 미승인 효과 0이다. 이전 v32의 날짜 누락과 SQL 시간대 비교 수정, 실제 모델 출력의 Slack renderer 확인 및 미배포 경계는 [결과 보고서](reports/2026-10-15-intro-connection-notice.md)에 기록했다.
+
+## 수동 조사 저장·전달 research-delivery-v1 (2026-10-16)
+
+- 단위/목적: 승인된 조사 요청 하나에서 같은 company-side LLM이 조사 → Brief 수정 → 저장본 재조회 → 새 Slack 부모/설명 답글 확정까지 수행한다. 자동 채용 시작 연결은 없다.
+- 입력/gold: `research-preview-v3.json` 원본 불변, 새 [delivery gold](research-delivery-gold-v1.md)와 [manifest](research-delivery-manifest-v1.json)를 첫 실행 전에 동결했다. 입력 provenance·합성 경력 한계는 v3와 같다.
+- canonical runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/runRoleSearchResearchPreview.ts --run=<fresh-id> --dataset=v3 --case=RSR04 --simulate-delivery`. 실제 delivery loop·prompt·tool schema·scope guard를 재사용하고, Brief mutation은 공통 parser/resolver로 메모리에만 적용한다. 메시지는 메모리에 확정하며 실제 DB·Slack·queue transport는 차단한다.
+- 모델/설정: gpt-6.1-sol, medium, OpenAI Responses, store:false, temperature 생략, completion 최대40,000토큰, 세션240초·30tool·80,000자 결과 예산. 실제 설정·source hash·원문은 run manifest에 기록한다.
+- metric/gate: 선택 사례의 기존 조건 보존, 전이 가능한 경력 수준·가산 효과, 실제 저장본과 설명 일치, 사용자 관점의 다음 단계 이해를 원문으로 판정한다. 선택1건을 전체 gate로 확대하지 않는다. 중대한 사실 조작·권한 밖 효과는 0건이어야 한다.
+- privacy: 합성 자료와 frozen 공개 페이지만 provider로 보내며 DB/Slack/메일/queue 네트워크는 허용하지 않는다. 원문 completion·Brief·메시지는 ignored runs의0700/0600에 남긴다. API key·인증 헤더는 기록하지 않는다.
+- 한계: 실제 저장 권한·Slack 렌더링·운영 Worker 실행은 이 LLM 시뮬레이션으로 검증되지 않는다. 전달 재시도/검색 handoff는 별도의 격리 단위·PGlite 테스트로 확인한다. 비독립 작성자 review이며 작은 합성 사례다.
+
+[2026-10-16 전달 검증](reports/2026-10-16-role-search-delivery.md): 관련 격리 테스트19개 통과. 실제 Sol medium 합성 RSR04 실행의 최종 r3에서 Brief 수정·재조회·부모/답글 확정과 선택 사례 의미를 확인했다. 실제 Slack/DB/Worker E2E 및 전체 v3 gate는 미검증이며 채용 시작 자동 연결·배포는 하지 않았다.
+
+## 경력 환경의 수준과 업무 직접 경험 구분: research-preview-v4 / delivery-v2 (2026-10-16)
+
+- 목적/단위: 하나의 조사 세션에서 조직·학업 환경의 수준, 개인의 경력 발전·성과, Role 직접 경험을 구분해 실제 비교 가능한 Brief와 회사 설명을 만든다.
+- 동결 자료: [v4 입력](research-preview-v4.json), [v4 gold](research-preview-gold-v4.md), [입력 manifest](research-preview-manifest-v4.json), [delivery v2 gold](research-delivery-gold-v2.md), [delivery manifest](research-delivery-manifest-v2.json). v3 입력은 보존하고 VESSL AI 가상 FDE를 추가했으며, 첫 호출 전 새 gold를 동결한다.
+- canonical runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/runRoleSearchResearchPreview.ts --run=<fresh-id> --dataset=v4 --case=RSR04,RSR05 --simulate-delivery --delivery-contract=v2`. Production 연구/delivery loop와 tool schema를 쓰며 내부 읽기·Brief 수정·메시지 확정은 메모리 adapter다. 모델이 쓰는 자유 형식 Brief·메시지를 그대로 보존한다.
+- 설정: gpt-6.1-sol/medium, OpenAI Responses/store:false, temperature 생략, completion40,000토큰, 세션240초·30tool·80,000자. Source snapshot·hash·input/gold hash·completion·tool·network trace를 run에 기록한다. 모델 fallback 없음.
+- metric/gate: 선택 RSR04/05의 필수 의미 2/2·critical0을 원문 검토하고 전체5건 gate로 확대하지 않는다. 조직/학업 수준 자체의 가산, 직무 직접 경험과 비교, 미확인을 부정 정책으로 바꾸지 않음, 실제 저장본과 설명 일치를 확인한다.
+- provenance/privacy: 합성 RSR04와 공개 VESSL 자료만 사용한다. VESSL 인물·경력 링크를 seed하지 않으며 실제 비공개 선호는 미제공이다. 실제 공개 FDE 공고 유무는 모델이 확인한다. DB/Slack/메일/queue 네트워크 차단, 공개 Exa와 모델만 허용, raw는 ignored runs의0700/0600이다. 웹에는 공개 검색어만 전달한다.
+- 한계: live 웹은 시점 의존이며 frozen 응답 비교가 아니다. 비독립 작성자 검토·작은 사례, 내부 adapter이므로 운영 저장·전송·추천 성과·회사 선호의 정답을 입증하지 않는다. 가상 채용이며 자동 시작 연결·운영 효과·배포 없음.
+
+[경력 수준 보완 실행 기록](reports/2026-10-16-research-caliber-v4.md): r1/r2의 남은 부정 정책 문제를 보존하고 r3 선택2건의 원문 의미를 확인했다. 관련 테스트7개·범위 TypeScript 검사 통과, 운영 효과·전체 gate·추천 성과는 미검증이다.

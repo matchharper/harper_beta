@@ -32,6 +32,13 @@ test("voice endpoint keeps original output and transports internal or unexpected
     assert.equal(delivered.assistantInstruction, "기존 안내 그대로");
     assert.equal(delivered.answerDraft, "원문 그대로");
     assert.match(delivered.additionalToolDiagnostics, /futureField/);
+    source = { ok: true, activityMessage: { payload: "UI-only" }, modelOutput: JSON.stringify({ ok: true, currentActivity: { revision: 2 } }) };
+    const compactBody = await (await POST(request() as any)).json();
+    assert.deepEqual(compactBody.output, source);
+    const compact = JSON.parse(compactBody.modelOutput);
+    assert.deepEqual(compact.currentActivity, { revision: 2 });
+    assert.ok(!("activityMessage" in compact));
+    assert.match(compact.additionalToolDiagnostics, /futureField/);
     source = { ok: false, error: { message: "failed", apiKey: "must-not-leak" }, answerDraft: "원문 그대로" };
     const protectedReply = await POST(request() as any);
     const protectedBody = await protectedReply.text();

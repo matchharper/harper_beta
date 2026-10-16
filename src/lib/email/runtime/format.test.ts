@@ -69,3 +69,11 @@ test("plain text keeps one table row per line and prints bare URLs only once", (
     /token=synthetic[^\n]*\(https:\/\/example.com/
   );
 });
+
+test("company navigation is rendered as real workspace links in HTML and text", async () => {
+  const { renderCompanyReplyEmail } = await import("./format");
+  const result = renderCompanyReplyEmail("[역할](role:role-123) [목록](roles)", "workspace-123");
+  assert.match(result.html, /orgId=workspace-123/);
+  assert.match(result.text, /roleId=role-123/);
+  assert.doesNotMatch(result.html, /href="role:|href="https:\/\/matchharper.com\/roles"/);
+});

@@ -49,6 +49,7 @@ async function fetchRoleNotificationChannels(args: {
 }
 
 export async function fetchOrgRoleNotificationSettings(args: {
+  audienceChannelId?: string;
   roleId: string;
   user: User;
   workspaceId: string;
@@ -94,6 +95,16 @@ export async function fetchOrgRoleNotificationSettings(args: {
     )
   );
 
+  // The setup picker verifies the selected destination using the delivery boundary.
+  let canAssign: boolean | undefined;
+  if (args.audienceChannelId) {
+    if (!channels.some((channel) => channel.slack_channel_id === args.audienceChannelId)) {
+      throw new OrgHttpError(400, "Unknown notification target");
+    }
+    const { isHarperSlackAudienceAllowed } = await import("./slackHarper");
+    canAssign = await isHarperSlackAudienceAllowed({ workspaceId, roleId, channelId: args.audienceChannelId });
+  }
+
   return {
     availableAssignees: (membershipResult.data ?? []).filter((row: WorkspaceMemberRow) => eligibleIds.has(row.company_user_id)).map((row: any) => ({
       userId: row.company_user_id,
@@ -107,6 +118,7 @@ export async function fetchOrgRoleNotificationSettings(args: {
       channelId: channel.slack_channel_id,
       channelName: channel.slack_channel_name,
       enabled: !disabledChannelIds.has(channel.id),
+      ...(channel.slack_channel_id === args.audienceChannelId ? { canAssign } : {}),
     })),
     roleId,
   };
@@ -246,6 +258,16 @@ export async function updateOrgRoleNotificationSettings(
   );
   if (unknownChannel) {
     throw new OrgHttpError(400, "Unknown notification target");
+  }
+
+  // Recheck at the write boundary: channel membership may have changed since reading.
+  if ([...channelUpdates.values()].some(Boolean)) {
+    const { isHarperSlackAudienceAllowed } = await import("./slackHarper");
+    for (const [channelId, enabled] of channelUpdates) {
+      if (enabled && !await isHarperSlackAudienceAllowed({ workspaceId, roleId, channelId })) {
+        throw new OrgHttpError(403, "채널 참여자의 Role 접근 권한을 확인하지 못했어요. 팀과 채널 참여자를 확인해 주세요.");
+      }
+    }
   }
 
   const channelEnabledIds: string[] = [];

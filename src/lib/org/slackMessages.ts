@@ -132,11 +132,19 @@ export function buildOrgRoleCreatedSlackMessage(args: {
   workspace: OrgSlackWorkspace;
 }) {
   const roleUrl = buildOrgRoleUrl(args.workspace.workspaceId, args.roleId);
-  const days = parseIntroSearchDays(args.introSearchDate) ?? DEFAULT_INTRO_SEARCH_DAYS;
-  const hour = parseIntroSearchHour(args.introSearchTime) ?? DEFAULT_INTRO_SEARCH_HOUR;
+  const days =
+    parseIntroSearchDays(args.introSearchDate) ?? DEFAULT_INTRO_SEARCH_DAYS;
+  const hour =
+    parseIntroSearchHour(args.introSearchTime) ?? DEFAULT_INTRO_SEARCH_HOUR;
   const englishSchedule = `every ${days.join(", ")} at ${String(hour).padStart(2, "0")}:00 KST`;
   const koreanDayNames: Record<IntroSearchDay, string> = {
-    Mon: "월", Tue: "화", Wed: "수", Thu: "목", Fri: "금", Sat: "토", Sun: "일",
+    Mon: "월",
+    Tue: "화",
+    Wed: "수",
+    Thu: "목",
+    Fri: "금",
+    Sat: "토",
+    Sun: "일",
   };
   const koreanSchedule = `매주 ${days.map((day) => koreanDayNames[day]).join("·")}요일 ${hour < 12 ? "오전" : "오후"} ${hour % 12 || 12}시(한국 시간)`;
   if (args.locale === "en")
@@ -235,7 +243,7 @@ export function buildOrgCandidateAcceptedSlackMessage(args: {
     lines.splice(
       4,
       0,
-      `- *회사 수신자*: ${args.introEmails.map(escapeSlackText).join(", ") || "없음"}`
+      `- *회사 담당자*: ${args.introEmails.map(escapeSlackText).join(", ") || "없음"}`
     );
   }
   if (args.reactivated) {

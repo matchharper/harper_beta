@@ -1,4 +1,4 @@
-/** Manual preview only: no database, queue, Slack, email or activation transport. */
+/** Manual preview / isolated delivery simulation: no database, queue, Slack or email transport. */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -11,6 +11,9 @@ const option = (name: string) => process.argv.find(arg => arg.startsWith(`--${na
 const runId = option("run");
 if (!runId || !/^[a-z0-9-]+$/.test(runId)) throw Error("Use --run=<fresh-id> [--dataset=v1] [--case=<ids>] [--input=<local-packet.json>]");
 const dataset = option("dataset") ?? "v1";
+const deliveryContract = option("delivery-contract") ?? "v1";
+if (!/^v[0-9]+$/.test(deliveryContract)) throw Error("Use --delivery-contract=v<number>");
+const simulateDelivery = process.argv.includes("--simulate-delivery");
 if (!/^v[0-9]+$/.test(dataset)) throw Error("Use --dataset=v<number>");
 process.umask(0o077);
 const dir = path.join(task, "runs", runId);
@@ -27,6 +30,11 @@ async function main() {
   for (const [name, hash] of Object.entries(frozen.files)) {
     if (sha(readFileSync(path.join(task, name))) !== hash) throw Error(`Frozen file changed: ${name}`);
   }
+  const deliveryManifest = simulateDelivery ? JSON.parse(readFileSync(path.join(task, `research-delivery-manifest-${deliveryContract}.json`), "utf8")) : null;
+  if (deliveryManifest) for (const [name, hash] of Object.entries(deliveryManifest.files)) {
+    if (sha(readFileSync(path.join(task, name))) !== hash) throw Error(`Frozen delivery file changed: ${name}`);
+  }
+  if (simulateDelivery && ((deliveryManifest.inputDataset ?? "v3") !== dataset || option("input"))) throw Error("Delivery simulation requires the input dataset declared in its frozen manifest");
   const selected = option("case")?.split(",");
   const units = spec.cases.filter((unit: any) => !selected || selected.includes(unit.id));
   if (!units.length || selected?.some(id => !units.some((u: any) => u.id === id))) throw Error("Select existing cases");
@@ -61,17 +69,21 @@ async function main() {
     }
   }) as typeof fetch;
 
-  const { runRoleSearchResearchPreview, ROLE_SEARCH_RESEARCH_MODEL, ROLE_SEARCH_RESEARCH_REASONING_EFFORT, ROLE_SEARCH_RESEARCH_MAX_TOKENS } = await import("../src/lib/org/agent/roleSearchResearch.server");
+  const { runRoleSearchResearchPreview, runRoleSearchResearchDelivery, ROLE_SEARCH_RESEARCH_MODEL, ROLE_SEARCH_RESEARCH_REASONING_EFFORT, ROLE_SEARCH_RESEARCH_MAX_TOKENS } = await import("../src/lib/org/agent/roleSearchResearch.server");
   const { runOrgAgentCompletion } = await import("../src/lib/org/agent/chat");
   const { executeSharedWebSearch, executeSharedOpenUrl } = await import("../src/lib/agentTools/web");
   const { createMemoryDocumentCache } = await import("../src/lib/tools/memoryDocumentCache");
   const { companyEvaluationRoleRead } = await import("./lib/companyAgentEvaluationContract");
+  const { parseCompanyDataChanges, resolveCompanyDataMutation } = await import("../src/lib/org/agent/companyDataMutation");
+  const { companyDataTargetKey } = await import("../src/lib/org/agent/companyDataCatalog");
+  const { parseCompanyMessages } = await import("../src/lib/org/agent/companyMessaging");
   const model = ROLE_SEARCH_RESEARCH_MODEL;
   const sourcePaths = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "src/lib/org/agent", "src/lib/agentTools/web.ts", "src/lib/tools", "src/lib/talentOnboarding/openUrlTool.ts", "src/lib/llm", "scripts/runRoleSearchResearchPreview.ts", "scripts/lib/companyAgentEvaluationContract.ts"], { cwd: root, encoding: "utf8" }).trim().split("\n").filter(file => existsSync(path.join(root, file)));
   const sources = [...new Set(sourcePaths)].sort().map(file => ({ file, content: readFileSync(path.join(root, file), "utf8") }));
   const sourceHashes = Object.fromEntries(sources.map(s => [s.file, sha(s.content)]));
   const manifest: any = { task: "company-side-conversational-qa/research-preview", runId,
     startedAt: new Date().toISOString(), inputHash: sha(specRaw), inputVersion: spec.version,
+    simulation: simulateDelivery ? `delivery-${deliveryContract}` : "preview", deliveryGoldHash: deliveryManifest?.files[`research-delivery-gold-${deliveryContract}.md`],
     frozenBenchmark: !option("input"), goldHash: frozen.files[`research-preview-gold-${dataset}.md`],
     model, reasoning: ROLE_SEARCH_RESEARCH_REASONING_EFFORT, maxTokensPerCompletion: ROLE_SEARCH_RESEARCH_MAX_TOKENS, temperature: null,
     provider: "OpenAI Responses", samplingNote: "Existing Responses adapter omits temperature",
@@ -95,18 +107,23 @@ async function main() {
       conversationMessages: history, conversationText: "-", recentRecommendationsText: "No candidate records supplied in this packet; this does not prove none exist in the company.",
       recentContactsText: "No company contact records supplied in this packet.", summariesText: "-", contextNotesText: "Manual preview packet. Internal readers are limited to supplied evidence; public web discovery is available. Local identifiers and testOnly metadata do not represent a database fixture or any write. " + (unit.captureNotes ?? "Synthetic internal role evidence; no actual Role exists for these fixture identifiers."),
     };
+    if (simulateDelivery) context.contextNotesText += " Isolated delivery simulation: this run explicitly authorizes target Brief updates and a new thread in the in-memory adapter. Keep synthetic provenance; no real company effect occurs.";
     const cache = createMemoryDocumentCache(), trace: any[] = [], completions: any[] = [];
     let output: any = null, error: string | null = null;
+    let completeReadValue: string | null = null;
+    let committedMessages: unknown[] = [];
     const start = performance.now();
     try {
-      output = await runRoleSearchResearchPreview({
+      const run = simulateDelivery ? runRoleSearchResearchDelivery : runRoleSearchResearchPreview;
+      output = await run({
+        ...(simulateDelivery ? { companyMessageAudience: { channelDbId: "isolated-channel", channelId: "ISOLATED", jobId: "isolated-job" }, assertCanContinue: async () => {} } : {}),
         context, roleId: role.roleId, responseLocale: "ko", currentUserMessageId: history.length + 1,
         conversation: { id: "manual-preview", company_workspace_id: workspaceId, role_id: role.roleId } as any,
         user: { id: "manual-preview-actor" } as any,
         admin: new Proxy({}, { get() { throw Error("No database access in manual packet preview"); } }) as any,
         signal: currentSignal,
-        onToolStatus: log => console.log(JSON.stringify({ case: unit.id, tool: log.label ?? log, elapsedMs: Math.round(performance.now() - start) })),
-      }, {
+        onToolStatus: (log: import("../src/lib/org/agent/types").OrgAgentThinkingLog) => console.log(JSON.stringify({ case: unit.id, tool: log.label ?? log, elapsedMs: Math.round(performance.now() - start) })),
+      } as any, {
         requestTime: new Date(spec.asOf),
         complete: async args => {
           const c: any = { index: completions.length + 1, request: args, startedAt: new Date().toISOString() };
@@ -134,7 +151,21 @@ async function main() {
               }
             } else if (args.name === "read_role") {
               if (x.roleId !== role.roleId) throw Error("Role not present in this captured scope");
+              if (x.include?.includes("criteria")) completeReadValue = role.request;
               result = companyEvaluationRoleRead({ role, include: x.include, pipeline: { candidates: [], coverage: "No pipeline records captured" } });
+            } else if (simulateDelivery && args.name === "update_data") {
+              const mutation = resolveCompanyDataMutation({
+                ...parseCompanyDataChanges({ changes: x.changes, summary: x.summary }),
+                snapshot: new Map([[companyDataTargetKey("role_request", role.roleId), { value: role.request }]]),
+                isComplete: (_key, _roleId, current) => current === completeReadValue,
+              });
+              if (mutation.confirmationRequired) throw Error("Unexpected proposal in delivery simulation");
+              for (const change of mutation.changes) role.request = String(change.value);
+              result = { status: mutation.changes.length ? "updated" : "already_reflected", summary: mutation.summary };
+            } else if (simulateDelivery && args.name === "send_company_message") {
+              committedMessages = parseCompanyMessages(x);
+              args.state.companyMessageBatch = { batchId: "isolated-batch", messageIds: committedMessages.map((_, i) => 100 + i) };
+              result = { status: "committed", ...args.state.companyMessageBatch };
             } else if (args.name === "get_more_data") {
               result = { requestedKinds: x.kinds };
               if (x.kinds?.includes("company_details")) {
@@ -157,9 +188,10 @@ async function main() {
         },
       });
     } catch (failure) { error = String(failure); }
+    if (simulateDelivery) save(`${unit.id}-delivery.json`, { brief: role.request, messages: committedMessages });
     save(`${unit.id}-output.json`, { output, error, elapsedMs: Math.round(performance.now() - start), semanticReview: "pending" });
     save(`${unit.id}-documents.json`, cache.snapshot());
-    if (output) writeFileSync(path.join(dir, `${unit.id}-preview.md`), output.text + "\n", { mode: 0o600 });
+    if (output?.text) writeFileSync(path.join(dir, `${unit.id}-preview.md`), output.text + "\n", { mode: 0o600 });
     manifest.results.push({ case: unit.id, error, elapsedMs: Math.round(performance.now() - start), toolCalls: trace.length, completions: completions.length, replyCharacters: output?.text?.length ?? 0 });
     save("manifest.json", manifest); save("network.json", network);
     console.log(JSON.stringify(manifest.results.at(-1)));

@@ -36,6 +36,8 @@ const mode = option("mode") ?? "progressive";
 const streaming = option("stream") === "true";
 const copyMode = option("copy") ?? "synthetic";
 const responseLocale = option("response-locale") ?? null;
+const responseSurface = option("response-surface");
+if (responseSurface !== undefined && responseSurface !== "email") throw Error("response-surface must be email");
 const requestedEvaluationModel = option("model") ?? "google/gemini-3.8-flash";
 if (responseLocale !== null && responseLocale !== "ko" && responseLocale !== "en") {
   throw Error("response-locale must be ko or en");
@@ -104,7 +106,7 @@ const manifest: any = {
   sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
   dirty: true, sourceFingerprint, datasetFiles: frozen.files,
   model: evaluationModel, provider: evaluationModel === "gpt-6.1-sol" ? "OpenAI Responses" : "OpenRouter", reasoning: getOrgAgentReasoningEffort(evaluationModel), temperature: ["anthropic/claude-haiku-5.5", "gpt-6.1-sol"].includes(evaluationModel) ? null : 0.5,
-  mode, streaming, responseLocale, timeoutMsPerTurn: 120_000, layer: "real-model-production-loop-synthetic-tools",
+  mode, streaming, responseLocale, responseSurface, timeoutMsPerTurn: 120_000, layer: "real-model-production-loop-synthetic-tools",
   copyMode, copyModelContract: "Direct send preserves main-agent final copy via production prepareDirectCandidateMessage. Review drafts use existing copy.ts (Claude, Luna fallback). No delivery or DB calls.",
   rawArtifactPath: runDir, metricSummary: "Pending manual semantic review; structural execution is not a quality pass.",
   selected: option("case") ?? "all", results: [],
@@ -492,6 +494,7 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         currentUserMessageId: currentId, mentions: [], model: evaluationModel,
         readAudience: "company_safe", scopeKey: `synthetic-${version}`, source: variant.surface ?? "slack", responseLocale: responseLocale ?? undefined,
         capabilityMode: mode,
+        responseSurface,
         backgroundOrigin: turn.origin === "scheduled_review" ? "scheduled_review" : undefined,
         slackExecutionContext: variant.slackExecutionContext,
         slackThreadId: null, user: { id: actorId, email: "user@example.invalid" } as any,

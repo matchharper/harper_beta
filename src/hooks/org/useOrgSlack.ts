@@ -10,6 +10,7 @@ import { queryKeys } from "@/lib/queryKeys";
 export type OrgSlackChannel = {
   channelId: string;
   channelName: string | null;
+  connectedAt?: string | null;
   defaultRoleId: string | null;
   isEnabled: boolean;
   isPrivate: boolean;

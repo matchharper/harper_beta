@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const payload = await fetchOrgRoleNotificationSettings({
+      audienceChannelId:
+        req.nextUrl.searchParams.get("audienceChannelId") || undefined,
       roleId: req.nextUrl.searchParams.get("roleId") ?? "",
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",

@@ -729,7 +729,7 @@ export default function OpsMatchingPage() {
           ) : effectiveRole ? (
             <>
               {activeTab === "harper_review" && canFetchInternal && <RoleSearchControls
-                key={effectiveRole.roleId}
+                key={`search-controls:${effectiveRole.roleId}`}
                 roles={[{ roleId: effectiveRole.roleId, name: effectiveRole.roleName }]}
                 workspaceId={effectiveRole.companyWorkspaceId} surface="ops" showHistory={false} />}
               <TabBoxes
@@ -748,7 +748,7 @@ export default function OpsMatchingPage() {
 
               {activeTab === "all" ? (
                 <MatchingTalentBrowser
-                  key={effectiveRole.roleId}
+                  key={`talent-browser:${effectiveRole.roleId}`}
                   canFetchInternal={canFetchInternal}
                   createdFrom={allCreatedFrom}
                   createdTo={allCreatedTo}
@@ -763,7 +763,7 @@ export default function OpsMatchingPage() {
                 />
               ) : activeTab === "harper_review" ? (
                 <MatchingHarperReviewBoard
-                  key={effectiveRole.roleId}
+                  key={`review-board:${effectiveRole.roleId}`}
                   canFetchInternal={canFetchInternal}
                   onRecommendedDateRangeChange={
                     handleReviewRecommendedDateRangeChange

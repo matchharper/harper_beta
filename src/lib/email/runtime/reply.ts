@@ -1,3 +1,5 @@
+import { companyReplyAddresses } from "../companyAlias";
+import { finishCompanyEmailReply, processCompanyEmailReply } from "./companyReply";
 import { buildPreparationPrompt } from "@/lib/career/simulation/preparationPrompt";
 import { continueEmailApplication, emailApplicationContext, assertEmailApplicationReadyToReply } from "./application";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
@@ -69,7 +71,8 @@ export async function processEmailReply(
   owner: string
 ) {
   if (job.resend_email_id && asObject(asObject(job.metadata).delivery).to) {
-    await finishEmailReply(admin, job, owner);
+    if (asObject(job.metadata).companyEmail) await finishCompanyEmailReply(admin, job, owner);
+    else await finishEmailReply(admin, job, owner);
     return;
   }
   if (
@@ -121,6 +124,8 @@ export async function processEmailReply(
     sender,
     recipients,
   };
+  if (companyReplyAddresses(recipients).length || metadata.companyEmail)
+    return processCompanyEmailReply({ ...special, fullBody });
   if (job.kind === "org_intro_capture") return processIntroCapture(special);
   if (job.kind === "referral_intro") return processReferralIntro(special);
   const identity = await resolveEmailIdentity({

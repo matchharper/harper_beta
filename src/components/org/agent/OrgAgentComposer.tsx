@@ -42,7 +42,7 @@ import {
   ORG_AGENT_GEMINI_FLASH_MODEL,
   ORG_AGENT_GLM_53_FLASH_MODEL,
   ORG_AGENT_LUNA_MODEL,
-  ORG_AGENT_TERRA_MODEL,
+  ORG_AGENT_SOL_MODEL,
   isOrgAgentModelId,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
@@ -142,8 +142,8 @@ function ModelSelector({
       value: ORG_AGENT_LUNA_MODEL,
     },
     {
-      label: c("Terra · GPT-5.6", "Terra · GPT-5.6"),
-      value: ORG_AGENT_TERRA_MODEL,
+      label: c("Sol · GPT-6.1", "Sol · GPT-6.1"),
+      value: ORG_AGENT_SOL_MODEL,
     },
     {
       label: c("Claude Sonnet 5.5", "Claude Sonnet 5.5"),

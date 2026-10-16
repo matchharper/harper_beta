@@ -21,7 +21,7 @@ export async function executeApplicationPreparationTool(args: {
     const key = `suggestions:${submittedBatchId ?? messageId}:${JSON.stringify(input)}`;
     const state = manageApplicationSuggestions(record.state, input, key, messageId, submittedBatchId);
     const saved = await saveSession(store, record, state, key);
-    return { record: saved, result: applicationSuggestionsResult(saved.state) };
+    return { record: saved, result: applicationSuggestionsResult(saved.state, record.state) };
   }
   if (name === READY_FOR_ROLE) {
     const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");

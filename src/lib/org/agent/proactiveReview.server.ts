@@ -15,14 +15,14 @@ import { enqueueOrgAgentWebActionTurn } from "./webActionTurn";
 
 type ProactiveReviewSchedule = { daysOfWeek: number[]; startTimeKst: string; windowMinutes: number };
 
-// Emergency stop: re-enabling proactive outreach requires an explicit code release.
-export function isCompanyProactiveReviewEnabled() { return false; }
+// Scheduled outreach is enabled; production activation follows the normal release process.
+export function isCompanyProactiveReviewEnabled() { return true; }
 
 export function parseProactiveReviewSchedule(raw?: string): ProactiveReviewSchedule {
   const value = raw?.trim() ? JSON.parse(raw) : {};
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("COMPANY_PROACTIVE_REVIEW_SCHEDULE must be an object");
   const daysOfWeek = value.daysOfWeek ?? [1, 2, 3, 4, 5];
-  const startTimeKst = value.startTimeKst ?? "17:00";
+  const startTimeKst = value.startTimeKst ?? "13:00";
   const windowMinutes = value.windowMinutes ?? 120;
   if (!Array.isArray(daysOfWeek) || daysOfWeek.some(day => !Number.isInteger(day) || day < 0 || day > 6)
     || typeof startTimeKst !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTimeKst)

@@ -55,7 +55,7 @@ import {
 } from "@/lib/org/slackFiles";
 import {
   getSlackOrgAgentModel,
-  ORG_AGENT_TERRA_MODEL,
+  ORG_AGENT_SOL_MODEL,
   type OrgAgentModelId,
 } from "@/lib/org/agent/modelConfig";
 import {
@@ -1169,7 +1169,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         });
         const slackOrgAgentModel =
           slackImageInputs.length > 0
-            ? ORG_AGENT_TERRA_MODEL
+            ? ORG_AGENT_SOL_MODEL
             : getSlackOrgAgentModel();
         let roleConfirmationResult: Awaited<
           ReturnType<typeof runOrgRoleCreationChat>

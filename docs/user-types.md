@@ -22,7 +22,7 @@
 | 추가 인증 게이트 | `company_users.is_authenticated = true` 필요 (초대 코드로만 활성화) | 없음 — 가입 즉시 사용 가능 |
 | 활성화 방법 | `/invitation` 페이지에서 초대 코드 redeem | (없음) |
 | AppLayout(`/my/*` 셸) 통과 조건 | `companyUser && companyUser.is_authenticated` | (해당 없음, 사용 안 함) |
-| 결제(Toss) | 사용함 (`/api/toss/payments/prepare` 등) | 사용 안 함 |
+| 기존 결제 | 연동 제거. 결제 버튼은 이용 불가 오류 표시 | 사용 안 함 |
 
 > **핵심 사실**: 두 유저 타입은 **`auth.users` row를 공유할 수 있지만 일반적으로는 별개**입니다. 한 이메일이 양쪽 도메인 테이블에 동시에 row를 가질 수도 있고(이론상 충돌 없음), 보통은 한쪽만 가집니다.
 

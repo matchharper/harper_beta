@@ -12,7 +12,7 @@ import {
   finishApplicationAnswer,
 } from "./applicationInput";
 import { suggestionAction } from "./suggestionSchema";
-import { manageApplicationSuggestions } from "./suggestions";
+import { manageApplicationSuggestions, applicationSuggestionsResult } from "./suggestions";
 import { applicationAnswerContext } from "./applicationAnswerContext";
 import { parseApplicationSimulation } from "./types";
 function fixture() {
@@ -497,4 +497,17 @@ test("submitted button decisions are protected in continuation while free answer
     12
   );
   assert.equal(later.actions.find((a) => a.id === "C")!.status, "skipped");
+});
+
+test("suggestion delivery retains changed and pending items without settled history", () => {
+  const before = fixture();
+  before.actions[0].status = "completed";
+  const after = structuredClone(before);
+  after.actions[2].status = "skipped";
+  const result = applicationSuggestionsResult(after, before);
+  const model = JSON.parse(result.modelOutput);
+  assert.deepEqual(model.suggestions.map((item: {id: string}) => item.id), ["Q", "M"]);
+  assert.equal(result.suggestions, after.actions);
+  assert.equal(model.assistantInstruction, result.assistantInstruction);
+  assert.deepEqual(JSON.parse(applicationSuggestionsResult(after, after).modelOutput).suggestions.map((item: {id: string}) => item.id), ["Q"]);
 });

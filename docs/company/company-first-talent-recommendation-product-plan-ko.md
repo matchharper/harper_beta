@@ -1,5 +1,7 @@
 # 회사 선확인 후보자 추천 · 먼저 제안하기 구현 기획
 
+> 2026-10-15 로컬 변경·미배포: talent-first 최대 5명 가이드 변경은 취소하고 기존 최대 20명을 유지한다. `is_harper_tailored_role=true` 또는 `is_company_first_search=false`인 Role에만, 후보자 선추천을 조금 더 여유롭게 검토하고 제안할 만한 후보가 있으면 3명까지 선택하되 억지로 채우지 않고 0명도 허용한다는 참고 문장을 rerank 입력에 추가한다. 조건 필드명은 prompt에 노출하지 않으며 회사 방향 전용 실행에는 이 문장을 넣지 않는다. 기존 선정 상한·parser·DB는 변경하지 않는다. 첫 일반 검색에는 이 문장을 대신해 “이번은 첫 추천이기 때문에 후보자 선추천 대상을 조금 더 여유롭게 검토해도 된다. 후보자에게 먼저 추천할 만한 후보가 있다면 적어도 10명까지 선택하는 것을 권장한다. 그렇다고 인원을 채우기 위해 억지로 고르지는 말고, 완전히 적절한 후보가 없으면 선택하지 않아도 된다.”를 제공한다. 첫 run 여부는 회사 전체가 아닌 Role별로 현재 cutoff 이전의 succeeded/skipped/failed/delivery_pending 실행 이력을 조회하며, 현재 running 실행과 재시도는 이전 실행으로 세지 않는다. 첫 run 가이드는 tailored/회사 자동검색 설정과 무관하게 적용하며, 회사 전용 및 별도 우선 검토 pool에는 추가하지 않는다. 저장 컬럼·새 상태·강제 인원 제한은 추가하지 않는다.
+
 > 2026-10-15 로컬 변경·미배포: Ops Pipeline과 `matchharper.com` 계정의 Org home Dev controls에서 Role별 Talent-first 검색을 수동 요청할 수 있다. 기존 검색 queue에 `talent_first_requested`로 기록하며 요일과 무관하게 해당 Role만 검색한다. 유료 슬롯·활성/미만료 Role·Hiring Brief·test-only 제외·후보자 자격·연결 대기 상한은 유지한다. 회사 선추천/수락 후보 소개는 이 요청에 포함하지 않는다. 같은 Role의 대기/실행 기록이 있으면 새 요청을 만들지 않고 현재 상태를 표시하며, 회사 요청이 대기 중인 수동 Talent-first를 회사 방향으로 승격하지 않는다. Org Dev controls는 수동 실행 여부와 무관하게 Role별 전체 검색 이력을 20개씩 조회한다. 새 migration은 준비만 했으며 DB 적용과 웹·Worker 배포는 별도다.
 
 > 2026-10-15 로컬 변경·미배포: 정기 회사 선추천·연결 대기 후보 소개는 운영 Worker `5c6ba484`와 웹 `b49471af`를 확인해 기존 Worker 작성 모델·두 소개 프롬프트·완성 카드 outbox 전달 방식으로 복원했다. 소개 뒤에만 공통 회사 이벤트를 호출해 유용한 후속 행동이나 발언을 선택적으로 판단한다. 가입일은 소개 작성 단계에서 연·월·일만 제공하고 최근 여부는 LLM이 판단한다. 아래 10월 13일의 facts-outbox/회사측 본문 재작성 계약은 이 정기 소개 경로에 적용하지 않는다. [검증 기록](../evaluation/company-candidate-writing-playground/reports/2026-10-15-signup-date.md).
@@ -278,7 +280,7 @@ company-safe presentation snapshot을 둘 수 있다. 원본 Brief, Memory, 전�
 - 같은 workspace–Role–Talent에는 active ledger가 하나만 존재한다.
 - active ledger에 연결된 `recommendation_id`는 하나이며 다른 ledger와 공유하지 않는다.
 - `ready`에는 `recommendation_id`, `requested_at`, `next_stage_id`가 없다.
-- `awaiting_talent` 이후에는 `recommendation_id`, `requested_at`, 유효한 회사 수신자가
+- `awaiting_talent` 이후에는 `recommendation_id`, `requested_at`, 유효한 회사 담당자가
   반드시 있다.
 - `next_stage_id`의 NULL은 기본 `연결됨`을 뜻한다. 값이 있으면 같은 Role의 실제 custom process stage만 가리킨다.
 - active Intro가 참조하는 next stage는 조용히 삭제할 수 없다. 먼저 active request를 해결해야 한다.
@@ -515,7 +517,7 @@ stage 생성·선택은 선행 조건이 아니다. 명시적으로 선택한 �
   것이다.
 - warm intro를 받을 유효한 회사 이메일이 최소 한 개 있어야 한다.
 
-기존 dialog의 stage 생성, 회사 수신자 선택, high-impact confirmation composition은 재사용할 수 있다.
+기존 dialog의 stage 생성, 회사 담당자 선택, high-impact confirmation composition은 재사용할 수 있다.
 그러나 action 의미와 허용 option은 먼저 제안 가능한 후보 전용으로 제한한다.
 
 ### 8.3 먼저 제안하기 command의 순서
@@ -523,7 +525,7 @@ stage 생성·선택은 선행 조건이 아니다. 명시적으로 선택한 �
 외부 메일 발송을 DB transaction 안에서 직접 수행하지 않는다. 대신 다음 순서로 구성한다.
 
 1. ledger를 읽고 `ready`와 expected revision을 확인한다.
-2. Role active, Talent active, `open_to_matches`, 차단 회사, 중복 route, next stage, 회사 수신자를 다시
+2. Role active, Talent active, `open_to_matches`, 차단 회사, 중복 route, next stage, 회사 담당자를 다시
    검증한다.
 3. 후보자에게 보여줄 fit summary와 요청 메일을 최신 public Role/company facts와 후보자 context로
    생성한다. 입력값은 untrusted source로 취급한다.
@@ -730,7 +732,7 @@ resolve and validate connection plan
 
 1. request, recommendation, Role, Talent를 lock하고 `awaiting_talent`인지 확인한다.
 2. recommendation을 positive feedback으로 기록하고 ledger를 `connecting`으로 바꾼다.
-3. 저장된 next stage와 현재 유효한 회사 수신자를 확인한다.
+3. 저장된 next stage와 현재 유효한 회사 담당자를 확인한다.
 4. 같은 warm intro idempotency key로 CC 메일을 발송한다.
 5. 발송 성공 후:
    - normal stage tag를 저장된 custom stage로 설정한다.

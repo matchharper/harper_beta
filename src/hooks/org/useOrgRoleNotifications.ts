@@ -13,6 +13,7 @@ import { queryKeys } from "@/lib/queryKeys";
 
 export function orgRoleNotificationSettingsQueryOptions(args: {
   enabled?: boolean;
+  audienceChannelId?: string;
   roleId: string;
   workspaceId: string;
 }) {
@@ -26,17 +27,26 @@ export function orgRoleNotificationSettingsQueryOptions(args: {
         roleId: args.roleId,
         workspaceId: args.workspaceId,
       });
+      if (args.audienceChannelId)
+        params.set("audienceChannelId", args.audienceChannelId);
       return fetchWithInternalAuth<OrgRoleNotificationSettings>(
         `/api/org/role-notifications?${params.toString()}`
       );
     },
-    queryKey: queryKeys.org.roleNotifications(args.workspaceId, args.roleId),
+    queryKey: args.audienceChannelId
+      ? [
+          ...queryKeys.org.roleNotifications(args.workspaceId, args.roleId),
+          "audience",
+          args.audienceChannelId,
+        ]
+      : queryKeys.org.roleNotifications(args.workspaceId, args.roleId),
     staleTime: 15_000,
   });
 }
 
 export function useOrgRoleNotificationSettings(args: {
   enabled?: boolean;
+  audienceChannelId?: string;
   roleId: string;
   workspaceId: string;
 }) {
@@ -56,6 +66,12 @@ export function useUpdateOrgRoleNotificationSettings() {
         }
       ),
     onSuccess: (settings, args) => {
+      void queryClient.invalidateQueries({
+        queryKey: [
+          ...queryKeys.org.roleNotifications(args.workspaceId, args.roleId),
+          "audience",
+        ],
+      });
       queryClient.setQueryData(
         queryKeys.org.roleNotifications(args.workspaceId, args.roleId),
         settings

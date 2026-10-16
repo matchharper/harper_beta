@@ -16,6 +16,7 @@ export const COMPOSIO_GMAIL_TOOLKIT_SLUG = "gmail";
 export const COMPOSIO_GMAIL_TOOL_VERSION = "20260817_00";
 
 export type ComposioConnectedAccount = {
+  grantedScopes?: string[];
   id?: string | null;
   user_id?: string | null;
   auth_config?: { id?: string | null; is_disabled?: boolean | null } | null;
@@ -23,6 +24,35 @@ export type ComposioConnectedAccount = {
   status?: string | null;
   is_disabled?: boolean | null;
 };
+
+// Requested scopes are not a grant. Keep only the scopes on the issued token,
+// never the credential-bearing objects that contain them.
+function readGrantedScopes(account: ComposioConnectedAccount) {
+  const raw = account as ComposioConnectedAccount & {
+    data?: { scope?: unknown };
+    state?: { val?: { scope?: unknown } };
+    params?: { scope?: unknown };
+  };
+  const scope = raw.data?.scope ?? raw.state?.val?.scope ?? raw.params?.scope;
+  if (typeof scope === "string") return scope.split(/\s+/).filter(Boolean);
+  if (Array.isArray(scope) && scope.every((item) => typeof item === "string")) {
+    return scope as string[];
+  }
+  return undefined;
+}
+
+export function getComposioGmailReadAccess(account: ComposioConnectedAccount) {
+  if (!account.grantedScopes) return "unknown";
+  return account.grantedScopes.some((scope) =>
+    [
+      "https://mail.google.com/",
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.modify",
+    ].includes(scope)
+  )
+    ? "granted"
+    : "missing";
+}
 
 type ComposioConnectedAccountList = {
   items?: ComposioConnectedAccount[] | null;
@@ -210,7 +240,9 @@ export function createComposioClient(
   function sanitizeAccount(
     account: ComposioConnectedAccount
   ): ComposioConnectedAccount {
+    const grantedScopes = readGrantedScopes(account);
     return {
+      ...(grantedScopes ? { grantedScopes } : {}),
       id: account.id,
       user_id: account.user_id,
       toolkit: { slug: account.toolkit?.slug },

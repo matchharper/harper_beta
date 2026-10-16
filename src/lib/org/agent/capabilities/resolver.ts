@@ -35,13 +35,13 @@ export const LOAD_CAPABILITIES_TOOL = {
   },
 };
 
-export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string> }) {
+export function resolveCompanyCapabilities(args: { surface: "chat" | "slack"; mode: CompanyCapabilityMode; emailReply?: boolean; loaded: ReadonlySet<CompanyCapabilityId>; allowedToolNames?: ReadonlySet<string> }) {
   // Trusted caller restriction. Loading a capability can never broaden it.
   const enabled = getEnabledOrgAgentTools(args.surface).filter(tool =>
     !args.allowedToolNames || args.allowedToolNames.has(tool.function.name));
   const supported = new Set(enabled.map((tool) => tool.function.name));
   const catalog = COMPANY_CAPABILITIES.filter((c) => c.toolIds.some((id) => supported.has(id)));
-  const active = catalog.filter((c) => args.mode === "full" || args.loaded.has(c.id) || (COMPANY_DEFAULT_CAPABILITIES as readonly string[]).includes(c.id));
+  const active = catalog.filter((c) => args.mode === "full" || args.loaded.has(c.id) || (args.emailReply && c.id === "email_preferences") || (COMPANY_DEFAULT_CAPABILITIES as readonly string[]).includes(c.id));
   const toolNames = new Set<string>(COMPANY_BASE_TOOLS);
   const policyIds = new Set<CompanyPolicyId>();
   for (const capability of active) {

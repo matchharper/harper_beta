@@ -49,8 +49,9 @@ export async function deliverCompanyMessageBatch(args: {
     // otherwise a failed lookup would be mistaken for an uncertain Slack delivery.
     const targets = await dependencies.links({ admin, workspaceId: args.workspaceId,
       preferredRoleId: message.role_id, message: message.content });
-    const text = markdownToSlackMrkdwn(renderSlackOrgLinks({ message: message.content,
-      workspaceId: args.workspaceId, ...targets }));
+    // Resolve private markers last: Markdown escaping would turn native Slack links into plain text.
+    const text = renderSlackOrgLinks({ message: markdownToSlackMrkdwn(message.content),
+      workspaceId: args.workspaceId, ...targets });
     const { data: attempt, error: attemptError } = await admin.rpc("begin_company_message_delivery_v1", {
       p_message_id: message.id, p_batch_id: args.batchId,
     });

@@ -1992,6 +1992,7 @@ async function sendWorkspaceMessage(args: {
 
 async function sendRoleSummaryOnly(args: {
   dateKey: string;
+  channelId: string;
   locale: OrgLocale;
   slackConnected: boolean;
   summary: AutoIntroRoleSummary;
@@ -2010,8 +2011,12 @@ async function sendRoleSummaryOnly(args: {
           summary: args.summary,
         }),
         idempotencyKey,
+        channelId: args.channelId,
+        enforceAudiencePermission: true,
+        requireAllDeliveries: true,
         messageMetadata: {
           model: "application",
+          roleSummaryDeliveryKey: `${idempotencyKey}:${args.channelId}`,
           source: "codex_scheduled_auto_intro_role_summary",
         },
         roleId: null,
@@ -2358,6 +2363,38 @@ function filterAuthoredMessageToCandidates(
   };
 }
 
+/** Called after the proactive decision, including silent completion, before its Slack batch. */
+export async function sendProactiveHiringOverview(args: {
+  workspaceId: string;
+  channelId: string;
+  now?: Date;
+}, dependencies = {
+  admin: getSupabaseAdmin,
+  summaries: fetchCurrentRoleSummaries,
+  locale: getOrgWorkspaceLocale,
+  send: sendRoleSummaryOnly,
+}) {
+  const now = args.now ?? new Date();
+  if (!isAutoIntroRoleSummaryDay(now)) return;
+  const admin = dependencies.admin();
+  const dateKey = getAutoIntroRoleSummaryDateKey(now);
+  const deliveryKey = `${roleSummaryIdempotencyKey(args.workspaceId, dateKey)}:${args.channelId}`;
+  const { data: delivered, error } = await admin.from("company_messages")
+    .select("id").eq("company_workspace_id", args.workspaceId)
+    .contains("metadata", { roleSummaryDeliveryKey: deliveryKey })
+    .not("slack_message_ts", "is", null).limit(1);
+  if (error) throw error;
+  if (delivered?.length) return;
+  const summaries = await dependencies.summaries(admin, autoIntroFilters(args), now);
+  const summary = summaries.find(item => item.workspaceId === args.workspaceId);
+  if (!summary) return;
+  const delivery = await dependencies.send({
+    dateKey, channelId: args.channelId, summary, slackConnected: true,
+    locale: await dependencies.locale(args.workspaceId, admin),
+  });
+  if (!delivery.slackSent) throw new Error(delivery.slackError ?? "Hiring overview delivery failed");
+}
+
 export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   groups: CodexAuthoredWorkspaceMessage[];
   limit?: number;
@@ -2370,15 +2407,9 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
   }
   const admin = getSupabaseAdmin();
   const filters = autoIntroFilters(args);
-  const now = args.now ?? new Date();
-  const roleSummaryDue = isAutoIntroRoleSummaryDay(now);
-  const roleSummaryDateKey = getAutoIntroRoleSummaryDateKey(now);
-  const [eligibility, roleSummaries] = await Promise.all([
-    buildEligibleCandidates(admin, filters),
-    roleSummaryDue
-      ? fetchCurrentRoleSummaries(admin, filters, now)
-      : Promise.resolve([]),
-  ]);
+  // Hiring overviews are delivered by the proactive review, immediately before its messages.
+  const roleSummaryDue = false;
+  const eligibility = await buildEligibleCandidates(admin, filters);
   const availableGroups = groupCandidatesByWorkspace(
     eligibility.candidates,
     eligibility.roles,
@@ -2396,7 +2427,7 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
     processedCandidateCount: 0,
     roleSummaries: [],
     roleSummaryDue,
-    roleSummaryWorkspaceCount: roleSummaries.length,
+    roleSummaryWorkspaceCount: 0,
     sentCandidateCount: 0,
     sentRoleSummaryCount: 0,
     sentSlackCount: 0,
@@ -2421,41 +2452,6 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
     slackConnectedByRole.set(scopeKey, connected);
     return connected;
   };
-  const slackConnectedByWorkspace = new Map<string, boolean>();
-  const summarySlackConnectedFor = async (workspaceId: string) => {
-    const cached = slackConnectedByWorkspace.get(workspaceId);
-    if (cached !== undefined) return cached;
-    const connected = await hasWorkspaceSlackDeliveryChannel(
-      admin,
-      workspaceId
-    );
-    slackConnectedByWorkspace.set(workspaceId, connected);
-    return connected;
-  };
-  const recordRoleSummary = (
-    summary: AutoIntroRoleSummary,
-    slackConnected: boolean,
-    locale: OrgLocale,
-    delivery?: DeliveryOutcome
-  ) => {
-    result.roleSummaries.push({
-      body: buildAutoIntroRoleSummaryText({ locale, summary }),
-      companyName: summary.companyName,
-      roleCount: summary.roles.length,
-      slackConnected,
-      slackError: delivery?.slackError ?? null,
-      slackSent: delivery?.slackSent ?? false,
-      workspaceId: summary.workspaceId,
-    });
-    if (!slackConnected) {
-      result.skippedRoleSummaryNoChannelCount += 1;
-    } else if (delivery?.slackSent) {
-      result.sentRoleSummaryCount += 1;
-    } else {
-      result.failedRoleSummaryCount += 1;
-    }
-  };
-
   for (const authored of args.groups) {
     const workspaceId = normalizeText(authored.workspaceId);
     const authoredRoleId =
@@ -2598,22 +2594,6 @@ export async function sendCodexAuthoredAutoIntroToCompanyNotifications(args: {
       : claimedCandidates.length;
   }
 
-  for (const summary of roleSummaries) {
-    const locale = await getOrgWorkspaceLocale(summary.workspaceId, admin);
-    const slackConnected = await summarySlackConnectedFor(summary.workspaceId);
-    if (!slackConnected) {
-      recordRoleSummary(summary, false, locale);
-      continue;
-    }
-    const delivery = await sendRoleSummaryOnly({
-      dateKey: roleSummaryDateKey,
-      locale,
-      slackConnected,
-      summary,
-    });
-    recordRoleSummary(summary, slackConnected, locale, delivery);
-    result.sentSlackCount += delivery.slackSent ? 1 : 0;
-  }
   return result;
 }
 

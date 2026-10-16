@@ -1,0 +1,6 @@
+{
+  "datasetVersion": "reply-v1",
+  "inputAndGoldSha256": "d2bf0d09ee11ba884403b3156f93cbec9d2733f9cf7a284e03ff59ee3a0480ea",
+  "canonicalRunner": "scripts/evalCompanyEmailOptOut.ts",
+  "provenance": "synthetic request and expected commands frozen before model call; no production context"
+}

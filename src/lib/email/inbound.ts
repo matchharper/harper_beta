@@ -1,3 +1,4 @@
+import { companyReplyAddresses } from "./companyAlias";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import { normalizeAddressList, normalizeEmailAddress } from "@/lib/email/parse";
 import { createReplyToken, hashReplyToken } from "@/lib/email/security";
@@ -127,6 +128,8 @@ export function classifyInboundEmailJob(args: {
   ccAddresses: readonly string[];
   toAddresses: readonly string[];
 }) {
+  const companyAddresses = companyReplyAddresses([...args.toAddresses, ...args.ccAddresses]);
+  if (companyAddresses.length) return { kind: "reply", metadata: { companyEmail: true } };
   const orgIntroCaptureAddresses = getMatchedOrgIntroCaptureAddresses(args);
   if (orgIntroCaptureAddresses.length > 0) {
     return {

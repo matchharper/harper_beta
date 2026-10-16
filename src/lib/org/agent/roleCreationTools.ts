@@ -729,6 +729,17 @@ export async function executeRoleCreationTool(args: {
       result: {
         error: "role_creation_not_ready",
         missingFields,
+        ...(missingFields.includes("assignee")
+          ? {
+              availableAssignees: state.members.map((member) => ({
+                current: member.userId === state.currentUser.userId,
+                name: member.name,
+                userId: member.userId,
+              })),
+              responseGuidance:
+                "No confirmed role owner is set. Ask whether to set the current conversation partner (the available assignee marked current) as the owner. If that person is not available, ask the user to choose an available teammate. Do not assign anyone without contextual authorization.",
+            }
+          : {}),
         ok: false,
       },
     };

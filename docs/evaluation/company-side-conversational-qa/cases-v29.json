@@ -1,0 +1,38 @@
+{
+  "datasetVersion": "v29",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic first CC introduction reply; no production data. Exact purpose from first-reply migration; frozen before execution.",
+  "scenarios": [
+    {
+      "id": "CSCQ2901",
+      "variants": [
+        {
+          "id": "first_intro_reply",
+          "surface": "slack",
+          "history": [
+            {
+              "role": "assistant",
+              "content": "Daniel Park님과 이메일로 연결해 드렸어요."
+            }
+          ],
+          "companyUpdate": {
+            "purpose": "Let the company know briefly in this role conversation that the candidate has replied to the CC introduction email for the first time. Use the existing conversation context to decide the wording and any useful next step.",
+            "facts": {
+              "companyMessageAlreadyDelivered": false,
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "candidateName": "Daniel Park",
+              "roleId": "00000000-0000-4000-8000-000000000101",
+              "recommendationId": "00000000-0000-4000-8000-000000000701",
+              "introEmailThreadId": "00000000-0000-4000-8000-000000000801",
+              "emailMessageId": "00000000-0000-4000-8000-000000000901",
+              "candidateFirstReplyReceivedAt": "2026-09-24T03:00:00.000Z"
+            }
+          },
+          "turns": [
+            "verified first candidate email reply"
+          ]
+        }
+      ]
+    }
+  ]
+}

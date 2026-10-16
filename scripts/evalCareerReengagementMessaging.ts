@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
-import { GPT_6_LUNA_MODEL, GPT_56_TERRA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL, GPT_61_SOL_MODEL } from "@/lib/llm/modelConfig";
 import {
   buildCareerConversationPromptPlan,
   buildCareerSessionStartTurnInstruction,
@@ -128,8 +128,8 @@ async function main() {
     const startedAt = new Date().toISOString();
     const startedMs = Date.now();
     const rawOutput = await runTalentAssistantCompletion({
-      anthropicOverloadFallbackModel: GPT_56_TERRA_MODEL,
-      fallbackModel: GPT_56_TERRA_MODEL,
+      anthropicOverloadFallbackModel: GPT_61_SOL_MODEL,
+      fallbackModel: GPT_61_SOL_MODEL,
       maxTokens: 4096,
       messages,
       openAIResponsesReasoningEffort: "xhigh",

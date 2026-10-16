@@ -421,7 +421,7 @@ async function main() {
             tools,
           }),
           debugLabel: `career-coaching-dialogue:${evalCase.id}`,
-          model: modelConfig.GPT_56_TERRA_MODEL,
+          model: modelConfig.GPT_61_SOL_MODEL,
           openAIResponses: { reasoningEffort: "high" },
         });
         const choice = completion.response?.choices?.[0];
@@ -509,7 +509,7 @@ async function main() {
       execution: {
         durationMs: Date.now() - startedAt,
         ended: toolState.ended,
-        model: modelConfig.GPT_56_TERRA_MODEL,
+        model: modelConfig.GPT_61_SOL_MODEL,
         provider: "openai_responses",
         reasoningEffort: "high",
         savedChanges: toolState.savedChanges,
@@ -559,7 +559,7 @@ async function main() {
     execution: {
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       maxToolLoopsPerTurn: MAX_TOOL_LOOPS_PER_TURN,
-      model: modelConfig.GPT_56_TERRA_MODEL,
+      model: modelConfig.GPT_61_SOL_MODEL,
       parallelToolCalls: false,
       provider: "openai_responses",
       reasoningEffort: "high",

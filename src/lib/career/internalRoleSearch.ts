@@ -21,7 +21,6 @@ const DATABASE_ENV_NAMES = [
 const INTERNAL_ROLE_SEARCH_LIMIT = 10;
 const INTERNAL_ROLE_SEARCH_STATEMENT_TIMEOUT_MS = 120000;
 const MAX_KEYWORD_COUNT = 2;
-const MAX_FALLBACK_KEYWORD_COUNT = 8;
 const INTERNAL_ROLE_PRIORITY_REVIEW_PROGRESS_KIND =
   "candidate_requested_connection";
 
@@ -159,36 +158,6 @@ function normalizeKeywords(value: unknown) {
   }
 
   return keywords;
-}
-
-function splitKeywordsForFallback(keywords: readonly string[]) {
-  const splitKeywords: string[] = [];
-  const seen = new Set<string>();
-
-  for (const keyword of keywords) {
-    for (const term of keyword.split(/\s+/)) {
-      const text = term.trim();
-      if (!text) continue;
-      const key = text.toLocaleLowerCase("ko-KR");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      splitKeywords.push(text.slice(0, 120));
-      if (splitKeywords.length >= MAX_FALLBACK_KEYWORD_COUNT) {
-        return splitKeywords;
-      }
-    }
-  }
-
-  return splitKeywords;
-}
-
-function hasSameKeywords(left: readonly string[], right: readonly string[]) {
-  if (left.length !== right.length) return false;
-  return left.every(
-    (keyword, index) =>
-      keyword.toLocaleLowerCase("ko-KR") ===
-      right[index]?.toLocaleLowerCase("ko-KR")
-  );
 }
 
 function formatText(
@@ -336,17 +305,20 @@ async function searchInternalRoleRows(args: {
         FROM unnest(${args.keywords}::text[]) AS term
         WHERE trim(term) <> ''
       ),
-      keyword_queries AS MATERIALIZED (
-        SELECT
-          keyword,
-          websearch_to_tsquery('simple', keyword) AS query
+      query_terms AS MATERIALIZED (
+        SELECT DISTINCT quote_literal(term)::tsquery AS query
         FROM keyword_terms
+        CROSS JOIN LATERAL unnest(
+          tsvector_to_array(to_tsvector('english', keyword))
+        ) AS terms(term)
       ),
       combined_query AS (
         SELECT string_agg(format('(%s)', query::text), ' | ')::tsquery AS query
-        FROM keyword_queries
+        FROM query_terms
         WHERE query::text <> ''
       ),
+      -- Normalize English only for this internal lookup; the shared stored simple
+      -- vector and its other readers remain unchanged. Compute once per eligible role.
       eligible_roles AS MATERIALIZED (
         SELECT
           cr.role_id,
@@ -358,7 +330,12 @@ async function searchInternalRoleRows(args: {
           cw.published_name,
           official_job.company_name AS official_job_company_name,
           cr.location_text,
-          cr.opportunity_search_tsv,
+          to_tsvector('english', coalesce(cr.name, '')) AS title_search_tsv,
+          setweight(to_tsvector('english', coalesce(cr.name, '')), 'A') ||
+          setweight(to_tsvector('english', coalesce(cr.description, '')), 'B') ||
+          setweight(to_tsvector('english', coalesce(cr.request, '')), 'C') ||
+          setweight(to_tsvector('english', concat_ws(' ', cr.location_text,
+            cr.work_mode, array_to_string(cr.type, ' '))), 'D') AS search_tsv,
           cr.posted_at,
           cr.updated_at
         FROM public.company_roles cr
@@ -395,7 +372,40 @@ async function searchInternalRoleRows(args: {
           )
       ),
       ranked AS MATERIALIZED (
-        SELECT
+        SELECT er.*, company_match.matched AS company_name_match,
+          (SELECT count(*) FROM query_terms t WHERE er.search_tsv @@ t.query)
+            AS matched_term_count,
+          (SELECT count(*) FROM query_terms t WHERE er.title_search_tsv @@ t.query)
+            AS title_term_count,
+          ts_rank_cd(
+            ARRAY[0.04,0.57,0.64,1.0]::real[],
+            er.search_tsv, q.query
+          )::float8 AS search_rank
+        FROM eligible_roles er
+        CROSS JOIN combined_query q
+        CROSS JOIN LATERAL (
+          SELECT EXISTS (
+            SELECT 1
+            FROM keyword_terms kt
+            CROSS JOIN LATERAL unnest(ARRAY[
+              er.company_name, er.published_name, er.official_job_company_name
+            ]) AS names(company_name)
+            WHERE length(kt.keyword) >= 3
+              AND NULLIF(btrim(names.company_name), '') IS NOT NULL
+              AND (
+                position(lower(kt.keyword) in lower(btrim(names.company_name))) > 0
+                OR position(lower(btrim(names.company_name)) in lower(kt.keyword)) > 0
+              )
+          ) AS matched
+        ) company_match
+        WHERE er.search_tsv @@ q.query OR company_match.matched
+        ORDER BY matched_term_count DESC, title_term_count DESC,
+          company_name_match DESC, search_rank DESC NULLS LAST,
+          er.posted_at DESC NULLS LAST, er.updated_at DESC NULLS LAST, er.role_id
+        LIMIT ${INTERNAL_ROLE_SEARCH_LIMIT}
+      )
+      -- Enrich only the selected roles. Eligibility checks above must stay before LIMIT.
+      SELECT
           er.role_id::text AS role_id,
           er.name AS role_title,
           er.work_mode,
@@ -438,28 +448,8 @@ async function searchInternalRoleRows(args: {
                 reconsideration_fit
               )
           ) AS has_reconsideration_scheduled,
-          same_company_formal_roles.roles AS same_company_formal_roles,
-          EXISTS (
-            SELECT 1
-            FROM keyword_terms kt
-            WHERE length(kt.keyword) >= 3
-              AND (
-                position(lower(kt.keyword) in lower(coalesce(er.company_name, ''))) > 0
-                OR position(lower(coalesce(er.company_name, '')) in lower(kt.keyword)) > 0
-                OR position(lower(kt.keyword) in lower(coalesce(er.published_name, ''))) > 0
-                OR position(lower(coalesce(er.published_name, '')) in lower(kt.keyword)) > 0
-                OR position(lower(kt.keyword) in lower(coalesce(er.official_job_company_name, ''))) > 0
-                OR position(lower(coalesce(er.official_job_company_name, '')) in lower(kt.keyword)) > 0
-              )
-          ) AS company_name_match,
-          ts_rank_cd(
-            ARRAY[0.04,0.57,0.64,1.0]::real[],
-            er.opportunity_search_tsv,
-            q.query
-          )::float8 AS search_rank,
-          er.posted_at,
-          er.updated_at
-        FROM eligible_roles er
+          same_company_formal_roles.roles AS same_company_formal_roles
+        FROM ranked er
         LEFT JOIN LATERAL (
           SELECT recommendation.id, recommendation.feedback, recommendation.saved_stage
           FROM public.talent_effective_opportunity_recommendations_v1 recommendation
@@ -502,56 +492,9 @@ async function searchInternalRoleRows(args: {
             AND same_company_role.role_id <> er.role_id
             AND lower(COALESCE(same_company_role.source_type, '')) = 'internal'
         ) same_company_formal_roles ON true
-        CROSS JOIN combined_query q
-        WHERE (
-          q.query IS NOT NULL
-          AND er.opportunity_search_tsv @@ q.query
-        )
-          OR EXISTS (
-            SELECT 1
-            FROM keyword_terms kt
-            WHERE length(kt.keyword) >= 3
-              AND (
-                position(lower(kt.keyword) in lower(coalesce(er.company_name, ''))) > 0
-                OR position(lower(coalesce(er.company_name, '')) in lower(kt.keyword)) > 0
-                OR position(lower(kt.keyword) in lower(coalesce(er.published_name, ''))) > 0
-                OR position(lower(coalesce(er.published_name, '')) in lower(kt.keyword)) > 0
-                OR position(lower(kt.keyword) in lower(coalesce(er.official_job_company_name, ''))) > 0
-                OR position(lower(coalesce(er.official_job_company_name, '')) in lower(kt.keyword)) > 0
-              )
-          )
-        ORDER BY
-          company_name_match DESC,
-          search_rank DESC NULLS LAST,
-          er.posted_at DESC NULLS LAST,
-          er.updated_at DESC NULLS LAST,
-          er.role_id
-        LIMIT ${INTERNAL_ROLE_SEARCH_LIMIT}
-      )
-      SELECT
-        role_id,
-        role_title,
-        work_mode,
-        type,
-        company_name,
-        published_name,
-        official_job_company_name,
-        location_text,
-        is_internal,
-        has_priority_review_request,
-        has_reconsideration_scheduled,
-        latest_recommendation_id,
-        candidate_feedback,
-        candidate_saved_stage,
-        company_process_started,
-        same_company_formal_roles
-      FROM ranked
-      ORDER BY
-        company_name_match DESC,
-        search_rank DESC NULLS LAST,
-        posted_at DESC NULLS LAST,
-        updated_at DESC NULLS LAST,
-        role_id
+      ORDER BY er.matched_term_count DESC, er.title_term_count DESC,
+        er.company_name_match DESC, er.search_rank DESC NULLS LAST,
+        er.posted_at DESC NULLS LAST, er.updated_at DESC NULLS LAST, er.role_id
     `;
   })) as InternalRoleSearchSqlRow[];
 }
@@ -696,12 +639,12 @@ async function searchMatchedInternalRoleRows(args: {
         )
         AND (
           btrim(${args.company}) = ''
-          OR position(lower(btrim(${args.company})) in lower(COALESCE(workspace.published_name, ''))) > 0
-          OR position(lower(COALESCE(workspace.published_name, '')) in lower(btrim(${args.company}))) > 0
-          OR position(lower(btrim(${args.company})) in lower(COALESCE(workspace.company_name, ''))) > 0
-          OR position(lower(COALESCE(workspace.company_name, '')) in lower(btrim(${args.company}))) > 0
-          OR position(lower(btrim(${args.company})) in lower(COALESCE(official_job.company_name, ''))) > 0
-          OR position(lower(COALESCE(official_job.company_name, '')) in lower(btrim(${args.company}))) > 0
+          OR position(lower(btrim(${args.company})) in lower(NULLIF(btrim(workspace.published_name), ''))) > 0
+          OR position(lower(NULLIF(btrim(workspace.published_name), '')) in lower(btrim(${args.company}))) > 0
+          OR position(lower(btrim(${args.company})) in lower(NULLIF(btrim(workspace.company_name), ''))) > 0
+          OR position(lower(NULLIF(btrim(workspace.company_name), '')) in lower(btrim(${args.company}))) > 0
+          OR position(lower(btrim(${args.company})) in lower(NULLIF(btrim(official_job.company_name), ''))) > 0
+          OR position(lower(NULLIF(btrim(official_job.company_name), '')) in lower(btrim(${args.company}))) > 0
         )
         AND (
           btrim(${args.sourceRoleId}) = ''
@@ -796,7 +739,7 @@ export async function searchInternalRolesForCareerTool(args: {
   }
 
   const db = getInternalRoleSearchClient();
-  let searchedKeywords = requestedKeywords;
+  const searchedKeywords = requestedKeywords;
   let rows: InternalRoleSearchSqlRow[];
   let sourceRelationship: string | null = null;
   if (matchedOnly) {
@@ -821,26 +764,6 @@ export async function searchInternalRolesForCareerTool(args: {
       userId: args.userId,
     });
   }
-  let fallbackKeywords: string[] | undefined;
-  let fallbackUsed = false;
-
-  if (!matchedOnly && rows.length === 0) {
-    const splitKeywords = splitKeywordsForFallback(requestedKeywords);
-    if (
-      splitKeywords.length > 0 &&
-      !hasSameKeywords(splitKeywords, requestedKeywords)
-    ) {
-      rows = await searchInternalRoleRows({
-        db,
-        keywords: splitKeywords,
-        userId: args.userId,
-      });
-      fallbackKeywords = splitKeywords;
-      fallbackUsed = true;
-      searchedKeywords = splitKeywords;
-    }
-  }
-
   const normalizedSameCompanyRoles = new Map(
     rows.map((row) => [
       row.role_id,
@@ -888,23 +811,14 @@ export async function searchInternalRolesForCareerTool(args: {
             "Accepted, declined, and closed roles are history; a role scheduled for reconsideration is progress to explain, not an option.",
             "Do not volunteer an unpresented role's name, details, link, or posting card. A question about one is not consent: ask whether the candidate wants it added for review before explaining it. If one is worth raising, offer at most one role for review; create it only after the candidate explicitly chooses it.",
           ].join(" ") + " "
-        : "") +
-      "The Company fields in get_internal_roles results are candidate-safe public aliases or Undisclosed internal company. Use the returned Company value exactly and never infer or expose a raw workspace company name. " +
+        : "These are the internal roles found by your search. If the role you want is not listed, you can try searching once more with different terms. ") +
       (hasPriorityReviewRequest
         ? "When a returned role says 우선검토요청 등록됨 and the user asks about its progress, call internal_role_priority_review with action=status and that exact role id. Status only reads the request and never registers or renews it."
         : "") +
       (hasReconsiderationScheduled
         ? " When a returned role says Scheduled for reconsideration, explain that the user's new information is already attached to that exact role and a fresh review is scheduled. Do not ask for the same information again or imply that the role is already a formal recommendation."
         : ""),
-    ...(fallbackKeywords
-      ? {
-          fallbackKeywords: maskInternalRoleSearchKeywords(
-            fallbackKeywords,
-            companyNameSources
-          ),
-        }
-      : {}),
-    fallbackUsed,
+    fallbackUsed: false,
     mode: matchedOnly ? "matched" : "lookup",
     ...(matchedOnly ? { newOptionCount } : {}),
     ...(matchedOnly && sourceRoleId ? { sourceRoleId } : {}),

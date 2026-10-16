@@ -36,7 +36,11 @@ import {
 } from "@/lib/org/slackFiles";
 import { buildHarperSlackWelcomeMessage } from "@/lib/org/slackWelcome";
 import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
-import { stripSlackSentUsingAttribution } from "@/lib/org/slackMessageText";
+import {
+  isOtherSlackBotMessage,
+  OTHER_SLACK_BOT_MESSAGE_TYPE,
+  stripSlackSentUsingAttribution,
+} from "@/lib/org/slackMessageText";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
   applyHarperSlackApiMessagePolicy,
@@ -126,6 +130,7 @@ export type HarperSlackInteractionContext = {
 export type HarperSlackChannel = {
   channelId: string;
   channelName: string | null;
+  connectedAt?: string | null;
   defaultRoleId: string | null;
   isEnabled: boolean;
   isPrivate: boolean;
@@ -683,6 +688,7 @@ export async function getHarperSlackStatus(args: {
   const channels: HarperSlackChannel[] = (data ?? []).map((channel: any) => ({
     channelId: channel.slack_channel_id,
     channelName: channel.slack_channel_name,
+    connectedAt: channel.created_at ?? null,
     defaultRoleId: channel.default_role_id,
     isEnabled: channel.is_enabled,
     isPrivate: channel.is_private,
@@ -1317,7 +1323,7 @@ export async function syncHarperSlackThreadContext(args: {
     admin.from("company_messages" as any) as any
   )
     .select("id, slack_message_ts, slack_user_id, metadata")
-    .eq("message_type", "slack")
+    .in("message_type", ["slack", OTHER_SLACK_BOT_MESSAGE_TYPE])
     .eq("slack_thread_id", args.threadId);
   if (existingError) throw existingError;
   // Link native Slack copies to the existing authored presentation by actual
@@ -1406,6 +1412,7 @@ export async function syncHarperSlackThreadContext(args: {
       message.files
     );
     if (!content) return [];
+    const otherBot = isOtherSlackBotMessage(message, args.botUserId);
     return [
       {
         company_user_id: null,
@@ -1414,9 +1421,10 @@ export async function syncHarperSlackThreadContext(args: {
         conversation_id: conversation.id,
         created_at: slackMessageDate(messageTs),
         mentions: [],
-        message_type: "slack",
+        message_type: otherBot ? OTHER_SLACK_BOT_MESSAGE_TYPE : "slack",
         metadata: {
           source: "slack_thread_sync",
+          ...(otherBot ? { slackBotId: text(message.bot_id) || null } : {}),
           ...(userId === args.botUserId && duplicateOfByTs.has(messageTs)
             ? { companyEventUiDuplicateOf: duplicateOfByTs.get(messageTs) } : {}),
           ...(userNames.get(userId)
@@ -1424,7 +1432,11 @@ export async function syncHarperSlackThreadContext(args: {
             : {}),
         },
         model: null,
-        role: userId === args.botUserId ? "assistant" : "user",
+        role: otherBot
+          ? "system"
+          : userId === args.botUserId
+            ? "assistant"
+            : "user",
         role_id: roleId,
         slack_message_ts: messageTs,
         slack_thread_id: args.threadId,
@@ -1483,6 +1495,62 @@ export async function storeHarperSlackThreadEvent(args: {
     if ((error as { code?: string })?.code === "23505") return null;
     throw error;
   }
+}
+
+/**
+ * Records another Slack app's message in a Harper thread. It is kept out of
+ * company user context by its message type and never starts a Harper turn.
+ */
+export async function storeOtherSlackBotThreadEvent(args: {
+  content: string;
+  roleId?: string | null;
+  slackBotId?: string | null;
+  slackMessageTs: string;
+  slackUserId?: string | null;
+  threadId: string;
+  workspaceId: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const conversation = await ensureSlackConversation({
+    admin,
+    roleId: args.roleId,
+    workspaceId: args.workspaceId,
+  });
+  const { data: existing, error: existingError } = await (
+    admin.from("company_messages" as any) as any
+  )
+    .select("id")
+    .eq("conversation_id", conversation.id)
+    .eq("message_type", OTHER_SLACK_BOT_MESSAGE_TYPE)
+    .eq("slack_thread_id", args.threadId)
+    .eq("slack_message_ts", text(args.slackMessageTs))
+    .limit(1);
+  if (existingError) throw existingError;
+  if ((existing ?? []).length > 0) return null;
+  const { error } = await (admin.from("company_messages" as any) as any)
+    .insert({
+      company_user_id: null,
+      company_workspace_id: args.workspaceId,
+      content: text(args.content),
+      conversation_id: conversation.id,
+      created_at: slackMessageDate(text(args.slackMessageTs)),
+      mentions: [],
+      message_type: OTHER_SLACK_BOT_MESSAGE_TYPE,
+      metadata: {
+        source: "slack_thread_event",
+        slackBotId: text(args.slackBotId) || null,
+      },
+      model: null,
+      role: "system",
+      role_id: text(args.roleId) || null,
+      slack_message_ts: text(args.slackMessageTs),
+      slack_thread_id: args.threadId,
+      slack_user_id: text(args.slackUserId) || null,
+      status: "completed",
+      thinking_logs: [],
+    });
+  if (error) throw error;
+  return { stored: true };
 }
 
 export async function isHarperSlackAudienceAllowed(args: {

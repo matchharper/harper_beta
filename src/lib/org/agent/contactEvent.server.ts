@@ -247,14 +247,12 @@ export async function deliverCompanyContactEventMessages(args: {
       console.warn("[org-agent/contact-event:org-links]", error);
       targets = { roleTargets: [], talentTargets: [] };
     }
-    const slackText = markdownToSlackMrkdwn(
-      renderSlackOrgLinks({
-        message: message.content,
-        publicSiteUrl: getOrgPublicSiteUrl(),
-        ...targets,
-        workspaceId: args.workspaceId,
-      })
-    );
+    const slackText = renderSlackOrgLinks({
+      message: markdownToSlackMrkdwn(message.content),
+      publicSiteUrl: getOrgPublicSiteUrl(),
+      ...targets,
+      workspaceId: args.workspaceId,
+    });
     const common = {
       idempotencyKey: `candidate-contact-turn:${args.jobId}:${message.id}`,
       text: slackText,

@@ -113,7 +113,12 @@ export async function POST(req: NextRequest) {
       ok: true,
       name,
       output: projectToolDiagnosticFieldsForTransport(output),
-      modelOutput: prepareToolDelivery(toolCapture, value => JSON.stringify(value)),
+      modelOutput: prepareToolDelivery(toolCapture, value => {
+        const modelOutput = value && typeof value === "object" && "modelOutput" in value
+          ? value.modelOutput : null;
+        return typeof modelOutput === "string" && modelOutput.trim()
+          ? modelOutput.trim() : JSON.stringify(value);
+      }),
     });
   } catch (error) {
     if (

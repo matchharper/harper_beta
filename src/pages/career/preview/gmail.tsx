@@ -1,4 +1,8 @@
 import Head from "next/head";
+import GmailPermissionsModal from "@/components/career/settings/GmailPermissionsModal";
+import CareerProfileSourceCard from "@/components/career/settings/CareerProfileSourceCard";
+import { Badge } from "@/components/ui/badge";
+import Image from "next/image";
 import { useState } from "react";
 import {
   GMAIL_ANIMATION_VARIANTS,
@@ -11,6 +15,7 @@ import { useCareerT } from "@/i18n/useCareerT";
 
 export default function GmailAnimationPreviewPage() {
   const t = useCareerT();
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [selected, setSelected] = useState<GmailAnimationVariant | null>(null);
 
   return (
@@ -31,6 +36,28 @@ export default function GmailAnimationPreviewPage() {
               "읽어오기를 누르면 Harper가 최근 커리어 관련 이메일을 정리합니다."
             )}
           </p>
+          <div className="mt-8">
+            <CareerProfileSourceCard
+              title="Gmail"
+              icon={
+                <Image
+                  src="/images/logos/gmail.svg"
+                  alt=""
+                  width={22}
+                  height={22}
+                />
+              }
+              badge={
+                <Badge size="sm" tone="warning" variant="faded">
+                  {t(
+                    "career.profile.resume_links.gmail_permissions_required",
+                    "권한 필요"
+                  )}
+                </Badge>
+              }
+              onActivate={() => setPermissionsOpen(true)}
+            />
+          </div>
           <div className="mt-10 grid gap-5 lg:grid-cols-3">
             {GMAIL_ANIMATION_VARIANTS.map((variant, index) => (
               <section
@@ -52,6 +79,12 @@ export default function GmailAnimationPreviewPage() {
           </div>
         </div>
       </main>
+      <GmailPermissionsModal
+        open={permissionsOpen}
+        busy={false}
+        onClose={() => setPermissionsOpen(false)}
+        onContinue={() => setPermissionsOpen(false)}
+      />
       {selected ? (
         <GmailConnectionSuccessModal
           key={selected}

@@ -6,7 +6,7 @@ import type { CompanyResponseLocale } from "./uxWritingPrompt";
 export type CompanyInputMessage = { role: "system" | "user" | "assistant"; content: LlmMessageContent };
 export function buildCompanySystemInput(args: {
   resolved: ReturnType<typeof resolveCompanyCapabilities>;
-  surface: "chat" | "slack";
+  surface: "chat" | "slack" | "email";
   responseLocale?: CompanyResponseLocale;
   allowSilentCompletion?: boolean;
   backgroundOrigin?: "scheduled_review";
@@ -34,10 +34,12 @@ export function buildCompanyConversationInput(args: Parameters<typeof buildOrgAg
     { role: "user", content: `<reference_context source="workspace_snapshot" not_a_company_message="true">\n${reference}\nhistory_scope_and_completeness: ${historyInfo}\nmessage_index (metadata only; not spoken text): ${JSON.stringify(selected.map(({ content: _content, ...metadata }, index) => ({ ...metadata, followingMessageIndex: index + 1 })))}\ncurrent_message_id: ${args.currentUserMessageId ?? "unknown"}\n</reference_context>` },
     // Identity-based boundary; repeated text in different messages is preserved.
     ...selected.map((m): CompanyInputMessage => ({
-      role: m.source === "candidate_contact" ? "user" : m.role,
+      role: m.source === "candidate_contact" || m.source === "other_slack_app" ? "user" : m.role,
       content: m.source === "candidate_contact"
         ? `<candidate_correspondence not_a_company_message="true">${JSON.stringify({ messageId: m.id, references: m.references, content: m.content })}</candidate_correspondence>`
-        : m.content,
+        : m.source === "other_slack_app"
+          ? `<other_slack_app_message not_a_company_message="true">${JSON.stringify({ messageId: m.id, createdAt: m.createdAt, references: m.references, content: m.content })}</other_slack_app_message>`
+          : m.content,
     })),
     ...(!args.context.conversationMessages && args.context.conversationText !== "-" ? [{
       role: "user" as const,

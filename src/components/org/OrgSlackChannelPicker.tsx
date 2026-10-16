@@ -7,11 +7,6 @@ import type { OrgSlackChannel } from "@/hooks/org/useOrgSlack";
 
 type Channel = Pick<OrgSlackChannel, "channelId" | "channelName" | "isPrivate">;
 
-export const ORG_SLACK_PRIVATE_CHANNEL_HELP = [
-  "비공개 채널이 보이지 않나요?",
-  "Slack의 해당 채널에서 /invite @Harper를 입력한 뒤 아래의 새로고침 버튼을 눌러 주세요.",
-] as const;
-
 export function OrgSlackChannelPicker({
   channels,
   disabled = false,
@@ -56,7 +51,6 @@ export function OrgSlackChannelPicker({
           className="min-w-0 flex-1"
         />
         <MuteButton
-          variant="transparent"
           size="sm"
           aria-label={c("채널 목록 새로고침", "Refresh channel list")}
           disabled={busy || refreshing}
@@ -68,7 +62,7 @@ export function OrgSlackChannelPicker({
           />
         </MuteButton>
       </div>
-      <div className="max-h-[378px] min-h-[76px] overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 [scrollbar-gutter:stable]">
+      <div className="max-h-[244px] min-h-[76px] rounded-xl px-2 border border-neutral-1000-a05 py-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 [scrollbar-gutter:stable]">
         {visibleChannels.length ? (
           <ul
             aria-label={c("초대할 Slack 채널", "Slack channel to invite")}
@@ -81,14 +75,14 @@ export function OrgSlackChannelPicker({
               return (
                 <li
                   key={channel.channelId}
-                  className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-bg-floating"
+                  className="flex items-center gap-2 pl-1 py-1.5 hover:bg-bg-floating border-b border-neutral-1000-a05"
                 >
                   <Icon
-                    className="size-3.5 shrink-0 text-neutral-soft"
+                    className="size-3.5 shrink-0 text-neutral-muted"
                     aria-hidden="true"
                   />
                   <span
-                    className="min-w-0 flex-1 truncate text-[13px] text-neutral-primary"
+                    className="min-w-0 flex-1 truncate text-[13px] text-neutral-muted"
                     title={name}
                   >
                     {channel.isPrivate ? (
@@ -101,16 +95,9 @@ export function OrgSlackChannelPicker({
                     <span aria-hidden={channel.isPrivate}>{name}</span>
                   </span>
                   <MuteButton
-                    variant="dark"
+                    variant="neutral"
                     size="sm"
                     disabled={busy}
-                    aria-label={c(
-                      "{p0}에 Harper 초대",
-                      "Invite Harper to {p0}",
-                      {
-                        p0: name,
-                      }
-                    )}
                     onClick={() => onInvite(channel.channelId)}
                     className="shrink-0"
                   >
@@ -119,8 +106,10 @@ export function OrgSlackChannelPicker({
                         className="size-3 animate-spin"
                         aria-hidden="true"
                       />
-                    ) : null}
-                    {pending ? c("초대 중", "Inviting") : c("초대", "Invite")}
+                    ) : (
+                      <Plus className="size-3.5" />
+                    )}
+                    {/* {pending ? c("초대 중", "Inviting") : c("초대", "Invite")} */}
                   </MuteButton>
                 </li>
               );

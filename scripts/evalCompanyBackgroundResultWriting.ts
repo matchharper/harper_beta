@@ -79,7 +79,7 @@ type ModelResult = {
 };
 
 const MODELS = [
-  { label: "GPT-5.6 Terra", model: "gpt-5.6-terra", provider: "OpenAI" },
+  { label: "GPT-6.1 Sol", model: "gpt-6.1-sol", provider: "OpenAI" },
   { label: "Claude Sonnet 5.5", model: CLAUDE_MODEL, provider: "Anthropic" },
   {
     label: "GLM 5.3 Flash",

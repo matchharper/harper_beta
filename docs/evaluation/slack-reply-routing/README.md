@@ -12,7 +12,7 @@
 
 ## Prompt/input 계약과 정본 runner
 
-정본은 [`scripts/evalSlackReplyRouterLive.ts`](../../../scripts/evalSlackReplyRouterLive.ts)다. 실제 runtime의 request builder, 응답 schema, 호출 함수와 debug receipt를 import한다. 최근 10개 메시지를 메시지당 360자로 제한하고 팀원을 안정적인 Person label로 구분한다. Jev는 단일 Choice 질문에 `respond` 또는 `ignore`를 선택한다. runtime은 선택지/타입만 검증하며 의미를 키워드나 confidence threshold로 다시 판단하지 않는다.
+정본은 [`scripts/evalSlackReplyRouterLive.ts`](../../../scripts/evalSlackReplyRouterLive.ts)다. 실제 runtime의 request builder, 응답 schema, 호출 함수와 debug receipt를 import한다. 최근 10개 메시지를 메시지당 10,000자로 제한하고 팀원을 안정적인 Person label로 구분한다. Jev는 단일 Choice 질문에 `respond` 또는 `ignore`를 선택한다. runtime은 선택지/타입만 검증하며 의미를 키워드나 confidence threshold로 다시 판단하지 않는다.
 
 ```sh
 node --env-file=.env.local --import tsx scripts/evalSlackReplyRouterLive.ts --dry-run
@@ -40,5 +40,7 @@ v2 기준 유효한 provider 응답 14/14, 정답 일치 14/14, Harper에게 필
 작은 synthetic challenge는 운영 평균 정확도나 확률 보정을 대표하지 않는다. v1의 모호한 라벨은 역사 보존용이며 v2가 현재 계약이다. 단일 run은 stochastic 안정성이나 Slack 전체 응답 시간 개선을 입증하지 않는다. 멘션/Role 작성/진행 중 후보자 workflow 우회는 기존 실행부가 유지하며 이 모델 평가에서 검증하지 않는다. runtime 오류 시 응답하는 처리는 모델의 의미 판단이 아니라 가용성 fallback이다. 배포는 별도 사용자 승인 대상이다.
 
 ## 검증 기록
+
+2026-10-15 메시지 한도 확대(로컬·미배포): 메시지당 360자를 10,000자로 늘렸다. `20261015-10000-char-routing`에서 기존 frozen v2 14/14, 구조 유효 14/14, 응답 누락·끼어듦 0건을 확인했다. 평균 provider 호출 413ms이며 router unit tests 9/9를 통과했다. 기존 합성 세트는 긴 메시지의 판단 품질이나 최대 입력 지연을 검증하지 않으며, 10,000자 절단 경계는 unit test로 확인했다. Slack 동기화 순서·프롬프트·우회 조건은 변경하지 않았다.
 
 [2026-10-15 Jev 전환 기록](reports/2026-10-15-jev.md): 최초 13/14 실패를 보존하고 수신자 판단의 일반 계약을 보강했다. 같은 frozen v2의 후속 두 run은 14/14였다. 마지막 호출 평균 402ms·$0.000023118, 변경 경로 unit tests 18/18을 확인했다. 운영 배포는 하지 않았다.

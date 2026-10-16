@@ -37,7 +37,8 @@ import {
   PROMPT_VERSION,
   EXPERIMENT,
   SEARCH_PLAN_VERSION,
-  fitForLlm,
+  priorFitForLlm,
+  priorFitSchema,
   scoreForLlm,
   type WorkerSearchContext,
   rankScore,
@@ -324,16 +325,15 @@ export async function loadFitCache(
     ) as Array<FitEvaluation | undefined>;
     const sourceHash = roleSourceHash(card);
     const value = evaluations
-      .filter(
-        (value): value is FitEvaluation =>
-          Boolean(
-            value &&
-              fitSchema.safeParse(value).success &&
-              (args.surface === "daily" ||
-                value.inputFingerprint === inputFingerprint) &&
-              value.roleSourceHash === sourceHash &&
-              Date.parse(value.evaluatedAt) > Date.now() - 30 * 86400_000
-          )
+      .filter((value): value is FitEvaluation =>
+        Boolean(
+          value &&
+          fitSchema.safeParse(value).success &&
+          (args.surface === "daily" ||
+            value.inputFingerprint === inputFingerprint) &&
+          value.roleSourceHash === sourceHash &&
+          Date.parse(value.evaluatedAt) > Date.now() - 30 * 86400_000
+        )
       )
       .sort((a, b) => Date.parse(b.evaluatedAt) - Date.parse(a.evaluatedAt))[0];
     if (value) result.set(row.role_id, value);
@@ -355,19 +355,29 @@ export async function generateSummaries(
     fitSummary: z.string().trim().min(1),
   });
   const counts = await mapConcurrent(batches, 4, async (batch) => {
-    const result = z.object({ evaluations: z.array(z.unknown()) }).parse(
-      await complete(
-        summaryPrompt(args.language),
-        buildFullJdCandidateBatchText(
-          batch.map((c) => ({
-            ...v2PromptCandidate(c, args.language),
-            cachedRoleSummary: null,
-          }))
-        ),
-        "summaries",
-        args.signal
-      )
-    );
+    let result: { evaluations: unknown[] };
+    try {
+      result = z.object({ evaluations: z.array(z.unknown()) }).parse(
+        await complete(
+          summaryPrompt(args.language),
+          buildFullJdCandidateBatchText(
+            batch.map((c) => ({
+              ...v2PromptCandidate(c, args.language),
+              cachedRoleSummary: null,
+            }))
+          ),
+          "summaries",
+          args.signal
+        )
+      );
+    } catch (error) {
+      args.signal?.throwIfAborted();
+      console.warn("[externalRecommendationsV2] summary batch failed", {
+        roleIds: batch.map((c) => c.roleId),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return 0;
+    }
     const byId = new Map(batch.map((c) => [c.roleId, c]));
     // Validate each record independently so incomplete model output cannot
     // discard the valid summaries in this batch. Unchanged cards without a
@@ -415,7 +425,17 @@ export async function generateSummaries(
           p_rows: pending,
         } as never
       );
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (error.code !== "57014") throw new Error(error.message);
+        args.signal?.throwIfAborted();
+        console.warn(
+          "[externalRecommendationsV2] summary cache write timed out",
+          {
+            roleIds: batch.map((c) => c.roleId),
+          }
+        );
+        return 0;
+      }
       for (const row of (data ?? []) as any[]) {
         const card = byId.get(row.role_id);
         if (!card) continue;
@@ -439,7 +459,24 @@ export async function rerankCandidates(
   ranked: Array<{ card: RoleCard; score: number; fit: unknown }>,
   complete = jsonCall
 ): Promise<SelectedRole[]> {
-  const candidates = ranked
+  const valid = ranked.flatMap((r) => {
+    const fit = priorFitSchema.safeParse(r.fit);
+    if (
+      !fit.success ||
+      !Number.isFinite(r.score) ||
+      r.score < 0 ||
+      r.score > 100
+    ) {
+      console.warn("[externalRecommendationsV2] skipped invalid prior fit", {
+        roleId: r.card.roleId,
+      });
+      return [];
+    }
+    return [{ ...r, fit: fit.data }];
+  });
+  if (ranked.length && !valid.length)
+    throw new Error("No valid fit evaluations returned");
+  const candidates = valid
     .filter((r) => summary(r.card, args.language))
     .slice(0, 20);
   if (!candidates.length) return [];
@@ -472,7 +509,7 @@ export async function rerankCandidates(
               company: companyLineForLlm(r.card, false),
               priorFit: {
                 score: scoreForLlm(r.score),
-                metrics: fitForLlm(r.fit),
+                metrics: priorFitForLlm(r.fit),
                 fitSummary: summary(r.card, args.language),
               },
             })),
@@ -533,9 +570,7 @@ export async function runExternalV2(
     diagnostics.frozenInput?.context ??
     (await loadExternalContext(args.admin, args.userId, args.behaviorSnapshot));
   await diagnostics.trace?.("context", loaded);
-  if (
-    args.surface === "daily" ? !loaded.dailyEnabled : !loaded.externalEnabled
-  )
+  if (args.surface === "daily" ? !loaded.dailyEnabled : !loaded.externalEnabled)
     return { selected: [], plan: null, metrics: { skipped: true }, provider };
   const fitContext = {
     ...loaded.context,
@@ -702,7 +737,16 @@ export async function runExternalV2(
           p_rows: stored,
         } as never
       );
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (error.code !== "57014") throw new Error(error.message);
+        args.signal?.throwIfAborted();
+        metrics.failedRoleIds.push(...batch.map((c) => c.roleId));
+        await diagnostics.trace?.("fit_cache_write_error", {
+          roleIds: batch.map((c) => c.roleId),
+          error: error.message,
+        });
+        return;
+      }
     }
     for (const value of values) fits.set(value.roleId, value);
     metrics.scoredCount += values.length;
@@ -711,6 +755,7 @@ export async function runExternalV2(
       scoredCount: fits.size,
     });
   });
+  metrics.failedRoleIds = [...new Set(metrics.failedRoleIds)];
   metrics.scoringMs = Date.now() - scoringStarted;
   if (fresh.length && !fits.size)
     throw new Error("No valid fit evaluations returned");
@@ -758,6 +803,11 @@ export async function runExternalV2(
     ? 0
     : await generateSummaries(args, top, diagnostics.complete);
   metrics.summaryMs = Date.now() - summaryStarted;
+  metrics.missingSummaryRoleIds = top
+    .filter((card) => !summary(card, args.language))
+    .map((card) => card.roleId);
+  if (top.length && metrics.missingSummaryRoleIds.length === top.length)
+    throw new Error("No valid role summaries returned");
   ranked = rank();
   const rerankStarted = Date.now();
   const selected = await rerankCandidates(

@@ -1,3 +1,4 @@
+import { readRoleSearchKickoffExplanation } from "@/lib/org/agent/roleSearchKickoff.server";
 import type { User } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { readCandidateOutreachPauses } from "@/lib/companyFirstSearch/history";
@@ -325,6 +326,9 @@ async function deliverRunNotice(args: {
       candidateOutreachPauses: readCandidateOutreachPauses(runResult),
       requestedByCompany: companyRequested,
     });
+    const searchDirection = companyRequested ? await readRoleSearchKickoffExplanation({
+      admin, workspaceId, roleId: primaryRoleId, runId,
+    }) : null;
     const { jobId } = await enqueueCompanyUpdate({
       workspaceId, roleId: primaryRoleId, eventKey: idempotencyKey,
       purpose: companyRequested
@@ -332,6 +336,7 @@ async function deliverRunNotice(args: {
         : "Explain the verified restriction on new candidate recommendations and its practical scope in the company's hiring conversation.",
       facts: {
         result: firstResultContext,
+        ...(searchDirection ? { previouslyExplainedSearchDirection: searchDirection } : {}),
         candidateIds,
         matchingSearchRunId: runId,
         firstDelivery: firstCompanyFirstResultDelivery,

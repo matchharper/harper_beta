@@ -10,7 +10,7 @@ import {
   createChatCompletionWithFallback,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
-import { GPT_6_LUNA_MODEL, GPT_56_TERRA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL, GPT_61_SOL_MODEL } from "@/lib/llm/modelConfig";
 import { logLlmTokenUsage } from "@/lib/llm/usageLogging";
 import {
   fetchAutoIntroToCompanyCandidateDossiers,
@@ -265,7 +265,7 @@ export async function generateAutoIntroWorkspaceMessage(
     { content: systemPrompt, role: "system" },
     { content: userPrompt, role: "user" },
   ];
-  let activeModel: string = process.env.AUTO_INTRO_TO_COMPANY_LLM_MODEL?.trim() || GPT_56_TERRA_MODEL;
+  let activeModel: string = process.env.AUTO_INTRO_TO_COMPANY_LLM_MODEL?.trim() || GPT_61_SOL_MODEL;
   const source = options?.source ?? AUTO_INTRO_LLM_SOURCE;
   let webToolCallCount = 0;
 
