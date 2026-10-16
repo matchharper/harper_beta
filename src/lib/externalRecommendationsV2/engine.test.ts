@@ -29,6 +29,30 @@ const args: EngineArgs = {
   language: "en",
   dryRun: true,
 };
+test("control cached scores reach reranking without requiring V2 dimensions", async () => {
+  const [card] = cards(1);
+  card.roleSummary = { en: { content: "Existing role summary" } };
+  const selected = await rerankCandidates(
+    args,
+    {},
+    [{ card, score: 82.34, fit: { legacyScore: 82.34 } }],
+    async (_system, input) => {
+      assert.match(input, /legacyScore/);
+      assert.match(input, /82\.3/);
+      assert.doesNotMatch(input, /candidateInterest/);
+      return {
+        selectedRoles: [
+          { candidateId: "1", recommendationNote: "Relevant prior experience" },
+        ],
+      };
+    }
+  );
+  assert.equal(selected[0].card.roleId, card.roleId);
+  await assert.rejects(
+    rerankCandidates(args, {}, [{ card, score: 80, fit: { mutualFit: 80 } }]),
+    /No valid fit evaluations/
+  );
+});
 test("web summarizes only ten missing-language roles in one call; worker covers its whole top hundred", async () => {
   for (const surface of ["web", "worker"] as const) {
     const input = cards(100);
@@ -147,7 +171,7 @@ test("all missing summary texts finish with zero recommendations and no writes",
   const selected = await rerankCandidates(
     args,
     {},
-    input.map((card) => ({ card, score: 50, fit: {} })),
+    input.map((card) => ({ card, score: 50, fit: { legacyScore: 50 } })),
     async () => {
       throw new Error("No candidates should reach reranking");
     }
@@ -261,7 +285,9 @@ test("daily current-context default reuses the complete plan and vectors without
     getSearchPlan(
       { ...args, reuseDefault: true },
       {
-        setting: { external_search_default: { ...saved, titleVectors: [[1], [2]] } },
+        setting: {
+          external_search_default: { ...saved, titleVectors: [[1], [2]] },
+        },
         contextFingerprint: "same",
       } as any,
       async (_prompt, input) => {
@@ -555,37 +581,146 @@ test("worker rerank carries its search hypothesis beside the authoritative Brief
   );
 });
 
-
 test("daily cache reuses the latest valid prior evaluator and context without relaxing other surfaces", async () => {
   const [card] = cards(1);
-  const sourceHash = fingerprint(buildFullJdCandidateBatchText([
-    { ...v2PromptCandidate(card, "en"), cachedRoleSummary: null },
-  ]));
+  const sourceHash = fingerprint(
+    buildFullJdCandidateBatchText([
+      { ...v2PromptCandidate(card, "en"), cachedRoleSummary: null },
+    ])
+  );
   const fit = {
-    candidateInterest: 40, companyInterest: 50, mutualFit: 40,
-    roleFit: 50, constraintPass: 90, evidence: "sufficient",
-    roleId: card.roleId, inputFingerprint: "previous-profile-and-brief",
+    candidateInterest: 40,
+    companyInterest: 50,
+    mutualFit: 40,
+    roleFit: 50,
+    constraintPass: 90,
+    evidence: "sufficient",
+    roleId: card.roleId,
+    inputFingerprint: "previous-profile-and-brief",
     roleSourceHash: sourceHash,
     evaluatedAt: new Date(Date.now() - 1000).toISOString(),
   };
   const evaluations: Record<string, unknown> = {
     "old-prompt:jev:old-model": fit,
-    [evaluatorKey("openai")]: { ...fit, evaluatedAt: new Date(Date.now() - 2000).toISOString() },
-    "expired": { ...fit, evaluatedAt: new Date(Date.now() - 31 * 86400000).toISOString() },
-    "changed-source": { ...fit, roleSourceHash: "different", evaluatedAt: new Date().toISOString() },
+    [evaluatorKey("openai")]: {
+      ...fit,
+      evaluatedAt: new Date(Date.now() - 2000).toISOString(),
+    },
+    expired: {
+      ...fit,
+      evaluatedAt: new Date(Date.now() - 31 * 86400000).toISOString(),
+    },
+    "changed-source": {
+      ...fit,
+      roleSourceHash: "different",
+      evaluatedAt: new Date().toISOString(),
+    },
   };
   const admin: any = {
-    from: () => ({ select: () => ({ eq: () => ({
-      in: async () => ({ data: [{ role_id: card.roleId, evaluations }], error: null }),
-    }) }) }),
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          in: async () => ({
+            data: [{ role_id: card.roleId, evaluations }],
+            error: null,
+          }),
+        }),
+      }),
+    }),
   };
-  const daily = await loadFitCache({ ...args, admin, surface: "daily" }, [card], "current-context", "openai");
+  const daily = await loadFitCache(
+    { ...args, admin, surface: "daily" },
+    [card],
+    "current-context",
+    "openai"
+  );
   assert.equal(daily.get(card.roleId), fit);
   for (const surface of ["web", "worker"] as const) {
-    const strict = await loadFitCache({ ...args, admin, surface }, [card], "current-context", "openai");
+    const strict = await loadFitCache(
+      { ...args, admin, surface },
+      [card],
+      "current-context",
+      "openai"
+    );
     assert.equal(strict.size, 0);
   }
   delete evaluations["old-prompt:jev:old-model"];
   delete evaluations[evaluatorKey("openai")];
-  assert.equal((await loadFitCache({ ...args, admin, surface: "daily" }, [card], "current-context", "openai")).size, 0);
+  assert.equal(
+    (
+      await loadFitCache(
+        { ...args, admin, surface: "daily" },
+        [card],
+        "current-context",
+        "openai"
+      )
+    ).size,
+    0
+  );
+});
+
+test("reranking skips incomplete fits and preserves valid legacy scores", async () => {
+  const input = cards(2);
+  for (const card of input)
+    card.roleSummary = { en: { content: "Valid summary" } };
+  const result = await rerankCandidates(
+    args,
+    {},
+    [
+      { card: input[0], score: 90, fit: { mutualFit: 90 } },
+      { card: input[1], score: 80, fit: { legacyScore: 80 } },
+    ],
+    async (_system, text) => {
+      assert.ok(!text.includes("Backend 0"));
+      assert.ok(text.includes("Backend 1"));
+      return {
+        selectedRoles: [
+          { candidateId: "1", recommendationNote: "Relevant experience" },
+        ],
+      };
+    }
+  );
+  assert.deepEqual(
+    result.map((r) => r.card.roleId),
+    [input[1].roleId]
+  );
+});
+
+test("one failed summary batch leaves other batches available", async () => {
+  const input = cards(11);
+  const result = await generateSummaries(
+    { ...args, surface: "worker" },
+    input,
+    async (_system, text) => {
+      if (text.includes(input[0].roleId))
+        throw new Error("provider unavailable");
+      return {
+        evaluations: [
+          { roleId: input[10].roleId, fitSummary: "Valid summary" },
+        ],
+      };
+    }
+  );
+  assert.equal(result, 1);
+  assert.equal(input[0].roleSummary?.en, undefined);
+  assert.equal((input[10].roleSummary?.en as any).content, "Valid summary");
+});
+
+test("summary cache timeout skips its batch; permission errors remain fatal", async () => {
+  for (const code of ["57014", "42501"]) {
+    const input = cards(1);
+    const admin: any = {
+      rpc: async () => ({ error: { code, message: "DB failure" } }),
+    };
+    const run = generateSummaries(
+      { ...args, admin, dryRun: false },
+      input,
+      async () => ({
+        evaluations: [{ roleId: input[0].roleId, fitSummary: "Valid summary" }],
+      })
+    );
+    if (code === "57014") assert.equal(await run, 0);
+    else await assert.rejects(run, /batch\(es\) failed/);
+    assert.equal(input[0].roleSummary?.en, undefined);
+  }
 });

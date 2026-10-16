@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { deliverCompanyMessageBatch } from "./companyMessageDelivery.server";
+import { buildSlackTalentProfileUrl } from "../slackTalentLinks";
 
 function fixture() {
   const rows = [1, 2, 3].map(id => ({ id, role_id: id === 1 ? null : "role", content: `part ${id}`,
@@ -9,6 +10,7 @@ function fixture() {
   const attempts = new Set<number>();
   const receipts = new Map<string, any>();
   const sent: number[] = [];
+  const payloads: any[] = [];
   let failAfterPost = 0, linkFailure = false, allowed = true;
   const admin: any = {
     from(table: string) {
@@ -32,6 +34,7 @@ function fixture() {
   const deps: any = { admin: () => admin, allowed: async () => allowed,
     links: async () => { if (linkFailure) throw Error("link read failed"); return { roleTargets: [], talentTargets: [] }; },
     send: async (args: any) => {
+      payloads.push(args);
       const id = Number(args.idempotencyKey.split(":").at(-1)); sent.push(id);
       if (id === 3) assert.equal(args.threadTs, "ts-2");
       const threadId = id === 3 ? "thread-2" : `thread-${id}`;
@@ -43,7 +46,7 @@ function fixture() {
     },
     reconcile: async (args: any) => { const receipt = receipts.get(args.idempotencyKey); if (!receipt) throw Error("uncertain"); return receipt; },
   };
-  return { rows, attempts, sent, deps, failAfterPost: (id: number) => { failAfterPost = id; },
+  return { rows, attempts, sent, payloads, deps, failAfterPost: (id: number) => { failAfterPost = id; },
     linkFailure: (value: boolean) => { linkFailure = value; }, allowed: (value: boolean) => { allowed = value; } };
 }
 
@@ -58,6 +61,25 @@ test("partial delivery recovers the exact posted parent and resumes its reply wi
   assert.deepEqual(f.sent, [1, 2, 3]);
   assert.equal(startChecks, 1);
   assert.ok(f.rows.every(row => row.metadata.companyMessageReceipt));
+});
+
+test("batch delivery preserves full candidate labels as native Slack links in text and blocks", async () => {
+  const f = fixture();
+  const workspaceId = "00000000-0000-4000-8000-000000000001";
+  const roleId = "00000000-0000-4000-8000-000000000002";
+  const talentId = "00000000-0000-4000-8000-000000000003";
+  const target = { roleId, talentId, recommendationId: "00000000-0000-4000-8000-000000000004" };
+  f.rows[1].content = `• *[Alex Example](talent:${talentId})* — enterprise delivery.\n[Role](role:${roleId}) · [Guide](https://example.com/guide)`;
+  f.deps.links = async () => ({ roleTargets: [{ roleId }], talentTargets: [target] });
+  await deliverCompanyMessageBatch({ batchId: "batch", workspaceId }, f.deps);
+  const payload = f.payloads[1];
+  const link = `<${buildSlackTalentProfileUrl({ workspaceId, target })}|Alex Example>`;
+  assert.ok(payload.text.includes(link), payload.text);
+  assert.ok(JSON.stringify(payload.blocks).includes(link));
+  assert.ok(payload.text.includes("<https://example.com/guide|Guide>"));
+  assert.ok(!payload.text.includes("&lt;https:"));
+  assert.ok(!payload.text.includes("talent:"));
+  assert.ok(!payload.text.includes("](role:"));
 });
 
 test("a failed read before Slack leaves the delivery retryable", async () => {

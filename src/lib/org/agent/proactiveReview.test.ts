@@ -3,14 +3,14 @@ import test from "node:test";
 import { createClient } from "@supabase/supabase-js";
 import { proactiveReviewWindow, enqueueDueCompanyProactiveReviews, parseProactiveReviewSchedule } from "./proactiveReview.server";
 
-test("scheduled window is weekdays 17-19 KST, with no next-day catchup", () => {
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T16:59:59+09:00")).due, false);
-  const window = proactiveReviewWindow(new Date("2026-10-15T17:00:00+09:00"));
+test("scheduled window is weekdays 13-15 KST, with no next-day catchup", () => {
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T12:59:59+09:00")).due, false);
+  const window = proactiveReviewWindow(new Date("2026-10-15T13:00:00+09:00"));
   assert.equal(window.due, true);
   assert.equal(window.date, "2026-10-15");
-  assert.equal(window.deadlineAt, "2026-10-15T10:00:00.000Z");
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T19:00:00+09:00")).due, false);
-  assert.equal(proactiveReviewWindow(new Date("2026-10-17T17:00:00+09:00")).due, false);
+  assert.equal(window.deadlineAt, "2026-10-15T06:00:00.000Z");
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T15:00:00+09:00")).due, false);
+  assert.equal(proactiveReviewWindow(new Date("2026-10-17T13:00:00+09:00")).due, false);
 });
 
 test("external schedule moves the window and selected weekdays without changing defaults", () => {
@@ -21,8 +21,8 @@ test("external schedule moves the window and selected weekdays without changing 
   assert.equal(start.due, true);
   assert.equal(start.deadlineAt, "2026-10-17T01:15:00.000Z");
   assert.equal(proactiveReviewWindow(new Date("2026-10-17T10:15:00+09:00"), schedule).due, false);
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T17:00:00+09:00"), parseProactiveReviewSchedule()).due, true);
-  assert.equal(proactiveReviewWindow(new Date("2026-10-15T17:00:00+09:00"), parseProactiveReviewSchedule('{"daysOfWeek":[]}')).due, false);
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T13:00:00+09:00"), parseProactiveReviewSchedule()).due, true);
+  assert.equal(proactiveReviewWindow(new Date("2026-10-15T13:00:00+09:00"), parseProactiveReviewSchedule('{"daysOfWeek":[]}')).due, false);
 });
 
 test("overnight windows keep the start-day deadline and idempotency date", () => {
@@ -80,7 +80,7 @@ function schedulerFixture(channels: ChannelFixture[], options: {
       }
       if (url.pathname === "/rest/v1/company_messages") {
         assert.equal(q.get("role"), "eq.user");
-        assert.equal(q.get("created_at"), "gte.2026-10-15T07:30:00.000Z");
+        assert.equal(q.get("created_at"), "gte.2026-10-15T03:30:00.000Z");
         return json(options.recent?.includes(workspace!) ? [{ id: 1 }] : []);
       }
       assert.fail(`Unexpected request: ${url.pathname}`);
@@ -118,7 +118,7 @@ test("active channels are discovered automatically while owner, audience, recent
       ["g", "recent", true], ["h", "revoked", true],
     ].map(([id, workspace, enabled]) => ({ id: String(id), company_workspace_id: String(workspace), slack_channel_id: `C-${id}`, is_enabled: Boolean(enabled) }));
     const fixture = schedulerFixture(channels, { noOwner: ["no-owner"], denied: ["C-f"], recent: ["recent"], revoked: ["h"] });
-    const now = new Date("2026-10-15T17:00:00+09:00");
+    const now = new Date("2026-10-15T13:00:00+09:00");
     assert.equal(await enqueueDueCompanyProactiveReviews(now, fixture.dependencies), 3);
     assert.deepEqual(fixture.queued.map(q => [q.workspaceId, q.actionContext.channelDbId, q.user.id]), [
       ["w1", "a", fixture.ownerIds.get("w1")], ["w2", "b", fixture.ownerIds.get("w2")], ["w1", "c", fixture.ownerIds.get("w1")],
@@ -126,7 +126,7 @@ test("active channels are discovered automatically while owner, audience, recent
     for (const q of fixture.queued) {
       assert.equal(q.actionName, "proactive_recruiting_review");
       assert.equal(q.dispatch, false);
-      assert.equal(q.actionContext.deadlineAt, "2026-10-15T10:00:00.000Z");
+      assert.equal(q.actionContext.deadlineAt, "2026-10-15T06:00:00.000Z");
       assert.equal(q.idempotencyKey, `proactive-review:${q.workspaceId}:${q.actionContext.channelDbId}:2026-10-15`);
     }
     assert.deepEqual(fixture.allowed, ["C-a", "C-b", "C-c", "C-f", "C-g"]);
@@ -139,9 +139,9 @@ test("automatic channel discovery reads past the first page and stays idle outsi
     const channels = Array.from({ length: 201 }, (_, i) => ({ id: String(i).padStart(4, "0"),
       company_workspace_id: `w${i}`, slack_channel_id: `C${i}`, is_enabled: true }));
     const fixture = schedulerFixture(channels);
-    assert.equal(await enqueueDueCompanyProactiveReviews(new Date("2026-10-15T16:59:00+09:00"), fixture.dependencies), 0);
+    assert.equal(await enqueueDueCompanyProactiveReviews(new Date("2026-10-15T12:59:00+09:00"), fixture.dependencies), 0);
     assert.deepEqual(fixture.cursors, []);
-    assert.equal(await enqueueDueCompanyProactiveReviews(new Date("2026-10-15T17:00:00+09:00"), fixture.dependencies), 201);
+    assert.equal(await enqueueDueCompanyProactiveReviews(new Date("2026-10-15T13:00:00+09:00"), fixture.dependencies), 201);
     assert.deepEqual(fixture.cursors, [null, "gt.0199", "gt.0200"]);
     assert.equal(fixture.queued.at(-1).workspaceId, "w200");
   });

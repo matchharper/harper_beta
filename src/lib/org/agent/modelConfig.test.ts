@@ -15,7 +15,7 @@ import {
   ORG_AGENT_GLM_53_FLASH_MODEL,
   ORG_AGENT_LUNA_MODEL,
   ORG_AGENT_MODEL_IDS,
-  ORG_AGENT_TERRA_MODEL,
+  ORG_AGENT_SOL_MODEL,
   resolveOrgAgentModel,
 } from "./modelConfig";
 
@@ -24,9 +24,9 @@ test("exposes every supported company-side LLM", () => {
     ORG_AGENT_GEMINI_FLASH_MODEL,
     ORG_AGENT_GLM_53_FLASH_MODEL,
     ORG_AGENT_LUNA_MODEL,
-    ORG_AGENT_TERRA_MODEL,
     ORG_AGENT_CLAUDE_MODEL,
     ORG_AGENT_HAIKU_MODEL,
+    ORG_AGENT_SOL_MODEL,
   ]);
 });
 
@@ -45,8 +45,8 @@ test("uses Luna as the only company-agent fallback", () => {
     ORG_AGENT_LUNA_MODEL
   );
   assert.equal(
-    getOrgAgentFallbackModel(ORG_AGENT_TERRA_MODEL),
-    ORG_AGENT_LUNA_MODEL
+    getOrgAgentFallbackModel(ORG_AGENT_SOL_MODEL),
+    null
   );
   assert.equal(getOrgAgentFallbackModel(ORG_AGENT_LUNA_MODEL), null);
 });
@@ -112,11 +112,11 @@ test("uses the shared model setting for web and Slack", () => {
   const original = process.env.SLACK_ORG_AGENT_MODEL;
   const originalShared = process.env.ORG_AGENT_MODEL;
   delete process.env.SLACK_ORG_AGENT_MODEL;
-  process.env.ORG_AGENT_MODEL = ORG_AGENT_TERRA_MODEL;
+  process.env.ORG_AGENT_MODEL = ORG_AGENT_SOL_MODEL;
 
   try {
-    assert.equal(getSlackOrgAgentModel(), ORG_AGENT_TERRA_MODEL);
-    assert.equal(resolveOrgAgentModel(null).model, ORG_AGENT_TERRA_MODEL);
+    assert.equal(getSlackOrgAgentModel(), ORG_AGENT_SOL_MODEL);
+    assert.equal(resolveOrgAgentModel(null).model, ORG_AGENT_SOL_MODEL);
   } finally {
     if (original === undefined) delete process.env.SLACK_ORG_AGENT_MODEL;
     else process.env.SLACK_ORG_AGENT_MODEL = original;
@@ -136,6 +136,31 @@ test("uses configured Gemini default for an unsupported Slack override", () => {
   } finally {
     if (original === undefined) delete process.env.SLACK_ORG_AGENT_MODEL;
     else process.env.SLACK_ORG_AGENT_MODEL = original;
+    if (originalShared === undefined) delete process.env.ORG_AGENT_MODEL;
+    else process.env.ORG_AGENT_MODEL = originalShared;
+  }
+});
+
+test("migrates a saved Terra selection to Sol", () => {
+  assert.equal(migrateOrgAgentModel("gpt-5.6-terra"), ORG_AGENT_SOL_MODEL);
+  assert.equal(resolveOrgAgentModel("gpt-5.6-terra").model, ORG_AGENT_SOL_MODEL);
+});
+
+test("preserves explicit Terra environment overrides", () => {
+  const originalSlack = process.env.SLACK_ORG_AGENT_MODEL;
+  const originalShared = process.env.ORG_AGENT_MODEL;
+  try {
+    process.env.ORG_AGENT_MODEL = "gpt-5.6-terra";
+    delete process.env.SLACK_ORG_AGENT_MODEL;
+    assert.equal(resolveOrgAgentModel(null).model, "gpt-5.6-terra");
+    assert.equal(getSlackOrgAgentModel(), "gpt-5.6-terra");
+    process.env.SLACK_ORG_AGENT_MODEL = "gpt-5.6-terra";
+    assert.equal(getSlackOrgAgentModel(), "gpt-5.6-terra");
+    assert.equal(resolveOrgAgentModel(getSlackOrgAgentModel()).model, "gpt-5.6-terra");
+    assert.equal(migrateOrgAgentModel(getSlackOrgAgentModel()), "gpt-5.6-terra");
+  } finally {
+    if (originalSlack === undefined) delete process.env.SLACK_ORG_AGENT_MODEL;
+    else process.env.SLACK_ORG_AGENT_MODEL = originalSlack;
     if (originalShared === undefined) delete process.env.ORG_AGENT_MODEL;
     else process.env.ORG_AGENT_MODEL = originalShared;
   }

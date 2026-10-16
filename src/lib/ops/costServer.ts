@@ -384,64 +384,6 @@ async function fetchOpenRouterCosts(range: DateRange) {
   }
 }
 
-async function fetchGrokCosts(range: DateRange) {
-  const label = "Grok";
-  const managementKey = process.env.XAI_MANAGEMENT_API_KEY?.trim();
-  const teamId = process.env.XAI_TEAM_ID?.trim();
-  if (!managementKey || !teamId) {
-    return notConfiguredCost("grok", label, [
-      "XAI_MANAGEMENT_API_KEY",
-      "XAI_TEAM_ID",
-    ]);
-  }
-
-  try {
-    const payload = asRecord(
-      await fetchJson(
-        `https://management-api.x.ai/v1/billing/teams/${encodeURIComponent(
-          teamId
-        )}/usage`,
-        {
-          body: JSON.stringify({
-            analyticsRequest: {
-              filters: [],
-              groupBy: [],
-              timeRange: {
-                endTime: `${range.through} 23:59:59`,
-                startTime: `${range.from} 00:00:00`,
-                timezone: "Etc/GMT",
-              },
-              timeUnit: "TIME_UNIT_DAY",
-              values: [{ aggregation: "AGGREGATION_SUM", name: "usd" }],
-            },
-          }),
-          headers: {
-            Authorization: `Bearer ${managementKey}`,
-            "Content-Type": "application/json",
-          },
-          method: "POST",
-        },
-        label
-      )
-    );
-
-    const amounts = new Map<string, number>();
-    for (const rawSeries of asArray(payload.timeSeries)) {
-      for (const rawPoint of asArray(asRecord(rawSeries).dataPoints)) {
-        const point = asRecord(rawPoint);
-        const date = asString(point.timestamp).slice(0, 10);
-        if (!date) continue;
-        const amount = asNumber(asArray(point.values)[0]);
-        amounts.set(date, (amounts.get(date) ?? 0) + amount);
-      }
-    }
-
-    return successfulCost("grok", label, pointsFromMap(amounts));
-  } catch (error) {
-    return failedCost("grok", label, error);
-  }
-}
-
 async function mapWithConcurrency<T, R>(
   values: T[],
   concurrency: number,
@@ -768,7 +710,6 @@ export async function fetchOpsCosts(
     claude,
     openai,
     openrouter,
-    grok,
     exa,
     ec2,
     openrouterCredit,
@@ -777,7 +718,6 @@ export async function fetchOpsCosts(
     fetchClaudeCosts(range),
     fetchOpenAiCosts(range),
     fetchOpenRouterCosts(range),
-    fetchGrokCosts(range),
     fetchExaCosts(range),
     fetchEc2Costs(range),
     fetchOpenRouterCredit(),
@@ -785,7 +725,7 @@ export async function fetchOpsCosts(
   ]);
 
   return {
-    costs: [claude, openai, openrouter, grok, exa, ec2],
+    costs: [claude, openai, openrouter, exa, ec2],
     credits: [openrouterCredit, awsCredit],
     from: range.from,
     generatedAt: new Date().toISOString(),

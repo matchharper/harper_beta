@@ -671,7 +671,7 @@ export function OrgTeamPage({
   const modalFormId2 = useId();
 
   const sourceT = useOrgSourceT();
-  const { locale, c } = useOrgLocale();
+  const { locale, setLocale, c } = useOrgLocale();
   const documentEditorCopy = useOrgDocumentEditorCopy();
   const {
     bootstrap: { invitations, members, teams = [] },
@@ -688,6 +688,7 @@ export function OrgTeamPage({
   const updateMemberProfile = useUpdateOrgMemberProfile();
   const updateMembershipAuthority = useUpdateOrgMembershipAuthority();
   const [memberTab, setMemberTab] = useState("members");
+  const [languageSaving, setLanguageSaving] = useState(false);
   const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [companyInfoEditing, setCompanyInfoEditing] = useState(false);
@@ -1019,10 +1020,53 @@ export function OrgTeamPage({
               </MuteButton>
             ) : null
           ) : showCompany &&
-            (canEditCompany ||
+            (!companyOnly ||
+              canEditCompany ||
               currentCompanyDraft.homepageUrl ||
               currentCompanyDraft.linkedinUrl) ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {!companyOnly && (
+                <Select
+                  value={locale}
+                  disabled={languageSaving}
+                  onValueChange={async (next) => {
+                    if ((next !== "ko" && next !== "en") || next === locale)
+                      return;
+                    setLanguageSaving(true);
+                    try {
+                      await setLocale(next);
+                    } catch {
+                      addToast({
+                        message: c(
+                          "언어 설정을 저장하지 못했어요. 다시 시도해 주세요.",
+                          "Couldn't save language. Try again."
+                        ),
+                        variant: "error",
+                      });
+                    } finally {
+                      setLanguageSaving(false);
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="w-auto gap-1.5 border-0 bg-bg-weak px-2.5 text-[13px] leading-[18px] font-medium hover:bg-neutral-1000-a10 data-[size=sm]:h-7"
+                    aria-label={c("언어 설정", "Language settings")}
+                  >
+                    <SelectValue>
+                      {locale === "ko" ? "한국어" : "English"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent
+                    align="start"
+                    alignItemWithTrigger={false}
+                    side="bottom"
+                  >
+                    <SelectItem value="ko">한국어</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
               {(canEditCompany || currentCompanyDraft.homepageUrl) && (
                 <CompanyEditableLink
                   disabled={updateWorkspace.isPending}

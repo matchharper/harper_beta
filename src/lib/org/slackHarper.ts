@@ -126,6 +126,7 @@ export type HarperSlackInteractionContext = {
 export type HarperSlackChannel = {
   channelId: string;
   channelName: string | null;
+  connectedAt?: string | null;
   defaultRoleId: string | null;
   isEnabled: boolean;
   isPrivate: boolean;
@@ -683,6 +684,7 @@ export async function getHarperSlackStatus(args: {
   const channels: HarperSlackChannel[] = (data ?? []).map((channel: any) => ({
     channelId: channel.slack_channel_id,
     channelName: channel.slack_channel_name,
+    connectedAt: channel.created_at ?? null,
     defaultRoleId: channel.default_role_id,
     isEnabled: channel.is_enabled,
     isPrivate: channel.is_private,

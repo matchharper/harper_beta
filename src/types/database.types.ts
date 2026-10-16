@@ -4069,30 +4069,42 @@ export type Database = {
       }
       email_reply_aliases: {
         Row: {
+          company_user_id: string | null
+          company_workspace_id: string | null
+          company_conversation_id: string | null
+          metadata: Json
           company_talent_request_id: string | null
           conversation_id: string | null
           created_at: string
           expires_at: string | null
           id: string
-          talent_id: string
+          talent_id: string | null
           token_hash: string
         }
         Insert: {
+          company_user_id?: string | null
+          company_workspace_id?: string | null
+          company_conversation_id?: string | null
+          metadata?: Json
           company_talent_request_id?: string | null
           conversation_id?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
-          talent_id: string
+          talent_id?: string | null
           token_hash: string
         }
         Update: {
+          company_user_id?: string | null
+          company_workspace_id?: string | null
+          company_conversation_id?: string | null
+          metadata?: Json
           company_talent_request_id?: string | null
           conversation_id?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
-          talent_id?: string
+          talent_id?: string | null
           token_hash?: string
         }
         Relationships: [
@@ -13766,10 +13778,6 @@ export type Database = {
       enqueue_due_company_context_runs_v1: {
         Args: { p_now?: string }
         Returns: number
-      }
-      enqueue_matching_input_refresh_v1: {
-        Args: { p_source: string; p_talent: string }
-        Returns: undefined
       }
       enqueue_post_calibration_company_context_run_v1: {
         Args: { p_calibration_id: string }

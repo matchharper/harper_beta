@@ -256,6 +256,7 @@ export async function processDailyRun(
         await patch({
           status: run.attempts >= 3 ? "failed" : "running",
           error: error instanceof Error ? error.message : "Daily search failed",
+          finished_at: run.attempts >= 3 ? new Date().toISOString() : null,
           lease_expires_at: new Date().toISOString(),
         });
         throw error;

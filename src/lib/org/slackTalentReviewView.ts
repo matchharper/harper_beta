@@ -1,6 +1,7 @@
 import { buildAutoIntroCandidateProfileUrl } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { DEFAULT_ORG_STOP_REASONS } from "@/lib/org/candidateDecision";
+import { splitSlackMrkdwn } from "./slackTextChunks";
 
 export const HARPER_TALENT_REVIEW_ACTION_PREFIX = "harper_talent_review:";
 export const HARPER_TALENT_REVIEW_OPEN_ACTION_ID = `${HARPER_TALENT_REVIEW_ACTION_PREFIX}open`;
@@ -148,6 +149,11 @@ export function markdownToSlackMrkdwn(value: unknown) {
   source = source.replace(/`([^`\n]+)`/g, (_match, code: string) =>
     hold(`\`${escapeMrkdwn(code)}\``)
   );
+  // Keep native HTTP links intact, but continue escaping mentions and other angle-bracket text.
+  source = source.replace(
+    /<(https?:\/\/[^\s<>|]+)(?:\|[^<>\n]*)?>/gi,
+    (match, href: string) => (safeSlackLink(href) ? hold(match) : match)
+  );
   source = source.replace(
     /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
     (match, label: string, href: string) => {
@@ -183,10 +189,14 @@ export function markdownToSlackMrkdwn(value: unknown) {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  return source.replace(
-    /\u0000HARPER_SLACK_TOKEN_(\d+)\u0000/g,
-    (_match, index: string) => tokens[Number(index)] || ""
-  );
+  // Formatting tokens may contain earlier link/code tokens. Restore outer tokens first.
+  for (let index = tokens.length - 1; index >= 0; index--) {
+    source = source.replaceAll(
+      `\u0000HARPER_SLACK_TOKEN_${index}\u0000`,
+      () => tokens[index]
+    );
+  }
+  return source;
 }
 
 function truncate(value: unknown, maxLength: number) {
@@ -398,17 +408,7 @@ function extraSection(
 }
 
 function sectionChunks(value: string, maxLength = 2_900) {
-  const chunks: string[] = [];
-  let remaining = clean(value);
-  while (remaining.length > maxLength) {
-    const candidate = remaining.slice(0, maxLength);
-    const lineBreak = candidate.lastIndexOf("\n");
-    const splitAt = lineBreak > maxLength / 2 ? lineBreak : maxLength;
-    chunks.push(remaining.slice(0, splitAt).trim());
-    remaining = remaining.slice(splitAt).trim();
-  }
-  if (remaining) chunks.push(remaining);
-  return chunks;
+  return splitSlackMrkdwn(clean(value), maxLength);
 }
 
 function markdownSections(value: string, prefix: string) {
@@ -742,7 +742,7 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
                 "소개 이메일에 함께 포함할 회사 담당자예요.",
                 "plain_text"
               ),
-              label: textObject("회사 수신자", "plain_text"),
+              label: textObject("회사 담당자", "plain_text"),
               type: "input",
             },
           ]

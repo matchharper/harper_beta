@@ -253,3 +253,30 @@ Gemini는 reasoning `medium`, 최소 output budget 8192(추론 포함)이다. Op
 직전 질문에 대한 응답만 유효하다는 지침은 두지 않는다. 기존 대기 Brief도 현재 저장본을 읽어
 일반 변경 입력으로 처리한다. 권한·대상·원문 부분 수정·동시 수정 검사는 유지한다.
 Memory와 후보자 연결·채용 등록 등 다른 작업의 승인 계약은 이 변경 범위가 아니다. 미배포다.
+
+## 2026-10-15 회사 이메일 답장 (로컬·미배포)
+
+회사용 Reply-To로 확인된 팀원 답장은 기존 `runOrgAgentChat`과 회사 일반 대화·도구를 사용한다.
+`prompts.ts`의 email surface만 비동기 이메일 표현을 담당하며 웹·Slack 원본 문구는 유지한다.
+인용 메일은 참고, 현재 발신 본문은 사용자 발화로 구분한다. 전달 대상과 대화 권한은 서버가 검증하고,
+원본 발송·수신·답변·provider 영수증은 기존 alias/message/job 저장소에 보존한다.
+별도 company-email writer, 분류 모델, 대화 판단 상태는 추가하지 않는다.
+[처리 범위·활성화 조건](email-vercel-runtime-ko.md#company-유저-이메일-답장-2026-10-15-로컬-구현-미배포),
+[검증·한계](evaluation/company-side-conversational-qa/reports/2026-10-15-company-email.md)를 따른다.
+
+### 2026-10-15 Slack 연결 안내 이메일 prototype
+
+로컬 `companyUpdateEmail.ts`는 공통 company-update 사실 입력과 company-side system/completion을 재사용해 발송 없는 제목·본문 미리보기를 만든다. 수신자별 월수금 점검, 48시간/72시간 간격, 누적 최대 3회이며 후보가 없어도 안내할 수 있다. Workspace별로 횟수를 새로 시작하지 않는다. 실제 집계·스케줄러·durable 발송 연결은 아직 없다.
+
+`email_preferences` 기능은 일반 대화에서는 한 줄 catalog와 지연 로딩, 이메일 답장에서는 첫 completion부터 schema와 정책을 제공한다. 기존 executor가 인증된 본인의 수신 설정만 변경하며 Slack·채용 상태는 변경하지 않는다. 설정 저장용 migration은 로컬 파일만 작성했고 적용하지 않았다. [동결 입력·실행 계약](evaluation/company-email-connection/README.md)을 따른다. 운영 발송·배포 완료를 뜻하지 않는다.
+
+### 2026-10-15 Intro 수락 뒤 연결 결과 안내 (로컬·미배포)
+
+후보자 수락 이력과 내부 알림은 즉시 남기고, 회사용 사건은 기존 Intro의 연결 완료 전이에서 생성한다. 이전 제안의 대상·역할·시점, 실제 연결 결과와 소개 이메일 영수증 사실을 같은 company-side LLM에 제공한다. 사건 목적에 미팅·채용 면책이나 고정 답변을 넣지 않는다. 회사가 직접 결정한 시스템 알림은 후보자가 회사 Intro를 수락한 경로에서는 제외한다. 웹과 새 trigger migration은 함께 반영해야 하며 기존 사건 재발송은 별도 판단이다. [검증과 적용 경계](evaluation/company-side-conversational-qa/reports/2026-10-15-intro-connection-notice.md).
+
+
+2026-10-16 후속 로컬 구현은 `enqueueCompanyUpdate`의 이메일 분기와 수신자별 outbox, 월수금 10–18시 KST dispatcher, 저장된 연결 설정·후보 집계 조회, 발송 직전 권한/수신 거부/현황 재검사, 고정 payload 재시도 및 영수증 기록을 연결했다. 여러 Workspace가 있는 수신자는 전역 횟수·간격을 공유하지만 답장 맥락 격리를 위해 회차당 한 Workspace를 순환 안내한다. 로컬 PostgreSQL 및 가상 transport로 검사했으며 운영 DB 적용·배포·실제 발송은 하지 않았다. 상세 검증과 적용 전제는 위 company-email-connection 평가 계약을 따른다.
+
+## 2026-10-16 명시적 수동 서치 준비의 저장·회사 전달 (로컬·미배포)
+
+`enqueueCompanyUpdate`의 researchKickoff 요청은 기존 회사 작업 큐와 같은 company-side loop에 조사·대상 Brief 보완·새 Slack 스레드 설명을 맡긴다. 일반 read/web 도구와 대상 Brief 수정·회사 메시지 확정만 허용하며, 모델은 Sol/medium, completion 최대40,000토큰이다. 확정된 메시지 batch와 실제 전달 영수증을 재사용해 부분 실패를 복구한 뒤 기존 검색에 한 번 접수한다. 접수 영수증은 기존 job JSON에 원자적으로 기록하며 새 판단 테이블을 만들지 않는다. 결과 작성에는 같은 run/Role에서 이미 전달한 설명을 제공한다. 채용 시작·정기 자동 호출과 기존 후보 카드 작성 경로는 그대로다. [구현·전달 계약](company/role-search-kickoff-implementation-plan-ko.md), [격리 평가](evaluation/company-side-conversational-qa/README.md#수동-조사-저장전달-research-delivery-v1-2026-10-16).

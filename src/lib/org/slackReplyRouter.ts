@@ -12,7 +12,7 @@ export type SlackReplyRoutingMessage = {
 };
 
 const MAX_ROUTING_MESSAGES = 10;
-const MAX_MESSAGE_CHARACTERS = 360;
+const MAX_MESSAGE_CHARACTERS = 10_000;
 export const SLACK_REPLY_ROUTING_ENDPOINT =
   "https://openrouter.ai/api/alpha/decisions";
 const ROUTING_TIMEOUT_MS = 5_000;

@@ -35,7 +35,7 @@ test("Career tool budgets cover every provider, streaming mode, failures and bat
               provider === "anthropic"
                 ? "claude-sonnet-4-6"
                 : provider === "openai"
-                  ? "gpt-5.6-terra"
+                  ? "gpt-6.1-sol"
                   : "z-ai/glm-5.3-flash";
             const label = `${provider}, streaming=${streaming}, resume=${hasResume}, batch=${batchSize}`;
             const expected = hasResume

@@ -150,3 +150,12 @@ test("keeps inline company-information links inside the normal Slack reply", () 
   );
   assert.equal(blocks[1].type, "actions");
 });
+
+test("long message blocks keep a candidate link intact at the section boundary", () => {
+  const link = "<https://example.com/profile?role=engineering&candidate=123|Alex Example>";
+  const blocks = buildHarperSlackChoiceBlocks({ choices: [], sourceJobId: "job", text: "x".repeat(2980) + link + " next" });
+  const texts = blocks.map(block => (block.text as { text: string }).text);
+  assert.ok(texts.every(text => text.length <= 3000));
+  assert.ok(texts.some(text => text.includes(link)));
+  assert.equal(texts.join(""), "x".repeat(2980) + link + " next");
+});

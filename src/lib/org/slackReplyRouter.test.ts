@@ -36,7 +36,7 @@ test("keeps only the latest ten messages and caps each message", async () => {
   const { buildSlackReplyRoutingInput } = await router;
   const input = buildSlackReplyRoutingInput(
     Array.from({ length: 12 }, (_, index) => ({
-      content: index === 11 ? "가".repeat(500) : `message ${index}`,
+      content: index === 11 ? "가".repeat(10_001) : `message ${index}`,
       role: "user" as const,
       slackUserId: "U1",
     }))
@@ -53,7 +53,7 @@ test("keeps only the latest ten messages and caps each message", async () => {
   assert.equal(input.split("\n").length, 10);
   assert.equal(
     input.split("\n").at(-1),
-    `Latest - Person A: ${"가".repeat(360)}`
+    `Latest - Person A: ${"가".repeat(10_000)}`
   );
 });
 

@@ -44,3 +44,10 @@ test("does not classify lookalike organization capture addresses on another doma
     { kind: "reply", metadata: {} }
   );
 });
+
+test("company reply namespace wins over talent/referral routing only on the configured domain", () => {
+  assert.deepEqual(classifyInboundEmailJob({ toAddresses: ["company+abcdefghijklmnop@reply.matchharper.com"], ccAddresses: ["intro@matchharper.com"] }),
+    { kind: "reply", metadata: { companyEmail: true } });
+  assert.deepEqual(classifyInboundEmailJob({ toAddresses: ["company+abcdefghijklmnop@other.example"], ccAddresses: [] }),
+    { kind: "reply", metadata: {} });
+});

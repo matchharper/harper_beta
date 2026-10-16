@@ -1,3 +1,4 @@
+import { renderOrgAgentWebLinks } from "@/lib/org/agent/navigationMarkdown";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
@@ -98,9 +99,9 @@ export function wrapEmailHtml(html: string) {
 
 export function renderReplyEmail(
   content: string,
-  options: { baseUrl?: string; footer?: boolean } = {}
+  options: { baseUrl?: string; footer?: boolean; audience?: "talent" | "company" } = {}
 ) {
-  const markdown = emailVisibleMarkdown(content);
+  const markdown = options.audience === "company" ? content : emailVisibleMarkdown(content);
   const baseUrl = options.baseUrl ?? "https://matchharper.com";
   const htmlBody = String(
     unified()
@@ -180,4 +181,9 @@ export function renderReplyEmail(
       htmlBody + (options.footer ? buildHarperEmailFooterHtml() : "")
     ),
   };
+}
+
+/** Company navigation identifiers become ordinary authenticated workspace links. */
+export function renderCompanyReplyEmail(content: string, workspaceId: string) {
+  return renderReplyEmail(renderOrgAgentWebLinks({ markdown: content, workspaceId }), { audience: "company" });
 }

@@ -1,6 +1,6 @@
 /** Preview by default. --apply is an explicit operator data operation, not deployment. */
 import { getTalentSupabaseAdmin } from "../src/lib/talentOnboarding/admin";
-import { backfillRoleTitles } from "../src/lib/externalRecommendationsV2/embeddings";
+import { drainRoleTitleEmbeddings } from "../src/lib/externalRecommendationsV2/embeddings";
 async function main() {
   const admin = getTalentSupabaseAdmin();
   const apply = process.argv.includes("--apply");
@@ -20,40 +20,13 @@ async function main() {
     console.log({ pendingTitles: count, apply: false, maxRows });
     return;
   }
-  let scanned = 0,
-    updated = 0;
-  let failures = 0;
-  const began = Date.now();
-  while (scanned < maxRows) {
-    try {
-      const result = await backfillRoleTitles(
-        admin,
-        Math.min(1000, maxRows - scanned),
-        {
-          concurrency: 6,
-          writeBatchSize: 64,
-          onBatch: process.argv.includes("--verbose") ? console.log : undefined,
-        }
-      );
-      scanned += result.scanned;
-      updated += result.updated;
-      failures = 0;
-      console.log({ scanned, updated, elapsedMs: Date.now() - began });
-      if (!result.scanned) break;
-    } catch (error) {
-      console.error(
-        error instanceof AggregateError
-          ? error.errors.map((e) =>
-              e instanceof Error ? e.message : String(e)
-            )
-          : String(error)
-      );
-      if (++failures >= 5) throw error;
-      await new Promise((resolve) =>
-        setTimeout(resolve, Math.min(30000, 1000 * 2 ** failures))
-      );
-    }
-  }
+  const result = await drainRoleTitleEmbeddings(admin, {
+    maxRows,
+    concurrency: 6,
+    onBatch: process.argv.includes("--verbose") ? console.log : undefined,
+  });
+  console.log(result);
+  if (result.errors.length) process.exitCode = 1;
 }
 void main().catch((error) => {
   console.error(

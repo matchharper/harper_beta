@@ -1,10 +1,6 @@
 import { SlackLogo as SlackIcon } from "@/components/common/BrandLogos";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import {
-  useOrgLocale,
-  useOrgSourceT,
-  type OrgCopy,
-} from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, type OrgCopy } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import {
   ArrowRight,
@@ -19,10 +15,8 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
-import {
-  ORG_SLACK_PRIVATE_CHANNEL_HELP,
-  OrgSlackChannelPicker,
-} from "@/components/org/OrgSlackChannelPicker";
+import { OrgSlackChannelPicker } from "@/components/org/OrgSlackChannelPicker";
+import { OrgSlackChannelRolesDialog } from "@/components/org/OrgSlackChannelRolesDialog";
 import { OrgSlackCreateChannelDialog } from "@/components/org/OrgSlackCreateChannelDialog";
 import { OrgPageHeader } from "@/components/org/workspace/OrgPageHeader";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
@@ -43,6 +37,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
+  type OrgSlackChannel,
   useAddOrgSlackChannel,
   useConnectOrgSlack,
   useDisconnectOrgSlack,
@@ -71,7 +66,6 @@ function formatChannel(
 }
 
 export function OrgSettingsPage() {
-  const sourceT = useOrgSourceT();
   const { locale, c } = useOrgLocale();
   const weekdayShortLabels = [
     c("월", "Mon"),
@@ -101,6 +95,10 @@ export function OrgSettingsPage() {
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [removeChannelId, setRemoveChannelId] = useState<string | null>(null);
   const [addChannelOpen, setAddChannelOpen] = useState(false);
+  const [roleChannel, setRoleChannel] = useState<
+    | (Pick<OrgSlackChannel, "channelId" | "channelName"> & { isNew?: boolean })
+    | null
+  >(null);
   const statusQuery = useOrgSlackStatus({
     enabled: activeIntegration === "slack",
     workspaceId: workspace.workspaceId,
@@ -110,6 +108,7 @@ export function OrgSettingsPage() {
   const disconnectSlack = useDisconnectOrgSlack(workspace.workspaceId);
   const removeSlackChannel = useRemoveOrgSlackChannel(workspace.workspaceId);
   const status = statusQuery.data;
+  const refetchSlackStatus = statusQuery.refetch;
   const availabilityQuery = useOrgMeetingAvailability({
     enabled: activeIntegration === "calendar",
     workspaceId: workspace.workspaceId,
@@ -130,6 +129,12 @@ export function OrgSettingsPage() {
     const key = `${result}:${message}`;
     if (!result || handledSlackResult.current === key) return;
     handledSlackResult.current = key;
+    if (result === "connected" && permissions.canManageIntegrations) {
+      // OAuth navigation is an external event: consume it once and open setup.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAddChannelOpen(true);
+      void refetchSlackStatus();
+    }
     addToast({
       message:
         result === "connected"
@@ -149,7 +154,15 @@ export function OrgSettingsPage() {
       undefined,
       { shallow: true }
     );
-  }, [addToast, router, router.isReady, router.query, c]);
+  }, [
+    addToast,
+    router,
+    router.isReady,
+    router.query,
+    c,
+    permissions.canManageIntegrations,
+    refetchSlackStatus,
+  ]);
 
   const connect = async () => {
     try {
@@ -183,6 +196,11 @@ export function OrgSettingsPage() {
         (item) => item.channelId === channelId
       );
       setAddChannelOpen(false);
+      setRoleChannel({
+        channelId,
+        channelName: channel?.channelName ?? null,
+        isNew: true,
+      });
       addToast({
         message: c(
           "{p0}을 Harper 채널로 추가했습니다.",
@@ -193,15 +211,8 @@ export function OrgSettingsPage() {
         ),
         variant: "success",
       });
-    } catch (error) {
-      addToast({
-        message: localizedOrgErrorMessage(
-          error,
-          locale,
-          c("Slack 채널을 추가하지 못했습니다.", "Failed to add Slack channel.")
-        ),
-        variant: "error",
-      });
+    } catch {
+      // Keep the channel picker open; its inline error preserves the user's context.
     }
   };
 
@@ -510,9 +521,7 @@ export function OrgSettingsPage() {
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-neutral-1000-a05 text-neutral-muted">
-                          <SlackIcon
-                            className="size-4"
-                          />
+                          <SlackIcon className="size-4" />
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -545,6 +554,21 @@ export function OrgSettingsPage() {
                                   " · Harper thread replies active"
                                 )
                               : ""}
+                            {channel.connectedAt ? (
+                              <span className="ml-2 inline-block text-neutral-soft">
+                                {c("연결일", "Connected on")} {" "}
+                                <time dateTime={channel.connectedAt}>
+                                  {new Date(channel.connectedAt).toLocaleDateString(
+                                    locale === "ko" ? "ko-KR" : "en-US",
+                                    {
+                                      year: "numeric",
+                                      month: "2-digit",
+                                      day: "2-digit",
+                                    }
+                                  )}
+                                </time>
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       </div>
@@ -566,6 +590,11 @@ export function OrgSettingsPage() {
                             </MuteButton>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              onSelect={() => setRoleChannel(channel)}
+                            >
+                              {c("Role 할당", "Assign roles")}
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={removeSlackChannel.isPending}
                               onSelect={() =>
@@ -719,45 +748,68 @@ export function OrgSettingsPage() {
           if (!addSlackChannel.isPending) setAddChannelOpen(false);
         }}
         mobileBottomSheet
-        title={<>{c("채널에 Harper 초대", "Invite Harper to channel")}</>}
-        description={
-          <>
-            {status?.teamName || workspace.companyName}
-            {status?.connected ? (
-              <span className="mt-2 block">
-                {ORG_SLACK_PRIVATE_CHANNEL_HELP.map((line) => (
-                  <span key={line} className="block">
-                    {sourceT(line)}
-                  </span>
-                ))}
-              </span>
-            ) : null}
-          </>
+        closeOnBackdrop={!addSlackChannel.isPending}
+        showCloseButton={!addSlackChannel.isPending}
+        title={
+          <div className="flex flex-row items-center gap-2">
+            <SlackIcon className="size-4" />
+            {c("어느 채널에서 함께할까요?", "Where should Harper join you?")}
+          </div>
         }
+        description={c("{team}에서 Harper와 소통할 채널을 선택하세요.", "", {
+          team: status?.teamName || workspace.companyName,
+        })}
         panelClassName="max-w-md"
         bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
       >
-        <OrgSlackChannelPicker
-          channels={status?.availableChannels ?? []}
-          disabled={addSlackChannel.isPending}
-          pendingChannelId={
-            addSlackChannel.isPending
-              ? addSlackChannel.variables?.channelId
-              : null
-          }
-          refreshing={statusQuery.isFetching}
-          onInvite={(channelId) => void addChannel(channelId)}
-          onRefresh={() => void statusQuery.refetch()}
-          onCreate={
-            status?.canCreateChannels
-              ? () => {
-                  setAddChannelOpen(false);
-                  setCreateChannelInitialName("harper");
-                  setCreateChannelOpen(true);
-                }
-              : undefined
-          }
-        />
+        {statusQuery.isLoading ||
+        (statusQuery.isFetching && !status?.connected) ? (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 py-12 text-sm text-neutral-muted"
+          >
+            <LoaderCircle className="size-4 animate-spin" />
+            {c("채널을 불러오는 중이에요", "Loading channels")}
+          </div>
+        ) : statusQuery.error ? (
+          <OrgErrorState
+            message={c("채널을 불러오지 못했어요.", "Couldn't load channels.")}
+            onRetry={() => void statusQuery.refetch()}
+          />
+        ) : (
+          <OrgSlackChannelPicker
+            channels={status?.availableChannels ?? []}
+            disabled={addSlackChannel.isPending}
+            pendingChannelId={
+              addSlackChannel.isPending
+                ? addSlackChannel.variables?.channelId
+                : null
+            }
+            refreshing={statusQuery.isFetching}
+            onInvite={(channelId) => void addChannel(channelId)}
+            onRefresh={() => void statusQuery.refetch()}
+            onCreate={
+              status?.canCreateChannels
+                ? () => {
+                    setAddChannelOpen(false);
+                    setCreateChannelInitialName("harper");
+                    setCreateChannelOpen(true);
+                  }
+                : undefined
+            }
+          />
+        )}
+        <div className="rounded-xl px-4 py-3 text-[12px] border border-neutral-1000-a05">
+          <p className="font-medium">
+            {c("비공개 채널이 보이지 않나요?", "Can't find a private channel?")}
+          </p>
+          <p className="mt-1 text-neutral-muted">
+            {c(
+              "Slack의 해당 채널에서 /invite @Harper를 입력한 뒤 채널 목록을 새로고침해 주세요.",
+              "In that Slack channel, enter /invite @Harper, then refresh the channel list."
+            )}
+          </p>
+        </div>
         {addSlackChannel.isError ? (
           <p role="alert" className="text-[13px] leading-5 text-critical">
             {localizedOrgErrorMessage(
@@ -772,9 +824,19 @@ export function OrgSettingsPage() {
       {createChannelOpen ? (
         <OrgSlackCreateChannelDialog
           initialName={createChannelInitialName}
+          onCreated={(channel) => setRoleChannel({ ...channel, isNew: true })}
           onOpenChange={setCreateChannelOpen}
           open
           workspaceId={workspace.workspaceId}
+        />
+      ) : null}
+
+      {roleChannel && permissions.canManageIntegrations ? (
+        <OrgSlackChannelRolesDialog
+          key={`${workspace.workspaceId}:${roleChannel.channelId}`}
+          channel={roleChannel}
+          isNewChannel={roleChannel.isNew ?? false}
+          onClose={() => setRoleChannel(null)}
         />
       ) : null}
 
@@ -786,7 +848,7 @@ export function OrgSettingsPage() {
         description={
           <>
             {c(
-              "연결된 모든 채널로 더 이상 Organization 알림이 발송되지 않습니다.",
+              "연결된 모든 채널로 더 이상 알림이 발송되지 않습니다.",
               "Organization notifications will no longer be sent to any connected channels."
             )}
           </>
@@ -829,7 +891,7 @@ export function OrgSettingsPage() {
         description={
           <>
             {c(
-              "{channelName}로는 더 이상 Organization 알림이 발송되지 않습니다.",
+              "{channelName}로는 더 이상 알림이 발송되지 않습니다.",
               "Organization notifications will no longer be sent to {channelName}.",
               {
                 channelName: formatChannel(

@@ -39,7 +39,6 @@ type CostChartRow = {
   ec2: number;
   ec2Net: number;
   exa: number;
-  grok: number;
   label: string;
   openai: number;
   openrouter: number;
@@ -53,7 +52,6 @@ const PROVIDER_META: Record<
   claude: { color: "#c15f3c", shortLabel: "Claude" },
   openai: { color: "#10a37f", shortLabel: "OpenAI" },
   openrouter: { color: "#6d5bd0", shortLabel: "OpenRouter" },
-  grok: { color: "#56616f", shortLabel: "Grok" },
   exa: { color: "#3478f6", shortLabel: "Exa" },
   ec2: { color: "#e38b2c", shortLabel: "AWS EC2" },
 };
@@ -62,7 +60,6 @@ const COST_PROVIDER_IDS: OpsCostProviderId[] = [
   "claude",
   "openai",
   "openrouter",
-  "grok",
   "exa",
   "ec2",
 ];
@@ -70,7 +67,6 @@ const COMBINED_PROVIDER_IDS: CombinedProviderId[] = [
   "claude",
   "openai",
   "openrouter",
-  "grok",
   "exa",
 ];
 
@@ -126,7 +122,6 @@ function emptyCostRow(label: string, period: string): CostChartRow {
     ec2: 0,
     ec2Net: 0,
     exa: 0,
-    grok: 0,
     label,
     openai: 0,
     openrouter: 0,
@@ -262,7 +257,7 @@ function CombinedCostChart({
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <div className="text-sm font-medium text-neutral-muted">
-            Claude + OpenAI + OpenRouter + Grok + Exa
+            Claude + OpenAI + OpenRouter + Exa
           </div>
           <div className="mt-1 text-[28px] font-semibold leading-none tabular-nums text-neutral-primary">
             {formatMoney(total)}

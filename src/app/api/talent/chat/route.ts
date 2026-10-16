@@ -1,7 +1,7 @@
 import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
 import { executeApplicationPreparationTool } from "@/lib/career/simulation/toolExecution";
 import { awaitApplicationInspection } from "@/lib/career/simulation/applicationInspection";
-import { MANAGE_APPLICATION_SUGGESTIONS, applicationSuggestionsResult } from "@/lib/career/simulation/suggestions";
+import { MANAGE_APPLICATION_SUGGESTIONS } from "@/lib/career/simulation/suggestions";
 import { READY_FOR_ROLE } from "@/lib/career/simulation/readyForRole";
 import { pendingApplicationBatch } from "@/lib/career/simulation/applicationInput";
 import { applicationSessionToolResult } from "@/lib/career/simulation/sessionTool";
@@ -1755,7 +1755,7 @@ export async function POST(req: NextRequest) {
         const awaitingUserInput=!!pendingApplicationBatch(saved.state);
         if(awaitingUserInput) {applicationQuestionsAsked=true;thinkingLogs.length=0;}
         await refreshSimulationRuntime();
-        return applicationSuggestionsResult(saved.state);
+        return execution!.result;
       }
       if(toolArgs.name===READY_FOR_ROLE) {
         if(!simulationSession) throw new Error("No active application");

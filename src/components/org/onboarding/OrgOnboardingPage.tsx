@@ -34,7 +34,6 @@ import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import RichText from "@/components/ui/rich-text";
-import { ORG_SLACK_PRIVATE_CHANNEL_HELP } from "@/components/org/OrgSlackChannelPicker";
 import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
 import { useUpdateOrgMemberProfile } from "@/hooks/org/useOrg";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
@@ -61,6 +60,11 @@ import {
   postOrgOnboarding,
   submitOrgOnboardingCompany,
 } from "./client";
+
+export const ORG_SLACK_PRIVATE_CHANNEL_HELP = [
+  "비공개 채널이 보이지 않나요?",
+  "Slack의 해당 채널에서 /invite @Harper를 입력한 뒤 아래의 새로고침 버튼을 눌러 주세요.",
+] as const;
 
 type Draft = {
   step: OrgOnboardingStep;
@@ -523,9 +527,13 @@ export function OrgOnboardingFlow({
     setPending(true);
     setError("");
     try {
-      const result = await postOrgOnboarding<OrgOnboardingCompleteResult>(workspaceId, {
-        action: "complete", responseLocale,
-      });
+      const result = await postOrgOnboarding<OrgOnboardingCompleteResult>(
+        workspaceId,
+        {
+          action: "complete",
+          responseLocale,
+        }
+      );
       try {
         sessionStorage.removeItem(sessionKey);
       } catch {
@@ -804,7 +812,10 @@ export function OrgOnboardingFlow({
                             "Reading company info…"
                           )
                         : step === "done" && slackLinks
-                          ? c("Harper가 인사를 준비하고 있어요…", "Preparing your welcome…")
+                          ? c(
+                              "Harper가 인사를 준비하고 있어요…",
+                              "Preparing your welcome…"
+                            )
                           : c("저장 중…", "Saving…")
                       : step === "profile"
                         ? c("시작하기", "Get started")

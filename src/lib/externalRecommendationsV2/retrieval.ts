@@ -1,4 +1,5 @@
 import { salarySatisfactionSql } from "./salary";
+import { z } from "zod";
 import { SEARCH_TITLE_NEIGHBOR_LIMIT, searchTitleText } from "./searchTitles";
 import { countryQuotas, type V2SearchPlan } from "./countries";
 import { recordDirectUsage } from "./usage";
@@ -16,6 +17,11 @@ import {
 import type { TalentAdminClient } from "../talentOnboarding/admin";
 
 export const EMBEDDING_MODEL = "text-embedding-3-small";
+export class TitleEmbeddingHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`Title embedding HTTP ${status}`);
+  }
+}
 export async function embedTitles(titles: string[], signal?: AbortSignal) {
   if (!titles.length) return [];
   const key = process.env.OPENAI_API_KEY;
@@ -37,7 +43,7 @@ export async function embedTitles(titles: string[], signal?: AbortSignal) {
       : AbortSignal.timeout(45_000),
   });
   const body = await response.json();
-  if (!response.ok) throw new Error(`Title embedding HTTP ${response.status}`);
+  if (!response.ok) throw new TitleEmbeddingHttpError(response.status);
   await recordDirectUsage(
     "embeddings",
     EMBEDDING_MODEL,
@@ -60,6 +66,44 @@ export async function embedTitles(titles: string[], signal?: AbortSignal) {
 }
 export function embedSearchTitles(titles: string[], signal?: AbortSignal) {
   return embedTitles([searchTitleText(titles)], signal);
+}
+
+export type TitleNeighbor = {
+  title_key: string;
+  title: string;
+  distance: number;
+};
+export function titleNeighborsSql(rows: TitleNeighbor[]) {
+  return `SELECT * FROM jsonb_to_recordset(${sqlLiteral(JSON.stringify(rows))}::jsonb) AS n(title_key text,title text,distance double precision)`;
+}
+// ANN and role expansion each have their own bounded read. Combining both can
+// exceed the RPC timeout even when each stage finishes within its budget.
+export async function fetchTitleNeighbors(
+  admin: TalentAdminClient,
+  vector: number[]
+) {
+  if (vector.length !== 1536 || !vector.every(Number.isFinite))
+    throw new Error("Invalid vector");
+  const distance = `(te.embedding::public.halfvec(1536)) OPERATOR(public.<=>) ${sqlLiteral(JSON.stringify(vector))}::public.halfvec(1536)`;
+  const { data, error } = await admin.rpc(
+    "search_external_roles_v2" as never,
+    {
+      // One JSON row avoids PostgREST's result-row cap truncating the 5,000 titles.
+      p_sql: `SELECT coalesce(jsonb_agg(n),'[]'::jsonb) AS title_neighbors FROM (
+      SELECT te.title_key,te.title,${distance} AS distance FROM public.external_role_title_embeddings te
+      WHERE te.embedding IS NOT NULL AND te.live_role_count>0 ORDER BY ${distance} LIMIT ${SEARCH_TITLE_NEIGHBOR_LIMIT}) n`,
+    } as never
+  );
+  if (error) throw new Error(`External title search: ${error.message}`);
+  return z
+    .array(
+      z.object({
+        title_key: z.string(),
+        title: z.string(),
+        distance: z.number().finite(),
+      })
+    )
+    .parse(flattenRpcRows(data));
 }
 
 export function eligibilitySql(args: {
@@ -102,6 +146,7 @@ export function buildHybridSql(args: {
   targetSalaryKrw?: number | null;
   salaryWeight?: number;
   listOnly?: boolean;
+  titleNeighbors?: TitleNeighbor[];
 }) {
   if (args.vectors.length !== 1)
     throw new Error("Expected one combined search-title embedding");
@@ -137,6 +182,8 @@ export function buildHybridSql(args: {
   const vectorLists = args.vectors.map((v, i) => {
     if (v.length !== 1536 || !v.every(Number.isFinite))
       throw new Error("Invalid vector");
+    if (args.titleNeighbors)
+      return `nearest_${i} AS MATERIALIZED (${titleNeighborsSql(args.titleNeighbors)})`;
     // Keep full precision at rest; half precision ANN reduces the index's memory/IO.
     const distance = `(te.embedding::public.halfvec(1536)) OPERATOR(public.<=>) ${args.template ? `:title_embedding_${i + 1}` : sqlLiteral(JSON.stringify(v))}::public.halfvec(1536)`;
     // Bound ANN on the title dictionary before joining large company/role tables.
@@ -222,7 +269,12 @@ export async function retrieveRoles(args: {
   const vectors =
     args.vectors ??
     (await embedSearchTitles(args.plan.roleTitles, args.signal));
-  const sql = buildHybridSql({ ...args, vectors });
+  if (vectors.length !== 1)
+    throw new Error("Expected one combined search-title embedding");
+  args.signal?.throwIfAborted();
+  const titleNeighbors = await fetchTitleNeighbors(args.admin, vectors[0]);
+  args.signal?.throwIfAborted();
+  const sql = buildHybridSql({ ...args, vectors, titleNeighbors });
   const { data, error } = await args.admin.rpc(
     "search_external_roles_v2" as never,
     { p_sql: sql } as never

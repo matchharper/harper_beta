@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { rememberGmailImportIntent } from "@/lib/integrations/gmailImportIntent";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 
 export const GMAIL_INTEGRATION_CHANGED_EVENT =
@@ -9,6 +10,7 @@ export const GMAIL_CONNECTION_SUCCESS_QUERY_PARAM = "gmailConnected";
 export type ClientGmailIntegrationStatus =
   | "loading"
   | "error"
+  | "permissions_required"
   | "active"
   | "expired"
   | "disabled"
@@ -47,6 +49,7 @@ type GmailConnectPayload = Omit<GmailIntegrationStatusPayload, "analysis"> & {
   analysis?: GmailIntegrationStatusPayload["analysis"];
   alreadyConnected?: boolean;
   redirectUrl?: string;
+  connectedAccountId?: string;
 };
 
 const GMAIL_INTEGRATION_STALE_TIME_MS = 5 * 60_000;
@@ -93,6 +96,8 @@ export function useGmailIntegration(
     const payload = await fetchWithInternalAuth<GmailAnalysisStatusPayload>(
       "/api/talent/integrations/gmail?analysisOnly=true"
     );
+    if (!isGmailCareerHistoryAnalysisRunning(payload.analysis.status))
+      return loadFullStatus();
     return { ...current, analysis: payload.analysis };
   }, [loadFullStatus, queryClient, queryKey]);
 
@@ -140,34 +145,52 @@ export function useGmailIntegration(
     };
   }, [enabled, refresh, userId]);
 
-  const connect = useCallback(async () => {
-    setPendingAction("connect");
-    try {
-      const payload = await fetchWithInternalAuth<GmailConnectPayload>(
-        "/api/talent/integrations/gmail/connect",
-        { method: "POST" }
-      );
-      if (payload.connected) {
-        const current =
-          queryClient.getQueryData<GmailIntegrationStatusPayload>(queryKey);
-        queryClient.setQueryData<GmailIntegrationStatusPayload>(queryKey, {
-          analysis: payload.analysis ??
-            current?.analysis ?? { status: "not_started", updatedAt: null },
-          connected: true,
-          status: payload.status,
-        });
-        notifyGmailIntegrationChanged();
+  const connect = useCallback(
+    async (options?: { resumeImport?: boolean }) => {
+      setPendingAction("connect");
+      try {
+        const payload = await fetchWithInternalAuth<GmailConnectPayload>(
+          "/api/talent/integrations/gmail/connect",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              resumeImport: options?.resumeImport === true,
+            }),
+          }
+        );
+        if (payload.connected) {
+          const current =
+            queryClient.getQueryData<GmailIntegrationStatusPayload>(queryKey);
+          queryClient.setQueryData<GmailIntegrationStatusPayload>(queryKey, {
+            analysis: payload.analysis ??
+              current?.analysis ?? { status: "not_started", updatedAt: null },
+            connected: true,
+            status: payload.status,
+          });
+          notifyGmailIntegrationChanged();
+          return payload;
+        }
+        if (!payload.redirectUrl) {
+          throw new Error("Gmail connect URL was not returned");
+        }
+        if (options?.resumeImport) {
+          if (!userId || !payload.connectedAccountId)
+            throw new Error("Missing Gmail import intent identity");
+          rememberGmailImportIntent(
+            window.sessionStorage,
+            userId,
+            payload.connectedAccountId
+          );
+        }
+        window.location.assign(payload.redirectUrl);
         return payload;
+      } finally {
+        setPendingAction(null);
       }
-      if (!payload.redirectUrl) {
-        throw new Error("Gmail connect URL was not returned");
-      }
-      window.location.assign(payload.redirectUrl);
-      return payload;
-    } finally {
-      setPendingAction(null);
-    }
-  }, [queryClient, queryKey]);
+    },
+    [queryClient, queryKey, userId]
+  );
 
   const disconnect = useCallback(async () => {
     setPendingAction("disconnect");
@@ -199,13 +222,30 @@ export function useGmailIntegration(
   const analyze = useCallback(async () => {
     setPendingAction("analyze");
     try {
-      const payload = await fetchWithInternalAuth<{
-        analysis: {
-          status: "queued";
-        };
-        ok: true;
-        status: "queued";
-      }>("/api/talent/integrations/gmail/analyze", { method: "POST" });
+      const payload = await fetchWithInternalAuth<
+        | { status: "permissions_required"; connected: false }
+        | {
+            analysis: {
+              status: "queued";
+            };
+            ok: true;
+            status: "queued";
+          }
+      >("/api/talent/integrations/gmail/analyze", { method: "POST" });
+      if (payload.status === "permissions_required") {
+        queryClient.setQueryData<GmailIntegrationStatusPayload>(
+          queryKey,
+          (current) => ({
+            analysis: current?.analysis ?? {
+              status: "not_started",
+              updatedAt: null,
+            },
+            connected: false,
+            status: "permissions_required",
+          })
+        );
+        return payload;
+      }
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData<GmailIntegrationStatusPayload>(
         queryKey,
@@ -227,6 +267,7 @@ export function useGmailIntegration(
                 status: "active",
               }
       );
+      return payload;
     } finally {
       setPendingAction(null);
     }

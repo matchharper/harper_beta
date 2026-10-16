@@ -23,10 +23,19 @@ test("new role Slack guidance explains the actual matching and review flow", () 
     /테스트회사의 .*Founding Engineer.* 역할의 리크루팅을 시작합니다/
   );
   assert.match(message, /\*후보자를 찾고 소개하는 방법\*/);
-  assert.match(message, /\*정기 후보 검색 꺼짐:\* 역할 설정에서 켜면 매주 월·수·금요일 오전 9시\(한국 시간\)/);
+  assert.match(
+    message,
+    /\*정기 후보 검색 꺼짐:\* 역할 설정에서 켜면 매주 월·수·금요일 오전 9시\(한국 시간\)/
+  );
   assert.match(message, /후보자가 수락하고 Harper가 최종 확인하면 ‘연결 대기’/);
-  assert.match(message, /‘먼저 제안 가능한 후보’는 아직 역할을 수락한 분들이 아니에요/);
-  assert.match(message, /지금 먼저 연락을 보낼 수 있는 후보자를 확인하고 싶다면 Harper에게 이 역할의 후보 검색을 요청/);
+  assert.match(
+    message,
+    /‘먼저 제안 가능한 후보’는 아직 역할을 수락한 분들이 아니에요/
+  );
+  assert.match(
+    message,
+    /지금 먼저 연락을 보낼 수 있는 후보자를 확인하고 싶다면 Harper에게 이 역할의 후보 검색을 요청/
+  );
   assert.match(message, /‘Intro 요청’/);
   assert.doesNotMatch(message, /Connect|Reject/);
 });
@@ -42,7 +51,10 @@ test("new role Slack guidance reflects the role's enabled search schedule", () =
     workspace,
   });
 
-  assert.match(message, /\*정기 후보 검색 켜짐:\* 매주 화·목요일 오후 2시\(한국 시간\)에 새 후보자 검색을 시작/);
+  assert.match(
+    message,
+    /\*정기 후보 검색 켜짐:\* 매주 화·목요일 오후 2시\(한국 시간\)에 새 후보자 검색을 시작/
+  );
   assert.match(message, /적합한 분이 있으면 ‘먼저 제안 가능한 후보’/);
 });
 
@@ -69,7 +81,7 @@ test("connection Slack guidance explains the next action and closes warmly", () 
   assert.match(emailed, /같은 이메일에서 인사하고 다음 일정을 직접 조율/);
   assert.match(emailed, /김후보님과 연결해드렸어요/);
   assert.match(emailed, /연결 방식\*: 소개 이메일/);
-  assert.match(emailed, /회사 수신자/);
+  assert.match(emailed, /회사 담당자/);
   assert.doesNotMatch(emailed, /Email intro|Recipients/);
   assert.match(emailed, /서로에게 좋은 기회가 되길 바랄게요/);
   assert.match(direct, /회사에서 후보자에게 직접 연락/);

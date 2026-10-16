@@ -98,7 +98,7 @@ test("provider failure after a successful write recovers tool-free from results,
         return Response.json({
           id: "recovered",
           status: "completed",
-          model: "gpt-5.6-terra",
+          model: "gpt-6.1-sol",
           output: [
             {
               type: "message",
@@ -114,8 +114,8 @@ test("provider failure after a successful write recovers tool-free from results,
       const args = {
         modelConfig: {
           primaryModel: "claude-sonnet-4-6",
-          fallbackModel: "gpt-5.6-terra",
-          anthropicOverloadFallbackModel: "gpt-5.6-terra",
+          fallbackModel: "gpt-6.1-sol",
+          anthropicOverloadFallbackModel: "gpt-6.1-sol",
         },
         messages: [{ role: "user" as const, content: "이 조건을 기억해 줘." }],
         tools: step.tools,

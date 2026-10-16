@@ -45,7 +45,7 @@ export function debugTabDescription(tab: DebugTabId) {
   }
   if (tab === "companyAnswerRetrieval") return "";
   if (tab === "cost") {
-    return "Claude, OpenAI, OpenRouter, Grok, Exa, EC2 비용과 현재 credit을 확인합니다.";
+    return "Claude, OpenAI, OpenRouter, Exa, EC2 비용과 현재 credit을 확인합니다.";
   }
   if (tab === "matching") {
     return "internal 추천 코호트의 후보자 반응과 회사 프로세스 전환이 개선되고 있는지 확인합니다.";

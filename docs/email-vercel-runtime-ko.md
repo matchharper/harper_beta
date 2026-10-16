@@ -105,3 +105,52 @@ pnpm exec tsc --noEmit --incremental false
 - 새 연락 유형: `contact.ts`의 handler에 기존 durable job을 연결한다. 승인된 내용과 lifecycle 경계를 재사용한다.
 - 수신·발송 provider: `transport.ts`. body renderer: `format.ts`.
 - dispatch/consumer는 독립되어 webhook이 전체 LLM 처리 코드를 미리 로드하지 않는다.
+
+## Company 유저 이메일 답장 (2026-10-15 로컬 구현, 미배포)
+
+새 회사 메일은 `src/lib/email/company.ts`의 `sendCompanyEmail`로 보낸다. 호출자는 회사 팀원의
+`userId`, `workspaceId`, 승인된 `subject`·`body`, 해당 발송 사건의 고유한 `idempotencyKey`를 넘긴다.
+동일 사건을 재시도하면 같은 Reply-To와 본문을 유지한다. 같은 key로 수신자·본문·회사·대화 범위를
+바꾸면 거절한다. 기존 초대·연결 알림 등 모든 회사 메일을 자동으로 전환하지 않는다.
+
+- `company+<token>@<reply domain>`을 기존 alias 저장소에서 회사 팀원·Workspace·회사 일반 대화에
+  연결한다. talent의 `reply+`와 구분하며, 같은 주소가 양쪽 계정에 있어도 이메일 주소로 audience를
+  추측하지 않는다. 회사 alias 없는 기존 메일을 회사 계정 검색으로 자동 전환하지 않는다.
+- 발신자는 최초 수신 주소 및 현재 확인된 계정 이메일과 일치해야 한다. 현재 소속, 후보자 관리 권한,
+  팀 접근 범위도 실행 중 및 발송 직전에 확인한다. 전달받은 alias만 가진 다른 발신자, 만료된 alias,
+  복수 회사 alias, 회사·talent alias가 섞인 답장은 실행하지 않는다. 팀 범위가 바뀐 과거 대화도 재사용하지 않는다.
+- 일반 수신 webhook·작업·Queue·Resend 경로를 재사용한다. DB trigger가 회사 작업을 새 runtime 소유로
+  고정해 legacy talent poller가 처리하지 않게 한다. 새 runtime이 꺼져 있으면 회사 발송 helper는
+  실행되지 않으며, 이미 수신된 회사 작업은 legacy로 넘기지 않는다.
+- 원본 발송 메일, 현재 본문, 제한된 인용 이력을 참고해 기존 `runOrgAgentChat`을 호출한다.
+  기존 회사 일반 대화와 도구·현재 권한·언어 설정을 공유한다. 메시지도 `company_messages`에 남으며
+  웹 일반 대화에서 볼 수 있다. 별도 회사용 writer나 intent classifier는 없다.
+- 이메일 표시는 shared prompt의 email surface가 맡는다. 중간 진행 메시지를 발송·저장하지 않고
+  최종 한 통을 보낸다. 실패 시 고정 성공 답장으로 대체하지 않는다. 회사 화면용 역할·후보자 링크는
+  기존 navigation 변환기를 거쳐 실제 인증된 웹 링크로 바꾼다. 인용된 내용은 새로운 실행 승인이 아니다.
+- 제목의 `Re:`, `In-Reply-To`, `References`, 후속 Reply-To를 유지한다. 자동응답은 기존 공통 필터로
+  차단하고 발송 메일에는 `Auto-Submitted: auto-replied`를 붙인다. 외부 Reply-To나 CC로 회사 정보를
+  전송하지 않고 확인된 팀원 한 명에게만 회신한다.
+- 같은 수신 작업의 회사 원문·최종 답변은 한 번씩 저장한다. 같은 회사 대화의 이메일 작업은 직렬화하며,
+  발송 전 payload를 고정한다. provider 성공 checkpoint 이후에는 새 발송 없이 완료 기록만 복구한다.
+  실제 provider 성공 기록 없이 Resend idempotency 기간 밖에서 재시도하는 기존 한계는 남는다.
+
+현재 범위: 메일 본문은 인용 제거 후 최대 32,000자다. 첨부는 이름·유형만 제공하고 내용을 읽었다고
+주장하지 않는다. 첨부 내용 추출은 미지원이다. 비동기 회사 작업의 후속 결과는 기존 웹·Slack 전달 계약을
+유지하며, 이번 변경만으로 모든 후속 결과가 이메일로 전달되는 것은 아니다. 여러 CC의 공동 회사 대화도
+지원하지 않는다.
+
+활성화 전 `20261015120000_company_email_replies.sql` 적용과 웹 배포,
+`EMAIL_RUNTIME_TARGET=vercel_queue`가 필요하다. 이번 구현 작업은 운영 DB·배포·환경변수·실제 발송을
+변경하지 않았다. 별도 승인된 배포에서 migration과 실제 Resend/Queue 연결을 확인해야 한다.
+검증: [회사 이메일 로컬 검증](evaluation/company-side-conversational-qa/reports/2026-10-15-company-email.md).
+
+
+### 회사 이메일 DB 선반영 상태 (2026-10-15)
+
+후속 사용자 요청으로 운영 DB에 `company_email_replies`를 적용했다. 운영 version은
+`20261015103733`이며 로컬 `20261015120000_company_email_replies.sql`과 동일 변경이다.
+함수 권한·trigger·index·기존 legacy 작업 보존을 확인했으므로 migration을 다시 적용하지 않는다.
+로컬 실제 Supabase + company-side LLM + 메일 capture 통합 실행도 완료했다.
+웹 배포·운영 runtime 활성화·실제 외부 이메일 발송은 미실행이다.
+실행 결과와 로컬 추천 이력 reader의 미검증 범위는 위 검증 기록의 후속 요청 절에 남겼다.

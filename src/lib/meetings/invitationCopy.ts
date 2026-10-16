@@ -6,7 +6,7 @@ import {
   supportsResponseFormatForModel,
   usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
-import { GPT_6_LUNA_MODEL, GPT_56_TERRA_MODEL } from "@/lib/llm/modelConfig";
+import { GPT_6_LUNA_MODEL, GPT_61_SOL_MODEL } from "@/lib/llm/modelConfig";
 import {
   buildMeetingInvitationFallback,
   buildMeetingInvitationSubject,
@@ -207,7 +207,7 @@ export async function generateMeetingInvitationEmail(
         }),
       }),
       debugLabel: "meetings:invitation-copy",
-      fallbackModel: GPT_56_TERRA_MODEL,
+      fallbackModel: GPT_61_SOL_MODEL,
       model,
       openAIResponses: { reasoningEffort: "medium" },
       signal: args.signal,

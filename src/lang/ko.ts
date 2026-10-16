@@ -2572,6 +2572,15 @@ export const ko = {
     "career.profile.recruiter_profile.default": "채용 담당자가 보는 프로필",
     "career.profile.recruiter_profile.named":
       "채용 담당자가 보는 {name}의 프로필",
+    "career.profile.resume_links.gmail_allow_access": "권한 허용하기",
+    "career.profile.resume_links.gmail_permissions_continue": "권한 허용하고 가져오기",
+    "career.profile.resume_links.gmail_permissions_description": "채용 관련 이메일을 가져오려면 Gmail 접근을 허용해 주세요.",
+    "career.profile.resume_links.gmail_permissions_hint": "다음 Google 화면에서 Gmail 접근 항목을 선택해 주세요. 권한을 허용하고 돌아오면 이메일 가져오기가 시작됩니다.",
+    "career.profile.resume_links.gmail_permissions_import_retry": "Gmail 권한을 확인했지만 가져오기를 시작하지 못했어요. 다시 시도해 주세요.",
+    "career.profile.resume_links.gmail_permissions_import_started": "Gmail 권한을 확인했어요. 이메일을 가져오고 있습니다.",
+    "career.profile.resume_links.gmail_permissions_later": "나중에",
+    "career.profile.resume_links.gmail_permissions_required": "권한 필요",
+    "career.profile.resume_links.gmail_permissions_title": "Gmail 접근 권한이 필요해요",
     "career.profile.resume_links.gmail_analysis_failed":
       "Gmail 이메일 읽어오기를 시작하지 못했습니다. 다시 시도해 주세요.",
     "career.profile.resume_links.gmail_analysis_failed_status": "읽어오기 실패",

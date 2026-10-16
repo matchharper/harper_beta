@@ -6,8 +6,6 @@ export const GPT_6_LUNA_MODEL = "gpt-6-luna" as const;
 
 export const OPENROUTER_JEV_MODEL = "typesafe/jev-1.13" as const;
 
-export const GPT_56_TERRA_MODEL = "gpt-5.6-terra" as const;
-
 export const GPT_61_SOL_MODEL = "gpt-6.1-sol" as const;
 
 export const OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL =

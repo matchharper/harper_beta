@@ -1,0 +1,12 @@
+{
+  "frozenAt": "2026-10-16T00:43:17.051192+00:00",
+  "files": {
+    "research-preview-v4.json": "e9a8d536039dfdb903304cb45925587836b23e2b1ef23616e7258a833a08adc7",
+    "research-preview-gold-v4.md": "309470747a1d915fe48f6dea67342c115f1f3fcaea605d1e2782149330dc5a05",
+    "research-delivery-gold-v2.md": "664cb186d4bf6846c1f3e724837d93a4481946d9071d6449e113f99f9008106b"
+  },
+  "datasetVersion": "research-delivery-v2",
+  "inputDataset": "v4",
+  "runner": "scripts/runRoleSearchResearchPreview.ts --dataset=v4 --delivery-contract=v2 --simulate-delivery",
+  "provenance": "Same production loop, only in-memory writes and public reads. New gold frozen before run."
+}

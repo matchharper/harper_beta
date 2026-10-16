@@ -1,7 +1,6 @@
 import {
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
-  GPT_56_TERRA_MODEL,
   OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL,
   OPENROUTER_GLM_53_FLASH_MODEL,
 } from "@/lib/llm/modelConfig";
@@ -12,20 +11,22 @@ export const ORG_AGENT_HAIKU_MODEL = "anthropic/claude-haiku-5.5" as const;
 export const ORG_AGENT_SOL_MODEL = "gpt-6.1-sol" as const;
 export const ORG_AGENT_TEMPERATURE = 0.5;
 export const ORG_AGENT_LUNA_MODEL = GPT_6_LUNA_MODEL;
-export const ORG_AGENT_TERRA_MODEL = GPT_56_TERRA_MODEL;
 export const ORG_AGENT_GLM_53_FLASH_MODEL = OPENROUTER_GLM_53_FLASH_MODEL;
 
 export const ORG_AGENT_MODEL_IDS = [
   ORG_AGENT_GEMINI_FLASH_MODEL,
   ORG_AGENT_GLM_53_FLASH_MODEL,
   ORG_AGENT_LUNA_MODEL,
-  ORG_AGENT_TERRA_MODEL,
   ORG_AGENT_CLAUDE_MODEL,
   ORG_AGENT_HAIKU_MODEL,
   ORG_AGENT_SOL_MODEL,
 ] as const;
 
-export type OrgAgentModelId = (typeof ORG_AGENT_MODEL_IDS)[number];
+// Explicit environment overrides remain unchanged during the Terra retirement.
+const LEGACY_ORG_AGENT_ENV_MODEL = "gpt-5.6-terra" as const;
+export type OrgAgentModelId =
+  | (typeof ORG_AGENT_MODEL_IDS)[number]
+  | typeof LEGACY_ORG_AGENT_ENV_MODEL;
 
 export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId =
   ORG_AGENT_GEMINI_FLASH_MODEL;
@@ -57,14 +58,28 @@ export function getOrgAgentFallbackModel(
 export function isOrgAgentModelId(value: unknown): value is OrgAgentModelId {
   return (
     typeof value === "string" &&
-    ORG_AGENT_MODEL_IDS.includes(value as OrgAgentModelId)
+    (ORG_AGENT_MODEL_IDS as readonly string[]).includes(value)
   );
 }
 
 export function migrateOrgAgentModel(value: unknown): OrgAgentModelId | null {
+  if (value === LEGACY_ORG_AGENT_ENV_MODEL) {
+    // Internal callers resolve the model again after reading the environment.
+    // Keep an explicitly configured legacy model intact across those calls.
+    return process.env.SLACK_ORG_AGENT_MODEL?.trim() === value ||
+      process.env.ORG_AGENT_MODEL?.trim() === value
+      ? LEGACY_ORG_AGENT_ENV_MODEL
+      : ORG_AGENT_SOL_MODEL;
+  }
   if (value === OPENROUTER_DEEPSEEK_V4_1_FLASH_MODEL)
     return ORG_AGENT_GLM_53_FLASH_MODEL;
   return isOrgAgentModelId(value) ? value : null;
+}
+
+function resolveConfiguredOrgAgentModel(value: unknown): OrgAgentModelId | null {
+  return value === LEGACY_ORG_AGENT_ENV_MODEL
+    ? LEGACY_ORG_AGENT_ENV_MODEL
+    : migrateOrgAgentModel(value);
 }
 
 /**
@@ -76,7 +91,7 @@ export function getSlackOrgAgentModel(): OrgAgentModelId {
   const configuredModel =
     process.env.SLACK_ORG_AGENT_MODEL?.trim() ||
     process.env.ORG_AGENT_MODEL?.trim();
-  return migrateOrgAgentModel(configuredModel) ?? DEFAULT_SLACK_ORG_AGENT_MODEL;
+  return resolveConfiguredOrgAgentModel(configuredModel) ?? DEFAULT_SLACK_ORG_AGENT_MODEL;
 }
 
 export function resolveOrgAgentModel(value: unknown): {
@@ -94,7 +109,7 @@ export function resolveOrgAgentModel(value: unknown): {
     };
   }
   const configuredModel = process.env.ORG_AGENT_MODEL?.trim();
-  const resolvedConfiguredModel = migrateOrgAgentModel(configuredModel);
+  const resolvedConfiguredModel = resolveConfiguredOrgAgentModel(configuredModel);
   if (resolvedConfiguredModel) {
     return {
       model: resolvedConfiguredModel,

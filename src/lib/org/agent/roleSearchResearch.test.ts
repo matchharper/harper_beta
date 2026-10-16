@@ -27,7 +27,8 @@ test("manual research starts with web tools and cannot load or execute mutation 
     complete: async args => {
       assert.equal(args.model, "gpt-6.1-sol");
       assert.equal(args.reasoningEffort, "medium");
-      assert.equal(args.maxTokens, 16_384);
+      assert.equal(args.maxTokens, 40_000);
+      assert.equal(args.strictModel, true);
       const names = args.tools?.map(t => t.function.name) ?? [];
       assert.ok(names.includes("web_search") && names.includes("open_url"));
       assert.ok(!names.includes("update_data") && !names.includes("send_company_message") && !names.includes("contact_talent"));
@@ -90,4 +91,50 @@ test("default research executor reads public pages with session cache and no dat
     if (previousKey === undefined) delete process.env.EXA_API_KEY;
     else process.env.EXA_API_KEY = previousKey;
   }
+});
+
+test("delivery uses the same researcher with scoped Brief writes and a committed thread", async () => {
+  const { runRoleSearchResearchDelivery } = await import("./roleSearchResearch.server");
+  let step = 0;
+  const executed: string[] = [];
+  const result = await runRoleSearchResearchDelivery({ ...fixture(),
+    companyMessageAudience: { channelDbId: "channel", channelId: "C1", jobId: "job" },
+    assertCanContinue: async () => {},
+  }, {
+    complete: async args => {
+      assert.equal(args.model, "gpt-6.1-sol");
+      assert.equal(args.reasoningEffort, "medium");
+      assert.equal(args.maxTokens, 40000);
+      const names = args.tools?.map(t => t.function.name) ?? [];
+      assert.ok(names.includes("update_data") && names.includes("send_company_message"));
+      assert.ok(!names.includes("request_matching_search") && !names.includes("contact_talent"));
+      if (step++ === 0) return response([call("update_data", { changes: [{ key: "role_request", kind: "rewrite", roleId: "other", value: "unauthorized" }] })]);
+      if (step === 2) return response([call("update_data", { changes: [{ key: "role_request", kind: "rewrite", roleId: "role", value: "Brief" }], summary: "Brief" })]);
+      return response([call("send_company_message", { messages: [
+        { ref: "root", roleId: "role", text: "서치 방향" }, { ref: "explanation", roleId: "role", replyTo: "root", text: "경험 수준과 우선순위" },
+      ] })]);
+    },
+    executeTool: async args => {
+      executed.push(args.name);
+      if (args.name === "send_company_message") args.state.companyMessageBatch = { batchId: "batch", messageIds: [2, 3] };
+      return { status: "updated" };
+    },
+  });
+  assert.deepEqual(executed, ["update_data", "send_company_message"]);
+  assert.equal(result.batch.batchId, "batch");
+});
+
+test("research scope rejects unrelated writes, proposals, existing threads and other Role messages", async () => {
+  const { assertRoleResearchMutationScope: check } = await import("./roleSearchResearch.server");
+  for (const input of [
+    { proposalId: "p", proposalAction: "apply" },
+    { changes: [{ key: "workspace_request", kind: "rewrite", value: "x" }] },
+    { changes: [{ key: "role_request", roleId: "other", value: "x" }] },
+    { changes: [{ key: "role_request", roleId: "role", value: "x" }], baseProposalId: "p" },
+  ]) assert.throws(() => check("update_data", input, "role"));
+  for (const messages of [
+    [{ ref: "a", text: "x", roleId: "other" }, { ref: "b", replyTo: "a", text: "y" }],
+    [{ ref: "a", text: "x", roleId: "role", threadRef: "old" }, { ref: "b", replyTo: "a", text: "y" }],
+    [{ ref: "a", text: "x", roleId: "role" }, { ref: "b", text: "y", roleId: "role" }],
+  ]) assert.throws(() => check("send_company_message", { messages }, "role"));
 });

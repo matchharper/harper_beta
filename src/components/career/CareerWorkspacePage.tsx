@@ -1,3 +1,4 @@
+import { consumeGmailImportIntent } from "@/lib/integrations/gmailImportIntent";
 import { useStartDailyExternalRecommendations } from "@/hooks/career/useDailyExternalRecommendations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -88,7 +89,7 @@ const CareerWorkspacePage = ({
       : null;
   const emailOnboardingToken =
     isRouterReady &&
-      typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
+    typeof router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM] === "string"
       ? router.query[CAREER_EMAIL_ONBOARDING_TOKEN_PARAM]
       : null;
   const requestedPanel =
@@ -97,10 +98,10 @@ const CareerWorkspacePage = ({
       : null;
   const requestedSettingsTab =
     isRouterReady &&
-      (router.query.settingsTab === "profile" ||
-        router.query.settingsTab === "resume" ||
-        router.query.settingsTab === "referral" ||
-        router.query.settingsTab === "account")
+    (router.query.settingsTab === "profile" ||
+      router.query.settingsTab === "resume" ||
+      router.query.settingsTab === "referral" ||
+      router.query.settingsTab === "account")
       ? router.query.settingsTab
       : null;
   const emailChangeResult = isRouterReady
@@ -219,7 +220,14 @@ const CareerWorkspacePage = ({
       userId: user?.id ?? null,
     });
   useCareerVisitLog(!authLoading && isRouterReady && Boolean(user));
-  useStartDailyExternalRecommendations(user?.id, !authLoading && isRouterReady && isOnboardingStatusReady && !needsOnboarding && router.pathname !== "/career/preview");
+  useStartDailyExternalRecommendations(
+    user?.id,
+    !authLoading &&
+      isRouterReady &&
+      isOnboardingStatusReady &&
+      !needsOnboarding &&
+      router.pathname !== "/career/preview"
+  );
 
   useEffect(() => {
     return subscribeCareerReferralModalOpen(() => {
@@ -334,15 +342,21 @@ const CareerWorkspacePage = ({
     if (gmailCallbackHandledRef.current === callbackKey) return;
     gmailCallbackHandledRef.current = callbackKey;
 
-    const clearCallbackQuery = (connected: boolean) => {
+    const clearCallbackQuery = (
+      connected: boolean,
+      permissionsRequired = false
+    ) => {
       const nextQuery = { ...router.query };
       delete nextQuery.connected_account_id;
       delete nextQuery.connectedAccountId;
       delete nextQuery.appName;
       delete nextQuery.gmailConnect;
+      delete nextQuery.gmailImport;
       delete nextQuery.settingsTab;
       delete nextQuery.status;
-      if (connected) {
+      if (permissionsRequired) {
+        nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "permissions";
+      } else if (connected) {
         nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
       } else {
         delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
@@ -354,11 +368,23 @@ const CareerWorkspacePage = ({
       );
     };
 
+    let resumeImport = false;
+    try {
+      resumeImport = consumeGmailImportIntent(
+        window.sessionStorage,
+        user.id,
+        gmailConnectedAccountId
+      );
+    } catch {
+      // If browser storage is unavailable, return to the explicit import action.
+    }
     const completeConnection = async () => {
       if (gmailConnectStatus !== "success" || !gmailConnectedAccountId) {
         throw new Error("Gmail connection callback was not successful");
       }
-      await fetchWithInternalAuth("/api/talent/integrations/gmail/complete", {
+      return fetchWithInternalAuth<{
+        status: "active" | "permissions_required";
+      }>("/api/talent/integrations/gmail/complete", {
         body: JSON.stringify({
           connectedAccountId: gmailConnectedAccountId,
         }),
@@ -368,7 +394,42 @@ const CareerWorkspacePage = ({
     };
 
     void completeConnection()
-      .then(() => {
+      .then(async (result) => {
+        if (result.status === "permissions_required") {
+          notifyGmailIntegrationChanged();
+          clearCallbackQuery(false, true);
+          return;
+        }
+        if (resumeImport) {
+          try {
+            const analysis = await fetchWithInternalAuth<{
+              status: "queued" | "permissions_required";
+            }>("/api/talent/integrations/gmail/analyze", { method: "POST" });
+            notifyGmailIntegrationChanged();
+            if (analysis.status === "permissions_required") {
+              clearCallbackQuery(false, true);
+              return;
+            }
+            showToast({
+              message: t(
+                "career.profile.resume_links.gmail_permissions_import_started",
+                "Gmail 권한을 확인했어요. 이메일을 가져오고 있습니다."
+              ),
+              variant: "success",
+            });
+            clearCallbackQuery(false);
+          } catch {
+            showToast({
+              message: t(
+                "career.profile.resume_links.gmail_permissions_import_retry",
+                "Gmail 권한을 확인했지만 가져오기를 시작하지 못했어요. 다시 시도해 주세요."
+              ),
+              variant: "error",
+            });
+            clearCallbackQuery(true);
+          }
+          return;
+        }
         logCareerEvent("gmail_connect_succeeded");
         notifyGmailIntegrationChanged();
         showToast({
@@ -578,7 +639,8 @@ const CareerWorkspacePage = ({
 
       if (historyTarget) {
         logCareerEvent(
-          `click_open_history_${historyTarget.historyTab}${historyTarget.savedStage ? `_${historyTarget.savedStage}` : ""
+          `click_open_history_${historyTarget.historyTab}${
+            historyTarget.savedStage ? `_${historyTarget.savedStage}` : ""
           }`
         );
       } else {
