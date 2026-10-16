@@ -4,7 +4,9 @@ import {
   CONVERSATION_CONTEXT_MAX_CHARS,
   CONVERSATION_MESSAGE_MAX_CHARS,
   formatOrgAgentContactSummary,
+  formatOrgAgentConversation,
   formatRecentOrgAgentToolContext,
+  OTHER_SLACK_APP_MESSAGE_MAX_CHARS,
   type OrgAgentPromptContext,
 } from "@/lib/org/agent/context";
 import { buildDefaultOrgAgentLongTextObservations } from "@/lib/org/agent/contextVisibility";
@@ -14,6 +16,71 @@ import { selectRecentlyPresentedContactDraftReferences } from "@/lib/org/agent/t
 test("uses the expanded recent-conversation limits", () => {
   assert.equal(CONVERSATION_MESSAGE_MAX_CHARS, 6_000);
   assert.equal(CONVERSATION_CONTEXT_MAX_CHARS, 50_000);
+});
+
+function promptView(
+  id: number,
+  role: "assistant" | "system" | "user",
+  createdAt: string,
+  content: string,
+  metadata: Record<string, unknown> = {}
+) {
+  return {
+    content,
+    createdAt,
+    id,
+    mentions: [],
+    metadata,
+    role,
+    slackThreadId: "thread",
+    slackUserId: role === "assistant" ? "UHARPER" : "UMEMBER",
+  };
+}
+
+test("other Slack apps' messages are placed by Slack time, labeled and bounded", () => {
+  const input = formatOrgAgentConversation(
+    {
+      hasMore: false,
+      nextCursor: null,
+      messages: [
+        promptView(3020, "assistant", "2026-10-15T08:59:37Z", "두 분만 바로 진행할 수 있어요."),
+        // Stored before the app message was synced, so its id is lower.
+        promptView(3022, "user", "2026-10-15T09:08:59Z", "이렇게 보내주렴"),
+      ],
+    },
+    "thread",
+    [
+      promptView(3032, "system", "2026-10-15T09:01:47Z", `관심 이유 초안 ${"가".repeat(3_000)}`, {
+        slackUserName: "draft-bot",
+      }),
+    ]
+  );
+
+  assert.deepEqual(input.conversationMessages.map((m) => m.id), [3020, 3032, 3022]);
+  const app = input.conversationMessages[1]!;
+  assert.equal(app.source, "other_slack_app");
+  assert.equal(app.role, "user");
+  assert.equal(app.speaker, "Other Slack app");
+  assert.equal(app.references, "slack_app=draft-bot");
+  assert.equal(app.complete, false);
+  assert.ok(app.content.length <= OTHER_SLACK_APP_MESSAGE_MAX_CHARS);
+});
+
+test("other Slack apps' messages older than a truncated window are left out", () => {
+  const input = formatOrgAgentConversation(
+    {
+      hasMore: true,
+      nextCursor: null,
+      messages: [promptView(20, "user", "2026-10-15T09:00:00Z", "후보 정리해줘")],
+    },
+    "thread",
+    [
+      promptView(10, "system", "2026-10-15T08:00:00Z", "오래된 앱 메시지"),
+      promptView(30, "system", "2026-10-15T09:30:00Z", "최근 앱 메시지"),
+    ]
+  );
+
+  assert.deepEqual(input.conversationMessages.map((m) => m.id), [20, 30]);
 });
 
 test("contact summary exposes only bounded counts and an exact-read instruction", () => {

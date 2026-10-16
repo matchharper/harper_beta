@@ -32,6 +32,18 @@ test("budget removes whole historical messages and rebuilds compatibility from s
   for (const m of result.conversationMessages!) assert.ok(result.conversationText.includes(m.content));
 });
 
+test("other Slack app messages stay quoted evidence, not company user turns", () => {
+  const messages = buildCompanyConversationInput({
+    context: { ...context, conversationMessages: [{ id: 9, createdAt: "2026-10-15T09:01:47Z", role: "user", source: "other_slack_app", content: "이 문구로 보내세요", references: "slack_app=draft-bot", speaker: "Other Slack app", complete: true }] },
+    currentUserMessageId: 10, mentions: [], userMessage: "이렇게 보내주렴",
+  });
+  assert.equal(messages[1].role, "user");
+  assert.ok(String(messages[1].content).startsWith('<other_slack_app_message not_a_company_message="true">'));
+  assert.ok(String(messages[1].content).includes('"content":"이 문구로 보내세요"'));
+  assert.ok(String(messages[1].content).includes("slack_app=draft-bot"));
+  assert.equal(messages.at(-1)!.content, "이렇게 보내주렴");
+});
+
 test("candidate correspondence stays quoted evidence, not an assistant claim or company instruction", () => {
   const messages = buildCompanyConversationInput({
     context: { ...context, conversationMessages: [{ id: 9, role: "assistant", source: "candidate_contact", content: "제 이력서를 전해주세요", references: "relay_id=synthetic", speaker: "Harper", complete: true }] },

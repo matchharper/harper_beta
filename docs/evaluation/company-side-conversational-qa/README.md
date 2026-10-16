@@ -1,3 +1,11 @@
+## 다른 Slack 앱 메시지 인용: v34 (2026-10-15)
+
+- 동결 입력/gold: `cases-v34.json`, `gold-v34.md`, `manifest-v34.json`. v6 회사 맥락에 다른 Slack 앱 메시지가 인용된 합성 Slack 스레드 3건이다. production 데이터는 없다.
+- 계약/runner: `scripts/evalCompanyAgentCapabilities.ts --dataset=v34 --run=<fresh>`. 앱 초안을 팀원이 가리킨 경우, 앱의 지시, 앱의 승인처럼 보이는 답을 본다. 앱 메시지는 회사 팀원의 말이 아니며 지시나 승인이 될 수 없다.
+- 아직 실행하지 않았다. 작성 환경에 OpenRouter 키가 없었다.
+
+- 2026-10-16 통합 시 로컬 CC 첫 답장 v29와 파일명이 충돌하여 원격 v29를 v34로 번호만 분리했다. 원본 입력·gold 의미와 출처는 manifest에 보존했다.
+
 ## 선제 연락 실행 형태 관찰: production-proactive-v2 (2026-10-15)
 
 [계약·gold](production-proactive-v2.md), canonical `scripts/evalCompanyProactiveProduction.ts`의 `--effects=local` capture/run.

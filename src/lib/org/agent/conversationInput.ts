@@ -7,7 +7,7 @@ export type OrgAgentConversationInput = {
   references: string;
   /** Actual persisted tool calls, never inferred from message text. Availability only. */
   toolNames?: string[];
-  source: "company" | "harper" | "candidate_contact";
+  source: "company" | "harper" | "candidate_contact" | "other_slack_app";
   complete: boolean;
 };
 
