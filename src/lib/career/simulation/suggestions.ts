@@ -163,9 +163,12 @@ export function manageApplicationSuggestions(
   return s;
 }
 
-export function applicationSuggestionsResult(session: SimulationSession) {
+export function applicationSuggestionsResult(
+  session: SimulationSession,
+  previousSession?: SimulationSession
+) {
   const awaitingUserInput = !!pendingApplicationBatch(session);
-  return {
+  const result = {
     ok: true,
     awaitingUserInput,
     suggestions: session.actions,
@@ -173,4 +176,10 @@ export function applicationSuggestionsResult(session: SimulationSession) {
       ? "The composer shows the suggestions. Wait for the user's answers."
       : "The user's instructions are resolved. Continue in this turn to ready_for_role, using action=reuse when no resume edit is needed. If an essential missing fact prevents preparation, explain that specific blocker and include the application URL for direct completion.",
   };
+  const previous = new Map(previousSession?.actions.map(action => [action.id, action]));
+  const suggestions = session.actions.filter(action =>
+    !["completed", "skipped"].includes(action.status) ||
+    (previousSession && JSON.stringify(previous.get(action.id)) !== JSON.stringify(action))
+  );
+  return { ...result, modelOutput: JSON.stringify({ ...result, suggestions }) };
 }

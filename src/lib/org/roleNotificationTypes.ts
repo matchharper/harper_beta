@@ -2,6 +2,7 @@ export type OrgRoleNotificationChannel = {
   channelId: string;
   channelName: string | null;
   enabled: boolean;
+  canAssign?: boolean;
 };
 
 export type OrgRoleNotificationSettings = {

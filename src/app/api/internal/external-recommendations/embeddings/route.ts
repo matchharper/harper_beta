@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
-import { backfillRoleTitles } from "@/lib/externalRecommendationsV2/embeddings";
+import { drainRoleTitleEmbeddings } from "@/lib/externalRecommendationsV2/embeddings";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 export async function GET(req: NextRequest) {
@@ -9,5 +9,9 @@ export async function GET(req: NextRequest) {
     req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`
   )
     return new NextResponse(null, { status: 401 });
-  return NextResponse.json(await backfillRoleTitles(getTalentSupabaseAdmin()));
+  const result = await drainRoleTitleEmbeddings(getTalentSupabaseAdmin());
+  const incomplete = result.remaining !== 0 || result.errors.length > 0;
+  if (incomplete) console.error("[title-embeddings] incomplete", result);
+  else console.info("[title-embeddings] complete", result);
+  return NextResponse.json(result, { status: incomplete ? 503 : 200 });
 }

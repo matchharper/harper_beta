@@ -1,3 +1,4 @@
+import { COMPANY_EMAIL_PREFERENCE_TOOL } from "@/lib/email/companyPreferencesContract";
 /**
  * Tool contracts exposed to the organization-wide Harper agent.
  *
@@ -22,6 +23,7 @@ function nullableText(description: string, maxLength: number) {
 }
 
 export const ORG_AGENT_TOOL_NAMES = [
+  "update_email_preferences",
   "report_issue",
   "send_company_message",
   "job_posting_promote",
@@ -55,6 +57,7 @@ export const ORG_AGENT_TOOL_NAMES = [
 export type OrgAgentToolName = (typeof ORG_AGENT_TOOL_NAMES)[number];
 
 export const ORG_AGENT_TOOLS = [
+  COMPANY_EMAIL_PREFERENCE_TOOL,
   {
     type: "function",
     function: {

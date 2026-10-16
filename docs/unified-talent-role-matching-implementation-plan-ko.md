@@ -1,5 +1,7 @@
 # Talent × Role 매칭 통합 구현 계획
 
+> 2026-10-15 로컬 변경·미적용: 입력 변경 시 `source_changed`로 기존 matching review를 닫거나 fit을 즉시 만료시키는 DB trigger 및 프로필·Brief 변경 후 자동 재평가 enqueue를 제거했다. 아래 입력 변경 기반 자동 무효화·재평가 설명은 이 변경으로 대체한다. 일반 TTL, 새 평가 결과의 fingerprint 정합성, 명시적·정기 검색, 발송 시 현재 권한·차단·역할 유효성 검사는 유지한다. Migration은 과거 종료된 선정을 자동 복원하지 않는다. Migration: `20261015112457_preserve_matching_selections_on_source_change.sql`.
+
 > 2026-10-09 출시 상태: 웹 `f89c99c6`, Worker `71326f6`을 운영 배포했다. 공통 fit 실행 경로, 역할별 추천 선정과 후보자별 전달 시점의 분리, 내부 역할 keep, 우선 검토 상태, 미소개 수락 후보 재검토가 출시 코드에 포함된다. 운영 DB의 관련 함수·컬럼을 읽기 전용으로 확인했으며 이번 요청에서 migration은 적용하지 않았다. 아래의 ‘미배포·미적용’은 계획 작성 당시 기록이고, 현재 코드·실제 DB 정의·운영 설정이 정본이다. 이 배포 기록은 계획 전체의 구현 또는 평가 완료 선언이 아니다.
 
 문서 기준: 2026-10-08. **목표 설계와 로컬 구현 계약**이다. 제품 코드와 미적용 migration을 작업 중이며 production 배포·DB 적용을 하지 않았다. 구현 완료 여부는 [항목별 대조와 검증 기록](unified-talent-role-matching/implementation-status.md)에서 별도로 확인한다. 이 계획서에 적힌 것만으로 구현·검증 완료를 뜻하지 않는다.

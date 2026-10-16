@@ -27,7 +27,7 @@ export {
 export const ORG_SLACK_CHANNEL_ID =
   process.env.ORG_SLACK_CHANNEL_ID?.trim() || "C0AKK93FMH8";
 
-async function postOrgSlackMessage(text: string) {
+export async function postOrgSlackMessage(text: string, clientMessageId?: string) {
   const token = process.env.SLACK_BOT_TOKEN?.trim();
   if (!token) {
     throw new Error("SLACK_BOT_TOKEN is required");
@@ -36,6 +36,7 @@ async function postOrgSlackMessage(text: string) {
   const response = await fetch("https://slack.com/api/chat.postMessage", {
     body: JSON.stringify({
       channel: ORG_SLACK_CHANNEL_ID,
+      client_msg_id: clientMessageId,
       text,
       unfurl_links: false,
       unfurl_media: false,

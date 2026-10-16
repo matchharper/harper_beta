@@ -387,14 +387,14 @@ async function main() {
                   ],
                 }),
                 debugLabel: `org/agent:role-calibration-terra-eval:${item.id}:${toolLoop + 1}`,
-                model: modelConfig.ORG_AGENT_TERRA_MODEL,
+                model: modelConfig.ORG_AGENT_SOL_MODEL,
                 openAIResponses: { reasoningEffort: "max" },
                 signal: AbortSignal.timeout(300_000),
               });
               completionModel = completion.model;
-              if (completion.model !== modelConfig.ORG_AGENT_TERRA_MODEL) {
+              if (completion.model !== modelConfig.ORG_AGENT_SOL_MODEL) {
                 throw new Error(
-                  `Expected ${modelConfig.ORG_AGENT_TERRA_MODEL}; got ${completion.model}`
+                  `Expected ${modelConfig.ORG_AGENT_SOL_MODEL}; got ${completion.model}`
                 );
               }
               const root = record(completion.response);
@@ -460,10 +460,10 @@ async function main() {
             if (!draft) throw new Error("Agentic eval returned no final JSON");
             const openedUrls = new Set(openedBatches.flat());
             if (expectedUrls.some((url) => !openedUrls.has(url))) {
-              throw new Error("Terra did not read every supplied URL");
+              throw new Error("Sol did not read every supplied URL");
             }
             if (expectedUrls.length > 1 && !openedBatches.some((batch) => batch.length > 1)) {
-              throw new Error("Terra did not batch multiple supplied URLs");
+              throw new Error("Sol did not batch multiple supplied URLs");
             }
             console.log(
               JSON.stringify({

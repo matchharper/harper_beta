@@ -6,7 +6,7 @@ import type { CompanyResponseLocale } from "./uxWritingPrompt";
 export type CompanyInputMessage = { role: "system" | "user" | "assistant"; content: LlmMessageContent };
 export function buildCompanySystemInput(args: {
   resolved: ReturnType<typeof resolveCompanyCapabilities>;
-  surface: "chat" | "slack";
+  surface: "chat" | "slack" | "email";
   responseLocale?: CompanyResponseLocale;
   allowSilentCompletion?: boolean;
   backgroundOrigin?: "scheduled_review";

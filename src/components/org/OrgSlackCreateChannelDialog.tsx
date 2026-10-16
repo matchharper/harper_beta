@@ -7,7 +7,10 @@ import { MuteButton } from "@/components/ui/button";
 
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { useCreateOrgSlackChannel } from "@/hooks/org/useOrgSlack";
+import {
+  type OrgSlackChannel,
+  useCreateOrgSlackChannel,
+} from "@/hooks/org/useOrgSlack";
 import {
   getSlackChannelNameError,
   normalizeSlackChannelName,
@@ -24,7 +27,7 @@ export function OrgSlackCreateChannelDialog({
   workspaceId,
 }: {
   initialName?: string;
-  onCreated?: () => void;
+  onCreated?: (channel: OrgSlackChannel) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   workspaceId: string;
@@ -58,7 +61,7 @@ export function OrgSlackCreateChannelDialog({
         isPrivate,
       });
       onOpenChange(false);
-      onCreated?.();
+      onCreated?.(payload.channel);
       const name = payload.channel.channelName || payload.channel.channelId;
       const formattedName = name.startsWith("#") ? name : `#${name}`;
       const followUp = !payload.creatingUserInvited

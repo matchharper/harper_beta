@@ -3,6 +3,7 @@ import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
   getComposioAccountStatus,
+  getComposioGmailReadAccess,
   getComposioConnectedAccount,
   isOwnedComposioGmailAccount,
 } from "@/lib/integrations/composio";
@@ -45,6 +46,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const access = getComposioGmailReadAccess(account);
+    if (access === "unknown") {
+      return NextResponse.json(
+        { error: "Unable to verify Gmail permissions" },
+        { status: 503 }
+      );
+    }
     const admin = getTalentSupabaseAdmin();
     await upsertTalentGmailIntegration({
       admin,
@@ -53,9 +61,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
-      connected: true,
+      connected: access === "granted",
       ok: true,
-      status: "active",
+      status: access === "granted" ? "active" : "permissions_required",
     });
   } catch {
     return NextResponse.json(

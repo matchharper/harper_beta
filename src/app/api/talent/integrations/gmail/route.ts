@@ -5,6 +5,7 @@ import {
   ComposioApiError,
   deleteComposioConnectedAccount,
   getComposioAccountStatus,
+  getComposioGmailReadAccess,
   getComposioConnectedAccount,
   isOwnedComposioGmailAccount,
   revokeComposioConnectedAccount,
@@ -28,7 +29,7 @@ type GmailCareerHistoryStatus =
   | "unavailable";
 
 const statusPayload = (
-  status: GmailIntegrationStatus,
+  status: GmailIntegrationStatus | "permissions_required",
   analysis?: {
     status: GmailCareerHistoryStatus;
     updatedAt: string | null;
@@ -131,6 +132,18 @@ export async function GET(req: NextRequest) {
 
       const remoteStatus = getComposioAccountStatus(account);
       if (remoteStatus === "ACTIVE") {
+        const access = getComposioGmailReadAccess(account);
+        if (access === "missing") {
+          return NextResponse.json(
+            statusPayload("permissions_required", analysis)
+          );
+        }
+        if (access === "unknown") {
+          return NextResponse.json(
+            { error: "Unable to verify Gmail permissions" },
+            { status: 503 }
+          );
+        }
         return NextResponse.json(statusPayload("active", analysis));
       }
 

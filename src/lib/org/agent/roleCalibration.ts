@@ -11,7 +11,7 @@ import {
 } from "@/lib/llm/llm";
 import { executeSharedOpenUrl } from "@/lib/agentTools/web";
 import { readOrgAgentTalents } from "@/lib/org/agent/data";
-import { ORG_AGENT_TERRA_MODEL } from "@/lib/org/agent/modelConfig";
+import { ORG_AGENT_SOL_MODEL } from "@/lib/org/agent/modelConfig";
 import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
 import {
   buildRoleCalibrationSystemPrompt,
@@ -34,7 +34,7 @@ const MAX_INTERNAL_TALENTS_PER_CALL = 5;
 const MAX_REFERENCE_MARKDOWN_CHARS = 18_000;
 const MAX_ONE_REFERENCE_NET_GROWTH_CHARS = 700;
 const MAX_ONE_REFERENCE_EMPTY_BRIEF_CHARS = 1_600;
-// Terra max reasoning tokens share this budget with tool planning and the
+// Sol max reasoning tokens share this budget with tool planning and the
 // structured answer. Smaller budgets can be exhausted before JSON is emitted.
 const MAX_CALIBRATION_OUTPUT_TOKENS = 24_000;
 const CALIBRATION_LLM_TIMEOUT_MS = 280_000;
@@ -244,13 +244,13 @@ export async function generateRoleHiringBriefCalibration(args: {
         ],
       }),
       debugLabel: "org/agent:role-hiring-brief-calibration",
-      model: ORG_AGENT_TERRA_MODEL,
+      model: ORG_AGENT_SOL_MODEL,
       openAIResponses: { reasoningEffort: "max" },
       signal,
     });
-    if (completion.model !== ORG_AGENT_TERRA_MODEL) {
+    if (completion.model !== ORG_AGENT_SOL_MODEL) {
       throw new Error(
-        `Role calibration requires ${ORG_AGENT_TERRA_MODEL}; received ${completion.model}`
+        `Role calibration requires ${ORG_AGENT_SOL_MODEL}; received ${completion.model}`
       );
     }
 

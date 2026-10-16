@@ -19,7 +19,6 @@ import {
 import {
   CLAUDE_MODEL,
   GPT_6_LUNA_MODEL,
-  GPT_56_TERRA_MODEL,
   GPT_61_SOL_MODEL,
 } from "@/lib/llm/modelConfig";
 import {
@@ -48,10 +47,10 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: 일반 커리어 채팅, kickoff, onboarding defer,
   // profile ingestion, refresh insights, ops 요약/추천, additional question selector.
   assistant: {
-    anthropicOverloadFallbackModel: GPT_56_TERRA_MODEL,
+    anthropicOverloadFallbackModel: GPT_61_SOL_MODEL,
     openAIResponsesReasoningEffort: "xhigh" as const,
     primaryModel: GPT_61_SOL_MODEL,
-    fallbackModel: GPT_56_TERRA_MODEL,
+    fallbackModel: GPT_61_SOL_MODEL,
   },
   // 일반 텍스트 커리어 채팅 설정. Realtime 전화/음성 응답에는 적용되지 않는다.
   // prompt에는 structured profile, 최근 activity, 최근 추천 기회 10개 compact summary,

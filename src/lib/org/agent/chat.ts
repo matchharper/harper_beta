@@ -465,7 +465,7 @@ export async function runOrgAgentCompletion(args: {
   model: OrgAgentModelId;
   onTextDelta?: (delta: string) => void | Promise<void>;
   reasoningEffort?: OrgAgentReasoningEffort;
-  responseFormat?: ReturnType<typeof backgroundResultResponseFormat>;
+  responseFormat?: { type: "json_schema"; json_schema: { name: string; strict?: boolean; schema: Record<string, unknown> } };
   signal?: AbortSignal;
   strictModel?: boolean;
   surface?: "chat" | "slack";
@@ -615,6 +615,7 @@ export async function runOrgAgentToolLoop(
     slackExecutionContext?: SlackRoleCreationExecutionContext | null;
     slackThreadId: string | null;
     source: "chat" | "slack";
+    responseSurface?: "email";
     user: User;
     userLabel?: string | null;
     userMessage: string;
@@ -686,6 +687,7 @@ export async function runOrgAgentToolLoop(
   for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
     const resolved = resolveCompanyCapabilities({
       surface: args.source,
+      emailReply: args.responseSurface === "email",
       mode: capabilityMode,
       loaded: loadedCapabilities,
       allowedToolNames: args.allowedToolNames,
@@ -695,7 +697,7 @@ export async function runOrgAgentToolLoop(
       role: "system",
       content: buildCompanySystemInput({
         resolved,
-        surface: args.source,
+        surface: args.responseSurface ?? args.source,
         responseLocale: args.responseLocale,
         allowSilentCompletion: args.allowSilentCompletion,
         backgroundOrigin: args.backgroundOrigin,
@@ -1659,6 +1661,12 @@ export async function runOrgAgentWebActionTurn(args: {
 }
 
 export async function runOrgAgentChat(args: {
+  /** Trusted email adapter: persisted source identity and current authorization. */
+  emailExecution?: {
+    conversationId: string;
+    userMessage: OrgAgentMessage;
+    assertCanContinue: () => Promise<void>;
+  };
   assistantMessageMetadata?: OrgAgentMessageMetadata;
   attachments?: ChatAttachmentPayload[];
   debug?: boolean;
@@ -1701,7 +1709,7 @@ export async function runOrgAgentChat(args: {
   if (!userMessageText) {
     throw new OrgHttpError(400, "message or attachment is required");
   }
-  if (userMessageText.length > 8_000) {
+  if (userMessageText.length > (args.emailExecution ? 32_000 : 8_000)) {
     throw new OrgHttpError(400, "message is too long");
   }
   const requestedRoleId = normalizeText(args.roleId);
@@ -1744,6 +1752,11 @@ export async function runOrgAgentChat(args: {
         user: args.user,
         workspaceId: args.workspaceId,
       });
+  if (args.emailExecution) {
+    await args.emailExecution.assertCanContinue();
+    if (conversation.id !== args.emailExecution.conversationId)
+      throw new Error("Company email conversation access changed");
+  }
   const roleId = conversation.role_id;
   const admin = await companyConversationReadAdmin({ admin: conversationAdmin, roleId, workspaceId: conversation.company_workspace_id });
 
@@ -1777,7 +1790,7 @@ export async function runOrgAgentChat(args: {
         }
       : {}),
   };
-  let userMessage =
+  let userMessage = args.emailExecution?.userMessage ?? (
     args.slackThreadId && args.slackUserMessageTs
       ? await findOrgAgentSlackUserMessage({
           adoptInto: {
@@ -1790,7 +1803,7 @@ export async function runOrgAgentChat(args: {
           slackThreadId: args.slackThreadId,
           workspaceId: args.workspaceId,
         })
-      : null;
+      : null);
   if (userMessage) {
     const mergedMetadata = {
       ...userMessage.metadata,
@@ -1902,6 +1915,8 @@ export async function runOrgAgentChat(args: {
 
     failureStage = "tool_loop";
     const llmResult = await runOrgAgentToolLoop({
+      responseSurface: args.emailExecution ? "email" : undefined,
+      assertCanContinue: args.emailExecution?.assertCanContinue,
       actorId: args.slackUserId ?? args.user.id,
       actorLabel:
         normalizeText(args.userMessageMetadata?.slackUserName) ||
@@ -1929,7 +1944,7 @@ export async function runOrgAgentChat(args: {
         thinkingLogs = upsertOrgAgentThinkingLog(thinkingLogs, log);
       },
       onVisibleProgress:
-        args.slackThreadId && !args.onAssistantProgress
+        args.emailExecution || (args.slackThreadId && !args.onAssistantProgress)
           ? undefined
           : async ({ model, text }) => {
               textStream.replace(text);
@@ -1985,6 +2000,9 @@ export async function runOrgAgentChat(args: {
         (message) => message.metadata.agentTurn?.phase === "progress"
       ),
     });
+    await args.emailExecution?.assertCanContinue();
+    if (args.emailExecution && llmResult.completionError)
+      throw new Error(llmResult.completionError);
     failureStage = "response_persistence_and_presentation";
     if (llmResult.state.companyMessageBatch) {
       const { data: rows, error } = await (admin.from("company_messages") as any).select("*")
@@ -2125,6 +2143,7 @@ export async function runOrgAgentChat(args: {
     };
   } catch (error) {
     args.signal?.throwIfAborted();
+    if (args.emailExecution) throw error;
     await recordOrgAgentFailure({
       admin,
       error,

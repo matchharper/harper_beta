@@ -1,6 +1,7 @@
 import { resendApiUrl } from "./transport";
 
 type SendResendEmailArgs = {
+  signal?: AbortSignal;
   cc?: string[];
   from?: string | null;
   headers?: Record<string, string>;
@@ -69,6 +70,7 @@ export async function sendResendEmail(args: SendResendEmailArgs) {
     method: "POST",
     headers,
     body: JSON.stringify(payload),
+    signal: args.signal,
   });
   const raw = await response.text().catch(() => "");
   let data: unknown = raw;

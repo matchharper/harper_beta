@@ -2,7 +2,6 @@ export type OpsCostProviderId =
   | "claude"
   | "openai"
   | "openrouter"
-  | "grok"
   | "exa"
   | "ec2";
 

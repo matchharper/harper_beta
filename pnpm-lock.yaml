@@ -95,9 +95,6 @@ importers:
       '@tiptap/starter-kit':
         specifier: 3.30.1
         version: 3.30.1
-      '@tosspayments/tosspayments-sdk':
-        specifier: ^2.5.0
-        version: 2.5.0
       '@vercel/analytics':
         specifier: ^1.5.0
         version: 1.6.1(next@16.3.8(@babel/core@7.29.0)(@types/node@20.19.37)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
@@ -2605,9 +2602,6 @@ packages:
 
   '@tiptap/starter-kit@3.30.1':
     resolution: {integrity: sha512-6P2WEp2ZHsx8LV6hQ3K/MB3n39oiVhKESlzh0v+KhK8RR/iKSKGxvTFbi1D/1fo4j3fZf+43PGHjyKXskn9ZmQ==}
-
-  '@tosspayments/tosspayments-sdk@2.5.0':
-    resolution: {integrity: sha512-qapms+cTY5/4MBwcEegG1GkYBIWVjWv77yWnG2+CWXqdZOtGKLmqt0pb1lbrevBOF/uhO1f2Wtj+r/bggHwiHQ==}
 
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
@@ -8393,8 +8387,6 @@ snapshots:
       '@tiptap/extension-underline': 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))
       '@tiptap/extensions': 3.30.1(@tiptap/core@3.30.1(@tiptap/pm@3.30.1))(@tiptap/pm@3.30.1)
       '@tiptap/pm': 3.30.1
-
-  '@tosspayments/tosspayments-sdk@2.5.0': {}
 
   '@tybys/wasm-util@0.10.4':
     dependencies:

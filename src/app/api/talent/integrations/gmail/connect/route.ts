@@ -4,6 +4,8 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
   createComposioGmailConnectLink,
   getComposioAccountStatus,
+  getComposioConnectedAccount,
+  getComposioGmailReadAccess,
   getIntegrationErrorDiagnostics,
   isOwnedComposioGmailAccount,
   listActiveComposioGmailAccounts,
@@ -24,14 +26,30 @@ export async function POST(req: NextRequest) {
 
     stage = "load_server_config";
     const admin = getTalentSupabaseAdmin();
+    const body = await req.json().catch(() => ({}));
+    const resumeImport = body.resumeImport === true;
     stage = "list_accounts";
-    const existingAccounts = await listActiveComposioGmailAccounts(user.id);
-    const existingAccount = existingAccounts.find(
-      (account) =>
-        Boolean(account.id) &&
-        getComposioAccountStatus(account) === "ACTIVE" &&
-        isOwnedComposioGmailAccount(account, user.id)
-    );
+    const existingAccounts = resumeImport
+      ? []
+      : await listActiveComposioGmailAccounts(user.id);
+    // List responses may omit grant metadata; inspect each owned candidate.
+    // Reauthorization always opens a fresh consent session, never a stale grant.
+    let existingAccount;
+    if (!resumeImport) {
+      for (const candidate of existingAccounts) {
+        if (!candidate.id || !isOwnedComposioGmailAccount(candidate, user.id))
+          continue;
+        const account = await getComposioConnectedAccount(candidate.id);
+        if (
+          getComposioAccountStatus(account) === "ACTIVE" &&
+          isOwnedComposioGmailAccount(account, user.id) &&
+          getComposioGmailReadAccess(account) === "granted"
+        ) {
+          existingAccount = account;
+          break;
+        }
+      }
+    }
 
     if (existingAccount?.id) {
       stage = "save_integration";
@@ -50,6 +68,7 @@ export async function POST(req: NextRequest) {
     const callbackUrl = new URL("/career/profile", req.nextUrl.origin);
     callbackUrl.searchParams.set("gmailConnect", "callback");
     callbackUrl.searchParams.set("profileSection", "links");
+    if (resumeImport) callbackUrl.searchParams.set("gmailImport", "resume");
 
     stage = "create_connect_link";
     const link = await createComposioGmailConnectLink({
@@ -59,6 +78,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       connected: false,
       redirectUrl: link.redirectUrl,
+      connectedAccountId: link.connectedAccountId,
       status: "not_connected",
     });
   } catch (error) {

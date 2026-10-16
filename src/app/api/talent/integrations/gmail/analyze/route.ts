@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getComposioConnectedAccount,
+  getComposioGmailReadAccess,
+  getComposioAccountStatus,
+  isOwnedComposioGmailAccount,
+} from "@/lib/integrations/composio";
 import { randomUUID } from "crypto";
 import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { scheduleGmailCareerHistoryAnalysis } from "@/lib/integrations/gmailCareerHistoryQueue";
@@ -23,6 +29,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "An active Gmail connection is required" },
         { status: 409 }
+      );
+    }
+    const account = await getComposioConnectedAccount(
+      integration.composio_connected_account_id
+    );
+    if (
+      !isOwnedComposioGmailAccount(account, user.id) ||
+      getComposioAccountStatus(account) !== "ACTIVE"
+    ) {
+      return NextResponse.json(
+        { error: "An active Gmail connection is required" },
+        { status: 409 }
+      );
+    }
+    const access = getComposioGmailReadAccess(account);
+    if (access === "missing") {
+      return NextResponse.json({
+        status: "permissions_required",
+        connected: false,
+      });
+    }
+    if (access === "unknown") {
+      return NextResponse.json(
+        { error: "Unable to verify Gmail permissions" },
+        { status: 503 }
       );
     }
     await scheduleGmailCareerHistoryAnalysis({

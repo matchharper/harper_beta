@@ -94,7 +94,9 @@ import {
   notifyOrgCandidateRejectedSlack,
   notifyCompanyIntroTalentDeclinedSlack,
   notifyOrgMemberJoinedSlack,
+  postOrgSlackMessage,
 } from "@/lib/org/slack";
+import { notifyIntroAcceptanceForOps, notifyIntroRequestForOps } from "@/lib/org/introRequestOpsNotification";
 import { TALENT_RESUME_BUCKET } from "@/lib/talentOnboarding/models";
 import {
   cancelCompanyTalentRequest,
@@ -3874,6 +3876,13 @@ export async function requestOrgCompanyIntro(args: {
     throw new OrgHttpError(409, "현재 이 역할에는 먼저 제안할 수 없습니다.");
   }
   await recordOrgIntroDecision({ admin, workspaceId, introCandidateId, decision: "request" });
+  await notifyIntroRequestForOps({
+    admin,
+    workspaceId,
+    introCandidateId: result.introCandidateId || introCandidateId,
+    status: result.status,
+    post: postOrgSlackMessage,
+  });
   return {
     candidateAcceptedAt: result.candidateAcceptedAt,
     stageTag: result.stageTag,
@@ -4010,6 +4019,10 @@ export async function decideTalentCompanyIntro(args: {
   if (!introCandidateId || !workspaceId || !roleId) {
     throw new OrgHttpError(409, "Intro 연결 정보가 완전하지 않습니다.");
   }
+  await notifyIntroAcceptanceForOps({
+    admin, workspaceId, introCandidateId, decisionChanged,
+    post: postOrgSlackMessage,
+  });
   const { data: intro, error: introError } = await (
     admin.from("company_intro_candidates" as any) as any
   )
@@ -5440,7 +5453,9 @@ export async function setOrgCandidateStage(args: {
       talentId,
     });
 
-    if (isIntroRequested || contactDirectly || stage === "process_stopped") {
+    // Candidate acceptance of a company Intro has its own company-side event.
+    // The ordinary company-decision notification would misattribute that action.
+    if (!authorizedCompanyIntroTransition && (isIntroRequested || contactDirectly || stage === "process_stopped")) {
       try {
         const [workspace, candidate] = await Promise.all([
           fetchWorkspaceById(admin, workspaceId),

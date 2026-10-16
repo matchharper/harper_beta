@@ -83,6 +83,17 @@ export function fitForLlm(value: unknown) {
     ])
   );
 }
+// Control-cache scores have no V2 dimensions; do not invent missing evidence.
+export const priorFitSchema = z.union([
+  z.object({ legacyScore: score }).strict(),
+  fitSchema,
+]);
+export function priorFitForLlm(value: unknown) {
+  const legacy = z.object({ legacyScore: score }).strict().safeParse(value);
+  return legacy.success
+    ? { legacyScore: scoreForLlm(legacy.data.legacyScore) }
+    : fitForLlm(value);
+}
 export function cachedFitEligible(fit: Fit) {
   return (
     fit.mutualFit >= 25 &&

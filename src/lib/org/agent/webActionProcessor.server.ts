@@ -1,4 +1,5 @@
 import "server-only";
+import { sendProactiveHiringOverview } from "@/lib/ops/autoIntroToCompanyNotifications";
 import { deliverCompanyContactEventMessages } from "./contactEvent.server";
 import { assertOrgRoleAccess, assertOrgWorkspacePermission } from "@/lib/org/server";
 import { OrgAgentWebActionSupersededError, runOrgAgentWebActionTurn } from "./chat";
@@ -8,6 +9,8 @@ import { parseCompanyAgentWebActionQueueMessage } from "./webActionQueue";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { runCompanyProactiveReview } from "./proactiveReview.server";
 import { deliverCompanyMessageBatch } from "./companyMessageDelivery.server";
+
+import { runRoleSearchKickoff, continueRoleSearchKickoff } from "./roleSearchKickoff.server";
 
 const MAX_ATTEMPTS = 5;
 
@@ -140,7 +143,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     if (companyUserError) throw companyUserError;
     const responseLocale: "ko" | "en" | "auto" = job.action_context?.responseLocale === "ko" || job.action_context?.responseLocale === "en"
       ? job.action_context.responseLocale
-      : job.action_name === "company_update" || job.action_name === "proactive_recruiting_review"
+      : job.action_name === "company_update" || job.action_name === "proactive_recruiting_review" || job.action_name === "role_search_kickoff"
       ? await getOrgWorkspaceLocale(job.company_workspace_id, admin)
       : companyUser?.locale === "ko" || companyUser?.locale === "en" ? companyUser.locale : "auto";
     const turnArgs = {
@@ -162,20 +165,32 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
       responseLocale,
     };
     const isProactive = job.action_name === "proactive_recruiting_review";
-    const result = isProactive ? await runCompanyProactiveReview(turnArgs) : await runOrgAgentWebActionTurn(turnArgs);
+    const isResearch = job.action_name === "role_search_kickoff";
+    const result = isResearch ? await runRoleSearchKickoff(turnArgs)
+      : isProactive ? await runCompanyProactiveReview(turnArgs) : await runOrgAgentWebActionTurn(turnArgs);
     {
       await assertEventAccess();
+      const assertProactiveDeliveryCurrent = async () => {
+        if (!isProactive) return;
+        if (!job.action_context?.deadlineAt || Date.now() >= Date.parse(job.action_context.deadlineAt)) throw new OrgAgentWebActionSupersededError();
+        const { data: newer, error } = await admin.from("company_messages").select("id")
+          .eq("company_workspace_id", job.company_workspace_id).eq("role", "user").in("message_type", ["chat", "slack"])
+          .gt("id", job.anchor_message_id).limit(1);
+        if (error) throw error;
+        if (newer?.length) throw new OrgAgentWebActionSupersededError();
+      };
+      // Independent of the model's message/silent decision; always precedes its batch.
+      if (isProactive) {
+        await assertProactiveDeliveryCurrent();
+        const { data: channel, error } = await admin.from("company_slack_channels")
+          .select("slack_channel_id").eq("id", job.action_context?.channelDbId)
+          .eq("company_workspace_id", job.company_workspace_id).eq("is_enabled", true).single();
+        if (error) throw error;
+        await sendProactiveHiringOverview({ workspaceId: job.company_workspace_id, channelId: channel.slack_channel_id });
+      }
       if ("batchId" in result && typeof result.batchId === "string") {
         await deliverCompanyMessageBatch({ batchId: result.batchId, workspaceId: job.company_workspace_id,
-          assertCanStart: async () => {
-            if (!isProactive) return;
-            if (!job.action_context?.deadlineAt || Date.now() >= Date.parse(job.action_context.deadlineAt)) throw new OrgAgentWebActionSupersededError();
-            const { data: newer, error } = await admin.from("company_messages").select("id")
-              .eq("company_workspace_id", job.company_workspace_id).eq("role", "user").in("message_type", ["chat", "slack"])
-              .gt("id", job.anchor_message_id).limit(1);
-            if (error) throw error;
-            if (newer?.length) throw new OrgAgentWebActionSupersededError();
-          } });
+          assertCanStart: assertProactiveDeliveryCurrent });
       } else await deliverCompanyContactEventMessages({
         jobId: message.jobId,
         messageIds: [result.progressMessageId, result.terminalMessageId],
@@ -186,6 +201,9 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
         candidateIds: job.action_context?.facts?.candidateIds,
       });
     }
+    if (isResearch) await continueRoleSearchKickoff({
+      jobId: message.jobId, workspaceId: job.company_workspace_id, roleId: relatedRoleId!,
+    });
     const now = new Date().toISOString();
     const { error: completeError } = await (
       admin.from("company_agent_web_action_jobs" as any) as any

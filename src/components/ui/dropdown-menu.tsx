@@ -128,7 +128,9 @@ const DropdownMenuItem = React.forwardRef<
   ) => {
     const itemClassName = cn(
       "relative flex cursor-default select-none items-center text-neutral-primary outline-none transition-colors hover:bg-black/5 focus:bg-black/5 focus:text-neutral-primary data-[highlighted]:bg-black/5 data-[highlighted]:text-neutral-primary data-disabled:pointer-events-none data-disabled:opacity-50 [&>svg]:shrink-0",
-      "[&_svg]:text-neutral-800/80",
+      tone === "danger"
+        ? "[&_svg]:text-critical"
+        : "[&_svg]:text-neutral-800/80",
       dropdownMenuItemVariantClassNames[variant],
       selected && "bg-black/5 text-neutral-primary",
       tone === "danger" &&

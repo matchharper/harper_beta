@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
-import { buildHybridSql } from "./retrieval";
+import { buildHybridSql, fetchTitleNeighbors } from "./retrieval";
 import { countryQuotas, countriesSchema, type V2SearchPlan } from "./countries";
 const uuid = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -137,6 +137,47 @@ test("real pgvector hybrid SQL includes unembedded FTS roles and enforces all el
     assert.deepEqual(
       rows.rows.map((r) => r.search_external_roles_v2.role_id),
       [uuid(10), uuid(11)]
+    );
+    const titleNeighbors = await fetchTitleNeighbors(
+      {
+        rpc: async (_name: string, params: { p_sql: string }) => ({
+          data: (
+            await db.query<{ search_external_roles_v2: unknown }>(
+              "select search_external_roles_v2($1)",
+              [params.p_sql]
+            )
+          ).rows.map((r) => r.search_external_roles_v2),
+          error: null,
+        }),
+      } as any,
+      v
+    );
+    const split = await db.query("select search_external_roles_v2($1)", [
+      buildHybridSql({
+        plan,
+        vectors: [v],
+        userId: uuid(1),
+        blockedCompanies: ["Blocked"],
+        limit: 200,
+        titleNeighbors,
+      }),
+    ]);
+    assert.deepEqual(split.rows, rows.rows);
+    const emptyTitles = await db.query<{
+      search_external_roles_v2: { role_id: string };
+    }>("select search_external_roles_v2($1)", [
+      buildHybridSql({
+        plan,
+        vectors: [v],
+        userId: uuid(1),
+        blockedCompanies: ["Blocked"],
+        limit: 200,
+        titleNeighbors: [],
+      }),
+    ]);
+    assert.deepEqual(
+      emptyTitles.rows.map((r) => r.search_external_roles_v2.role_id),
+      [uuid(11)]
     );
     const preview = await db.query<{
       search_external_roles_v2: Record<string, unknown>;
@@ -804,6 +845,36 @@ test("recommend_job_postings control SQL searches a single combined vector witho
     assert.doesNotMatch(sql, /ILIKE '%(?:인공지능 엔지니어|AI Engineer)%'/);
     const rows = await db.query<{ search_external_roles_v2: { role_id: string } }>("select search_external_roles_v2($1)", [sql + " LIMIT 150"]);
     assert.deepEqual(rows.rows.map(r => r.search_external_roles_v2.role_id), [uuid(10)]);
+    const titleNeighbors = await fetchTitleNeighbors(
+      {
+        rpc: async (_name: string, params: { p_sql: string }) => ({
+          data: (
+            await db.query<{ search_external_roles_v2: unknown }>(
+              "select search_external_roles_v2($1)",
+              [params.p_sql]
+            )
+          ).rows.map((r) => r.search_external_roles_v2),
+          error: null,
+        }),
+      } as any,
+      v
+    );
+    const split = buildRoleSearchSql({
+      plan,
+      titleNeighbors,
+      userId: uuid(1),
+      blockedCompanies: ["Blocked"],
+      searchMode: "strict",
+    });
+    assert.doesNotMatch(split, /ts_rank_cd/);
+    assert.deepEqual(
+      (
+        await db.query("select search_external_roles_v2($1)", [
+          split + " LIMIT 150",
+        ])
+      ).rows,
+      rows.rows
+    );
   } finally { await db.close(); }
 });
 

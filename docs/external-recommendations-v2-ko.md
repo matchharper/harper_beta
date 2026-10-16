@@ -46,6 +46,12 @@
 
 Ops 사용자별 공고 검색만 같은 사용자·Profile/Brief/Behavior·저장 기본 계획일 때 완료된 검색 계획과 제목 vector를 최대 5분, 프로세스당 64건 재사용한다. 실패/중단된 계획과 공고 결과는 캐시하지 않는다. 사용자를 다시 선택해 실행해도 현재 차단·기추천·공고 가용성은 매번 DB에서 검사한다. 일반 Worker planner와 누락 Role 연봉의 동기 추정 단계는 그대로 유지한다.
 
+### 오류 격리 보완 (2026-10-15, 로컬·미배포)
+
+기존 추천 캐시의 단일 점수와 V2 평가 항목을 구분해 재정렬에 전달한다. 필수 평가값이 불완전한 역할은 이번 추천에서만 제외하며 0점이나 부적합으로 저장하지 않는다. 평가·요약의 일부 배치가 실패해도 정상 결과로 진행하고, 평가 캐시·요약 캐시 쓰기의 DB 시간 초과는 해당 배치만 제외한다. 권한 오류와 최종 추천 저장 실패는 계속 실패로 처리한다. 평가 또는 필요한 요약이 전부 실패하면 적합한 공고가 없는 것으로 기록하지 않는다. 일부 제외 내역은 실행 metrics와 로그로 확인한다.
+
+검색은 가까운 제목 조회와 해당 제목의 공고 조회를 두 번의 제한된 읽기로 분리한다. 차단·마감·기추천·testOnly 등 실제 추천 자격은 공고 조회에서 다시 확인한다. 이 변경의 운영 부하 개선 여부는 배포 후 별도로 확인해야 한다. 재시도 후 최종 저장에 성공하면 완료된 실행의 이전 오류를 정리하고, 일일 실행이 최종 실패하면 종료 시각도 기록한다. 기존 운영 기록을 일괄 변경하거나 재실행하지 않는다.
+
 ## 연봉과 최초 후보 목록
 
 Planner의 `targetSalaryKrw`는 희망 연봉이 아니라 실제 경력·책임·성과·전문성과 탐색 시장에서 추정한 시장 연봉이다. 공고 연봉 추정의 책임 수준·채용시장 판단 기준을 후보자에게 적용하며, 연차·직함만으로 금액을 정하지 않는다. 사용자가 보상 무관이라고 하거나 최저 연봉을 철회해도 경력 근거로 양수의 연간 기본급을 원화로 추정한다. 현재 보상은 참고 근거이고 희망 연봉을 그대로 복사하지 않는다. 전문 경력을 판단할 근거가 전혀 없을 때만 null이다. 명시적인 보상 조건은 후속 적합도 판단에서 별도로 존중한다. 추론을 Brief/Memory 사실로 저장하지 않고 연봉을 hard filter로 사용하지 않는다. 환율은 ECB 2026-10-14 snapshot이다.
@@ -89,8 +95,12 @@ Rerank 출력은 identifier와 `recommendationNote` 하나다. 최대2–3문장
 1. 기본 V2 migration, 제목 사전 migration, bulk 준비 migration이 적용되었다. 기존 vector extension은 `public`이다. 실제 migration history와 최종 커버리지는 검증 기록에 보존한다.
 2. 대량 backfill의 정본은 worker `scripts/backfill_external_title_embeddings.py`다. 기본은 대상 수 미리 보기이고, `--apply --max-titles=N --batch-size=2048`로 실행한다. 같은 제목을 한 번만 생성하고 binary COPY로 사전에 저장한다. 재실행은 미완료 제목부터 진행한다. 회사 역할/추천/메시지는 수정하지 않는다.
 3. `20261014024436_external_live_title_index.sql`까지 적용한 뒤 worker `scripts/build_external_title_index.py --live --apply`로 기존 활성 제목 수를 짧은 transaction으로 초기화하고 partial index를 CONCURRENTLY 만든다. 전용 session,128MB memory, 병렬 build worker0개를 사용한다. 유효성을 확인한 뒤 `--retire-full-index --apply`로 이전 전체 인덱스를 CONCURRENTLY 제거하고 retirement migration을 기록한다. 빈 사전에 IVFFlat을 미리 학습하지 않는다. 초기 full-vector HNSW build에서 운영 조회 지연을 발견해 해당 build만 취소했고, 이후 정상 조회를 확인했다. 최종 live index는350MB다.
-4. 증분 처리는 beta의 `scripts/backfillExternalRoleTitleEmbeddings.ts`와 hourly job이 같은 사전 RPC를 사용한다. CLI 기본은 preview, `--apply --max-rows=N`은 최대N개의 **고유 제목**을 처리한다.
-5. Web의 credential/INTERNAL_WORKER_API_SECRET/CRON_SECRET/provider 설정을 확인하고 명시적 배포 요청 후 Git-triggered web 배포를 한다. Queue topic/5분 dispatcher/시간당 embedding job이 포함된다. 공유 API 준비 후 worker를 기존6개 인스턴스 rolling 절차로 배포한다.
+4. 증분 처리는 beta의 `scripts/backfillExternalRoleTitleEmbeddings.ts`와 scheduled job이 같은 처리 함수를 사용한다. CLI 기본은 preview, `--apply --max-rows=N`은 최대N개의 **고유 제목**을 처리한다.
+   - 2026-10-16 로컬 보완(미배포): 5분 주기, 실행당 최대10,000개/240초 범위에서 미완료 제목을 key 순서로 여러 페이지 처리한다. 기존 등록·이름 변경 trigger가 사전에 넣은 NULL embedding이 영속 대기 목록이다. 새 테이블이나 수집기별 구현은 추가하지 않는다.
+   - API 일시 오류와 DB 저장 오류는 최대3회 시도한다. 저장 재시도는 이미 생성한 벡터를 재사용한다. API가 입력을 400/413으로 거부하면 해당 묶음을 나눠 문제가 있는 제목만 미완료로 남긴다. 처리 실패는 다음 실행의 재시도 대상이며, 처리 후 미완료 건수·오류를 로그와 응답에 남긴다(미완료/오류는 HTTP503).
+   - 같은 제목은 기존 벡터를 재사용하고 저장 시 key·원문·NULL 조건을 확인한다. 동시 실행의 중복 저장은 막지만 중복 API 호출 비용까지 막는 lease는 없다. 실행 중 cursor 이전에 들어온 제목은 다음 실행에서 처리한다. 외부 API 장애 중에는 빈 값이 남을 수 있고, 정상 복구 후 재시도한다. 등록 즉시 임베딩 완성을 보장하는 구조는 아니다.
+   - 2026-10-16 08:29 KST 운영 보완: 미완료405개 제목을7.5초에 생성·저장했고 직후 전체/활성 제목 미완료0건을 확인했다. 예전 `company_roles.title_embedding`의 NULL은 V2 누락 판정 기준이 아니며 `external_role_title_embeddings`에서 확인한다. 기존 트리거와 시간당 실행은 이미 운영에 있었고 5분 주기 변경은 아직 배포하지 않았다.
+5. Web의 credential/INTERNAL_WORKER_API_SECRET/CRON_SECRET/provider 설정을 확인하고 명시적 배포 요청 후 Git-triggered web 배포를 한다. Queue topic/5분 dispatcher/5분 embedding job이 포함된다. 공유 API 준비 후 worker를 기존6개 인스턴스 rolling 절차로 배포한다.
 6. [평가 registry](evaluation/external-recommendations-v2/README.md)와 read-only A/B report로 확인한다. cold/warm cache와 provider를 나누어 비교한다. SQL plan·fit 캐시·summary 공유 때문에 장기 warm 효과가 생긴다.
 
 경로 변경은 여러 단계의 시간을 포함하므로 end-to-end 운영 p50/p95와 사용자 행동이 최종 근거다. 작은 synthetic 모델 호출 비용/속도는 운영 200/500개 전체 비용·품질의 증거가 아니다.

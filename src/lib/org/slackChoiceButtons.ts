@@ -1,3 +1,5 @@
+import { splitSlackMrkdwn } from "./slackTextChunks";
+
 const BUTTON_MARKER_START_PATTERN = /\[([^\]\r\n]{1,75})\]\(button:/g;
 
 export const HARPER_SLACK_CHOICE_ACTION_PREFIX = "harper_company_agent_choice:";
@@ -139,23 +141,7 @@ export function parseHarperSlackChoiceMarkers(message: string): {
 }
 
 function splitSlackSectionText(value: string) {
-  const chunks: string[] = [];
-  let remaining = value.trim();
-  while (remaining.length > MAX_SLACK_SECTION_LENGTH) {
-    const candidate = remaining.slice(0, MAX_SLACK_SECTION_LENGTH);
-    const paragraphBreak = candidate.lastIndexOf("\n\n");
-    const lineBreak = candidate.lastIndexOf("\n");
-    const splitAt =
-      paragraphBreak > MAX_SLACK_SECTION_LENGTH / 2
-        ? paragraphBreak
-        : lineBreak > MAX_SLACK_SECTION_LENGTH / 2
-          ? lineBreak
-          : MAX_SLACK_SECTION_LENGTH;
-    chunks.push(remaining.slice(0, splitAt).trim());
-    remaining = remaining.slice(splitAt).trim();
-  }
-  if (remaining) chunks.push(remaining);
-  return chunks;
+  return splitSlackMrkdwn(value, MAX_SLACK_SECTION_LENGTH);
 }
 
 export function encodeHarperSlackChoiceActionValue(

@@ -556,7 +556,7 @@ async function main() {
       import("../src/lib/llm/modelConfig"),
     ]);
   const selectedModel =
-    cliValue("--model")?.trim() || modelConfig.GPT_56_TERRA_MODEL;
+    cliValue("--model")?.trim() || modelConfig.GPT_61_SOL_MODEL;
   const selectedReasoningEffort = reasoningEffort(
     cliValue("--reasoning-effort")
   );

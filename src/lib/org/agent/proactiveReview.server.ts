@@ -15,11 +15,14 @@ import { enqueueOrgAgentWebActionTurn } from "./webActionTurn";
 
 type ProactiveReviewSchedule = { daysOfWeek: number[]; startTimeKst: string; windowMinutes: number };
 
+// Scheduled outreach is enabled; production activation follows the normal release process.
+export function isCompanyProactiveReviewEnabled() { return true; }
+
 export function parseProactiveReviewSchedule(raw?: string): ProactiveReviewSchedule {
   const value = raw?.trim() ? JSON.parse(raw) : {};
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("COMPANY_PROACTIVE_REVIEW_SCHEDULE must be an object");
   const daysOfWeek = value.daysOfWeek ?? [1, 2, 3, 4, 5];
-  const startTimeKst = value.startTimeKst ?? "17:00";
+  const startTimeKst = value.startTimeKst ?? "13:00";
   const windowMinutes = value.windowMinutes ?? 120;
   if (!Array.isArray(daysOfWeek) || daysOfWeek.some(day => !Number.isInteger(day) || day < 0 || day > 6)
     || typeof startTimeKst !== "string" || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTimeKst)
@@ -42,46 +45,50 @@ export function proactiveReviewWindow(now: Date, schedule = parseProactiveReview
     deadlineAt: new Date(startAt + duration).toISOString() };
 }
 
-type ReviewAudienceConfig = { workspaceId: string; channelDbId: string; actorUserId: string };
-export function parseProactiveReviewAudiences(raw: string | undefined): ReviewAudienceConfig[] {
-  if (!raw?.trim()) return [];
-  const rows = JSON.parse(raw);
-  if (!Array.isArray(rows)) throw new Error("COMPANY_PROACTIVE_REVIEW_AUDIENCES must be an array");
-  const keys = new Set<string>();
-  return rows.map(row => {
-    if (!row || [row.workspaceId, row.channelDbId, row.actorUserId].some(v => typeof v !== "string" || !v.trim())) throw new Error("Invalid proactive audience configuration");
-    const key = `${row.workspaceId}:${row.channelDbId}`;
-    if (keys.has(key)) throw new Error("Duplicate proactive audience configuration");
-    keys.add(key); return { workspaceId: row.workspaceId, channelDbId: row.channelDbId, actorUserId: row.actorUserId };
-  });
+async function* enabledProactiveChannels(admin: ReturnType<typeof getSupabaseAdmin>) {
+  let afterId: string | undefined;
+  while (true) {
+    let query = admin.from("company_slack_channels").select("id,company_workspace_id")
+      .eq("is_enabled", true).order("id").limit(200);
+    if (afterId) query = query.gt("id", afterId);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) return;
+    yield* data;
+    afterId = data[data.length - 1].id;
+  }
 }
 
 /** Existing five-minute dispatcher only enqueues; the normal queue owns execution. */
-export async function enqueueDueCompanyProactiveReviews(now = new Date()) {
+export async function enqueueDueCompanyProactiveReviews(now = new Date(), dependencies = {
+  admin: getSupabaseAdmin, allowed: isHarperSlackAudienceAllowed, enqueue: enqueueOrgAgentWebActionTurn,
+}) {
+  if (!isCompanyProactiveReviewEnabled()) return 0;
   const window = proactiveReviewWindow(now, parseProactiveReviewSchedule(process.env.COMPANY_PROACTIVE_REVIEW_SCHEDULE));
   if (!window.due) return 0;
-  const configured = parseProactiveReviewAudiences(process.env.COMPANY_PROACTIVE_REVIEW_AUDIENCES);
-  const admin: any = getSupabaseAdmin();
+  const admin = dependencies.admin();
   let enqueued = 0;
-  for (const config of configured) {
+  for await (const discovered of enabledProactiveChannels(admin)) {
+    const config = { workspaceId: discovered.company_workspace_id, channelDbId: discovered.id };
     const { data: channel, error } = await admin.from("company_slack_channels")
       .select("slack_channel_id,is_enabled").eq("id", config.channelDbId).eq("company_workspace_id", config.workspaceId).maybeSingle();
     if (error) throw error;
     if (!channel?.is_enabled) continue;
-    const { data: owner, error: ownerError } = await admin.from("company_user_workspace").select("authority")
-      .eq("company_user_id", config.actorUserId).eq("company_workspace_id", config.workspaceId).maybeSingle();
+    const { data: owner, error: ownerError } = await admin.from("company_user_workspace").select("company_user_id,authority")
+      .eq("company_workspace_id", config.workspaceId).eq("authority", "owner")
+      .order("created_at").order("id").limit(1).maybeSingle();
     if (ownerError) throw ownerError;
     if (owner?.authority !== "owner") continue;
-    // Initial rollout is an explicitly configured organization audience only.
-    if (!await isHarperSlackAudienceAllowed({ workspaceId: config.workspaceId, channelId: channel.slack_channel_id })) continue;
+    if (!await dependencies.allowed({ workspaceId: config.workspaceId, channelId: channel.slack_channel_id })) continue;
     const { data: recent, error: recentError } = await admin.from("company_messages").select("id")
       .eq("company_workspace_id", config.workspaceId).eq("role", "user").in("message_type", ["chat", "slack"])
       .gte("created_at", new Date(now.getTime() - 30 * 60000).toISOString()).limit(1);
     if (recentError) throw recentError;
     if (recent?.length) continue;
-    const auth = await admin.auth.admin.getUserById(config.actorUserId);
-    if (auth.error || !auth.data.user) throw auth.error ?? new Error("Review actor no longer exists");
-    const result = await enqueueOrgAgentWebActionTurn({ workspaceId: config.workspaceId, user: auth.data.user,
+    const auth = await admin.auth.admin.getUserById(owner.company_user_id);
+    if (auth.error) throw auth.error;
+    if (!auth.data.user) continue;
+    const result = await dependencies.enqueue({ workspaceId: config.workspaceId, user: auth.data.user,
       actionName: "proactive_recruiting_review", actionContext: { channelDbId: config.channelDbId, deadlineAt: window.deadlineAt },
       idempotencyKey: `proactive-review:${config.workspaceId}:${config.channelDbId}:${window.date}`, dispatch: false });
     if (result.created) enqueued++;
@@ -126,6 +133,7 @@ export async function runCompanyProactiveReview(args: {
   user: User; conversation: OrgAgentConversationRow; anchorMessageId: number; jobId: string;
   actionContext: Record<string, unknown>; responseLocale?: "ko" | "en" | "auto";
 }) {
+  if (!isCompanyProactiveReviewEnabled()) throw new OrgAgentWebActionSupersededError();
   const admin: any = getSupabaseAdmin();
   const workspaceId = args.conversation.company_workspace_id;
   await assertOrgWorkspacePermission({ admin, user: args.user, workspaceId, permission: "manage_candidates" });

@@ -205,7 +205,10 @@ export type GmailCareerHistoryAnalysisResult =
     }
   | {
       status: "skipped";
-      reason: "connection_not_active" | "stale_integration";
+      reason:
+        | "connection_not_active"
+        | "stale_integration"
+        | "permissions_required";
     };
 
 export class GmailCareerHistoryRetryableError extends Error {
@@ -378,7 +381,13 @@ async function fetchAllSearchPages(args: {
       );
     }
     if (result.status !== "ok") {
-      return { emails: [], status: "connection_not_active" as const };
+      return {
+        emails: [],
+        status:
+          result.status === "permissions_required"
+            ? ("permissions_required" as const)
+            : ("connection_not_active" as const),
+      };
     }
     emails.push(...result.emails);
     nextPageToken = result.nextPageToken ?? undefined;
@@ -805,15 +814,13 @@ async function mergeCareerEntriesIntoMemories(args: {
   const messageDates = new Map(
     args.emails.map((email) => [email.messageId, email.receivedAt ?? null])
   );
-  const candidates = args.entries.map(
-    ({ evidenceMessageIds, ...entry }) => ({
-      ...entry,
-      evidence: evidenceMessageIds.map((messageId) => ({
-        at: messageDates.get(messageId) ?? null,
-        messageId,
-      })),
-    })
-  );
+  const candidates = args.entries.map(({ evidenceMessageIds, ...entry }) => ({
+    ...entry,
+    evidence: evidenceMessageIds.map((messageId) => ({
+      at: messageDates.get(messageId) ?? null,
+      messageId,
+    })),
+  }));
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -934,9 +941,7 @@ async function persistGmailCareerMemories(args: {
         });
         activeIds.push(
           ...result.applied
-            .filter(
-              (row) => row.collection === "memory" && !row.deleted_at
-            )
+            .filter((row) => row.collection === "memory" && !row.deleted_at)
             .map((row) => row.id)
         );
       }

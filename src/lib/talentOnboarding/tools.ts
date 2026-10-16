@@ -1,3 +1,4 @@
+import { withCompactTalentToolModelResult } from "./toolModelResult";
 import { formatToolError } from "@/lib/llm/toolError";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 import { buildCareerCoachingResultInstruction } from "@/lib/career/prompts/cases/coachingPrompts";
@@ -3319,7 +3320,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         keywords: {
           type: "array",
           description:
-            "One or two direct FTS keywords from the user's request, such as the distinctive role title term or company name. Split broad multi-word searches into separate key terms when exact AND matching is not intended; for example use ['CTO'] or ['Wonderful', 'CTO'] instead of ['Site CTO'] unless both words must appear.",
+            "One or two natural search expressions for the role title or company. Default lookup includes partial word matches and normalizes English word forms; roles matching more query terms and terms in the title rank first. Use distinctive role/company terms rather than broad location words. Related results are search candidates, not confirmed matches to the requested posting. With matchedOnly=true, words within each expression remain ANDed and expressions are ORed against stored fit-supported roles. If results do not identify the requested role, refine the terms; a limited keyword search is not proof that Harper has no connection to the posting.",
           items: {
             type: "string",
           },
@@ -4024,6 +4025,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         impactLevel: "high",
         ok: true,
         updatedSettingFields,
+        settings: {
+          getExternalRecommendation: updatePayload.getExternalRecommendation ?? existingSetting?.get_external_recommendation ?? true,
+          profileVisibility: updatePayload.profileVisibility ?? existingSetting?.profile_visibility ?? "exceptional_only",
+        },
       };
     },
   },
@@ -5227,12 +5232,15 @@ export async function executeTalentTool(args: {
   const startedAt = Date.now();
   try {
     const rawResult = await tool.execute(args.input, executionContext);
-    const result = withTalentToolAssistantInstruction(
-      tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
-        ? withRecommendJobPostingsAssistantInstruction(rawResult)
-        : rawResult,
-      tool.name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION &&
-        executionContext?.suppressCommonAssistantInstruction !== true
+    const result = withCompactTalentToolModelResult(
+      tool.name,
+      withTalentToolAssistantInstruction(
+        tool.name === TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS
+          ? withRecommendJobPostingsAssistantInstruction(rawResult)
+          : rawResult,
+        tool.name !== TALENT_TOOL_NAMES.SIMULATE_APPLICATION &&
+          executionContext?.suppressCommonAssistantInstruction !== true
+      )
     );
     if (shouldLog) {
       logTalentToolResult({

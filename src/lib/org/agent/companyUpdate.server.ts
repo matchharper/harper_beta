@@ -80,9 +80,30 @@ export type InlineSlackCompanyUpdate = {
   };
 };
 
+type ResearchCompanyUpdate = { researchKickoff: import("./roleSearchKickoff.server").RoleSearchKickoffRequest };
+
+type EmailCompanyUpdate = { emailDelivery: { recipientId: string; owner: string; admin?: import("@/lib/email/runtime/types").EmailAdmin } };
+export function enqueueCompanyUpdate(args: ResearchCompanyUpdate): Promise<{ jobId: string }>;
+export function enqueueCompanyUpdate(args: EmailCompanyUpdate): Promise<import("@/lib/email/companyConnectionDelivery").CompanyEmailJob | null>;
 export function enqueueCompanyUpdate(args: QueuedCompanyUpdate): Promise<{ jobId: string }>;
 export function enqueueCompanyUpdate(args: InlineSlackCompanyUpdate): Promise<{ slackUrl: string; threadId: string }>;
-export async function enqueueCompanyUpdate(args: QueuedCompanyUpdate | InlineSlackCompanyUpdate) {
+export async function enqueueCompanyUpdate(args: QueuedCompanyUpdate | InlineSlackCompanyUpdate | EmailCompanyUpdate | ResearchCompanyUpdate) {
+  if ("researchKickoff" in args) {
+    const request = args.researchKickoff;
+    const { assertRoleSearchKickoffAccess } = await import("./roleSearchKickoff.server");
+    await assertRoleSearchKickoffAccess(request);
+    const result = await enqueueOrgAgentWebActionTurn({
+      user: request.user, workspaceId: request.workspaceId, roleId: request.roleId,
+      actionName: "role_search_kickoff",
+      actionContext: { channelDbId: request.channelDbId },
+      idempotencyKey: `role-research:${request.workspaceId}:${request.roleId}:${request.user.id}:${request.requestId}`,
+    });
+    return { jobId: result.jobId };
+  }
+  if ("emailDelivery" in args) {
+    const { reserveCompanyConnectionEmail } = await import("@/lib/email/companyConnectionDelivery");
+    return reserveCompanyConnectionEmail(args.emailDelivery.recipientId, args.emailDelivery.owner, args.emailDelivery.admin);
+  }
   if ("slackDelivery" in args) {
     const target = args.slackDelivery;
     await assertOrgWorkspacePermission({ admin: getSupabaseAdmin(), user: args.user, workspaceId: args.workspaceId, permission: "manage_candidates" });

@@ -67,6 +67,18 @@ export async function completeRun(
     } as never
   );
   if (error) throw new Error(error.message);
+  // Completion RPCs deployed before this fix retain the previous attempt's error.
+  // Clear it only after successful durable completion, never on a running lease.
+  const { error: cleanupError } = await (
+    admin.from("external_recommendation_runs" as never) as any
+  )
+    .update({ error: null })
+    .eq("id", runId)
+    .eq("status", "completed");
+  if (cleanupError)
+    console.error("[external-recommendations] completed error cleanup failed", {
+      id: runId,
+    });
   return (data ?? []) as Array<{ id: string; role_id: string }>;
 }
 

@@ -546,3 +546,29 @@ test("decision result views distinguish email and direct contact outcomes", () =
   assert.match(direct, /직접 연락해 인사하고 다음 일정을 조율해 주세요/);
   assert.match(direct, /서로에게 좋은 기회가 되길 바랄게요/);
 });
+
+test("formatted links and inline code restore nested rendering tokens", () => {
+  assert.equal(markdownToSlackMrkdwn("**[Candidate profile](https://example.com/profile)**"), "*<https://example.com/profile|Candidate profile>*");
+  assert.equal(markdownToSlackMrkdwn("## [Role](https://example.com/role)"), "*<https://example.com/role|Role>*");
+  assert.equal(markdownToSlackMrkdwn("**Use `code`**"), "*Use `code`*");
+});
+
+test("native Slack HTTP links remain clickable without enabling mentions or HTML", () => {
+  const link = "<https://example.com/profile?a=1&b=2|Alex Example>";
+  assert.equal(markdownToSlackMrkdwn(link), link);
+  assert.equal(markdownToSlackMrkdwn("<https://example.com/profile>"), "<https://example.com/profile>");
+  assert.equal(markdownToSlackMrkdwn("<@U123> <!channel> <script>"), "&lt;@U123&gt; &lt;!channel&gt; &lt;script&gt;");
+  assert.equal(markdownToSlackMrkdwn("`" + link + "`"), "`&lt;https://example.com/profile?a=1&amp;b=2|Alex Example&gt;`");
+});
+
+test("long candidate bio keeps its profile link inside one modal section", () => {
+  const link = "<https://example.com/profile?candidate=123|Alex Example>";
+  const view = buildSlackTalentReviewCandidateView({
+    canManageCandidates: true, candidate: { ...CANDIDATE, bio: "x".repeat(2880) + link + " next" },
+    candidateCount: 1, candidateIndex: 0, sourceMessageId: 42,
+  }) as { blocks: Array<Record<string, any>> };
+  const texts = view.blocks.filter(b => b.block_id?.startsWith("review_bio_")).map(b => b.text.text);
+  assert.ok(texts.every(text => text.length <= 2900));
+  assert.ok(texts.some(text => text.includes(link)));
+  assert.equal(texts.join(""), "x".repeat(2880) + link + " next");
+});

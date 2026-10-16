@@ -1,16 +1,15 @@
 {
   "datasetVersion": "v29",
-  "frozenAt": "2026-10-15T14:04:04.835639+00:00",
+  "frozenAt": "2026-10-15T12:38:43.303077+00:00",
   "files": {
     "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
-    "cases-v29.json": "61fcce3df2c465d83eb1f45209d78361a95520f3d0c8a60848dd0a9f0ee1c4e7",
-    "gold-v29.md": "b185562a16bb554f857d108780ebf048e4291597916493ec5934e82464b4eed4",
+    "cases-v29.json": "3f0cae22cabfb29940698853bbf2a781858de671c136ed19d09e100eeef8896e",
+    "gold-v29.md": "2c6d725416e363e83d8a82d4e58455a7d5cf636a4381e2413d2738fca06675d5",
     "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
   },
-  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v29 --run=<fresh>",
-  "evaluationUnit": "3 synthetic one-turn Slack conversations",
-  "provenance": "Authored synthetic threads; shared v6 company context. No production identity or private conversation.",
-  "releaseGate": "3/3 manual semantics, exact expected contact/request effects, zero critical failures",
-  "privacy": "Provider receives synthetic inputs only. DB, Slack and email blocked; raw outputs in ignored owner-only runs.",
-  "knownLimitations": "Not yet run: the authoring environment had no OpenRouter key. Authored challenge; independent review pending."
+  "evaluationUnit": "one synthetic first-intro-reply event turn",
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v29 --run=<new>",
+  "privacy": "synthetic; model API only; no production DB or Slack/email writes",
+  "releaseGate": "manual semantic review; no fabricated facts or unauthorized effects",
+  "knownLimitations": "single example, isolated tools; not production transport E2E"
 }

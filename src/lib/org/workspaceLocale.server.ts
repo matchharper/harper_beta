@@ -15,7 +15,7 @@ export async function getOrgWorkspaceLocale(
     .eq("company_workspace_id", workspaceId)
     .single();
   if (workspaceError) throw workspaceError;
-  if (!workspace.company_db_id) return "en" as const;
+  if (!workspace.company_db_id) return localeFromHeadquarters(null);
   const { data: company, error: companyError } = await admin
     .from("company_db")
     .select("location")

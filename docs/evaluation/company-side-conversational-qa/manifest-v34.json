@@ -1,0 +1,21 @@
+{
+  "datasetVersion": "v34",
+  "frozenAt": "2026-10-15T14:04:04.835639+00:00",
+  "files": {
+    "cases-v6.json": "4239378c096d87d7162f05572f83fe9e8dd3a568be554c81c3aaa0c108039c2a",
+    "cases-v34.json": "204d93f365fff0a229c9fea0c89c05a5df3f07247c48df930b0f39aa620855d2",
+    "gold-v34.md": "e209bbce69bf8ea02d93817953ec8ac77e3d8f986409985b44ff0f463fd4136b",
+    "evaluation-contract-v1.md": "552d45850fb7504b3b150f33d5684b617aaa7e21872bdeb2084cf531de2c3e37"
+  },
+  "runner": "scripts/evalCompanyAgentCapabilities.ts --dataset=v34 --run=<fresh>",
+  "evaluationUnit": "3 synthetic one-turn Slack conversations",
+  "provenance": "Authored synthetic threads; shared v6 company context. No production identity or private conversation.",
+  "releaseGate": "3/3 manual semantics, exact expected contact/request effects, zero critical failures",
+  "privacy": "Provider receives synthetic inputs only. DB, Slack and email blocked; raw outputs in ignored owner-only runs.",
+  "knownLimitations": "Not yet run: the authoring environment had no OpenRouter key. Authored challenge; independent review pending.",
+  "renumberedFrom": {
+    "sourceRevision": "d9670b87090e27327f1a844f3693eea7555a5b9d",
+    "datasetVersion": "v29",
+    "reason": "Independent v29 filenames collided at release integration; scenarios and gold semantics unchanged."
+  }
+}

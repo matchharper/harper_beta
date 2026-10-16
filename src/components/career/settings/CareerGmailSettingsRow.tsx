@@ -1,5 +1,6 @@
 import { Ellipsis, Loader2, MailSearch, RefreshCw, Unplug } from "lucide-react";
 import Image from "next/image";
+import GmailPermissionsModal from "./GmailPermissionsModal";
 import { useRouter } from "next/router";
 import { showToast } from "@/components/toast/toast";
 import {
@@ -28,9 +29,28 @@ const CareerGmailSettingsRow = () => {
   const gmailConnectionSucceeded =
     router.isReady &&
     router.query[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] === "success";
+  const permissionsRequired =
+    gmailIntegration.status === "permissions_required";
+  const permissionsModalOpen =
+    router.isReady &&
+    router.query[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] === "permissions";
+  const setPermissionsModalOpen = () => {
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: {
+          ...router.query,
+          [GMAIL_CONNECTION_SUCCESS_QUERY_PARAM]: "permissions",
+        },
+      },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  };
   const gmailAnalysisRunning =
     gmailIntegration.pendingAction === "analyze" ||
-    isGmailCareerHistoryAnalysisRunning(gmailIntegration.analysisStatus);
+    (!permissionsRequired &&
+      isGmailCareerHistoryAnalysisRunning(gmailIntegration.analysisStatus));
   const connected = gmailIntegration.status === "active";
   const busy = gmailIntegration.pendingAction !== null || gmailAnalysisRunning;
   const showPrimaryConnectAction =
@@ -48,10 +68,10 @@ const CareerGmailSettingsRow = () => {
     );
   };
 
-  const handleGmailConnect = async () => {
+  const handleGmailConnect = async (resumeImport = false) => {
     logCareerEvent("click_resume_links_connect_gmail");
     try {
-      const result = await gmailIntegration.connect();
+      const result = await gmailIntegration.connect({ resumeImport });
       if (result?.connected) {
         logCareerEvent("gmail_connect_succeeded");
         setGmailConnectionSuccessModalOpen(true);
@@ -107,7 +127,11 @@ const CareerGmailSettingsRow = () => {
   const handleGmailAnalyze = async () => {
     logCareerEvent("click_resume_links_analyze_gmail");
     try {
-      await gmailIntegration.analyze();
+      const result = await gmailIntegration.analyze();
+      if (result.status === "permissions_required") {
+        setPermissionsModalOpen();
+        return false;
+      }
       showToast({
         message: t(
           "career.profile.resume_links.gmail_analysis_queued_toast",
@@ -134,6 +158,10 @@ const CareerGmailSettingsRow = () => {
       void handleGmailStatusRetry();
       return;
     }
+    if (permissionsRequired) {
+      setPermissionsModalOpen();
+      return;
+    }
     if (connected) {
       void handleGmailAnalyze();
       return;
@@ -145,28 +173,30 @@ const CareerGmailSettingsRow = () => {
     void handleGmailConnect();
   };
 
-  const statusText = gmailAnalysisRunning
-    ? t("career.profile.resume_links.gmail_analysis_running", "읽어오는 중")
-    : gmailIntegration.analysisStatus === "failed"
-      ? t(
-          "career.profile.resume_links.gmail_analysis_failed_status",
-          "읽어오기 실패"
-        )
-      : connected
-        ? t("career.profile.resume_links.gmail_connected", "연결됨")
-        : gmailIntegration.status === "error"
-          ? t(
-              "career.profile.resume_links.gmail_status_retry",
-              "상태 다시 확인"
-            )
-          : gmailIntegration.status === "disabled"
+  const statusText = permissionsRequired
+    ? t("career.profile.resume_links.gmail_permissions_required", "권한 필요")
+    : gmailAnalysisRunning
+      ? t("career.profile.resume_links.gmail_analysis_running", "읽어오는 중")
+      : gmailIntegration.analysisStatus === "failed"
+        ? t(
+            "career.profile.resume_links.gmail_analysis_failed_status",
+            "읽어오기 실패"
+          )
+        : connected
+          ? t("career.profile.resume_links.gmail_connected", "연결됨")
+          : gmailIntegration.status === "error"
             ? t(
-                "career.profile.resume_links.gmail_disconnect_retry",
-                "연결 해제 재시도"
+                "career.profile.resume_links.gmail_status_retry",
+                "상태 다시 확인"
               )
-            : gmailIntegration.status === "expired"
-              ? t("career.profile.resume_links.gmail_reconnect", "다시 연결")
-              : t("career.profile.resume_links.gmail_connect", "연동하기");
+            : gmailIntegration.status === "disabled"
+              ? t(
+                  "career.profile.resume_links.gmail_disconnect_retry",
+                  "연결 해제 재시도"
+                )
+              : gmailIntegration.status === "expired"
+                ? t("career.profile.resume_links.gmail_reconnect", "다시 연결")
+                : t("career.profile.resume_links.gmail_connect", "연동하기");
 
   return (
     <>
@@ -185,7 +215,9 @@ const CareerGmailSettingsRow = () => {
           )
         }
         title="Gmail"
-        meta={showPrimaryConnectAction ? null : statusText}
+        meta={
+          showPrimaryConnectAction || permissionsRequired ? null : statusText
+        }
         muted={false}
         className={
           showPrimaryConnectAction
@@ -193,7 +225,14 @@ const CareerGmailSettingsRow = () => {
             : undefined
         }
         badge={
-          connected ? (
+          permissionsRequired ? (
+            <Badge size="sm" tone="warning" variant="faded">
+              {t(
+                "career.profile.resume_links.gmail_permissions_required",
+                "권한 필요"
+              )}
+            </Badge>
+          ) : connected ? (
             <Badge size="sm" tone="positive" variant="faded">
               {t("career.profile.sources.connected", "연동")}
             </Badge>
@@ -206,7 +245,7 @@ const CareerGmailSettingsRow = () => {
         onActivate={activate}
         ariaLabel={`Gmail ${statusText}`}
         action={
-          connected ? (
+          connected || permissionsRequired ? (
             <ActionDropdown
               align="start"
               trigger={
@@ -225,9 +264,20 @@ const CareerGmailSettingsRow = () => {
                 </MuteButton>
               }
             >
-              <ActionDropdownItem onSelect={() => void handleGmailAnalyze()}>
+              <ActionDropdownItem
+                onSelect={() =>
+                  permissionsRequired
+                    ? setPermissionsModalOpen()
+                    : void handleGmailAnalyze()
+                }
+              >
                 <MailSearch className="h-4 w-4" />
-                {t("career.profile.resume_links.gmail_analyze", "읽어오기")}
+                {permissionsRequired
+                  ? t(
+                      "career.profile.resume_links.gmail_allow_access",
+                      "권한 허용하기"
+                    )
+                  : t("career.profile.resume_links.gmail_analyze", "읽어오기")}
               </ActionDropdownItem>
               <ActionDropdownItem
                 tone="danger"
@@ -241,6 +291,15 @@ const CareerGmailSettingsRow = () => {
             <RefreshCw className="m-1.5 h-3.5 w-3.5" aria-hidden="true" />
           ) : null
         }
+      />
+
+      <GmailPermissionsModal
+        open={permissionsModalOpen}
+        busy={busy}
+        onClose={() => {
+          if (!busy) setGmailConnectionSuccessModalOpen(false);
+        }}
+        onContinue={() => void handleGmailConnect(true)}
       />
 
       <GmailConnectionSuccessModal
