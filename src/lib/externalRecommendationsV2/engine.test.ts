@@ -258,9 +258,13 @@ test("daily current-context default reuses the complete plan and vectors without
     contextFingerprint: "same",
     plan: {
       roleTitles: ["Backend Engineer", "백엔드 엔지니어"],
+      searchIntentSummary: "Backend", ftsKeywords: [],
+      includeContract: false, includeIntern: false, includeParttime: false,
+      includeRemote: true, remoteOnly: false, isPreferEntry: 0, postingRecency: null,
+      locations: [], // Legacy saved default must not reintroduce this field.
       countries: [{ countryCode: "KR", weight: 1, remoteOnly: false }],
     },
-    titleVectors: [[1]],
+    titleVectors: [Array.from({ length: 1536 }, (_, i) => i === 0 ? 1 : 0)],
     targetSalaryKrw: 70,
 
     sql: "SQL template",
@@ -271,6 +275,7 @@ test("daily current-context default reuses the complete plan and vectors without
     {
       setting: { external_search_default: saved },
       contextFingerprint: "same",
+      blockedCompanies: [],
     } as any,
     async () => {
       calls++;
@@ -279,6 +284,9 @@ test("daily current-context default reuses the complete plan and vectors without
   );
   assert.equal(calls, 0);
   assert.equal(result.planCall, false);
+  assert.match(result.sql, /LIMIT 3000/);
+  assert.ok(result.sql.endsWith("LIMIT 500"));
+  assert.equal("locations" in result.plan, false);
   assert.equal(result.targetSalaryKrw, 70);
   assert.ok(!PLAN_PROMPT.includes("hard ILIKE gate"));
   await assert.rejects(
@@ -289,6 +297,7 @@ test("daily current-context default reuses the complete plan and vectors without
           external_search_default: { ...saved, titleVectors: [[1], [2]] },
         },
         contextFingerprint: "same",
+      blockedCompanies: [],
       } as any,
       async (_prompt, input) => {
         assert.ok(input.includes("reusable: false"));
@@ -357,51 +366,61 @@ test("planner reuse/explore/replace preserve the default contract and upgrade ou
     titleVectors: [Array.from({ length: 1536 }, (_, i) => (i === 0 ? 1 : 0))],
     sql: "Existing SQL",
   };
-  for (const defaultAction of ["reuse", "explore", "replace"] as const) {
-    let written: any;
-    const predicates: any[] = [];
-    const query = {
-      eq: (...v: any[]) => {
-        predicates.push(v);
-        return query;
-      },
-    };
-    const admin: any = {
-      from: () => ({
-        update: (value: any) => {
-          written = value;
+  for (const surface of ["web", "worker"] as const) {
+    for (const defaultAction of ["reuse", "explore", "replace"] as const) {
+      let written: any;
+      const predicates: any[] = [];
+      const query = {
+        eq: (...v: any[]) => {
+          predicates.push(v);
           return query;
         },
-      }),
-    };
-    const result = await getSearchPlan(
-      { ...args, admin, dryRun: false },
-      {
-        context: {},
-        setting: { external_search_default: saved },
-        contextFingerprint: "same",
-        blockedCompanies: [],
-      } as any,
-      async (_system, input) => {
-        assert.ok(input.includes("reusable: true"));
-        assert.ok(input.includes("Existing SQL"));
-        return {
-          defaultAction,
-          plan: defaultAction === "reuse" ? null : plan,
-          targetSalaryKrw: 70,
-        };
-      }
-    );
-    assert.equal(Boolean(written), defaultAction !== "explore");
-    assert.deepEqual(result.plan.countries, plan.countries);
-    if (written)
-      assert.ok(
-        predicates.some(
-          ([key, value]) =>
-            key === "external_search_default->>revision" &&
-            value === saved.revision
-        )
+      };
+      const admin: any = {
+        from: () => ({
+          update: (value: any) => {
+            written = value;
+            return query;
+          },
+        }),
+      };
+      const result = await getSearchPlan(
+        { ...args, surface, admin, dryRun: false },
+        {
+          context: {},
+          setting: { external_search_default: saved },
+          contextFingerprint: "same",
+          blockedCompanies: [],
+        } as any,
+        async (_system, input) => {
+          assert.ok(input.includes("reusable: true"));
+          assert.ok(input.includes("Existing SQL"));
+          assert.doesNotMatch(input, /locations/);
+          return {
+            defaultAction,
+            searchIntentSummary: "This run's search direction",
+            plan: defaultAction === "reuse" ? null : plan,
+            targetSalaryKrw: 70,
+          };
+        }
       );
+      assert.equal(Boolean(written), defaultAction !== "explore");
+      assert.deepEqual(result.plan.countries, plan.countries);
+      assert.equal("locations" in result.plan, false);
+      if (written)
+        assert.equal(
+          "locations" in written.external_search_default.plan,
+          false
+        );
+      if (written)
+        assert.ok(
+          predicates.some(
+            ([key, value]) =>
+              key === "external_search_default->>revision" &&
+              value === saved.revision
+          )
+        );
+    }
   }
   for (const previous of [
     {

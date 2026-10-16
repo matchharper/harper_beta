@@ -1,5 +1,46 @@
 # External 추천 V2 — 구현 및 적용 안내
 
+## 2026-10-16 공통 HNSW 검색 (로컬 코드, 미배포)
+
+`recommend_job_postings` 즉시 검색, `/ops/debugging/external-search`, opportunity worker V2의 양쪽 cohort와 추가 검색은 공통 `filterFirstSql.ts`를 사용한다. 정기/일일 V2도 같은 엔진을 사용한다. 아래 이전 배포·실험 기록의 제목 사전, 국가별 할당, RRF, 웹 200개 설명은 이 로컬 변경 이전의 동작이다.
+
+- 가용성·고용 형태·국가·원격·게시 기간·차단 회사·기추천·testOnly를 적용하고 `company_roles.title_embedding`에서 HNSW 후보 최대 3,000개를 찾는다. 게시 기간이 null이면 기간 제한을 추가하지 않는다. 명시된 `maxAgeDays`만 필터에 적용한다.
+- 국가 코드는 정확히 비교하고 국가별 remoteOnly를 유지한다. 국가별 ANN 결과를 거리순으로 합쳐 전체 N개를 선택하며 후보 수집 단계에는 국가 weight를 적용하지 않는다. 즉시 검색·Worker control의 planner도 countries만 생성하며, 새 내부 검색 API는 locations 입력을 받지 않는다. 도시 문자열로 국가를 추측하지 않는다.
+- 후보 N개 안에서 가중 FTS와 연봉 만족도를 계산한다. 점수는 `FTS/(1+FTS) + 0.35*(2*salaryUtility-1) + entryPreferenceScore + recencyScore`이며 동점은 제목 거리·게시일·ID로 정리한다. 급여 미상은 0.5로 중립이다. 신입·경력 선호와 게시일 가중치는 기존 조회의 점수를 재사용하며, ANN 후보 N개를 확정한 뒤에만 계산한다. 제목 embedding이 없거나 현재 제목과 불일치하는 공고는 제외한다.
+- 최종 점수를 계산한 후보에서 같은 `company_workspace_id`의 상위 3개만 남긴 뒤 국가 weight 비율로 최종 500/200개를 배분한다. 국가 안에서는 기존 점수순으로 선택하고 최종 표시도 같은 점수순이다. 예를 들어 KR 0.9/US 0.1이면 500개 중 450/50개가 목표이며, KR 후보가 300개뿐이면 US에서 200개를 채운다. 여러 국가의 후보가 부족해도 남은 국가에 가중치 비례로 재배분하고, 소수점은 최대 나머지 방식(동점은 입력 국가 순서)으로 처리한다. 추가 ANN 검색이나 DB 왕복은 없다. 동점은 제목 거리, 게시일(최신 우선·null 마지막), role ID 순으로 정리한다. 회사 이름이 같아도 workspace ID가 다르면 별도로 취급한다. 회사 다양성이 부족하면 결과가 한도보다 적을 수 있으며, 후보를 추가 검색하거나 회사별 한도를 풀지 않는다.
+- Ops와 Worker는 최종 500개, `recommend_job_postings` 즉시 검색은 최종 200개를 확정한 뒤 상세 공고와 회사 정보를 붙인다. 후보 HNSW 한도 3,000개는 동일하다. Worker 추가 검색은 같은 후보/정렬 방법으로 기존 추가 검색 한도 50개를 반환한다. 이후 fit/scoring/전달 방식은 유지한다.
+- Ops는 후보 N과 급여 가중치를 조절할 수 있고 기본값은 추천과 동일하다. HNSW/하드 필터 시간과 FTS/급여/최종 조회 시간을 별도로 표시한다. `/job-search-sql`의 원래 탭은 유지한다.
+- 운영에 이미 있는 `search_external_roles_filter_first` RPC와 halfvec HNSW 인덱스를 사용한다. RPC는 service_role 전용이며 planner/HNSW 설정은 호출 범위에 한정한다. SQL 제한은 50초다. 근사 검색의 scan budget과 좁은 필터 때문에 결과가 500개보다 적을 수 있다. 임베딩 backfill은 재시작하지 않았다.
+- Worker control은 새 내부 `/api/internal/external-recommendations/retrieve`를 호출한다. 향후 배포 시 **웹을 먼저 배포하고 endpoint 확인 후 Worker를 배포**해야 한다. 이번 작업에서는 배포·프로세스 재시작을 하지 않는다.
+
+국가 배분 추가 검증(로컬): 5개 국가·연속 부족·빈 후보·소수점 배분·200/500/50개 한도 등 12개 배분 사례와 회사별 제한 통합 SQL을 확인했다. 합성 후보 3,000개/5개 국가의 최종 선택 단계만 PGlite에서 3회 비교했을 때 기존 평균 0.96ms, 국가 배분 평균 7.03ms로 약 6.06ms 증가했다. 운영 Supabase 전체 검색 지연 측정은 아니다.
+
+최종 국가 전용 코드의 실제 DB 확인: KR 6.82초, US 5.72초, KR + US(remoteOnly) 6.05초에 각각 상세 공고 500개를 반환했다. 임베딩 생성·DB 왕복을 포함하며 query planner와 후속 fit 평가는 제외한다. DB/OS 캐시는 비우지 않았다. 잘못 포함했던 서울 문자열 조건의 측정은 국가 전용 검색 성능 결과에서 제외한다.
+
+추적 measurement version은 `filter-first-hnsw-2026-10-16-v1`이다. 결과 캐시로 검색을 대체하지 않으며 기존 저장 제목 vector는 재사용할 수 있다. 20초 절대 보장은 없고 Medium 전환 직후 측정에서도 첫 두 회는 20초를 넘었다. 운영 동시 부하와 cold cache는 별도 조건이다.
+
+## 2026-10-16 크롤러 직접 저장 전환 (코드 미배포)
+
+DB 적용 완료(2026-10-16): 운영 migration `20261016091449`
+(`crawler_owned_role_title_embeddings`)로 제목 사전 등록·활성 개수 유지 트리거 2개를
+제거했다. 해당 트리거가 0개이며 새 제목과 일치하는 벡터를 보존하는 함수가 적용된
+것을 확인했다. 진행 중인 작업은 강제 중단하지 않았다. 웹·크롤러 코드는 미배포다.
+
+새 코드에서 제목 임베딩의 저장·검색 원본은 `company_roles.title_embedding`과
+`title_embedding_text`다. `data_sc`가 공고를 신규 저장하거나 제목을 포함해 수정할 때
+`text-embedding-3-small` 1536차원 벡터를 먼저 생성하고 공고와 함께 저장한다.
+상태·위치만 갱신하는 경로는 기존 벡터를 보존하며 과거 누락 행을 일괄 보충하지 않는다.
+별도 제목 사전에 등록하는 두 트리거는 `crawler_owned_role_title_embeddings` DB 변경으로
+제거하며, 제목 변경 시 함께 공급한 새 벡터는 보존한다.
+
+초기 전환안(상단 공통 HNSW 변경 이전)은 공고 벡터에서 최대 5,000개 역할을 회수한 뒤 같은 제목을
+묶는다. 이전 5,000개 고유 제목 한도와는 다르므로 같은 제목의 공고가 많은 경우
+제목 다양성이 줄 수 있다. 임베딩이 없는 공고의 FTS 경로와 가용성 검증은 유지한다.
+정기 임베딩 cron은 제거하고 수동 복구 API만 공고 행에 직접 저장하도록 바꿨다.
+아래 제목 사전·시간당/5분 주기 설명은 전환 이전 운영 기록이다. DB 반영만으로
+웹·수집기 코드가 배포되지는 않으며, 기존 웹 검색은 배포 전까지 별도 사전을 읽는다.
+
+
 문서 기준: 2026-10-16. 기존 DB 구조와 제목 embedding에 이어 beta `d30ff764`와 Worker `d007a57`를 운영 반영했다. 이번 배포에서 제목 embedding을 다시 채우거나 평가를 다시 실행하지 않았다. 실제 검증 결과·한계는 평가 registry에 기록한다.
 
 ## 실험과 모델
@@ -105,7 +146,7 @@ Rerank 출력은 identifier와 `recommendationNote` 하나다. 최대2–3문장
 
 경로 변경은 여러 단계의 시간을 포함하므로 end-to-end 운영 p50/p95와 사용자 행동이 최종 근거다. 작은 synthetic 모델 호출 비용/속도는 운영 200/500개 전체 비용·품질의 증거가 아니다.
 
-기존 planner prompt는 `legacyPlanner.v1.json`에 복사해 보존하고 V2 변경을 그 위에 적용한다. 웹 채팅의 비동기 bulk 요청도 실행 장소와 관계없이 웹 예산(평가200개·요약 한 번)을 따른다.
+V2 planner prompt는 `prompts.ts`에 직접 정의하며, 국가 조건은 `countries`로 표현하고 `locations` 필드는 출력·반환하지 않는다. `legacyPlanner.v1.json`은 과거 prompt 보존본이다. 웹 채팅의 비동기 bulk 요청도 실행 장소와 관계없이 웹 예산(평가200개·요약 한 번)을 따른다.
 
 실데이터 반복 실행·500개 평가·DB 작업 결과는 [운영 표본 검증 기록](evaluation/external-recommendations-v2/results-production-pilot-2026-10-14.md)에 있다. 로컬 검증과 실제 합성 API 호출 결과는 [2026-10-14 검증 기록](evaluation/external-recommendations-v2/results-2026-10-14.md)에 있다. DB 적용·backfill 이후 실제 인증·queue를 포함한 배포 후 smoke check와 온라인 측정은 별도로 필요하다.
 

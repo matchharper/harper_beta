@@ -1,3 +1,4 @@
+import { SEARCH_RESULT_LIMIT } from "./searchDefaults";
 import salaryFx from "./salaryFx.json";
 import { fillExternalRoleSalaries } from "./salaryEstimation.server";
 import { countriesSchema, type V2SearchPlan } from "./countries";
@@ -117,7 +118,6 @@ function parsePlan(raw: unknown): V2SearchPlan {
     includeRemote: p.includeRemote,
     remoteOnly: p.remoteOnly,
     isPreferEntry: p.is_prefer_entry,
-    locations: [],
     countries: p.countries,
     postingRecency: p.postingRecency,
   };
@@ -172,11 +172,21 @@ function roleSourceHash(card: RoleCard) {
 export async function getSearchPlan(
   args: EngineArgs,
   loaded: Awaited<ReturnType<typeof loadExternalContext>>,
-  complete = jsonCall
+  complete = jsonCall,
+  embed = embedSearchTitles
 ) {
-  const saved = loaded.setting?.external_search_default as
+  let saved = loaded.setting?.external_search_default as
     | SearchDefault
     | undefined;
+  // Older defaults carried an unused locations array. Do not feed it back to
+  // the planner or return/persist it when reusing their country-based plan.
+  if (saved) {
+    const { locations: _legacyLocations, ...plan } =
+      saved.plan as V2SearchPlan & {
+        locations?: unknown;
+      };
+    saved = { ...saved, plan };
+  }
   const usable =
     saved?.version === SEARCH_PLAN_VERSION &&
     countriesSchema.safeParse(saved.plan?.countries).success &&
@@ -189,7 +199,13 @@ export async function getSearchPlan(
     args.reuseDefault &&
     usable?.contextFingerprint === loaded.contextFingerprint
   )
-    return { ...usable, defaultAction: "reuse", planCall: false };
+    return {
+      ...usable,
+      sql: buildHybridSql({ plan: usable.plan, vectors: usable.titleVectors,
+        userId: args.userId, blockedCompanies: loaded.blockedCompanies,
+        limit: SEARCH_RESULT_LIMIT, template: true, targetSalaryKrw: usable.targetSalaryKrw }),
+      defaultAction: "reuse", planCall: false,
+    };
   const decisionSchema =
     args.surface === "worker"
       ? planDecisionSchema.extend({
@@ -232,13 +248,13 @@ export async function getSearchPlan(
       saved.plan?.roleTitles.length === 1) &&
     JSON.stringify(plan.roleTitles) === JSON.stringify(saved?.plan?.roleTitles)
       ? saved.titleVectors
-      : await embedSearchTitles(plan.roleTitles, args.signal);
+      : await embed(plan.roleTitles, args.signal);
   const sql = buildHybridSql({
     plan,
     vectors: titleVectors,
     userId: args.userId,
     blockedCompanies: loaded.blockedCompanies,
-    limit: args.surface === "worker" ? 500 : 200,
+    limit: SEARCH_RESULT_LIMIT,
     template: true,
     targetSalaryKrw: result.targetSalaryKrw,
   });
@@ -624,7 +640,7 @@ export async function runExternalV2(
       vectors: plan.titleVectors,
       userId: args.userId,
       blockedCompanies: loaded.blockedCompanies,
-      limit: args.surface === "worker" ? 500 : 200,
+      limit: SEARCH_RESULT_LIMIT,
       signal: args.signal,
     });
     metrics.retrievalMs = Date.now() - retrievalStarted;

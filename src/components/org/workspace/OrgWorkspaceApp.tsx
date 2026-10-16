@@ -122,7 +122,7 @@ export function OrgWorkspaceApp({
 
   const pageTitle = isRoleWorkspacePage
     ? `${workspace.companyName} · ${page === "new-role" ? c("새 역할 등록", "Create new role") : c("역할", "Role")}`
-    : `${workspace.companyName} · ${page[0].toUpperCase()}${page.slice(1)}`;
+    : `${workspace.companyName} · ${page === "personal-settings" ? c("개인 설정", "Personal settings") : `${page[0].toUpperCase()}${page.slice(1)}`}`;
   const requiresOnboarding =
     (!contextValue.internalOpsAccess ||
       isAdditionalOrgCreator(workspace.signupState, user.id)) &&

@@ -251,15 +251,16 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
       const previous = decisions.get(key);
       const recipients = x.introRecipientEmails ?? x.introEmails ?? previous?.recipients ?? ["user@example.invalid"];
       const appeal = x.companyAppeal ?? previous?.appeal;
+      const notifyCandidateOnClosure = x.notifyCandidateOnClosure ?? previous?.notifyCandidateOnClosure ?? true;
       if (intro && x.decision === "request_intro" && !appeal) {
         result = { status: "missing_inputs", candidateName: c.name, roleName: role.name, missingInputs: ["companyAppeal"] };
       } else if (!previous || previous.sourceId === currentSourceId || args.name === "prepare_candidate_connection") {
-        decisions.set(key, { sourceId: currentSourceId, recipients, appeal });
-        result = { status: "confirmation_required", candidateName: c.name, roleName: role.name, decision: x.decision, currentStage: c.stage, connectionMethod: x.connectionMethod ?? "intro_email", introEmails: recipients, introRecipientEmails: recipients, companyAppeal: appeal, nextStageName: "연결됨", requestedStage: "connected", nextProcess: intro ? "후보자가 수락하면 소개 이메일로 연결하고 연결됨으로 이동" : "수락하면 소개 이메일로 연결하고 연결됨으로 이동" };
+        decisions.set(key, { sourceId: currentSourceId, recipients, appeal, notifyCandidateOnClosure });
+        result = { status: "confirmation_required", notifyCandidateOnClosure, candidateName: c.name, roleName: role.name, decision: x.decision, currentStage: c.stage, connectionMethod: x.connectionMethod ?? "intro_email", introEmails: recipients, introRecipientEmails: recipients, companyAppeal: appeal, nextStageName: "연결됨", requestedStage: "connected", nextProcess: intro ? "후보자가 수락하면 소개 이메일로 연결하고 연결됨으로 이동" : "수락하면 소개 이메일로 연결하고 연결됨으로 이동" };
       } else {
-        c.stage = intro ? "intro_requested" : "connected";
-        effects.push({ name: args.name, input: x, stage: c.stage });
-        result = { status: intro ? "requested" : "updated", candidateName: c.name, roleName: role.name, decision: x.decision, connectionMethod: x.connectionMethod ?? "intro_email", stage: c.stage, introRecipientEmails: recipients, introEmails: recipients, nextStageName: "연결됨", candidateMessageSent: false, nextProcess: intro ? "후보자에게 회사의 제안을 전달하고 수락 시 소개 이메일로 연결" : "소개 이메일로 양쪽을 연결" };
+        c.stage = intro ? "intro_requested" : x.decision === "decline" ? "process_stopped" : "connected";
+        effects.push({ name: args.name, input: x, stage: c.stage, notifyCandidateOnClosure });
+        result = { status: intro ? "requested" : "updated", notifyCandidateOnClosure, candidateName: c.name, roleName: role.name, decision: x.decision, connectionMethod: x.connectionMethod ?? "intro_email", stage: c.stage, introRecipientEmails: recipients, introEmails: recipients, nextStageName: "연결됨", candidateMessageSent: false, nextProcess: intro ? "후보자에게 회사의 제안을 전달하고 수락 시 소개 이메일로 연결" : "소개 이메일로 양쪽을 연결" };
       }
     } else if (args.name === "move_candidate_stage") {
       assertRole(x.roleId); const c = candidate(x.talentId);

@@ -246,11 +246,11 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.role-visibility.answer":
     "Description is the public explanation candidates use to understand the company and Role. Hiring Brief and Evaluation Criteria are internal review criteria; Context for Harper holds lasting company or Role context. Internal documents are not automatically shown as a public JD. New Roles start with a Description and Hiring Brief; Evaluation Criteria can be added when needed. Updating one document does not automatically rewrite all the others. Keep work and employment conditions candidates need in Description, and review external job visibility and company-name disclosure separately in Role Settings.",
   "shared.5f41a68b":
-    "Request an intro to a candidate who has not accepted this role yet. They may have a previous recommendation or rejection on file. The candidate moves to Intro requested.",
+    "You can request an Intro to a candidate who has not accepted this role yet. They may have received or declined a previous Harper recommendation. When you request an Intro, Harper delivers your proposal to the candidate.",
   "shared.b7c09ff5":
-    "Your team requested an intro. Harper presents the role and waits for the candidate's reply. If they accept, Harper sends an intro email and moves them to Connected.",
+    "Your company has requested an Intro. Harper prepares and delivers the proposal, then waits for the candidate’s response. If they accept, the status changes to Connected and Harper proceeds with the email introduction.",
   "shared.01f06f3c":
-    "The candidate accepted this role and is waiting for your decision. Choose Connect to select Email intro or Direct contact.",
+    "The candidate accepted Harper’s recommendation for this role and is waiting for your company’s decision. Accept the connection or request an interview so Harper can connect you and help you move forward.",
   "shared.58ae8bef": "Candidate accepted · preparing connection",
   "shared.25da2e1a": "Awaiting candidate response",
   "shared.company_intro_closed": "Proposal closed",
@@ -672,4 +672,14 @@ export const en: Record<OrgMessageKey, string> = {
   "documents.eyebrow.candidate-search": "Search settings and history",
   "documents.eyebrow.slots-and-credits": "Access and pricing",
   "documents.eyebrow.public-job-visibility": "Publication settings",
+  "shared.stageDescription.accepted":
+    "The candidate has accepted the role, but it has not yet moved to the stage where your company decides whether to connect. This internal status tracks Harper’s follow-up processing; it does not require a separate team member’s approval.",
+  "shared.stageDescription.connected":
+    "The candidate has accepted your company’s Intro, or your company has agreed to connect after the candidate accepted the role. The email introduction or next connection step may still be in progress. Check Pipeline for the current hiring stage.",
+  "shared.stageDescription.intro_declined":
+    "The candidate declined your company’s Intro proposal, ending this proposal. This is different from waiting for a response.",
+  "shared.stageDescription.process_stopped":
+    "The process for this role has ended. This includes cases where your company declined to connect. See the candidate’s details for the reason and previous activity.",
+  "shared.stageDescription.decision_made":
+    "A decision has been recorded for this candidate. See the candidate’s details for the decision and activity history.",
 };

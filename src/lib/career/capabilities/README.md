@@ -4,7 +4,7 @@ Post-onboarding text only. `server.ts` is shared by the web route and server tex
 
 ## Modes
 
-`CAREER_CHAT_CAPABILITY_MODE=progressive` enables progressive loading. Unset/unknown/`full` offers the full existing eligible selection. The value is captured once per source user turn. Voice, onboarding and explicit tool-free calls retain their existing paths. Nothing here deploys or migrates a database.
+Progressive loading is the default, including when `CAREER_CHAT_CAPABILITY_MODE` is unset or unknown. Only `CAREER_CHAT_CAPABILITY_MODE=full` offers the full existing eligible selection. The value is captured once per source user turn. Voice, onboarding and explicit tool-free calls retain their existing paths. Nothing here deploys or migrates a database.
 
 - Default domain tools: profile/context/settings (5) + `research_company`.
 - Nine deferred capabilities: active application support (1), opportunities (3 subsequent completed turns), company contact (2), web research (1), documents (2), resume authoring (3), coaching (3), activity history (1), connected inbox (1).

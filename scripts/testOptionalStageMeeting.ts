@@ -152,6 +152,14 @@ async function main() {
   assert.equal(writes[0].p_idempotency_key, writes[1].p_idempotency_key);
   assert.notEqual(writes[0].p_idempotency_key, writes[2].p_idempotency_key);
   assert.equal(writes[0].p_meeting_config_snapshot.processStageId, null);
+  for (let retry = 0; retry < 2; retry++) {
+    await createMeetingScheduleDraft({ ...base, admin, draft: prepared.draft, sourceCompanyMessageId: null, webRequestKey: "initial-connection" });
+  }
+  assert.equal(writes[3].p_source_company_message_id, null);
+  assert.equal(writes[3].p_idempotency_key, writes[4].p_idempotency_key);
+  assert.notEqual(writes[0].p_idempotency_key, writes[3].p_idempotency_key);
+  await assert.rejects(createMeetingScheduleDraft({ ...base, admin, draft: prepared.draft, sourceCompanyMessageId: null }));
+
   await assert.rejects(
     prepareMeetingScheduleDraftForStage({
       ...base,

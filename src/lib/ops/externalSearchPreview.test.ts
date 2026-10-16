@@ -1,123 +1,242 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createPreviewPlanCache,
+  createPreviewVectorCache,
   previewExternalSearch,
 } from "./externalSearchPreview.server";
+import {
+  externalSearchPreviewRequest,
+  type PreviewQuery,
+} from "./externalSearchPreview";
 
 type Dependencies = NonNullable<Parameters<typeof previewExternalSearch>[2]>;
 const userId = "00000000-0000-4000-8000-000000000001";
-
-test("Ops reuses only unchanged completed plans; context, user, saved default and expiry invalidate", async () => {
-  let calls = 0,
-    time = 0;
-  const cache = createPreviewPlanCache(
-    async () => {
-      calls++;
-      return {
-        plan: { roleTitles: ["Backend"] },
-        titleVectors: [[1]],
-        targetSalaryKrw: 100e6,
-        planCall: true,
-      } as any;
-    },
-    () => time
-  );
-  const args = { userId } as any;
-  const loaded = { contextFingerprint: "v1", setting: {} } as any;
-  const first = await cache(args, loaded);
-  first.plan.roleTitles[0] = "mutated";
-  const second = await cache(args, loaded);
-  assert.equal(calls, 1);
-  assert.equal(second.planCall, false);
-  assert.equal(second.plan.roleTitles[0], "Backend");
-  await cache(args, { ...loaded, contextFingerprint: "v2" });
-  await cache({ ...args, userId: "another" }, loaded);
-  await cache(args, {
-    ...loaded,
-    setting: { external_search_default: { revision: "new" } },
-  });
-  assert.equal(calls, 4);
-  time = 5 * 60_000;
-  await cache(args, loaded);
-  assert.equal(calls, 5);
+const vector = Array.from({ length: 1536 }, (_, i) => (i === 0 ? 1 : 0));
+export const query: PreviewQuery = {
+  plan: {
+    searchIntentSummary: "Synthetic backend",
+    roleTitles: ["Backend"],
+    ftsKeywords: [{ terms: ["backend"], weight: 1 }],
+    countries: [
+      { countryCode: "KR", weight: 100, remoteOnly: false },
+      { countryCode: "US", weight: 1, remoteOnly: true },
+    ],
+    includeContract: false,
+    includeIntern: false,
+    includeParttime: false,
+    includeRemote: true,
+    remoteOnly: false,
+    isPreferEntry: 0,
+    postingRecency: null,
+  },
+  targetSalaryKrw: null,
+};
+function dependencies(): Dependencies {
+  const forbidden = async () => {
+    throw new Error("Unexpected paid/planner call");
+  };
+  const cache = createPreviewVectorCache();
+  cache.set(userId, query.plan.roleTitles, [vector]);
+  return {
+    getSupabaseAdmin: () => ({}) as any,
+    loadExternalContext: async () => ({ blockedCompanies: ["Blocked"] }) as any,
+    getSearchPlan: forbidden,
+    complete: forbidden,
+    embedSearchTitles: forbidden,
+    vectorsCache: cache,
+    execute: async () => [{ rows: [], counts: { candidates: 0 }, timings: { candidateSearchMs: 0, rerankMs: 0 } }],
+  };
+}
+test("vector cache separates users/titles, clones values, and expires", () => {
+  let time = 0;
+  const cache = createPreviewVectorCache(() => time);
+  cache.set(userId, ["Backend"], [vector]);
+  assert.equal(cache.get("other", ["Backend"]), undefined);
+  assert.equal(cache.get(userId, ["Frontend"]), undefined);
+  cache.get(userId, ["Backend"])![0][0] = 99;
+  assert.equal(cache.get(userId, ["Backend"])![0][0], 1);
+  time = 300000;
+  assert.equal(cache.get(userId, ["Backend"]), undefined);
 });
-
-test("preview uses the selected user's runtime plan without saving and retains retrieval order", async () => {
-  const loaded = {
-    context: { search_brief: [{ content: "Current criteria" }] },
-    blockedCompanies: ["Blocked company"],
-  } as Awaited<ReturnType<Dependencies["loadExternalContext"]>>;
-  const plan = {
-    plan: { roleTitles: ["Engineer"] },
-    titleVectors: [[0.5]],
-    targetSalaryKrw: 100_000_000,
-  } as Awaited<ReturnType<Dependencies["getSearchPlan"]>>;
-  const admin = {} as ReturnType<Dependencies["getSupabaseAdmin"]>;
-  const result = await previewExternalSearch({ talentId: userId }, undefined, {
-    getSupabaseAdmin: () => admin,
-    loadExternalContext: async (client, id) => {
-      assert.equal(client, admin);
-      assert.equal(id, userId);
-      return loaded;
-    },
-    getSearchPlan: async (args, context) => {
-      assert.equal(args.userId, userId);
-      assert.equal(args.dryRun, true);
-      assert.equal(args.surface, "worker");
-      assert.equal(context, loaded);
-      return plan;
-    },
-    retrieveRoles: async (args) => {
-      assert.equal(args.userId, userId);
-      assert.equal(args.plan, plan.plan);
-      assert.equal(args.vectors, plan.titleVectors);
-      assert.equal(args.targetSalaryKrw, 100_000_000);
-      assert.equal(args.blockedCompanies, loaded.blockedCompanies);
-      assert.equal(args.limit, 500);
-      assert.equal(args.listOnly, true);
-      return {
-        sql: "private SQL",
-        rows: [
-          {
-            role_id: "second",
-            role_name: "Engineer",
-            salary_min: 80_000_000,
-            salary_max: 120_000_000,
-            salary_currency: "KRW",
-            salary_period: "year",
-            salary_is_predicted: true,
-            description: "Full JD should not reach the browser",
-          },
-          { role_id: "first", role_name: "Developer" },
-        ],
-      };
-    },
-  });
-  assert.deepEqual(
-    result.rows.map((row) => row.roleId),
-    ["second", "first"]
+test("manual query uses shared HNSW retrieval, fresh eligibility and cached vector", async () => {
+  const deps = dependencies();
+  deps.execute = async (_admin, sql) => {
+    assert.doesNotMatch(sql, /country_targets|nearest_titles/);
+    assert.match(sql, /halfvec\(1536\)/);
+    assert.match(sql, /Blocked/);
+    assert.match(sql, /0.9 \* \(2 \* salary_utility - 1\)/);
+    assert.match(sql, /LIMIT 500/);
+    return [{ counts: { candidates: 1 }, timings: { candidateSearchMs: 1, rerankMs: 2 }, rows: [
+      {
+        role_id: "role",
+        role_name: "Backend",
+        salary_min: 80000000,
+        salary_currency: "KRW",
+        salary_period: "year",
+        description: "not returned",
+      },
+    ] }];
+  };
+  const result = await previewExternalSearch(
+    { talentId: userId, action: "search", query, salaryWeight: 0.9 },
+    undefined,
+    deps
   );
-  assert.equal(result.rows[0].salaryIsPredicted, true);
-  assert.equal(result.rows[0].salaryMinKrw, 80_000_000);
-  assert.equal(result.rows[1].salaryMinKrw, null);
-  assert.equal(result.rows[1].salaryMaxKrw, null);
-  assert.ok(!JSON.stringify(result).includes("Full JD"));
-  assert.ok(!JSON.stringify(result).includes("private SQL"));
+  assert.equal(result.error, null);
+  assert.equal(result.embeddingReused, true);
+  assert.equal(result.rows[0].salaryMinKrw, 80000000);
+  assert.equal(result.calls.length, 0);
+  assert.equal(result.sql.length, 1);
+  assert.ok(!JSON.stringify(result).includes("not returned"));
 });
-
-test("invalid user identifiers stop before data access or paid calls", async () => {
-  const forbidden = () => {
+test("timeout retains SQL, successful stages and failing-stage duration", async () => {
+  const deps = dependencies();
+  deps.execute = async () => {
+    throw new Error("statement timeout");
+  };
+  const result = await previewExternalSearch(
+    { talentId: userId, action: "search", method: "filter_first", query },
+    undefined,
+    deps
+  );
+  assert.equal(result.error, "statement timeout");
+  assert.equal(result.sql.length, 1);
+  assert.equal(result.timings.at(-1)?.status, "error");
+  assert.ok(result.totalMs >= 0);
+  assert.deepEqual(result.query, query);
+});
+test("invalid query/SQL, N and contradictory filters fail before reads or paid calls", async () => {
+  const deps = dependencies();
+  deps.getSupabaseAdmin = () => {
     throw new Error("Must not access data");
   };
-  await assert.rejects(
-    previewExternalSearch({ talentId: "not-an-id" }, undefined, {
-      getSupabaseAdmin: forbidden,
-      loadExternalContext: forbidden,
-      getSearchPlan: forbidden,
-      retrieveRoles: forbidden,
-    }),
-    (error: unknown) =>
-      error instanceof Error && "status" in error && error.status === 400
+  for (const input of [
+    { talentId: "bad" },
+    { talentId: userId, action: "search" },
+    {
+      talentId: userId,
+      action: "search",
+      query,
+      sql: "delete from company_roles",
+    },
+    { talentId: userId, action: "search", query, candidateLimit: 0 },
+    {
+      talentId: userId,
+      action: "search",
+      query: { ...query, plan: { ...query.plan, includeRemote: false } },
+    },
+  ])
+    await assert.rejects(
+      previewExternalSearch(input, undefined, deps),
+      (e: any) => e.status === 400
+    );
+  assert.equal(
+    externalSearchPreviewRequest.safeParse({
+      talentId: userId,
+      query: { ...query, plan: { ...query.plan, surpriseSql: "select 1" } },
+    }).success,
+    false
   );
+});
+test("old editor JSON drops the empty locations field before search and response", async () => {
+  const legacy = { ...query, plan: { ...query.plan, locations: [] } };
+  const result = await previewExternalSearch(
+    { talentId: userId, action: "search", query: legacy },
+    undefined,
+    dependencies()
+  );
+  assert.equal(result.error, null);
+  assert.deepEqual(result.query, query);
+  assert.equal("locations" in result.query!.plan, false);
+  for (const fields of [
+    { locations: ["Seoul"] },
+    { locations: [], surpriseSql: "select 1" },
+  ]) {
+    assert.equal(
+      externalSearchPreviewRequest.safeParse({
+        talentId: userId,
+        action: "search",
+        query: { ...query, plan: { ...query.plan, ...fields } },
+      }).success,
+      false
+    );
+  }
+});
+test("prepare is dry-run and captures raw planner output, model, usage, vectors", async () => {
+  const deps = dependencies();
+  deps.complete = async (args) => {
+    args.onUsage?.({
+      model: "gpt-6-luna",
+      usage: { prompt_tokens: 100, completion_tokens: 10 },
+    });
+    return '{"defaultAction":"reuse"}';
+  };
+  deps.getSearchPlan = async (args, _loaded, complete) => {
+    assert.equal(args.dryRun, true);
+    assert.equal(args.surface, "worker");
+    await complete!("system", "input", "plan");
+    return {
+      plan: query.plan,
+      titleVectors: [vector],
+      targetSalaryKrw: null,
+    } as any;
+  };
+  const result = await previewExternalSearch(
+    { talentId: userId, action: "prepare" },
+    undefined,
+    deps
+  );
+  assert.equal(result.error, null);
+  assert.equal(result.rawOutput, '{"defaultAction":"reuse"}');
+  assert.equal(result.calls[0].model, "gpt-6-luna");
+  assert.equal(result.calls[0].inputTokens, 100);
+  assert.ok(result.calls[0].estimatedCostUsd !== null);
+  assert.equal(result.rows.length, 0);
+});
+
+test("editing title query refreshes only the embedding and records its cost and DB stages", async () => {
+  const deps = dependencies();
+  let embeddingCalls = 0;
+  deps.embedSearchTitles = async (titles, _signal, onUsage) => {
+    embeddingCalls++;
+    assert.deepEqual(titles, ["Changed title"]);
+    onUsage?.({ prompt_tokens: 10, total_tokens: 10 }, 12);
+    return [vector];
+  };
+  deps.execute = async () => [
+    {
+      rows: [],
+      counts: {
+        eligible: 12,
+        embedded: 0,
+        missingEmbedding: 12,
+        candidates: 0,
+      },
+      timings: { candidateSearchMs: 4, rerankMs: 5 },
+    },
+  ];
+  const edited = {
+    ...query,
+    plan: { ...query.plan, roleTitles: ["Changed title"] },
+  };
+  const request = {
+    talentId: userId,
+    action: "search",
+    method: "filter_first",
+    query: edited,
+  };
+  const first = await previewExternalSearch(request, undefined, deps);
+  assert.equal(first.error, null);
+  assert.equal(embeddingCalls, 1);
+  assert.equal(first.embeddingReused, false);
+  assert.ok(Math.abs(first.calls[0].estimatedCostUsd! - 0.0000002) < 1e-12);
+  assert.equal(first.counts.missingEmbedding, 12);
+  assert.deepEqual(
+    first.timings.filter((t) => t.scope === "database").map((t) => t.ms),
+    [4, 5]
+  );
+  const second = await previewExternalSearch(request, undefined, deps);
+  assert.equal(second.embeddingReused, true);
+  assert.equal(embeddingCalls, 1);
+  assert.equal(second.calls.length, 0);
 });

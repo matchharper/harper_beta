@@ -17,7 +17,11 @@ export function OrgPageLoading({ page }: { page?: OrgWorkspacePageId }) {
   const { locale } = useOrgLocale();
   return (
     <div role="status" aria-busy="true" className="space-y-8">
-      {page && titles[page] ? (
+      {page === "personal-settings" ? (
+        <h1 className="text-[20px] font-medium text-neutral-primary">
+          {locale === "ko" ? "개인 설정" : "Personal settings"}
+        </h1>
+      ) : page && titles[page] ? (
         <h1 className="text-[24px] font-medium text-neutral-primary">
           {titles[page]}
         </h1>

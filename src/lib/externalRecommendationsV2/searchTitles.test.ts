@@ -47,7 +47,6 @@ test("localized role titles share one comma-joined embedding and one ANN lookup"
       includeRemote: true,
       remoteOnly: false,
       isPreferEntry: 0 as const,
-      locations: [],
       countries: [{ countryCode: "KR", weight: 1, remoteOnly: false }],
       postingRecency: null,
     },
@@ -57,31 +56,45 @@ test("localized role titles share one comma-joined embedding and one ANN lookup"
     limit: 200 as const,
   };
   const sql = buildHybridSql(args);
-  const neighbors = [
-    { title_key: "synthetic-key", title: "Engineer's role", distance: 0.2 },
-  ];
   const calls: string[] = [];
+  const names: string[] = [];
   const admin = {
-    rpc: async (_name: string, payload: { p_sql: string }) => {
-      calls.push(payload.p_sql);
-        return { data: calls.length === 1 ? [{ title_neighbors: neighbors }] : [], error: null };
+    rpc: async (name: string, payload: { p_sql: string }) => {
+      names.push(name); calls.push(payload.p_sql);
+      return { data: [], error: null };
     },
   } as any;
   await retrieveRoles({ ...args, admin });
-  assert.equal(calls.length, 2);
-  assert.match(calls[0], /LIMIT 5000/);
-  assert.doesNotMatch(calls[0], /company_roles/);
-  assert.match(calls[1], /jsonb_to_recordset/);
-  assert.match(calls[1], /Engineer''s role/);
-  assert.doesNotMatch(calls[1], /OPERATOR\(public\.<=>\)/);
-  assert.match(calls[1], /testOnly/);
-  assert.match(calls[1], /talent_opportunity_recommendation/);
-  assert.equal((sql.match(/nearest_\d+ AS MATERIALIZED/g) ?? []).length, 1);
+  assert.deepEqual(names, ["search_external_roles_filter_first"]);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0], /ORDER BY distance LIMIT 3000/);
+  assert.match(calls[0], /company_roles/);
+  assert.match(calls[0], /OPERATOR\(public\.<=>\)/);
+  assert.match(calls[0], /testOnly/);
+  assert.match(calls[0], /talent_opportunity_recommendation/);
+  assert.doesNotMatch(sql, /country_targets|nearest_titles|unembedded_matches/);
   assert.throws(
     () => buildHybridSql({ ...args, vectors: [vector, vector] }),
     /one combined/
   );
   assert.throws(() => searchTitleText([" "]), /nonempty/);
-  for (const prompt of [PLAN_PROMPT, WORKER_PLAN_PROMPT])
+  for (const prompt of [PLAN_PROMPT, WORKER_PLAN_PROMPT]) {
     assert.ok(prompt.includes(SEARCH_TITLE_INSTRUCTION));
+    assert.doesNotMatch(prompt, /"locations"\s*:/);
+  }
+});
+
+test("production plans and retrieval API require countries and never accept city filters", async () => {
+  const { normalizeExternalSearchPlan } = await import("../talentOnboarding/jobPostingRecommendations");
+  const { externalRetrievalRequestSchema } = await import("./searchRequest");
+  const countries = [{ countryCode: "KR", weight: 1, remoteOnly: false }];
+  const plan = normalizeExternalSearchPlan({ countries, role_titles: ["Backend Engineer"], locations: ["Seoul"] }, "Backend");
+  assert.deepEqual(plan.countries, countries);
+  assert.equal("locations" in plan, false);
+  const request = { userId: "00000000-0000-4000-8000-000000000001", plan };
+  assert.equal(externalRetrievalRequestSchema.safeParse(request).success, true);
+  assert.equal(externalRetrievalRequestSchema.safeParse({ ...request, plan: { ...plan, locations: ["Seoul"] } }).success, false);
+  const { countries: _countries, ...missing } = plan;
+  assert.equal(externalRetrievalRequestSchema.safeParse({ ...request, plan: missing }).success, false);
+  assert.throws(() => normalizeExternalSearchPlan({ role_titles: ["Backend"], locations: ["Seoul"] }, "Backend"));
 });

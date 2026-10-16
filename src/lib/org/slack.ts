@@ -149,6 +149,7 @@ export async function notifyOrgCandidateRejectedSlack(args: {
   previousStage?: string | null;
   roleId: string;
   roleName: string;
+  notifyCandidateOnClosure?: boolean;
   stopNote?: string | null;
   workspace: OrgSlackWorkspace;
 }) {

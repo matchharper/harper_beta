@@ -142,9 +142,9 @@ export const CAREER_CAPABILITY_GAP_MS = 30 * 60 * 1000;
 export const CAREER_CAPABILITY_LOADER = "load_career_capabilities";
 
 export function getCareerCapabilityMode(): CareerCapabilityMode {
-  return process.env.CAREER_CHAT_CAPABILITY_MODE === "progressive"
-    ? "progressive"
-    : "full";
+  return process.env.CAREER_CHAT_CAPABILITY_MODE === "full"
+    ? "full"
+    : "progressive";
 }
 
 export function isCareerCapabilityId(

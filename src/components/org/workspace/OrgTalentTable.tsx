@@ -1,14 +1,20 @@
+import { INTERNAL_ONLY_HATCH_BACKGROUND } from "@/components/org/internal/InternalOnlySurface";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 import { formatKstDateOnly } from "@/components/ops/dateUtils";
+import { Tooltips } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { cn } from "@/lib/utils";
 
-export type OrgTalentTableStatusTone = "muted" | "primary" | "action";
+export type OrgTalentTableStatusTone =
+  | "muted"
+  | "primary"
+  | "action"
+  | "positive";
 
 // Desktop table column widths. `memo: "auto"` fills the remaining width;
 // every other value is a fixed pixel width shared by the header and body.
@@ -31,6 +37,7 @@ export type OrgTalentTableRow<Item> = {
   companyName?: string | null;
   date: string;
   item: Item;
+  internalOnly?: boolean;
   key: string;
   memoContextLabel?: string | null;
   memoPreview?: string | null;
@@ -38,6 +45,7 @@ export type OrgTalentTableRow<Item> = {
   profilePicture?: string | null;
   roleName?: string | null;
   statusLabel: string;
+  statusDescription?: string;
   statusTone: OrgTalentTableStatusTone;
   viewed: boolean;
 };
@@ -101,19 +109,28 @@ function TalentAvatar({
 function StatusLabel({
   children,
   tone,
+  description,
 }: {
   children: string;
+  description?: string;
   tone: OrgTalentTableStatusTone;
 }) {
-  return (
+  const label = (
     <span
+      tabIndex={description ? 0 : undefined}
+      onClick={description ? (event) => event.stopPropagation() : undefined}
+      onKeyDown={description ? (event) => event.stopPropagation() : undefined}
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap text-[12px]",
+        description &&
+          "cursor-help rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
         tone === "primary"
           ? "font-medium text-primary"
           : tone === "action"
             ? "font-medium text-action"
-            : "font-light text-neutral-muted"
+            : tone === "positive"
+              ? "font-medium text-positive"
+              : "font-light text-neutral-muted"
       )}
     >
       <span
@@ -123,11 +140,20 @@ function StatusLabel({
             ? "bg-primary"
             : tone === "action"
               ? "bg-action"
-              : "bg-neutral-400"
+              : tone === "positive"
+                ? "bg-positive"
+                : "bg-neutral-400"
         )}
       />
       {children}
     </span>
+  );
+  return description ? (
+    <Tooltips text={description} side="top">
+      {label}
+    </Tooltips>
+  ) : (
+    label
   );
 }
 
@@ -156,6 +182,11 @@ function OrgTalentMobileList<Item>({
           })}
           className="group flex cursor-pointer items-start gap-3 border-b border-neutral-1000-a05 px-1 py-4 outline-none transition last:border-b-0 hover:bg-bg-weak focus-visible:bg-bg-weak"
           key={row.key}
+          style={
+            row.internalOnly
+              ? { backgroundImage: INTERNAL_ONLY_HATCH_BACKGROUND }
+              : undefined
+          }
           onClick={() => onSelect(row.item)}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
@@ -223,7 +254,12 @@ function OrgTalentMobileList<Item>({
               </div>
             ) : null}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <StatusLabel tone={row.statusTone}>{row.statusLabel}</StatusLabel>
+              <StatusLabel
+                tone={row.statusTone}
+                description={row.statusDescription}
+              >
+                {row.statusLabel}
+              </StatusLabel>
               <span className="text-[11px] tabular-nums text-neutral-soft">
                 <span className="sr-only">{dateHeader}: </span>
                 {formatTableDate(row.date, locale)}
@@ -258,6 +294,7 @@ export function OrgTalentTable<Item>({
   roleHeader,
   rows,
   statusHeader,
+  statusColumnWidth = DESKTOP_TABLE_WIDTH.status,
 }: {
   companyHeader?: string | null;
   compactRoleCompanyColumns?: boolean;
@@ -268,6 +305,7 @@ export function OrgTalentTable<Item>({
   roleHeader?: string;
   rows: readonly OrgTalentTableRow<Item>[];
   statusHeader: string;
+  statusColumnWidth?: number;
 }) {
   const { locale, c } = useOrgLocale();
   if (companyHeader === undefined) {
@@ -285,7 +323,7 @@ export function OrgTalentTable<Item>({
     role: compactRoleCompanyColumns
       ? DESKTOP_TABLE_WIDTH.compactRole
       : DESKTOP_TABLE_WIDTH.role,
-    status: DESKTOP_TABLE_WIDTH.status,
+    status: statusColumnWidth,
     viewed: DESKTOP_TABLE_WIDTH.viewed,
   };
   const desktopColumnStyle = (width: number) => ({
@@ -361,6 +399,11 @@ export function OrgTalentTable<Item>({
                 })}
                 className="group cursor-pointer border-b border-neutral-1000-a05 outline-none transition last:border-b-0 hover:bg-neutral-1000-a03 focus-visible:bg-neutral-1000-a05"
                 key={row.key}
+                style={
+                  row.internalOnly
+                    ? { backgroundImage: INTERNAL_ONLY_HATCH_BACKGROUND }
+                    : undefined
+                }
                 onClick={() => onSelect(row.item)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -445,7 +488,10 @@ export function OrgTalentTable<Item>({
                   </td>
                 )}
                 <td className="px-3 py-3">
-                  <StatusLabel tone={row.statusTone}>
+                  <StatusLabel
+                    tone={row.statusTone}
+                    description={row.statusDescription}
+                  >
                     {row.statusLabel}
                   </StatusLabel>
                 </td>

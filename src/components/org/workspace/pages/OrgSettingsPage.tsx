@@ -756,9 +756,13 @@ export function OrgSettingsPage() {
             {c("어느 채널에서 함께할까요?", "Where should Harper join you?")}
           </div>
         }
-        description={c("{team}에서 Harper와 소통할 채널을 선택하세요.", "", {
-          team: status?.teamName || workspace.companyName,
-        })}
+        description={c(
+          "{team}에서 Harper와 소통할 채널을 선택하세요.",
+          "Choose a channel in {team} to talk with Harper.",
+          {
+            team: status?.teamName || workspace.companyName,
+          }
+        )}
         panelClassName="max-w-md"
         bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
       >

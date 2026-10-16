@@ -1,3 +1,4 @@
+import { getHarperProgressText } from "@/components/org/harperProgressPresentation";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
@@ -36,7 +37,10 @@ import {
   CompanyIntroPassDialog,
   CompanyIntroRequestDialog,
 } from "@/components/org/CompanyIntroDecisionDialogs";
-import { InternalOnlySurface } from "@/components/org/internal/InternalOnlySurface";
+import {
+  InternalOnlyHatch,
+  InternalOnlySurface,
+} from "@/components/org/internal/InternalOnlySurface";
 import { OrgErrorState } from "@/components/org/workspace/OrgErrorState";
 import { formatKst } from "@/components/ops/career/utils";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
@@ -542,18 +546,6 @@ function ProfilePane({
               </p>
             </ProfileSection>
           ) : null}
-          {detail.companyPresentation.finalFit ? (
-            <ProfileSection
-              title={locale === "ko" ? "역할 적합도" : "Role fit"}
-            >
-              <p className="text-[13px] leading-6 text-neutral-primary">
-                {companyPresentationFinalFitLabel(
-                  detail.companyPresentation.finalFit,
-                  locale
-                )}
-              </p>
-            </ProfileSection>
-          ) : null}
         </>
       ) : detail.recommendation.fitReason ? (
         <ProfileSection title={c("", "")}>
@@ -820,6 +812,14 @@ function CompanyIntroDecisionActions({
 }
 
 function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
+  if (
+    item.kind === "intro_to_company" ||
+    item.kind === "company_candidate_presented" ||
+    item.kind === "internal_followup_sent" ||
+    item.kind === "company_followup" ||
+    item.kind === "company_intro_followup_policy"
+  )
+    return "Harper";
   if (item.kind === "company_request_followup_sent") {
     return "후보자에게 회사 요청을 다시 안내했어요";
   }
@@ -856,6 +856,14 @@ function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
 function getOrgFeedIcon(
   item: OrgTalentDetailResponse["feed"][number]
 ): ProgressFeedIcon {
+  if (
+    item.kind === "intro_to_company" ||
+    item.kind === "company_candidate_presented" ||
+    item.kind === "internal_followup_sent" ||
+    item.kind === "company_followup" ||
+    item.kind === "company_intro_followup_policy"
+  )
+    return "harper";
   if (item.kind === "company_request_followup_sent") return "mail";
   if (item.kind === "internal_process_stopped_notified") return "mail";
   if (item.activity?.eventType === "candidate_contact_sent") return "mail";
@@ -1073,7 +1081,13 @@ function FeedPanel({
           : null,
         icon: getOrgFeedIcon(item),
         id: item.id,
-        text: item.text,
+        text:
+          getHarperProgressText(
+            item.kind,
+            detail.talent.name,
+            c,
+            item.followup
+          ) ?? item.text,
         title: sourceT(getOrgFeedTitle(item)),
       })),
       ...detail.meetingEvents.map((item) => ({
@@ -1337,15 +1351,35 @@ function FeedPanel({
                 items={scopedOtherRoleFeed.items.map((item) => ({
                   createdAt: item.createdAt,
                   icon:
-                    item.kind === "connection_notice" || item.kind === "meeting"
-                      ? "check"
-                      : item.kind === "intro_email"
-                        ? "mail"
-                        : "note",
+                    item.progressKind === "intro_to_company" ||
+                    item.progressKind === "company_candidate_presented" ||
+                    item.progressKind === "internal_followup_sent" ||
+                    item.progressKind === "company_followup" ||
+                    item.progressKind === "company_intro_followup_policy"
+                      ? "harper"
+                      : item.kind === "connection_notice" ||
+                          item.kind === "meeting"
+                        ? "check"
+                        : item.kind === "intro_email"
+                          ? "mail"
+                          : "note",
                   id: item.id,
                   roleContext: item.roleName,
-                  text: item.text,
-                  title: item.title,
+                  text:
+                    getHarperProgressText(
+                      item.progressKind,
+                      detail.talent.name,
+                      c,
+                      item.followup
+                    ) ?? item.text,
+                  title:
+                    item.progressKind === "intro_to_company" ||
+                    item.progressKind === "company_candidate_presented" ||
+                    item.progressKind === "internal_followup_sent" ||
+                    item.progressKind === "company_followup" ||
+                    item.progressKind === "company_intro_followup_policy"
+                      ? "Harper"
+                      : item.title,
                 }))}
                 labels={feedLabels}
               />
@@ -1892,7 +1926,7 @@ export function TalentDetailSimpleView() {
                     </MuteButton>
                     <MuteButton
                       className={cn(
-                        "rounded-none border-b-2 px-3 text-[13px]",
+                        "relative isolate overflow-hidden rounded-none border-b-2 px-3 text-[13px]",
                         profileTab === "internal"
                           ? "border-neutral-1000 text-neutral-primary"
                           : "border-transparent text-neutral-muted"
@@ -1901,6 +1935,7 @@ export function TalentDetailSimpleView() {
                       size="sm"
                       variant="transparent"
                     >
+                      <InternalOnlyHatch />
                       {c("Harper 내부 정보", "Harper internal info")}
                     </MuteButton>
                   </div>
@@ -2185,9 +2220,10 @@ export function TalentDetailSimpleView() {
         open={rejectDialogOpen && Boolean(detail)}
         pending={decisionPending}
         onClose={() => setRejectDialogOpen(false)}
-        onSubmit={async ({ note }) => {
+        onSubmit={async ({ note, notifyCandidateOnClosure }) => {
           if (!onRejectCandidate) return;
           await onRejectCandidate({
+            notifyCandidateOnClosure,
             stopNote: note,
           });
           setRejectDialogOpen(false);

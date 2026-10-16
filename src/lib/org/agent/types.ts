@@ -54,6 +54,7 @@ export type OrgAgentMeetingScheduleConfirmation = {
 };
 
 export type OrgAgentCandidateDecisionConfirmation = {
+  notifyCandidateOnClosure?: boolean;
   actorId: string;
   connectionMethod: OrgAgentCandidateConnectionMethod | null;
   decision: OrgAgentCandidateDecision;

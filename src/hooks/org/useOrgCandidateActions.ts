@@ -221,6 +221,7 @@ export function useOrgCandidateActions(args: {
         scheduleInterview: options?.scheduleInterview ?? false,
         sourceStage: item.stage,
         stage,
+        notifyCandidateOnClosure: options?.notifyCandidateOnClosure,
         stopNote: options?.stopNote ?? null,
         talentId: item.talentId,
         title: options?.title ?? null,
@@ -230,8 +231,8 @@ export function useOrgCandidateActions(args: {
       addToast({
         message: options?.scheduleInterview
           ? c(
-              "연결을 시작했고, 미팅 정보를 준비해두었어요.",
-              "Connection started and meeting details prepared."
+              "후보자를 연결하고 인터뷰 요청을 보냈어요.",
+              "Candidate connected and interview invitation requested."
             )
           : c("후보자 상태를 변경했습니다.", "Candidate status updated."),
         variant: "success",
@@ -313,8 +314,8 @@ export function useOrgCandidateActions(args: {
     addToast({
       message: scheduleInterview
         ? c(
-            "연결을 시작했고, 미팅 정보를 준비해두었어요.",
-            "Connection started and meeting details prepared."
+            "후보자를 연결하고 인터뷰 요청을 보냈어요.",
+            "Candidate connected and interview invitation requested."
           )
         : c("후보자 연결을 시작했어요.", "Candidate connection started."),
       variant: "success",
@@ -336,6 +337,7 @@ export function useOrgCandidateActions(args: {
       recommendationId,
       roleId,
       stage: "process_stopped",
+      notifyCandidateOnClosure: options.notifyCandidateOnClosure,
       stopNote: options.stopNote ?? null,
       talentId,
       workspaceId: args.workspaceId,

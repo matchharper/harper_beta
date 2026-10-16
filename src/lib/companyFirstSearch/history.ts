@@ -33,6 +33,7 @@ export type MatchingRunHistoryItem = {
   evaluatedPairs: number | null;
   cachedPairs: number | null;
   reviewedTalents?: number | null;
+  rerankPool?: number | null;
   companyProposals: number | null;
   candidateProposalsSelected: number | null;
   priorityRequestsSelected: number | null;
@@ -117,6 +118,7 @@ export async function readMatchingRunHistory(args: {
       status: text(row.status) ?? "unknown", trigger: text(row.trigger_reason) ?? "unknown",
       roles: ids.map(roleId => ({ roleId, name: names.get(roleId) ?? null })),
       evaluatedPairs, cachedPairs, reviewedTalents,
+      rerankPool: count(counts.rerankPool),
       companyProposals: count(counts.companyFirst),
       candidateProposalsSelected: count(counts.candidateFirst),
       priorityRequestsSelected: count(counts.priorityReviewSelected), selected: count(counts.selected),

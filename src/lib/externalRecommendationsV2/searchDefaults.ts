@@ -1,0 +1,4 @@
+export const SEARCH_CANDIDATE_LIMIT = 3000;
+export const SEARCH_RESULT_LIMIT = 500;
+export const SEARCH_COMPANY_ROLE_LIMIT = 3;
+export const SEARCH_SALARY_WEIGHT = 0.35;

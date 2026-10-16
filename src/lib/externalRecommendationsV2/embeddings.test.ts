@@ -2,11 +2,11 @@ import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { backfillRoleTitles, drainRoleTitleEmbeddings } from "./embeddings";
 
-type Row = { title_key: string; title: string; embedding: number[] | null };
+type Row = { role_id: string; name: string; embedding: number[] | null };
 function database(size: number, writeFailures = 0) {
   const rows: Row[] = Array.from({ length: size }, (_, i) => ({
-    title_key: String(i).padStart(6, "0"),
-    title: `Role ${i}`,
+    role_id: String(i).padStart(6, "0"),
+    name: `Role ${i}`,
     embedding: null,
   }));
   const admin = {
@@ -36,7 +36,7 @@ function database(size: number, writeFailures = 0) {
         async abortSignal(signal: AbortSignal) {
           signal.throwIfAborted();
           const pending = rows.filter(
-            (r) => r.embedding === null && r.title_key > after
+            (r) => r.embedding === null && r.role_id > after
           );
           return {
             data: head ? null : pending.slice(0, limit),
@@ -50,7 +50,7 @@ function database(size: number, writeFailures = 0) {
     rpc(
       _name: string,
       args: {
-        p_rows: { titleKey: string; title: string; embedding: number[] }[];
+        p_rows: { roleId: string; title: string; embedding: number[] }[];
       }
     ) {
       return {
@@ -62,8 +62,8 @@ function database(size: number, writeFailures = 0) {
           for (const entry of args.p_rows) {
             const row = rows.find(
               (r) =>
-                r.title_key === entry.titleKey &&
-                r.title === entry.title &&
+                r.role_id === entry.roleId &&
+                r.name === entry.title &&
                 r.embedding === null
             );
             if (row) {

@@ -14,7 +14,7 @@ const run = (index: number) => ({
   created_at: "2026-10-06T22:00:00Z", started_at: "2026-10-07T00:00:00Z", finished_at: "2026-10-07T00:03:00Z",
   status: "succeeded", trigger_reason: "scheduled", scheduled_role_ids: [roleId], requested_role_ids: [otherRoleId],
   query_plan: { reason: "역할의 채용 요청을 기준으로 새 후보 탐색", searchStrategy: "직접 수행한 제품 개발 경험 탐색", roleQueries: ["PRIVATE SQL"] },
-  result: { counts: { hard_filtered: 16, freshScorePairs: 12, reusedFitPairs: 20, candidateFirst: 2, companyFirst: 1, selected: 2, priorityReviewSelected: 0 },
+  result: { counts: { hard_filtered: 16, rerankPool: 8, freshScorePairs: 12, reusedFitPairs: 20, candidateFirst: 2, companyFirst: 1, selected: 2, priorityReviewSelected: 0 },
     noSelectionReason: "PRIVATE TALENT BRIEF", reason: "PRIVATE ERROR DETAIL", selectedTalentIds: ["PRIVATE TALENT ID"] },
 });
 
@@ -101,7 +101,7 @@ test("an explicitly recorded no-capacity-pause is distinct from missing legacy d
 test("compact history uses people rather than role pairs and has one privacy footer", async () => {
   const history = await readMatchingRunHistory({ admin: fakeAdmin() as any, workspaceId });
   const formatted = formatMatchingRunHistory(history);
-  assert.match(formatted, /전체 검토: 16명/);
+  assert.match(formatted, /전체 검토: 16명, 추천 가능하지만 이번에 추천하지 않음: 6명/);
   assert.match(formatted, /회사에게 먼저 추천할 후보자 선정: 1명 · 후보자에게 먼저 추천 선정: 2명/);
   for (const removed of ["등록:", "시작:", "종료:", "실행 계기:", "새 fit 평가:", "기존 fit 재사용:", "우선 검토 요청 선정:", "전체 선정:", "이전 선정 결과 재사용:"]) {
     assert.equal(formatted.includes(removed), false);
@@ -110,6 +110,20 @@ test("compact history uses people rather than role pairs and has one privacy foo
   assert.equal(formatted.split(footer).length - 1, 1);
   assert.ok(formatted.endsWith(footer));
   assert.ok(formatMatchingRunHistory({ items: [], offset: 0, nextOffset: null }).endsWith(footer));
+});
+
+test("unselected rerank counts preserve zero and unknown rather than adding both route counts", async () => {
+  for (const [counts, expected] of [
+    [{ rerankPool: 8, selected: 2, companyFirst: 2, candidateFirst: 2 }, "6명"],
+    [{ rerankPool: 2, selected: 2 }, "0명"],
+    [{ selected: 0 }, "기록 없음 (0으로 해석하지 않음)"],
+    [{ rerankPool: 8 }, "기록 없음 (0으로 해석하지 않음)"],
+    [{ rerankPool: 1, selected: 2 }, "기록 없음 (0으로 해석하지 않음)"],
+  ] as const) {
+    const history = await readMatchingRunHistory({ workspaceId,
+      admin: fakeAdmin([{ ...run(0), result: { counts } } as any]) as any });
+    assert.ok(formatMatchingRunHistory(history).includes(`추천 가능하지만 이번에 추천하지 않음: ${expected}`));
+  }
 });
 
 test("legacy pair totals count people only when exactly one role was reviewed", async () => {

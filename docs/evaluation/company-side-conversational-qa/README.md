@@ -692,3 +692,12 @@ v33 최종 run `intro-connected-v33-r1`은 실제 기본 모델 2회로 2/2 원�
 - 한계: live 웹은 시점 의존이며 frozen 응답 비교가 아니다. 비독립 작성자 검토·작은 사례, 내부 adapter이므로 운영 저장·전송·추천 성과·회사 선호의 정답을 입증하지 않는다. 가상 채용이며 자동 시작 연결·운영 효과·배포 없음.
 
 [경력 수준 보완 실행 기록](reports/2026-10-16-research-caliber-v4.md): r1/r2의 남은 부정 정책 문제를 보존하고 r3 선택2건의 원문 의미를 확인했다. 관련 테스트7개·범위 TypeScript 검사 통과, 운영 효과·전체 gate·추천 성과는 미검증이다.
+
+## 개별 프로세스 종료 안내 선택: v35 (2026-10-16)
+
+- 목적/단위: 종료 안내를 보내거나 생략하는 두 합성 대화, 각 2턴. 입력 `cases-v35.json`, gold `gold-v35.md`, hash `manifest-v35.json`은 첫 호출 전에 동결했다. 기존 frozen 자료는 보존한다.
+- Canonical runner: `scripts/evalCompanyAgentCapabilities.ts --dataset=v35 --run=<fresh>`. 실제 company-side loop/schema/policy/formatter와 현재 기본 Gemini/OpenRouter medium, temperature 0.5, 120초 turn 제한을 사용한다. 실제 설정과 source/input hash는 run manifest가 정본이다.
+- 조회/실행은 기존 in-memory adapter다. 종료 상태와 안내 boolean을 별도 효과로 기록하며 DB·Slack·메일 네트워크는 차단한다. 입력은 v6 합성 인물이며 raw는 ignored runs 0700/0600에 저장한다.
+- Gate: 2/2 전체 답변 의미·대상·선택 유지, 미승인 연락/허위 발송 0. 실제 DB/메일 transport·브라우저 E2E, 독립 팀원 검토와 운영 분포는 제외한다. Worker의 대상 선정과 발송 전 재확인은 별도 단위 검증이다.
+
+[v35 변경·검증 결과](reports/2026-10-16-closure-notice-choice.md): 실제 모델 2대화·4턴의 선택 유지 확인, Worker 33개·웹 schema/projection 83개·Slack 제외 안내 1개 통과. 기존 비관련 오류와 운영/브라우저/메일 E2E 미검증은 보고서에 구분한다. 미배포.

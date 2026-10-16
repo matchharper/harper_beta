@@ -1,3 +1,4 @@
+import { InternalOnlySurface } from "./InternalOnlySurface";
 import Link from "next/link";
 import { useId, useState } from "react";
 import { Minus, Plus } from "lucide-react";
@@ -299,7 +300,10 @@ export function OrgBillingPreviewNotice({
   const { preview, setPreview } = useOrgBillingPreview(workspaceId);
   if (!preview) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-info-faded px-4 py-3 text-[12px]">
+    <InternalOnlySurface
+      showLabel={false}
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-info-faded px-4 py-3 text-[12px]"
+    >
       <p role="status">
         {c(
           `UI 미리보기 · ${preview.slotCount === 0 ? "Free" : `슬롯 ${preview.slotCount}개`}. 실제 구독은 변경되지 않아요.`,
@@ -330,6 +334,6 @@ export function OrgBillingPreviewNotice({
           <OrgBillingDevControls workspaceId={workspaceId} />
         </div>
       </details>
-    </div>
+    </InternalOnlySurface>
   );
 }

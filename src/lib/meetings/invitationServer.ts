@@ -328,6 +328,7 @@ export async function prepareMeetingInvitationPreview(args: {
 
 export async function queueMeetingInvitation(args: {
   baseUrl: string;
+  sendImmediately?: boolean;
   body: unknown;
   candidateMessage: unknown;
   expectedVersion: unknown;
@@ -455,7 +456,9 @@ export async function queueMeetingInvitation(args: {
     );
   }
   const scheduledAt = new Date(
-    windowStart.getTime() + MEETING_INVITATION_DELIVERY_DELAY_MINUTES * 60_000
+    windowStart.getTime() +
+      (args.sendImmediately ? 0 : MEETING_INVITATION_DELIVERY_DELAY_MINUTES) *
+        60_000
   ).toISOString();
   const { data: delayed, error: delayError } = await (
     admin.from("contact_queue" as any) as any

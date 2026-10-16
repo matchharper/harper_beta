@@ -1,27 +1,40 @@
-import legacyPlanner from "./legacyPlanner.v1.json";
 import { SEARCH_TITLE_INSTRUCTION } from "./searchTitles";
 import {
   SALARY_MARKET_VALUE_INSTRUCTION,
   SALARY_TARGET_UNIT_INSTRUCTION,
 } from "./salary";
 
-// Fork of the current planner. The two title-gate sentences are replaced here only.
+// Shared first-query contract for web and worker; geography uses country codes.
 export const PLAN_PROMPT =
-  legacyPlanner.prompt
-    .replace(
-      "role_titles is a hard ILIKE gate over the posting title, so return 1-12 broad title fragments and useful Korean/English aliases. Recall matters more than precision. Do not put company names, skills, location, stage, or prestige in role_titles.",
-      SEARCH_TITLE_INSTRUCTION +
-        " FTS supplies complementary skill/domain evidence and is a ranking signal, not a mandatory match."
-    )
-    .replace(
-      '"locations": []',
-      '"countries": [{"countryCode":"KR","weight":0.8,"remoteOnly":false},{"countryCode":"US","weight":0.2,"remoteOnly":true}]'
-    )
-    .replace(
-      "Only use locations when the current request or an explicit setting makes geography a real constraint. Leave locations empty for an inferred profile location or a mild preference. Never put remote in locations. Set remoteOnly only for an explicit remote-only requirement. includeRemote controls whether otherwise matching remote roles are allowed.",
-      "Return countries: 1–12 unique ISO 3166-1 alpha-2 country codes (KR for South Korea, US for United States, GB for United Kingdom; never KO/UK or city names), each with a positive weight and remoteOnly boolean. Choose the complete country mix for this search from the current request and complete Brief. Weights express desired shares of the 200/500-role scoring list and are normalized automatically; the example is illustrative, never a default. Explicit geographic exclusions must be respected. Use softer geographic preferences to choose weights, not to invent a hard user requirement. If geography is unstated, choose a reasonable exploration mix from available context and say it is tentative in searchIntentSummary. SQL matches company_roles.country_code exactly: unlisted and unknown countries are excluded, including remote roles. A country's remoteOnly=true requires remote work for that country; conditional permissions must remain conditional even when domestic office work is allowed. Global remoteOnly requires remote work everywhere; includeRemote=false excludes remote everywhere. Never combine includeRemote=false with any remoteOnly=true. Country codes describe the posting's country, not proof of cross-border work authorization or worldwide remote eligibility; those still need evidence at scoring/selection. A country's shortfall may be filled only from other listed countries."
-    )
-    .replace("Do not output SQL or fields outside the schema.", "") +
+  `Create a high-recall search plan for external public job postings. Return JSON only.
+
+The current request is the primary target. Use explicit user settings next. Profile, saved career context, and feedback may help choose aliases and relevant domain terms, but do not turn an inferred or weak preference into a hard database filter.
+
+Return exactly this shape:
+{
+  "searchIntentSummary": "one sentence in the requested output language",
+  "ftsKeywords": [{"terms": ["synonyms"], "weight": 1.0}],
+  "role_titles": ["broad title fragment"],
+  "include_contract": false,
+  "include_parttime": false,
+  "include_intern": false,
+  "includeRemote": true,
+  "remoteOnly": false,
+  "is_prefer_entry": 0,
+  "countries": [{"countryCode":"KR","weight":0.8,"remoteOnly":false},{"countryCode":"US","weight":0.2,"remoteOnly":true}],
+  "postingRecency": null
+}
+
+${SEARCH_TITLE_INSTRUCTION} FTS supplies complementary skill/domain evidence and is a ranking signal, not a mandatory match.
+
+ftsKeywords may cover title, responsibilities, domain, skills, and problem area. Group Korean/English synonyms when useful. Avoid generic standalone terms and do not put company stage, funding, investors, salary, culture, brand prestige, location, or work mode in ftsKeywords. Use weights 1-5 to express relevance, not exclusion.
+Return at most 4 ftsKeywords groups, with 4-8 terms per group. A group must contain only true synonyms or near-equivalent aliases; do not spend groups on weak supporting context.
+
+Return countries: 1–12 unique ISO 3166-1 alpha-2 country codes (KR for South Korea, US for United States, GB for United Kingdom; never KO/UK or city names), each with a positive weight and remoteOnly boolean. Choose the complete country mix for this search from the current request and complete Brief. Weights allocate the final retrieval shortlist proportionally after the company cap; shortages are redistributed among the listed countries with remaining candidates. They do not change individual fit scores. The example is illustrative, never a default. Explicit geographic exclusions must be respected. Use softer geographic preferences to choose weights, not to invent a hard user requirement. If geography is unstated, choose a reasonable exploration mix from available context and say it is tentative in searchIntentSummary. SQL matches company_roles.country_code exactly: unlisted and unknown countries are excluded, including remote roles. A country's remoteOnly=true requires remote work for that country; conditional permissions must remain conditional even when domestic office work is allowed. Global remoteOnly requires remote work everywhere; includeRemote=false excludes remote everywhere. Never combine includeRemote=false with any remoteOnly=true. Country codes describe the posting's country, not proof of cross-border work authorization or worldwide remote eligibility; those still need evidence at scoring/selection. The candidate pool contains only listed countries.
+
+Employment-type switches are hard filters. Enable contract, part-time, or internship only when the request or explicit settings accept them. is_prefer_entry is 1 for entry/junior preference, -1 for non-entry preference, and 0 when neutral. postingRecency must be null unless the current request explicitly asks for freshness; otherwise use recentDays/maxAgeDays/recentWeight/olderWeight values between 1-3650 days and 0-20 weights.
+
+` +
   `\nThe plan above is compiled into parameter-safe SQL. Return this envelope instead: {"defaultAction":"reuse|explore|replace","plan":{...the plan schema above...},"targetSalaryKrw":100000000}.
 The saved default includes its search plan and compiled SQL. Given the current profile, complete Brief, Behavior Context, current request and existing default, decide whether to reuse it (plan=null), explore a one-off plan without changing the default, or replace/create the durable default. Never promote a one-off user request to the default merely because it was requested now. Read the stated scope/duration of each criterion even inside saved Brief rows: being stored in the Brief does not make a temporary search instruction durable. If the emitted plan incorporates a country mix or other restriction requested only for the current search, choose explore, including when no default exists; create/replace a default only from the durable search direction. If the user's durable criteria changed, revise the default. With no default, choose replace for a durable search direction or explore for a one-off. Reuse is valid only when saved_default.reusable is true. An older saved default with reusable=false is context only: output an updated plan with countries and choose replace or explore.
 ${SALARY_MARKET_VALUE_INSTRUCTION}

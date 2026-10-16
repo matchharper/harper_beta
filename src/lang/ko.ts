@@ -1606,9 +1606,9 @@ export const ko = {
       "인증 메일을 다시 발송하면 이전 링크는 사용할 수 없습니다.",
     "career.email_change.verification.subject":
       "[Harper] 이메일 변경 인증 · 요청 {requestCode}",
-    "career.external_daily.searching": "찾고 있어요...",
+    "career.external_daily.searching": "당장 보여드릴 기회를 찾고 있어요...",
     "career.external_daily.take_a_look": "이 기회들을 확인해 보세요",
-    "career.external_daily.today": "오늘의 추천",
+    "career.external_daily.today": "오늘의 기회들을 확인해 보세요",
     "career.history.external_application.apply": "지원하기",
     "career.history.external_application.description": "Harper가 이 포지션의 지원 준비부터 실제 지원까지 도와드릴 수 있어요. 직접 지원하거나 Harper와 함께 시작해 보세요.",
     "career.history.external_application.direct": "직접 지원하기",

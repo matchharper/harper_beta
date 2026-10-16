@@ -6,7 +6,7 @@ import { chunks, mapConcurrent } from "./contract";
 type Options = {
   concurrency?: number;
   writeBatchSize?: number;
-  afterTitleKey?: string;
+  afterRoleId?: string;
   signal?: AbortSignal;
   onBatch?: (value: Record<string, number>) => void;
 };
@@ -35,8 +35,8 @@ async function retry<T>(
   }
 }
 
-// The insert/rename trigger is the durable queue. A failed title stays NULL;
-// keyset pagination lets later titles progress even when one input is invalid.
+// Crawlers normally write vectors with role data. This repairs missing vectors
+// directly on roles; there is no trigger or separate title queue.
 export async function backfillRoleTitles(
   admin: TalentAdminClient,
   limit = 512,
@@ -44,16 +44,15 @@ export async function backfillRoleTitles(
 ) {
   const signal = options.signal ?? AbortSignal.timeout(240_000);
   let query = admin
-    .from("external_role_title_embeddings" as never)
-    .select("title_key,title")
-    .is("embedding", null)
-    .order("title_key")
+    .from("company_roles" as never)
+    .select("role_id,name")
+    .is("title_embedding", null)
+    .order("role_id")
     .limit(Math.min(1000, Math.max(1, limit)));
-  if (options.afterTitleKey)
-    query = query.gt("title_key", options.afterTitleKey);
+  if (options.afterRoleId) query = query.gt("role_id", options.afterRoleId);
   const { data, error } = await query.abortSignal(signal);
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as Array<{ title_key: string; title: string }>;
+  const rows = (data ?? []) as Array<{ role_id: string; name: string }>;
   let updated = 0,
     failed = 0;
   const errors = new Set<string>();
@@ -63,15 +62,15 @@ export async function backfillRoleTitles(
       const vectors = await retry(
         () =>
           embedTitles(
-            batch.map((r) => r.title),
+            batch.map((r) => r.name),
             signal
           ),
         signal
       );
       const embeddedAt = Date.now();
       const entries = batch.map((r, i) => ({
-        titleKey: r.title_key,
-        title: r.title,
+        roleId: r.role_id,
+        title: r.name,
         embedding: vectors[i],
       }));
       // Retry the same vectors on a write failure; do not pay to embed them again.
@@ -82,7 +81,7 @@ export async function backfillRoleTitles(
         const written = await retry(async () => {
           const { data, error } = await admin
             .rpc(
-              "save_external_title_embeddings" as never,
+              "save_role_title_embeddings" as never,
               { p_rows: part } as never
             )
             .abortSignal(signal);
@@ -126,7 +125,7 @@ export async function backfillRoleTitles(
     updated,
     failed,
     errors: [...errors],
-    lastTitleKey: rows.at(-1)?.title_key,
+    lastRoleId: rows.at(-1)?.role_id,
   };
 }
 
@@ -143,20 +142,20 @@ export async function drainRoleTitleEmbeddings(
   let scanned = 0,
     updated = 0,
     failed = 0,
-    afterTitleKey: string | undefined;
+    afterRoleId: string | undefined;
   const errors = new Set<string>();
   while (scanned < maxRows && !signal.aborted) {
     try {
       const page = await backfillRoleTitles(
         admin,
         Math.min(1000, maxRows - scanned),
-        { ...options, signal, afterTitleKey }
+        { ...options, signal, afterRoleId }
       );
       scanned += page.scanned;
       updated += page.updated;
       failed += page.failed;
       for (const error of page.errors) errors.add(error);
-      afterTitleKey = page.lastTitleKey;
+      afterRoleId = page.lastRoleId;
       if (!page.scanned || page.failed === page.scanned) break;
     } catch (error) {
       errors.add(
@@ -168,9 +167,9 @@ export async function drainRoleTitleEmbeddings(
   // Independent short deadline leaves time for a health response before the
   // function's 300s limit, even when the processing budget has expired.
   const { count, error } = await admin
-    .from("external_role_title_embeddings" as never)
-    .select("title_key", { count: "exact", head: true })
-    .is("embedding", null)
+    .from("company_roles" as never)
+    .select("role_id", { count: "exact", head: true })
+    .is("title_embedding", null)
     .abortSignal(AbortSignal.timeout(5000));
   if (error) errors.add(error.message);
   return {

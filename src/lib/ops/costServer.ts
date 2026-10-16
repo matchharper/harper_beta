@@ -150,6 +150,29 @@ function pointsFromMap(amounts: Map<string, number>) {
     .map(([date, amount]) => ({ amount, date }));
 }
 
+function addBreakdownAmount(
+  items: Map<string, Map<string, number>>,
+  label: string,
+  date: string,
+  amount: number
+) {
+  const dailyAmounts = items.get(label) ?? new Map<string, number>();
+  dailyAmounts.set(date, (dailyAmounts.get(date) ?? 0) + amount);
+  items.set(label, dailyAmounts);
+}
+
+function breakdownFromMap(items: Map<string, Map<string, number>>) {
+  return Array.from(items, ([label, dailyAmounts]) => {
+    const points = pointsFromMap(dailyAmounts);
+    return { label, points, total: sumPoints(points) };
+  })
+    .filter((item) => item.points.some((point) => point.amount !== 0))
+    .sort(
+      (left, right) =>
+        right.total - left.total || left.label.localeCompare(right.label)
+    );
+}
+
 function notConfiguredCost(
   id: OpsCostProviderId,
   label: string,
@@ -240,11 +263,13 @@ async function fetchClaudeCosts(range: DateRange) {
 
   try {
     const amounts = new Map<string, number>();
+    const lineItems = new Map<string, Map<string, number>>();
     let page = "";
 
     for (let requestCount = 0; requestCount < 10; requestCount += 1) {
       const query = new URLSearchParams({
         bucket_width: "1d",
+        "group_by[]": "description",
         ending_at: `${range.endExclusive}T00:00:00.000Z`,
         limit: "31",
         starting_at: `${range.from}T00:00:00.000Z`,
@@ -270,18 +295,32 @@ async function fetchClaudeCosts(range: DateRange) {
         const bucket = asRecord(rawBucket);
         const date = asString(bucket.starting_at).slice(0, 10);
         if (!date) continue;
-        const cents = asArray(bucket.results).reduce(
-          (sum, rawResult) => sum + asNumber(asRecord(rawResult).amount),
-          0
-        );
-        amounts.set(date, (amounts.get(date) ?? 0) + cents / 100);
+        let amount = 0;
+        for (const rawResult of asArray(bucket.results)) {
+          const result = asRecord(rawResult);
+          // Anthropic reports USD amounts in cents, including fractional cents.
+          const value = asNumber(result.amount) / 100;
+          const lineItem =
+            asString(result.description).trim() ||
+            [result.model, result.token_type, result.cost_type]
+              .map((value) => asString(value).trim())
+              .filter(Boolean)
+              .join(" · ") ||
+            "미분류";
+          addBreakdownAmount(lineItems, lineItem, date, value);
+          amount += value;
+        }
+        amounts.set(date, (amounts.get(date) ?? 0) + amount);
       }
 
       page = asString(payload.next_page);
       if (!payload.has_more || !page) break;
     }
 
-    return successfulCost("claude", label, pointsFromMap(amounts));
+    return {
+      ...successfulCost("claude", label, pointsFromMap(amounts)),
+      breakdown: breakdownFromMap(lineItems),
+    };
   } catch (error) {
     return failedCost("claude", label, error);
   }
@@ -296,11 +335,13 @@ async function fetchOpenAiCosts(range: DateRange) {
 
   try {
     const amounts = new Map<string, number>();
+    const lineItems = new Map<string, Map<string, number>>();
     let page = "";
 
     for (let requestCount = 0; requestCount < 10; requestCount += 1) {
       const query = new URLSearchParams({
         bucket_width: "1d",
+        "group_by[]": "line_item",
         end_time: String(
           Math.floor(
             new Date(`${range.endExclusive}T00:00:00.000Z`).getTime() / 1000
@@ -331,10 +372,14 @@ async function fetchOpenAiCosts(range: DateRange) {
         const startTime = asNumber(bucket.start_time);
         if (!startTime) continue;
         const date = toDateOnly(new Date(startTime * 1000));
-        const amount = asArray(bucket.results).reduce((sum, rawResult) => {
+        let amount = 0;
+        for (const rawResult of asArray(bucket.results)) {
           const result = asRecord(rawResult);
-          return sum + asNumber(asRecord(result.amount).value);
-        }, 0);
+          const value = asNumber(asRecord(result.amount).value);
+          const lineItem = asString(result.line_item).trim() || "미분류";
+          addBreakdownAmount(lineItems, lineItem, date, value);
+          amount += value;
+        }
         amounts.set(date, (amounts.get(date) ?? 0) + amount);
       }
 
@@ -342,7 +387,10 @@ async function fetchOpenAiCosts(range: DateRange) {
       if (!payload.has_more || !page) break;
     }
 
-    return successfulCost("openai", label, pointsFromMap(amounts));
+    return {
+      ...successfulCost("openai", label, pointsFromMap(amounts)),
+      breakdown: breakdownFromMap(lineItems),
+    };
   } catch (error) {
     return failedCost("openai", label, error);
   }
@@ -370,15 +418,25 @@ async function fetchOpenRouterCosts(range: DateRange) {
       )
     );
     const amounts = new Map<string, number>();
+    const models = new Map<string, Map<string, number>>();
 
     for (const rawActivity of asArray(payload.data)) {
       const activity = asRecord(rawActivity);
       const date = parseDateOnly(asString(activity.date).slice(0, 10));
       if (!date || date < range.from || date >= range.endExclusive) continue;
-      amounts.set(date, (amounts.get(date) ?? 0) + asNumber(activity.usage));
+      const amount = asNumber(activity.usage);
+      const model =
+        asString(activity.model).trim() ||
+        asString(activity.model_permaslug).trim() ||
+        "미분류";
+      addBreakdownAmount(models, model, date, amount);
+      amounts.set(date, (amounts.get(date) ?? 0) + amount);
     }
 
-    return successfulCost("openrouter", label, pointsFromMap(amounts));
+    return {
+      ...successfulCost("openrouter", label, pointsFromMap(amounts)),
+      breakdown: breakdownFromMap(models),
+    };
   } catch (error) {
     return failedCost("openrouter", label, error);
   }

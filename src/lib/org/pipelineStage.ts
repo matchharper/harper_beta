@@ -10,11 +10,21 @@ export const ORG_AGENT_RECOMMENDATION_ID_FILTER_MAX = 100;
 
 export const ORG_STAGE_DESCRIPTIONS: Record<string, string> = {
   company_intro:
-    "이 역할을 아직 수락하지 않은 후보에게 회사가 제안할 수 있습니다. Harper의 이전 추천이나 거절 이력이 있을 수 있습니다. 제안을 요청하면 Intro Requested로 이동합니다.",
+    "이 역할을 아직 수락하지 않은 후보에게 회사가 제안할 수 있습니다. Harper의 이전 추천이나 거절 이력이 있을 수 있습니다. Intro를 요청하면 Harper가 후보자에게 제안을 전달합니다.",
   intro_requested:
-    "회사가 먼저 제안을 요청한 후보입니다. Harper가 제안을 전달하고 후보자의 답변을 기다리며, 수락하면 소개 이메일로 연결하고 연결됨으로 이동합니다.",
+    "회사가 먼저 Intro를 요청한 후보입니다. Harper가 제안을 준비·전달하고 후보자의 답변을 기다립니다. 후보자가 수락하면 연결됨으로 표시하며 소개 이메일로 연결을 진행합니다.",
   pending_connection:
-    "이미 이 역할을 추천받고 수락한 후보입니다. 회사가 연결을 수락하면 Harper가 소개 이메일로 연결해 인터뷰 등 다음 과정을 시작할 수 있습니다.",
+    "Harper가 이 역할을 추천했고, 그걸 수락한 후보자입니다. 회사가 연결을 수락하거나 인터뷰를 요청하면 Harper가 연결하고 다음 과정을 시작할 수 있습니다.",
+  accepted:
+    "후보자가 역할을 수락했지만 아직 회사가 연결 여부를 결정하는 단계로 넘어가지 않았습니다. Harper의 후속 처리를 기다리는 내부 운영용 상태이며, 별도의 팀원 승인 단계는 아닙니다.",
+  connected:
+    "후보자가 회사의 Intro를 수락했거나, 후보자 수락 후 회사가 연결을 수락한 상태입니다. 소개 이메일이나 다음 단계의 연결 절차가 진행 중일 수 있습니다. 구체적인 전형 진행 상황은 Pipeline에서 확인할 수 있습니다.",
+  intro_declined:
+    "후보자가 회사의 Intro 제안을 거절해 이번 제안이 종료됐습니다. 후보자가 답하지 않은 상태와는 다릅니다.",
+  process_stopped:
+    "이번 역할의 진행이 종료된 상태입니다. 회사가 연결을 거절한 경우도 포함됩니다. 종료 사유와 이전 진행 이력은 후보자 상세에서 확인할 수 있습니다.",
+  decision_made:
+    "이번 후보자에 대한 결정이 기록됐습니다. 구체적인 결정과 진행 이력은 후보자 상세에서 확인할 수 있습니다.",
 };
 
 export function isOrgInboxStage(stageId: string) {
@@ -32,7 +42,8 @@ export function humanizeOrgCompanyIntroStatus(intro: {
   status: string;
   candidateSentAt?: string | null;
 }) {
-  if (intro.status === "closed" || intro.status === "passed") return "제안 종료";
+  if (intro.status === "closed" || intro.status === "passed")
+    return "제안 종료";
   if (intro.status === "ready") return "";
   if (intro.status === "connecting") return "후보자 수락 · 연결 준비 중";
   if (intro.status === "awaiting_talent") {

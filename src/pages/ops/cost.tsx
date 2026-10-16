@@ -20,8 +20,18 @@ import {
   useCanFetchInternal,
 } from "@/components/ops/debugging/shared";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton } from "@/components/ui/button";
-import { useOpsCosts } from "@/hooks/ops/useOpsCosts";
+import { BareButton, MuteButton } from "@/components/ui/button";
+import { Tabs } from "@/components/ui/tabs";
+import { TaskCostView } from "@/components/ops/cost/TaskCostView";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useOpsCosts, useOpsTaskCosts } from "@/hooks/ops/useOpsCosts";
 import type {
   OpsCostProviderId,
   OpsCostProviderResult,
@@ -41,6 +51,7 @@ type CostChartRow = {
   exa: number;
   label: string;
   openai: number;
+  breakdown: Partial<Record<OpsCostProviderId, number[]>>;
   openrouter: number;
   period: string;
 };
@@ -69,6 +80,23 @@ const COMBINED_PROVIDER_IDS: CombinedProviderId[] = [
   "openrouter",
   "exa",
 ];
+
+const BREAKDOWN_COLORS = [
+  "#10a37f",
+  "#3478f6",
+  "#6d5bd0",
+  "#e38b2c",
+  "#c15f3c",
+  "#0891b2",
+  "#be4890",
+  "#71852c",
+  "#64748b",
+  "#9c6b42",
+];
+
+function breakdownColor(index: number) {
+  return BREAKDOWN_COLORS[index % BREAKDOWN_COLORS.length];
+}
 
 function toDateOnly(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -116,6 +144,11 @@ function formatMoney(amount: number, currency = "USD") {
   }
 }
 
+function formatMoneyWithShare(amount: number, total: number) {
+  const share = total === 0 ? "—" : `${((amount / total) * 100).toFixed(1)}%`;
+  return `${formatMoney(amount)} (${share})`;
+}
+
 function emptyCostRow(label: string, period: string): CostChartRow {
   return {
     claude: 0,
@@ -124,12 +157,22 @@ function emptyCostRow(label: string, period: string): CostChartRow {
     exa: 0,
     label,
     openai: 0,
+    breakdown: {},
     openrouter: 0,
     period,
   };
 }
 
 function buildDailyRows(data: OpsCostResponse) {
+  const providerBreakdowns = new Map(
+    data.costs.map((provider) => [
+      provider.id,
+      provider.breakdown?.map(
+        (item) =>
+          new Map(item.points.map((point) => [point.date, point.amount]))
+      ) ?? [],
+    ])
+  );
   const providerAmounts = new Map(
     data.costs.map((provider) => [
       provider.id,
@@ -145,6 +188,10 @@ function buildDailyRows(data: OpsCostResponse) {
     const row = emptyCostRow(formatShortDate(date), formatDate(date));
     for (const providerId of COST_PROVIDER_IDS) {
       row[providerId] = providerAmounts.get(providerId)?.get(date) ?? 0;
+      row.breakdown[providerId] =
+        providerBreakdowns
+          .get(providerId)
+          ?.map((amounts) => amounts.get(date) ?? 0) ?? [];
     }
     row.ec2Net = Math.max(0, ec2NetAmounts.get(date) ?? 0);
     return row;
@@ -179,6 +226,11 @@ function buildWeeklyRows(
 
     for (const providerId of COST_PROVIDER_IDS) {
       row[providerId] += dailyRow[providerId];
+      const amounts = row.breakdown[providerId] ?? [];
+      dailyRow.breakdown[providerId]?.forEach((amount, index) => {
+        amounts[index] = (amounts[index] ?? 0) + amount;
+      });
+      row.breakdown[providerId] = amounts;
     }
     row.ec2Net += dailyRow.ec2Net;
     rows.set(weekStart, row);
@@ -460,6 +512,7 @@ function ServiceCostRow({
   const meta = PROVIDER_META[provider.id];
   const isEc2 = provider.id === "ec2";
   const isOpenRouter = provider.id === "openrouter";
+  const breakdown = provider.breakdown;
   const netTotal = Math.max(0, provider.netTotal ?? provider.total);
   const coveredTotal = Math.max(0, provider.total - netTotal);
   const forecast = isEc2 ? getAwsCreditForecast(credit) : null;
@@ -582,6 +635,7 @@ function ServiceCostRow({
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={rows}
+                stackOffset={breakdown?.length ? "sign" : "none"}
                 margin={{ bottom: 0, left: 0, right: 6, top: 6 }}
               >
                 <CartesianGrid
@@ -597,8 +651,74 @@ function ServiceCostRow({
                   tickLine={false}
                   tick={{ fill: "var(--color-neutral-soft)" }}
                 />
-                <YAxis hide domain={[0, "dataMax"]} />
+                <YAxis
+                  hide
+                  domain={breakdown?.length ? ["auto", "auto"] : [0, "dataMax"]}
+                />
                 <Tooltip
+                  content={
+                    breakdown?.length
+                      ? ({ active, label, payload }) => {
+                          if (!active || !payload?.length) return null;
+                          const items = payload
+                            .filter((item) => Number(item.value) !== 0)
+                            .sort(
+                              (left, right) =>
+                                Math.abs(Number(right.value)) -
+                                Math.abs(Number(left.value))
+                            );
+                          const remaining = items.slice(8);
+                          const total = items.reduce(
+                            (sum, item) => sum + Number(item.value),
+                            0
+                          );
+                          const remainingTotal = remaining.reduce(
+                            (sum, item) => sum + Number(item.value),
+                            0
+                          );
+                          return (
+                            <div
+                              className="w-[300px] max-w-[80vw] p-3 text-neutral-primary"
+                              style={tooltipStyle}
+                            >
+                              <div className="mb-2 flex justify-between gap-3 font-medium">
+                                <span>{String(label)}</span>
+                                <span className="tabular-nums">
+                                  {formatMoney(total)}
+                                </span>
+                              </div>
+                              {items.slice(0, 8).map((item) => (
+                                <div
+                                  key={String(item.name)}
+                                  className="mt-1 flex items-start justify-between gap-3"
+                                >
+                                  <span className="min-w-0 break-words">
+                                    {String(item.name)}
+                                  </span>
+                                  <span className="shrink-0 tabular-nums">
+                                    {formatMoneyWithShare(
+                                      Number(item.value),
+                                      total
+                                    )}
+                                  </span>
+                                </div>
+                              ))}
+                              {remaining.length ? (
+                                <div className="mt-1 flex justify-between gap-3 text-neutral-muted">
+                                  <span>그 외 {remaining.length}개 항목</span>
+                                  <span className="shrink-0 tabular-nums">
+                                    {formatMoneyWithShare(
+                                      remainingTotal,
+                                      total
+                                    )}
+                                  </span>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        }
+                      : undefined
+                  }
                   cursor={{
                     fill: "color-mix(in srgb, var(--color-neutral-1000) 4%, transparent)",
                   }}
@@ -615,7 +735,20 @@ function ServiceCostRow({
                   labelFormatter={(label) => String(label)}
                   contentStyle={tooltipStyle}
                 />
-                {isEc2 ? (
+                {breakdown?.length ? (
+                  breakdown.map((item, index) => (
+                    <Bar
+                      key={item.label}
+                      dataKey={(row: CostChartRow) =>
+                        row.breakdown[provider.id]?.[index] ?? 0
+                      }
+                      name={item.label}
+                      fill={breakdownColor(index)}
+                      stackId={provider.id}
+                      maxBarSize={34}
+                    />
+                  ))
+                ) : isEc2 ? (
                   <Bar
                     dataKey="ec2"
                     fill={meta.color}
@@ -642,6 +775,48 @@ function ServiceCostRow({
               </BarChart>
             </ResponsiveContainer>
           </div>
+          {breakdown ? (
+            <div className="mt-3 max-h-[280px] overflow-auto border-t border-neutral-1000-a05">
+              <Table className="text-xs">
+                <TableHeader>
+                  <TableRow className="border-neutral-1000-a05">
+                    <TableHead scope="col">모델·API 청구 항목</TableHead>
+                    <TableHead scope="col" className="text-right">
+                      기간 비용
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {breakdown.map((item, index) => (
+                    <TableRow
+                      key={item.label}
+                      className="border-neutral-1000-a05"
+                    >
+                      <TableCell>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-sm"
+                            style={{ backgroundColor: breakdownColor(index) }}
+                          />
+                          <span className="break-words">{item.label}</span>
+                        </span>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">
+                        {formatMoney(item.total)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {breakdown.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={2} className="text-neutral-soft">
+                        비용 내역 없음
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
         </div>
       )}
     </article>
@@ -680,10 +855,21 @@ function SegmentedButton<T extends string | number>({
 
 export default function OpsCostPage() {
   const canFetchInternal = useCanFetchInternal();
+  const [view, setView] = useState("");
   const [rangeDays, setRangeDays] = useState<RangeDays>(30);
   const [granularity, setGranularity] = useState<Granularity>("daily");
   const range = useMemo(() => getDateRange(rangeDays), [rangeDays]);
-  const costQuery = useOpsCosts(range.from, range.through, canFetchInternal);
+  const costQuery = useOpsCosts(
+    range.from,
+    range.through,
+    canFetchInternal && view === "models"
+  );
+  const taskQuery = useOpsTaskCosts(
+    range.from,
+    range.through,
+    canFetchInternal && view === "tasks"
+  );
+  const activeQuery = view === "tasks" ? taskQuery : costQuery;
   const data = costQuery.data;
 
   const chartRows = useMemo(() => {
@@ -704,58 +890,84 @@ export default function OpsCostPage() {
       showContextLabel={false}
       tab="cost"
       filters={
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <SegmentedButton
-            value={rangeDays}
-            onChange={setRangeDays}
-            options={[
-              { label: "최근 7일", value: 7 },
-              { label: "최근 30일", value: 30 },
+        <>
+          <Tabs
+            className="mt-4"
+            variant="cards"
+            size="xlarge"
+            activeValue={view}
+            onValueChange={setView}
+            items={[
+              { label: "모델별 비용", value: "models" },
+              { label: "태스크별 비용", value: "tasks" },
             ]}
           />
-          <SegmentedButton
-            value={granularity}
-            onChange={setGranularity}
-            options={[
-              { label: "일별", value: "daily" },
-              { label: "주별", value: "weekly" },
-            ]}
-          />
-          <BareButton
-            type="button"
-            onClick={() => void costQuery.refetch()}
-            disabled={costQuery.isFetching}
-            className={cx(opsTheme.buttonSecondary, "h-10 px-3 text-xs")}
-          >
-            <RefreshCw
-              className={cx(
-                "h-4 w-4",
-                costQuery.isFetching ? "animate-spin" : ""
-              )}
-            />
-            새로고침
-          </BareButton>
-          <div className="text-[11px] tabular-nums text-neutral-soft">
-            {formatDate(range.from)} – {formatDate(range.through)} UTC
-          </div>
-        </div>
+          {view ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <SegmentedButton
+                value={rangeDays}
+                onChange={setRangeDays}
+                options={[
+                  { label: "최근 7일", value: 7 },
+                  { label: "최근 30일", value: 30 },
+                ]}
+              />
+              {view === "models" ? (
+                <SegmentedButton
+                  value={granularity}
+                  onChange={setGranularity}
+                  options={[
+                    { label: "일별", value: "daily" },
+                    { label: "주별", value: "weekly" },
+                  ]}
+                />
+              ) : null}
+              <MuteButton
+                type="button"
+                onClick={() => void activeQuery.refetch()}
+                disabled={activeQuery.isFetching}
+              >
+                <RefreshCw
+                  className={cx(
+                    "h-4 w-4",
+                    activeQuery.isFetching ? "animate-spin" : ""
+                  )}
+                />
+                새로고침
+              </MuteButton>
+              <div className="text-[11px] tabular-nums text-neutral-soft">
+                {formatDate(range.from)} – {formatDate(range.through)} UTC
+              </div>
+            </div>
+          ) : null}
+        </>
       }
     >
-      {costQuery.isLoading ? (
+      {!view ? null : activeQuery.isLoading ? (
         <div
           className={cx(
             opsTheme.panel,
-            "flex min-h-[420px] items-center justify-center"
+            "flex min-h-[420px] items-center justify-center gap-2"
           )}
         >
           <LoaderCircle className="h-5 w-5 animate-spin text-neutral-soft" />
+          {view === "tasks" ? (
+            <span className="text-sm text-neutral-muted">DB 비용 집계 중</span>
+          ) : null}
         </div>
-      ) : costQuery.error ? (
+      ) : activeQuery.error ? (
         <div className={opsTheme.errorNotice}>
-          {costQuery.error instanceof Error
-            ? costQuery.error.message
+          {activeQuery.error instanceof Error
+            ? activeQuery.error.message
             : "비용을 불러오지 못했습니다."}
         </div>
+      ) : view === "tasks" ? (
+        taskQuery.data ? (
+          <TaskCostView
+            key={`${range.from}:${range.through}`}
+            data={taskQuery.data}
+          />
+        ) : null
       ) : data ? (
         <>
           <CombinedCostChart providers={data.costs} rows={chartRows} />
