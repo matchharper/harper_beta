@@ -116,7 +116,7 @@ test("recording omits automatic setup while preserving explicit scheduling and d
       await record(event);
     assert.deepEqual(
       (
-        await db.query(
+        await db.query<{ event: string }>(
           "select metadata->>'eventType' event from talent_progress"
         )
       ).rows.map((row) => row.event),
