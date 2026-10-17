@@ -22,6 +22,8 @@ pool or labels creates a new version; ranking weights create new runs.
 
 ## Contract and canonical runner
 
+2026-10-16: capture의 추가 제목 벡터 조회는 공고의 현재 제목과 일치하는 `company_roles.title_embedding`을 읽는다. 이전 사전 조회를 제거했으며 기존 frozen v1/v2 입력·gold는 변경하지 않았다. 새 capture는 기존 파일을 덮어쓰지 않고 새 데이터 버전으로 관리한다. 이번 변경에서 capture나 모델 평가는 실행하지 않았다.
+
 `scripts/evalExternalRoleSalaryRetrieval.ts` imports production SQL, salary
 normalization and band utility. Capture uses Worker
 `llm_evals/external_recommendations_v2/read_only_capture.py` and its enforced

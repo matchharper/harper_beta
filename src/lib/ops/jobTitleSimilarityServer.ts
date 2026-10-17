@@ -17,7 +17,7 @@ export function buildJobTitleSimilaritySql(
   candidateLimit?: number,
   source?: JobTitleSimilaritySource
 ) {
-  const searchSource = jobTitleSimilaritySourceSchema.parse(source);
+  jobTitleSimilaritySourceSchema.parse(source);
   const resultLimit = jobTitleSimilarityLimitSchema.parse(limit);
   const roleCandidateLimit =
     jobTitleSimilarityCandidateLimitSchema.parse(candidateLimit);
@@ -31,28 +31,6 @@ export function buildJobTitleSimilaritySql(
       AND r.status NOT IN ('ended', 'expired', 'closed', 'inactive', 'archived')
       AND coalesce(r.source_provider, '') <> 'user_submitted'
       AND lower(coalesce(r.information->>'testOnly', 'false')) <> 'true'`;
-  if (searchSource === "external_role_title_embeddings") {
-    // Return ANN-selected titles directly, preserving scan order without reranking.
-    return `WITH search_started AS MATERIALIZED (
-      SELECT clock_timestamp() AS at
-    ), nearest_titles AS MATERIALIZED (
-      SELECT te.title_key, te.title
-      FROM public.external_role_title_embeddings te
-      WHERE te.embedding IS NOT NULL AND te.live_role_count > 0
-        AND (SELECT at FROM search_started) IS NOT NULL
-      ORDER BY te.embedding::public.halfvec(1536) OPERATOR(public.<=>) ${queryVector}::public.halfvec(1536)
-      LIMIT ${roleCandidateLimit}
-    ), result_rows AS MATERIALIZED (
-      SELECT coalesce(jsonb_agg(n), '[]'::jsonb) AS rows,
-        clock_timestamp() AS finished_at
-      FROM nearest_titles n
-    )
-    SELECT result.rows, jsonb_build_object(
-      'candidateSearchMs', extract(epoch FROM (result.finished_at - started.at)) * 1000,
-      'rerankAndFetchMs', 0
-    ) AS timings
-    FROM search_started started CROSS JOIN result_rows result`;
-  }
   const candidates = `SELECT r.role_id, r.name AS role_name, r.company_workspace_id, r.title_embedding
     FROM public.company_roles r
     WHERE r.title_embedding IS NOT NULL

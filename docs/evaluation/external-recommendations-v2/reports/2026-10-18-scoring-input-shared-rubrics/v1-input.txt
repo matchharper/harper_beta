@@ -1,0 +1,62 @@
+## current_date
+2026-10-18
+
+## user_context
+### Profile
+- headline: Staff backend engineer
+
+#### 경력 (종료일 미제공은 현재 재직의 확인이 아님)
+1. 기간: 미제공 → 미제공
+   - role: Staff backend engineer
+   - company_name: Synthetic Infrastructure Group
+   - description: Eight years operating Python and PostgreSQL systems for millions of users. Led architecture and mentored a six-engineer team; worked with experienced distributed-systems specialists.
+
+#### 학력
+1. 기간: 미제공 → 미제공
+   - school: Synthetic Technical University
+   - degree: MSc
+   - field: Computer Science
+   - description: Research on distributed systems.
+
+### 전체 Search Brief
+1.
+   - ref: 1
+   - label: Company environment
+   - content: I want a product company with technically strong colleagues and a competitive product. Company size is flexible.
+2.
+   - ref: 2
+   - label: Compensation
+   - content: I prefer annual base pay around KRW 200 million or more; this is a preference, not an absolute minimum.
+3.
+   - ref: 3
+   - label: Working location
+   - content: 한국에서는 출근 가능해요. 해외 공고는 한국에서 원격으로 일할 수 있는 것만 볼게요. 이번 검색은 한국 80%, 미국 20% 정도로 찾아주세요.
+
+### Talent Behavior Context (soft evidence)
+미제공
+
+## run_context
+- evaluation_goal:
+  - search_purpose: Staff backend engineer
+  - strategy_mode: mixed
+
+## candidate_context
+- roles:
+  1.
+     - compensation: year 220000000-260000000 KRW
+     - roleId: 00000000-0000-4000-8000-000000000101
+     - role: external : Senior Backend Engineer at Synthetic Conditional Company 101 | work at Seoul, South Korea | work mode: onsite | compensation year 220000000-260000000 KRW | seniority level: unknown
+     - company: Synthetic Conditional Company 101
+     - jd: Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Onsite in Seoul, South Korea.
+  2.
+     - compensation: year 220000000-260000000 KRW
+     - roleId: 00000000-0000-4000-8000-000000000102
+     - role: external : Senior Backend Engineer at Synthetic Conditional Company 102 | work at San Francisco, United States | work mode: onsite | compensation year 220000000-260000000 KRW | seniority level: unknown
+     - company: Synthetic Conditional Company 102
+     - jd: Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. Requires full-time onsite attendance in San Francisco, United States. Remote work is not available.
+  3.
+     - compensation: year 220000000-260000000 KRW
+     - roleId: 00000000-0000-4000-8000-000000000103
+     - role: external : Senior Backend Engineer at Synthetic Conditional Company 103 | work at United States | work mode: remote | compensation year 220000000-260000000 KRW | seniority level: unknown
+     - company: Synthetic Conditional Company 103
+     - jd: Build and operate Python APIs and PostgreSQL services. Lead reliability improvements and mentor two engineers. Requires five years of relevant production experience. US company. Fully remote from South Korea is explicitly allowed; the company can employ candidates in South Korea. No office attendance or relocation is required.

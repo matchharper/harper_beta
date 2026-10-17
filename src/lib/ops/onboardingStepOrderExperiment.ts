@@ -159,9 +159,9 @@ export function buildOnboardingStepOrderExperiment(
   observedAt.sort();
 
   return {
-    allocation: "유저별 고정 50:50",
+    allocation: "B · 공개 설정 먼저 100%",
     caveat:
-      "노출 로그가 있는 유저 중 노출 후 프로필 제출 성공 로그가 남은 비율입니다. 유저는 첫 노출 그룹으로 한 번만 셉니다. 공개 설정 선택률은 제출 성공 로그에 선택값이 기록된 유저만 분모에 포함하며, 기본 선택을 유지한 경우도 포함합니다. 최근 노출 유저는 아직 제출할 시간이 짧을 수 있습니다.",
+      "실험 종료 전 노출된 유저의 결과입니다. 노출 로그가 있는 유저 중 노출 후 프로필 제출 성공 로그가 남은 비율입니다. 유저는 첫 노출 그룹으로 한 번만 셉니다. 공개 설정 선택률은 제출 성공 로그에 선택값이 기록된 유저만 분모에 포함하며, 기본 선택을 유지한 경우도 포함합니다. 최근 노출 유저는 아직 제출할 시간이 짧을 수 있습니다.",
     conclusion: compareOpsAbTestRates({
       first: variants[0].primary,
       firstVariantId: variants[0].id,
@@ -172,7 +172,7 @@ export function buildOnboardingStepOrderExperiment(
     id: CAREER_ONBOARDING_STEP_ORDER_EXPERIMENT,
     lastObservedAt: observedAt.at(-1) ?? null,
     primaryMetricLabel: "프로필 제출 성공률",
-    status: "running",
+    status: "ended",
     title: "Career 온보딩 공개 설정 순서",
     unitLabel: "유저",
     variants,

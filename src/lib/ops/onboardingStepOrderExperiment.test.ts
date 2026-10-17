@@ -65,6 +65,8 @@ test("counts the first valid exposure per user and only later successful submiss
     new Set(["excluded"])
   );
 
+  assert.equal(result.status, "ended");
+  assert.equal(result.allocation, "B · 공개 설정 먼저 100%");
   assert.equal(result.variants[0].sampleCount, 1);
   assert.deepEqual(result.variants[0].primary, {
     denominator: 1,
