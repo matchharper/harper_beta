@@ -147,6 +147,14 @@ test("re-engagement hides expired unanswered external postings before its messag
   );
 });
 
+test("chat and re-engagement replies follow the saved language, not conversation text", () => {
+  assert.match(
+    chatTurn,
+    /const responseLocale = talentSetting\?\.preferred_locale \?\? null;/
+  );
+  assert.doesNotMatch(chatTurn, /^\s*responseLocale\s*=[^=]/m);
+});
+
 test("normal career and re-engagement LLM context both keep at least 16 recent messages", () => {
   for (const source of [chatRoute, chatTurn, debugPrompts]) {
     assert.match(source, /recentLimit:\s*16/);
