@@ -75,6 +75,8 @@ python3 -m unittest tests.test_external_recommendations_v2
 
 ## Retrieval / bulk 재현
 
+2026-10-16 정리: 아래 제목 사전 bulk 절차는 과거 결과 재현의 설명이다. 사전 전용 Worker 스크립트는 제거했으며 현재 검색은 `company_roles.title_embedding`을 사용한다. 누락 복구는 Worker `scripts/generate_missing_role_title_embeddings.py`가 담당한다. 과거 frozen 입력·결과·마이그레이션은 보존한다. 사용자 승인으로 웹 배포 없이 운영 사전과 함수 4개를 migration `20261016110600`으로 삭제했다. 기존 Ops 사전 선택지는 코드 정리 배포 전까지 실패한다.
+
 `scripts/evalExternalRecommendationsRetrieval.ts --frozen=<private frozen-cases.json>`은 동일 제목 vector와 계획을 운영 read-only 연결에서 EXPLAIN ANALYZE로 재생한다. statement timeout30초, private SQL/plan/오류 receipts와 source hash를 남긴다. `scripts/evalExternalRecommendationsLive.ts --sample=<private sample.json>`은 같은 임의 추출 후보자를 최신 전체 사전으로 다시 검색해 새 capture version을 만든다. 기존 frozen dataset이나 gold를 덮어쓰지 않는다.
 
 대량 제목 저장의 정본은 worker `scripts/backfill_external_title_embeddings.py`, CONCURRENTLY 인덱스 생성은 `scripts/build_external_title_index.py --live --apply`이다. 전체316,958개 원본 vector는 full precision을 유지한다. 활성 제목89,292개의 half precision IVFFlat128 lists/12 probes, 최대48 probes를 사용한다. 역할 lifecycle trigger가 활성 제목 수를 유지한다. 같은 검색 제목마다1000이웃을 가져와 국가별 가용 역할 중 web400/worker1000개까지 FTS를 결합하며 미임베딩 역할은 별도 FTS로 포함한다. 초기 전체 제목 인덱스는 `--retire-full-index --apply`로 제거했다. 작은 환경에서는 먼저 backfill을 완료하고 index를 학습해야 한다. 생성 중 기본 API 지연을 함께 관찰한다. 운영 배포와는 별도 작업이다.
@@ -107,3 +109,31 @@ python3 -m unittest tests.test_external_recommendations_v2
 `cases-v4.json`/`gold-v4.json`/`manifest-v4.json`은 합성 후보자1명×역할10개의 경계 challenge다. 일반적인 인접 직무·2년 연차 차이·새 기술 스택·미공개 보상은 constraintPass>50, 명시적 원격/일정/최저보상 위반과 예외적으로 큰 임원 책임 격차·필수 면허 부재는 ≤50을 기대한다. 낮은 직무 적합도를 자동으로 hard conflict로 취급하지 않는지 확인한다. 기존 v1/v2/v3 입력·gold는 유지한다. 입력/라벨은 실제 모델 호출 전에 동결한 Codex rubric이며 독립 human labels가 아니다.
 
 정본 실행은 `node --env-file=.env.local --import tsx scripts/evalExternalRecommendationsV2.ts --dataset=v4 --provider=both`다. 기존 실제 입력 formatter/두 Decisions adapter/공통 점수 정규화를 사용한다. OpenAI gpt-6-luna와 Jev1.13 설정은 위와 같고 새 prompt는 `fitQuestions.v3.json`, cache version은 `external-fit-questions-v6-strong-constraints`다. 역할별6축 coverage, 경계10개와 capability ordinal2개를 각 제공자에서 확인하고 원문 점수를 검토한다. 기존 조건부 해외 근무 frozen v2도 회귀 실행한다. DB 읽기/쓰기·추천·발송 없이 합성 입력만 전송하고 원문/소스 hash/usage는 ignored owner-only runs에 남긴다. 작은 경계 표본이며 실제 추천률·확률 보정·전체 seniority 사례를 보장하지 않는다.
+
+
+## 2026-10-18 공통 텍스트 입력·지침 중복 제거 (로컬 변경)
+
+V1은 Worker `opp/matching/text.py:external_scoring_input`을 실제 provider 전송 경계에서 사용한다. V2는 같은 Worker formatter 계약의 TypeScript 구현 `workerInputText.ts`를 사용하며 Python과 출력 일치 테스트를 둔다. 각 경로가 기존에 제공하던 사실은 보존한다. V1/V2의 기존 회사·공고 projection 자체가 동일하다는 뜻은 아니다. V2는 회사별로 정보를 한 번 적고 공고들을 묶으며, formatter에서 회사/JD 원문을 자르지 않는다.
+
+`fitQuestions.v4.json`은 v3의 모든 공통 지침을 shared input으로 한 번 이동한다. `commonInstructions + 각 instructions`가 v3 원문과 완전히 같고 criteria/type도 같은지 검증한다. 6축×역할별 질문 계약은 유지한다. 기준 버전은 유지하지만 role source hash는 실제 새 scoring 근거 전체를 반영하므로, 배포 후 기존 V2 fit cache는 새 hash로 재평가될 수 있다. 배포는 수행하지 않았다.
+
+3개 공고의 전체 입력은 [v2-input.txt](reports/2026-10-18-scoring-input/v2-input.txt), 전체 API payload는 [v2-request.json](reports/2026-10-18-scoring-input/v2-request.json), V1은 [v1-input.txt](reports/2026-10-18-scoring-input/v1-input.txt)와 [v1-system.txt](reports/2026-10-18-scoring-input/v1-system.txt)에 있다. frozen synthetic cases-v2의 batch0만 사용하며 운영 개인정보는 없다. fixture hash와 구/신 입력은 analysis-input.json에 보존한다.
+
+재현: beta에서 `WORKER_PYTHON=../myenv/bin/python node --import tsx scripts/inspectExternalScoringInput.ts`를 실행한 뒤, tiktoken이 설치된 Python으로 Worker `scripts/count_external_scoring_input.py`에 생성된 analysis-input.json 경로를 넘긴다. 정본 입력 생성기는 각 runtime builder를 호출하며 API/DB에 접근하지 않는다. o200k_base 로컬 추정은 V1 2,842→2,900(+2.04%), V2 11,387→7,927(-30.39%)다. 항목별 토큰/비중은 token-breakdown.json에 있다. 텍스트화 자체가 항상 토큰 절감을 보장하지 않으며, 짧은 합성 입력의 비중을 운영 평균으로 일반화하지 않는다. API 내부 질문 변환/overhead는 로컬 계산에 포함되지 않는다.
+
+실제 OpenAI 검증은 기존 canonical runner `scripts/evalExternalRecommendationsV2.ts --dataset=v2 --provider=openai`와 `--dataset=v4 --provider=openai`로 실행했다. 모델은 runtime gpt-6-luna, 입력과 gold는 기존 frozen 버전 그대로다. 3역할 run `2026-10-17T22-26-37-802Z`는 유효3/3, ordinal2/2, 조건경계3/3, API input9,566/output0이었다. 10역할 run `2026-10-17T22-26-37-803Z`는 유효10/10, ordinal2/2, 조건경계10/10, API input30,675/output0이었다. 원문 출력·manifest·usage는 ignored owner-only runs/에 보존한다. 3역할 API total9,566과 로컬7,927은 서로 다른 측정이며 항목별 실제 과금량은 API가 제공하지 않는다. Jev는 요청 계약만 검증했고 실제 모델 호출은 하지 않았다. 작은 합성 경계 검증이며 운영 추천 품질 보장은 아니다.
+
+관련 단위 검증: beta scoringInput/contract/engine 29개, Worker provider boundary/cache 63개 통과. V1은 전송 직전 텍스트와 기존 사실 보존을 검증했으며 이번 변경으로 실제 V1 모델 비교 평가를 새로 수행하지 않았다.
+
+
+## 2026-10-18 6축 rubric 공유 입력 (후속 로컬 변경)
+
+공식 Decisions create 명세(https://developers.openai.com/api/reference/resources/decisions/methods/create)는 input message의 developer/user 역할과 score levels/choice choices의 optional description을 지원한다. 현재 OpenAI 요청은 developer 메시지 한 개에 공통 지침과 6축 전체 지침·기준을 한 번씩 넣고, user 메시지 한 개에 기존 후보자·회사·공고 원문을 넣는다. 질문에는 role_id·rubric 참조·응답 해석 연결, name/type과 필요한 label/value만 남긴다. Jev는 기존 state.evidence에 전체 rubric을 한 번 넣고 필수 criteria 구조에는 해당 rubric 항목 참조를 둔다. 모든 원래 instructions/criteria가 공유 입력에 정확히 한 번 존재하며 질문마다 복제되지 않는지 테스트한다. 기준 원문·gold·점수 후처리·캐시 평가 버전은 변경하지 않는다. V1은 이번 후속 변경 대상이 아니다.
+
+첫 시도에서는 OpenAI string input에 rubric과 근거를 함께 넣었고, 10역할 사례의 extreme-responsibility-gap을 constraintPass97로 잘못 통과시켰다(22-32-56-019Z, 2회 동일). 참/거짓 연결만 명시한 후에도95로 실패했다(22-33-14-566Z). 이 실패 run들을 삭제하지 않았다. 사례별 예외나 평가 기준을 추가하지 않고 rubric을 developer 역할, 근거를 user 역할로 구분한 후 통과했다. 마지막으로 질문별 공통 연결 설명까지 공유 지침으로 옮긴 최종 코드의 결과만 아래에 기록한다. 초기 단순 string 입력 방식은 채택하지 않는다.
+
+최종 canonical runner는 기존 `scripts/evalExternalRecommendationsV2.ts`이며 v2/v4는 `--provider=both --repeats=2`, v1은 `--provider=openai`로 실행했다. frozen cases/gold 변경 없음, 실제 API 호출만 있고 DB/추천/연락 없음. 최종 runs는 v2 `2026-10-17T22-34-12-411Z`, v4 `2026-10-17T22-34-06-857Z`, v1 `2026-10-17T22-34-13-262Z`다. OpenAI/Jev 각각 v2 조건경계3/3·순위2/2와 v4 조건경계10/10·순위2/2를 두 반복 모두 통과했다. OpenAI v1은 유효13/13·순위8/8·조건경계2/2다. 원문 점수 검토에서도 회사 quality strong/weak/unknown을 구별하고 일반 기술·연차 차이는 roleFit을 낮추되 constraintPass로 차단하지 않으며, 원격·일정·최저보상·필수자격 충돌은 차단했다. 동일 근거 변형의 evidence가 sufficient/partial로 갈리는 변동은 남아 있다. 작은 frozen 합성 표본이며 운영 정확도·확률 calibration을 보장하지 않는다. 관련 단위 테스트30개 통과.
+
+실제 OpenAI usage 비교(같은 frozen 입력, 이전 일반 공통 지침만 중복 제거한 버전 대비): 3역할9,566→6,369토큰(-33.42%), 10역할30,675→15,795토큰(-48.51%). 최종 두 반복의 각 usage는 같았다. output_tokens는0. 캐시 할인 추정이 아니라 API가 반환한 input_tokens 비교다. 입력 메시지·질문의 내부 표현 때문에 로컬 추정과 총량은 다르다.
+
+새 전체 요청·텍스트·항목별 토큰·검증 요약은 [후속 report](reports/2026-10-18-scoring-input-shared-rubrics/v2-request.json)에 있다. 기존 report는 비교 기준으로 보존한다. 입력 재현 스크립트는 기존 `scripts/inspectExternalScoringInput.ts`이며 API를 호출하지 않고 이전 report를 baseline으로 읽는다. 모듈 초기화에는 dummy OPENAI_API_KEY와 로컬 Supabase URL/anon key를 설정한다. 새 o200k_base 추정3역할은7,927→4,539(-42.74%); 공통 지침228, 6축 rubric1,772, 후보자306, 회사+공고314/325/333, 질문 구조·연결1,205, 추가 공통 연결문·구분자56이다. 질문 부분은6,405→1,205(-81.19%). 원문·token-breakdown.json·validation-summary.json은 모두 합성 데이터이며, API raw outputs/manifest는 ignored owner-only runs/에만 둔다. 배포하지 않았다.

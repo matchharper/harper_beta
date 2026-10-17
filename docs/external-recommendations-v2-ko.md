@@ -131,6 +131,14 @@ Rerank 출력은 identifier와 `recommendationNote` 하나다. 최대2–3문장
 
 ## 적용 순서 / 운영 작업
 
+### 2026-10-16 현재 경로와 사전 제거 완료
+
+현재 검색은 `company_roles.title_embedding`과 현재 제목의 일치를 확인한다. 수집기가 공고에 벡터를 저장하며, 누락 복구는 Worker의 `scripts/generate_missing_role_title_embeddings.py`를 사용한다. 아래 제목 사전 구축·증분 처리 절차는 과거 기록이며 다시 실행하지 않는다. 해당 사전 전용 백필·인덱스 스크립트는 제거했다.
+
+운영 DB를 직접 확인한 결과 사전 트리거·관련 cron·뷰·함수 호출자는 없었다. 사용자가 웹 배포 없이 DB를 먼저 삭제하도록 명시적으로 승인하여, 미사용 함수 4개와 사전 테이블을 운영 migration `20261016110600`으로 삭제했다. 로컬 SQL은 `20261016110152_retire_external_role_title_dictionary.sql`이며 다른 객체의 연쇄 삭제를 허용하지 않는다. 삭제 후 테이블 없음·관련 함수/트리거 0개, 공고별 임베딩 컬럼과 검색 RPC 보존을 확인했다. 웹·Worker는 배포하지 않았다. 운영 웹 `fd2db76ce7f5e8aa357febb0d1ca7c1211b8a5fa`의 기존 Ops 사전 선택지는 코드 정리 배포 전까지 조회에 실패한다. 추천 본 경로는 공고별 벡터를 사용한다.
+
+### 과거 적용 기록
+
 운영 DB 적용과 embedding backfill은 사용자가 승인한 데이터 작업이다. 배포 승인은 별개이며 이번 작업에서는 웹/worker를 배포하지 않았다. 새 UI 번역3키의 한·영6행은 번역 저장소에 동기화했다.
 
 1. 기본 V2 migration, 제목 사전 migration, bulk 준비 migration이 적용되었다. 기존 vector extension은 `public`이다. 실제 migration history와 최종 커버리지는 검증 기록에 보존한다.

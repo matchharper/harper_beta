@@ -231,7 +231,6 @@ const TALENT_EXPERIENCE_DESCRIPTION_MAX_LENGTH = 5000;
 const TALENT_TIMELINE_DESCRIPTION_MAX_LENGTH = 900;
 const FINAL_RECOMMENDATION_COUNT = 5;
 const CONTINUATION_RECOMMENDATION_BATCH_LIMIT = 10;
-const EXTERNAL_FIT_CACHE_TTL_DAYS = 30;
 const EXTERNAL_FIT_CACHE_EVALUATOR_KEY = "beta-full-jd-v1";
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_SCORE100 = 70;
 const EXTERNAL_FIT_CACHE_SHORTLIST_SKIP_MIN_COUNT = 20;
@@ -3206,16 +3205,10 @@ export async function fetchExternalFitCache(args: {
   ).filter(isUuid);
   if (roleIds.length === 0) return new Map<string, ExternalFitCache>();
 
-  const referenceTime = args.asOf ? new Date(args.asOf).getTime() : Date.now();
-  const cutoff = new Date(
-    referenceTime - EXTERNAL_FIT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
-  ).toISOString();
-
   try {
     let query = (args.admin.from("talent_external_fit" as any) as any)
       .select("role_id, meta, created_at")
       .eq("talent_id", args.userId)
-      .gte("created_at", cutoff)
       .in("role_id", roleIds);
     if (args.asOf) query = query.lte("created_at", args.asOf);
     const { data, error } = (await query) as unknown as {
@@ -3228,40 +3221,14 @@ export async function fetchExternalFitCache(args: {
         message: error.message,
         requestedRoleCount: roleIds.length,
       });
-      return new Map<string, ExternalFitCache>();
+      throw new Error(error.message || "External fit cache unavailable");
     }
 
     const result = new Map<string, ExternalFitCache>();
-    const cardByRoleId = new Map(
-      (args.roleCards ?? []).map((card) => [card.roleId, card])
-    );
     for (const row of Array.isArray(data) ? data : []) {
       const record = asRecord(row);
       const roleId = cleanText(record?.role_id, 120);
       const meta = asRecord(record?.meta);
-      if (args.inputFingerprint) {
-        const card = cardByRoleId.get(roleId);
-        const storedFingerprint = cleanText(meta?.inputFingerprint, 128);
-        const inputMatches =
-          storedFingerprint === args.inputFingerprint ||
-          (args.inputContext !== undefined &&
-            fullJdCacheInputMatches(meta, args.inputContext));
-        if (
-          !inputMatches ||
-          !card ||
-          cleanText(meta?.roleSourceHash, 128) !== fullJdRoleSourceHash(card)
-        ) {
-          continue;
-        }
-      }
-      const createdAtMs = new Date(String(record?.created_at ?? "")).getTime();
-      if (
-        !Number.isFinite(createdAtMs) ||
-        createdAtMs <
-          referenceTime - EXTERNAL_FIT_CACHE_TTL_DAYS * 24 * 60 * 60 * 1000
-      ) {
-        continue;
-      }
       const cache = normalizeExternalFitCache(meta, record?.created_at);
       if (roleId && cache) result.set(roleId, cache);
     }
@@ -3271,7 +3238,7 @@ export async function fetchExternalFitCache(args: {
       message: error instanceof Error ? error.message : String(error),
       requestedRoleCount: roleIds.length,
     });
-    return new Map<string, ExternalFitCache>();
+    throw error;
   }
 }
 
@@ -5093,7 +5060,7 @@ export async function runCareerJobPostingRecommendations(args: {
               reason: "external_fit_cache_high_score_threshold",
               selectedExternal: cachedShortlistCards.length,
               selectionLimit,
-              ttlDays: EXTERNAL_FIT_CACHE_TTL_DAYS,
+              ttlDays: null,
             });
             return cachedShortlistCards;
           })()

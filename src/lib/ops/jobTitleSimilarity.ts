@@ -17,7 +17,7 @@ export const jobTitleSimilarityLimitSchema = z
   .default(JOB_TITLE_SIMILARITY_DEFAULT_LIMIT);
 
 export const jobTitleSimilaritySourceSchema = z
-  .enum(["company_roles", "external_role_title_embeddings"])
+  .literal("company_roles")
   .default("company_roles");
 export type JobTitleSimilaritySource = z.infer<
   typeof jobTitleSimilaritySourceSchema
@@ -40,7 +40,7 @@ export type JobTitleSimilarityRow = {
 };
 
 export type JobTitleSimilarityResult = {
-  rows: (JobTitleSimilarityRow | { title_key: string; title: string })[];
+  rows: JobTitleSimilarityRow[];
   timings: {
     candidateSearchMs: number;
     rerankAndFetchMs: number;

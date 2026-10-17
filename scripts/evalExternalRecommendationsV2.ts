@@ -82,7 +82,8 @@ async function main() {
     });
   const sources = [
     "src/lib/externalRecommendationsV2/decisions.ts",
-    "src/lib/externalRecommendationsV2/fitQuestions.v3.json",
+    "src/lib/externalRecommendationsV2/fitQuestions.v4.json",
+    "src/lib/externalRecommendationsV2/workerInputText.ts",
     "src/lib/externalRecommendationsV2/scoringInput.ts",
     "src/lib/externalRecommendationsV2/engine.ts",
     "src/lib/externalRecommendationsV2/prompts.ts",

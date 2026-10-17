@@ -1,0 +1,89 @@
+{
+  "tokenizer": "o200k_base",
+  "method": "Local estimates; compact JSON question serialization; no provider hidden overhead. Parts counted separately; boundary residual included.",
+  "fixture": "frozen synthetic cases-v2, batch 0, three roles",
+  "v1": {
+    "before": 2842,
+    "after": 2900,
+    "reduction_percent": -2.04,
+    "parts": [
+      {
+        "name": "prompt",
+        "tokens": 2103,
+        "percent": 72.52
+      },
+      {
+        "name": "candidate",
+        "tokens": 306,
+        "percent": 10.55
+      },
+      {
+        "name": "company_role_1",
+        "tokens": 135,
+        "percent": 4.66
+      },
+      {
+        "name": "company_role_2",
+        "tokens": 146,
+        "percent": 5.03
+      },
+      {
+        "name": "company_role_3",
+        "tokens": 154,
+        "percent": 5.31
+      },
+      {
+        "name": "wrappers_and_boundaries",
+        "tokens": 56,
+        "percent": 1.93
+      }
+    ]
+  },
+  "v2": {
+    "before": 7927,
+    "after": 4539,
+    "reduction_percent": 42.74,
+    "parts": [
+      {
+        "name": "common_prompt",
+        "tokens": 228,
+        "percent": 5.02
+      },
+      {
+        "name": "metric_rubrics",
+        "tokens": 1772,
+        "percent": 39.04
+      },
+      {
+        "name": "candidate",
+        "tokens": 306,
+        "percent": 6.74
+      },
+      {
+        "name": "company_1",
+        "tokens": 314,
+        "percent": 6.92
+      },
+      {
+        "name": "company_2",
+        "tokens": 325,
+        "percent": 7.16
+      },
+      {
+        "name": "company_3",
+        "tokens": 333,
+        "percent": 7.34
+      },
+      {
+        "name": "metric_questions",
+        "tokens": 1205,
+        "percent": 26.55
+      },
+      {
+        "name": "wrappers_and_boundaries",
+        "tokens": 56,
+        "percent": 1.23
+      }
+    ]
+  }
+}

@@ -1,8 +1,10 @@
 import { buildScoringInput, v2PromptCandidate } from "./scoringInput";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { roleCard } from "../talentOnboarding/jobPostingRecommendations";
+import { fetchExternalFitCache, roleCard } from "../talentOnboarding/jobPostingRecommendations";
 import {
+  parsePlan,
+  v2CompletionRequest,
   generateSummaries,
   rerankCandidates,
   getSearchPlan,
@@ -10,7 +12,6 @@ import {
   type EngineArgs,
 } from "./engine";
 import { SEARCH_PLAN_VERSION, evaluatorKey, fingerprint } from "./contract";
-import { buildFullJdCandidateBatchText } from "../talentOnboarding/jobPostingFullJdScoring";
 import { PLAN_PROMPT, WORKER_PLAN_PROMPT } from "./prompts";
 const cards = (n: number) =>
   Array.from({ length: n }, (_, i) =>
@@ -245,12 +246,9 @@ test("rerank sees only top twenty with requested-language summary and consumes j
     result[0].recommendationNote,
     "A specific advantage for this candidate."
   );
-  await assert.rejects(
-    rerankCandidates(args, {}, ranked, async () => ({
+  assert.deepEqual(await rerankCandidates(args, {}, ranked, async () => ({
       selectedRoles: [{ candidateId: "31", recommendationNote: "Invalid" }],
-    })),
-    /Invalid/
-  );
+    })), []);
 });
 test("daily current-context default reuses the complete plan and vectors without a planner call", async () => {
   const saved = {
@@ -600,12 +598,10 @@ test("worker rerank carries its search hypothesis beside the authoritative Brief
   );
 });
 
-test("daily cache reuses the latest valid prior evaluator and context without relaxing other surfaces", async () => {
+test("all surfaces reuse cached fits despite age, source, context and evaluator changes", async () => {
   const [card] = cards(1);
   const sourceHash = fingerprint(
-    buildFullJdCandidateBatchText([
-      { ...v2PromptCandidate(card, "en"), cachedRoleSummary: null },
-    ])
+    buildScoringInput({}, [v2PromptCandidate(card, "en")])
   );
   const fit = {
     candidateInterest: 40,
@@ -653,7 +649,7 @@ test("daily cache reuses the latest valid prior evaluator and context without re
     "current-context",
     "openai"
   );
-  assert.equal(daily.get(card.roleId), fit);
+  assert.equal(daily.get(card.roleId), evaluations["changed-source"]);
   for (const surface of ["web", "worker"] as const) {
     const strict = await loadFitCache(
       { ...args, admin, surface },
@@ -661,21 +657,16 @@ test("daily cache reuses the latest valid prior evaluator and context without re
       "current-context",
       "openai"
     );
-    assert.equal(strict.size, 0);
+    assert.equal(strict.size, 1);
   }
+  evaluations["changed-source"] = undefined;
   delete evaluations["old-prompt:jev:old-model"];
   delete evaluations[evaluatorKey("openai")];
-  assert.equal(
-    (
-      await loadFitCache(
-        { ...args, admin, surface: "daily" },
-        [card],
-        "current-context",
-        "openai"
-      )
-    ).size,
-    0
-  );
+  assert.equal((await loadFitCache({ ...args, admin }, [card], "changed", "jev")).size, 1);
+  assert.equal((await loadFitCache({ ...args, admin, refreshFit: true }, [card], "changed", "jev")).size, 0);
+  evaluations.expired = { mutualFit: 90 };
+  assert.equal((await loadFitCache({ ...args, admin }, [card], "changed", "jev")).size, 0);
+
 });
 
 test("reranking skips incomplete fits and preserves valid legacy scores", async () => {
@@ -742,4 +733,126 @@ test("summary cache timeout skips its batch; permission errors remain fatal", as
     else await assert.rejects(run, /batch\(es\) failed/);
     assert.equal(input[0].roleSummary?.en, undefined);
   }
+});
+
+
+test("rerank repairs structural errors once with the original context and invalid response", async () => {
+  for (const invalid of [
+    {
+      selectedRoles: [{ candidateId: "99", recommendationNote: "Invalid ID" }],
+    },
+    {
+      selectedRoles: [
+        { candidateId: "1", recommendationNote: "A" },
+        { candidateId: "1", recommendationNote: "B" },
+      ],
+    },
+    {
+      selectedRoles: [
+        { candidateId: "1", recommendationNote: "A" },
+        { candidateId: "2", recommendationNote: "B" },
+      ],
+    },
+    { selectedRoles: [{ candidateId: "1" }] },
+  ]) {
+    const inputCards = cards(2);
+    inputCards[1].companyWorkspaceId = inputCards[0].companyWorkspaceId;
+    const ranked = inputCards.map((card) => {
+      card.roleSummary = { en: { content: "Synthetic summary" } };
+      return { card, score: 80, fit: { legacyScore: 80 } };
+    });
+    let calls = 0;
+    const result = await rerankCandidates(
+      args,
+      { search_brief: "Original brief" },
+      ranked,
+      async (system, input, label) => {
+        calls++;
+        if (calls === 1) return invalid;
+        assert.equal(label, "rerank_repair");
+        assert.match(system, /Correct the previous output/);
+        assert.match(input, /Original brief/);
+        assert.match(input, /previousInvalidResponse/);
+        assert.match(input, /validationErrors/);
+        return {
+          selectedRoles: [
+            { candidateId: "2", recommendationNote: "Corrected" },
+          ],
+        };
+      },
+    );
+    assert.equal(calls, 2);
+    assert.equal(result[0].card.roleId, inputCards[1].roleId);
+  }
+});
+
+test("rerank stops after one repair and propagates transport errors", async () => {
+  const [card] = cards(1);
+  card.roleSummary = { en: { content: "Summary" } };
+  const ranked = [{ card, score: 80, fit: { legacyScore: 80 } }];
+  let calls = 0;
+  assert.deepEqual(
+    await rerankCandidates(args, {}, ranked, async () => {
+      calls++;
+      return {
+        selectedRoles: [{ candidateId: "99", recommendationNote: "Invalid" }],
+      };
+    }),
+    [],
+  );
+  assert.equal(calls, 2);
+  calls = 0;
+  await assert.rejects(
+    rerankCandidates(args, {}, ranked, async () => {
+      calls++;
+      throw new Error("Network unavailable");
+    }),
+    /Network unavailable/,
+  );
+  assert.equal(calls, 1);
+  const request = v2CompletionRequest("system", "input", "rerank_repair");
+  assert.equal(request.primaryModel, "gpt-6-luna");
+  assert.equal(request.openAIResponsesReasoningEffort, "low");
+});
+
+test("planner clips oversized search arrays before validation and defaults missing weight", () => {
+  const plan = parsePlan({
+    searchIntentSummary: "Synthetic search",
+    role_titles: [...Array.from({ length: 24 }, (_, i) => `Role ${i}`), null],
+    ftsKeywords: [
+      ...Array.from({ length: 4 }, () => ({
+        terms: [...Array.from({ length: 8 }, (_, i) => `Term ${i}`), null],
+      })),
+      null,
+    ],
+    include_contract: false,
+    include_parttime: false,
+    include_intern: false,
+    includeRemote: true,
+    remoteOnly: false,
+    is_prefer_entry: 0,
+    countries: [{ countryCode: "KR", weight: 1, remoteOnly: false }],
+    postingRecency: null,
+  });
+  assert.equal(plan.roleTitles.length, 24);
+  assert.equal(plan.ftsKeywords.length, 4);
+  assert.equal(plan.ftsKeywords[0].terms.length, 8);
+  assert.equal(plan.ftsKeywords[0].weight, 1);
+});
+
+
+test("legacy web cache preserves old evidence and propagates read errors", async () => {
+  const [card] = cards(1);
+  let failure = false;
+  const query: any = {
+    select: () => query, eq: () => query,
+    in: async () => ({ data: [{ role_id: card.roleId, created_at: "2020-01-01T00:00:00Z",
+      meta: { score: 80, inputFingerprint: "old", roleSourceHash: "old" } }],
+      error: failure ? { message: "cache unavailable" } : null }),
+  };
+  const input = { admin: { from: () => query } as any, userId: args.userId,
+    roleIds: [card.roleId], roleCards: [card], inputFingerprint: "changed" };
+  assert.equal((await fetchExternalFitCache(input)).get(card.roleId)?.score100, 80);
+  failure = true;
+  await assert.rejects(fetchExternalFitCache(input), /cache unavailable/);
 });

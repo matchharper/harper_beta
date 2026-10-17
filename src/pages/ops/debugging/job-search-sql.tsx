@@ -3,13 +3,6 @@ import { useRef, useState } from "react";
 import OpsShell from "@/components/ops/OpsShell";
 import { useCanFetchInternal } from "@/components/ops/debugging/shared";
 import { MuteButton } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs } from "@/components/ui/tabs";
@@ -28,14 +21,11 @@ import {
   JOB_TITLE_SIMILARITY_DEFAULT_LIMIT,
   JOB_TITLE_SIMILARITY_MAX_LIMIT,
   type JobTitleSimilarityResult,
-  type JobTitleSimilaritySource,
 } from "@/lib/ops/jobTitleSimilarity";
 
 export default function JobTitleSimilarityPage() {
   const [tab, setTab] = useState("similarity");
   const canFetch = useCanFetchInternal();
-  const [source, setSource] =
-    useState<JobTitleSimilaritySource>("company_roles");
   const [text, setText] = useState("");
   const [limit, setLimit] = useState(
     String(JOB_TITLE_SIMILARITY_DEFAULT_LIMIT)
@@ -66,7 +56,6 @@ export default function JobTitleSimilarityPage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              source,
               text,
               limit: Number(limit),
               candidateLimit: Number(candidateLimit),
@@ -120,39 +109,6 @@ export default function JobTitleSimilarityPage() {
               void run();
             }}
           >
-            <div className="max-w-sm space-y-1.5">
-              <label
-                id="search-source-label"
-                className="block text-sm font-medium"
-              >
-                검색 대상
-              </label>
-              <Select
-                value={source}
-                disabled={running}
-                onValueChange={(value) => {
-                  if (
-                    value !== "company_roles" &&
-                    value !== "external_role_title_embeddings"
-                  )
-                    return;
-                  setSource(value);
-                  setResult(null);
-                  setElapsedMs(null);
-                  setError("");
-                }}
-              >
-                <SelectTrigger aria-labelledby="search-source-label">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="company_roles">company_roles</SelectItem>
-                  <SelectItem value="external_role_title_embeddings">
-                    external_role_title_embeddings
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <label htmlFor="search-text" className="block text-sm font-medium">
               검색 텍스트
             </label>
@@ -170,7 +126,7 @@ export default function JobTitleSimilarityPage() {
                   htmlFor="candidate-limit"
                   className="block text-sm font-medium"
                 >
-                  {source === "company_roles" ? "공고 후보 수" : "검색 제목 수"}
+                  공고 후보 수
                 </label>
                 <Input
                   id="candidate-limit"
@@ -184,27 +140,25 @@ export default function JobTitleSimilarityPage() {
                   disabled={running}
                 />
               </div>
-              {source === "company_roles" && (
-                <div className="w-32 space-y-1.5">
-                  <label
-                    htmlFor="result-limit"
-                    className="block text-sm font-medium"
-                  >
-                    최종 공고 수
-                  </label>
-                  <Input
-                    id="result-limit"
-                    type="number"
-                    min={1}
-                    max={JOB_TITLE_SIMILARITY_MAX_LIMIT}
-                    step={1}
-                    required
-                    value={limit}
-                    onChange={(event) => setLimit(event.target.value)}
-                    disabled={running}
-                  />
-                </div>
-              )}
+              <div className="w-32 space-y-1.5">
+                <label
+                  htmlFor="result-limit"
+                  className="block text-sm font-medium"
+                >
+                  최종 공고 수
+                </label>
+                <Input
+                  id="result-limit"
+                  type="number"
+                  min={1}
+                  max={JOB_TITLE_SIMILARITY_MAX_LIMIT}
+                  step={1}
+                  required
+                  value={limit}
+                  onChange={(event) => setLimit(event.target.value)}
+                  disabled={running}
+                />
+              </div>
               <MuteButton
                 type="submit"
                 variant="primary"
@@ -215,9 +169,7 @@ export default function JobTitleSimilarityPage() {
             </div>
           </form>
           <p className="text-sm text-neutral-muted">
-            {source === "company_roles"
-              ? "공고별 현재 제목 임베딩으로 검색합니다. 후보 수는 공고 수입니다."
-              : "활성 공고가 있는 제목 임베딩에서 선택된 제목만 표시합니다. 공고 조회와 정밀 유사도 재계산·재정렬은 하지 않습니다."}
+            공고별 현재 제목 임베딩으로 검색합니다. 후보 수는 공고 수입니다.
           </p>
           {error && (
             <p role="alert" className="text-sm text-critical">
@@ -234,15 +186,13 @@ export default function JobTitleSimilarityPage() {
                 {((elapsedMs ?? 0) / 1000).toFixed(3)}초
               </p>
               <p>
-                1차 {source === "company_roles" ? "공고" : "제목"} 후보 검색{" "}
+                1차 공고 후보 검색{" "}
                 {(result.timings.candidateSearchMs / 1000).toFixed(3)}초
-                {source === "company_roles" && (
-                  <>
-                    {" "}
-                    · 정밀 유사도·공고 조회·정렬{" "}
-                    {(result.timings.rerankAndFetchMs / 1000).toFixed(3)}초
-                  </>
-                )}
+                <>
+                  {" "}
+                  · 정밀 유사도·공고 조회·정렬{" "}
+                  {(result.timings.rerankAndFetchMs / 1000).toFixed(3)}초
+                </>
               </p>
             </div>
           )}
@@ -251,36 +201,27 @@ export default function JobTitleSimilarityPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">순위</TableHead>
-                  {source === "company_roles" && <TableHead>회사</TableHead>}
+                  <TableHead>회사</TableHead>
                   <TableHead>제목</TableHead>
-                  {source === "company_roles" && (
-                    <TableHead className="text-right">유사도</TableHead>
-                  )}
+                  <TableHead className="text-right">유사도</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((row, index) => (
-                  <TableRow
-                    key={"title_key" in row ? row.title_key : row.role_id}
-                  >
+                  <TableRow key={row.role_id}>
                     <TableCell className="tabular-nums">{index + 1}</TableCell>
-                    {"title_key" in row ? (
-                      <TableCell>{row.title}</TableCell>
-                    ) : (
-                      <>
-                        <TableCell>{row.company_name ?? "—"}</TableCell>
-                        <TableCell>{row.role_name}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.similarity.toFixed(4)}
-                        </TableCell>
-                      </>
-                    )}
+
+                    <TableCell>{row.company_name ?? "—"}</TableCell>
+                    <TableCell>{row.role_name}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.similarity.toFixed(4)}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={source === "company_roles" ? 4 : 2}
+                      colSpan={4}
                       className="text-center text-neutral-muted"
                     >
                       0개

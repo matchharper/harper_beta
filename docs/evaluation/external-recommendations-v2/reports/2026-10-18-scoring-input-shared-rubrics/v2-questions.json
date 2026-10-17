@@ -1,0 +1,227 @@
+[
+  {
+    "name": "r0_candidateInterest",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000101, apply shared instructions and Rubric candidateInterest. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r0_companyInterest",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000101, apply shared instructions and Rubric companyInterest. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r0_mutualFit",
+    "type": "score",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000101, apply shared instructions and Rubric mutualFit. Levels 0–4 use its ordered criteria.",
+    "levels": [
+      {
+        "label": "0"
+      },
+      {
+        "label": "1"
+      },
+      {
+        "label": "2"
+      },
+      {
+        "label": "3"
+      },
+      {
+        "label": "4"
+      }
+    ]
+  },
+  {
+    "name": "r0_roleFit",
+    "type": "score",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000101, apply shared instructions and Rubric roleFit. Levels 0–4 use its ordered criteria.",
+    "levels": [
+      {
+        "label": "0"
+      },
+      {
+        "label": "1"
+      },
+      {
+        "label": "2"
+      },
+      {
+        "label": "3"
+      },
+      {
+        "label": "4"
+      }
+    ]
+  },
+  {
+    "name": "r0_constraintPass",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000101, apply shared instructions and Rubric constraintPass. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r0_evidence",
+    "type": "choice",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000101, apply shared instructions and Rubric evidence. Choice values use its criteria.",
+    "choices": [
+      {
+        "value": "sufficient"
+      },
+      {
+        "value": "partial"
+      },
+      {
+        "value": "insufficient"
+      }
+    ]
+  },
+  {
+    "name": "r1_candidateInterest",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000102, apply shared instructions and Rubric candidateInterest. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r1_companyInterest",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000102, apply shared instructions and Rubric companyInterest. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r1_mutualFit",
+    "type": "score",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000102, apply shared instructions and Rubric mutualFit. Levels 0–4 use its ordered criteria.",
+    "levels": [
+      {
+        "label": "0"
+      },
+      {
+        "label": "1"
+      },
+      {
+        "label": "2"
+      },
+      {
+        "label": "3"
+      },
+      {
+        "label": "4"
+      }
+    ]
+  },
+  {
+    "name": "r1_roleFit",
+    "type": "score",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000102, apply shared instructions and Rubric roleFit. Levels 0–4 use its ordered criteria.",
+    "levels": [
+      {
+        "label": "0"
+      },
+      {
+        "label": "1"
+      },
+      {
+        "label": "2"
+      },
+      {
+        "label": "3"
+      },
+      {
+        "label": "4"
+      }
+    ]
+  },
+  {
+    "name": "r1_constraintPass",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000102, apply shared instructions and Rubric constraintPass. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r1_evidence",
+    "type": "choice",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000102, apply shared instructions and Rubric evidence. Choice values use its criteria.",
+    "choices": [
+      {
+        "value": "sufficient"
+      },
+      {
+        "value": "partial"
+      },
+      {
+        "value": "insufficient"
+      }
+    ]
+  },
+  {
+    "name": "r2_candidateInterest",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000103, apply shared instructions and Rubric candidateInterest. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r2_companyInterest",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000103, apply shared instructions and Rubric companyInterest. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r2_mutualFit",
+    "type": "score",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000103, apply shared instructions and Rubric mutualFit. Levels 0–4 use its ordered criteria.",
+    "levels": [
+      {
+        "label": "0"
+      },
+      {
+        "label": "1"
+      },
+      {
+        "label": "2"
+      },
+      {
+        "label": "3"
+      },
+      {
+        "label": "4"
+      }
+    ]
+  },
+  {
+    "name": "r2_roleFit",
+    "type": "score",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000103, apply shared instructions and Rubric roleFit. Levels 0–4 use its ordered criteria.",
+    "levels": [
+      {
+        "label": "0"
+      },
+      {
+        "label": "1"
+      },
+      {
+        "label": "2"
+      },
+      {
+        "label": "3"
+      },
+      {
+        "label": "4"
+      }
+    ]
+  },
+  {
+    "name": "r2_constraintPass",
+    "type": "predicate",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000103, apply shared instructions and Rubric constraintPass. Estimate probability of its true criterion (false is the contrary event)."
+  },
+  {
+    "name": "r2_evidence",
+    "type": "choice",
+    "instructions": "For role_id 00000000-0000-4000-8000-000000000103, apply shared instructions and Rubric evidence. Choice values use its criteria.",
+    "choices": [
+      {
+        "value": "sufficient"
+      },
+      {
+        "value": "partial"
+      },
+      {
+        "value": "insufficient"
+      }
+    ]
+  }
+]

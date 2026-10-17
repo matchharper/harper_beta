@@ -93,7 +93,7 @@ async function controlCached(args: EngineArgs) {
   const rows = await executeSql(
     args.admin,
     `SELECT ${ROLE_SELECT} FROM public.talent_external_fit f JOIN public.company_roles cr ON cr.role_id=f.role_id ${ROLE_JOINS}
-    WHERE f.talent_id=${sqlLiteral(args.userId)}::uuid AND f.created_at>now()-interval '30 days'
+    WHERE f.talent_id=${sqlLiteral(args.userId)}::uuid
       AND f.meta<>'{}'::jsonb AND ${eligibilitySql({ userId: args.userId, blockedCompanies: loaded.blockedCompanies })}
     ORDER BY f.created_at DESC`,
     200

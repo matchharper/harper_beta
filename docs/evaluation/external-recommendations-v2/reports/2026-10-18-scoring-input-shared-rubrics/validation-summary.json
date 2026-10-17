@@ -1,0 +1,107 @@
+{
+  "v2": {
+    "run": "2026-10-17T22-34-12-411Z",
+    "checks": [
+      {
+        "provider": "openai",
+        "repeat": 0,
+        "validPairs": 3,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 3,
+        "constraintsTotal": 3
+      },
+      {
+        "provider": "jev",
+        "repeat": 0,
+        "validPairs": 3,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 3,
+        "constraintsTotal": 3
+      },
+      {
+        "provider": "jev",
+        "repeat": 1,
+        "validPairs": 3,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 3,
+        "constraintsTotal": 3
+      },
+      {
+        "provider": "openai",
+        "repeat": 1,
+        "validPairs": 3,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 3,
+        "constraintsTotal": 3
+      }
+    ]
+  },
+  "v4": {
+    "run": "2026-10-17T22-34-06-857Z",
+    "checks": [
+      {
+        "provider": "openai",
+        "repeat": 0,
+        "validPairs": 10,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 10,
+        "constraintsTotal": 10
+      },
+      {
+        "provider": "jev",
+        "repeat": 0,
+        "validPairs": 10,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 10,
+        "constraintsTotal": 10
+      },
+      {
+        "provider": "jev",
+        "repeat": 1,
+        "validPairs": 10,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 10,
+        "constraintsTotal": 10
+      },
+      {
+        "provider": "openai",
+        "repeat": 1,
+        "validPairs": 10,
+        "failedPairs": 0,
+        "orderingPassed": 2,
+        "orderingTotal": 2,
+        "constraintsPassed": 10,
+        "constraintsTotal": 10
+      }
+    ]
+  },
+  "v1": {
+    "run": "2026-10-17T22-34-13-262Z",
+    "checks": [
+      {
+        "provider": "openai",
+        "repeat": 0,
+        "validPairs": 13,
+        "failedPairs": 0,
+        "orderingPassed": 8,
+        "orderingTotal": 8,
+        "constraintsPassed": 2,
+        "constraintsTotal": 2
+      }
+    ]
+  }
+}

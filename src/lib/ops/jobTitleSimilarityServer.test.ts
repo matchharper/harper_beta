@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createHash } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
 import {
@@ -13,7 +12,7 @@ type JobTitleSimilarityResult = Omit<SearchResult, "rows"> & {
   rows: JobTitleSimilarityRow[];
 };
 
-test("role search reranks roles and dictionary search returns titles directly", async () => {
+test("role search reranks eligible roles without a title dictionary", async () => {
   // All data stays in this in-memory database; no model or Supabase calls.
   process.env.OPENAI_API_KEY ??= "local-check-only";
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
@@ -138,61 +137,6 @@ test("role search reranks roles and dictionary search returns titles directly", 
         (row) => ["1", "2", "3"].includes(row.role_id)
       )
     );
-
-    // Dictionary search returns titles even without matching role rows.
-    await db.exec(`CREATE TABLE external_role_title_embeddings (
-      title_key text, title text, embedding vector(1536), live_role_count integer
-    );`);
-    await db.query(
-      `INSERT INTO external_role_title_embeddings VALUES
-      (md5('Engineer'), 'Engineer', $1::vector, 5),
-      (md5('Unused'), 'Unused', $1::vector, 0)`,
-      [JSON.stringify(embedding)]
-    );
-    const dictionarySql = (limit = 20) =>
-      buildJobTitleSimilaritySql(
-        embedding,
-        limit,
-        1,
-        "external_role_title_embeddings"
-      );
-    assert.deepEqual((await query(dictionarySql())).rows, [
-      {
-        title_key: createHash("md5").update("Engineer").digest("hex"),
-        title: "Engineer",
-      },
-    ]);
-    assert.equal(
-      jobTitleSimilarityRequestSchema.parse({ text: "Engineer" }).source,
-      "company_roles"
-    );
-    assert.equal(
-      jobTitleSimilarityRequestSchema.safeParse({
-        text: "Engineer",
-        source: "other_table",
-      }).success,
-      false
-    );
-    await db.query(
-      "INSERT INTO external_role_title_embeddings VALUES (md5('No matching role'), 'No matching role', $1::vector, 1)",
-      [JSON.stringify(embedding)]
-    );
-    const titlesOnlySql = buildJobTitleSimilaritySql(
-      embedding,
-      1,
-      10,
-      "external_role_title_embeddings"
-    );
-    assert.doesNotMatch(
-      titlesOnlySql,
-      /company_roles|company_workspace|scored_roles/
-    );
-    assert.equal((await query(titlesOnlySql)).rows.length, 2);
-    assert.equal((await query(titlesOnlySql)).timings.rerankAndFetchMs, 0);
-    await db.exec(
-      "UPDATE external_role_title_embeddings SET live_role_count = 0;"
-    );
-    assert.deepEqual((await query(dictionarySql())).rows, []);
 
     // Delays inside each materialized stage must be charged to that stage.
     const delayed = buildJobTitleSimilaritySql(embedding, 2)

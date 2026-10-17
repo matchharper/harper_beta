@@ -63,7 +63,7 @@ async function main() {
         ["Account Executive", "Sales Manager"],
       ]) {
         const rows = await readOnly(
-          `SELECT te.embedding::text AS embedding,te.title FROM public.external_role_title_embeddings te WHERE te.title_key IN (${titles.map((t) => `md5('${t}')`).join(",")}) AND te.embedding IS NOT NULL ORDER BY te.live_role_count DESC LIMIT 1`
+          `SELECT r.title_embedding::text AS embedding,r.name AS title FROM public.company_roles r WHERE r.name IN (${titles.map((t) => `'${t}'`).join(",")}) AND r.source_type='external' AND r.title_embedding IS NOT NULL AND r.title_embedding_text=r.name ORDER BY r.role_id LIMIT 1`
         );
         if (!rows.length)
           throw new Error("Requested real title vector missing");
