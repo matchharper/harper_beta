@@ -8,7 +8,7 @@
 - 국가 코드는 정확히 비교하고 국가별 remoteOnly를 유지한다. 국가별 ANN 결과를 거리순으로 합쳐 전체 N개를 선택하며 후보 수집 단계에는 국가 weight를 적용하지 않는다. 즉시 검색·Worker control의 planner도 countries만 생성하며, 새 내부 검색 API는 locations 입력을 받지 않는다. 도시 문자열로 국가를 추측하지 않는다.
 - 후보 N개 안에서 가중 FTS와 연봉 만족도를 계산한다. 점수는 `FTS/(1+FTS) + 0.35*(2*salaryUtility-1) + entryPreferenceScore + recencyScore`이며 동점은 제목 거리·게시일·ID로 정리한다. 급여 미상은 0.5로 중립이다. 신입·경력 선호와 게시일 가중치는 기존 조회의 점수를 재사용하며, ANN 후보 N개를 확정한 뒤에만 계산한다. 제목 embedding이 없거나 현재 제목과 불일치하는 공고는 제외한다.
 - 최종 점수를 계산한 후보에서 같은 `company_workspace_id`의 상위 3개만 남긴 뒤 국가 weight 비율로 최종 500/200개를 배분한다. 국가 안에서는 기존 점수순으로 선택하고 최종 표시도 같은 점수순이다. 예를 들어 KR 0.9/US 0.1이면 500개 중 450/50개가 목표이며, KR 후보가 300개뿐이면 US에서 200개를 채운다. 여러 국가의 후보가 부족해도 남은 국가에 가중치 비례로 재배분하고, 소수점은 최대 나머지 방식(동점은 입력 국가 순서)으로 처리한다. 추가 ANN 검색이나 DB 왕복은 없다. 동점은 제목 거리, 게시일(최신 우선·null 마지막), role ID 순으로 정리한다. 회사 이름이 같아도 workspace ID가 다르면 별도로 취급한다. 회사 다양성이 부족하면 결과가 한도보다 적을 수 있으며, 후보를 추가 검색하거나 회사별 한도를 풀지 않는다.
-- Ops와 Worker는 최종 500개, `recommend_job_postings` 즉시 검색은 최종 200개를 확정한 뒤 상세 공고와 회사 정보를 붙인다. 후보 HNSW 한도 3,000개는 동일하다. Worker 추가 검색은 같은 후보/정렬 방법으로 기존 추가 검색 한도 50개를 반환한다. 이후 fit/scoring/전달 방식은 유지한다.
+- Ops와 V2 Worker는 최종 500개, V1 Worker와 `recommend_job_postings` 즉시 검색은 최종 200개를 확정한 뒤 상세 공고와 회사 정보를 붙인다. 후보 HNSW 한도 3,000개는 동일하다. Worker 추가 검색은 같은 후보/정렬 방법으로 기존 추가 검색 한도 50개를 반환한다. 이후 fit/scoring/전달 방식은 유지한다.
 - Ops는 후보 N과 급여 가중치를 조절할 수 있고 기본값은 추천과 동일하다. HNSW/하드 필터 시간과 FTS/급여/최종 조회 시간을 별도로 표시한다. `/job-search-sql`의 원래 탭은 유지한다.
 - 운영에 이미 있는 `search_external_roles_filter_first` RPC와 halfvec HNSW 인덱스를 사용한다. RPC는 service_role 전용이며 planner/HNSW 설정은 호출 범위에 한정한다. SQL 제한은 50초다. 근사 검색의 scan budget과 좁은 필터 때문에 결과가 500개보다 적을 수 있다. 임베딩 backfill은 재시작하지 않았다.
 - Worker control은 새 내부 `/api/internal/external-recommendations/retrieve`를 호출한다. 향후 배포 시 **웹을 먼저 배포하고 endpoint 확인 후 Worker를 배포**해야 한다. 이번 작업에서는 배포·프로세스 재시작을 하지 않는다.
@@ -47,7 +47,7 @@ DB 적용 완료(2026-10-16): 운영 migration `20261016091449`
 
 후보자 UUID와 고정 experiment salt의 SHA-256 첫 byte로 control/V2를 50:50 배정한다. worker와 web이 같은 함수를 구현하며 실행마다 재추첨하지 않는다. 기존 Behavior Context 통합과는 독립적인 external 검색 실험이다. Control/V2 모두 초기 검색에 연봉 만족도를 반영하고 누락 급여를 같은 추정기로 채운다. 기존 cohort 배정과 각 경로의 fit/scoring/rerank는 유지한다.
 
-`EXTERNAL_RECOMMENDATION_EXPERIMENT=off`를 web과 worker에 함께 지정하면 기존 추천 경로로 돌아가고 일일 추천은 시작하지 않는다. 기본은 실험 활성화다. `EXTERNAL_FIT_V2_PROVIDER=openai|jev`로 scorer를 바꾼다. Worker는 자신의 설정을 공유 endpoint에 전달할 수 있다. 웹 기본값은 openai이며 작업이 시작될 때 일일 작업의 provider를 고정한다. 제공자별 캐시는 분리하고 자동 fallback하지 않는다.
+`EXTERNAL_RECOMMENDATION_EXPERIMENT=off`를 web과 worker에 함께 지정하면 기존 추천 경로로 돌아가고 일일 추천은 시작하지 않는다. 기본은 실험 활성화다. `EXTERNAL_FIT_V2_PROVIDER=openai|jev`로 scorer를 바꾼다. Worker는 자신의 설정을 공유 endpoint에 전달할 수 있다. 웹 기본값은 openai이며 작업이 시작될 때 일일 작업의 provider를 고정한다. 평가 결과는 제공자별로 저장하되 같은 V2 평가 구조의 유효한 기존 결과를 제공자와 관계없이 재사용한다. 새 평가 호출의 제공자는 자동 fallback하지 않는다.
 
 | 단계 | V2 모델/한도 |
 |---|---|
@@ -107,9 +107,9 @@ Planner의 `targetSalaryKrw`는 희망 연봉이 아니라 실제 경력·책임
 
 ## 점수와 저장
 
-playground v4의 후보자 관심, 회사 관심, 상호 적합도, 직무 적합도, 필수조건, 근거 충분성 6축을 그대로 사용한다. 모든 수치 metric은 0..100으로 통일한다. Provider-native Score 0..4는 ×25, Predicate/Noul 0..1은 ×100 변환하며 raw 응답은 원래 단위로 보존한다. 조기 중단 없이 캐시가 없는 모든 pair를 처리한다. 평가 호출당30초 제한이며 일시적 네트워크 오류·408/429/5xx만 같은 제공자로 한 번 재시도한다. 원본 응답이 없는 시도의 과금은 미확인으로 기록한다. 미선정·낮은 점수도 저장하고, 불완전한 출력 역시 원본과 오류를 보관하되 유효한 fit으로 재사용하지 않는다.
+playground v4의 후보자 관심, 회사 관심, 상호 적합도, 직무 적합도, 필수조건, 근거 충분성 6축을 그대로 사용한다. 모든 수치 metric은 0..100으로 통일한다. Provider-native Score 0..4는 ×25, Predicate/Noul 0..1은 ×100 변환하며 raw 응답은 원래 단위로 보존한다. 현재 검색 후보의 캐시와 새 평가 중 `constraintPass > 50`이며 `mutualFit >= 60`인 공고가 20개 이상, `mutualFit >= 50`인 공고가 50개 이상이면 새 배치를 시작하지 않는다. 60점 이상은 두 집계에 모두 포함한다. 이미 시작한 배치는 완료·저장하며, 두 조건이 충족되지 않으면 캐시가 없는 후보를 계속 처리한다. 평가 호출당30초 제한이며 일시적 네트워크 오류·408/429/5xx만 같은 제공자로 한 번 재시도한다. 원본 응답이 없는 시도의 과금은 미확인으로 기록한다. 미선정·낮은 점수도 저장하고, 불완전한 출력 역시 원본과 오류를 보관하되 유효한 fit으로 재사용하지 않는다.
 
-기존 `talent_external_fit.meta`는 control용으로 보존한다. `evaluations`에 provider/model/prompt별 결과, 원본 답, 후보자 입력 hash, 회사·역할 근거 hash, 평가 시점을 저장한다. TTL은30일이며 입력이 바뀌면 즉시 무효다. 기존 cache 청소가 새 평가를 삭제하지 않도록 보호했다.
+기존 `talent_external_fit.meta`는 control용으로 보존한다. `evaluations`에 provider/model/prompt별 결과, 원본 답, 후보자 입력 hash, 회사·역할 근거 hash, 평가 시점을 저장한다. V1과 V2 모두 날짜·모델·프롬프트·후보자/공고 입력 변경만으로 기존 유효 평가를 자동 무효화하거나 삭제하지 않는다. 기존 평가는 명시적으로 재평가를 요청한 경우에만 갱신하고, 사용할 평가가 없는 쌍은 최초 평가한다. V1은 단일 점수, V2는 기존 6축 평가를 재사용하며 서로의 형식을 임의 변환하지 않는다. 캐시 조회 실패를 미평가로 간주해 새 scoring을 실행하지 않는다. V1 추가 검색도 기존 평가를 먼저 읽는다. 최종 rerank에는 현재 후보자 맥락을 전달한다.
 
 기회 품질 점수의 생성·저장·가중치는 제거했다. Fit 순위는 기존 4축 가중합과 강한 충돌 penalty만 사용한다. 중립 요약은 회사·역할 사실만 생성하고 기존 locale/source 비교·동시 작성 보호를 유지한다.
 
