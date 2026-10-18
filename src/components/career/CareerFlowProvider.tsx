@@ -45,6 +45,7 @@ import { useCareerTalentContexts } from "@/hooks/career/useCareerTalentContexts"
 import { useCareerTalentPreferences } from "@/hooks/career/useCareerTalentPreferences";
 import { useCareerTalentSettings } from "@/hooks/career/useCareerTalentSettings";
 import { useCareerSession } from "@/hooks/career/useCareerSession";
+import { useCareerSavedLocale } from "@/hooks/career/useCareerSavedLocale";
 import {
   isGmailCareerHistoryAnalysisRunning,
   useGmailIntegration,
@@ -281,6 +282,7 @@ export const CareerFlowProvider = ({
     opportunityLimit: 0,
     userId,
   });
+  useCareerSavedLocale(sessionData?.preferredLocale);
   const {
     conversation: messageConversation,
     messages: persistedMessages,
