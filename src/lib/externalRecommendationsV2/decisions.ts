@@ -1,5 +1,5 @@
 import { recordDirectUsage } from "./usage";
-import questions from "./fitQuestions.v3.json";
+import rubric from "./fitQuestions.v4.json";
 import {
   fitSchema,
   providerModels,
@@ -7,7 +7,18 @@ import {
   type FitProvider,
 } from "./contract";
 
+const questions = rubric.questions;
+export const COMMON_SCORING_INSTRUCTIONS = rubric.commonInstructions;
+
 type Question = { type: string; instructions: string; criteria: unknown };
+// Keep the rubric verbatim in shared input; questions bind only role and metric.
+export const SHARED_METRIC_RUBRICS = Object.entries(questions).map(([metric, q]) => {
+  const criteria = Array.isArray(q.criteria)
+    ? q.criteria.map((text, index) => `${index}: ${text}`)
+    : Object.entries(q.criteria).map(([value, text]) => `${value}: ${text}`);
+  return `### Rubric ${metric}\n${q.instructions}\nCriteria:\n${criteria.join("\n")}`;
+}).join("\n\n");
+
 export function buildDecisionRequest(
   provider: FitProvider,
   input: string,
@@ -19,36 +30,47 @@ export function buildDecisionRequest(
     new Set(roleIds).size !== roleIds.length
   )
     throw new Error("Decisions expects 1–10 unique roles");
+  const sharedInstructions = `## Shared evaluation instructions (apply to every question)\n${COMMON_SCORING_INSTRUCTIONS}\nApply each named rubric in full, including all qualifications and exceptions, only to the role_id bound by the question. Other roles are independent evidence, never comparison anchors.\n## Shared metric rubrics\n${SHARED_METRIC_RUBRICS}`;
+  const sharedInput = `${sharedInstructions}\n\n## Supplied evidence\n${input}`;
   const entries = roleIds.flatMap((id, index) =>
     Object.entries(questions).map(([metric, value]) => {
       const q = value as Question;
       const name = `r${index}_${metric}`;
-      const instructions = `Evaluate ONLY role_id ${id} for the supplied candidate. Other roles are independent evidence, never comparison anchors.\n${q.instructions}`;
-      return { name, q, instructions };
+      const instructions = `For role_id ${id}, apply shared instructions and Rubric ${metric}. ${q.type === "noul" ? "Estimate probability of its true criterion (false is the contrary event)." : q.type === "score" ? "Levels 0–4 use its ordered criteria." : "Choice values use its criteria."}`;
+      return { name, metric, q, instructions };
     })
   );
   if (provider === "jev")
     return {
       model: providerModels.jev,
-      state: { evidence: input },
+      state: { evidence: sharedInput },
       questions: Object.fromEntries(
-        entries.map(({ name, q, instructions }) => [
+        entries.map(({ name, metric, q, instructions }) => [
           name,
-          { ...q, instructions },
+          {
+            type: q.type,
+            instructions,
+            criteria: Array.isArray(q.criteria)
+              ? q.criteria.map((_, i) => `Rubric ${metric}, criterion ${i} in the input.`)
+              : Object.fromEntries(Object.keys(q.criteria as Record<string, string>).map(value =>
+                  [value, `Rubric ${metric}, criterion ${value} in the input.`])),
+          },
         ])
       ),
       provider: { allow_fallbacks: false, data_collection: "deny" },
     };
   return {
     model: providerModels.openai,
-    input,
+    input: [
+      { role: "developer", content: sharedInstructions },
+      { role: "user", content: input },
+    ],
     questions: entries.map(({ name, q, instructions }) => {
       if (q.type === "noul") {
-        const c = q.criteria as Record<string, string>;
         return {
           name,
           type: "predicate",
-          instructions: `${instructions}\nTrue: ${c.true}\nFalse: ${c.false}`,
+          instructions,
         };
       }
       if (q.type === "score")
@@ -56,18 +78,13 @@ export function buildDecisionRequest(
           name,
           type: "score",
           instructions,
-          levels: (q.criteria as string[]).map((description, i) => ({
-            label: String(i),
-            description,
-          })),
+          levels: (q.criteria as string[]).map((_, i) => ({ label: String(i) })),
         };
       return {
         name,
         type: "choice",
         instructions,
-        choices: Object.entries(q.criteria as Record<string, string>).map(
-          ([value, description]) => ({ value, description })
-        ),
+        choices: Object.keys(q.criteria as Record<string, string>).map(value => ({ value })),
       };
     }),
   };

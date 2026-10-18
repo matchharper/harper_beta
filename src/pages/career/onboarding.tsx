@@ -61,9 +61,6 @@ import { cn } from "@/lib/cn";
 import { CAREER_EMAIL_ONBOARDING_TOKEN_PARAM } from "@/lib/careerEmailOnboarding/constants";
 import { getCareerSignupAttributionPayload } from "@/lib/career/signupAttribution";
 import {
-  assignCareerOnboardingStepOrder,
-  CAREER_ONBOARDING_STEP_ORDER_EXPERIMENT,
-  CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT,
   getCareerOnboardingStepOrder,
   type CareerOnboardingStepKind,
 } from "@/lib/career/onboardingStepOrderExperiment";
@@ -1084,14 +1081,7 @@ const CareerNetworkOnboardingContent = () => {
   const queryClient = useQueryClient();
   const { user, authLoading } = useCareerAuth();
   const userId = user?.id ?? null;
-  const stepOrderVariant = useMemo(
-    () => assignCareerOnboardingStepOrder(userId),
-    [userId]
-  );
-  const stepOrder = useMemo(
-    () => getCareerOnboardingStepOrder(stepOrderVariant),
-    [stepOrderVariant]
-  );
+  const stepOrder = useMemo(() => getCareerOnboardingStepOrder(), []);
   const email = String(user?.email ?? "")
     .trim()
     .toLowerCase();
@@ -1472,36 +1462,6 @@ const CareerNetworkOnboardingContent = () => {
     t,
     userId,
     waitForProfileIngestion,
-  ]);
-
-  const loggedStepOrderExposureRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      authLoading ||
-      bootstrapLoading ||
-      isPreviewSubmitState ||
-      submitState !== "form" ||
-      !userId ||
-      !conversationId ||
-      loggedStepOrderExposureRef.current === userId
-    ) {
-      return;
-    }
-
-    loggedStepOrderExposureRef.current = userId;
-    logCareerEvent(CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT, {
-      experiment: CAREER_ONBOARDING_STEP_ORDER_EXPERIMENT,
-      variant: stepOrderVariant,
-    });
-  }, [
-    authLoading,
-    bootstrapLoading,
-    conversationId,
-    isPreviewSubmitState,
-    logCareerEvent,
-    stepOrderVariant,
-    submitState,
-    userId,
   ]);
 
   const saveBasicInfo = useCallback(async () => {

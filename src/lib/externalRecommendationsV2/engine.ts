@@ -1,3 +1,4 @@
+import { runScoringBatches } from "./scoringBatches";
 import { SEARCH_RESULT_LIMIT } from "./searchDefaults";
 import salaryFx from "./salaryFx.json";
 import { fillExternalRoleSalaries } from "./salaryEstimation.server";
@@ -71,6 +72,8 @@ export type EngineArgs = {
   dryRun?: boolean;
   reuseDefault?: boolean;
   cachedOnly?: boolean;
+  /** Set only for an explicitly requested reevaluation. */
+  refreshFit?: boolean;
   signal?: AbortSignal;
   workerSearchContext?: WorkerSearchContext;
   behaviorSnapshot?: { text: string; version: number };
@@ -79,17 +82,26 @@ export type EngineArgs = {
     counts: Record<string, number>
   ) => void;
 };
+const capSearchArray = (limit: number) => (value: unknown) =>
+  Array.isArray(value) ? value.slice(0, limit) : value;
 const searchPlanSchema = z.object({
   searchIntentSummary: z.string(),
-  ftsKeywords: z
-    .array(
+  ftsKeywords: z.preprocess(
+    capSearchArray(4),
+    z.array(
       z.object({
-        terms: z.array(z.string().min(1)).min(1).max(8),
-        weight: z.number().min(0).max(5),
-      })
-    )
-    .max(4),
-  role_titles: z.array(z.string().trim().min(1)).min(1).max(24),
+        terms: z.preprocess(
+          capSearchArray(8),
+          z.array(z.string().min(1)).min(1),
+        ),
+        weight: z.number().min(0).max(5).default(1),
+      }),
+    ),
+  ),
+  role_titles: z.preprocess(
+    capSearchArray(24),
+    z.array(z.string().trim().min(1)).min(1),
+  ),
   include_contract: z.boolean(),
   include_parttime: z.boolean(),
   include_intern: z.boolean(),
@@ -106,7 +118,7 @@ const searchPlanSchema = z.object({
     })
     .nullable(),
 });
-function parsePlan(raw: unknown): V2SearchPlan {
+export function parsePlan(raw: unknown): V2SearchPlan {
   const p = searchPlanSchema.parse(raw);
   return {
     searchIntentSummary: p.searchIntentSummary,
@@ -125,7 +137,7 @@ function parsePlan(raw: unknown): V2SearchPlan {
 export function v2CompletionRequest(
   system: string,
   input: string,
-  label: string
+  label: string,
 ): Parameters<typeof runTalentAssistantCompletion>[0] {
   return {
     abortSignal: AbortSignal.timeout(90_000),
@@ -141,11 +153,17 @@ export function v2CompletionRequest(
     usageLabel: `career_tool:recommend_job_postings:v2_${label}`,
   };
 }
+class InvalidRerankSelection extends Error {}
+class InvalidCompletionJson extends SyntaxError {
+  constructor(readonly raw: string) {
+    super("Expected valid JSON");
+  }
+}
 async function jsonCall(
   system: string,
   input: string,
   label: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ) {
   signal?.throwIfAborted();
   const request = v2CompletionRequest(system, input, label);
@@ -156,7 +174,11 @@ async function jsonCall(
       : request.abortSignal,
   });
   signal?.throwIfAborted();
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new InvalidCompletionJson(raw);
+  }
 }
 export function summary(card: RoleCard, lang: string) {
   const s = card.roleSummary?.[lang] as { content?: unknown } | undefined;
@@ -165,9 +187,7 @@ export function summary(card: RoleCard, lang: string) {
 function roleSourceHash(card: RoleCard) {
   // Includes funding and leadership evidence; cached fit must match actual scorer inputs.
   const p = v2PromptCandidate(card, "en");
-  return fingerprint(
-    buildFullJdCandidateBatchText([{ ...p, cachedRoleSummary: null }])
-  );
+  return fingerprint(buildScoringInput({}, [p]));
 }
 export async function getSearchPlan(
   args: EngineArgs,
@@ -308,7 +328,7 @@ export async function loadFitCache(
   provider: FitProvider
 ) {
   const result = new Map<string, FitEvaluation>();
-  if (!cards.length) return result;
+  if (!cards.length || args.refreshFit) return result;
   // Keep the worker's 500 UUIDs below reverse-proxy URL limits.
   const pages = await mapConcurrent(
     chunks(
@@ -332,26 +352,12 @@ export async function loadFitCache(
   for (const row of data ?? []) {
     const card = byId.get(row.role_id);
     if (!card) continue;
-    // Daily visits can reuse prior evaluators and user context. Final selection
-    // still receives the current profile, Brief and Behavior Context.
-    const evaluations = (
-      args.surface === "daily"
-        ? Object.values(row.evaluations ?? {})
-        : [row.evaluations?.[evaluatorKey(provider)]]
-    ) as Array<FitEvaluation | undefined>;
-    const sourceHash = roleSourceHash(card);
+    // Stored evaluations survive input, provider, prompt and age changes.
+    // Metadata remains provenance; only an explicit refresh bypasses the cache.
+    const evaluations = Object.values(row.evaluations ?? {}) as FitEvaluation[];
     const value = evaluations
-      .filter((value): value is FitEvaluation =>
-        Boolean(
-          value &&
-          fitSchema.safeParse(value).success &&
-          (args.surface === "daily" ||
-            value.inputFingerprint === inputFingerprint) &&
-          value.roleSourceHash === sourceHash &&
-          Date.parse(value.evaluatedAt) > Date.now() - 30 * 86400_000
-        )
-      )
-      .sort((a, b) => Date.parse(b.evaluatedAt) - Date.parse(a.evaluatedAt))[0];
+      .filter((value) => value && fitSchema.safeParse(value).success)
+      .sort((a, b) => (Date.parse(b.evaluatedAt) || 0) - (Date.parse(a.evaluatedAt) || 0))[0];
     if (value) result.set(row.role_id, value);
   }
   return result;
@@ -473,7 +479,7 @@ export async function rerankCandidates(
   args: EngineArgs,
   context: unknown,
   ranked: Array<{ card: RoleCard; score: number; fit: unknown }>,
-  complete = jsonCall
+  complete = jsonCall,
 ): Promise<SelectedRole[]> {
   const valid = ranked.flatMap((r) => {
     const fit = priorFitSchema.safeParse(r.fit);
@@ -502,67 +508,100 @@ export async function rerankCandidates(
     context && typeof context === "object" && !Array.isArray(context)
       ? (context as Record<string, unknown>)
       : { context };
-  const result = z
-    .object({
-      selectedRoles: z
-        .array(
-          z.object({
-            candidateId: z.string(),
-            recommendationNote: z.string().trim().min(1),
-          })
-        )
-        .max(target),
-    })
-    .parse(
-      await complete(
-        rerankPrompt(args.language, args.surface),
-        evidenceText({
-          candidate_context: {
-            target_count: target,
-            roles: candidates.map((r, i) => ({
-              id: String(i + 1),
-              role: roleLineForLlm(r.card),
-              company: companyLineForLlm(r.card, false),
-              priorFit: {
-                score: scoreForLlm(r.score),
-                metrics: priorFitForLlm(r.fit),
-                fitSummary: summary(r.card, args.language),
-              },
-            })),
-          },
-          // Keep the decision's authoritative context adjacent to generation,
-          // after the larger collection of source documents.
-          user_context: userFacts,
-          current_search_brief: currentSearchBrief ?? null,
-          current_request: args.request ?? null,
-        }) +
-          "\n\nMake the final selection against this user's current goals and demonstrated qualifications. Recommend only credible next steps now; do not include a role merely to explain why it is unsuitable. Return an empty selectedRoles array if none qualifies. The target count is only a maximum.",
-        "rerank",
-        args.signal
+  const outputSchema = z.object({
+    selectedRoles: z
+      .array(
+        z.object({
+          candidateId: z.string(),
+          recommendationNote: z.string().trim().min(1),
+        }),
       )
-    );
-  const seen = new Set<string>();
-  const companies = new Set<string>();
-  return result.selectedRoles.map((item) => {
-    const index = candidates.findIndex(
-      (_, i) => String(i + 1) === item.candidateId
-    );
-    const r = candidates[index];
-    if (
-      !r ||
-      seen.has(r.card.roleId) ||
-      companies.has(r.card.companyWorkspaceId)
-    )
-      throw new Error("Invalid or duplicate rerank selection");
-    seen.add(r.card.roleId);
-    companies.add(r.card.companyWorkspaceId);
-    return {
-      card: r.card,
-      score: r.score,
-      recommendationNote: item.recommendationNote,
-      fitSummary: summary(r.card, args.language),
-    };
+      .max(target),
   });
+  const input =
+    evidenceText({
+      candidate_context: {
+        target_count: target,
+        roles: candidates.map((r, i) => ({
+          id: String(i + 1),
+          role: roleLineForLlm(r.card),
+          company: companyLineForLlm(r.card, false),
+          priorFit: {
+            score: scoreForLlm(r.score),
+            metrics: priorFitForLlm(r.fit),
+            fitSummary: summary(r.card, args.language),
+          },
+        })),
+      },
+      // Keep the decision's authoritative context adjacent to generation,
+      // after the larger collection of source documents.
+      user_context: userFacts,
+      current_search_brief: currentSearchBrief ?? null,
+      current_request: args.request ?? null,
+    });
+  let correction = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let raw: unknown;
+    try {
+      raw = await complete(
+        rerankPrompt(args.language, args.surface) +
+          (attempt
+            ? "\n\nCorrect the previous output using the supplied validation errors. Return the complete JSON selection using only supplied candidate IDs, unique roles and at most one role per company, within target_count."
+            : ""),
+        input + correction,
+        attempt ? "rerank_repair" : "rerank",
+        args.signal,
+      );
+      const result = outputSchema.parse(raw);
+      const seen = new Set<string>();
+      const companies = new Set<string>();
+      return result.selectedRoles.map((item) => {
+        const index = candidates.findIndex(
+          (_, i) => String(i + 1) === item.candidateId,
+        );
+        const r = candidates[index];
+        if (
+          !r ||
+          seen.has(r.card.roleId) ||
+          companies.has(r.card.companyWorkspaceId)
+        )
+          throw new InvalidRerankSelection(
+            `Invalid or duplicate candidate/company: ${item.candidateId}`,
+          );
+        seen.add(r.card.roleId);
+        companies.add(r.card.companyWorkspaceId);
+        return {
+          card: r.card,
+          score: r.score,
+          recommendationNote: item.recommendationNote,
+          fitSummary: summary(r.card, args.language),
+        };
+      });
+    } catch (error) {
+      args.signal?.throwIfAborted();
+      if (
+        !(error instanceof z.ZodError) &&
+        !(error instanceof InvalidRerankSelection) &&
+        !(error instanceof InvalidCompletionJson)
+      )
+        throw error;
+      if (attempt === 1) {
+        console.warn(
+          "[externalRecommendationsV2] rerank invalid after one repair; skipping selection",
+        );
+        return [];
+      }
+      correction =
+        "\n\n" +
+        evidenceText({
+          previousInvalidResponse:
+            error instanceof InvalidCompletionJson ? error.raw : raw,
+          validationErrors:
+            error instanceof z.ZodError ? error.issues : [error.message],
+        });
+    }
+  }
+  return [];
 }
 export type EngineDiagnostics = {
   complete?: typeof jsonCall;
@@ -614,7 +653,6 @@ export async function runExternalV2(
       `SELECT ${ROLE_SELECT} FROM public.talent_external_fit f JOIN public.company_roles cr ON cr.role_id=f.role_id ${ROLE_JOINS}
       JOIN LATERAL (
         SELECT e.value FROM jsonb_each(f.evaluations) e
-        WHERE e.value->>'evaluatedAt'>${sqlLiteral(new Date(Date.now() - 30 * 86400000).toISOString())}
         ORDER BY e.value->>'evaluatedAt' DESC, e.key
         LIMIT 1
       ) cached ON true
@@ -682,9 +720,9 @@ export async function runExternalV2(
     candidateCount: cards.length,
     scoredCount: fits.size,
   });
-  // All batches run. Each complete pair is persisted before proceeding to summaries/rerank.
+  // Stop scheduling after both quality counts are met; drain and save in-flight batches.
   const scoringStarted = Date.now();
-  await mapConcurrent(chunks(fresh), 6, async (batch) => {
+  const scoringStop = await runScoringBatches(fresh, fits, async (batch) => {
     args.signal?.throwIfAborted();
     const input = buildScoringInput(
       fitContext,
@@ -771,6 +809,7 @@ export async function runExternalV2(
       scoredCount: fits.size,
     });
   });
+  Object.assign(metrics, scoringStop);
   metrics.failedRoleIds = [...new Set(metrics.failedRoleIds)];
   metrics.scoringMs = Date.now() - scoringStarted;
   if (fresh.length && !fits.size)

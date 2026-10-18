@@ -23,7 +23,7 @@ export function eligibilitySql(args: {
     .join(" AND ");
 }
 export const ROLE_SELECT = `cr.role_id::text, cr.company_workspace_id::text, cr.name AS role_name,
-cr.description, cr.external_jd_url, cr.country_code, cr.location_text, cr.work_mode, cr.type, cr.posted_at,
+cr.description, cr.external_jd_url, cr.country_code, cr.location_text, cr.work_mode, cr.type, cr.posted_at, cr.updated_at,
 cr.salary_min, cr.salary_max, cr.salary_currency, cr.salary_period, cr.salary_range, cr.seniority_level,
 cr.summary, cr.salary_is_predicted,
 cw.company_name,cw.company_description,cw.test_score AS company_test_score, cd.name AS company_db_name, cd.description AS company_db_description,

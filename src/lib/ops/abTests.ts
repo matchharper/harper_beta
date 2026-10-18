@@ -43,7 +43,7 @@ export type OpsAbTestSummary = {
   lastObservedAt: string | null;
   primaryMetricLabel: string;
   metricLayout?: "table";
-  status: "running" | "awaiting_data" | "observing";
+  status: "running" | "awaiting_data" | "observing" | "ended";
   title: string;
   unitLabel: string;
   variants: [OpsAbTestVariant, OpsAbTestVariant];

@@ -33,7 +33,7 @@ async function setup() {
     create table talent_users(user_id uuid primary key,deleted_at timestamptz);
     create table talent_setting(user_id uuid primary key,get_external_recommendation boolean default true,is_onboarding_done boolean default true,status text default 'active',blocked_companies text[] default '{}');
     create table company_roles(role_id uuid primary key,company_workspace_id uuid,name text,description text,source_type text default 'external',source_provider text,is_expired boolean default false,expires_at timestamptz,status text default 'active',information jsonb default '{}',summary jsonb,
-      external_jd_url text,country_code text default 'KR',location_text text,work_mode text,type text[],posted_at timestamptz default now(),salary_min numeric,salary_max numeric,salary_currency text,salary_period text,salary_range text,seniority_level text,opportunity_search_tsv tsvector);
+      external_jd_url text,country_code text default 'KR',location_text text,work_mode text,type text[],posted_at timestamptz default now(),updated_at timestamptz default now(),salary_min numeric,salary_max numeric,salary_currency text,salary_period text,salary_range text,seniority_level text,opportunity_search_tsv tsvector);
     create table talent_external_fit(talent_id uuid,role_id uuid,meta jsonb default '{}',created_at timestamptz default now(),primary key(talent_id,role_id));
     create table talent_opportunity_recommendation(id uuid primary key default gen_random_uuid(),talent_id uuid,role_id uuid,kind text,opportunity_type text,rank int,score real,fit_summary text,fit_reasons jsonb,tradeoffs jsonb,evidence jsonb,created_at timestamptz default now());`);
   await db.exec(await readFile(migration, "utf8"));
@@ -58,6 +58,7 @@ async function setup() {
     "20261014194720_preserve_salary_predictions_on_empty_ingest.sql",
     "20261014230152_external_salary_partial_bounds.sql",
     "20261015051422_daily_external_visit_eligibility.sql",
+    "20261016110152_retire_external_role_title_dictionary.sql",
   ])
     await db.exec(
       await readFile(
@@ -114,10 +115,6 @@ async function setup() {
       }))
     ),
   ]);
-  await db.query(
-    "update external_role_title_embeddings set embedding=$1::vector where title<>'Backend Engineer 11'",
-    [JSON.stringify(v)]
-  );
   return db;
 }
 test("real pgvector filter-first SQL excludes missing embeddings and enforces all eligibility filters", async () => {
@@ -191,7 +188,7 @@ test("shared retrieval preserves countries, history cutoff, extra exclusions and
   const { buildFilterFirstRoleSql } = await import("./filterFirstSql");
   const db = await setup();
   try {
-    await db.exec(`update company_roles set location_text='Seoul',salary_min=80000000,salary_currency='KRW',salary_period='year';
+    await db.exec(`update company_roles set updated_at='2026-10-01T00:00:00Z',location_text='Seoul',salary_min=80000000,salary_currency='KRW',salary_period='year';
       update company_workspace set test_score=7;`);
     const input = { plan, vector: v, userId: uuid(1), blockedCompanies: ["Blocked"] };
     const rows = (await db.query<any>(buildFilterFirstRoleSql(input))).rows;
@@ -199,6 +196,7 @@ test("shared retrieval preserves countries, history cutoff, extra exclusions and
     assert.equal(Number(rows[0].salary_min), 80000000);
     assert.equal(Number(rows[0].company_test_score), 7);
     assert.equal(rows[0].description, "Synthetic backend evidence");
+    assert.equal(new Date(rows[0].updated_at).toISOString(), "2026-10-01T00:00:00.000Z");
     assert.deepEqual((await db.query(buildFilterFirstRoleSql({ ...input, excludeRoleIds: [uuid(10)] }))).rows, []);
     await db.query("insert into talent_opportunity_recommendation(talent_id,role_id,opportunity_type,created_at) values($1,$2,'external_jd',now())", [uuid(1), uuid(10)]);
     assert.deepEqual((await db.query(buildFilterFirstRoleSql(input))).rows, []);
@@ -511,95 +509,6 @@ test("derived-only summary updates preserve the VC ingestion guard for source ch
   }
 });
 
-test("identical role titles share one vector and a rename queues only the new title", async () => {
-  const db = await setup();
-  try {
-    await db.query(
-      "insert into company_roles(role_id,company_workspace_id,name) values($1,$2,'Backend Engineer 10')",
-      [uuid(50), uuid(2)]
-    );
-    assert.equal(
-      (
-        await db.query<any>(
-          "select count(*)::int n from external_role_title_embeddings where title='Backend Engineer 10'"
-        )
-      ).rows[0].n,
-      1
-    );
-    await db.query(
-      "update company_roles set name='New precise title' where role_id=$1",
-      [uuid(50)]
-    );
-    const pending = await db.query<any>(
-      "select * from pending_external_title_embeddings(1000)"
-    );
-    assert.ok(pending.rows.some((r) => r.title === "New precise title"));
-    const wrong = await db.query<any>(
-      "select save_external_title_embeddings($1::jsonb) n",
-      [
-        JSON.stringify([
-          {
-            titleKey: pending.rows.find((r) => r.title === "New precise title")
-              .title_key,
-            title: "Changed stale title",
-            embedding: v,
-          },
-        ]),
-      ]
-    );
-    assert.equal(wrong.rows[0].n, 0);
-  } finally {
-    await db.close();
-  }
-});
-
-test("live title counts follow duplicate roles, rename, expiry, reactivation and deletion", async () => {
-  const db = await setup();
-  try {
-    const count = async (title: string) =>
-      (
-        await db.query<any>(
-          "select live_role_count from external_role_title_embeddings where title=$1",
-          [title]
-        )
-      ).rows[0]?.live_role_count;
-    await db.query(
-      "insert into company_roles(role_id,company_workspace_id,name) values($1,$3,'Lifecycle A'),($2,$3,'Lifecycle A')",
-      [uuid(51), uuid(52), uuid(2)]
-    );
-    assert.equal(await count("Lifecycle A"), 2);
-    await db.query(
-      "update company_roles set name='Lifecycle B' where role_id=$1",
-      [uuid(51)]
-    );
-    assert.equal(await count("Lifecycle A"), 1);
-    assert.equal(await count("Lifecycle B"), 1);
-    await db.query("update company_roles set status='ended' where role_id=$1", [
-      uuid(52),
-    ]);
-    assert.equal(await count("Lifecycle A"), 0);
-    await db.query(
-      "update company_roles set status='active',is_expired=true where role_id=$1",
-      [uuid(52)]
-    );
-    assert.equal(await count("Lifecycle A"), 0);
-    await db.query(
-      "update company_roles set is_expired=false where role_id=$1",
-      [uuid(52)]
-    );
-    assert.equal(await count("Lifecycle A"), 1);
-    await db.query(
-      "update company_roles set source_type='internal' where role_id=$1",
-      [uuid(52)]
-    );
-    assert.equal(await count("Lifecycle A"), 0);
-    await db.query("delete from company_roles where role_id=$1", [uuid(51)]);
-    assert.equal(await count("Lifecycle B"), 0);
-  } finally {
-    await db.close();
-  }
-});
-
 test("country weights are unique ISO codes and quotas sum to the exact budget", () => {
   const countries = [
     { countryCode: "KR", weight: 0.8, remoteOnly: false },
@@ -817,7 +726,6 @@ test("original SQL debugging lab still supports the legacy combined-title SQL", 
   const { buildRoleSearchSql } = await import("../talentOnboarding/jobPostingRecommendations");
   const db = await setup();
   try {
-    await db.exec("alter table company_roles add column updated_at timestamptz default now();");
     const sql = buildRoleSearchSql({
       plan: { ...plan, locations: [], roleTitles: ["인공지능 엔지니어", "AI Engineer"] },
       titleVector: v, userId: uuid(1), blockedCompanies: ["Blocked"], searchMode: "strict",

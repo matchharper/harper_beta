@@ -442,11 +442,13 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
               tone={experiment.status === "running" ? "positive" : "neutral"}
               variant="faded"
             >
-              {experiment.status === "awaiting_data"
-                ? "운영 표본 대기"
-                : experiment.status === "observing"
-                  ? "한쪽 그룹만 관측"
-                  : "진행 중"}
+              {experiment.status === "ended"
+                ? "종료"
+                : experiment.status === "awaiting_data"
+                  ? "운영 표본 대기"
+                  : experiment.status === "observing"
+                    ? "한쪽 그룹만 관측"
+                    : "진행 중"}
             </Badge>
           </div>
           <Text className="mt-1 font-mono" tone="subtle" variant="subtle">

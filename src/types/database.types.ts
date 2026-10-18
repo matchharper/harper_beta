@@ -4401,33 +4401,6 @@ export type Database = {
           },
         ]
       }
-      external_role_title_embeddings: {
-        Row: {
-          embedded_at: string | null
-          embedding: string | null
-          live_role_count: number | null
-          model: string
-          title: string
-          title_key: string
-        }
-        Insert: {
-          embedded_at?: string | null
-          embedding?: string | null
-          live_role_count?: number | null
-          model?: string
-          title: string
-          title_key?: string
-        }
-        Update: {
-          embedded_at?: string | null
-          embedding?: string | null
-          live_role_count?: number | null
-          model?: string
-          title?: string
-          title_key?: string
-        }
-        Relationships: []
-      }
       extra_experience: {
         Row: {
           candid_id: string | null
@@ -14550,13 +14523,6 @@ export type Database = {
         }
         Returns: Json
       }
-      pending_external_title_embeddings: {
-        Args: { p_limit?: number }
-        Returns: {
-          title: string
-          title_key: string
-        }[]
-      }
       pending_role_title_embeddings: {
         Args: { p_limit?: number }
         Returns: {
@@ -14865,10 +14831,6 @@ export type Database = {
       save_external_role_salary_predictions: {
         Args: { p_rows: Json }
         Returns: { role_id: string; salary_min: number; salary_max: number }[]
-      }
-      save_external_title_embeddings: {
-        Args: { p_rows: Json }
-        Returns: number
       }
       save_role_title_embeddings: { Args: { p_rows: Json }; Returns: number }
       schedule_company_talent_request_v1: {
