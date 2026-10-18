@@ -1,6 +1,6 @@
 import "server-only";
 
-import { isOrgLocale } from "@/i18n/org/locale";
+import { isOrgLocale, type OrgLocale } from "@/i18n/org/locale";
 import { localeFromHeadquarters } from "./workspaceLocale";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
@@ -32,6 +32,23 @@ async function fetchWorkspaceLocaleSource(workspaceId: string, admin: Admin) {
     .single();
   if (error) throw error;
   return { ...data, locale: null };
+}
+
+// Returns false when company_workspace.locale does not exist in this database yet.
+export async function saveOrgWorkspaceLocale(
+  workspaceId: string,
+  locale: OrgLocale,
+  admin: Admin = getSupabaseAdmin()
+) {
+  const { data, error } = await admin
+    .from("company_workspace")
+    .update({ locale })
+    .eq("company_workspace_id", workspaceId)
+    .select("locale")
+    .maybeSingle();
+  if (isMissingLocaleColumn(error)) return false;
+  if (error) throw error;
+  return data?.locale === locale;
 }
 
 // A language saved on the workspace wins; otherwise Headquarters decides.

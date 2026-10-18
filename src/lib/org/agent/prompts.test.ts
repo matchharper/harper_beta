@@ -42,6 +42,17 @@ test("web response locale selects voice and exact stage names without changing l
   assert.match(slack, /<response_language locale="conversation">/);
 });
 
+test("company reply language follows a one-off request and saves a lasting one", () => {
+  const english = buildOrgAgentSystemPrompt({ responseLocale: "en" });
+  const korean = buildOrgAgentSystemPrompt({ responseLocale: "ko" });
+  const slack = buildOrgAgentSystemPrompt({ surface: "slack" });
+
+  assert.match(korean, /이번 답변의 언어를 명시했다면 그 요청을 따른다\. 앞으로도 그 언어를 원하면 language_setting 기능으로 저장한다/);
+  for (const prompt of [english, slack]) {
+    assert.match(prompt, /when they want that language from now on, save it with the language_setting capability/);
+  }
+});
+
 test("organization-agent Slack prompt enables sparse private choice markers", () => {
   const prompt = buildOrgAgentSystemPrompt({
     enableSlackChoiceButtons: true,

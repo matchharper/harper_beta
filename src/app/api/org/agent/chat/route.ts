@@ -4,6 +4,7 @@ import { runOrgAgentChat } from "@/lib/org/agent/chat";
 import { runOrgRoleCreationChat } from "@/lib/org/agent/roleCreationChat";
 import type { OrgAgentChatBody } from "@/lib/org/agent/types";
 import { isOrgLocale } from "@/i18n/org/locale";
+import { resolveOrgChatResponseLocale } from "@/lib/org/memberLocale.server";
 import { OrgHttpError } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
@@ -53,12 +54,16 @@ export async function POST(req: NextRequest) {
     if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
       return NextResponse.json({ error: "Invalid response locale" }, { status: 400 });
     }
+    const responseLocale = await resolveOrgChatResponseLocale({
+      screenLocale: body.responseLocale ?? undefined,
+      userId: user.id,
+    });
     const args = {
       attachments: Array.isArray(body.attachments) ? body.attachments : [],
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
       model: body.model ?? null,
-      responseLocale: body.responseLocale,
+      responseLocale,
       roleId: body.mode === "role" ? (body.roleId ?? null) : null,
       user,
       workspaceId: body.workspaceId ?? "",
@@ -69,7 +74,7 @@ export async function POST(req: NextRequest) {
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
       model: body.model ?? null,
-      responseLocale: body.responseLocale,
+      responseLocale,
       roleId: body.roleId ?? null,
       user,
       workspaceId: body.workspaceId ?? "",

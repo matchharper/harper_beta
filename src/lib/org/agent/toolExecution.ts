@@ -1,4 +1,5 @@
 import { updateCompanyEmailPreferences } from "@/lib/email/companyPreferences";
+import { updateCompanyLanguageSetting } from "@/lib/org/agent/languageSetting";
 import { readRoleNotificationContext } from "./roleNotificationContext";
 import {
   changeCompanyFollowup,
@@ -447,6 +448,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "이메일 수신 설정을 바꾸는 중",
       "이메일 수신 설정 저장 완료",
       "이메일 수신 설정을 저장하지 못했습니다",
+    ],
+    update_language_setting: [
+      "언어 설정을 바꾸는 중",
+      "언어 설정 저장 완료",
+      "언어 설정을 저장하지 못했습니다",
     ],
     send_company_message: [
       "회사에 전할 내용을 준비하는 중",
@@ -6165,6 +6171,20 @@ export async function executeOrgAgentTool(args: {
       name: args.name,
       status: "success",
       summary: "이메일 수신 설정 저장",
+    });
+    return result;
+  } else if (args.name === "update_language_setting") {
+    result = await updateCompanyLanguageSetting({
+      admin: args.admin,
+      user: args.user,
+      workspaceId,
+      input,
+    });
+    recordResult(args.state, {
+      callId: args.callId,
+      name: args.name,
+      status: "success",
+      summary: "언어 설정 저장",
     });
     return result;
   } else if (args.name === "send_company_message") {
