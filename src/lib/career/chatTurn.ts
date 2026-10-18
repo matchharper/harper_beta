@@ -604,8 +604,9 @@ export async function runCareerChatTurn(
     talentContextSnapshot.allBriefs
   );
   const talentContextSection = renderTalentContextPrompt(talentContextSnapshot);
-  // Replies follow the saved language only. Requests to change it go through
-  // update_language_setting; conversation text such as "영어로 문서 작성 가능"
+  // The reply language comes from the saved language only. A lasting request
+  // goes through update_language_setting and a one-off request is followed by
+  // the model for that reply; conversation text such as "영어로 문서 작성 가능"
   // describes the talent and must not switch the reply language.
   const responseLocale = talentSetting?.preferred_locale ?? null;
   const isOnboardingActiveForTurn =
