@@ -2078,12 +2078,23 @@ export function previouslyRecommendedRoleExclusionSql(
   const asOfSql = asOf
     ? `\n      AND tor.created_at <= ${sqlLiteral(asOf)}::timestamptz`
     : "";
+  // The same posting link can be stored as several role rows (e.g. under
+  // differently named portfolio companies), so also exclude by link.
   return `NOT EXISTS (
     SELECT 1
     FROM public.talent_opportunity_recommendation tor
     WHERE tor.talent_id = ${sqlLiteral(normalizedUserId)}::uuid
       AND tor.opportunity_type = ${sqlLiteral(OpportunityType.ExternalJd)}
       AND tor.role_id = cr.role_id
+      ${asOfSql}
+  )
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.talent_opportunity_recommendation tor
+    JOIN public.company_roles recommended_role
+      ON recommended_role.role_id = tor.role_id
+    WHERE tor.talent_id = ${sqlLiteral(normalizedUserId)}::uuid
+      AND recommended_role.external_jd_url = cr.external_jd_url
       ${asOfSql}
   )`;
 }

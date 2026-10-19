@@ -202,6 +202,11 @@ test("shared retrieval preserves countries, history cutoff, extra exclusions and
     assert.deepEqual((await db.query(buildFilterFirstRoleSql(input))).rows, []);
     assert.equal((await db.query(buildFilterFirstRoleSql({ ...input, asOf: "2020-01-01" }))).rows.length, 1);
     await db.query("delete from talent_opportunity_recommendation");
+    await db.query("update company_roles set external_jd_url='https://jobs.example.com/posting/1' where role_id = any($1::uuid[])", [[uuid(10), uuid(15)]]);
+    await db.query("insert into talent_opportunity_recommendation(talent_id,role_id,opportunity_type,created_at) values($1,$2,'internal_recommendation',now())", [uuid(1), uuid(15)]);
+    assert.deepEqual((await db.query(buildFilterFirstRoleSql(input))).rows, []);
+    assert.equal((await db.query(buildFilterFirstRoleSql({ ...input, asOf: "2020-01-01" }))).rows.length, 1);
+    await db.query("delete from talent_opportunity_recommendation");
     await db.query("update company_roles set posted_at=now()-interval '361 days' where role_id=$1", [uuid(10)]);
     assert.equal((await db.query(buildFilterFirstRoleSql(input))).rows.length, 1);
   } finally { await db.close(); }
