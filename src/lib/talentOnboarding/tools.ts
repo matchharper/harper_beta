@@ -13,6 +13,7 @@ import {
 import {
   COMPANY_RELAY_CONTENT_CONTRACT,
   COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT,
+  COMPANY_RELAY_NOT_DELIVERED_RESPONSE_CONTRACT,
 } from "@/lib/companyTalentRequests/relayContract";
 import { formatRoleContextForModel } from "./roleContextFormat";
 import {
@@ -3754,7 +3755,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const contentMismatch = Boolean(relay.contentMismatch);
       const assistantInstruction = contentMismatch
         ? "The same source message was already accepted earlier using its original content. State only the returned transport status; do not claim that a differently rewritten version replaced it."
-        : COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT;
+        : relay.status !== "sent"
+          ? COMPANY_RELAY_NOT_DELIVERED_RESPONSE_CONTRACT
+          : COMPANY_RELAY_DELIVERY_RESPONSE_CONTRACT;
       return {
         assistantInstruction,
         idempotent: relay.idempotent,
