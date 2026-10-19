@@ -5,6 +5,7 @@ import {
   ensureOrgAgentConversation,
   ensureOrgRoleCreationConversation,
 } from "@/lib/org/agent/store";
+import { chooseWebActionConversation } from "@/lib/org/agent/webActionConversation";
 import { publishCompanyAgentWebActionJob } from "@/lib/org/agent/webActionQueue";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
@@ -61,10 +62,8 @@ export async function enqueueOrgAgentWebActionTurn(args: {
       .select("id,role_id").eq("id", args.conversationId)
       .eq("company_workspace_id", workspaceId).single();
     if (error) throw error;
-    // The authenticated scope above verifies the related Role. The original
-    // company conversation can be workspace-wide or that same Role.
-    if (data.role_id && data.role_id !== roleId) throw new Error("Company event conversation Role mismatch");
-    conversation = { ...conversation, id: data.id, role_id: data.role_id };
+    // The authenticated scope above verifies the related Role.
+    conversation = chooseWebActionConversation(conversation, data, roleId);
   }
   const { data, error } = await (admin.rpc as any)(
     "enqueue_company_agent_web_action_v1",
