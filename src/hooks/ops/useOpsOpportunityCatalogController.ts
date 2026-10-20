@@ -46,6 +46,7 @@ function pickRole(
 export function useOpsOpportunityCatalogController(args: {
   canFetchInternal: boolean;
   loadRoles?: boolean;
+  excludeTailoredRoles?: boolean;
 }) {
   const [workspaceSearch, setWorkspaceSearch] = useState("");
   const [appliedWorkspaceSearch, setAppliedWorkspaceSearch] = useState("");
@@ -59,6 +60,7 @@ export function useOpsOpportunityCatalogController(args: {
   const catalogQuery = useOpsOpportunityCatalog({
     enabled: args.canFetchInternal,
     internalOnly: true,
+    excludeTailoredRoles: args.excludeTailoredRoles,
     limit: OPS_OPPORTUNITY_COMPANY_PAGE_SIZE,
     workspaceQuery: appliedWorkspaceSearch,
   });

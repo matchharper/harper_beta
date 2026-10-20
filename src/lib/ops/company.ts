@@ -1,4 +1,8 @@
-import { ORG_ACTION_TYPES, type OrgActionType, type OrgActionMetadata } from "@/lib/org/actionLogs";
+import {
+  ORG_ACTION_TYPES,
+  type OrgActionType,
+  type OrgActionMetadata,
+} from "@/lib/org/actionLogs";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { InternalApiError } from "@/lib/internalApi";
 import { applyWebsiteCompanyDataChanges } from "@/lib/org/companyDataWebsite";
@@ -6,7 +10,6 @@ import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import {
   describeOpsCompanyProgressActivity,
   describeOpsCompanyAction,
-  describeOpsCompanyRoleRecommendation,
   getOpsCompanyStageLabelKey,
   isHiddenOpsCompanyProgressActivity,
   OPS_COMPANY_PROGRESS_KINDS,
@@ -50,6 +53,7 @@ type CompanyRoleRow = {
 };
 
 type RecommendationRow = {
+  discovery_run_id: string | null;
   created_at: string;
   feedback: string | null;
   feedback_at: string | null;
@@ -96,6 +100,7 @@ type CompanyConversationMessageRow = {
   message_type: string;
   metadata: unknown;
   role: string;
+  slack_message_ts: string | null;
   slack_thread_id: string | null;
   slack_user_id: string | null;
   status: string;
@@ -120,6 +125,8 @@ export type OpsCompanyMembersResponse = {
 };
 
 export type OpsCompanyActivityKind =
+  | "matching_run"
+  | "candidate_declined"
   | "candidate_accepted"
   | "candidate_recommended"
   | "candidate_status_changed"
@@ -131,6 +138,7 @@ export type OpsCompanyActivityKind =
   | "role_updated";
 
 export type OpsCompanyActivityItem = {
+  finishedAt?: string | null;
   id: string;
   kind: OpsCompanyActivityKind;
   meta: string | null;
@@ -158,6 +166,14 @@ export type OpsCompanyConversationItem = {
   occurredAt: string;
   role: OpsCompanyConversationRole;
   source: OpsCompanyConversationSource;
+  slackThread: {
+    id: string;
+    rootTs: string;
+    messageTs: string | null;
+    channelId: string;
+    channelName: string | null;
+    isRoot: boolean | null;
+  } | null;
   user: {
     email: string | null;
     name: string | null;
@@ -165,10 +181,17 @@ export type OpsCompanyConversationItem = {
   };
 };
 
+export type OpsCompanyThreadSummary = {
+  thread: NonNullable<OpsCompanyConversationItem["slackThread"]>;
+  root: OpsCompanyConversationItem | null;
+  replyCount: number;
+};
+
 export type OpsCompanyConversationsResponse = {
+  threads: OpsCompanyThreadSummary[];
   items: OpsCompanyConversationItem[];
   limit: number;
-  nextCursor: number | null;
+  nextCursor: string | null;
   workspaceId: string;
 };
 
@@ -409,9 +432,10 @@ async function fetchWorkspaceRoles(args: {
 }) {
   const { data, error } = await (args.admin.from("company_roles" as any) as any)
     .select(
-      "role_id, name, status, is_expired, created_at, updated_at, company_internal_roles!inner(role_id)"
+      "role_id, name, status, is_expired, created_at, updated_at, company_internal_roles!inner(role_id,is_harper_tailored_role)"
     )
     .eq("company_workspace_id", args.workspaceId)
+    .not("company_internal_roles.is_harper_tailored_role", "is", true)
     .order("updated_at", { ascending: false })
     .limit(500);
 
@@ -479,7 +503,8 @@ export async function fetchOpsCompanyMembers(args: {
 }
 
 export async function fetchOpsCompanyConversations(args: {
-  offset?: number | null;
+  cursor?: string | null;
+  threadId?: string | null;
   limit?: number;
   workspaceId?: string | null;
 }): Promise<OpsCompanyConversationsResponse> {
@@ -488,26 +513,109 @@ export async function fetchOpsCompanyConversations(args: {
   if (!workspaceId) throw new Error("workspaceId is required");
 
   const limit = Math.max(1, Math.min(Number(args.limit ?? 20) || 20, 20));
-  const offset = Math.max(0, Math.floor(Number(args.offset ?? 0) || 0));
-  const { data, error } = await (admin.from("company_messages" as any) as any)
-    .select(
-      "id, company_workspace_id, conversation_id, company_user_id, role, content, message_type, status, slack_thread_id, slack_user_id, metadata, created_at"
+  const threadId = normalizeText(args.threadId);
+  if (
+    threadId &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      threadId
     )
-    .eq("company_workspace_id", workspaceId)
-    .eq("status", "completed")
-    .in("role", ["user", "assistant"])
-    .in("message_type", ["chat", "slack"])
+  ) {
+    throw new InternalApiError(400, "Invalid threadId");
+  }
+  const columns =
+    "id, company_workspace_id, conversation_id, company_user_id, role, content, message_type, status, slack_message_ts, slack_thread_id, slack_user_id, metadata, created_at";
+  const messages = (columns: string) =>
+    (admin.from("company_messages" as any) as any)
+      .select(columns)
+      .eq("company_workspace_id", workspaceId)
+      .eq("status", "completed")
+      .is("metadata->>companyEventUiDuplicateOf", null)
+      .in("role", ["user", "assistant"])
+      .in("message_type", ["chat", "slack"]);
+  let query = messages(columns)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
-    .range(offset, offset + limit);
+    .limit(limit + 1);
+  if (threadId)
+    query = query.eq("slack_thread_id", threadId).eq("message_type", "slack");
+  if (args.cursor) {
+    const [at, rawId] = args.cursor.split("|");
+    const id = Number(rawId);
+    if (
+      !at ||
+      !/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:\d{2})$/.test(at) ||
+      !Number.isFinite(Date.parse(at)) ||
+      !Number.isSafeInteger(id) ||
+      id < 1
+    )
+      throw new InternalApiError(400, "Invalid cursor");
+    const timestamp = at;
+    query = query.or(
+      `created_at.lt.${timestamp},and(created_at.eq.${timestamp},id.lt.${id})`
+    );
+  }
+  const { data, error } = await query;
   if (error) {
     throw new Error(error.message ?? "Failed to load company conversations");
   }
 
   const rows = coerceJsonArray<CompanyConversationMessageRow>(data);
   const visibleRows = rows.slice(0, limit);
+  const threadIds = uniqueStrings([
+    ...visibleRows
+      .filter((row) => row.message_type === "slack")
+      .map((row) => row.slack_thread_id),
+    threadId,
+  ]);
+  const threads = new Map<string, any>();
+  if (threadIds.length) {
+    const { data, error } = await (
+      admin.from("company_slack_threads" as any) as any
+    )
+      .select(
+        "id,slack_thread_ts,channel:company_slack_channels!inner(slack_channel_id,slack_channel_name,company_workspace_id)"
+      )
+      .in("id", threadIds)
+      .eq("channel.company_workspace_id", workspaceId);
+    if (error) throw error;
+    for (const row of data ?? []) threads.set(row.id, row);
+  }
+  // Fetch only identity metadata for counts; message bodies remain paginated.
+  // Slack messages can be mirrored in multiple conversations, so count by Slack ts.
+  const identities = new Map<
+    string,
+    Map<string, { id: number; ts: string | null }>
+  >();
+  if (threads.size) {
+    for (let offset = 0; ; offset += 1000) {
+      const result = await messages("id,slack_thread_id,slack_message_ts")
+        .eq("message_type", "slack")
+        .in("slack_thread_id", [...threads.keys()])
+        .order("id", { ascending: true })
+        .range(offset, offset + 999);
+      if (result.error) throw result.error;
+      for (const row of result.data ?? []) {
+        const group = identities.get(row.slack_thread_id) ?? new Map();
+        const key = row.slack_message_ts || `message:${row.id}`;
+        if (!group.has(key))
+          group.set(key, { id: Number(row.id), ts: row.slack_message_ts });
+        identities.set(row.slack_thread_id, group);
+      }
+      if ((result.data?.length ?? 0) < 1000) break;
+    }
+  }
+  const rootIds = [...threads.values()].flatMap((thread) => {
+    const root = identities.get(thread.id)?.get(thread.slack_thread_ts);
+    return root ? [root.id] : [];
+  });
+  let roots: CompanyConversationMessageRow[] = [];
+  if (rootIds.length) {
+    const result = await messages(columns).in("id", rootIds);
+    if (result.error) throw result.error;
+    roots = coerceJsonArray<CompanyConversationMessageRow>(result.data);
+  }
   const companyUserIds = uniqueStrings(
-    visibleRows
+    [...visibleRows, ...roots]
       .filter((message) => message.role === "user")
       .map((message) => message.company_user_id)
   );
@@ -515,7 +623,9 @@ export async function fetchOpsCompanyConversations(args: {
     admin,
     userIds: companyUserIds,
   });
-  const items = visibleRows.map<OpsCompanyConversationItem>((message) => {
+  const mapMessage = (
+    message: CompanyConversationMessageRow
+  ): OpsCompanyConversationItem => {
     const source: OpsCompanyConversationSource =
       message.message_type === "slack" ? "slack" : "web";
     const companyUser = message.company_user_id
@@ -530,11 +640,30 @@ export async function fetchOpsCompanyConversations(args: {
       occurredAt: String(message.created_at ?? ""),
       role: isUserMessage ? "user" : "assistant",
       source,
+      slackThread:
+        source === "slack" &&
+        message.slack_thread_id &&
+        threads.has(message.slack_thread_id)
+          ? {
+              id: message.slack_thread_id,
+              rootTs: threads.get(message.slack_thread_id).slack_thread_ts,
+              messageTs: message.slack_message_ts,
+              channelId: threads.get(message.slack_thread_id).channel
+                .slack_channel_id,
+              channelName:
+                threads.get(message.slack_thread_id).channel
+                  .slack_channel_name ?? null,
+              isRoot: message.slack_message_ts
+                ? message.slack_message_ts ===
+                  threads.get(message.slack_thread_id).slack_thread_ts
+                : null,
+            }
+          : null,
       user: {
         email: isUserMessage ? (companyUser?.email ?? null) : null,
         name: isUserMessage
           ? source === "slack"
-            ? getSlackUserName(message.metadata)
+            ? getSlackUserName(message.metadata) || companyUser?.name || null
             : (companyUser?.name ?? null)
           : null,
         slackUserId:
@@ -543,12 +672,39 @@ export async function fetchOpsCompanyConversations(args: {
             : null,
       },
     };
-  });
-
+  };
+  const items = visibleRows.map(mapMessage);
+  const mappedRoots = roots.map(mapMessage);
+  const summaries: OpsCompanyThreadSummary[] = [...threads.values()].map(
+    (thread) => {
+      const root =
+        mappedRoots.find((item) => item.slackThread?.id === thread.id) ?? null;
+      const sample =
+        root ?? items.find((item) => item.slackThread?.id === thread.id);
+      return {
+        thread: sample?.slackThread ?? {
+          id: thread.id,
+          rootTs: thread.slack_thread_ts,
+          messageTs: null,
+          channelId: thread.channel.slack_channel_id,
+          channelName: thread.channel.slack_channel_name ?? null,
+          isRoot: null,
+        },
+        root,
+        replyCount: [...(identities.get(thread.id)?.values() ?? [])].filter(
+          (item) => item.ts !== thread.slack_thread_ts
+        ).length,
+      };
+    }
+  );
   return {
+    threads: summaries,
     items,
     limit,
-    nextCursor: rows.length > limit ? offset + limit : null,
+    nextCursor:
+      rows.length > limit && visibleRows.length
+        ? `${visibleRows[visibleRows.length - 1].created_at}|${visibleRows[visibleRows.length - 1].id}`
+        : null,
     workspaceId,
   };
 }
@@ -563,7 +719,7 @@ async function fetchRecommendations(args: {
     args.admin.from("talent_opportunity_recommendation" as any) as any
   )
     .select(
-      "id, talent_id, role_id, feedback, feedback_at, saved_stage, recommended_at, created_at, updated_at"
+      "id, discovery_run_id, talent_id, role_id, feedback, feedback_at, saved_stage, recommended_at, created_at, updated_at"
     )
     .in("role_id", args.roleIds)
     .order("updated_at", { ascending: false })
@@ -584,8 +740,13 @@ type CompanyActionRow = {
   meta_data: OrgActionMetadata;
 };
 
-async function fetchCompanyActions(args: { admin: AdminClient; workspaceId: string; limit: number }) {
-  const { data, error } = await args.admin.from("logs")
+async function fetchCompanyActions(args: {
+  admin: AdminClient;
+  workspaceId: string;
+  limit: number;
+}) {
+  const { data, error } = await args.admin
+    .from("logs")
     .select("id, type, user_id, created_at, meta_data")
     .eq("meta_data->>workspaceId", args.workspaceId)
     .in("type", ORG_ACTION_TYPES)
@@ -686,11 +847,20 @@ export async function fetchOpsCompanyActivity(args: {
   const offset = Math.max(0, Number(args.offset ?? 0) || 0);
   const sourceLimit = offset + limit * 4;
 
-  const [roles, members, actions] = await Promise.all([
+  const [roles, members, actions, runResponse] = await Promise.all([
     fetchWorkspaceRoles({ admin, workspaceId }),
     fetchMembershipRows({ admin, limit: sourceLimit, workspaceId }),
     fetchCompanyActions({ admin, limit: sourceLimit, workspaceId }),
+    (admin.from("company_first_search_runs" as any) as any)
+      .select(
+        "id,role_id,requested_role_ids,scheduled_role_ids,trigger_reason,status,result,created_at,finished_at,error_code"
+      )
+      .eq("company_workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(sourceLimit),
   ]);
+  if (runResponse.error) throw runResponse.error;
+  const runs = (runResponse.data ?? []) as any[];
   const roleIds = roles
     .map((row) => normalizeText(row.role_id))
     .filter(Boolean);
@@ -703,6 +873,37 @@ export async function fetchOpsCompanyActivity(args: {
     fetchTalentProgress({ admin, limit: sourceLimit, roleIds }),
     fetchRoleStages({ admin, roleIds }),
   ]);
+  const deliveryIds = uniqueStrings(
+    recommendations.map((row) => row.discovery_run_id)
+  );
+  const sourceRunByDelivery = new Map<string, string>();
+  const sourceRunByRecommendation = new Map<string, string>();
+  const deliveryTrigger = new Map<string, string>();
+  if (deliveryIds.length) {
+    const [reviews, deliveryRuns, recommendationReviews] = await Promise.all([
+      (admin.from("talent_opportunity_matching_review" as any) as any)
+        .select("run_id,discovery_run_id")
+        .in("discovery_run_id", deliveryIds),
+      (admin.from("opportunity_discovery_run" as any) as any)
+        .select("id,trigger")
+        .in("id", deliveryIds),
+      (admin.from("talent_opportunity_matching_review" as any) as any)
+        .select("run_id,recommendation_id")
+        .in(
+          "recommendation_id",
+          recommendations.map((row) => row.id)
+        ),
+    ]);
+    if (recommendationReviews.error) throw recommendationReviews.error;
+    for (const row of recommendationReviews.data ?? [])
+      sourceRunByRecommendation.set(row.recommendation_id, row.run_id);
+    if (reviews.error) throw reviews.error;
+    if (deliveryRuns.error) throw deliveryRuns.error;
+    for (const row of reviews.data ?? [])
+      sourceRunByDelivery.set(row.discovery_run_id, row.run_id);
+    for (const row of deliveryRuns.data ?? [])
+      deliveryTrigger.set(row.id, row.trigger);
+  }
   const customStageLabelByKey = new Map(
     roleStages.map((row) => [
       getOpsCompanyStageLabelKey(row.role_id, row.id),
@@ -723,7 +924,10 @@ export async function fetchOpsCompanyActivity(args: {
       userIds: [
         ...members.map((row) => row.company_user_id),
         ...progressRows.map((row) => row.company_user_id ?? ""),
-        ...actions.flatMap((row) => [row.user_id ?? "", row.meta_data.targetUserId ?? ""]),
+        ...actions.flatMap((row) => [
+          row.user_id ?? "",
+          row.meta_data.targetUserId ?? "",
+        ]),
       ],
     }),
   ]);
@@ -731,35 +935,98 @@ export async function fetchOpsCompanyActivity(args: {
   const items: OpsCompanyActivityItem[] = [];
 
   for (const row of actions) {
+    const actionRoleIds = row.meta_data.roleIds ?? [];
+    if (actionRoleIds.length && !actionRoleIds.some((id) => roleById.has(id)))
+      continue;
     const activity = describeOpsCompanyAction({
       type: row.type,
-      actorName: displayPersonName(companyUserMap.get(row.user_id ?? ""), "팀원"),
+      actorName: displayPersonName(
+        companyUserMap.get(row.user_id ?? ""),
+        "팀원"
+      ),
       targetName: row.meta_data.talentId
         ? displayPersonName(talentMap.get(row.meta_data.talentId), "후보자")
         : row.meta_data.targetUserId
-        ? displayPersonName(companyUserMap.get(row.meta_data.targetUserId), "팀원")
-        : row.meta_data.targetLabel,
+          ? displayPersonName(
+              companyUserMap.get(row.meta_data.targetUserId),
+              "팀원"
+            )
+          : row.meta_data.targetLabel,
       metadata: row.meta_data,
     });
-    items.push({ id: `action:${row.id}`, kind: "workspace_action", occurredAt: row.created_at, ...activity });
+    items.push({
+      id: `action:${row.id}`,
+      kind: "workspace_action",
+      occurredAt: row.created_at,
+      ...activity,
+    });
   }
 
+  const statusLabels: Record<string, string> = {
+    queued: "대기",
+    running: "실행 중",
+    skipped: "건너뜀",
+    delivery_pending: "전달 진행 중",
+    succeeded: "완료",
+    failed: "실패",
+  };
+  for (const run of runs) {
+    const runRoleIds = uniqueStrings([
+      run.role_id,
+      ...(run.requested_role_ids ?? []),
+      ...(run.scheduled_role_ids ?? []),
+    ]);
+    if (runRoleIds.length && !runRoleIds.some((id) => roleById.has(id)))
+      continue;
+    const counts = run.result?.counts;
+    items.push({
+      id: `run:${run.id}`,
+      kind: "matching_run",
+      occurredAt: run.created_at,
+      title: `${run.trigger_reason === "scheduled" ? "정기" : "임시"} 추천 실행 · ${statusLabels[run.status] ?? run.status}${counts ? ` · 후보자 방향 ${counts.candidateFirst ?? 0}명 · 회사 방향 ${(counts.companyFirst ?? counts.selected ?? 0) + (counts.acceptedConnect ?? 0)}명` : ""}`,
+      finishedAt: run.finished_at,
+      subtitle: `실행 ${run.id} · ${run.trigger_reason}${run.error_code ? ` · ${run.error_code}` : ""}. 인원은 실행에서 선택한 대상이며 실제 전달과 다를 수 있습니다. 회사 방향에는 연결 대기 후보 소개 ${counts?.acceptedConnect ?? 0}명이 포함됩니다.`,
+      meta: "추천 실행",
+    });
+  }
+  // Delivery history is grouped by its durable discovery run, never by time proximity.
+  const deliveryGroups = new Map<string, RecommendationRow[]>();
+  for (const row of recommendations) {
+    if (
+      sourceRunByRecommendation.has(row.id) ||
+      (row.discovery_run_id && sourceRunByDelivery.has(row.discovery_run_id))
+    )
+      continue;
+    const key = row.discovery_run_id || row.id;
+    const group = deliveryGroups.get(key) ?? [];
+    group.push(row);
+    deliveryGroups.set(key, group);
+  }
+  for (const [id, group] of deliveryGroups) {
+    items.push({
+      id: `delivery:${id}`,
+      kind: "candidate_recommended",
+      occurredAt: group
+        .map((r) => r.recommended_at || r.created_at)
+        .sort()
+        .at(-1)!,
+      title: `${deliveryTrigger.get(id) === "scheduled" ? "정기" : deliveryTrigger.has(id) ? "임시" : "유형 미확인"} 추천 실행 · 후보자 ${new Set(group.map((r) => r.talent_id)).size}명`,
+      subtitle: `전달 실행 ${id} · ${deliveryTrigger.get(id) ?? "실행 유형 기록 없음"}`,
+      meta: "추천 전달",
+    });
+  }
   for (const row of recommendations) {
     const talent = talentMap.get(normalizeText(row.talent_id));
     const role = roleById.get(normalizeText(row.role_id));
-    const activity = describeOpsCompanyRoleRecommendation({
-      candidateName: displayPersonName(talent, "후보자"),
-      roleName: role?.name,
-    });
-    items.push({
-      id: `recommendation:${row.id}`,
-      kind: "candidate_recommended",
-      meta: activity.meta,
-      occurredAt: String(row.recommended_at ?? row.created_at ?? ""),
-      subtitle: activity.subtitle,
-      title: activity.title,
-    });
-
+    if (["negative", "dislike", "rejected"].includes(row.feedback ?? ""))
+      items.push({
+        id: `recommendation-declined:${row.id}`,
+        kind: "candidate_declined",
+        occurredAt: row.feedback_at || row.updated_at,
+        title: `${displayPersonName(talent, "후보자")} · ${normalizeText(role?.name) || "역할"} 추천 거절`,
+        meta: "후보자 거절",
+        subtitle: null,
+      });
     if (isAcceptedRecommendation(row)) {
       items.push({
         id: `recommendation-accepted:${row.id}`,
@@ -775,11 +1042,37 @@ export async function fetchOpsCompanyActivity(args: {
   for (const row of progressRows.filter(
     (row) => !isHiddenOpsCompanyProgressActivity(row)
   )) {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : {};
+    if (
+      [
+        "candidate_role_recommendation_accepted",
+        "candidate_role_recommendation_rejected",
+      ].includes(row.kind) &&
+      recommendations.some(
+        (rec) =>
+          rec.talent_id === row.talent_id &&
+          rec.role_id === row.role_id &&
+          (isAcceptedRecommendation(rec) ||
+            ["negative", "dislike", "rejected"].includes(rec.feedback ?? ""))
+      )
+    )
+      continue;
+    // Presentation receipts belong to the matching run, not individual candidate rows.
+    if (row.kind === "company_candidate_presented" && metadata.runId) continue;
+    if (
+      row.kind === "intro_to_company" &&
+      metadata.source === "accepted_role_review"
+    )
+      continue;
     const talent = talentMap.get(normalizeText(row.talent_id));
     const role = roleById.get(normalizeText(row.role_id));
     const activity = describeOpsCompanyProgressActivity({
       actorName: displayPersonName(
-        companyUserMap.get(normalizeText(row.company_user_id)), "팀원"
+        companyUserMap.get(normalizeText(row.company_user_id)),
+        "팀원"
       ),
       candidateName: displayPersonName(talent, "후보자"),
       customStageLabelByKey,
@@ -876,7 +1169,8 @@ export async function fetchOpsCompanyActivity(args: {
     progressRows.length === sourceLimit ||
     memos.length === sourceLimit ||
     members.length === sourceLimit ||
-    actions.length === sourceLimit;
+    actions.length === sourceLimit ||
+    runs.length === sourceLimit;
   const nextOffset =
     offset + limit < sortedItems.length
       ? offset + limit
@@ -1046,6 +1340,7 @@ export async function updateOpsCompanyWorkspace(
 }
 
 export async function fetchOpsCompanyRoleCompanyFirstSearchStates(args: {
+  excludeTailoredRoles?: boolean;
   roleIds: string[];
 }): Promise<OpsCompanyRoleCompanyFirstSearchState[]> {
   const roleIds = Array.from(
@@ -1054,11 +1349,12 @@ export async function fetchOpsCompanyRoleCompanyFirstSearchStates(args: {
   if (roleIds.length === 0) return [];
 
   const admin = getSupabaseAdmin();
-  const { data, error } = await (
-    admin.from("company_internal_roles" as any) as any
-  )
+  let query = (admin.from("company_internal_roles" as any) as any)
     .select("role_id, is_company_first_search")
     .in("role_id", roleIds);
+  if (args.excludeTailoredRoles)
+    query = query.not("is_harper_tailored_role", "is", true);
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(
@@ -1087,10 +1383,7 @@ export async function updateOpsCompanyRoleCompanyFirstSearch(
   if (!workspaceId) throw new InternalApiError(400, "workspaceId is required");
   if (!roleId) throw new InternalApiError(400, "roleId is required");
   if (typeof args.isCompanyFirstSearch !== "boolean") {
-    throw new InternalApiError(
-      400,
-      "isCompanyFirstSearch must be a boolean"
-    );
+    throw new InternalApiError(400, "isCompanyFirstSearch must be a boolean");
   }
 
   const { data: role, error: roleError } = await (

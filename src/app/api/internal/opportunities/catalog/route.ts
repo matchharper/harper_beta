@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
     await requireInternalApiUser(req);
     const { searchParams } = new URL(req.url);
     const data = await fetchOpsOpportunityCatalog({
+      workspaceId: searchParams.get("workspaceId") || undefined,
+      excludeTailoredRoles: searchParams.get("excludeTailoredRoles") === "true",
       internalOnly: searchParams.get("internalOnly") === "true",
       workspaceLimit: Number(
         searchParams.get("limit") ?? String(OPS_OPPORTUNITY_COMPANY_PAGE_SIZE)
