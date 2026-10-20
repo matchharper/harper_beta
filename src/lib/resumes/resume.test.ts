@@ -197,7 +197,7 @@ test("renderer escapes HTML, rejects unsafe links, keeps only visible facts", ()
 });
 
 test(
-  "real Chromium Korean and multi-page PDFs retain every block",
+  "Browserless Korean and multi-page PDFs retain every block",
   { skip: process.env.RESUME_PDF_TEST !== "1" },
   async () => {
     const single = await renderResumePdf(sample);

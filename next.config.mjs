@@ -6,7 +6,6 @@ const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: [
-    "@sparticuz/chromium",
     "playwright-core",
     "pdf-parse-fork",
     "pdf-parse",
@@ -20,9 +19,8 @@ const nextConfig = {
       "./node_modules/@fontsource/noto-sans-kr/files/*-400-normal.woff2",
       "./node_modules/@fontsource/noto-sans-kr/files/*-700-normal.woff2",
     ],
-    "/api/{talent/documents/*/pdf,org/generated-resume}": [
+    "/api/{talent/documents/*/pdf,org/generated-resume,talent/simulation,talent/chat,queues/process-application-browser,queues/process-email,internal/email/dispatch}": [
       "./node_modules/pagedjs/dist/paged.min.js",
-      "./node_modules/@sparticuz/chromium/bin/**",
       "./node_modules/pdf-parse/dist/worker/pdf.worker.mjs",
       "./node_modules/@fontsource/noto-sans-kr/400.css",
       "./node_modules/@fontsource/noto-sans-kr/700.css",

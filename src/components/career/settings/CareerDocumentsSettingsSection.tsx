@@ -184,12 +184,16 @@ const CareerDocumentsSettingsSection = ({
       document.originType === "gmail_career_history" &&
       document.originId === "singleton";
     if (document.kind === "call_note") {
+      logCareerEvent("document_open", { documentId: document.id, source: "document_list" });
       onOpenCallNote(document);
     } else if (isGmailCareerHistory) {
+      logCareerEvent("document_open", { documentId: document.id, source: "document_list" });
       onEditDocument(document);
     } else if (document.originType === "harper_generated_resume" || document.contentType === "text/markdown") {
       onOpenDocument(document);
     } else if (document.downloadUrl) {
+      // Opening an uploaded file is not evidence of a completed download.
+      logCareerEvent("document_open", { documentId: document.id, source: "document_list" });
       window.open(document.downloadUrl, "_blank", "noopener,noreferrer");
     }
   };
