@@ -6,17 +6,51 @@ import { buildScoringInput } from "./scoringInput";
 import { buildDecisionRequest } from "./decisions";
 import oldQuestions from "./fitQuestions.v3.json";
 import rubric from "./fitQuestions.v4.json";
+import { descriptionText } from "./descriptionText";
 
-test("Python Worker and TypeScript preserve identical evidence, dates, missing values and multiline facts", () => {
+test("V2 keeps Worker formatting for supplied facts, booleans, zero and timestamps", () => {
   const payload = {
     user_context: { profile: { profile: { headline: "Engineer" }, experiences: [
-      { role: "Lead", start_date: "2020-01", end_date: null, description: "Line one\nLine two" },
-      { role: "IC", start: "2018", end: "2019", note: "" },
-    ], educations: [] }, search_brief: [{ ref: 1, content: "한국 원격만" }], behavior_context: null },
-    candidate_context: { roles: [{ id: "role-1", active: false, score: 0, timestamp: "2026-10-17T23:15:12Z", local: "2026-10-17T23:15:12", facts: {} }] },
+      { role: "Lead", start_date: "2020-01", end_date: "2024-12", description: "Line one\nLine two" },
+      { role: "IC", start: "2018", end: "2019" },
+    ] } },
+    candidate_context: { roles: [{ id: "role-1", active: false, score: 0, timestamp: "2026-10-17T23:15:12Z", local: "2026-10-17T23:15:12" }] },
   };
   const expected = execFileSync("python3", ["-c", "import sys,json;sys.path.insert(0,'../harper_worker');from opp.matching.text import external_scoring_input;sys.stdout.write(external_scoring_input(json.load(sys.stdin)))"], { input: JSON.stringify(payload), encoding: "utf8" });
   assert.equal(externalScoringInput(payload), expected);
+});
+
+test("empty nested fields vanish while actual statements, false and zero survive", () => {
+  const text = externalScoringInput({ user_context: {
+    profile: { experiences: [{ role: "Lead", start_date: "2020", end_date: null, memo: null }], educations: [],
+      extras: [{ id: "private-extra-id", title: "Award", memo: "" }] },
+    search_brief: [{ ref: 91, label: "이직 적극도", content: "현재 이직 기회를 적극적으로 찾고 있습니다." },
+      { ref: 98, label: "새로운 자유 주제", content: "미제공이라고 말한 조건은 아직 미정" }],
+    behavior_version: 47, behavior_context: null,
+  }, company: { companyLeadership: [], nested: { a: null, b: [undefined, {}, "   "] }, active: false, count: 0 } });
+  assert.ok(text.includes("1. 이직 적극도 : 현재 이직 기회를 적극적으로 찾고 있습니다."));
+  assert.ok(text.includes("2. 새로운 자유 주제 : 미제공이라고 말한 조건은 아직 미정"));
+  assert.ok(text.includes("시작: 2020"));
+  assert.ok(text.includes("Award"));
+  assert.ok(text.includes("- active: false"));
+  assert.ok(text.includes("- count: 0"));
+  for (const absent of ["- memo:", "- ref:", "behavior_version", "private-extra-id", "companyLeadership", "nested:", "(항목 없음)", "(빈 값)", "→ 미제공", "#### 학력"])
+    assert.ok(!text.includes(absent), absent);
+});
+
+test("HTML loses attributes and tags while duties, lists, table columns and links remain legible", () => {
+  const html = '<h2 class="job-title">Requirements</h2><p data-id="tracking">C++ &amp; Rust; experience &lt; 5 years</p>' +
+    '<ul><li>Build <strong>APIs</strong></li><li>Deploy<br>on call</li></ul>' +
+    '<table><tr><th>Location</th><th>Pay</th></tr><tr><td>Seoul</td><td>$100k</td></tr></table>' +
+    '<p>See <a href="https://example.com/terms">terms</a>. <del>Remote only</del></p>' +
+    '<style>.job-title{color:red}</style><script>tracking()</script>';
+  const text = descriptionText(html);
+  for (const fact of ["Requirements", "C++ & Rust; experience < 5 years", "Build APIs", "Deploy", "on call", "| Location | Pay |", "| Seoul | $100k |", "https://example.com/terms", "~~Remote only~~"])
+    assert.ok(text.includes(fact), fact);
+  assert.match(text, /- +Build APIs\n- +Deploy/);
+  for (const absent of ["<p", "data-id", "tracking", "color:red", "<strong>"]) assert.ok(!text.includes(absent));
+  const plain = 'Experience < 5 years\nList<T>\n- Rust & C++';
+  assert.equal(descriptionText(plain), plain);
 });
 
 test("common instructions move once; every original metric instruction and criterion is preserved verbatim", () => {
@@ -42,6 +76,18 @@ test("company is printed once and complete JD, salary, leadership and candidate 
   ]);
   for (const fact of ["Every brief fact", "Company facts", "Founder history", "Investor evidence", "Final important condition", "Distinct duties", "KRW 200 million", "r1", "r2"]) assert.ok(text.includes(fact));
   assert.equal(text.split("Company facts").length - 1, 1);
+  assert.ok(!text.includes("companyKey"));
+});
+
+test("same-name companies stay separate without exposing their grouping IDs", () => {
+  const candidate = { companyName: "Same name", company: {}, employmentType: null, location: null,
+    postedAt: null, seniorityLevel: null, workMode: null, roleName: "Engineer", roleDescription: "<p>Build</p><p>Ship</p>" };
+  const text = buildScoringInput({}, [
+    { ...candidate, companyKey: "workspace-a", roleId: "r1", company: { description: "First company" } },
+    { ...candidate, companyKey: "workspace-b", roleId: "r2", company: { description: "Second company" } },
+  ]);
+  for (const fact of ["First company", "Second company", "role_id: r1", "role_id: r2", "Build", "Ship"]) assert.ok(text.includes(fact));
+  for (const absent of ["workspace-a", "workspace-b", "<p>", "## user_context", "employment:", "companyData:"]) assert.ok(!text.includes(absent));
 });
 
 

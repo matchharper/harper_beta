@@ -6,6 +6,7 @@ import {
   type RoleCard,
 } from "../talentOnboarding/jobPostingRecommendations";
 import { externalScoringInput } from "./workerInputText";
+import { descriptionText } from "./descriptionText";
 export function v2PromptCandidate(
   card: RoleCard,
   language: "ko" | "en"
@@ -31,11 +32,10 @@ export function buildScoringSections(context: unknown, candidates: FullJdPromptC
     const key = candidate.companyKey || candidate.companyName || candidate.roleId;
     groups.set(key, [...(groups.get(key) ?? []), candidate]);
   }
-  for (const [key, roles] of groups) {
+  for (const roles of groups.values()) {
     const first = roles[0];
     const companyData = first.companyData ?? {};
     const evidence = {
-      companyKey: key,
       companyName: first.companyName,
       ...first.company,
       // Same evidence fields as the prior full-JD formatter, without truncation.
@@ -45,7 +45,7 @@ export function buildScoringSections(context: unknown, candidates: FullJdPromptC
         role_id: c.roleId, title: c.roleName, employment: c.employmentType,
         seniority: c.seniorityLevel, location: c.location, workMode: c.workMode,
         compensation: c.salaryRange ?? null, postedAt: c.postedAt,
-        description: c.roleDescription,
+        description: descriptionText(c.roleDescription),
       })),
     };
     sections.push({ name: `company_${sections.length}`, text: externalScoringInput({ [`company_${sections.length}`]: evidence }) });
