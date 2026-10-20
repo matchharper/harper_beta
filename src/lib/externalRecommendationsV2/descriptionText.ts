@@ -19,7 +19,7 @@ converter.addRule("tableRow", {
   replacement: content => `\n|${content}\n`,
 });
 converter.addRule("deletedText", {
-  filter: ["del", "s", "strike"],
+  filter: node => ["DEL", "S", "STRIKE"].includes(node.nodeName),
   replacement: content => `~~${content}~~`,
 });
 
