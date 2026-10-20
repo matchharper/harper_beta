@@ -4,8 +4,8 @@ import {
   isStartLandingLogType,
 } from "@/lib/landingLogTypes";
 
-export const SEARCH_LANDING_ABTEST_TYPE_KEY =
-  "harper_search_landing_abtest_type_v1";
+// Keep historical variant IDs for existing funnel logs. New visits are not an experiment.
+export const SEARCH_LANDING_CURRENT_TYPE = "search_landing_default_v1";
 export const SEARCH_LANDING_LEGACY_ABTEST_TYPE = "search_landing_v1";
 export const SEARCH_LANDING_ABTEST_TYPE_A = "search_landing_a_v1";
 export const SEARCH_LANDING_ABTEST_TYPE_B = "search_landing_b_v1";
@@ -14,6 +14,7 @@ export const SEARCH_LANDING_ABTEST_TYPES = [
   SEARCH_LANDING_ABTEST_TYPE_B,
 ] as const;
 export const SEARCH_LANDING_ANALYTICS_ABTEST_TYPES = [
+  SEARCH_LANDING_CURRENT_TYPE,
   SEARCH_LANDING_LEGACY_ABTEST_TYPE,
   ...SEARCH_LANDING_ABTEST_TYPES,
 ] as const;
@@ -22,8 +23,6 @@ export const SEARCH_LANDING_LAST_VISIT_AT_KEY =
   "harper_search_landing_last_visit_at";
 export const SEARCH_LANDING_SESSION_GAP_MS = 30 * 60 * 1000;
 
-export type SearchLandingAbtestType =
-  (typeof SEARCH_LANDING_ABTEST_TYPES)[number];
 export type SearchLandingAssignmentType =
   (typeof SEARCH_LANDING_ANALYTICS_ABTEST_TYPES)[number];
 
@@ -61,40 +60,25 @@ export function createSearchLandingId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export const isSearchLandingAbtestType = (
-  value: string | null | undefined
-): value is SearchLandingAbtestType =>
-  value === SEARCH_LANDING_ABTEST_TYPE_A ||
-  value === SEARCH_LANDING_ABTEST_TYPE_B;
-
-export const getRandomSearchLandingAbtestType = (): SearchLandingAbtestType =>
-  Math.random() < 0.5
-    ? SEARCH_LANDING_ABTEST_TYPE_A
-    : SEARCH_LANDING_ABTEST_TYPE_B;
-
-export const resolveSearchLandingAssignmentType = (
-  value: string | null | undefined
-): SearchLandingAbtestType =>
-  isSearchLandingAbtestType(value) ? value : getRandomSearchLandingAbtestType();
-
-export const usesSearchLandingBExperience = (
-  value: string | null | undefined
-) => value === SEARCH_LANDING_ABTEST_TYPE_B;
-
 export const getSearchLandingVariantLabel = (
   value: string | null | undefined
 ) =>
-  value === SEARCH_LANDING_ABTEST_TYPE_A
-    ? "A"
-    : value === SEARCH_LANDING_ABTEST_TYPE_B
-      ? "B"
-      : value === SEARCH_LANDING_LEGACY_ABTEST_TYPE
-        ? "Legacy"
-        : "Unknown";
+  value === SEARCH_LANDING_CURRENT_TYPE
+    ? "Default"
+    : value === SEARCH_LANDING_ABTEST_TYPE_A
+      ? "A"
+      : value === SEARCH_LANDING_ABTEST_TYPE_B
+        ? "B"
+        : value === SEARCH_LANDING_LEGACY_ABTEST_TYPE
+          ? "Legacy"
+          : "Unknown";
 
 export const getSearchLandingVariantDescription = (
   value: string | null | undefined
 ) => {
+  if (value === SEARCH_LANDING_CURRENT_TYPE) {
+    return "Default hero copy (no A/B test)";
+  }
   if (value === SEARCH_LANDING_ABTEST_TYPE_A) {
     return "Current hero copy";
   }
