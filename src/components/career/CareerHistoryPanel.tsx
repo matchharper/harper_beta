@@ -1847,7 +1847,10 @@ const CareerHistoryPanel = ({
               items={newItems}
               loadingMore={historyLoadingMore}
               onApply={(item) => {
-                logCareerEvent("click_history_external_apply");
+                logCareerEvent("click_history_external_apply", {
+                  roleId: item.roleId,
+                  opportunityId: item.id,
+                });
                 setExternalApplyOpportunity(item);
               }}
               onLoadMore={loadMoreNewOpportunities}
@@ -1897,7 +1900,8 @@ const CareerHistoryPanel = ({
               }
               onKeepDecision={(action) => {
                 if (action === "accept") handlePositiveAction(modalOpportunity);
-                else if (action === "decline") handleNegativeAction(modalOpportunity);
+                else if (action === "decline")
+                  handleNegativeAction(modalOpportunity);
               }}
               roleActionsOnDesktop={false}
             />
@@ -2140,7 +2144,11 @@ const CareerHistoryPanel = ({
             logCareerEvent(
               savedStage === "applied"
                 ? "click_history_external_apply_directly"
-                : "click_history_external_apply_with_harper"
+                : "click_history_external_apply_with_harper",
+              {
+                roleId: externalApplyOpportunity.roleId,
+                opportunityId: externalApplyOpportunity.id,
+              }
             );
             return updateFeedbackForItem(externalApplyOpportunity, "positive", {
               savedStage,

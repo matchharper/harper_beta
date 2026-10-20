@@ -957,6 +957,7 @@ export function useCareerHistoryState(args: {
       options?: {
         feedbackReason?: string | null;
         fallbackOpportunity?: CareerHistoryOpportunity;
+        beforeCommit?: () => Promise<boolean>;
         interactionSource?: "position_tab";
         promptImmediately?: boolean;
         savedStage?: CareerOpportunitySavedStage | null;
@@ -1013,6 +1014,34 @@ export function useCareerHistoryState(args: {
       }
 
       try {
+        // Keep the optimistic choice local until the undo window closes. No
+        // server-side feedback or chat trigger exists if the user cancels.
+        if (options?.beforeCommit && !(await options.beforeCommit())) {
+          if (shouldUpdateHistoryCache) {
+            restoreHistoryOpportunity(localOpportunityId, previousItem);
+            applyHistoryOpportunityCountsTransition(nextItem, previousItem);
+          } else if (insertedFallbackOpportunity) {
+            removeHistoryOpportunityLocally(normalizedOpportunityId);
+            const insertedCounts = deriveHistoryOpportunityCounts([nextItem]);
+            setHistoryOpportunityCounts((current) => {
+              if (!current) return current;
+              const counts = cloneHistoryCounts(current);
+              for (const key of [
+                "new", "saved", "archived", "total", "newInternal", "newExternalUnread",
+              ] as const) {
+                counts[key] = Math.max(0, counts[key] - insertedCounts[key]);
+              }
+              for (const stage of Object.keys(counts.savedStages) as CareerOpportunitySavedStage[]) {
+                counts.savedStages[stage] = Math.max(
+                  0,
+                  counts.savedStages[stage] - insertedCounts.savedStages[stage]
+                );
+              }
+              return counts;
+            });
+          }
+          return false;
+        }
         const payload = await patchHistoryOpportunity({
           action: "feedback",
           expectedUpdatedAt: previousItem.updatedAt,

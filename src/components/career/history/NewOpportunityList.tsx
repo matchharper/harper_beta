@@ -205,6 +205,8 @@ function NewOpportunityCard({
   );
   const postingUrl = item.externalJdUrl ?? item.href;
 
+  const actionClass = "py-2.5 rounded-sm font-light text-sm";
+
   return (
     <article
       className={cn(
@@ -366,11 +368,14 @@ function NewOpportunityCard({
           className="space-y-6 border-t border-neutral-1000-a05 px-4 pb-4 pt-5 sm:px-5 sm:pb-5"
           id={contentId}
         >
-          {item.recommendationNote || item.recommendationSummary?.trim() ||
+          {item.recommendationNote ||
+          item.recommendationSummary?.trim() ||
           item.recommendationReasons.length > 0 ||
           (item.recommendationConcerns?.length ?? 0) > 0 ? (
             <div className="space-y-3 text-[14px] leading-6 text-neutral-primary">
-              {item.recommendationNote ? <RichText variant="career" content={item.recommendationNote} /> : null}
+              {item.recommendationNote ? (
+                <RichText variant="career" content={item.recommendationNote} />
+              ) : null}
               {item.recommendationSummary?.trim() ? (
                 <RichText
                   variant="career"
@@ -420,7 +425,7 @@ function NewOpportunityCard({
               </MuteButton>
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-1000-a05 pt-4">
+          <div className="flex-wrap items-center justify-end gap-2 pt-4 grid grid-cols-3">
             {isInternal ? (
               <Tooltips
                 text={t(
@@ -433,8 +438,9 @@ function NewOpportunityCard({
                   onClick={() => onKeep(item)}
                   size="md"
                   variant="neutral"
+                  className={actionClass}
                 >
-                  <Bookmark aria-hidden className="size-4" />
+                  <Bookmark aria-hidden className="size-3.5" />
                   {t("career.history.keep.action", "저장하고 나중에 결정")}
                 </MuteButton>
               </Tooltips>
@@ -443,8 +449,9 @@ function NewOpportunityCard({
               disabled={pending}
               onClick={() => onNegative(item)}
               size="md"
+              className={actionClass}
             >
-              <ThumbsDown aria-hidden className="size-4" />
+              <ThumbsDown aria-hidden className="size-3.5 stroke-0.5" />
               {negativeLabel}
             </MuteButton>
             <MuteButton
@@ -452,11 +459,15 @@ function NewOpportunityCard({
               onClick={() => onPositive(item)}
               size="md"
               variant={isInternal ? "primary" : "dark"}
+              className={actionClass}
             >
               {pending ? (
-                <Loader2 aria-hidden className="size-4 animate-spin" />
+                <Loader2 aria-hidden className="size-3.5 animate-spin" />
               ) : (
-                <PositiveActionIconView icon={PositiveActionIcon} />
+                <PositiveActionIconView
+                  icon={PositiveActionIcon}
+                  className="size-3.5"
+                />
               )}
               {positiveLabel}
             </MuteButton>
@@ -466,8 +477,8 @@ function NewOpportunityCard({
                 onClick={() => onApply(item)}
                 size="md"
                 variant="primary"
+                className={actionClass}
               >
-                <ArrowUpFromLine aria-hidden className="size-4" />
                 {t("career.history.external_application.apply", "지원하기")}
               </MuteButton>
             ) : null}
