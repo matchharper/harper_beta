@@ -189,6 +189,7 @@ export function useUpdateOpsCompanyRoleCompanyFirstSearch() {
 }
 
 export function useOpsCompanyConversations(args: {
+  threadId?: string | null;
   enabled?: boolean;
   workspaceId?: string | null;
 }) {
@@ -196,16 +197,20 @@ export function useOpsCompanyConversations(args: {
   const limit = OPS_COMPANY_CONVERSATION_PAGE_SIZE;
 
   return useInfiniteQuery({
-    queryKey: queryKeys.opsCompany.conversations({
-      cursor: 0,
-      limit,
-      workspaceId,
-    }),
-    initialPageParam: 0,
+    queryKey: [
+      ...queryKeys.opsCompany.conversations({
+        cursor: 0,
+        limit,
+        workspaceId,
+      }),
+      args.threadId ?? "timeline",
+    ],
+    initialPageParam: "",
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       params.set("workspaceId", workspaceId);
       params.set("limit", String(limit));
+      if (args.threadId) params.set("threadId", args.threadId);
       if (pageParam) params.set("cursor", String(pageParam));
       return fetchWithInternalAuth<OpsCompanyConversationsResponse>(
         `/api/internal/company/conversations?${params.toString()}`

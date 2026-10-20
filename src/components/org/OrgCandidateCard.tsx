@@ -98,6 +98,7 @@ export function OrgCandidateStageMenu({
       onClick={(event) => event.stopPropagation()}
       onDragStart={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -206,12 +207,12 @@ export function OrgCandidateCard({
         event.dataTransfer.setData("text/plain", item.recommendationId);
       }}
       className={cn(
-        "relative overflow-hidden rounded-sm border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+        "relative overflow-hidden group rounded-lg border border-neutral-1000-a05 bg-bg-floating p-3 transition hover:border-neutral-1000-a10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
         canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
         pending && "cursor-wait opacity-60"
       )}
     >
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2.5">
         {showProfilePicture ? (
           <Image
             src={profilePicture}
@@ -220,16 +221,16 @@ export function OrgCandidateCard({
             height={28}
             unoptimized
             onError={() => setFailedImageSrc(profilePicture)}
-            className="h-7 w-7 shrink-0 rounded-full object-cover"
+            className="h-8 w-8 shrink-0 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-normal text-neutral-muted">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-weak text-[12px] font-normal text-neutral-muted">
             {displayName.slice(0, 1).toUpperCase()}
           </div>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <div className="truncate text-[14px] font-medium text-neutral-primary">
+            <div className="truncate text-base font-medium text-neutral-primary">
               {displayName}
             </div>
             {!viewed ? (
@@ -240,46 +241,58 @@ export function OrgCandidateCard({
               />
             ) : null}
           </div>
-        </div>
-        {canManageCandidates && onMove && item.capabilities.moveStage ? (
-          <OrgCandidateStageMenu
-            internalOpsAccess={internalOpsAccess}
-            item={item}
-            onMove={onMove}
-            pending={pending}
-            stages={stages}
-          />
-        ) : null}
-      </div>
-      <div className="mt-1 grid gap-2">
-        {profileLabelsLoading ? (
-          <>
-            <div className="h-5 w-3/5 animate-pulse rounded-sm bg-neutral-1000-a05" />
-          </>
-        ) : profileLabelsError ? (
-          <div className="text-[12px] leading-5 text-neutral-soft">
-            {c(
-              "경력·학력 정보를 불러오지 못했습니다.",
-              "Failed to load experience and education info."
+          <div className="gap-2">
+            {profileLabelsLoading ? (
+              <>
+                <div className="h-5 w-3/5 animate-pulse rounded-sm bg-neutral-1000-a05" />
+              </>
+            ) : profileLabelsError ? (
+              <div className="text-[12px] leading-5 text-neutral-soft">
+                {c(
+                  "경력·학력 정보를 불러오지 못했습니다.",
+                  "Failed to load experience and education info."
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <ProfileLabelCell
+                    isCompact={true}
+                    emptyLabel={c("정보 없음", "No info")}
+                    labels={recentCompanies}
+                  />
+                </div>
+              </>
             )}
           </div>
-        ) : (
-          <>
-            <div className="min-w-0 mt-1">
-              <ProfileLabelCell
-                isCompact={true}
-                emptyLabel={c("정보 없음", "No info")}
-                labels={recentCompanies}
-              />
-            </div>
-            {/* <div className="min-w-0">
-              <ProfileLabelCell
-                emptyLabel="학교 없음"
-                labels={item.talent.recentSchools}
-              />
-            </div> */}
-          </>
-        )}
+          <div className="flex flex-wrap mt-1 gap-1.5 text-[13px] font-normal text-neutral-600">
+            {/* {item.stage === "pending_connection"
+                  ? c("연결 대기 등록", "Ready to connect since")
+                  : item.source === "company_intro"
+                    ? c("회사에 제안", "Offer to company")
+                    : c("추천", "Recommend")}{" "} */}
+            {formatKstRelativeDate(getOrgCandidateCardDate(item), {
+              locale,
+            })}
+            {/* {item.roleName && (
+                <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
+                  {item.roleName}
+                </span>
+              )} */}
+          </div>
+        </div>
+        {/* Keep the trigger measurable while its portalled menu owns focus/hover. */}
+        {canManageCandidates && onMove && item.capabilities.moveStage ? (
+          <div className="absolute right-2 top-2 md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto md:focus-within:opacity-100 md:focus-within:pointer-events-auto md:[&:has([data-state=open])]:opacity-100 md:[&:has([data-state=open])]:pointer-events-auto">
+            <OrgCandidateStageMenu
+              internalOpsAccess={internalOpsAccess}
+              item={item}
+              onMove={onMove}
+              pending={pending}
+              stages={stages}
+            />
+          </div>
+        ) : null}
       </div>
       {item.processClosureNoticeUnresolved ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
@@ -306,21 +319,6 @@ export function OrgCandidateCard({
           {sourceT(humanizeOrgCompanyIntroStatus(item.companyIntro))}
         </div>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
-          {item.stage === "pending_connection"
-            ? c("연결 대기 등록", "Ready to connect since")
-            : item.source === "company_intro"
-              ? c("회사에 제안", "Offer to company")
-              : c("추천", "Recommend")}{" "}
-          {formatKstRelativeDate(getOrgCandidateCardDate(item), { locale })}
-        </span>
-        {/* {item.roleName && (
-          <span className="rounded-sm bg-bg-weak px-2 py-1 text-[11px] leading-4 text-neutral-muted">
-            {item.roleName}
-          </span>
-        )} */}
-      </div>
       {canManageCandidates &&
       item.source === "company_intro" &&
       item.companyIntro?.status === "ready" ? (

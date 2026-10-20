@@ -944,6 +944,8 @@ export async function GET(req: NextRequest) {
       pendingInternalOpportunityCallRequests,
       messages: hydratedMessages,
       nextBeforeMessageId,
+      preferredLocale:
+        talentSetting?.setting_locale ?? talentSetting?.preferred_locale ?? null,
     });
   } catch (error) {
     const message =

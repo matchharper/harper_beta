@@ -14,6 +14,7 @@
 ## Production deployment
 
 - Pushing the intended release commit to `origin/main` automatically triggers the production Vercel deployment. For the ordinary production path, do not run a separate manual Vercel deploy; verify the Git-triggered deployment and released commit after the push.
+- After a successful deployment that changes company-facing behavior or policy, update the Notion company product overview (https://app.notion.com/p/3fe7277d26df812dbc7def98e67aa45c) and the affected detailed Documents pages, following the workspace `AGENTS.md` documentation-sync rules. Cover features, decision rules, state transitions, permissions, visibility, search/follow-up behavior, pricing, Intros, subscriptions, cancellation/refunds, contracts, and signup/billing availability as applicable. Also update the overview after an explicitly requested pricing or operating-policy change actually takes effect without a deployment. Distinguish public offers from existing company agreements; do not describe local work or proposed policies as live behavior. This rule does not authorize deployment or commercial-policy changes.
 
 ## Domain terminology
 

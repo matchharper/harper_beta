@@ -1,3 +1,8 @@
+import {
+  getRoleStageLabel,
+  buildRoleStages,
+  buildCounts,
+} from "@/lib/org/roleBoardSummary";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import {
   BriefcaseBusiness,
@@ -23,55 +28,9 @@ import { Input } from "@/components/ui/input";
 import { useOrgJobsBoard, useOrgJobsRoleActions } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { buildOrgHref } from "@/lib/org/routes";
-import type {
-  OrgBoardItem,
-  OrgBoardResponse,
-  OrgRole,
-  OrgStage,
-  OrgStageId,
-} from "@/lib/org/server";
+import type { OrgBoardResponse, OrgRole, OrgStageId } from "@/lib/org/server";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import { cn } from "@/lib/utils";
-
-function getRoleStageLabel(stage: OrgStage, role: OrgRole) {
-  const prefix = `${role.name} · `;
-  return stage.label.startsWith(prefix)
-    ? stage.label.slice(prefix.length)
-    : stage.label;
-}
-
-function buildRoleStages(
-  board: OrgBoardResponse | null | undefined,
-  role: OrgRole
-) {
-  const stages = board?.stages ?? [];
-  const accepted = stages.find((stage) => stage.id === "accepted");
-  const pending = stages.find((stage) => stage.id === "pending_connection");
-  const connected = stages.find((stage) => stage.id === "connected");
-  const customStages = stages.filter((stage) => stage.roleId === role.roleId);
-  const finalOffer = stages.find((stage) => stage.id === "final_offer");
-  const stopped = stages.find((stage) => stage.id === "process_stopped");
-  const archived = stages.find((stage) => stage.id === "archived");
-
-  return [
-    accepted,
-    pending,
-    connected,
-    ...customStages,
-    finalOffer,
-    stopped,
-    archived,
-  ].filter((stage): stage is OrgStage => Boolean(stage));
-}
-
-function buildCounts(items: OrgBoardItem[]) {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    const key = `${item.roleId}:${item.stage}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-}
 
 function StageCountCell({
   compact = false,
@@ -247,6 +206,7 @@ function RoleStatusBadge({
 
 export function OrgRolesOverview({
   board,
+  formatDate,
   canManageCandidates = false,
   isLoading,
   onDeleteRole,
@@ -258,6 +218,7 @@ export function OrgRolesOverview({
   roles,
 }: {
   board: OrgBoardResponse | null | undefined;
+  formatDate?: (value: string) => string;
   canManageCandidates?: boolean;
   isLoading: boolean;
   onDeleteRole?: (role: OrgRole) => void;
@@ -468,10 +429,12 @@ export function OrgRolesOverview({
                     <div className="flex flex-wrap items-center justify-start gap-1.5">
                       <RoleMetaChip>
                         {c("Updated", "Updated")}{" "}
-                        {formatKstRelativeDate(role.updatedAt, {
-                          maxRelativeDays: 365,
-                          locale,
-                        })}
+                        {formatDate
+                          ? formatDate(role.updatedAt)
+                          : formatKstRelativeDate(role.updatedAt, {
+                              maxRelativeDays: 365,
+                              locale,
+                            })}
                       </RoleMetaChip>
                       {role.locationText ? (
                         <RoleMetaChip>

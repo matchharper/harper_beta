@@ -99,7 +99,6 @@ import {
 } from "@/lib/career/postingLinks";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
-import { resolveCareerRecentConversationLocale } from "@/lib/career/recentConversationLocale";
 import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
 import { fetchTalentCompanyContactContext } from "@/lib/companyTalentRequests/server";
 import {
@@ -605,7 +604,11 @@ export async function runCareerChatTurn(
     talentContextSnapshot.allBriefs
   );
   const talentContextSection = renderTalentContextPrompt(talentContextSnapshot);
-  let responseLocale = talentSetting?.preferred_locale ?? null;
+  // The reply language comes from the saved language only. A lasting request
+  // goes through update_language_setting and a one-off request is followed by
+  // the model for that reply; conversation text such as "영어로 문서 작성 가능"
+  // describes the talent and must not switch the reply language.
+  const responseLocale = talentSetting?.preferred_locale ?? null;
   const isOnboardingActiveForTurn =
     !Boolean(talentSetting?.is_onboarding_done) &&
     (!suppressOnboarding || args.adapter?.onboardingActive === true);
@@ -718,10 +721,6 @@ export async function runCareerChatTurn(
     conversationId,
     recentLimit: 16,
     userId,
-  });
-  responseLocale = resolveCareerRecentConversationLocale({
-    fallbackLocale: responseLocale,
-    messages: recentMessages,
   });
 
   // Durable continuation answers the original inbound message. Background

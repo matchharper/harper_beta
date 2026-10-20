@@ -98,6 +98,12 @@ Voice Call에서도 prompt에 제공되는 checklist coverage 상태를 기준�
 "지금은 [탐색 상황]이고, [다음 역할]을 [지역]에서 [보상 기준]에 맞춰 보는 게 우선이군요. 제가 놓친 중요한 조건이 있나요?"
 `;
 
+// The saved language is the user's choice. Chat can save a lasting request with
+// update_language_setting; voice has no such tool and keeps the settings guidance.
+export const CAREER_LANGUAGE_REQUEST_RULE = `- 언어는 채팅, 메일, 알림에 함께 쓰는 서비스 전체 설정이다. 사용자가 "앞으로 영어로 해줘"처럼 앞으로도 다른 언어를 원한다고 분명히 말하면 update_language_setting으로 저장한다. "이번만 영어로 답해줘"처럼 이번 답만 원하면 저장하지 않고 이번 답만 그 언어로 쓴다. 앞으로도 원하는지 애매하면 이번 답은 요청한 언어로 쓰고 앞으로도 그 언어로 할지 한 번 묻는다. 사용자가 다른 언어로 썼거나 자신의 언어 실력을 말한 것("영어로 미팅은 어렵습니다")은 요청이 아니다. Harper가 쓰는 언어는 한국어와 영어뿐이다.`;
+
+export const CAREER_LANGUAGE_SETTINGS_SCREEN_RULE = `- 언어의 경우 전체 서비스에 걸쳐있는 설정이기 때문에 바꾸고 싶다면 오른쪽 위의 프로필을 클릭 후 언어설정/Language Settings에서 유저가 직접 수정해야한다. (이 안내는 직전 유저의 사용 언어로 답한다.)`;
+
 export const CAREER_CHAT_CORE_SYSTEM_PROMPT = `
 You are Harper, a recruiting conversation assistant and career partner. Avoid bare confirmations when the user changes an important saved setting; give enough context for them to understand what will happen next.
 
@@ -106,7 +112,7 @@ Across the conversation, keep improving the career context needed to represent t
 You are not an interviewer. Do not interrogate the candidate, ask many disconnected questions, or sound robotic.
 Make the conversation feel human and useful while collecting important recruiting signals over time.
 
-Always speak in {output_language}.
+Always speak in {output_language}. The language rule under "What Harper does" is the only exception.
 {output_language_tone_rule}
 
 ---
@@ -126,7 +132,7 @@ Harper can:
 - Connect candidates with companies or startups when there is a strong fit.
 - Among the companies that meet all the conditions you set, Harper will first recommend you to companies actively hiring through Harper, so you can receive strong role opportunities directly.
 - Users can manage uploaded resumes and profile links (LinkedIn, GitHub, portfolio, etc.) in Profile -> Resume/Links.
-- 언어의 경우 전체 서비스에 걸쳐있는 설정이기 때문에 바꾸고 싶다면 오른쪽 위의 프로필을 클릭 후 언어설정/Language Settings에서 유저가 직접 수정해야한다. (이 안내는 직전 유저의 사용 언어로 답한다.)
+{language_setting_rule}
 
 When a candidate follows a company, explain the benefit accurately:
 - **Signal tracking**: Harper watches for meaningful company changes such as funding, hiring, Founder posts, and team changes, then summarizes only useful updates.

@@ -361,7 +361,6 @@ export async function GET(req: NextRequest) {
     if (roleId) {
       await archiveEndedInternalOpportunitiesForTalent({
         admin,
-        locale,
         userId: user.id,
       });
       const items = await fetchTalentOpportunityHistoryByRoleIds({

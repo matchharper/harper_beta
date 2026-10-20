@@ -2,10 +2,15 @@ import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
-import { LockKeyhole } from "lucide-react";
+import { GraduationCap, LockKeyhole } from "lucide-react";
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { localizeOrgProfilePeriod } from "@/i18n/org/profilePeriod";
-import { ArrowRight, Info, LoaderCircle } from "lucide-react";
+import {
+  ArrowDownWideNarrow,
+  ArrowRight,
+  Info,
+  LoaderCircle,
+} from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { type ReactNode, useMemo, useState } from "react";
@@ -26,6 +31,17 @@ import {
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
 import { Tabs } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  compareOrgCandidates,
+  type OrgCandidateSort,
+} from "@/lib/org/candidateBoardSort";
 import {
   humanizeOrgCompanyIntroStatus,
   isOrgInboxStage,
@@ -56,10 +72,7 @@ import {
 } from "@/lib/org/candidateDecision";
 import { cn } from "@/lib/utils";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
-import {
-  compareOrgCandidateCardDates,
-  getOrgCandidateCardDate,
-} from "@/lib/org/candidateCardDate";
+import { getOrgCandidateCardDate } from "@/lib/org/candidateCardDate";
 import type {
   OrgBoardItem,
   OrgRole,
@@ -111,30 +124,32 @@ function OrgRoleRecommendationStatus({
   const { c } = useOrgLocale();
   const status = getOrgRoleStatusPresentation(roleStatus).status;
   const active = status === "active" || status === "top_priority";
-  const label = active && capacityBlocked
-    ? c("연결 결정이 필요해요", "Connection decisions needed")
-    : active
-    ? c("Harper가 소개하고 있어요", "Harper is introducing your role")
-    : status === "paused"
-      ? c("후보자 추천 중단", "Recommendations paused")
-      : c("후보자 추천 종료", "Recommendations ended");
+  const label =
+    active && capacityBlocked
+      ? c("연결 결정이 필요해요", "Connection decisions needed")
+      : active
+        ? c("Harper가 소개하고 있어요", "Harper is introducing your role")
+        : status === "paused"
+          ? c("후보자 추천 중단", "Recommendations paused")
+          : c("후보자 추천 종료", "Recommendations ended");
 
-  const description = active && capacityBlocked
-    ? c(TALENT_FIRST_CAPACITY_NOTICE.ko, TALENT_FIRST_CAPACITY_NOTICE.en)
-    : active
-    ? c(
-        "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
-        "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role, Harper prepares their introduction and recommends them in Ready to connect."
-      )
-    : status === "paused"
-      ? c(
-          "역할이 중단되어 새로운 후보자 추천도 쉬고 있어요. 역할을 다시 진행하면 추천도 이어집니다.",
-          "New candidate recommendations are paused with this role. They'll resume when the role is active again."
-        )
-      : c(
-          "이 역할의 채용이 종료되어 새로운 후보자를 추천하지 않아요.",
-          "Hiring for this role has ended, so Harper is no longer recommending new candidates."
-        );
+  const description =
+    active && capacityBlocked
+      ? c(TALENT_FIRST_CAPACITY_NOTICE.ko, TALENT_FIRST_CAPACITY_NOTICE.en)
+      : active
+        ? c(
+            "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
+            "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role, Harper prepares their introduction and recommends them in Ready to connect."
+          )
+        : status === "paused"
+          ? c(
+              "역할이 중단되어 새로운 후보자 추천도 쉬고 있어요. 역할을 다시 진행하면 추천도 이어집니다.",
+              "New candidate recommendations are paused with this role. They'll resume when the role is active again."
+            )
+          : c(
+              "이 역할의 채용이 종료되어 새로운 후보자를 추천하지 않아요.",
+              "Hiring for this role has ended, so Harper is no longer recommending new candidates."
+            );
 
   return (
     <ResponsiveLightTooltip
@@ -155,7 +170,15 @@ function OrgRoleRecommendationStatus({
                 tone="positive"
               />
             ) : null}
-            <StatusDot tone={active && capacityBlocked ? "info" : active ? "positive" : "neutral"} />
+            <StatusDot
+              tone={
+                active && capacityBlocked
+                  ? "info"
+                  : active
+                    ? "positive"
+                    : "neutral"
+              }
+            />
           </span>
           <span>{label}</span>
           {/* <Info aria-hidden="true" className="size-3 text-neutral-soft" /> */}
@@ -211,17 +234,17 @@ function CompanyMark({
   const showLogo = Boolean(logoUrl && logoUrl !== failedLogoUrl);
 
   return (
-    <span className="relative flex size-3 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-bg-weak text-[7px] font-normal text-neutral-muted md:size-7 md:rounded-md md:text-[10px]">
+    <span className="relative flex size-3 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-bg-weak text-[7px] font-normal text-neutral-muted md:size-6 md:text-[10px]">
       {label.slice(0, 1).toUpperCase()}
       {showLogo && logoUrl ? (
         <Image
           alt={c("", "")}
-          className="absolute inset-0 size-full bg-bg-floating object-contain p-0.5 md:p-1"
-          height={28}
+          className="absolute inset-0 size-full rounded-sm bg-bg-floating object-contain"
+          height={24}
           onError={() => setFailedLogoUrl(logoUrl)}
           src={logoUrl}
           unoptimized
-          width={28}
+          width={24}
         />
       ) : null}
     </span>
@@ -244,39 +267,68 @@ function formatExperienceYearPeriod(period: string) {
   return period.replace(/\b(\d{4})\.\d{1,2}\b/g, "$1");
 }
 
+function TalentProfileRow({
+  company,
+  education = false,
+}: {
+  company: OrgBoardItem["talent"]["recentCompanies"][number];
+  education?: boolean;
+}) {
+  const { c } = useOrgLocale();
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 md:gap-2.5 @min-[640px]/talent-board:items-start">
+      {education ? (
+        <span className="flex size-3 shrink-0 items-center justify-center rounded-sm bg-bg-weak text-neutral-muted md:size-6">
+          <GraduationCap aria-hidden="true" className="size-3 md:size-4" />
+        </span>
+      ) : (
+        <CompanyMark label={company.label} logoUrl={company.logoUrl} />
+      )}
+      <div className="flex min-w-0 flex-1 items-baseline gap-2 @min-[640px]/talent-board:block">
+        <div
+          className={cn(
+            "shrink-0 truncate text-[13px] font-normal text-neutral-primary @min-[640px]/talent-board:max-w-none",
+            education ? "max-w-[200px]" : "max-w-[100px]"
+          )}
+        >
+          {company.label}
+        </div>
+        {company.detail ? (
+          <div className="min-w-0 truncate text-[13px] text-neutral-muted @min-[640px]/talent-board:mt-0.5">
+            {company.detail}
+          </div>
+        ) : null}
+        {company.period ? (
+          <div className="ml-auto shrink-0 whitespace-nowrap text-[12px] text-neutral-muted @min-[640px]/talent-board:ml-0 @min-[640px]/talent-board:mt-0.5">
+            {formatExperienceYearPeriod(
+              localizeOrgProfilePeriod(company.period, c("현재", "Present")) ??
+                ""
+            )}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function TalentExperienceList({ item }: { item: OrgBoardItem }) {
   const { c } = useOrgLocale();
   const [expanded, setExpanded] = useState(false);
   const recentCompanies = item.talent.recentCompanies;
-  if (recentCompanies.length === 0) return null;
+  const recentSchools = item.talent.recentSchools;
+  if (recentCompanies.length === 0 && recentSchools.length === 0) return null;
 
   return (
-    <section aria-label={c("최근 경력", "Recent experience")} className="mt-6">
-      <div className="flex flex-col gap-3">
+    <section
+      aria-label={c("경력 및 학력", "Experience and education")}
+      className="mt-6"
+    >
+      <div className="flex flex-col gap-2">
         {recentCompanies.slice(0, expanded ? undefined : 4).map((company) => (
-          <div
-            className="flex min-w-0 items-center gap-1.5 md:gap-2.5 @min-[640px]/talent-board:items-start"
+          <TalentProfileRow
+            company={company}
             key={`${company.label}:${company.detail ?? ""}:${company.period ?? ""}`}
-          >
-            <CompanyMark label={company.label} logoUrl={company.logoUrl} />
-            <div className="flex min-w-0 flex-1 items-baseline gap-2 @min-[640px]/talent-board:block">
-              <div className="max-w-[100px] shrink-0 truncate text-[13px] font-normal text-neutral-primary @min-[640px]/talent-board:max-w-none">
-                {company.label}
-              </div>
-              {company.detail ? (
-                <div className="min-w-0 truncate text-[13px] text-neutral-muted @min-[640px]/talent-board:mt-0.5">
-                  {company.detail}
-                </div>
-              ) : null}
-              {company.period ? (
-                <div className="ml-auto shrink-0 whitespace-nowrap text-[12px] text-neutral-soft @min-[640px]/talent-board:ml-0 @min-[640px]/talent-board:mt-0.5">
-                  {formatExperienceYearPeriod(
-                    localizeOrgProfilePeriod(company.period, c("현재", "Present")) ?? ""
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
+          />
         ))}
       </div>
       {!expanded && recentCompanies.length > 4 ? (
@@ -287,8 +339,28 @@ function TalentExperienceList({ item }: { item: OrgBoardItem }) {
           aria-expanded={expanded}
           onClick={() => setExpanded(true)}
         >
-          {c("+ 더보기", "+ Show more")}
+          <span className="font-medium text-neutral-primary">
+            {c("전체보기({count})", "View all ({count})", {
+              count: recentCompanies.length - 4,
+            })}
+          </span>
         </MuteButton>
+      ) : null}
+      {recentSchools.length > 0 ? (
+        <div
+          className={cn(
+            "flex flex-col gap-2",
+            recentCompanies.length > 0 && "mt-2"
+          )}
+        >
+          {recentSchools.slice(0, 1).map((school) => (
+            <TalentProfileRow
+              company={school}
+              education
+              key={`${school.label}:${school.detail ?? ""}:${school.period ?? ""}`}
+            />
+          ))}
+        </div>
       ) : null}
     </section>
   );
@@ -353,6 +425,11 @@ export function OrgRoleTalentBoardCard({
                 {latestExperience ? (
                   <p className="mt-0.5 line-clamp-2 text-[12px] font-normal leading-5 text-neutral-muted sm:text-[13px]">
                     {getExperienceTitle(latestExperience)}
+                  </p>
+                ) : null}
+                {item.talent.location ? (
+                  <p className="mt-0.5 text-[12px] leading-5 text-neutral-muted">
+                    {item.talent.location}
                   </p>
                 ) : null}
               </div>
@@ -499,6 +576,12 @@ export function OrgRoleTalentBoard({
   const passCompanyIntro = usePassOrgCompanyIntro();
   const addToast = useToastStore((state) => state.add);
   const [activeStageId, setActiveStageId] = useState("");
+  const [sort, setSort] = useState<OrgCandidateSort>("latest");
+  const sortOptions = [
+    { value: "latest", label: c("최신순", "Newest first") },
+    { value: "recommended", label: c("추천순", "Recommended") },
+  ] as const;
+  const sortLabel = sortOptions.find((option) => option.value === sort)!.label;
   const requestedStageId =
     section === "inbox"
       ? typeof router.query.inboxStage === "string"
@@ -568,13 +651,17 @@ export function OrgRoleTalentBoard({
     () =>
       (board?.items ?? [])
         .filter((item) => item.stage === selectedStageId)
-        .sort(compareOrgCandidateCardDates),
-    [board?.items, selectedStageId]
+        .sort((left, right) => compareOrgCandidates(left, right, sort)),
+    [board?.items, selectedStageId, sort]
   );
   const recommendationStatus =
     section === "inbox" && activeRole ? (
       <OrgRoleRecommendationStatus
-        capacityBlocked={board?.talentFirstCapacityBlockedRoleIds?.includes(activeRole.roleId) ?? false}
+        capacityBlocked={
+          board?.talentFirstCapacityBlockedRoleIds?.includes(
+            activeRole.roleId
+          ) ?? false
+        }
         roleStatus={activeRole.status}
       />
     ) : null;
@@ -652,19 +739,8 @@ export function OrgRoleTalentBoard({
       aria-label={c("후보자 보드", "Candidate board")}
       className="@container/talent-board min-w-0"
     >
-      <div
-        className={cn(
-          "flex items-center justify-between gap-3",
-          section === "inbox" &&
-            "flex-wrap gap-y-2 @min-[560px]/talent-board:flex-nowrap"
-        )}
-      >
-        <div
-          className={cn(
-            "min-w-0 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
-            section === "inbox" && "w-full @min-[560px]/talent-board:w-auto"
-          )}
-        >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
           <Tabs
             activeValue={selectedStageId}
             aria-label={c("보드 단계 선택", "Select board stage")}
@@ -697,15 +773,42 @@ export function OrgRoleTalentBoard({
             variant="pills"
           />
         </div>
-        {recommendationStatus ? (
-          <div className="shrink-0 @min-[560px]/talent-board:ml-auto">
-            {recommendationStatus}
-          </div>
-        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <MuteButton
+              aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+              title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+              className="shrink-0"
+              size="md"
+              variant="transparent"
+            >
+              <ArrowDownWideNarrow aria-hidden="true" className="size-4" />
+            </MuteButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuRadioGroup
+              value={sort}
+              onValueChange={(value) => {
+                if (value === "latest" || value === "recommended")
+                  setSort(value);
+              }}
+            >
+              {sortOptions.map((option) => (
+                <DropdownMenuRadioItem key={option.value} value={option.value}>
+                  {option.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {displayControl ? (
           <div className="shrink-0">{displayControl}</div>
         ) : null}
       </div>
+
+      {recommendationStatus ? (
+        <div className="mt-2">{recommendationStatus}</div>
+      ) : null}
 
       <div
         className={cn(
@@ -768,12 +871,7 @@ export function OrgRoleTalentBoard({
         ))}
         {items.length === 0 &&
         !(pendingHidden && selectedStageId === "pending_connection") ? (
-          <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted">
-            {c(
-              "이 단계에는 아직 후보자가 없습니다.",
-              "No candidates at this stage yet."
-            )}
-          </div>
+          <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted"></div>
         ) : null}
       </div>
 

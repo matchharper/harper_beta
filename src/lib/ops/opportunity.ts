@@ -588,6 +588,8 @@ async function fetchRecentConversationAtByWorkspace(args: {
 export async function fetchOpsOpportunityCatalog(
   args: {
     internalOnly?: boolean;
+    excludeTailoredRoles?: boolean;
+    workspaceId?: string;
     workspaceLimit?: number;
     workspaceOffset?: number;
     workspaceQuery?: string | null;
@@ -614,6 +616,12 @@ export async function fetchOpsOpportunityCatalog(
       { count: "exact" }
     )
     .order("updated_at", { ascending: false }) as any;
+
+  if (args.workspaceId)
+    workspaceQuery = workspaceQuery.eq(
+      "company_workspace_id",
+      args.workspaceId
+    );
 
   if (internalOnly) {
     workspaceQuery = workspaceQuery.eq("is_internal", true);
@@ -654,7 +662,7 @@ export async function fetchOpsOpportunityCatalog(
   if (workspaceIds.length > 0) {
     let roleQuery = (admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode, company_internal_roles(request)"
+        `role_id, company_workspace_id, name, external_jd_url, description, description_summary, type, status, created_at, updated_at, source_type, source_provider, source_job_id, posted_at, expires_at, location_text, work_mode, ${args.excludeTailoredRoles ? "company_internal_roles!inner(request,is_harper_tailored_role)" : "company_internal_roles(request)"}`
       )
       .in("company_workspace_id", workspaceIds)
       .order("updated_at", { ascending: false }) as any;
@@ -663,6 +671,12 @@ export async function fetchOpsOpportunityCatalog(
       roleQuery = applyRoleSourceTypeFilter(roleQuery, "internal");
     }
 
+    if (args.excludeTailoredRoles)
+      roleQuery = roleQuery.not(
+        "company_internal_roles.is_harper_tailored_role",
+        "is",
+        true
+      );
     const roleResponse = await roleQuery;
     const roleError = (roleResponse as { error?: { message?: string } }).error;
     if (roleError) {

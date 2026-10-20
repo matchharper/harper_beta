@@ -134,16 +134,16 @@ export function TalentProfileHeader({
       <div className="flex min-w-0 items-start gap-3">
         <div className="shrink-0">{avatar}</div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[16px] font-medium text-neutral-primary">
+          <div className="truncate text-xl font-medium text-neutral-primary">
             {name}
           </div>
           {headline?.trim() ? (
-            <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
+            <div className="mt-1 text-sm leading-5 text-neutral-primary">
               {headline.trim()}
             </div>
           ) : null}
           {location?.trim() ? (
-            <div className="mt-1 text-[13px] leading-5 text-neutral-muted">
+            <div className="mt-1 text-sm leading-5 text-neutral-muted">
               {location.trim()}
             </div>
           ) : null}

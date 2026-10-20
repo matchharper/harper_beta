@@ -125,7 +125,7 @@ export function ReviewPipelineColumnHeader({
         <div className={cn("flex items-center gap-2 justify-between h-8")}>
           <div
             className={cn(
-              "min-w-0 truncate text-[13px] text-neutral-primary",
+              "min-w-0 truncate text-sm text-neutral-primary",
               compact ? "font-normal" : "font-semibold"
             )}
           >
@@ -243,9 +243,7 @@ export function ReviewPipelineEmptyState({
         "border border-dashed border-neutral-1000-a10 bg-bg-floating px-3 py-8 text-center text-xs text-neutral-soft",
         className
       )}
-    >
-      {t("pipeline.empty", "비어 있음")}
-    </div>
+    ></div>
   );
 }
 

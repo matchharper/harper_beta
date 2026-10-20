@@ -449,7 +449,7 @@ export const ko = {
   "OrgSlackPanel.8687b3bd": "후보자 연결 거절",
   "OrgSlackPanel.adcf7319": "연결 해제",
   "OrgSlackPanel.d93fc452": "다시 연결",
-  "TalentDetailSimpleView.2fc1c257": "아직 피드가 없습니다.",
+  "TalentDetailSimpleView.2fc1c257": "",
   "TalentDetailSimpleView.452acc9c": "LinkedIn",
   "TalentDetailSimpleView.556631d5": "가입 날짜",
   "TalentDetailSimpleView.56b436f3": "다음 후보자",

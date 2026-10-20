@@ -2263,7 +2263,7 @@ export function formatOrgAgentToolResult(
   if (name === "update_data" || name === "update_role_criteria") {
     return formatUpdateDataResult(result);
   }
-  if (name === "set_role_notification" || name === "update_email_preferences") return JSON.stringify(result);
+  if (name === "set_role_notification" || name === "update_email_preferences" || name === "update_language_setting") return JSON.stringify(result);
   if (name === "change_role_status") {
     return formatRoleStatusChangeResult(result);
   }

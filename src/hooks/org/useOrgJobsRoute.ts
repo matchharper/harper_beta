@@ -22,6 +22,18 @@ export function useOrgJobsRoute({
   const router = useRouter();
   const { roles, workspace } = useOrgWorkspace();
   const baseWorkspaceId = workspace.workspaceId;
+  const [immediateSelection, setImmediateSelection] = useState<
+    OrgTalentSelection | null | undefined
+  >(undefined);
+  useEffect(() => {
+    const syncSelectionFromUrl = () => setImmediateSelection(undefined);
+    router.events.on("routeChangeComplete", syncSelectionFromUrl);
+    router.events.on("routeChangeError", syncSelectionFromUrl);
+    return () => {
+      router.events.off("routeChangeComplete", syncSelectionFromUrl);
+      router.events.off("routeChangeError", syncSelectionFromUrl);
+    };
+  }, [router.events]);
   const urlRoleId = router.isReady ? getQueryText(router.query.roleId) : "";
   const urlView = router.isReady ? getQueryText(router.query.view) : "";
   const roleTab =
@@ -130,6 +142,7 @@ export function useOrgJobsRoute({
       navigationItems: readonly OrgTalentSelection[] = [],
       navigationLabel = ""
     ) => {
+      setImmediateSelection(item);
       setTalentNavigationItems([...navigationItems]);
       setTalentNavigationLabel(navigationLabel);
       void router.push(
@@ -153,13 +166,16 @@ export function useOrgJobsRoute({
                   ? "board"
                   : "pipeline"
                 : null,
-        })
+        }),
+        undefined,
+        { shallow: true, scroll: false }
       );
     },
     [activeRoleId, activeView, baseWorkspaceId, page, roleTab, router, urlView]
   );
 
   const closeTalentDetail = useCallback(() => {
+    setImmediateSelection(null);
     setTalentNavigationItems([]);
     setTalentNavigationLabel("");
     void router.replace(
@@ -197,9 +213,12 @@ export function useOrgJobsRoute({
     changeRole,
     changeView,
     closeTalentDetail,
-    detailRecommendationId,
-    detailRoleId,
-    detailTalentId,
+    detailRecommendationId: immediateSelection === undefined
+      ? detailRecommendationId : immediateSelection?.recommendationId ?? "",
+    detailRoleId: immediateSelection === undefined
+      ? detailRoleId : immediateSelection?.roleId ?? "",
+    detailTalentId: immediateSelection === undefined
+      ? detailTalentId : immediateSelection?.talentId ?? "",
     selectTalent,
     selectedRoleId,
     talentNavigationItems,

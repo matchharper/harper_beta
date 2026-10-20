@@ -58,7 +58,7 @@ export const CAREER_LLM_CONFIG = {
   // 사용처: /api/talent/chat, src/lib/career/chatTurn.ts,
   // onboarding completion wrapup에서 유저 메시지에 답하거나 tool loop를 돌릴 때.
   chat: {
-    maxTokens: 4096,
+    maxTokens: 12288,
     gmailCareerHistoryFollowUp: {
       model: GPT_6_LUNA_MODEL,
       reasoningEffort: "high" as const,

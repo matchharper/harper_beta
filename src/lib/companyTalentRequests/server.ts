@@ -803,6 +803,13 @@ export async function fetchRelayableCompanyTalentConnections(args: {
     .slice(0, limit);
 }
 
+const RELAY_STATUS_MEANING: Record<CompanyTalentRelayDeliveryStatus, string> = {
+  cancelled: "전달 취소됨",
+  failed: "회사에 전달되지 못함",
+  queued: "아직 회사에 전달되지 않음",
+  sent: "회사에 전달됨",
+};
+
 export function formatRelayableCompanyTalentConnections(
   connections: RelayableCompanyTalentConnection[]
 ) {
@@ -813,7 +820,7 @@ export function formatRelayableCompanyTalentConnections(
     `전달 가능한 상호 연결 ${connections.length}건`,
     ...connections.map((connection, index) => {
       const latestRelay = connection.latestRelayStatus
-        ? `${connection.latestRelayStatus} · ${connection.latestRelayAt || "시점 미상"}`
+        ? `${connection.latestRelayStatus} (${RELAY_STATUS_MEANING[connection.latestRelayStatus]}) · ${connection.latestRelayAt || "시점 미상"}`
         : "없음";
       return [
         `${index + 1}. ${connection.companyName} · ${connection.roleName}`,
@@ -1071,10 +1078,20 @@ export async function createCompanyTalentRelay(args: {
     requestId: result.requestId ?? null,
   });
   const { deliverCompanyTalentRelay } = await import("./delivery");
-  await deliverCompanyTalentRelay({
-    admin: args.admin as any,
-    relayId: result.id,
-  });
+  try {
+    await deliverCompanyTalentRelay({
+      admin: args.admin as any,
+      relayId: result.id,
+    });
+  } catch (error) {
+    // The relay and its delivery job are already stored and the worker retries
+    // the job. Report that it has not reached the company yet.
+    console.error("[company-talent-relay] delivery failed", {
+      error: error instanceof Error ? error.message : String(error),
+      relayId: result.id,
+    });
+    return { ...result, status: "queued" };
+  }
   return { ...result, status: "sent" };
 }
 

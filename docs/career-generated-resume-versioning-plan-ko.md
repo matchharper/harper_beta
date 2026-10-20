@@ -38,29 +38,30 @@
 
 폰트를 로드한 후 배치한다. 화면은 최대 82% 배율로 중앙 정렬하며 회색 배경과 용지 그림자를 표시한다. 좌우 여백은 데스크톱 28px, 모바일 16px 이상 확보한다. 좁은 화면에서는 A4 전체를 축소하며 내부 줄바꿈 폭을 바꾸지 않는다. PDF에는 화면 배율을 적용하지 않는다. revision이 바뀌면 새 iframe으로 이전 배치 결과를 버린다. Chrome/Edge를 기준으로 검증하며 브라우저 간 픽셀 단위 동일성은 보장하지 않는다.
 
-## 다운로드 API
+## 다운로드와 자동 지원 PDF 생성 (2026-10-19 로컬 변경, 미배포)
 
 `POST /api/talent/documents/[documentId]/pdf`에 `expected_revision`, `render_version`을 보낸다. 서버는 인증된 사용자 소유의 저장 JSON만 읽는다. 클라이언트 HTML을 받지 않는다.
 
-공유 템플릿·페이지 분할·폰트를 서버 Chromium에서 실행하고 PDF 본문 누락과 페이지 수를 검증한다. 출력 전 문서 revision·삭제 여부를 다시 확인한다. 변경 시 409, 찾을 수 없으면 404, JSON을 읽을 수 없으면 422를 반환한다. 생성 실패는 저장 문서를 변경하지 않는다.
+다운로드와 자동 지원의 생성 이력서 첨부는 공통 `renderResumePdf`에서 Browserless PDF API를 사용한다. 공유 HTML·CSS·내장 폰트·Paged.js는 그대로 보내고, 페이지 배치가 끝나면 A4 PDF를 받는다. PDF 본문의 원문 누락과 실제 페이지 수를 확인한다. 출력 전 문서 revision·삭제·접근 권한을 다시 확인한다. 기존 업로드 파일은 변환 없이 그대로 사용한다.
 
-PDF는 서버 메모리에서 다운로드 응답으로 전달한다. `application/pdf`, UTF-8 다운로드 파일명, `private, no-store`를 사용한다. Storage 업로드나 DB UPDATE는 없으며 다운로드로 revision이 증가하지 않는다. 다시 다운로드하면 다시 생성한다. 버튼이 실행 중 중복 클릭을 막는다.
+PDF는 서버 메모리에서 다운로드 응답 또는 첨부로 전달한다. 다운로드는 `application/pdf`, UTF-8 파일명, `private, no-store`를 유지한다. 생성 실패는 저장 문서나 revision을 변경하지 않는다. 서비스 실패 시 로컬 Chromium으로 fallback하지 않는다.
 
-PDF 렌더링 제한은 30초, API maxDuration은 60초다. 배포 tracing에 Chromium·PDF worker·폰트·Paged.js를 포함한다. 실제 배포 환경의 메모리·실행 시간 검증은 릴리스 전 확인한다.
+서버 전용 `BROWSERLESS_API_TOKEN`이 필요하다. 로컬은 `.env.local`에서 읽으며 운영 설정은 아직 변경하지 않았다. 배포 시 별도 등록이 필요하다. 이력서 HTML은 Browserless로 전송된다. 제공량 초과·서비스 실패·시간 초과에는 생성 실패를 반환하며 provider 응답 본문과 인증키가 포함된 URL은 오류에 노출하지 않는다.
+
+PDF 생성 제한은 30초, 다운로드 API 제한은 60초다. 다운로드·자동 지원 실행 경로의 배포 파일에는 PDF worker·폰트·Paged.js를 포함한다. PDF 생성에 로컬 Chromium 설치나 실행은 필요하지 않다.
 
 ## 검증과 관측
 
-로컬 PDF 변환에는 Chromium이 필요하다. `pnpm exec playwright-core install chromium`으로 설치한다. `RESUME_CHROMIUM_EXECUTABLE_PATH`가 있으면 우선 사용하며, macOS에서는 설치된 Google Chrome을 사용하고 없으면 Playwright Chromium을 사용한다. Linux 서버는 배포에 포함한 `@sparticuz/chromium` 실행 파일을 사용한다. 사용자 브라우저에 Chrome 설치를 요구하지 않는다.
+실제 API 검증에는 `RESUME_PDF_TEST=1`과 `--env-file=.env.local`을 사용한다. `src/lib/resumes/resume.test.ts`, `export.test.ts`, `render.test.ts`, `src/lib/career/simulation/resumeAttachment.test.ts`에서 PDF 생성·원문 보존·접근 권한 재확인·첨부를 확인한다. 가상 이력서로 API 사용량을 소비하며 `--test-concurrency=1`로 실행한다. 미리보기 및 첨부 폼의 브라우저 테스트에만 로컬 Chromium이 필요하다.
 
-실제 PDF·미리보기 검증: `RESUME_PDF_TEST=1 pnpm exec tsx --test src/lib/resumes/resume.test.ts src/lib/resumes/export.test.ts src/lib/resumes/preview.test.ts`. 로컬 통과와 별개로 배포된 다운로드 API의 성공 여부를 확인해야 서버 검증이 완료된다.
-
-- 저장: 동일 요청 재시도·동시 수정·삭제·소유권·실패·이전 파일 정리 실패.
-- 출력: 한국어·영어·긴 URL·긴 문단·여러 페이지·모바일 축소·본문 일치.
-- 다운로드: 시작/종료 시 revision 검증, 삭제/변경 중단, 렌더링 실패 시 원본 보존.
-- 호환: 일반 업로드 파일과 텍스트 문서 기능 유지, 생성 PDF의 오래된 signed URL 미노출.
-- 로그: 저장 성공/실패·소요 시간, 열기, 미리보기 페이지 수/소요 시간, PDF 다운로드 성공/실패·소요 시간·페이지 수. 내용·파일명·개인정보는 기록하지 않는다.
+- 출력: 한국어·영어·긴 URL·여러 페이지·본문 보존.
+- 다운로드·첨부: 시작/종료 시 revision과 권한 확인, 삭제/변경 중단, 실패 시 원본 보존.
+- 실패: 인증 설정 누락, API 오류, 잘못된 응답에 PDF를 반환하지 않음.
+- 로컬 통과는 배포된 다운로드 API나 실제 외부 채용 사이트 제출 검증을 대신하지 않는다.
 
 ## 2026-09-29 로컬 다운로드·미리보기 문제 확인
+
+아래는 Browserless 전환 이전 구현의 역사 기록이다. 현재 로컬 실행 조건은 위 절을 따른다.
 
 ### 확정된 PDF 실패 원인
 
