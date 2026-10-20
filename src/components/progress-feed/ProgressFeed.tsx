@@ -490,7 +490,7 @@ export function ProgressFeed({
   deleteConfirmMessage = "이 Progress를 삭제할까요?",
   deleteError,
   draft = "",
-  emptyLabel = "아직 피드가 없습니다.",
+  emptyLabel = "",
   error,
   editError,
   isLoading,

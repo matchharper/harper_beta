@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     ]);
     const companyFirstSearchStates =
       await fetchOpsCompanyRoleCompanyFirstSearchStates({
+        excludeTailoredRoles: true,
         roleIds: bootstrap.roles.map((role) => role.roleId),
       });
     const companyFirstSearchByRoleId = new Map(
@@ -35,9 +36,25 @@ export async function GET(req: NextRequest) {
         state.isCompanyFirstSearch,
       ])
     );
+    const visibleRoles = bootstrap.roles.filter((role) =>
+      companyFirstSearchByRoleId.has(role.roleId)
+    );
+    const visibleRoleIds = new Set(visibleRoles.map((role) => role.roleId));
+    const items = board.items.filter((item) => visibleRoleIds.has(item.roleId));
     return NextResponse.json({
-      board,
-      roles: bootstrap.roles.map((role) => ({
+      board: {
+        ...board,
+        items,
+        totalCount: items.length,
+        stages: board.stages.filter(
+          (stage) => !stage.roleId || visibleRoleIds.has(stage.roleId)
+        ),
+        talentFirstCapacityBlockedRoleIds:
+          board.talentFirstCapacityBlockedRoleIds?.filter((id) =>
+            visibleRoleIds.has(id)
+          ),
+      },
+      roles: visibleRoles.map((role) => ({
         ...role,
         isCompanyFirstSearch:
           companyFirstSearchByRoleId.get(role.roleId) ?? false,

@@ -1,5 +1,3 @@
-import type { Browser } from "playwright-core";
-import { existsSync } from "node:fs";
 import type { ResumeContent } from "./schema";
 import { resumeAssets } from "./assets";
 import { resumePreviewHtml } from "./preview";
@@ -9,83 +7,59 @@ export { resumeHtml, resumePlainText } from "./template";
 export async function renderResumePdf(
   content: ResumeContent
 ): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
-  let browser: Browser | undefined;
-  let expired = false;
+  const token = process.env.BROWSERLESS_API_TOKEN?.trim();
+  if (!token) throw new Error("PDF rendering is not configured.");
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const work = async () => {
-    const [{ chromium: playwright }, assets] = await Promise.all([
-      import("playwright-core"),
-      resumeAssets(),
-    ]);
-    const linux = process.platform === "linux";
-    const serverless = linux
-      ? (await import("@sparticuz/chromium")).default
-      : null;
-    const executablePath =
-      process.env.RESUME_CHROMIUM_EXECUTABLE_PATH ||
-      (serverless
-        ? await serverless.executablePath()
-        : process.platform === "darwin" &&
-            existsSync(
-              "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-            )
-          ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-          : playwright.executablePath());
-    if (expired) throw new Error("PDF rendering timed out.");
-    browser = await playwright.launch({
-      executablePath,
-      args: serverless?.args,
-      headless: true,
-      timeout: 20_000,
-    });
-    if (expired) {
-      await browser.close();
-      throw new Error("PDF rendering timed out.");
+    const assets = await resumeAssets();
+    controller.signal.throwIfAborted();
+    const url = new URL("https://production-sfo.browserless.io/pdf");
+    url.searchParams.set("token", token);
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          // Use exactly the same bundled HTML, fonts and pagination as the preview.
+          html: resumePreviewHtml(content, assets),
+          waitForFunction: {
+            fn: `() => {
+              if (window.__resumeReady?.error) throw new Error("Resume pagination failed");
+              return Boolean(window.__resumeReady?.pageCount);
+            }`,
+            timeout: 25_000,
+          },
+          options: { format: "A4", preferCSSPageSize: true, printBackground: true },
+        }),
+      });
+    } catch {
+      // Provider errors may contain the credential-bearing URL. Never propagate them.
+      throw new Error("PDF rendering request failed.");
     }
-    const context = await browser.newContext({
-      javaScriptEnabled: true,
-      serviceWorkers: "block",
-    });
-    await context.route("**/*", (route) => route.abort());
-    const page = await context.newPage();
-    await page.setContent(resumePreviewHtml(content, assets), {
-      waitUntil: "load",
-      timeout: 15_000,
-    });
-    await page.waitForFunction(
-      () =>
-        Boolean(
-          (window as unknown as { __resumeReady?: unknown }).__resumeReady
-        ),
-      undefined,
-      { timeout: 25_000 }
-    );
-    const layout = await page.evaluate(
-      () =>
-        (
-          window as unknown as {
-            __resumeReady: { pageCount?: number; error?: string };
-          }
-        ).__resumeReady
-    );
-    if (layout.error || !layout.pageCount)
-      throw new Error("Resume pagination failed.");
-    const pdf = await page.pdf({
-      format: "A4",
-      preferCSSPageSize: true,
-      printBackground: true,
-    });
-    // The same display blocks feed PDF and text. Validate extraction before publishing.
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error(`PDF rendering service returned HTTP ${response.status}.`);
+    }
+    let pdf: Buffer;
+    try {
+      pdf = Buffer.from(await response.arrayBuffer());
+    } catch {
+      throw new Error("PDF rendering response was interrupted.");
+    }
+    if (pdf.subarray(0, 5).toString() !== "%PDF-")
+      throw new Error("PDF rendering service returned an invalid document.");
+
+    // Verify actual PDF text before downloads or application attachments receive it.
     const { getPath } = await import("pdf-parse/worker");
     const { PDFParse } = await import("pdf-parse");
     PDFParse.setWorker(getPath());
     const parser = new PDFParse({ data: new Uint8Array(pdf) });
     let parsed;
     try {
-      parsed = await parser.getText({
-        pageJoiner: "\n",
-        parseHyperlinks: false,
-      });
+      parsed = await parser.getText({ pageJoiner: "\n", parseHyperlinks: false });
     } finally {
       await parser.destroy();
     }
@@ -93,28 +67,22 @@ export async function renderResumePdf(
     const extracted = compact(parsed.text);
     if (
       !parsed.total ||
-      parsed.total !== layout.pageCount ||
       resumeBlocks(content).some((x) => !extracted.includes(compact(x.text)))
     )
       throw new Error("PDF text validation failed.");
-    return {
-      pdf,
-      pageCount: parsed.total as number,
-      text: resumePlainText(content),
-    };
+    return { pdf, pageCount: parsed.total as number, text: resumePlainText(content) };
   };
   try {
     return await Promise.race([
       work(),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
-          expired = true;
+          controller.abort();
           reject(new Error("PDF rendering timed out."));
         }, 30_000);
       }),
     ]);
   } finally {
     if (timer) clearTimeout(timer);
-    if (browser) await browser.close().catch(() => {});
   }
 }

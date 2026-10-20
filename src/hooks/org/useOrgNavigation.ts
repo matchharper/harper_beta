@@ -14,6 +14,12 @@ export function useOrgNavigation(workspaceId: string) {
     const start = (url: string, { shallow }: { shallow: boolean }) => {
       if (shallow || url === router.asPath) return;
       const target = new URL(url, window.location.origin);
+      const current = new URL(router.asPath, window.location.origin);
+      // Query-driven tabs and detail panels keep their mounted page and data.
+      if (
+        target.pathname === current.pathname &&
+        target.searchParams.get("orgId") === workspaceId
+      ) return;
       const page = orgPageFromPath(target.pathname);
       if (!page) return;
       setPending({

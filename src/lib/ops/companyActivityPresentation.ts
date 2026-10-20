@@ -70,6 +70,9 @@ function joinActivitySubtitle(parts: Array<string | null | undefined>) {
 
 // Filter at the database before limiting rows so internal noise cannot hide real activity.
 export const OPS_COMPANY_PROGRESS_KINDS = [
+  "company_candidate_presented",
+  "candidate_role_recommendation_accepted",
+  "candidate_role_recommendation_rejected",
   "org_stage_change",
   "intro_to_company",
   "org_note",
@@ -78,6 +81,16 @@ export const OPS_COMPANY_PROGRESS_KINDS = [
   "org_company_intro_passed",
   "internal_process_stopped_notified",
   "org_candidate_activity",
+  "org_candidate_role_move",
+];
+
+// Directory summaries show decisions and pipeline changes, not delivery/view noise.
+export const OPS_COMPANY_DIRECTORY_PROGRESS_KINDS = [
+  "candidate_role_recommendation_accepted",
+  "candidate_role_recommendation_rejected",
+  "org_stage_change",
+  "org_company_intro_requested",
+  "org_company_intro_passed",
   "org_candidate_role_move",
 ];
 
@@ -139,7 +152,21 @@ export function describeOpsCompanyProgressActivity(
     };
   }
 
-  if (kind === "intro_to_company") {
+  if (
+    kind === "candidate_role_recommendation_accepted" ||
+    kind === "candidate_role_recommendation_rejected"
+  ) {
+    const label =
+      kind === "candidate_role_recommendation_accepted"
+        ? "추천 수락"
+        : "추천 거절";
+    return {
+      meta: label,
+      title: `${candidateName} ${label}`,
+      subtitle: text || null,
+    };
+  }
+  if (kind === "company_candidate_presented" || kind === "intro_to_company") {
     return {
       meta: "회사에 후보자 추천",
       subtitle: text || null,

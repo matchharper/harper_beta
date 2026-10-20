@@ -4,6 +4,7 @@ import { MuteButton, type MuteButtonProps } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerChatPanelContext } from "../CareerChatPanelContext";
 import type { CareerHistoryOpportunity } from "../types";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 export default function ApplyWithHarperButton({
   item,
@@ -23,6 +24,7 @@ export default function ApplyWithHarperButton({
   onBeforeStart?: () => boolean | void | Promise<boolean | void>;
 }) {
   const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
   const chat = useCareerChatPanelContext();
   const sendingRef = useRef(false);
   const [sending, setSending] = useState(false);
@@ -41,6 +43,11 @@ export default function ApplyWithHarperButton({
 
   const start = async () => {
     if (disabled || sendingRef.current) return;
+    logCareerEvent("click_apply_with_harper", {
+      roleId: item.roleId,
+      opportunityId: item.id,
+      source: onBeforeStart ? "application_modal" : "role_detail",
+    });
     sendingRef.current = true;
     setSending(true);
     try {

@@ -38,6 +38,7 @@ export function useOpsOpportunityCatalog(
   args: {
     enabled?: boolean;
     internalOnly?: boolean;
+    excludeTailoredRoles?: boolean;
     limit?: number;
     workspaceQuery?: string | null;
   } = {}
@@ -54,16 +55,20 @@ export function useOpsOpportunityCatalog(
   const internalOnly = Boolean(args.internalOnly);
 
   return useInfiniteQuery({
-    queryKey: queryKeys.opsOpportunity.catalog({
-      internalOnly,
-      limit,
-      workspaceQuery,
-    }),
+    queryKey: [
+      ...queryKeys.opsOpportunity.catalog({
+        internalOnly,
+        limit,
+        workspaceQuery,
+      }),
+      Boolean(args.excludeTailoredRoles),
+    ],
     initialPageParam: 0,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams();
       params.set("limit", String(limit));
       params.set("offset", String(pageParam));
+      if (args.excludeTailoredRoles) params.set("excludeTailoredRoles", "true");
       if (internalOnly) {
         params.set("internalOnly", "true");
       }

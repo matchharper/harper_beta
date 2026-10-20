@@ -1,3 +1,4 @@
+import { useOrgVisit } from "@/hooks/org/useOrgVisit";
 import { useOrgNavigation } from "@/hooks/org/useOrgNavigation";
 import { OrgPageLoading } from "./OrgPageLoading";
 // Self-serve signup is paused while payments are being tested.
@@ -50,6 +51,7 @@ export function OrgWorkspaceApp({
     user,
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
+  useOrgVisit(workspace?.workspaceId, user?.id);
   const navigation = useOrgNavigation(workspace?.workspaceId ?? "");
   const displayPage = navigation?.page ?? page;
   const isRoleWorkspacePage =

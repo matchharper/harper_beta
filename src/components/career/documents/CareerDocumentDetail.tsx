@@ -12,6 +12,7 @@ import {
   fetchResponseWithInternalAuth,
 } from "@/lib/internalApiClient";
 import type { CareerDocumentLink } from "@/lib/career/documentLinks";
+import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 type DocumentContent = {
   content: string;
@@ -37,6 +38,17 @@ export function CareerDocumentDetail({
   onBack: () => void;
 }) {
   const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
+  const openedDocumentId = useRef<string | null>(null);
+  useEffect(() => {
+    // A visit is distinct from background refreshes, retries and revisions.
+    if (openedDocumentId.current === document.id) return;
+    openedDocumentId.current = document.id;
+    logCareerEvent("document_open", {
+      documentId: document.id,
+      source: "document_detail",
+    });
+  }, [document.id, logCareerEvent]);
   const [loadedResult, setResult] = useState<DocumentContent | null>(null);
   const [failedDocumentId, setFailedDocumentId] = useState<string | null>(null);
   const result = loadedResult?.documentId === document.id ? loadedResult : null;
@@ -120,6 +132,11 @@ export function CareerDocumentDetail({
   };
   const exportMarkdown = () => {
     if (!result) return;
+    logCareerEvent("document_download_click", {
+      documentId: result.documentId,
+      format: "markdown",
+      source: "document_detail",
+    });
     const url = URL.createObjectURL(
       new Blob([result.content], { type: "text/markdown;charset=utf-8" })
     );
@@ -135,6 +152,13 @@ export function CareerDocumentDetail({
 
   const downloadPdf = async () => {
     if (!result || downloadController.current) return;
+    const metadata = {
+      documentId: result.documentId,
+      revision: result.revision ?? null,
+      format: "pdf",
+      source: "document_detail",
+    };
+    logCareerEvent("document_download_click", metadata);
     if (result.format === "pdf") {
       window.open(result.downloadUrl, "_blank", "noopener,noreferrer");
       return;
@@ -164,6 +188,8 @@ export function CareerDocumentDetail({
       }
       const blob = await response.blob();
       if (controller.signal.aborted) return;
+      // The response arrived; the browser cannot confirm a save to disk.
+      logCareerEvent("document_download_received", metadata);
       const url = URL.createObjectURL(blob);
       const anchor = window.document.createElement("a");
       anchor.href = url;
@@ -176,6 +202,12 @@ export function CareerDocumentDetail({
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
+      logCareerEvent(
+        controller.signal.aborted
+          ? "document_download_cancelled"
+          : "document_download_failed",
+        metadata
+      );
       if (!controller.signal.aborted)
         showToast({
           message:

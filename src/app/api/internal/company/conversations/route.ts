@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const data = await fetchOpsCompanyConversations({
       limit: Number(searchParams.get("limit") ?? "20"),
-      offset: Number(searchParams.get("cursor") ?? "0"),
+      cursor: searchParams.get("cursor"),
+      threadId: searchParams.get("threadId"),
       workspaceId: searchParams.get("workspaceId") ?? "",
     });
     return NextResponse.json(data);

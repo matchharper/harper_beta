@@ -1234,7 +1234,10 @@ const CareerWorkspaceMobileHistoryView = ({
         totalOpportunityCount={historyOpportunityCounts.new}
         onToggleOpportunity={handleToggleNewOpportunity}
         onApply={(item) => {
-          logCareerEvent("click_mobile_history_external_apply");
+          logCareerEvent("click_mobile_history_external_apply", {
+            roleId: item.roleId,
+            opportunityId: item.id,
+          });
           setExternalApplyOpportunity(item);
         }}
         onPositive={handleTrack}
@@ -1298,7 +1301,8 @@ const CareerWorkspaceMobileHistoryView = ({
             logCareerEvent(
               savedStage === "applied"
                 ? "click_mobile_history_external_apply_directly"
-                : "click_mobile_history_external_apply_with_harper"
+                : "click_mobile_history_external_apply_with_harper",
+              { roleId: externalApplyOpportunity.roleId, opportunityId: externalApplyOpportunity.id }
             );
             return onUpdateHistoryOpportunityFeedback(
               externalApplyOpportunity.id,
