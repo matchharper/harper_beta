@@ -12,6 +12,8 @@ import {
   CAREER_CORE_RESPONSE_GUIDANCE_PROMPT_FOR_ONBOARDING_CALL,
   CAREER_DEFAULT_CONVERSATION_GUIDANCE_PROMPT,
   CAREER_GENERAL_CONVERSATION_GUIDANCE_PROMPT,
+  CAREER_LANGUAGE_REQUEST_RULE,
+  CAREER_LANGUAGE_SETTINGS_SCREEN_RULE,
   CAREER_ONBOARDING_CONVERSATION_PROMPT,
   CAREER_POST_ONBOARDING_VOICE_RESPONSE_GUIDANCE_PROMPT,
 } from "@/lib/career/prompts/rawPrompts";
@@ -220,6 +222,11 @@ export function buildCareerConversationPromptPlan(args: {
   const promptBlocks: CareerPromptBlock[] = [];
   const promptVars = {
     channel_context_rules: channelContextRules,
+    language_setting_rule: normalizedToolNames.includes(
+      "update_language_setting"
+    )
+      ? CAREER_LANGUAGE_REQUEST_RULE
+      : CAREER_LANGUAGE_SETTINGS_SCREEN_RULE,
     output_language: outputLanguage,
     output_language_tone_rule: outputLanguageToneRule,
     positions_tab_label: positionsTabLabel,

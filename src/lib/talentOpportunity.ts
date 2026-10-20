@@ -1268,13 +1268,14 @@ function buildTalentOpportunityHistoryQuery(args: {
 
 export async function archiveEndedInternalOpportunitiesForTalent(args: {
   admin: AdminClient;
-  locale?: string | null;
   userId: string;
 }) {
+  // The archive notice is a message to the talent. With p_locale null the SQL
+  // writes it in the saved language (talent_setting), not the screen language.
   const { data, error } = await (args.admin as any).rpc(
     "archive_ended_internal_opportunities_for_talent",
     {
-      p_locale: args.locale ?? null,
+      p_locale: null,
       p_talent_id: args.userId,
     }
   );
@@ -2690,7 +2691,6 @@ export async function fetchTalentOpportunitySavedStageHistoryPages(args: {
 }): Promise<TalentOpportunitySavedStageHistoryPages> {
   await archiveEndedInternalOpportunitiesForTalent({
     admin: args.admin,
-    locale: args.locale,
     userId: args.userId,
   });
 
@@ -2751,7 +2751,6 @@ export async function fetchTalentOpportunityHistoryPage(args: {
 }): Promise<TalentOpportunityHistoryPage> {
   await archiveEndedInternalOpportunitiesForTalent({
     admin: args.admin,
-    locale: args.locale,
     userId: args.userId,
   });
 

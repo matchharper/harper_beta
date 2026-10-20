@@ -4063,7 +4063,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
 
       return {
-        assistantInstruction: `Briefly confirm in ${getCareerPromptLanguageName(language)} that the saved language was changed permanently.`,
+        assistantInstruction: `Briefly confirm in ${getCareerPromptLanguageName(language)} that the saved language was changed for chat, email and notifications, and that the user can ask to switch back anytime.`,
         language,
         ok: true,
         skipCommonAssistantInstruction: true,

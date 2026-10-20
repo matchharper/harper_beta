@@ -74,7 +74,7 @@ export function buildCareerToolPolicyPrompt(args: {
       ? args.conversationMode === "mock_interview"
         ? "- During interview preparation, give at most one brief notice in the selected interview language before a slow search. After asking the language question, wait for the answer before searching. Do not repeat preparation notices or narrate tool mechanics."
         : "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
-      : `- Chat mode: if a tool is needed, call it directly and then answer naturally using only the relevant findings. Write the entire final response consistently in ${outputLanguage}, apart from proper nouns or technical terms that are clearer in their original form.`;
+      : `- Chat mode: if a tool is needed, call it directly and then answer naturally using only the relevant findings. Write the entire final response consistently in ${outputLanguage}, apart from proper nouns or technical terms that are clearer in their original form. Only an explicit language request from the user changes this, as the language rule describes.`;
   const onboardingToolExceptionNames = [
     hasUpdateLanguageSettingTool ? "`update_language_setting`" : null,
     hasUpdateSettingTool ? "`update_setting`" : null,
