@@ -11,7 +11,7 @@ import {
   type OpsAbTestVariant,
 } from "./abTests";
 
-export type ExternalSurface = "web" | "worker" | "daily";
+export type ExternalSurface = "all" | "web" | "worker" | "daily";
 export type ExternalExperimentRun = {
   id: string;
   talent_id: string;
@@ -59,7 +59,7 @@ export function buildExternalRecommendationExperiment(args: {
   const scoped = args.runs.filter(
     (r) =>
       r.experiment === EXPERIMENT &&
-      r.surface === args.surface &&
+      (args.surface === "all" || r.surface === args.surface) &&
       !args.excludedUserIds.has(r.talent_id)
   );
   // Forced developer cohorts and old implementations must not contaminate the comparison.
@@ -138,7 +138,7 @@ export function buildExternalRecommendationExperiment(args: {
           const v = number(r.metrics[key]);
           return v === null ? [] : [v / 1000];
         });
-      const costs = group.map((r) => {
+      const costs = terminal.map((r) => {
         const web = receipts.get(r.id) ?? [];
         const worker = Array.isArray(r.metrics.externalWorkerCostRecords)
           ? (r.metrics.externalWorkerCostRecords as Record<string, unknown>[])
@@ -170,6 +170,16 @@ export function buildExternalRecommendationExperiment(args: {
       const measuredCosts = costs.filter((c) => c.priced);
       const sum = measuredCosts.reduce((s, c) => s + c.usd, 0);
       const recs = group.flatMap((r) => byRun.get(r.id) ?? []);
+      const likes = recs.filter((r) =>
+        ["like", "positive"].includes(r.feedback ?? "")
+      ).length;
+      const dislikes = recs.filter((r) =>
+        ["dislike", "negative"].includes(r.feedback ?? "")
+      ).length;
+      const terminalRecommendationCount = terminal.reduce(
+        (total, r) => total + (byRun.get(r.id)?.length ?? 0),
+        0
+      );
       const metric = (
         label: string,
         value: number | null,
@@ -179,13 +189,64 @@ export function buildExternalRecommendationExperiment(args: {
         metric(label, d ? n / d : null, "rate");
       return {
         id: variant,
-        label: variant === "control" ? "A · 기존 추천" : "B · V2 추천",
+        label: variant === "control" ? "V1" : "V2",
         description:
           variant === "control"
             ? "기존 검색·평가 경로"
             : "타이틀 검색·연봉 반영·V2 평가 경로",
         sampleCount: first.size,
         primary,
+        summaryMetrics: [
+          {
+            ...metric(
+              "평균 비용",
+              mean(measuredCosts.map((c) => c.usd)),
+              "usd"
+            ),
+            description:
+              "종료된 run 중 가격이 확인된 API 비용 소계의 평균입니다. 일부 호출·공유 캐시·인프라 비용은 빠질 수 있으며, 비용 기록이 없는 run을 0원으로 계산하지 않습니다.",
+            detail: `비용 확인 ${measuredCosts.length} / 종료 ${terminal.length} run · 가격 미확인 ${costs.reduce((total, c) => total + c.unknown, 0)}건`,
+          },
+          {
+            ...metric("평균 시간", mean(durations), "duration_seconds"),
+            description:
+              "종료 시간이 기록된 run의 생성부터 종료까지 평균입니다. 실패·건너뜀과 매일 추천 대기 시간을 포함합니다.",
+            detail: `시간 확인 ${durations.length} / 종료 ${terminal.length} run`,
+          },
+          {
+            ...ratio("전체 피드백 비율", likes + dislikes, recs.length),
+            description:
+              "선택 기간의 run에 연결된 전체 저장 추천 중 현재 좋아요 또는 싫어요가 있는 추천의 비율입니다. 실제 화면 노출률이 아니며, 최근 추천은 피드백 관찰 시간이 짧습니다.",
+            detail: `${likes + dislikes} / ${recs.length}개 추천`,
+          },
+          {
+            ...metric(
+              "싫어요 대비 좋아요 비율",
+              dislikes ? likes / dislikes : null,
+              "number"
+            ),
+            displayValue: dislikes
+              ? `${(likes / dislikes).toFixed(2)}배`
+              : likes
+                ? "싫어요 없음"
+                : "-",
+            description:
+              "좋아요 수 ÷ 싫어요 수입니다. 싫어요가 0건이면 배수를 계산하지 않습니다.",
+            detail: `좋아요 ${likes} · 싫어요 ${dislikes}`,
+          },
+          {
+            ...metric(
+              "run당 평균 추천 수",
+              terminal.length
+                ? terminalRecommendationCount / terminal.length
+                : null,
+              "number"
+            ),
+            description:
+              "종료된 전체 run의 저장 추천 수 평균입니다. 실패·건너뜀·추천 0건도 포함하며 진행 중인 run은 제외합니다.",
+            detail: `${terminalRecommendationCount}개 / ${terminal.length} run`,
+          },
+        ],
         metrics: [
           metric("배정 사용자", first.size),
           metric("7일 관찰 완료 사용자", mature.length),
@@ -265,15 +326,18 @@ export function buildExternalRecommendationExperiment(args: {
             "usd"
           ),
           ratio(
-            "비용 영수증 있는 실행",
+            "비용 영수증 있는 종료 실행",
             costs.filter((c) => c.present).length,
-            group.length
+            terminal.length
           ),
           metric(
             "가격 미확인 호출·시도",
             costs.reduce((s, c) => s + c.unknown, 0)
           ),
-          metric("비용 기록 없는 실행", costs.filter((c) => !c.present).length),
+          metric(
+            "비용 기록 없는 종료 실행",
+            costs.filter((c) => !c.present).length
+          ),
         ],
       };
     }
@@ -287,7 +351,12 @@ export function buildExternalRecommendationExperiment(args: {
   // Rolling, repeatedly inspected estimates are descriptive, never an automatic release gate.
   conclusion.leaderVariantId = null;
   if (conclusion.state !== "collecting") conclusion.state = "descriptive";
-  const names = { web: "요청 추천", worker: "Worker 추천", daily: "매일 추천" };
+  const names = {
+    all: "전체 경로",
+    web: "요청 추천",
+    worker: "Worker 추천",
+    daily: "매일 추천",
+  };
   return {
     id: `${EXTERNAL_MEASUREMENT_VERSION}:${args.surface}`,
     title: `외부 공고 추천 · ${names[args.surface]}`,
