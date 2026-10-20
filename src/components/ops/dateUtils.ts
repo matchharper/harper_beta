@@ -105,3 +105,25 @@ export function formatKstRelativeDate(
       : formatKstDateOnly(date))
   );
 }
+
+/** Elapsed time for Ops company dates; older dates use the Korean calendar. */
+export function formatOpsCompanyDate(
+  value: string | number | Date | null | undefined,
+  now: number = Date.now()
+) {
+  if (value == null || value === "") return "-";
+  // Daily chart buckets represent midnight in Korea, not UTC.
+  const date = new Date(
+    typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? `${value}T00:00:00+09:00`
+      : value
+  );
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp)) return "-";
+  const elapsed = now - timestamp;
+  if (elapsed < 0 || elapsed >= 14 * DAY_IN_MS) return formatKstDateOnly(date);
+  if (elapsed < 60_000) return "방금 전";
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}분 전`;
+  if (elapsed < DAY_IN_MS) return `${Math.floor(elapsed / 3_600_000)}시간 전`;
+  return `${Math.floor(elapsed / DAY_IN_MS)}일 전`;
+}

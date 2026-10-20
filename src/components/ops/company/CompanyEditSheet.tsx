@@ -1,9 +1,11 @@
+import { Dialog } from "@/components/ui/dialog";
+import { CompanySidePanelContent } from "./CompanySidePanelContent";
 import { cx, opsTheme } from "@/components/ops/theme";
-import { BareButton } from "@/components/ui/button";
+import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { OpsOpportunityWorkspaceRecord } from "@/lib/ops/opportunity";
-import { LoaderCircle, Save, X } from "lucide-react";
+import { LoaderCircle, Save } from "lucide-react";
 import type { FormEvent } from "react";
 
 export type CompanyEditDraft = {
@@ -65,48 +67,32 @@ export function CompanyEditSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-[75]">
-      <BareButton
-        type="button"
-        aria-label="회사 정보 수정 닫기"
-        onClick={onClose}
-        disabled={pending}
-        className="absolute inset-0 h-full w-full cursor-default bg-black/35 disabled:cursor-not-allowed"
-      />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="company-edit-title"
-        className="absolute bottom-0 right-0 top-0 flex w-full min-w-0 flex-col overflow-hidden bg-bg-default shadow-[0_24px_90px_color-mix(in_srgb,var(--color-neutral-1000)_22%,transparent)] animate-in slide-in-from-right-6 duration-200 sm:w-[720px]"
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!value && !pending) onClose();
+      }}
+    >
+      <CompanySidePanelContent
+        title="회사 정보 수정"
+        description={initialDraft.companyName}
+        hideCloseButton={pending}
+        onEscapeKeyDown={(event) => {
+          if (pending) event.preventDefault();
+        }}
+        onPointerDownOutside={(event) => {
+          if (pending) event.preventDefault();
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          document.getElementById("company-edit-trigger")?.focus();
+        }}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 px-5 py-4">
-          <div className="min-w-0">
-            <h2
-              id="company-edit-title"
-              className="text-base font-medium text-neutral-primary"
-            >
-              회사 정보 수정
-            </h2>
-            <p className="mt-1 truncate text-xs text-neutral-muted">
-              {initialDraft.companyName}
-            </p>
-          </div>
-          <BareButton
-            type="button"
-            onClick={onClose}
-            disabled={pending}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-neutral-muted transition hover:bg-bg-weak hover:text-neutral-primary disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4" />
-          </BareButton>
-        </div>
-
         <form
           onSubmit={handleSubmit}
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
-          <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-6 sm:px-6">
+          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5">
             <section className="space-y-4">
               <div>
                 <div className={opsTheme.label}>기본 정보</div>
@@ -137,8 +123,7 @@ export function CompanyEditSheet({
                   placeholder="외부에 표시할 회사명"
                 />
                 <span className="text-xs leading-5 text-neutral-muted">
-                  published_name 필드에 저장됩니다. 비워두면 공개 회사명을
-                  사용하지 않습니다.
+                  비워두면 공개 회사명을 사용하지 않습니다.
                 </span>
               </label>
               <label className={fieldClassName}>
@@ -162,7 +147,7 @@ export function CompanyEditSheet({
                 </p>
               </div>
               <label className={fieldClassName}>
-                <span className={opsTheme.label}>Pitch</span>
+                <span className={opsTheme.label}>회사 매력 소개</span>
                 <Textarea
                   value={draft.pitch}
                   onChange={(event) =>
@@ -177,7 +162,7 @@ export function CompanyEditSheet({
                 </span>
               </label>
               <label className={fieldClassName}>
-                <span className={opsTheme.label}>Description</span>
+                <span className={opsTheme.label}>회사 설명</span>
                 <Textarea
                   value={draft.companyDescription}
                   onChange={(event) =>
@@ -262,22 +247,22 @@ export function CompanyEditSheet({
             </section>
           </div>
 
-          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-neutral-1000-a05 bg-bg-default px-5 py-4 sm:px-6">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-neutral-1000-a05 bg-bg-default px-5 py-4 sm:px-6">
             <span className="text-xs text-neutral-muted">
               {hasChanges
                 ? "저장되지 않은 변경사항이 있습니다."
                 : "변경사항 없음"}
             </span>
             <div className="flex items-center gap-2">
-              <BareButton
+              <MuteButton
                 type="button"
                 onClick={onClose}
                 disabled={pending}
                 className={cx(opsTheme.buttonSecondary, "h-10 px-4")}
               >
                 취소
-              </BareButton>
-              <BareButton
+              </MuteButton>
+              <MuteButton
                 type="submit"
                 disabled={!canSubmit}
                 className={cx(opsTheme.buttonPrimary, "h-10 px-4")}
@@ -288,11 +273,11 @@ export function CompanyEditSheet({
                   <Save className="h-4 w-4" />
                 )}
                 저장
-              </BareButton>
+              </MuteButton>
             </div>
           </div>
         </form>
-      </aside>
-    </div>
+      </CompanySidePanelContent>
+    </Dialog>
   );
 }

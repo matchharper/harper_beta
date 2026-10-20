@@ -52,7 +52,7 @@ export function ProfileLabelCell({
     <Tooltips text={profileLabelsTitle(labels)} side="bottom">
       {isCompact ? (
         <>
-          <div className="min-w-0 line-clamp-3 text-[14px] font-normal leading-5 text-neutral-800">
+          <div className="min-w-0 line-clamp-3 text-[14px] font-normal leading-[18px] text-neutral-800">
             {detail && (
               <div>
                 {detail} at {label}
@@ -63,16 +63,16 @@ export function ProfileLabelCell({
         </>
       ) : (
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-medium leading-5 text-neutral-primary">
+          <div className="truncate text-[13px] font-medium text-neutral-primary">
             {label}
           </div>
           {detail ? (
-            <div className="truncate text-[12px] leading-4 text-neutral-muted">
+            <div className="truncate text-[12px] text-neutral-muted">
               {detail}
             </div>
           ) : null}
           {latest.period ? (
-            <div className="mt-0.5 truncate text-[11px] leading-4 text-neutral-soft">
+            <div className="mt-0.5 truncate text-[11px] text-neutral-soft">
               {latest.period}
             </div>
           ) : null}
