@@ -17,12 +17,6 @@ import {
 
 import { isInternalEmail } from "@/lib/internalAccess";
 import {
-  extractEmailFromLandingLoginType,
-  isFirstScrollLandingLogType,
-  isLandingLogEntryType,
-  isStartLandingLogType,
-} from "@/lib/landingLogTypes";
-import {
   compareOpsAbTestRates,
   makeOpsAbTestRate,
   type OpsAbTestSummary,
@@ -41,11 +35,6 @@ import {
   CAREER_VOICE_MODEL_SESSION_ATTEMPT_EVENT,
   CAREER_VOICE_MODEL_SESSION_FAILED_EVENT,
 } from "@/lib/career/voiceExperiment.server";
-import {
-  getSearchLandingVariantDescription,
-  SEARCH_LANDING_ABTEST_TYPE_A,
-  SEARCH_LANDING_ABTEST_TYPE_B,
-} from "@/lib/search/landingLogs";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import type { Database, Json } from "@/types/database.types";
 
@@ -451,121 +440,6 @@ async function buildVoiceExperiment(
   };
 }
 
-function buildSearchExperiment(
-  rows: LandingLogRow[],
-  exclusionTerms: string[]
-): OpsAbTestSummary {
-  const rowsByLocalId = new Map<string, LandingLogRow[]>();
-  for (const row of rows) {
-    const localId = String(row.local_id ?? "").trim();
-    if (!localId || !row.type) continue;
-    const items = rowsByLocalId.get(localId) ?? [];
-    items.push(row);
-    rowsByLocalId.set(localId, items);
-  }
-
-  const groups = Array.from(rowsByLocalId.entries()).flatMap(
-    ([localId, unsortedRows]) => {
-      const logs = [...unsortedRows].sort((a, b) =>
-        a.created_at.localeCompare(b.created_at)
-      );
-      const entry = logs.find((row) => isLandingLogEntryType(row.type));
-      const variant = String(entry?.abtest_type ?? "").trim();
-      if (
-        !entry ||
-        (variant !== SEARCH_LANDING_ABTEST_TYPE_A &&
-          variant !== SEARCH_LANDING_ABTEST_TYPE_B)
-      ) {
-        return [];
-      }
-
-      const postEntryLogs = logs.filter(
-        (row) => row.created_at >= entry.created_at
-      );
-      const loginEmails = postEntryLogs.flatMap((row) => {
-        const email = extractEmailFromLandingLoginType(row.type);
-        return email ? [email] : [];
-      });
-      if (
-        loginEmails.some((email) => shouldExcludeEmail(email, exclusionTerms))
-      ) {
-        return [];
-      }
-
-      return [
-        {
-          entryAt: entry.created_at,
-          localId,
-          loggedIn: loginEmails.length > 0,
-          scrolled: postEntryLogs.some((row) =>
-            isFirstScrollLandingLogType(row.type)
-          ),
-          started: postEntryLogs.some((row) => isStartLandingLogType(row.type)),
-          variant,
-        },
-      ];
-    }
-  );
-
-  const makeVariant = (
-    id:
-      | typeof SEARCH_LANDING_ABTEST_TYPE_A
-      | typeof SEARCH_LANDING_ABTEST_TYPE_B,
-    label: string
-  ): OpsAbTestVariant => {
-    const variantGroups = groups.filter((group) => group.variant === id);
-    const total = variantGroups.length;
-    const loggedIn = variantGroups.filter((group) => group.loggedIn).length;
-    const scrolled = variantGroups.filter((group) => group.scrolled).length;
-    const started = variantGroups.filter((group) => group.started).length;
-
-    return {
-      description: getSearchLandingVariantDescription(id),
-      id,
-      label,
-      metrics: [
-        {
-          format: "rate",
-          label: "스크롤률",
-          value: total > 0 ? scrolled / total : null,
-        },
-        {
-          format: "rate",
-          label: "시작 클릭률",
-          value: total > 0 ? started / total : null,
-        },
-      ],
-      primary: makeOpsAbTestRate(loggedIn, total),
-      sampleCount: total,
-    };
-  };
-
-  const variants: [OpsAbTestVariant, OpsAbTestVariant] = [
-    makeVariant(SEARCH_LANDING_ABTEST_TYPE_A, "A · Current"),
-    makeVariant(SEARCH_LANDING_ABTEST_TYPE_B, "B · New copy"),
-  ];
-
-  return {
-    allocation: "브라우저별 고정 50:50",
-    caveat:
-      "로그인 전환율은 같은 local_id에서 실험 노출 뒤 로그인 로그가 확인된 비율입니다.",
-    conclusion: compareOpsAbTestRates({
-      first: variants[0].primary,
-      firstVariantId: variants[0].id,
-      second: variants[1].primary,
-      secondVariantId: variants[1].id,
-    }),
-    firstObservedAt: minIso(groups.map((group) => group.entryAt)),
-    id: "search_landing_copy_v1",
-    lastObservedAt: maxIso(groups.map((group) => group.entryAt)),
-    primaryMetricLabel: "로그인 전환율",
-    status: "running",
-    title: "Search 랜딩 카피",
-    unitLabel: "브라우저",
-    variants,
-  };
-}
-
 export async function fetchOpsAbTests(args: {
   days?: unknown;
   externalSurface?: unknown;
@@ -573,9 +447,11 @@ export async function fetchOpsAbTests(args: {
 }) {
   const days = parseDays(args.days);
   const externalSurface: ExternalSurface =
-    args.externalSurface === "worker" || args.externalSurface === "daily"
+    args.externalSurface === "web" ||
+    args.externalSurface === "worker" ||
+    args.externalSurface === "daily"
       ? args.externalSurface
-      : "web";
+      : "all";
   const now = Date.now();
   const exclusionTerms = normalizeExclusionTerms(args.excludedEmails ?? []);
   const cacheKey = JSON.stringify({ days, exclusionTerms, externalSurface });
@@ -583,13 +459,9 @@ export async function fetchOpsAbTests(args: {
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const startIso = new Date(Date.now() - days * DAY_MS).toISOString();
-  const [voiceRows, searchRows, jobsRows, onboardingRows, externalRows] =
+  const [voiceRows, jobsRows, onboardingRows, externalRows] =
     await Promise.all([
       fetchVoiceRows(startIso),
-      fetchLandingRows(startIso, [
-        SEARCH_LANDING_ABTEST_TYPE_A,
-        SEARCH_LANDING_ABTEST_TYPE_B,
-      ]),
       fetchLandingRows(startIso, [
         OFFICIAL_JOBS_LAYOUT_ABTEST_A,
         OFFICIAL_JOBS_LAYOUT_ABTEST_B,
@@ -614,7 +486,6 @@ export async function fetchOpsAbTests(args: {
         ),
       }))(),
     buildVoiceExperiment(voiceRows, exclusionTerms),
-    Promise.resolve(buildSearchExperiment(searchRows, exclusionTerms)),
     Promise.resolve(
       buildOfficialJobsExperiment(jobsRows, (email) =>
         shouldExcludeEmail(email, exclusionTerms)
