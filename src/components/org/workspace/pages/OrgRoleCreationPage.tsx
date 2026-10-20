@@ -114,7 +114,6 @@ function OrgRolePipelineWorkspace({
   mobile?: boolean;
   onDisplayChange: (display: RolePipelineDisplay) => void;
 }) {
-  const { c } = useOrgLocale();
   const resolvedDisplay = mobile ? "board" : display;
 
   const displayControl = mobile ? null : (
@@ -124,28 +123,10 @@ function OrgRolePipelineWorkspace({
     />
   );
 
-  return (
-    <div
-      className={
-        resolvedDisplay === "pipeline"
-          ? "flex h-full min-h-0 flex-col gap-2"
-          : "space-y-2"
-      }
-    >
-      {resolvedDisplay === "pipeline" ? (
-        <>
-          <div className="flex w-full shrink-0 flex-row justify-between">
-            <div className="text-[16px] font-normal text-neutral-primary">
-              {c("Pipeline", "Pipeline")}
-            </div>
-            <div className="flex justify-end">{displayControl}</div>
-          </div>
-          <OrgPipeline />
-        </>
-      ) : (
-        <OrgRoleTalentBoard displayControl={displayControl} />
-      )}
-    </div>
+  return resolvedDisplay === "pipeline" ? (
+    <OrgPipeline displayControl={displayControl} />
+  ) : (
+    <OrgRoleTalentBoard displayControl={displayControl} />
   );
 }
 
@@ -162,16 +143,7 @@ function RolePipelineDisplayMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <MuteButton
-          aria-label={c("표시 방식: {p0}", "Display: {p0}", {
-            p0:
-              display === "pipeline"
-                ? c("파이프라인", "Pipeline")
-                : c("보드", "Board"),
-          })}
-          size="sm"
-          variant="transparent"
-        >
+        <MuteButton size="sm" variant="transparent">
           <DisplayIcon className="size-4" />
         </MuteButton>
       </DropdownMenuTrigger>
@@ -399,7 +371,7 @@ function OrgRoleCreationDetails({
                   <span className="truncate">{sourceT(tab.label)}</span>
                   {tab.value === "inbox" && inboxCount !== undefined ? (
                     <Badge
-                      className="h-4 bg-action px-[5px] py-[1px] text-white tabular-nums font-normal text-[11px]"
+                      className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
                       size="sm"
                     >
                       {String(inboxCount)}
@@ -448,12 +420,10 @@ function OrgRoleCreationDetails({
         </div>
         <div
           hidden={chatActive && !companyInfoOpen}
-          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain bg-bg-default px-4 pt-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 md:px-5 md:pt-6 ${
+          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain pt-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 md:pt-6 ${
             !companyInfoOpen && activeTab === "pipeline"
-              ? "pb-0"
-              : mobile
-                ? "pb-16"
-                : "pb-48"
+              ? "bg-neutral-50 px-0 pb-0"
+              : `bg-bg-default px-4 md:px-5 ${mobile ? "pb-16" : "pb-48"}`
           }`}
         >
           {companyInfoOpen ? (
@@ -755,7 +725,8 @@ export function OrgRoleCreationPage() {
           />
         </div>
       </section>
-      {roleId ? (
+      {/* Mount one details tree: CSS-hidden copies still open their portal dialogs. */}
+      {roleId && isDesktop ? (
         <>
           <div
             aria-label={c("역할 대화 패널 너비 조절", "Resize role panel")}
@@ -803,7 +774,7 @@ export function OrgRoleCreationPage() {
           />
         </>
       ) : null}
-      {roleId ? (
+      {roleId && !isDesktop ? (
         <div className="h-full w-full shrink-0 md:hidden">
           <OrgRoleCreationDetails
             companyInfoOpen={companyInfoOpen}

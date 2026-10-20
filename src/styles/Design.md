@@ -246,6 +246,18 @@ Status:
 
 ## Component Rules
 
+### Loading behavior
+
+Open panels, dialogs, and tabs immediately on interaction. Keep the actual layout,
+navigation, and already loaded content mounted; show shared `Skeleton` elements
+only where data or a code-loaded section is still missing. Do not replace an
+existing screen with a separate generic loading screen before opening its detail
+panel. Same-page query navigation must preserve the mounted page. Apply this
+pattern throughout the product, not only to candidate details.
+Responsive alternatives that own portal dialogs must mount only the active
+variant. CSS `hidden` on an ancestor does not hide a portal; mounting desktop
+and mobile variants together creates duplicate dialogs, backdrops, and animations.
+
 Before writing raw UI markup or a local component, search in this order:
 
 1. `src/components/ui/` for generic controls and primitives.
@@ -280,6 +292,7 @@ Shared component catalog:
 | Career recommendation search | `RecommendationSearchStatusPanel` + `RecommendationSearchProgress` use a 420px card, a CSS-only abstract wire ring and four compact 32px steps. A single gray highlight slides between steps; numbers/checkmarks have no badge background and counts animate upward without React updates per frame. Read progress from the existing status stream/run coverage; never advance steps on a timer in the real search. Dev controls lazily open `CareerRecommendationSearchPreview` for local stage selection and playback without a search request. Respect reduced motion. |
 | Labels/status chips | `Badge` |
 | Org candidate criteria | `OrgCriteriaEvaluation` from `src/components/org/OrgCriteriaEvaluation.tsx`: shared fitness icon and compact criterion title with `Tooltips` evidence on hover or keyboard focus. Keep the indicator unstyled: no padding or hover background. Use it in Role candidate cards and candidate details; card callers pass their existing open action. Keep criteria independent from the presence of a full company introduction. |
+| Candidate experience, education, and other history | `TalentExperienceSection`, `TalentEducationSection`, and `TalentExtraSection` from `src/components/profile/TalentExperienceSection.tsx` share the local `ProfileEntry` layout: experience-based 15px medium title, 15px metadata, muted 14px dates/location, and shared Markdown description/memo. Adjust typography and spacing in `ProfileEntry`; company logos and education's `GraduationCap` use the same `ProfileEntryIcon` frame. |
 | Persistent announcements | `AnnouncementQueue` + `AnnouncementCard` from `src/components/common/`: register notices with stable IDs, publication dates, localized titles/descriptions and optional image/text/icon media. An optional `action` accepts `label` plus either `href` or `onClick`, rendered as a full-width `MuteButton` below the description with a 20px gap. Omit it for the original button-free layout. The Welcome action opens the current workspace’s new-position page through `buildOrgHref`. Display unread, published notices oldest first, one at a time; X advances to the next, up to three per browser-document visit (including client-side navigation). Reloading starts the next visit. Each displayed item is atomically recorded in `user_announcement_receipts` for the account; unopened items remain unread. Use a 320px maximum width, `rounded-lg`, no shadow, a medium-weight title, shared title/body text color and inherited line height; leave 24px above the description and 32px below it. No focus capture or auto-dismiss; safe areas, short viewports and reduced motion are supported. `AnnouncementCard` always gives its media area a `bg-primary-faded` background and `rounded-md` corners. `HarperAnnouncementVisual` shows only a centered 96px Harper face in a 112px-high area, without extra icons or rings. The Welcome preview button in `/org/home` Dev controls opens the same card repeatedly without reading or writing announcement receipts. Company-side notices live in `src/components/org/announcements.tsx`, using Org translation keys and `org-` notice IDs. Automatic display mounts only on the authenticated, fully loaded `/org/home` workspace after onboarding. Other Org pages, `/career` (including its preview), and public/login pages do not mount this queue. Leaving home dismisses the displayed card; its receipt remains recorded. |
 | Calibration 평가 상태 (목록·상세) | `OrgCalibrationReviewBadge` from `src/components/org/role-overview/OrgCalibrationReviewBadge.tsx` |
 | Org internal-only surfaces | `InternalOnlySurface` / `InternalOnlyHatch` from `src/components/org/internal/InternalOnlySurface.tsx`: reuse the same decorative, pointer-transparent hatch for Harper-only sections and controls. Table/mobile rows use `INTERNAL_ONLY_HATCH_BACKGROUND` through `OrgTalentTableRow.internalOnly`; mark individual internal rows even in mixed lists. These indicators do not grant access; preserve the existing account gates. |
@@ -325,6 +338,7 @@ Shared component catalog:
 | Career blocked companies | `CareerBlockedCompaniesSettingsSection` from `src/components/career/CareerProfileSettingsSection.tsx`; reuses the existing blocked-company field and immediate add/remove save actions. Place it below the Search Brief at `/career/brief`, using `CareerProfileWorkspace view="brief"` without profile in-page tabs. |
 | Career profile visibility | `CareerProfileSharingSettingsSection` from `src/components/career/CareerProfileSettingsSection.tsx`; show it only at `/career/profile`, above the profile content, with `showBlockedCompanies`, `showEngagementTypes`, and `showLastUpdated` set to `false`. Reuse the existing confirmation and save flow. Compose option hints with shadcn `Tooltip` and `showArrow` as rounded black bubbles above the buttons; an unselected Open to matches option keeps a compact `65%` hint visible only while its scroll container is at the top. Hover or focus opens the full explanation at any scroll position. |
 | `/career` and ordinary `/org` modals, confirmations, or bottom sheets | `TalentCareerModal` from `src/components/common/TalentCareerModal.tsx`; use `mobileBottomSheet` for ordinary Org modals. |
+| Ops company side panels | `CompanySidePanelContent` in `src/components/ops/company/`: shared Dialog content layout for activity, conversation, and company editing; use the existing `Dialog` for state and keyboard/focus behavior. |
 | Dedicated Radix panel composition | `Dialog`, `DialogContent`, `DialogTitle`, and `DialogDescription` from `src/components/ui/dialog.tsx` for UI that requires a dedicated layout, such as the Career/Org mobile navigation drawers and full-screen interview-availability editor. |
 
 For a `/career` or `/org` confirmation, compose the title, description, body feedback,
@@ -486,3 +500,11 @@ Shared `Checkbox` sizes are 16/20/24px (small/medium/large), with `rounded-xs` a
 Org candidate progress uses `ProgressFeed` with `icon="harper"` for Harper-authored introduction and follow-up events. It renders the decorative `/svgs/face.svg`; localized event copy is selected by `kind` in `harperProgressPresentation.ts`, including other-role history.
 
 Org Intro follow-up guidance is derived once per Intro request from `company_talent_followups` through `automaticFollowupFeed.ts`. Automatic initial schedule/date-anchor progress is omitted from the user feed; explicit scheduling changes and delivery receipts remain separate events.
+
+Ops 회사 화면은 `CompanyAnalytics`를 전체·회사별 통계에 재사용한다. 회사 목록은
+카드 없이 가로 행과 얇은 구분선으로 구성하고, 팀원·역할·지표를 같은 상세 화면에
+배치한다. `CompanyConversationsTab`은 공통 `Dialog`의 오른쪽 패널 구성을 재사용한다.
+데스크톱에서는 대화를 유지한 채 옆에 스레드를 열고, 좁은 화면에서는 스레드만 표시한다.
+`CompanyConversationHistory`는 원문 순서의 대화 목록, 선택한 스레드, 이전 메시지 로딩과
+스크롤 위치를 관리한다. `CompanyConversationMessage`는 `MarkdownView`, 작은 Harper 얼굴,
+연속 작성자 묶음과 날짜 구분을 공유한다. 저장된 정보만 표시하며 발송 UI는 두지 않는다.

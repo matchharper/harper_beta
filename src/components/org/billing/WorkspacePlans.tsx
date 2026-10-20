@@ -50,6 +50,7 @@ export function WorkspacePlans({
       price: "$0",
       detail: c("이용료 없음", "No monthly fee"),
       features: [
+        c("카드 등록 필요없음", "No card needed"),
         c("Role 무제한", "Unlimited Roles"),
         c("모든 Role이 함께 쓰는 월 10 Intro", "10 shared Intros every month"),
         c("Slack 연결 지원", "Slack integration included"),

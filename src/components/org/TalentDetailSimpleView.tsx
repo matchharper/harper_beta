@@ -5,6 +5,9 @@ import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
+  BriefcaseBusiness,
+  CalendarDays,
+  MapPin,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +32,7 @@ import { OrgIntroEmailFeedCard } from "@/components/progress-feed/OrgIntroEmailF
 import { MuteButton } from "@/components/ui/button";
 
 import { Tabs } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AcceptIntroDialog,
   StopCandidateDialog,
@@ -98,6 +102,10 @@ import type {
   OrgTalentDetailResponse,
 } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import {
+  formatProfileDuration,
+  getProfileCareerSummary,
+} from "@/lib/org/profileCareerSummary";
 import { useToastStore } from "@/store/useToastStore";
 import Face from "../common/Face";
 import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
@@ -117,20 +125,16 @@ const RESOURCE_LINK_KIND_ORDER: Record<ResourceLinkKind, number> = {
   other: 4,
 };
 
-function OrgInternalTalentLoading() {
-  const { c } = useOrgLocale();
-  return (
-    <div className="flex min-h-56 items-center justify-center text-[13px] font-light text-neutral-muted">
-      <LoaderCircle className="mr-2 size-4 animate-spin" />
-      {c("내부 데이터를 불러오는 중", "Loading internal data")}
-    </div>
-  );
-}
-
 const OrgInternalTalentPanel = dynamic(
   () => import("@/components/org/internal/OrgInternalTalentPanel"),
   {
-    loading: () => <OrgInternalTalentLoading />,
+    loading: () => (
+      <div aria-busy="true" className="space-y-4">
+        <Skeleton className="h-6 w-32" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    ),
     ssr: false,
   }
 );
@@ -149,13 +153,13 @@ function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
         height={64}
         unoptimized
         onError={() => setFailedImageSrc(profilePicture)}
-        className="h-9 w-9 rounded-full object-cover"
+        className="h-11 w-11 rounded-full object-cover"
       />
     );
   }
 
   return (
-    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -214,7 +218,7 @@ function getResourceLinkLabel(kind: ResourceLinkKind) {
   }
 }
 
-function ProfileSection({
+export function ProfileSection({
   children,
   title,
 }: {
@@ -222,9 +226,11 @@ function ProfileSection({
   title: string;
 }) {
   return (
-    <section>
-      <div className="mb-2 text-[12px] text-neutral-muted">{title}</div>
-      {children}
+    <section className="mb-12">
+      <div className="mb-2.5 font-medium text-[17px] text-black">{title}</div>
+      <div className="text-[15px] leading-6 text-neutral-primary">
+        {children}
+      </div>
     </section>
   );
 }
@@ -242,7 +248,7 @@ const profileMarkdownComponents: Components = {
     <h2 className="mt-4 text-[15px] font-medium first:mt-0">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="mt-3 text-[13px] font-medium first:mt-0">{children}</h3>
+    <h3 className="mt-3 text-sm font-medium first:mt-0">{children}</h3>
   ),
   li: ({ children }) => <li className="pl-1">{children}</li>,
   ol: ({ children }) => (
@@ -256,11 +262,11 @@ const profileMarkdownComponents: Components = {
 
 function MarkdownProfile({ value }: { value: string }) {
   if (!value.trim()) {
-    return <div className="text-[13px] text-neutral-muted">-</div>;
+    return <div className="text-sm text-neutral-800">-</div>;
   }
 
   return (
-    <div className="space-y-3 text-[13px] leading-6 text-neutral-primary">
+    <div className="space-y-3 text-sm leading-6 text-neutral-primary">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
@@ -298,19 +304,19 @@ function HarperMemoSection({
           {c("Harper 메모", "Harper notes")}
         </div>
         {isLoading ? (
-          <div className="mt-3 flex items-center text-[13px] text-neutral-muted">
-            <LoaderCircle className="mr-2 size-4 animate-spin" />
-            {c("메모를 불러오는 중", "Loading notes")}
+          <div aria-busy="true" className="mt-3 space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
           </div>
         ) : error ? (
-          <div className="mt-3 text-[13px] leading-5 text-critical">
+          <div className="mt-3 text-sm leading-5 text-critical">
             {error.message}
           </div>
         ) : sortedMemos.length > 0 ? (
           <div className="mt-3 space-y-3">
             {sortedMemos.map((memo) => (
               <div key={memo.id}>
-                <div className="whitespace-pre-wrap text-[14px] leading-6 text-neutral-primary">
+                <div className="whitespace-pre-wrap text-[14px] leading-5 text-neutral-primary">
                   {memo.content}
                 </div>
                 <div className="mt-1 text-[12px] text-neutral-muted">
@@ -321,7 +327,7 @@ function HarperMemoSection({
             ))}
           </div>
         ) : (
-          <div className="mt-2 text-[13px] text-neutral-muted">
+          <div className="mt-2 text-sm text-neutral-muted">
             {c("등록된 Harper 메모가 없습니다.", "No Harper notes found.")}
           </div>
         )}
@@ -362,9 +368,9 @@ function SystemActivitySummary({
     >
       <div className="relative z-20">
         {isLoading ? (
-          <div className="flex items-center text-[11px] text-neutral-soft">
-            <LoaderCircle className="mr-1.5 size-3 animate-spin" />
-            {c("시스템 활동을 불러오는 중", "Loading system activity")}
+          <div aria-busy="true" className="space-y-2">
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
           </div>
         ) : error ? (
           <div className="text-[11px] text-neutral-soft">
@@ -507,13 +513,14 @@ function ProfilePane({
     detail.criteriaEvaluations ??
     detail.companyPresentation?.criteriaEvaluations ??
     [];
+  const careerSummary = getProfileCareerSummary(detail.profile.experiences);
 
   return (
     <div className="min-w-0 space-y-7 px-2">
       <TalentProfileHeader
         avatar={<TalentAvatar name={name} src={detail.talent.profilePicture} />}
         headline={detail.talent.headline}
-        location={detail.profile.location}
+        // location={detail.profile.location}
         name={name}
         primaryResources={primaryResources}
         secondaryResources={secondaryResources}
@@ -535,25 +542,19 @@ function ProfilePane({
       {detail.companyPresentation ? (
         <>
           <ProfileSection title="TL;DR">
-            <p className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
-              {detail.companyPresentation.tldr}
-            </p>
+            {detail.companyPresentation.tldr}
           </ProfileSection>
           {detail.companyPresentation.harperNote ? (
             <ProfileSection title="Harper Note">
-              <p className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
-                {detail.companyPresentation.harperNote}
-              </p>
+              {detail.companyPresentation.harperNote}
             </ProfileSection>
           ) : null}
         </>
       ) : detail.recommendation.fitReason ? (
-        <ProfileSection title={c("", "")}>
-          <div className="flex items-center gap-2 pt-2 text-[15px] text-neutral-900">
-            <Face size={24} />
-            {c("Harper의 추천 이유", "Why Harper recommends")}
-          </div>
-          <div className="mt-4 mb-10 border-l-2 border-primary px-3 text-[13px] leading-6 text-neutral-primary">
+        <ProfileSection
+          title={c("Harper의 추천 이유", "Why Harper recommends")}
+        >
+          <div className="mt-4 mb-10 border-l-2 border-primary px-3">
             <MarkdownProfile
               value={convertSlackCandidateIntroToWebMarkdown(
                 detail.recommendation.fitReason
@@ -562,6 +563,43 @@ function ProfilePane({
           </div>
         </ProfileSection>
       ) : null}
+
+      <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 my-8 mb-12">
+        {[
+          {
+            label: c("위치", "Location"),
+            icon: MapPin,
+            value: detail.profile.location?.trim() || "—",
+          },
+          {
+            label: c("경력", "Experience"),
+            icon: CalendarDays,
+            value: formatProfileDuration(
+              careerSummary.experienceMonths,
+              locale
+            ),
+          },
+          {
+            label: c("마지막 이직", "Last job change"),
+            icon: BriefcaseBusiness,
+            value: formatProfileDuration(
+              careerSummary.lastMoveMonths,
+              locale,
+              true
+            ),
+          },
+        ].map(({ label, icon: Icon, value }) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-[14px] font-normal text-neutral-primary">
+              {label}
+            </dt>
+            <dd className="mt-2 flex items-start gap-2 text-[15px] leading-6 text-neutral-primary">
+              <Icon aria-hidden className="mt-1 size-4 shrink-0" />
+              <span className="min-w-0 break-words">{value}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
 
       {criteriaEvaluations.length > 0 ? (
         <ProfileSection title="">
@@ -578,9 +616,7 @@ function ProfilePane({
 
       {detail.profile.bio ? (
         <ProfileSection title={c("소개", "Intro")}>
-          <div className="whitespace-pre-wrap text-[13px] leading-6 text-neutral-primary">
-            {detail.profile.bio.trim()}
-          </div>
+          {detail.profile.bio.trim()}
         </ProfileSection>
       ) : null}
 
@@ -631,7 +667,7 @@ function CandidateDecisionActions({
         <div className="text-[16px] font-medium text-neutral-primary">
           {c("연결 대기 상태로 옮기시겠습니까?", "Move to Ready to connect?")}
         </div>
-        <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
+        <p className="mt-1 text-sm font-normal leading-5 text-neutral-muted">
           {c(
             "회사 측의 페이지에 현재 후보자가 표시되며, 회사 측에서 연결을 받을지 결정하는 단계로 넘어갑니다.",
             "The candidate appears on the company's page so the company can decide whether to accept the connection."
@@ -667,7 +703,7 @@ function CandidateDecisionActions({
             "End the ongoing process?"
           )}
         </div>
-        <p className="mt-1 text-[13px] font-normal leading-5">
+        <p className="mt-1 text-sm font-normal leading-5">
           {c(
             "연결을 종료하면 Harper가 후보자에게 회사의 종료 결정을 안내해요. 이미 보이거나 전달된 안내는 회수할 수 없어요.",
             "Ending the connection notifies the candidate that the company has ended the process. Messages already shown or sent cannot be recalled."
@@ -705,8 +741,8 @@ function CandidateDecisionActions({
       <div className="text-[16px] font-medium text-neutral-primary">
         {c("연결 여부를 결정해 주세요", "Decide whether to connect")}
       </div>
-      <p className="mt-1 text-[13px] font-normal leading-5 text-neutral-muted">
-        {c("{name}님과 연결을 진행할까요?", "Connect with {name}?", {
+      <p className="mt-1 text-sm font-normal text-neutral-muted">
+        {c("{name}님을 만나보시겠어요?", "{name}?", {
           name: candidateName,
         })}
       </p>
@@ -759,7 +795,7 @@ function CompanyIntroDecisionActions({
           {sourceT(humanizeOrgCompanyIntroStatus(detail.companyIntro))}
         </div>
         {!["closed", "passed"].includes(detail.companyIntro.status) && (
-          <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
+          <p className="mt-1 text-sm leading-5 text-neutral-muted">
             {detail.companyIntro.status === "connecting"
               ? c(
                   "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다.",
@@ -1237,7 +1273,7 @@ function FeedPanel({
         deleteError={feedError(deleteFeed.error)}
         draft={draft}
         editError={feedError(updateFeed.error)}
-        emptyLabel={c("아직 피드가 없습니다.", "No feed yet")}
+        emptyLabel={c("", "")}
         items={feedItems}
         labels={feedLabels}
         onDelete={
@@ -1453,7 +1489,7 @@ function TalentDetailPager({
         p1: navigation.total,
       })}
       className={cn(
-        "inline-flex shrink-0 overflow-hidden bg-bg-weak font-normal",
+        "inline-flex shrink-0 overflow-hidden bg-bg-weak/50 backdrop-blur-sm font-normal",
         compact ? "rounded-full" : "rounded-sm"
       )}
       role="group"
@@ -1463,7 +1499,7 @@ function TalentDetailPager({
         className="rounded-none border-0 border-r border-neutral-1000-a10 shadow-none"
         disabled={!navigation.previous}
         onClick={() => onNavigate(navigation.previous)}
-        size={compact ? "sm" : "md"}
+        size={compact ? "sm" : "lg"}
         variant="transparent"
       >
         <ChevronLeft aria-hidden className="size-4" />
@@ -1472,7 +1508,7 @@ function TalentDetailPager({
         aria-live="polite"
         className={cn(
           "flex items-center justify-center tabular-nums text-neutral-primary",
-          compact ? "min-w-12 px-2 text-[12px]" : "min-w-16 px-3 text-[14px]"
+          compact ? "min-w-12 px-2 text-[12px]" : "min-w-16 px-3 text-[16px]"
         )}
       >
         {navigation.position} / {navigation.total}
@@ -1482,7 +1518,7 @@ function TalentDetailPager({
         className="rounded-none border-0 border-l border-neutral-1000-a10 shadow-none"
         disabled={!navigation.next}
         onClick={() => onNavigate(navigation.next)}
-        size={compact ? "sm" : "md"}
+        size={compact ? "sm" : "lg"}
         variant="transparent"
       >
         <ChevronRight aria-hidden className="size-4" />
@@ -1753,9 +1789,17 @@ export function TalentDetailSimpleView() {
         onClose={handleClose}
         ariaLabel={title}
         showCloseButton={false}
-        overlayClassName="z-[70] items-stretch justify-end p-0 sm:px-0"
+        // Adjust only --candidate-profile-width to resize the desktop profile pane.
+        // The feed stays 480px; the panel is capped at the available viewport width.
+        overlayClassName="z-[70] items-stretch justify-end overflow-hidden p-0 sm:px-0 [--candidate-profile-width:calc(80vw-480px)] [--candidate-feed-width:480px]"
         backdropClassName="z-[70] bg-black/35 backdrop-blur-none"
-        panelClassName="h-dvh max-h-none max-w-none min-w-0 rounded-none border-0 pb-[env(safe-area-inset-bottom)] sm:w-[92vw] md:w-[90vw] md:pb-0 data-[state=open]:slide-in-from-right-6"
+        panelClassName={cn(
+          "h-dvh max-h-none max-w-full min-w-0 rounded-none border-0 pb-[env(safe-area-inset-bottom)] sm:w-[92vw] md:w-[calc(var(--candidate-profile-width)+var(--candidate-feed-width))] md:pb-0",
+          "duration-150 ease-out data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100",
+          "max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom",
+          "md:data-[state=open]:slide-in-from-right md:data-[state=closed]:slide-out-to-right",
+          "motion-reduce:data-[state=open]:animate-none motion-reduce:data-[state=closed]:animate-none"
+        )}
         bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <div className="shrink-0 border-b border-neutral-1000-a05 bg-bg-default md:hidden">
@@ -1828,7 +1872,7 @@ export function TalentDetailSimpleView() {
           </div>
         </div>
 
-        <div className="hidden shrink-0 items-center justify-between border-b border-neutral-1000-a05 bg-bg-default px-5 py-3 font-normal md:flex">
+        <div className="hidden shrink-0 items-center justify-between border-b border-neutral-1000-a05 px-5 py-3 font-normal md:flex">
           {detailNavigation ? (
             <div className="flex min-w-0 items-center gap-3">
               <TalentDetailPager
@@ -1837,7 +1881,7 @@ export function TalentDetailSimpleView() {
               />
               {resolvedTalentNavigationLabel ? (
                 <div
-                  className="max-w-[min(40vw,320px)] truncate text-[13px] font-normal text-neutral-muted"
+                  className="max-w-[min(40vw,320px)] truncate text-sm font-normal text-neutral-muted"
                   title={resolvedTalentNavigationLabel}
                 >
                   {resolvedTalentNavigationLabel}
@@ -1865,10 +1909,38 @@ export function TalentDetailSimpleView() {
           </MuteButton>
         </div>
 
-        {isLoading ? (
-          <div className="flex flex-1 items-center justify-center text-[13px] text-neutral-muted">
-            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-            {c("불러오는 중", "Loading")}
+        {!detail && !error ? (
+          <div
+            aria-busy="true"
+            className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_var(--candidate-feed-width)]"
+          >
+            <div className="space-y-8 overflow-y-auto p-4 sm:p-5">
+              <div className="flex items-center gap-4">
+                <Skeleton className="size-16 shrink-0 rounded-full" />
+                <div className="flex-1 space-y-3">
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              </div>
+              {[0, 1, 2].map((section) => (
+                <div key={section} className="space-y-3">
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                  <Skeleton className="h-4 w-3/5" />
+                </div>
+              ))}
+            </div>
+            <div className="hidden space-y-6 overflow-y-auto border-l border-neutral-1000-a05 p-5 md:block">
+              <Skeleton className="h-8 w-28" />
+              {[0, 1, 2].map((item) => (
+                <div key={item} className="space-y-3">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : error ? (
           <OrgErrorState
@@ -1877,7 +1949,7 @@ export function TalentDetailSimpleView() {
             onRetry={onRetry}
           />
         ) : detail ? (
-          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_480px]">
+          <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[minmax(0,1fr)_var(--candidate-feed-width)]">
             <div className="min-h-0 overflow-y-auto">
               <div className="bg-bg-default px-4 py-2 md:hidden">
                 <Tabs
@@ -1913,7 +1985,7 @@ export function TalentDetailSimpleView() {
                   <div className="flex">
                     <MuteButton
                       className={cn(
-                        "rounded-none border-b-2 px-3 text-[13px]",
+                        "rounded-none border-b-2 px-3 text-sm",
                         profileTab === "profile"
                           ? "border-neutral-1000 text-neutral-primary"
                           : "border-transparent text-neutral-muted"
@@ -1926,7 +1998,7 @@ export function TalentDetailSimpleView() {
                     </MuteButton>
                     <MuteButton
                       className={cn(
-                        "relative isolate overflow-hidden rounded-none border-b-2 px-3 text-[13px]",
+                        "relative isolate overflow-hidden rounded-none border-b-2 px-3 text-sm",
                         profileTab === "internal"
                           ? "border-neutral-1000 text-neutral-primary"
                           : "border-transparent text-neutral-muted"
@@ -2090,7 +2162,7 @@ export function TalentDetailSimpleView() {
         }
         backdropClassName={"z-[80]"}
       >
-        <div className="mt-1 text-[13px] leading-5 text-neutral-primary">
+        <div className="mt-1 text-sm leading-5 text-neutral-primary">
           {c(
             "이 자료는 채용 검토 목적으로만 사용하고 회사 외부에 공유하지 마세요.",
             "This material is for hiring review only. Do not share outside the company."

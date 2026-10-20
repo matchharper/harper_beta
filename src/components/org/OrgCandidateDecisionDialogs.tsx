@@ -389,9 +389,6 @@ export function AcceptIntroDialog({
           onSubmit={handleSubmit}
         >
           <fieldset className="space-y-1" disabled={pending}>
-            <legend className="mb-2 text-[12px] font-medium text-neutral-primary">
-              {c("어떻게 연결할까요?", "How would you like to connect?")}
-            </legend>
             {(
               [
                 [
@@ -1079,7 +1076,7 @@ export function StopCandidateDialog({
             id={stopNoteHelpId}
           >
             {c(
-              "다음 추천을 개선하는 데 참고합니다. 후보자에게는 공유되지 않아요.",
+              "다음 추천을 개선하는 데 참고합니다. 후보자에게는 공유되지 않습니다.",
               "Used to improve future recommendations. Not shared with the candidate."
             )}
           </p>

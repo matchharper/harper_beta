@@ -1,9 +1,11 @@
 import { cx, opsTheme } from "@/components/ops/theme";
-import { Building2 } from "lucide-react";
+import { Building2, GraduationCap } from "lucide-react";
+import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
+import { ProfileSection } from "../org/TalentDetailSimpleView";
 
 export type TalentExperienceItem = {
   companyLogo?: string | null;
@@ -122,7 +124,7 @@ export function TalentProfileDescriptionMarkdown({
   if (!trimmedValue) return null;
 
   return (
-    <div className="mt-2 max-w-none text-[13px] leading-5 text-neutral-muted">
+    <div className="mt-2 max-w-none text-[14px] leading-5 text-neutral-800">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
@@ -141,9 +143,69 @@ export function TalentProfileMemo({ value }: { value?: string | null }) {
 
   return (
     <div className="mt-3 px-1 py-2">
-      <div className="mb-1 text-[12px] text-primary">{t("profile.note", "Harper 메모")}</div>
+      <div className="mb-1 text-[12px] text-primary">
+        {t("profile.note", "Harper 메모")}
+      </div>
       <div className="whitespace-pre-wrap break-words text-[13px] leading-5 text-neutral-primary">
         {trimmedValue}
+      </div>
+    </div>
+  );
+}
+
+function ProfileEntryIcon({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative flex size-7 sm:size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-floating text-sm font-medium text-neutral-muted">
+      {children}
+    </div>
+  );
+}
+
+/** Shared typography and spacing, based on the experience entry. */
+function ProfileEntry({
+  title,
+  metadata,
+  period,
+  location,
+  icon,
+  description,
+  memo,
+}: {
+  title: string;
+  metadata?: string | null;
+  period?: string | null;
+  location?: string | null;
+  icon?: ReactNode;
+  description?: string | null;
+  memo?: string | null;
+}) {
+  return (
+    <div className={cx(opsTheme.panelSoft, "py-3")}>
+      <div className="flex items-start gap-3">
+        {icon}
+        <div className="min-w-0 flex-1 font-normal">
+          <div className="text-[15px] font-medium text-neutral-primary">
+            {title}
+          </div>
+          {metadata ? (
+            <div className="mt-1 text-[15px] text-neutral-primary">
+              {metadata}
+            </div>
+          ) : null}
+          {[period, location].map((value, index) =>
+            value ? (
+              <div key={index} className="mt-1 text-sm text-neutral-muted">
+                {value}
+              </div>
+            ) : null
+          )}
+          {description?.trim() ? (
+            <div className="mt-3">
+              <TalentProfileDescriptionMarkdown value={description} />
+            </div>
+          ) : null}
+          <TalentProfileMemo value={memo} />
+        </div>
       </div>
     </div>
   );
@@ -160,7 +222,7 @@ function ExperienceCompanyLogo({
   const normalizedLogoUrl = logoUrl?.trim();
 
   return (
-    <div className="relative flex size-7 sm:size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-neutral-1000-a05 bg-bg-floating text-sm font-medium text-neutral-muted">
+    <ProfileEntryIcon>
       {<Building2 className="h-4 w-4 text-black/30" />}
       {normalizedLogoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -168,7 +230,9 @@ function ExperienceCompanyLogo({
           src={normalizedLogoUrl}
           alt={
             companyName
-              ? t("profile.companyLogoNamed", "{companyName} 로고", { companyName })
+              ? t("profile.companyLogoNamed", "{companyName} 로고", {
+                  companyName,
+                })
               : t("profile.companyLogo", "회사 로고")
           }
           className="absolute inset-0 h-full w-full bg-bg-floating object-contain"
@@ -177,7 +241,7 @@ function ExperienceCompanyLogo({
           }}
         />
       ) : null}
-    </div>
+    </ProfileEntryIcon>
   );
 }
 
@@ -190,43 +254,42 @@ export function TalentEducationSection({
   if (educations.length === 0) return null;
 
   return (
-    <div>
-      <div className={cx(opsTheme.eyebrow, "mb-2")}>
-        {t("profile.education", "학력")}
-      </div>
+    <ProfileSection title={t("profile.education", "학력")}>
       <div className="space-y-2">
         {educations.map((education, index) => {
-          const period = formatProfilePeriod(education, t("profile.current", "현재"));
+          const period = formatProfilePeriod(
+            education,
+            t("profile.current", "현재")
+          );
           const educationMeta = [education.degree, education.field]
             .map((value) => value?.trim())
             .filter(Boolean)
             .join(", ");
 
           return (
-            <div
+            <ProfileEntry
               key={index}
-              className={cx(opsTheme.panelSoft, "py-2 font-normal")}
-            >
-              <div className="min-w-0 text-[15px] text-neutral-primary">
-                {education.school?.trim() || t("profile.unknownSchool", "학교 미상")}
-              </div>
-              {educationMeta ? (
-                <div className="mt-1 text-[13px] text-neutral-muted">
-                  {educationMeta}
-                </div>
-              ) : null}
-              {period ? (
-                <div className="mt-1 text-[13px] text-neutral-soft">
-                  {period}
-                </div>
-              ) : null}
-              <TalentProfileDescriptionMarkdown value={education.description} />
-              <TalentProfileMemo value={education.memo} />
-            </div>
+              title={
+                education.school?.trim() ||
+                t("profile.unknownSchool", "학교 미상")
+              }
+              metadata={educationMeta}
+              period={period}
+              icon={
+                <ProfileEntryIcon>
+                  <GraduationCap
+                    aria-hidden
+                    className="h-4 w-4 text-black/30"
+                  />
+                </ProfileEntryIcon>
+              }
+              description={education.description}
+              memo={education.memo}
+            />
           );
         })}
       </div>
-    </div>
+    </ProfileSection>
   );
 }
 
@@ -235,27 +298,19 @@ export function TalentExtraSection({ extras }: { extras: TalentExtraItem[] }) {
   if (extras.length === 0) return null;
 
   return (
-    <div>
-      <div className={cx(opsTheme.eyebrow, "mb-2")}>{t("profile.other", "기타")}</div>
+    <ProfileSection title={t("profile.other", "기타")}>
       <div className="space-y-2">
         {extras.map((extra, index) => (
-          <div key={index} className={cx(opsTheme.panelSoft, "py-2")}>
-            <div className="flex flex-col items-start justify-between gap-1 font-normal">
-              <div className="min-w-0 text-[15px] text-neutral-primary">
-                {extra.title?.trim() || t("profile.untitled", "제목 없음")}
-              </div>
-              {extra.date ? (
-                <div className="shrink-0 text-[12px] text-neutral-soft">
-                  {extra.date}
-                </div>
-              ) : null}
-            </div>
-            <TalentProfileDescriptionMarkdown value={extra.description} />
-            <TalentProfileMemo value={extra.memo} />
-          </div>
+          <ProfileEntry
+            key={index}
+            title={extra.title?.trim() || t("profile.untitled", "제목 없음")}
+            period={extra.date}
+            description={extra.description}
+            memo={extra.memo}
+          />
         ))}
       </div>
-    </div>
+    </ProfileSection>
   );
 }
 
@@ -268,10 +323,7 @@ export function TalentExperienceSection({
   if (experiences.length === 0) return null;
 
   return (
-    <div>
-      <div className={cx(opsTheme.eyebrow, "mb-2")}>
-        {t("profile.experience", "경력")}
-      </div>
+    <ProfileSection title={t("profile.experience", "경력")}>
       <div className="space-y-2">
         {experiences.map((experience, index) => {
           const period = formatExperiencePeriod(
@@ -285,41 +337,26 @@ export function TalentExperienceSection({
             .join(" · ");
 
           return (
-            <div key={index} className={cx(opsTheme.panelSoft, "py-3")}>
-              <div className="flex items-start gap-3">
+            <ProfileEntry
+              key={index}
+              title={
+                experience.role?.trim() || t("profile.unknownRole", "역할 미상")
+              }
+              metadata={companyMeta}
+              period={period}
+              location={location}
+              icon={
                 <ExperienceCompanyLogo
                   companyName={experience.companyName}
                   logoUrl={experience.companyLogo}
                 />
-                <div className="min-w-0 flex-1 font-normal">
-                  <div className="text-[15px] font-medium text-neutral-primary">
-                    {experience.role?.trim() || t("profile.unknownRole", "역할 미상")}
-                  </div>
-                  {companyMeta ? (
-                    <div className="mt-1 text-[14px] text-neutral-primary">
-                      {companyMeta}
-                    </div>
-                  ) : null}
-                  {period ? (
-                    <div className="mt-1 text-[13px] text-neutral-muted">
-                      {period}
-                    </div>
-                  ) : null}
-                  {location ? (
-                    <div className="mt-1 text-[13px] text-neutral-muted">
-                      {location}
-                    </div>
-                  ) : null}
-                  <TalentProfileDescriptionMarkdown
-                    value={experience.description}
-                  />
-                  <TalentProfileMemo value={experience.memo} />
-                </div>
-              </div>
-            </div>
+              }
+              description={experience.description}
+              memo={experience.memo}
+            />
           );
         })}
       </div>
-    </div>
+    </ProfileSection>
   );
 }
