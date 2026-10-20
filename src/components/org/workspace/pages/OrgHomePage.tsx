@@ -383,8 +383,7 @@ export function OrgHomePage() {
         orgId: workspaceId,
         page: roleId && roleId !== "all" ? "role" : "jobs",
         roleId: roleId || "all",
-        tab: roleId && roleId !== "all" ? "pipeline" : undefined,
-        view: roleId && roleId !== "all" ? "pipeline" : null,
+        tab: roleId && roleId !== "all" ? "inbox" : undefined,
       })
     );
   };

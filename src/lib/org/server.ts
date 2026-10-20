@@ -59,7 +59,7 @@ import {
   normalizeOrgMembershipRole,
   type OrgMembershipRole,
 } from "@/lib/org/permissions";
-import { getOrgImplicitAcceptanceStage } from "@/lib/org/recommendationStage";
+import { getVisibleOrgStage, STAGE_TAG_BY_STAGE } from "@/lib/org/visibleStage";
 import {
   normalizeOrgRoleStatus,
   parseOrgRoleMutationStatus,
@@ -431,6 +431,7 @@ export type OrgBoardProfileLabel = {
 export type OrgBoardTalent = {
   email: string | null;
   headline: string | null;
+  location?: string | null;
   name: string | null;
   profilePicture: string | null;
   recentCompanies: OrgBoardProfileLabel[];
@@ -468,6 +469,7 @@ export type OrgBoardItem = {
   createdAt: string;
   fitReasons: string[];
   fitSummary: string | null;
+  recommendationScore?: number | null;
   recommendedAt: string;
   recommendationId: string;
   processClosureNoticeUnresolved: boolean;
@@ -805,25 +807,7 @@ const ORG_BOARD_MAX_RECOMMENDATION_COUNT = 800;
 const ORG_BOARD_STAGE_DEPENDENCY_CAP = 1_000;
 export const ORG_ACCEPTED_TALENTS_PAGE_SIZE = 20;
 const MAX_ORG_ROLE_STAGE_LABEL_LENGTH = 40;
-const INTERNAL_ACCEPTED_STAGE_TAG = "내부:수락";
-const STAGE_TAG_BY_STAGE: Record<
-  Exclude<OrgBuiltInStageId, "company_intro" | "intro_requested">,
-  string
-> = {
-  accepted: INTERNAL_ACCEPTED_STAGE_TAG,
-  archived: "내부:아카이브",
-  pending_connection: "내부:연결대기",
-  connected: "내부:연결됨",
-  final_offer: "내부:최종오퍼",
-  process_stopped: "내부:프로세스중단",
-};
 const EXTRA_INTERNAL_STAGE_TAGS = ["내부:보류", "내부:추천", "내부:거절"];
-const STAGE_BY_TAG_KEY = new Map(
-  Object.entries(STAGE_TAG_BY_STAGE).map(([stage, tag]) => [
-    normalizeTagKey(tag),
-    stage as OrgBuiltInStageId,
-  ])
-);
 
 function normalizeText(value: unknown) {
   return String(value ?? "")
@@ -1083,6 +1067,7 @@ function toBoardTalent(
   return {
     email: row.email ?? null,
     headline: row.headline ?? null,
+    location: resolveTalentLocation(row),
     name: row.name ?? null,
     profilePicture: row.profile_picture ?? null,
     recentCompanies: profileLabels?.recentCompanies ?? [],
@@ -1364,58 +1349,6 @@ function stageSortOrder(stage: OrgStageId, customStages: RoleStageRow[]) {
   return 100 + (row?.sort_order ?? 0);
 }
 
-function getVisibleOrgStage(args: {
-  connectedByOrgAction: boolean;
-  customStageByTagKey: ReadonlyMap<string, OrgCustomStageId>;
-  feedback: string | null | undefined;
-  includeInternalAccepted: boolean;
-  isInternalRecommendation: boolean;
-  savedStage: string | null | undefined;
-  tags: TalentOpportunityTagRow[];
-}): { stage: OrgStageId; stageTag: string | null } | null {
-  for (const tag of args.tags) {
-    const tagKey = normalizeTagKey(tag.tag);
-    if (tagKey === normalizeTagKey(INTERNAL_ACCEPTED_STAGE_TAG)) {
-      if (args.connectedByOrgAction) {
-        return { stage: "connected", stageTag: tag.tag };
-      }
-      return args.includeInternalAccepted
-        ? { stage: "accepted", stageTag: tag.tag }
-        : null;
-    }
-    const builtIn = STAGE_BY_TAG_KEY.get(tagKey);
-    if (builtIn) {
-      if (isOrgInternalStage(builtIn) && !args.includeInternalAccepted) {
-        return null;
-      }
-      return { stage: builtIn, stageTag: tag.tag };
-    }
-    if (tagKey === normalizeTagKey("내부:연결됨")) {
-      return { stage: "connected", stageTag: tag.tag };
-    }
-
-    const custom = args.customStageByTagKey.get(tagKey);
-    if (custom) return { stage: custom, stageTag: tag.tag };
-
-    if (
-      tagKey === normalizeTagKey("내부:거절") ||
-      tagKey === normalizeTagKey("내부:보류")
-    ) {
-      return null;
-    }
-  }
-
-  const implicitAcceptanceStage = getOrgImplicitAcceptanceStage({
-    connectedByOrgAction: args.connectedByOrgAction,
-    feedback: args.feedback,
-    includeInternalAccepted: args.includeInternalAccepted,
-    isInternalRecommendation: args.isInternalRecommendation,
-    savedStage: args.savedStage,
-  });
-  return implicitAcceptanceStage
-    ? { stage: implicitAcceptanceStage, stageTag: null }
-    : null;
-}
 
 function buildMember(
   membership: CompanyUserWorkspaceRow,
@@ -2684,7 +2617,7 @@ async function fetchTagsForBoard(args: {
   return map;
 }
 
-async function fetchCriteriaEvaluationsForBoard(args: {
+async function fetchFitDetailsForBoard(args: {
   admin: SupabaseAdminClient;
   recommendationRows: Array<Pick<RecommendationRow, "role_id" | "talent_id">>;
 }) {
@@ -2694,7 +2627,11 @@ async function fetchCriteriaEvaluationsForBoard(args: {
     talentIds.push(row.talent_id);
     talentIdsByRoleId.set(row.role_id, talentIds);
   }
-  if (!talentIdsByRoleId.size) return new Map<string, OrgCompanyCriteriaEvaluation[]>();
+  const scoresByKey = new Map<string, number | null>();
+  if (!talentIdsByRoleId.size) return {
+    evaluationsByKey: new Map<string, OrgCompanyCriteriaEvaluation[]>(),
+    scoresByKey,
+  };
   const { currentCompanyCriteriaEvaluations } = await import("@/lib/companyFirstSearch/presentation");
   const currentRolesPromise = (args.admin.from("company_internal_roles" as any) as any)
     .select("role_id,criteria").in("role_id", [...talentIdsByRoleId.keys()]);
@@ -2706,7 +2643,7 @@ async function fetchCriteriaEvaluationsForBoard(args: {
           args.admin.from("talent_opportunity_fit" as any) as any
         )
           .select(
-            "id, opportunity_id, talent_id, company_criteria_evaluations, last_evaluated_at, created_at"
+            "id, opportunity_id, talent_id, score, company_criteria_evaluations, last_evaluated_at, created_at"
           )
           .eq("opportunity_id", roleId)
           .in("talent_id", talentIdChunk)
@@ -2721,6 +2658,7 @@ async function fetchCriteriaEvaluationsForBoard(args: {
         return (data ?? []) as Array<
           Pick<
             TalentOpportunityFitRow,
+            | "score"
             | "company_criteria_evaluations"
             | "created_at"
             | "id"
@@ -2777,6 +2715,7 @@ async function fetchCriteriaEvaluationsForBoard(args: {
   for (const row of results.flat()) {
     const key = `${row.talent_id}:${row.opportunity_id}`;
     if (evaluationsByKey.has(key)) continue;
+    scoresByKey.set(key, typeof row.score === "number" && Number.isFinite(row.score) ? row.score : null);
     evaluationsByKey.set(
       key,
       normalizeOrgCompanyCriteriaEvaluations(
@@ -2802,7 +2741,7 @@ async function fetchCriteriaEvaluationsForBoard(args: {
       currentCompanyCriteriaEvaluations(row.metadata?.companyPresentation?.criteriaEvaluations,criteriaByRole.get(row.role_id) ?? [])
     ).slice(0,6));
   }
-  return evaluationsByKey;
+  return { evaluationsByKey, scoresByKey };
 }
 
 async function fetchOrgConnectedRecommendationIds(args: {
@@ -2956,7 +2895,7 @@ async function fetchTalentRows(
   const results = await Promise.all(
     chunkValues(uniqueTexts(talentIds)).map(async (talentIdChunk) => {
       const { data, error } = await (admin.from("talent_users" as any) as any)
-        .select("user_id, email, name, profile_picture, headline")
+        .select("user_id, email, name, profile_picture, headline, location, current_location")
         .in("user_id", talentIdChunk)
         .is("deleted_at", null);
       if (error) throw error;
@@ -3259,7 +3198,7 @@ export async function fetchOrgBoard(args: {
     tagsByKey,
     profileLabels,
     connectedRecommendationIds,
-    criteriaEvaluationsByKey,
+    { evaluationsByKey: criteriaEvaluationsByKey, scoresByKey: recommendationScoresByKey },
     processClosureNoticeAtByRecommendation,
     upcomingMeetingsByRecommendation,
   ] = await Promise.all([
@@ -3277,7 +3216,7 @@ export async function fetchOrgBoard(args: {
           recommendationIds: recommendationRows.map((row) => row.id),
         })
       : fetchOrgConnectedRecommendationIds({ admin, roleIds }),
-    fetchCriteriaEvaluationsForBoard({ admin, recommendationRows: [...recommendationRows,...companyIntroRows] }),
+    fetchFitDetailsForBoard({ admin, recommendationRows: [...recommendationRows,...companyIntroRows] }),
     fetchLatestProcessClosureNoticeAtByRecommendation({
       admin,
       recommendationIds: recommendationRows.flatMap((row) =>
@@ -3374,6 +3313,7 @@ export async function fetchOrgBoard(args: {
           createdAt: row.created_at,
           fitReasons: coerceJsonStringList(row.fit_reasons),
           fitSummary: row.fit_summary ?? null,
+          recommendationScore: recommendationScoresByKey.get(`${row.talent_id}:${row.role_id}`) ?? null,
           recommendedAt: row.recommended_at,
           recommendationId: row.id,
           processClosureNoticeUnresolved: isOrgProcessClosureNoticeUnresolved({
@@ -3454,6 +3394,7 @@ export async function fetchOrgBoard(args: {
         createdAt: row.created_at,
         fitReasons: [],
         fitSummary: row.selection_reason,
+        recommendationScore: recommendationScoresByKey.get(`${row.talent_id}:${row.role_id}`) ?? null,
         recommendedAt: row.selected_at,
         recommendationId: `${COMPANY_INTRO_RECOMMENDATION_PREFIX}${row.id}`,
         processClosureNoticeUnresolved: false,
@@ -6584,7 +6525,7 @@ export async function fetchOrgTalentDetail(args: {
     introEmails,
     meetingSchedulesResult,
     processClosureNotifications,
-    criteriaEvaluationsByKey,
+    { evaluationsByKey: criteriaEvaluationsByKey },
     automaticFollowups,
   ] = await Promise.all([
     (admin.from("talent_users" as any) as any)
@@ -6695,7 +6636,7 @@ export async function fetchOrgTalentDetail(args: {
           talentId,
         })
       : Promise.resolve(new Map()),
-    fetchCriteriaEvaluationsForBoard({
+    fetchFitDetailsForBoard({
       admin,
       recommendationRows: [recommendation],
     }),

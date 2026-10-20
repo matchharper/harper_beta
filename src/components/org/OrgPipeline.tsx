@@ -1,7 +1,13 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
-import { type DragEvent, type FormEvent, useMemo, useState } from "react";
+import {
+  type DragEvent,
+  type FormEvent,
+  type ReactNode,
+  useMemo,
+  useState,
+} from "react";
 import { opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import {
@@ -57,7 +63,11 @@ function getCustomStageDbId(stageId: OrgStageId) {
   return stageId.startsWith("custom:") ? stageId.slice("custom:".length) : "";
 }
 
-export function OrgPipeline() {
+export function OrgPipeline({
+  displayControl,
+}: {
+  displayControl?: ReactNode;
+}) {
   const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const { board, boardQuery, profileLabelsError, profileLabelsLoading } =
@@ -83,6 +93,9 @@ export function OrgPipeline() {
   const members = bootstrap.members;
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
+  const [expandedStoppedRoleId, setExpandedStoppedRoleId] = useState<
+    string | null
+  >(null);
   const [dragOverStage, setDragOverStage] = useState<OrgStageId | null>(null);
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
@@ -341,6 +354,8 @@ export function OrgPipeline() {
       activeRoleId !== "all" &&
       stage.id === lastPreOfferStageId;
     const isInternalAcceptedStage = stage.id === "accepted";
+    const isStoppedStage = stage.id === "process_stopped";
+    const collapsed = isStoppedStage && expandedStoppedRoleId !== activeRoleId;
 
     return (
       <ReviewPipelineColumnShell
@@ -365,87 +380,111 @@ export function OrgPipeline() {
         isDropTarget={isDropTarget}
         tone={stage.id === "process_stopped" ? "rejected" : "default"}
         className={cn(
-          "!flex !h-full !min-h-0 !w-[280px] !flex-col !border-0 !bg-transparent !ring-0",
+          "!flex !h-full !min-h-0 !w-[320px] !flex-col !border-0 !bg-transparent !ring-0",
           isInternalAcceptedStage && "relative isolate overflow-hidden"
         )}
       >
-        <ReviewPipelineColumnHeader
-          compact
-          className="shrink-0 !border-x-0"
-          count={items.length}
-          countPlacement="end"
-          description={sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? "")}
-          label={sourceT(stage.label)}
-          onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
-          onEdit={
-            isEditableCustomStage
-              ? () => openEditCustomStageDialog(stage)
-              : undefined
-          }
-          onDelete={
-            isEditableCustomStage
-              ? () => handleDeleteCustomStage(stage)
-              : undefined
-          }
-          pending={pendingCustomStageId === customStageId}
-        />
+        {isStoppedStage ? (
+          <MuteButton
+            type="button"
+            variant="transparent"
+            aria-expanded={!collapsed}
+            onClick={() =>
+              setExpandedStoppedRoleId(collapsed ? activeRoleId : null)
+            }
+            className="w-full shrink-0"
+          >
+            <span className="flex h-8 w-full items-center justify-between gap-2 text-sm font-normal">
+              <span>{sourceT(stage.label)}</span>
+              <span className="text-neutral-muted">{items.length}</span>
+            </span>
+          </MuteButton>
+        ) : (
+          <ReviewPipelineColumnHeader
+            compact
+            className="shrink-0 !border-x-0"
+            count={items.length}
+            countPlacement="end"
+            description={sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? "")}
+            label={sourceT(stage.label)}
+            onAdd={canAddCustomStage ? openCreateCustomStageDialog : undefined}
+            onEdit={
+              isEditableCustomStage
+                ? () => openEditCustomStageDialog(stage)
+                : undefined
+            }
+            onDelete={
+              isEditableCustomStage
+                ? () => handleDeleteCustomStage(stage)
+                : undefined
+            }
+            pending={pendingCustomStageId === customStageId}
+          />
+        )}
         {isInternalAcceptedStage ? <InternalOnlyHatch /> : null}
-        <div
-          className={cn(
-            "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 py-1.5 transition-colors",
-            isLastColumn && "border-r",
-            isDropTarget
-              ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
-              : canDrop
-                ? "bg-primary-faded/20"
-                : stage.id === "process_stopped"
-                  ? "bg-critical-faded/40"
-                  : "bg-bg-default"
-          )}
-        >
-          {isDropTarget && <ReviewPipelineDropTargetHint label={stage.label} />}
-          {items.map((item) => (
-            <div
-              key={item.recommendationId}
-              onDragStart={() => {
-                if (canManageCandidates) {
-                  setDraggedRecommendationId(item.recommendationId);
-                }
-              }}
-              onDragEnd={() => {
-                setDraggedRecommendationId(null);
-                setDragOverStage(null);
-              }}
-            >
-              <OrgCandidateCard
-                canManageCandidates={canManageCandidates}
-                internalOpsAccess={internalOpsAccess}
-                item={item}
-                onMove={requestMove}
-                onPass={setCompanyIntroPass}
-                onRequestIntro={(item) => setCompanyIntroRequest({ item })}
-                onSelect={(selectedItem) => {
-                  markViewed(selectedItem.recommendationId);
-                  onSelect(selectedItem, items, stage.label);
+        {!collapsed && (
+          <div
+            className={cn(
+              "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 py-1.5 transition-colors",
+              isLastColumn && "border-r",
+              isDropTarget
+                ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
+                : canDrop
+                  ? "bg-primary-faded/20"
+                  : stage.id === "process_stopped"
+                    ? "bg-critical-faded/40"
+                    : ""
+            )}
+          >
+            {isDropTarget && (
+              <ReviewPipelineDropTargetHint label={stage.label} />
+            )}
+            {items.map((item) => (
+              <div
+                key={item.recommendationId}
+                onDragStart={() => {
+                  if (canManageCandidates) {
+                    setDraggedRecommendationId(item.recommendationId);
+                  }
                 }}
-                pending={isCandidateStagePending(item)}
-                profileLabelsError={profileLabelsError}
-                profileLabelsLoading={profileLabelsLoading}
-                stages={board?.stages ?? []}
-                viewed={isViewed(item.recommendationId)}
-              />
-            </div>
-          ))}
-          {items.length === 0 ? (
-            <ReviewPipelineEmptyState className="border-0 bg-transparent" />
-          ) : null}
-        </div>
+                onDragEnd={() => {
+                  setDraggedRecommendationId(null);
+                  setDragOverStage(null);
+                }}
+              >
+                <OrgCandidateCard
+                  canManageCandidates={canManageCandidates}
+                  internalOpsAccess={internalOpsAccess}
+                  item={item}
+                  onMove={requestMove}
+                  onPass={setCompanyIntroPass}
+                  onRequestIntro={(item) => setCompanyIntroRequest({ item })}
+                  onSelect={(selectedItem) => {
+                    markViewed(selectedItem.recommendationId);
+                    onSelect(selectedItem, items, stage.label);
+                  }}
+                  pending={isCandidateStagePending(item)}
+                  profileLabelsError={profileLabelsError}
+                  profileLabelsLoading={profileLabelsLoading}
+                  stages={board?.stages ?? []}
+                  viewed={isViewed(item.recommendationId)}
+                />
+              </div>
+            ))}
+            {items.length === 0 ? (
+              <ReviewPipelineEmptyState className="border-0 bg-transparent" />
+            ) : null}
+          </div>
+        )}
       </ReviewPipelineColumnShell>
     );
   };
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-2 bg-neutral-50">
+      {displayControl ? (
+        <div className="flex shrink-0 justify-end px-6">{displayControl}</div>
+      ) : null}
       {customStageActionError && !customStageDialogOpen && !stageToDelete ? (
         <div className={opsTheme.errorNotice}>{customStageActionError}</div>
       ) : null}
@@ -458,7 +497,7 @@ export function OrgPipeline() {
       ) : (
         <div
           data-org-pipeline-scroll
-          className="min-h-0 flex-1 overflow-auto overscroll-contain pb-0"
+          className="min-h-0 flex-1 px-6 overflow-auto overscroll-contain pb-0"
         >
           <div className="flex h-full min-h-[560px] min-w-max items-stretch gap-0">
             {acceptedStages.map((stage) => renderStageColumn(stage, false))}
