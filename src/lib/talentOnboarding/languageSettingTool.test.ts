@@ -43,5 +43,16 @@ test("language setting status uses the target language", () => {
 
 test("language setting tool explains persistence and ambiguous requests", () => {
   assert.match(CAREER_LANGUAGE_SETTING_TOOL_DESCRIPTION, /Permanently/);
-  assert.match(CAREER_LANGUAGE_SETTING_TOOL_DESCRIPTION, /ask whether/);
+  assert.match(CAREER_LANGUAGE_SETTING_TOOL_DESCRIPTION, /ask once whether to keep using it/);
+});
+
+test("language setting tool leaves one-off requests and language ability unsaved", () => {
+  assert.match(
+    CAREER_LANGUAGE_SETTING_TOOL_DESCRIPTION,
+    /Do not call for a request about this reply only/
+  );
+  assert.match(
+    CAREER_LANGUAGE_SETTING_TOOL_DESCRIPTION,
+    /describing language ability, such as '영어로 미팅은 어렵습니다', is not a request/
+  );
 });

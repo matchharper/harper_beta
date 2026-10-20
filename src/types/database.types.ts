@@ -3033,6 +3033,7 @@ export type Database = {
           is_internal: boolean
           is_scrape_original: boolean
           linkedin_url: string | null
+          locale: string | null
           logo_url: string | null
           pitch: string | null
           published_name: string | null
@@ -3062,6 +3063,7 @@ export type Database = {
           is_internal?: boolean
           is_scrape_original?: boolean
           linkedin_url?: string | null
+          locale?: string | null
           logo_url?: string | null
           pitch?: string | null
           published_name?: string | null
@@ -3091,6 +3093,7 @@ export type Database = {
           is_internal?: boolean
           is_scrape_original?: boolean
           linkedin_url?: string | null
+          locale?: string | null
           logo_url?: string | null
           pitch?: string | null
           published_name?: string | null

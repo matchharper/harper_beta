@@ -299,8 +299,9 @@ test("incomplete onboarding re-engagement allows an icebreaker but never sends o
   assert.match(prompt, /__NO_SESSION_GREETING__만 출력해라/);
   assert.match(prompt, /구체적인 필수 정보가 없다면/);
   assert.match(prompt, /가장 중요한 질문 하나/);
-  assert.match(prompt, /다른 언어로 전환해 달라고 명시했고/);
-  assert.match(prompt, /대화의 최신 언어를 우선/);
+  assert.match(prompt, /응답 언어는 사용자가 저장한 언어인 Korean이다/);
+  assert.match(prompt, /그 답 하나만 다른 언어로 부탁한 것은 이번 발화에 이어가지 않는다/);
+  assert.doesNotMatch(prompt, /대화의 최신 언어를 우선/);
 });
 
 test("session re-engagement supplies pending actions without primary-only instructions", () => {

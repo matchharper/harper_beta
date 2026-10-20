@@ -3,6 +3,8 @@ import test from "node:test";
 import { OpportunityType } from "./opportunityType";
 import {
   buildInternalRecommendationProgress,
+  fetchTalentOpportunityHistoryPage,
+  fetchTalentOpportunitySavedStageHistoryPages,
   formatRecentRecommendedOpportunitiesForPrompt,
   formatRecommendationTimeForPrompt,
   formatTalentRoleActivitiesForPrompt,
@@ -434,4 +436,43 @@ test("formats only the latest 10 role activities as compact text", () => {
   assert.match(text, /memo-0 second line/);
   assert.doesNotMatch(text, /memo-9|memo-10/);
   assert.doesNotMatch(text, /\{|\"kind\"|\"metadata\"/);
+});
+
+test("archive notices use the talent's saved language, not the screen language", async () => {
+  const rpcCalls: Array<{ args: unknown; name: string }> = [];
+  const admin = {
+    // Stop right after the archive step; only its arguments matter here.
+    from() {
+      throw new Error("stop after archive");
+    },
+    async rpc(name: string, args: unknown) {
+      rpcCalls.push({ args, name });
+      return { data: 0, error: null };
+    },
+  } as any;
+
+  await assert.rejects(
+    fetchTalentOpportunityHistoryPage({ admin, locale: "en", userId: "talent-1" }),
+    /stop after archive/
+  );
+  await assert.rejects(
+    fetchTalentOpportunitySavedStageHistoryPages({
+      admin,
+      locale: "en",
+      savedStages: ["saved"],
+      userId: "talent-1",
+    }),
+    /stop after archive/
+  );
+
+  assert.deepEqual(rpcCalls, [
+    {
+      args: { p_locale: null, p_talent_id: "talent-1" },
+      name: "archive_ended_internal_opportunities_for_talent",
+    },
+    {
+      args: { p_locale: null, p_talent_id: "talent-1" },
+      name: "archive_ended_internal_opportunities_for_talent",
+    },
+  ]);
 });

@@ -579,4 +579,5 @@ export type SessionResponse = {
   messages: CareerMessagePayload[];
   nextBeforeMessageId: number | null;
   nextOpportunityOffset?: number | null;
+  preferredLocale?: string | null;
 };

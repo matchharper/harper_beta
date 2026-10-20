@@ -1047,6 +1047,7 @@ async function fetchWorkspacePromptContexts(args: {
   if (workspaceIds.length === 0) {
     return {
       companyByWorkspaceId: new Map<string, AutoIntroCompanyPromptContext>(),
+      localeByWorkspaceId: new Map<string, OrgLocale>(),
       rolesByWorkspaceId: new Map<string, AutoIntroRolePromptContext[]>(),
     };
   }
@@ -1074,6 +1075,14 @@ async function fetchWorkspacePromptContexts(args: {
     roleIds: uniqueTexts(args.targetRoles.map((role) => role.role_id)),
     workspaceIds,
   });
+  const localeByWorkspaceId = new Map(
+    await Promise.all(
+      workspaceIds.map(
+        async (workspaceId) =>
+          [workspaceId, await getOrgWorkspaceLocale(workspaceId, args.admin)] as const
+      )
+    )
+  );
 
   const companyDbById = new Map(companyDbRows.map((row) => [row.id, row]));
   const companyByWorkspaceId = new Map<string, AutoIntroCompanyPromptContext>();
@@ -1119,7 +1128,7 @@ async function fetchWorkspacePromptContexts(args: {
         left.roleId.localeCompare(right.roleId)
     );
   }
-  return { companyByWorkspaceId, rolesByWorkspaceId };
+  return { companyByWorkspaceId, localeByWorkspaceId, rolesByWorkspaceId };
 }
 
 async function fetchRecommendations(
@@ -2062,6 +2071,7 @@ function buildCandidateDossierGroup(args: {
   companyContext?: AutoIntroCompanyPromptContext;
   group: WorkspaceNotificationGroup;
   slackConnected: boolean;
+  workspaceLocale?: OrgLocale;
   workspaceRoles?: AutoIntroRolePromptContext[];
 }): AutoIntroToCompanyCandidateDossiers["groups"][number] {
   const candidate = args.group.candidates[0];
@@ -2078,7 +2088,9 @@ function buildCandidateDossierGroup(args: {
       "Auto-intro LLM dossier must contain exactly one role and one candidate"
     );
   }
-  const workspaceLocale = localeFromHeadquarters(args.companyContext?.location);
+  const workspaceLocale =
+    args.workspaceLocale ??
+    localeFromHeadquarters(args.companyContext?.location);
   return {
     candidateCount: 1,
     companyContext:
@@ -2202,6 +2214,7 @@ async function buildManualAutoIntroContext(args: {
       companyContext: promptContexts.companyByWorkspaceId.get(workspaceId),
       group,
       slackConnected,
+      workspaceLocale: promptContexts.localeByWorkspaceId.get(workspaceId),
       workspaceRoles: promptContexts.rolesByWorkspaceId.get(workspaceId),
     }),
     group,
@@ -2336,6 +2349,9 @@ export async function fetchAutoIntroToCompanyCandidateDossiers(args?: {
         ),
         group,
         slackConnected,
+        workspaceLocale: promptContexts.localeByWorkspaceId.get(
+          group.workspaceId
+        ),
         workspaceRoles: promptContexts.rolesByWorkspaceId.get(
           group.workspaceId
         ),

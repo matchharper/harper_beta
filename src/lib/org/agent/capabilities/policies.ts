@@ -1,4 +1,5 @@
 import { COMPANY_EMAIL_PREFERENCE_POLICY } from "@/lib/email/companyPreferencesContract";
+import { COMPANY_LANGUAGE_SETTING_POLICY } from "@/lib/org/agent/languageSettingContract";
 import { HIRING_BRIEF_AUTHORING_PROMPT } from "../hiringBriefAuthoringPrompt";
 import { COMPANY_MEETING_SCHEDULING_ENABLED } from "@/lib/companyMeetingScheduling";
 
@@ -41,6 +42,7 @@ export function getRoleManagementPolicy(surface: "chat" | "slack") {
 
 export const COMPANY_CAPABILITY_POLICIES = {
   email_preferences: COMPANY_EMAIL_PREFERENCE_POLICY,
+  language_setting: COMPANY_LANGUAGE_SETTING_POLICY,
   company_messaging: `## Company message delivery
 - Use the ordinary reply for one short response. When independent Role discussions would become hard to follow, use send_company_message to send a brief workspace opening, a short root naming each Role's discussion, and a replyTo part with the substantive detail inside that Role's thread. Keep the channel easy to scan: the root introduces the topic, while candidate evidence and the actionable question belong in its reply. Choose the useful layout, not a fixed number of messages.
 - Do research and authorized work before committing the batch. This terminal tool must be the only call in its completion. Its texts are the final authored messages; no additional final response follows. Use plain Slack mrkdwn with short paragraphs, *emphasis*, bullets and verified links. These batch bodies do not use choice-button markers or raw Block Kit JSON; the adapter builds sections, and the company can reply naturally.

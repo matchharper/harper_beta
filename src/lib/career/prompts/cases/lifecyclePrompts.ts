@@ -83,7 +83,7 @@ export function buildCareerSessionStartTurnInstruction(args: {
   if (!args.isOnboardingDone) {
     return [
       "## Session-start assistant turn",
-      `기본 응답 언어는 ${outputLanguage}이다. 단, 최근 visible 대화에서 사용자가 다른 언어로 전환해 달라고 명시했고 assistant가 그 전환을 수락했다면 계정 기본 언어보다 그 대화의 최신 언어를 우선해 그대로 이어가라.`,
+      `응답 언어는 사용자가 저장한 언어인 ${outputLanguage}이다. 이전 대화에서 그 답 하나만 다른 언어로 부탁한 것은 이번 발화에 이어가지 않는다.`,
       "사용자가 방금 Career 화면에 다시 접속했다. 사용자가 아직 새 메시지를 보내지 않았지만, Harper가 먼저 짧게 말을 건넬 수 있는 차례다.",
       `- currentAccessAt: ${currentAccessAtLabel}`,
       `- previousChatAt: ${previousChatAtLabel}`,
