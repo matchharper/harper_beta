@@ -1900,7 +1900,8 @@ const CareerHistoryPanel = ({
               }
               onKeepDecision={(action) => {
                 if (action === "accept") handlePositiveAction(modalOpportunity);
-                else if (action === "decline") handleNegativeAction(modalOpportunity);
+                else if (action === "decline")
+                  handleNegativeAction(modalOpportunity);
               }}
               roleActionsOnDesktop={false}
             />
@@ -2144,7 +2145,10 @@ const CareerHistoryPanel = ({
               savedStage === "applied"
                 ? "click_history_external_apply_directly"
                 : "click_history_external_apply_with_harper",
-              { roleId: externalApplyOpportunity.roleId, opportunityId: externalApplyOpportunity.id }
+              {
+                roleId: externalApplyOpportunity.roleId,
+                opportunityId: externalApplyOpportunity.id,
+              }
             );
             return updateFeedbackForItem(externalApplyOpportunity, "positive", {
               savedStage,

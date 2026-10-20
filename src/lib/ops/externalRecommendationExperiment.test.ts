@@ -157,3 +157,94 @@ test("latency includes terminal failures, incomplete runs are visible separately
   assert.equal(metric(s, "진행 30분 초과"), 1);
   assert.equal(metric(s, "실패율 · 종료 실행 기준"), 0.5);
 });
+
+test("summary compares five metrics with terminal-run averages and recommendation feedback", () => {
+  const done = run("done", a);
+  const failed = run("failed", a2, 10, {
+    status: "failed",
+    finished_at: new Date(now - 10 * day + 60_000).toISOString(),
+  });
+  const active = run("active", a3, 10, {
+    status: "running",
+    finished_at: null,
+  });
+  const recommendations = ["like", "positive", "dislike", null].map(
+    (feedback, i) => ({
+      ...rec(done, 9),
+      id: `feedback-${i}`,
+      feedback,
+    })
+  );
+  const result = summary([done, failed, active], recommendations, [
+    { request_id: done.id, estimated_cost_usd: 0.02, cost_status: "priced" },
+    { request_id: failed.id, estimated_cost_usd: 0.04, cost_status: "priced" },
+    { request_id: active.id, estimated_cost_usd: 10, cost_status: "priced" },
+  ]);
+  const metrics = result.variants[0].summaryMetrics!;
+  assert.equal(metrics.length, 5);
+  assert.deepEqual(
+    metrics.map((m) => m.value),
+    [0.03, 40, 0.75, 2, 2]
+  );
+  assert.equal(metrics[3].displayValue, "2.00배");
+  assert.deepEqual(
+    result.variants[1].summaryMetrics!.map((m) => m.value),
+    Array(5).fill(null)
+  );
+});
+
+test("zero dislikes, absent receipts and empty completed runs are explicit", () => {
+  const r = run("r", a);
+  const empty = summary([r]).variants[0].summaryMetrics!;
+  assert.deepEqual(
+    empty.map((m) => m.value),
+    [null, 20, null, null, 0]
+  );
+  const liked = summary([r], [{ ...rec(r, 9), feedback: "like" }]).variants[0]
+    .summaryMetrics!;
+  assert.equal(liked[2].value, 1);
+  assert.equal(liked[3].value, null);
+  assert.equal(liked[3].displayValue, "싫어요 없음");
+});
+
+test("all surfaces pool run metrics and feedback while counting each user once", () => {
+  const web = run("web", a);
+  const worker = run("worker", a, 9, { surface: "worker" });
+  const daily = run("daily", b, 8, { surface: "daily" });
+  const excluded = run("excluded", a2, 8, { surface: "daily" });
+  const old = run("old", a3, 8, { surface: "worker", metrics: {} });
+  const result = build({
+    runs: [web, worker, daily, excluded, old],
+    recommendations: [
+      { ...rec(web, 9), feedback: "like" },
+      { ...rec(worker, 8), feedback: "dislike" },
+      { ...rec(daily, 7), feedback: "like" },
+      { ...rec(excluded, 7), feedback: "like" },
+      { ...rec(old, 7), feedback: "like" },
+    ],
+    receipts: [
+      { request_id: web.id, estimated_cost_usd: 0.02, cost_status: "priced" },
+      {
+        request_id: worker.id,
+        estimated_cost_usd: 0.04,
+        cost_status: "priced",
+      },
+      { request_id: daily.id, estimated_cost_usd: 0.08, cost_status: "priced" },
+    ],
+    excludedUserIds: new Set([a2]),
+    surface: "all",
+    now,
+  });
+  assert.equal(result.title, "외부 공고 추천 · 전체 경로");
+  assert.equal(result.variants[0].sampleCount, 1);
+  assert.equal(result.variants[1].sampleCount, 1);
+  assert.equal(metric(result, "전체 실행"), 2);
+  assert.deepEqual(
+    result.variants[0].summaryMetrics!.map((m) => m.value),
+    [0.03, 20, 1, 1, 1]
+  );
+  assert.deepEqual(
+    result.variants[1].summaryMetrics!.map((m) => m.value),
+    [0.08, 20, 1, null, 1]
+  );
+});

@@ -13,15 +13,10 @@ import type { RequestAccessValues } from "@/components/Modal/RequestAccessModal"
 import { showToast } from "@/components/toast/toast";
 import {
   createSearchLandingId,
-  resolveSearchLandingAssignmentType,
-  SEARCH_LANDING_ABTEST_TYPE_A,
-  SEARCH_LANDING_ABTEST_TYPE_B,
-  SEARCH_LANDING_ABTEST_TYPE_KEY,
+  SEARCH_LANDING_CURRENT_TYPE,
   SEARCH_LANDING_LAST_VISIT_AT_KEY,
   SEARCH_LANDING_LOCAL_ID_KEY,
   SEARCH_LANDING_SESSION_GAP_MS,
-  usesSearchLandingBExperience,
-  type SearchLandingAssignmentType,
 } from "@/lib/search/landingLogs";
 import { withLandingLogSource } from "@/lib/landingLogTypes";
 import { trackSignUp } from "@/lib/ga";
@@ -410,8 +405,6 @@ export default function RadarLandingPage() {
 
   const [query, setQuery] = useState("");
   const [landingId, setLandingId] = useState("");
-  const [abtestType, setAbtestType] =
-    useState<SearchLandingAssignmentType | null>(null);
   const [isOpenLoginModal, setIsOpenLoginModal] = useState(false);
   const [isOpenRequestAccessModal, setIsOpenRequestAccessModal] =
     useState(false);
@@ -428,29 +421,22 @@ export default function RadarLandingPage() {
       type: string,
       overrides?: {
         localId?: string;
-        abtestType?: SearchLandingAssignmentType | null;
       }
     ) => {
       const storedLocalId =
         typeof window !== "undefined"
           ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
           : "";
-      const storedAbtestType =
-        typeof window !== "undefined"
-          ? (localStorage.getItem(SEARCH_LANDING_ABTEST_TYPE_KEY) ?? "")
-          : "";
       const resolvedLocalId =
         overrides?.localId || landingId || storedLocalId || "";
-      const resolvedAbtestType =
-        overrides?.abtestType || abtestType || storedAbtestType || "";
 
-      if (!resolvedLocalId || !resolvedAbtestType) return;
+      if (!resolvedLocalId) return;
 
       try {
         await supabase.from("landing_logs").insert({
           local_id: resolvedLocalId,
           type: withLandingLogSource(type, SEARCH_LANDING_LOG_SOURCE),
-          abtest_type: resolvedAbtestType,
+          abtest_type: SEARCH_LANDING_CURRENT_TYPE,
           is_mobile: isMobile,
           country_lang: countryLang,
         });
@@ -458,7 +444,7 @@ export default function RadarLandingPage() {
         console.error("search landing log insert error:", error);
       }
     },
-    [abtestType, countryLang, isMobile, landingId]
+    [countryLang, isMobile, landingId]
   );
 
   useEffect(() => {
@@ -467,14 +453,6 @@ export default function RadarLandingPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const savedAbtestType = localStorage.getItem(
-      SEARCH_LANDING_ABTEST_TYPE_KEY
-    );
-    const resolvedAbtestType =
-      resolveSearchLandingAssignmentType(savedAbtestType);
-    localStorage.setItem(SEARCH_LANDING_ABTEST_TYPE_KEY, resolvedAbtestType);
-    setAbtestType(resolvedAbtestType);
 
     const savedId = localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY);
     if (!savedId) {
@@ -487,7 +465,6 @@ export default function RadarLandingPage() {
       setLandingId(newId);
       void addLandingLog("new_visit", {
         localId: newId,
-        abtestType: resolvedAbtestType,
       });
       return;
     }
@@ -799,15 +776,9 @@ export default function RadarLandingPage() {
       (typeof window !== "undefined"
         ? (localStorage.getItem(SEARCH_LANDING_LOCAL_ID_KEY) ?? "")
         : "");
-    const resolvedAbtestType =
-      abtestType ||
-      (typeof window !== "undefined"
-        ? (localStorage.getItem(SEARCH_LANDING_ABTEST_TYPE_KEY) ?? "")
-        : "");
-
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auths/callback?lid=${resolvedLandingId}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(resolvedAbtestType)}&next=${encodeURIComponent(SEARCH_REQUEST_ACCESS_CALLBACK_PATH)}&src=${SEARCH_LANDING_LOG_SOURCE}`
+        ? `${window.location.origin}/auths/callback?lid=${resolvedLandingId}&cl=${encodeURIComponent(countryLang)}&ab=${encodeURIComponent(SEARCH_LANDING_CURRENT_TYPE)}&next=${encodeURIComponent(SEARCH_REQUEST_ACCESS_CALLBACK_PATH)}&src=${SEARCH_LANDING_LOG_SOURCE}`
         : undefined;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -822,20 +793,11 @@ export default function RadarLandingPage() {
     }
 
     return data;
-  }, [abtestType, addLandingLog, countryLang, landingId]);
+  }, [addLandingLog, countryLang, landingId]);
 
-  const usesVariantB = usesSearchLandingBExperience(abtestType);
-  const heroTitleLines = usesVariantB
-    ? ["Describe what you need.", "Get who you want."]
-    : ["Find who actually", "builds and publishes."];
-  const heroSubtitle = usesVariantB
-    ? "AI가 경력과 GitHub, 논문 등을 분석해<br/>상위 1%의 후보자 리스트를 만들어 드립니다."
-    : m.companyLanding.hero.subtitle;
-  const heroStartLabel =
-    abtestType === SEARCH_LANDING_ABTEST_TYPE_A ||
-    abtestType === SEARCH_LANDING_ABTEST_TYPE_B
-      ? "무료로 시작하기"
-      : "무료로 시작하기";
+  const heroTitleLines = ["Find who actually", "builds and publishes."];
+  const heroSubtitle = m.companyLanding.hero.subtitle;
+  const heroStartLabel = "무료로 시작하기";
 
   const customLogin = useCallback(
     async (email: string, password: string) => {

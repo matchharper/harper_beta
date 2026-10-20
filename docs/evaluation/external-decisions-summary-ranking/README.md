@@ -1,6 +1,6 @@
 # Decisions scoring: 요약 + 4축 단일 비교
 
-문서 기준: 2026-10-20. 실행 전 확정한 실험 계약. 제품 코드나 운영 배포는 변경하지 않는다.
+문서 기준: 2026-10-20. 아래 계약은 실행 전에 확정했다. [실행 결과](reports/2026-10-20-summary-four-axis-v1/report.md), [harper_eval 실험 #7](https://github.com/matchharper/harper_eval/issues/7). 제품 코드나 운영 배포는 변경하지 않았다.
 
 ## 목적과 평가 단위
 
@@ -20,7 +20,7 @@
 
 ## 기준안과 단일 변경안
 
-기준안은 현재 작업 트리 `buildScoringInput`, `v2PromptCandidate`, `buildDecisionRequest`, `parseDecisionBatch`, `rankScore`를 재사용한다. HEAD만으로 재현되지 않는 기존 formatter 변경이 있어 source hash·dirty diff hash·실제 소스 파일을 동결한다. 검증된 배포 버전이라고 주장하지 않는다. 기존 HTML/빈 값 정리는 양쪽에 동일하게 적용한다.
+기준안은 로컬 `buildScoringInput`, `v2PromptCandidate`, `buildDecisionRequest`, `parseDecisionBatch`, `rankScore`를 재사용한다. 초기 작업 트리의 formatter 변경을 양쪽에 동일하게 포함하고 source hash·dirty diff hash·실제 소스 파일을 동결했다. 실행 시점에 이 파일들은 모두 로컬 커밋 `1122120ab8b13d27ed9dd53d6c623d7bf91a01f6`과 일치함을 사후 확인했다. 이 로컬 커밋의 배포 여부는 검증하지 않았다. 기존 HTML/빈 값 정리는 양쪽에 동일하게 적용한다.
 
 변경안은 roleDescription만 저장된 요약으로 대체하고 회사·후보자·나머지 공고 필드는 유지한다. 질문과 developer rubric에서 evidence와 mutualFit을 제거하며 constraintPass 지침에 남은 두 축 참조도 제거한다. 사실 근거를 뜻하는 일반 영어 evidence는 별도 출력 축이 아니므로 유지한다. 남은 네 축의 판단 기준은 그대로다.
 

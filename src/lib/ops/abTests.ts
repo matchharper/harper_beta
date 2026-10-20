@@ -23,6 +23,9 @@ export type OpsAbTestMetric = {
   format: "count" | "duration_seconds" | "number" | "rate" | "usd";
   label: string;
   value: number | null;
+  description?: string;
+  detail?: string;
+  displayValue?: string;
 };
 
 export type OpsAbTestVariant = {
@@ -30,6 +33,7 @@ export type OpsAbTestVariant = {
   id: string;
   label: string;
   metrics: OpsAbTestMetric[];
+  summaryMetrics?: OpsAbTestMetric[];
   primary: OpsAbTestRate;
   sampleCount: number;
 };

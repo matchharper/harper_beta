@@ -80,12 +80,13 @@ export default function ExternalOpportunityApplyModal({
               })
             }
           >
-            {applying ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <ArrowUpRight className="size-4" aria-hidden />
-            )}
-            {t("career.history.external_application.direct", "직접 지원하기")}
+            <div className="min-w-40">
+              {t(
+                "career.history.external_application.direct",
+                "사이트에서 직접 지원하기"
+              )}
+            </div>
+            <ArrowUpRight className="size-4" aria-hidden />
           </MuteButton>
           <ApplyWithHarperButton
             item={item}
@@ -98,10 +99,12 @@ export default function ExternalOpportunityApplyModal({
               onOpenChat();
             }}
           >
-            {t(
-              "career.history.external_application.with_harper",
-              "Harper와 지원하기"
-            )}
+            <div className="min-w-40">
+              {t(
+                "career.history.external_application.with_harper",
+                "Harper와 지원하기"
+              )}
+            </div>
           </ApplyWithHarperButton>
         </div>
       }

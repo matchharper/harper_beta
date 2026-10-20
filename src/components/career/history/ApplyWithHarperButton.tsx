@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Zap } from "lucide-react";
 import { MuteButton, type MuteButtonProps } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerChatPanelContext } from "../CareerChatPanelContext";
@@ -85,7 +85,7 @@ export default function ApplyWithHarperButton({
       onClick={() => void start()}
     >
       {children}
-      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      <Zap className="h-4 w-4" aria-hidden="true" />
     </MuteButton>
   );
 }

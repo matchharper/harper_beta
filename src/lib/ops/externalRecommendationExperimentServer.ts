@@ -37,18 +37,18 @@ export async function fetchExternalExperimentRows(
   end: string,
   surface: ExternalSurface
 ) {
-  const projectedRuns = await pages<RunProjection>(() =>
-    (admin.from("external_recommendation_runs" as never) as any)
+  const projectedRuns = await pages<RunProjection>(() => {
+    const query = (admin.from("external_recommendation_runs" as never) as any)
       .select(
         "id,talent_id,experiment,variant,surface,status,created_at,finished_at," +
           METRIC_KEYS.map((key) => `${key}:metrics->${key}`).join(",")
       )
       .eq("experiment", EXPERIMENT)
-      .eq("surface", surface)
       .gte("created_at", start)
       .lte("created_at", end)
-      .order("id")
-  );
+      .order("id");
+    return surface === "all" ? query : query.eq("surface", surface);
+  });
   const runs: ExternalExperimentRun[] = projectedRuns.map((row) => ({
     ...row,
     metrics: Object.fromEntries(METRIC_KEYS.map((key) => [key, row[key]])),

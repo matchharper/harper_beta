@@ -8,6 +8,7 @@ import {
   User,
   LucideSquareDashedKanban,
   TextSelect,
+  Undo2,
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -32,6 +33,7 @@ import CareerWorkspaceNav, {
   type CareerDesktopNavTab,
   type CareerWorkspaceTab,
 } from "@/components/career/CareerWorkspaceNav";
+import { MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCareerTasks } from "@/hooks/career/useCareerTasks";
 import type { CareerComposerPendingAction } from "@/lib/career/pendingActions";
@@ -666,6 +668,7 @@ const CareerWorkspaceMobileHistoryView = ({
   onOpenSupport: () => void;
   workspaceTabOptions: typeof MOBILE_WORKSPACE_TAB_OPTIONS;
 }) => {
+  const t = useCareerT();
   const router = useRouter();
   const logCareerEvent = useCareerLogEvent();
   const {
@@ -992,6 +995,13 @@ const CareerWorkspaceMobileHistoryView = ({
     [jobsTab, requestedRoleId, updateMobileHistoryLocation]
   );
 
+  const [pendingLikes, setPendingLikes] = useState<
+    Array<{
+      id: string;
+      undo: () => void;
+    }>
+  >([]);
+
   const handleTrack = useCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_mobile_history_positive");
@@ -1003,7 +1013,25 @@ const CareerWorkspaceMobileHistoryView = ({
         return;
       }
       closeDecidedOpportunityInLocation(item);
+      const decision = new Promise<boolean>((resolve) => {
+        let settled = false;
+        const finish = (commit: boolean) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          setPendingLikes((current) =>
+            current.filter((like) => like.id !== item.id)
+          );
+          resolve(commit);
+        };
+        const timer = window.setTimeout(() => finish(true), 5000);
+        setPendingLikes((current) => [
+          ...current,
+          { id: item.id, undo: () => finish(false) },
+        ]);
+      });
       void onUpdateHistoryOpportunityFeedback(item.id, "positive", {
+        beforeCommit: () => decision,
         interactionSource: "position_tab",
         promptImmediately:
           jobsTab === "new" &&
@@ -1223,6 +1251,28 @@ const CareerWorkspaceMobileHistoryView = ({
 
   return (
     <>
+      {pendingLikes.length > 0 && (
+        <div
+          className="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-[80] flex max-w-[calc(100vw-2rem)] flex-col items-end gap-2"
+          aria-live="polite"
+        >
+          {pendingLikes.map((like) => (
+            <MuteButton
+              key={like.id}
+              size="sm"
+              variant="dark"
+              className="border-black/80 bg-black/80 backdrop-blur-sm rounded-sm"
+              onClick={like.undo}
+            >
+              <Undo2 aria-hidden className="size-3" />
+              {t(
+                "career.profile.career_profile_settings_section.0on2o51",
+                "되돌리기"
+              )}
+            </MuteButton>
+          ))}
+        </div>
+      )}
       <CareerMobileJobsView
         onChangeWorkspaceTab={onChangeTab}
         onChangeTopBarOption={handleMobileNavigationChange}
@@ -1242,7 +1292,12 @@ const CareerWorkspaceMobileHistoryView = ({
         }}
         onPositive={handleTrack}
         onNegative={handleDismiss}
-        onKeep={(item) => void onUpdateHistoryOpportunityFeedback(item.id, "keep", {fallbackOpportunity: item, interactionSource: "position_tab"})}
+        onKeep={(item) =>
+          void onUpdateHistoryOpportunityFeedback(item.id, "keep", {
+            fallbackOpportunity: item,
+            interactionSource: "position_tab",
+          })
+        }
         loadingMore={historyLoading || historyLoadingMore}
         error={historyUpdateError}
         hasMoreOpportunities={hasMoreFilteredOpportunities}
@@ -1302,7 +1357,10 @@ const CareerWorkspaceMobileHistoryView = ({
               savedStage === "applied"
                 ? "click_mobile_history_external_apply_directly"
                 : "click_mobile_history_external_apply_with_harper",
-              { roleId: externalApplyOpportunity.roleId, opportunityId: externalApplyOpportunity.id }
+              {
+                roleId: externalApplyOpportunity.roleId,
+                opportunityId: externalApplyOpportunity.id,
+              }
             );
             return onUpdateHistoryOpportunityFeedback(
               externalApplyOpportunity.id,

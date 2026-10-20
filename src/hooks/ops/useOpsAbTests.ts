@@ -4,7 +4,7 @@ import type { OpsAbTestsResponse } from "@/lib/ops/abTests";
 
 export function useOpsAbTests(args: {
   days: number;
-  externalSurface?: "web" | "worker" | "daily";
+  externalSurface?: "all" | "web" | "worker" | "daily";
   enabled: boolean;
   excludedEmails: string[];
 }) {
@@ -12,13 +12,13 @@ export function useOpsAbTests(args: {
     queryKey: [
       "ops-ab-tests",
       args.days,
-      args.externalSurface ?? "web",
+      args.externalSurface ?? "all",
       ...args.excludedEmails,
     ],
     queryFn: ({ signal }) => {
       const params = new URLSearchParams({
         days: String(args.days),
-        externalSurface: args.externalSurface ?? "web",
+        externalSurface: args.externalSurface ?? "all",
       });
       for (const value of args.excludedEmails) {
         params.append("exclude", value);

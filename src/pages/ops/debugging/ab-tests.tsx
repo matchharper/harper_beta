@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Info, RefreshCw } from "lucide-react";
+import { useId, useState } from "react";
+import { ChevronRight, Info, RefreshCw } from "lucide-react";
 import {
   DebuggingPageShell,
   formatAbsoluteKst,
@@ -53,6 +53,7 @@ function formatDuration(value: number | null) {
 }
 
 function formatMetric(metric: OpsAbTestMetric) {
+  if (metric.displayValue) return metric.displayValue;
   if (metric.value === null) return "-";
   if (metric.format === "usd") return `$${metric.value.toFixed(5)}`;
   if (metric.format === "rate") return formatPercent(metric.value);
@@ -428,15 +429,96 @@ function DetailMetricComparisons({
   );
 }
 
+function SummaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
+  return (
+    <Table aria-label={`${experiment.title} 핵심 지표`} className="mt-4">
+      <TableHeader>
+        <TableRow>
+          <TableHead>지표</TableHead>
+          {experiment.variants.map((variant) => (
+            <TableHead key={variant.id} className="text-right">
+              <div className="text-base text-neutral-primary">
+                {variant.label}
+              </div>
+              <div className="font-normal text-neutral-muted">
+                {variant.sampleCount}명
+              </div>
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {experiment.variants[0].summaryMetrics?.map((metric) => (
+          <TableRow key={metric.label}>
+            <TableCell>
+              <div className="flex items-center gap-1">
+                {metric.label}
+                {metric.description ? (
+                  <Tooltips text={metric.description}>
+                    <MuteButton
+                      aria-label={`${metric.label} 집계 기준`}
+                      size="sm"
+                      variant="transparent"
+                    >
+                      <Info className="size-3.5" />
+                    </MuteButton>
+                  </Tooltips>
+                ) : null}
+              </div>
+            </TableCell>
+            {experiment.variants.map((variant) => {
+              const value = variant.summaryMetrics?.find(
+                (item) => item.label === metric.label
+              );
+              return (
+                <TableCell key={variant.id} className="text-right tabular-nums">
+                  <div className="text-lg font-medium text-neutral-primary">
+                    {value ? formatMetric(value) : "-"}
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-muted">
+                    {value?.detail}
+                  </div>
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
 function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
+  const [expanded, setExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
+  const contentId = useId();
+  const detailsId = useId();
+  const ended = experiment.status === "ended";
+  const hasSummary = Boolean(experiment.variants[0].summaryMetrics?.length);
   return (
     <article className={cx(opsTheme.panel, "p-4 sm:p-5")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Text as="h2" className="font-normal" variant="head2">
-              {experiment.title}
-            </Text>
+            {ended ? (
+              <h2>
+                <MuteButton
+                  variant="transparent"
+                  aria-expanded={expanded}
+                  aria-controls={contentId}
+                  onClick={() => setExpanded((value) => !value)}
+                >
+                  <ChevronRight
+                    className={cx("size-4", expanded && "rotate-90")}
+                  />
+                  {experiment.title}
+                </MuteButton>
+              </h2>
+            ) : (
+              <Text as="h2" className="font-normal" variant="head2">
+                {experiment.title}
+              </Text>
+            )}
             <Badge
               size="sm"
               tone={experiment.status === "running" ? "positive" : "neutral"}
@@ -462,41 +544,65 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
         </div>
       </div>
 
-      <PrimaryComparison experiment={experiment} />
-      {experiment.metricLayout === "table" ? (
-        <Table aria-label={`${experiment.title} 세부 지표`}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>지표</TableHead>
-              <TableHead className="text-right">A · 기존</TableHead>
-              <TableHead className="text-right">B · V2</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {experiment.variants[0].metrics.map((metric, i) => (
-              <TableRow key={metric.label}>
-                <TableCell>{metric.label}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMetric(metric)}
-                </TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {formatMetric(experiment.variants[1].metrics[i])}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      ) : (
-        <DetailMetricComparisons variants={experiment.variants} />
-      )}
-
-      <div className="mt-3 flex flex-wrap justify-between gap-2 px-1">
-        <Text tone="subtle" variant="subtle">
-          첫 관측 {formatAbsoluteKst(experiment.firstObservedAt)}
-        </Text>
-        <Text tone="subtle" variant="subtle">
-          최근 관측 {formatAbsoluteKst(experiment.lastObservedAt)}
-        </Text>
+      <div id={contentId} hidden={ended && !expanded}>
+        {hasSummary ? (
+          <>
+            <SummaryComparison experiment={experiment} />
+            <MuteButton
+              className="mt-3"
+              variant="transparent"
+              aria-expanded={detailsExpanded}
+              aria-controls={detailsId}
+              onClick={() => setDetailsExpanded((value) => !value)}
+            >
+              <ChevronRight
+                className={cx("size-4", detailsExpanded && "rotate-90")}
+              />
+              상세 지표
+            </MuteButton>
+          </>
+        ) : null}
+        <div id={detailsId} hidden={hasSummary && !detailsExpanded}>
+          <PrimaryComparison experiment={experiment} />
+          {experiment.metricLayout === "table" ? (
+            <Table aria-label={`${experiment.title} 세부 지표`}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>지표</TableHead>
+                  <TableHead className="text-right">
+                    {experiment.variants[0].label}
+                  </TableHead>
+                  <TableHead className="text-right">
+                    {experiment.variants[1].label}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {experiment.variants[0].metrics.map((metric, i) => (
+                  <TableRow key={metric.label}>
+                    <TableCell>{metric.label}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMetric(metric)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMetric(experiment.variants[1].metrics[i])}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <DetailMetricComparisons variants={experiment.variants} />
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap justify-between gap-2 px-1">
+          <Text tone="subtle" variant="subtle">
+            첫 관측 {formatAbsoluteKst(experiment.firstObservedAt)}
+          </Text>
+          <Text tone="subtle" variant="subtle">
+            최근 관측 {formatAbsoluteKst(experiment.lastObservedAt)}
+          </Text>
+        </div>
       </div>
     </article>
   );
@@ -529,8 +635,8 @@ export default function OpsAbTestsPage() {
   );
   const [days, setDays] = useState(30);
   const [externalSurface, setExternalSurface] = useState<
-    "web" | "worker" | "daily"
-  >("web");
+    "all" | "web" | "worker" | "daily"
+  >("all");
   const query = useOpsAbTests({
     days,
     externalSurface,
@@ -569,14 +675,17 @@ export default function OpsAbTestsPage() {
           aria-label="외부 추천 비교 경로"
         >
           <SelectValue>
-            {externalSurface === "web"
-              ? "외부 · 요청 추천"
-              : externalSurface === "worker"
-                ? "외부 · Worker 추천"
-                : "외부 · 매일 추천"}
+            {externalSurface === "all"
+              ? "외부 · 전체 경로"
+              : externalSurface === "web"
+                ? "외부 · 요청 추천"
+                : externalSurface === "worker"
+                  ? "외부 · Worker 추천"
+                  : "외부 · 매일 추천"}
           </SelectValue>
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="all">외부 · 전체 경로</SelectItem>
           <SelectItem value="web">외부 · 요청 추천</SelectItem>
           <SelectItem value="worker">외부 · Worker 추천</SelectItem>
           <SelectItem value="daily">외부 · 매일 추천</SelectItem>
@@ -645,7 +754,14 @@ export default function OpsAbTestsPage() {
           </section>
 
           <div className="space-y-3">
-            {experiments.map((experiment) => (
+            {[
+              ...experiments.filter(
+                (experiment) => experiment.status !== "ended"
+              ),
+              ...experiments.filter(
+                (experiment) => experiment.status === "ended"
+              ),
+            ].map((experiment) => (
               <ExperimentCard key={experiment.id} experiment={experiment} />
             ))}
           </div>
