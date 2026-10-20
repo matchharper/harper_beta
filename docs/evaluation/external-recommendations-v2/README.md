@@ -137,3 +137,15 @@ V1은 Worker `opp/matching/text.py:external_scoring_input`을 실제 provider �
 실제 OpenAI usage 비교(같은 frozen 입력, 이전 일반 공통 지침만 중복 제거한 버전 대비): 3역할9,566→6,369토큰(-33.42%), 10역할30,675→15,795토큰(-48.51%). 최종 두 반복의 각 usage는 같았다. output_tokens는0. 캐시 할인 추정이 아니라 API가 반환한 input_tokens 비교다. 입력 메시지·질문의 내부 표현 때문에 로컬 추정과 총량은 다르다.
 
 새 전체 요청·텍스트·항목별 토큰·검증 요약은 [후속 report](reports/2026-10-18-scoring-input-shared-rubrics/v2-request.json)에 있다. 기존 report는 비교 기준으로 보존한다. 입력 재현 스크립트는 기존 `scripts/inspectExternalScoringInput.ts`이며 API를 호출하지 않고 이전 report를 baseline으로 읽는다. 모듈 초기화에는 dummy OPENAI_API_KEY와 로컬 Supabase URL/anon key를 설정한다. 새 o200k_base 추정3역할은7,927→4,539(-42.74%); 공통 지침228, 6축 rubric1,772, 후보자306, 회사+공고314/325/333, 질문 구조·연결1,205, 추가 공통 연결문·구분자56이다. 질문 부분은6,405→1,205(-81.19%). 원문·token-breakdown.json·validation-summary.json은 모두 합성 데이터이며, API raw outputs/manifest는 ignored owner-only runs/에만 둔다. 배포하지 않았다.
+
+## 2026-10-19 실제 10공고 입력 축약 smoke
+
+Canonical runner: `scripts/evalExternalCompactRequest.ts` (`node --env-file=.env.local --import tsx scripts/evalExternalCompactRequest.ts`). 이전에 읽기 전용으로 재구성한 실제 후보자 1명·공고 10개의 고정 요청을 입력으로 사용한다. 기존 요청과 빈 값/HTML 정리 + 짧은 role alias + 질문 중복 설명 제거 요청을 각각 gpt-6-luna Decisions에 1회 전송하며 자동 재시도하지 않는다. 전체 평가 기준과 60개 typed 출력 계약은 보존한다. 실행 전 request SHA256과 구조 기대값을 manifest에 동결한다. 모든 입력·원문 응답·원본 ID·과거 저장 결과·manifest는 ignored owner-only `runs/*-compact-real/`에만 보존한다. DB 읽기/쓰기·usage 저장·추천·연락은 수행하지 않는다.
+
+구조 gate는 공고10개×6축 반환, 중복/알 수 없는 이름0개, 실제 production parser 통과10개다. 동일 시점 기존 요청 대비 점수·constraintPass50 경계·mutualFit60 경계 변화를 확인한다. 독립적인 적합도 정답은 없으며 과거 저장 결과도 gold가 아니다. 단일 후보자/각1회 표본이고 기존 요청 자체도 과거 wire capture가 아니므로 품질 동등성이나 배포 승인으로 해석하지 않는다. 개인정보 없는 구조 gold는 이 절의 기대값이며 기존 frozen fixture/gold를 변경하지 않는다.
+
+실행 `2026-10-19T08-06-30-440Z-compact-real`: 기존/축약 모두 응답60개·유효10역할·중복/unknown/누락0. 실제 API 입력41,741→35,690(-14.50%), 출력0. 단일 호출 시간3,782/832ms는 속도 우월성 근거가 아니다. 필수조건 통과 점수가92→23으로 바뀐 pair가1개 있어 constraintPass50 경계 일치9/10이며, mutualFit60 경계는 모두 미달로10/10 일치했다. 구조 smoke는 통과했으나 품질 동등성은 확인하지 못했다. 어느 변환의 효과인지 또는 모델 자체 변동인지 분리하지 않은 2개 요청 비교이며 배포하지 않았다.
+
+후속 분리 실행: `scripts/evalExternalCompactRequest.ts --restore-questions`는 동일 snapshot의 `request-after.json`만 1회 전송한다. 빈 항목/HTML 정리는 유지하고 질문60개를 기존 원문으로 복원하며 연결된 본문 role UUID도 함께 복원한다. 실행 전 축약본과 비교해 evidence 차이가 role 식별자뿐이고 questions가 기존 요청과 동일함을 검증한다. 새 run에 보존하며 기존 응답은 재실행하거나 덮어쓰지 않는다. 구조 gate·privacy·품질 한계는 위 계약과 같다.
+
+질문 원복 run `2026-10-19T08-10-32-090Z-compact-real`: 60응답/10유효 역할, 누락·중복·unknown0. 실제 입력37,962토큰(최초41,741 대비9.05% 감소, 축약35,690 대비2,272 증가). 동일 JD 3개 constraintPass는71/52/63으로 모두 통과해 직전23/14/92의 경계 불일치는 해소됐다. 다만 단일 실행이며 모든 점수의 안정성/품질 동등성을 입증하지 않는다. 결과는 private run에만 보존, 배포/DB 저장 없음.

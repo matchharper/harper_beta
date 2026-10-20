@@ -8,6 +8,7 @@
 
 | 태스크 | 평가 대상 | 정답/fixture 상태 | canonical runner 또는 원문 | 상태 |
 | --- | --- | --- | --- | --- |
+| [external-decisions-summary-ranking](external-decisions-summary-ranking/README.md) | Decisions scoring의 저장 요약 + 4축·단일 정렬식 대조 | harper_eval 고정359사례·268명·2,338반응쌍, 비식별 gold-v1 | `scripts/prepareExternalDecisionsSummary.py`, `scripts/evalExternalDecisionsSummary.ts`, `scripts/reportExternalDecisionsSummary.py` | 기준안/변경안 각2회; 결과·재현 manifest는 task reports, 운영 변경 없음 |
 | [company-email-connection](company-email-connection/README.md) | Slack 연결 안내·수신자별 간격·횟수 | synthetic v1 2건 | `scripts/previewCompanyConnectionEmail.ts` | 자동 발송 경로·수신 거부·중복 방지 로컬 검증, 미배포·실제 발송 없음 |
 | [external-recommendation-online](external-recommendation-online/README.md) | 외부 추천 A/B 실제 관심·지연·비용 | synthetic metric gold `v1`; 온라인 표본 동결 전 | `src/lib/ops/externalRecommendationExperiment.ts` / `.test.ts` | Ops 30초 갱신, 현재 버전·경로 분리, 운영 표본 대기·미배포 |
 | [slack-reply-routing](slack-reply-routing/README.md) | 공유 Slack 스레드의 Harper 답장 여부 | legacy synthetic v1 8건 보존, frozen v2 14건 | `scripts/evalSlackReplyRouterLive.ts`, 실제 Jev Decisions runtime 재사용 | [Jev 14/14·평균 402ms 검증](slack-reply-routing/reports/2026-10-15-jev.md); 미배포 |
