@@ -1,3 +1,4 @@
+import { createSlackTaskProgress } from "@/lib/org/slackTaskProgress";
 import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess, assertOrgTeamRoleAccess } from "@/lib/org/teamAccess";
 import { createHash } from "crypto";
@@ -554,7 +555,9 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
   let stopSlackJobWatch: (() => void) | null = null;
   let activeAdmin: ReturnType<typeof getSupabaseAdmin> | null = null;
   let activeJobId = "";
-  let slackStatusUpdateChain: Promise<void> = Promise.resolve();
+  let taskProgress: ReturnType<typeof createSlackTaskProgress> | null = null;
+  let taskProgressSucceeded = false;
+  let taskProgressFailed = false;
 
   try {
     const jobId = clean(args.jobId);
@@ -1270,30 +1273,16 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
             }
           }
         }
+        taskProgress = createSlackTaskProgress({
+          channelId, threadTs, teamId, userId: slackUserId,
+          locale: slackAccess.member.locale ?? undefined,
+          call: (method, body) => slackApi(token, method, { ...body, chunks: JSON.stringify(body.chunks) }, AbortSignal.timeout(5000)),
+          onError: error => console.warn("[org-agent/slack-turn:task-progress]", error),
+        });
+        taskProgress.update({ id: "response", label: responseStatus, status: "running" });
         const emitSlackAgentEvent = (event: string, data: unknown) => {
-          if (event === "tool_status") {
-            const progress = object(data);
-            const id = clean(progress.id);
-            const label = clean(progress.label);
-            const status = clean(progress.status);
-            const target = pendingSlackStatus;
-            if (
-              target && label && id !== "context" && id !== "response" &&
-              (status === "running" || status === "done" || status === "error")
-            ) {
-              slackStatusUpdateChain = slackStatusUpdateChain
-                .then(async () => {
-                  if (pendingSlackStatus !== target || slackTurnSignal?.aborted) return;
-                  await setHarperSlackThreadStatus({
-                    ...target,
-                    status: status === "running" ? label : responseStatus,
-                  });
-                })
-                .catch((error) =>
-                  console.warn("[org-agent/slack-turn:set-tool-status]", error)
-                );
-            }
-          }
+          if (event === "tool_status" && !slackTurnSignal?.aborted) taskProgress?.update(data);
+          if (event === "error") taskProgressFailed = true;
           if (!verbose) return;
           if (event === "tool_debug") {
             const toolCall = data as OrgAgentToolDebugEvent;
@@ -1385,7 +1374,6 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
                       });
                       progressText =
                         convertMarkdownLinksToSlackMrkdwn(progressText);
-                      await slackStatusUpdateChain;
                       const posted = await postHarperSlackMessage({
                         channelId,
                         clientMessageId: stableSlackClientMessageId(
@@ -1487,6 +1475,10 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           responseMessageId = result.assistantMessage.id;
           responseProposalId = null;
         }
+        if (result.kind !== "slack_proposal_draft") {
+          taskProgressFailed ||= result.assistantMessage.status === "failed";
+          for (const log of result.assistantMessage.thinkingLogs ?? []) taskProgress?.update(log);
+        }
         userMessageId = result.userMessage.id;
       }
       const { data: cachedJob, error: cacheError } = await (
@@ -1552,6 +1544,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
           status: "completed", updated_at: new Date().toISOString(),
         }).eq("id", job.id).in("status", ["processing", "retry"]);
         if (completeError) throw completeError;
+        taskProgressSucceeded = !taskProgressFailed;
         return NextResponse.json({ ok: true, outcome: "completed", phase: "reply", batchMessageCount: receipts.length });
       }
       const billingNotice = readBillingActionNotice(deliveryMetadata);
@@ -1643,7 +1636,6 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
         : slackBlocks;
       // Slack clears the assistant thread status automatically after
       // chat.postMessage.
-      await slackStatusUpdateChain;
       const posted = await postHarperSlackMessage({
         // Use an explicit mrkdwn Block Kit section for every reply. The
         // top-level text remains a notification/accessibility fallback.
@@ -1662,6 +1654,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       pendingSlackStatus = null;
     }
     if (!slackResponseTs) throw new Error("Slack response has no timestamp");
+    taskProgressSucceeded = !taskProgressFailed;
     const now = new Date().toISOString();
     if (responseProposalId) {
       const { data: activatedData, error: activatedError } = await (
@@ -1752,7 +1745,6 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       ...verboseLlmUsagePayload(verbose, llmUsage),
     });
   } catch (error) {
-    await slackStatusUpdateChain;
     if (pendingSlackStatus) {
       await setHarperSlackThreadStatus({
         ...pendingSlackStatus,
@@ -1781,6 +1773,7 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
     console.error("[org-agent/slack-turn]", error);
     return toInternalApiErrorResponse(error, "Failed to run Slack agent turn");
   } finally {
+    await taskProgress?.finish(taskProgressSucceeded);
     if (pendingSlackProgressDelivery.current) {
       await pendingSlackProgressDelivery.current.catch(() => false);
     }

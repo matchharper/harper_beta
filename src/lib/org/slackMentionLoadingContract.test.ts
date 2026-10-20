@@ -53,8 +53,9 @@ test("thread replies keep one status through routing and generation", () => {
   assert.doesNotMatch(turnRoute, /pendingSlackStatusStage/);
 });
 
-test("tool progress does not replace the stable Slack thread status", () => {
-  assert.doesNotMatch(turnRoute, /event === "tool_status"/);
+test("tool progress uses a persistent Slack plan without replacing thread status", () => {
+  assert.match(turnRoute, /event === "tool_status"[^\n]*taskProgress\?\.update\(data\)/);
+  assert.match(turnRoute, /finally \{\s*await taskProgress\?\.finish\(taskProgressSucceeded\)/);
   assert.doesNotMatch(turnRoute, /slackStatusUpdateChain/);
   assert.doesNotMatch(
     turnRoute,
