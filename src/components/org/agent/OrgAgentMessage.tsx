@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { BillingActionNotice } from "@/components/org/billing/BillingActionNotice";
 import {
@@ -70,30 +71,43 @@ export function OrgAgentDateDivider({ createdAt }: { createdAt: string }) {
   );
 }
 
-function OrgAssistantLabel({ fromSlack = false }: { fromSlack?: boolean }) {
+function OrgMessageLayout({
+  children,
+  fromSlack = false,
+  isUser = false,
+}: {
+  children: ReactNode;
+  fromSlack?: boolean;
+  isUser?: boolean;
+}) {
   const { c } = useOrgLocale();
+  if (isUser) return <>{children}</>;
+
   return (
-    <ChatAssistantLabel>
-      <div className="mt-2 mb-1 flex items-center gap-1.5 text-[12px] text-neutral-800 font-light">
-        <Image
-          alt={c("Harper", "Harper")}
-          className="rounded-full"
-          height={18}
-          src="/images/squareface.png"
-          width={18}
-        />
-        {c("Harper", "Harper")}
-        {fromSlack ? (
-          <Image
-            alt={c("Slack", "Slack")}
-            className="size-3 shrink-0"
-            height={12}
-            src="/images/logos/slack.svg"
-            width={12}
-          />
-        ) : null}
+    <div className="mt-2 grid grid-cols-[28px_minmax(0,680px)] items-start gap-x-3">
+      <Image
+        alt={c("Harper", "Harper")}
+        className="rounded-full"
+        height={28}
+        src="/images/squareface.png"
+        width={28}
+      />
+      <div className="min-w-0">
+        <ChatAssistantLabel className="mb-1 flex items-center gap-1.5 text-[12px] text-neutral-700 leading-5 font-normal">
+          {c("Harper", "Harper")}
+          {fromSlack ? (
+            <Image
+              alt={c("Slack", "Slack")}
+              className="size-2.5 shrink-0"
+              height={12}
+              src="/images/logos/slack.svg"
+              width={12}
+            />
+          ) : null}
+        </ChatAssistantLabel>
+        {children}
       </div>
-    </ChatAssistantLabel>
+    </div>
   );
 }
 
@@ -365,126 +379,128 @@ export function OrgAgentMessageBubble({
             workspaceId={workspaceId}
           />
         ))}
-      {!isUser ? <OrgAssistantLabel fromSlack={fromSlack} /> : null}
-      {isUser && showUserAttribution ? (
-        <div
-          className={cn(
-            "mb-1 flex items-center gap-1.5 px-1 text-[11px] leading-4",
-            isOwnUserMessage ? "justify-end" : "justify-start"
-          )}
-        >
-          <span className="font-medium text-neutral-muted">
-            {authorName ||
-              (isOwnUserMessage
-                ? c("나", "Me")
-                : c("워크스페이스 멤버", "Workspace member"))}
-            {fromSlack ? (
-              <Image
-                alt={c("Slack", "Slack")}
-                className="ml-1 inline-block size-3 align-[-2px]"
-                height={12}
-                src="/images/logos/slack.svg"
-                width={12}
-              />
-            ) : null}
-          </span>
-          {messageTime ? (
-            <time
-              className="font-normal tabular-nums text-neutral-soft"
-              dateTime={message.createdAt}
-            >
-              {messageTime}
-            </time>
-          ) : null}
-        </div>
-      ) : null}
-      {isUser && attachments.length > 0 ? (
-        <ChatMessageAttachmentList
-          align={isOwnUserMessage ? "end" : "start"}
-          attachments={attachments}
-          className="mb-1"
-        />
-      ) : null}
-      <ChatMessageBubbleFrame
-        className={cn(
-          "mb-2",
-          showUserAttribution &&
-            isOwnUserMessage &&
-            "border border-neutral-800",
-          showUserAttribution &&
-            isUser &&
-            !isOwnUserMessage &&
-            "max-w-[min(820px,92%)] rounded-[14px] border border-neutral-1000-a10 bg-bg-floating px-3 py-1.5 text-neutral-primary",
-          message.status === "failed" &&
-            "border border-critical/20 bg-critical-faded"
-        )}
-        isUser={isOwnUserMessage}
-        typographyClassName="text-[15px] leading-[1.72] md:text-[14px] md:leading-[1.8]"
-      >
-        {isUser ? (
-          <div className="whitespace-pre-wrap break-words">
-            <MentionText content={visibleMessageContent} />
-          </div>
-        ) : (
-          <OrgAssistantContent
-            content={assistantContentOverride ?? message.content}
-            fromSlack={fromSlack}
-            onCompanyInfoClick={onCompanyInfoClick}
-            workspaceId={workspaceId}
-          />
-        )}
-        {!isUser && attachments.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {attachments.map((attachment, index) => (
-              <span
-                key={`${attachment.name}:${index}`}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-bg-weak px-2.5 py-1 text-[11px] text-neutral-muted"
+      <OrgMessageLayout fromSlack={fromSlack} isUser={isUser}>
+        {isUser && showUserAttribution ? (
+          <div
+            className={cn(
+              "mb-1 flex items-center gap-1.5 px-1 text-[11px] leading-4",
+              isOwnUserMessage ? "justify-end" : "justify-start"
+            )}
+          >
+            <span className="font-medium text-neutral-muted">
+              {authorName ||
+                (isOwnUserMessage
+                  ? c("나", "Me")
+                  : c("워크스페이스 멤버", "Workspace member"))}
+              {fromSlack ? (
+                <Image
+                  alt={c("Slack", "Slack")}
+                  className="ml-1 inline-block size-3 align-[-2px]"
+                  height={12}
+                  src="/images/logos/slack.svg"
+                  width={12}
+                />
+              ) : null}
+            </span>
+            {messageTime ? (
+              <time
+                className="font-normal tabular-nums text-neutral-soft"
+                dateTime={message.createdAt}
               >
-                <FileText className="size-3 shrink-0" />
-                <span className="truncate">{attachment.name}</span>
-              </span>
-            ))}
+                {messageTime}
+              </time>
+            ) : null}
           </div>
         ) : null}
-        {roleChoices.length > 0 ? (
-          <ChatChoiceList
-            choices={roleChoices.map((choice) => ({
-              label: choice.label,
-              value: choice.value,
-            }))}
-            disabled={
-              readOnly ||
-              choicePending ||
-              roleChoices.every((choice) => choice.status !== "pending")
-            }
-            keyPrefix={`role-confirmation-${message.id}`}
-            onSelect={(choice) => {
-              const source = roleChoices.find(
-                (item) =>
-                  item.value === choice.value && item.status === "pending"
-              );
-              if (!source || !onRoleCreationChoice) return;
-              onRoleCreationChoice({
-                actionId: source.actionId,
-                decision: source.value,
-                messageId: message.id,
-              });
-            }}
-            typographyClassName="text-[13px] leading-[1.55]"
+        {isUser && attachments.length > 0 ? (
+          <ChatMessageAttachmentList
+            align={isOwnUserMessage ? "end" : "start"}
+            attachments={attachments}
+            className="mb-1"
           />
         ) : null}
-        {followUpActions.map((action) => (
-          <MessageActionView
-            key={action.id}
-            action={action}
-            message={message}
-            readOnly={readOnly}
-            roleId={roleId}
-            workspaceId={workspaceId}
-          />
-        ))}
-      </ChatMessageBubbleFrame>
-      {!isUser && <BillingActionNotice metadata={message.metadata} />}
+        <ChatMessageBubbleFrame
+          className={cn(
+            "mb-2",
+            isUser ? "max-w-[min(680px,92%)]" : "max-w-[min(680px,100%)]",
+            showUserAttribution &&
+              isOwnUserMessage &&
+              "border border-neutral-800",
+            showUserAttribution &&
+              isUser &&
+              !isOwnUserMessage &&
+              "rounded-[14px] border border-neutral-1000-a10 bg-bg-floating px-3 py-1.5 text-neutral-primary",
+            message.status === "failed" &&
+              "border border-critical/20 bg-critical-faded"
+          )}
+          isUser={isOwnUserMessage}
+          typographyClassName="text-[15px] leading-[1.72] md:text-[15.5px] md:leading-[1.75]"
+        >
+          {isUser ? (
+            <div className="whitespace-pre-wrap break-words">
+              <MentionText content={visibleMessageContent} />
+            </div>
+          ) : (
+            <OrgAssistantContent
+              content={assistantContentOverride ?? message.content}
+              fromSlack={fromSlack}
+              onCompanyInfoClick={onCompanyInfoClick}
+              workspaceId={workspaceId}
+            />
+          )}
+          {!isUser && attachments.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {attachments.map((attachment, index) => (
+                <span
+                  key={`${attachment.name}:${index}`}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-bg-weak px-2.5 py-1 text-[11px] text-neutral-muted"
+                >
+                  <FileText className="size-3 shrink-0" />
+                  <span className="truncate">{attachment.name}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {roleChoices.length > 0 ? (
+            <ChatChoiceList
+              choices={roleChoices.map((choice) => ({
+                label: choice.label,
+                value: choice.value,
+              }))}
+              disabled={
+                readOnly ||
+                choicePending ||
+                roleChoices.every((choice) => choice.status !== "pending")
+              }
+              keyPrefix={`role-confirmation-${message.id}`}
+              onSelect={(choice) => {
+                const source = roleChoices.find(
+                  (item) =>
+                    item.value === choice.value && item.status === "pending"
+                );
+                if (!source || !onRoleCreationChoice) return;
+                onRoleCreationChoice({
+                  actionId: source.actionId,
+                  decision: source.value,
+                  messageId: message.id,
+                });
+              }}
+              typographyClassName="text-[13px] leading-[1.55]"
+            />
+          ) : null}
+          {followUpActions.map((action) => (
+            <MessageActionView
+              key={action.id}
+              action={action}
+              message={message}
+              readOnly={readOnly}
+              roleId={roleId}
+              workspaceId={workspaceId}
+            />
+          ))}
+        </ChatMessageBubbleFrame>
+        {!isUser && <BillingActionNotice metadata={message.metadata} />}
+      </OrgMessageLayout>
     </div>
   );
 }
@@ -500,9 +516,9 @@ export function OrgAgentStreamingBubble({
 }) {
   if (!text) return null;
   return (
-    <div className="flex flex-col gap-2">
-      <OrgAssistantLabel />
+    <OrgMessageLayout>
       <ChatMessageBubbleFrame
+        className="max-w-[min(680px,100%)]"
         isUser={false}
         typographyClassName="text-[15px] leading-[1.72] md:text-[14px] md:leading-[1.8]"
       >
@@ -512,16 +528,16 @@ export function OrgAgentStreamingBubble({
           workspaceId={workspaceId}
         />
       </ChatMessageBubbleFrame>
-    </div>
+    </OrgMessageLayout>
   );
 }
 
 export function OrgAgentPendingBubble() {
   const { c } = useOrgLocale();
   return (
-    <div className="flex flex-col gap-2">
-      <OrgAssistantLabel />
+    <OrgMessageLayout>
       <ChatMessageBubbleFrame
+        className="max-w-[min(680px,100%)]"
         isUser={false}
         typographyClassName="text-[15px] leading-[1.72] md:text-[14px] md:leading-[1.8]"
       >
@@ -530,6 +546,6 @@ export function OrgAgentPendingBubble() {
           label={c("답변 작성 중", "Composing reply")}
         />
       </ChatMessageBubbleFrame>
-    </div>
+    </OrgMessageLayout>
   );
 }

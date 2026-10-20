@@ -318,11 +318,12 @@ async function assertAccess(user: User, workspaceId: string, manage = false) {
 export async function slackApi<T extends SlackApiResult>(
   token: string,
   method: string,
-  body: Record<string, unknown> = {}
+  body: Record<string, unknown> = {},
+  signal?: AbortSignal
 ) {
   const response = await fetch(
     `https://slack.com/api/${method}`,
-    createSlackApiRequest(token, applyHarperSlackApiMessagePolicy(method, body))
+    { ...createSlackApiRequest(token, applyHarperSlackApiMessagePolicy(method, body)), ...(signal ? { signal } : {}) }
   );
   const payload = (await response.json().catch(() => null)) as T | null;
   if (!response.ok || !payload?.ok) {
