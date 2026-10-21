@@ -4,6 +4,7 @@ import { useIsMutating } from "@tanstack/react-query";
 import {
   ArrowDownWideNarrow,
   LayoutPanelLeft,
+  LayoutGrid,
   List,
   Bookmark,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import {
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgCriteriaBars } from "./OrgCriteriaBars";
 import { OrgSearchHistory } from "./OrgSearchHistory";
+import { OrgRoleTalentBoard } from "./OrgRoleTalentBoard";
 import { OrgPendingConnectionGate } from "./billing/OrgPendingConnectionGate";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { ReviewEmptyState } from "./OrgHomeInbox";
@@ -49,6 +51,7 @@ export function OrgRoleInbox() {
   const { permissions } = useOrgWorkspace();
   const save = useOrgCandidateSave();
   const listScrollTop = useRef(0);
+  const scrollRef = useRef<HTMLElement>(null);
   const [actionError, setActionError] = useState("");
   const entitlements = useOrgEntitlements(workspaceId);
   const mutationCount = useIsMutating();
@@ -57,7 +60,13 @@ export function OrgRoleInbox() {
     router.query.inboxStage === "company_intro"
       ? "company_intro"
       : "pending_connection";
-  const card = router.query.inboxView === "card";
+  const view =
+    router.query.inboxView === "card"
+      ? "card"
+      : router.query.inboxView === "grid"
+        ? "grid"
+        : "list";
+  const card = view === "card";
   const sort: OrgCandidateSort =
     router.query.sort === "recommended" ? "recommended" : "latest";
   const items = useMemo(
@@ -123,8 +132,18 @@ export function OrgRoleInbox() {
     }
   });
   const reviewing = card || Boolean(detailTalentId);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: reviewing ? 0 : listScrollTop.current });
+  }, [reviewing, stage, sort]);
   return (
-    <section className="@container/inbox flex h-full min-h-0 min-w-0 flex-1 flex-col">
+    <section
+      ref={scrollRef}
+      data-org-review-scroll
+      onScroll={(event) => {
+        if (!reviewing) listScrollTop.current = event.currentTarget.scrollTop;
+      }}
+      className="@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain"
+    >
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2">
         {savedReview ? (
           <h2 className="mr-auto text-sm font-medium">
@@ -183,6 +202,8 @@ export function OrgRoleInbox() {
                 >
                   {card ? (
                     <LayoutPanelLeft className="size-4" />
+                  ) : view === "grid" ? (
+                    <LayoutGrid className="size-4" />
                   ) : (
                     <List className="size-4" />
                   )}
@@ -190,7 +211,7 @@ export function OrgRoleInbox() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuRadioGroup
-                  value={card ? "card" : "list"}
+                  value={view}
                   onValueChange={(inboxView) =>
                     change({ inboxView }, inboxView === "card")
                   }
@@ -200,6 +221,9 @@ export function OrgRoleInbox() {
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="card">
                     {c("카드", "Card")}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="grid">
+                    {c("그리드", "Grid")}
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
@@ -235,7 +259,7 @@ export function OrgRoleInbox() {
       ) : boardQuery.isLoading ? (
         <ReviewEmptyState loading />
       ) : reviewing && (detailTalentId || items.length) ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-1000-a10">
+        <div>
           <TalentDetailSimpleView
             presentation="inline"
             showBack={savedReview || !card}
@@ -244,7 +268,9 @@ export function OrgRoleInbox() {
             backLabel={
               savedReview
                 ? c("저장함으로 돌아가기", "Back to Saved")
-                : undefined
+                : view === "grid"
+                  ? c("그리드로 돌아가기", "Back to grid")
+                  : undefined
             }
             onReviewClose={
               savedReview
@@ -255,16 +281,10 @@ export function OrgRoleInbox() {
         </div>
       ) : !items.length ? (
         <ReviewEmptyState />
+      ) : view === "grid" ? (
+        <OrgRoleTalentBoard section="inbox" inboxItems={items} />
       ) : (
-        <div
-          ref={(node) => {
-            if (node) node.scrollTop = listScrollTop.current;
-          }}
-          onScroll={(event) => {
-            listScrollTop.current = event.currentTarget.scrollTop;
-          }}
-          className="min-h-0 overflow-y-auto overflow-x-hidden divide-y divide-neutral-1000-a05"
-        >
+        <div className="divide-y divide-neutral-1000-a05">
           {items.map((item) => (
             <article
               key={item.recommendationId}

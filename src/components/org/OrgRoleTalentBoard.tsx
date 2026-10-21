@@ -1,3 +1,5 @@
+import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
+import { Bookmark } from "lucide-react";
 import { OrgSavedCandidates } from "./OrgSavedCandidates";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
@@ -375,6 +377,7 @@ export function OrgRoleTalentBoardCard({
   onOpen,
   onReject,
   onPass,
+  onSave,
   pending = false,
   stages,
 }: {
@@ -386,6 +389,7 @@ export function OrgRoleTalentBoardCard({
   onOpen: () => void;
   onReject?: () => void;
   onPass?: (reason: string) => Promise<void>;
+  onSave?: () => void;
   pending?: boolean;
   stages: OrgStage[];
 }) {
@@ -444,6 +448,19 @@ export function OrgRoleTalentBoardCard({
                 >
                   {formatKstRelativeDate(cardDate, { locale })}
                 </time>
+                {onSave && canManageCandidates && (
+                  <MuteButton
+                    className="pointer-events-auto"
+                    aria-label={c("{name} 저장", "Save {name}", { name })}
+                    title="Save"
+                    variant="transparent"
+                    size="sm"
+                    disabled={pending}
+                    onClick={onSave}
+                  >
+                    <Bookmark className="size-4" />
+                  </MuteButton>
+                )}
                 {!isDecisionStage &&
                 item.capabilities.moveStage &&
                 canManageCandidates &&
@@ -600,9 +617,11 @@ export function OrgRoleTalentBoardCard({
 export function OrgRoleTalentBoard({
   displayControl,
   section = "pipeline",
+  inboxItems,
 }: {
   displayControl?: ReactNode;
   section?: "inbox" | "pipeline";
+  inboxItems?: OrgBoardItem[];
 }) {
   const router = useRouter();
 
@@ -632,6 +651,7 @@ export function OrgRoleTalentBoard({
   const createCustomStage = useCreateOrgReviewStage();
   const requestCompanyIntro = useRequestOrgCompanyIntro();
   const passCompanyIntro = usePassOrgCompanyIntro();
+  const saveCandidate = useOrgCandidateSave();
   const addToast = useToastStore((state) => state.add);
   const [activeStageId, setActiveStageId] = useState("");
   const [sort, setSort] = useState<OrgCandidateSort>("latest");
@@ -705,13 +725,14 @@ export function OrgRoleTalentBoard({
   );
   const items = useMemo(
     () =>
+      inboxItems ??
       (board?.items ?? [])
         .filter((item) => item.stage === selectedStageId && !item.savedAt)
         .sort((left, right) => compareOrgCandidates(left, right, sort)),
-    [board?.items, selectedStageId, sort]
+    [board?.items, selectedStageId, sort, inboxItems]
   );
   const recommendationStatus =
-    section === "inbox" && activeRole ? (
+    section === "inbox" && !inboxItems && activeRole ? (
       <OrgRoleRecommendationStatus
         capacityBlocked={
           board?.talentFirstCapacityBlockedRoleIds?.includes(
@@ -795,81 +816,98 @@ export function OrgRoleTalentBoard({
       aria-label={c("후보자 보드", "Candidate board")}
       className="@container/talent-board min-w-0"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
-          <Tabs
-            activeValue={selectedStageId}
-            aria-label={c("보드 단계 선택", "Select board stage")}
-            className="min-w-max w-fit gap-0.5"
-            items={visibleStages.map((stage) => ({
-              label: (
-                <span className="inline-flex items-center gap-2">
-                  {getBoardStageLabel(stage, activeRole?.name ?? null, sourceT)}
-                  <span
-                    className={cn(
-                      "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
+      {!inboxItems && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
+            <Tabs
+              activeValue={selectedStageId}
+              aria-label={c("보드 단계 선택", "Select board stage")}
+              className="min-w-max w-fit gap-0.5"
+              items={visibleStages.map((stage) => ({
+                label: (
+                  <span className="inline-flex items-center gap-2">
+                    {getBoardStageLabel(
+                      stage,
+                      activeRole?.name ?? null,
+                      sourceT
                     )}
-                  >
-                    {stage.id === "pending_connection" && pendingLocked ? (
-                      <LockKeyhole
-                        aria-label={locale === "ko" ? "유료 슬롯" : "Paid slot"}
-                        className="size-3"
-                      />
-                    ) : (
-                      (stageCounts.get(stage.id) ?? 0)
-                    )}
+                    <span
+                      className={cn(
+                        "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
+                      )}
+                    >
+                      {stage.id === "pending_connection" && pendingLocked ? (
+                        <LockKeyhole
+                          aria-label={
+                            locale === "ko" ? "유료 슬롯" : "Paid slot"
+                          }
+                          className="size-3"
+                        />
+                      ) : (
+                        (stageCounts.get(stage.id) ?? 0)
+                      )}
+                    </span>
                   </span>
-                </span>
-              ),
-              tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
-              value: stage.id,
-            }))}
-            onValueChange={selectStage}
-            size="small"
-            variant="pills"
-          />
+                ),
+                tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
+                value: stage.id,
+              }))}
+              onValueChange={selectStage}
+              size="small"
+              variant="pills"
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <MuteButton
+                aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+                title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+                className="shrink-0"
+                size="md"
+                variant="transparent"
+              >
+                <ArrowDownWideNarrow aria-hidden="true" className="size-4" />
+              </MuteButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuRadioGroup
+                value={sort}
+                onValueChange={(value) => {
+                  if (value === "latest" || value === "recommended")
+                    setSort(value);
+                }}
+              >
+                {sortOptions.map((option) => (
+                  <DropdownMenuRadioItem
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {displayControl ? (
+            <div className="shrink-0">{displayControl}</div>
+          ) : null}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <MuteButton
-              aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-              title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-              className="shrink-0"
-              size="md"
-              variant="transparent"
-            >
-              <ArrowDownWideNarrow aria-hidden="true" className="size-4" />
-            </MuteButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuRadioGroup
-              value={sort}
-              onValueChange={(value) => {
-                if (value === "latest" || value === "recommended")
-                  setSort(value);
-              }}
-            >
-              {sortOptions.map((option) => (
-                <DropdownMenuRadioItem key={option.value} value={option.value}>
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {displayControl ? (
-          <div className="shrink-0">{displayControl}</div>
-        ) : null}
-      </div>
+      )}
 
       {section === "pipeline" && <OrgSavedCandidates column={false} />}
       {recommendationStatus ? (
         <div className="mt-2">{recommendationStatus}</div>
       ) : null}
 
+      {saveCandidate.error && (
+        <p role="alert" className="mb-3 text-xs text-critical">
+          {saveCandidate.error.message}
+        </p>
+      )}
       <div
         className={cn(
-          "relative isolate mt-4 grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
+          "relative isolate grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
+          !inboxItems && "mt-4",
           selectedStage?.id === "accepted" && "overflow-hidden"
         )}
       >
@@ -908,6 +946,18 @@ export function OrgRoleTalentBoard({
                 : requestMove(item, "connected")
             }
             onMove={requestMove}
+            onSave={
+              section === "inbox"
+                ? () =>
+                    saveCandidate.mutate({
+                      workspaceId,
+                      roleId: item.roleId,
+                      talentId: item.talentId,
+                      recommendationId: item.recommendationId,
+                      saved: true,
+                    })
+                : undefined
+            }
             onOpen={() =>
               selectTalent(
                 item,
@@ -927,7 +977,9 @@ export function OrgRoleTalentBoard({
                 });
             }}
             pending={
-              isCandidateStagePending(item) || passCompanyIntro.isPending
+              isCandidateStagePending(item) ||
+              passCompanyIntro.isPending ||
+              saveCandidate.isPending
             }
             stages={board?.stages ?? []}
           />

@@ -427,7 +427,15 @@ export function OrgHomeInbox() {
               />
             )}
           </aside>
-          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-neutral-1000-a10">
+          <div
+            data-org-review-scroll={feed ? undefined : true}
+            className={cn(
+              "min-h-0 min-w-0",
+              feed
+                ? "flex flex-col overflow-hidden rounded-xl border border-neutral-1000-a10"
+                : "overflow-y-auto overscroll-contain"
+            )}
+          >
             {feed ? (
               <RoleActivity
                 workspaceId={workspaceId}

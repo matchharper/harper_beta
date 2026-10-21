@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { TalentDetailPager } from "./TalentDetailPager";
 import { MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
@@ -40,7 +41,7 @@ export function OrgCandidateReview(props: Props) {
   const { detail, navigation, pending, canManage } = props;
   const [passOpen, setPassOpen] = useState(false);
   const [actionError, setActionError] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const reviewRef = useRef<HTMLElement>(null);
   const actionable = Boolean(
     detail &&
     (detail.companyIntro
@@ -62,7 +63,15 @@ export function OrgCandidateReview(props: Props) {
     }
   };
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
+    const review = reviewRef.current;
+    const scroller = review?.closest<HTMLElement>("[data-org-review-scroll]");
+    if (!review || !scroller) return;
+    const reviewTop =
+      review.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top +
+      scroller.scrollTop;
+    if (scroller.scrollTop > reviewTop)
+      scroller.scrollTo({ top: Math.max(0, reviewTop) });
   }, [detail?.recommendation.recommendationId]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -113,8 +122,9 @@ export function OrgCandidateReview(props: Props) {
   });
   return (
     <section
+      ref={reviewRef}
       aria-label={c("후보자 검토", "Candidate review")}
-      className="@container/review flex min-h-0 min-w-0 flex-1 flex-col bg-bg-default"
+      className="@container/review min-w-0 bg-bg-default"
     >
       <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-neutral-1000-a05 bg-bg-default px-4 py-3 @min-[700px]/review:px-6">
         <div className="flex items-center gap-1">
@@ -132,34 +142,13 @@ export function OrgCandidateReview(props: Props) {
               <ArrowLeft className="size-4" />
             </MuteButton>
           )}
-          <MuteButton
-            aria-label={c("이전 후보자", "Previous candidate")}
-            onClick={() => props.onNavigate(navigation?.previous ?? null)}
-            disabled={!navigation?.previous || pending}
-            title={c("이전 후보자 (←)", "Previous candidate (←)")}
-            aria-keyshortcuts="ArrowLeft"
-            variant="transparent"
-            size="sm"
-          >
-            <ChevronLeft className="size-4" />
-          </MuteButton>
-          <span
-            aria-live="polite"
-            className="min-w-12 text-center text-xs tabular-nums text-neutral-muted"
-          >
-            {navigation ? `${navigation.position} / ${navigation.total}` : "—"}
-          </span>
-          <MuteButton
-            aria-label={c("다음 후보자", "Next candidate")}
-            onClick={() => props.onNavigate(navigation?.next ?? null)}
-            disabled={!navigation?.next || pending}
-            title={c("다음 후보자 (→)", "Next candidate (→)")}
-            aria-keyshortcuts="ArrowRight"
-            variant="transparent"
-            size="sm"
-          >
-            <ChevronRight className="size-4" />
-          </MuteButton>
+          {navigation && (
+            <TalentDetailPager
+              navigation={navigation}
+              onNavigate={props.onNavigate}
+              disabled={pending}
+            />
+          )}
         </div>
         {actionable && canManage && (
           <div className="ml-auto flex items-center gap-2">
@@ -208,10 +197,7 @@ export function OrgCandidateReview(props: Props) {
           {actionError}
         </p>
       )}
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 @min-[700px]/review:p-8"
-      >
+      <div className="p-5 @min-[700px]/review:p-8">
         {props.error ? (
           <OrgErrorState
             message={props.error.message}
