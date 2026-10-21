@@ -68,7 +68,7 @@ const muteButtonVariants = cva(
         primary:
           "border-primary bg-primary text-neutral-00 hover:border-primary/90 hover:bg-primary/90 active:border-primary/80 active:bg-primary/80",
         positive:
-          "border-positive bg-positive text-neutral-00 hover:border-positive/90 hover:bg-positive/90 active:border-positive/80 active:bg-positive/80",
+          "border-positive-strong bg-positive-strong text-neutral-00 hover:bg-positive-strong/90 active:border-positive-strong/80 active:bg-positive-strong/80",
         critical:
           "border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 active:border-critical/80 active:bg-critical/80",
         default:

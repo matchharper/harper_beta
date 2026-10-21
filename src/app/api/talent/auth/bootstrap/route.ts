@@ -411,6 +411,7 @@ export async function POST(req: NextRequest) {
       const { error: logInsertError } = await admin.from("logs").insert({
         type: CAREER_SIGNUP_EVENT_TYPE,
         user_id: user.id,
+        meta_data: { landingLocalId, landingPath, landingSource },
       });
       if (logInsertError) {
         console.error(

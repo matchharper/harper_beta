@@ -1,4 +1,5 @@
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
+import { readOpsCompatibleContacts } from "@/lib/companyTalentRequests/readOpsCompatible";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess, scopeOrgRoleQuery, assertOrgTeamRoleAccess, visibleOrgRoleIds } from "@/lib/org/teamAccess";
@@ -1056,15 +1057,19 @@ async function readCompanyTalentRequestProjection(args: {
   workspaceId: string;
 }) {
   const [historyResult, documentsResult] = await Promise.all([
-    (args.admin.from("company_talent_requests" as any) as any)
-      .select(
-        "id, role_id, expects_document, request_context, workflow_status, intent, resume_stage, response_disposition, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
-      )
-      .eq("company_workspace_id", args.workspaceId)
-      .eq("talent_id", args.talentId)
-      .in("role_id", [...args.roleById.keys()])
-      .order("created_at", { ascending: false })
-      .limit(5),
+    readOpsCompatibleContacts((hasOpsColumn) => {
+      let query = (args.admin.from("company_talent_requests" as any) as any)
+        .select(
+          "id, role_id, expects_document, request_context, workflow_status, intent, resume_stage, response_disposition, expires_at, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, talent_source_message_id, document_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
+        );
+      if (hasOpsColumn) query = query.eq("ops_only", false);
+      return query
+        .eq("company_workspace_id", args.workspaceId)
+        .eq("talent_id", args.talentId)
+        .in("role_id", [...args.roleById.keys()])
+        .order("created_at", { ascending: false })
+        .limit(5);
+    }),
     args.includeResumeAvailability === false ? Promise.resolve({ data: [], error: null }) : (args.admin.from("talent_documents" as any) as any)
       .select("id, is_public, is_primary")
       .or("origin_type.is.null,origin_type.neq.harper_generated_resume")

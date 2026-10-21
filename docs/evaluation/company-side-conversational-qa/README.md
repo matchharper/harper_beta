@@ -701,3 +701,43 @@ v33 최종 run `intro-connected-v33-r1`은 실제 기본 모델 2회로 2/2 원�
 - Gate: 2/2 전체 답변 의미·대상·선택 유지, 미승인 연락/허위 발송 0. 실제 DB/메일 transport·브라우저 E2E, 독립 팀원 검토와 운영 분포는 제외한다. Worker의 대상 선정과 발송 전 재확인은 별도 단위 검증이다.
 
 [v35 변경·검증 결과](reports/2026-10-16-closure-notice-choice.md): 실제 모델 2대화·4턴의 선택 유지 확인, Worker 33개·웹 schema/projection 83개·Slack 제외 안내 1개 통과. 기존 비관련 오류와 운영/브라우저/메일 E2E 미검증은 보고서에 구분한다. 미배포.
+
+## 2026-10-20 후보자 동의 후 Role 이동: v36 (로컬·미배포)
+
+[cases-v36.json](cases-v36.json), [gold-v36.md](gold-v36.md), [manifest-v36.json](manifest-v36.json).
+원본 company-side LLM이 UI에서 위임된 Role 이동과 후보자 답변의 의미를 해석하고 기존 이동 도구를 사용하는지 확인한다.
+합성 3건(수락·거절·조건부 관심), 고정 입력/gold. Canonical runner는
+`pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v36 --run=<new>`.
+현재 runner의 기본 모델·reasoning·provider 설정 및 source hash는 run manifest에 보존한다.
+Gate는 3/3 수동 의미 검토, 미승인 이동·허위 완료 0. 원문은 ignored runs의 0700/0600 파일에만 저장한다.
+실제 DB/Slack/메일은 차단하고 tool 결과만 adapter로 제공한다. 운영 queue·권한·연락 E2E와 독립 검토는 범위 밖이다.
+
+[검증 기록](reports/2026-10-20-role-move-consent.md): v36 3건과 기존 v24 조건부 답변 1건의
+실제 모델 원문을 검토했다. 후속 확인에서 일반 답변의 요청 ID가 null인 실제 계약과
+completion RPC의 불일치를 재현·수정했으며 API·DB wrapper 등 15개와 v36 재실행을 통과했다.
+타입·대상 린트 및 실제 모달의 데스크톱·모바일 렌더링은 최초 검증 기록을 따른다.
+기존 비관련 검사 실패와 운영 E2E 미검증, 운영 DB의 새 함수 미적용은 별도 기록했다.
+
+## 2026-10-20 Role 이동 실제 연락 검증: role-move-live-v1
+
+[고정 입력과 기대 결과](role-move-live-v1.json)로 수락·거절 두 사건을 확인한다.
+목표는 실제 화면의 질문 요청부터 발송, 후보자의 승인된 답변, 기존 company-side LLM의
+이동 실행과 회사 Slack 전달까지의 연결이다. 입력은 합성이며 기존 전용 fixture talent와
+내부 Harper Workspace에서만 실행한다. Role은 생성 시부터 `testOnly`, 안정적인
+`testFixture`, 해당 전용 talent만 포함한 `testTalentIds`를 가진다.
+
+Canonical runner는 `scripts/evalOrgRoleMoveLive.ts`이다.
+`pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalOrgRoleMoveLive.ts status|request|reply|retry --run=<private-run> --case=accept|decline --allow-production-fixture`
+형태로 실행한다. 질문은 실제 UI 또는 전용 fixture 팀원의 인증된 세션으로 같은 로컬 API에서 요청한다. 답변은 테스트 계정의 원문 메시지와
+일반 연결 relay RPC에 주입하고 실제 회사 사건 처리기를 실행한다. 조회·이동·Slack을
+adapter로 교체하지 않는다. 현재 제품 기본 모델과 기존 prompt/tool 계약을 사용한다.
+구 운영 runtime과 섞이지 않도록 해당 fixture의 큐 예약만 잠시 미루고, 새 로컬 runtime의
+일반 enqueue·processor를 직접 호출한다. 전역 dispatcher·채널 설정은 바꾸지 않는다.
+
+Gate는 수락 시 승인된 목적지·단계로 1회 이동, 거절 시 위치 불변, 실제 회사 메시지 및
+Slack 전달 기록, 재시도 중복 없음, fixture 외 추천·fit 0, exact-ID 정리 완료다.
+실제 질문·최종 회사 응답 전체를 작성자가 읽고 의미를 검토한다.
+실행 전 입력 hash, 실제 식별자, source hash와 검증 기록은 ignored `runs/<run>`의
+0700/0600 파일에 저장한다. 운영 식별자·원문·provider 결과를 공개 gold에 넣지 않는다.
+Gmail inbound 파싱과 Career LLM의 도구 선택은 검증 범위에 포함하지 않는다.
+DB 적용과 새 로컬 runtime의 검증이며 웹·Worker 운영 배포를 의미하지 않는다.

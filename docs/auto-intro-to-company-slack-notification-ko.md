@@ -149,7 +149,7 @@ Work Summary:
 
 origin은 `NEXT_PUBLIC_SITE_URL`, 값이 없으면 `https://matchharper.com`이다. 이 링크가 해당 후보자의 TalentSimpleDetailView를 연다.
 
-workspace 메시지 끝에는 연결 수락·거절 안내와 `/org/jobs?orgId={workspaceId}&roleId=all` 링크를 한 번 붙인다. `Connect / Reject`는 웹 후보자 검토 화면의 버튼 label이므로 Slack 본문에서 답장 형식처럼 사용하지 않는다. Slack에서는 다음처럼 사용자의 결정을 자연어로 안내한다.
+workspace 메시지 끝에는 연결 수락·거절 안내와 `/org/jobs?orgId={workspaceId}&roleId=all` 링크를 한 번 붙인다. 웹 후보자 검토 화면의 버튼 label은 `Accept Intro / Reject`이고, Slack 후보자 상세의 수락 버튼도 `Accept Intro`다. 버튼 label을 Slack 본문에서 답장 형식처럼 사용하지 않는다. Slack에서는 다음처럼 사용자의 결정을 자연어로 안내한다.
 
 ```text
 프로필과 Harper의 추천 이유를 천천히 확인한 뒤 연결을 받으실지, 거절하실지 선택해 주세요. 연결을 수락하면 후보자와의 대화를 직접 이어나가실 수 있게 연결해드려요. 거절시 연결이 진행되지 않는다는 내용을 Harper가 후보자에게 적절한 타이밍에 가볍게 안내해요. 이번 추천에서 좋았던 점이나 맞지 않았던 점을 알려주시면 다음에는 팀이 원하는 분을 더 정확하게 찾아볼게요.

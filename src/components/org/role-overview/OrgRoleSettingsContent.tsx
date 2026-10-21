@@ -1,6 +1,6 @@
 import { SlackLogo as SlackIcon } from "@/components/common/BrandLogos";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { canAccessOrgRole, resolveOrgRoleAccess } from "@/lib/org/teamAccess";
+import { canAccessOrgRole, resolveOrgRoleAccess } from "@/lib/org/teamAccess.shared";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import Link from "next/link";

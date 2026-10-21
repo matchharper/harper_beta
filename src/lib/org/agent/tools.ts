@@ -1122,6 +1122,10 @@ Call this once per exact candidate Role change and review the result before anot
       parameters: {
         additionalProperties: false,
         properties: {
+          candidateConsentRelayId: {
+            type: "string",
+            description: "For a company-authorized UI Role move conditional on candidate consent, pass the fresh candidate_contact_ref.relayId when the candidate explicitly accepts that exact change. The server checks the saved authorization, destination, cancellation and current state. Omit for a newly authorized immediate company move.",
+          },
           sourceRoleId: {
             description: "Exact internal source Role ID from read_role.",
             type: "string",

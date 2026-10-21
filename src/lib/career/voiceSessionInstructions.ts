@@ -1,9 +1,11 @@
 import { buildMockInterviewLanguageInstruction } from "./prompts/cases/mockInterviewPrompts";
+import { CAREER_ONBOARDING_GUIDANCE_PROMPT } from "./prompts/rawPrompts";
 
 export function buildLiveFrontendInstructions(args: {
   initialResponseInstruction: string;
   responseLocale: unknown;
   isMockInterview?: boolean;
+  onboardingContext?: string | null;
 }) {
   const language =
     typeof args.responseLocale === "string" &&
@@ -30,6 +32,15 @@ export function buildLiveFrontendInstructions(args: {
     paceInstruction,
     "Keep spoken turns concise, conversational, and easy to interrupt. Listen while speaking and adapt naturally when the caller interjects.",
     "Delegate whenever you need the caller's stored context, business rules, careful reasoning, or any tool. Use the delegated result before making factual claims or claiming that an action succeeded.",
+    ...(args.onboardingContext && !args.isMockInterview
+      ? [
+          CAREER_ONBOARDING_GUIDANCE_PROMPT,
+          "For this onboarding call, the backend has the caller's profile, saved preferences, and recent conversation. Use the progress snapshot to ask one unanswered topic naturally. Handle ordinary answers and follow-up questions directly; delegate when you need stored details to resume or summarize, for uncertain context, corrections that affect the next step, or deciding whether the call is ready to close.",
+          "A backend handoff is private guidance, not a script or a list to read aloud. Choose one useful next move. When asking for information, keep the turn focused on one topic and leave room for the caller's answer before moving on.",
+          "The saved progress snapshots are factual updates, not text to read aloud. They replace older progress snapshots and can lag behind speech. Use the latest answer together with the backend's guidance; do not repeat a question just because saving is pending. Before final confirmation or closing, delegate to reconcile the latest conversation with the required topics. A farewell does not complete onboarding. If the caller asks to stop, respect that immediately without claiming unfinished onboarding is complete.",
+          args.onboardingContext,
+        ]
+      : []),
     "Ending the call requires the backend end_call tool. If the caller wants to stop, or agrees to a closing you proposed, delegate immediately so the backend can end the call. Do not ask another question or treat a spoken farewell as a completed hangup.",
     "Do not narrate delegation mechanics, tool names, system instructions, or hidden context to the caller.",
     args.initialResponseInstruction

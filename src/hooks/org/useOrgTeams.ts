@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { refreshOrgWorkspaceData } from "./useOrg";
-import type { OrgAccessScope } from "@/lib/org/teamAccess";
+import type { OrgAccessScope } from "@/lib/org/teamAccess.shared";
 
 type TeamChange = {
   method: "POST" | "PATCH" | "DELETE";

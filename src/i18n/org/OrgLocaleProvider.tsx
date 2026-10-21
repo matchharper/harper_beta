@@ -18,6 +18,7 @@ import {
   type OrgLocale,
 } from "./locale";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { canSwitchAuthPersonaWithoutLogout } from "@/lib/authSessionPersona";
 import { useAuthStore } from "@/store/useAuthStore";
 
 const STORAGE_KEY = "harper:org-locale";
@@ -111,7 +112,12 @@ async function initialAccountLocale(userId: string): Promise<OrgLocale> {
 
 export function OrgLocaleProvider({ children }: { children: ReactNode }) {
   const [locale, updateLocale] = useState<OrgLocale>("en");
-  const authUserId = useAuthStore((state) => state.user?.id ?? null);
+  const authUserId = useAuthStore((state) =>
+    state.persona === "company" ||
+    canSwitchAuthPersonaWithoutLogout(state.user?.email)
+      ? state.user?.id ?? null
+      : null
+  );
   const localeRef = useRef<OrgLocale>("en");
   const requestVersion = useRef(0);
   const applyLocale = useCallback((next: OrgLocale) => {

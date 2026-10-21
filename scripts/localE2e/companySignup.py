@@ -26,7 +26,7 @@ def scalar(sql, args=()):
 def begin(i):
     with psycopg.connect(url) as other:
         other.execute('set local role service_role')
-        return other.execute('select workspace_signup_begin_v1(%s,%s,true)', (users[i], domains[i])).fetchone()[0]
+        return other.execute('select workspace_signup_begin_v1(%s,null,%s,%s,true)', (f'owner{i}@{domains[i]}', users[i], domains[i])).fetchone()[0]
 
 def update(i, workspace, action, values=None):
     return scalar('select workspace_signup_update_v1(%s,%s,%s,%s)', (users[i], workspace, action, Jsonb(values or {})))
@@ -57,10 +57,10 @@ try:
     # and may differ between installed billing migrations in the local stack.
     assert summary['model'] == 'free'
     assert scalar('select count(*) from company_roles where company_workspace_id=%s', (workspace,)) == 0
-    fails(lambda: scalar('select workspace_signup_begin_v1(%s,%s,true)', (users[0], 'spoofed.com')), 'signup_work_email_required')
+    fails(lambda: scalar('select workspace_signup_begin_v1(%s,null,%s,%s,true)', (f'owner0@{domains[0]}', users[0], 'spoofed.com')), 'signup_work_email_required')
     fails(lambda: update(1, workspace, 'company', {'name':'Unauthorized'}), 'signup_forbidden')
     fails(lambda: update(0, workspace, 'plan', {'plan':'free'}), 'signup_company_required')
-    assert not scalar("select has_function_privilege('authenticated','workspace_signup_begin_v1(uuid,text,boolean)','execute')")
+    assert not scalar("select has_function_privilege('authenticated','workspace_signup_begin_v1(text,text,uuid,text,boolean)','execute')")
     assert not scalar("select has_function_privilege('anon','workspace_signup_update_v1(uuid,uuid,text,jsonb)','execute')")
     print('PASS verified domain, same-user concurrency, independent same-company signup, permissions, Free start, no roles')
 

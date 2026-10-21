@@ -1262,6 +1262,13 @@ export async function POST(req: NextRequest) {
             userId: user.id,
           })
         : null);
+    if (selectedCompanyTalentRequest?.ops_only) {
+      const { error } = await (admin.rpc as any)("bind_ops_candidate_reply_v1", {
+        p_request_id: selectedCompanyTalentRequest.id, p_talent_id: user.id,
+        p_source_message_id: insertedUserMessage.id,
+      });
+      if (error) throw error;
+    }
     const companyContactContext = talentSetting?.is_onboarding_done
       ? await fetchTalentCompanyContactContext({
           admin: admin as any,

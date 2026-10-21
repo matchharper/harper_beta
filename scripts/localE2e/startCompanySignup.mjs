@@ -56,7 +56,7 @@ if (command === "stop") {
   execFileSync(python, [path.join(root, "scripts/localE2e/database.py"), "check"], { env, stdio: "inherit" });
   execFileSync(python, ["-c", `import os, psycopg
 with psycopg.connect(os.environ['DATABASE_URL']) as c:
-    row=c.execute("select to_regprocedure('workspace_signup_begin_v1(uuid,text,boolean)'), to_regprocedure('workspace_signup_update_v1(uuid,uuid,text,jsonb)')").fetchone()
+    row=c.execute("select to_regprocedure('workspace_signup_begin_v1(text,text,uuid,text,boolean)'), to_regprocedure('workspace_signup_update_v1(uuid,uuid,text,jsonb)')").fetchone()
     assert all(row), 'Local signup schema is missing; inspect the exact required migration.'
 `], { env, stdio: "inherit" });
   const mailHealth = await fetch(`${mailbox}/api/v1/info`, { signal: AbortSignal.timeout(5000) });

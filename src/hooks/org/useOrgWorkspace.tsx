@@ -163,6 +163,11 @@ export function useOrgWorkspaceController({
       void router.replace(`/org/onboarding?${params}`);
       return;
     }
+    if (workspace.isReviewing && page !== "home" &&
+      isOrgOnboardingComplete(workspace.signupState, currentUser, user.id)) {
+      void router.replace(buildOrgHref({ orgId: workspace.workspaceId, page: "home" }));
+      return;
+    }
     if (!legacyEntry && orgId === workspace.workspaceId) {
       return;
     }

@@ -169,6 +169,15 @@ export async function processEmailReply(
     role: "user",
     content: `${body}${attachmentText}`,
   });
+  if (identity.companyRequestId) {
+    const request = await readRow(admin, "company_talent_requests", identity.companyRequestId);
+    if (request?.ops_only) {
+      const { error } = await (admin.rpc as any)("bind_ops_candidate_reply_v1", {
+        p_request_id: request.id, p_talent_id: identity.talentId, p_source_message_id: sourceMessage.id,
+      });
+      if (error) throw error;
+    }
+  }
   const ctx: EmailJobContext = {
     ...special,
     attachments,

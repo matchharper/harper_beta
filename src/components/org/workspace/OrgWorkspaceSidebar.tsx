@@ -1,5 +1,4 @@
 import { CreditCard } from "lucide-react";
-import { canUseWorkspaceBilling } from "@/lib/org/billing/rollout";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   ArrowLeft,
@@ -757,8 +756,7 @@ export function OrgWorkspaceSidebar({
       icon: Blocks,
       label: ORG_PRODUCT_LABELS.integrations,
     },
-    ...(canUseWorkspaceBilling(workspace.workspaceId) &&
-    permissions.canManageWorkspace
+    ...(permissions.canManageWorkspace
       ? [
           {
             active: organizationSection === "slots",
@@ -768,8 +766,7 @@ export function OrgWorkspaceSidebar({
           },
         ]
       : []),
-    ...(canUseWorkspaceBilling(workspace.workspaceId) &&
-    permissions.role === "owner"
+    ...(permissions.role === "owner"
       ? [
           {
             active: organizationSection === "billing",

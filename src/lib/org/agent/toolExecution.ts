@@ -1,3 +1,4 @@
+import { assertReviewOnboardingTool } from "@/lib/org/workspaceReview.server";
 import { updateCompanyEmailPreferences } from "@/lib/email/companyPreferences";
 import { updateCompanyLanguageSetting } from "@/lib/org/agent/languageSetting";
 import { readRoleNotificationContext } from "./roleNotificationContext";
@@ -3352,6 +3353,7 @@ async function executeCandidateContactLifecycle(args: {
       args.admin.from("company_talent_requests" as any) as any
     )
       .select("id, role_id, talent_id")
+      .eq("ops_only", false)
       .eq("company_workspace_id", args.workspaceId)
       .in(
         "id",
@@ -4581,6 +4583,7 @@ async function executeMoveCandidateToRole(args: {
     "targetStageId"
   );
   const result = await moveOrgCandidateToRole({
+    candidateConsentRelayId: text(args.input.candidateConsentRelayId) || undefined,
     companyMessageId: args.currentUserMessageId,
     sourceRoleId: sourceRole.roleId,
     talentId,
@@ -6141,6 +6144,7 @@ export async function executeOrgAgentTool(args: {
     throw new OrgAgentToolInputError("notifyCandidateOnClosure must be a boolean");
   }
   const workspaceId = args.conversation.company_workspace_id;
+  assertReviewOnboardingTool(workspaceId, args.user.id, args.name, input);
   // These are structural Role identifiers in tool commands, not conversational judgments.
   const referencedRoleIds = [
     input.roleId,

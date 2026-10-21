@@ -152,6 +152,7 @@ function acceptanceContext() {
   };
   const setting: any = { is_onboarding_done: true };
   const admin: any = {
+    async rpc() { return {data: null, error: null}; },
     from(table: string) {
       let patch: any;
       const filters: any = {};

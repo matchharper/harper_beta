@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
     const backendInstructions = appendRealtimeInitialResponseInstruction({
       initialResponseInstruction: openingInstruction,
       instructions: [
-        promptPlan.instructions,
+        promptPlan.liveInstructions,
         continuedCallNote
           ? buildTalentCallNoteContinuationContext(continuedCallNote)
           : "",
@@ -343,6 +343,7 @@ export async function POST(req: NextRequest) {
               initialResponseInstruction: openingInstruction,
               responseLocale,
               isMockInterview: Boolean(mockInterviewOpportunityId),
+              onboardingContext: promptPlan.liveOnboardingContext,
             }),
             delegation: {
               type: "responses",

@@ -1661,6 +1661,7 @@ export async function runOrgAgentWebActionTurn(args: {
 }
 
 export async function runOrgAgentChat(args: {
+  allowedToolNames?: ReadonlySet<string>;
   /** Trusted email adapter: persisted source identity and current authorization. */
   emailExecution?: {
     conversationId: string;
@@ -1934,6 +1935,7 @@ export async function runOrgAgentChat(args: {
       model: modelConfig.model,
       responseLocale: args.responseLocale,
       initialCapabilities: args.initialCapabilities,
+      allowedToolNames: args.allowedToolNames,
       ...(!args.slackThreadId && args.emit
         ? {
             onTextDelta: textStream.append,

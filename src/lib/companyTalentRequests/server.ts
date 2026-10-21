@@ -3,6 +3,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { buildOrgHref } from "@/lib/org/routes";
 import { validateCompanyContactContext } from "@/lib/companyTalentRequests/policy";
+import { OPS_CONTACT_REPLY_CONTEXT } from "@/lib/companyTalentRequests/opsContactContract";
 import { createCompanyTalentRelayRecord } from "@/lib/companyTalentRequests/relayRecord";
 import {
   companyTalentRequestCandidateEmailWasSent,
@@ -35,6 +36,7 @@ export const COMPANY_TALENT_REQUEST_TRACKED_STATUSES = [
 ] as const;
 
 export type CompanyTalentRequestRow = {
+  ops_only?: boolean;
   approved_at: string | null;
   id: string;
   company_workspace_id: string;
@@ -233,7 +235,7 @@ export async function createCompanyTalentContactDraft(args: {
       workflow_status: "draft",
     })
     .select(
-      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, ops_only, intent, resume_stage, response_disposition"
     )
     .single();
   if (error) throw error;
@@ -248,8 +250,9 @@ export async function fetchCompanyTalentContact(args: {
   const { data, error } = await args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, role:company_roles(name), talent:talent_users(name, email)"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, ops_only, intent, resume_stage, response_disposition, role:company_roles(name), talent:talent_users(name, email)"
     )
+    .eq("ops_only", false)
     .eq("id", args.requestId)
     .eq("company_workspace_id", args.workspaceId)
     .maybeSingle();
@@ -293,7 +296,7 @@ export async function reviseCompanyTalentContactDraft(args: {
     .eq("draft_revision", args.expectedRevision)
     .gt("expires_at", new Date().toISOString())
     .select(
-      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, ops_only, intent, resume_stage, response_disposition"
     )
     .maybeSingle();
   if (error) throw error;
@@ -385,7 +388,7 @@ export async function fetchActiveCompanyTalentRequest(args: {
   let query = args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, ops_only, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
     )
     .eq("talent_id", args.talentId)
     .order("created_at", { ascending: false })
@@ -433,7 +436,7 @@ export async function fetchActiveCompanyTalentRequests(args: {
   let query = args.admin
     .from("company_talent_requests")
     .select(
-      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
+      "id, company_workspace_id, contact_kind, role_id, recommendation_id, talent_id, expects_document, request_context, workflow_status, expires_at, talent_source_message_id, document_id, created_at, updated_at, approved_at, delivery_subject, delivery_body, draft_revision, ops_only, intent, resume_stage, response_disposition, deliveries:contact_queue(sent_at, status, type), role:company_roles!inner(name, status, is_expired, expires_at), workspace:company_workspace!inner(company_name, logo_url, company_db:company_db(logo))"
     )
     .eq("talent_id", args.talentId)
     .in("workflow_status", statuses)
@@ -486,6 +489,7 @@ async function companyContactsSinceLastCandidateContact(
 }
 
 export type RelayableCompanyTalentConnection = {
+  opsContactId?: string;
   companyName: string;
   connectionId: string;
   establishedAt: string;
@@ -561,7 +565,7 @@ export async function fetchRelayableCompanyTalentConnections(args: {
       args.admin
         .from("company_talent_requests")
         .select(
-          "id, recommendation_id, delivery_body, created_at, deliveries:contact_queue(sent_at,status,type)"
+          "id, recommendation_id, ops_only, delivery_body, created_at, deliveries:contact_queue(sent_at,status,type)"
         )
         .eq("talent_id", args.talentId)
         .in("recommendation_id", recommendationIds)
@@ -750,6 +754,7 @@ export async function fetchRelayableCompanyTalentConnections(args: {
       return {
         companyName:
           normalizedText(workspace?.company_name, 160) || "채용 회사",
+        opsContactId: sentRequests.find((request) => request.ops_only)?.id,
         connectionId: `recommendation:${recommendationId}`,
         establishedAt,
         latestCompanyContactAt: latestCompanyContactAt || null,
@@ -825,7 +830,9 @@ export function formatRelayableCompanyTalentConnections(
       return [
         `${index + 1}. ${connection.companyName} · ${connection.roleName}`,
         `   연결 ID: ${connection.connectionId}`,
-        `   현재 포지션 상태: ${connection.positionState}`,
+        ...(connection.opsContactId
+          ? [`   Harper 관심 확인 답변 ID: ops-contact:${connection.opsContactId}`, OPS_CONTACT_REPLY_CONTEXT]
+          : [`   현재 포지션 상태: ${connection.positionState}`]),
         `   연결 경로: ${connection.origin}`,
         `   상호 연결 확인 시점: ${connection.establishedAt || "-"}`,
         `   최근 회사→후보자 연락: ${connection.latestCompanyContactAt || "없음"}`,
@@ -1010,11 +1017,37 @@ async function candidateAuthoredMessage(args: {
   return evidence;
 }
 
+export async function recordOpsCandidateDecision(args: {
+  admin: UntypedAdmin; recommendationId: string; sourceMessageId: number;
+  talentId: string; resume: boolean;
+}) {
+  const validSource = Number.isSafeInteger(args.sourceMessageId) && args.sourceMessageId > 0;
+  const scope = validSource ? await args.admin.rpc("ops_private_contact_for_message_v1", {
+    p_message_id: args.sourceMessageId, p_talent_id: args.talentId,
+  }) : {data: null, error: null};
+  if (scope.error) throw scope.error;
+  const decision = scope.data ? scope : await args.admin.rpc("ops_private_contact_for_recommendation_v1", {
+    p_recommendation_id: args.recommendationId,
+  });
+  if (decision.error) throw decision.error;
+  if (!decision.data) return null;
+  if (!validSource) throw new Error("candidate_message_evidence_not_found");
+  const request = await args.admin.from("company_talent_requests").select("recommendation_id,response_disposition")
+    .eq("id", decision.data).eq("talent_id", args.talentId).single();
+  if (request.error) throw request.error;
+  if (request.data.recommendation_id !== args.recommendationId) throw new Error("ops_contact_reply_scope_mismatch");
+  if (!scope.data && !args.resume && request.data.response_disposition === "positive") return null;
+  const content = await candidateAuthoredMessage({admin: args.admin, messageId: args.sourceMessageId, talentId: args.talentId});
+  return createCompanyTalentRelay({ ...args, connectionId: `ops-contact:${decision.data}`,
+    relayContent: content, resumeConfirmed: args.resume });
+}
+
 export async function createCompanyTalentRelay(args: {
   admin: UntypedAdmin;
   connectionId?: string;
   documentId?: string;
   relayContent: string;
+  resumeConfirmed?: boolean;
   requestId?: string;
   sourceMessageId: number;
   talentId: string;
@@ -1027,6 +1060,36 @@ export async function createCompanyTalentRelay(args: {
   const relayContent = normalizedRelayContent(args.relayContent, 5_000);
   if (!relayContent) throw new Error("Company relay content is empty");
   const connectionId = normalizedText(args.connectionId, 180);
+  // Ops correspondence must never create a company relay or invoke the company agent.
+  const privateRequestId = connectionId.startsWith("ops-contact:")
+    ? connectionId.slice("ops-contact:".length) : null;
+  const scope = await args.admin.rpc("ops_private_contact_for_message_v1", {
+    p_message_id: args.sourceMessageId, p_talent_id: args.talentId,
+  });
+  if (scope.error) throw scope.error;
+  const opsRequestId = privateRequestId ?? scope.data;
+  if (opsRequestId && connectionId.startsWith("recommendation:")) {
+    const request = await args.admin.from("company_talent_requests").select("recommendation_id")
+      .eq("id", opsRequestId).eq("talent_id", args.talentId).single();
+    if (request.error) throw request.error;
+    if (request.data.recommendation_id !== connectionId.slice("recommendation:".length)) {
+      throw new Error("ops_contact_reply_scope_mismatch");
+    }
+  }
+  if (opsRequestId) {
+    if (args.documentId) throw new Error("이번 관심 확인에는 첨부파일을 전달하지 않습니다.");
+    const reply = await args.admin.rpc("record_ops_candidate_reply_v1", {
+      p_request_id: opsRequestId, p_talent_id: args.talentId,
+      p_source_message_id: args.sourceMessageId, p_content: relayContent,
+      p_resume: args.resumeConfirmed === true,
+    });
+    if (reply.error) throw reply.error;
+    return { ...reply.data, opsOnly: true, contentMismatch: false } as {
+      status: string; idempotent: boolean; opsOnly: true; restored: boolean; contentMismatch: boolean;
+    };
+  }
+  if (args.resumeConfirmed) throw new Error("resumeConfirmed requires an Ops interest-confirmation contact");
+
   let recommendationId = connectionId.startsWith("recommendation:")
     ? connectionId.slice("recommendation:".length)
     : "";
@@ -1107,7 +1170,7 @@ export async function fetchTalentCompanyContactContext(args: {
   return [
     "[Company connections and recent contacts — private context]",
     "This is a contact history index, NOT an unanswered-question list. Follow the user's current message; do not assume they mean the latest company contact or a closed Role. Use read_company_connections for more detail or another connection. Never reveal IDs.",
-    "Use contact_company with the exact connectionId and only candidate-authorized content. The company agent interprets replies against earlier contacts after delivery; you do not need to match a requestId or classify an answer. Do not infer company decisions.",
+    "Use contact_company with the exact connectionId and only candidate-authorized content. Follow each contact’s handling instructions. Do not infer company decisions.",
     formatRelayableCompanyTalentConnections(
       connections.map((connection) => ({
         ...connection,

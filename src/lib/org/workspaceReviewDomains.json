@@ -1,0 +1,1010 @@
+[
+  {
+    "domain": "groupby.kr",
+    "companyName": "그룹바이",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://groupby.kr/positions",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "groupby.biz",
+    "companyName": "그룹바이",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://groupby.kr/positions",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "saramin.co.kr",
+    "companyName": "사람인",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.saramin.co.kr/zf_user/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jobkorea.co.kr",
+    "companyName": "잡코리아",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.jobkorea.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "wantedlab.com",
+    "companyName": "원티드랩",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.wantedlab.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "wanted.co.kr",
+    "companyName": "원티드",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.wanted.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "remember.co.kr",
+    "companyName": "리멤버",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://career.rememberapp.co.kr/job/postings",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "dramancompany.com",
+    "companyName": "리멤버앤컴퍼니 (기존 드라마앤컴퍼니)",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://dramancompany.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "rocketpunch.com",
+    "companyName": "로켓펀치",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.rocketpunch.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jobplanet.co.kr",
+    "companyName": "잡플래닛",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.jobplanet.co.kr/welcome/index",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "incruit.com",
+    "companyName": "인크루트",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.incruit.com//",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "career.co.kr",
+    "companyName": "커리어넷",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://career.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "peoplenjob.com",
+    "companyName": "피플앤잡",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.peoplenjob.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "superookie.com",
+    "companyName": "슈퍼루키",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://superookie.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jumpit.co.kr",
+    "companyName": "점핏",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://jumpit.saramin.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "rallit.com",
+    "companyName": "랠릿",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.rallit.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jasoseol.com",
+    "companyName": "자소설닷컴",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://jasoseol.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "zighang.com",
+    "companyName": "직행",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://zighang.com/recruitment",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "catch.co.kr",
+    "companyName": "진학사 캐치",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.catch.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "recruit.co.kr",
+    "companyName": "리크루트",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "http://www.recruit.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "linkareer.com",
+    "companyName": "링커리어",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://linkareer.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "albamon.com",
+    "companyName": "알바몬",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.albamon.com:443/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "alba.co.kr",
+    "companyName": "알바천국",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.alba.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "careerly.co.kr",
+    "companyName": "커리어리",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://careerly.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "rememberapp.co.kr",
+    "companyName": "리멤버",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://business.rememberapp.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "grepp.co",
+    "companyName": "그렙",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.grepp.co/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jinhak.com",
+    "companyName": "진학사·캐치",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.catch.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "inflab.com",
+    "companyName": "인프랩",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://story.inflab.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "inflearn.com",
+    "companyName": "인프랩·랠릿",
+    "category": "채용 플랫폼·커리어 서비스",
+    "sourceUrl": "https://www.inflab.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "teamcandid.kr",
+    "companyName": "캔디드",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://teamcandid.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "careercare.co.kr",
+    "companyName": "커리어케어",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.careercare.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "unicosearch.com",
+    "companyName": "유니코써치",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "http://www.unicosearch.com/home",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "nterway.com",
+    "companyName": "엔터웨이파트너스",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://nterway.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hrman.co.kr",
+    "companyName": "HR맨파워그룹",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.hrman.co.kr/home/ko/candidateSrvc/careerType.do",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "peoplecare.co.kr",
+    "companyName": "피플케어코리아",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://peoplecare.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "scout.co.kr",
+    "companyName": "스카우트",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://scout.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "scoutpartners.co.kr",
+    "companyName": "스카우트파트너스",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.scoutpartners.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hrkorea.co.kr",
+    "companyName": "HRKOREA",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://hrkorea.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "cnscout.co.kr",
+    "companyName": "커리어앤스카우트",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://cnscout.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "briskyoung.com",
+    "companyName": "브리스캔영",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.briskyoung.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "solomonsearch.co.kr",
+    "companyName": "잡뉴스솔로몬서치",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.solomonsearch.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jobnews.co.kr",
+    "companyName": "잡뉴스솔로몬서치",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.solomonsearch.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "searchncompany.com",
+    "companyName": "써치앤컴퍼니",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://searchncompany.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "menschconsulting.co.kr",
+    "companyName": "맨쉬컨설팅",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://menschconsulting.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "prohanzkorea.com",
+    "companyName": "프로핸즈코리아",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.prohanzkorea.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "prohanzkorea.co.kr",
+    "companyName": "프로핸즈코리아",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://prohanzkorea.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "bestnetwork.net",
+    "companyName": "베스트네트워크",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.bestnetwork.net/ver1/resume_download.asp?sfile=Company+Profile_Best+Network+Corporation.pdf",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "bestpartners.co.kr",
+    "companyName": "베스트파트너스",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://bestpartners.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hrcap.com",
+    "companyName": "HR캡",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.hrcap.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hrbiz.co.kr",
+    "companyName": "HR비즈코리아",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://hrbiz.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "venturepeople.co.kr",
+    "companyName": "벤처피플",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "http://www.venturepeople.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hrcg.co.kr",
+    "companyName": "HR컨설팅그룹",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.hrcg.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hr4u.co.kr",
+    "companyName": "HR포유",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "http://www.hr4u.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "starting.kr",
+    "companyName": "스타팅",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://starting.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hiddenscout.co.kr",
+    "companyName": "히든스카우트",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.hiddenscout.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "pincus.co.kr",
+    "companyName": "핀커스코리아",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.pincus.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hdsearch.co.kr",
+    "companyName": "휴먼디지탈",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.hdsearch.co.kr/main/main.php",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "kornferry.com",
+    "companyName": "콘페리",
+    "category": "글로벌 채용·서치펌",
+    "sourceUrl": "https://www.kornferry.com/about-us/consultants/michael-choi",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "heidrick.com",
+    "companyName": "하이드릭앤스트러글스",
+    "category": "글로벌 채용·서치펌",
+    "sourceUrl": "https://www.heidrick.com/en/offices/seoul",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "egonzehnder.com",
+    "companyName": "에곤젠더",
+    "category": "글로벌 채용·서치펌",
+    "sourceUrl": "https://www.egonzehnder.com/office/seoul",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "robertwalters.co.kr",
+    "companyName": "로버트월터스코리아",
+    "category": "글로벌 채용·서치펌",
+    "sourceUrl": "https://www.robertwalters.co.kr/about-us.html",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "robertwalters.com",
+    "companyName": "로버트월터스",
+    "category": "글로벌 채용·서치펌",
+    "sourceUrl": "https://www.robertwalters.co.kr/about-us.html",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "michaelpage.co.kr",
+    "companyName": "마이클페이지코리아",
+    "category": "글로벌 채용·서치펌",
+    "sourceUrl": "https://www.michaelpage.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "page.com",
+    "companyName": "페이지그룹",
+    "category": "글로벌 채용·서치펌",
+    "sourceUrl": "https://investors.michaelpage.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "ninehire.com",
+    "companyName": "나인하이어",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.ninehire.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "doodlin.co.kr",
+    "companyName": "그리팅·두들린",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.doodlin.co.kr/ko/career",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "greetinghr.com",
+    "companyName": "그리팅",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.greetinghr.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "flex.team",
+    "companyName": "플렉스",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://flex.team/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "newploy.net",
+    "companyName": "뉴플로이",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.newploy.net/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jobda.im",
+    "companyName": "잡다",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.jobda.im/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "specter.co.kr",
+    "companyName": "스펙터",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.specter.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "wecruitcorp.com",
+    "companyName": "위크루트",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.wecruitcorp.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "e-hcg.com",
+    "companyName": "휴먼컨설팅그룹",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://e-hcg.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "programmers.co.kr",
+    "companyName": "프로그래머스",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://programmers.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "muhayu.com",
+    "companyName": "무하유",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.muhayu.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "copykiller.com",
+    "companyName": "무하유",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.muhayu.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "manpower.co.kr",
+    "companyName": "맨파워코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://manpower.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "adecco.co.kr",
+    "companyName": "아데코코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.adecco.com/ko-kr",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "adecco.com",
+    "companyName": "아데코",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.adecco.com/ko-kr",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "persolkelly.kr",
+    "companyName": "퍼솔켈리",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.persolkorea.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "persolkorea.com",
+    "companyName": "퍼솔코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.persolkorea.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jac-recruitment.kr",
+    "companyName": "JAC리크루트먼트코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.jac-recruitment.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "zeniel.co.kr",
+    "companyName": "제니엘",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.zeniel.com/ko/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "kistemp.co.kr",
+    "companyName": "키스템프그룹",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.kistemp.co.kr/pages/main.asp",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "trans-cosmos.co.kr",
+    "companyName": "트랜스코스모스코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.trans-cosmos.co.kr/ko/main",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "searchright.net",
+    "companyName": "서치라이트AI",
+    "category": "국내 서치펌·헤드헌팅",
+    "sourceUrl": "https://www.searchright.net/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "roundhr.com",
+    "companyName": "라운드HR",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.roundhr.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "codeit.com",
+    "companyName": "코드잇·라운드HR",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://www.roundhr.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "nhr.kr",
+    "companyName": "NHR",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://nhr.kr/privacy250915",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "genesislab.ai",
+    "companyName": "제네시스랩·뷰인터HR",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://viewinterhr.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "viewinterhr.com",
+    "companyName": "뷰인터HR",
+    "category": "HR 소프트웨어·평가·컨설팅",
+    "sourceUrl": "https://viewinterhr.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "unies.com",
+    "companyName": "유니에스",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.unies.com/web/company/map/networkView?gubn=5",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "incoskorea.com",
+    "companyName": "인코스파트너스",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.incoskorea.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "wefun-corp.com",
+    "companyName": "위펀·파견24",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.wefun-corp.com/pagyeon",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "snack24h.com",
+    "companyName": "위펀·파견24",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.wefun-corp.com/pagyeon",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "fnbnetworks.co.kr",
+    "companyName": "에프앤비네트웍스·잡아라잡",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://fnbnetworks.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jobarajob.kr",
+    "companyName": "에프앤비네트웍스·잡아라잡",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.jobarajob.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "mpc.co.kr",
+    "companyName": "엠피씨플러스",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.mpc.co.kr/business/providing.html",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "korea-works.co.kr",
+    "companyName": "케이웍스코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://korea-works.co.kr/57",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "hubiz.net",
+    "companyName": "휴비즈넷",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.hubiz.net/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "joinshr.com",
+    "companyName": "휴비즈넷",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.hubiz.net/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "youngjucorp.co.kr",
+    "companyName": "영주솔루션",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://youngjucorp.co.kr/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "fine-group.co.kr",
+    "companyName": "파인퍼스트",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://fine-group.co.kr/33",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "samoneenc.com",
+    "companyName": "삼원이엔씨",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.samoneenc.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "dbsolution.ai.kr",
+    "companyName": "디비솔루션",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://dbsolution.ai.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "conetri.com",
+    "companyName": "코네트리",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.conetri.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "human-k.co.kr",
+    "companyName": "휴먼케이",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.human-k.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "humansafekorea.com",
+    "companyName": "휴먼세이프코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://humansafekorea.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "onepickhr.com",
+    "companyName": "원픽리더스",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://onepickhr.com/24",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "mjplex.com",
+    "companyName": "엠제이플렉스",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.mjplex.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "mjplex.co.kr",
+    "companyName": "엠제이플렉스",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.mjplex.com/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "staffs.co.kr",
+    "companyName": "스탭스",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.staffs.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "admin4u.co.kr",
+    "companyName": "애드민",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://blog.admin4u.co.kr/sample-page/",
+    "evidence": "official_contact_email",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "insidejob.co.kr",
+    "companyName": "IMG인사이드",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.insidejob.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "job19.co.kr",
+    "companyName": "개미인력개발",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://job19.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "gaemi19.com",
+    "companyName": "개미인력개발",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://gaemi19.com/newimg/com20170602.pdf",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "safe1.co.kr",
+    "companyName": "세이프원",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://safe1.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "plkinsight.com",
+    "companyName": "피엘코리아",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://plkinsight.com/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "skjob.kr",
+    "companyName": "성강개발",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://skjob.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "koreaems.co.kr",
+    "companyName": "한국EMS",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://koreaems.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "scouthr.co.kr",
+    "companyName": "스카우트HR",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://scouthr.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "scoutems.co.kr",
+    "companyName": "스카우트EMS",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://scoutems.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "dshin.co.kr",
+    "companyName": "대신산업관리",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.dshin.co.kr/business",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "finetech-os.co.kr",
+    "companyName": "파인테크",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://finetech-os.co.kr/",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "mrnp.co.kr",
+    "companyName": "미래앤피플",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://www.mrnp.co.kr/mrnp/business.php?pageCode=design&subCode=m2",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  },
+  {
+    "domain": "jipct.co.kr",
+    "companyName": "잡인피플컨설팅",
+    "category": "인재 파견·채용 대행",
+    "sourceUrl": "https://jipct.co.kr/page/sub02_1",
+    "evidence": "official_website",
+    "checkedAt": "2026-10-20"
+  }
+]

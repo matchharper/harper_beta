@@ -5,6 +5,13 @@ import { postLogEvent } from "@/lib/logEvent";
 import { buildLandingLoginEmailType } from "@/lib/landingLogTypes";
 import { linkOfficialJobEventsToCurrentUser } from "@/lib/officialJobs/events";
 import {
+  AUTH_PERSONA_STORAGE_KEY,
+  getAuthSessionKey,
+  readAuthPersona,
+  serializeAuthPersona,
+  type AuthPersona,
+} from "@/lib/authSessionPersona";
+import {
   CAREER_LANDING_ABTEST_TYPE,
   CAREER_LANDING_LOCAL_ID_STORAGE_KEY,
   CAREER_UTM_LOGIN_LOGGED_STORAGE_PREFIX,
@@ -16,8 +23,11 @@ type AuthState = {
   loading: boolean;
   session: Session | null;
   user: User | null;
+  persona: AuthPersona | null;
+  setLoginPersona: (session: Session, persona: AuthPersona) => void;
+  initializeLoginPersona: (pagePersona: AuthPersona) => void;
   init: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (options?: { scope: "local" | "global" }) => Promise<void>;
 };
 
 let subscribed = false; // ✅ onAuthStateChange 중복 방지
@@ -57,25 +67,73 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loading: true,
   session: null,
   user: null,
+  persona: null,
+
+  setLoginPersona: (session, persona) => {
+    const stored = serializeAuthPersona(session, persona);
+    try {
+      if (stored) window.localStorage.setItem(AUTH_PERSONA_STORAGE_KEY, stored);
+    } catch {
+      // Keep the current tab usable if browser storage is unavailable.
+    }
+    set({ session, user: session.user, persona, loading: false });
+  },
+
+  initializeLoginPersona: (pagePersona) => {
+    const { loading, session, persona, setLoginPersona } = get();
+    if (loading || !session || persona) return;
+    // Existing sessions adopt their first workspace without requiring a new login.
+    // Respect a binding another tab may have saved before its storage event arrives.
+    setLoginPersona(session, readAuthPersona(session) ?? pagePersona);
+  },
 
   init: async () => {
     // 이미 init 되었으면 세션만 빠르게 반영하고 끝 (원하면 더 단순히 return 해도 됨)
     const { data } = await supabase.auth.getSession();
+    const previous = get();
+    const sessionKey = getAuthSessionKey(data.session);
     set({
       session: data.session ?? null,
       user: data.session?.user ?? null,
+      persona:
+        readAuthPersona(data.session) ??
+        (sessionKey && sessionKey === getAuthSessionKey(previous.session)
+          ? previous.persona
+          : null),
       loading: false,
     });
 
     if (subscribed) return;
     subscribed = true;
 
+    window.addEventListener("storage", (event) => {
+      if (event.key === AUTH_PERSONA_STORAGE_KEY || event.key === null) {
+        set({ persona: readAuthPersona(get().session) });
+      }
+    });
+
     supabase.auth.onAuthStateChange((event, sess) => {
-      set({ session: sess ?? null, user: sess?.user ?? null, loading: false });
+      const previous = get();
+      const sessionKey = getAuthSessionKey(sess);
+      const persona =
+        readAuthPersona(sess) ??
+        (sessionKey && sessionKey === getAuthSessionKey(previous.session)
+          ? previous.persona
+          : null);
+      set({
+        session: sess ?? null,
+        user: sess?.user ?? null,
+        persona,
+        loading: false,
+      });
 
       if (typeof window === "undefined") return;
 
       if (event === "SIGNED_OUT") {
+        // Do not clear another tab's newer login during an old session's logout.
+        if (readAuthPersona(previous.session)) {
+          window.localStorage.removeItem(AUTH_PERSONA_STORAGE_KEY);
+        }
         window.sessionStorage.removeItem(LOGIN_LOGGED_ACCESS_TOKEN_KEY);
         return;
       }
@@ -99,8 +157,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  signOut: async () => {
-    await supabase.auth.signOut();
-    set({ session: null, user: null, loading: false });
+  signOut: async (options) => {
+    const { error } = await supabase.auth.signOut(options);
+    if (error) throw error;
+    set({ session: null, user: null, persona: null, loading: false });
   },
 }));

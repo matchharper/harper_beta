@@ -345,7 +345,7 @@ test("accept confirmation mirrors org connection choices and explains the live a
   };
   const rendered = JSON.stringify(view.blocks);
   assert.equal(view.callback_id, HARPER_TALENT_REVIEW_ACCEPT_CALLBACK_ID);
-  assert.equal(view.submit.text, "소개 이메일 보내기");
+  assert.equal(view.submit.text, "Accept Intro");
   assert.match(rendered, /"dispatch_action":true/);
   assert.match(rendered, /소개 이메일/);
   assert.match(rendered, /직접 연락/);

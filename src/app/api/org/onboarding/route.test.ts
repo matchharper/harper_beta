@@ -7,6 +7,7 @@ test("onboarding completion waits for Slack delivery and only welcomes the reque
   const workspaceId = "workspace";
   const user = { id: "teammate", email: "teammate@example.invalid" };
   let completedAt: string | null = null;
+  let isReviewing = false;
   let winsUpdate = true;
   let accessibleWorkspace = workspaceId;
   let slackUrl: string | null = "https://example.invalid/slack-thread";
@@ -31,7 +32,7 @@ test("onboarding completion waits for Slack delivery and only welcomes the reque
     "@/lib/server/candidateAccess": { getSupabaseAdmin: () => admin, requireAuthenticatedUser: async () => user },
     "@/lib/org/server": {
       OrgHttpError,
-      fetchOrgBootstrap: async () => ({ currentUser: { name: "Alex", role: "Engineer", onboardingCompletedAt: completedAt }, workspace: { workspaceId: accessibleWorkspace, signupState: null }, roles: [], members: [] }),
+      fetchOrgBootstrap: async () => ({ currentUser: { name: "Alex", role: "Engineer", onboardingCompletedAt: completedAt }, workspace: { workspaceId: accessibleWorkspace, signupState: null, isReviewing }, roles: [], members: [] }),
     },
     "@/lib/org/agent/chat": {},
     "@/lib/org/agent/onboardingPrompt": {},
@@ -84,6 +85,16 @@ test("onboarding completion waits for Slack delivery and only welcomes the reque
     assert.equal((await request()).status, 200);
     assert.deepEqual(effects, []);
     completedAt = null;
+  });
+  await context.test("a reviewed workspace completes onboarding without any Slack delivery", async () => {
+    effects.length = 0;
+    isReviewing = true;
+    slackUrl = "https://example.invalid/existing-channel";
+    const response = await request();
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).slackUrl, null);
+    assert.deepEqual(effects, ["save"]);
+    isReviewing = false;
   });
   await context.test("a concurrent request that lost the existing completion update does not send another welcome", async () => {
     effects.length = 0;

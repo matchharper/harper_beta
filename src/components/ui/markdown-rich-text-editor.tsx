@@ -169,6 +169,7 @@ export function MarkdownRichTextEditor({
   ariaLabel,
   autoFocus = false,
   className,
+  contentClassName,
   contentFormat = "markdown",
   disabled = false,
   onValueChange,
@@ -179,6 +180,8 @@ export function MarkdownRichTextEditor({
   ariaLabel: string;
   autoFocus?: boolean;
   className?: string;
+  /** Styles the scrollable content and its placeholder, leaving the scrollbar at the editor edge. */
+  contentClassName?: string;
   /** HTML is used for emails; existing documents retain their Markdown contract. */
   contentFormat?: "markdown" | "html";
   disabled?: boolean;
@@ -624,7 +627,10 @@ export function MarkdownRichTextEditor({
       ) : null}
 
       {editorState?.empty && placeholder ? (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 text-[16px] leading-7 text-neutral-placeholder">
+        <div className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 z-10 text-[16px] leading-7 text-neutral-placeholder",
+          contentClassName
+        )}>
           {placeholder}
         </div>
       ) : null}
@@ -650,7 +656,8 @@ export function MarkdownRichTextEditor({
           "[&_.tiptap_table]:my-4 [&_.tiptap_table]:w-full [&_.tiptap_table]:border-collapse [&_.tiptap_table]:text-[14px]",
           "[&_.tiptap_td]:border [&_.tiptap_td]:border-neutral-1000-a10 [&_.tiptap_td]:p-2",
           "[&_.tiptap_th]:border [&_.tiptap_th]:border-neutral-1000-a10 [&_.tiptap_th]:bg-bg-weak [&_.tiptap_th]:p-2 [&_.tiptap_th]:text-left [&_.tiptap_th]:font-medium",
-          "[&_.tiptap_img]:my-4 [&_.tiptap_img]:max-w-full [&_.tiptap_img]:rounded-lg"
+          "[&_.tiptap_img]:my-4 [&_.tiptap_img]:max-w-full [&_.tiptap_img]:rounded-lg",
+          contentClassName
         )}
       />
     </div>

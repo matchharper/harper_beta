@@ -1,3 +1,4 @@
+import { assertWorkspaceAvailable } from "./workspaceReview.server";
 import "server-only";
 
 import {
@@ -255,7 +256,7 @@ async function assertWorkspaceAccess(
   const { data: workspace, error: workspaceError } = await (
     admin.from("company_workspace" as any) as any
   )
-    .select("company_workspace_id, company_name, is_internal")
+    .select("company_workspace_id, company_name, is_internal, is_reviewing")
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
 
@@ -263,6 +264,8 @@ async function assertWorkspaceAccess(
   if (!workspace) {
     throw new OrgSlackIntegrationError(404, "Workspace를 찾지 못했습니다.");
   }
+
+  if (workspace.is_reviewing) throw new OrgSlackIntegrationError(403, "org_workspace_under_review");
 
   if (getEmailDomain(user.email) === INTERNAL_EMAIL_DOMAIN) {
     if (!workspace.is_internal) {
@@ -390,6 +393,7 @@ export async function completeOrgSlackOAuth(args: {
   state: string;
 }) {
   const state = decodeOAuthState(args.state);
+  await assertWorkspaceAvailable({ admin: getSupabaseAdmin(), workspaceId: state.workspaceId });
   const redirectUri = getSlackRedirectUri(args.origin);
   const response = await fetch("https://slack.com/api/oauth.v2.access", {
     body: new URLSearchParams({

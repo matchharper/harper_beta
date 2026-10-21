@@ -69,7 +69,7 @@ with psycopg.connect(os.environ['DATABASE_URL']) as c:
   assert c.execute('select id from local_e2e.environment').fetchall()==[('harper-local-e2e',)]
   if action=='seed':
     c.execute('insert into auth.users(id,email,email_confirmed_at,is_anonymous) values(%s,%s,now(),false)',(uid,f['email']))
-    state=c.execute('select workspace_signup_begin_v1(%s,%s,true)',(uid,f['domain'])).fetchone()[0]
+    state=c.execute('select workspace_signup_begin_v1(%s,null,%s,%s,true)',(f['email'].lower(),uid,f['domain'])).fetchone()[0]
     assert state['status']=='created'
     wid=state['workspaceId']
     c.execute('select workspace_signup_update_v1(%s,%s,%s,%s)',(uid,wid,'company',Jsonb({'name':f['companyName'],'description':''})))

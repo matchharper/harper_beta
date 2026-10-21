@@ -1,5 +1,4 @@
 import { requestedSlotId } from "@/lib/org/billing/compat";
-import { canUseWorkspaceBilling } from "@/lib/org/billing/rollout";
 import { NextRequest, NextResponse } from "next/server";
 import {
   getSupabaseAdmin,
@@ -68,9 +67,6 @@ export async function GET(req: NextRequest) {
     const view = req.nextUrl.searchParams.get("view") ?? "summary";
     const accessibleRoleIds = await visibleOrgRoleIds({ admin: getSupabaseAdmin(), user, workspaceId: id });
     if (accessibleRoleIds !== null && view !== "capacity") throw new WorkspaceBillingError("billing_owner_required", 403);
-    // Capacity remains available to ordinary hiring flows; payment screens are gated.
-    if (view !== "capacity" && !canUseWorkspaceBilling(id))
-      throw new WorkspaceBillingError("billing_forbidden", 403);
     if (!["summary", "capacity", "usage", "invoices"].includes(view))
       throw new OrgHttpError(400, "Invalid billing view");
     if (view === "invoices" && authority !== "owner")
@@ -173,8 +169,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const slotId = requestedSlotId(body);
     const id = workspaceId(body.workspaceId);
-    if (!canUseWorkspaceBilling(id))
-      throw new WorkspaceBillingError("billing_forbidden", 403);
     const authority = await assertOrgWorkspacePermission({
       admin: getSupabaseAdmin(),
       user,

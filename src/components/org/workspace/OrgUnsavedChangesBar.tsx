@@ -42,20 +42,20 @@ export function OrgUnsavedChangesBar({
   const bar = (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
       <div
-        className="pointer-events-auto flex w-full max-w-[480px] flex-col gap-3 rounded-lg border border-neutral-1000-a05 bg-bg-floating/70 backdrop-blur-md p-2 shadow-[0_18px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] sm:flex-row sm:items-center sm:justify-between"
+        className="pointer-events-auto flex w-fit max-w-full flex-col gap-3 rounded-lg border border-neutral-1000-a05 bg-bg-floating/70 backdrop-blur-md p-2 pl-3 shadow-[0_18px_60px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] sm:flex-row sm:items-center"
         data-org-unsaved-changes-bar=""
       >
         <div className="flex min-w-0 items-start gap-2">
-          <span className="mt-1 text-critical">
+          {/* <span className="mt-1 text-critical">
             <TriangleAlert className="size-4" />
-          </span>
+          </span> */}
           <div className="min-w-0">
             <div className="text-[13px] font-medium text-neutral-primary">
               {hasChanges
                 ? c("저장하지 않은 변경사항이 있습니다.", "Unsaved changes.")
                 : c("정보를 수정하고 있습니다.", "Editing information.")}
             </div>
-            <div className="text-[12px] leading-5 text-neutral-muted">
+            {/* <div className="text-[12px] leading-5 text-neutral-muted">
               {hasChanges
                 ? c(
                     "저장하지 않고 이동하면 변경사항이 반영되지 않습니다.",
@@ -65,7 +65,7 @@ export function OrgUnsavedChangesBar({
                     "값을 변경한 뒤 저장해 주세요.",
                     "Save after changing values."
                   )}
-            </div>
+            </div> */}
           </div>
         </div>
         <div className="flex shrink-0 justify-end gap-2">

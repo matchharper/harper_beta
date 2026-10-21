@@ -5,6 +5,8 @@ import {
 } from "./externalRecommendationExperiment";
 import { fetchExternalExperimentRows } from "./externalRecommendationExperimentServer";
 import { buildOfficialJobsExperiment } from "./officialJobsExperiment";
+import { buildLandingStatsExperiment } from "./landingStatsExperiment";
+import { fetchLandingStatsExperimentRows } from "./landingStatsExperimentServer";
 import {
   buildOnboardingStepOrderExperiment,
   type OnboardingStepOrderLog,
@@ -19,6 +21,7 @@ import { isInternalEmail } from "@/lib/internalAccess";
 import {
   compareOpsAbTestRates,
   makeOpsAbTestRate,
+  type OpsAbTestKey,
   type OpsAbTestSummary,
   type OpsAbTestVariant,
   type OpsAbTestsResponse,
@@ -441,6 +444,7 @@ async function buildVoiceExperiment(
 }
 
 export async function fetchOpsAbTests(args: {
+  experiment: OpsAbTestKey;
   days?: unknown;
   externalSurface?: unknown;
   excludedEmails?: readonly string[];
@@ -454,64 +458,85 @@ export async function fetchOpsAbTests(args: {
       : "all";
   const now = Date.now();
   const exclusionTerms = normalizeExclusionTerms(args.excludedEmails ?? []);
-  const cacheKey = JSON.stringify({ days, exclusionTerms, externalSurface });
+  const cacheKey = JSON.stringify({
+    experiment: args.experiment,
+    days,
+    exclusionTerms,
+    externalSurface,
+  });
   const cached = responseCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   const startIso = new Date(Date.now() - days * DAY_MS).toISOString();
-  const [voiceRows, jobsRows, onboardingRows, externalRows] =
-    await Promise.all([
-      fetchVoiceRows(startIso),
-      fetchLandingRows(startIso, [
-        OFFICIAL_JOBS_LAYOUT_ABTEST_A,
-        OFFICIAL_JOBS_LAYOUT_ABTEST_B,
-      ]),
-      fetchOnboardingStepOrderRows(startIso),
-      fetchExternalExperimentRows(
+  let experiment: OpsAbTestSummary;
+  switch (args.experiment) {
+    case "external": {
+      const rows = await fetchExternalExperimentRows(
         getTalentSupabaseAdmin(),
         startIso,
         new Date(now).toISOString(),
         externalSurface
-      ),
-    ]);
-  const experiments = await Promise.all([
-    (async () =>
-      buildExternalRecommendationExperiment({
-        ...externalRows,
+      );
+      experiment = buildExternalRecommendationExperiment({
+        ...rows,
         surface: externalSurface,
         now,
         excludedUserIds: await fetchExcludedUserIds(
-          [...new Set(externalRows.runs.map((r) => r.talent_id))],
+          [...new Set(rows.runs.map((row) => row.talent_id))],
           exclusionTerms
         ),
-      }))(),
-    buildVoiceExperiment(voiceRows, exclusionTerms),
-    Promise.resolve(
-      buildOfficialJobsExperiment(jobsRows, (email) =>
-        shouldExcludeEmail(email, exclusionTerms)
-      )
-    ),
-    (async () => {
-      const userIds = Array.from(
-        new Set(
-          onboardingRows
-            .map((row) => String(row.user_id ?? "").trim())
-            .filter(Boolean)
-        )
-      );
-      const excludedUserIds = await fetchExcludedUserIds(
-        userIds,
+      });
+      break;
+    }
+    case "voice":
+      experiment = await buildVoiceExperiment(
+        await fetchVoiceRows(startIso),
         exclusionTerms
       );
-      return buildOnboardingStepOrderExperiment(
-        onboardingRows,
-        excludedUserIds
+      break;
+    case "jobs":
+      experiment = buildOfficialJobsExperiment(
+        await fetchLandingRows(startIso, [
+          OFFICIAL_JOBS_LAYOUT_ABTEST_A,
+          OFFICIAL_JOBS_LAYOUT_ABTEST_B,
+        ]),
+        (email) => shouldExcludeEmail(email, exclusionTerms)
       );
-    })(),
-  ]);
+      break;
+    case "landing-stats": {
+      const rows = await fetchLandingStatsExperimentRows(
+        getTalentSupabaseAdmin(),
+        startIso,
+        new Date(now).toISOString()
+      );
+      experiment = buildLandingStatsExperiment({
+        ...rows,
+        excludedUserIds: await fetchExcludedUserIds(
+          [...new Set(rows.signups.map((row) => row.userId))],
+          exclusionTerms
+        ),
+        excludeEmail: (email) => shouldExcludeEmail(email, exclusionTerms),
+        now,
+      });
+      break;
+    }
+    case "onboarding": {
+      const rows = await fetchOnboardingStepOrderRows(startIso);
+      const userIds = [
+        ...new Set(
+          rows.map((row) => String(row.user_id ?? "").trim()).filter(Boolean)
+        ),
+      ];
+      experiment = buildOnboardingStepOrderExperiment(
+        rows,
+        await fetchExcludedUserIds(userIds, exclusionTerms)
+      );
+      break;
+    }
+  }
   const value: OpsAbTestsResponse = {
     days,
-    experiments,
+    experiments: [experiment],
     generatedAt: new Date().toISOString(),
   };
 

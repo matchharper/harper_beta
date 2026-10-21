@@ -1,3 +1,4 @@
+import { OPS_CONTACT_REPLY_CONTEXT } from "@/lib/companyTalentRequests/opsContactContract";
 import { asObject, type EmailJobContext, type EmailRow } from "./types";
 import { readRow } from "./store";
 import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
@@ -94,7 +95,8 @@ export async function loadEmailReferenceContext(ctx: EmailJobContext) {
     );
     if (request?.talent_id === ctx.talentId)
       companyContact = {
-        connectionId: `recommendation:${request.recommendation_id}`,
+        connectionId: request.ops_only ? `ops-contact:${request.id}` : `recommendation:${request.recommendation_id}`,
+        ...(request.ops_only ? { handling: OPS_CONTACT_REPLY_CONTEXT } : {}),
         roleId: request.role_id,
         companyMessage: String(request.request_context ?? "").slice(0, 800),
       };

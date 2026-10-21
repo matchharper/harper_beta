@@ -42,6 +42,7 @@ export type DocumentEditorProps = Omit<
   errorMessage?: string;
   footer?: ReactNode;
   format?: "markdown" | "plain";
+  showTitle?: boolean;
   hideMeta?: boolean;
   hidePreview?: boolean;
   lastChangedAt?: string | null;
@@ -225,7 +226,9 @@ function DocumentMeta({
       {copy
         ? copy.meta(
             changedAt,
-            characterCount.toLocaleString(copy.locale === "en" ? "en-US" : "ko-KR")
+            characterCount.toLocaleString(
+              copy.locale === "en" ? "en-US" : "ko-KR"
+            )
           )
         : `마지막 변경: ${changedAt}, ${characterCount.toLocaleString("ko-KR")} 글자`}
     </div>
@@ -307,7 +310,7 @@ function DocumentEditingSurface({
           <Copy className="size-4" strokeWidth={1.8} />
         </MuteButton>
       </header>
-      <div className="min-h-0 flex-1 px-5 py-4 sm:px-6">
+      <div className="min-h-0 flex-1 py-4">
         {loading ? (
           <div className="flex h-full min-h-64 items-center justify-center">
             <Loader2
@@ -324,6 +327,7 @@ function DocumentEditingSurface({
             }
             autoFocus={autoFocus}
             className={editorClassName}
+            contentClassName="px-5 sm:px-12"
             disabled={textareaProps.disabled}
             onValueChange={onValueChange}
             placeholder={textareaProps.placeholder}
@@ -341,7 +345,7 @@ function DocumentEditingSurface({
             }
             autoFocus={autoFocus}
             className={cn(
-              "h-full min-h-full w-full resize-none overflow-y-auto p-0 text-[16px] font-normal leading-7 text-neutral-primary outline-none placeholder:text-neutral-placeholder disabled:cursor-not-allowed disabled:text-neutral-disabled",
+              "h-full min-h-full w-full resize-none overflow-y-auto px-5 py-0 text-[16px] font-normal leading-7 text-neutral-primary outline-none placeholder:text-neutral-placeholder disabled:cursor-not-allowed disabled:text-neutral-disabled sm:px-12",
               editorClassName
             )}
             onChange={onChange}
@@ -361,7 +365,11 @@ function DocumentEditingSurface({
         ) : null}
         {footer}
         {!hideMeta ? (
-          <DocumentMeta changedAt={changedAt} characterCount={characterCount} copy={copy} />
+          <DocumentMeta
+            changedAt={changedAt}
+            characterCount={characterCount}
+            copy={copy}
+          />
         ) : null}
       </footer>
     </div>
@@ -405,6 +413,7 @@ export const DocumentEditor = forwardRef<
       readOnly,
       rows = 5,
       savedValue,
+      showTitle = true,
       value,
       ...props
     },
@@ -580,7 +589,10 @@ export const DocumentEditor = forwardRef<
             )}
           >
             <CardButton
-              aria-label={copy?.openDocument(documentTitle) ?? `${documentTitle} 문서 열기`}
+              aria-label={
+                copy?.openDocument(documentTitle) ??
+                `${documentTitle} 문서 열기`
+              }
               aria-haspopup="dialog"
               className="absolute inset-0 h-full min-h-0 cursor-pointer overflow-hidden border-neutral-1000-a05 bg-white p-0 hover:border-neutral-1000-a05 hover:bg-neutral-100 group-hover:border-neutral-1000-a05 group-hover:bg-neutral-100 disabled:cursor-not-allowed"
               data-document-editor-preview=""
@@ -590,9 +602,11 @@ export const DocumentEditor = forwardRef<
             />
             <div className="pointer-events-none relative z-10 flex min-h-[340px] w-full flex-col justify-between px-5 py-4 text-left">
               <div>
-                <span className="shrink-0 text-[12px] font-normal text-black/60">
-                  {documentTitle}
-                </span>
+                {showTitle && (
+                  <span className="shrink-0 text-[12px] font-normal text-black/60">
+                    {documentTitle}
+                  </span>
+                )}
                 <div className="relative mt-4">
                   <div
                     className={cn(

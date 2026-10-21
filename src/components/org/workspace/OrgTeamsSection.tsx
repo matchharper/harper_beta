@@ -21,7 +21,7 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgTeamChange } from "@/hooks/org/useOrgTeams";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import type { OrgMember, OrgRole } from "@/lib/org/server";
-import { orgMemberTeamIds, type OrgTeam } from "@/lib/org/teamAccess";
+import { orgMemberTeamIds, type OrgTeam } from "@/lib/org/teamAccess.shared";
 import {
   OrgTable,
   OrgTableBody,

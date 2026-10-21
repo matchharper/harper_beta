@@ -1,4 +1,5 @@
 import "server-only";
+import { readOpsCompatibleContacts } from "@/lib/companyTalentRequests/readOpsCompatible";
 
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
@@ -51,7 +52,7 @@ export async function loadCompanyContactEventContext(args: {
     throw new Error("Test-only candidate contact is not allowed");
   }
   const contactFields =
-    "id, request_context, delivery_body, created_at, source:company_messages!company_talent_requests_source_company_message_id_fkey(content,role,message_type,company_user_id,conversation_id,slack_thread_id), deliveries:contact_queue(type,status,sent_at)";
+    "id, request_context, delivery_body, created_at, source:company_messages!company_talent_requests_source_company_message_id_fkey(content,role,message_type,company_user_id,conversation_id,slack_thread_id,metadata), deliveries:contact_queue(type,status,sent_at)";
   const [
     contacts,
     previousRelays,
@@ -59,13 +60,17 @@ export async function loadCompanyContactEventContext(args: {
     addressedContact,
     subsequentRelays,
   ] = await Promise.all([
-    admin
-      .from("company_talent_requests")
-      .select(contactFields)
-      .eq("recommendation_id", relay.recommendation_id)
-      .lte("created_at", relay.created_at)
-      .order("created_at", { ascending: false })
-      .limit(4),
+    readOpsCompatibleContacts((hasOpsColumn) => {
+      let query = admin
+        .from("company_talent_requests")
+        .select(contactFields);
+      if (hasOpsColumn) query = query.eq("ops_only", false);
+      return query
+        .eq("recommendation_id", relay.recommendation_id)
+        .lte("created_at", relay.created_at)
+        .order("created_at", { ascending: false })
+        .limit(4);
+    }),
     admin
       .from("company_talent_relays")
       .select(
@@ -83,12 +88,16 @@ export async function loadCompanyContactEventContext(args: {
       .eq("role", "user")
       .single(),
     relay.company_talent_request_id
-      ? admin
-          .from("company_talent_requests")
-          .select(contactFields)
-          .eq("id", relay.company_talent_request_id)
-          .eq("recommendation_id", relay.recommendation_id)
-          .single()
+      ? readOpsCompatibleContacts((hasOpsColumn) => {
+          let query = admin
+            .from("company_talent_requests")
+            .select(contactFields);
+          if (hasOpsColumn) query = query.eq("ops_only", false);
+          return query
+            .eq("id", relay.company_talent_request_id)
+            .eq("recommendation_id", relay.recommendation_id)
+            .single();
+        })
       : Promise.resolve({ data: null, error: null }),
     admin
       .from("company_talent_relays")
@@ -129,9 +138,36 @@ export async function loadCompanyContactEventContext(args: {
           ...(addressedContact.data ? [addressedContact.data] : []),
         ].map((contact: any) => [contact.id, contact])
       ).values()
-    ).sort((a: any, b: any) =>
-      String(a.created_at).localeCompare(String(b.created_at))
-    ),
+    )
+      .sort((a: any, b: any) =>
+        String(a.created_at).localeCompare(String(b.created_at))
+      )
+      .map((contact: any) => {
+        const source = Array.isArray(contact.source)
+          ? contact.source[0]
+          : contact.source;
+        const { metadata, ...sourceFacts } = source ?? {};
+        const plan = metadata?.approvedRoleMove;
+        return {
+          ...contact,
+          source: sourceFacts,
+          ...(plan
+            ? {
+                approvedRoleMove: {
+                  sourceRoleId: plan.sourceRoleId,
+                  targetRoleId: plan.targetRoleId,
+                  sourceRoleName: plan.sourceRoleName,
+                  targetRoleName: plan.targetRoleName,
+                  talentId: plan.talentId,
+                  targetStageId: plan.targetStageId,
+                  condition:
+                    "Move only if this candidate agrees to the proposed Role change.",
+                  outcome: metadata.roleMoveOutcome?.status ?? null,
+                },
+              }
+            : {}),
+        };
+      }),
     precedingCandidateContacts: (previousRelays.data ?? []).filter(isAuthorizedCompanyRelay).reverse(),
     subsequentCandidateContacts: (subsequentRelays.data ?? []).filter(isAuthorizedCompanyRelay).reverse(),
   };

@@ -6,6 +6,7 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
   BriefcaseBusiness,
+  FolderInput,
   CalendarDays,
   MapPin,
   ChevronDown,
@@ -30,6 +31,8 @@ import { ConnectionConfirmationEmailFeedCard } from "@/components/progress-feed/
 import { CompanyTalentRequestFeedCard } from "@/components/progress-feed/CompanyTalentRequestFeedCard";
 import { OrgIntroEmailFeedCard } from "@/components/progress-feed/OrgIntroEmailFeedCard";
 import { MuteButton } from "@/components/ui/button";
+import { Tooltips } from "@/components/ui/tooltip";
+import { OrgCandidateRoleMoveDialog } from "@/components/org/OrgCandidateRoleMoveDialog";
 
 import { Tabs } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -749,7 +752,7 @@ function CandidateDecisionActions({
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <MuteButton
           type="button"
-          size="md"
+          size="lg"
           variant="positive"
           onClick={onAcceptClick}
           disabled={decisionPending || acceptDisabled || !onAcceptClick}
@@ -759,7 +762,7 @@ function CandidateDecisionActions({
         </MuteButton>
         <MuteButton
           type="button"
-          size="md"
+          size="lg"
           variant="critical"
           onClick={onRejectClick}
           disabled={decisionPending || !onRejectClick}
@@ -1625,6 +1628,7 @@ export function TalentDetailSimpleView() {
     viewedRecommendationId,
   ]);
 
+  const [roleMoveOpen, setRoleMoveOpen] = useState(false);
   const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const closeAcceptDialog = () => {
     setAcceptDialogOpen(false);
@@ -1670,7 +1674,23 @@ export function TalentDetailSimpleView() {
   const onMoveToPendingConnection = canUseExistingCandidateActions
     ? () => setPendingConnectionDialogOpen(true)
     : undefined;
+  const roleMoveButton =
+    canManageCandidates && detail ? (
+      <Tooltips text={c("다른 Role로 이동", "Move to another role")}>
+        <MuteButton
+          aria-label={c("다른 Role로 이동", "Move to another role")}
+          size="md"
+          type="button"
+          variant="transparent"
+          disabled={decisionPending}
+          onClick={() => setRoleMoveOpen(true)}
+        >
+          <FolderInput aria-hidden className="size-4" />
+        </MuteButton>
+      </Tooltips>
+    ) : null;
   const handleClose = () => {
+    setRoleMoveOpen(false);
     setMobileTab("profile");
     closeTalentDetail();
   };
@@ -1823,6 +1843,7 @@ export function TalentDetailSimpleView() {
                     onNavigate={navigateToTalent}
                   />
                 ) : null}
+                {roleMoveButton}
               </div>
             </div>
             {showMobileDecisionActions ? (
@@ -1879,23 +1900,19 @@ export function TalentDetailSimpleView() {
                 navigation={detailNavigation}
                 onNavigate={navigateToTalent}
               />
-              {resolvedTalentNavigationLabel ? (
-                <div
-                  className="max-w-[min(40vw,320px)] truncate text-sm font-normal text-neutral-muted"
-                  title={resolvedTalentNavigationLabel}
-                >
-                  {resolvedTalentNavigationLabel}
-                </div>
-              ) : null}
+              {roleMoveButton}
             </div>
           ) : (
-            <div className="min-w-0">
-              <div className="truncate text-[14px] font-normal text-neutral-primary">
-                {title}
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-[14px] font-normal text-neutral-primary">
+                  {title}
+                </div>
+                <div className="mt-1 truncate text-[11px] text-neutral-muted">
+                  {subtitle}
+                </div>
               </div>
-              <div className="mt-1 truncate text-[11px] text-neutral-muted">
-                {subtitle}
-              </div>
+              {roleMoveButton}
             </div>
           )}
           <MuteButton
@@ -2175,6 +2192,18 @@ export function TalentDetailSimpleView() {
         ) : null}
       </TalentCareerModal>
 
+      {roleMoveOpen && detail && (
+        <OrgCandidateRoleMoveDialog
+          key={`${detail.role.roleId}:${detail.recommendation.recommendationId}`}
+          detail={detail}
+          roles={bootstrap.roles}
+          onClose={() => setRoleMoveOpen(false)}
+          onMoved={(selection) => {
+            setRoleMoveOpen(false);
+            selectTalent(selection);
+          }}
+        />
+      )}
       <AcceptIntroDialog
         key={detail?.recommendation.recommendationId ?? "accept-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}

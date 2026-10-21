@@ -24,11 +24,16 @@ type RunProjection = Omit<ExternalExperimentRun, "metrics"> &
 // Read only; never run models/searches while refreshing the dashboard.
 async function pages<T>(query: () => any): Promise<T[]> {
   const rows: T[] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await query().range(offset, offset + 999);
+  let afterId: string | number | undefined;
+  for (;;) {
+    const page = query().limit(1000);
+    const { data, error } = await (afterId === undefined
+      ? page
+      : page.gt("id", afterId));
     if (error) throw new Error(`외부 추천 실험 조회 실패: ${error.message}`);
     rows.push(...(data ?? []));
     if ((data ?? []).length < 1000) return rows;
+    afterId = data[data.length - 1].id;
   }
 }
 export async function fetchExternalExperimentRows(
@@ -60,31 +65,43 @@ export async function fetchExternalExperimentRows(
     .map((r) => r.id);
   const recommendations: ExternalExperimentRecommendation[] = [];
   const receipts: ExternalExperimentReceipt[] = [];
-  for (let i = 0; i < ids.length; i += 100) {
-    const chunk = ids.slice(i, i + 100);
-    const [recPage, costPage] = await Promise.all([
-      pages<ExternalExperimentRecommendation>(() =>
-        admin
-          .from("talent_opportunity_recommendation")
-          .select(
-            "id,talent_id,external_experiment_run_id,recommended_at,clicked_at,viewed_at,feedback,feedback_at"
-          )
-          .in("external_experiment_run_id", chunk)
-          .lte("recommended_at", end)
-          .order("id")
-      ),
-      pages<ExternalExperimentReceipt>(() =>
-        admin
-          .from("llm_logs")
-          .select("request_id:meta->>requestId,estimated_cost_usd,cost_status")
-          .in("meta->>requestId", chunk)
-          .gte("created_at", start)
-          .lte("created_at", end)
-          .order("id")
-      ),
-    ]);
-    recommendations.push(...recPage);
-    receipts.push(...costPage);
-  }
+  // Bound concurrency instead of waiting for every run batch sequentially.
+  let nextOffset = 0;
+  const loadBatch = async () => {
+    for (;;) {
+      const offset = nextOffset;
+      nextOffset += 100;
+      if (offset >= ids.length) return;
+      const chunk = ids.slice(offset, offset + 100);
+      const [recPage, costPage] = await Promise.all([
+        pages<ExternalExperimentRecommendation>(() =>
+          admin
+            .from("talent_opportunity_recommendation")
+            .select(
+              "id,talent_id,external_experiment_run_id,recommended_at,clicked_at,viewed_at,feedback,feedback_at"
+            )
+            .in("external_experiment_run_id", chunk)
+            .lte("recommended_at", end)
+            .order("id")
+        ),
+        pages<ExternalExperimentReceipt>(() =>
+          admin
+            .from("llm_logs")
+            .select(
+              "id,request_id:meta->>requestId,estimated_cost_usd,cost_status"
+            )
+            .in("meta->>requestId", chunk)
+            .gte("created_at", start)
+            .lte("created_at", end)
+            .order("id")
+        ),
+      ]);
+      recommendations.push(...recPage);
+      receipts.push(...costPage);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(6, Math.ceil(ids.length / 100)) }, loadBatch)
+  );
   return { runs, recommendations, receipts };
 }

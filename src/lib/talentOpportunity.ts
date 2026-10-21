@@ -1,3 +1,8 @@
+import {
+  getEstimatedAnnualSalary,
+  type EstimatedSalaryFields,
+  type EstimatedAnnualSalary,
+} from "@/lib/career/estimatedSalary";
 import type { Json } from "@/types/database.types";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import {
@@ -46,7 +51,7 @@ type RawRecommendationRow = {
   evidence?: Json;
   tradeoffs: Json;
   viewed_at: string | null;
-  company_role: {
+  company_role: EstimatedSalaryFields & {
     company_workspace: {
       company_description: string | null;
       company_db_id: number | null;
@@ -120,7 +125,7 @@ type RawPostingRecommendationRow = {
   viewed_at: string | null;
 };
 
-type RawPostingRoleRow = {
+type RawPostingRoleRow = EstimatedSalaryFields & {
   description: string | null;
   external_jd_url: string | null;
   expires_at: string | null;
@@ -186,6 +191,11 @@ const TALENT_OPPORTUNITY_HISTORY_SELECT = `
   viewed_at,
   clicked_at,
   company_role:company_roles!inner (
+    salary_min,
+    salary_max,
+    salary_currency,
+    salary_period,
+    salary_is_predicted,
     role_id,
     name,
     description,
@@ -248,6 +258,11 @@ const TALENT_RECENT_RECOMMENDATION_PROMPT_SELECT = `
 `;
 
 const TALENT_POSTING_ROLE_SELECT = `
+  salary_min,
+  salary_max,
+  salary_currency,
+  salary_period,
+  salary_is_predicted,
   role_id,
   name,
   description,
@@ -416,6 +431,7 @@ export type TalentCompanyRequestIntroProgressFacts = {
 };
 
 export type TalentOpportunityHistoryItem = {
+  estimatedAnnualSalary?: EstimatedAnnualSalary | null;
   updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
   clickedAt: string | null;
@@ -1792,6 +1808,7 @@ function mapRecommendationRow(
     }),
     companyName: getOpportunityCompanyName({ workspace }),
     description: role.description ?? null,
+    estimatedAnnualSalary: getEstimatedAnnualSalary(role),
     employmentTypes: Array.isArray(role.type) ? role.type : [],
     externalJdUrl,
     expiresAt: role.expires_at ?? null,
@@ -1918,6 +1935,7 @@ function mapPostingRoleRow(
     }),
     companyName: getOpportunityCompanyName({ workspace }),
     description: row.description ?? null,
+    estimatedAnnualSalary: getEstimatedAnnualSalary(row),
     employmentTypes: Array.isArray(row.type) ? row.type : [],
     externalJdUrl,
     expiresAt: row.expires_at ?? null,

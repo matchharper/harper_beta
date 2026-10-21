@@ -153,8 +153,8 @@ function readDraft(key: string, fallback: Draft): Draft {
 export function OrgOnboardingPage() {
   const { c } = useOrgLocale();
   const { workspace, user } = useOrgWorkspace();
-  const slack = useOrgSlackStatus({ workspaceId: workspace.workspaceId });
-  if (!slack.data && !slack.isError)
+  const slack = useOrgSlackStatus({ workspaceId: workspace.workspaceId, enabled: !workspace.isReviewing });
+  if (!workspace.isReviewing && !slack.data && !slack.isError)
     return (
       <main
         className={`flex min-h-svh items-center justify-center ${ONBOARDING_BACKGROUND_CLASS}`}
@@ -207,7 +207,7 @@ export function OrgOnboardingFlow({
     user.id
   );
   const research = useSignupCompany(workspaceId, selfServe && !preview);
-  const slack = useOrgSlackStatus({ workspaceId, enabled: !preview });
+  const slack = useOrgSlackStatus({ workspaceId, enabled: !preview && !workspace.isReviewing });
   const updateProfile = useUpdateOrgMemberProfile();
   const sessionKey = `org-onboarding:${user.id}:${workspaceId}`;
   const [draft, setDraft] = useState<Draft>(() => {
@@ -274,6 +274,8 @@ export function OrgOnboardingFlow({
           ? "company"
           : "company-details";
     }
+    if (workspace.isReviewing && (saved.step === "slack" || saved.step === "plan"))
+      saved.step = workspace.signupState?.companyConfirmedAt ? "company" : "company-details";
     return saved;
   });
   const [error, setError] = useState(() =>
@@ -324,7 +326,7 @@ export function OrgOnboardingFlow({
   try {
     const next = new URL(nextValue, "https://harper.local");
     if (
-      !selfServe &&
+      !workspace.isReviewing && !selfServe &&
       nextValue &&
       next.origin === "https://harper.local" &&
       (next.pathname === "/org" || next.pathname.startsWith("/org/")) &&
@@ -368,11 +370,11 @@ export function OrgOnboardingFlow({
       currentUser && canProvideOrgCompanyContext(bootstrap.members, currentUser)
     );
   const steps = getOrgOnboardingSteps({
-    showSlack: draft?.showSlack ?? false,
+    showSlack: !workspace.isReviewing && (draft?.showSlack ?? false),
     showCompany,
     showCompanyDetails: selfServe,
     roles: visibleRoles,
-    showPlan: selfServe && !additionalOrg,
+    showPlan: selfServe && !additionalOrg && !workspace.isReviewing,
     showProfile: !(additionalOrg && hasProfile),
   });
   const step = draft && steps.includes(draft.step) ? draft.step : steps[0];
@@ -543,7 +545,7 @@ export function OrgOnboardingFlow({
         queryKey: queryKeys.org.bootstrapAll,
       });
       await router.replace(nextHref);
-      if (result.slackUrl) window.location.assign(result.slackUrl);
+      if (!workspace.isReviewing && result.slackUrl) window.location.assign(result.slackUrl);
     } catch (error) {
       setError(
         selfServe
@@ -750,7 +752,7 @@ export function OrgOnboardingFlow({
                   inlineDescription
                 />
               </aside>
-            ) : step === "done" ? (
+            ) : step === "done" && !workspace.isReviewing ? (
               <div className="flex w-full flex-col gap-4">
                 <p className="text-center text-[12px] text-neutral-soft">
                   {c("이렇게 이야기를 시작해 보세요", "Try this opener")}
@@ -1185,7 +1187,9 @@ export function OrgOnboardingFlow({
                   p0: draft.name.trim(),
                 })}
                 description={
-                  slackLinks ? (
+                  workspace.isReviewing ? (
+                    c("입력한 정보를 저장했어요. 완료 후 가입 검토 상태를 확인할 수 있어요.", "Your information is saved. Complete onboarding to view your account review status.")
+                  ) : slackLinks ? (
                     <>
                       <span className="block">
                         {c(

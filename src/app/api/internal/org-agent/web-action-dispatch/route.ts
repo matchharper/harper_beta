@@ -1,3 +1,4 @@
+import { dispatchWorkspaceSignupNotifications } from "@/lib/org/signupNotification.server";
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { dispatchOrgAgentWebActionJob, recoverOrgAgentWebActionJobs } from "@/lib/org/agent/webActionTurn";
@@ -28,6 +29,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const admin = getSupabaseAdmin();
+    // A signup-alert configuration problem must not stall existing company work.
+    let signupNotificationsSent = 0;
+    try {
+      signupNotificationsSent = await dispatchWorkspaceSignupNotifications();
+    } catch (error) {
+      console.error("[org/signup-notification:dispatch]", error instanceof Error ? error.message : "failed");
+    }
     await releasePendingCompanyUpdates();
     const recovered = await recoverOrgAgentWebActionJobs(admin);
     const proactiveEnqueued = await enqueueDueCompanyProactiveReviews();
@@ -51,6 +59,7 @@ export async function GET(req: NextRequest) {
       else failedJobIds.push(jobId);
     }
     return NextResponse.json({
+      signupNotificationsSent,
       attempted: (jobs ?? []).length,
       recovered,
       proactiveEnqueued,

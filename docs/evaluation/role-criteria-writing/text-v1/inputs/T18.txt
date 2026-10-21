@@ -1,0 +1,26 @@
+## 회사 공유용 Profile
+Senior Enterprise AE at a fictional cloud software vendor, three years in the position. The resume lists discovery workshops, pricing negotiations and signed new subscriptions for enterprise customers. It states '148% attainment' but does not state the time period, quota amount, whether the quota was individual or team-level, or whether it measured new ARR, bookings or renewal revenue. A case study says the candidate coordinated an operations sponsor, security reviewers and procurement to resolve the customer's vendor-risk review before signature. A public university appears in a customer logo list, but the candidate's role in that account and any tender or procurement work are not described. English is the working language for customer calls.
+
+## 역할·회사 정보
+- name: Enterprise Account Executive
+- description: Own new enterprise SaaS business from discovery to signed subscription. Coordinate technical validation with sales engineers. No requirement to write production code. Work with English-speaking customers; public-sector procurement experience is preferred.
+
+## 현재 회사 평가 기준 (criterionRef별)
+- c1:
+  - name: Full-cycle enterprise sales
+  - criteria: Required: personally owned discovery, commercial negotiation and signature for new enterprise software subscriptions.
+- c2:
+  - name: Individual quota performance
+  - criteria: Required: evidence of individual new-business quota attainment, with period and basis. Team revenue or renewal metrics alone are not an individual new-business result.
+- c3:
+  - name: Multi-stakeholder selling
+  - criteria: Required: directly coordinated business, technical and purchasing stakeholders to resolve deal blockers.
+- c4:
+  - name: Public-sector procurement
+  - criteria: Preferred: directly handled public-sector procurement or tender requirements. Selling to a regulated private company is not equivalent.
+
+## outputLanguage
+English
+
+## 기준 날짜
+2026-10-21 (Asia/Seoul)

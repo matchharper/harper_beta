@@ -2,6 +2,11 @@
 import { useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/lib/supabase";
+import {
+  canSwitchAuthPersonaWithoutLogout,
+  readAuthPersona,
+} from "@/lib/authSessionPersona";
+import { useAuthStore } from "@/store/useAuthStore";
 import { trackSignUp } from "@/lib/ga";
 import { useCompanyUserStore } from "@/store/useCompanyUserStore";
 import { finalizePendingTalentCapture } from "@/lib/talentCapture/client";
@@ -200,6 +205,25 @@ export default function AuthCallback() {
         return;
       }
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      if (session) {
+        const loginPersona = isTalentDestination ? "talent" : "company";
+        const currentPersona = readAuthPersona(session);
+        // A callback URL opened with the existing session is not a new login.
+        if (
+          currentPersona &&
+          currentPersona !== loginPersona &&
+          !canSwitchAuthPersonaWithoutLogout(user.email)
+        ) {
+          void router.replace(nextPath);
+          return;
+        }
+        useAuthStore.getState().setLoginPersona(session, loginPersona);
+      }
+
       if (lid && user.email) {
         const landingLogSource =
           querySource || inferLandingLogSource({ flow, nextPath });
@@ -216,11 +240,6 @@ export default function AuthCallback() {
           console.error("login log insert error:", loginLogError);
         }
       }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const accessToken = session?.access_token;
 
       if (!accessToken) {
         router.replace(

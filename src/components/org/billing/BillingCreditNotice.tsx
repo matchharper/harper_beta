@@ -8,7 +8,6 @@ import {
   isLowCreditBalance,
 } from "@/lib/org/billing/types";
 import { cn } from "@/lib/utils";
-import { canUseWorkspaceBilling } from "@/lib/org/billing/rollout";
 
 export function BillingCreditNotice({
   workspaceId,
@@ -24,7 +23,7 @@ export function BillingCreditNotice({
   const { locale } = useOrgLocale();
   const { data, isError } = useOrgEntitlements(workspaceId);
   const slot = creditSlotForRole(data?.creditSlots, roleId);
-  if (!canUseWorkspaceBilling(workspaceId) || isError || !slot || !isLowCreditBalance(slot.remaining)) return null;
+  if (isError || !slot || !isLowCreditBalance(slot.remaining)) return null;
   const label =
     locale === "ko"
       ? `${formatIntroCount(slot.remaining, locale)} 남음`

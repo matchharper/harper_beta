@@ -1,4 +1,6 @@
+import { OPS_CONTACT_REPLY_CONTEXT } from "./opsContactContract";
 type TalentPendingRequest = {
+  ops_only?: boolean;
   recommendation_id: string;
   id: string;
   intent?: string | null;
@@ -41,6 +43,12 @@ export function serializeTalentPendingRequest(
     request.delivery_body ?? request.request_context,
     1200
   );
+  if (request.ops_only) return [
+    "[Harper recruiting contact — private system context]",
+    `connectionId: ops-contact:${request.id}`,
+    `company: ${company}`, `role: ${role}`, `contact: ${requestContext}`,
+    OPS_CONTACT_REPLY_CONTEXT,
+  ].join("\n");
   return [
     "[Company contact — private system context]",
     `connectionId: recommendation:${request.recommendation_id}`,

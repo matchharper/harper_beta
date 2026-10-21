@@ -1,3 +1,4 @@
+import { OPS_CONTACT_REPLY_ACKNOWLEDGEMENT } from "@/lib/companyTalentRequests/opsContactContract";
 import { withCompactTalentToolModelResult } from "./toolModelResult";
 import { formatToolError } from "@/lib/llm/toolError";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
@@ -107,6 +108,7 @@ import { IncomingWebhook } from "@slack/webhook";
 import { notifyInternalOpportunityDecisionSlack } from "@/lib/internalOpportunityDecisionSlack";
 import {
   createCompanyTalentRelay,
+  recordOpsCandidateDecision,
   fetchRelayableCompanyTalentConnections,
   formatRelayableCompanyTalentConnections,
 } from "@/lib/companyTalentRequests/server";
@@ -153,6 +155,12 @@ export type PendingProcessClosureNotice = {
   roleName: string;
   closureKind: "role_ended" | "company_process_stopped";
 };
+
+function opsContactToolResult(idempotent: boolean) {
+  return { ok: true, status: "recorded", idempotent, skipCommonAssistantInstruction: true,
+    assistantInstruction: OPS_CONTACT_REPLY_ACKNOWLEDGEMENT,
+    modelOutput: `The user's response is recorded for Harper's recruiting follow-through. ${OPS_CONTACT_REPLY_ACKNOWLEDGEMENT}` };
+}
 
 export type TalentToolExecutionContext = {
   textChatModel?: CareerTextChatModelId;
@@ -1250,6 +1258,14 @@ async function updateRecommendedOpportunityFeedback(args: {
   const hasFormalRecommendation =
     resolved.opportunity !== null &&
     !getPostingRoleIdFromOpportunityId(resolved.opportunity.id);
+  if (hasFormalRecommendation && resolved.opportunity?.sourceType === "internal" && args.feedback !== "keep") {
+    const privateReply = await recordOpsCandidateDecision({
+      admin: args.admin, recommendationId: resolved.updateOpportunityId,
+      talentId: args.userId, sourceMessageId: Number(args.userMessageId), resume: args.feedback === "like",
+    });
+    if (privateReply) return opsContactToolResult(privateReply.idempotent);
+  }
+
   if (args.feedback === "keep") {
     if (
       !hasFormalRecommendation ||
@@ -3706,6 +3722,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
     parameters: {
       type: "object",
       properties: {
+        resumeConfirmed: {
+          type: "boolean",
+          description: "Only for an ops-contact connection: execute the previously requested resumption when the user's current meaning clearly confirms renewed interest in this exact Role. Omit for ordinary company contacts and for questions, conditional interest, uncertainty or refusal. This is an action command, not a sentiment label.",
+        },
         relayContent: {
           type: "string",
           minLength: 1,
@@ -3749,9 +3769,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         connectionId,
         documentId: optionalToolString(input.documentId) ?? undefined,
         relayContent,
+        resumeConfirmed: input.resumeConfirmed === true,
         sourceMessageId,
         talentId: userId,
       });
+      if ("opsOnly" in relay && relay.opsOnly) return opsContactToolResult(relay.idempotent);
       const contentMismatch = Boolean(relay.contentMismatch);
       const assistantInstruction = contentMismatch
         ? "The same source message was already accepted earlier using its original content. State only the returned transport status; do not claim that a differently rewritten version replaced it."

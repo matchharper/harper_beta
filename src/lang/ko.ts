@@ -508,6 +508,9 @@ export const ko = {
     generating: "후보자를 파악하는 중입니다...",
   },
   career: {
+    "career.history.estimated_salary.disclaimer": "Harper가 추정한 연봉으로, 정확하지 않을 수 있으며 회사가 제시하는 실제 연봉과 다를 수 있습니다.",
+    "career.history.estimated_salary.heading": "추정 연봉",
+    "career.history.estimated_salary.range": "{range} (추정)",
     "career.announcement.close": "안내 닫기",
     "career.announcement.preview.fourth_description":
       "지난번에 보지 않은 소식부터 이어서 살펴보세요.",

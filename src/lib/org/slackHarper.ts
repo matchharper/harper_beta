@@ -1,3 +1,4 @@
+import { assertWorkspaceAvailable } from "./workspaceReview.server";
 import { recordOrgAction } from "@/lib/org/actionLogs";
 import "server-only";
 import { canShareOrgTeamSlackAudience, findSlackMemberChannel } from "./slackTeamAccess";
@@ -286,12 +287,14 @@ async function assertAccess(user: User, workspaceId: string, manage = false) {
   const { data: workspace, error } = await (
     admin.from("company_workspace" as any) as any
   )
-    .select("company_workspace_id, company_name, is_internal")
+    .select("company_workspace_id, company_name, is_internal, is_reviewing")
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
   if (error) throw error;
   if (!workspace)
     throw new HarperSlackError(404, "Workspace를 찾지 못했습니다.");
+  if (workspace.is_reviewing) throw new HarperSlackError(403, "org_workspace_under_review");
+
   if (getEmailDomain(user.email) === INTERNAL_EMAIL_DOMAIN) {
     if (!workspace.is_internal)
       throw new HarperSlackError(403, "접근 권한이 없습니다.");
@@ -530,6 +533,7 @@ export async function completeHarperSlackOAuth(args: {
   state: string;
 }) {
   const state = decodeState(args.state);
+  await assertWorkspaceAvailable({ admin: getSupabaseAdmin(), workspaceId: state.workspaceId });
   const response = await fetch("https://slack.com/api/oauth.v2.access", {
     body: new URLSearchParams({
       client_id: clientId(),

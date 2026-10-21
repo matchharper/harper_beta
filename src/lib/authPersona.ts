@@ -44,7 +44,11 @@ export function isTalentAuthDestination(args: {
   if (String(args.flow ?? "").trim() === "talent_capture") return true;
 
   const pathname = getPathname(String(args.nextPath ?? ""));
-  return pathname === "/career" || pathname.startsWith("/career/");
+  return (
+    pathname === "/career_login" ||
+    pathname === "/career" ||
+    pathname.startsWith("/career/")
+  );
 }
 
 export function isCareerEmailOnboardingAuth(args: {

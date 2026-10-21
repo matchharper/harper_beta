@@ -1,4 +1,5 @@
 import { listCompanyFollowups } from "@/lib/companyTalentRequests/followups";
+import { readOpsCompatibleContacts } from "@/lib/companyTalentRequests/readOpsCompatible";
 import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess, visibleOrgRoleIds } from "@/lib/org/teamAccess";
 import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
@@ -412,17 +413,22 @@ export async function listOrgAgentContacts(args: {
     .map((row) => text(row.source_id))
     .filter(Boolean);
   const contactOverlayById = new Map<string, Record<string, unknown>>();
+  const privateContactIds = new Set<string>();
   if (candidateContactIds.length > 0) {
-    const { data: overlays, error: overlayError } = await (
-      args.admin.from("company_talent_requests" as any) as any
-    )
-      .select("id,contact_kind")
-      .eq("company_workspace_id", args.workspaceId)
-      .in("id", candidateContactIds);
+    const { data: overlays, error: overlayError } = await readOpsCompatibleContacts(
+      (hasOpsColumn) =>
+        (args.admin.from("company_talent_requests" as any) as any)
+          .select(hasOpsColumn ? "id,contact_kind,ops_only" : "id,contact_kind")
+          .eq("company_workspace_id", args.workspaceId)
+          .in("id", candidateContactIds)
+    );
     if (overlayError) throw overlayError;
+    for (const row of overlays ?? []) {
+      if (row.ops_only) privateContactIds.add(text(row.id));
+    }
     const overlayRows = await attachCandidateContactRelays({
       admin: args.admin,
-      rows: overlays ?? [],
+      rows: (overlays ?? []).filter((row: any) => !row.ops_only),
       includeContent: false,
     });
     for (const overlay of overlayRows) {
@@ -450,7 +456,7 @@ export async function listOrgAgentContacts(args: {
   return {
     dateBasis,
     hasMore: rows.length > limit,
-    items: page.map((row) => {
+    items: page.filter(row => !(row.kind === "contact" && privateContactIds.has(text(row.source_id)))).map((row) => {
       const kind = text(row.kind) as OrgAgentContactKind;
       const overlay = contactOverlayById.get(text(row.source_id)) ?? {};
       const stateRow = {
@@ -532,17 +538,19 @@ async function fetchCandidateContactScopeTimelines(args: {
     return new Map<string, Array<Record<string, unknown>>>();
   }
   const selectedScopes = new Set(args.rows.map(candidateContactScopeKey));
-  const { data, error } = await (
-    args.admin.from("company_talent_requests" as any) as any
-  )
-    .select(
-      "id,role_id,talent_id,contact_kind,request_context,delivery_body,talent_source_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,payload)"
-    )
-    .eq("company_workspace_id", args.workspaceId)
-    .in("role_id", roleIds)
-    .in("talent_id", talentIds)
-    .order("created_at", { ascending: false })
-    .limit(300);
+  const { data, error } = await readOpsCompatibleContacts((hasOpsColumn) => {
+    let query = (args.admin.from("company_talent_requests" as any) as any)
+      .select(
+        "id,role_id,talent_id,contact_kind,request_context,delivery_body,talent_source_message_id,created_at,deliveries:contact_queue(type,status,sent_at,updated_at,payload)"
+      );
+    if (hasOpsColumn) query = query.eq("ops_only", false);
+    return query
+      .eq("company_workspace_id", args.workspaceId)
+      .in("role_id", roleIds)
+      .in("talent_id", talentIds)
+      .order("created_at", { ascending: false })
+      .limit(300);
+  });
   if (error) throw error;
 
   const rows = await attachCandidateContactRelays({
@@ -628,15 +636,17 @@ async function readCandidateContacts(args: {
   workspaceId: string;
 }) {
   if (args.ids.length === 0) return [];
-  const { data, error } = await (
-    args.admin.from("company_talent_requests" as any) as any
-  )
-    .select(
-      "id,role_id,talent_id,contact_kind,expects_document,request_context,workflow_status,expires_at,created_at,updated_at,approved_at,delivery_subject,delivery_body,draft_revision,talent_source_message_id,document_id,source_message:company_messages!company_talent_requests_source_company_message_id_fkey(company_user_id),role:company_roles!inner(name,status,is_expired,expires_at),talent:talent_users!inner(name,email),deliveries:contact_queue(type,status,scheduled_at,sent_at,cancelled_at,updated_at,last_error,payload)"
-    )
-    .eq("company_workspace_id", args.workspaceId)
-    .is("talent.deleted_at", null)
-    .in("id", args.ids);
+  const { data, error } = await readOpsCompatibleContacts((hasOpsColumn) => {
+    let query = (args.admin.from("company_talent_requests" as any) as any)
+      .select(
+        "id,role_id,talent_id,contact_kind,expects_document,request_context,workflow_status,expires_at,created_at,updated_at,approved_at,delivery_subject,delivery_body,draft_revision,talent_source_message_id,document_id,source_message:company_messages!company_talent_requests_source_company_message_id_fkey(company_user_id),role:company_roles!inner(name,status,is_expired,expires_at),talent:talent_users!inner(name,email),deliveries:contact_queue(type,status,scheduled_at,sent_at,cancelled_at,updated_at,last_error,payload)"
+      );
+    if (hasOpsColumn) query = query.eq("ops_only", false);
+    return query
+      .eq("company_workspace_id", args.workspaceId)
+      .is("talent.deleted_at", null)
+      .in("id", args.ids);
+  });
   if (error) throw error;
   const sourceRows = (data ?? []) as Array<Record<string, any>>;
   if (!sourceRows.length) return [];

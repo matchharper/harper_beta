@@ -28,8 +28,9 @@ def service(sql, values=()):
         return other.execute(sql, values).fetchone()[0]
 
 def create(actor=0, domain=domain, request=request_id, internal=False):
-    return service('select workspace_create_additional_v1(%s,%s,%s,%s,%s,%s)',
-                   (users[actor], source, domain, 'https://'+domain, request, internal))
+    email = conn.execute('select email from auth.users where id=%s', (users[actor],)).fetchone()[0]
+    return service('select workspace_create_additional_v1(%s,null,%s,%s,%s,%s,%s,%s)',
+                   (email, users[actor], source, domain, 'https://'+domain, request, internal))
 
 def update(actor, workspace, action, values=None):
     return service('select workspace_signup_update_v1(%s,%s,%s,%s)',
@@ -84,10 +85,10 @@ try:
     assert conn.execute('select onboarding_completed_at::text from company_users where user_id=%s', (users[0],)).fetchone()[0].startswith('2026-10-01')
     print('PASS Viewer creates unrelated company as Owner; retries/concurrency, independent same-company Organizations, Free, no Roles, scoped completion')
 
-    entry = service('select workspace_signup_begin_v1(%s,%s,false)', (users[3], domain))
+    entry = service('select workspace_signup_begin_v1(%s,null,%s,%s,false)', (f'new@{domain}', users[3], domain))
     assert entry == {'status': 'new', 'domain': domain}
     with ThreadPoolExecutor(max_workers=2) as pool:
-        first_results = list(pool.map(lambda _: service('select workspace_signup_begin_v1(%s,%s,true)', (users[3], domain)), range(2)))
+        first_results = list(pool.map(lambda _: service('select workspace_signup_begin_v1(%s,null,%s,%s,true)', (f'new@{domain}', users[3], domain)), range(2)))
     assert sorted(result['status'] for result in first_results) == ['created', 'member']
     first_workspace = first_results[0]['workspaceId']
     workspaces.add(first_workspace)
@@ -110,8 +111,8 @@ try:
     third = create(2, domain='internal-'+domain, request=uuid4(), internal=True)['workspaceId']
     workspaces.add(third)
     for role in ('anon', 'authenticated'):
-        assert not conn.execute("select has_function_privilege(%s,'workspace_create_additional_v1(uuid,uuid,text,text,uuid,boolean)','execute')", (role,)).fetchone()[0]
-    assert conn.execute("select not prosecdef from pg_proc where oid='workspace_create_additional_v1(uuid,uuid,text,text,uuid,boolean)'::regprocedure").fetchone()[0]
+        assert not conn.execute("select has_function_privilege(%s,'workspace_create_additional_v1(text,text,uuid,uuid,text,text,uuid,boolean)','execute')", (role,)).fetchone()[0]
+    assert conn.execute("select not prosecdef from pg_proc where oid='workspace_create_additional_v1(text,text,uuid,uuid,text,text,uuid,boolean)'::regprocedure").fetchone()[0]
     print('PASS repeated LinkedIn identity accepted, internal access supported, invoker function restricted to service_role')
 finally:
     for workspace in workspaces:

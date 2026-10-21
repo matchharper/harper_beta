@@ -1,3 +1,4 @@
+import { withReviewOnboarding } from "@/lib/org/workspaceReview.server";
 import { NextRequest, NextResponse } from "next/server";
 import { isOrgLocale } from "@/i18n/org/locale";
 import { runOrgAgentChat } from "@/lib/org/agent/chat";
@@ -128,6 +129,7 @@ export async function GET(req: NextRequest) {
     await assertOrgWorkspacePermission({
       admin: getSupabaseAdmin(),
       permission: "view",
+      allowReviewSetup: true,
       user,
       workspaceId,
     });
@@ -196,7 +198,8 @@ export async function POST(req: NextRequest) {
       if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
         throw new OrgHttpError(400, "Invalid response locale");
       }
-      const welcome = (completedAt: string) => sendOrgOnboardingSlackWelcome({
+      const welcome = (completedAt: string) => bootstrap.workspace?.isReviewing
+        ? Promise.resolve(null) : sendOrgOnboardingSlackWelcome({
         user, workspaceId, completedAt, member, roles: bootstrap.roles,
         responseLocale: isOrgLocale(body.responseLocale) ? body.responseLocale : undefined,
       });
@@ -343,9 +346,10 @@ export async function POST(req: NextRequest) {
       }
       let result: Awaited<ReturnType<typeof runOrgAgentChat>>;
       try {
-        result = await runOrgAgentChat({
+        const run = () => runOrgAgentChat({
           message,
           ...ORG_ONBOARDING_COMPANY_AGENT_OPTIONS,
+          ...(bootstrap.workspace?.isReviewing ? { allowedToolNames: new Set(["get_more_data", "update_data"]) } : {}),
           responseLocale: isOrgLocale(body.responseLocale)
             ? body.responseLocale
             : undefined,
@@ -362,6 +366,9 @@ export async function POST(req: NextRequest) {
           user,
           workspaceId,
         });
+        result = bootstrap.workspace?.isReviewing
+          ? await withReviewOnboarding({ workspaceId, userId: user.id }, run)
+          : await run();
       } catch (error) {
         // The unique user-message index means a concurrent retry has already
         // claimed this submission. Read its result instead of running it twice.

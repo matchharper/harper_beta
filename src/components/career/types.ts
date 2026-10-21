@@ -1,3 +1,4 @@
+import type { EstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import type { ApplicationQuestionHistory } from "@/lib/career/simulation/questionHistory";
 import type { ApplicationDraft } from "@/lib/career/simulation/preparation";
 import type {ApplicationStartOffer} from "@/lib/career/simulation/startOffer";
@@ -383,6 +384,7 @@ export type CareerPreferenceFitItem = {
 };
 
 export type CareerHistoryOpportunity = {
+  estimatedAnnualSalary?: EstimatedAnnualSalary | null;
   updatedAt?: string | null;
   activityTimelineLoaded?: boolean;
   clickedAt: string | null;

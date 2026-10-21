@@ -350,6 +350,7 @@ export const useCareerAuth = () => {
             setAuthInfo(tCareer(H.authEmailConfirmationSent));
             return false;
           }
+          useAuthStore.getState().setLoginPersona(data.session, "talent");
           if (args.legalAcceptance) {
             await recordLegalDocumentAcceptance({
               acceptance: args.legalAcceptance,
@@ -357,11 +358,12 @@ export const useCareerAuth = () => {
             });
           }
         } else {
-          const { error } = await supabase.auth.signInWithPassword({
+          const { data, error } = await supabase.auth.signInWithPassword({
             email,
             password: args.password,
           });
           if (error) throw error;
+          useAuthStore.getState().setLoginPersona(data.session, "talent");
         }
         return true;
       } catch (error) {

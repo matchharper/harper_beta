@@ -194,11 +194,14 @@ type TalentProgressRow = Database["public"]["Tables"]["talent_progress"]["Row"] 
 type CareerEmailMessageRow =
   Database["public"]["Tables"]["career_email_messages"]["Row"];
 
+import { assertWorkspaceAvailable } from "./workspaceReview.server";
+import { workspaceSignupReview } from "./signupReview.server";
 import { OrgHttpError } from "./httpError";
 export { OrgHttpError } from "./httpError";
 import { readOrgRoleAccess, scopeOrgRoleQuery, fetchOrgTeams, canAccessOrgRole, resolveOrgRoleAccess, type OrgTeam, type OrgAccessScope } from "./teamAccess";
 
 export type OrgWorkspace = {
+  isReviewing?: boolean;
   signupState?: WorkspaceSignupState | null;
   companyProfile?: OrgCompanyProfile;
   companyDescription: string | null;
@@ -756,7 +759,11 @@ export type MoveOrgCandidateToRoleResult = {
     | "target_role_unavailable"
     | "target_stage_not_found"
     | "target_stage_not_supported"
-    | "test_only_target_blocked";
+    | "test_only_target_blocked"
+    | "state_changed"
+    | "consent_not_found"
+    | "target_has_intro"
+    | "direct_confirmation_required";
   targetExistingStageId: string | null;
   targetExistingStageLabel: string | null;
   targetRecommendationId: string | null;
@@ -992,6 +999,7 @@ function toWorkspace(
 ): OrgWorkspace {
   return {
     ...(company ? { companyProfile: company.profile } : {}),
+    isReviewing: row.is_reviewing === true,
     signupState: (row.signup_state as WorkspaceSignupState | null) ?? null,
     companyDescription: row.company_description ?? null,
     companyName: row.signup_state ? row.company_name : company?.companyName ?? row.company_name,
@@ -1435,7 +1443,7 @@ async function fetchWorkspaceById(
 ) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, signup_state, updated_at"
+      "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, signup_state, is_reviewing, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -1582,18 +1590,22 @@ export type OrgWorkspacePermission =
   | "view";
 
 export async function assertOrgWorkspacePermission(args: {
+  /** Trusted setup readers/writers only; never forward request fields. */
+  allowReviewSetup?: boolean;
   admin: SupabaseAdminClient;
   permission: OrgWorkspacePermission;
   user: User;
   workspaceId: string;
 }) {
+  await assertWorkspaceAvailable(args);
   if (hasOrgAllWorkspaceAccess(args.user)) {
     const workspace = await fetchWorkspaceById(args.admin, args.workspaceId);
     if (!workspace) throw new OrgHttpError(404, "Workspace not found");
     return "owner" as const;
   }
 
-  const access = await readOrgRoleAccess(args);
+  // The current review flag was checked above; keep one DB check per permission read.
+  const access = await readOrgRoleAccess({ ...args, allowReviewSetup: true });
   const authority = access.authority;
   const permissions = getOrgPermissions(authority, access.scope);
   const allowed =
@@ -1755,7 +1767,7 @@ async function fetchWorkspacesByIds(
   if (workspaceIds.length === 0) return [];
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, is_reviewing, updated_at"
     )
     .in("company_workspace_id", workspaceIds);
 
@@ -1766,7 +1778,7 @@ async function fetchWorkspacesByIds(
 async function fetchDefaultOrgWorkspaces(admin: SupabaseAdminClient) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, is_reviewing, updated_at"
     )
     .eq("is_internal", true)
     .order("company_name", { ascending: true })
@@ -2072,6 +2084,18 @@ export async function fetchOrgBootstrap(args: {
       roles: [],
       workspace: null,
       workspaces: workspaces.map((workspace) => toWorkspace(workspace)),
+    };
+  }
+
+  if (selectedWorkspace.is_reviewing) {
+    const members = await fetchOrgMembers(admin, selectedWorkspace.company_workspace_id);
+    const currentUser = members.find(member => member.userId === args.user.id) ??
+      (hasAllWorkspaceAccess ? buildVirtualOrgMember(args.user) : null);
+    return {
+      ok: true, currentUser, members: currentUser ? [currentUser] : [],
+      roles: [], invitations: [], teams: [],
+      workspace: toWorkspace(selectedWorkspace),
+      workspaces: workspaces.map(workspace => toWorkspace(workspace)),
     };
   }
 
@@ -2422,6 +2446,7 @@ export async function updateOrgMemberProfile(args: {
   await assertOrgWorkspacePermission({
     admin,
     permission: requestedUserId ? "manage_members" : "view",
+    allowReviewSetup: !requestedUserId,
     user: args.user,
     workspaceId,
   });
@@ -4694,6 +4719,10 @@ async function upsertRecommendationProcessedStage(args: {
 const ORG_CANDIDATE_ROLE_MOVE_STATUSES = new Set<
   MoveOrgCandidateToRoleResult["status"]
 >([
+  "state_changed",
+  "consent_not_found",
+  "target_has_intro",
+  "direct_confirmation_required",
   "already_in_target_pipeline",
   "moved",
   "permission_denied",
@@ -4750,6 +4779,7 @@ function normalizeCandidateRoleMoveResult(
 
 export async function moveOrgCandidateToRole(args: {
   companyMessageId: number;
+  candidateConsentRelayId?: string;
   sourceRoleId: string;
   talentId: string;
   targetRoleId: string;
@@ -4787,16 +4817,28 @@ export async function moveOrgCandidateToRole(args: {
   await upsertOrgCompanyUser(admin, args.user);
 
   const { data, error } = await (admin.rpc as any)(
-    "move_company_candidate_to_role_v1",
-    {
-      p_company_user_id: args.user.id,
-      p_company_workspace_id: workspaceId,
-      p_source_company_message_id: companyMessageId,
-      p_source_role_id: sourceRoleId,
-      p_talent_id: talentId,
-      p_target_role_id: targetRoleId,
-      p_target_stage_id: targetStageId,
-    }
+    args.candidateConsentRelayId
+      ? "complete_org_candidate_role_move_v1"
+      : "move_company_candidate_to_role_v1",
+    args.candidateConsentRelayId
+      ? {
+          p_relay_id: args.candidateConsentRelayId,
+          p_actor_id: args.user.id,
+          p_workspace_id: workspaceId,
+          p_talent_id: talentId,
+          p_source_role_id: sourceRoleId,
+          p_target_role_id: targetRoleId,
+          p_target_stage: targetStageId,
+        }
+      : {
+          p_company_user_id: args.user.id,
+          p_company_workspace_id: workspaceId,
+          p_source_company_message_id: companyMessageId,
+          p_source_role_id: sourceRoleId,
+          p_talent_id: talentId,
+          p_target_role_id: targetRoleId,
+          p_target_stage_id: targetStageId,
+        }
   );
   if (error) throw error;
   return normalizeCandidateRoleMoveResult(data);
@@ -6095,6 +6137,7 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
       .select(
         "id, role_id, expects_document, request_context, workflow_status, created_at"
       )
+      .eq("ops_only", false)
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
       .in("role_id", roleIds)
@@ -6602,6 +6645,7 @@ export async function fetchOrgTalentDetail(args: {
       .select(
         "id, role_id, contact_kind, expects_document, request_context, delivery_subject, delivery_body, workflow_status, expires_at, created_at, talent_source_message_id, deliveries:contact_queue(scheduled_at, sent_at, cancelled_at, status, last_error, payload, type)"
       )
+      .eq("ops_only", false)
       .eq("company_workspace_id", workspaceId)
       .eq("talent_id", talentId)
       .eq("role_id", recommendation.role_id)
@@ -7345,6 +7389,7 @@ export async function createOrgWorkspace(args: {
   });
   await upsertOrgCompanyUser(admin, args.user);
   return signupRpc<OrgWorkspaceCreateResult>("workspace_create_additional_v1", {
+    ...workspaceSignupReview(args.user),
     p_user: args.user.id,
     p_source_workspace: args.sourceWorkspaceId,
     p_domain: input.domain,

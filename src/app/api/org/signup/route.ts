@@ -1,3 +1,4 @@
+import { notifyWorkspaceSignupSafely } from "@/lib/org/signupNotification.server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { COMPANY_SELF_SERVE_SIGNUP_ENABLED } from "@/lib/org/billing/rollout";
 import {
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
       user,
       workspaceId: id,
       permission: "view",
+      allowReviewSetup: true,
     });
     const { data, error } = await admin
       .from("company_workspace")
@@ -106,7 +108,12 @@ export async function POST(req: NextRequest) {
         throw new Error("signup_forbidden");
       const result = await signupEntry(user, true);
       if (result.status === "created" && result.workspaceId)
-        after(() => runSignupResearch(user.id, result.workspaceId!));
+        after(async () => {
+          await Promise.all([
+            notifyWorkspaceSignupSafely(result.workspaceId!),
+            runSignupResearch(user.id, result.workspaceId!),
+          ]);
+        });
       return NextResponse.json(result);
     }
     const id = body.workspaceId;
@@ -121,10 +128,11 @@ export async function POST(req: NextRequest) {
       user,
       workspaceId: id,
       permission: "manage_workspace",
+      allowReviewSetup: true,
     });
     const { data: workspace, error: workspaceError } = await admin
       .from("company_workspace")
-      .select("signup_state")
+      .select("signup_state,is_reviewing")
       .eq("company_workspace_id", id)
       .single();
     const signupState = workspace?.signup_state as WorkspaceSignupState | null;
@@ -143,6 +151,8 @@ export async function POST(req: NextRequest) {
       isAdditionalOrgCreator(signupState, user.id)
     )
       throw new Error("signup_forbidden");
+    if (workspace?.is_reviewing && body.action === "plan")
+      throw new OrgHttpError(403, "org_workspace_under_review");
     // The RPC also checks creator ownership under a row lock for every mutation.
     if (body.action === "research") {
       after(() => runSignupResearch(user.id, id));

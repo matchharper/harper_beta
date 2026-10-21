@@ -155,15 +155,19 @@
   --color-primary-faded: var(--color-accent-100);
 
   --color-positive: var(--color-positive-500);
+  --color-positive-strong: #009b35;
   --color-positive-faded: var(--color-positive-100);
 
   --color-info: var(--color-info-500);
+  --color-info-strong: #d98b00;
   --color-info-faded: var(--color-info-100);
 
   --color-action: var(--color-action-500);
+  --color-action-strong: #0066e6;
   --color-action-faded: var(--color-action-100);
 
   --color-critical: var(--color-critical-500);
+  --color-critical-strong: color-mix(in srgb, var(--color-critical) 85%, black);
   --color-critical-faded: var(--color-critical-100);
 
   --animate-upDown: upDowns 2s ease-in-out infinite;

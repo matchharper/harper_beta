@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  buildLiveSessionUpdateEvents,
+  type LiveSessionInstructionUpdate,
+} from "@/lib/career/liveSessionUpdates";
+
 import { toolErrorResult, serializeToolResultForModel } from "@/lib/llm/toolError";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
@@ -291,6 +296,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     if (!dataChannel || dataChannel.readyState !== "open") return;
     dataChannel.send(JSON.stringify(event));
   }, []);
+  const lastOnboardingContextRef = useRef<string | null>(null);
 
   const scheduleUsageLog = useCallback(
     (payload: Record<string, unknown>) => {
@@ -782,6 +788,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     responseFunctionCallsRef.current.clear();
     delegationResponseIdsRef.current.clear();
     executedFunctionCallIdsRef.current.clear();
+    lastOnboardingContextRef.current = null;
     pendingEndCallRef.current = false;
     assistantPlaybackStartedAtRef.current = null;
     playbackDrainUntilRef.current = 0;
@@ -1177,16 +1184,17 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   );
 
   const updateSessionInstructions = useCallback(
-    (instructions: string) => {
-      sendEvent({
-        type: "session.update",
-        session: {
-          delegation: {
-            type: "responses",
-            responses: { instructions },
-          },
-        },
-      });
+    (instructions: string, liveUpdate?: LiveSessionInstructionUpdate | null) => {
+      if (dataChannelRef.current?.readyState !== "open") return;
+      const update = liveUpdate ?? { instructions, onboardingContext: null };
+      for (const event of buildLiveSessionUpdateEvents(
+        update,
+        lastOnboardingContextRef.current,
+        `harper_live_progress_${crypto.randomUUID()}`
+      )) {
+        sendEvent(event);
+      }
+      lastOnboardingContextRef.current = update.onboardingContext;
     },
     [sendEvent]
   );

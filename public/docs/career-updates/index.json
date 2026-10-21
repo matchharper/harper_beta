@@ -1,5 +1,137 @@
 [
   {
+    "date": "2026-10-20",
+    "tag": "IMPROVED",
+    "ko": "모바일에서 포지션에 관심을 표시한 직후 되돌릴 수 있습니다. 실수로 선택했을 때 바로 취소할 수 있도록 했습니다.",
+    "en": "On mobile, you can now undo an interest selection immediately after making it, so accidental choices are easier to correct."
+  },
+  {
+    "date": "2026-10-20",
+    "tag": "IMPROVED",
+    "ko": "추천 카드에서 Harper가 해당 포지션을 추천한 이유를 더 자세히 확인할 수 있도록 개선했습니다.",
+    "en": "Recommendation cards now show more detail about why Harper suggested each position."
+  },
+  {
+    "date": "2026-10-19",
+    "tag": "FIXED",
+    "ko": "회사에 전달해 달라고 요청한 메시지가 실제로 전달되지 못한 경우, 전달에 실패했다는 사실을 더 정확히 안내하도록 수정했습니다.",
+    "en": "When a message you ask Harper to relay to a company cannot be delivered, Harper now explains the delivery failure more accurately."
+  },
+  {
+    "date": "2026-10-18",
+    "tag": "IMPROVED",
+    "ko": "설정한 언어가 대화뿐 아니라 화면과 종료 안내에도 일관되게 반영되도록 개선했습니다. 이번 답변만 다른 언어로 요청하는 경우와 앞으로 사용할 언어를 바꾸는 경우도 구분합니다.",
+    "en": "Your saved language is now applied more consistently to conversations, the interface, and closure notices. Harper also distinguishes a one-time language request from a change to your ongoing language preference."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "NEW",
+    "ko": "관심 있는 외부 공고에서 ‘Harper와 지원하기’를 선택해 지원 준비를 시작할 수 있습니다. 포지션과 사용할 이력서를 정하고 Harper와 함께 준비해 보세요.",
+    "en": "You can now choose “Apply with Harper” on an external job posting to begin preparing an application. Select the position and resume you want to use, then work through the preparation with Harper."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "NEW",
+    "ko": "지원할 포지션에 맞춰 이력서 보완점과 추가로 필요한 정보를 함께 검토할 수 있습니다. 제안별로 반영 여부를 선택하거나 내용을 직접 수정할 수 있습니다.",
+    "en": "You can now review resume improvements and additional information needed for a specific application. Choose which suggestions to use or edit them directly."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "NEW",
+    "ko": "Harper가 지원 사이트의 양식 작성과 제출을 도와드립니다. 실제 제출 전에는 확인을 요청하며, 사이트의 로그인이나 추가 인증 등 직접 처리해야 하는 단계가 있으면 안내합니다.",
+    "en": "Harper can now help fill out and submit applications on job sites. It asks for confirmation before submitting and lets you know when a step, such as signing in or completing additional verification, requires your help."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "IMPROVED",
+    "ko": "지원 준비 중 답변과 수정 내용을 유지하고, 진행 상황과 결과를 대화에서 이어서 확인할 수 있도록 개선했습니다. 준비를 중단할 때도 확인 후 마무리할 수 있습니다.",
+    "en": "Application preparation now keeps your answers and edits so you can follow progress and results in the conversation. You can also confirm when you want to end preparation."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "NEW",
+    "ko": "홈에서 오늘 추천된 외부 공고를 바로 확인할 수 있습니다. Harper가 새 기회를 찾고 있는 동안에는 검색 중인 상태도 표시합니다.",
+    "en": "You can now view today’s recommended external jobs directly on the home screen. A status indicator also shows when Harper is looking for new opportunities."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "IMPROVED",
+    "ko": "외부 공고 검색에서 희망 국가와 근무 조건에 맞는 기회를 먼저 살펴보도록 개선했습니다. 직무와 경력의 관련성도 함께 고려해 추천 후보를 찾습니다.",
+    "en": "External job search now prioritizes opportunities that match your preferred countries and working conditions, while also considering how the role relates to your experience."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "IMPROVED",
+    "ko": "Gmail 설정에서 이메일 읽어오기를 직접 시작하고 진행 상태를 확인할 수 있습니다. 추가 권한이 필요하거나 다시 연결해야 하는 경우도 더 명확히 안내합니다.",
+    "en": "You can now start reading emails from Gmail settings and check the progress. The interface also makes it clearer when additional permissions or reconnection are needed."
+  },
+  {
+    "date": "2026-10-16",
+    "tag": "IMPROVED",
+    "ko": "연락이나 프로필 공개 설정을 바꾸더라도 이미 회사에 소개된 기회와 진행 이력은 유지됩니다. 앞으로의 연락 설정과 기존 기회의 진행 상황을 구분해 관리하도록 개선했습니다.",
+    "en": "Opportunities already introduced to companies and their progress history are preserved when you change contact or profile visibility settings. Future contact preferences are now handled separately from existing opportunities."
+  },
+  {
+    "date": "2026-10-09",
+    "tag": "NEW",
+    "ko": "Harper 연결 제안을 바로 수락하거나 거절하기 어렵다면 ‘저장하고 나중에 결정’을 선택할 수 있습니다. 저장만으로 회사에 공유되거나 연결에 동의한 것으로 처리되지 않습니다.",
+    "en": "If you are not ready to accept or decline a Harper connection proposal, you can now save it and decide later. Saving does not share your profile with the company or count as consent to connect."
+  },
+  {
+    "date": "2026-10-09",
+    "tag": "IMPROVED",
+    "ko": "나중에 결정하려고 저장한 연결 제안은 계속 미응답으로 취급해 재촉하지 않도록 개선했습니다. 저장한 기회에서 다시 살펴보고 결정할 수 있습니다.",
+    "en": "Connection proposals you save for later are no longer treated as unanswered proposals for repeated follow-ups. You can revisit them in your saved opportunities when you are ready."
+  },
+  {
+    "date": "2026-10-09",
+    "tag": "IMPROVED",
+    "ko": "추천 목록의 날짜를 오늘·어제 등으로 표시해 최근에 도착한 기회를 더 쉽게 구분할 수 있도록 했습니다.",
+    "en": "Recommendation dates now use labels such as today and yesterday, making recently received opportunities easier to identify."
+  },
+  {
+    "date": "2026-10-02",
+    "tag": "IMPROVED",
+    "ko": "통화 중 오랫동안 응답이 없으면 계속 통화할지 먼저 확인하고, 응답이 없을 때 통화를 종료하도록 했습니다.",
+    "en": "When there is a long pause during a call, Harper now checks whether you want to continue and ends the call if there is no response."
+  },
+  {
+    "date": "2026-10-02",
+    "tag": "FIXED",
+    "ko": "말로 통화를 마치겠다고 했을 때 종료 인사 후에도 통화가 계속 연결되어 있던 문제를 수정했습니다.",
+    "en": "We fixed an issue where a call could remain connected after you said you wanted to finish and Harper said goodbye."
+  },
+  {
+    "date": "2026-10-01",
+    "tag": "IMPROVED",
+    "ko": "회사와의 연결 과정에서 확인이나 답변이 필요한 요청을 대화에서 더 쉽게 찾고 이어서 처리할 수 있도록 개선했습니다.",
+    "en": "Requests that need your confirmation or reply during a company connection are now easier to find and continue in the conversation."
+  },
+  {
+    "date": "2026-09-30",
+    "tag": "IMPROVED",
+    "ko": "포지션별 진행 기록을 정리해 상태 변화와 연락 내용을 더 일관되게 확인할 수 있도록 했습니다. 본인에게 공개된 진행 내용을 기준으로 표시합니다.",
+    "en": "We improved opportunity progress records so status changes and communication are shown more consistently, based on the information visible to you."
+  },
+  {
+    "date": "2026-09-29",
+    "tag": "NEW",
+    "ko": "Harper와 나눈 이야기와 경력 정보를 바탕으로 이력서를 만들 수 있습니다. 작성한 이력서는 문서에서 미리 보고 수정하거나 내려받을 수 있습니다.",
+    "en": "You can now create a resume from your career information and conversations with Harper. Preview, edit, and download the resume from your documents."
+  },
+  {
+    "date": "2026-09-29",
+    "tag": "IMPROVED",
+    "ko": "작성한 이력서를 PDF로 내려받을 수 있도록 했습니다. 문서 미리보기와 이력서의 항목 구성을 함께 다듬었습니다.",
+    "en": "You can now download a generated resume as a PDF. We also refined document previews and the layout of resume sections."
+  },
+  {
+    "date": "2026-09-29",
+    "tag": "IMPROVED",
+    "ko": "프로필에서 경력 정보, 문서, 연결한 링크를 더 편하게 찾아볼 수 있도록 구성을 정리했습니다.",
+    "en": "We reorganized the profile so your career information, documents, and connected links are easier to find."
+  },
+  {
     "date": "2026-09-28",
     "tag": "IMPROVED",
     "ko": "Harper의 화면 구성과 디자인을 새롭게 다듬었습니다.",
@@ -10,6 +142,18 @@
     "tag": "IMPROVED",
     "ko": "커리어에 대한 고민을 더 깊이 이야기할 수 있도록 Harper와의 대화를 개선했습니다. 앞으로의 방향이나 선택이 고민될 때, Harper와 함께 생각을 정리해 보세요.",
     "en": "We've improved conversations with Harper so you can explore your career concerns in greater depth. When you're unsure about your next step or a career decision, talk it through with Harper."
+  },
+  {
+    "date": "2026-09-23",
+    "tag": "IMPROVED",
+    "ko": "커리어 상담에서 나눈 내용을 다시 확인하고 이어서 이야기할 수 있도록 대화 속 상담 기록을 개선했습니다.",
+    "en": "We improved coaching records in the conversation so you can revisit what you discussed and pick up where you left off."
+  },
+  {
+    "date": "2026-09-21",
+    "tag": "NEW",
+    "ko": "채팅에서 마이크로 말한 내용을 글로 입력할 수 있습니다. 긴 내용을 타이핑하기 어려울 때 음성 입력을 사용해 보세요.",
+    "en": "You can now use the microphone to dictate text in chat. Try voice input when a longer message is easier to say than to type."
   },
   {
     "date": "2026-09-21",
@@ -34,6 +178,12 @@
     "tag": "NEW",
     "ko": "관심 있는 회사를 살펴볼 때, 그 회사의 전체 오픈 포지션을 확인하고 마음에 드는 포지션은 바로 저장할 수 있습니다.",
     "en": "When exploring a company, you can now browse all of its open positions and save any role you’d like to revisit."
+  },
+  {
+    "date": "2026-09-15",
+    "tag": "NEW",
+    "ko": "Harper와 통화한 뒤 프로필에서 통화 기록과 주요 내용을 다시 확인할 수 있습니다. 지난 대화를 돌아보고 다음 이야기를 이어갈 때 활용해 보세요.",
+    "en": "After a call with Harper, you can now revisit the call record and key points from your profile. Use them to review the conversation and continue it later."
   },
   {
     "date": "2026-09-15",

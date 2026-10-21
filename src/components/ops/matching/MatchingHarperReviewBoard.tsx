@@ -24,6 +24,7 @@ import {
   TalentStatusBadges,
 } from "@/components/ops/matching/MatchingTalentCells";
 import { MatchingTalentDrawer } from "@/components/ops/matching/MatchingTalentDrawer";
+import { OpsReengagementDialog } from "@/components/ops/matching/OpsReengagementDialog";
 import { MatchingTagEditor } from "@/components/ops/matching/MatchingTalentInlineActions";
 import { isMatchingReviewStageTag } from "@/components/ops/matching/tagMeta";
 import { cx, opsTheme } from "@/components/ops/theme";
@@ -1488,6 +1489,9 @@ export function MatchingHarperReviewBoard({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <OpsReengagementDialog key={role.roleId} items={items} roleId={role.roleId}
+              roleName={role.roleName} companyName={role.companyName}
+              onDone={() => { void reviewQuery.refetch(); }} />
             <MatchingDateRangeFilter
               align="end"
               emptyLabel="추천일 전체"

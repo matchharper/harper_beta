@@ -15,6 +15,7 @@ import {
   useMotionValueEvent,
   useReducedMotion,
   useTransform,
+  type MotionStyle,
   type MotionValue,
 } from "motion/react";
 
@@ -23,7 +24,7 @@ const MONTHS = 6; // 비교 기간 (개월)
 const HARPER_MONTHLY_KRW = 260_000; // Harper 월 이용료
 const AD_MONTHLY_KRW = 840_000; // 공고 광고 월 예산 (기존 일 28,000원 × 30일 환산)
 const HEADHUNTER_RATE = 0.2; // 헤드헌터 기본 수수료율
-const HIRING_SERVICE_RATE = 0.07; // 플랫폼 채용 수수료율
+const HIRING_SERVICE_RATE = 0.07; // 채용 사이트 수수료율
 const HEADHUNTER_RATE_OPTIONS = [0.15, 0.2, 0.25, 0.3];
 const INITIAL_SALARY = 80_000_000; // 처음 표시할 연봉: 8,000만원
 const MIN_SALARY = 30_000_000; // 슬라이더 최솟값
@@ -83,23 +84,33 @@ function getComparisonCosts(
   salary: number,
   hireCount: number,
   headhunterRate: number,
-  serviceRate: number
+  serviceRate: number,
+  harperMonthlyKrw = HARPER_MONTHLY_KRW
 ) {
   return [
     { id: "headhunter", cost: salary * headhunterRate * hireCount },
     { id: "advertising", cost: AD_MONTHLY_KRW * MONTHS * hireCount },
     { id: "service", cost: salary * serviceRate * hireCount },
-    { id: "harper", cost: HARPER_MONTHLY_KRW * MONTHS * hireCount },
+    { id: "harper", cost: harperMonthlyKrw * MONTHS * hireCount },
   ] as const;
 }
 
 function getCostOrder(
   salary: number,
   headhunterRate: number,
-  serviceRate: number
+  serviceRate: number,
+  harperMonthlyKrw = HARPER_MONTHLY_KRW
 ) {
   // Every channel scales by the same headcount; rank depends on salary and rates.
-  return [...getComparisonCosts(salary, 1, headhunterRate, serviceRate)]
+  return [
+    ...getComparisonCosts(
+      salary,
+      1,
+      headhunterRate,
+      serviceRate,
+      harperMonthlyKrw
+    ),
+  ]
     .sort((a, b) => b.cost - a.cost)
     .map(({ id }) => id);
 }
@@ -123,7 +134,7 @@ function useComparisonValue(value: number) {
 
 // Update only the text node during animation, without rendering the whole
 // calculator on every frame. The accessible values below use settled targets.
-function AnimatedNumber({
+export function AnimatedNumber({
   value,
   decimals = false,
   className,
@@ -182,7 +193,7 @@ function CostBar({
         {/* 막대 색상: highlight는 Harper, 나머지는 비교 서비스 */}
         <motion.div
           className={cn(
-            "relative w-full max-w-[67px] border border-b-0 transition-colors duration-200 motion-reduce:transition-none",
+            "relative h-[var(--bar-height)] w-full max-w-[67px] border border-b-0 transition-colors duration-200 motion-reduce:transition-none",
             highlight
               ? isLight
                 ? "border-orange-700 bg-orange-600"
@@ -191,7 +202,7 @@ function CostBar({
                 ? "border-neutral-1000/20 bg-neutral-1000/12"
                 : "border-white/29 bg-white/16"
           )}
-          style={{ height }}
+          style={{ "--bar-height": height } as MotionStyle}
         >
           <span
             className={cn(
@@ -265,7 +276,15 @@ function AxisLabel({
   );
 }
 
-export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
+export function PricingCostComparison({
+  locale,
+  harperMonthlyKrw = HARPER_MONTHLY_KRW,
+  embedded = false,
+}: {
+  locale: "ko" | "en";
+  harperMonthlyKrw?: number;
+  embedded?: boolean;
+}) {
   const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
   const formatKrw = (amount: number) =>
     c(`${decimal.format(amount / 10_000)}만원`, `₩${integer.format(amount)}`);
@@ -287,20 +306,32 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
     salary,
     hireCount,
     headhunterRate,
-    serviceRate
+    serviceRate,
+    harperMonthlyKrw
   );
   const [barOrder, setBarOrder] = useState(() =>
-    getCostOrder(INITIAL_SALARY, HEADHUNTER_RATE, HIRING_SERVICE_RATE)
+    getCostOrder(
+      INITIAL_SALARY,
+      HEADHUNTER_RATE,
+      HIRING_SERVICE_RATE,
+      harperMonthlyKrw
+    )
   );
   const barOrderRef = useRef(barOrder);
   const animatedSalary = useComparisonValue(salary);
   const animatedHireCount = useComparisonValue(hireCount);
   const animatedHeadhunterRate = useComparisonValue(headhunterRate);
   const animatedServiceRate = useComparisonValue(serviceRate);
+  const animatedHarperMonthly = useComparisonValue(harperMonthlyKrw);
   const animatedOrder = useTransform(
-    [animatedSalary, animatedHeadhunterRate, animatedServiceRate],
-    ([salaryValue, headhunterValue, serviceValue]: number[]) =>
-      getCostOrder(salaryValue, headhunterValue, serviceValue)
+    [
+      animatedSalary,
+      animatedHeadhunterRate,
+      animatedServiceRate,
+      animatedHarperMonthly,
+    ],
+    ([salaryValue, headhunterValue, serviceValue, monthlyValue]: number[]) =>
+      getCostOrder(salaryValue, headhunterValue, serviceValue, monthlyValue)
   );
   // Reorder when the displayed numbers cross. React updates only when rank
   // changes; Motion keeps the bar, number and label together during the swap.
@@ -327,8 +358,8 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
     (count) => AD_MONTHLY_KRW * MONTHS * count
   );
   const harper = useTransform(
-    animatedHireCount,
-    (count) => HARPER_MONTHLY_KRW * MONTHS * count
+    [animatedHireCount, animatedHarperMonthly],
+    ([count, monthly]: number[]) => monthly * MONTHS * count
   );
   const maximum = useComparisonValue(
     Math.ceil(Math.max(...costs.map(({ cost }) => cost)) / 10_000_000) *
@@ -344,18 +375,18 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
       value: headhunter,
     },
     advertising: {
-      label: c("잡플랫폼 채용 광고비", "Job platform advertising"),
+      label: c("채용 공고 광고비", "Job platform advertising"),
       caption: c("월 광고 예산", "Monthly budget"),
       value: advertising,
     },
     service: {
-      label: c("플랫폼 채용 수수료", "Platform hiring fee"),
+      label: c("채용 사이트 수수료", "Platform hiring fee"),
       caption: c(`연봉의 ${serviceRateLabel}`, `${serviceRateLabel} fee`),
       value: service,
     },
     harper: {
-      label: c("Harper 구독", "Harper subscription"),
-      caption: c("성공보수 없음", "No success fee"),
+      label: c("Harper", "Harper subscription"),
+      caption: c("수수료 없음", "No success fee"),
       value: harper,
     },
   };
@@ -367,23 +398,29 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
         aria-labelledby={`${id}-title`}
         data-theme="light"
         className={cn(
-          "mt-16 md:mt-[100px] scroll-mt-[128px] border-y font-normal transition-colors duration-200 motion-reduce:transition-none",
+          "scroll-mt-[128px] font-normal transition-colors duration-200 motion-reduce:transition-none",
+          embedded
+            ? "mt-7 overflow-hidden rounded-[20px] border"
+            : "mt-16 md:mt-[100px] border-y",
           isLight
             ? "border-neutral-1000-a10 bg-bg-basement text-neutral-primary"
             : "border-white/8 bg-[color-mix(in_srgb,var(--color-black)_97%,var(--color-white))] text-white"
         )}
       >
         {/* 배경은 화면 전체 너비, 내용은 중앙 최대 1160px */}
-        <PageContainer padding="none" className="max-w-[1160px] px-4">
+        <PageContainer
+          padding="none"
+          className={embedded ? "max-w-none" : "max-w-[1160px] px-4"}
+        >
           <div
             className={cn(
-              "border-x",
+              !embedded && "border-x",
               isLight ? "border-neutral-1000-a10" : "border-white/8"
             )}
           >
             <header
               className={cn(
-                "border-b p-4 pb-8 md:flex md:items-end md:justify-between md:gap-8 md:p-6 md:pb-20",
+                "border-b md:flex md:items-end md:justify-between md:gap-8 p-4 pb-8 md:p-6 md:pb-20",
                 isLight ? "border-neutral-1000-a10" : "border-white/8"
               )}
             >
@@ -583,7 +620,7 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
                         isLight ? "text-neutral-muted" : "text-white/82"
                       )}
                     >
-                      {c("잡플랫폼 채용 광고비", "Job platform advertising")}
+                      {c("채용 공고 광고비", "Job platform advertising")}
                     </dt>
                     <dd className="shrink-0 text-right whitespace-nowrap">
                       {formatKrw(AD_MONTHLY_KRW)}
@@ -615,7 +652,7 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
                         isLight ? "text-neutral-muted" : "text-white/82"
                       )}
                     >
-                      {c("플랫폼 채용 수수료", "Platform hiring fee")}
+                      {c("채용 사이트 수수료", "Platform hiring fee")}
                     </dt>
                     <dd className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
                       <span>{c("연봉의", "Salary ×")}</span>
@@ -636,10 +673,10 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
                         isLight ? "text-orange-700" : "text-orange-600"
                       )}
                     >
-                      {c("Harper 구독", "Harper subscription")}
+                      {c("Harper", "Harper subscription")}
                     </dt>
                     <dd className="shrink-0 text-right whitespace-nowrap">
-                      {formatKrw(HARPER_MONTHLY_KRW)}
+                      {formatKrw(harperMonthlyKrw)}
                       <span
                         className={
                           isLight ? "text-neutral-muted" : "text-white/50"
@@ -653,7 +690,7 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
                         </span>
                       )}
                       <span className="block text-neutral-muted">
-                        {c("성공보수 없음", "No success fee")}
+                        {c("수수료 없음", "No success fee")}
                       </span>
                     </dd>
                   </div>
@@ -691,16 +728,22 @@ export function PricingCostComparison({ locale }: { locale: "ko" | "en" }) {
                   >
                     <div className="relative h-[220px] md:h-[260px]">
                       <div className="absolute inset-0">
-                        {[1, 0.75, 0.5, 0.25, 0].map((fraction) => (
+                        {[
+                          { fraction: 1, position: "bottom-full" },
+                          { fraction: 0.75, position: "bottom-3/4" },
+                          { fraction: 0.5, position: "bottom-1/2" },
+                          { fraction: 0.25, position: "bottom-1/4" },
+                          { fraction: 0, position: "bottom-0" },
+                        ].map(({ fraction, position }) => (
                           <div
                             key={fraction}
                             className={cn(
                               "absolute w-full border-t",
+                              position,
                               isLight
                                 ? "border-neutral-1000-a05 last:border-neutral-1000/25"
                                 : "border-white/5 last:border-white/28"
                             )}
-                            style={{ bottom: `${fraction * 100}%` }}
                           >
                             <AxisLabel
                               maximum={maximum}

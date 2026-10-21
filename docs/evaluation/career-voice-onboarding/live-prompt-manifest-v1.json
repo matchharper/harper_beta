@@ -1,0 +1,19 @@
+{
+  "version": "live-prompt-v1",
+  "inputAndGold": "live-prompt-cases-v1.json",
+  "inputSha256": "0ed7262f032659d86c2286253537d8c168b4c3d5895320fcfeddce78301f4e14",
+  "runner": "scripts/evalCareerLiveOnboardingPrompt.ts",
+  "runnerSha256": "653f9a3f391f86e90d0ebb66cf0d892198bf06212651c4832346d4426b983eb8",
+  "runtimeConfig": {
+    "delegationModel": "gpt-6.1-sol",
+    "delegationReasoningEffort": "xhigh",
+    "model": "gpt-live-1",
+    "voice": "cedar"
+  },
+  "transport": "websocket",
+  "dataProvenance": "Synthetic, authored 2026-10-20; no production identities or messages",
+  "audio": "macOS Yuna, 170 wpm, PCM16 mono 24000 Hz; per-input hashes in ignored run manifests",
+  "review": "Codex semantic review, not independent human gold",
+  "canonicalCommand": "TSX_TSCONFIG_PATH=scripts/tsconfig.json node --env-file=.env.local --import tsx scripts/evalCareerLiveOnboardingPrompt.ts",
+  "report": "reports/2026-10-20-live-prompt-v1.md"
+}

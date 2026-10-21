@@ -1,0 +1,183 @@
+{
+  "datasetVersion": "v36",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic UI authorization and candidate replies; frozen before calls. No production data.",
+  "scenarios": [
+    {
+      "id": "CSCQ3601",
+      "variants": [
+        {
+          "id": "accept",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "플랫폼 엔지니어",
+              "status": "active",
+              "request": "서비스 공통 API와 플랫폼 안정성을 담당하는 엔지니어.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              }
+            }
+          ],
+          "history": [],
+          "contactEvent": {
+            "deliveryCompleted": false,
+            "candidate_contact_ref": {
+              "relayId": "00000000-0000-4000-8000-000000000901",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "roleId": "00000000-0000-4000-8000-000000000101"
+            },
+            "roleName": "백엔드 엔지니어",
+            "originalDeliveryBody": "네, 플랫폼 엔지니어 Role로 옮기는 데 동의해요. 그 Role로 진행해 주세요.",
+            "currentContact": {
+              "content": "네, 플랫폼 엔지니어 Role로 옮기는 데 동의해요. 그 Role로 진행해 주세요.",
+              "documentId": null
+            },
+            "precedingCompanyContacts": [
+              {
+                "source": {
+                  "role": "user",
+                  "message_type": "web_action",
+                  "content": "Harper가 후보자에게 플랫폼 엔지니어 Role로 옮길 의향을 물어보고, 수락하면 연결 대기 상태로 바로 옮겨 주세요."
+                },
+                "delivery_body": "플랫폼 엔지니어 Role로 변경해서 진행하실 의향이 있으신가요? 동의하시면 해당 Role로 옮겨 드려요.",
+                "approvedRoleMove": {
+                  "sourceRoleId": "00000000-0000-4000-8000-000000000101",
+                  "targetRoleId": "00000000-0000-4000-8000-000000000102",
+                  "sourceRoleName": "백엔드 엔지니어",
+                  "targetRoleName": "플랫폼 엔지니어",
+                  "talentId": "00000000-0000-4000-8000-000000000201",
+                  "targetStageId": "pending_connection",
+                  "condition": "Move only if this candidate agrees to the proposed Role change.",
+                  "outcome": null
+                }
+              }
+            ],
+            "precedingCandidateContacts": [],
+            "subsequentCandidateContacts": []
+          },
+          "turns": [
+            "authorized candidate contact"
+          ]
+        },
+        {
+          "id": "decline",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "플랫폼 엔지니어",
+              "status": "active",
+              "request": "서비스 공통 API와 플랫폼 안정성을 담당하는 엔지니어.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              }
+            }
+          ],
+          "history": [],
+          "contactEvent": {
+            "deliveryCompleted": false,
+            "candidate_contact_ref": {
+              "relayId": "00000000-0000-4000-8000-000000000901",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "roleId": "00000000-0000-4000-8000-000000000101"
+            },
+            "roleName": "백엔드 엔지니어",
+            "originalDeliveryBody": "플랫폼 엔지니어 Role로 옮기고 싶지는 않아요. 기존 Role을 유지하고 싶어요.",
+            "currentContact": {
+              "content": "플랫폼 엔지니어 Role로 옮기고 싶지는 않아요. 기존 Role을 유지하고 싶어요.",
+              "documentId": null
+            },
+            "precedingCompanyContacts": [
+              {
+                "source": {
+                  "role": "user",
+                  "message_type": "web_action",
+                  "content": "Harper가 후보자에게 플랫폼 엔지니어 Role로 옮길 의향을 물어보고, 수락하면 연결 대기 상태로 바로 옮겨 주세요."
+                },
+                "delivery_body": "플랫폼 엔지니어 Role로 변경해서 진행하실 의향이 있으신가요? 동의하시면 해당 Role로 옮겨 드려요.",
+                "approvedRoleMove": {
+                  "sourceRoleId": "00000000-0000-4000-8000-000000000101",
+                  "targetRoleId": "00000000-0000-4000-8000-000000000102",
+                  "sourceRoleName": "백엔드 엔지니어",
+                  "targetRoleName": "플랫폼 엔지니어",
+                  "talentId": "00000000-0000-4000-8000-000000000201",
+                  "targetStageId": "pending_connection",
+                  "condition": "Move only if this candidate agrees to the proposed Role change.",
+                  "outcome": null
+                }
+              }
+            ],
+            "precedingCandidateContacts": [],
+            "subsequentCandidateContacts": []
+          },
+          "turns": [
+            "authorized candidate contact"
+          ]
+        },
+        {
+          "id": "conditional",
+          "surface": "chat",
+          "allowSilentCompletion": true,
+          "additionalRoles": [
+            {
+              "roleId": "00000000-0000-4000-8000-000000000102",
+              "name": "플랫폼 엔지니어",
+              "status": "active",
+              "request": "서비스 공통 API와 플랫폼 안정성을 담당하는 엔지니어.",
+              "information": {
+                "testOnly": true,
+                "testFixture": "company-conversation-v6"
+              }
+            }
+          ],
+          "history": [],
+          "contactEvent": {
+            "deliveryCompleted": false,
+            "candidate_contact_ref": {
+              "relayId": "00000000-0000-4000-8000-000000000901",
+              "talentId": "00000000-0000-4000-8000-000000000201",
+              "roleId": "00000000-0000-4000-8000-000000000101"
+            },
+            "roleName": "백엔드 엔지니어",
+            "originalDeliveryBody": "플랫폼 엔지니어 역할의 온콜 빈도를 먼저 알고 싶어요. 설명을 듣고 옮길지 결정할게요.",
+            "currentContact": {
+              "content": "플랫폼 엔지니어 역할의 온콜 빈도를 먼저 알고 싶어요. 설명을 듣고 옮길지 결정할게요.",
+              "documentId": null
+            },
+            "precedingCompanyContacts": [
+              {
+                "source": {
+                  "role": "user",
+                  "message_type": "web_action",
+                  "content": "Harper가 후보자에게 플랫폼 엔지니어 Role로 옮길 의향을 물어보고, 수락하면 연결 대기 상태로 바로 옮겨 주세요."
+                },
+                "delivery_body": "플랫폼 엔지니어 Role로 변경해서 진행하실 의향이 있으신가요? 동의하시면 해당 Role로 옮겨 드려요.",
+                "approvedRoleMove": {
+                  "sourceRoleId": "00000000-0000-4000-8000-000000000101",
+                  "targetRoleId": "00000000-0000-4000-8000-000000000102",
+                  "sourceRoleName": "백엔드 엔지니어",
+                  "targetRoleName": "플랫폼 엔지니어",
+                  "talentId": "00000000-0000-4000-8000-000000000201",
+                  "targetStageId": "pending_connection",
+                  "condition": "Move only if this candidate agrees to the proposed Role change.",
+                  "outcome": null
+                }
+              }
+            ],
+            "precedingCandidateContacts": [],
+            "subsequentCandidateContacts": []
+          },
+          "turns": [
+            "authorized candidate contact"
+          ]
+        }
+      ]
+    }
+  ]
+}

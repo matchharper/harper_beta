@@ -4,6 +4,7 @@ import {
   MockInterviewRequestError,
 } from "@/lib/career/mockInterview";
 import { buildMockInterviewWrapupContext } from "@/lib/career/prompts/cases/mockInterviewPrompts";
+import type { LiveSessionInstructionUpdate } from "@/lib/career/liveSessionUpdates";
 import { after, NextRequest, NextResponse } from "next/server";
 import { getRequestUser } from "@/lib/supabaseServer";
 import {
@@ -519,23 +520,27 @@ export async function POST(req: NextRequest) {
         message !== null
     );
     let nextStepInstructions: string | null = null;
+    let liveSessionUpdate: LiveSessionInstructionUpdate | null = null;
     if (isCallMode && !shouldApplyCompletion) {
       try {
-        nextStepInstructions = (
-          await buildCareerRealtimeSessionInstructions({
-            conversationId,
-            conversationStarterId,
-            mockInterviewOpportunityId,
-            internalCallRequestId,
-            preferredLocale: responseLocale,
-            timeZone: promptTimeZone,
-            toolNames: getCareerRealtimeToolCandidates(responseLocale, {
-              includeCareerCoachingActivity:
-                conversationStarterId === "career_coaching",
-            }).map((tool) => tool.name),
-            userId: user.id,
-          })
-        ).instructions;
+        const nextPlan = await buildCareerRealtimeSessionInstructions({
+          conversationId,
+          conversationStarterId,
+          mockInterviewOpportunityId,
+          internalCallRequestId,
+          preferredLocale: responseLocale,
+          timeZone: promptTimeZone,
+          toolNames: getCareerRealtimeToolCandidates(responseLocale, {
+            includeCareerCoachingActivity:
+              conversationStarterId === "career_coaching",
+          }).map((tool) => tool.name),
+          userId: user.id,
+        });
+        nextStepInstructions = nextPlan.instructions;
+        liveSessionUpdate = {
+          instructions: nextPlan.liveInstructions,
+          onboardingContext: nextPlan.liveOnboardingContext,
+        };
       } catch (error) {
         console.error("[ChatSave] Failed to rebuild realtime instructions", {
           conversationId,
@@ -558,6 +563,7 @@ export async function POST(req: NextRequest) {
       shouldEndCall: isCallMode && shouldApplyCompletion,
       insightUpdatedAt: responseInsightUpdatedAt,
       nextStepInstructions,
+      liveSessionUpdate,
       onboardingChecklistProgress,
       talentInsights: responseTalentInsights,
       talentBrief: responseBrief.map(toTalentContextResponse),

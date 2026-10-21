@@ -5,6 +5,10 @@ import Reveal from "@/components/landing/Animation/Reveal";
 import CareerAppBar from "@/components/landing/career/CareerAppBarNew";
 import CareerLandingEmailCaptureForm from "@/components/landing/career/CareerLandingEmailCaptureForm";
 import TalentSocialProof from "@/components/landing/career/TalentSocialProof";
+import { LandingStats } from "@/components/landing/LandingStats";
+import { useLandingStatsExperiment } from "@/hooks/useLandingStatsExperiment";
+import { assignLandingStatsVariant } from "@/lib/landingStatsExperiment.server";
+import type { LandingStatsVariant } from "@/lib/landingStatsExperiment";
 import { useCareerLandingStart } from "@/hooks/useCareerLandingStart";
 import {
   isCareerEmailFirstVariant,
@@ -1746,6 +1750,7 @@ function SectionHeader({
 
 export type LandingKoVfPageProps = {
   heroCopyAbtestType: CareerLandingHeroCopyAbtestType;
+  landingStatsVariant: LandingStatsVariant;
   locale: Locale;
   routeLocale: Locale | null;
 };
@@ -1795,15 +1800,17 @@ function buildHeroCopyAbtestCookie(value: CareerLandingHeroCopyAbtestType) {
 export function getLandingPageServerSideProps(
   routeLocale: Locale | null = null
 ): GetServerSideProps<LandingKoVfPageProps> {
-  return async ({ req, res }) => {
+  return async ({ req, res, query }) => {
     const heroCopyAbtestType = resolveCareerLandingHeroCopyAbtestType(
       req.cookies[CAREER_LANDING_HERO_COPY_ABTEST_COOKIE]
     );
     res.setHeader("Set-Cookie", buildHeroCopyAbtestCookie(heroCopyAbtestType));
+    const landingStatsVariant = assignLandingStatsVariant({ req, res, query });
 
     return {
       props: {
         heroCopyAbtestType,
+        landingStatsVariant,
         locale: routeLocale ?? resolveLandingLocale(req.headers, req.cookies),
         routeLocale,
       },
@@ -1885,6 +1892,7 @@ function buildLandingStructuredData(args: {
 
 export default function LandingKoVfPage({
   heroCopyAbtestType,
+  landingStatsVariant,
   locale,
   routeLocale,
 }: LandingKoVfPageProps) {
@@ -1932,6 +1940,13 @@ export default function LandingKoVfPage({
     abtestType: signupFlowExperiment.abtestType,
     landingIdOverride: signupFlowExperiment.localId,
     trackingEnabled: signupFlowExperiment.ready,
+  });
+  useLandingStatsExperiment({
+    variant: landingStatsVariant,
+    localId: landingId,
+    enabled: signupFlowExperiment.ready && !authLoading && !user,
+    isMobile,
+    countryLang,
   });
   const emailCaptureRef = useRef<HTMLDivElement | null>(null);
   useTalentNetworkReferralCapture(TALENT_NETWORK_REFERRAL_SOURCE_LANDING_PAGE);
@@ -2152,6 +2167,11 @@ export default function LandingKoVfPage({
               <Reveal>
                 <TalentSocialProof title={copy.socialProofTitle} />
               </Reveal>
+              {landingStatsVariant === "B" && (
+                <div className="mx-auto mb-10 w-full max-w-[960px] py-3 md:mb-14 md:py-8">
+                  <LandingStats locale={landingLocale} align="center" />
+                </div>
+              )}
             </div>
           </section>
           <section className={`${ui.pageX}`}>

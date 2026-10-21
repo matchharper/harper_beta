@@ -198,21 +198,16 @@ export function OrgRoleMatchingContent({
     <div {...editingDismissHandlers}>
       <OrgSection className={showBottomBorder ? "last:border-b" : undefined}>
         <div>
-          <div className="mb-3 flex items-start justify-between gap-4">
+          <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <RoleSectionHeading
                 size="large"
                 title={c("Hiring Brief", "Hiring Brief")}
               />
-              <div className="mt-1 text-[13px] font-normal leading-5 text-black/60">
+              <div className="mt-1 text-[14px] font-normal leading-5 text-black/60">
                 {c(
-                  "이 내용은 후보자를 탐색하고 추천할 때 내부 기준으로 사용해요. 여러 기준이 있다면 우선순위와 허용할 수 있는 tradeoff를 함께 적어 주세요.",
-                  "Harper uses this brief to source and evaluate candidates. Rank multiple criteria and note acceptable tradeoffs."
-                )}
-                <br />
-                {c(
-                  "외부에 공개하기 어려운 내부 기준도 작성할 수 있어요.",
-                  "Add internal criteria that don't belong in the public role description."
+                  "인재를 평가할 때 내부적으로 사용하는 기준입니다.",
+                  "Internal summary used to evaluate talents."
                 )}
               </div>
             </div>
@@ -222,6 +217,7 @@ export function OrgRoleMatchingContent({
             aria-label={c("Hiring Brief 수정", "Edit hiring brief")}
             disabled={updateRole.isPending}
             documentTitle="Hiring Brief"
+            showTitle={false}
             errorMessage={editingField === "request" ? saveError : ""}
             lastChangedAt={role.updatedAt}
             onChange={(event) =>
@@ -364,10 +360,7 @@ export function OrgRoleMatchingContent({
             </div>
           ) : (
             <div className="mt-4 rounded-md bg-bg-basement px-4 py-3 text-[13px] leading-5 text-neutral-muted">
-              {c(
-                "아직 Evaluation Criteria가 없어요. Harper가 역할 내용과 Hiring Brief를 바탕으로 먼저 초안을 작성합니다.",
-                "No evaluation criteria yet. Harper will draft an initial set using the role details and hiring brief."
-              )}
+              Empty
             </div>
           )}
           {editingField === "criteria" && saveError ? (
@@ -376,7 +369,6 @@ export function OrgRoleMatchingContent({
             </div>
           ) : null}
         </div>
-
       </OrgSection>
 
       {canManage && hasChanges ? (

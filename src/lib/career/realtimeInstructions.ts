@@ -41,6 +41,10 @@ import { fetchActiveTalentGmailIntegration } from "@/lib/integrations/gmail";
 import { hasActiveConversationCompletedOpportunityRun } from "@/lib/opportunityDiscovery/store";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 import { buildCareerCoachingCallOpeningInstruction } from "@/lib/career/prompts/cases/coachingPrompts";
+import {
+  buildLiveBackendInstructions,
+  buildLiveOnboardingContext,
+} from "./liveOnboarding";
 
 /**
  * Build realtime instructions from the shared Harper system prompt plus
@@ -94,6 +98,8 @@ export async function buildCareerRealtimeSessionInstructions(args: {
     return {
       ...plan,
       instructions: renderCareerPromptBlocks(plan.promptBlocks),
+      liveInstructions: buildLiveBackendInstructions(plan),
+      liveOnboardingContext: null,
     };
   }
 
@@ -302,5 +308,12 @@ export async function buildCareerRealtimeSessionInstructions(args: {
   return {
     ...promptPlan,
     instructions: renderCareerPromptBlocks(promptPlan.promptBlocks),
+    liveInstructions: buildLiveBackendInstructions(promptPlan),
+    liveOnboardingContext: promptPlan.isOnboardingActive
+      ? buildLiveOnboardingContext({
+          checklistContext: profile,
+          checklistCoverage: onboardingChecklistCoverage,
+        })
+      : null,
   };
 }

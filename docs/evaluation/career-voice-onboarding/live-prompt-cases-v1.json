@@ -1,0 +1,49 @@
+{
+  "version": "live-prompt-v1",
+  "provenance": "Synthetic cases authored 2026-10-20 from general failure categories; no production people, identifiers or quotations.",
+  "profile": "6년차 백엔드 개발자. 현재 서울 거주. 한국어로 소통한다.",
+  "cases": [
+    {
+      "id": "missing-required",
+      "covered": ["search_intensity", "location", "next_scope"],
+      "history": [
+        {"role": "user", "text": "올해 안에 이직하고 싶고 서울에서 백엔드 일을 하고 싶어요."},
+        {"role": "assistant", "text": "서울에서 백엔드 역할을 찾으시는군요."}
+      ],
+      "utterance": "그럼 이제 다 끝난 건가요?",
+      "gold": "완료로 단정하거나 end_call 하지 않고, 보상 또는 업무 언어 중 아직 모르는 필수 주제 하나를 자연스럽게 확인한다."
+    },
+    {
+      "id": "final-answer-save-pending",
+      "covered": ["search_intensity", "location", "next_scope", "compensation", "language"],
+      "history": [
+        {"role": "user", "text": "올해 안에 서울에서 백엔드 개발자로 옮기고 싶어요. 연봉은 최소 8천만원이고 영어 문서 읽기와 간단한 미팅은 가능해요."},
+        {"role": "assistant", "text": "서울 백엔드 역할, 연봉 8천만원 이상을 우선으로 보고 영어는 간단한 미팅까지 가능하신 거군요. 제가 놓친 중요한 조건이 있나요?"}
+      ],
+      "utterance": "네, 맞아요. 더 없어요.",
+      "gold": "최신 답변으로 마지막 확인이 충족됐음을 이해하고 같은 확인을 반복하지 않는다. 짧게 마무리하고 end_call을 호출한다. 검색이나 저장 성공을 지어내지 않는다."
+    },
+    {
+      "id": "stop-incomplete",
+      "covered": ["search_intensity"],
+      "history": [
+        {"role": "user", "text": "좋은 곳이 있으면 알아보려고요."},
+        {"role": "assistant", "text": "다음에는 어떤 역할을 맡고 싶으세요?"}
+      ],
+      "utterance": "지금은 그만할게요. 통화 끊어 주세요.",
+      "gold": "추가 질문이나 설득 없이 end_call을 호출한다. 온보딩 완료 또는 추천 준비 완료라고 주장하지 않는다."
+    },
+    {
+      "id": "resume-with-progress-update",
+      "covered": ["search_intensity", "location", "next_scope"],
+      "updatedCovered": ["search_intensity", "location", "next_scope", "compensation"],
+      "history": [
+        {"role": "user", "text": "올해 안에 서울에서 백엔드 개발자로 옮기고 싶어요."},
+        {"role": "assistant", "text": "기대하시는 최소 보상 기준이 있으세요?"},
+        {"role": "user", "text": "8천만원 이상이면 좋겠어요."}
+      ],
+      "utterance": "네, 이어서 할게요.",
+      "gold": "갱신된 진행과 직전 대화를 반영해 보상·지역·역할을 다시 묻지 않고 남은 업무 언어를 확인한다. 종료하지 않는다."
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { notifyWorkspaceSignupSafely } from "@/lib/org/signupNotification.server";
 import { after, NextRequest, NextResponse } from "next/server";
 import { runSignupResearch } from "@/lib/org/signupServer";
 
@@ -52,7 +53,12 @@ export async function POST(req: NextRequest) {
       requestId: body.requestId,
     });
     if (result.status === "created" && result.workspaceId)
-      after(() => runSignupResearch(user.id, result.workspaceId!));
+      after(async () => {
+        await Promise.all([
+          notifyWorkspaceSignupSafely(result.workspaceId!),
+          runSignupResearch(user.id, result.workspaceId!),
+        ]);
+      });
     return NextResponse.json(result, {
       status: result.status === "created" ? 201 : 200,
     });

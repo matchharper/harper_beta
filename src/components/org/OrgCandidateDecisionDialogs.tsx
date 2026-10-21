@@ -18,6 +18,7 @@ import { Radio } from "@/components/ui/radio";
 import { useOrgGoogleCalendar } from "@/hooks/org/useOrgGoogleCalendar";
 import { OrgInterviewAvailabilityDialog } from "@/components/org/meetings/OrgInterviewAvailabilityDialog";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
+import { CANDIDATE_DECISION_LABELS } from "@/lib/org/candidateDecision";
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -365,10 +366,13 @@ export function AcceptIntroDialog({
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : null}
               {schedulesInterview
-                ? c("인터뷰 요청하고 연결하기", "Send intro & connect")
+                ? c(
+                    "Intro 수락하고 인터뷰 요청",
+                    "Accept Intro & request interview"
+                  )
                 : usesDirectContact
                   ? "Mark as connected"
-                  : "Send intro & connect"}
+                  : CANDIDATE_DECISION_LABELS.connect}
             </MuteButton>
           </div>
         }
@@ -381,7 +385,7 @@ export function AcceptIntroDialog({
         open={open}
         panelClassName="max-w-lg border-neutral-1000-a05 bg-bg-floating"
         showCloseButton={!pending}
-        title={c("후보자 연결 수락", "Connect candidate")}
+        title={CANDIDATE_DECISION_LABELS.connect}
       >
         <form
           className="mt-0 space-y-5"

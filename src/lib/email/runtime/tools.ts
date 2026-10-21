@@ -1,3 +1,5 @@
+import { recordOpsCandidateDecision } from "@/lib/companyTalentRequests/server";
+import { OPS_CONTACT_REPLY_ACKNOWLEDGEMENT } from "@/lib/companyTalentRequests/opsContactContract";
 import { getCareerDocumentHref } from "@/lib/career/documentLinks";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { applicationPreparationSessionTool } from "@/lib/career/simulation/sessionTool";
@@ -334,6 +336,10 @@ export async function confirmEmailAcceptance(
   if (rows.length !== 1)
     return { ok: false, error: "recommendation_not_found_or_ambiguous" };
   const rec = rows[0];
+  const privateReply = await recordOpsCandidateDecision({ admin: ctx.admin as any,
+    recommendationId: rec.id, sourceMessageId: ctx.sourceMessage.id, talentId: ctx.talentId, resume: true });
+  if (privateReply) return {ok: true, status: "recorded", skipCommonAssistantInstruction: true,
+    assistantInstruction: OPS_CONTACT_REPLY_ACKNOWLEDGEMENT, modelOutput: OPS_CONTACT_REPLY_ACKNOWLEDGEMENT};
   const role = await readRow(
     ctx.admin,
     "company_roles",

@@ -45,6 +45,19 @@
 
 관측형 pilot이며 이미 전체 그룹별 발화 집계를 본 평가자의 완전한 blind를 보장할 수 없다. 개별 자료에서는 그룹 정보를 숨긴다. 원음/음성 인식 품질·무음·응답 지연은 텍스트만으로 평가하지 않는다. 과거 프로필이나 저장 변경 이력이 없으면 현재값으로 보충하지 않는다. 기존 이력서 원문에는 연락처·학력·주소 등의 개인정보가 포함될 수 있어 review packet도 raw production 자료로 취급하며 ignored private에만 보관한다. 공개 산출물에는 넣지 않는다. 향후 재현은 private snapshot 보존에 의존한다.
 
+## Live prompt 변경 음성 smoke (`live-prompt-v1`)
+
+[2026-10-20 검증 결과](reports/2026-10-20-live-prompt-v1.md): 사례별 최신 유효 음성 실행 4/4 통과, 관련 코드 검사 19개 통과. 로컬·미배포이며 실제 저장 E2E/완료율 개선은 미검증. [재현 manifest](live-prompt-manifest-v1.json).
+
+- 목적/단위: 조기 종료, 마지막 확인 반복, 중단 요청, 저장 진행 갱신을 합성 음성 4개로 확인한다. 모델 간 승률 비교가 아닌 변경 경로의 짧은 점검이다.
+- Frozen input/gold: `live-prompt-cases-v1.json`의 프로필·대화·coverage·다음 발화·정성 기대값. 2026-10-20 합성 작성, 운영 개인정보·원문 없음. 독립 human gold는 아니다. 변경 사례는 새 버전으로 보존한다.
+- Canonical runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --env-file=.env.local --import tsx scripts/evalCareerLiveOnboardingPrompt.ts [case-id ...]`. macOS `say`의 Yuna와 ffmpeg로 만든 PCM16/24kHz를 실제 시간에 맞춰 Live WebSocket에 보내고, 실제 공통 prompt와 backend `end_call` 정의를 사용한다. 제품 DB·외부 도구 실행은 없다.
+- 계약: 시작 시 기존 합성 대화를 제공하고, backend에는 같은 대화와 checklist를 제공한다. 갱신 사례는 실제 `session.update`와 `session.thinking.append`를 보낸다. 답변·도구 호출·에러·종료 이벤트를 기록한다. 정성 출력은 Codex가 문맥을 직접 읽으며 키워드/정규식으로 채점하지 않는다.
+- 설정/재현: 현재 `getCareerLiveSessionConfig()`의 모델·음성·reasoning 사용. 각 새 run의 manifest에 설정·fixture/audio SHA-256·git revision/diff hash, case별 전체 prompt를 기록한다. 기존 raw audio와 출력은 덮어쓰지 않는다.
+- 개인정보: OpenAI에는 합성 입력만 전송한다. 원음·모델 출력·전체 요청/이벤트는 ignored `private/live-prompt-v1/`와 `runs/`에만 저장하고 파일 0600/디렉터리 0700으로 제한한다. 공개 보고서는 비식별 결과만 기록한다.
+- Gate: API 오류 없이 완료, 누락된 필수 항목을 완료로 처리하지 않기, 최종 확인 반복 없음, 중단 요청 존중, 갱신 후 이미 답한 질문 반복 없음. 4개 모두 문맥 검토를 통과해야 이 제한된 smoke가 통과한다. 미실행/판정 불가를 통과로 세지 않는다.
+- 한계: 합성 history/coverage이며 실제 추출·저장, 브라우저 WebRTC, 소음·말 끊기·사용자별 지연·실서비스 완료율은 검증하지 않는다. 이 smoke만으로 완료율 개선이나 전체 rollout 승인을 주장하지 않는다.
+
 ## Pilot 결과와 release gate
 
 [2026-10-06 최근 30일 재평가](reports/2026-10-06-month-v2.md): 성숙 113명의 성공 확인 비율은 Realtime 23/59=39.0%, Live 13/54=24.1%. 첫 session 기록 기반 비용은 배정 사용자당 각각 $0.63, $0.34이며 성공 확인 1명당 $1.61, $1.42다. Realtime을 온보딩 기본 선택으로 유지하는 운영 판단이다. 판정 불가 45명, 95% 차이 구간의 0 포함, 누락된 비용 때문에 확정적 모델 우열이나 자동 rollout 승인은 아니다. 배정/배포는 변경하지 않았다.

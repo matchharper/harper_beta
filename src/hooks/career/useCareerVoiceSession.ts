@@ -8,6 +8,7 @@ import {
   type CareerVoiceModelOverride,
 } from "@/lib/career/voiceModel";
 import { useLiveSession } from "./useLiveSession";
+import type { LiveSessionInstructionUpdate } from "@/lib/career/liveSessionUpdates";
 import {
   useRealtimeSession,
   type RealtimeConnectOptions,
@@ -82,8 +83,11 @@ export function useCareerVoiceSession({
         getCurrentSession().runAfterCurrentPlayback(callback),
       generateSpeech: (text: string) =>
         getCurrentSession().generateSpeech(text),
-      updateSessionInstructions: (instructions: string) =>
-        getCurrentSession().updateSessionInstructions(instructions),
+      updateSessionInstructions: (
+        instructions: string,
+        liveUpdate?: LiveSessionInstructionUpdate | null
+      ) =>
+        getCurrentSession().updateSessionInstructions(instructions, liveUpdate),
       markRealtimeAudioTurnSaved: (options: {
         hasAssistantAudio: boolean;
         hasUserAudio: boolean;

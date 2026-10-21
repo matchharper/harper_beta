@@ -190,10 +190,9 @@ export const en: Record<OrgMessageKey, string> = {
     "The recommended candidates aren't quite what I'm looking for.",
   "faq.recommendation-feedback.answer":
     "Tell Harper which candidate felt off and why. We distinguish feedback about that person from criteria you want applied to future recommendations. Shared criteria can be reflected in the Hiring Brief or Evaluation Criteria after you review the proposed changes. Pass in Suggested candidates removes the suggestion without contacting the candidate. Declining a Ready to connect connection ends this Role's process; it is not a hold. Candidates already introduced may have been reviewed under earlier criteria, so review them separately against the updated requirements.",
-  "faq.connect.question":
-    "What does accepting a candidate connection mean? If I press Connect, what happens immediately?",
+  "faq.connect.question": "What happens when I choose Accept Intro?",
   "faq.connect.answer":
-    "Connect opens a choice between Email intro and Direct contact. With Email intro, Harper emails the candidate and your selected company contacts together. With Direct contact, Harper records the connection, but your team must make the first contact. You confirm the method before anything is sent. Connecting does not book an interview; manage the next steps in Pipeline.",
+    "Accept Intro lets you choose an email introduction or an interview request. With an email introduction, Harper introduces the candidate and your selected teammates by email. With an interview request, Harper sends a scheduling link so the candidate can choose a time. Opening the dialog does not send anything; review the method and details, then accept to proceed. The candidate has already expressed interest in discussing this Role, but accepting the Intro does not itself confirm an interview time.",
   "faq.reject.question":
     "What does rejecting a candidate connection mean? Is Reject a pause?",
   "faq.reject.answer":
@@ -411,7 +410,7 @@ export const en: Record<OrgMessageKey, string> = {
   "OrgDocsModal.0c99ff6a": "3.",
   "OrgDocsModal.1a172f6f": "Final offer",
   "OrgDocsModal.34114b8f": "2.",
-  "OrgDocsModal.538214a1": "Connect",
+  "OrgDocsModal.538214a1": "Accept Intro",
   "OrgDocsModal.90f06ed4": "Company",
   "OrgDocsModal.9ff5b96b": "1.",
   "OrgDocsModal.a9f86905": "Reject",

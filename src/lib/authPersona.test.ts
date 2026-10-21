@@ -14,6 +14,10 @@ import {
 
 test("career destinations always use the talent persona", () => {
   assert.equal(
+    isTalentAuthDestination({ nextPath: "/career_login?next=%2Fcareer" }),
+    true
+  );
+  assert.equal(
     isTalentAuthDestination({
       flow: "",
       nextPath: "/career/onboarding?step=profile",

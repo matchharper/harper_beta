@@ -26,6 +26,9 @@ export function localizedOrgErrorMessage(
   const billingCode = error && typeof error === "object" && "billingCode" in error ? error.billingCode : null;
   if (isBillingErrorCode(billingCode)) return billingErrorCopy(billingCode, locale);
   const message = error instanceof Error ? error.message.trim() : "";
+  if (message === "org_workspace_under_review") return locale === "ko"
+    ? "가입 정보를 검토하고 있어요. 검토가 끝날 때까지 Workspace 이용이 제한돼요."
+    : "Your account is under review. Workspace access is paused until the review is complete.";
   if (!message) return fallback;
   if (locale === "ko") return message;
   return ENGLISH_MEETING_ERRORS.get(message) ?? ENGLISH_SLACK_ERRORS.get(message) ??

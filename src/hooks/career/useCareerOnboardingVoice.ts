@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCareerVoiceInput } from "@/components/career/useCareerVoiceInput";
 import { useCareerVoiceSession } from "@/hooks/career/useCareerVoiceSession";
 import type { RealtimeUserSpeechStartedContext } from "@/hooks/career/useRealtimeSession";
+import type { LiveSessionInstructionUpdate } from "@/lib/career/liveSessionUpdates";
 import type {
   CallLiveTranscriptPlacement,
   CareerCallStartRequest,
@@ -533,7 +534,10 @@ export const useCareerOnboardingVoice = ({
   const activeCallSessionIdRef = useRef<string | null>(null);
 
   const updateSessionInstructionsRef = useRef<
-    ((instructions: string) => void) | null
+    ((
+      instructions: string,
+      liveUpdate?: LiveSessionInstructionUpdate | null
+    ) => void) | null
   >(null);
   const endCallModeRef = useRef<
     ((options?: EndCallModeOptions) => void) | null
@@ -790,7 +794,10 @@ export const useCareerOnboardingVoice = ({
             const updateSessionInstructions =
               updateSessionInstructionsRef.current;
             if (updateSessionInstructions) {
-              updateSessionInstructions(payload.nextStepInstructions);
+              updateSessionInstructions(
+                payload.nextStepInstructions,
+                payload.liveSessionUpdate
+              );
               didUpdateRealtimeInstructions = true;
             }
           }

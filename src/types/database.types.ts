@@ -3030,6 +3030,9 @@ export type Database = {
           external_roles_enabled: boolean
           has_career_page: boolean
           homepage_url: string | null
+          is_reviewing: boolean
+          review_domain: string | null
+          signup_notification: Json | null
           is_internal: boolean
           is_scrape_original: boolean
           linkedin_url: string | null
@@ -3060,6 +3063,9 @@ export type Database = {
           external_roles_enabled?: boolean
           has_career_page?: boolean
           homepage_url?: string | null
+          is_reviewing?: boolean
+          review_domain?: string | null
+          signup_notification?: Json | null
           is_internal?: boolean
           is_scrape_original?: boolean
           linkedin_url?: string | null
@@ -3090,6 +3096,9 @@ export type Database = {
           external_roles_enabled?: boolean
           has_career_page?: boolean
           homepage_url?: string | null
+          is_reviewing?: boolean
+          review_domain?: string | null
+          signup_notification?: Json | null
           is_internal?: boolean
           is_scrape_original?: boolean
           linkedin_url?: string | null
@@ -12837,6 +12846,10 @@ export type Database = {
       }
     }
     Functions: {
+      claim_workspace_signup_notification_v1: {
+        Args: { p_workspace: string }
+        Returns: Json
+      }
       accept_talent_internal_role_recommendation_v1: {
         Args: {
           p_context?: Json
@@ -15350,7 +15363,26 @@ export type Database = {
         Returns: boolean
       }
       workspace_signup_begin_v1: {
-        Args: { p_create?: boolean; p_domain: string; p_user: string }
+        Args: {
+          p_create?: boolean
+          p_domain: string
+          p_user: string
+          p_review_email: string
+          p_review_domain: string | null
+        }
+        Returns: Json
+      }
+      workspace_create_additional_v1: {
+        Args: {
+          p_review_email: string
+          p_review_domain: string | null
+          p_user: string
+          p_source_workspace: string
+          p_domain: string
+          p_homepage: string
+          p_request: string
+          p_internal_access?: boolean
+        }
         Returns: Json
       }
       workspace_signup_update_v1: {

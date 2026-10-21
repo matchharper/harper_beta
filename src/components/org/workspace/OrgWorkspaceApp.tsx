@@ -1,6 +1,7 @@
 import { useOrgVisit } from "@/hooks/org/useOrgVisit";
 import { useOrgNavigation } from "@/hooks/org/useOrgNavigation";
 import { OrgPageLoading } from "./OrgPageLoading";
+import { OrgReviewPage } from "./OrgReviewPage";
 // Self-serve signup is paused while payments are being tested.
 // import { OrgSignupEntry } from "@/components/org/onboarding/OrgSignupEntry";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
@@ -51,7 +52,7 @@ export function OrgWorkspaceApp({
     user,
     workspace,
   } = useOrgWorkspaceController({ legacyEntry, page });
-  useOrgVisit(workspace?.workspaceId, user?.id);
+  useOrgVisit(workspace?.isReviewing ? undefined : workspace?.workspaceId, user?.id);
   const navigation = useOrgNavigation(workspace?.workspaceId ?? "");
   const displayPage = navigation?.page ?? page;
   const isRoleWorkspacePage =
@@ -137,6 +138,8 @@ export function OrgWorkspaceApp({
 
   if (navigation && !navigation.sameWorkspace)
     return <OrgWorkspaceShellSkeleton />;
+
+  if (workspace.isReviewing && !requiresOnboarding) return <OrgReviewPage />;
 
   if (page === "onboarding") {
     return (

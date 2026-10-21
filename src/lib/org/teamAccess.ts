@@ -1,21 +1,13 @@
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import type { User } from "@supabase/supabase-js";
 import { hasOrgWorkspaceAccessBypass } from "./access";
+import { assertWorkspaceAvailable } from "./workspaceReview.server";
 import { OrgHttpError } from "./httpError";
-import { normalizeOrgMembershipRole, type OrgMembershipRole } from "./permissions";
+import { canAccessOrgRole, resolveOrgRoleAccess, type OrgRoleAccess, type OrgTeam } from "./teamAccess.shared";
+export { canAccessOrgRole, resolveOrgRoleAccess, orgMemberTeamIds } from "./teamAccess.shared";
+export type { OrgAccessScope, OrgTeam, OrgRoleAccess } from "./teamAccess.shared";
 import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 
-export type OrgAccessScope = "organization" | "team";
-export type OrgTeam = { teamId: string; workspaceId: string; name: string; createdAt: string };
-export type OrgRoleAccess = {
-  authority: OrgMembershipRole;
-  scope: OrgAccessScope;
-  teamId: string | null;
-  teamName: string | null;
-  teamIds: string[];
-  teamNames: string[];
-  audienceRestricted?: boolean;
-};
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 const orgRoleAudienceScope = Symbol("org-role-audience-scope");
 
@@ -35,26 +27,9 @@ export function constrainOrgRoleAudience(access: OrgRoleAccess, teamIds?: string
     teamIds: access.scope === "organization" ? [...teamIds] : access.teamIds.filter(id => teamIds.includes(id)) };
 }
 
-export function resolveOrgRoleAccess(membership: {
-  authority?: string | null;
-  access_scope?: string | null;
-  team_id?: string | null;
-  company_workspace_team_members?: Array<{ team_id: string }>;
-}, teamName: string | null = null): OrgRoleAccess {
-  const authority = normalizeOrgMembershipRole(membership.authority);
-  const scope = authority === "owner" || membership.access_scope === "organization" || membership.access_scope === undefined
-    ? "organization" : "team";
-  const teamIds = membership.company_workspace_team_members?.map(row => row.team_id)
-    ?? (membership.team_id ? [membership.team_id] : []);
-  return { authority, scope, teamId: membership.team_id ?? null, teamName, teamIds, teamNames: teamName ? [teamName] : [] };
-}
-
-export function canAccessOrgRole(access: OrgRoleAccess, teamId: string | null | undefined) {
-  return access.scope === "organization" || Boolean(teamId && access.teamIds.includes(teamId));
-}
-
 /** Authorization is read from current membership, never user-editable claims or the LLM. */
-export async function readOrgRoleAccess(args: { admin: Admin; user: User; workspaceId: string }): Promise<OrgRoleAccess> {
+export async function readOrgRoleAccess(args: { admin: Admin; user: User; workspaceId: string; allowReviewSetup?: boolean }): Promise<OrgRoleAccess> {
+  await assertWorkspaceAvailable(args);
   const audienceTeamIds = (args.admin as any)[orgRoleAudienceScope] as string[] | undefined;
   if (hasOrgWorkspaceAccessBypass(args.user.email)) {
     return constrainOrgRoleAudience({ authority: "owner", scope: "organization", teamId: null, teamName: null, teamIds: [], teamNames: [] }, audienceTeamIds);
@@ -106,11 +81,6 @@ export async function fetchOrgTeams(admin: Admin, workspaceId: string): Promise<
     .select("id, company_workspace_id, name, created_at").eq("company_workspace_id", workspaceId).is("deleted_at", null).order("created_at");
   if (error) throw error;
   return (data ?? []).map((row: any) => ({ teamId: row.id, workspaceId: row.company_workspace_id, name: row.name, createdAt: row.created_at }));
-}
-
-/** Client projections always use all assignments, with a legacy single-Team fallback. */
-export function orgMemberTeamIds(member: { teamIds?: string[]; teamId?: string | null }) {
-  return member.teamIds ?? (member.teamId ? [member.teamId] : []);
 }
 
 export function orgGeneralConversationTeamScope(access: OrgRoleAccess) {

@@ -40,7 +40,6 @@ import {
   type BillingAssignmentSlot,
 } from "@/lib/org/billing/assignments";
 import { previewAssignRole } from "@/lib/org/billing/preview";
-import { canUseWorkspaceBilling } from "@/lib/org/billing/rollout";
 
 export function OrgBillingPage({
   section = "billing",
@@ -49,16 +48,6 @@ export function OrgBillingPage({
 }) {
   const { workspace, permissions } = useOrgWorkspace();
   const { locale } = useOrgLocale();
-  const router = useRouter();
-  const billingAvailable = canUseWorkspaceBilling(workspace.workspaceId);
-  useEffect(() => {
-    if (!billingAvailable) {
-      void router.replace(
-        `/org/team?orgId=${encodeURIComponent(workspace.workspaceId)}`
-      );
-    }
-  }, [billingAvailable, router, workspace.workspaceId]);
-  if (!billingAvailable) return null;
   if (section === "billing" && permissions.role !== "owner") {
     return (
       <div className="max-w-[1100px] space-y-7 pb-12">

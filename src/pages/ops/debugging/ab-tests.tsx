@@ -26,6 +26,8 @@ import {
 import { Text } from "@/components/ui/text";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOpsAbTests } from "@/hooks/ops/useOpsAbTests";
+import { Skeleton } from "@/components/ui/skeleton";
+import { OPS_AB_TESTS } from "@/lib/ops/abTests";
 import type {
   OpsAbTestMetric,
   OpsAbTestSummary,
@@ -489,62 +491,26 @@ function SummaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
 }
 
 function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
-  const [expanded, setExpanded] = useState(false);
   const [detailsExpanded, setDetailsExpanded] = useState(false);
-  const contentId = useId();
   const detailsId = useId();
-  const ended = experiment.status === "ended";
   const hasSummary = Boolean(experiment.variants[0].summaryMetrics?.length);
   return (
-    <article className={cx(opsTheme.panel, "p-4 sm:p-5")}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            {ended ? (
-              <h2>
-                <MuteButton
-                  variant="transparent"
-                  aria-expanded={expanded}
-                  aria-controls={contentId}
-                  onClick={() => setExpanded((value) => !value)}
-                >
-                  <ChevronRight
-                    className={cx("size-4", expanded && "rotate-90")}
-                  />
-                  {experiment.title}
-                </MuteButton>
-              </h2>
-            ) : (
-              <Text as="h2" className="font-normal" variant="head2">
-                {experiment.title}
-              </Text>
-            )}
-            <Badge
-              size="sm"
-              tone={experiment.status === "running" ? "positive" : "neutral"}
-              variant="faded"
-            >
-              {experiment.status === "ended"
-                ? "종료"
-                : experiment.status === "awaiting_data"
-                  ? "운영 표본 대기"
-                  : experiment.status === "observing"
-                    ? "한쪽 그룹만 관측"
-                    : "진행 중"}
-            </Badge>
-          </div>
-          <Text className="mt-1 font-mono" tone="subtle" variant="subtle">
-            {experiment.id}
-          </Text>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge size="sm" variant="subtle">
-            {experiment.allocation}
-          </Badge>
-        </div>
+    <div>
+      <div className="mt-3 flex items-center gap-2">
+        <Badge size="sm" variant="subtle">
+          {experiment.allocation}
+        </Badge>
+        <Badge size="sm" variant="faded">
+          {experiment.status === "ended"
+            ? "종료"
+            : experiment.status === "awaiting_data"
+              ? "운영 표본 대기"
+              : experiment.status === "observing"
+                ? "한쪽 그룹만 관측"
+                : "진행 중"}
+        </Badge>
       </div>
-
-      <div id={contentId} hidden={ended && !expanded}>
+      <div>
         {hasSummary ? (
           <>
             <SummaryComparison experiment={experiment} />
@@ -604,27 +570,81 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
           </Text>
         </div>
       </div>
-    </article>
+    </div>
   );
 }
 
-function LoadingState() {
+function LazyExperimentCard({
+  item,
+  days,
+  externalSurface,
+  excludedEmails,
+  canFetch,
+}: {
+  item: (typeof OPS_AB_TESTS)[number];
+  days: number;
+  externalSurface: "all" | "web" | "worker" | "daily";
+  excludedEmails: string[];
+  canFetch: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const contentId = useId();
+  const query = useOpsAbTests({
+    experiment: item.key,
+    days,
+    externalSurface: item.key === "external" ? externalSurface : "all",
+    excludedEmails,
+    enabled: canFetch && expanded,
+  });
+  const experiment = query.data?.experiments[0];
   return (
-    <div className="space-y-3">
-      {[0, 1].map((item) => (
-        <div
-          key={item}
-          className={cx(opsTheme.panel, "animate-pulse space-y-4 p-5")}
-        >
-          <div className="h-5 w-44 rounded bg-neutral-1000-a05" />
-          <div className="h-28 rounded-md bg-neutral-1000-a05" />
-          <div className="grid gap-3 lg:grid-cols-2">
-            <div className="h-48 rounded-md bg-neutral-1000-a05" />
-            <div className="h-48 rounded-md bg-neutral-1000-a05" />
+    <article className={cx(opsTheme.panel, "p-4 sm:p-5")}>
+      <div className="flex items-center justify-between gap-2">
+        <h2>
+          <MuteButton
+            variant="transparent"
+            aria-expanded={expanded}
+            aria-controls={contentId}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            <ChevronRight className={cx("size-4", expanded && "rotate-90")} />
+            {item.title}
+          </MuteButton>
+        </h2>
+        {expanded ? (
+          <MuteButton
+            aria-label={`${item.title} 새로고침`}
+            size="sm"
+            variant="transparent"
+            disabled={!canFetch || query.isFetching}
+            onClick={() => void query.refetch()}
+          >
+            <RefreshCw
+              className={cx("size-3.5", query.isFetching && "animate-spin")}
+            />
+          </MuteButton>
+        ) : null}
+      </div>
+      <div id={contentId} hidden={!expanded}>
+        {expanded && query.isPending ? (
+          <Skeleton className="mt-4 h-48 w-full" aria-label="불러오는 중" />
+        ) : null}
+        {expanded && query.isError ? (
+          <div className={cx(opsTheme.errorNotice, "mt-3")}>
+            {query.error instanceof Error
+              ? query.error.message
+              : "A/B Test를 불러오지 못했습니다."}
           </div>
-        </div>
-      ))}
-    </div>
+        ) : null}
+        {experiment ? <ExperimentCard experiment={experiment} /> : null}
+        {query.data ? (
+          <Text className="mt-3" tone="subtle" variant="subtle">
+            {formatAbsoluteKst(query.data.generatedAt)} 기준 · 펼친 동안 30초
+            갱신
+          </Text>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
@@ -637,20 +657,13 @@ export default function OpsAbTestsPage() {
   const [externalSurface, setExternalSurface] = useState<
     "all" | "web" | "worker" | "daily"
   >("all");
-  const query = useOpsAbTests({
-    days,
-    externalSurface,
-    enabled: canFetch,
-    excludedEmails,
-  });
-  const experiments = query.data?.experiments ?? [];
-  const clearResultCount = experiments.filter(
-    (experiment) => experiment.conclusion.state === "leader"
-  ).length;
-
   const filters = (
     <div className="mt-4 flex flex-wrap items-center gap-2">
       <Select
+        items={DAY_OPTIONS.map((value) => ({
+          value: String(value),
+          label: `최근 ${value}일`,
+        }))}
         value={String(days)}
         onValueChange={(value) => setDays(Number(value))}
       >
@@ -691,21 +704,6 @@ export default function OpsAbTestsPage() {
           <SelectItem value="daily">외부 · 매일 추천</SelectItem>
         </SelectContent>
       </Select>
-      <MuteButton
-        aria-label="새로고침"
-        size="sm"
-        variant="transparent"
-        onClick={() => void query.refetch()}
-      >
-        <RefreshCw
-          className={cx("h-3.5 w-3.5", query.isFetching && "animate-spin")}
-        />
-      </MuteButton>
-      {query.data ? (
-        <Text tone="subtle" variant="subtle">
-          {formatAbsoluteKst(query.data.generatedAt)} 기준 · 30초 갱신
-        </Text>
-      ) : null}
     </div>
   );
 
@@ -716,57 +714,18 @@ export default function OpsAbTestsPage() {
       showDescription={false}
       tab="abTests"
     >
-      {query.isPending ? (
-        <LoadingState />
-      ) : query.isError ? (
-        <div className={opsTheme.errorNotice}>
-          {query.error instanceof Error
-            ? query.error.message
-            : "A/B Test를 불러오지 못했습니다."}
-        </div>
-      ) : (
-        <>
-          <section className="grid gap-2 sm:grid-cols-3">
-            <div className={cx(opsTheme.panel, "p-4")}>
-              <Text tone="subtle" variant="subtle">
-                진행 중
-              </Text>
-              <div className="mt-2 text-2xl font-normal tabular-nums text-neutral-primary">
-                {experiments.filter((e) => e.status === "running").length}
-              </div>
-            </div>
-            <div className={cx(opsTheme.panel, "p-4")}>
-              <Text tone="subtle" variant="subtle">
-                우세 확인
-              </Text>
-              <div className="mt-2 text-2xl font-normal tabular-nums text-positive">
-                {clearResultCount}
-              </div>
-            </div>
-            <div className={cx(opsTheme.panel, "p-4")}>
-              <Text tone="subtle" variant="subtle">
-                우세 미확정
-              </Text>
-              <div className="mt-2 text-2xl font-normal tabular-nums text-info">
-                {experiments.length - clearResultCount}
-              </div>
-            </div>
-          </section>
-
-          <div className="space-y-3">
-            {[
-              ...experiments.filter(
-                (experiment) => experiment.status !== "ended"
-              ),
-              ...experiments.filter(
-                (experiment) => experiment.status === "ended"
-              ),
-            ].map((experiment) => (
-              <ExperimentCard key={experiment.id} experiment={experiment} />
-            ))}
-          </div>
-        </>
-      )}
+      <div className="space-y-3">
+        {OPS_AB_TESTS.map((item) => (
+          <LazyExperimentCard
+            key={item.key}
+            item={item}
+            days={days}
+            externalSurface={externalSurface}
+            excludedEmails={excludedEmails}
+            canFetch={canFetch}
+          />
+        ))}
+      </div>
     </DebuggingPageShell>
   );
 }

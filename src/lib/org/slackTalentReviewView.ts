@@ -1,6 +1,9 @@
 import { buildAutoIntroCandidateProfileUrl } from "@/lib/ops/autoIntroToCompanyMessage";
 import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
-import { DEFAULT_ORG_STOP_REASONS } from "@/lib/org/candidateDecision";
+import {
+  CANDIDATE_DECISION_LABELS,
+  DEFAULT_ORG_STOP_REASONS,
+} from "@/lib/org/candidateDecision";
 import { splitSlackMrkdwn } from "./slackTextChunks";
 
 export const HARPER_TALENT_REVIEW_ACTION_PREFIX = "harper_talent_review:";
@@ -774,11 +777,11 @@ export function buildSlackTalentReviewAcceptDecisionView(args: {
     private_metadata: metadata,
     submit: textObject(
       connectionMode === "cc_intro"
-        ? "소개 이메일 보내기"
+        ? CANDIDATE_DECISION_LABELS.connect
         : "직접 연락으로 연결하기",
       "plain_text"
     ),
-    title: textObject("후보자 연결", "plain_text"),
+    title: textObject(CANDIDATE_DECISION_LABELS.connect, "plain_text"),
     type: "modal",
   };
 }
@@ -994,7 +997,7 @@ export function buildSlackTalentReviewCandidateView(args: {
             {
               action_id: HARPER_TALENT_REVIEW_ACCEPT_ACTION_ID,
               style: "primary",
-              text: textObject("연결 수락", "plain_text"),
+              text: textObject(CANDIDATE_DECISION_LABELS.connect, "plain_text"),
               type: "button",
               value: "accept",
             },

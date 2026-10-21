@@ -1,20 +1,23 @@
+import { CompanyWaitlistLanding } from "@/components/landing/CompanyWaitlistLanding";
+import { MuteButton } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import Head from "next/head";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Reveal from "@/components/landing/Animation/Reveal";
-import StaggerText from "@/components/landing/Animation/StaggerText";
-import { AnimatePresence, motion } from "motion/react";
 import {
-  AlertTriangleIcon,
   ArrowRight,
   BadgeCheck,
+  BriefcaseBusiness,
   CalendarCheck,
-  Check,
+  CalendarDays,
   CheckCircle2,
   CircleHelp,
   HelpCircle,
   Lightbulb,
   LucideLink,
+  MapPin,
   SearchCheck,
   ShieldCheck,
   TimerReset,
@@ -112,7 +115,7 @@ const LINKEDIN_COMPANY_URL = "https://www.linkedin.com/company/matchharper/";
 const COMPANY_PAGE_COPY = {
   ko: {
     meta: {
-      title: "Harper for Companies | Top talent를 연결하는 AI 리크루팅 파트너",
+      title: "Harper for Companies | 채용을 함께할 AI 동료",
       description:
         "Harper는 후보자와 직접 대화해 연봉 범위, 이동 의향, 관심도까지 확인하고 회사가 바로 인터뷰할 수 있는 Top talent만 선별해 연결합니다.",
       ogLocale: "ko_KR",
@@ -140,6 +143,12 @@ const COMPANY_PAGE_COPY = {
       notificationBody: "미팅 날짜를 잡아보세요.",
     },
     candidateProfile: {
+      locationLabel: "위치",
+      location: "서울, 대한민국",
+      experienceLabel: "경력",
+      experience: "8년 2개월",
+      lastMoveLabel: "마지막 이직",
+      lastMove: "1년 6개월 전",
       summary:
         "ex-NVIDIA, ex-Coupang 출신으로 LLM serving과 distributed systems를 실제 운영 규모에서 설계해온 엔지니어입니다.",
       recommendationLabel: "추천 이유",
@@ -150,20 +159,23 @@ const COMPANY_PAGE_COPY = {
       ],
       requirements: [
         {
-          status: "positive",
-          title: "요구사항 1 충족",
+          fitness: "excellent",
+          rating: "Excellent",
+          title: "LLM serving 설계·운영 경험",
           description:
             "Nvidia에서 Rust 기반 LLM serving pipeline을 설계하고 운영한 경험이 있습니다. (1년 6개월)",
         },
         {
-          status: "positive",
-          title: "요구사항 2 충족",
+          fitness: "good",
+          rating: "Good",
+          title: "엔지니어링 팀 리딩 경험",
           description:
             "Optimization팀에서 최근 8개월간 팀장으로 재직 중입니다.",
         },
         {
-          status: "info",
-          title: "요구사항 3 확인 필요",
+          fitness: "uncertain",
+          rating: "Uncertain",
+          title: "4주 이내 합류 가능 여부",
           description:
             "인터뷰 시점으로부터 4주 안에 합류가 가능한지에 대해서는 직접 확인이 필요합니다.",
         },
@@ -233,7 +245,7 @@ const COMPANY_PAGE_COPY = {
   },
   en: {
     meta: {
-      title: "Harper for Companies | An AI Recruiting Partner for Top Talent",
+      title: "Harper for Companies | Your AI Recruiting Colleague",
       description:
         "Harper speaks directly with candidates to confirm compensation expectations, relocation preferences, and genuine interest, then introduces only top talent your team is ready to interview.",
       ogLocale: "en_US",
@@ -260,6 +272,12 @@ const COMPANY_PAGE_COPY = {
       notificationBody: "Choose a time to meet.",
     },
     candidateProfile: {
+      locationLabel: "Location",
+      location: "Seoul, South Korea",
+      experienceLabel: "Experience",
+      experience: "8 yr, 2 mo",
+      lastMoveLabel: "Last job change",
+      lastMove: "1 yr, 6 mo ago",
       summary:
         "An ex-NVIDIA and ex-Coupang engineer who has designed LLM serving and distributed systems at production scale.",
       recommendationLabel: "Why we recommend Alex",
@@ -270,20 +288,23 @@ const COMPANY_PAGE_COPY = {
       ],
       requirements: [
         {
-          status: "positive",
-          title: "Requirement 1 met",
+          fitness: "excellent",
+          rating: "Excellent",
+          title: "LLM serving design and operations",
           description:
             "Designed and operated a Rust-based LLM serving pipeline at NVIDIA. (1 year, 6 months)",
         },
         {
-          status: "positive",
-          title: "Requirement 2 met",
+          fitness: "good",
+          rating: "Good",
+          title: "Engineering team leadership",
           description:
             "Has led the Optimization team for the past eight months.",
         },
         {
-          status: "info",
-          title: "Requirement 3 needs confirmation",
+          fitness: "uncertain",
+          rating: "Uncertain",
+          title: "Availability to join within four weeks",
           description:
             "Availability to join within four weeks of the interview still needs to be confirmed directly.",
         },
@@ -352,7 +373,10 @@ const COMPANY_PAGE_COPY = {
   },
 } as const;
 
-type CompanyPageCopy = (typeof COMPANY_PAGE_COPY)[Locale];
+type CopyText<T> = T extends string
+  ? string
+  : { [Key in keyof T]: CopyText<T[Key]> };
+type CompanyPageCopy = CopyText<(typeof COMPANY_PAGE_COPY)[Locale]>;
 
 function buildCompanyPageStructuredData(
   copy: CompanyPageCopy,
@@ -472,12 +496,6 @@ async function copyTextToClipboard(text: string) {
     document.body.removeChild(textarea);
   }
 }
-
-const inputClass =
-  "mt-2 h-[43px] w-full rounded-[3px] border border-[#cfcac0] bg-[#fbfaf7] px-3 text-[15px] font-light text-neutral-primary outline-none transition-colors placeholder:text-neutral-muted focus:border-neutral-950";
-
-const textareaClass =
-  "mt-2 min-h-[76px] w-full resize-none rounded-[3px] border border-[#cfcac0] bg-[#fbfaf7] px-3 py-3 text-[15px] font-light leading-[1.4] text-neutral-primary outline-none transition-colors placeholder:text-neutral-muted focus:border-neutral-950";
 
 const labelClass = "block text-[13px] font-normal text-neutral-primary";
 
@@ -623,33 +641,41 @@ function TalentRequestChatMockup({ copy }: { copy: CompanyPageCopy["chat"] }) {
           </div>
           <div
             className={cn(
-              "harper-reply-bubble col-start-1 row-start-1 mr-auto self-start bg-bg-floating px-4 py-3 text-neutral-primary",
-              !isThinking && "harper-reply-bubble-answer"
+              "relative col-start-1 row-start-1 mr-auto block min-h-9 w-[310px] self-start overflow-hidden bg-bg-floating px-4 py-3 text-neutral-primary transition-[max-width,max-height,border-radius] duration-700 ease-out-expo motion-reduce:transition-none",
+              isThinking
+                ? "max-h-[42px] max-w-[116px] rounded-lg"
+                : "max-h-[150px] max-w-full rounded-2xl md:max-h-32"
             )}
           >
             {isThinking ? (
-              <div className="harper-thinking flex items-center gap-1">
+              <div className="absolute top-1/2 left-5 flex -translate-y-1/2 items-center gap-1 whitespace-nowrap">
                 <span>Thinking</span>
                 <span className="inline-flex gap-0.5">
-                  <span className="harper-thinking-dot">.</span>
-                  <span className="harper-thinking-dot">.</span>
-                  <span className="harper-thinking-dot">.</span>
+                  <span className="inline-block motion-safe:animate-bounce motion-safe:[animation-duration:720ms]">
+                    .
+                  </span>
+                  <span className="inline-block motion-safe:animate-bounce motion-safe:[animation-delay:120ms] motion-safe:[animation-duration:720ms]">
+                    .
+                  </span>
+                  <span className="inline-block motion-safe:animate-bounce motion-safe:[animation-delay:240ms] motion-safe:[animation-duration:720ms]">
+                    .
+                  </span>
                 </span>
               </div>
             ) : (
-              <div className="harper-answer">{visibleAnswer}</div>
+              <div className="min-h-[1.4em] w-full">{visibleAnswer}</div>
             )}
           </div>
         </div>
         <div
           className={cn(
-            "liquid-glass-notification -mt-2 flex w-full max-w-[286px] items-center gap-2.5 rounded-xl px-3 py-2.5 text-neutral-primary transition-all duration-500 will-change-transform",
+            "-mt-2 flex w-full max-w-[286px] items-center gap-2.5 overflow-hidden rounded-xl border border-white/42 bg-white/52 px-3 py-2.5 text-neutral-primary shadow-[0_10px_24px] shadow-black/16 backdrop-blur-[12px] backdrop-saturate-[160%] transition-all duration-500 will-change-transform motion-reduce:transition-none",
             isGmailNotificationVisible
               ? "translate-y-0 opacity-100"
               : "translate-y-2 opacity-0"
           )}
         >
-          <span className="liquid-glass-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/78 shadow-[inset_0_1px_0_rgb(255_255_255/0.72)]">
             <Image
               src="/images/logos/gmail.svg"
               alt="Gmail"
@@ -674,12 +700,26 @@ function TalentRequestChatMockup({ copy }: { copy: CompanyPageCopy["chat"] }) {
 
 function CandidateProfileMockup({
   copy,
+  standalone = false,
 }: {
+  standalone?: boolean;
   copy: CompanyPageCopy["candidateProfile"];
 }) {
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <div className="absolute right-0 top-0 flex h-full w-[92%] -mt-4 flex-col justify-end overflow-hidden rounded-bl-xl bg-bg-floating px-4 pb-4 shadow-sm md:w-[86%] xl:px-5 xl:pb-4">
+    <div
+      className={
+        standalone
+          ? "relative w-full"
+          : "relative h-full w-full overflow-hidden"
+      }
+    >
+      <div
+        className={
+          standalone
+            ? "rounded-[20px] border border-neutral-1000-a10 bg-bg-floating p-5 shadow-[0_12px_40px_var(--color-neutral-1000-a05)] md:p-8"
+            : "absolute right-0 top-0 flex h-full w-[92%] -mt-4 flex-col justify-end overflow-hidden rounded-bl-xl bg-bg-floating px-4 pb-4 shadow-sm md:w-[86%] xl:px-5 xl:pb-4"
+        }
+      >
         <div className="flex min-w-0 items-center gap-3">
           <Image
             src="/images/person1.png"
@@ -689,7 +729,7 @@ function CandidateProfileMockup({
             className="h-[52px] w-[52px] shrink-0 rounded-full object-cover"
           />
           <div className="min-w-0">
-            <div className="mt-1 truncate text-[18px] font-normal leading-none text-neutral-primary">
+            <div className="mt-1 truncate text-[20px] font-medium leading-tight text-neutral-primary">
               Alex Kim
             </div>
             <div className="mt-1 truncate text-[12px] font-light leading-4 text-neutral-muted">
@@ -698,7 +738,7 @@ function CandidateProfileMockup({
           </div>
         </div>
 
-        <p className="mt-3 text-[13px] md:text-[14px] font-light leading-[1.4] text-neutral-primary">
+        <p className="mt-4 text-[13px] md:text-[14px] font-normal leading-[1.75] text-neutral-primary">
           {copy.summary}
         </p>
 
@@ -706,8 +746,16 @@ function CandidateProfileMockup({
           <div className="flex items-center gap-2 text-[12px] font-normal text-primary">
             {copy.recommendationLabel}
           </div>
-          <p className="mt-1 text-[12px] w-[140%] font-light leading-[1.4] text-neutral-800">
-            {copy.recommendation.map((paragraph, index) => (
+          <p
+            className={cn(
+              "mt-2 text-[13px] font-normal leading-[1.6] text-neutral-800",
+              !standalone && "w-[140%]"
+            )}
+          >
+            {(standalone
+              ? copy.recommendation.slice(0, 1)
+              : copy.recommendation
+            ).map((paragraph, index) => (
               <span key={paragraph}>
                 {index > 0 ? <br /> : null}
                 {paragraph}
@@ -716,37 +764,56 @@ function CandidateProfileMockup({
           </p>
         </section>
 
-        <div className="mt-6 space-y-3">
-          {copy.requirements.map((requirement) => {
-            const isPositive = requirement.status === "positive";
-            const Icon = isPositive ? Check : AlertTriangleIcon;
+        <dl className="my-8 grid grid-cols-2 gap-4 gap-y-6 md:grid-cols-3">
+          {[
+            { label: copy.locationLabel, value: copy.location, icon: MapPin },
+            {
+              label: copy.experienceLabel,
+              value: copy.experience,
+              icon: CalendarDays,
+            },
+            {
+              label: copy.lastMoveLabel,
+              value: copy.lastMove,
+              icon: BriefcaseBusiness,
+            },
+          ].map(({ label, value, icon: Icon }) => (
+            <div key={label} className="min-w-0">
+              <dt className="text-[13px] font-normal text-neutral-primary">
+                {label}
+              </dt>
+              <dd className="mt-2 flex items-start gap-2 text-[13px] leading-6 text-neutral-primary">
+                <Icon aria-hidden className="mt-1 size-4 shrink-0" />
+                <span className="min-w-0 break-words">{value}</span>
+              </dd>
+            </div>
+          ))}
+        </dl>
 
-            return (
-              <div key={requirement.title} className="flex items-start gap-2.5">
-                <div className="min-w-0">
-                  <div
-                    className={cn(
-                      "text-[12px] font-normal leading-4 flex items-center gap-1",
-                      isPositive ? "text-positive" : "text-info"
-                    )}
-                  >
-                    {requirement.title}
-                    <span
-                      className={cn(
-                        "shrink-0 items-center justify-center rounded-full",
-                        isPositive ? "text-positive" : "text-info"
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" strokeWidth={1.6} />
-                    </span>
-                  </div>
-                  <div className="mt-0.5 text-[11.5px] font-light leading-4 text-neutral-800">
-                    {requirement.description}
-                  </div>
-                </div>
+        <div className="space-y-5">
+          {copy.requirements.map((requirement) => (
+            <div key={requirement.title} className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <span className="text-xs font-medium leading-4 text-neutral-primary">
+                  {requirement.title}
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium leading-4 text-neutral-primary">
+                  <Image
+                    src={`/svgs/${requirement.fitness}.svg`}
+                    alt=""
+                    aria-hidden="true"
+                    width={16}
+                    height={16}
+                    className="size-4 shrink-0"
+                  />
+                  {requirement.rating}
+                </span>
               </div>
-            );
-          })}
+              <p className="mt-1.5 text-[13px] font-normal leading-[1.6] text-neutral-muted md:text-sm">
+                {requirement.description}
+              </p>
+            </div>
+          ))}
         </div>
 
         <section className="mt-6">
@@ -758,7 +825,7 @@ function CandidateProfileMockup({
             {copy.confirmedItems.map((item) => (
               <li
                 key={item}
-                className="flex items-start gap-2 text-[11.5px] font-light leading-4 text-neutral-800"
+                className="flex items-start gap-2 text-[12px] md:text-[13px] font-normal leading-[1.7] text-neutral-muted"
               >
                 <span>- {item}</span>
               </li>
@@ -766,15 +833,19 @@ function CandidateProfileMockup({
           </ul>
         </section>
 
-        <button
-          type="button"
-          className="mt-4 text-primary hover:text-primary-dark transition-colors flex items-center gap-1 text-[13px] font-normal"
-        >
-          <span className="inline-flex items-center gap-2">
-            {copy.scheduleInterview}
-          </span>
-          <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.8} />
-        </button>
+        <div className="mt-5">
+          <MuteButton
+            asChild
+            variant="transparent"
+            size="lg"
+            className="text-primary hover:text-primary"
+          >
+            <a href="#company-contact">
+              {copy.scheduleInterview}
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </MuteButton>
+        </div>
       </div>
     </div>
   );
@@ -899,13 +970,20 @@ const PillBtn = ({
 function ContactSalesSection({
   copy,
   shareUrl,
+  purpose: controlledPurpose,
+  onPurposeChange,
+  compact = false,
 }: {
   copy: CompanyPageCopy["contact"];
   shareUrl: string;
+  purpose?: string;
+  onPurposeChange?: (value: string) => void;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const emailInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState(initialContactSalesForm);
+  const purposeValue = controlledPurpose ?? form.purpose;
   const [hasCompanyEmailError, setHasCompanyEmailError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -938,7 +1016,8 @@ function ContactSalesSection({
       setHasCompanyEmailError(false);
     }
 
-    setForm((current) => ({ ...current, [field]: value }));
+    if (field === "purpose" && onPurposeChange) onPurposeChange(value);
+    else setForm((current) => ({ ...current, [field]: value }));
   };
 
   const submitForm = async (event: FormEvent<HTMLFormElement>) => {
@@ -969,7 +1048,7 @@ function ContactSalesSection({
       return;
     }
 
-    const purpose = form.purpose.trim();
+    const purpose = purposeValue.trim();
     const payload = {
       name: form.name.trim(),
       email,
@@ -1029,183 +1108,201 @@ function ContactSalesSection({
     }
   };
 
+  const contactForm = (
+    <aside
+      id={compact ? CONTACT_SALES_SECTION_ID : undefined}
+      className={cn(
+        "self-start scroll-mt-24",
+        compact
+          ? "rounded-[24px] bg-bg-weak p-6 md:p-8"
+          : "rounded-lg border border-neutral-1000-a10 bg-bg-floating p-5"
+      )}
+    >
+      {isSubmitted ? (
+        <div role="status" className="flex flex-col justify-between">
+          <div>
+            <h2
+              className={cn(
+                fontMedium,
+                "font-normal mt-2 flex items-center gap-2"
+              )}
+            >
+              {copy.submittedTitle}
+            </h2>
+            <p
+              className={cn(
+                fontSmall,
+                "mt-2 mb-4 text-neutral-muted leading-6"
+              )}
+            >
+              {copy.submittedBody[0]}
+              <br />
+              {copy.submittedBody[1]}
+            </p>
+            <div className="flex flex-row items-center justify-start gap-2">
+              <button
+                onClick={() => setIsSubmitted(false)}
+                className="text-primary text-sm px-2 py-2 rounded-md flex gap-2 flex-row items-center justify-center hover:bg-primary-faded"
+              >
+                {copy.confirm}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleShareClick}
+                className="text-neutral-primary text-sm px-2 py-2 rounded-md flex gap-2 flex-row items-center justify-center hover:bg-black/5"
+              >
+                <LucideLink className="h-4 w-4" />
+                {copy.share}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="text-[22px] font-medium tracking-tight">
+            {copy.formTitle}
+          </div>
+
+          {compact && (
+            <p className="mt-2 text-[13px] leading-6 text-neutral-muted">
+              {copy.description}
+            </p>
+          )}
+          <form onSubmit={submitForm} className="mt-7 space-y-4">
+            <label className={labelClass}>
+              {copy.email}
+              <Input
+                id="company-waitlist-email"
+                ref={emailInputRef}
+                value={form.email}
+                onChange={(event) => updateForm("email", event.target.value)}
+                className="mt-2"
+                placeholder="jane@matchharper.com"
+                type="email"
+                autoComplete="email"
+                aria-invalid={hasCompanyEmailError}
+                required
+              />
+            </label>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={labelClass}>
+                {copy.name}
+                <Input
+                  value={form.name}
+                  onChange={(event) => updateForm("name", event.target.value)}
+                  className="mt-2"
+                  autoComplete="name"
+                  required
+                />
+              </label>
+
+              <label className={labelClass}>
+                {copy.organization}
+                <Input
+                  value={form.organization}
+                  onChange={(event) =>
+                    updateForm("organization", event.target.value)
+                  }
+                  className="mt-2"
+                  placeholder={copy.organizationPlaceholder}
+                  autoComplete="organization"
+                  required
+                />
+              </label>
+            </div>
+
+            <label className={labelClass}>
+              {copy.purpose}
+              <Textarea
+                value={purposeValue}
+                onChange={(event) => updateForm("purpose", event.target.value)}
+                className="mt-2 min-h-28"
+                placeholder={copy.purposePlaceholder}
+                required
+              />
+            </label>
+
+            <div className="flex items-center gap-3 pt-1">
+              <MuteButton
+                type="submit"
+                variant="dark"
+                size="lg"
+                className="w-full"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? copy.submitting : copy.submit}
+                {!isSubmitting && <ArrowRight className="h-4 w-4" />}
+              </MuteButton>
+            </div>
+          </form>
+        </>
+      )}
+    </aside>
+  );
+  if (compact) return contactForm;
+
   return (
     <Section
       id={CONTACT_SALES_SECTION_ID}
-      bgColor="bg-neutral-100"
-      className="scroll-mt-[54px] pt-16 pb-[104px] md:pt-24 md:pb-[244px]"
+      bgColor="bg-bg-weak"
+      className="scroll-mt-[70px] pt-16 pb-20 md:pt-20 md:pb-28"
     >
       <div className="grid w-full gap-8 lg:grid-cols-2 xl:gap-[30px]">
         <div>
           <h2 className={cn(fontMain, "max-w-[610px]")}>{copy.title}</h2>
 
-          <div className="mt-5 flex min-h-[200px] max-w-[635px] flex-col justify-between rounded-lg border border-neutral-1000-a05 bg-[#fbfaf7] p-4 md:p-5">
+          <div
+            className={cn(
+              "mt-5 flex max-w-[635px] flex-col justify-between rounded-lg border border-neutral-1000-a05 bg-bg-floating p-4 md:p-5",
+              !compact && "min-h-[200px]"
+            )}
+          >
             <p className="text-[15px] font-light leading-[1.55] text-neutral-primary">
               {copy.description}
             </p>
 
-            <div className="flex items-center gap-2 flex-wrap mt-12 md:mt-0">
-              <PillBtn
-                icon={
-                  <Image
-                    src="/images/logos/linkedin.svg"
-                    alt="Linkedin"
-                    width={18}
-                    height={18}
-                  />
-                }
-                text="Harper"
-                onClick={() => {
-                  window.open(
-                    "https://www.linkedin.com/company/matchharper/",
-                    "_blank"
-                  );
-                }}
-              />
-              <PillBtn
-                icon={<Face size={24} />}
-                text={copy.talentLink}
-                onClick={() => {
-                  window.open("https://matchharper.com", "_blank");
-                }}
-              />
-              <PillBtn
-                icon={<HelpCircle className="h-4 w-4" strokeWidth={1.6} />}
-                variant="dark"
-                text={copy.help}
-                onClick={() => {
-                  openCustomCrispWidget();
-                }}
-              />
-            </div>
+            {!compact && (
+              <div className="flex items-center gap-2 flex-wrap mt-12 md:mt-0">
+                <PillBtn
+                  icon={
+                    <Image
+                      src="/images/logos/linkedin.svg"
+                      alt="Linkedin"
+                      width={18}
+                      height={18}
+                    />
+                  }
+                  text="Harper"
+                  onClick={() => {
+                    window.open(
+                      "https://www.linkedin.com/company/matchharper/",
+                      "_blank"
+                    );
+                  }}
+                />
+                <PillBtn
+                  icon={<Face size={24} />}
+                  text={copy.talentLink}
+                  onClick={() => {
+                    window.open("https://matchharper.com", "_blank");
+                  }}
+                />
+                <PillBtn
+                  icon={<HelpCircle className="h-4 w-4" strokeWidth={1.6} />}
+                  variant="dark"
+                  text={copy.help}
+                  onClick={() => {
+                    openCustomCrispWidget();
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
-        <aside className="self-start rounded-lg border border-[#e4e1d8] bg-[#f3f2ed] p-5">
-          {isSubmitted ? (
-            <div className="flex flex-col justify-between">
-              <div>
-                <h2 className={cn(fontMedium, "mt-2 flex items-center gap-2")}>
-                  {copy.submittedTitle}
-                </h2>
-                <p
-                  className={cn(
-                    fontSmall,
-                    "mt-2 mb-4 text-neutral-muted leading-6"
-                  )}
-                >
-                  {copy.submittedBody[0]}
-                  <br />
-                  {copy.submittedBody[1]}
-                </p>
-                <div className="flex flex-row items-center justify-start gap-2">
-                  <button
-                    onClick={() => setIsSubmitted(false)}
-                    className="text-primary text-sm px-2 py-2 rounded-md flex gap-2 flex-row items-center justify-center hover:bg-primary-faded"
-                  >
-                    {copy.confirm}
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleShareClick}
-                    className="text-neutral-primary text-sm px-2 py-2 rounded-md flex gap-2 flex-row items-center justify-center hover:bg-black/5"
-                  >
-                    <LucideLink className="h-4 w-4" />
-                    {copy.share}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className={cn(fontBig, "max-w-[610px]")}>
-                {copy.formTitle}
-              </div>
-
-              <form onSubmit={submitForm} className="mt-7 space-y-4">
-                <label className={labelClass}>
-                  {copy.email}
-                  <input
-                    ref={emailInputRef}
-                    value={form.email}
-                    onChange={(event) =>
-                      updateForm("email", event.target.value)
-                    }
-                    className={cn(
-                      inputClass,
-                      hasCompanyEmailError
-                        ? "border-red-400 focus:border-red-500"
-                        : "border-neutral-950"
-                    )}
-                    placeholder="jane@matchharper.com"
-                    type="email"
-                    autoComplete="email"
-                    aria-invalid={hasCompanyEmailError}
-                    required
-                  />
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className={labelClass}>
-                    {copy.name}
-                    <input
-                      value={form.name}
-                      onChange={(event) =>
-                        updateForm("name", event.target.value)
-                      }
-                      className={inputClass}
-                      autoComplete="name"
-                      required
-                    />
-                  </label>
-
-                  <label className={labelClass}>
-                    {copy.organization}
-                    <input
-                      value={form.organization}
-                      onChange={(event) =>
-                        updateForm("organization", event.target.value)
-                      }
-                      className={inputClass}
-                      placeholder={copy.organizationPlaceholder}
-                      autoComplete="organization"
-                      required
-                    />
-                  </label>
-                </div>
-
-                <label className={labelClass}>
-                  {copy.purpose}
-                  <textarea
-                    value={form.purpose}
-                    onChange={(event) =>
-                      updateForm("purpose", event.target.value)
-                    }
-                    className={textareaClass}
-                    placeholder={copy.purposePlaceholder}
-                    required
-                  />
-                </label>
-
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={cn(
-                      fontSmall,
-                      "inline-flex h-9 w-fit items-center justify-center gap-2 rounded-full px-5 transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                      darkBtnClass
-                    )}
-                  >
-                    {isSubmitting ? copy.submitting : copy.submit}
-                    {!isSubmitting && <ArrowRight className="h-4 w-4" />}
-                  </button>
-                </div>
-              </form>
-            </>
-          )}
-        </aside>
+        {contactForm}
       </div>
     </Section>
   );
@@ -1227,10 +1324,7 @@ export default function CompanyPage({
 }: CompanyPageProps) {
   const router = useRouter();
   const companyLocale = locale;
-  const [showPreloader, setShowPreloader] = useState(!previewConcept);
-  const [socialProofAnimationReady, setSocialProofAnimationReady] = useState(
-    Boolean(previewConcept)
-  );
+  const socialProofAnimationReady = true;
   const copy = COMPANY_PAGE_COPY[companyLocale];
   const heroCopy = previewConcept
     ? getConceptHero(previewConcept, companyLocale)
@@ -1240,15 +1334,6 @@ export default function CompanyPage({
     : copy.closing;
   const canonicalUrl = getCompanyLocaleUrl(companyLocale);
   const structuredData = buildCompanyPageStructuredData(copy, canonicalUrl);
-
-  useEffect(() => {
-    if (previewConcept) return;
-    const timeout = window.setTimeout(() => {
-      setShowPreloader(false);
-    }, 1500);
-
-    return () => window.clearTimeout(timeout);
-  }, [previewConcept]);
 
   const scrollToContactSales = () => {
     document.getElementById(CONTACT_SALES_SECTION_ID)?.scrollIntoView({
@@ -1336,333 +1421,294 @@ export default function CompanyPage({
             }}
           />
         </Head>
-        <style jsx global>{`
-          .harper-reply-bubble {
-            --reply-open-height: 128px;
-            position: relative;
-            display: block;
-            width: 310px;
-            max-width: 116px;
-            max-height: 42px;
-            min-height: 36px;
-            overflow: hidden;
-            border-radius: 12px;
-            transition:
-              max-width 700ms var(--ease-out-expo),
-              max-height 700ms var(--ease-out-expo),
-              border-radius 700ms var(--ease-out-expo);
-          }
-
-          .harper-reply-bubble-answer {
-            max-width: 100%;
-            max-height: var(--reply-open-height);
-            border-radius: 16px;
-          }
-
-          .harper-thinking {
-            position: absolute;
-            left: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            white-space: nowrap;
-          }
-
-          .harper-thinking-dot {
-            display: inline-block;
-            animation: harper-thinking-dot 0.72s ease-in-out infinite;
-          }
-
-          .harper-thinking-dot:nth-child(2) {
-            animation-delay: 0.12s;
-          }
-
-          .harper-thinking-dot:nth-child(3) {
-            animation-delay: 0.24s;
-          }
-
-          .harper-answer {
-            width: 100%;
-            min-height: 1.4em;
-          }
-
-          .liquid-glass-notification {
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.42);
-            background: rgba(255, 255, 255, 0.52);
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
-            -webkit-backdrop-filter: blur(12px) saturate(160%);
-            backdrop-filter: blur(12px) saturate(160%);
-          }
-
-          .liquid-glass-icon {
-            background: rgba(255, 255, 255, 0.78);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-          }
-
-          @keyframes harper-thinking-dot {
-            0%,
-            100% {
-              transform: translateY(0);
-            }
-            50% {
-              transform: translateY(-3px);
-            }
-          }
-
-          @media (max-width: 767px) {
-            .harper-reply-bubble {
-              --reply-open-height: 150px;
-            }
-          }
-        `}</style>
-        <AnimatePresence
-          onExitComplete={() => setSocialProofAnimationReady(true)}
-        >
-          {showPreloader && (
-            <motion.div
-              initial={{ opacity: 1 }}
-              exit={{
-                y: "-100%",
-                transition: {
-                  duration: 0.9,
-                  ease: [0.76, 0, 0.24, 1],
-                },
-              }}
-              className="fixed inset-0 z-120 flex items-center justify-center bg-bg-weak"
-            >
-              <div className="font-hedvig text-7xl tracking-[-0.08em] text-beige900">
-                <StaggerText text="Harper" by="char" delay={0.08} />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <main
-          id="top"
-          lang={companyLocale}
-          className={cn(
-            "min-h-screen text-neutral-primary",
-            previewConcept && companyConceptStyles.page
-          )}
-        >
-          <CareerAppBar
-            // primaryActionLabel={heroCopy.cta}
-            // careerStartHref={`/org?lang=${companyLocale}`}
-            careerStartHref={CONTACT_SALES_HREF}
-            onCareerStartClick={handleContactSalesAnchorClick}
-            showSectionLinks={false}
-            audienceHref="/"
+        {!previewConcept ? (
+          <CompanyWaitlistLanding
             locale={companyLocale}
+            candidateCard={
+              <CandidateProfileMockup copy={copy.candidateProfile} standalone />
+            }
+            renderContact={(purpose, onPurposeChange) => (
+              <ContactSalesSection
+                copy={{
+                  ...copy.contact,
+                  title:
+                    companyLocale === "ko"
+                      ? "다음 채용, Harper와 함께해요."
+                      : "Make your next hire with Harper.",
+                  description:
+                    companyLocale === "ko"
+                      ? "카드 등록 없이 시작해요."
+                      : "No card needed.",
+                  formTitle:
+                    companyLocale === "ko"
+                      ? "무료로 사용해보기"
+                      : "Try for free",
+                  submit:
+                    companyLocale === "ko"
+                      ? "사용 신청하기"
+                      : "Apply for access",
+                  submittedTitle:
+                    companyLocale === "ko"
+                      ? "대기 등록이 완료됐어요."
+                      : "You’re on the waitlist.",
+                  submittedBody:
+                    companyLocale === "ko"
+                      ? [
+                          "한시간 이내에 남겨주신 이메일로 안내드릴게요.",
+                          "채용 목표도 함께 확인하겠습니다.",
+                        ]
+                      : [
+                          "We’ll email you within an hour.",
+                          "We’ll also review your hiring goals.",
+                        ],
+                  toast: {
+                    ...copy.contact.toast,
+                    submitFailed:
+                      companyLocale === "ko"
+                        ? "신청 제출에 실패했습니다. 다시 시도해주세요."
+                        : "Could not submit your request. Please try again.",
+                  },
+                }}
+                shareUrl={canonicalUrl}
+                purpose={purpose}
+                onPurposeChange={onPurposeChange}
+                compact
+              />
+            )}
           />
-          <Section
-            marker="hero"
-            bgColor="bg-neutral-100"
+        ) : (
+          <main
+            id="top"
+            lang={companyLocale}
             className={cn(
-              "pb-14 pt-20 md:pb-20 md:pt-36",
-              previewConcept && companyConceptStyles.hero
+              "min-h-screen text-neutral-primary",
+              previewConcept && companyConceptStyles.page
             )}
           >
-            <div className="grid gap-6 md:grid-cols-[0.95fr_1fr] md:items-end md:justify-between md:gap-10">
-              <h1
-                className={
-                  previewConcept
-                    ? companyConceptStyles.heroTitle
-                    : cn(fontMain, "max-w-[620px] leading-[1.4]")
-                }
-              >
-                {/* 채용 공고로는 닿기 어려운 */}
-                {heroCopy.title.map((line, index) => (
-                  <Fragment key={line}>
-                    {index > 0 && <br />}
-                    {line}
-                  </Fragment>
-                ))}
-                {/* Top talent를 연결해드립니다. */}
-              </h1>
-              <p
-                className={
-                  previewConcept
-                    ? companyConceptStyles.heroDescription
-                    : `max-w-[500px] ${fontMedium}`
-                }
-              >
-                {heroCopy.description.map((line, index) => (
-                  <Fragment key={line}>
-                    {index > 0 && <br />}
-                    {line}
-                  </Fragment>
-                ))}
-              </p>
-            </div>
-            <div className="mt-8 md:mt-6">
-              <PillLink
-                // href={`/org?lang=${companyLocale}`}
-                href={CONTACT_SALES_HREF}
-                onClick={handleContactSalesAnchorClick}
-                variant="dark"
-              >
-                {heroCopy.cta}&nbsp; <ArrowRight className="h-4 w-4" />
-              </PillLink>
-            </div>
-          </Section>
-
-          <Section marker="demo-video" className="pt-0 pb-14 md:pt-0 md:pb-20">
-            <p className="mb-3 text-left text-[12px] font-normal text-neutral-muted md:text-[13px]">
-              {copy.videoSoundHint}
-            </p>
-            <DemoVideo playerName="Harper company page" />
-          </Section>
-
-          <Section marker="social-proof" className="pt-0 md:pt-0">
-            <div className="grid gap-14 md:grid-cols-[0.6fr_0.4fr] md:gap-8">
-              <div>
-                <div className={cn(fontMedium, "text-neutral-muted")}>
-                  {copy.socialProof.talentTitle}
-                </div>
-                <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:mt-8">
-                  {logos.map((logo, index) => (
-                    <Reveal
-                      key={logo.name}
-                      enabled={socialProofAnimationReady}
-                      delay={index * 0.025}
-                      duration={0.36}
-                      distance={14}
-                      blur={7}
-                      amount={0.1}
-                      className={cn(
-                        "h-[72px] md:h-24",
-                        logo.hideOnMobile && "hidden md:block"
-                      )}
-                    >
-                      <CompanyTalentLogoTile logo={logo} />
-                    </Reveal>
+            <CareerAppBar
+              // primaryActionLabel={heroCopy.cta}
+              // careerStartHref={`/org?lang=${companyLocale}`}
+              careerStartHref={CONTACT_SALES_HREF}
+              onCareerStartClick={handleContactSalesAnchorClick}
+              showSectionLinks={false}
+              audienceHref="/"
+              locale={companyLocale}
+            />
+            <Section
+              marker="hero"
+              bgColor="bg-neutral-100"
+              className={cn(
+                "pb-14 pt-20 md:pb-20 md:pt-36",
+                previewConcept && companyConceptStyles.hero
+              )}
+            >
+              <div className="grid gap-6 md:grid-cols-[0.95fr_1fr] md:items-end md:justify-between md:gap-10">
+                <h1
+                  className={
+                    previewConcept
+                      ? companyConceptStyles.heroTitle
+                      : cn(fontMain, "max-w-[620px] leading-[1.4]")
+                  }
+                >
+                  {/* 채용 공고로는 닿기 어려운 */}
+                  {heroCopy.title.map((line, index) => (
+                    <Fragment key={line}>
+                      {index > 0 && <br />}
+                      {line}
+                    </Fragment>
                   ))}
-                </div>
+                  {/* Top talent를 연결해드립니다. */}
+                </h1>
+                <p
+                  className={
+                    previewConcept
+                      ? companyConceptStyles.heroDescription
+                      : `max-w-[500px] ${fontMedium}`
+                  }
+                >
+                  {heroCopy.description.map((line, index) => (
+                    <Fragment key={line}>
+                      {index > 0 && <br />}
+                      {line}
+                    </Fragment>
+                  ))}
+                </p>
               </div>
-              <div className="flex min-w-0 flex-col">
-                <div className={cn(fontMedium, "text-neutral-muted")}>
-                  {copy.socialProof.companyTitle}
-                </div>
-                <div className="mt-6 flex flex-1 flex-col md:mt-8">
-                  <div className="flex w-full flex-col gap-2">
-                    {companyTeamHighlights.map((item, index) => (
+              <div className="mt-8 md:mt-6">
+                <PillLink
+                  // href={`/org?lang=${companyLocale}`}
+                  href={CONTACT_SALES_HREF}
+                  onClick={handleContactSalesAnchorClick}
+                  variant="dark"
+                >
+                  {heroCopy.cta}&nbsp; <ArrowRight className="h-4 w-4" />
+                </PillLink>
+              </div>
+            </Section>
+
+            <Section
+              marker="demo-video"
+              className="pt-0 pb-14 md:pt-0 md:pb-20"
+            >
+              <p className="mb-3 text-left text-[12px] font-normal text-neutral-muted md:text-[13px]">
+                {copy.videoSoundHint}
+              </p>
+              <DemoVideo playerName="Harper company page" />
+            </Section>
+
+            <Section marker="social-proof" className="pt-0 md:pt-0">
+              <div className="grid gap-14 md:grid-cols-[0.6fr_0.4fr] md:gap-8">
+                <div>
+                  <div className={cn(fontMedium, "text-neutral-muted")}>
+                    {copy.socialProof.talentTitle}
+                  </div>
+                  <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-4 md:mt-8">
+                    {logos.map((logo, index) => (
                       <Reveal
-                        key={item.label}
+                        key={logo.name}
                         enabled={socialProofAnimationReady}
-                        delay={index * 0.04}
+                        delay={index * 0.025}
+                        duration={0.36}
+                        distance={14}
+                        blur={7}
+                        amount={0.1}
+                        className={cn(
+                          "h-[72px] md:h-24",
+                          logo.hideOnMobile && "hidden md:block"
+                        )}
+                      >
+                        <CompanyTalentLogoTile logo={logo} />
+                      </Reveal>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex min-w-0 flex-col">
+                  <div className={cn(fontMedium, "text-neutral-muted")}>
+                    {copy.socialProof.companyTitle}
+                  </div>
+                  <div className="mt-6 flex flex-1 flex-col md:mt-8">
+                    <div className="flex w-full flex-col gap-2">
+                      {companyTeamHighlights.map((item, index) => (
+                        <Reveal
+                          key={item.label}
+                          enabled={socialProofAnimationReady}
+                          delay={index * 0.04}
+                          duration={0.36}
+                          distance={14}
+                          blur={7}
+                          amount={0.1}
+                        >
+                          <p className={fontMedium}>
+                            <span className="text-primary">{item.accent}</span>{" "}
+                            {item.label}
+                          </p>
+                        </Reveal>
+                      ))}
+                      <Reveal
+                        enabled={socialProofAnimationReady}
+                        delay={0.12}
                         duration={0.36}
                         distance={14}
                         blur={7}
                         amount={0.1}
                       >
-                        <p className={fontMedium}>
-                          <span className="text-primary">{item.accent}</span>{" "}
-                          {item.label}
+                        <p className={cn(fontSmall, "text-neutral-muted")}>
+                          + more
                         </p>
                       </Reveal>
-                    ))}
+                    </div>
                     <Reveal
                       enabled={socialProofAnimationReady}
-                      delay={0.12}
-                      duration={0.36}
+                      delay={0.16}
+                      duration={0.4}
                       distance={14}
                       blur={7}
                       amount={0.1}
+                      className="mt-8 md:mt-auto"
                     >
-                      <p className={cn(fontSmall, "text-neutral-muted")}>
-                        + more
-                      </p>
-                    </Reveal>
-                  </div>
-                  <Reveal
-                    enabled={socialProofAnimationReady}
-                    delay={0.16}
-                    duration={0.4}
-                    distance={14}
-                    blur={7}
-                    amount={0.1}
-                    className="mt-8 md:mt-auto"
-                  >
-                    <div className="flex min-h-[220px] w-full flex-col items-start justify-between rounded-sm border border-neutral-200 bg-neutral-200/80 p-5 md:min-h-[240px]">
-                      <div className="text-[15px] font-light leading-[1.55] text-neutral-primary md:text-[16px]">
-                        {'"'}
-                        {copy.socialProof.testimonial}
-                        {'"'}
-                      </div>
-                      <div className="mt-8 flex flex-row items-center gap-2">
-                        <Image
-                          src="/images/logos/wonderful.jpg"
-                          alt="Wonderful"
-                          width={40}
-                          height={40}
-                          className="h-10 w-10 rounded-full bg-neutral-00 object-contain p-2"
-                        />
-                        <div className="flex flex-col items-start gap-0 text-left">
-                          <div className="w-full text-left text-[15px] font-light">
-                            General Manager
-                          </div>
-                          <div className="text-[14px] font-light text-neutral-muted">
-                            at $5B Agentic Company
+                      <div className="flex min-h-[220px] w-full flex-col items-start justify-between rounded-sm border border-neutral-200 bg-neutral-200/80 p-5 md:min-h-[240px]">
+                        <div className="text-[15px] font-light leading-[1.55] text-neutral-primary md:text-[16px]">
+                          {'"'}
+                          {copy.socialProof.testimonial}
+                          {'"'}
+                        </div>
+                        <div className="mt-8 flex flex-row items-center gap-2">
+                          <Image
+                            src="/images/logos/wonderful.jpg"
+                            alt="Wonderful"
+                            width={40}
+                            height={40}
+                            className="h-10 w-10 rounded-full bg-neutral-00 object-contain p-2"
+                          />
+                          <div className="flex flex-col items-start gap-0 text-left">
+                            <div className="w-full text-left text-[15px] font-light">
+                              General Manager
+                            </div>
+                            <div className="text-[14px] font-light text-neutral-muted">
+                              at $5B Agentic Company
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </Reveal>
+                    </Reveal>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Section>
-          {!previewConcept && <CompanyTalentStatement locale={companyLocale} />}
-          {previewConcept && (
-            <CompanyConceptBeforeAgents
-              concept={previewConcept}
-              locale={companyLocale}
-            />
-          )}
-          <AgentsSection
-            copy={copy}
-            preview={Boolean(previewConcept)}
-            locale={companyLocale}
-          />
-          {previewConcept && (
-            <CompanyConceptAfterAgents
-              concept={previewConcept}
-              locale={companyLocale}
-            />
-          )}
-
-          <Section
-            marker="closing-message"
-            bgColor="bg-neutral-00"
-            className={cn(
-              "md:pt-8 pt-4",
-              previewConcept ? "md:pb-48 pb-32" : "md:pb-24 pb-16",
-              previewConcept && "company-existing-closing"
+            </Section>
+            {!previewConcept && (
+              <CompanyTalentStatement locale={companyLocale} />
             )}
-          >
-            <div className="flex flex-col gap-2 text-xl font-normal leading-[1.3]">
-              {closingCopy.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </div>
-          </Section>
-
-          {!previewConcept && <CompanyHiringProcess locale={companyLocale} />}
-          {!previewConcept && <CompanyLandingFaq locale={companyLocale} />}
-
-          {previewConcept && (
-            <CompanyConceptGettingStarted
-              concept={previewConcept}
+            {previewConcept && (
+              <CompanyConceptBeforeAgents
+                concept={previewConcept}
+                locale={companyLocale}
+              />
+            )}
+            <AgentsSection
+              copy={copy}
+              preview={Boolean(previewConcept)}
               locale={companyLocale}
             />
-          )}
-          {previewConcept && (
-            <CompanyConceptFaq
-              concept={previewConcept}
-              locale={companyLocale}
-            />
-          )}
+            {previewConcept && (
+              <CompanyConceptAfterAgents
+                concept={previewConcept}
+                locale={companyLocale}
+              />
+            )}
 
-          {/* Self-serve closing section preserved for the payment launch.
+            <Section
+              marker="closing-message"
+              bgColor="bg-neutral-00"
+              className={cn(
+                "md:pt-8 pt-4",
+                previewConcept ? "md:pb-48 pb-32" : "md:pb-24 pb-16",
+                previewConcept && "company-existing-closing"
+              )}
+            >
+              <div className="flex flex-col gap-2 text-xl font-normal leading-[1.3]">
+                {closingCopy.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
+              </div>
+            </Section>
+
+            {!previewConcept && <CompanyHiringProcess locale={companyLocale} />}
+            {!previewConcept && <CompanyLandingFaq locale={companyLocale} />}
+
+            {previewConcept && (
+              <CompanyConceptGettingStarted
+                concept={previewConcept}
+                locale={companyLocale}
+              />
+            )}
+            {previewConcept && (
+              <CompanyConceptFaq
+                concept={previewConcept}
+                locale={companyLocale}
+              />
+            )}
+
+            {/* Self-serve closing section preserved for the payment launch.
           <div
             data-company-existing-section="get-started"
             id={CONTACT_SALES_SECTION_ID}
@@ -1696,8 +1742,9 @@ export default function CompanyPage({
             />
           </div>
           */}
-          <ContactSalesSection copy={copy.contact} shareUrl={canonicalUrl} />
-        </main>
+            <ContactSalesSection copy={copy.contact} shareUrl={canonicalUrl} />
+          </main>
+        )}
         <CareerLandingFooter
           audience="company"
           careerStartHref={`/career?lang=${companyLocale}`}

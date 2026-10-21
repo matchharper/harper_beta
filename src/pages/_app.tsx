@@ -4,6 +4,8 @@ import "@/globals.css";
 import type { AppProps } from "next/app";
 import ReactQueryProvider from "@/components/Provider";
 import AppErrorBoundary from "@/components/AppErrorBoundary";
+import { AuthPersonaGate } from "@/components/common/AuthPersonaGate";
+import { getPageAuthPersona } from "@/lib/authSessionPersona";
 import { DevColorPalettePreview } from "@/components/common/DevColorPaletteControls";
 import Head from "next/head";
 import { Analytics } from "@vercel/analytics/react";
@@ -77,7 +79,13 @@ export default function App({ Component, pageProps }: AppProps) {
     router.pathname === "/org" || router.pathname.startsWith("/org/");
   const isReferralPayoutPage = router.pathname === "/referral-payout";
   const isMeetingPage = router.pathname.startsWith("/meeting/");
+  const isCompanyLandingPage = [
+    "/company",
+    "/ko/company",
+    "/en/company",
+  ].includes(router.pathname);
   const shouldHideCustomCrispLauncher =
+    isCompanyLandingPage ||
     isCareerLandingPage ||
     isCareerPage ||
     isCareerLoginPage ||
@@ -128,16 +136,21 @@ export default function App({ Component, pageProps }: AppProps) {
     init();
   }, [init]);
 
+  const guardedPage = (
+    <AuthPersonaGate requiredPersona={getPageAuthPersona(router.pathname)}>
+      <Component {...pageProps} />
+    </AuthPersonaGate>
+  );
   const page = isCareerPage ? (
     <CareerTranslationRuntime>
-      <Component {...pageProps} />
+      {guardedPage}
     </CareerTranslationRuntime>
   ) : isOrgPage ? (
     <OrgLocaleProvider>
-      <Component {...pageProps} />
+      {guardedPage}
     </OrgLocaleProvider>
   ) : (
-    <Component {...pageProps} />
+    guardedPage
   );
 
   return (

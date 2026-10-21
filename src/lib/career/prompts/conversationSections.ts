@@ -138,7 +138,7 @@ export function buildOnboardingRuntimeStateSection(args: {
     "- Prefer a missing required item that fits the user's latest answer. Optional items are not prerequisites and must not prolong the first conversation.",
     "- Ask at most one question.",
     "- Do not close until all closing conditions above are satisfied, except that a latest reply that clearly answered final_priority_confirmation may count for this response.",
-    "- If all closing conditions are satisfied, close onboarding with the required completion marker instead of asking another question.",
+    "- If all closing conditions are satisfied, close onboarding using this channel's completion transport instead of asking another question.",
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");

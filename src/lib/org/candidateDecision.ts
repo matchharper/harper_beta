@@ -1,7 +1,7 @@
 import type { OrgStageId } from "@/lib/org/server";
 
 export const CANDIDATE_DECISION_LABELS = {
-  connect: "Connect",
+  connect: "Accept Intro",
   reject: "Reject",
 } as const;
 

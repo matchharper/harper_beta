@@ -4,6 +4,7 @@ import freeEmailDomains from "free-email-domains";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { getExaClient, type ExaSearchClient } from "@/lib/tools/exaClient";
 import type { SignupCompany, SignupEntry } from "./signup";
+import { workspaceSignupReview } from "./signupReview.server";
 
 export function companyHomepageInput(value: unknown) {
   if (typeof value !== "string" || value.length > 2000 || !value.trim())
@@ -66,6 +67,7 @@ export async function signupEntry(
   const domain = companyEmailDomain(user);
   if (!domain) return { status: "work_email_required" };
   return signupRpc<SignupEntry>("workspace_signup_begin_v1", {
+    ...workspaceSignupReview(user),
     p_user: user.id,
     p_domain: domain,
     p_create: create,

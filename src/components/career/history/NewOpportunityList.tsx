@@ -1,3 +1,5 @@
+// import EstimatedSalaryNotice from "./EstimatedSalaryNotice";
+// import { formatEstimatedAnnualSalary } from "@/lib/career/estimatedSalary";
 import {
   ArrowUpFromLine,
   ArrowUpRight,
@@ -198,6 +200,13 @@ function NewOpportunityCard({
   const metaItems = [
     formatCareerLocation(item.location, locale),
     ...getMetaItems(item, t),
+    /* !expanded && item.estimatedAnnualSalary
+      ? t("career.history.estimated_salary.range", "{range} (추정)", {
+          values: {
+            range: formatEstimatedAnnualSalary(item.estimatedAnnualSalary, locale),
+          },
+        })
+      : null, */
   ].filter(Boolean);
   const canOpenCompany = Boolean(
     onOpenCompanyInfo &&
@@ -290,7 +299,7 @@ function NewOpportunityCard({
                 </span>
               ))
             ) : metaItems.length > 0 ? (
-              <span className="min-w-0 max-w-full truncate">
+              <span className="min-w-0 max-w-full whitespace-normal wrap-break-word">
                 · {metaItems.join(" · ")}
               </span>
             ) : null}
@@ -425,6 +434,7 @@ function NewOpportunityCard({
               </MuteButton>
             </div>
           ) : null}
+          {/* <EstimatedSalaryNotice item={item} /> */}
           <div className="flex-wrap items-center justify-end gap-2 pt-4 grid grid-cols-3">
             {isInternal ? (
               <Tooltips

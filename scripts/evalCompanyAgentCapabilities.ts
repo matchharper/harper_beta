@@ -262,6 +262,18 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         effects.push({ name: args.name, input: x, stage: c.stage, notifyCandidateOnClosure });
         result = { status: intro ? "requested" : "updated", notifyCandidateOnClosure, candidateName: c.name, roleName: role.name, decision: x.decision, connectionMethod: x.connectionMethod ?? "intro_email", stage: c.stage, introRecipientEmails: recipients, introEmails: recipients, nextStageName: "연결됨", candidateMessageSent: false, nextProcess: intro ? "후보자에게 회사의 제안을 전달하고 수락 시 소개 이메일로 연결" : "소개 이메일로 양쪽을 연결" };
       }
+    } else if (args.name === "move_candidate_to_role") {
+      assertRole(x.sourceRoleId); assertRole(x.targetRoleId);
+      const c = candidate(x.talentId);
+      const target = roles.find((r: any) => r.roleId === x.targetRoleId)!;
+      const source = roles.find((r: any) => r.roleId === x.sourceRoleId)!;
+      if (!positions(c).some((p: any) => p.roleId === x.sourceRoleId)) throw Error("Candidate is not in source Role");
+      if (x.candidateConsentRelayId && x.candidateConsentRelayId !== variant.contactEvent?.candidate_contact_ref?.relayId) throw Error("Unknown consent reference");
+      effects.push({ name: args.name, input: x });
+      c.roleIds = [x.targetRoleId]; c.stage = x.targetStageId;
+      result = { status: "moved", candidateName: c.name, sourceRoleId: source.roleId, sourceRoleName: source.name,
+        targetRoleId: target.roleId, targetRoleName: target.name, targetStageId: x.targetStageId,
+        targetStageLabel: x.targetStageId === "pending_connection" ? "연결 대기" : "연결됨", preservedActivity: { activeMeetingCount: 0, openQuestionCount: 0 } };
     } else if (args.name === "move_candidate_stage") {
       assertRole(x.roleId); const c = candidate(x.talentId);
       if (c.stage !== x.expectedCurrentStageId) throw Error("Stale candidate stage");

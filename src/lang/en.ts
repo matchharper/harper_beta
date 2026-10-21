@@ -488,6 +488,9 @@ export const en = {
     generating: "Generating summary...",
   },
   career: {
+    "career.history.estimated_salary.disclaimer": "This is an estimate by Harper. It may be inaccurate and may differ from the actual salary offered by the company.",
+    "career.history.estimated_salary.heading": "Estimated annual salary",
+    "career.history.estimated_salary.range": "{range} (estimated)",
     "career.announcement.close": "Close announcement",
     "career.announcement.preview.fourth_description": "Pick up where you left off with updates you haven’t seen yet.",
     "career.announcement.preview.fourth_title": "Good to see you again",

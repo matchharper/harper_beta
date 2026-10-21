@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { MuteButton } from "@/components/ui/button";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { cn } from "@/lib/utils";
+import { CANDIDATE_DECISION_LABELS } from "@/lib/org/candidateDecision";
 
 const DOCS_SECTIONS = [
   { id: "review", label: "후보자 검토" },
@@ -190,8 +191,8 @@ export function OrgDocsModal({
             id="decision"
             title={c("연결 수락과 연결 거절", "Accept or reject connection")}
             description={c(
-              "웹에서는 Connect와 Reject 버튼으로 표시됩니다. 연결을 수락하면 대화를 시작하고, 연결을 거절하면 회사의 종료 결정을 후보자에게 안내합니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
-              "Choose Connect or Reject. With Connect, select Email intro or Direct contact to start the next step. Reject ends consideration for this role and Harper notifies the candidate. A reason is optional and helps improve future recommendations."
+              "Accept Intro를 누르면 이메일로 소개받거나 바로 인터뷰를 요청하는 방식을 선택할 수 있습니다. 내용을 확인하고 수락하면 선택한 방식으로 진행합니다. Reject는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
+              "Choose Accept Intro to get introduced by email or request an interview. Review the details and confirm to proceed with your chosen method. Reject ends consideration for this role. A reason is optional and helps improve future recommendations."
             )}
           >
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -201,7 +202,7 @@ export function OrgDocsModal({
                 tabIndex={-1}
                 className="pointer-events-none w-full bg-primary text-white sm:w-auto"
               >
-                {c("Connect", "Connect")}
+                {CANDIDATE_DECISION_LABELS.connect}
               </MuteButton>
               <MuteButton
                 type="button"
