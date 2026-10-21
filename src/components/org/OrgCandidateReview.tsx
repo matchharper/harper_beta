@@ -20,6 +20,7 @@ type Props = {
   navigation: OrgTalentDetailNavigationState<OrgTalentDetailNavigationTarget> | null;
   onNavigate: (target: OrgTalentDetailNavigationTarget | null) => void;
   onBack?: () => void;
+  backLabel?: string;
   onAccept: () => void;
   onPass: (reason: string) => Promise<void>;
   onSave: () => Promise<void>;
@@ -113,13 +114,17 @@ export function OrgCandidateReview(props: Props) {
   return (
     <section
       aria-label={c("후보자 검토", "Candidate review")}
-      className="flex min-h-0 min-w-0 flex-1 flex-col bg-bg-default"
+      className="@container/review flex min-h-0 min-w-0 flex-1 flex-col bg-bg-default"
     >
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-neutral-1000-a05 bg-bg-default px-4 py-3 lg:px-6">
+      <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-neutral-1000-a05 bg-bg-default px-4 py-3 @min-[700px]/review:px-6">
         <div className="flex items-center gap-1">
           {props.onBack && (
             <MuteButton
-              aria-label={c("리스트로 돌아가기", "Back to list")}
+              aria-label={
+                props.backLabel ?? c("리스트로 돌아가기", "Back to list")
+              }
+              title={props.backLabel ?? c("리스트로 돌아가기", "Back to list")}
+              disabled={pending}
               onClick={props.onBack}
               variant="transparent"
               size="sm"
@@ -131,6 +136,8 @@ export function OrgCandidateReview(props: Props) {
             aria-label={c("이전 후보자", "Previous candidate")}
             onClick={() => props.onNavigate(navigation?.previous ?? null)}
             disabled={!navigation?.previous || pending}
+            title={c("이전 후보자 (←)", "Previous candidate (←)")}
+            aria-keyshortcuts="ArrowLeft"
             variant="transparent"
             size="sm"
           >
@@ -146,6 +153,8 @@ export function OrgCandidateReview(props: Props) {
             aria-label={c("다음 후보자", "Next candidate")}
             onClick={() => props.onNavigate(navigation?.next ?? null)}
             disabled={!navigation?.next || pending}
+            title={c("다음 후보자 (→)", "Next candidate (→)")}
+            aria-keyshortcuts="ArrowRight"
             variant="transparent"
             size="sm"
           >
@@ -153,10 +162,20 @@ export function OrgCandidateReview(props: Props) {
           </MuteButton>
         </div>
         {actionable && canManage && (
-          <div className="flex items-center gap-2">
-            <MuteButton onClick={() => void save()} disabled={pending}>
+          <div className="ml-auto flex items-center gap-2">
+            <MuteButton
+              onClick={() => void save()}
+              disabled={pending}
+              aria-keyshortcuts="s"
+              variant="neutral"
+            >
               {props.saved ? c("저장 해제", "Unsave") : "Save"}
-              <kbd className="ml-2 text-xs text-neutral-soft">S</kbd>
+              <kbd
+                aria-hidden
+                className="ml-2 hidden text-xs text-neutral-soft @min-[500px]/review:inline"
+              >
+                S
+              </kbd>
             </MuteButton>
             <OrgPassPopover
               key={detail?.recommendation.recommendationId}
@@ -169,11 +188,17 @@ export function OrgCandidateReview(props: Props) {
               variant="dark"
               disabled={pending}
               onClick={props.onAccept}
+              aria-keyshortcuts="r"
             >
               {detail?.companyIntro
                 ? c("Intro 보내기", "Send intro")
                 : c("Accept Intro", "Accept Intro")}
-              <kbd className="ml-2 text-xs opacity-50">R</kbd>
+              <kbd
+                aria-hidden
+                className="ml-2 hidden text-xs opacity-50 @min-[500px]/review:inline"
+              >
+                R
+              </kbd>
             </MuteButton>
           </div>
         )}
@@ -185,7 +210,7 @@ export function OrgCandidateReview(props: Props) {
       )}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 lg:p-10"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 @min-[700px]/review:p-8"
       >
         {props.error ? (
           <OrgErrorState
@@ -194,11 +219,17 @@ export function OrgCandidateReview(props: Props) {
           />
         ) : detail ? (
           <div className="mx-auto max-w-[980px]">
-            <OrgTalentProfile detail={detail} onResumeClick={props.onResume} />
-            <OrgTalentNotes
-              key={`${detail.role.roleId}:${detail.talent.userId}`}
+            <OrgTalentProfile
               detail={detail}
-              canManage={canManage}
+              onResumeClick={props.onResume}
+              review
+              footer={
+                <OrgTalentNotes
+                  key={`${detail.role.roleId}:${detail.talent.userId}`}
+                  detail={detail}
+                  canManage={canManage}
+                />
+              }
             />
           </div>
         ) : (

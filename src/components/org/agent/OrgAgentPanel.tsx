@@ -407,8 +407,8 @@ export function OrgAgentChatSurface({
             <div className="flex min-h-[260px] items-center justify-center px-8">
               <p className="max-w-[320px] text-center leading-5 text-neutral-muted text-base text-normal">
                 {c(
-                  "역할이나 후보자에 대해 물어보거나 원하시는 사항을 요청해주세요.",
-                  "Ask about a role or candidate, or request what you need."
+                  "어떤 채용 업무를 도와드릴까요?",
+                  "How can I help with hiring?"
                 )}
               </p>
             </div>

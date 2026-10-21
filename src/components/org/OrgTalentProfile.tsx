@@ -1,5 +1,6 @@
 import Image from "next/image";
-import { useState } from "react";
+import { useId, useState, type ReactNode } from "react";
+import { MuteButton } from "@/components/ui/button";
 import { BriefcaseBusiness, CalendarDays, MapPin } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
@@ -25,6 +26,7 @@ import {
 } from "@/lib/org/profileCareerSummary";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
 import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
+import styles from "./OrgTalentProfile.module.css";
 
 type ResourceLinkKind =
   | "github"
@@ -41,7 +43,15 @@ const RESOURCE_LINK_KIND_ORDER: Record<ResourceLinkKind, number> = {
   other: 4,
 };
 
-function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
+function TalentAvatar({
+  name,
+  src,
+  large = false,
+}: {
+  name: string;
+  src?: string | null;
+  large?: boolean;
+}) {
   const { c } = useOrgLocale();
   const profilePicture = getDisplayableProfileImageUrl(src);
   const [failedImageSrc, setFailedImageSrc] = useState<string | null>(null);
@@ -55,13 +65,19 @@ function TalentAvatar({ name, src }: { name: string; src?: string | null }) {
         height={64}
         unoptimized
         onError={() => setFailedImageSrc(profilePicture)}
-        className="h-11 w-11 rounded-full object-cover"
+        className={
+          large
+            ? "size-16 rounded-full object-cover"
+            : "size-11 rounded-full object-cover"
+        }
       />
     );
   }
 
   return (
-    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-bg-weak text-[12px] font-medium text-neutral-muted">
+    <div
+      className={`flex shrink-0 items-center justify-center rounded-full bg-bg-weak font-medium text-neutral-muted ${large ? "size-16 text-xl" : "size-11 text-xs"}`}
+    >
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -166,8 +182,12 @@ function MarkdownProfile({ value }: { value: string }) {
 export function OrgTalentProfile({
   detail,
   onResumeClick,
+  review = false,
+  footer,
 }: {
   detail: OrgTalentDetailResponse;
+  review?: boolean;
+  footer?: ReactNode;
   onResumeClick: (
     kind: "storage" | "link" | "document",
     link?: string | null,
@@ -176,6 +196,7 @@ export function OrgTalentProfile({
 }) {
   const sourceT = useOrgSourceT();
   const { locale, c } = useOrgLocale();
+  const sectionPrefix = useId();
   const name =
     detail.talent.name || detail.talent.email || c("이름 없음", "No name");
   const registeredLinks = detail.profile.registeredLinks.length
@@ -270,16 +291,218 @@ export function OrgTalentProfile({
     [];
   const careerSummary = getProfileCareerSummary(detail.profile.experiences);
 
+  const header = (
+    <TalentProfileHeader
+      variant={review ? "review" : "default"}
+      avatar={
+        <TalentAvatar
+          name={name}
+          src={detail.talent.profilePicture}
+          large={review}
+        />
+      }
+      headline={detail.talent.headline}
+      name={name}
+      primaryResources={primaryResources}
+      secondaryResources={secondaryResources}
+    />
+  );
+  if (review) {
+    const sections = [
+      {
+        key: "summary",
+        label: c("요약", "Summary"),
+        content: (
+          <>
+            {detail.companyPresentation ? (
+              <>
+                <p className="text-[15px] leading-7">
+                  {detail.companyPresentation.tldr}
+                </p>
+                {detail.companyPresentation.harperNote && (
+                  <div className="mt-5 border-l-2 border-neutral-1000-a10 pl-4">
+                    <p className="mb-1 text-xs font-medium text-neutral-muted">
+                      Harper Note
+                    </p>
+                    <p className="text-sm leading-6">
+                      {detail.companyPresentation.harperNote}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : detail.recommendation.fitReason ? (
+              <MarkdownProfile
+                value={convertSlackCandidateIntroToWebMarkdown(
+                  detail.recommendation.fitReason
+                )}
+              />
+            ) : null}
+            <dl className="mt-6 grid grid-cols-2 gap-x-5 gap-y-4 @min-[650px]/review:grid-cols-3">
+              {[
+                [c("위치", "Location"), detail.profile.location?.trim()],
+                [
+                  c("경력", "Experience"),
+                  formatProfileDuration(careerSummary.experienceMonths, locale),
+                ],
+                [
+                  c("마지막 이직", "Last job change"),
+                  formatProfileDuration(
+                    careerSummary.lastMoveMonths,
+                    locale,
+                    true
+                  ),
+                ],
+              ]
+                .filter(([, value]) => value && value !== "—")
+                .map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="text-xs text-neutral-muted">{label}</dt>
+                    <dd className="mt-1 break-words text-sm leading-6">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+            </dl>
+          </>
+        ),
+      },
+      ...(criteriaEvaluations.length
+        ? [
+            {
+              key: "criteria",
+              label: c("평가 기준", "Criteria"),
+              content: (
+                <div className="grid gap-x-6 gap-y-3 @min-[650px]/review:grid-cols-2">
+                  {criteriaEvaluations.map((evaluation) => (
+                    <OrgCriteriaEvaluation
+                      key={evaluation.name}
+                      evaluation={evaluation}
+                    />
+                  ))}
+                </div>
+              ),
+            },
+          ]
+        : []),
+      ...(detail.profile.bio?.trim()
+        ? [
+            {
+              key: "bio",
+              label: c("소개", "Bio"),
+              content: (
+                <p className="whitespace-pre-wrap text-sm leading-7">
+                  {detail.profile.bio.trim()}
+                </p>
+              ),
+            },
+          ]
+        : []),
+      ...(detail.profile.experiences.length
+        ? [
+            {
+              key: "experience",
+              label: c("경력", "Experience"),
+              content: (
+                <TalentExperienceSection
+                  experiences={detail.profile.experiences}
+                />
+              ),
+              ownsHeading: true,
+            },
+          ]
+        : []),
+      ...(detail.profile.educations.length
+        ? [
+            {
+              key: "education",
+              label: c("학력", "Education"),
+              content: (
+                <TalentEducationSection
+                  educations={detail.profile.educations}
+                />
+              ),
+              ownsHeading: true,
+            },
+          ]
+        : []),
+      ...(detail.profile.extras.length
+        ? [
+            {
+              key: "extras",
+              label: c("기타 활동", "More"),
+              content: <TalentExtraSection extras={detail.profile.extras} />,
+              ownsHeading: true,
+            },
+          ]
+        : []),
+      ...(!hasProfileContent && detail.profileMarkdown
+        ? [
+            {
+              key: "profile",
+              label: c("프로필", "Profile"),
+              content: <MarkdownProfile value={detail.profileMarkdown} />,
+            },
+          ]
+        : []),
+      ...(footer
+        ? [
+            {
+              key: "notes",
+              label: c("메모", "Notes"),
+              content: footer,
+              ownsHeading: true,
+            },
+          ]
+        : []),
+    ];
+    return (
+      <div className={styles.review}>
+        {header}
+        <div className="mt-6 grid min-w-0 grid-cols-1 gap-4 @min-[850px]/review:mt-8 @min-[850px]/review:grid-cols-[104px_minmax(0,1fr)] @min-[850px]/review:gap-8">
+          <nav
+            aria-label={c("프로필 항목", "Profile sections")}
+            className="sticky -top-5 z-10 flex gap-1 overflow-x-auto bg-bg-default py-3 @min-[850px]/review:top-0 @min-[850px]/review:flex-col @min-[850px]/review:self-start @min-[850px]/review:py-0"
+          >
+            {sections.map((section) => (
+              <MuteButton
+                key={section.key}
+                variant="transparent"
+                size="sm"
+                className="shrink-0 justify-start"
+                onClick={() =>
+                  document
+                    .getElementById(`${sectionPrefix}-${section.key}`)
+                    ?.scrollIntoView({ block: "start" })
+                }
+              >
+                {section.label}
+              </MuteButton>
+            ))}
+          </nav>
+          <div className="min-w-0 space-y-9">
+            {sections.map((section) => (
+              <div
+                key={section.key}
+                id={`${sectionPrefix}-${section.key}`}
+                className="scroll-mt-16 @min-[850px]/review:scroll-mt-4"
+              >
+                {!("ownsHeading" in section && section.ownsHeading) && (
+                  <h2 className="mb-4 text-base font-medium">
+                    {section.label}
+                  </h2>
+                )}
+                {section.content}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-w-0 space-y-7 px-2">
-      <TalentProfileHeader
-        avatar={<TalentAvatar name={name} src={detail.talent.profilePicture} />}
-        headline={detail.talent.headline}
-        // location={detail.profile.location}
-        name={name}
-        primaryResources={primaryResources}
-        secondaryResources={secondaryResources}
-      />
+      {header}
 
       {detail.companyPresentation ? (
         <>

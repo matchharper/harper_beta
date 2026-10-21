@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { useIsMutating } from "@tanstack/react-query";
 import {
   ArrowDownWideNarrow,
   LayoutPanelLeft,
   List,
   Bookmark,
 } from "lucide-react";
-import { MuteButton } from "@/components/ui/button";
+import { CardButton, MuteButton } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -47,8 +48,11 @@ export function OrgRoleInbox() {
   } = useOrgJobsNavigation();
   const { permissions } = useOrgWorkspace();
   const save = useOrgCandidateSave();
+  const listScrollTop = useRef(0);
   const [actionError, setActionError] = useState("");
   const entitlements = useOrgEntitlements(workspaceId);
+  const mutationCount = useIsMutating();
+  const savedReview = router.query.review === "saved";
   const stage =
     router.query.inboxStage === "company_intro"
       ? "company_intro"
@@ -59,23 +63,33 @@ export function OrgRoleInbox() {
   const items = useMemo(
     () =>
       (board?.items ?? [])
-        .filter((item) => !item.savedAt && item.stage === stage)
+        .filter((item) =>
+          savedReview
+            ? Boolean(item.savedAt) &&
+              (item.stage !== "pending_connection" ||
+                canUsePendingConnections(entitlements.data, item.roleId))
+            : !item.savedAt && item.stage === stage
+        )
         .sort((a, b) => compareOrgCandidates(a, b, sort)),
-    [board?.items, stage, sort]
+    [board?.items, stage, sort, savedReview, entitlements.data]
   );
   const locked =
+    !savedReview &&
     stage === "pending_connection" &&
     Boolean(entitlements.data) &&
     !canUsePendingConnections(entitlements.data, activeRole?.roleId);
-  const change = (patch: Record<string, string>) => {
+  const change = (patch: Record<string, string>, preserveSelection = false) => {
+    if (patch.inboxStage || patch.sort) listScrollTop.current = 0;
     const query = { ...router.query, ...patch };
-    for (const key of [
-      "talentId",
-      "recommendationId",
-      "detailRoleId",
-      "detailWorkspaceId",
-    ])
-      delete query[key];
+    if (!preserveSelection)
+      for (const key of [
+        "talentId",
+        "recommendationId",
+        "detailRoleId",
+        "detailWorkspaceId",
+        "review",
+      ])
+        delete query[key];
     void router.push({ pathname: router.pathname, query }, undefined, {
       shallow: true,
       scroll: false,
@@ -84,6 +98,8 @@ export function OrgRoleInbox() {
   useEffect(() => {
     if (
       card &&
+      !savedReview &&
+      !mutationCount &&
       !locked &&
       boardQuery.isSuccess &&
       !boardQuery.isFetching &&
@@ -108,70 +124,88 @@ export function OrgRoleInbox() {
   });
   const reviewing = card || Boolean(detailTalentId);
   return (
-    <section className="flex h-full min-h-0 flex-1 flex-col">
+    <section className="@container/inbox flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2">
-        <Tabs
-          activeValue={stage}
-          aria-label={c("인박스 유형", "Inbox type")}
-          className="mr-auto w-fit"
-          items={[
-            { value: "pending_connection", label: c("연결 대기", "Inbound") },
-            {
-              value: "company_intro",
-              label: c("먼저 제안 가능한 후보", "Suggested"),
-            },
-          ]}
-          onValueChange={(inboxStage) => change({ inboxStage })}
-          variant="pills"
-          size="small"
-        />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <MuteButton aria-label={c("정렬", "Sort")} variant="transparent">
-              <ArrowDownWideNarrow className="size-4" />
-            </MuteButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuRadioGroup
-              value={sort}
-              onValueChange={(sort) => change({ sort })}
-            >
-              <DropdownMenuRadioItem value="latest">
-                {c("최신순", "Newest first")}
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="recommended">
-                {c("추천순", "Recommended")}
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <MuteButton
-              aria-label={c("보기 방식", "View options")}
-              variant="transparent"
-            >
-              {card ? (
-                <LayoutPanelLeft className="size-4" />
-              ) : (
-                <List className="size-4" />
-              )}
-            </MuteButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuRadioGroup
-              value={card ? "card" : "list"}
-              onValueChange={(inboxView) => change({ inboxView })}
-            >
-              <DropdownMenuRadioItem value="list">
-                {c("리스트", "List")}
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="card">
-                {c("카드", "Card")}
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {savedReview ? (
+          <h2 className="mr-auto text-sm font-medium">
+            {c("저장함", "Saved")}
+          </h2>
+        ) : (
+          <>
+            <Tabs
+              activeValue={stage}
+              aria-label={c("인박스 유형", "Inbox type")}
+              className="mr-auto w-fit"
+              items={[
+                {
+                  value: "pending_connection",
+                  label: c("연결 대기", "Inbound"),
+                },
+                {
+                  value: "company_intro",
+                  label: c("먼저 제안 가능한 후보", "Suggested"),
+                },
+              ]}
+              onValueChange={(inboxStage) => change({ inboxStage })}
+              variant="pills"
+              size="small"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <MuteButton
+                  aria-label={c("정렬", "Sort")}
+                  title={c("정렬", "Sort")}
+                  variant="transparent"
+                >
+                  <ArrowDownWideNarrow className="size-4" />
+                </MuteButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                  value={sort}
+                  onValueChange={(sort) => change({ sort }, true)}
+                >
+                  <DropdownMenuRadioItem value="latest">
+                    {c("최신순", "Newest first")}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="recommended">
+                    {c("추천순", "Recommended")}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <MuteButton
+                  aria-label={c("보기 방식", "View options")}
+                  title={c("보기 방식", "View options")}
+                  variant="transparent"
+                >
+                  {card ? (
+                    <LayoutPanelLeft className="size-4" />
+                  ) : (
+                    <List className="size-4" />
+                  )}
+                </MuteButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup
+                  value={card ? "card" : "list"}
+                  onValueChange={(inboxView) =>
+                    change({ inboxView }, inboxView === "card")
+                  }
+                >
+                  <DropdownMenuRadioItem value="list">
+                    {c("리스트", "List")}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="card">
+                    {c("카드", "Card")}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
         <OrgSearchHistory
           workspaceId={workspaceId}
           roleId={activeRole?.roleId}
@@ -204,52 +238,67 @@ export function OrgRoleInbox() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-1000-a10">
           <TalentDetailSimpleView
             presentation="inline"
-            showBack={!card}
+            showBack={savedReview || !card}
             navigationItems={items}
+            advanceAfterAction={card || savedReview}
+            backLabel={
+              savedReview
+                ? c("저장함으로 돌아가기", "Back to Saved")
+                : undefined
+            }
+            onReviewClose={
+              savedReview
+                ? () => change({ tab: "pipeline", view: "pipeline" })
+                : undefined
+            }
           />
         </div>
       ) : !items.length ? (
         <ReviewEmptyState />
       ) : (
-        <div className="min-h-0 overflow-y-auto divide-y divide-neutral-1000-a05">
+        <div
+          ref={(node) => {
+            if (node) node.scrollTop = listScrollTop.current;
+          }}
+          onScroll={(event) => {
+            listScrollTop.current = event.currentTarget.scrollTop;
+          }}
+          className="min-h-0 overflow-y-auto overflow-x-hidden divide-y divide-neutral-1000-a05"
+        >
           {items.map((item) => (
-            <div
+            <article
               key={item.recommendationId}
-              onClick={() => selectTalent(item, items)}
-              className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-4 rounded-md px-3 py-5 hover:bg-bg-weak/50 focus-within:bg-bg-weak/50 lg:grid-cols-[minmax(160px,1fr)_minmax(140px,1fr)_100px_70px_auto]"
+              className="relative isolate grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-md px-2 py-5 @min-[700px]/inbox:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_64px_auto]"
             >
-              <div className="flex min-w-0 items-center gap-3">
+              <CardButton
+                className="absolute inset-0 z-0 h-full border-0 bg-transparent p-0 shadow-none"
+                aria-label={c("{name} 프로필 보기", "View {name}'s profile", {
+                  name: item.talent.name || c("후보자", "Candidate"),
+                })}
+                onClick={() => selectTalent(item, items)}
+              >
+                <span className="sr-only">{item.talent.name}</span>
+              </CardButton>
+              <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-weak text-sm text-neutral-muted">
                   {item.talent.name?.slice(0, 1) || "·"}
                 </span>
                 <div className="min-w-0">
                   <h3 className="truncate text-[15px] font-medium">
-                    <MuteButton
-                      variant="transparent"
-                      className="max-w-full justify-start p-0 text-left"
-                      aria-label={c(
-                        "{name} 프로필 보기",
-                        "View {name}'s profile",
-                        {
-                          name: item.talent.name || c("후보자", "Candidate"),
-                        }
-                      )}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        selectTalent(item, items);
-                      }}
-                    >
-                      <span className="truncate">
-                        {item.talent.name || c("후보자", "Candidate")}
-                      </span>
-                    </MuteButton>
+                    {item.talent.name || c("후보자", "Candidate")}
                   </h3>
                   <p className="mt-1 truncate text-xs text-neutral-muted">
                     {item.talent.headline || item.talent.location}
+                    {item.talent.recentCompanies[0]?.label && (
+                      <span className="@min-[700px]/inbox:hidden">
+                        {" "}
+                        · {item.talent.recentCompanies[0].label}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
-              <div className="hidden min-w-0 lg:block">
+              <div className="pointer-events-none relative z-10 hidden min-w-0 @min-[700px]/inbox:block">
                 <p className="truncate text-xs">
                   {item.talent.recentCompanies[0]?.label}
                 </p>
@@ -257,18 +306,22 @@ export function OrgRoleInbox() {
                   {item.talent.recentSchools[0]?.label}
                 </p>
               </div>
-              <OrgCriteriaBars evaluations={item.criteriaEvaluations} />
-              <time className="hidden text-xs text-neutral-soft lg:block">
+              <div className="relative z-10">
+                <OrgCriteriaBars evaluations={item.criteriaEvaluations} />
+              </div>
+              <time className="pointer-events-none relative z-10 hidden text-xs text-neutral-soft @min-[700px]/inbox:block">
                 {formatKstRelativeDate(getOrgCandidateCardDate(item), {
                   locale,
                 })}
               </time>
               {permissions.canManageCandidates && (
                 <MuteButton
+                  title="Save"
                   aria-label={c("{name} 저장", "Save {name}", {
                     name: item.talent.name || c("후보자", "Candidate"),
                   })}
                   variant="transparent"
+                  className="relative z-10"
                   disabled={save.isPending}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -286,10 +339,9 @@ export function OrgRoleInbox() {
                   }}
                 >
                   <Bookmark className="size-4" />
-                  <span className="text-xs">Save</span>
                 </MuteButton>
               )}
-            </div>
+            </article>
           ))}
         </div>
       )}

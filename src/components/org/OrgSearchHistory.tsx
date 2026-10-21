@@ -5,7 +5,7 @@ import { History, LoaderCircle } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import { formatKstRelativeDate } from "@/components/ops/dateUtils";
+import { formatRelativeTime } from "@/lib/utils";
 import type { MatchingRunHistoryItem } from "@/lib/companyFirstSearch/history";
 
 type HistoryPage = {
@@ -27,6 +27,8 @@ export function OrgSearchHistory({
   const query = useInfiniteQuery({
     queryKey: ["org", "search-history", workspaceId, roleId],
     enabled: open,
+    staleTime: 0,
+    refetchOnMount: "always",
     initialPageParam: 0,
     getNextPageParam: (page: HistoryPage) => page.nextOffset ?? undefined,
     queryFn: ({ pageParam }) =>
@@ -48,6 +50,7 @@ export function OrgSearchHistory({
       <Popover.Trigger asChild>
         <MuteButton
           aria-label={c("검색 기록", "Search history")}
+          title={c("검색 기록", "Search history")}
           variant="transparent"
           size="md"
         >
@@ -64,10 +67,10 @@ export function OrgSearchHistory({
           <h2 className="mb-4 text-sm font-medium">
             {c("검색 기록", "Search history")}
           </h2>
-          <div className="max-h-[460px] overflow-y-auto">
+          <div className="max-h-[min(460px,60dvh)] overflow-y-auto overscroll-contain">
             {query.isLoading ? (
               <LoaderCircle className="mx-auto my-8 size-5 animate-spin" />
-            ) : query.isError ? (
+            ) : query.isError && !items.length ? (
               <MuteButton onClick={() => void query.refetch()}>
                 {c("다시 불러오기", "Retry")}
               </MuteButton>
@@ -88,8 +91,16 @@ export function OrgSearchHistory({
                         .filter(Boolean)
                         .join(", ") || c("전체 역할", "All roles")}
                     </span>
-                    <time className="shrink-0 text-neutral-soft">
-                      {formatKstRelativeDate(item.createdAt, { locale })}
+                    <time
+                      dateTime={item.createdAt ?? undefined}
+                      title={
+                        item.createdAt
+                          ? new Date(item.createdAt).toLocaleString(locale)
+                          : undefined
+                      }
+                      className="shrink-0 text-neutral-soft"
+                    >
+                      {formatRelativeTime(item.createdAt, locale)}
                     </time>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-muted">
@@ -112,7 +123,15 @@ export function OrgSearchHistory({
                 </article>
               ))
             )}
-            {query.hasNextPage && (
+            {query.isFetchNextPageError && (
+              <MuteButton
+                className="mt-3 w-full"
+                onClick={() => void query.fetchNextPage()}
+              >
+                {c("다시 불러오기", "Retry")}
+              </MuteButton>
+            )}
+            {query.hasNextPage && !query.isFetchNextPageError && (
               <MuteButton
                 className="mt-3 w-full"
                 disabled={query.isFetchingNextPage}

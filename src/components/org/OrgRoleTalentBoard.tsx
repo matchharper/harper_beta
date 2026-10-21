@@ -1,4 +1,5 @@
 import { OrgSavedCandidates } from "./OrgSavedCandidates";
+import { OrgPassPopover } from "./OrgPassPopover";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import styles from "./OrgRoleTalentBoard.module.css";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
@@ -21,10 +22,7 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
-import {
-  CompanyIntroPassDialog,
-  CompanyIntroRequestDialog,
-} from "@/components/org/CompanyIntroDecisionDialogs";
+import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
 import {
   getOrgCandidateDisplayName,
   formatOrgUpcomingMeetingTime,
@@ -376,6 +374,7 @@ export function OrgRoleTalentBoardCard({
   onMove,
   onOpen,
   onReject,
+  onPass,
   pending = false,
   stages,
 }: {
@@ -386,10 +385,12 @@ export function OrgRoleTalentBoardCard({
   onMove?: (item: OrgBoardItem, stage: OrgStageId) => void;
   onOpen: () => void;
   onReject?: () => void;
+  onPass?: (reason: string) => Promise<void>;
   pending?: boolean;
   stages: OrgStage[];
 }) {
   const [introEntering, setIntroEntering] = useState(true);
+  const [passOpen, setPassOpen] = useState(false);
   const sourceT = useOrgSourceT();
   const { locale, c } = useOrgLocale();
   const name =
@@ -513,17 +514,27 @@ export function OrgRoleTalentBoardCard({
 
         {showDecisionActions ? (
           <div className="pointer-events-auto mt-6 grid grid-cols-[108px_minmax(0,1fr)] gap-2">
-            <MuteButton
-              disabled={pending}
-              onClick={onReject}
-              size="md"
-              variant="neutral"
-              className="py-2"
-            >
-              {item.source === "company_intro"
-                ? "Pass"
-                : CANDIDATE_DECISION_LABELS.reject}
-            </MuteButton>
+            {item.source === "company_intro" ? (
+              <OrgPassPopover
+                open={passOpen}
+                onOpenChange={setPassOpen}
+                onSubmit={async (reason) => {
+                  await onPass?.(reason);
+                }}
+                pending={pending}
+                shortcut={false}
+              />
+            ) : (
+              <MuteButton
+                disabled={pending}
+                onClick={onReject}
+                size="md"
+                variant="neutral"
+                className="py-2"
+              >
+                {CANDIDATE_DECISION_LABELS.reject}
+              </MuteButton>
+            )}
             <MuteButton
               className={cn(
                 "w-full py-2",
@@ -539,7 +550,7 @@ export function OrgRoleTalentBoardCard({
             >
               {item.source === "company_intro" ? (
                 <>
-                  {c("Intro 요청", "Request intro")}
+                  {c("Intro 보내기", "Send intro")}
                   <ArrowRight className="size-4" />
                 </>
               ) : (
@@ -644,9 +655,7 @@ export function OrgRoleTalentBoard({
   const [companyIntroRequest, setCompanyIntroRequest] = useState<{
     item: OrgBoardItem;
   } | null>(null);
-  const [companyIntroPass, setCompanyIntroPass] = useState<OrgBoardItem | null>(
-    null
-  );
+
   const visibleStages = useMemo(() => {
     const stages = (board?.stages ?? []).filter(
       (stage) =>
@@ -908,12 +917,18 @@ export function OrgRoleTalentBoard({
                   : c("후보자 보드", "Candidate board")
               )
             }
-            onReject={() =>
-              item.source === "company_intro"
-                ? setCompanyIntroPass(item)
-                : requestMove(item, "process_stopped")
+            onReject={() => requestMove(item, "process_stopped")}
+            onPass={async (reason) => {
+              if (item.companyIntro)
+                await passCompanyIntro.mutateAsync({
+                  introCandidateId: item.companyIntro.id,
+                  workspaceId,
+                  reason,
+                });
+            }}
+            pending={
+              isCandidateStagePending(item) || passCompanyIntro.isPending
             }
-            pending={isCandidateStagePending(item)}
             stages={board?.stages ?? []}
           />
         ))}
@@ -1028,41 +1043,12 @@ export function OrgRoleTalentBoard({
           });
           setCompanyIntroRequest(null);
           addToast({
-            message: c(
-              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
-              "Started preparing an offer to send to the candidate. Waiting for the candidate's response after sending."
-            ),
+            message: c("Intro를 요청했어요.", "Intro requested."),
             variant: "success",
           });
         }}
         open={Boolean(companyIntroRequest)}
         pending={requestCompanyIntro.isPending}
-      />
-
-      <CompanyIntroPassDialog
-        candidateName={
-          companyIntroPass
-            ? sourceT(getOrgCandidateDisplayName(companyIntroPass))
-            : ""
-        }
-        onClose={() => setCompanyIntroPass(null)}
-        onConfirm={async () => {
-          if (!companyIntroPass?.companyIntro) return;
-          await passCompanyIntro.mutateAsync({
-            introCandidateId: companyIntroPass.companyIntro.id,
-            workspaceId,
-          });
-          setCompanyIntroPass(null);
-          addToast({
-            message: c(
-              "후보자에게 제안하지 않고 목록에서 제외했습니다.",
-              "Removed from the list without making an offer to the candidate."
-            ),
-            variant: "success",
-          });
-        }}
-        open={Boolean(companyIntroPass)}
-        pending={passCompanyIntro.isPending}
       />
     </section>
   );

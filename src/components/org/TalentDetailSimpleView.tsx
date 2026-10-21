@@ -1,3 +1,4 @@
+import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgCandidateReview } from "./OrgCandidateReview";
 import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
 import { OrgTalentProfile } from "./OrgTalentProfile";
@@ -36,10 +37,7 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
-import {
-  CompanyIntroPassDialog,
-  CompanyIntroRequestDialog,
-} from "@/components/org/CompanyIntroDecisionDialogs";
+import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
 import {
   InternalOnlyHatch,
   InternalOnlySurface,
@@ -362,20 +360,19 @@ function CandidateDecisionActions({
 }
 
 function CompanyIntroDecisionActions({
-  candidateName,
   detail,
   onPass,
   onRequest,
   pending,
 }: {
-  candidateName: string;
   detail: OrgTalentDetailResponse;
-  onPass: () => void;
+  onPass: (reason: string) => Promise<void>;
   onRequest: () => void;
   pending: boolean;
 }) {
   const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
+  const [passOpen, setPassOpen] = useState(false);
   if (!detail.companyIntro) return null;
   if (detail.companyIntro.status !== "ready") {
     return (
@@ -383,53 +380,26 @@ function CompanyIntroDecisionActions({
         <div className="text-[15px] font-medium text-primary">
           {sourceT(humanizeOrgCompanyIntroStatus(detail.companyIntro))}
         </div>
-        {!["closed", "passed"].includes(detail.companyIntro.status) && (
-          <p className="mt-1 text-sm leading-5 text-neutral-muted">
-            {detail.companyIntro.status === "connecting"
-              ? c(
-                  "후보자가 제안을 수락했습니다. 소개 이메일로 연결한 뒤 미리 정한 첫 단계로 이동합니다.",
-                  "The candidate accepted the offer. Connect via intro email and move to the preset first step."
-                )
-              : c(
-                  "회사가 먼저 제안을 요청한 후보입니다. 수락하면 소개 이메일로 연결하고 미리 정한 첫 단계로 이동합니다.",
-                  "The company requested this candidate first. If accepted, connect via intro email and move to the preset first step."
-                )}{" "}
-            {c(
-              "연결 전에는 추가 연락이나 인터뷰 요청을 할 수 없습니다.",
-              "Additional contact or interview requests are not allowed before connection."
-            )}
-          </p>
-        )}
       </section>
     );
   }
   return (
     <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
-      <div className="text-[16px] font-medium text-neutral-primary">
-        {c(
-          "Request Intro:{candidateName}",
-          "Request intro for {candidateName}",
-          {
-            candidateName,
-          }
-        )}
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <MuteButton
-          disabled={pending}
-          onClick={onPass}
-          size="md"
-          variant="critical"
-        >
-          {c("Pass", "Pass")}
-        </MuteButton>
+      <div className="grid grid-cols-2 gap-2">
+        <OrgPassPopover
+          open={passOpen}
+          onOpenChange={setPassOpen}
+          onSubmit={onPass}
+          pending={pending}
+          shortcut={false}
+        />
         <MuteButton
           disabled={pending}
           onClick={onRequest}
           size="md"
           variant="dark"
         >
-          {c("Request Intro", "Request intro")}
+          {c("Intro 보내기", "Send intro")}
         </MuteButton>
       </div>
     </section>
@@ -1120,10 +1090,16 @@ export function TalentDetailSimpleView({
   presentation = "modal",
   showBack = true,
   navigationItems,
+  advanceAfterAction = false,
+  onReviewClose,
+  backLabel,
 }: {
   presentation?: "modal" | "inline";
   showBack?: boolean;
   navigationItems?: readonly OrgTalentSelection[];
+  advanceAfterAction?: boolean;
+  onReviewClose?: () => void;
+  backLabel?: string;
 }) {
   const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
@@ -1397,6 +1373,21 @@ export function TalentDetailSimpleView({
         detail.companyIntro?.status === "ready")) &&
     canManageCandidates
   );
+  const submitCompanyIntroPass = async (reason: string) => {
+    if (!detail?.companyIntro) return;
+    await passCompanyIntro.mutateAsync({
+      introCandidateId: detail.companyIntro.id,
+      workspaceId,
+      reason,
+    });
+    setCompanyIntroPassOpen(false);
+    handleClose();
+  };
+  const finishReview = () => {
+    const next = detailNavigation?.next ?? detailNavigation?.previous;
+    if (advanceAfterAction && next) navigateToTalent(next);
+    else (onReviewClose ?? handleClose)();
+  };
 
   return (
     <>
@@ -1408,7 +1399,8 @@ export function TalentDetailSimpleView({
           onRetry={onRetry}
           navigation={detailNavigation}
           onNavigate={navigateToTalent}
-          onBack={showBack ? handleClose : undefined}
+          onBack={showBack ? (onReviewClose ?? handleClose) : undefined}
+          backLabel={backLabel}
           canManage={canManageCandidates}
           pending={
             decisionPending ||
@@ -1435,7 +1427,7 @@ export function TalentDetailSimpleView({
               recommendationId: detail.recommendation.recommendationId,
               saved: !saved,
             });
-            handleClose();
+            finishReview();
           }}
           onPass={async (reason) => {
             if (!detail) return;
@@ -1451,7 +1443,7 @@ export function TalentDetailSimpleView({
                 notifyCandidateOnClosure: true,
               });
             }
-            handleClose();
+            finishReview();
           }}
           onAccept={() =>
             detail?.companyIntro
@@ -1508,26 +1500,23 @@ export function TalentDetailSimpleView({
               </div>
               {showMobileDecisionActions ? (
                 <div className="flex shrink-0 items-center gap-1">
-                  <MuteButton
-                    className="min-w-11 border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
-                    disabled={
-                      decisionPending ||
-                      (detail?.recommendation.stage !== "company_intro" &&
-                        !onRejectCandidate)
-                    }
-                    onClick={() =>
-                      detail?.recommendation.stage === "company_intro"
-                        ? setCompanyIntroPassOpen(true)
-                        : setRejectDialogOpen(true)
-                    }
-                    size="md"
-                    type="button"
-                    variant="transparent"
-                  >
-                    {detail?.recommendation.stage === "company_intro"
-                      ? c("제안하지 않기", "Do not offer")
-                      : CANDIDATE_DECISION_LABELS.reject}
-                  </MuteButton>
+                  {detail?.companyIntro ? (
+                    <OrgPassPopover
+                      open={companyIntroPassOpen}
+                      onOpenChange={setCompanyIntroPassOpen}
+                      onSubmit={submitCompanyIntroPass}
+                      pending={passCompanyIntro.isPending}
+                      shortcut={false}
+                    />
+                  ) : (
+                    <MuteButton
+                      disabled={decisionPending || !onRejectCandidate}
+                      onClick={() => setRejectDialogOpen(true)}
+                      variant="neutral"
+                    >
+                      {CANDIDATE_DECISION_LABELS.reject}
+                    </MuteButton>
+                  )}
                   <MuteButton
                     className="min-w-11 border-positive bg-positive text-neutral-00 hover:border-positive/90 hover:bg-positive/90 hover:text-neutral-00 active:bg-positive/80"
                     disabled={
@@ -1545,7 +1534,7 @@ export function TalentDetailSimpleView({
                     variant="transparent"
                   >
                     {detail?.recommendation.stage === "company_intro"
-                      ? c("먼저 제안하기", "Request intro")
+                      ? c("Intro 보내기", "Send intro")
                       : CANDIDATE_DECISION_LABELS.connect}
                   </MuteButton>
                 </div>
@@ -1746,9 +1735,8 @@ export function TalentDetailSimpleView({
                   decisionActions={
                     detail.companyIntro ? (
                       <CompanyIntroDecisionActions
-                        candidateName={title}
                         detail={detail}
-                        onPass={() => setCompanyIntroPassOpen(true)}
+                        onPass={submitCompanyIntroPass}
                         onRequest={() => setCompanyIntroRequestOpen(true)}
                         pending={
                           requestCompanyIntro.isPending ||
@@ -1894,7 +1882,7 @@ export function TalentDetailSimpleView({
             title,
           });
           closeAcceptDialog();
-          if (presentation === "inline") handleClose();
+          if (presentation === "inline") finishReview();
           return result;
         }}
         roleTitle={detail?.role.name ?? ""}
@@ -1927,40 +1915,14 @@ export function TalentDetailSimpleView({
             workspaceId,
           });
           setCompanyIntroRequestOpen(false);
-          if (presentation === "inline") handleClose();
+          if (presentation === "inline") finishReview();
           addToast({
-            message: c(
-              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
-              "Started preparing an offer for the candidate. Await the candidate's response after sending."
-            ),
+            message: c("Intro를 요청했어요.", "Intro requested."),
             variant: "success",
           });
         }}
         open={companyIntroRequestOpen && Boolean(detail?.companyIntro)}
         pending={requestCompanyIntro.isPending}
-      />
-
-      <CompanyIntroPassDialog
-        candidateName={title}
-        onClose={() => setCompanyIntroPassOpen(false)}
-        onConfirm={async () => {
-          if (!detail?.companyIntro) return;
-          await passCompanyIntro.mutateAsync({
-            introCandidateId: detail.companyIntro.id,
-            workspaceId,
-          });
-          setCompanyIntroPassOpen(false);
-          addToast({
-            message: c(
-              "후보자에게 제안하지 않고 목록에서 제외했습니다.",
-              "Removed from list without offering to the candidate."
-            ),
-            variant: "success",
-          });
-          handleClose();
-        }}
-        open={companyIntroPassOpen && Boolean(detail?.companyIntro)}
-        pending={passCompanyIntro.isPending}
       />
 
       <StopCandidateDialog

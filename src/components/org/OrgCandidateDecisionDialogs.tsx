@@ -398,18 +398,12 @@ export function AcceptIntroDialog({
                 [
                   "intro_email",
                   c("이메일로 연결받기", "Email introduction"),
-                  c(
-                    "서로 소개받고 이메일로 다음 단계를 이야기해요.",
-                    "Get introduced and discuss next steps over email."
-                  ),
+                  "",
                 ],
                 [
                   "interview",
                   c("바로 인터뷰 요청", "Request an interview"),
-                  c(
-                    "후보자가 가능한 시간을 고를 수 있도록 일정 선택 링크를 보내요.",
-                    "Send a scheduling link so the candidate can choose a time."
-                  ),
+                  c("일정 선택 링크 발송", "Send an availability link"),
                 ],
                 ...(allowContactDirectly
                   ? [
@@ -448,9 +442,11 @@ export function AcceptIntroDialog({
                   <span className="block text-[13px] font-medium text-neutral-primary">
                     {label}
                   </span>
-                  <span className="mt-0.5 block text-[12px] leading-5 text-neutral-muted">
-                    {description}
-                  </span>
+                  {description && (
+                    <span className="mt-0.5 block text-[12px] leading-5 text-neutral-muted">
+                      {description}
+                    </span>
+                  )}
                 </span>
               </label>
             ))}

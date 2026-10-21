@@ -20,7 +20,7 @@ export function OrgTalentNotes({
   return (
     <section
       id="candidate-notes"
-      className="mt-10 border-t border-neutral-1000-a05 pt-8"
+      className="border-t border-neutral-1000-a05 pt-6"
     >
       <h2 className="mb-4 text-[17px] font-medium">{c("메모", "Notes")}</h2>
       <div className="space-y-5">

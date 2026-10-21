@@ -10,12 +10,14 @@ export function OrgPassPopover({
   onSubmit,
   pending,
   disabled,
+  shortcut = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (reason: string) => Promise<void>;
   pending: boolean;
   disabled?: boolean;
+  shortcut?: boolean;
 }) {
   const { c } = useOrgLocale();
   const [reason, setReason] = useState("");
@@ -40,9 +42,21 @@ export function OrgPassPopover({
       }}
     >
       <Popover.Trigger asChild>
-        <MuteButton disabled={disabled || pending} size="md">
+        <MuteButton
+          disabled={disabled || pending}
+          size="md"
+          variant="neutral"
+          aria-keyshortcuts={shortcut ? "p" : undefined}
+        >
           {c("Pass", "Pass")}
-          <kbd className="ml-2 text-xs text-neutral-soft">P</kbd>
+          {shortcut && (
+            <kbd
+              aria-hidden
+              className="ml-2 hidden text-xs text-neutral-soft @min-[500px]/review:inline"
+            >
+              P
+            </kbd>
+          )}
         </MuteButton>
       </Popover.Trigger>
       <Popover.Portal>
@@ -79,7 +93,8 @@ export function OrgPassPopover({
                   key={value}
                   size="sm"
                   variant={reason === value ? "neutral" : "transparent"}
-                  onClick={() => setReason(value)}
+                  onClick={() => setReason(reason === value ? "" : value)}
+                  aria-pressed={reason === value}
                   disabled={pending}
                 >
                   {value}
@@ -106,7 +121,7 @@ export function OrgPassPopover({
               className="mt-3 w-full"
               disabled={pending || !reason.trim()}
             >
-              {c("제출", "Submit")}
+              {c("Pass", "Pass")}
             </MuteButton>
           </form>
         </Popover.Content>

@@ -27,10 +27,7 @@ import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
-import {
-  CompanyIntroPassDialog,
-  CompanyIntroRequestDialog,
-} from "@/components/org/CompanyIntroDecisionDialogs";
+import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
 import {
   canDropOrgCandidateToStage,
   getOrgCandidateDisplayName,
@@ -107,9 +104,7 @@ export function OrgPipeline({
   const [companyIntroRequest, setCompanyIntroRequest] = useState<{
     item: OrgBoardItem;
   } | null>(null);
-  const [companyIntroPass, setCompanyIntroPass] = useState<OrgBoardItem | null>(
-    null
-  );
+
   const [draggedRecommendationId, setDraggedRecommendationId] = useState<
     string | null
   >(null);
@@ -459,13 +454,22 @@ export function OrgPipeline({
                   internalOpsAccess={internalOpsAccess}
                   item={item}
                   onMove={requestMove}
-                  onPass={setCompanyIntroPass}
+                  onPass={async (item, reason) => {
+                    if (item.companyIntro)
+                      await passCompanyIntro.mutateAsync({
+                        introCandidateId: item.companyIntro.id,
+                        workspaceId,
+                        reason,
+                      });
+                  }}
                   onRequestIntro={(item) => setCompanyIntroRequest({ item })}
                   onSelect={(selectedItem) => {
                     markViewed(selectedItem.recommendationId);
                     onSelect(selectedItem, items, stage.label);
                   }}
-                  pending={isCandidateStagePending(item)}
+                  pending={
+                    isCandidateStagePending(item) || passCompanyIntro.isPending
+                  }
                   profileLabelsError={profileLabelsError}
                   profileLabelsLoading={profileLabelsLoading}
                   stages={board?.stages ?? []}
@@ -685,41 +689,12 @@ export function OrgPipeline({
           });
           setCompanyIntroRequest(null);
           addToast({
-            message: c(
-              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
-              "Started preparing an offer for the candidate. After sending, wait for the candidate's response."
-            ),
+            message: c("Intro를 요청했어요.", "Intro requested."),
             variant: "success",
           });
         }}
         open={Boolean(companyIntroRequest)}
         pending={requestCompanyIntro.isPending}
-      />
-
-      <CompanyIntroPassDialog
-        candidateName={
-          companyIntroPass
-            ? sourceT(getOrgCandidateDisplayName(companyIntroPass))
-            : ""
-        }
-        onClose={() => setCompanyIntroPass(null)}
-        onConfirm={async () => {
-          if (!companyIntroPass?.companyIntro) return;
-          await passCompanyIntro.mutateAsync({
-            introCandidateId: companyIntroPass.companyIntro.id,
-            workspaceId,
-          });
-          setCompanyIntroPass(null);
-          addToast({
-            message: c(
-              "후보자에게 제안하지 않고 목록에서 제외했습니다.",
-              "Removed candidate from list without offering."
-            ),
-            variant: "success",
-          });
-        }}
-        open={Boolean(companyIntroPass)}
-        pending={passCompanyIntro.isPending}
       />
     </section>
   );

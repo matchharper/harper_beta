@@ -1,8 +1,8 @@
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { useQuery } from "@tanstack/react-query";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
 import {
   ChevronRight,
   Inbox,
@@ -12,14 +12,14 @@ import {
   Check,
 } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
-import { MuteButton } from "@/components/ui/button";
+import { CardButton, MuteButton } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgSearchHistory } from "./OrgSearchHistory";
 import { OrgErrorState } from "./workspace/OrgErrorState";
-import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import { compareOrgCandidates } from "@/lib/org/candidateBoardSort";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { buildOrgHref } from "@/lib/org/routes";
@@ -27,19 +27,31 @@ import type {
   OrgHomeActivity,
   OrgHomeActivityKind,
 } from "@/lib/org/homeActivity";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 export function ReviewEmptyState({ loading = false }: { loading?: boolean }) {
   const { c } = useOrgLocale();
   return (
     <div
       role="status"
-      className="flex min-h-72 flex-1 flex-col items-center justify-center gap-3 text-sm text-neutral-muted"
+      className="flex min-h-48 flex-1 flex-col items-center justify-center gap-3 p-5 text-sm text-neutral-muted"
     >
-      <Inbox className="size-6 text-neutral-soft" />
-      {loading
-        ? c("후보자를 불러오는 중입니다.", "Loading candidates.")
-        : c("검토할 후보자가 없습니다.", "You're all caught up.")}
+      {loading ? (
+        <div
+          aria-label={c("불러오는 중", "Loading")}
+          aria-busy
+          className="w-full space-y-4"
+        >
+          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-4/5" />
+        </div>
+      ) : (
+        <>
+          <Inbox className="size-6 text-neutral-soft" />
+          {c("검토할 후보자가 없습니다.", "No candidates to review.")}
+        </>
+      )}
     </div>
   );
 }
@@ -52,7 +64,9 @@ export function OrgInboxRemaining({
   total: number;
 }) {
   const { c } = useOrgLocale();
-  const ratio = total ? remaining / total : 0;
+  const [reviewTotal, setReviewTotal] = useState(total);
+  if (total > reviewTotal) setReviewTotal(total);
+  const ratio = reviewTotal ? remaining / reviewTotal : 0;
   return (
     <span
       aria-label={c("{n}명 남음", "{n} remaining", { n: remaining })}
@@ -95,26 +109,22 @@ function RoleActivity({
   const query = useQuery({
     queryKey: ["org", "home-activity", workspaceId, roleId],
     enabled: Boolean(roleId),
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: () =>
       fetchWithInternalAuth<{ items: OrgHomeActivity[] }>(
         `/api/org/activity?${new URLSearchParams({ workspaceId, roleId })}`
       ),
   });
   const labels: Record<OrgHomeActivityKind, string> = {
-    intro_sent: c("Intro를 보냈어요", "Intro sent"),
-    pending_connection: c("새 후보자가 연결을 기다려요", "Ready to connect"),
-    intro_accepted: c("후보자가 Intro를 수락했어요", "Intro accepted"),
-    candidate_message: c(
-      "후보자의 메시지가 도착했어요",
-      "New candidate message"
-    ),
-    candidate_response: c("후보자가 답변했어요", "Candidate replied"),
-    company_question: c(
-      "후보자에게 연락을 보냈어요",
-      "Message sent to candidate"
-    ),
-    meeting_requested: c("인터뷰를 요청했어요", "Interview requested"),
-    meeting_confirmed: c("인터뷰 일정이 확정됐어요", "Interview scheduled"),
+    intro_sent: c("Intro 발송", "Intro sent"),
+    pending_connection: c("새로운 연결 대기", "Ready to connect"),
+    intro_accepted: c("Intro 수락", "Intro accepted"),
+    candidate_message: c("후보자 메시지", "New candidate message"),
+    candidate_response: c("후보자 답변", "Candidate replied"),
+    company_question: c("후보자에게 연락 발송", "Message sent to candidate"),
+    meeting_requested: c("인터뷰 요청", "Interview requested"),
+    meeting_confirmed: c("인터뷰 일정 확정", "Interview scheduled"),
   };
   if (query.isError)
     return (
@@ -153,8 +163,12 @@ function RoleActivity({
                   <h3 className="text-sm font-medium">
                     {item.talentName || c("후보자", "Candidate")}
                   </h3>
-                  <time className="shrink-0 text-xs text-neutral-soft">
-                    {formatKstRelativeDate(item.createdAt, { locale })}
+                  <time
+                    dateTime={item.createdAt}
+                    title={new Date(item.createdAt).toLocaleString(locale)}
+                    className="shrink-0 text-xs text-neutral-soft"
+                  >
+                    {formatRelativeTime(item.createdAt, locale)}
                   </time>
                 </div>
                 <p className="mt-1 text-sm">{labels[item.kind]}</p>
@@ -184,6 +198,7 @@ export function OrgHomeInbox() {
   const { workspaceId, detailRecommendationId } = useOrgJobsNavigation();
   const feed = router.query.tab === "feed";
   const entitlements = useOrgEntitlements(workspaceId);
+  const mutationCount = useIsMutating();
   const groups = useMemo(
     () =>
       roles.flatMap((role) => {
@@ -271,7 +286,8 @@ export function OrgHomeInbox() {
       feed ||
       !router.isReady ||
       !boardQuery.isSuccess ||
-      boardQuery.isFetching
+      boardQuery.isFetching ||
+      mutationCount
     )
       return;
     if (
@@ -283,7 +299,7 @@ export function OrgHomeInbox() {
       selectGroup(selectedGroup, true);
   });
   return (
-    <div className="flex h-[calc(100dvh-116px)] min-h-[560px] flex-col">
+    <div className="flex h-[calc(100dvh-116px)] min-h-0 flex-col">
       <header className="mb-5 flex items-center justify-between">
         <h1 className="text-xl font-medium">Home</h1>
         <OrgSearchHistory workspaceId={workspaceId} />
@@ -308,15 +324,18 @@ export function OrgHomeInbox() {
         variant="pills"
         size="small"
       />
-      {boardQuery.isError ? (
+      {boardQuery.isError || entitlements.isError ? (
         <OrgErrorState
-          message={boardQuery.error.message}
-          onRetry={() => void boardQuery.refetch()}
+          message={(boardQuery.error ?? entitlements.error)!.message}
+          onRetry={() => {
+            void boardQuery.refetch();
+            void entitlements.refetch();
+          }}
         />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-[minmax(240px,30%)_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(240px,28%)_minmax(0,1fr)] lg:grid-rows-1">
           <aside
-            className="max-h-60 overflow-y-auto lg:max-h-none lg:pr-3"
+            className="max-h-44 overflow-y-auto lg:max-h-none lg:pr-3"
             aria-label={c("역할별 작업", "Tasks by role")}
           >
             {feed
@@ -343,7 +362,7 @@ export function OrgHomeInbox() {
                     <section key={role.roleId} className="mb-8">
                       <MuteButton
                         variant="transparent"
-                        className="mb-2 max-w-full justify-start px-2 text-[15px] font-medium"
+                        className="mb-2 max-w-full justify-start text-[15px] font-medium text-neutral-primary"
                         onClick={() =>
                           void router.push(
                             buildOrgHref({
@@ -359,15 +378,14 @@ export function OrgHomeInbox() {
                         <ChevronRight className="ml-2 size-4 text-neutral-soft" />
                       </MuteButton>
                       {roleGroups.map((group) => (
-                        <MuteButton
+                        <CardButton
                           key={group.id}
-                          variant="transparent"
                           onClick={() => selectGroup(group)}
                           aria-current={
                             selectedGroup?.id === group.id ? "true" : undefined
                           }
                           className={cn(
-                            "mb-1 flex h-auto w-full items-center justify-between gap-3 rounded-lg px-3 py-4 text-left text-sm transition hover:bg-bg-weak focus-visible:outline-2 focus-visible:outline-neutral-400",
+                            "mb-1 flex w-full items-center justify-between gap-3 border-0 px-3 py-4 text-left text-sm font-normal shadow-none transition hover:bg-bg-weak",
                             selectedGroup?.id === group.id && "bg-bg-weak"
                           )}
                         >
@@ -375,7 +393,9 @@ export function OrgHomeInbox() {
                             {group.stage === "pending_connection"
                               ? c(
                                   "Intro 수락 또는 거절",
-                                  "Accept or pass on intros"
+                                  group.remaining === 1
+                                    ? "Accept or pass on an intro"
+                                    : "Accept or pass on intros"
                                 )
                               : group.remaining >= 10
                                 ? c(
@@ -396,13 +416,15 @@ export function OrgHomeInbox() {
                               total={group.total}
                             />
                           )}
-                        </MuteButton>
+                        </CardButton>
                       ))}
                     </section>
                   );
                 })}
             {!feed && !groups.length && (
-              <ReviewEmptyState loading={boardQuery.isLoading} />
+              <ReviewEmptyState
+                loading={boardQuery.isLoading || entitlements.isLoading}
+              />
             )}
           </aside>
           <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-neutral-1000-a10">
@@ -415,10 +437,13 @@ export function OrgHomeInbox() {
               <TalentDetailSimpleView
                 presentation="inline"
                 showBack={false}
+                advanceAfterAction
                 navigationItems={selectedGroup.items}
               />
             ) : (
-              <ReviewEmptyState loading={boardQuery.isLoading} />
+              <ReviewEmptyState
+                loading={boardQuery.isLoading || entitlements.isLoading}
+              />
             )}
           </div>
         </div>

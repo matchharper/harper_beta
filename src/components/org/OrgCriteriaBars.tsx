@@ -23,7 +23,7 @@ export function OrgCriteriaBars({
   return (
     <div
       aria-label={c("평가 기준별 적합도", "Fit by criteria")}
-      className="flex flex-wrap gap-1"
+      className="flex shrink-0 gap-1"
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
@@ -39,7 +39,7 @@ export function OrgCriteriaBars({
           <ResponsiveLightTooltip
             key={index}
             className="w-auto"
-            triggerClassName="w-auto rounded-sm focus-visible:ring-2 focus-visible:ring-neutral-400"
+            triggerClassName="w-auto shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-neutral-400"
             mobileAriaLabel={evaluation ? `${evaluation.name} · ${fit}` : fit}
             trigger={
               <span
