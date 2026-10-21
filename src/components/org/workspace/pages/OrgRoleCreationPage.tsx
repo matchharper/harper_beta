@@ -1,3 +1,4 @@
+import { OrgRoleInbox } from "@/components/org/OrgRoleInbox";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
   BriefcaseBusiness,
@@ -183,7 +184,7 @@ function OrgRoleCandidatesTab({
   return (
     <OrgJobsProvider routePage="role">
       {tab === "inbox" ? (
-        <OrgRoleTalentBoard section="inbox" />
+        <OrgRoleInbox />
       ) : (
         <OrgRolePipelineWorkspace
           display={display}
@@ -191,7 +192,7 @@ function OrgRoleCandidatesTab({
           onDisplayChange={onDisplayChange}
         />
       )}
-      <TalentDetailSimpleView />
+      {tab !== "inbox" && <TalentDetailSimpleView />}
     </OrgJobsProvider>
   );
 }
@@ -230,8 +231,8 @@ function OrgRoleCreationDetails({
     roleId: role?.roleId,
     workspaceId: workspace.workspaceId,
   });
-  const inboxCount = inboxBoardQuery.data?.items.filter((item) =>
-    isOrgInboxStage(item.stage)
+  const inboxCount = inboxBoardQuery.data?.items.filter(
+    (item) => isOrgInboxStage(item.stage) && !item.savedAt
   ).length;
   const requestedTab = router.isReady ? getQueryText(router.query.tab) : "";
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
@@ -248,6 +249,13 @@ function OrgRoleCreationDetails({
   const roleStatus = role ? getOrgRoleStatusPresentation(role.status) : null;
   const setActiveTab = (tab: RoleCreationTab) => {
     const nextQuery = { ...router.query };
+    for (const key of [
+      "talentId",
+      "recommendationId",
+      "detailRoleId",
+      "detailWorkspaceId",
+    ])
+      delete nextQuery[key];
     if (tab === "pipeline") {
       nextQuery.tab = "pipeline";
       nextQuery.view = pipelineDisplay;
@@ -420,10 +428,12 @@ function OrgRoleCreationDetails({
         </div>
         <div
           hidden={chatActive && !companyInfoOpen}
-          className={`min-h-0 flex-1 overflow-y-auto overscroll-contain pt-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 md:pt-6 ${
+          className={`min-h-0 flex-1 ${!companyInfoOpen && activeTab === "inbox" ? "overflow-hidden" : "overflow-y-auto"} overscroll-contain pt-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 md:pt-6 ${
             !companyInfoOpen && activeTab === "pipeline"
               ? "bg-neutral-50 px-0 pb-0"
-              : `bg-bg-default px-4 md:px-5 ${mobile ? "pb-16" : "pb-48"}`
+              : !companyInfoOpen && activeTab === "inbox"
+                ? "bg-bg-default px-4 md:px-5 pb-4"
+                : `bg-bg-default px-4 md:px-5 ${mobile ? "pb-16" : "pb-48"}`
           }`}
         >
           {companyInfoOpen ? (
@@ -436,6 +446,7 @@ function OrgRoleCreationDetails({
           <div
             aria-label={c("인박스 탭 내용", "Inbox tab content")}
             aria-labelledby="role-creation-inbox-tab"
+            className={activeTab === "inbox" ? "h-full min-h-0" : undefined}
             hidden={companyInfoOpen || activeTab !== "inbox"}
             id="role-creation-inbox-panel"
             role="tabpanel"

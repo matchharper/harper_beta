@@ -1,3 +1,4 @@
+import { OrgSavedCandidates } from "./OrgSavedCandidates";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import styles from "./OrgRoleTalentBoard.module.css";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
@@ -696,7 +697,7 @@ export function OrgRoleTalentBoard({
   const items = useMemo(
     () =>
       (board?.items ?? [])
-        .filter((item) => item.stage === selectedStageId)
+        .filter((item) => item.stage === selectedStageId && !item.savedAt)
         .sort((left, right) => compareOrgCandidates(left, right, sort)),
     [board?.items, selectedStageId, sort]
   );
@@ -852,6 +853,7 @@ export function OrgRoleTalentBoard({
         ) : null}
       </div>
 
+      {section === "pipeline" && <OrgSavedCandidates column={false} />}
       {recommendationStatus ? (
         <div className="mt-2">{recommendationStatus}</div>
       ) : null}

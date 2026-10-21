@@ -17,7 +17,7 @@ function getQueryText(value: string | string[] | undefined) {
 export function useOrgJobsRoute({
   page = "jobs",
 }: {
-  page?: Extract<OrgWorkspacePageId, "inbox" | "jobs" | "role">;
+  page?: Extract<OrgWorkspacePageId, "home" | "inbox" | "jobs" | "role">;
 } = {}) {
   const router = useRouter();
   const { roles, workspace } = useOrgWorkspace();
@@ -36,10 +36,6 @@ export function useOrgJobsRoute({
   }, [router.events]);
   const urlRoleId = router.isReady ? getQueryText(router.query.roleId) : "";
   const urlView = router.isReady ? getQueryText(router.query.view) : "";
-  const roleTab =
-    router.isReady && getQueryText(router.query.tab) === "inbox"
-      ? "inbox"
-      : "pipeline";
   const detailTalentId = router.isReady
     ? getQueryText(router.query.talentId)
     : "";
@@ -65,7 +61,7 @@ export function useOrgJobsRoute({
     page === "jobs" && urlView === "pipeline" ? "pipeline" : "role";
 
   useEffect(() => {
-    if (!router.isReady || page === "role") return;
+    if (!router.isReady || page !== "jobs") return;
     const orgId = getQueryText(router.query.orgId);
     const roleIsCanonical =
       urlRoleId === activeRoleId || (!urlRoleId && activeRoleId === "all");
@@ -145,67 +141,42 @@ export function useOrgJobsRoute({
       setImmediateSelection(item);
       setTalentNavigationItems([...navigationItems]);
       setTalentNavigationLabel(navigationLabel);
-      void router.push(
-        buildOrgHref({
-          detail: {
-            recommendationId: item.recommendationId,
-            roleId: item.roleId,
+      void router[detailTalentId ? "replace" : "push"](
+        {
+          pathname: router.pathname,
+          query: {
+            ...router.query,
+            orgId: baseWorkspaceId,
             talentId: item.talentId,
-            workspaceId: item.workspaceId ?? baseWorkspaceId,
+            recommendationId: item.recommendationId,
+            detailRoleId: item.roleId,
+            detailWorkspaceId: item.workspaceId ?? baseWorkspaceId,
           },
-          orgId: baseWorkspaceId,
-          page,
-          inboxStage: getQueryText(router.query.inboxStage),
-          roleId: page === "jobs" || page === "role" ? activeRoleId : null,
-          tab: page === "role" ? roleTab : undefined,
-          view:
-            page === "jobs"
-              ? activeView
-              : page === "role"
-                ? urlView === "board"
-                  ? "board"
-                  : "pipeline"
-                : null,
-        }),
+        },
         undefined,
         { shallow: true, scroll: false }
       );
     },
-    [activeRoleId, activeView, baseWorkspaceId, page, roleTab, router, urlView]
+    [baseWorkspaceId, detailTalentId, router]
   );
 
   const closeTalentDetail = useCallback(() => {
     setImmediateSelection(null);
     setTalentNavigationItems([]);
     setTalentNavigationLabel("");
-    void router.replace(
-      buildOrgHref({
-        orgId: baseWorkspaceId,
-        page,
-        inboxStage: getQueryText(router.query.inboxStage),
-        roleId: page === "jobs" || page === "role" ? activeRoleId : null,
-        tab: page === "role" ? roleTab : undefined,
-        view:
-          page === "jobs"
-            ? activeView
-            : page === "role"
-              ? urlView === "board"
-                ? "board"
-                : "pipeline"
-              : null,
-      }),
-      undefined,
-      { shallow: true }
-    );
-  }, [
-    activeRoleId,
-    activeView,
-    baseWorkspaceId,
-    page,
-    roleTab,
-    router,
-    urlView,
-  ]);
+    const query = { ...router.query };
+    for (const key of [
+      "talentId",
+      "recommendationId",
+      "detailRoleId",
+      "detailWorkspaceId",
+    ])
+      delete query[key];
+    void router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+      scroll: false,
+    });
+  }, [router]);
 
   return {
     activeRoleId,
@@ -213,12 +184,18 @@ export function useOrgJobsRoute({
     changeRole,
     changeView,
     closeTalentDetail,
-    detailRecommendationId: immediateSelection === undefined
-      ? detailRecommendationId : immediateSelection?.recommendationId ?? "",
-    detailRoleId: immediateSelection === undefined
-      ? detailRoleId : immediateSelection?.roleId ?? "",
-    detailTalentId: immediateSelection === undefined
-      ? detailTalentId : immediateSelection?.talentId ?? "",
+    detailRecommendationId:
+      immediateSelection === undefined
+        ? detailRecommendationId
+        : (immediateSelection?.recommendationId ?? ""),
+    detailRoleId:
+      immediateSelection === undefined
+        ? detailRoleId
+        : (immediateSelection?.roleId ?? ""),
+    detailTalentId:
+      immediateSelection === undefined
+        ? detailTalentId
+        : (immediateSelection?.talentId ?? ""),
     selectTalent,
     selectedRoleId,
     talentNavigationItems,

@@ -1,4 +1,5 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
+import { OrgSavedCandidates } from "./OrgSavedCandidates";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
 import {
@@ -144,6 +145,7 @@ export function OrgPipeline({
     const map = new Map<OrgStageId, OrgBoardItem[]>();
     for (const stage of board?.stages ?? []) map.set(stage.id, []);
     for (const item of board?.items ?? []) {
+      if (item.savedAt) continue;
       const itemStage = getPendingStage(item) ?? item.stage;
       const rows = map.get(itemStage) ?? [];
       rows.push(item);
@@ -500,6 +502,7 @@ export function OrgPipeline({
           className="min-h-0 flex-1 px-6 overflow-auto overscroll-contain pb-0"
         >
           <div className="flex h-full min-h-[560px] min-w-max items-stretch gap-0">
+            <OrgSavedCandidates />
             {acceptedStages.map((stage) => renderStageColumn(stage, false))}
             {preOfferStages.map((stage) => renderStageColumn(stage, false))}
             {postOfferStages.map((stage, index) =>

@@ -9,7 +9,6 @@ import {
   ChevronDown,
   CircleHelp,
   Home,
-  Inbox,
   Landmark,
   Layers3,
   Menu,
@@ -86,7 +85,6 @@ type OrgNavItem = {
 
 const PRIMARY_NAV: OrgNavItem[] = [
   { icon: Home, id: "home", label: ORG_PRODUCT_LABELS.home },
-  { icon: Inbox, id: "inbox", label: ORG_PRODUCT_LABELS.inbox },
   { icon: BriefcaseBusiness, id: "jobs", label: ORG_PRODUCT_LABELS.roles },
   {
     icon: Landmark,
@@ -667,7 +665,8 @@ export function OrgWorkspaceSidebar({
   const pendingConnectionCount = useMemo(
     () =>
       inboxQuery.data?.items.reduce(
-        (count, item) => count + (item.stage === "pending_connection" ? 1 : 0),
+        (count, item) =>
+          count + (item.stage === "pending_connection" && !item.savedAt ? 1 : 0),
         0
       ),
     [inboxQuery.data?.items]
@@ -959,7 +958,7 @@ export function OrgWorkspaceSidebar({
                       iconBackground={item.id === "new-role"}
                       label={item.label}
                       pendingConnectionCount={
-                        item.id === "inbox" ? pendingConnectionCount : undefined
+                        item.id === "home" ? pendingConnectionCount : undefined
                       }
                     />
                   ))}
@@ -995,7 +994,7 @@ export function OrgWorkspaceSidebar({
                       icon={item.icon}
                       label={item.label}
                       pendingConnectionCount={
-                        item.id === "inbox" ? pendingConnectionCount : undefined
+                        item.id === "home" ? pendingConnectionCount : undefined
                       }
                     />
                   </div>
@@ -1296,7 +1295,7 @@ export function OrgWorkspaceSidebar({
                           <Icon className="size-4" strokeWidth={1.55} />
                         )}
                         <span>{item.label}</span>
-                        {item.id === "inbox" &&
+                        {item.id === "home" &&
                         pendingConnectionCount !== undefined ? (
                           <Badge
                             aria-label={c(

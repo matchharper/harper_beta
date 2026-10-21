@@ -588,7 +588,7 @@ export function useRequestOrgCompanyIntro() {
 export function usePassOrgCompanyIntro() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: { introCandidateId: string; workspaceId: string }) =>
+    mutationFn: (args: { introCandidateId: string; workspaceId: string; reason?: string }) =>
       fetchWithInternalAuth<OrgCompanyIntroMutationResponse>(
         "/api/org/company-intro",
         {

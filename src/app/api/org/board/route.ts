@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
+import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { fetchOrgBoard, OrgHttpError } from "@/lib/org/server";
+import { readOrgCandidateSaves } from "@/lib/org/candidateSaved.server";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
@@ -32,7 +33,10 @@ export async function GET(req: NextRequest) {
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
     });
-    return NextResponse.json(payload);
+    return NextResponse.json({
+      ...payload,
+      items: await readOrgCandidateSaves(getSupabaseAdmin(), payload.workspaceId, payload.items),
+    });
   } catch (error) {
     return toErrorResponse(error);
   }

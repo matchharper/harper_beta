@@ -443,6 +443,7 @@ export type OrgBoardTalent = {
 };
 
 export type OrgBoardItem = {
+  savedAt?: string | null;
   capabilities: {
     contactCandidate: boolean;
     moveStage: boolean;
@@ -3874,6 +3875,7 @@ export async function requestOrgCompanyIntro(args: {
 }
 
 export async function passOrgCompanyIntro(args: {
+  reason?: string;
   introCandidateId: string;
   user: User;
   workspaceId: string;
@@ -3899,7 +3901,9 @@ export async function passOrgCompanyIntro(args: {
   });
   if (error) throw error;
   const result = normalizeCompanyIntroRpcResult(data);
-  await recordOrgIntroDecision({ admin, workspaceId, introCandidateId, decision: "pass" });
+  await recordOrgIntroDecision({
+    admin, workspaceId, introCandidateId, decision: "pass", reason: args.reason,
+  });
   return {
     introCandidateId: result.introCandidateId || introCandidateId,
     ok: true,
@@ -5666,30 +5670,14 @@ export async function createOrgTalentFeedItem(args: {
 
   await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId });
   await upsertOrgCompanyUser(admin, args.user);
-  await assertNoPendingCompanyIntroCompanyAction({
-    admin,
-    talentId,
-    workspaceId,
+  const board = await fetchOrgBoard({
+    user: args.user, workspaceId, roleId, includeProfileLabels: false,
   });
-  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId, args.user);
-  if (!roleRows.some((row) => row.role_id === roleId)) {
-    throw new OrgHttpError(404, "Role not found");
-  }
-
-  const recommendation = await fetchRecommendationForDetail({
-    admin,
-    recommendationId: normalizeNullableText(args.recommendationId),
-    roleId,
-    talentId,
-  });
-  await assertOrgTalentVisibleInWorkspace({
-    admin,
-    recommendationId: recommendation.id,
-    roleRows,
-    talentId,
-    user: args.user,
-    workspaceId,
-  });
+  const candidate = board.items.find(
+    (item) => item.talentId === talentId &&
+      (!args.recommendationId || item.recommendationId === args.recommendationId)
+  );
+  if (!candidate) throw new OrgHttpError(404, "Candidate not found");
 
   const { error } = await (admin.from("talent_progress" as any) as any).insert({
     company_user_id: args.user.id,
@@ -5698,7 +5686,7 @@ export async function createOrgTalentFeedItem(args: {
       org: true,
       workspaceId,
     } as Json,
-    recommendation_id: recommendation.id,
+    recommendation_id: candidate.source === "recommendation" ? candidate.recommendationId : null,
     role_id: roleId,
     talent_id: talentId,
     text,

@@ -59,7 +59,10 @@ export async function POST(req: NextRequest) {
       workspaceId: String(body.workspaceId ?? "").trim(),
     };
     if (action === "pass") {
-      const payload = await passOrgCompanyIntro(common);
+      const payload = await passOrgCompanyIntro({
+        ...common,
+        reason: typeof body.reason === "string" ? body.reason.trim().slice(0, 2000) : undefined,
+      });
       let agentJobId: string | null = null;
       try {
         const queued = await enqueueOrgAgentWebActionTurn({

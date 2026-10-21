@@ -71,6 +71,7 @@ export async function recordOrgIntroDecision(args: {
   workspaceId: string;
   introCandidateId: string;
   decision: "request" | "pass";
+  reason?: string;
 }) {
   try {
     const { data: intro, error } = await (
@@ -109,14 +110,43 @@ export async function recordOrgIntroDecision(args: {
           args.decision === "request"
             ? "회사가 Intro를 요청했습니다."
             : "회사가 후보자 제안을 패스했습니다.",
-        metadata: { workspaceId: args.workspaceId, introCandidateId: intro.id },
+        metadata: {
+          workspaceId: args.workspaceId,
+          introCandidateId: intro.id,
+          ...(args.reason ? { reason: args.reason } : {}),
+        },
         open_to_talent: false,
         open_to_company: false,
       },
       { onConflict: "id", ignoreDuplicates: true }
     );
     if (insertError) throw insertError;
+    if (args.decision === "pass" && args.reason?.trim()) {
+      const { error: noteError } = await args.admin
+        .from("talent_progress")
+        .upsert(
+          {
+            id: uuidv5(`org-company-intro-pass-reason:${intro.id}`, uuidv5.URL),
+            kind: "org_note",
+            role_id: intro.role_id,
+            talent_id: intro.talent_id,
+            company_user_id: intro.requested_by_company_user_id,
+            text: args.reason.trim(),
+            metadata: {
+              org: true,
+              workspaceId: args.workspaceId,
+              introCandidateId: intro.id,
+              decision: "pass",
+            },
+            open_to_talent: false,
+            open_to_company: true,
+          },
+          { onConflict: "id", ignoreDuplicates: true }
+        );
+      if (noteError) throw noteError;
+    }
   } catch (error) {
+    if (args.reason?.trim()) throw error;
     console.error("[org/intro-decision-log]", {
       introCandidateId: args.introCandidateId,
       error,
