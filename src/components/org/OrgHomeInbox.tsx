@@ -2,15 +2,8 @@ import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import { useIsMutating, useQuery } from "@tanstack/react-query";
-import {
-  ChevronRight,
-  Inbox,
-  Mail,
-  MessageSquare,
-  CalendarDays,
-  Check,
-} from "lucide-react";
+import { useIsMutating } from "@tanstack/react-query";
+import { ChevronRight, Inbox } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,13 +13,9 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { compareOrgCandidates } from "@/lib/org/candidateBoardSort";
-import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { buildOrgHref } from "@/lib/org/routes";
-import type {
-  OrgHomeActivity,
-  OrgHomeActivityKind,
-} from "@/lib/org/homeActivity";
-import { cn, formatRelativeTime } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { OrgHomeFeed } from "./OrgHomeFeed";
 
 export function ReviewEmptyState({ loading = false }: { loading?: boolean }) {
   const { c } = useOrgLocale();
@@ -97,98 +86,6 @@ export function OrgInboxRemaining({
   );
 }
 
-function RoleActivity({
-  workspaceId,
-  roleId,
-}: {
-  workspaceId: string;
-  roleId: string;
-}) {
-  const { c, locale } = useOrgLocale();
-  const query = useQuery({
-    queryKey: ["org", "home-activity", workspaceId, roleId],
-    enabled: Boolean(roleId),
-    staleTime: 0,
-    refetchOnMount: "always",
-    queryFn: () =>
-      fetchWithInternalAuth<{ items: OrgHomeActivity[] }>(
-        `/api/org/activity?${new URLSearchParams({ workspaceId, roleId })}`
-      ),
-  });
-  const labels: Record<OrgHomeActivityKind, string> = {
-    intro_sent: c("Intro 발송", "Intro sent"),
-    pending_connection: c("새로운 연결 대기", "Ready to connect"),
-    intro_accepted: c("Intro 수락", "Intro accepted"),
-    candidate_message: c("후보자 메시지", "New candidate message"),
-    candidate_response: c("후보자 답변", "Candidate replied"),
-    company_question: c("후보자에게 연락 발송", "Message sent to candidate"),
-    meeting_requested: c("인터뷰 요청", "Interview requested"),
-    meeting_confirmed: c("인터뷰 일정 확정", "Interview scheduled"),
-  };
-  if (query.isError)
-    return (
-      <OrgErrorState
-        message={query.error.message}
-        onRetry={() => void query.refetch()}
-      />
-    );
-  if (!roleId || query.isLoading)
-    return <ReviewEmptyState loading={query.isLoading} />;
-  return (
-    <section
-      aria-label={c("역할 피드", "Role feed")}
-      className="min-h-0 flex-1 overflow-y-auto px-5 py-2 lg:px-10"
-    >
-      {query.data?.items.length ? (
-        query.data.items.map((item) => {
-          const Icon = item.kind.startsWith("meeting")
-            ? CalendarDays
-            : item.kind === "intro_accepted"
-              ? Check
-              : item.kind === "intro_sent"
-                ? Mail
-                : MessageSquare;
-          return (
-            <article
-              key={item.id}
-              className="flex gap-4 border-b border-neutral-1000-a05 py-6"
-            >
-              <Icon
-                aria-hidden
-                className="mt-1 size-4 shrink-0 text-neutral-muted"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex justify-between gap-4">
-                  <h3 className="text-sm font-medium">
-                    {item.talentName || c("후보자", "Candidate")}
-                  </h3>
-                  <time
-                    dateTime={item.createdAt}
-                    title={new Date(item.createdAt).toLocaleString(locale)}
-                    className="shrink-0 text-xs text-neutral-soft"
-                  >
-                    {formatRelativeTime(item.createdAt, locale)}
-                  </time>
-                </div>
-                <p className="mt-1 text-sm">{labels[item.kind]}</p>
-                {item.text && (
-                  <p className="mt-3 whitespace-pre-wrap text-[13px] leading-6 text-neutral-muted">
-                    {item.text}
-                  </p>
-                )}
-              </div>
-            </article>
-          );
-        })
-      ) : (
-        <p className="py-16 text-center text-sm text-neutral-muted">
-          {c("아직 새로운 소식이 없습니다.", "No updates yet.")}
-        </p>
-      )}
-    </section>
-  );
-}
-
 export function OrgHomeInbox() {
   const router = useRouter();
   const { c } = useOrgLocale();
@@ -248,9 +145,7 @@ export function OrgHomeInbox() {
     ) ??
     groups[0];
   const selectedFeedRole =
-    roles.find((role) => role.roleId === router.query.feedRole)?.roleId ??
-    roles[0]?.roleId ??
-    "";
+    roles.find((role) => role.roleId === router.query.feedRole)?.roleId ?? null;
   const routeTo = (
     patch: Record<string, string | undefined>,
     replace = false
@@ -322,7 +217,7 @@ export function OrgHomeInbox() {
         variant="pills"
         size="small"
       />
-      {boardQuery.isError || entitlements.isError ? (
+      {!feed && (boardQuery.isError || entitlements.isError) ? (
         <OrgErrorState
           message={(boardQuery.error ?? entitlements.error)!.message}
           onRetry={() => {
@@ -333,92 +228,115 @@ export function OrgHomeInbox() {
       ) : (
         <div className="contents">
           <aside
-            className="mb-5 max-h-44 overflow-y-auto lg:col-start-1 lg:row-start-3 lg:mb-0 lg:max-h-none lg:pr-3"
+            className={cn(
+              "mb-5 max-h-44 lg:col-start-1 lg:row-start-3 lg:mb-0 lg:max-h-none lg:pr-3",
+              feed
+                ? "min-w-0 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-0"
+                : "overflow-y-auto"
+            )}
             aria-label={c("역할별 작업", "Tasks by role")}
           >
-            {feed
-              ? roles.map((role) => (
+            {feed ? (
+              <nav
+                aria-label={c("피드 Role 필터", "Feed role filter")}
+                className="flex gap-1 lg:block lg:space-y-1"
+              >
+                <MuteButton
+                  onClick={() => routeTo({ feedRole: undefined })}
+                  aria-current={!selectedFeedRole ? "true" : undefined}
+                  variant={!selectedFeedRole ? "neutral" : "transparent"}
+                  className="shrink-0 justify-start px-3 py-3 lg:w-full"
+                >
+                  All
+                </MuteButton>
+                {roles.map((role) => (
                   <MuteButton
                     key={role.roleId}
                     onClick={() => routeTo({ feedRole: role.roleId })}
+                    aria-current={
+                      role.roleId === selectedFeedRole ? "true" : undefined
+                    }
                     variant={
                       role.roleId === selectedFeedRole
                         ? "neutral"
                         : "transparent"
                     }
-                    className="mb-1 w-full justify-start"
+                    className="max-w-60 shrink-0 justify-start px-3 py-3 lg:w-full lg:max-w-none"
                   >
-                    {role.name}
+                    <span className="truncate">{role.name}</span>
                   </MuteButton>
-                ))
-              : roles.map((role) => {
-                  const roleGroups = groups.filter(
-                    (group) => group.role.roleId === role.roleId
-                  );
-                  if (!roleGroups.length) return null;
-                  return (
-                    <section key={role.roleId} className="mb-8">
-                      <MuteButton
-                        variant="transparent"
-                        className="mb-2 max-w-full justify-start text-[15px] font-medium text-neutral-primary"
-                        onClick={() =>
-                          void router.push(
-                            buildOrgHref({
-                              page: "role",
-                              roleId: role.roleId,
-                              orgId: workspaceId,
-                              tab: "inbox",
-                            })
-                          )
+                ))}
+              </nav>
+            ) : (
+              roles.map((role) => {
+                const roleGroups = groups.filter(
+                  (group) => group.role.roleId === role.roleId
+                );
+                if (!roleGroups.length) return null;
+                return (
+                  <section key={role.roleId} className="mb-8">
+                    <MuteButton
+                      variant="transparent"
+                      className="mb-2 max-w-full justify-start text-[15px] font-medium text-neutral-primary"
+                      onClick={() =>
+                        void router.push(
+                          buildOrgHref({
+                            page: "role",
+                            roleId: role.roleId,
+                            orgId: workspaceId,
+                            tab: "inbox",
+                          })
+                        )
+                      }
+                    >
+                      <span className="truncate">{role.name}</span>
+                      <ChevronRight className="ml-2 size-4 text-neutral-soft" />
+                    </MuteButton>
+                    {roleGroups.map((group) => (
+                      <CardButton
+                        key={group.id}
+                        onClick={() => selectGroup(group)}
+                        aria-current={
+                          selectedGroup?.id === group.id ? "true" : undefined
                         }
+                        className={cn(
+                          "mb-1 flex w-full items-center justify-between gap-3 border-0 px-3 py-4 text-left text-sm font-normal shadow-none transition hover:bg-bg-weak",
+                          selectedGroup?.id === group.id && "bg-bg-weak"
+                        )}
                       >
-                        <span className="truncate">{role.name}</span>
-                        <ChevronRight className="ml-2 size-4 text-neutral-soft" />
-                      </MuteButton>
-                      {roleGroups.map((group) => (
-                        <CardButton
-                          key={group.id}
-                          onClick={() => selectGroup(group)}
-                          aria-current={
-                            selectedGroup?.id === group.id ? "true" : undefined
-                          }
-                          className={cn(
-                            "mb-1 flex w-full items-center justify-between gap-3 border-0 px-3 py-4 text-left text-sm font-normal shadow-none transition hover:bg-bg-weak",
-                            selectedGroup?.id === group.id && "bg-bg-weak"
-                          )}
-                        >
-                          <span>
-                            {group.stage === "pending_connection"
+                        <span>
+                          {group.stage === "pending_connection"
+                            ? c(
+                                "Intro 수락 또는 거절",
+                                group.remaining === 1
+                                  ? "Accept or reject an intro"
+                                  : "Accept or reject intros"
+                              )
+                            : group.remaining >= 10
                               ? c(
-                                  "Intro 수락 또는 거절",
-                                  group.remaining === 1
-                                    ? "Accept or reject an intro"
-                                    : "Accept or reject intros"
+                                  "Top 10 후보 검토",
+                                  "Review your top 10 candidates"
                                 )
-                              : group.remaining >= 10
-                                ? c(
-                                    "Top 10 후보 검토",
-                                    "Review your top 10 candidates"
-                                  )
-                                : c(
-                                    "후보 {n}명 검토",
-                                    group.remaining === 1
-                                      ? "Review 1 candidate"
-                                      : "Review {n} candidates",
-                                    { n: group.remaining }
-                                  )}
-                          </span>
-                          {group.stage === "pending_connection" && (
-                            <OrgInboxRemaining
-                              remaining={group.remaining}
-                              total={group.total}
-                            />
-                          )}
-                        </CardButton>
-                      ))}
-                    </section>
-                  );
-                })}
+                              : c(
+                                  "후보 {n}명 검토",
+                                  group.remaining === 1
+                                    ? "Review 1 candidate"
+                                    : "Review {n} candidates",
+                                  { n: group.remaining }
+                                )}
+                        </span>
+                        {group.stage === "pending_connection" && (
+                          <OrgInboxRemaining
+                            remaining={group.remaining}
+                            total={group.total}
+                          />
+                        )}
+                      </CardButton>
+                    ))}
+                  </section>
+                );
+              })
+            )}
             {!feed && !groups.length && (
               <ReviewEmptyState
                 loading={boardQuery.isLoading || entitlements.isLoading}
@@ -430,14 +348,17 @@ export function OrgHomeInbox() {
             className={cn(
               "min-h-0 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-3",
               feed
-                ? "flex flex-col overflow-hidden rounded-xl border border-neutral-1000-a10"
+                ? "flex flex-col overflow-hidden"
                 : "overflow-y-auto overscroll-contain"
             )}
           >
             {feed ? (
-              <RoleActivity
+              <OrgHomeFeed
                 workspaceId={workspaceId}
                 roleId={selectedFeedRole}
+                roleName={
+                  roles.find((role) => role.roleId === selectedFeedRole)?.name
+                }
               />
             ) : selectedGroup ? (
               <TalentDetailSimpleView

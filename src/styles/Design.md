@@ -521,6 +521,14 @@ Shared `Checkbox` sizes are 16/20/24px (small/medium/large), with `rounded-xs` a
 
 Org candidate progress uses `ProgressFeed` with `icon="harper"` for Harper-authored introduction and follow-up events. It renders the decorative `/svgs/face.svg`; localized event copy is selected by `kind` in `harperProgressPresentation.ts`, including other-role history.
 
+Home의 `OrgHomeFeed`는 후보자와의 진행에서 달라진 일을 날짜별 행으로 보여준다.
+Role 필터는 항상 `All`로 시작하고 최초 선택도 `All`이다. 모바일에서는 가로로 선택한다.
+제목에는 후보자와 발생한 일,
+본문에는 실제 전달된 메시지 미리보기 또는 확정된 인터뷰 일정, 메타데이터에는 Role과 시각을 둔다.
+얇은 구분선과 hover를 사용하고 전체 목록을 별도 카드로 감싸지 않는다. 검색은 후보자·Role·내용,
+유형 필터는 Intro·메시지·인터뷰를 대상으로 한다. 행을 누르면 기존 후보자 상세와 피드를 열고,
+닫으면 Role·검색·유형 선택을 유지한다. 읽음 상태나 필요한 액션을 기록 없이 추정하지 않는다.
+
 Org Intro follow-up guidance is derived once per Intro request from `company_talent_followups` through `automaticFollowupFeed.ts`. Automatic initial schedule/date-anchor progress is omitted from the user feed; explicit scheduling changes and delivery receipts remain separate events.
 
 Ops 회사 화면은 `CompanyAnalytics`를 전체·회사별 통계에 재사용한다. 회사 목록은

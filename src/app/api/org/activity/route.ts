@@ -16,7 +16,7 @@ import type {
 
 const scope = z.object({
   workspaceId: z.string().uuid(),
-  roleId: z.string().uuid(),
+  roleId: z.string().uuid().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -28,46 +28,52 @@ export async function GET(req: NextRequest) {
     if (!parsed.success) throw new OrgHttpError(400, "Invalid role");
     const { workspaceId, roleId } = parsed.data;
     const admin = getSupabaseAdmin();
-    await assertOrgRoleAccess({
-      admin,
-      user,
-      workspaceId,
-      roleId,
-      permission: "view",
-    });
+    if (roleId)
+      await assertOrgRoleAccess({
+        admin,
+        user,
+        workspaceId,
+        roleId,
+        permission: "view",
+      });
     const board = await fetchOrgBoard({
       user,
       workspaceId,
       roleId,
       includeProfileLabels: false,
+      includeInternalStages: false,
     });
     const candidates = new Map(
-      board.items.map((item) => [item.talentId, item])
+      board.items.map((item) => [`${item.roleId}:${item.talentId}`, item])
     );
     if (!candidates.size) return NextResponse.json({ items: [] });
+    // fetchOrgBoard limits this set to roles and candidates visible to this user.
+    const roleIds = [...new Set(board.items.map((item) => item.roleId))];
     const [progress, intros, meetings] = await Promise.all([
       admin
         .from("talent_progress")
-        .select("id,talent_id,kind,metadata,text,created_at")
-        .eq("role_id", roleId)
+        .select("id,role_id,talent_id,kind,metadata,text,created_at")
+        .in("role_id", roleIds)
         .eq("open_to_company", true)
         .in("kind", ["intro_to_company", "org_candidate_activity"])
         .order("created_at", { ascending: false })
         .limit(100),
       admin
         .from("company_intro_candidates")
-        .select("id,talent_id,candidate_sent_at,talent_decision_at,status")
+        .select(
+          "id,role_id,talent_id,candidate_sent_at,talent_decision_at,status"
+        )
         .eq("company_workspace_id", workspaceId)
-        .eq("role_id", roleId)
+        .in("role_id", roleIds)
         .order("updated_at", { ascending: false })
         .limit(100),
       admin
         .from("meeting_schedules")
         .select(
-          "id,talent_id,title,status,confirmed_start_at,updated_at,active_round_id"
+          "id,role_id,talent_id,title,status,confirmed_start_at,updated_at,active_round_id"
         )
         .eq("company_workspace_id", workspaceId)
-        .eq("role_id", roleId)
+        .in("role_id", roleIds)
         .order("updated_at", { ascending: false })
         .limit(100),
     ]);
@@ -76,19 +82,23 @@ export async function GET(req: NextRequest) {
     const items: OrgHomeActivity[] = [];
     const add = (
       id: string,
+      eventRoleId: string,
       talentId: string,
       kind: OrgHomeActivityKind,
       createdAt: string | null,
-      text = ""
+      text = "",
+      meetingStartsAt: string | null = null
     ) => {
-      const candidate = candidates.get(talentId);
+      const candidate = candidates.get(`${eventRoleId}:${talentId}`);
       if (!candidate || !createdAt) return;
       items.push({
         id,
         kind,
         createdAt,
         text,
-        roleId,
+        roleId: eventRoleId,
+        roleName: candidate.roleName ?? "",
+        meetingStartsAt,
         talentId,
         talentName: candidate.talent.name ?? "",
         recommendationId: candidate.recommendationId,
@@ -103,15 +113,30 @@ export async function GET(req: NextRequest) {
           candidate_contact_sent: "company_question",
         };
         const kind = kinds[String(metadata.eventType)];
-        if (kind) add(row.id, row.talent_id, kind, row.created_at, row.text);
+        if (kind)
+          add(
+            row.id,
+            row.role_id,
+            row.talent_id,
+            kind,
+            row.created_at,
+            row.text
+          );
       } else {
         // A company-visible presentation is delivery evidence, not a private acceptance event.
-        add(row.id, row.talent_id, "pending_connection", row.created_at);
+        add(
+          row.id,
+          row.role_id,
+          row.talent_id,
+          "pending_connection",
+          row.created_at
+        );
       }
     }
     for (const row of intros.data ?? []) {
       add(
         `intro-sent:${row.id}`,
+        row.role_id,
         row.talent_id,
         "intro_sent",
         row.candidate_sent_at
@@ -119,6 +144,7 @@ export async function GET(req: NextRequest) {
       if (["connecting", "connected"].includes(row.status))
         add(
           `intro-accepted:${row.id}`,
+          row.role_id,
           row.talent_id,
           "intro_accepted",
           row.talent_decision_at
@@ -142,14 +168,17 @@ export async function GET(req: NextRequest) {
       if (row.status === "confirmed" && row.confirmed_start_at)
         add(
           `meeting-confirmed:${row.id}`,
+          row.role_id,
           row.talent_id,
           "meeting_confirmed",
           row.updated_at,
-          row.title ?? ""
+          row.title ?? "",
+          row.confirmed_start_at
         );
       else if (round && ["queued", "sent", "confirmed"].includes(round.status))
         add(
           `meeting-requested:${round.id}`,
+          row.role_id,
           row.talent_id,
           "meeting_requested",
           round.updated_at,

@@ -16,4 +16,6 @@ export type OrgHomeActivity = {
   talentName: string;
   recommendationId: string;
   roleId: string;
+  roleName: string;
+  meetingStartsAt?: string | null;
 };
