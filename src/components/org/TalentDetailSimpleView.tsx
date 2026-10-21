@@ -1342,6 +1342,7 @@ export function TalentDetailSimpleView({
           onNavigate={navigateToTalent}
           onBack={showBack ? (onReviewClose ?? handleClose) : undefined}
           backLabel={backLabel}
+          roleMoveButton={roleMoveButton}
           canManage={canManageCandidates}
           pending={
             decisionPending ||

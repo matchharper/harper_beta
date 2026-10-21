@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { TalentDetailPager } from "./TalentDetailPager";
 import { MuteButton } from "@/components/ui/button";
@@ -22,6 +22,7 @@ type Props = {
   onNavigate: (target: OrgTalentDetailNavigationTarget | null) => void;
   onBack?: () => void;
   backLabel?: string;
+  roleMoveButton: ReactNode;
   onAccept: () => void;
   onPass: (reason: string) => Promise<void>;
   onSave: () => Promise<void>;
@@ -149,6 +150,7 @@ export function OrgCandidateReview(props: Props) {
               disabled={pending}
             />
           )}
+          {props.roleMoveButton}
         </div>
         {actionable && canManage && (
           <div className="ml-auto flex items-center gap-2">
