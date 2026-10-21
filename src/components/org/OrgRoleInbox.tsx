@@ -17,7 +17,8 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
+import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
@@ -40,6 +41,7 @@ import { getOrgCandidateCardDate } from "@/lib/org/candidateCardDate";
 export function OrgRoleInbox() {
   const router = useRouter();
   const { c, locale } = useOrgLocale();
+  const sourceT = useOrgSourceT();
   const { board, boardQuery } = useOrgJobsBoard();
   const {
     activeRole,
@@ -159,10 +161,12 @@ export function OrgRoleInbox() {
                 {
                   value: "pending_connection",
                   label: c("연결 대기", "Inbound"),
+                  tooltip: sourceT(ORG_STAGE_DESCRIPTIONS.pending_connection),
                 },
                 {
                   value: "company_intro",
                   label: c("먼저 제안 가능한 후보", "Suggested"),
+                  tooltip: sourceT(ORG_STAGE_DESCRIPTIONS.company_intro),
                 },
               ]}
               onValueChange={(inboxStage) => change({ inboxStage })}
