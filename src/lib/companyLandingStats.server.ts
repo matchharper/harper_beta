@@ -62,12 +62,7 @@ export async function readCompanyLandingStats(
   const [row] = await db.begin("read only", async (tx) => {
     await tx`set local statement_timeout = '30000ms'`;
     return tx<CompanyLandingSnapshot[]>`
-      with test_roles as materialized (
-        select role_id from public.company_roles
-        -- Fixture isolation applies to internal QA/demo roles. Narrow through
-        -- the existing source_type index before reading their JSON metadata.
-        where source_type = 'internal' and information->>'testOnly' = 'true'
-      ), conversations as (
+      with conversations as (
         select user_id, count(*) as message_count
         from public.talent_messages m
         where exists (
@@ -94,20 +89,15 @@ export async function readCompanyLandingStats(
         (select count(*)::integer from public.talent_users) as "talentCount",
         (select round(avg(message_count))::integer from conversations)
           as "averageConversationMessages",
-        (
-          (select count(*) from public.talent_external_fit e
-           where not exists (
-             select 1 from test_roles t where t.role_id = e.role_id
-           ))
-          +
-          (select count(*) from public.talent_opportunity_fit f
-           where not exists (
-             select 1 from test_roles t where t.role_id = f.opportunity_id
-           ) and not exists (
-             select 1 from public.talent_external_fit e
-             where e.talent_id = f.talent_id and e.role_id = f.opportunity_id
-           ))
-        )::double precision as "assessedPairCount",
+        (select count(*) from public.talent_external_fit e
+         full join public.talent_opportunity_fit f
+           on e.talent_id = f.talent_id and e.role_id = f.opportunity_id
+         where not exists (
+           select 1 from public.company_roles r
+           where r.source_type = 'internal'
+             and r.information->>'testOnly' = 'true'
+             and r.role_id = coalesce(e.role_id, f.opportunity_id)
+         ))::double precision as "assessedPairCount",
         to_char(statement_timestamp() at time zone 'UTC',
           'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "updatedAt"
     `;
@@ -123,37 +113,30 @@ export async function readCompanyLandingPairStats(
   const [row] = await db.begin("read only", async (tx) => {
     await tx`set local statement_timeout = '30000ms'`;
     return tx<CompanyLandingPairSnapshot[]>`
-      with test_roles as materialized (
-        select role_id from public.company_roles
-        where source_type = 'internal' and information->>'testOnly' = 'true'
-      ), external_counts as (
-        select count(*) as total,
-          count(*) filter (where e.created_at >= statement_timestamp()
-            - ${COMPANY_LANDING_ACTIVITY_WINDOW_SECONDS} * interval '1 second'
-            and e.created_at <= statement_timestamp()) as recent
+      with pairs as (
+        -- Both tables have unique talent/role keys. A full join counts a pair
+        -- once and avoids a separate external-index lookup for every internal
+        -- row. Preserve the external timestamp when the pair exists in both.
+        select case when e.talent_id is not null then e.created_at
+          else f.created_at end as created_at
         from public.talent_external_fit e
-         where not exists (
-           select 1 from test_roles t where t.role_id = e.role_id
-         )
-      ), internal_counts as (
-        select count(*) as total,
-          count(*) filter (where f.created_at >= statement_timestamp()
-            - ${COMPANY_LANDING_ACTIVITY_WINDOW_SECONDS} * interval '1 second'
-            and f.created_at <= statement_timestamp()) as recent
-        from public.talent_opportunity_fit f
-         where not exists (
-           select 1 from test_roles t where t.role_id = f.opportunity_id
-         ) and not exists (
-           select 1 from public.talent_external_fit e
-           where e.talent_id = f.talent_id and e.role_id = f.opportunity_id
-         )
+        full join public.talent_opportunity_fit f
+          on e.talent_id = f.talent_id and e.role_id = f.opportunity_id
+        where not exists (
+          select 1 from public.company_roles r
+          where r.source_type = 'internal'
+            and r.information->>'testOnly' = 'true'
+            and r.role_id = coalesce(e.role_id, f.opportunity_id)
+        )
       )
-      select (e.total + f.total)::double precision as "assessedPairCount",
-      (e.recent + f.recent)::double precision
+      select count(*)::double precision as "assessedPairCount",
+      (count(*) filter (where created_at >= statement_timestamp()
+        - ${COMPANY_LANDING_ACTIVITY_WINDOW_SECONDS} * interval '1 second'
+        and created_at <= statement_timestamp()))::double precision
         / ${COMPANY_LANDING_ACTIVITY_WINDOW_SECONDS} as "recentAssessmentsPerSecond",
       to_char(statement_timestamp() at time zone 'UTC',
         'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "updatedAt"
-      from external_counts e cross join internal_counts f
+      from pairs
     `;
   });
   if (!row) throw new Error("Company landing pair statistics returned no result");
