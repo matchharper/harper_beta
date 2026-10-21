@@ -193,14 +193,19 @@ export function OrgHomeInbox() {
       selectGroup(selectedGroup, true);
   });
   return (
-    <div className="grid h-[calc(100dvh-72px)] min-h-0 grid-cols-1 grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-x-5 md:h-[calc(100dvh-24px)] lg:grid-cols-[minmax(240px,28%)_minmax(0,1fr)] lg:grid-rows-[auto_auto_minmax(0,1fr)]">
-      <header className="mb-5 flex items-center justify-between lg:col-start-1 lg:row-start-1 lg:mt-7">
+    <div className="isolate grid h-[calc(100dvh-72px)] min-h-0 grid-cols-1 grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-x-5 md:h-[calc(100dvh-24px)] lg:grid-cols-[minmax(240px,28%)_minmax(0,1fr)] lg:grid-rows-[auto_auto_minmax(0,1fr)]">
+      {/* Extend through PageContainer padding and its centered wide-layout gutter, up to the sidebar. */}
+      <div
+        aria-hidden
+        className="pointer-events-none col-start-1 row-start-1 row-span-3 -z-10 -mx-4 -mt-3 bg-bg-weak md:-ml-9 md:-mr-6 lg:-mb-3 lg:mr-0 lg:ml-[calc(-2.75rem-max(0px,(100vw-106rem)/2))]"
+      />
+      <header className="col-start-1 row-start-1 mb-5 flex items-center justify-between lg:mt-7">
         <h1 className="text-xl font-medium">Home</h1>
       </header>
       <Tabs
         activeValue={feed ? "feed" : "inbox"}
         aria-label={c("Home 보기", "Home view")}
-        className="mb-5 w-fit lg:col-start-1 lg:row-start-2"
+        className="col-start-1 row-start-2 mb-5 w-fit"
         items={[
           { value: "inbox", label: c("인박스", "Inbox") },
           { value: "feed", label: c("피드", "Feed") },
@@ -218,18 +223,20 @@ export function OrgHomeInbox() {
         size="small"
       />
       {!feed && (boardQuery.isError || entitlements.isError) ? (
-        <OrgErrorState
-          message={(boardQuery.error ?? entitlements.error)!.message}
-          onRetry={() => {
-            void boardQuery.refetch();
-            void entitlements.refetch();
-          }}
-        />
+        <div className="col-start-1 row-start-3">
+          <OrgErrorState
+            message={(boardQuery.error ?? entitlements.error)!.message}
+            onRetry={() => {
+              void boardQuery.refetch();
+              void entitlements.refetch();
+            }}
+          />
+        </div>
       ) : (
         <div className="contents">
           <aside
             className={cn(
-              "mb-5 max-h-44 lg:col-start-1 lg:row-start-3 lg:mb-0 lg:max-h-none lg:pr-3",
+              "col-start-1 row-start-3 mb-5 max-h-44 lg:mb-0 lg:max-h-none lg:pr-3",
               feed
                 ? "min-w-0 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-0"
                 : "overflow-y-auto"
@@ -244,7 +251,7 @@ export function OrgHomeInbox() {
                 <MuteButton
                   onClick={() => routeTo({ feedRole: undefined })}
                   aria-current={!selectedFeedRole ? "true" : undefined}
-                  variant={!selectedFeedRole ? "neutral" : "transparent"}
+                  variant={!selectedFeedRole ? "default" : "transparent"}
                   className="shrink-0 justify-start px-3 py-3 lg:w-full"
                 >
                   All
@@ -258,7 +265,7 @@ export function OrgHomeInbox() {
                     }
                     variant={
                       role.roleId === selectedFeedRole
-                        ? "neutral"
+                        ? "default"
                         : "transparent"
                     }
                     className="max-w-60 shrink-0 justify-start px-3 py-3 lg:w-full lg:max-w-none"
@@ -300,8 +307,8 @@ export function OrgHomeInbox() {
                           selectedGroup?.id === group.id ? "true" : undefined
                         }
                         className={cn(
-                          "mb-1 flex w-full items-center justify-between gap-3 border-0 px-3 py-4 text-left text-sm font-normal shadow-none transition hover:bg-bg-weak",
-                          selectedGroup?.id === group.id && "bg-bg-weak"
+                          "mb-1 flex w-full items-center justify-between gap-3 border-0 bg-transparent px-3 py-4 text-left text-sm font-normal shadow-none transition hover:bg-bg-default/60",
+                          selectedGroup?.id === group.id && "bg-bg-default"
                         )}
                       >
                         <span>
@@ -346,7 +353,7 @@ export function OrgHomeInbox() {
           <div
             data-org-review-scroll={feed ? undefined : true}
             className={cn(
-              "min-h-0 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-3",
+              "col-start-1 row-start-4 min-h-0 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-3",
               feed
                 ? "flex flex-col overflow-hidden"
                 : "overflow-y-auto overscroll-contain"

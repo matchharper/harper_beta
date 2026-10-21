@@ -522,6 +522,8 @@ Shared `Checkbox` sizes are 16/20/24px (small/medium/large), with `rounded-xs` a
 Org candidate progress uses `ProgressFeed` with `icon="harper"` for Harper-authored introduction and follow-up events. It renders the decorative `/svgs/face.svg`; localized event copy is selected by `kind` in `harperProgressPresentation.ts`, including other-role history.
 
 Home의 `OrgHomeFeed`는 후보자와의 진행에서 달라진 일을 날짜별 행으로 보여준다.
+Home 왼쪽 영역은 제목·탭·Role 목록·남은 높이를 모두 `bg-bg-weak`로 채운다.
+선택한 행은 밝은 표면으로 구분하고 오른쪽 후보자 정보와 소식은 기본 배경을 유지한다.
 Role 필터는 항상 `All`로 시작하고 최초 선택도 `All`이다. 모바일에서는 가로로 선택한다.
 제목에는 후보자와 발생한 일,
 본문에는 실제 전달된 메시지 미리보기 또는 확정된 인터뷰 일정, 메타데이터에는 Role과 시각을 둔다.
