@@ -12,6 +12,7 @@ import type {
 import { OrgTalentProfile } from "./OrgTalentProfile";
 import { OrgTalentNotes } from "./OrgTalentNotes";
 import { OrgPassPopover } from "./OrgPassPopover";
+import { OrgAcceptIntroButton } from "./OrgAcceptIntroButton";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 
 type Props = {
@@ -24,6 +25,7 @@ type Props = {
   backLabel?: string;
   roleMoveButton: ReactNode;
   onAccept: () => void;
+  onReject: () => void;
   onPass: (reason: string) => Promise<void>;
   onSave: () => Promise<void>;
   saved: boolean;
@@ -111,7 +113,8 @@ export function OrgCandidateReview(props: Props) {
       }
       if (key === "p") {
         event.preventDefault();
-        setPassOpen(true);
+        if (detail?.companyIntro) setPassOpen(true);
+        else props.onReject();
       }
       if (key === "r") {
         event.preventDefault();
@@ -127,7 +130,7 @@ export function OrgCandidateReview(props: Props) {
       aria-label={c("후보자 검토", "Candidate review")}
       className="@container/review min-w-0 bg-bg-default"
     >
-      <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-neutral-1000-a05 bg-bg-default px-4 py-3 @min-[700px]/review:px-6">
+      <header className="sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 @min-[700px]/review:px-6">
         <div className="flex items-center gap-1">
           {props.onBack && (
             <MuteButton
@@ -168,29 +171,53 @@ export function OrgCandidateReview(props: Props) {
                 S
               </kbd>
             </MuteButton>
-            <OrgPassPopover
-              key={detail?.recommendation.recommendationId}
-              open={passOpen}
-              onOpenChange={setPassOpen}
-              onSubmit={props.onPass}
-              pending={pending}
-            />
-            <MuteButton
-              variant="dark"
-              disabled={pending}
-              onClick={props.onAccept}
-              aria-keyshortcuts="r"
-            >
-              {detail?.companyIntro
-                ? c("Intro 보내기", "Send intro")
-                : c("Accept Intro", "Accept Intro")}
-              <kbd
-                aria-hidden
-                className="ml-2 hidden text-xs opacity-50 @min-[500px]/review:inline"
-              >
-                R
-              </kbd>
-            </MuteButton>
+            {detail?.companyIntro ? (
+              <>
+                <OrgPassPopover
+                  key={detail.recommendation.recommendationId}
+                  open={passOpen}
+                  onOpenChange={setPassOpen}
+                  onSubmit={props.onPass}
+                  pending={pending}
+                />
+                <MuteButton
+                  variant="dark"
+                  disabled={pending}
+                  onClick={props.onAccept}
+                  aria-keyshortcuts="r"
+                >
+                  {c("Intro 보내기", "Send intro")}
+                  <kbd
+                    aria-hidden
+                    className="ml-2 hidden text-xs opacity-50 @min-[500px]/review:inline"
+                  >
+                    R
+                  </kbd>
+                </MuteButton>
+              </>
+            ) : (
+              <>
+                <MuteButton
+                  variant="neutral"
+                  disabled={pending}
+                  onClick={props.onReject}
+                  aria-keyshortcuts="p"
+                >
+                  Reject
+                  <kbd
+                    aria-hidden
+                    className="ml-2 hidden text-xs text-neutral-soft @min-[500px]/review:inline"
+                  >
+                    P
+                  </kbd>
+                </MuteButton>
+                <OrgAcceptIntroButton
+                  disabled={pending}
+                  onClick={props.onAccept}
+                  shortcut
+                />
+              </>
+            )}
           </div>
         )}
       </header>

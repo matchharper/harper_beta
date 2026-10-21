@@ -3,6 +3,11 @@ import { useState } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import {
+  DEFAULT_ORG_STOP_REASONS,
+  extractCustomOrgStopReasons,
+  useOrgStopReasonStore,
+} from "@/store/useOrgStopReasonStore";
 
 export function OrgPassPopover({
   open,
@@ -22,12 +27,32 @@ export function OrgPassPopover({
   const { c } = useOrgLocale();
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
-  const reasons = [
-    c("경력·역량", "Experience / skills"),
-    c("역할 적합도", "Role fit"),
-    c("근무 조건", "Working preferences"),
-    c("채용 시점", "Timing"),
-  ];
+  const savedReasons = useOrgStopReasonStore((state) => state.savedReasons);
+  const rememberReasons = useOrgStopReasonStore(
+    (state) => state.rememberReasons
+  );
+  const reasons = Array.from(
+    new Set([
+      c("경력·역량", "Experience / skills"),
+      c("역할 적합도", "Role fit"),
+      c("근무 조건", "Working preferences"),
+      c("채용 시점", "Timing"),
+      ...DEFAULT_ORG_STOP_REASONS,
+      ...savedReasons,
+    ])
+  );
+  const selectedReasons = new Set(
+    reason.split(/\r?\n/).map((line) => line.trim())
+  );
+  const toggleReason = (value: string) => {
+    setReason((current) => {
+      const lines = current.split(/\r?\n/);
+      if (lines.some((line) => line.trim() === value)) {
+        return lines.filter((line) => line.trim() !== value).join("\n");
+      }
+      return `${current}${current && !current.endsWith("\n") ? "\n" : ""}${value}\n`;
+    });
+  };
   return (
     <Popover.Root
       open={open}
@@ -63,7 +88,7 @@ export function OrgPassPopover({
         <Popover.Content
           align="end"
           sideOffset={8}
-          className="z-[100] w-72 rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-lg"
+          className="z-[100] max-h-[var(--radix-popover-content-available-height)] w-72 overflow-y-auto rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-lg"
           aria-label={c("Pass 이유", "Pass reason")}
         >
           <form
@@ -73,6 +98,9 @@ export function OrgPassPopover({
               setError("");
               try {
                 await onSubmit(reason.trim());
+                rememberReasons(
+                  extractCustomOrgStopReasons(reason.trim(), reasons)
+                );
                 setReason("");
                 onOpenChange(false);
               } catch (failure) {
@@ -92,9 +120,11 @@ export function OrgPassPopover({
                 <MuteButton
                   key={value}
                   size="sm"
-                  variant={reason === value ? "neutral" : "transparent"}
-                  onClick={() => setReason(reason === value ? "" : value)}
-                  aria-pressed={reason === value}
+                  variant={
+                    selectedReasons.has(value) ? "neutral" : "transparent"
+                  }
+                  onClick={() => toggleReason(value)}
+                  aria-pressed={selectedReasons.has(value)}
                   disabled={pending}
                 >
                   {value}

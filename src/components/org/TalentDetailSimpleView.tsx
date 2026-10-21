@@ -1372,21 +1372,15 @@ export function TalentDetailSimpleView({
             finishReview();
           }}
           onPass={async (reason) => {
-            if (!detail) return;
-            if (detail.companyIntro) {
-              await passCompanyIntro.mutateAsync({
-                introCandidateId: detail.companyIntro.id,
-                workspaceId,
-                reason,
-              });
-            } else {
-              await rejectTalent({
-                stopNote: reason,
-                notifyCandidateOnClosure: true,
-              });
-            }
+            if (!detail?.companyIntro) return;
+            await passCompanyIntro.mutateAsync({
+              introCandidateId: detail.companyIntro.id,
+              workspaceId,
+              reason,
+            });
             finishReview();
           }}
+          onReject={() => setRejectDialogOpen(true)}
           onAccept={() =>
             detail?.companyIntro
               ? setCompanyIntroRequestOpen(true)
@@ -1882,6 +1876,7 @@ export function TalentDetailSimpleView({
             stopNote: note,
           });
           setRejectDialogOpen(false);
+          if (presentation === "inline") finishReview();
         }}
       />
     </>

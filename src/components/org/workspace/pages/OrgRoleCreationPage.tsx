@@ -428,7 +428,7 @@ function OrgRoleCreationDetails({
         </div>
         <div
           hidden={chatActive && !companyInfoOpen}
-          className={`min-h-0 flex-1 ${!companyInfoOpen && activeTab === "inbox" ? "overflow-hidden" : "overflow-y-auto"} overscroll-contain pt-5 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 md:pt-6 ${
+          className={`min-h-0 flex-1 ${!companyInfoOpen && activeTab === "inbox" ? "overflow-hidden" : "overflow-y-auto pt-5 md:pt-6"} overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 ${
             !companyInfoOpen && activeTab === "pipeline"
               ? "bg-neutral-50 px-0 pb-0"
               : !companyInfoOpen && activeTab === "inbox"

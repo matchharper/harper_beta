@@ -3,7 +3,7 @@ import { Bookmark } from "lucide-react";
 import { OrgSavedCandidates } from "./OrgSavedCandidates";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
-import styles from "./OrgRoleTalentBoard.module.css";
+import { OrgAcceptIntroButton } from "./OrgAcceptIntroButton";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
@@ -393,7 +393,6 @@ export function OrgRoleTalentBoardCard({
   pending?: boolean;
   stages: OrgStage[];
 }) {
-  const [introEntering, setIntroEntering] = useState(true);
   const [passOpen, setPassOpen] = useState(false);
   const sourceT = useOrgSourceT();
   const { locale, c } = useOrgLocale();
@@ -552,61 +551,25 @@ export function OrgRoleTalentBoardCard({
                 {CANDIDATE_DECISION_LABELS.reject}
               </MuteButton>
             )}
-            <MuteButton
-              className={cn(
-                "w-full py-2",
-                item.source !== "company_intro" &&
-                  "bg-positive-strong text-white border-positive-strong hover:bg-positive-strong",
-                item.source !== "company_intro" && styles.acceptIntro,
-                introEntering && styles.introEntering
-              )}
-              disabled={pending}
-              onClick={onAccept}
-              size="md"
-              variant="dark"
-            >
-              {item.source === "company_intro" ? (
-                <>
-                  {c("Intro 보내기", "Send intro")}
-                  <ArrowRight className="size-4" />
-                </>
-              ) : (
-                <>
-                  <svg
-                    aria-hidden="true"
-                    className="size-4 shrink-0 overflow-visible"
-                    fill="none"
-                    focusable="false"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    {/* Lucide Handshake paths, grouped by hand for motion. */}
-                    <g
-                      className={styles.handshake}
-                      onAnimationEnd={(event) => {
-                        if (event.target === event.currentTarget) {
-                          setIntroEntering(false);
-                        }
-                      }}
-                    >
-                      <g className={styles.leftHand}>
-                        <path d="M3 4h8" />
-                        <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
-                        <path d="m11 17 2 2a1 1 0 1 0 3-3" />
-                      </g>
-                      <g className={styles.rightHand}>
-                        <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
-                        <path d="m21 3 1 11h-2" />
-                      </g>
-                    </g>
-                  </svg>
-                  {CANDIDATE_DECISION_LABELS.connect}
-                </>
-              )}
-            </MuteButton>
+            {item.source === "company_intro" ? (
+              <MuteButton
+                className="w-full py-2"
+                disabled={pending}
+                onClick={onAccept}
+                size="md"
+                variant="dark"
+              >
+                {c("Intro 보내기", "Send intro")}
+                <ArrowRight className="size-4" />
+              </MuteButton>
+            ) : (
+              <OrgAcceptIntroButton
+                className="w-full py-2"
+                disabled={pending}
+                onClick={onAccept}
+                size="md"
+              />
+            )}
           </div>
         ) : null}
       </div>

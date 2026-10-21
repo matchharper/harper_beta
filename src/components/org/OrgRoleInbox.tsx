@@ -144,7 +144,7 @@ export function OrgRoleInbox() {
       }}
       className="@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain"
     >
-      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-5 md:pt-6">
         {savedReview ? (
           <h2 className="mr-auto text-sm font-medium">
             {c("저장함", "Saved")}

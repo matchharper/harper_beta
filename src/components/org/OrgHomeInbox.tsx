@@ -18,7 +18,6 @@ import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
-import { OrgSearchHistory } from "./OrgSearchHistory";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { compareOrgCandidates } from "@/lib/org/candidateBoardSort";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
@@ -299,15 +298,14 @@ export function OrgHomeInbox() {
       selectGroup(selectedGroup, true);
   });
   return (
-    <div className="flex h-[calc(100dvh-116px)] min-h-0 flex-col">
-      <header className="mb-5 flex items-center justify-between">
+    <div className="grid h-[calc(100dvh-72px)] min-h-0 grid-cols-1 grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-x-5 md:h-[calc(100dvh-24px)] lg:grid-cols-[minmax(240px,28%)_minmax(0,1fr)] lg:grid-rows-[auto_auto_minmax(0,1fr)]">
+      <header className="mb-5 flex items-center justify-between lg:col-start-1 lg:row-start-1 lg:mt-7">
         <h1 className="text-xl font-medium">Home</h1>
-        <OrgSearchHistory workspaceId={workspaceId} />
       </header>
       <Tabs
         activeValue={feed ? "feed" : "inbox"}
         aria-label={c("Home 보기", "Home view")}
-        className="mb-5 w-fit"
+        className="mb-5 w-fit lg:col-start-1 lg:row-start-2"
         items={[
           { value: "inbox", label: c("인박스", "Inbox") },
           { value: "feed", label: c("피드", "Feed") },
@@ -333,9 +331,9 @@ export function OrgHomeInbox() {
           }}
         />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(240px,28%)_minmax(0,1fr)] lg:grid-rows-1">
+        <div className="contents">
           <aside
-            className="max-h-44 overflow-y-auto lg:max-h-none lg:pr-3"
+            className="mb-5 max-h-44 overflow-y-auto lg:col-start-1 lg:row-start-3 lg:mb-0 lg:max-h-none lg:pr-3"
             aria-label={c("역할별 작업", "Tasks by role")}
           >
             {feed
@@ -394,8 +392,8 @@ export function OrgHomeInbox() {
                               ? c(
                                   "Intro 수락 또는 거절",
                                   group.remaining === 1
-                                    ? "Accept or pass on an intro"
-                                    : "Accept or pass on intros"
+                                    ? "Accept or reject an intro"
+                                    : "Accept or reject intros"
                                 )
                               : group.remaining >= 10
                                 ? c(
@@ -430,7 +428,7 @@ export function OrgHomeInbox() {
           <div
             data-org-review-scroll={feed ? undefined : true}
             className={cn(
-              "min-h-0 min-w-0",
+              "min-h-0 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-3",
               feed
                 ? "flex flex-col overflow-hidden rounded-xl border border-neutral-1000-a10"
                 : "overflow-y-auto overscroll-contain"

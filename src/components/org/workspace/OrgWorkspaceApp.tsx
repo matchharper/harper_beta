@@ -180,7 +180,9 @@ export function OrgWorkspaceApp({
                   ? "h-svh min-h-[520px] md:h-screen md:min-h-0"
                   : page === "new-role"
                     ? "h-[calc(100svh-3rem)] min-h-[472px] md:h-screen md:min-h-0"
-                    : "py-6 sm:py-9 lg:py-10"
+                    : page === "home"
+                      ? "py-3"
+                      : "py-6 sm:py-9 lg:py-10"
               )}
               padding={isRoleWorkspacePage ? "none" : "default"}
               size={
