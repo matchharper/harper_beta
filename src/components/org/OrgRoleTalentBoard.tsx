@@ -98,7 +98,11 @@ function getBoardStageLabel(
   sourceT: (source: string) => string
 ) {
   const label = sourceT(getStageLabel(stage, roleName));
-  if (stage.id !== "accepted" && ORG_STAGE_DESCRIPTIONS[stage.id]) {
+  if (
+    stage.id !== "accepted" &&
+    !isOrgInboxStage(stage.id) &&
+    ORG_STAGE_DESCRIPTIONS[stage.id]
+  ) {
     return (
       <span className="inline-flex items-center gap-1.5">
         {label}
@@ -813,6 +817,7 @@ export function OrgRoleTalentBoard({
                   </span>
                 ),
                 tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
+                tooltipVariant: isOrgInboxStage(stage.id) ? "light" : "dark",
                 value: stage.id,
               }))}
               onValueChange={selectStage}

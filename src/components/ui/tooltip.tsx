@@ -61,14 +61,19 @@ export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
 type TooltipSide = "bottom" | "top" | "left" | "right";
 type TooltipAlign = "start" | "center" | "end";
 
+const lightTooltipContentClassName =
+  "max-w-[min(520px,calc(100vw-32px))] text-[13px] md:text-[14px] font-normal whitespace-pre-wrap wrap-break-word rounded-lg border border-black/5 bg-white/80 px-5 py-5 leading-5 text-black shadow-[0_14px_36px_rgba(0,0,0,0.12)] backdrop-blur-sm";
+
 export function Tooltips({
   children,
   text,
   side = "bottom",
+  variant = "dark",
 }: {
   children: React.ReactNode;
   text: string;
   side?: TooltipSide;
+  variant?: "dark" | "light";
 }) {
   return (
     <TooltipProvider delayDuration={100}>
@@ -78,7 +83,10 @@ export function Tooltips({
           <TooltipContent
             side={side}
             align="start"
-            className="mb-px max-w-[400px] whitespace-pre-wrap wrap-break-word"
+            className={cn(
+              "mb-px max-w-[400px] whitespace-pre-wrap wrap-break-word",
+              variant === "light" && lightTooltipContentClassName
+            )}
           >
             <p>{text}</p>
           </TooltipContent>
@@ -220,10 +228,7 @@ export function ResponsiveLightTooltip({
             id={tooltipId}
             side={side}
             align={align}
-            className={cn(
-              "max-w-[min(520px,calc(100vw-32px))] text-[13px] md:text-[14px] font-normal whitespace-pre-wrap wrap-break-word rounded-lg border border-black/5 bg-white/80 px-5 py-5 leading-5 text-black shadow-[0_14px_36px_rgba(0,0,0,0.12)] backdrop-blur-sm",
-              contentClassName
-            )}
+            className={cn(lightTooltipContentClassName, contentClassName)}
           >
             {children}
           </TooltipContent>

@@ -162,11 +162,13 @@ export function OrgRoleInbox() {
                   value: "pending_connection",
                   label: c("연결 대기", "Inbound"),
                   tooltip: sourceT(ORG_STAGE_DESCRIPTIONS.pending_connection),
+                  tooltipVariant: "light",
                 },
                 {
                   value: "company_intro",
                   label: c("먼저 제안 가능한 후보", "Suggested"),
                   tooltip: sourceT(ORG_STAGE_DESCRIPTIONS.company_intro),
+                  tooltipVariant: "light",
                 },
               ]}
               onValueChange={(inboxStage) => change({ inboxStage })}
