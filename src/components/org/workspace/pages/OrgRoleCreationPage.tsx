@@ -6,6 +6,7 @@ import {
   ChevronsRightLeft,
   Columns3,
   Inbox,
+  History,
   Menu,
   MessageSquare,
   PanelRight,
@@ -16,11 +17,18 @@ import {
   Settings,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
+import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
 import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
@@ -62,6 +70,20 @@ import {
 
 type RoleCreationTab = OrgRoleTab;
 type RolePipelineDisplay = "pipeline" | "board";
+
+// Mount expensive editors/settings on first visit, then preserve their drafts
+// while another tab is visible. The parent key resets this for a different Role.
+function VisitedRolePanel({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: ReactNode;
+}) {
+  const [visited, setVisited] = useState(active);
+  if (active && !visited) setVisited(true);
+  return active || visited ? children : null;
+}
 
 const ORG_ROLE_DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 const ORG_ROLE_SPLIT_HANDLE_WIDTH_PX = 8;
@@ -148,7 +170,7 @@ function RolePipelineDisplayMenu({
           <DisplayIcon className="size-4" />
         </MuteButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-32 w-32" sideOffset={2}>
+      <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
         <DropdownMenuItem
           onSelect={() => onDisplayChange("pipeline")}
           selected={display === "pipeline"}
@@ -222,6 +244,7 @@ function OrgRoleCreationDetails({
 }) {
   const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
+  const [matchingHistoryOpen, setMatchingHistoryOpen] = useState(false);
   const router = useRouter();
   const { workspace } = useOrgWorkspace();
   const roleCreation =
@@ -353,39 +376,71 @@ function OrgRoleCreationDetails({
                   ? chatActive
                   : !chatActive && activeTab === tab.value);
               return (
-                <button
-                  aria-controls={`role-creation-${tab.value}-panel`}
-                  aria-selected={active}
-                  className={`flex min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
-                    active
-                      ? " text-neutral-primary"
-                      : "text-neutral-600 hover:text-neutral-primary"
-                  }`}
-                  id={`role-creation-${tab.value}-tab`}
-                  key={tab.value}
-                  onClick={() => {
-                    if (tab.value === "chat") {
-                      onChatTabSelect?.();
-                      return;
-                    }
-                    onDetailTabSelect?.();
-                    onCompanyInfoClose?.();
-                    setActiveTab(tab.value);
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  {tab.icon}
-                  <span className="truncate">{sourceT(tab.label)}</span>
-                  {tab.value === "inbox" && inboxCount !== undefined ? (
-                    <Badge
-                      className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
+                <Fragment key={tab.value}>
+                  <button
+                    aria-controls={`role-creation-${tab.value}-panel`}
+                    aria-selected={active}
+                    className={`flex min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
+                      active
+                        ? " text-neutral-primary"
+                        : "text-neutral-600 hover:text-neutral-primary"
+                    }`}
+                    id={`role-creation-${tab.value}-tab`}
+                    onClick={() => {
+                      if (tab.value === "matching")
+                        setMatchingHistoryOpen(false);
+                      if (tab.value === "chat") {
+                        onChatTabSelect?.();
+                        return;
+                      }
+                      onDetailTabSelect?.();
+                      onCompanyInfoClose?.();
+                      setActiveTab(tab.value);
+                    }}
+                    role="tab"
+                    type="button"
+                  >
+                    {tab.icon}
+                    <span className="truncate">{sourceT(tab.label)}</span>
+                    {tab.value === "inbox" && inboxCount !== undefined ? (
+                      <Badge
+                        className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
+                        size="sm"
+                      >
+                        {String(inboxCount)}
+                      </Badge>
+                    ) : null}
+                  </button>
+                  {tab.value === "matching" && role ? (
+                    <MuteButton
+                      aria-label={c(
+                        "매칭 기준 변경 이력",
+                        "Matching criteria history"
+                      )}
+                      title={c(
+                        "매칭 기준 변경 이력",
+                        "Matching criteria history"
+                      )}
+                      aria-controls="role-creation-matching-panel"
+                      aria-expanded={active && matchingHistoryOpen}
+                      className="-ml-2 shrink-0"
+                      variant="transparent"
                       size="sm"
+                      onClick={() => {
+                        onDetailTabSelect?.();
+                        onCompanyInfoClose?.();
+                        setActiveTab("matching");
+                        setMatchingHistoryOpen(true);
+                      }}
                     >
-                      {String(inboxCount)}
-                    </Badge>
+                      <History
+                        className="size-3.5"
+                        aria-hidden
+                        strokeWidth={1.65}
+                      />
+                    </MuteButton>
                   ) : null}
-                </button>
+                </Fragment>
               );
             })}
           </div>
@@ -490,20 +545,38 @@ function OrgRoleCreationDetails({
             id="role-creation-matching-panel"
             role="tabpanel"
           >
-            {role ? (
-              <OrgRoleMatchingContent
-                key={`matching:${role.roleId}`}
-                role={role}
-                workspaceId={workspace.workspaceId}
-              />
-            ) : (
-              <div className="py-12 text-center text-sm text-neutral-muted">
-                {c(
-                  "역할 정보를 불러오는 중입니다.",
-                  "Loading role information."
-                )}
-              </div>
-            )}
+            <VisitedRolePanel
+              active={!companyInfoOpen && activeTab === "matching"}
+            >
+              {role ? (
+                <>
+                  <div hidden={matchingHistoryOpen}>
+                    <OrgRoleMatchingContent
+                      key={`matching:${role.roleId}`}
+                      role={role}
+                      workspaceId={workspace.workspaceId}
+                    />
+                  </div>
+                  {matchingHistoryOpen &&
+                  !companyInfoOpen &&
+                  activeTab === "matching" ? (
+                    <OrgRoleMatchingHistory
+                      key={`matching-history:${role.roleId}`}
+                      roleId={role.roleId}
+                      workspaceId={workspace.workspaceId}
+                      onClose={() => setMatchingHistoryOpen(false)}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <div className="py-12 text-center text-sm text-neutral-muted">
+                  {c(
+                    "역할 정보를 불러오는 중입니다.",
+                    "Loading role information."
+                  )}
+                </div>
+              )}
+            </VisitedRolePanel>
           </div>
           <div
             aria-label={c("역할 정보 탭 내용", "Role details tab content")}
@@ -512,20 +585,22 @@ function OrgRoleCreationDetails({
             id="role-creation-role-panel"
             role="tabpanel"
           >
-            {role ? (
-              <OrgRoleDetailsContent
-                key={`role:${role.roleId}`}
-                role={role}
-                workspaceId={workspace.workspaceId}
-              />
-            ) : (
-              <div className="py-12 text-center text-sm text-neutral-muted">
-                {c(
-                  "역할 정보를 불러오는 중입니다.",
-                  "Loading role information."
-                )}
-              </div>
-            )}
+            <VisitedRolePanel active={!companyInfoOpen && activeTab === "role"}>
+              {role ? (
+                <OrgRoleDetailsContent
+                  key={`role:${role.roleId}`}
+                  role={role}
+                  workspaceId={workspace.workspaceId}
+                />
+              ) : (
+                <div className="py-12 text-center text-sm text-neutral-muted">
+                  {c(
+                    "역할 정보를 불러오는 중입니다.",
+                    "Loading role information."
+                  )}
+                </div>
+              )}
+            </VisitedRolePanel>
           </div>
           <div
             aria-label={c("Setting 탭 내용", "Settings tab content")}
@@ -534,17 +609,29 @@ function OrgRoleCreationDetails({
             id="role-creation-settings-panel"
             role="tabpanel"
           >
-            {role ? (
-              <OrgRoleSettingsContent
-                key={`settings:${role.roleId}`}
-                layout="panel"
-                role={role}
-                roleCreation={roleCreation}
-                workspaceId={workspace.workspaceId}
-              />
-            ) : null}
+            <VisitedRolePanel
+              active={!companyInfoOpen && activeTab === "settings"}
+            >
+              {role ? (
+                <OrgRoleSettingsContent
+                  key={`settings:${role.roleId}`}
+                  layout="panel"
+                  role={role}
+                  roleCreation={roleCreation}
+                  workspaceId={workspace.workspaceId}
+                />
+              ) : null}
+            </VisitedRolePanel>
           </div>
         </div>
+        {getQueryText(router.query.talentId) &&
+        (companyInfoOpen ||
+          roleCreation ||
+          !["inbox", "pipeline"].includes(activeTab)) ? (
+          <OrgJobsProvider routePage="role">
+            <TalentDetailSimpleView />
+          </OrgJobsProvider>
+        ) : null}
       </DocumentEditorPanelProvider>
     </section>
   );

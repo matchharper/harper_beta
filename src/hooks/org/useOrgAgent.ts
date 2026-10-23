@@ -217,6 +217,8 @@ export function orgAgentMessageHistoryQueryOptions(args: {
       Boolean(workspaceId) &&
       (mode === "general" || Boolean(roleId)),
     refetchOnWindowFocus: false,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     staleTime: 20_000,
   });
 }

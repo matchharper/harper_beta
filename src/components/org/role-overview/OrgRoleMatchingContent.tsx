@@ -15,7 +15,6 @@ import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
 import {
   getOrgRoleCriteriaValidationError,
   normalizeOrgRoleCriteria,
-  ORG_ROLE_CRITERIA_MAX_ITEMS,
   ORG_ROLE_CRITERIA_MIN_ITEMS,
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
@@ -27,6 +26,8 @@ import {
 } from "./RoleOverviewShared";
 
 type MatchingDraft = {
+  expectedRequest: string | null;
+  expectedCriteria: OrgRoleCriterion[];
   criteria: OrgRoleCriterion[];
   request: string;
 };
@@ -35,6 +36,8 @@ type MatchingEditingField = "criteria" | "request";
 
 function toMatchingDraft(role: OrgRole): MatchingDraft {
   return {
+    expectedRequest: role.request ?? null,
+    expectedCriteria: normalizeOrgRoleCriteria(role.criteria),
     criteria: normalizeOrgRoleCriteria(role.criteria),
     request: role.request ?? "",
   };
@@ -72,9 +75,12 @@ export function OrgRoleMatchingContent({
   const hasChanges =
     draft !== null &&
     JSON.stringify(normalizeMatchingDraft(draft)) !==
-      JSON.stringify(normalizeMatchingDraft(toMatchingDraft(role)));
+      JSON.stringify({
+        criteria: draft.expectedCriteria,
+        request: draft.expectedRequest ?? "",
+      });
 
-  useUnsavedChangesWarning(hasChanges);
+  useUnsavedChangesWarning(hasChanges, { preserveWithinRole: true });
 
   const changeDraft = (
     patch: Partial<MatchingDraft>,
@@ -113,7 +119,6 @@ export function OrgRoleMatchingContent({
   };
 
   const addCriterion = () => {
-    if (currentDraft.criteria.length >= ORG_ROLE_CRITERIA_MAX_ITEMS) return;
     changeDraft(
       {
         criteria: [...currentDraft.criteria, { criteria: "", name: "" }],
@@ -146,8 +151,7 @@ export function OrgRoleMatchingContent({
 
     const criteria = normalizeOrgRoleCriteria(draft.criteria);
     const criteriaChanged =
-      JSON.stringify(criteria) !==
-      JSON.stringify(normalizeOrgRoleCriteria(role.criteria));
+      JSON.stringify(criteria) !== JSON.stringify(draft.expectedCriteria);
     if (criteriaChanged) {
       const criteriaError = getOrgRoleCriteriaValidationError(criteria);
       if (criteriaError) {
@@ -164,10 +168,13 @@ export function OrgRoleMatchingContent({
         ...(criteriaChanged
           ? {
               criteria,
-              expectedCriteria: normalizeOrgRoleCriteria(role.criteria),
             }
           : {}),
-        request: draft.request.trim() || null,
+        ...(draft.request !== (draft.expectedRequest ?? "")
+          ? { request: draft.request.trim() || null }
+          : {}),
+        expectedRequest: draft.expectedRequest,
+        expectedCriteria: draft.expectedCriteria,
         roleId: role.roleId,
         workspaceId,
       });
@@ -207,7 +214,7 @@ export function OrgRoleMatchingContent({
               <div className="mt-1 text-[14px] font-normal leading-5 text-black/60">
                 {c(
                   "인재를 평가할 때 내부적으로 사용하는 기준입니다.",
-                  "Internal summary used to evaluate talents."
+                  "Your internal brief for finding and evaluating candidates."
                 )}
               </div>
             </div>
@@ -243,8 +250,8 @@ export function OrgRoleMatchingContent({
           <div className="flex items-start justify-between gap-4">
             <RoleSectionHeading
               info={c(
-                "이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적어요. 2–4개를 권장하며 최대 6개까지 추가할 수 있어요.",
-                "Give each criterion a clear name. Add the required level, rationale, strengths, and concerns in the details. Use 2–4 criteria, up to 6."
+                "이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적어요. 서로 다른 비교 요소를 각각 적어주세요.",
+                "Give each criterion a clear name. Add the required level, rationale, strengths, and concerns in the details. Use a separate criterion for each distinct comparison."
               )}
               size="large"
               title={c("Evaluation Criteria", "Evaluation Criteria")}
@@ -323,23 +330,21 @@ export function OrgRoleMatchingContent({
                     }
                     placeholder={c(
                       "필요한 수준, 판단 근거, 가산점과 우려 요소를 구체적으로 적어주세요.",
-                      "Specify required level, evaluation rationale, plus points, and concerns."
+                      "Describe the required level, why it matters, strengths to look for, and potential concerns."
                     )}
                     rows={4}
                     value={item.criteria}
                   />
                 </div>
               ))}
-              {currentDraft.criteria.length < ORG_ROLE_CRITERIA_MAX_ITEMS ? (
-                <MuteButton
-                  disabled={!canManage || updateRole.isPending}
-                  onClick={addCriterion}
-                  variant="transparent"
-                >
-                  <Plus className="size-3.5" />
-                  {c("기준 추가하기", "Add criterion")}
-                </MuteButton>
-              ) : null}
+              <MuteButton
+                disabled={!canManage || updateRole.isPending}
+                onClick={addCriterion}
+                variant="transparent"
+              >
+                <Plus className="size-3.5" />
+                {c("기준 추가하기", "Add criterion")}
+              </MuteButton>
             </div>
           ) : currentDraft.criteria.length ? (
             <div className="mt-4 grid gap-3">

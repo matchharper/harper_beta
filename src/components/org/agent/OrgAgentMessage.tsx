@@ -23,7 +23,8 @@ import {
 } from "@/components/chat/ChatTimeline";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { useSendOrgAgentMeetingRequest } from "@/hooks/org/useOrgAgent";
-import { splitOrgAgentMentionText } from "@/lib/org/agent/mentionText";
+import { orgTalentReferenceHref, readOrgTalentReferenceHref, remarkOrgTalentReferences, splitOrgTalentReferences } from "@/lib/org/agent/talentReference";
+import { OrgTalentReferenceBadge } from "./OrgTalentReferenceBadge";
 import { formatOrgChatMessageTime } from "@/lib/org/agent/messagePresentation";
 import { splitOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import {
@@ -111,17 +112,35 @@ function OrgMessageLayout({
   );
 }
 
-function MentionText({ content }: { content: string }) {
+function useTalentReferenceNavigation(workspaceId: string) {
+  const router = useRouter();
+  return (href: string) => {
+    const reference = readOrgTalentReferenceHref(href, workspaceId);
+    if (reference && ["/org/home", "/org/inbox", "/org/jobs", "/org/role"].includes(router.pathname) && router.query.orgId === workspaceId) {
+      const query = { ...router.query, talentId: reference.talentId, detailRoleId: reference.roleId ?? undefined,
+        recommendationId: reference.recommendationId ?? undefined, detailWorkspaceId: workspaceId };
+      void router.push({ pathname: router.pathname, query }, undefined, { shallow: true, scroll: false });
+      return;
+    }
+    const route = getHarperOwnedUrlRoute(href);
+    if (route) void router.push(route);
+  };
+}
+
+function MentionText({ content, workspaceId, roleId }: { content: string; workspaceId: string; roleId?: string | null }) {
+  const openTalent = useTalentReferenceNavigation(workspaceId);
   return (
     <>
-      {splitOrgAgentMentionText(content).map((segment, index) =>
-        segment.kind === "mention" ? (
-          <span
-            key={`${segment.talentId}:${index}`}
-            className="font-medium text-link"
-          >
-            {segment.text}
-          </span>
+      {splitOrgTalentReferences(content).map((segment, index) =>
+        segment.reference ? (
+          <OrgTalentReferenceBadge
+            key={`${segment.reference.talentId}:${index}`}
+            className="border-white/30 text-white hover:bg-white/10 focus-visible:ring-white/40"
+            talentId={segment.reference.talentId}
+            label={segment.reference.label}
+            href={orgTalentReferenceHref({ talentId: segment.reference.talentId, workspaceId, roleId })}
+            onClick={() => openTalent(orgTalentReferenceHref({ talentId: segment.reference!.talentId, workspaceId, roleId }))}
+          />
         ) : (
           <span key={`text:${index}`}>{segment.text}</span>
         )
@@ -172,14 +191,17 @@ function OrgAssistantContent({
   content,
   fromSlack = false,
   onCompanyInfoClick,
+  roleId,
   workspaceId,
 }: {
   content: string;
   fromSlack?: boolean;
   onCompanyInfoClick?: () => void;
+  roleId?: string | null;
   workspaceId: string;
 }) {
   const router = useRouter();
+  const openTalent = useTalentReferenceNavigation(workspaceId);
   const visibleContent = fromSlack
     ? parseHarperSlackChoiceMarkers(stripSlackSentUsingAttribution(content))
         .text
@@ -214,6 +236,7 @@ function OrgAssistantContent({
             ? convertSlackMrkdwnToWebMarkdown(segment.text)
             : segment.text,
           workspaceId,
+          roleId,
         });
         return (
           <ChatAssistantContent
@@ -222,6 +245,14 @@ function OrgAssistantContent({
               index > 0 && "mt-3"
             )}
             content={markdown}
+            additionalRemarkPlugins={[[remarkOrgTalentReferences, { workspaceId, roleId }]]}
+            renderLink={({ href, text }) => {
+              const reference = readOrgTalentReferenceHref(href, workspaceId);
+              if (!reference) return undefined;
+              return <OrgTalentReferenceBadge talentId={reference.talentId}
+                label={text}
+                href={href} onClick={() => openTalent(href)} />;
+            }}
             key={`text:${index}`}
             onHarperLinkClick={(href) => {
               const route = getHarperOwnedUrlRoute(href);
@@ -438,13 +469,14 @@ export function OrgAgentMessageBubble({
         >
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">
-              <MentionText content={visibleMessageContent} />
+              <MentionText content={visibleMessageContent} workspaceId={workspaceId} roleId={roleId} />
             </div>
           ) : (
             <OrgAssistantContent
               content={assistantContentOverride ?? message.content}
               fromSlack={fromSlack}
               onCompanyInfoClick={onCompanyInfoClick}
+              roleId={roleId}
               workspaceId={workspaceId}
             />
           )}
@@ -507,10 +539,12 @@ export function OrgAgentMessageBubble({
 
 export function OrgAgentStreamingBubble({
   onCompanyInfoClick,
+  roleId,
   text,
   workspaceId,
 }: {
   onCompanyInfoClick?: () => void;
+  roleId?: string | null;
   text: string;
   workspaceId: string;
 }) {
@@ -525,6 +559,7 @@ export function OrgAgentStreamingBubble({
         <OrgAssistantContent
           content={text}
           onCompanyInfoClick={onCompanyInfoClick}
+          roleId={roleId}
           workspaceId={workspaceId}
         />
       </ChatMessageBubbleFrame>

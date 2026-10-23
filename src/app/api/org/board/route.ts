@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ...payload,
       items: await readOrgCandidateSaves(getSupabaseAdmin(), payload.workspaceId, payload.items),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return toErrorResponse(error);
   }

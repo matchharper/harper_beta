@@ -1,3 +1,4 @@
+import { throwBillingDbError } from "@/lib/org/billing/store";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
@@ -380,7 +381,7 @@ export async function confirmRoleCreationChoice(args: {
         p_role_id: roleId,
         p_workspace_id: workspaceId,
       });
-      if (activateError) throw activateError;
+      if (activateError) throwBillingDbError(activateError);
       if (activated !== true) {
         throw new OrgHttpError(409, "Role was already updated");
       }

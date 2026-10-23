@@ -38,6 +38,7 @@ export async function PATCH(req: NextRequest) {
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
       expectedCriteria?: unknown;
+      expectedRequest?: string | null;
       isCompanyFirstSearch?: boolean;
       isPromote?: boolean;
       isAnonymous?: boolean;
@@ -59,6 +60,8 @@ export async function PATCH(req: NextRequest) {
       employmentTypes: body.employmentTypes,
       externalJdUrl: body.externalJdUrl,
       expectedCriteria: body.expectedCriteria,
+      expectedRequest: body.expectedRequest,
+      requestReview: true,
       isCompanyFirstSearch: body.isCompanyFirstSearch,
       isPromote: body.isPromote,
       isAnonymous: body.isAnonymous,
@@ -76,6 +79,11 @@ export async function PATCH(req: NextRequest) {
       workspaceId: body.workspaceId ?? "",
     });
     let agentJobId: string | null = null;
+    if (payload.hiringBriefHistoryId) {
+      const {enqueueHiringBriefReview}=await import('@/lib/org/hiringBriefHistory.server');
+      try { agentJobId=await enqueueHiringBriefReview({historyId:payload.hiringBriefHistoryId,user}); }
+      catch(error) { console.error('[org/role:brief-review-enqueue]',error); }
+    }
     const wakesCompanySideLlm =
       body.status !== undefined || body.isExpired !== undefined;
     if (wakesCompanySideLlm) {

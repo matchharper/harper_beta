@@ -118,15 +118,14 @@ export const ROLE_CREATION_TOOLS = [
           criteria: {
             type: "array",
             minItems: 0,
-            maxItems: 6,
             description:
-              "Independent candidate comparison elements under the shared authoring contract. Author them from known Role facts as part of drafting. Omit this field to preserve existing Criteria during unrelated edits. Storage accepts zero to six elements; authoring is the LLM's responsibility rather than a completion gate. Each element must organize supported evidence, not add a screening bar. name directly identifies the experience, supported seniority range or established background being checked; criteria defines the evidence for that signal.",
+              "Independent candidate comparison elements under the shared authoring contract. Author them from known Role facts as part of drafting. Omit this field to preserve existing Criteria during unrelated edits. An empty list is valid; authoring is the LLM's responsibility rather than a completion gate. Each element must organize supported evidence, not add a screening bar. name directly identifies the experience, supported seniority range or established background being checked; criteria defines the evidence for that signal.",
             items: {
               type: "object",
               additionalProperties: false,
               properties: {
-                name: { type: "string", minLength: 1, maxLength: 200 },
-                criteria: { type: "string", minLength: 1, maxLength: 8000 },
+                name: { type: "string", minLength: 1 },
+                criteria: { type: "string", minLength: 1 },
               },
               required: ["name", "criteria"],
             },

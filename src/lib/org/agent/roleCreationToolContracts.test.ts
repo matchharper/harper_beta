@@ -53,7 +53,7 @@ test("role and company updates require at least one declared field", () => {
   assert.match(roleBlock, /minProperties: 1/);
   assert.doesNotMatch(roleBlock, /anyOf/);
   assert.match(roleBlock, /minItems: 0/);
-  assert.match(roleBlock, /maxItems: 6/);
+  assert.doesNotMatch(roleBlock, /maxItems: 6/);
   assert.match(roleBlock, /authoring is the LLM's responsibility rather than a completion gate/);
   assert.match(roleBlock, /not add a screening bar/);
   assert.match(roleBlock, /Role eligibility/);

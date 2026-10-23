@@ -1,5 +1,3 @@
-import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
-import { Bookmark } from "lucide-react";
 import { OrgSavedCandidates } from "./OrgSavedCandidates";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
@@ -145,7 +143,7 @@ function OrgRoleRecommendationStatus({
       : active
         ? c(
             "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
-            "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role, Harper prepares their introduction and recommends them in Ready to connect."
+            "Harper introduces your company and role to suitable candidates without waiting for a search or Intro request.\n\nWhen someone agrees to talk, Harper prepares their introduction for your team to review in Ready to connect."
           )
         : status === "paused"
           ? c(
@@ -381,7 +379,6 @@ export function OrgRoleTalentBoardCard({
   onOpen,
   onReject,
   onPass,
-  onSave,
   pending = false,
   stages,
 }: {
@@ -393,7 +390,6 @@ export function OrgRoleTalentBoardCard({
   onOpen: () => void;
   onReject?: () => void;
   onPass?: (reason: string) => Promise<void>;
-  onSave?: () => void;
   pending?: boolean;
   stages: OrgStage[];
 }) {
@@ -412,7 +408,7 @@ export function OrgRoleTalentBoardCard({
   return (
     <article className="@container/talent-card relative isolate min-w-0 overflow-hidden rounded-lg">
       <CardButton
-        aria-label={c("{p0} 후보자 상세 보기", "View {p0} candidate details", {
+        aria-label={c("{p0} 후보자 상세 보기", "View {p0}'s details", {
           p0: name,
         })}
         className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05"
@@ -451,19 +447,6 @@ export function OrgRoleTalentBoardCard({
                 >
                   {formatKstRelativeDate(cardDate, { locale })}
                 </time>
-                {onSave && canManageCandidates && (
-                  <MuteButton
-                    className="pointer-events-auto"
-                    aria-label={c("{name} 저장", "Save {name}", { name })}
-                    title="Save"
-                    variant="transparent"
-                    size="sm"
-                    disabled={pending}
-                    onClick={onSave}
-                  >
-                    <Bookmark className="size-4" />
-                  </MuteButton>
-                )}
                 {!isDecisionStage &&
                 item.capabilities.moveStage &&
                 canManageCandidates &&
@@ -485,7 +468,7 @@ export function OrgRoleTalentBoardCard({
 
         {item.criteriaEvaluations.length > 0 ? (
           <section
-            aria-label={c("평가 기준별 적합도", "Fit by criteria")}
+            aria-label={c("평가 기준별 적합도", "Fit by criterion")}
             className="mt-6 grid grid-cols-1 gap-2 @sm/talent-card:grid-cols-2 @xl/talent-card:grid-cols-3"
           >
             {item.criteriaEvaluations.map((evaluation, index) => (
@@ -523,7 +506,7 @@ export function OrgRoleTalentBoardCard({
 
         {item.processClosureNoticeUnresolved ? (
           <div className="-mx-4 mt-5 bg-critical px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:px-5">
-            {c("프로세스 종료 안내됨", "Process closed — notified")}
+            {c("프로세스 종료 안내됨", "Hiring ended · candidate notified")}
           </div>
         ) : item.upcomingMeeting ? (
           <div className="-mx-4 -mb-4 mt-5 bg-positive px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:-mb-5 sm:px-5">
@@ -618,7 +601,6 @@ export function OrgRoleTalentBoard({
   const createCustomStage = useCreateOrgReviewStage();
   const requestCompanyIntro = useRequestOrgCompanyIntro();
   const passCompanyIntro = usePassOrgCompanyIntro();
-  const saveCandidate = useOrgCandidateSave();
   const addToast = useToastStore((state) => state.add);
   const [activeStageId, setActiveStageId] = useState("");
   const [sort, setSort] = useState<OrgCandidateSort>("latest");
@@ -867,11 +849,6 @@ export function OrgRoleTalentBoard({
         <div className="mt-2">{recommendationStatus}</div>
       ) : null}
 
-      {saveCandidate.error && (
-        <p role="alert" className="mb-3 text-xs text-critical">
-          {saveCandidate.error.message}
-        </p>
-      )}
       <div
         className={cn(
           "relative isolate grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
@@ -914,18 +891,6 @@ export function OrgRoleTalentBoard({
                 : requestMove(item, "connected")
             }
             onMove={requestMove}
-            onSave={
-              section === "inbox"
-                ? () =>
-                    saveCandidate.mutate({
-                      workspaceId,
-                      roleId: item.roleId,
-                      talentId: item.talentId,
-                      recommendationId: item.recommendationId,
-                      saved: true,
-                    })
-                : undefined
-            }
             onOpen={() =>
               selectTalent(
                 item,
@@ -946,16 +911,11 @@ export function OrgRoleTalentBoard({
             }}
             pending={
               isCandidateStagePending(item) ||
-              passCompanyIntro.isPending ||
-              saveCandidate.isPending
+              passCompanyIntro.isPending
             }
             stages={board?.stages ?? []}
           />
         ))}
-        {items.length === 0 &&
-        !(pendingHidden && selectedStageId === "pending_connection") ? (
-          <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted"></div>
-        ) : null}
       </div>
 
       <AcceptIntroDialog

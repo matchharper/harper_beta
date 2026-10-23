@@ -183,7 +183,7 @@ export function OrgRoleSettingsContent({
   const canCreateSlackChannel =
     slackStatusQuery.data?.canCreateChannels ?? (channels?.length ?? 0) > 0;
 
-  useUnsavedChangesWarning(hasChanges || scheduleChanged);
+  useUnsavedChangesWarning(hasChanges || scheduleChanged, { preserveWithinRole: true });
 
   const assignedMembers = assigneeUserIds.flatMap((userId) => {
     const member = members.find((item) => item.userId === userId);
@@ -219,7 +219,7 @@ export function OrgRoleSettingsContent({
       ? {
           description: c(
             "현재 후보자를 추천받고 채용을 진행하고 있습니다.",
-            "Hiring in progress and receiving candidate recommendations."
+            "This role is open for hiring and can receive candidate recommendations."
           ),
           label: c("채용 진행 중", "Hiring in progress"),
         }
@@ -234,7 +234,7 @@ export function OrgRoleSettingsContent({
         : {
             description: c(
               "채용이 종료되어 후보자를 추천받지 않습니다.",
-              "Hiring ended; not receiving candidate recommendations."
+              "Hiring has ended. This role no longer receives new recommendations."
             ),
             label: c("채용 종료", "Hiring ended"),
           };
@@ -251,7 +251,7 @@ export function OrgRoleSettingsContent({
         : {
             description: c(
               "후보자 추천을 다시 시작하고 채용을 진행합니다.",
-              "Resume candidate recommendations and proceed with hiring."
+              "Resume hiring and candidate recommendations for this role."
             ),
             title: c("채용을 다시 진행할까요?", "Resume hiring?"),
           }
@@ -259,7 +259,7 @@ export function OrgRoleSettingsContent({
         ? {
             description: c(
               "후보자 추천을 일시정지합니다. 언제든 다시 진행할 수 있습니다.",
-              "Pause candidate recommendations. Can resume anytime."
+              "Pause new recommendations. You can resume hiring at any time."
             ),
             title: c("채용을 일시정지할까요?", "Pause hiring?"),
           }
@@ -423,11 +423,11 @@ export function OrgRoleSettingsContent({
         message: enabled
           ? c(
               "정기 후보 검색을 켰습니다.",
-              "Company-first suggestions enabled."
+              "Scheduled candidate search is on."
             )
           : c(
               "정기 후보 검색을 껐습니다.",
-              "Company-first suggestions disabled."
+              "Scheduled candidate search is off."
             ),
         variant: "success",
       });
@@ -437,7 +437,7 @@ export function OrgRoleSettingsContent({
           error,
           c(
             "정기 후보 검색 설정을 저장하지 못했습니다. 다시 시도해 주세요.",
-            "Couldn't update company-first suggestions. Try again."
+            "We couldn't update scheduled candidate search. Try again."
           )
         )
       );
@@ -742,7 +742,7 @@ export function OrgRoleSettingsContent({
                     roleCreation
                       ? c(
                           "이 역할의 알림과 후보자 진행을 맡을 담당자를 선택하세요.",
-                          "Select members to manage notifications and candidate progress for this role."
+                          "Choose team members to manage notifications and hiring progress for this role."
                         )
                       : c(
                           "이 역할의 후보자 연결을 함께 담당할 멤버를 선택하세요.",
@@ -751,7 +751,7 @@ export function OrgRoleSettingsContent({
                   }
                   info={c(
                     "담당자로 설정한 멤버는 이 역할의 후보자와 연결될 때 소개 이메일 CC에 자동으로 포함됩니다.",
-                    "Members set as owners are automatically CC'd on intro emails when candidates are connected for this role."
+                    "Role owners are automatically CC'd on introduction emails for this role."
                   )}
                   title={c("담당자", "Owners")}
                 />
@@ -920,13 +920,13 @@ export function OrgRoleSettingsContent({
             <RoleSectionHeading
               description={c(
                 "Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. 연락하고 싶은 후보자가 있다면 ‘Intro 요청’을 눌러 주세요. 이 설정을 꺼도 Harper는 후보자에게 역할을 추천할 수 있으며, 회사에는 수락한 후보자만 보여드려요.",
-                "Harper periodically adds potential matches to Suggested candidates. Use Request intro when you want Harper to contact someone. Turning this off still lets Harper recommend the role to candidates; you'll see only those who accept."
+                "Harper searches on your schedule and adds potential matches to Suggested candidates. Choose Send intro when you'd like Harper to reach out. Turning this off doesn't stop Harper from recommending eligible roles to candidates and introducing those who want to talk."
               )}
               info={c(
                 "켜짐: Harper가 정기적으로 잠재 후보자를 찾아 ‘먼저 제안 가능한 후보’에 표시해요. ‘Intro 요청’을 누르면 Harper가 후보자에게 연락해요. 꺼짐: Harper는 후보자에게 역할을 먼저 추천할 수 있고, 회사에는 수락한 후보자만 보여드려요.",
-                "On: Harper adds potential matches to Suggested candidates. Request intro to have Harper contact them. Off: Harper recommends the role to candidates first and shows your team only those who accept."
+                "When this is on, Harper searches for candidates your team can approach. Turning it off stops scheduled searches, but eligible roles can still receive introductions from candidates who have expressed interest."
               )}
-              title={c("추천 후보 검색", "Company-first suggestions")}
+              title={c("추천 후보 검색", "Scheduled candidate search")}
             />
             <div className="flex min-h-6 shrink-0 items-center gap-2">
               {updateCompanyFirstSearch.isPending ? (
@@ -939,7 +939,7 @@ export function OrgRoleSettingsContent({
                 {companyFirstSearchEnabled ? c("켜짐", "On") : c("꺼짐", "Off")}
               </span>
               <AppleSwitch
-                aria-label={c("추천 후보 검색", "Company-first suggestions")}
+                aria-label={c("추천 후보 검색", "Scheduled candidate search")}
                 checked={companyFirstSearchEnabled}
                 disabled={
                   !canManage ||
@@ -972,7 +972,7 @@ export function OrgRoleSettingsContent({
                     )
                   : c(
                       "검색을 켜면 이 요일에 다시 검색합니다.",
-                      "Turn on company-first suggestions to search on these days again."
+                      "Turn on scheduled candidate search to use these days."
                     )}
               </p>
             </div>
@@ -1026,7 +1026,7 @@ export function OrgRoleSettingsContent({
                     )
                   : c(
                       "검색을 켜면 이 시간에 다시 검색합니다.",
-                      "Turn on company-first suggestions to search at this time again."
+                      "Turn on scheduled candidate search to use this time."
                     )}
               </p>
             </div>
@@ -1141,8 +1141,8 @@ export function OrgRoleSettingsContent({
                 ) : null}
                 <span className="text-[12px] font-medium text-neutral-primary">
                   {anonymousEnabled
-                    ? c("회사명 비공개", "Company hidden")
-                    : c("회사명 공개", "Company shown")}
+                    ? c("회사명 비공개", "Company name hidden")
+                    : c("회사명 공개", "Company name visible")}
                 </span>
                 <AppleSwitch
                   aria-label={c("회사명 공개 여부", "Company name visibility")}

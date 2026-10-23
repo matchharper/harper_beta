@@ -39,6 +39,9 @@ export const ORG_AGENT_TOOL_NAMES = [
   "read_contact",
   "read_role",
   "request_matching_search",
+  "recommend_talents",
+  "publish_role_recommendations",
+  "write_company_memory",
   "calibrate_role_hiring_brief",
   "get_more_data",
   "read_conversation_history",
@@ -224,15 +227,23 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_talent",
       description:
-        "Read one to ten company-visible candidates after resolving their exact talent IDs. Use talentIds for batch reads; the singular talentId remains available for a one-candidate read, and the two forms must not be combined. This is a neutral read, not preference disclosure or contact authorization. An unaccepted company-first proposal returns only company-visible board facts, proposal delivery state and contact history, including automatic follow-up timestamps; it never exposes the private email, professional profile, Career insights or stored resume. For already-shared candidates, includeProfile=false (the compact default) returns name, email, headline, visible Role/stage evidence, bounded progress, meeting-coordination state and KST times, contact history with cancellation availability, resume availability, and safe career insights. With includeProfile=true, shared candidates additionally return professional profile location, bio, work history, education, and extras. Compensation and raw resume text are never returned; resume output remains availability-only.",
+        "Read company-visible candidates after resolving their exact talent IDs. Prefer a focused batch suited to the current question; ordinary reads have no fixed candidate-count maximum. Use talentIds for batch reads; the singular talentId remains available for a one-candidate read, and the two forms must not be combined. Profile reads on every plan consume no Intros and do not authorize contact. An unaccepted company-first proposal returns only company-visible board facts, proposal delivery state and contact history, including automatic follow-up timestamps; it never exposes the private email, Career insights or stored resume. With includeProfile=true, company-first proposals can return the company-visible professional profile on every plan. For already-shared candidates, includeProfile=false (the compact default) returns name, email, headline, visible Role/stage evidence, bounded progress, meeting-coordination state and KST times, contact history with cancellation availability, resume availability, and safe career insights. Candidate email addresses are withheld in pending_connection, company_intro, and intro_requested. With includeProfile=true, shared candidates additionally return professional profile location, bio, work history, education, and extras. An eligible candidate without an existing company pair can return a profile-only preview without creating a recommendation or contact. Compensation and raw resume text are never returned; resume output remains availability-only.",
       parameters: {
         additionalProperties: false,
         minProperties: 1,
         properties: {
           includeProfile: {
             description:
-              "Choose response detail. false (default) returns the compact base with identity, visible workspace role/candidate stage and recommendation evidence, progress, meeting coordination, contact history, resume availability, and safe career insights. true returns the same base plus current profile location, bio, structured work history, education, and extras. Use true whenever the question needs career background, companies or roles worked at, schools or education, current profile location, or a detailed identity/profile overview. Raw resume text is never included.",
+              "false (default) returns the compact base with identity, visible Role/stage and recommendation evidence, progress, contacts and resume availability. true adds the complete public professional profile. For location or work/education timelines, profileView=outline supplies those facts without descriptive bodies; profileView=full includes the complete source prose. Raw resume text is never included.",
             type: "boolean",
+          },
+          profileView: {
+            type: "string", enum: ["outline", "full"],
+            description: "Includes the authorized profile. outline returns current location and complete work/education/extras metadata, including all employers, roles and dates, but omits bio and descriptive bodies. Use it for broad lists and career-path comparisons when those facts suffice. full returns the original bio and all descriptive evidence for substantive work, achievements or detailed fit explanations. Expand only the candidates needing that evidence; no batch-size limit. Omit includeProfile or set it true when specifying this field.",
+          },
+          profileSections: {
+            type: "array", items: { type: "string", enum: ["bio", "experience", "education", "extras"] },
+            description: "Select the source sections needed for this question before reading many profiles. For example, experience returns every work-history row and its full descriptive evidence without unrelated biography, education or extras. Omit for all sections; [] returns current location only. Identity and company relationship facts always remain. Combine with profileView=outline for metadata only, or full/omitted for original prose. Sections left out are not evidence of absence and can be read later. No candidate-count or prose-length limit.",
           },
           progressLimit: {
             description: "Recent progress events; 1-30, default 10.",
@@ -259,13 +270,12 @@ export const ORG_AGENT_TOOLS = [
           },
           talentIds: {
             description:
-              "One to ten exact talent IDs. Use a one-item array for a normal single-candidate read and multiple IDs for comparison or batch review.",
+              "Exact talent IDs for comparison or batch review. Prefer a focused set of relevant candidates; ordinary reads have no fixed batch maximum.",
             items: {
               maxLength: 100,
               minLength: 1,
               type: "string",
             },
-            maxItems: 10,
             minItems: 1,
             type: "array",
             uniqueItems: true,
@@ -383,7 +393,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "read_role",
       description:
-        "Read one internal role by roleId or exact title. Use it only for details missing from current context, and choose only the needed criteria, memory, pipeline, description, or notification settings. notification returns saved channels, primary assignee, available exact targets, current-user/current-channel markers, and explicit draft selections; it does not start hiring. criteria returns both the broad internal role request and the optional 0-6 structured evaluation dimensions. The request is used for matching even when those optional dimensions are empty; their absence alone does not establish why sourcing results are sparse. This read has no unseen-talent market distribution or counterfactual supply estimates. pipeline returns the complete ordered stage references with exact stage IDs plus each returned candidate's exact current stage ID; read it before a pipeline structure edit or candidate stage move. For a bounded pending-connection or shortlist result that lacks decision reasons, include pipeline so the answer can explain fit rather than listing names and headlines alone.",
+        "Read one internal role by roleId or exact title. Use it only for details missing from current context, and choose only the needed criteria, memory, pipeline, description, or notification settings. notification returns saved channels, primary assignee, available exact targets, current-user/current-channel markers, and explicit draft selections; it does not start hiring. criteria returns both the broad internal role request and the optional structured evaluation dimensions. The request is used for matching even when those optional dimensions are empty; their absence alone does not establish why sourcing results are sparse. This read has no unseen-talent market distribution or counterfactual supply estimates. pipeline returns the complete ordered stage references with exact stage IDs plus each returned candidate's exact current stage ID; read it before a pipeline structure edit or candidate stage move. For a bounded pending-connection or shortlist result that lacks decision reasons, include pipeline so the answer can explain fit rather than listing names and headlines alone.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -435,25 +445,64 @@ export const ORG_AGENT_TOOLS = [
     },
   },
   {
+    type: "function", function: {
+      name: "recommend_talents",
+      description: "Submit final candidate actions from the supplied scheduled shortlist and end this turn. Use its short refs in talent_ids. company_first adds company review cards without contacting candidates; talent_first recommends this Role through the existing candidate delivery; connect presents an already accepted candidate to the company as pending connection, not connected. Include only selected people. actions=[] records no action. Full-profile reads are not a prerequisite. Send all actions together in one call; stage 3 writes selected candidates' explanations and existing delivery follows automatically, without another selection LLM.",
+      parameters: { type: "object", additionalProperties: false, required: ["actions"], properties: {
+        actions: { type: "array", items: { type: "object", additionalProperties: false,
+          required: ["label", "talent_ids"], properties: {
+            label: { type: "string", enum: ["company_first", "talent_first", "connect"] },
+            talent_ids: { type: "array", items: { type: "string" } },
+          } } },
+        reason: { type: "string", description: "Optional short explanation of the selection or no action; not a review of every candidate." },
+      } },
+    },
+  },
+  {
     type: "function",
     function: {
       name: "request_matching_search",
-      description:
-        "Queue a fresh matching search only when the company explicitly asks Harper to find new people now using a saved current Hiring Brief. Resolve the exact Role that prompted the request and supply its roleId. This is an asynchronous action, not a read of candidates already in the pipeline. The company-scoped search considers the requested Role together with the workspace's other enabled Roles so one person is not proposed twice for sibling Roles. A queued or running search is safely reused when it already covers the current Brief. The result states whether the request is queued, already running, or unavailable; no candidate has been selected or contacted merely because this tool succeeds.",
+      description: "Queue evaluation for one saved Role. Explicit company searches save stage-1/2 evidence without changing the recommendation list or contacting anyone. After completion, read matching.view=selection for current statistics, Top candidates and the entire untouched recommendation pool; choose exact IDs with publish_role_recommendations if warranted. scope=unassessed/new_members limits discovery, all reevaluates including existing untouched cards, evaluated reuses saved scores. startStage=1 reevaluates hard conditions; 2 reuses prior stage-1 eligibility for changed comparison criteria. Do not rescore an unchanged Brief without a reason. A trusted scheduled assignment retains its separately authorized directions. A queued result does not prove completed evaluation or publication.",
       parameters: {
-        additionalProperties: false,
-        properties: {
-          roleId: {
-            description:
-              "Exact Role ID whose saved current Hiring Brief prompted the explicit search request.",
-            maxLength: 100,
-            minLength: 1,
-            type: "string",
-          },
+        type: "object", additionalProperties: false, required: ["roleId"], properties: {
+          roleId: { type: "string" },
+          scope: { type: "string", enum: ["unassessed", "new_members", "all", "evaluated"] },
+          startStage: { type: "integer", enum: [1, 2] },
+          limit: { type: "integer", minimum: 1, description: "Retrieval/evaluation budget, default 5000. No artificial top-200 gate." },
+          recommendCount: { type: "integer", minimum: 0, description: "Suggested recommendation target, normally 10; not a quota. Interactive searches always evaluate only. Scheduled authority retains its separate direction limits." },
+          sourceRelation: { type: "string", enum: ["accepted"], description: "Scheduled authority only: review current accepted, not-yet-introduced candidates. Positive recommendCount does not cap accepted introductions; zero evaluates only." },
+          recommendCounts: { type: "object", additionalProperties: false, required: ["companyFirst", "talentFirst"], properties: {
+            companyFirst: { type: "integer", minimum: 0 }, talentFirst: { type: "integer", minimum: 0 },
+          }, description: "Scheduled authority only: desired new additions per direction, without replacing the existing company list. This input never grants permission to contact candidates." },
+          talentIds: { type: "array", items: { type: "string" }, minItems: 1, description: "Exact people to evaluate. Interactive publication uses publish_role_recommendations after reading the evidence. Scheduled review retains its separately authorized selection contract." },
+          reason: { type: "string", description: "Short factual purpose of this search, retained in its history." },
         },
-        required: ["roleId"],
-        type: "object",
       },
+    },
+  },
+  {
+    type: "function", function: {
+      name: "publish_role_recommendations",
+      description: "Commit your selected company-first recommendation list for one Role. This changes the entire untouched pool: include every current candidate you want to retain plus new candidates you choose; omitted untouched cards retire without being marked rejected. An empty list explicitly clears that pool. Read matching.view=selection for briefVersion, poolVersion, current candidates and scores first. You may choose IDs outside Top 50 using further reads. Current stage-2 scores are required for new candidates; existing cards without current scores can be retained unchanged. The Worker writes stage-3 explanations for selected current evaluations, without reranking or filling a quota. Save/Pass/Accept/Intro progress is preserved. Changed Brief/pool or unavailable new candidates fail without partial replacement. Only company-first cards are published; this never contacts candidates, creates talent-first recommendations or moves accepted candidates to connection pending. Call only when the conversation authorizes this selection; evaluation may instead warrant a discussion before changing the list.",
+      parameters: {type:"object",additionalProperties:false,required:["roleId","briefVersion","poolVersion","talentIds"],properties:{
+        roleId:{type:"string"},briefVersion:{type:"string"},poolVersion:{type:"string"},
+        sourceRunId:{type:"string",description:"Optional saved run whose exact evaluation references should be reused without discovery or stage-1/2 scoring. Read selection with that runId first. Its Brief must equal the current briefVersion; prior criteria never become current criteria implicitly. Omit to use latest current-Brief evaluations."},
+        talentIds:{type:"array",items:{type:"string"},description:"Complete desired untouched company-first list, including retained IDs; [] explicitly removes every untouched card."},
+        reason:{type:"string",description:"Short purpose grounded in the company conversation and assessed evidence."},
+      }},
+    },
+  },
+  {
+    type: "function", function: {
+      name: "write_company_memory",
+      description: "Save authorized company facts, feedback and durable context as scoped rows. Choose company, team or role from the meaning and audience. This does not change the Hiring Brief or contact anyone. Use exact ref/revision from company_memory reads for updates/deletes. operationId identifies an atomic batch; reuse it unchanged only for a retry. A revision conflict requires reading the current row. Labels/content are free text. Move scope with add+delete in one batch.",
+      parameters: {type:"object",additionalProperties:false,required:["operationId","changes"],properties:{
+        operationId:{type:"string",minLength:1},changes:{type:"array",minItems:1,items:{type:"object",additionalProperties:false,required:["op"],properties:{
+          op:{type:"string",enum:["add","update","delete"]},scope:{type:"string",enum:["company","team","role"]},
+          teamId:{type:"string"},roleId:{type:"string"},ref:{type:"integer",minimum:1},revision:{type:"integer",minimum:1},
+          label:{type:"string"},content:{type:"string"},
+        }}},
+      }},
     },
   },
   {
@@ -480,8 +529,7 @@ export const ORG_AGENT_TOOLS = [
     type: "function",
     function: {
       name: "get_more_data",
-      description:
-        "Read additional company information. Include every needed source in kinds: matching_runs for aggregate search history, workspace_memory for the company's saved notes, company_details for company fields and documents, members for team member IDs/names/roles. A result covers only the requested kinds; search reasons do not substitute for saved company notes. Multiple kinds can be read together. matching_runs returns five entries per page; the latest five are already in normal context, and nextOffset reads older entries. History counts are selections, not deliveries or consent; private candidate assessments and per-run details are unavailable. The other three kinds remain refreshed for the next three user turns in this conversation; history pages do not. For complete long company fields, request fullTextKeys and check returned completeness. A full memory inventory also requires reading each active Role's memory.",
+      description: "Read additional company information. kinds selects members, teams, company_details, legacy workspace_memory, scoped company_memory, matching_runs, or hiring_brief_history. teams lists all accessible team IDs and names, including teams with no assigned people or Roles. hiring_brief_history lists saved Hiring Brief changes, authors and summaries; hiringBriefHistory.historyId returns complete before/after Brief and Criteria snapshots. With matching_runs alone, read recent history or older pages by offset. Add matching to read one run, current-Brief cumulative statistics, filtered candidate lists, or one person's evaluation history. Statistics count evaluations, not deliveries or consent. Missing historical measurements are unknown, not zero. company_memory returns editable row refs/revisions and actual scopes; memory filters narrow its inventory. Full field reads needed for edits use fullTextKeys. Read failures do not imply empty state.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -496,16 +544,36 @@ export const ORG_AGENT_TOOLS = [
             type: "array",
           },
           kinds: {
-            description: "One to three optional data groups to load.",
+            description: "Requested independent data groups.",
             items: {
-              enum: ["members", "company_details", "workspace_memory", "matching_runs"],
+              enum: ["members", "teams", "company_details", "workspace_memory", "company_memory", "matching_runs", "hiring_brief_history"],
               type: "string",
             },
-            maxItems: 3,
             minItems: 1,
             type: "array",
           },
-          offset: {type:"integer",minimum:0,description:"For matching_runs only: nextOffset from the preceding history page. Returns aggregate run history, without per-run candidate details."},
+          offset: {type:"integer",minimum:0,description:"Older matching history page offset."},
+          roleId: {type:"string",description:"Optional exact Role for matching history pages; preserve it with offset. Omit for workspace history. Detailed matching queries use matching.roleId instead."},
+          matching: { type: "object", additionalProperties: false, required: ["roleId"], properties: {
+            roleId: {type:"string"}, view: {type:"string",enum:["summary","candidates","evaluations","selection"],description:"selection reads latest evidence or a saved runId: its criteria, frozen ranked candidates and old scores, alongside the entire current untouched recommendation pool and current scores. Top 50 is a default page size; use offset/limit for more. Current Brief and poolVersion support publication. Older runs without frozen references explicitly report incomplete historical coverage. Other filters use summary/candidates/evaluations."},
+            runId: {type:"string",description:"Saved run from history. Reads the original Brief and recorded evaluation references, including reused scores, without starting a search. With selection, compares that historical candidate list with the current pool."}, briefVersion: {type:"string",description:"Omit for current Brief or the requested run's recorded Brief; exact returned version or all for evaluation history."},
+            talentIds: {type:"array",items:{type:"string"}}, stage: {type:"integer",enum:[1,2,3]},
+            inputContractVersion: {type:"string",description:"Exact input projection, for example worker_behavior_v1. Different projections are not interchangeable current evaluations."},
+            relationship: {type:"string",enum:["accepted"],description:"Current accepted, not-yet-introduced source relationships. This is a relationship inventory, not an evaluation or company acceptance."},
+            hasCompanyHistory: {type:"boolean",description:"Filter the entire counted/listed population by an existing company introduction or shared progress. false finds people without that company history; inspect returned current relationship/new-pair facts before recommending."},
+            includeDistributions: {type:"boolean",description:"Include per-score probability distributions when needed; omitted by default to keep the result concise."},
+            criterion: {type:"string",description:"Exact criterion name from statistics."}, label: {type:"string",description:"Exact score or label from statistics."},
+            offset: {type:"integer",minimum:0}, limit: {type:"integer",minimum:1},
+          } },
+          hiringBriefHistory: {type:"object",additionalProperties:false,required:["roleId"],properties:{
+            roleId:{type:"string"},historyId:{type:"string",description:"Exact change id for full before/after snapshots. Omit for compact history list."},
+            offset:{type:"integer",minimum:0},limit:{type:"integer",minimum:1},
+          }},
+          memory: {type:"object",additionalProperties:false,properties:{
+            scope:{type:"string",enum:["company","team","role"]},roleId:{type:"string"},teamId:{type:"string"},
+            forRoleId:{type:"string",description:"Read this Role and its inherited team/company memory within the current audience."},
+            offset:{type:"integer",minimum:0},limit:{type:"integer",minimum:1},
+          }},
         },
         required: ["kinds"],
         type: "object",
@@ -565,7 +633,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "update_role_criteria",
       description:
-        "Edit or fully replace one role's independent candidate comparison elements. For a new draft, author them from known Role facts before completion as part of the authorized Role setup; no separate criteria request is needed. For a registered Role, edit only within the user's requested scope. For targeted additions, updates or deletions, use edits and copy an existing element's exact name into targetName. Use criteria only for a full-list replacement. Read include=criteria first when current criteria are not visible. Zero to six elements may be saved under the storage contract; authoring is the LLM's responsibility. Provide exactly one of criteria or edits. For multiple independently requested roles, call this once per exact Role after reviewing each result.",
+        "Edit or fully replace one role's independent candidate comparison elements. For a new draft, author them from known Role facts before completion as part of the authorized Role setup; no separate criteria request is needed. For a registered Role, edit only within the user's requested scope and retain unrelated facts, alternatives and requirement strengths inside each edited element. Replacing an element's text is not permission to drop its other conditions. For targeted additions, updates or deletions, use edits and copy an existing element's exact name into targetName. Use criteria only for a full-list replacement. Read include=criteria first when current criteria are not visible. An empty list is valid; authoring is the LLM's responsibility. Provide exactly one of criteria or edits. For multiple independently requested roles, call this once per exact Role after reviewing each result.",
       parameters: {
         additionalProperties: false,
         minProperties: 2,
@@ -577,12 +645,10 @@ export const ORG_AGENT_TOOLS = [
               additionalProperties: false,
               properties: {
                 criteria: {
-                  maxLength: 8000,
                   minLength: 1,
                   type: "string",
                 },
                 name: {
-                  maxLength: 200,
                   minLength: 1,
                   type: "string",
                 },
@@ -590,27 +656,24 @@ export const ORG_AGENT_TOOLS = [
               required: ["name", "criteria"],
               type: "object",
             },
-            maxItems: 6,
             minItems: 0,
             type: "array",
           },
           edits: {
             description:
-              "One to six targeted edits, applied in order and saved atomically. add requires name and criteria. update requires the exact current targetName and at least one replacement field, name or criteria. delete requires only the exact current targetName. A delete may reduce the final list to zero items, and an add cannot raise it above six.",
+              "Targeted edits, applied in order and saved atomically. add requires name and criteria. update requires the exact current targetName and at least one replacement field, name or criteria. delete requires only the exact current targetName. A delete may reduce the final list to zero items.",
             items: {
               additionalProperties: false,
               properties: {
                 criteria: {
                   description:
                     "Detailed replacement text for add, or optional new detailed text for update.",
-                  maxLength: 8000,
                   minLength: 1,
                   type: "string",
                 },
                 name: {
                   description:
                     "Dimension name for add, or optional new name for update.",
-                  maxLength: 200,
                   minLength: 1,
                   type: "string",
                 },
@@ -621,7 +684,6 @@ export const ORG_AGENT_TOOLS = [
                 targetName: {
                   description:
                     "Exact current dimension name for update or delete. Omit for add.",
-                  maxLength: 200,
                   minLength: 1,
                   type: "string",
                 },
@@ -629,7 +691,6 @@ export const ORG_AGENT_TOOLS = [
               required: ["operation"],
               type: "object",
             },
-            maxItems: 6,
             minItems: 1,
             type: "array",
           },
@@ -1450,11 +1511,12 @@ Call this once per exact candidate Role change and review the result before anot
   },
 ] as const;
 
-export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat") {
+export function getEnabledOrgAgentTools(surface: "chat" | "slack" = "chat", trusted?: {scheduledMatching?: boolean}) {
   const tools = ORG_AGENT_TOOLS.filter(
     (tool) =>
-      COMPANY_MEETING_SCHEDULING_ENABLED ||
-      tool.function.name !== "manage_interview_availability"
+      (tool.function.name !== "recommend_talents" || trusted?.scheduledMatching === true) &&
+      (COMPANY_MEETING_SCHEDULING_ENABLED ||
+      tool.function.name !== "manage_interview_availability")
   );
   return surface === "slack"
     ? tools

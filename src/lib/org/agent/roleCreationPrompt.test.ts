@@ -36,7 +36,7 @@ test("one compact authoring contract retains discovery and confirmation boundari
     "<company_service_core>", "<tool_outcome_response_contract>", "<hiring_brief_authoring_contract>",
     "source-preserving editing", "not a questionnaire", "actual blockers",
     "Duties and future goals", "Preferred criteria may stay empty", "breadth and strength",
-    "update_role_draft.textEdits", "at most six dimensions", "criteria do not replace",
+    "update_role_draft.textEdits", "distinct dimensions", "criteria do not replace",
     "save onsite", "save full_time", "at least two distinct substantive opportunities",
     "read_other_roles once", "salaryRange is one free-form value", "never average or choose silently",
     "descriptionSourceResearch is the durable one-attempt marker", "Never combine postings",
@@ -201,7 +201,7 @@ test("includes server-resolved talent mentions in role creation context", () => 
   assert.match(prompt, /talent-1/);
 });
 
-test("criteria context exposes storage limits without a completion requirement", () => {
+test("criteria context exposes structural validity without a count ceiling or completion requirement", () => {
   const prompt = buildRoleCreationUserPrompt({
     attachments: [],
     history: [],
@@ -235,7 +235,7 @@ test("criteria context exposes storage limits without a completion requirement",
   assert.match(prompt, /"valid": true/);
   assert.doesNotMatch(prompt, /requiredBeforeCompletion/);
   assert.match(prompt, /"minItems": 0/);
-  assert.match(prompt, /"maxItems": 6/);
+  assert.doesNotMatch(prompt, /"maxItems"/);
 });
 
 test("writes company information as prose and keeps its marker out of saved fields", () => {

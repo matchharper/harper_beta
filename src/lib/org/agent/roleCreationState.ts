@@ -10,7 +10,6 @@ import {
   assertOrgWorkspacePermission,
   assertOrgRoleAccess,
   OrgHttpError,
-  updateOrgRoleCriteria,
   upsertOrgCompanyUser,
 } from "@/lib/org/server";
 import {
@@ -398,6 +397,7 @@ export async function fetchRoleCreationState(args: {
 
 export async function updateRoleCreationDraft(args: {
   actorLabel: string;
+  source?: "chat" | "slack";
   allowCompletedRole?: boolean;
   criteria?: OrgRoleCriterion[];
   employmentTypes?: string[];
@@ -413,7 +413,7 @@ export async function updateRoleCreationDraft(args: {
   workMode?: string | null;
   workspaceId: string;
 }) {
-  await fetchRoleCreationState(args);
+  const previousState=await fetchRoleCreationState(args);
   const changes: Parameters<
     typeof applyWebsiteCompanyDataChanges
   >[0]["changes"] = [];
@@ -467,12 +467,14 @@ export async function updateRoleCreationDraft(args: {
       value: args.externalJdUrl,
     });
   }
-  if (changes.length > 0) {
+  if (changes.length > 0 || args.criteria !== undefined) {
     await applyWebsiteCompanyDataChanges({
       actorLabel: args.actorLabel,
+      actorUserId:args.user.id,
+      criteriaChanges:args.criteria === undefined ? [] : [{role_id:args.roleId,expected:previousState.role.criteria,value:args.criteria}],
       admin: getSupabaseAdmin(),
       changes,
-      source: "chat",
+      source: args.source ?? "chat",
       workspaceId: args.workspaceId,
     });
   }
@@ -493,16 +495,6 @@ export async function updateRoleCreationDraft(args: {
     if (error) throw error;
   }
 
-  if (args.criteria !== undefined) {
-    await updateOrgRoleCriteria({
-      actorLabel: args.actorLabel,
-      criteria: args.criteria,
-      roleId: args.roleId,
-      source: "chat",
-      user: args.user,
-      workspaceId: args.workspaceId,
-    });
-  }
 
   if (args.memory !== undefined) {
     const admin = getSupabaseAdmin();

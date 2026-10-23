@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
     });
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -538,6 +538,7 @@ export function OrgAgentChatSurface({
           ) : null}
           <OrgAgentStreamingBubble
             onCompanyInfoClick={onCompanyInfoClick}
+            roleId={roleId}
             text={chat.streamingText}
             workspaceId={workspaceId}
           />
@@ -586,7 +587,7 @@ export function OrgAgentChatSurface({
             </p>
           ) : null}
           {visibleRoleQuickActions.length > 0 ? (
-            <div className="mx-auto mb-3 flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:px-5 md:pt-0">
+            <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0">
               {visibleRoleQuickActions.map((action) => {
                 const isRunSearchAction = action.id === "run_search";
                 const actionCopy = roleQuickActionCopy[action.id];

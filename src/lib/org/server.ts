@@ -1,3 +1,14 @@
+import { canCacheOrgPermissions, memoOrgRequest } from "./requestScope.server";
+import { invalidateOrgPermissions } from "./permissionCache.server";
+import { traceStageStep } from "@/lib/org/stageTiming.server";
+import {
+  readOrgCandidateActivity,
+  orgCandidateActivityKind,
+  orgCandidateActivityTitle,
+  orgCandidateActivityFeedContent,
+  type OrgCandidateActivity,
+} from "./candidateActivityFeed";
+import { currentCompanyCriteriaEvaluations } from "@/lib/companyFirstSearch/presentation";
 import { readTalentFirstCapacityBlockedRoleIds } from "@/lib/org/talentFirstCapacity.server";
 import { readAutomaticFollowupFeed } from "@/lib/org/automaticFollowupFeed";
 import { isCompanyFeedProgressVisible } from "@/lib/org/companyFeedVisibility";
@@ -94,8 +105,6 @@ import {
 } from "@/lib/ops/talentMemo";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import {
-  notifyOrgCandidateAcceptedSlack,
-  notifyOrgCandidateRejectedSlack,
   notifyCompanyIntroTalentDeclinedSlack,
   notifyOrgMemberJoinedSlack,
   postOrgSlackMessage,
@@ -462,6 +471,7 @@ export type OrgBoardItem = {
     introduction?: string | null;
     tldr?: string | null;
     harperNote?: string | null;
+    recommendationReason?: string;
     nextStageId: string | null;
     requestedAt: string | null;
     selectionReason: string;
@@ -507,6 +517,18 @@ export type OrgBoardResponse = {
 };
 
 export type OrgCompanyIntroMutationResponse = {
+  candidateUpdate?: {
+    roleId: string;
+    talentId: string;
+    status: NonNullable<OrgBoardItem["companyIntro"]>["status"];
+    requestedAt: string | null;
+    candidateSentAt: string | null;
+    talentDecisionAt: string | null;
+    closeReason: string | null;
+    companyAppeal: string | null;
+    nextStageId: string | null;
+    updatedAt: string;
+  };
   candidateAcceptedAt?: string | null;
   stageTag?: string | null;
   newIntroCreated?: boolean;
@@ -568,15 +590,7 @@ export type OrgFeedActor = {
 
 export type OrgFeedItem = {
   followup?: CompanyFollowupProgress;
-  activity: {
-    eventType:
-      | "candidate_contact_sent"
-      | "candidate_message_delivered"
-      | "candidate_response_received";
-    requestContext: string | null;
-    requestId: string;
-    requestKind: "contact" | "question" | "resume";
-  } | null;
+  activity: OrgCandidateActivity | null;
   actor: OrgFeedActor | null;
   companyUserId: string | null;
   createdAt: string;
@@ -1393,6 +1407,7 @@ export async function upsertOrgCompanyUser(
   admin: SupabaseAdminClient,
   user: User
 ) {
+  return memoOrgRequest(["company-user", user.id], async () => {
   const { data: existingUser, error: existingUserError } = await (
     admin.from("company_users" as any) as any
   )
@@ -1436,6 +1451,8 @@ export async function upsertOrgCompanyUser(
     .update(values)
     .eq("user_id", user.id);
   if (updateError) throw updateError;
+
+  });
 }
 
 async function fetchWorkspaceById(
@@ -1598,15 +1615,21 @@ export async function assertOrgWorkspacePermission(args: {
   user: User;
   workspaceId: string;
 }) {
-  await assertWorkspaceAvailable(args);
-  if (hasOrgAllWorkspaceAccess(args.user)) {
-    const workspace = await fetchWorkspaceById(args.admin, args.workspaceId);
-    if (!workspace) throw new OrgHttpError(404, "Workspace not found");
-    return "owner" as const;
+  const reusePermission = canCacheOrgPermissions() && !args.allowReviewSetup &&
+    (args.permission === "view" || args.permission === "manage_candidates");
+  if (!reusePermission) {
+    await assertWorkspaceAvailable(args);
+    if (hasOrgAllWorkspaceAccess(args.user)) {
+      const workspace = await fetchWorkspaceById(args.admin, args.workspaceId);
+      if (!workspace) throw new OrgHttpError(404, "Workspace not found");
+      return "owner" as const;
+    }
   }
 
-  // The current review flag was checked above; keep one DB check per permission read.
-  const access = await readOrgRoleAccess({ ...args, allowReviewSetup: true });
+  // Candidate mutations share one cached snapshot with subsequent Role reads.
+  // Team/Workspace/integration management always reads current membership.
+  const access = await readOrgRoleAccess({ ...args,
+    allowReviewSetup: reusePermission ? false : true, fresh: !reusePermission });
   const authority = access.authority;
   const permissions = getOrgPermissions(authority, access.scope);
   const allowed =
@@ -1677,6 +1700,7 @@ export async function leaveOrgWorkspace(args: {
     .eq("company_user_id", args.user.id);
   if (deleteError) throw deleteError;
 
+  invalidateOrgPermissions(workspaceId);
   await recordOrgAction({ admin, actorUserId: args.user.id, type: "org_member_left",
     metadata: { workspaceId, targetUserId: args.user.id } });
   const remainingMemberships = await fetchMembershipsForUser(
@@ -1745,6 +1769,7 @@ export async function removeOrgWorkspaceMember(args: {
     throw new OrgHttpError(404, "이미 제거되었거나 멤버를 찾지 못했습니다.");
   }
 
+  invalidateOrgPermissions(workspaceId);
   await recordOrgAction({ admin, actorUserId: args.user.id, type: "org_member_removed",
     metadata: { workspaceId, targetUserId: userId } });
   let nextWorkspaceId: string | null = null;
@@ -1902,7 +1927,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string, us
   const [rolesResult, memoriesResult, conversationsResult] = await Promise.all([
     scopeOrgRoleQuery((admin.from("company_roles" as any) as any)
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired, company_internal_roles(team_id, is_harper_tailored_role), company_role_assignees(company_users(email))"
+        "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired, company_internal_roles(team_id, is_harper_tailored_role, request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time), company_role_assignees(company_users(email))"
       )
       .eq("company_workspace_id", workspaceId)
       .eq("source_type", "internal")
@@ -1925,32 +1950,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string, us
   if (memoriesResult.error) throw memoriesResult.error;
   if (conversationsResult.error) throw conversationsResult.error;
 
-  const roleRows = (rolesResult.data ?? []).filter(isCompanyVisibleRole) as CompanyRoleRow[];
-  const roleIds = roleRows.map((role) => role.role_id);
-  const internalResult = roleIds.length
-    ? await (admin.from("company_internal_roles" as any) as any)
-        .select(
-          "role_id, team_id, request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time"
-        )
-        .in("role_id", roleIds)
-    : { data: [], error: null };
-  if (internalResult.error) throw internalResult.error;
-  const internalByRoleId = new Map(
-    (
-      (internalResult.data ?? []) as Array<{
-        team_id: string | null;
-        criteria: unknown;
-        is_company_first_search: boolean | null;
-        is_promote: boolean | null;
-        is_anonymous: boolean | null;
-        intro_search_date: string[] | null;
-        intro_search_time: number | null;
-        request: string | null;
-        role_id: string;
-      }>
-    ).map((row) => [row.role_id, row])
-  );
-
+  const roleRows = (rolesResult.data ?? []).filter(isCompanyVisibleRole) as CompanyRoleWithInternalRow[];
   const memoryByRoleId = new Map<
     string,
     { content: string; updated_at: string }
@@ -1992,7 +1992,7 @@ async function fetchOrgRoles(admin: SupabaseAdminClient, workspaceId: string, us
       role,
       memoryByRoleId.get(role.role_id) ?? null,
       lastConversationByRoleId.get(role.role_id) ?? null,
-      internalByRoleId.get(role.role_id) ?? null
+      getCompanyInternalRoleRecord(role.company_internal_roles)
     )
   );
 }
@@ -2400,6 +2400,7 @@ export async function updateOrgMembershipAuthority(args: {
     .update({ authority, ...(authority === "owner" ? { access_scope: "organization", team_id: null } : {}), updated_at: new Date().toISOString() })
     .eq("id", membership.id);
   if (error) throw error;
+  invalidateOrgPermissions(workspaceId);
   if (previousAuthority !== authority) {
     await recordOrgAction({ admin, actorUserId: args.user.id, type: "org_member_authority_changed",
       metadata: { workspaceId, targetUserId: userId, before: previousAuthority, after: authority } });
@@ -2508,12 +2509,13 @@ export async function updateOrgMemberProfile(args: {
   return { name, ok: true, role, userId };
 }
 
-async function fetchRoleRowsForWorkspace(
+export async function fetchRoleRowsForWorkspace(
   admin: SupabaseAdminClient,
   workspaceId: string,
   user?: User
 ) {
-  const access = user ? await readOrgRoleAccess({ admin, user, workspaceId }) : null;
+  return memoOrgRequest(["role-rows", user?.id, workspaceId], async () => {
+  const access = user ? await traceStageStep("fetchRoleRowsForWorkspace:2504", async () => (readOrgRoleAccess({ admin, user, workspaceId }))) : null;
   let query = (admin.from("company_roles" as any) as any)
     .select(
       "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, source_type, type, location_text, work_mode, created_at, updated_at, expires_at, information, is_expired, company_role_assignees(company_users(email)), company_internal_roles(is_harper_tailored_role, team_id, request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time)"
@@ -2523,9 +2525,11 @@ async function fetchRoleRowsForWorkspace(
     .not("is_expired", "is", true);
 
   if (access) query = scopeOrgRoleQuery(query, access);
-  const { data, error } = await query;
+  const { data, error } = await traceStageStep("fetchRoleRowsForWorkspace:2514", async () => (query));
   if (error) throw error;
   return sortRoles((data ?? []).filter(isCompanyVisibleRole) as CompanyRoleWithInternalRow[]);
+
+  });
 }
 
 async function fetchCustomStages(
@@ -2832,19 +2836,19 @@ async function assertOrgTalentVisibleInWorkspace(args: {
   user: User;
   workspaceId: string;
 }) {
-  const { data: activeTalent, error: activeTalentError } = await (
+  const { data: activeTalent, error: activeTalentError } = await traceStageStep("assertOrgTalentVisibleInWorkspace:2823", async () => ((
     args.admin.from("talent_users" as any) as any
   )
     .select("user_id")
     .eq("user_id", args.talentId)
     .is("deleted_at", null)
-    .maybeSingle();
+    .maybeSingle()));
   if (activeTalentError) throw activeTalentError;
   if (!activeTalent) throw new OrgHttpError(404, "Talent not found");
 
   const roleRows =
     args.roleRows ??
-    (await fetchRoleRowsForWorkspace(args.admin, args.workspaceId, args.user));
+    (await traceStageStep("assertOrgTalentVisibleInWorkspace:2835", async () => (fetchRoleRowsForWorkspace(args.admin, args.workspaceId, args.user))));
   const roleIds = roleRows.map((role) => role.role_id);
   if (roleIds.length === 0) {
     throw new OrgHttpError(404, "Talent not found");
@@ -2866,7 +2870,7 @@ async function assertOrgTalentVisibleInWorkspace(args: {
     recommendationQuery = recommendationQuery.eq("id", args.recommendationId);
   }
 
-  const { data, error } = await recommendationQuery;
+  const { data, error } = await traceStageStep("assertOrgTalentVisibleInWorkspace:2857", async () => (recommendationQuery));
   if (error) throw error;
   const recommendations = (data ?? []) as RecommendationRow[];
   if (recommendations.length === 0) {
@@ -2874,7 +2878,7 @@ async function assertOrgTalentVisibleInWorkspace(args: {
   }
 
   const [customStages, tagsByKey, connectedRecommendationIds] =
-    await Promise.all([
+    await traceStageStep("assertOrgTalentVisibleInWorkspace:2865", async () => (Promise.all([
       fetchCustomStages(args.admin, roleIds),
       fetchTagsForBoard({
         admin: args.admin,
@@ -2882,7 +2886,7 @@ async function assertOrgTalentVisibleInWorkspace(args: {
         talentIds: [args.talentId],
       }),
       fetchOrgConnectedRecommendationIds({ admin: args.admin, roleIds }),
-    ]);
+    ])));
   const customStageByTagKey = new Map(
     customStages.map((row) => [
       customTagKeyFromStageRow(row),
@@ -2911,6 +2915,73 @@ async function assertOrgTalentVisibleInWorkspace(args: {
     )
   );
   if (!visible) throw new OrgHttpError(404, "Talent not found");
+
+}
+
+/** Server-only suppression lookup for company-side model inputs. It returns only
+ * addresses already present in the proposed input, never new candidate data.
+ * Workspace-wide suppression also prevents cross-Role history from disclosing
+ * a pending candidate through a different Role's connected position.
+ */
+export async function resolveOrgAgentPrivateCandidateEmails(args: {
+  admin: SupabaseAdminClient;
+  workspaceId: string;
+  emails: string[];
+}): Promise<string[]> {
+  if (!args.emails.length) return [];
+  const { protectsCandidateEmail } = await import("./agent/candidateEmailPrivacy");
+  const readAll = async (query: () => any): Promise<any[]> => {
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += 500) {
+      const { data, error } = await query().range(offset, offset + 499);
+      if (error) throw error;
+      rows.push(...(data ?? []));
+      if ((data ?? []).length < 500) return rows;
+    }
+  };
+  // Escaped ILIKE is exact, case-insensitive address matching (not a wildcard search).
+  const talents = (await Promise.all(args.emails.map(email => readAll(() =>
+    (args.admin.from("talent_users" as any) as any).select("user_id,email")
+      .ilike("email", email.replace(/[\\%_]/g, "\\$&")).order("user_id")
+  )))).flat();
+  if (!talents.length) return [];
+  const talentIds = uniqueTexts(talents.map(row => row.user_id));
+  const roles = await readAll(() => (args.admin.from("company_roles" as any) as any)
+    .select("role_id,source_type").eq("company_workspace_id", args.workspaceId).order("role_id"));
+  const roleIds = roles.map(row => row.role_id);
+  if (!roleIds.length) return [];
+  const [recommendations, intros] = await Promise.all([
+    readAll(() => (args.admin.from("talent_effective_opportunity_recommendations_v1" as any) as any)
+      .select("id,talent_id,role_id,feedback,saved_stage").in("role_id", roleIds)
+      .in("talent_id", talentIds).order("id")),
+    readAll(() => (args.admin.from("company_intro_candidates" as any) as any)
+      .select("id,talent_id,role_id,status").eq("company_workspace_id", args.workspaceId)
+      .in("talent_id", talentIds).in("status", ["ready", "awaiting_talent", "connecting"])
+      .or("close_reason.is.null,close_reason.neq.route_replaced").order("id")),
+  ]);
+  const blockedIds = new Set(intros.map(row => row.talent_id));
+  if (recommendations.length) {
+    const [customStages, tags, connected] = await Promise.all([
+      fetchCustomStages(args.admin, roleIds),
+      fetchTagsForBoard({ admin: args.admin, roleIds, talentIds }),
+      fetchOrgConnectedRecommendationIdsForPage({ admin: args.admin,
+        recommendationIds: recommendations.map(row => row.id) }),
+    ]);
+    if (!customStages.complete || !tags.complete || !connected.complete)
+      throw new Error("Candidate email privacy state is incomplete");
+    const customStageByTagKey = new Map(customStages.map(row => [
+      customTagKeyFromStageRow(row), buildCustomStageId(row.id),
+    ]));
+    const roleById = new Map(roles.map(row => [row.role_id, row]));
+    for (const row of recommendations) {
+      const stage = getVisibleOrgStage({ connectedByOrgAction: connected.has(row.id),
+        customStageByTagKey, feedback: row.feedback, includeInternalAccepted: true,
+        isInternalRecommendation: roleById.get(row.role_id)?.source_type === "internal",
+        savedStage: row.saved_stage, tags: tags.get(`${row.talent_id}:${row.role_id}`) ?? [] });
+      if (protectsCandidateEmail(stage?.stage)) blockedIds.add(row.talent_id);
+    }
+  }
+  return talents.filter(row => blockedIds.has(row.user_id)).map(row => row.email);
 }
 
 async function fetchTalentRows(
@@ -3025,6 +3096,7 @@ async function fetchLatestProcessClosureNoticeAtByRecommendation(args: {
 }
 
 export async function fetchOrgBoard(args: {
+  admin?: SupabaseAdminClient;
   /**
    * Reserved for API routes already protected by `requireInternalApiUser`.
    * Do not use for company-facing Organization routes.
@@ -3037,11 +3109,13 @@ export async function fetchOrgBoard(args: {
   recommendedFromDate?: string | null;
   recommendedToDate?: string | null;
   recommendationIds?: string[] | null;
+  /** Restrict general candidate reads to the current page's talent identities. */
+  talentIds?: string[];
   roleId?: string | null;
   user: User;
   workspaceId: string;
 }): Promise<OrgBoardResponse> {
-  const admin = getSupabaseAdmin();
+  const admin = args.admin ?? getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   const selectedRoleId = normalizeNullableText(args.roleId);
   let recommendationIds: string[] | null = null;
@@ -3082,7 +3156,7 @@ export async function fetchOrgBoard(args: {
   const roleIds = selectedRoleId
     ? [selectedRoleId]
     : roleRows.map((row) => row.role_id);
-  if (roleIds.length === 0 || recommendationIds?.length === 0) {
+  if (roleIds.length === 0 || recommendationIds?.length === 0 || args.talentIds?.length === 0) {
     const customStages = await fetchCustomStages(admin, roleIds);
     return {
       dependencyCompleteness: {
@@ -3143,6 +3217,10 @@ export async function fetchOrgBoard(args: {
   const storedRecommendationIds = recommendationIds?.filter(
     id => !id.startsWith(COMPANY_INTRO_RECOMMENDATION_PREFIX)
   );
+  if (args.talentIds) {
+    recommendationQuery = recommendationQuery.in("talent_id", args.talentIds);
+    companyIntroQuery = companyIntroQuery.in("talent_id", args.talentIds);
+  }
   if (storedRecommendationIds?.length) {
     recommendationQuery = recommendationQuery.in("id", storedRecommendationIds);
   }
@@ -3227,6 +3305,7 @@ export async function fetchOrgBoard(args: {
     { evaluationsByKey: criteriaEvaluationsByKey, scoresByKey: recommendationScoresByKey },
     processClosureNoticeAtByRecommendation,
     upcomingMeetingsByRecommendation,
+    talentFirstCapacityBlockedRoleIds,
   ] = await Promise.all([
     fetchTalentRows(admin, talentIds),
     fetchTagsForBoard({ admin, roleIds, talentIds }),
@@ -3256,6 +3335,7 @@ export async function fetchOrgBoard(args: {
       recommendationIds: recommendationRows.map((row) => row.id),
       workspaceId,
     }),
+    readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
   ]);
   const customStageByTagKey = new Map(
     customStages.map((row) => [
@@ -3274,27 +3354,7 @@ export async function fetchOrgBoard(args: {
       const recentSchools =
         profileLabels.recentSchools.get(row.talent_id) ?? [];
 
-      if (searchQuery) {
-        const haystack = [
-          talent.name,
-          talent.email,
-          talent.headline,
-          roleById.get(row.role_id)?.name,
-          ...recentCompanies.flatMap((item) => [
-            item.label,
-            item.detail,
-            item.period,
-          ]),
-          ...recentSchools.flatMap((item) => [
-            item.label,
-            item.detail,
-            item.period,
-          ]),
-        ]
-          .map((value) => normalizeText(value).toLowerCase())
-          .join(" ");
-        if (!haystack.includes(searchQuery)) return [];
-      }
+
 
       const stageRows = tagsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [];
       const stageInfo = getVisibleOrgStage({
@@ -3370,27 +3430,14 @@ export async function fetchOrgBoard(args: {
     const recentCompanies =
       profileLabels.recentCompanies.get(row.talent_id) ?? [];
     const recentSchools = profileLabels.recentSchools.get(row.talent_id) ?? [];
-    if (searchQuery) {
-      const haystack = [
-        talent.name,
-        talent.headline,
-        roleById.get(row.role_id)?.name,
-        ...recentCompanies.flatMap((item) => [
-          item.label,
-          item.detail,
-          item.period,
-        ]),
-        ...recentSchools.flatMap((item) => [
-          item.label,
-          item.detail,
-          item.period,
-        ]),
-      ]
-        .map((value) => normalizeText(value).toLowerCase())
-        .join(" ");
-      if (!haystack.includes(searchQuery)) return [];
-    }
+
     const canDecide = row.status === "ready";
+    const presentationEvaluations = normalizeOrgCompanyCriteriaEvaluations(
+      currentCompanyCriteriaEvaluations(
+        getJsonRecord(row.presentation).criteriaEvaluations,
+        toRole(roleById.get(row.role_id)!).criteria
+      )
+    );
     return [
       {
         capabilities: {
@@ -3413,10 +3460,14 @@ export async function fetchOrgBoard(args: {
           selectionReason: row.selection_reason,
           tldr: normalizeNullableText(getJsonRecord(row.presentation).tldr),
           harperNote: normalizeNullableText(getJsonRecord(row.presentation).harperNote),
+          ...(typeof getJsonRecord(row.presentation).recommendationReason === "string"
+            ? { recommendationReason: getJsonRecord(row.presentation).recommendationReason as string } : {}),
           status: row.status,
         },
         companyPresentedAt: row.selected_at,
-        criteriaEvaluations: criteriaEvaluationsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
+        criteriaEvaluations: presentationEvaluations.length
+          ? presentationEvaluations
+          : criteriaEvaluationsByKey.get(`${row.talent_id}:${row.role_id}`) ?? [],
         createdAt: row.created_at,
         fitReasons: [],
         fitSummary: row.selection_reason,
@@ -3439,7 +3490,9 @@ export async function fetchOrgBoard(args: {
       },
     ];
   });
-  const items = [...companyIntroItems, ...recommendationItems];
+  const items = [...companyIntroItems, ...recommendationItems].filter(item => !searchQuery || [item.talent.name, item.talent.email,
+    item.talent.headline, item.roleName, ...item.talent.recentCompanies.flatMap(x => [x.label, x.detail, x.period]),
+    ...item.talent.recentSchools.flatMap(x => [x.label, x.detail, x.period])].some(value => normalizeText(value).toLowerCase().includes(searchQuery)));
 
   return {
     dependencyCompleteness: {
@@ -3447,7 +3500,7 @@ export async function fetchOrgBoard(args: {
       customStages: customStages.complete,
       tags: tagsByKey.complete,
     },
-    talentFirstCapacityBlockedRoleIds: await readTalentFirstCapacityBlockedRoleIds(admin, roleIds),
+    talentFirstCapacityBlockedRoleIds,
     items,
     roleId: selectedRoleId,
     stages,
@@ -3650,88 +3703,12 @@ export async function fetchOrgBoardProfileLabels(args: {
   user: User;
   workspaceId: string;
 }): Promise<OrgBoardProfileLabelsResponse> {
-  const admin = getSupabaseAdmin();
-  const workspaceId = normalizeText(args.workspaceId);
-  const requestedIds = uniqueTexts(args.recommendationIds);
-  const companyIntroIds = requestedIds
-    .filter((id) => id.startsWith(COMPANY_INTRO_RECOMMENDATION_PREFIX))
-    .map((id) => id.slice(COMPANY_INTRO_RECOMMENDATION_PREFIX.length))
-    .filter(Boolean);
-  const recommendationIds = requestedIds.filter(
-    (id) => !id.startsWith(COMPANY_INTRO_RECOMMENDATION_PREFIX)
-  );
-
-  if (!workspaceId) throw new OrgHttpError(400, "workspaceId is required");
-  if (requestedIds.length > ORG_BOARD_MAX_RECOMMENDATION_COUNT) {
-    throw new OrgHttpError(
-      400,
-      `recommendationIds must contain at most ${ORG_BOARD_MAX_RECOMMENDATION_COUNT} items`
-    );
-  }
-
-  await assertOrgWorkspacePermission({
-    admin,
-    permission: "view",
-    user: args.user,
-    workspaceId,
-  });
-  if (requestedIds.length === 0) {
-    return { items: [], workspaceId };
-  }
-
-  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId, args.user);
-  const roleIds = roleRows.map((row) => row.role_id);
-  if (roleIds.length === 0) {
-    return { items: [], workspaceId };
-  }
-
-  const recommendationResults = await Promise.all(
-    chunkValues(recommendationIds).map(async (recommendationIdChunk) => {
-      const { data, error } = await (
-        admin.from("talent_opportunity_recommendation" as any) as any
-      )
-        .select("id, talent_id")
-        .in("id", recommendationIdChunk)
-        .in("role_id", roleIds);
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; talent_id: string }>;
-    })
-  );
-  const introResults = await Promise.all(
-    chunkValues(companyIntroIds).map(async (introIdChunk) => {
-      const { data, error } = await (
-        admin.from("company_intro_candidates" as any) as any
-      )
-        .select("id, talent_id")
-        .eq("company_workspace_id", workspaceId)
-        .in("id", introIdChunk)
-        .in("role_id", roleIds)
-        .in("status", ["ready", "awaiting_talent", "connecting", "closed", "passed"])
-    .or("close_reason.is.null,close_reason.neq.route_replaced");
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; talent_id: string }>;
-    })
-  );
-  const talentIds = uniqueTexts(
-    [...recommendationResults.flat(), ...introResults.flat()].map(
-      (row) => row.talent_id
-    )
-  );
-  const activeTalentById = await fetchTalentRows(admin, talentIds);
-  const activeTalentIds = [...activeTalentById.keys()];
-  const profileLabels = await fetchBoardProfileLabels({
-    admin,
-    talentIds: activeTalentIds,
-  });
-
-  return {
-    items: activeTalentIds.map((talentId) => ({
-      recentCompanies: profileLabels.recentCompanies.get(talentId) ?? [],
-      recentSchools: profileLabels.recentSchools.get(talentId) ?? [],
-      talentId,
-    })),
-    workspaceId,
-  };
+  const board = await fetchOrgBoard({ user: args.user, workspaceId: args.workspaceId,
+    recommendationIds: args.recommendationIds, includeProfileLabels: true });
+  return { workspaceId: args.workspaceId, items: board.items.map(item => ({
+    talentId: item.talentId, recentCompanies: item.talent.recentCompanies,
+    recentSchools: item.talent.recentSchools,
+  })) };
 }
 
 function normalizeCompanyIntroRpcResult(value: unknown) {
@@ -3816,7 +3793,7 @@ export async function requestOrgCompanyIntro(args: {
     p_next_stage_id: nextStageId || null,
   });
   if (error) {
-    if (error.message?.includes("workspace_credits_exhausted"))
+    if (error.message?.includes("workspace_credits_exhausted") || error.message?.includes("workspace_feature_unavailable"))
       throwBillingDbError(error);
     const message = normalizeText(error.message);
     if (message.includes("company_intro_appeal_required")) {
@@ -4911,12 +4888,11 @@ export async function setOrgCandidateStage(args: {
     throw new OrgHttpError(403, "Harper 내부 단계에 접근할 수 없습니다.");
   }
 
-  await assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId });
-  await upsertOrgCompanyUser(admin, args.user);
-  const existingApproval = await findConnectionApproval(
-    workspaceId,
-    recommendationId
-  );
+  await traceStageStep("setOrgCandidateStage:4875", async () => (assertOrgRoleAccess({ admin, user: args.user, workspaceId, roleId })));
+  const [, existingApproval] = await traceStageStep("setOrgCandidateStage:4876", async () => (Promise.all([
+    upsertOrgCompanyUser(admin, args.user),
+    findConnectionApproval(workspaceId, recommendationId),
+  ])));
   const resumingApproval = existingApproval && !existingApproval.completed_at;
   if (
     existingApproval &&
@@ -4964,26 +4940,20 @@ export async function setOrgCandidateStage(args: {
       "이 후보자의 이전 연결 요청을 처리하고 있어요. 잠시 후 다시 확인해 주세요."
     );
   }
-  const roleRows = await fetchRoleRowsForWorkspace(admin, workspaceId, args.user);
+  const [roleRows, stageRows, recommendation, companyIntroResult] = await traceStageStep("setOrgCandidateStage:4927", async () => (Promise.all([
+    fetchRoleRowsForWorkspace(admin, workspaceId, args.user),
+    fetchStageRowsForRole(admin, roleId),
+    fetchRecommendationForStage({ admin, recommendationId, roleId, talentId }),
+    (admin.from("company_intro_candidates" as any) as any)
+      .select("id, next_stage_id, status")
+      .eq("company_workspace_id", workspaceId)
+      .eq("role_id", roleId).eq("talent_id", talentId)
+      .eq("recommendation_id", recommendationId).maybeSingle(),
+  ])));
   const role = roleRows.find((row) => row.role_id === roleId);
   if (!role) throw new OrgHttpError(404, "Role not found");
-  const stageRows = await fetchStageRowsForRole(admin, roleId);
   validateStageForRole(stage, stageRows);
-  const recommendation = await fetchRecommendationForStage({
-    admin,
-    recommendationId,
-    roleId,
-    talentId,
-  });
-  const { data: companyIntro, error: companyIntroError } = await (
-    admin.from("company_intro_candidates" as any) as any
-  )
-    .select("id, next_stage_id, status")
-    .eq("company_workspace_id", workspaceId)
-    .eq("role_id", roleId)
-    .eq("talent_id", talentId)
-    .eq("recommendation_id", recommendationId)
-    .maybeSingle();
+  const { data: companyIntro, error: companyIntroError } = companyIntroResult;
   if (companyIntroError) throw companyIntroError;
   const authorizedCompanyIntroTransition =
     recommendation.opportunity_type === "intro_request" &&
@@ -5009,7 +4979,7 @@ export async function setOrgCandidateStage(args: {
     !contactDirectly &&
     !scheduleInterview &&
     !skipAutomaticContact
-      ? await fetchOrgRoleAssigneeEmails({ admin, roleId, workspaceId })
+      ? await traceStageStep("setOrgCandidateStage:4966", async () => (fetchOrgRoleAssigneeEmails({ admin, roleId, workspaceId })))
       : [];
   const introEmails = resumingApproval
     ? existingApproval.action_payload.introEmails
@@ -5040,27 +5010,27 @@ export async function setOrgCandidateStage(args: {
       "이 후보자와 연결이 완료되기 전에는 추가 연락이나 일반 단계 이동을 할 수 없습니다."
     );
   }
-  await assertOrgTalentVisibleInWorkspace({
+  await traceStageStep("setOrgCandidateStage:4997", async () => (assertOrgTalentVisibleInWorkspace({
     admin,
     recommendationId,
     roleRows,
     talentId,
     user: args.user,
     workspaceId,
-  });
+  })));
 
   const allStageTags = [
     ...Object.values(STAGE_TAG_BY_STAGE),
     ...EXTRA_INTERNAL_STAGE_TAGS,
     ...stageRows.map((row) => buildCustomStageTag(row.id)),
   ];
-  const { data: previousTags, error: previousError } = await (
+  const { data: previousTags, error: previousError } = await traceStageStep("setOrgCandidateStage:5011", async () => ((
     admin.from("talent_opportunity_tag" as any) as any
   )
     .select("id, talent_id, opportunity_id, tag, created_at, updated_at")
     .eq("talent_id", talentId)
     .eq("opportunity_id", roleId)
-    .in("tag", allStageTags);
+    .in("tag", allStageTags)));
 
   if (previousError) throw previousError;
   const previousStage =
@@ -5097,12 +5067,12 @@ export async function setOrgCandidateStage(args: {
     };
   }
   const closedState = candidateReengagementAppliesToStage(stage)
-    ? await internalCandidatePairIsClosed({
+    ? await traceStageStep("setOrgCandidateStage:5054", async () => (internalCandidatePairIsClosed({
         admin,
         recommendationId,
         roleId,
         talentId,
-      })
+      })))
     : { closed: false, recommendationId: null };
   const reactivation =
     closedState.closed &&
@@ -5110,11 +5080,11 @@ export async function setOrgCandidateStage(args: {
       Boolean(args.candidateConsentRelayId));
   const processClosureNotification = closedState.closed
     ? ((
-        await fetchOrgProcessClosureNotifications({
+        await traceStageStep("setOrgCandidateStage:5067", async () => (fetchOrgProcessClosureNotifications({
           admin,
           roleIds: [roleId],
           talentId,
-        })
+        })))
       ).get(roleId) ?? {
         deliveredAt: null,
         sentChannel: null,
@@ -5161,7 +5131,7 @@ export async function setOrgCandidateStage(args: {
   if (closedState.closed) {
     const actor = reengagementActor(args.user);
     if (!args.reengagementResolution && !args.candidateConsentRelayId) {
-      await recordCandidateReengagementRequired({
+      await traceStageStep("setOrgCandidateStage:5118", async () => (recordCandidateReengagementRequired({
         ...actor,
         actionKey: args.reengagementActionId,
         admin,
@@ -5170,8 +5140,8 @@ export async function setOrgCandidateStage(args: {
         roleId,
         stage,
         talentId,
-      });
-      const candidate = await fetchOrgSlackTalent(admin, talentId);
+      })));
+      const candidate = await traceStageStep("setOrgCandidateStage:5128", async () => (fetchOrgSlackTalent(admin, talentId)));
       return {
         candidateName: candidate?.name ?? "후보자",
         currentStage: previousStage,
@@ -5184,7 +5154,7 @@ export async function setOrgCandidateStage(args: {
       };
     }
     if (args.reengagementResolution === "ask_candidate") {
-      const request = await requestCandidateReengagement({
+      const request = await traceStageStep("setOrgCandidateStage:5141", async () => (requestCandidateReengagement({
         ...actor,
         admin,
         recommendationId,
@@ -5192,7 +5162,7 @@ export async function setOrgCandidateStage(args: {
         stage,
         talentId,
         workspaceId,
-      });
+      })));
       return {
         ok: true as const,
         requestId: request.requestId,
@@ -5206,7 +5176,7 @@ export async function setOrgCandidateStage(args: {
   }
 
   if (reactivation) {
-    const confirmed = await confirmCandidateReengagementByCompany({
+    const confirmed = await traceStageStep("setOrgCandidateStage:5163", async () => (confirmCandidateReengagementByCompany({
       candidateConsentRelayId: args.candidateConsentRelayId,
       ...reengagementActor(args.user),
       actionKey: args.reengagementActionId,
@@ -5215,7 +5185,7 @@ export async function setOrgCandidateStage(args: {
       roleId,
       stage,
       talentId,
-    });
+    })));
     if (!confirmed) {
       throw new OrgHttpError(
         409,
@@ -5250,7 +5220,7 @@ export async function setOrgCandidateStage(args: {
     !reactivation
   ) {
     const { user: _actor, ...input } = args;
-    billingApprovalId = await approveConnection({
+    billingApprovalId = await traceStageStep("setOrgCandidateStage:5207", async () => (approveConnection({
       workspaceId,
       roleId,
       talentId,
@@ -5260,7 +5230,7 @@ export async function setOrgCandidateStage(args: {
       introEmails,
       isIntroRequested,
       previousStage,
-    });
+    })));
   }
   if (
     resumingApproval &&
@@ -5273,7 +5243,7 @@ export async function setOrgCandidateStage(args: {
     );
   }
   const billingExecutionToken = billingApprovalId
-    ? await claimConnection(billingApprovalId)
+    ? await traceStageStep("setOrgCandidateStage:5230", async () => (claimConnection(billingApprovalId)))
     : null;
   try {
     let introDelivery: {
@@ -5284,16 +5254,16 @@ export async function setOrgCandidateStage(args: {
     } | null = null;
 
     if (isIntroRequested) {
-      const [workspace, candidate, companyUser] = await Promise.all([
+      const [workspace, candidate, companyUser] = await traceStageStep("setOrgCandidateStage:5241", async () => (Promise.all([
         fetchWorkspaceById(admin, workspaceId),
         fetchOrgSlackTalent(admin, talentId),
         fetchOrgCompanyUser(admin, args.user, workspaceId),
-      ]);
+      ])));
       if (!workspace) throw new OrgHttpError(404, "Workspace not found");
       if (!candidate) throw new OrgHttpError(404, "Candidate not found");
 
       try {
-        introDelivery = await sendOrgIntroEmail({
+        introDelivery = await traceStageStep("setOrgCandidateStage:5250", async () => (sendOrgIntroEmail({
           admin,
           candidate,
           companyUser,
@@ -5301,7 +5271,7 @@ export async function setOrgCandidateStage(args: {
           recommendation,
           role,
           workspace,
-        });
+        })));
       } catch (error) {
         if (error instanceof OrgHttpError) throw error;
         console.error("[org/intro-email] generation or delivery failed", error);
@@ -5314,47 +5284,47 @@ export async function setOrgCandidateStage(args: {
 
     const nextTag = getStageTagForInsert(stage);
     if (!reactivation && !billingApprovalId) {
-      const { error: deleteError } = await (
+      const { error: deleteError } = await traceStageStep("setOrgCandidateStage:5271", async () => ((
         admin.from("talent_opportunity_tag" as any) as any
       )
         .delete()
         .eq("talent_id", talentId)
         .eq("opportunity_id", roleId)
-        .in("tag", allStageTags);
+        .in("tag", allStageTags)));
 
       if (deleteError) throw deleteError;
 
-      const { error: insertError } = await (
+      const { error: insertError } = await traceStageStep("setOrgCandidateStage:5281", async () => ((
         admin.from("talent_opportunity_tag" as any) as any
       ).insert({
         opportunity_id: roleId,
         tag: nextTag,
         talent_id: talentId,
-      });
+      })));
 
       if (insertError) {
         const duplicateDuringCompanyIntro =
           authorizedCompanyIntroTransition && insertError.code === "23505";
         if (!duplicateDuringCompanyIntro) throw insertError;
-        const { data: concurrentTag, error: concurrentTagError } = await (
+        const { data: concurrentTag, error: concurrentTagError } = await traceStageStep("setOrgCandidateStage:5293", async () => ((
           admin.from("talent_opportunity_tag" as any) as any
         )
           .select("id")
           .eq("talent_id", talentId)
           .eq("opportunity_id", roleId)
           .eq("tag", nextTag)
-          .maybeSingle();
+          .maybeSingle()));
         if (concurrentTagError) throw concurrentTagError;
         if (!concurrentTag) throw insertError;
       }
 
-      await upsertRecommendationProcessedStage({
+      await traceStageStep("setOrgCandidateStage:5305", async () => (upsertRecommendationProcessedStage({
         admin,
         recommendationId,
         roleId,
         stage,
         talentId,
-      });
+      })));
     }
 
     const previousLabel = buildStageLabel(previousStage, stageRows);
@@ -5411,6 +5381,7 @@ export async function setOrgCandidateStage(args: {
     } satisfies Record<string, unknown>;
 
     const progressRow = {
+      id: crypto.randomUUID(),
       company_user_id: args.user.id,
       kind: "org_stage_change",
       metadata: metadata as Json,
@@ -5425,14 +5396,14 @@ export async function setOrgCandidateStage(args: {
         : {}),
     };
     if (billingApprovalId && billingExecutionToken) {
-      await billingRpc("workspace_billing_commit_connection_v1", {
+      await traceStageStep("setOrgCandidateStage:5382", async () => (billingRpc("workspace_billing_commit_connection_v1", {
         p_event: billingApprovalId,
         p_token: billingExecutionToken,
         p_tags: allStageTags,
         p_next_tag: nextTag,
         p_stage: stage,
         p_progress: progressRow,
-      });
+      })));
     }
     const progressMutation = billingApprovalId
       ? Promise.resolve({ error: null })
@@ -5441,11 +5412,11 @@ export async function setOrgCandidateStage(args: {
             onConflict: "id",
           })
         : (admin.from("talent_progress" as any) as any).insert(progressRow);
-    const { error: progressError } = await progressMutation;
+    const { error: progressError } = await traceStageStep("setOrgCandidateStage:5398", async () => (progressMutation));
 
     if (progressError) throw progressError;
 
-    await syncInternalConnectionConfirmationEmailForStage({
+    await traceStageStep("setOrgCandidateStage:5402", async () => (syncInternalConnectionConfirmationEmailForStage({
       actorEmail: getUserEmail(args.user),
       admin,
       emailMode: args.emailMode,
@@ -5459,64 +5430,35 @@ export async function setOrgCandidateStage(args: {
       roleId,
       stage,
       talentId,
-    });
+    })));
 
-    // Candidate acceptance of a company Intro has its own company-side event.
-    // The ordinary company-decision notification would misattribute that action.
+    // Store facts before returning; the existing company event worker owns
+    // wording, Slack delivery and retry receipts. No network delivery here.
+    let companyUpdateJobId: string | null = null;
     if (!authorizedCompanyIntroTransition && (isIntroRequested || contactDirectly || stage === "process_stopped")) {
-      try {
-        const [workspace, candidate] = await Promise.all([
-          fetchWorkspaceById(admin, workspaceId),
-          fetchOrgSlackTalent(admin, talentId),
-        ]);
-
-        if (workspace && candidate) {
-          const slackBaseArgs = {
-            actor: {
-              email: getUserEmail(args.user),
-              name: getUserName(args.user),
-              userId: args.user.id,
-            },
-            candidate,
-            roleId,
-            roleName: role.name,
-            workspace: {
-              companyName: workspace.company_name,
-              workspaceId: workspace.company_workspace_id,
-            },
-          };
-
-          if (isIntroRequested || contactDirectly) {
-            await notifyOrgCandidateAcceptedSlack({
-              ...slackBaseArgs,
-              acceptReason,
-              closureNotificationDelivered:
-                processClosureNotification?.status === "sent",
-              contactDirectly,
-              introEmails,
-              reactivated: reactivation,
-            });
-          } else {
-            await notifyOrgCandidateRejectedSlack({
-              ...slackBaseArgs,
-              previousStage,
-              notifyCandidateOnClosure: args.notifyCandidateOnClosure !== false,
-              stopNote,
-            });
-          }
-        }
-      } catch (slackError) {
-        console.error(
-          "[org/slack] candidate decision notify failed",
-          slackError
-        );
-      }
+      const { enqueueCompanyUpdate } = await import("./agent/companyUpdate.server");
+      const queued = await traceStageStep("candidate-decision.persist-event", async () => enqueueCompanyUpdate({
+        workspaceId, roleId,
+        eventKey: `org-stage:${progressRow.id}`,
+        purpose: "Continue the company conversation after its recorded candidate decision.",
+        facts: {
+          roleId, roleName: role.name, talentId, recommendationId,
+          previousStage: previousLabel, currentStage: nextLabel,
+          actorName: getUserName(args.user),
+          acceptReason: stage !== "process_stopped" ? acceptReason || null : null,
+          stopNote: stage === "process_stopped" ? stopNote : null,
+          notifyCandidateOnClosure: stage === "process_stopped" ? args.notifyCandidateOnClosure !== false : null,
+          contactDirectly, introEmailDelivered: Boolean(introDelivery),
+        },
+      }));
+      companyUpdateJobId = queued.jobId;
     }
 
     if (billingApprovalId && billingExecutionToken)
-      await completeConnection(billingApprovalId, billingExecutionToken);
+      await traceStageStep("setOrgCandidateStage:5471", async () => (completeConnection(billingApprovalId, billingExecutionToken)));
     return {
       ok: true as const,
+      companyUpdateJobId,
       closureNotificationDelivered:
         processClosureNotification?.status === "sent",
       closureNotificationDeliveredAt:
@@ -5529,7 +5471,7 @@ export async function setOrgCandidateStage(args: {
     };
   } finally {
     if (billingApprovalId && billingExecutionToken)
-      await releaseConnection(billingApprovalId, billingExecutionToken);
+      await traceStageStep("setOrgCandidateStage:5486", async () => (releaseConnection(billingApprovalId, billingExecutionToken)));
   }
 }
 
@@ -6159,8 +6101,6 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
   const progressItems: OrgOtherRoleFeedItem[] = progressRows.filter(isCompanyFeedProgressVisible).filter(automaticFollowups.showProgress).flatMap((row) => {
     const roleName = roleNameById.get(row.role_id);
     if (!roleName) return [];
-    const metadata = getJsonRecord(row.metadata);
-    const eventType = normalizeText(metadata.eventType);
     let title = "활동";
     if (row.kind === "org_note") title = "메모";
     else if (row.kind === "org_candidate_role_move") title = "역할 변경";
@@ -6169,18 +6109,9 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
       title = "프로세스 종료 안내";
     } else if (row.kind === "company_request_followup_sent") {
       title = "후보자에게 회사 요청을 다시 안내했어요";
-    } else if (eventType === "candidate_contact_sent") {
-      const requestKind = normalizeText(metadata.requestKind);
-      title =
-        requestKind === "resume"
-          ? "후보자에게 이력서를 요청했어요"
-          : requestKind === "contact"
-            ? "후보자에게 연락을 보냈어요"
-            : "후보자에게 질문을 보냈어요";
-    } else if (eventType === "candidate_response_received") {
-      title = "후보자의 답변이 도착했어요";
-    } else if (eventType === "candidate_message_delivered") {
-      title = "후보자의 메시지가 전달됐어요";
+    } else if (row.kind === "org_candidate_activity") {
+      const activity = readOrgCandidateActivity(row.metadata);
+      if (activity) title = orgCandidateActivityTitle(orgCandidateActivityKind(activity), (ko) => ko);
     }
     return [
       {
@@ -6358,13 +6289,14 @@ export async function fetchOrgTalentOtherRoleFeed(args: {
 }
 
 export async function fetchOrgTalentDetail(args: {
+  admin?: SupabaseAdminClient;
   recommendationId?: string | null;
   roleId?: string | null;
   talentId: string;
   user: User;
   workspaceId: string;
 }): Promise<OrgTalentDetailResponse> {
-  const admin = getSupabaseAdmin();
+  const admin = args.admin ?? getSupabaseAdmin();
   const workspaceId = normalizeText(args.workspaceId);
   const talentId = normalizeText(args.talentId);
   if (!workspaceId || !talentId) {
@@ -6489,10 +6421,13 @@ export async function fetchOrgTalentDetail(args: {
           roleId: requestedRoleId,
           talentId,
         });
-  const [detailWorkspace, members, roleRows] = await Promise.all([
+  const [detailWorkspace, members, roleRows, customStages, tagsByKey, connectedRecommendationIds] = await Promise.all([
     fetchWorkspaceById(admin, workspaceId),
     fetchOrgMembers(admin, workspaceId),
     fetchRoleRowsForWorkspace(admin, workspaceId, args.user),
+    fetchCustomStages(admin, [recommendation.role_id]),
+    fetchTagsForBoard({ admin, roleIds: [recommendation.role_id], talentIds: [talentId] }),
+    fetchOrgConnectedRecommendationIdsForPage({ admin, recommendationIds: [recommendation.id] }),
   ]);
   if (!detailWorkspace) throw new OrgHttpError(404, "Workspace not found");
   const roleRow = roleRows.find(
@@ -6502,19 +6437,6 @@ export async function fetchOrgTalentDetail(args: {
   if (companyIntro && !companyIntroRoleIsAvailable(roleRow, talentId, true)) {
     throw new OrgHttpError(404, "Talent not found");
   }
-  const [customStages, tagsByKey, connectedRecommendationIds] =
-    await Promise.all([
-      fetchCustomStages(admin, [recommendation.role_id]),
-      fetchTagsForBoard({
-        admin,
-        roleIds: [recommendation.role_id],
-        talentIds: [talentId],
-      }),
-      fetchOrgConnectedRecommendationIds({
-        admin,
-        roleIds: [recommendation.role_id],
-      }),
-    ]);
   const stageInfo = companyIntro
     ? ({
         stage: getOrgCompanyIntroBoardStage(companyIntro.status),
@@ -6929,7 +6851,7 @@ export async function fetchOrgTalentDetail(args: {
     (body, row) => body ?? extractCompanyCandidateIntroduction(row),
     null
   );
-  const { normalizeOrgCompanyPresentation } = await import("./companyCriteriaEvaluations");
+  const { normalizeOrgCompanyPresentation, isCompanyPresentationFromPreviousBrief } = await import("./companyCriteriaEvaluations");
   const { currentCompanyCriteriaEvaluations } = await import("@/lib/companyFirstSearch/presentation");
   const rawCompanyPresentation = companyIntro?.presentation ??
     optionalRows<Pick<TalentProgressRow, "metadata">>(autoIntroProgressResult, "company report")
@@ -6937,6 +6859,11 @@ export async function fetchOrgTalentDetail(args: {
       .find(value => normalizeOrgCompanyPresentation(value)) ?? null;
   const companyPresentation = normalizeOrgCompanyPresentation(rawCompanyPresentation);
   if (companyPresentation) {
+    if (companyPresentation.briefVersion) {
+      const version = await admin.rpc("company_role_search_brief_version_v1" as never, { p_role_id: recommendation.role_id } as never);
+      // An unavailable version is unknown, not evidence that the report is current.
+      if (!version.error) companyPresentation.isFromPreviousBrief = isCompanyPresentationFromPreviousBrief(companyPresentation.briefVersion, version.data);
+    }
     companyPresentation.criteriaEvaluations = normalizeOrgCompanyCriteriaEvaluations(
       currentCompanyCriteriaEvaluations(getJsonRecord(rawCompanyPresentation).criteriaEvaluations, toRole(roleRow).criteria)
     );
@@ -6971,58 +6898,24 @@ export async function fetchOrgTalentDetail(args: {
   });
   const candidateActivityFeedItems: OrgFeedItem[] =
     candidateActivityRows.flatMap((row) => {
-      const metadata = getJsonRecord(row.metadata);
-      const requestId = normalizeText(metadata.requestId);
-      const eventType = normalizeText(metadata.eventType);
-      if (
-        !requestId ||
-        (eventType !== "candidate_contact_sent" &&
-          eventType !== "candidate_message_delivered" &&
-          eventType !== "candidate_response_received")
-      ) {
-        return [];
-      }
-      const normalizedRequestKind = normalizeText(metadata.requestKind);
-      const requestKind =
-        normalizedRequestKind === "resume"
-          ? "resume"
-          : normalizedRequestKind === "contact"
-            ? "contact"
-            : "question";
-      const requestContext = normalizeNullableText(metadata.requestContext);
+      const requestId = readOrgCandidateActivity(row.metadata)?.requestId;
+      const content = orgCandidateActivityFeedContent(
+        row,
+        requestId ? candidateDeliveryByRequestId.get(requestId)?.subject : null
+      );
+      if (!content) return [];
       const actorKey = row.company_user_id;
-      return [
-        {
-          activity: {
-            eventType,
-            requestContext,
-            requestId,
-            requestKind,
-          },
-          actor: actorKey ? (actorById.get(actorKey) ?? null) : null,
-          companyUserId: row.company_user_id ?? null,
-          createdAt: row.created_at,
-          delivery: {
-            bodyText: normalizeNullableText(row.text),
-            disclosureLabel:
-              eventType === "candidate_contact_sent"
-                ? "메일 내용"
-                : "Harper가 전달한 내용",
-            id: `${requestId}:${eventType}`,
-            subject:
-              eventType === "candidate_contact_sent"
-                ? (candidateDeliveryByRequestId.get(requestId)?.subject ??
-                  normalizeNullableText(metadata.emailSubject))
-                : null,
-          },
-          id: row.id,
-          kind: row.kind,
-          recommendationId: row.recommendation_id ?? null,
-          roleId: row.role_id,
-          roleName: roleRow.name,
-          text: requestContext ? `요청 내용 · ${requestContext}` : "",
-        },
-      ];
+      return [{
+        ...content,
+        actor: actorKey ? (actorById.get(actorKey) ?? null) : null,
+        companyUserId: row.company_user_id ?? null,
+        createdAt: row.created_at,
+        id: row.id,
+        kind: row.kind,
+        recommendationId: row.recommendation_id ?? null,
+        roleId: row.role_id,
+        roleName: roleRow.name,
+      }];
     });
   const candidateDeliveryFacts = companyIntro
     ? await readCandidateDeliveryFacts({admin,workspaceId,roleIds:[companyIntro.role_id],talentIds:[talentId]})
@@ -7058,6 +6951,8 @@ export async function fetchOrgTalentDetail(args: {
           ),
           tldr: normalizeNullableText(getJsonRecord(companyIntro.presentation).tldr),
           harperNote: normalizeNullableText(getJsonRecord(companyIntro.presentation).harperNote),
+          ...(typeof getJsonRecord(companyIntro.presentation).recommendationReason === "string"
+            ? { recommendationReason: getJsonRecord(companyIntro.presentation).recommendationReason as string } : {}),
           nextStageId: companyIntro.next_stage_id,
           requestedAt: companyIntro.requested_at,
           selectionReason: companyIntro.selection_reason,
@@ -7798,12 +7693,13 @@ export async function updateOrgRoleCriteria(args: {
     }) ?? `${getOrgCompanyEventActorLabel(args.user)} · 역할 평가 기준 수정`;
 
   const { data, error } = await (admin.rpc as any)(
-    "update_company_internal_role_criteria_v1",
+    "apply_company_data_with_hiring_history_v1",
     {
-      p_criteria: criteria as unknown as Json,
+      p_changes: [],
+      p_criteria_changes: [{role_id:roleId,expected:expectedCriteria,value:criteria}],
+      p_actor_user_id:args.user.id,
+      p_actor_label:normalizeText(args.actorLabel) || getOrgCompanyEventActorLabel(args.user),
       p_event_content: eventContent,
-      p_expected_criteria: expectedCriteria as unknown as Json,
-      p_role_id: roleId,
       p_source: args.source ?? "website",
       p_workspace_id: workspaceId,
     }
@@ -7819,6 +7715,10 @@ export async function updateOrgRoleCriteria(args: {
   if (result.status !== "updated" && result.status !== "already_reflected") {
     throw new Error("Unexpected role criteria update result");
   }
+  if (Array.isArray(result.history_ids) && result.history_ids.length) {
+    const {publishHiringBriefSummaries}=await import('./hiringBriefHistoryQueue');
+    await publishHiringBriefSummaries(result.history_ids.map(String));
+  }
   return { criteria, status: result.status };
 }
 
@@ -7828,6 +7728,8 @@ export async function updateOrgRole(args: {
   employmentTypes?: string[] | null;
   externalJdUrl?: string | null;
   expectedCriteria?: unknown;
+  expectedRequest?: string | null;
+  requestReview?: boolean;
   isCompanyFirstSearch?: boolean;
   isPromote?: boolean;
   isAnonymous?: boolean;
@@ -7940,7 +7842,7 @@ export async function updateOrgRole(args: {
         p_role_id: roleId,
         p_workspace_id: workspaceId,
       });
-      if (activationError) throw activationError;
+      if (activationError) throwBillingDbError(activationError);
       if (activated !== true) {
         throw new OrgHttpError(409, "Role was already updated");
       }
@@ -7978,7 +7880,7 @@ export async function updateOrgRole(args: {
     });
   }
   if (args.request !== undefined) {
-    changes.push({ key: "role_request", roleId, value: args.request ?? null });
+    changes.push({ key: "role_request", roleId, value: args.request ?? null, ...(args.expectedRequest !== undefined ? {expected:args.expectedRequest} : {}) });
   }
   if (args.isCompanyFirstSearch !== undefined) {
     changes.push({
@@ -8036,20 +7938,37 @@ export async function updateOrgRole(args: {
     });
   }
 
+  let historyIds: string[] = [];
+  let criteriaChanges: Array<{role_id:string;expected:unknown;value:unknown}> = [];
+  if (args.criteria !== undefined) {
+    let criteria: OrgRoleCriterion[];
+    try { criteria=parseOrgRoleCriteria(args.criteria); }
+    catch(error) { throw new OrgHttpError(400,error instanceof Error ? error.message : "Invalid criteria"); }
+    const {data:current,error} = await (admin.from("company_internal_roles" as any) as any).select("criteria").eq("role_id",roleId).single();
+    if (error) throw error;
+    criteriaChanges=[{role_id:roleId,expected:args.expectedCriteria ?? current.criteria ?? [],value:criteria}];
+  }
   try {
-    await applyWebsiteCompanyDataChanges({
+    const saved = await applyWebsiteCompanyDataChanges({
       actorLabel: getOrgCompanyEventActorLabel(args.user),
+      actorUserId:args.user.id,
+      criteriaChanges,
+      requestReview:args.requestReview ?? false,
       admin,
       changes,
       source: args.source ?? "website",
       workspaceId,
     });
+    historyIds = "historyIds" in saved ? saved.historyIds ?? [] : [];
   } catch (error) {
     if (error instanceof WebsiteCompanyDataConflictError) {
       throw new OrgHttpError(
         409,
         "Role 정보가 방금 변경되었습니다. 새로고침 후 다시 저장해 주세요."
       );
+    }
+    if (error && typeof error === "object" && "message" in error) {
+      throwBillingDbError({ message: String(error.message) });
     }
     throw error;
   }
@@ -8066,20 +7985,10 @@ export async function updateOrgRole(args: {
     if (salaryError) throw salaryError;
   }
 
-  if (args.criteria !== undefined) {
-    await updateOrgRoleCriteria({
-      criteria: args.criteria,
-      expectedCriteria: args.expectedCriteria,
-      roleId,
-      source: "website",
-      user: args.user,
-      workspaceId,
-    });
-  }
 
   const { data, error } = await (admin.from("company_roles" as any) as any)
     .select(
-      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired, company_internal_roles(team_id)"
+      "role_id, company_workspace_id, name, external_jd_url, description, salary_range, status, type, location_text, work_mode, created_at, updated_at, is_expired, company_internal_roles(team_id, request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time)"
     )
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
@@ -8088,18 +7997,10 @@ export async function updateOrgRole(args: {
   if (error) throw error;
   if (!data) throw new OrgHttpError(404, "Role not found");
   const updatedRole = data as CompanyRoleRow;
-  const { data: internalRole, error: internalError } = await (
-    admin.from("company_internal_roles" as any) as any
-  )
-    .select(
-      "request, criteria, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time"
-    )
-    .eq("role_id", roleId)
-    .maybeSingle();
-  if (internalError) throw internalError;
   return {
     ok: true as const,
-    role: toRole(updatedRole, null, null, internalRole),
+    hiringBriefHistoryId:historyIds[0] ?? null,
+    role: toRole(updatedRole),
   };
 }
 
@@ -8169,6 +8070,7 @@ export async function updateOrgRoleRequestOnly(args: {
   try {
     await applyWebsiteCompanyDataChanges({
       actorLabel: getOrgCompanyEventActorLabel(args.user),
+      actorUserId:args.user.id,
       admin,
       changes: [
         {
@@ -8215,20 +8117,23 @@ export async function assertOrgRoleAccess(args: {
   user: User;
   workspaceId: string;
 }) {
-  await assertOrgWorkspacePermission({
+  return memoOrgRequest(["role-access", args.user.id, args.workspaceId, args.roleId, args.permission ?? "manage_candidates"], async () => {
+  await traceStageStep("assertOrgRoleAccess:8132", async () => (assertOrgWorkspacePermission({
     admin: args.admin,
     permission: args.permission ?? "manage_candidates",
     user: args.user,
     workspaceId: args.workspaceId,
-  });
-  const roleRows = await fetchRoleRowsForWorkspace(
+  })));
+  const roleRows = await traceStageStep("assertOrgRoleAccess:8138", async () => (fetchRoleRowsForWorkspace(
     args.admin,
     args.workspaceId,
     args.user
-  );
+  )));
   if (!roleRows.some((row) => row.role_id === args.roleId)) {
     throw new OrgHttpError(404, "Role not found");
   }
+
+  });
 }
 
 export async function createOrgRoleReviewStage(args: {

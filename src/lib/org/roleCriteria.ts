@@ -1,6 +1,5 @@
 export const ORG_ROLE_CRITERIA_MIN_ITEMS = 0;
 export const ORG_ROLE_CRITERIA_RECOMMENDED_MIN_ITEMS = 2;
-export const ORG_ROLE_CRITERIA_MAX_ITEMS = 6;
 
 export type OrgRoleCriterion = {
   criteria: string;
@@ -54,22 +53,10 @@ export function getOrgRoleCriteriaValidationError(value: unknown) {
   if (!Array.isArray(value)) {
     return "평가 기준은 목록 형태여야 합니다.";
   }
-  if (
-    value.length < ORG_ROLE_CRITERIA_MIN_ITEMS ||
-    value.length > ORG_ROLE_CRITERIA_MAX_ITEMS
-  ) {
-    return `평가 기준은 ${ORG_ROLE_CRITERIA_MIN_ITEMS}개 이상 ${ORG_ROLE_CRITERIA_MAX_ITEMS}개 이하로 작성해 주세요.`;
-  }
 
   const criteria = normalizeOrgRoleCriteria(value);
   if (criteria.some((item) => !item.name || !item.criteria)) {
     return "각 평가 기준의 이름과 상세 내용을 모두 작성해 주세요.";
-  }
-  if (criteria.some((item) => item.name.length > 200)) {
-    return "평가 기준 이름은 200자 이하로 작성해 주세요.";
-  }
-  if (criteria.some((item) => item.criteria.length > 8_000)) {
-    return "평가 기준 상세 내용은 항목당 8,000자 이하로 작성해 주세요.";
   }
   return null;
 }
@@ -81,7 +68,7 @@ export function parseOrgRoleCriteria(value: unknown): OrgRoleCriterion[] {
 }
 
 /**
- * Applies name-addressed edits in order and validates the final 0-6 item list.
+ * Applies name-addressed edits in order and validates the final structured list.
  * Names are intentionally exact: stored criteria do not have stable item IDs,
  * so fuzzy matching could mutate the wrong evaluation dimension.
  */
@@ -91,9 +78,6 @@ export function applyOrgRoleCriteriaEdits(
 ): OrgRoleCriteriaEditResult {
   if (!Array.isArray(editsValue) || editsValue.length < 1) {
     throw new Error("평가 기준 변경은 한 개 이상이어야 합니다.");
-  }
-  if (editsValue.length > 6) {
-    throw new Error("평가 기준 변경은 한 번에 6개 이하로 작성해 주세요.");
   }
 
   const criteria = normalizeOrgRoleCriteria(currentValue);

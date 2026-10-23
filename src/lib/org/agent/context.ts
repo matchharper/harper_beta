@@ -1,3 +1,6 @@
+import {readHiringBriefHistory} from '../hiringBriefHistory.server';
+import {formatHiringBriefHistory} from '../hiringBriefHistory';
+import { readCompanyMemory, formatCompanyMemory } from "./companyMemory";
 import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess } from "@/lib/org/teamAccess";
 import { readMatchingRunHistory } from "@/lib/companyFirstSearch/history";
@@ -40,7 +43,6 @@ import {
 import {
   enforceOrgAgentContextBudget,
   formatRecentRecommendations,
-  DEFAULT_RECENT_PIPELINE_MAX_CHARS,
   ORG_AGENT_CONTEXT_MAX_CHARS,
 } from "@/lib/org/agent/contextBudget";
 import {
@@ -107,7 +109,6 @@ const OTHER_SLACK_APP_SPEAKER = "Other Slack app";
 export {
   enforceOrgAgentContextBudget,
   formatRecentRecommendations,
-  DEFAULT_RECENT_PIPELINE_MAX_CHARS,
   ORG_AGENT_CONTEXT_MAX_CHARS,
 };
 
@@ -618,6 +619,8 @@ export async function buildOrgAgentPromptContext(args: {
     contactSummary,
     pendingUpdate,
     matchingRuns,
+    companyMemory,
+    hiringBriefHistory,
     otherSlackAppMessages,
   ] = await Promise.all([
     fetchOrgAgentRoles({ admin: args.admin, user: args.user, workspaceId }),
@@ -682,7 +685,13 @@ export async function buildOrgAgentPromptContext(args: {
     }),
     optionalContext({fallback:null,label:"matching_runs",
       onError:()=>notes.push("matching run history unavailable; do not infer that no searches ran"),
-      task:()=>readMatchingRunHistory({admin:args.admin,workspaceId,user:args.user,limit:5})}),
+      task:()=>readMatchingRunHistory({admin:args.admin,workspaceId,user:args.user,roleId:args.conversation.role_id ?? undefined,limit:5})}),
+    optionalContext({fallback:null,label:"scoped_company_memory",
+      onError:()=>notes.push("범위별 회사 메모리 조회 불가. 저장된 기억이 없다고 해석하지 말고 필요하면 company_memory를 다시 조회한다."),
+      task:()=>readCompanyMemory({admin:args.admin,user:args.user,workspaceId,input:{limit:8,...(args.conversation.role_id ? {forRoleId:args.conversation.role_id} : {})}})}),
+    args.conversation.role_id ? optionalContext({fallback:null,label:'hiring_brief_history',
+      onError:()=>notes.push('매칭 기준 변경 이력 조회 불가. 이력이 없다고 단정하지 말고 hiring_brief_history로 조회한다.'),
+      task:()=>readHiringBriefHistory({admin:args.admin,user:args.user,workspaceId,roleId:args.conversation.role_id!,limit:3})}) : Promise.resolve(null),
     // Only a company user's Slack turn can refer to another app's message.
     scope.kind === "slack" && currentUserMessageId
       ? optionalContext({
@@ -814,7 +823,7 @@ export async function buildOrgAgentPromptContext(args: {
       workspaceRequestExists: Boolean(text(workspace.request)),
     }),
     completeRoleRequestIds: formattedRoles.completeRoleRequestIds,
-    contextNotesText: [...notes, ...(matchingRuns ? [formatMatchingRunHistory(matchingRuns)] : [])].join("\n\n") || "-",
+    contextNotesText: [...notes, ...(matchingRuns ? [formatMatchingRunHistory(matchingRuns)] : []), ...(companyMemory ? [formatCompanyMemory(companyMemory, true)] : []), ...(hiringBriefHistory ? [formatHiringBriefHistory(hiringBriefHistory)] : [])].join("\n\n") || "-",
     ...formatOrgAgentConversation(
       messages,
       scope.kind === "slack" ? scope.slackThreadId : null,

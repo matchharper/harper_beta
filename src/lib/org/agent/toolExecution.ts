@@ -1,3 +1,8 @@
+import {readHiringBriefHistory} from '../hiringBriefHistory.server';
+import { throwBillingDbError } from "@/lib/org/billing/store";
+import { readCompanyMemory, writeCompanyMemory, object as memoryObject } from "./companyMemory";
+import { readCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
+import { slackCandidateProfileUrl } from "@/lib/org/slackCandidateWorkObject.server";
 import { assertReviewOnboardingTool } from "@/lib/org/workspaceReview.server";
 import { updateCompanyEmailPreferences } from "@/lib/email/companyPreferences";
 import { updateCompanyLanguageSetting } from "@/lib/org/agent/languageSetting";
@@ -61,11 +66,11 @@ import {
   type OrgAgentConversationHistoryType,
 } from "@/lib/org/agent/conversationHistory";
 import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
-import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
+import { parseReadTalentIds, parseReadTalentProfileView, parseReadTalentProfileSections, projectReadTalentProfile } from "@/lib/org/agent/readTalentInput";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import { formatMatchingRunHistory } from "@/lib/org/agent/promptFormat";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
-import { enqueueOrgMatchingSearch, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
+import { enqueueOrgAgenticMatchingSearch, enqueueOrgRecommendationPublication, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
 import {
   assertOrgAgentToolAvailable,
   OrgAgentToolInputError,
@@ -445,6 +450,7 @@ export function getOrgAgentToolStatusLabel(args: {
   status: "done" | "error" | "running";
 }) {
   const labels: Record<OrgAgentToolName, [string, string, string]> = {
+    write_company_memory: ["회사 메모리를 저장하는 중", "회사 메모리 저장 완료", "회사 메모리를 저장하지 못했습니다"],
     update_email_preferences: [
       "이메일 수신 설정을 바꾸는 중",
       "이메일 수신 설정 저장 완료",
@@ -501,6 +507,8 @@ export function getOrgAgentToolStatusLabel(args: {
       "역할 확인 완료",
       "역할을 읽지 못했습니다",
     ],
+    publish_role_recommendations: ["추천 목록을 갱신하는 중", "추천 목록 갱신 요청 완료", "추천 목록을 갱신하지 못했습니다"],
+    recommend_talents: ["추천 선정 접수 중", "추천 선정 접수", "추천 선정 접수 실패"],
     request_matching_search: [
       "새 후보자 검색을 요청하는 중",
       "새 후보자 검색 요청 완료",
@@ -713,10 +721,12 @@ async function executeReadTalent(args: {
   workspaceId: string;
 }) {
   const talentIds = parseReadTalentIds(args.input);
+  const profileView = parseReadTalentProfileView(args.input);
+  const profileSections = parseReadTalentProfileSections(args.input);
   const result = await readOrgAgentTalents({
     admin: args.admin,
     audience: args.audience,
-    includeProfile: booleanField(args.input, "includeProfile", false),
+    includeProfile: profileView !== undefined || profileSections !== undefined || booleanField(args.input, "includeProfile", false),
     progressLimit: boundedInteger(args.input.progressLimit, 10, 1, 30),
     progressOffset: boundedInteger(args.input.progressOffset, 0, 0, 100000),
     roleId: text(args.input.roleId) || null,
@@ -726,7 +736,7 @@ async function executeReadTalent(args: {
   });
   const items = await Promise.all(
     result.items.map(async (item) => ({
-      ...item,
+      ...projectReadTalentProfile(item, profileView, profileSections),
       candidatePreferredLanguage: (
         await readCandidatePreferredLanguage({
           admin: args.admin,
@@ -888,14 +898,18 @@ async function executeReadRole(args: {
 async function executeRequestMatchingSearch(args: {
   admin: OrgAgentAdminClient;
   callId: string;
+  currentUserMessageId: number;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
 }) {
+  await assertOrgWorkspacePermission({admin:args.admin,user:args.user,workspaceId:args.workspaceId,permission:"manage_candidates"});
   const role = roleOrThrow(args.state, args.input.roleId);
-  const queued = await enqueueOrgMatchingSearch({
+  await assertOrgTeamRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId, roleId: role.roleId });
+  const queued = await (args.name === "publish_role_recommendations" ? enqueueOrgRecommendationPublication : enqueueOrgAgenticMatchingSearch)({
+    input: args.input, requestId: args.callId, sourceMessageId:args.currentUserMessageId,
     admin: args.admin,
     roleId: role.roleId,
     userId: args.user.id,
@@ -906,7 +920,7 @@ async function executeRequestMatchingSearch(args: {
 
   if (status === "not_queued") {
     const unavailableReason =
-      matchingSearchUnavailableReason(queued.reason);
+      matchingSearchUnavailableReason(typeof queued.reason === "string" ? queued.reason : null);
     args.state.fallbackReply = unavailableReason;
     recordResult(args.state, {
       callId: args.callId,
@@ -921,20 +935,22 @@ async function executeRequestMatchingSearch(args: {
     };
   }
 
-  args.state.fallbackReply =
-    "좋아요. 현재 Hiring Brief를 기준으로 전체 후보자를 찾고 있어요. 전체 풀을 평가해서 조금 걸리지만, 끝나는 대로 가장 적합한 분들을 공유할게요.";
+  args.state.fallbackReply = status === "already_completed"
+    ? "이 검색 요청의 기존 종료 기록을 확인했어요."
+    : "저장된 채용 기준으로 검색 요청이 접수됐어요.";
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
     status: status === "queued" ? "success" : "unchanged",
     summary:
-      status === "already_running"
+      status === "already_completed"
+        ? `${role.name} 기존 검색 종료 기록 확인`
+        : status === "already_running"
         ? `${role.name} 새 후보자 검색 진행 중`
         : `${role.name} 새 후보자 검색 대기`,
   });
   return {
-    requestedRoleName: role.name,
-    status,
+    ...queued, requestedRoleName: role.name,
   };
 }
 
@@ -1015,15 +1031,17 @@ function moreDataKinds(value: unknown) {
     "company_details",
     "workspace_memory",
     "matching_runs",
+    "company_memory",
+    "hiring_brief_history",
+    "teams",
   ] as const;
   const kinds = Array.from(new Set(value.map(text).filter(Boolean)));
   if (
     kinds.length < 1 ||
-    kinds.length > 3 ||
     kinds.some((kind) => !allowed.includes(kind as any))
   ) {
     throw new OrgAgentToolInputError(
-      `kinds must contain 1-3 of: ${allowed.join(", ")}`
+      `kinds must contain one or more of: ${allowed.join(", ")}`
     );
   }
   return kinds as Array<(typeof allowed)[number]>;
@@ -1056,7 +1074,7 @@ async function executeGetMoreData(args: {
   workspaceId: string;
 }) {
   const kinds = moreDataKinds(args.input.kinds);
-  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs");
+  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs" && kind !== "company_memory" && kind !== "hiring_brief_history" && kind !== "teams");
   const readsHistory = kinds.includes("matching_runs");
   const offset = args.input.offset ?? 0;
   if (
@@ -1070,6 +1088,15 @@ async function executeGetMoreData(args: {
     );
   }
   const fullTextKeys = moreDataFullTextKeys(args.input.fullTextKeys);
+  if (args.input.roleId !== undefined && !readsHistory) {
+    throw new OrgAgentToolInputError("roleId requires matching_runs");
+  }
+  const historyRoleId = args.input.roleId === undefined
+    ? undefined : roleOrThrow(args.state, args.input.roleId).roleId;
+  const matchingInput = args.input.matching ? memoryObject(args.input.matching) : undefined;
+  if (matchingInput && historyRoleId && matchingInput.roleId !== historyRoleId) {
+    throw new OrgAgentToolInputError("roleId and matching.roleId must identify the same Role");
+  }
   if (fullTextKeys.length > 0 && !kinds.includes("company_details")) {
     throw new OrgAgentToolInputError(
       "fullTextKeys requires company_details in kinds"
@@ -1077,7 +1104,13 @@ async function executeGetMoreData(args: {
   }
   const { readMatchingRunHistory } =
     await import("@/lib/companyFirstSearch/history");
-  const [retained, matchingRuns] = await Promise.all([
+  if (args.input.matching && !readsHistory) throw new OrgAgentToolInputError("matching requires matching_runs");
+  if (args.input.memory && !kinds.includes("company_memory")) throw new OrgAgentToolInputError("memory requires company_memory");
+  if (args.input.hiringBriefHistory && !kinds.includes('hiring_brief_history')) throw new OrgAgentToolInputError('hiringBriefHistory requires hiring_brief_history');
+  const briefHistoryInput=memoryObject(args.input.hiringBriefHistory);
+  const briefRoleId=kinds.includes('hiring_brief_history') ? roleOrThrow(args.state,briefHistoryInput.roleId).roleId : null;
+  const {readCompanyTeams}=await import('./teamIndex');
+  const [retained, matchingRuns, roleSearch, companyMemory, hiringBriefHistory, teams] = await Promise.all([
     retainedKinds.length
       ? getOrgAgentMoreData({
           admin: args.admin,
@@ -1087,14 +1120,21 @@ async function executeGetMoreData(args: {
           workspaceId: args.workspaceId,
         })
       : Promise.resolve<OrgAgentMoreDataResult>({ requestedKinds: [] }),
-    readsHistory
+    readsHistory && !args.input.matching
       ? readMatchingRunHistory({
           admin: args.admin,
           workspaceId: args.workspaceId,
           user: args.user,
+          roleId: historyRoleId,
           offset,
         })
       : Promise.resolve(undefined),
+    args.input.matching ? readCompanyRoleSearch({admin:args.admin,user:args.user,workspaceId:args.workspaceId,input:memoryObject(args.input.matching)}) : Promise.resolve(undefined),
+    kinds.includes("company_memory") ? readCompanyMemory({admin:args.admin,user:args.user,workspaceId:args.workspaceId,input:memoryObject(args.input.memory)}) : Promise.resolve(undefined),
+    briefRoleId ? readHiringBriefHistory({admin:args.admin,user:args.user,workspaceId:args.workspaceId,roleId:briefRoleId,
+      historyId:typeof briefHistoryInput.historyId==='string' ? briefHistoryInput.historyId : undefined,
+      offset:briefHistoryInput.offset as number|undefined,limit:briefHistoryInput.limit as number|undefined}) : Promise.resolve(undefined),
+    kinds.includes('teams') ? readCompanyTeams({admin:args.admin,user:args.user,workspaceId:args.workspaceId}) : Promise.resolve(undefined),
   ]);
   if (matchingRuns && retainedKinds.length) {
     fitOrgAgentMoreDataContent({
@@ -1105,9 +1145,13 @@ async function executeGetMoreData(args: {
     });
   }
   const result: OrgAgentMoreDataToolResult = {
+    ...(teams ? {teams} : {}),
     ...retained,
     requestedKinds: kinds,
     ...(matchingRuns ? { matchingRuns } : {}),
+    ...(roleSearch ? { roleSearch } : {}),
+    ...(companyMemory ? { companyMemory } : {}),
+    ...(hiringBriefHistory ? {hiringBriefHistory} : {}),
   };
 
   if (result.companyDetails) {
@@ -1152,26 +1196,16 @@ function asRpcResult(value: unknown) {
 }
 
 async function applyResolvedCompanyDataChanges(args: {
-  admin: OrgAgentAdminClient;
-  changes: ResolvedCompanyDataChange[];
-  eventContent: string;
-  source: "chat" | "slack";
-  workspaceId: string;
+  admin: OrgAgentAdminClient; actorId: string; actorLabel: string;
+  changes: ResolvedCompanyDataChange[]; eventContent: string;
+  source: "chat" | "slack"; workspaceId: string;
 }) {
-  const includesSalaryRange = args.changes.some(
-    (change) => change.key === "salaryRange"
-  );
-  return (args.admin.rpc as any)(
-    includesSalaryRange
-      ? "apply_company_data_changes_with_role_salary_v1"
-      : "apply_company_data_changes_v1",
-    {
-      p_changes: args.changes,
-      p_event_content: args.eventContent,
-      p_source: args.source,
-      p_workspace_id: args.workspaceId,
-    }
-  );
+  const includesBrief=args.changes.some(change=>change.key==='role_request');
+  return (args.admin.rpc as any)(includesBrief ? 'apply_company_data_with_hiring_history_v1'
+    : args.changes.some(change=>change.key==='salaryRange') ? 'apply_company_data_changes_with_role_salary_v1' : 'apply_company_data_changes_v1', {
+    p_changes:args.changes,p_event_content:args.eventContent,p_source:args.source,p_workspace_id:args.workspaceId,
+    ...(includesBrief ? {p_criteria_changes:[],p_actor_user_id:args.actorId,p_actor_label:args.actorLabel} : {}),
+  });
 }
 
 async function executeProposalAction(args: {
@@ -1513,6 +1547,7 @@ async function executeCalibrateRoleHiringBrief(args: {
 }
 
 async function executeUpdateData(args: {
+  actorId: string;
   actorLabel: string;
   admin: OrgAgentAdminClient;
   callId: string;
@@ -1677,6 +1712,7 @@ async function executeUpdateData(args: {
   }
 
   const { data, error } = await applyResolvedCompanyDataChanges({
+    actorId:args.actorId,actorLabel:args.actorLabel,
     admin: args.admin,
     changes,
     eventContent,
@@ -1691,6 +1727,11 @@ async function executeUpdateData(args: {
       "The data changed while this update was being prepared. Read it again before retrying."
     );
   }
+  if (Array.isArray(result.history_ids) && result.history_ids.length) {
+    const {publishHiringBriefSummaries}=await import('../hiringBriefHistoryQueue');
+    await publishHiringBriefSummaries(result.history_ids.map(String));
+  }
+
   if (status === "updated") {
     args.state.fallbackReply = `변경 내용을 저장했어요. ${summary}`;
     args.state.updateSummaries.push(summary);
@@ -1890,7 +1931,7 @@ async function executeChangeRoleStatus(args: {
       p_role_id: role.roleId,
       p_workspace_id: args.workspaceId,
     });
-    if (activationError) throw activationError;
+    if (activationError) throwBillingDbError(activationError);
 
     let completionState = await fetchRoleCreationState({
       allowCompletedRole: true,
@@ -2558,6 +2599,13 @@ async function executeCandidateContactLifecycleItem(args: {
         "현재 회사 대화에서 답장할 수 있는 후보자 전달 내역을 찾지 못했습니다."
       );
     }
+    roleOrThrow(args.state, target.roleId);
+    await assertOrgTeamRoleAccess({
+      admin: args.admin,
+      user: args.user,
+      workspaceId: args.workspaceId,
+      roleId: target.roleId,
+    });
     args.state.preferredRoleId = target.roleId;
     if (!target.candidateEmail) {
       recordResult(args.state, {
@@ -6423,16 +6471,21 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
-  } else if (args.name === "request_matching_search") {
+  } else if (args.name === "request_matching_search" || args.name === "publish_role_recommendations") {
     return executeRequestMatchingSearch({
       admin: args.admin,
       callId: args.callId,
+      currentUserMessageId: args.currentUserMessageId,
       input,
       name: args.name,
       state: args.state,
       user: args.user,
       workspaceId,
     });
+  } else if (args.name === "write_company_memory") {
+    result = await writeCompanyMemory({admin:args.admin,user:args.user,workspaceId,input});
+    recordResult(args.state, {callId:args.callId,name:args.name,status:"success",summary:"회사 메모리 변경 저장"});
+    return result;
   } else if (args.name === "calibrate_role_hiring_brief") {
     return executeCalibrateRoleHiringBrief({
       admin: args.admin,
@@ -6481,6 +6534,7 @@ export async function executeOrgAgentTool(args: {
   } else if (args.name === "update_data") {
     try {
       return await executeUpdateData({
+        actorId:args.user.id,
         actorLabel: args.actorLabel,
         admin: args.admin,
         callId: args.callId,
