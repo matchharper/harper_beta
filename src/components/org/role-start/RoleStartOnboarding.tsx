@@ -410,7 +410,6 @@ function SetupStep(props: {
   // reads from the JD, so a late read never overwrites the company's input.
   const [edits, setEdits] = useState<Partial<RoleInfo>>({});
   const info: RoleInfo = { ...saved, ...edits };
-  const slackStatus = useOrgSlackStatus({ workspaceId: props.workspaceId });
   // The role facts registration requires (getRoleCreationMissingFields), asked for on this step.
   const missing = [
     ...(info.name.trim() && info.name.trim() !== "새 역할" ? [] : [c("역할 이름", "role title")]),
@@ -614,12 +613,6 @@ function SetupStep(props: {
           <ArrowRight className="size-4" />
         </MuteButton>
       </div>
-      {slackStatus.data && !slackStatus.data.connected ? (
-        // Registration needs Slack; the last step has the connect button, this only says so early.
-        <p className="text-right text-[12px] text-neutral-muted">
-          {c("역할을 등록하려면 Slack 연결이 필요해요. 마지막 단계에서 연결할 수 있어요.", "Registering needs Slack. You can connect it at the last step.")}
-        </p>
-      ) : null}
       {phase !== null && missing.length ? (
         // Registration needs these; asking here keeps the team from being stopped at the last step.
         <p className="text-right text-[12px] text-neutral-muted">
@@ -1246,15 +1239,15 @@ function SentenceChip({ children, label }: { children: React.ReactNode; label: s
 
 /**
  * How the Role runs after registration, as one sentence with choices: search
- * days and time, the Slack channels that hear about new people, and the owner
- * copied on intro emails. Registering saves them, then turns the Role on.
+ * days and time, where new people are sent (Slack channels and/or email), and
+ * the owner copied on intro emails. Registering saves them, then turns the Role on.
  */
 function FinalizeStep(props: {
   busy: boolean;
   role: OrgRole;
   session: RoleStartView;
   workspaceId: string;
-  onRegister: (notification: { channelIds?: string[]; assigneeUserId?: string }) => Promise<void>;
+  onRegister: (notification: { channelIds?: string[]; emailEnabled?: boolean; assigneeUserId?: string }) => Promise<void>;
   onBack: () => void;
 }) {
   const { c } = useOrgLocale();
@@ -1280,6 +1273,9 @@ function FinalizeStep(props: {
   const shownChannels =
     channelIds ?? (defaultChannels.length ? defaultChannels : channels.length === 1 ? [channels[0]!.channelId] : []);
   const slackConnected = slackStatusQuery.data?.connected ?? channels.length > 0;
+  // Email: on when the role already has it, otherwise only when there is no channel to choose.
+  const [mailOn, setMailOn] = useState<boolean | null>(null);
+  const shownMail = mailOn ?? (settingsQuery.data?.emailEnabled === true || channels.length === 0);
 
   // Same default as role creation: the saved owner, otherwise whoever registers.
   const members = bootstrap.members.filter((member) => member.email);
@@ -1289,10 +1285,13 @@ function FinalizeStep(props: {
   const ownerName = members.find((member) => member.userId === shownOwner)?.name || c("담당자", "the owner");
 
   const dayText = shownDays.map((day) => c(...DAY_LABEL[day]!)).join(c("·", ", "));
-  const channelText = shownChannels
-    .map((id) => channels.find((channel) => channel.channelId === id)?.channelName ?? id)
-    .map((name) => (name.startsWith("#") ? name : `#${name}`))
-    .join(", ");
+  const channelText = [
+    ...shownChannels
+      .map((id) => channels.find((channel) => channel.channelId === id)?.channelName ?? id)
+      .map((name) => (name.startsWith("#") ? name : `#${name}`)),
+    ...(shownMail ? [c("메일", "email")] : []),
+  ].join(", ");
+  const nothingChosen = !shownChannels.length && !shownMail;
 
   const register = async () => {
     if (days || hour !== null) {
@@ -1312,7 +1311,9 @@ function FinalizeStep(props: {
       }
     }
     await props.onRegister({
-      ...(shownChannels.length ? { channelIds: shownChannels } : {}),
+      // With channels to choose from, none chosen means email only: those channels are turned off.
+      ...(channels.length ? { channelIds: shownChannels } : {}),
+      emailEnabled: shownMail,
       assigneeUserId: shownOwner,
     });
   };
@@ -1367,10 +1368,10 @@ function FinalizeStep(props: {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-  const channelChip = channels.length ? (
+  const channelChip = (
     <DropdownMenu>
-      <SentenceChip label={c("알림 Slack 채널", "Slack channel")}>
-        {channelText || c("채널 고르기", "Choose a channel")}
+      <SentenceChip label={c("알림 받을 곳", "Where updates go")}>
+        {channelText || c("받을 곳", "Choose where")}
       </SentenceChip>
       <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
         {channels.map((channel) => {
@@ -1390,9 +1391,19 @@ function FinalizeStep(props: {
             </DropdownMenuItem>
           );
         })}
+        <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            setMailOn(!shownMail);
+          }}
+          selected={shownMail}
+          variant="sm"
+        >
+          {c("메일", "Email")}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  ) : null;
+  );
   const ownerChip = (
     <DropdownMenu>
       <SentenceChip label={c("담당자", "Owner")}>{ownerName}</SentenceChip>
@@ -1417,30 +1428,29 @@ function FinalizeStep(props: {
         <h1 className="text-[22px] font-normal leading-8 tracking-[-0.02em] text-neutral-primary">
           {c("이렇게 시작할게요", "Here's how the role runs")}
         </h1>
-        {slackConnected && channels.length ? (
-          <p className="mt-4 text-[18px] leading-[2.4rem] text-neutral-primary">
-            {c("매주", "Every")} {dayChip} {hourChip}
-            {c("에 새 후보를 찾아 역할당 최대 {p0}명을", ", Harper looks for new people and posts up to {p0} per role to", {
-              p0: SCHEDULED_ROLE_LIMIT,
-            })}{" "}
-            {channelChip}
-            {c("에 알려 드릴게요. 소개 메일에는", ". Intro emails copy")} {ownerChip}
-            {c("님을 참조로 넣을게요.", ".")}
+        <p className="mt-4 text-[18px] leading-[2.4rem] text-neutral-primary">
+          {c("매주", "Every")} {dayChip} {hourChip}
+          {c("에 새 후보를 찾아 역할당 최대 {p0}명을", ", Harper looks for new people and sends up to {p0} per role to", {
+            p0: SCHEDULED_ROLE_LIMIT,
+          })}{" "}
+          {channelChip}
+          {shownMail
+            ? c("로 알려 드릴게요. 소개 메일에는", ". Intro emails copy")
+            : c("에 알려 드릴게요. 소개 메일에는", ". Intro emails copy")}{" "}
+          {ownerChip}
+          {c("님을 참조로 넣을게요.", ".")}
+        </p>
+        {nothingChosen ? (
+          <p className="mt-2 text-[13px] leading-5 text-critical">
+            {c("받을 곳을 하나 이상 골라 주세요.", "Choose at least one place for updates.")}
           </p>
-        ) : (
-          <p className="mt-4 text-[18px] leading-[2.4rem] text-neutral-primary">
-            {c("Slack을 연결하면 매주", "Once Slack is connected, every")} {dayChip} {hourChip}
-            {c("에 새 후보를 찾아 역할당 최대 {p0}명을 알려 드릴게요. 소개 메일에는", ", Harper looks for new people and shares up to {p0} per role. Intro emails copy", {
-              p0: SCHEDULED_ROLE_LIMIT,
-            })}{" "}
-            {ownerChip}
-            {c("님을 참조로 넣을게요.", ".")}
-          </p>
-        )}
+        ) : null}
         {!slackConnected ? (
           <MuteButton
             className="mt-3"
             disabled={connectSlack.isPending}
+            size="sm"
+            variant="transparent"
             onClick={async () => {
               try {
                 const result = await connectSlack.mutateAsync({ returnTo: router.asPath, workspaceId: props.workspaceId });
@@ -1454,7 +1464,7 @@ function FinalizeStep(props: {
             }}
           >
             {c("Slack 연결하기", "Connect Slack")}
-            <ArrowRight className="size-4" />
+            <ArrowRight className="size-3.5" />
           </MuteButton>
         ) : !channels.length ? (
           <MuteButton asChild className="mt-3">
@@ -1479,7 +1489,7 @@ function FinalizeStep(props: {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <MuteButton
-          disabled={props.busy || updateRole.isPending || !slackConnected || !shownChannels.length}
+          disabled={props.busy || updateRole.isPending || settingsQuery.isLoading || nothingChosen}
           onClick={() => void register()}
           size="lg"
           variant="primary"

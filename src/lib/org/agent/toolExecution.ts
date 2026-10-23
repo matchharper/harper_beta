@@ -271,6 +271,13 @@ function requiredText(value: unknown, field: string, maxLength: number) {
   return normalized;
 }
 
+function requiredBoolean(value: unknown, field: string) {
+  if (typeof value !== "boolean") {
+    throw new OrgAgentToolInputError(`${field} must be a boolean`);
+  }
+  return value;
+}
+
 function requiredTextList(
   value: unknown,
   field: string,
@@ -1810,11 +1817,15 @@ async function executeChangeRoleStatus(args: {
     "notificationChannelIds"
   );
   const assigneeProvided = has(args.input, "assigneeUserId");
+  const notificationEmailProvided = has(args.input, "emailEnabled");
   const draftActivation =
     text(role.status).toLowerCase() === "draft" && status === "active";
-  if ((notificationChannelsProvided || assigneeProvided) && !draftActivation) {
+  if (
+    (notificationChannelsProvided || assigneeProvided || notificationEmailProvided) &&
+    !draftActivation
+  ) {
     throw new OrgAgentToolInputError(
-      "Notification channels and assignee can be supplied only while activating a draft Role"
+      "Notification channels, email and assignee can be supplied only while activating a draft Role"
     );
   }
 
@@ -1835,7 +1846,7 @@ async function executeChangeRoleStatus(args: {
       workspaceId: args.workspaceId,
     });
     const notificationSelectionSaved =
-      notificationChannelsProvided || assigneeProvided;
+      notificationChannelsProvided || assigneeProvided || notificationEmailProvided;
     if (notificationSelectionSaved) {
       creationState = await setRoleCreationNotification({
         ...(assigneeProvided
@@ -1856,6 +1867,9 @@ async function executeChangeRoleStatus(args: {
               ),
             }
           : {}),
+        ...(notificationEmailProvided
+          ? { emailEnabled: requiredBoolean(args.input.emailEnabled, "emailEnabled") }
+          : {}),
         roleId: role.roleId,
         user: args.user,
         workspaceId: args.workspaceId,
@@ -1866,7 +1880,7 @@ async function executeChangeRoleStatus(args: {
     if (missingFieldKeys.length > 0) {
       const missingFieldLabels: Record<string, string> = {
         assignee: "담당자",
-        connected_slack: "알림을 받을 Slack 채널",
+        connected_slack: "알림 받을 곳(Slack 채널이나 메일)",
         description: "역할 설명",
         employment_type: "고용 형태",
         location: "근무 지역",
@@ -1879,6 +1893,10 @@ async function executeChangeRoleStatus(args: {
       );
       const needsChannels = missingFieldKeys.includes("connected_slack");
       const needsAssignee = missingFieldKeys.includes("assignee");
+      // Without an enabled Slack channel, email is the default place to hear about new candidates.
+      const offerEmail =
+        needsChannels &&
+        !creationState.channels.some((channel) => channel.enabled);
       const availableChannels = needsChannels
         ? creationState.channels.map((channel) => ({
             channelId: channel.channelId,
@@ -1918,6 +1936,7 @@ async function executeChangeRoleStatus(args: {
                   .join(",")}`,
               ]
             : []),
+          ...(offerEmail ? ["notification_email_option=true"] : []),
           ...(availableAssignees.length > 0
             ? [
                 `assignee_options=${availableAssignees
@@ -1939,7 +1958,7 @@ async function executeChangeRoleStatus(args: {
         missingFields,
         notificationSelectionSaved,
         responseGuidance:
-          "The Role is still a draft. Ask only for the missing information that the user can answer now. If the assignee is missing, ask whether to set the current conversation partner (the available assignee marked current) as the owner; if that person is not available, ask the user to choose an available teammate. Do not assign anyone without contextual authorization. Name relevant channel options when needed. Do not request a second activation confirmation; after the missing information is saved, complete the user's still-authorized request in the same turn when possible.",
+          "The Role is still a draft. Ask only for the missing information that the user can answer now. If the assignee is missing, ask whether to set the current conversation partner (the available assignee marked current) as the owner; if that person is not available, ask the user to choose an available teammate. Do not assign anyone without contextual authorization. Name relevant channel options when needed. With no Slack channel (notification_email_option), propose email to the Role's assignee and Owners as the default place for new candidates and save it with emailEnabled=true once the user accepts. Do not request a second activation confirmation; after the missing information is saved, complete the user's still-authorized request in the same turn when possible.",
         roleName: role.name,
         roleStatus: "draft",
         status: "role_creation_incomplete",
@@ -2062,10 +2081,22 @@ async function executeChangeRoleStatus(args: {
       status: changed ? "success" : "unchanged",
       summary,
     });
+    // A mail-only Role has no Slack channel to post to; the reply talks about email instead.
+    const mailOnly =
+      completionState.emailEnabled &&
+      !completionState.channels.some((channel) =>
+        completionState.metadata.confirmedSlackChannelIds.includes(channel.channelId)
+      );
     return {
       effect: copy.effect,
       expectation: copy.expectation,
       nextProcess: copy.nextProcess,
+      ...(mailOnly
+        ? {
+            responseGuidance:
+              "This Role receives new candidates by email and has no confirmed Slack channel. Do not mention Slack; say only that new candidates will be sent by email.",
+          }
+        : {}),
       roleName: role.name,
       roleStatus: "active",
       slackNotificationDelivered,
@@ -6600,6 +6631,9 @@ export async function executeOrgAgentTool(args: {
       ...(has(input, "channelIds")
         ? { channelIds: requiredTextList(input.channelIds, "channelIds", 20) }
         : {}),
+      ...(has(input, "emailEnabled")
+        ? { emailEnabled: requiredBoolean(input.emailEnabled, "emailEnabled") }
+        : {}),
     });
     recordResult(args.state, {
       callId: args.callId,
@@ -6616,6 +6650,7 @@ export async function executeOrgAgentTool(args: {
         saved.assigneeUserIds.includes(member.userId)
       ),
       channels: saved.channels.filter((channel) => channel.enabled),
+      emailEnabled: saved.emailEnabled,
       hiringStatusChanged: false,
     };
   } else if (args.name === "change_role_status") {

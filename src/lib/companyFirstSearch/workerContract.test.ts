@@ -301,6 +301,11 @@ test("Slack delivery is authenticated, state-checked, and idempotently addressed
   assert.match(deliveryRoute, /recordConversationMessage: true/);
 });
 
+test("a run finishes through the shared rule that counts final email failures as finished", () => {
+  assert.match(deliveryRoute, /companyFirstRunDeliveryStatus\(outboxRows \?\? \[\]\)/);
+  assert.match(deliveryRoute, /available_at,delivery_channel/);
+});
+
 test("routes every explicit search outcome through the company-side LLM", () => {
   assert.match(resultNoticeRoute, /requireInternalWorkerSecret\(req\)/);
   assert.match(resultNoticeRoute, /buildCompanyMatchingResultContext/);

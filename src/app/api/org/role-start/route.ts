@@ -145,6 +145,7 @@ type Body = {
   reasonsSkipped?: boolean;
   summaryEdited?: boolean;
   channelIds?: string[] | null;
+  emailEnabled?: boolean | null;
   assigneeUserId?: string | null;
 };
 
@@ -266,6 +267,7 @@ export async function POST(req: NextRequest) {
           ...access,
           notification: {
             channelIds: Array.isArray(body.channelIds) ? body.channelIds.map(String).slice(0, 20) : undefined,
+            emailEnabled: typeof body.emailEnabled === "boolean" ? body.emailEnabled : undefined,
             assigneeUserId: body.assigneeUserId ? String(body.assigneeUserId) : undefined,
           },
         });

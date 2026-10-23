@@ -731,13 +731,14 @@ export const ORG_AGENT_TOOLS = [
     type: "function",
     function: {
       name: "set_role_notification",
-      description: "Save the selected Slack notification channels and/or primary assignee for one existing Role, including a draft, without changing its hiring status. Read read_role(include=[notification]) for exact available targets and saved settings. channelIds replaces the selected channel set; assigneeUserId replaces the primary assignee. Omitted settings are preserved. Requires the company's contextual authorization for these targets; no new channel or teammate is created. Returns verified saved settings.",
+      description: "Save the selected Slack notification channels, the Role's email switch and/or primary assignee for one existing Role, including a draft, without changing its hiring status. Read read_role(include=[notification]) for exact available targets and saved settings. channelIds replaces the selected channel set; emailEnabled turns email of new candidates to the Role's assignees and Owners on or off; assigneeUserId replaces the primary assignee. Omitted settings are preserved. The server refuses a save that would leave no Slack channel and email off. Requires the company's contextual authorization for these targets; no new channel or teammate is created. Returns verified saved settings.",
       parameters: {
         type: "object", additionalProperties: false, required: ["roleId"],
-        anyOf: [{ required: ["channelIds"] }, { required: ["assigneeUserId"] }],
+        anyOf: [{ required: ["channelIds"] }, { required: ["emailEnabled"] }, { required: ["assigneeUserId"] }],
         properties: {
           roleId: { type: "string" },
           channelIds: { type: "array", items: { type: "string" }, minItems: 1 },
+          emailEnabled: { type: "boolean" },
           assigneeUserId: { type: "string" },
         },
       },
@@ -749,7 +750,7 @@ export const ORG_AGENT_TOOLS = [
       name: "change_role_status",
       description: `Change the lifecycle status of one exact internal Role, only when the user explicitly asks for that status change.
 Call this once per exact Role. After its result, continue any other explicit, independent work from the user when it is still safe and relevant.
-When an exact existing Role is still draft and the user explicitly asks to start hiring or register it, call this with status=active instead of start_role_creation. The server reuses the saved draft and checks every role-creation requirement. If information is missing, no activation occurs: use the returned missing fields and available notification choices to ask only for what is needed, then complete the still-authorized activation after the user answers. If the user explicitly selects notification channels or an assignee, include those optional exact IDs in the activation call; they are saved before readiness is checked again. Never invent or silently default these targets.
+When an exact existing Role is still draft and the user explicitly asks to start hiring or register it, call this with status=active instead of start_role_creation. The server reuses the saved draft and checks every role-creation requirement. If information is missing, no activation occurs: use the returned missing fields and available notification choices to ask only for what is needed, then complete the still-authorized activation after the user answers. If the user explicitly selects notification channels, email or an assignee, include those optional exact values in the activation call; they are saved before readiness is checked again. Never invent or silently default these targets.
 Status meanings and effects:
 • active (진행): keep hiring in progress and periodically receive suitable candidate connections from Harper.
 • paused (중단): keep the Role open, but stop receiving additional candidate recommendations. Candidate processes and connections already in progress remain open.
@@ -772,6 +773,11 @@ Use deleted only for an explicit request to delete the exact Role. Do not reinte
             minItems: 1,
             type: "array",
             uniqueItems: true,
+          },
+          emailEnabled: {
+            description:
+              "Draft activation only. true when the user chose to receive new candidates by email (sent to the Role's assignees and Owners), e.g. when the company has no Slack channel. Omit when the user has not chosen email.",
+            type: "boolean",
           },
           assigneeUserId: {
             description:

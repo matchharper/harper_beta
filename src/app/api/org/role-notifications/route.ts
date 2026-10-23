@@ -49,6 +49,7 @@ export async function PATCH(req: NextRequest) {
     const payload = await updateOrgRoleNotificationSettings({
       assigneeUserIds: body.assigneeUserIds,
       channels: body.channels,
+      emailEnabled: body.emailEnabled,
       roleId: body.roleId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
