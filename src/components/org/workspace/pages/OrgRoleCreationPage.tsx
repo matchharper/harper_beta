@@ -4,6 +4,7 @@ import {
   ChevronsLeftRight,
   ChevronsRightLeft,
   Columns3,
+  Flag,
   Inbox,
   LoaderCircle,
   Menu,
@@ -14,7 +15,6 @@ import {
   Rows3,
   Scale,
   Settings,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useRouter } from "next/router";
@@ -96,7 +96,7 @@ const DETAIL_TABS = [
 ] as const;
 
 const START_TAB = {
-  icon: <Sparkles className="size-3.5" strokeWidth={1.65} />,
+  icon: <Flag className="size-3.5" strokeWidth={1.65} />,
   label: "시작",
   value: "start",
 } as const;
