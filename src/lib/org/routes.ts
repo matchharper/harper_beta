@@ -15,6 +15,7 @@ export type OrgWorkspacePageId =
 
 export type OrgJobsView = "pipeline" | "role";
 export type OrgRoleTab =
+  | "start"
   | "inbox"
   | "pipeline"
   | "matching"
@@ -31,8 +32,11 @@ export function resolveOrgRoleTab({
   tab: string;
 }): OrgRoleTab {
   if (!isDraft && (tab === "inbox" || tab === "pipeline")) return tab;
+  // The start flow is over once the Role is registered: its links open the inbox.
+  if (tab === "start") return isDraft ? "start" : "inbox";
   if (tab === "matching" || tab === "role" || tab === "settings") return tab;
-  return isDraft ? "matching" : "inbox";
+  // A new draft opens on the guided start (questions → Brief → first three).
+  return isDraft ? "start" : "inbox";
 }
 
 const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {

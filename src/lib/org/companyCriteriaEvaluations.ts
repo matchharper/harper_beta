@@ -8,6 +8,8 @@ export type OrgCompanyCriteriaEvaluation = {
   content: string;
   fitness: OrgCompanyCriterionFitness;
   name: string;
+  /** Being judged again after the team changed this criterion. */
+  pending?: boolean;
 };
 
 export type OrgCompanyPresentation = {
@@ -79,13 +81,15 @@ export function normalizeOrgCompanyCriteriaEvaluations(
     const record = item as Record<string, unknown>;
     const name = normalizedText(record.name);
     const content = normalizedText(record.content);
-    if (!name || !content) return [];
+    const pending = record.pending === true;
+    if (!name || (!content && !pending)) return [];
 
     return [
       {
         content,
         fitness: normalizedFitness(record.fitness),
         name,
+        ...(pending ? { pending: true } : {}),
       },
     ];
   });

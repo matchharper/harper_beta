@@ -1,11 +1,55 @@
 export const ORG_ROLE_CRITERIA_MIN_ITEMS = 0;
 export const ORG_ROLE_CRITERIA_RECOMMENDED_MIN_ITEMS = 2;
-export const ORG_ROLE_CRITERIA_MAX_ITEMS = 6;
+/** Safety cap on a Role's criteria (필수 조건 written as criteria + 평가 기준), shared by every path that saves them. */
+export const ORG_ROLE_CRITERIA_MAX_ITEMS = 12;
+
+export type OrgRoleCriterionRequirement = "must" | "preferred";
+
+export type OrgRoleCriterionGrade = "excellent" | "good" | "uncertain" | "bad";
+
+/** How the fast path measures a criterion: SQL/rules, section similarity, or a judgment left to the verdict LLM. */
+export type OrgRoleCriterionKind = "rule" | "similarity" | "judgment";
 
 export type OrgRoleCriterion = {
   criteria: string;
   name: string;
+  // Structured Brief fields. Older rows only have name/criteria; readers treat
+  // a missing requirement as preferred and missing signals as unspecified.
+  id?: string;
+  requirement?: OrgRoleCriterionRequirement;
+  /** 1 있으면 좋음 / 2 중요 for a preferred criterion; must is 필수 (3). See criterionLevel. */
+  importance?: number;
+  kind?: OrgRoleCriterionKind;
+  signals?: Partial<Record<OrgRoleCriterionGrade, string>>;
+  changeReason?: string;
+  changedAt?: string;
 };
+
+/**
+ * How much a criterion matters, left to right on screen: 있으면 좋음 · 중요 · 필수.
+ * Only 필수 keeps people out; ranking weights are 1 / 2 / 3. Stored as
+ * requirement "must" (필수) or "preferred" + importance 1 / 2, so older
+ * criteria read must → 필수 and preferred → 중요.
+ */
+export type OrgRoleCriterionLevel = "nice" | "important" | "required";
+
+export const ORG_ROLE_CRITERION_LEVELS: Array<{ level: OrgRoleCriterionLevel; ko: string; en: string; weight: number }> = [
+  { level: "nice", ko: "있으면 좋음", en: "Nice to have", weight: 1 },
+  { level: "important", ko: "중요", en: "Important", weight: 2 },
+  { level: "required", ko: "필수", en: "Required", weight: 3 },
+];
+
+export function criterionLevel(criterion: { importance?: number | null; requirement?: string | null }): OrgRoleCriterionLevel {
+  if (criterion.requirement === "must") return "required";
+  return Number(criterion.importance) === 1 ? "nice" : "important";
+}
+
+export function criterionLevelFields(level: OrgRoleCriterionLevel) {
+  return {
+    requirement: (level === "required" ? "must" : "preferred") as OrgRoleCriterionRequirement,
+    importance: ORG_ROLE_CRITERION_LEVELS.find((item) => item.level === level)!.weight,
+  };
+}
 
 export type OrgRoleCriteriaEdit = {
   criteria?: string;
@@ -39,6 +83,43 @@ function has(value: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
+const GRADES: OrgRoleCriterionGrade[] = ["excellent", "good", "uncertain", "bad"];
+
+function structuredFields(source: Record<string, unknown>) {
+  const fields: Partial<OrgRoleCriterion> = {};
+  const id = text(source.id);
+  if (id) fields.id = id.slice(0, 80);
+  if (source.requirement === "must" || source.requirement === "preferred") {
+    fields.requirement = source.requirement;
+  }
+  const importance = Number(source.importance);
+  if (importance === 1 || importance === 2 || importance === 3) {
+    fields.importance = importance;
+  }
+  if (
+    source.kind === "rule" ||
+    source.kind === "similarity" ||
+    source.kind === "judgment"
+  ) {
+    fields.kind = source.kind;
+  }
+  const signalSource = record(source.signals);
+  const signals = Object.fromEntries(
+    GRADES.flatMap((grade) => {
+      const value = text(signalSource[grade]).slice(0, 2_000);
+      return value ? [[grade, value]] : [];
+    })
+  );
+  if (Object.keys(signals).length) fields.signals = signals;
+  const changeReason = text(source.changeReason).slice(0, 1_000);
+  if (changeReason) fields.changeReason = changeReason;
+  const changedAt = text(source.changedAt);
+  if (changedAt && !Number.isNaN(Date.parse(changedAt))) {
+    fields.changedAt = changedAt;
+  }
+  return fields;
+}
+
 export function normalizeOrgRoleCriteria(value: unknown): OrgRoleCriterion[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => {
@@ -46,6 +127,7 @@ export function normalizeOrgRoleCriteria(value: unknown): OrgRoleCriterion[] {
     return {
       criteria: text(source.criteria),
       name: text(source.name),
+      ...structuredFields(source),
     };
   });
 }
@@ -180,7 +262,11 @@ export function applyOrgRoleCriteriaEdits(
       ? detail
       : criteria[targetIndex]!.criteria;
     assertUniqueName(nextName, targetIndex);
-    criteria[targetIndex] = { criteria: nextDetail, name: nextName };
+    criteria[targetIndex] = {
+      ...criteria[targetIndex]!,
+      criteria: nextDetail,
+      name: nextName,
+    };
     counts.updated += 1;
   }
 
