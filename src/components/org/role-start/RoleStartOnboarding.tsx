@@ -784,10 +784,10 @@ function QuestionStep(props: {
     return (
       <Centered className="gap-6">
         <LoadingLine
-          hint={props.session.phase === "drafting" ? c("보통 1분쯤 걸려요", "Usually takes about a minute") : undefined}
+          hint={props.session.phase === "drafting" ? c("궁금한 점 몇 가지만 더 여쭤볼게요 · 보통 1분쯤 걸려요", "A few more questions are coming · usually about a minute") : undefined}
           text={
             props.session.phase === "drafting"
-              ? c("JD를 읽고 질문을 준비하고 있어요", "Reading the JD and preparing questions")
+              ? c("JD를 읽으며 이 역할을 더 알아가고 있어요", "Getting to know this role from the JD")
               : c("답을 반영하고 다음 질문을 고르고 있어요", "Applying your answer and choosing the next question")
           }
         />
