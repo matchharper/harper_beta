@@ -157,8 +157,6 @@ export async function updateRoleRubric(
 <TEAM_REQUEST>${request}</TEAM_REQUEST>`,
     });
     usage.push(used);
-    // An edit past the criteria cap is refused, never cut off silently.
-
     next = briefFromRaw(data.brief, before, `요청: ${request.slice(0, 200)}`);
     summary = data.appliedSummary || "요청에 맞춰 수정";
   } else if (args.change) {
@@ -362,4 +360,3 @@ async function rejudge(args: {
 export function getSupabaseForRubric() {
   return getSupabaseAdmin();
 }
-

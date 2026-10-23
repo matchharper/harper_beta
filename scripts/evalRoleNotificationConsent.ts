@@ -28,9 +28,10 @@ config({ path: ".env.local", quiet: true });
 process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic-only";
 const originalFetch = globalThis.fetch;
+let providerHost: string | null = null;
 globalThis.fetch = async (input: any, init?: any) => {
   const url = new URL(typeof input === "string" ? input : input.url ?? String(input));
-  if (url.hostname !== "openrouter.ai") throw Error(`Network blocked: ${url.hostname}`);
+  if (url.hostname !== providerHost) throw Error(`Network blocked: ${url.hostname}`);
   return originalFetch(input, { ...init, signal: AbortSignal.timeout(120_000) });
 };
 
@@ -44,10 +45,12 @@ async function main() {
   const { applyRoleTextEdits } = await import("../src/lib/org/agent/roleTextEdits");
   const { validateCompanyCompletion, companyCompletionTokenBudget } = await import("../src/lib/org/agent/completionContract");
   const model = config.DEFAULT_ORG_AGENT_MODEL;
+  const provider = llm.getLlmChatProviderForModel(model);
+  providerHost = { openai: "api.openai.com", openrouter: "openrouter.ai", anthropic: "api.anthropic.com" }[provider];
   const reasoning = config.getOrgAgentReasoningEffort(model);
   const tools = ROLE_CREATION_TOOLS.filter(t => t.function.name !== "confirm_pending_role_creation");
   const sourceFiles = ["roleCreationState.ts", "roleCreationTools.ts", "roleCreationPrompt.ts", "modelConfig.ts", "uxWritingPrompt.ts", "serviceKnowledgePrompt.ts", "hiringBriefAuthoringPrompt.ts"];
-  save("manifest.json", { ...frozen, runId, selectedIds: cases.map((item: any) => item.id), createdAt: new Date().toISOString(), model, provider: "OpenRouter", reasoning, temperature: config.ORG_AGENT_TEMPERATURE, timeoutMs: 120000,
+  save("manifest.json", { ...frozen, runId, selectedIds: cases.map((item: any) => item.id), createdAt: new Date().toISOString(), model, provider, reasoning, temperature: config.ORG_AGENT_TEMPERATURE, timeoutMs: 120000,
     sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     dirty: true, sources: Object.fromEntries([...sourceFiles.map(f => [f, hash(readFileSync(path.join(root, "src/lib/org/agent", f), "utf8"))]),
       ["roleCriteria.ts", hash(readFileSync(path.join(root, "src/lib/org/roleCriteria.ts"), "utf8"))],
