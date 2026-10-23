@@ -225,6 +225,11 @@ test("a model rewrite that returns no notes keeps the team's notes unless the re
   const raw = { summary: "요약", hardConditions: [], criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "must" as const, kind: "judgment" as const, minYears: null, maxYears: null, signals: {} }], keywords: [], otherNotes: [] };
   assert.deepEqual(briefFromRaw(raw, previous, "요청: Python을 필수로").otherNotes, ["1월 입사 가능"]);
   assert.equal(briefFromRaw(raw, previous, "요청: 기타 참고 사항 다 지워줘").otherNotes, undefined);
+  // A question answered with a "기타" chip is not a request about the notes.
+  assert.deepEqual(briefFromRaw(raw, previous, "질문 '기타 우대 사항이 있나요?'에 대한 답: 기타").otherNotes, ["1월 입사 가능"]);
+  // A rewrite without the field keeps them too.
+  const { otherNotes: _omit, ...rawWithout } = raw;
+  assert.deepEqual(briefFromRaw(rawWithout, previous, "요청: Python을 필수로").otherNotes, ["1월 입사 가능"]);
   // A Brief with no notes keeps the hash it had before notes existed.
   const { otherNotes: _notes, ...withoutNotes } = previous;
   assert.equal(verdictBriefHash(withoutNotes), verdictBriefHash({ ...withoutNotes, otherNotes: [] }));

@@ -105,8 +105,9 @@ export function briefFromRaw(raw: RawBrief, previous?: RoleStartBrief, reason?: 
   const now = new Date().toISOString();
   const brief = normalizeRoleStartBrief({
     summary: raw.summary,
-    // An empty list from a rewrite keeps the team's notes, unless the request was about them.
-    otherNotes: raw.otherNotes?.length || /참고\s*사항|기타/.test(reason ?? "") ? raw.otherNotes : previous?.otherNotes,
+    // An empty list from a rewrite keeps the team's notes, unless the team's own request was about them.
+    otherNotes:
+      raw.otherNotes?.length || (reason?.startsWith("요청:") && /참고\s*사항|기타\s*참고|메모/.test(reason)) ? raw.otherNotes : previous?.otherNotes,
     keywords: raw.keywords,
     // A rewrite without title lists keeps the previous ones.
     titles: raw.matchingTitles?.length || raw.nearMissTitles?.length
