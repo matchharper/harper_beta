@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clearStartPending, markStartPending, mayStartFromJd, START_PENDING_MS, startPendingUntil } from "./startPending";
+import { clearNewRolePending, clearStartPending, markNewRolePending, markStartPending, mayStartFromJd, newRolePendingUntil, START_PENDING_MS, startPendingUntil } from "./startPending";
 
 test("only a first message the quick JD read can take starts the loading line (20+ characters, no link, no file)", () => {
   assert.equal(mayStartFromJd("# 데이터 엔지니어\n- Spark 실무 경험 3년 이상", 0), true);
@@ -30,4 +30,21 @@ test("the server's answer that the message was not a JD ends the loading line fo
   clearStartPending(storage, "role-a");
   assert.equal(startPendingUntil(storage, "role-a"), null);
   assert.equal(startPendingUntil(storage, "role-b"), 1_000 + START_PENDING_MS);
+});
+
+test("the new-role page waits per workspace, for 30 s at most, until cleared", () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+    removeItem: (key: string) => void values.delete(key),
+  };
+  assert.equal(newRolePendingUntil(storage, "w1"), null);
+  markNewRolePending(storage, "w1", 1_000);
+  assert.equal(newRolePendingUntil(storage, "w1"), 1_000 + START_PENDING_MS);
+  assert.equal(newRolePendingUntil(storage, "w2"), null, "another workspace is not waiting");
+  assert.equal(startPendingUntil(storage, "w1"), null, "a Role's own key is separate");
+  clearNewRolePending(storage, "w1");
+  assert.equal(newRolePendingUntil(storage, "w1"), null);
+  assert.doesNotThrow(() => markNewRolePending(null, "w1"));
 });

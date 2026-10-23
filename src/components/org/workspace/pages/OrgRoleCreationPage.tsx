@@ -61,7 +61,7 @@ import {
   type OrgRoleTab,
 } from "@/lib/org/routes";
 import { queryKeys } from "@/lib/queryKeys";
-import { sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
+import { newRolePendingUntil, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
 import type { OrgRole } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -751,7 +751,11 @@ export function OrgRoleCreationPage() {
   const startPendingAt = useSyncExternalStore(
     subscribeStartPending,
     () => {
-      const until = roleId ? startPendingUntil(sessionStorageOrNull(), roleId) : null;
+      const until = roleId
+        ? startPendingUntil(sessionStorageOrNull(), roleId)
+        : isNewRolePage
+          ? newRolePendingUntil(sessionStorageOrNull(), workspace.workspaceId)
+          : null;
       return until !== null && until > Date.now() ? until : null;
     },
     () => null
@@ -765,9 +769,9 @@ export function OrgRoleCreationPage() {
   }, [startPendingAt]);
   const waitingForStart =
     startPendingAt !== null &&
-    roleStartEnabled &&
-    !onboarding &&
-    !roleStartQuery.data?.session;
+    // The new-role page: a JD was just sent and the Role's page has not taken over yet.
+    ((!roleId && isNewRolePage && permissions.canManageCandidates) ||
+      (roleStartEnabled && !onboarding && !roleStartQuery.data?.session));
   const roleMissing = Boolean(roleId) && role === null;
   // Only while the start flow still finds the Role: a deleted one errors there.
   // Members who cannot run the start flow keep the plain re-read.
