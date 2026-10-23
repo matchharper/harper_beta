@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { withRecommendationRank } from "@/lib/org/candidateBoardSort";
 import { fetchOrgBoard, OrgHttpError } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
     });
-    return NextResponse.json(payload);
+    return NextResponse.json({ ...payload, items: withRecommendationRank(payload.items) });
   } catch (error) {
     return toErrorResponse(error);
   }
