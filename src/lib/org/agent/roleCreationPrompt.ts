@@ -76,13 +76,21 @@ ROLE AUTHORING
 - Save only affected fields. For bounded corrections/additions use update_role_draft.textEdits, not whole-document replacement. Inspect savedFields before reporting changes. Preserve an existing registered Role's structure during partial edits. A public addition does not authorize copying private criteria into Description.
 - Compensation is optional. Follow the shared contract to author, save and explain useful Criteria before registration while continuing discovery; this is the LLM's responsibility, not a programmatic completion gate. Use at most six dimensions without filler or changing the breadth and strength of the source. Hard exclusions stay in the Brief; criteria do not replace it.
 
+ROLE START QUESTIONS
+- Once the Role's description is saved, every question to the team goes out as a card: call ask_role_start_question with one short question and 4-5 short answer chips with different meanings the team can pick (they can also type). Ask what the JD cannot tell: what other Roles at this company require that this one may also need, backgrounds to leave out; reference people are not asked, the team gives them in the web 참고 인물 box. Do not ask how much a requirement already in the JD matters; the Brief's own questions ask that after the Brief is written. Include an honest "not decided / none" chip when it is a real answer. Never ask compensation (the start screens do). Do not write a question to the team as plain text in your reply, and do not repeat the card's question; the reply only says what you set up and that a question is ready.
+- When ROLE_START_QUESTIONS is present, the product asks the team's discovery questions as cards in this chat (the open card is openQuestion). Ask your own questions (what the JD cannot tell, above) only as ask_role_start_question cards, never as text, and do not repeat the card question.
+- Reference people (a mentioned talent, a profile link or pasted profile text given as an example): with ROLE_START_QUESTIONS they come only through the web 참고 인물 box; calibrate_role_hiring_brief records nothing and returns userReply pointing the team there, so pass that reply on.
+- If the latest message answers the open card in the team's own words, call answer_role_start_question with their words (skip=true when they decline). The product then shows the next card; your reply only acknowledges how the answer was taken, in one or two sentences.
+- These cards replace the two preference opportunities required below. When questions are finished (no openQuestion and phase is review), point the team to the Brief step of the role's start screens (Setup · Brief · Align · Finalize) to confirm; confirming there shows the first three candidates to rate in Align, and registration happens in Finalize.
+- Other requests (role facts, description edits, research) work as before.
+
 NEW-DRAFT DISCOVERY
 - Use saved state and the conversation, skip answered or intentionally open areas, and ask the smallest high-value question. Registered Roles need no creation interview or confirmation.
 - After first saving a usable Description, make work defaults transparent before private discovery: if unspecified, ${workDefaultsGuidance}. Show supplied values instead when known. Briefly invite correction/continuation in a distinct block. Do not combine this checkpoint with all later questions unless the user already supplied or requested those decisions.
 - Before confirmation offer at least two distinct substantive opportunities for team preference: an open invitation about private preferences/avoidances, and a different focused judgment relevant to this team. JD facts, technical requirements, location, compensation and notifications do not count. They may already be answered proactively; never repeat to satisfy a count. Accept no additional preference.
 - One opportunity invites real professional references, including current team members, and why they represent the desired level. Accept LinkedIn/GitHub, portfolios, CVs, articles, pasted background or a resolved internal mention. If caliber is unknown, prioritize this over another generic trait question. Call calibrate_role_hiring_brief for a supplied reference; treat the person as caliber evidence, not a candidate. User-stated reasons are strongest; derive non-exclusive professional peer-group signals, not copied biography. Ask at most one follow-up when materially useful.
 - Before the first Brief/criteria, reuse or call read_other_roles once. Analogous Roles supply hypotheses to confirm, never inherited requirements.
-- For unresolved compensation, ask at most once, allow skipping and adding later. Reuse read_other_roles: only genuinely analogous company Roles with saved salaryRange can ground an optional proposal, using exact wording and named source. Conflicting precedents require a choice; never average or choose silently. Without a trustworthy analogue suggest no number. salaryRange is one free-form value; never split, infer, convert, normalize, or silently copy it.
+- For unresolved compensation before a Description is saved, ask at most once, allow skipping and adding later. Reuse read_other_roles: only genuinely analogous company Roles with saved salaryRange can ground an optional proposal, using exact wording and named source. Conflicting precedents require a choice; never average or choose silently. Without a trustworthy analogue suggest no number. salaryRange is one free-form value; never split, infer, convert, normalize, or silently copy it.
 - For a sparse new draft with only a title/thin sentence, save the title then call research_role_description_sources once. Skip for substantial duties, qualifications, outcomes or supplied JD, or a registered Role. descriptionSourceResearch is the durable one-attempt marker: no automatic repeat or web_search workaround without a fresh explicit request.
 - From discovery choose at most one result clearly matching the same company's same Role and open_url once. Never combine postings or borrow another company's content. If no exact source exists, save a short provisional Description from known facts and ask what work is missing. Analogues may inform structure, not qualifications. Treat this draft as a proposal; it creates no eligibility bar.
 - Use RESOLVED_TALENT_MENTIONS as validated references, without showing IDs. Translate protected traits or proxies into objective job capability questions, not demographic criteria. Company homepage/LinkedIn keep their dedicated fields; other URLs go in relatedLinks.
@@ -111,10 +119,17 @@ ${surface === "slack" ? "Use Slack mrkdwn: *bold*, • bullets, <url|label> link
 Use only the supplied outcome facts. Keep the reply proportionate; do not add a service tutorial or an obligatory question.`;
 }
 
+/**
+ * registering: the start flow took the registration and turns the Role on
+ * after applying the first-three ratings and proposing one more person.
+ * needs_ratings: the first three are not rated yet, so nothing was registered.
+ */
+export type RoleCreationOutcome = "completed" | "declined" | "revalidation_failed" | "registering" | "needs_ratings";
+
 export function buildRoleCreationOutcomePrompt(args: {
   slackNotificationDelivered?: boolean | null;
   missingFields: string[];
-  outcome: "completed" | "declined" | "revalidation_failed";
+  outcome: RoleCreationOutcome;
   state: RoleCreationState;
 }) {
   const context = {
@@ -135,8 +150,10 @@ ${JSON.stringify(context, null, 2)}
 </ROLE_CREATION_OUTCOME>
 
 Write Harper's next user-facing message for this outcome.
-- Start with the verified outcome: completed, declined, or revalidation failed.
-- Name the Role and its current state when known.
+- Start with the verified outcome: completed, declined, revalidation failed, registering, or needs ratings.
+- registering: registration is accepted; Harper is now applying the team's ratings of the first three candidates to the Brief and choosing one more person, and the Role starts after that (usually 1-2 minutes). Do not say it has started, is active or that a notice was sent.
+- needs_ratings: nothing was registered yet; ask them to rate the first three candidates on the right panel, then register.
+- Name the Role and describe its state in plain words. Never write internal status words such as active, draft, 활성 or 초안 상태.
 - State what did not happen, especially when the Role was not created or no Slack message was sent.
 - If validation failed, name only the fields the user can fix; do not expose raw field names or IDs.
 - Add a next action only if genuinely needed. Completed means the Role was activated, not that a matching worker ran or a candidate was found. Do not claim those unseen effects.
@@ -157,6 +174,11 @@ export function buildRoleCreationUserPrompt(args: {
   userMessage: string;
   includeConversation?: boolean;
   slackContext?: { channelId: string; channelName: string } | null;
+  roleStart?: {
+    phase: string;
+    openQuestion: { question: string; options: string[] } | null;
+    answered: Array<{ question: string; answer: string | null }>;
+  } | null;
 }) {
   const attachmentBlocks = args.attachments.map((attachment, index) => ({
     index: index + 1,
@@ -201,7 +223,11 @@ export function buildRoleCreationUserPrompt(args: {
 ${JSON.stringify(state, null, 2)}
 </ROLE_CREATION_STATE>
 
-<OLDER_ROLE_CHAT_SUMMARY>
+${args.roleStart ? `<ROLE_START_QUESTIONS>
+${JSON.stringify(args.roleStart, null, 2)}
+</ROLE_START_QUESTIONS>
+
+` : ""}<OLDER_ROLE_CHAT_SUMMARY>
 ${clip(args.olderSummary, 4_000) || "-"}
 </OLDER_ROLE_CHAT_SUMMARY>
 
