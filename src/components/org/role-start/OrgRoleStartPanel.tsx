@@ -250,7 +250,7 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
             const result = await run({ action: "edit", request });
             if (result?.applied) addToast({ message: result.applied, variant: "success" });
           }}
-          onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash })}
+          onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash, summaryEdited: brief.summary !== session.brief.summary })}
           readOnly={session.phase === "questions"}
           session={session}
           versions={data?.versions ?? []}

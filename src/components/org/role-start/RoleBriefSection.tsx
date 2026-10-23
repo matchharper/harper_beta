@@ -93,6 +93,8 @@ export function RoleBriefSection({
   const [edited, setEdited] = useState<RoleStartBriefView | null>(null);
   // The Brief the edit started from: a Brief changed elsewhere since then is not overwritten.
   const [editedHash, setEditedHash] = useState<string | null>(null);
+  // The summary when the edit started: only a change from it counts as the team's own summary.
+  const [editStartSummary, setEditStartSummary] = useState<string | null>(null);
   const draft = edited ?? server;
   const save = useMutation({
     mutationFn: (body: { brief?: RoleStartBriefView; request?: string; briefHash?: string; summaryEdited?: boolean }) =>
@@ -172,7 +174,10 @@ export function RoleBriefSection({
   }
   const dirty = JSON.stringify(draft) !== serverJson;
   const setDraft = (update: RoleStartBriefView | ((current: RoleStartBriefView) => RoleStartBriefView)) => {
-    if (edited === null) setEditedHash(query.data?.briefHash ?? null);
+    if (edited === null) {
+      setEditedHash(query.data?.briefHash ?? null);
+      setEditStartSummary(draft?.summary ?? null);
+    }
     setEdited((current) => {
       const base = current ?? draft;
       return typeof update === "function" ? update(base) : update;
@@ -266,7 +271,11 @@ export function RoleBriefSection({
               hasChanges={dirty}
               onCancel={() => setEdited(null)}
               onSave={() =>
-                save.mutate({ brief: draft, briefHash: editedHash ?? query.data?.briefHash, summaryEdited: draft.summary !== server?.summary })
+                save.mutate({
+                  brief: draft,
+                  briefHash: editedHash ?? query.data?.briefHash,
+                  summaryEdited: draft.summary !== (editStartSummary ?? server?.summary),
+                })
               }
               pending={save.isPending}
             />

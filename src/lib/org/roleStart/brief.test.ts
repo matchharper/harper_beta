@@ -211,3 +211,21 @@ test("기타 참고 사항: kept through saves, rendered under its own heading, 
   assert.notEqual(verdictBriefHash(brief), verdictBriefHash({ ...brief, otherNotes: [] }));
   assert.equal(visibleBriefHash({ ...brief, summary: "다른 요약" }), visibleBriefHash(brief));
 });
+
+test("a model rewrite that returns no notes keeps the team's notes unless the request was about them", async () => {
+  process.env.OPENAI_API_KEY ||= "test-only-not-used";
+  const { briefFromRaw } = await import("./questions");
+  const { verdictBriefHash } = await import("./brief");
+  const previous = normalizeRoleStartBrief({
+    summary: "요약",
+    hardConditions: [],
+    criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "required" }],
+    otherNotes: ["1월 입사 가능"],
+  });
+  const raw = { summary: "요약", hardConditions: [], criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "must" as const, kind: "judgment" as const, minYears: null, maxYears: null, signals: {} }], keywords: [], otherNotes: [] };
+  assert.deepEqual(briefFromRaw(raw, previous, "요청: Python을 필수로").otherNotes, ["1월 입사 가능"]);
+  assert.equal(briefFromRaw(raw, previous, "요청: 기타 참고 사항 다 지워줘").otherNotes, undefined);
+  // A Brief with no notes keeps the hash it had before notes existed.
+  const { otherNotes: _notes, ...withoutNotes } = previous;
+  assert.equal(verdictBriefHash(withoutNotes), verdictBriefHash({ ...withoutNotes, otherNotes: [] }));
+});

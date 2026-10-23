@@ -449,7 +449,7 @@ export function needsSummary(brief: RoleStartBrief) {
  */
 export function verdictBriefHash(brief: RoleStartBrief) {
   return stableHash({
-    notes: brief.otherNotes ?? [],
+    ...(brief.otherNotes?.length ? { notes: brief.otherNotes } : {}),
     hard: brief.hardConditions.map((condition) => condition.label),
     criteria: brief.criteria.map((criterion) => [
       criterion.id ?? criterion.name,
