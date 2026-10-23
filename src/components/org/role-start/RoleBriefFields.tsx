@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RoleReferenceList } from "@/components/org/role-start/RoleReferenceList";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { criterionLevel, criterionLevelFields, ORG_ROLE_CRITERIA_MAX_ITEMS } from "@/lib/org/roleCriteria";
+import { isProtectedNote, MAX_OTHER_NOTES, PROTECTED_NOTE_MESSAGE } from "@/lib/org/roleStart/brief";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
 
 /**
@@ -194,6 +195,67 @@ export function RoleBriefFields({
             ) : null}
           </div>
           <RoleReferenceList references={draft.references} />
+        </div>
+
+        <div className="mt-8">
+          <RoleSectionHeading
+            description={c(
+              "필수 조건이나 평가 기준은 아니지만 팀이 바라는 점이에요. 매칭에 참고만 하고, 이것만으로 후보를 빼지 않아요.",
+              "What the team would like that is neither a required condition nor a criterion. Matching only takes it into account; it never excludes anyone."
+            )}
+            title={c("기타 참고 사항", "Other notes")}
+          />
+          <div className="mt-3 grid gap-2">
+            {(draft.otherNotes ?? []).map((note, index) => (
+              <div className="grid gap-1" key={index}>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    aria-label={c("기타 참고 사항 {p0}", "Other note {p0}", { p0: String(index + 1) })}
+                    className="min-w-0 flex-1"
+                    disabled={busy}
+                    maxLength={120}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setDraft((current) => ({
+                        ...current,
+                        otherNotes: (current.otherNotes ?? []).map((item, position) => (position === index ? value : item)),
+                      }));
+                    }}
+                    placeholder={c("예: 1월 입사 가능, 월 1회 해외 출장", "e.g. Can start in January, one trip abroad a month")}
+                    value={note}
+                  />
+                  <MuteButton
+                    aria-label={c("기타 참고 사항 {p0} 빼기", "Remove other note {p0}", { p0: String(index + 1) })}
+                    disabled={busy}
+                    onClick={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        otherNotes: (current.otherNotes ?? []).filter((_item, position) => position !== index),
+                      }))
+                    }
+                    size="sm"
+                    variant="transparent"
+                  >
+                    <X className="size-3.5" />
+                  </MuteButton>
+                </div>
+                {isProtectedNote(note) ? (
+                  <p className="text-[12px] leading-5 text-red-700">{c(PROTECTED_NOTE_MESSAGE, "Age, gender and similar traits are not used for matching. Write it as years of experience or a job requirement.")}</p>
+                ) : null}
+              </div>
+            ))}
+            {(draft.otherNotes ?? []).length < MAX_OTHER_NOTES ? (
+              <MuteButton
+                className="justify-self-start"
+                disabled={busy}
+                onClick={() => setDraft((current) => ({ ...current, otherNotes: [...(current.otherNotes ?? []), ""] }))}
+                variant="transparent"
+              >
+                <Plus className="size-3.5" />
+                {c("참고 사항 추가하기", "Add a note")}
+              </MuteButton>
+            ) : null}
+          </div>
         </div>
 
         {hideRequest ? null : (

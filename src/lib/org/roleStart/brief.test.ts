@@ -109,10 +109,11 @@ test("a summary-only screen edit saves the summary and leaves every criterion as
     hardConditions: [],
     criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "required", rule: { minYears: 3, maxYears: null } }],
   });
-  const edited = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), summary: "결제 백엔드를 이끌 리드를 찾아요" }, "test");
+  const edited = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), summary: "결제 백엔드를 이끌 리드를 찾아요" }, "test", { summaryEdited: true });
   assert.equal(edited.summary, "결제 백엔드를 이끌 리드를 찾아요");
   assert.deepEqual(edited.criteria, stored.criteria);
-  assert.notEqual(visibleBriefHash(edited), visibleBriefHash(stored));
+  // The summary follows the rest, so it does not make a screen's other edits conflict.
+  assert.equal(visibleBriefHash(edited), visibleBriefHash(stored));
 });
 
 test("a Brief counts as changed since a screen loaded it only when what the screen saves changed, not grade signals or reference bookkeeping", async () => {
@@ -172,10 +173,41 @@ test("the summary follows the conditions and criteria it recaps, and a team-writ
   // A criterion changed on the screen: the summary is now out of date (rewritten in the background).
   const changed = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), criteria: [{ ...roleStartBriefView(stored).criteria[0], criteria: "백엔드 개발 5년 이상" }] }, "test");
   assert.equal(needsSummary(changed), true);
+  // A screen that only sends back the summary it loaded keeps the stored (maybe newer) one.
+  const kept = mergeVisibleBriefEdit({ ...stored, summary: "배경에서 새로 쓴 요약" }, { ...roleStartBriefView(stored) }, "test");
+  assert.equal(kept.summary, "배경에서 새로 쓴 요약");
   // The team wrote the summary themselves: kept, and counted as up to date.
-  const own = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), summary: "우리 팀이 직접 쓴 요약" }, "test");
+  const own = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), summary: "우리 팀이 직접 쓴 요약" }, "test", { summaryEdited: true });
   assert.equal(own.summary, "우리 팀이 직접 쓴 요약");
   assert.equal(needsSummary(own), false);
   // A prepared verdict does not depend on the summary.
   assert.equal(verdictBriefHash({ ...stored, summary: "다른 요약" }), verdictBriefHash(stored));
+});
+
+test("기타 참고 사항: kept through saves, rendered under its own heading, never a protected trait", async () => {
+  process.env.OPENAI_API_KEY ||= "test-only-not-used";
+  const { isProtectedNote, renderBriefMarkdown, verdictBriefHash, MAX_OTHER_NOTES } = await import("./brief");
+  const { visibleBriefHash, roleStartBriefView } = await import("./view");
+  const { mergeVisibleBriefEdit } = await import("./service");
+  for (const line of ["20대 후반 선호", "여성 지원자 우대", "남자만", "기혼자 제외", "Age under 35"]) assert.equal(isProtectedNote(line), true, line);
+  for (const line of ["1월 입사 가능", "월 1회 해외 출장", "영어 회의 가능", "팀 분위기: 조용한 편", "비자 스폰서 불가"]) assert.equal(isProtectedNote(line), false, line);
+  const brief = normalizeRoleStartBrief({
+    summary: "결제 백엔드를 맡아요.",
+    hardConditions: [],
+    criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "required" }],
+    otherNotes: ["1월 입사 가능", "30대 선호", "월 1회 해외 출장", "", "a", "b", "c", "d"],
+  });
+  assert.deepEqual(brief.otherNotes?.slice(0, 2), ["1월 입사 가능", "월 1회 해외 출장"], "a protected line is not saved");
+  assert.equal(brief.otherNotes?.length, MAX_OTHER_NOTES);
+  // Stored and read back (session JSON), and a screen save, keep them.
+  assert.deepEqual(normalizeRoleStartBrief(JSON.parse(JSON.stringify(brief))).otherNotes, brief.otherNotes);
+  const saved = mergeVisibleBriefEdit(brief, roleStartBriefView(brief), "test");
+  assert.deepEqual(saved.otherNotes, brief.otherNotes);
+  // The saved Brief text carries them under their own heading after the criteria, which the worker reads.
+  const markdown = renderBriefMarkdown(brief);
+  assert.ok(markdown.indexOf("## Other notes") > markdown.indexOf("## Preferred criteria"));
+  assert.ok(markdown.includes("- 1월 입사 가능"));
+  // Notes change a verdict and a screen's conflict check; the summary alone does neither.
+  assert.notEqual(verdictBriefHash(brief), verdictBriefHash({ ...brief, otherNotes: [] }));
+  assert.equal(visibleBriefHash({ ...brief, summary: "다른 요약" }), visibleBriefHash(brief));
 });

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -251,7 +252,7 @@ export function RoleStartOnboarding({ role, workspaceId }: { role: OrgRole; work
                 if (result?.applied) addToast({ message: result.applied, variant: "success" });
                 return Boolean(result);
               }}
-              onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash })}
+              onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash, summaryEdited: brief.summary !== session.brief.summary })}
               session={session}
             />
           ) : (
@@ -912,7 +913,8 @@ function BriefStep(props: {
   const dirty = JSON.stringify(draft) !== serverBrief;
   const conflicts = props.issues.filter((issue) => issue.level === "conflict");
   const warnings = props.issues.filter((issue) => issue.level !== "conflict");
-  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
+  const invalid =
+    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
   const answered = props.session.questions.history.filter((item) => item.status !== "skipped").length;
 
   return (

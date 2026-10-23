@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { BadgeCheck, LoaderCircle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -458,7 +459,8 @@ function BriefReview(props: {
   }, [readOnly, onPrewarm]);
   const dirty = JSON.stringify(draft) !== serverBrief;
   const conflicts = props.issues.filter((issue) => issue.level === "conflict");
-  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
+  const invalid =
+    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
 
   if (readOnly) {
     return (

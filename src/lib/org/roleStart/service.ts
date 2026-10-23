@@ -676,6 +676,11 @@ onBriefSaved((roleId, brief) => {
 export async function refreshRoleStartSummary(roleId: string) {
   const session = await loadRoleStartSession(roleId);
   if (!session || session.phase === "drafting" || isRoleStartEnded(session.phase) || !needsSummary(session.brief)) return;
+  // A Brief from before summaries followed the criteria: its summary (maybe the team's own) is kept and only stamped.
+  if (!session.brief.summaryOf) {
+    await saveRoleStartSession({ roleId, expectedRevision: session.revision, patch: { brief: { ...session.brief, summaryOf: summaryKey(session.brief) } } });
+    return;
+  }
   const token = await claimRoleStartLease(roleId, "summary", 60_000);
   if (!token) return;
   try {
@@ -1514,7 +1519,12 @@ export const BRIEF_CHANGED_ELSEWHERE = "그사이 다른 곳에서 바뀌었어�
  * details come back from the stored version (signals, terms and rules only
  * while the criterion's own text is unchanged).
  */
-export function mergeVisibleBriefEdit(stored: RoleStartBrief, sent: unknown, reason: string): RoleStartBrief {
+export function mergeVisibleBriefEdit(
+  stored: RoleStartBrief,
+  sent: unknown,
+  reason: string,
+  options: { summaryEdited?: boolean } = {}
+): RoleStartBrief {
   const brief = stored;
   const edited = normalizeRoleStartBrief(sent);
   const now = new Date().toISOString();
@@ -1555,10 +1565,13 @@ export function mergeVisibleBriefEdit(stored: RoleStartBrief, sent: unknown, rea
   if (brief.references?.length) edited.references = brief.references;
   else delete edited.references;
   // A summary the team wrote stays theirs (it now counts as up to date);
-  // otherwise it keeps the key it was written for and follows the criteria.
-  if (edited.summary !== brief.summary) edited.summaryOf = summaryKey(edited);
-  else if (brief.summaryOf) edited.summaryOf = brief.summaryOf;
-  else delete edited.summaryOf;
+  // otherwise the stored one stays, with the key it was written for, and follows the criteria.
+  if (options.summaryEdited && edited.summary !== brief.summary) edited.summaryOf = summaryKey(edited);
+  else {
+    edited.summary = brief.summary;
+    if (brief.summaryOf) edited.summaryOf = brief.summaryOf;
+    else delete edited.summaryOf;
+  }
   return edited;
 }
 
@@ -1568,6 +1581,8 @@ export async function saveRoleStartBriefEdit(
     request?: string | null;
     /** visibleBriefHash of the Brief the screen loaded; a Brief changed since then is not overwritten. */
     briefHash?: string;
+    /** The screen's summary was edited by the team (otherwise the stored, maybe newer, summary stays). */
+    summaryEdited?: boolean;
   }
 ) {
   const state = await access(args);
@@ -1585,7 +1600,7 @@ export async function saveRoleStartBriefEdit(
   let summary: string | null = null;
   let probes = session.questions.probes;
   if (args.brief) {
-    brief = mergeVisibleBriefEdit(brief, args.brief, "확인 화면에서 직접 수정");
+    brief = mergeVisibleBriefEdit(brief, args.brief, "확인 화면에서 직접 수정", { summaryEdited: args.summaryEdited });
     summary = "확인 화면에서 직접 수정";
   }
   const request = String(args.request ?? "").trim().slice(0, 4_000);
@@ -1624,7 +1639,7 @@ export async function saveRoleStartBriefEdit(
           expectedRevision: latest.revision,
           expectedPhase: ["questions", "review"],
           patch: {
-            brief: (brief = withLatestBackground(brief, latest.brief)),
+            brief: (brief = withLatestBackground(brief, latest.brief, session.brief)),
             questions: { ...latest.questions, probes, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 },
           },
         })

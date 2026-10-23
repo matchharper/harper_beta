@@ -108,6 +108,8 @@ export async function updateRoleRubric(
     source: "filter_panel" | "matching_tab" | "reference";
     /** visibleBriefHash of the Brief a screen loaded; a Brief changed since then is not overwritten. */
     briefHash?: string;
+    /** The screen's summary was edited by the team (otherwise the stored, maybe newer, summary stays). */
+    summaryEdited?: boolean;
   }
 ) {
   const started = Date.now();
@@ -161,7 +163,7 @@ export async function updateRoleRubric(
     next = normalizeRoleStartBrief(args.change.apply(before));
     summary = args.change.summary;
   } else if (args.brief) {
-    next = mergeVisibleBriefEdit(before, args.brief, "후보 목록에서 직접 수정");
+    next = mergeVisibleBriefEdit(before, args.brief, "후보 목록에서 직접 수정", { summaryEdited: args.summaryEdited });
     summary = "후보 목록에서 직접 수정";
   } else {
     throw new OrgHttpError(400, "바꿀 내용을 알려 주세요.");
@@ -180,7 +182,7 @@ export async function updateRoleRubric(
   if (!latest || visibleBriefHash(latest.brief) !== visibleBriefHash(before)) {
     throw new OrgHttpError(409, "그사이 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
   }
-  next = withLatestBackground(next, latest.brief);
+  next = withLatestBackground(next, latest.brief, before);
   // A reference change keeps its own list, applied to the reference people as they are now.
   if (args.change) next = { ...next, references: args.change.apply(latest.brief).references };
   const savedSession = await saveRoleStartSession({

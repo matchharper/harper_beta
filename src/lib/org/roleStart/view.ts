@@ -86,8 +86,9 @@ export function roleStartBriefView(brief: RoleStartBrief) {
 
 /** What a screen's whole-Brief save overwrites: no grade signals, no reference people (kept as stored). */
 export function visibleBriefHash(brief: RoleStartBrief) {
-  const { summary, hardConditions, criteria } = briefView(brief);
-  return stableHash({ summary, hardConditions, criteria });
+  // The summary follows the rest (rewritten in the background), so it does not count here.
+  const { hardConditions, criteria, otherNotes } = briefView(brief);
+  return stableHash({ hardConditions, criteria, ...(otherNotes.length ? { otherNotes } : {}) });
 }
 
 /**
@@ -95,9 +96,15 @@ export function visibleBriefHash(brief: RoleStartBrief) {
  * unchanged: grade signals written in the background meanwhile (for criteria
  * the edit left as they were) and the reference people stay as they are now.
  */
-export function withLatestBackground(next: RoleStartBrief, latest: RoleStartBrief): RoleStartBrief {
+export function withLatestBackground(next: RoleStartBrief, latest: RoleStartBrief, startedFrom?: RoleStartBrief): RoleStartBrief {
+  // A summary the edit left as it was takes the latest one (rewritten in the background meanwhile).
+  const summary =
+    startedFrom && next.summary === startedFrom.summary
+      ? { summary: latest.summary, summaryOf: latest.summaryOf }
+      : { summary: next.summary, summaryOf: next.summaryOf };
   return {
     ...next,
+    ...summary,
     references: latest.references,
     criteria: next.criteria.map((criterion) => {
       const fresh = latest.criteria.find((item) => item.id === criterion.id);
@@ -126,6 +133,7 @@ function briefView(brief: RoleStartBrief) {
       changedAt: criterion.changedAt,
       reference: criterion.reference ?? null,
     })),
+    otherNotes: brief.otherNotes ?? [],
     // Shown on the Brief only; never part of the saved Brief text or matching.
     references: (brief.references ?? []).map((reference) => ({
       id: reference.id,

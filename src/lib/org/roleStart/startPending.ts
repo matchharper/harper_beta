@@ -65,12 +65,16 @@ export function sessionStorageOrNull() {
  */
 const newRolePending = new Map<string, number>();
 
+/** Returns the mark, so the send that made it clears only its own. */
 export function markNewRolePending(workspaceId: string, now = Date.now()) {
   newRolePending.set(workspaceId, now);
   changed();
+  return now;
 }
 
-export function clearNewRolePending(workspaceId: string) {
+/** With `at`, only that mark (a newer send's mark stays). */
+export function clearNewRolePending(workspaceId: string, at?: number) {
+  if (at !== undefined && newRolePending.get(workspaceId) !== at) return;
   if (newRolePending.delete(workspaceId)) changed();
 }
 

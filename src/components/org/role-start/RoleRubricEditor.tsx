@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { RoleBriefFields } from "@/components/org/role-start/RoleBriefFields";
@@ -80,7 +81,8 @@ export function RoleRubricEditor({
     );
   }
   const dirty = JSON.stringify(draft) !== serverJson;
-  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
+  const invalid =
+    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
   return (
     <div className="grid gap-2">
       <div className="flex items-start justify-between gap-3">

@@ -13,6 +13,7 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { criterionLevel } from "@/lib/org/roleCriteria";
+import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
 import { useOrgAgentLiveChatStore } from "@/store/useOrgAgentLiveChatStore";
 import { useToastStore } from "@/store/useToastStore";
@@ -94,7 +95,7 @@ export function RoleBriefSection({
   const [editedHash, setEditedHash] = useState<string | null>(null);
   const draft = edited ?? server;
   const save = useMutation({
-    mutationFn: (body: { brief?: RoleStartBriefView; request?: string; briefHash?: string }) =>
+    mutationFn: (body: { brief?: RoleStartBriefView; request?: string; briefHash?: string; summaryEdited?: boolean }) =>
       fetchWithInternalAuth<{ rubric: RoleStartBriefView; judging: number }>("/api/org/role-start", {
         body: JSON.stringify({ action: "update_rubric", roleId, workspaceId, ...body }),
         headers: { "Content-Type": "application/json" },
@@ -177,7 +178,9 @@ export function RoleBriefSection({
       return typeof update === "function" ? update(base) : update;
     });
   };
-  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
+  // A note about age, gender or another protected trait is not saved: fixed first.
+  const invalid =
+    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
   const shown = server ?? draft;
   const required = shown.criteria.filter((item) => criterionLevel(item) === "required");
   const ordering = shown.criteria.filter((item) => criterionLevel(item) !== "required");
@@ -262,7 +265,9 @@ export function RoleBriefSection({
               canSave={!invalid}
               hasChanges={dirty}
               onCancel={() => setEdited(null)}
-              onSave={() => save.mutate({ brief: draft, briefHash: editedHash ?? query.data?.briefHash })}
+              onSave={() =>
+                save.mutate({ brief: draft, briefHash: editedHash ?? query.data?.briefHash, summaryEdited: draft.summary !== server?.summary })
+              }
               pending={save.isPending}
             />
           ) : null}
@@ -327,6 +332,22 @@ export function RoleBriefSection({
                 {c("평가 기준이 없어요.", "No evaluation criteria.")}
               </p>
             )}
+            {shown.otherNotes?.length ? (
+              <div className="mt-8">
+                <RoleSectionHeading
+                  description={c(
+                    "필수 조건이나 평가 기준은 아니지만 팀이 바라는 점이에요. 매칭에 참고만 하고, 이것만으로 후보를 빼지 않아요.",
+                    "What the team would like that is neither a required condition nor a criterion. Matching only takes it into account; it never excludes anyone."
+                  )}
+                  title={c("기타 참고 사항", "Other notes")}
+                />
+                <ul className="mt-3 grid gap-1.5 text-[14px] leading-6 text-neutral-primary">
+                  {shown.otherNotes.map((note) => (
+                    <li className="rounded-md bg-bg-basement px-3 py-2" key={note}>{note}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {canManage ? (
               <div className="mt-8">
                 <RoleReferenceInput

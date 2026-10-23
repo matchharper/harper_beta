@@ -762,10 +762,10 @@ export function OrgRoleCreationPage() {
   );
   // The Role's own page is up: the new-role page no longer waits for it (a
   // second new role started meanwhile gets a fresh composer).
-  const roleStartMarked = roleId ? startPendingUntil(sessionStorageOrNull(), roleId) !== null : false;
   useEffect(() => {
-    if (roleStartMarked) clearNewRolePending(workspace.workspaceId);
-  }, [roleStartMarked, workspace.workspaceId]);
+    // Only a Role this tab just created (its own mark still within the 30 s).
+    if (roleId && (startPendingUntil(sessionStorageOrNull(), roleId) ?? 0) > Date.now()) clearNewRolePending(workspace.workspaceId);
+  }, [roleId, workspace.workspaceId]);
   // Renders again when the 30 s are up, so the line gives way to the chat.
   const [, setStartPendingTick] = useState(0);
   useEffect(() => {
