@@ -5,8 +5,13 @@ import {
   getOrgRoleCriteriaValidationError,
   hasCompleteOrgRoleCriteria,
   normalizeOrgRoleCriteria,
+  ORG_ROLE_CRITERIA_MAX_ITEMS,
   parseOrgRoleCriteria,
 } from "@/lib/org/roleCriteria";
+
+// One more than the cap, every name distinct.
+const overCap = (count = ORG_ROLE_CRITERIA_MAX_ITEMS + 1) =>
+  Array.from({ length: count }, (_, index) => ({ name: `Criterion ${index}`, criteria: `근거 ${index}` }));
 
 const completeCriteria = [
   { name: "Experience level", criteria: "관련 업무를 3년 이상 수행한 경험" },
@@ -43,12 +48,8 @@ test("accepts complete criteria without a creation minimum", () => {
 
 test("rejects oversized and incomplete criteria lists", () => {
   assert.match(
-    getOrgRoleCriteriaValidationError([
-      ...completeCriteria,
-      ...completeCriteria,
-      completeCriteria[0],
-    ])!,
-    /6개/
+    getOrgRoleCriteriaValidationError(overCap())!,
+    new RegExp(`${ORG_ROLE_CRITERIA_MAX_ITEMS}개`)
   );
   assert.match(
     getOrgRoleCriteriaValidationError([
@@ -161,12 +162,7 @@ test("rejects ambiguous targets, invalid edit shapes, and oversized results", ()
   );
   assert.throws(() =>
     applyOrgRoleCriteriaEdits(
-      [
-        ...completeCriteria,
-        { name: "Ownership", criteria: "끝까지 맡은 경험" },
-        { name: "Communication", criteria: "명확한 협업 경험" },
-        { name: "Domain", criteria: "관련 도메인 경험" },
-      ],
+      overCap(ORG_ROLE_CRITERIA_MAX_ITEMS),
       [{ operation: "add", name: "Extra", criteria: "추가 기준" }]
     )
   );

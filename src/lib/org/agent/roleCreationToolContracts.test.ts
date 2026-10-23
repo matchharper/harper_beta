@@ -53,7 +53,7 @@ test("role and company updates require at least one declared field", () => {
   assert.match(roleBlock, /minProperties: 1/);
   assert.doesNotMatch(roleBlock, /anyOf/);
   assert.match(roleBlock, /minItems: 0/);
-  assert.match(roleBlock, /maxItems: 6/);
+  assert.match(roleBlock, /maxItems: ORG_ROLE_CRITERIA_MAX_ITEMS/);
   assert.match(roleBlock, /authoring is the LLM's responsibility rather than a completion gate/);
   assert.match(roleBlock, /not add a screening bar/);
   assert.match(roleBlock, /Role eligibility/);
@@ -138,4 +138,10 @@ test("ordinary role fields share one authoring contract rather than separate scr
     block,
     /Real-person calibration belongs in calibrate_role_hiring_brief/
   );
+});
+
+test("reference people are not answered in the role creation chat: no answer tool and no waiting list in its context", () => {
+  const chatSource = readFileSync(new URL("./roleCreationChat.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /answer_reference_person/);
+  assert.doesNotMatch(chatSource, /answer_reference_person|openReferences/);
 });

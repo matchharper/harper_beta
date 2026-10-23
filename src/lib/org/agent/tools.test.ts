@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ORG_ROLE_CRITERIA_MAX_ITEMS } from "@/lib/org/roleCriteria";
 import { COMPANY_CAPABILITY_POLICIES } from "./capabilities/policies";
 import {
   getEnabledOrgAgentTools,
@@ -435,6 +436,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   const calibrationParameters = calibration?.function.parameters as any;
   assert.ok(calibration);
   assert.deepEqual(calibrationParameters.required, ["roleId"]);
+  // Only the Role: on a role start Role reference people come through the web box, never a referenceId here.
   assert.deepEqual(Object.keys(calibrationParameters.properties), ["roleId"]);
   assert.match(
     calibration?.function.description ?? "",
@@ -462,13 +464,13 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   assert.equal(criteriaParameters.minProperties, 2);
   assert.equal(criteriaParameters.anyOf, undefined);
   assert.equal(criteriaParameters.properties.criteria.minItems, 0);
-  assert.equal(criteriaParameters.properties.criteria.maxItems, 6);
+  assert.equal(criteriaParameters.properties.criteria.maxItems, ORG_ROLE_CRITERIA_MAX_ITEMS);
   assert.deepEqual(criteriaParameters.properties.criteria.items.required, [
     "name",
     "criteria",
   ]);
   assert.equal(criteriaParameters.properties.edits.minItems, 1);
-  assert.equal(criteriaParameters.properties.edits.maxItems, 6);
+  assert.equal(criteriaParameters.properties.edits.maxItems, ORG_ROLE_CRITERIA_MAX_ITEMS);
   assert.deepEqual(
     criteriaParameters.properties.edits.items.properties.operation.enum,
     ["add", "update", "delete"]
