@@ -38,7 +38,9 @@ import {
   keepRequired,
   keepTeamLevels,
   needsSignals,
+  needsSummary,
   signalsKey,
+  summaryKey,
   levelOf,
   reapplySettled,
   shortId,
@@ -73,11 +75,13 @@ import {
   buildDraftSystemPrompt,
   buildNextQuestionsOnlySystemPrompt,
   buildSignalsSystemPrompt,
+  buildSummarySystemPrompt,
   buildNextQuestionsSystemPrompt,
   DRAFT_SCHEMA,
   NEXT_QUESTIONS_ONLY_SCHEMA,
   NEXT_QUESTIONS_SCHEMA,
   SIGNALS_SCHEMA,
+  SUMMARY_SCHEMA,
 } from "./prompts";
 import {
   applyChipEffect,
@@ -657,10 +661,62 @@ async function writeSignals(roleId: string, options: { wait?: boolean; deadline:
   return true;
 }
 
-// Every Brief version saved by any path: fresh signals in the background when a criterion's text changed.
+// Every Brief version saved by any path: fresh signals in the background when a criterion's text changed,
+// and a fresh summary when the conditions or criteria it recaps changed.
 onBriefSaved((roleId, brief) => {
   if (brief.criteria.some(needsSignals)) runAfterResponse(() => refreshRoleStartSignals(roleId));
+  if (needsSummary(brief)) runAfterResponse(() => refreshRoleStartSummary(roleId).catch((error) => console.warn("[role-start] summary", error)));
 });
+
+/**
+ * The summary recaps the conditions and criteria: when they change by any
+ * path (and the team did not write the summary themselves), one small call
+ * rewrites only the summary, in the background, like the grade signals.
+ */
+export async function refreshRoleStartSummary(roleId: string) {
+  const session = await loadRoleStartSession(roleId);
+  if (!session || session.phase === "drafting" || isRoleStartEnded(session.phase) || !needsSummary(session.brief)) return;
+  // A Brief from before summaries followed the criteria: its summary (maybe the team's own) is kept and only stamped.
+  if (!session.brief.summaryOf) {
+    await saveRoleStartSession({ roleId, expectedRevision: session.revision, patch: { brief: { ...session.brief, summaryOf: summaryKey(session.brief) } } });
+    return;
+  }
+  const token = await claimRoleStartLease(roleId, "summary", 60_000);
+  if (!token) return;
+  try {
+    const key = summaryKey(session.brief);
+    const { data, usage } = await callRoleStartJson<{ summary: string }>({
+      label: "brief_summary",
+      model: ROLE_START_FAST_MODEL,
+      reasoningEffort: "low",
+      schema: SUMMARY_SCHEMA,
+      system: buildSummarySystemPrompt(),
+      user: `<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(session.brief), null, 2)}\n</CURRENT_BRIEF>`,
+    });
+    await persistUsage(roleId, [usage]);
+    const summary = String(data.summary ?? "").trim().slice(0, 4_000);
+    if (!summary) return;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const latest = await loadRoleStartSession(roleId);
+      // Only for the conditions and criteria it was written for, and over a summary nobody edited meanwhile.
+      if (!latest || isRoleStartEnded(latest.phase) || summaryKey(latest.brief) !== key || latest.brief.summary !== session.brief.summary) return;
+      const brief = { ...latest.brief, summary, summaryOf: key };
+      const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
+      if (!saved) continue;
+      await saveBriefVersion({
+        roleId,
+        brief,
+        changeSource: "summary",
+        changeSummary: null,
+        userId: null,
+        writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+      });
+      return;
+    }
+  } finally {
+    await releaseRoleStartLease(roleId, "summary", token);
+  }
+}
 
 const REFINE_LEASE_MS = 120_000;
 const REFINE_WAIT_MS = 150_000;
@@ -1463,7 +1519,12 @@ export const BRIEF_CHANGED_ELSEWHERE = "그사이 다른 곳에서 바뀌었어�
  * details come back from the stored version (signals, terms and rules only
  * while the criterion's own text is unchanged).
  */
-export function mergeVisibleBriefEdit(stored: RoleStartBrief, sent: unknown, reason: string): RoleStartBrief {
+export function mergeVisibleBriefEdit(
+  stored: RoleStartBrief,
+  sent: unknown,
+  reason: string,
+  options: { summaryEdited?: boolean } = {}
+): RoleStartBrief {
   const brief = stored;
   const edited = normalizeRoleStartBrief(sent);
   const now = new Date().toISOString();
@@ -1503,6 +1564,14 @@ export function mergeVisibleBriefEdit(stored: RoleStartBrief, sent: unknown, rea
   // Reference people are kept as stored; an edit never adds or changes them.
   if (brief.references?.length) edited.references = brief.references;
   else delete edited.references;
+  // A summary the team wrote stays theirs (it now counts as up to date);
+  // otherwise the stored one stays, with the key it was written for, and follows the criteria.
+  if (options.summaryEdited && edited.summary !== brief.summary) edited.summaryOf = summaryKey(edited);
+  else {
+    edited.summary = brief.summary;
+    if (brief.summaryOf) edited.summaryOf = brief.summaryOf;
+    else delete edited.summaryOf;
+  }
   return edited;
 }
 
@@ -1512,6 +1581,8 @@ export async function saveRoleStartBriefEdit(
     request?: string | null;
     /** visibleBriefHash of the Brief the screen loaded; a Brief changed since then is not overwritten. */
     briefHash?: string;
+    /** The screen's summary was edited by the team (otherwise the stored, maybe newer, summary stays). */
+    summaryEdited?: boolean;
   }
 ) {
   const state = await access(args);
@@ -1529,7 +1600,7 @@ export async function saveRoleStartBriefEdit(
   let summary: string | null = null;
   let probes = session.questions.probes;
   if (args.brief) {
-    brief = mergeVisibleBriefEdit(brief, args.brief, "확인 화면에서 직접 수정");
+    brief = mergeVisibleBriefEdit(brief, args.brief, "확인 화면에서 직접 수정", { summaryEdited: args.summaryEdited });
     summary = "확인 화면에서 직접 수정";
   }
   const request = String(args.request ?? "").trim().slice(0, 4_000);
@@ -1568,7 +1639,7 @@ export async function saveRoleStartBriefEdit(
           expectedRevision: latest.revision,
           expectedPhase: ["questions", "review"],
           patch: {
-            brief: (brief = withLatestBackground(brief, latest.brief)),
+            brief: (brief = withLatestBackground(brief, latest.brief, session.brief)),
             questions: { ...latest.questions, probes, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 },
           },
         })

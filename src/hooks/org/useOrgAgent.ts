@@ -29,7 +29,9 @@ import type {
 } from "@/lib/org/agent/types";
 import { upsertOrgAgentThinkingLog } from "@/lib/org/agent/thinkingLogs";
 import {
+  clearNewRolePending,
   clearStartPending,
+  markNewRolePending,
   markStartPending,
   mayStartFromJd,
   sessionStorageOrNull,
@@ -424,6 +426,13 @@ export function useOrgAgentChat(args: {
       useOrgAgentLiveChatStore
         .getState()
         .start(streamLiveChatKey, optimisticUserMessage);
+      // A JD sent from the new-role page: its loading line shows (not the chat)
+      // until the Role's page takes over or the turn ends.
+      const newRoleFromJd =
+        mode === "role_creation" &&
+        !activeRoleId &&
+        mayStartFromJd(input.message, input.attachments?.length ?? 0);
+      const newRoleMark = newRoleFromJd ? markNewRolePending(workspaceId) : undefined;
 
       let accessToken = await getInternalAccessToken();
       if (!accessToken) {
@@ -439,6 +448,7 @@ export function useOrgAgentChat(args: {
           isStreaming: false,
           optimisticUserMessage: null,
         });
+        if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
         return;
       }
 
@@ -588,7 +598,10 @@ export function useOrgAgentChat(args: {
             } else if (parsed.event === "role_start") {
               const data = parsed.data as { roleId?: unknown; fromJd?: unknown };
               const roleId = String(data.roleId ?? "").trim();
-              if (roleId && data.fromJd !== true) clearStartPending(sessionStorageOrNull(), roleId);
+              if (roleId && data.fromJd !== true) {
+                clearStartPending(sessionStorageOrNull(), roleId);
+                if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
+              }
             } else if (parsed.event === "text_delta") {
               const delta = String(
                 (parsed.data as { delta?: unknown }).delta ?? ""
@@ -716,6 +729,8 @@ export function useOrgAgentChat(args: {
               : []),
           ]);
         }
+        // By now the Role's page has taken over, or no Role came: the new-role page shows the chat again.
+        if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
         finishStream();
       }
     },

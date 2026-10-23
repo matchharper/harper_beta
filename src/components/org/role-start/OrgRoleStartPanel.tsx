@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { BadgeCheck, LoaderCircle, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -249,7 +250,7 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
             const result = await run({ action: "edit", request });
             if (result?.applied) addToast({ message: result.applied, variant: "success" });
           }}
-          onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash })}
+          onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash, summaryEdited: brief.summary !== session.brief.summary })}
           readOnly={session.phase === "questions"}
           session={session}
           versions={data?.versions ?? []}
@@ -458,7 +459,8 @@ function BriefReview(props: {
   }, [readOnly, onPrewarm]);
   const dirty = JSON.stringify(draft) !== serverBrief;
   const conflicts = props.issues.filter((issue) => issue.level === "conflict");
-  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
+  const invalid =
+    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
 
   if (readOnly) {
     return (

@@ -55,3 +55,30 @@ export function sessionStorageOrNull() {
     return null;
   }
 }
+
+/**
+ * The first message on the new-role page passed the JD test: until the Role's
+ * page takes over (the chat turn creates the Role, then the page moves), the
+ * new-role page shows the same loading line instead of the chat. Kept in this
+ * page's memory (a reload ends it), per workspace, same 30 s cap; cleared when
+ * the turn ends, fails, the message was not a JD, or the Role's page is up.
+ */
+const newRolePending = new Map<string, number>();
+
+/** Returns the mark, so the send that made it clears only its own. */
+export function markNewRolePending(workspaceId: string, now = Date.now()) {
+  newRolePending.set(workspaceId, now);
+  changed();
+  return now;
+}
+
+/** With `at`, only that mark (a newer send's mark stays). */
+export function clearNewRolePending(workspaceId: string, at?: number) {
+  if (at !== undefined && newRolePending.get(workspaceId) !== at) return;
+  if (newRolePending.delete(workspaceId)) changed();
+}
+
+export function newRolePendingUntil(workspaceId: string) {
+  const at = newRolePending.get(workspaceId);
+  return at ? at + START_PENDING_MS : null;
+}

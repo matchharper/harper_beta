@@ -143,6 +143,7 @@ type Body = {
   reasonIds?: string[] | null;
   reasonText?: string | null;
   reasonsSkipped?: boolean;
+  summaryEdited?: boolean;
   channelIds?: string[] | null;
   emailEnabled?: boolean | null;
   assigneeUserId?: string | null;
@@ -194,7 +195,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ session: view(result.session) });
       }
       case "edit": {
-        const result = await saveRoleStartBriefEdit({ ...access, brief: body.brief, request: body.request, briefHash: briefHashOf(body) });
+        const result = await saveRoleStartBriefEdit({ ...access, brief: body.brief, request: body.request, briefHash: briefHashOf(body), summaryEdited: body.summaryEdited === true });
         return NextResponse.json({ ...result, session: view(result.session ?? null) });
       }
       case "role_info": {
@@ -222,6 +223,7 @@ export async function POST(req: NextRequest) {
           request: body.request,
           source: "filter_panel",
           briefHash: briefHashOf(body),
+          summaryEdited: body.summaryEdited === true,
         });
         after(() => result.run());
         return NextResponse.json({ rubric: roleStartBriefView(result.brief), judging: result.judging });

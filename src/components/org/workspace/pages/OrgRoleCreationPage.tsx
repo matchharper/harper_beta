@@ -4,6 +4,7 @@ import {
   ChevronsLeftRight,
   ChevronsRightLeft,
   Columns3,
+  Flag,
   Inbox,
   LoaderCircle,
   Menu,
@@ -14,7 +15,6 @@ import {
   Rows3,
   Scale,
   Settings,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useRouter } from "next/router";
@@ -61,7 +61,7 @@ import {
   type OrgRoleTab,
 } from "@/lib/org/routes";
 import { queryKeys } from "@/lib/queryKeys";
-import { sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
+import { clearNewRolePending, newRolePendingUntil, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
 import type { OrgRole } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -96,7 +96,7 @@ const DETAIL_TABS = [
 ] as const;
 
 const START_TAB = {
-  icon: <Sparkles className="size-3.5" strokeWidth={1.65} />,
+  icon: <Flag className="size-3.5" strokeWidth={1.65} />,
   label: "시작",
   value: "start",
 } as const;
@@ -751,11 +751,21 @@ export function OrgRoleCreationPage() {
   const startPendingAt = useSyncExternalStore(
     subscribeStartPending,
     () => {
-      const until = roleId ? startPendingUntil(sessionStorageOrNull(), roleId) : null;
+      const until = roleId
+        ? startPendingUntil(sessionStorageOrNull(), roleId)
+        : isNewRolePage
+          ? newRolePendingUntil(workspace.workspaceId)
+          : null;
       return until !== null && until > Date.now() ? until : null;
     },
     () => null
   );
+  // The Role's own page is up: the new-role page no longer waits for it (a
+  // second new role started meanwhile gets a fresh composer).
+  useEffect(() => {
+    // Only a Role this tab just created (its own mark still within the 30 s).
+    if (roleId && (startPendingUntil(sessionStorageOrNull(), roleId) ?? 0) > Date.now()) clearNewRolePending(workspace.workspaceId);
+  }, [roleId, workspace.workspaceId]);
   // Renders again when the 30 s are up, so the line gives way to the chat.
   const [, setStartPendingTick] = useState(0);
   useEffect(() => {
@@ -765,9 +775,9 @@ export function OrgRoleCreationPage() {
   }, [startPendingAt]);
   const waitingForStart =
     startPendingAt !== null &&
-    roleStartEnabled &&
-    !onboarding &&
-    !roleStartQuery.data?.session;
+    // The new-role page: a JD was just sent and the Role's page has not taken over yet.
+    ((!roleId && isNewRolePage && permissions.canManageCandidates) ||
+      (roleStartEnabled && !onboarding && !roleStartQuery.data?.session));
   const roleMissing = Boolean(roleId) && role === null;
   // Only while the start flow still finds the Role: a deleted one errors there.
   // Members who cannot run the start flow keep the plain re-read.

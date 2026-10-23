@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -251,7 +252,7 @@ export function RoleStartOnboarding({ role, workspaceId }: { role: OrgRole; work
                 if (result?.applied) addToast({ message: result.applied, variant: "success" });
                 return Boolean(result);
               }}
-              onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash })}
+              onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash, summaryEdited: brief.summary !== session.brief.summary })}
               session={session}
             />
           ) : (
@@ -777,10 +778,10 @@ function QuestionStep(props: {
     return (
       <Centered className="gap-6">
         <LoadingLine
-          hint={props.session.phase === "drafting" ? c("보통 1분쯤 걸려요", "Usually takes about a minute") : undefined}
+          hint={props.session.phase === "drafting" ? c("궁금한 점 몇 가지만 더 여쭤볼게요 · 보통 1분쯤 걸려요", "A few more questions are coming · usually about a minute") : undefined}
           text={
             props.session.phase === "drafting"
-              ? c("JD를 읽고 질문을 준비하고 있어요", "Reading the JD and preparing questions")
+              ? c("JD를 읽으며 이 역할을 더 알아가고 있어요", "Getting to know this role from the JD")
               : c("답을 반영하고 다음 질문을 고르고 있어요", "Applying your answer and choosing the next question")
           }
         />
@@ -905,7 +906,8 @@ function BriefStep(props: {
   const dirty = JSON.stringify(draft) !== serverBrief;
   const conflicts = props.issues.filter((issue) => issue.level === "conflict");
   const warnings = props.issues.filter((issue) => issue.level !== "conflict");
-  const invalid = draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim());
+  const invalid =
+    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
   const answered = props.session.questions.history.filter((item) => item.status !== "skipped").length;
 
   return (
@@ -924,12 +926,12 @@ function BriefStep(props: {
           <p>
             {answered
               ? c(
-                  "답해 주신 내용을 반영해 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주세요.",
-                  "Harper wrote the Brief with your answers. It finds the first three with it. Tell Harper what to change."
+                  "답해 주신 내용을 반영해 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주시거나 Brief를 직접 고쳐도 돼요.",
+                  "Harper wrote the Brief with your answers. It finds the first three with it. Tell Harper what to change, or edit the Brief yourself."
                 )
               : c(
-                  "JD를 바탕으로 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주세요.",
-                  "Harper wrote the Brief from the JD. It finds the first three with it. Tell Harper what to change."
+                  "JD를 바탕으로 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주시거나 Brief를 직접 고쳐도 돼요.",
+                  "Harper wrote the Brief from the JD. It finds the first three with it. Tell Harper what to change, or edit the Brief yourself."
                 )}
           </p>
           {warnings.length ? (

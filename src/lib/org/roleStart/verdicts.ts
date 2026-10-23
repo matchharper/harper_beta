@@ -32,6 +32,7 @@ export function briefForPrompt(brief: RoleStartBrief) {
   return {
     summary: brief.summary,
     hardConditions: brief.hardConditions.map((condition) => condition.label),
+    otherNotes: brief.otherNotes ?? [],
     criteria: orderedCriteria(brief).map((criterion) => ({
       name: criterion.name,
       importance: levelLabel(levelOf(criterion)),

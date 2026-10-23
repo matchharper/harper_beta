@@ -10,6 +10,7 @@ import {
   normalizeRoleStartBrief,
   ROLE_START_MAX_CRITERIA,
   shortId,
+  summaryKey,
   type RoleStartBrief,
   type RoleStartCriterion,
   type RoleStartProbe,
@@ -91,6 +92,8 @@ export type RawBrief = {
   keywords: string[];
   matchingTitles?: string[];
   nearMissTitles?: string[];
+  /** 기타 참고 사항; a rewrite without the field keeps the previous notes. */
+  otherNotes?: string[];
 };
 
 /** Keep ids and change history for criteria the model returned under the same name. */
@@ -102,6 +105,9 @@ export function briefFromRaw(raw: RawBrief, previous?: RoleStartBrief, reason?: 
   const now = new Date().toISOString();
   const brief = normalizeRoleStartBrief({
     summary: raw.summary,
+    // An empty list from a rewrite keeps the team's notes, unless the team's own request was about them.
+    otherNotes:
+      raw.otherNotes?.length || (reason?.startsWith("요청:") && /참고\s*사항|기타\s*참고|메모/.test(reason)) ? raw.otherNotes : previous?.otherNotes,
     keywords: raw.keywords,
     // A rewrite without title lists keeps the previous ones.
     titles: raw.matchingTitles?.length || raw.nearMissTitles?.length
@@ -158,6 +164,11 @@ export function briefFromRaw(raw: RawBrief, previous?: RoleStartBrief, reason?: 
     const before = previous?.hardConditions.find((item) => item.label === condition.label);
     return before ? { ...condition, id: before.id } : condition;
   });
+  // The model wrote the summary for exactly these conditions and criteria; one it
+  // returned unchanged from before is still the old one, and keeps its old key.
+  if (previous && brief.summary === previous.summary) {
+    if (previous.summaryOf) brief.summaryOf = previous.summaryOf;
+  } else brief.summaryOf = summaryKey(brief);
   return brief;
 }
 
