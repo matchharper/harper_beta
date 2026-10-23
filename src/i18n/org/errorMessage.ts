@@ -7,6 +7,7 @@ const ENGLISH_SLACK_ERRORS = new Map([
   ["이 Slack Workspace에서는 Harper가 채널을 만들 수 없어요. Slack 관리자에게 채널 생성 설정을 확인해 주세요.", "Harper cannot create channels in this Slack workspace. Ask a Slack admin to check its settings."],
   ["채널 이름을 사용할 수 없어요. 영문 소문자, 숫자, 하이픈(-), 밑줄(_)만 입력해 주세요.", "Use lowercase letters, numbers, hyphens, or underscores for the channel name."],
   ["Slack 요청이 많아 채널을 만들지 못했어요. 잠시 후 다시 시도해 주세요.", "Too many Slack requests. Try again shortly."],
+  ["Slack 채널이나 메일 중 하나는 켜 두어야 해요.", "Keep at least one Slack channel or email on."],
 ]);
 
 const ENGLISH_MEETING_ERRORS = new Map([

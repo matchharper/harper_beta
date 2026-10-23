@@ -108,6 +108,11 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // Mail button links carry a one-time token in the path.
+        source: "/email-action/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
   turbopack: {

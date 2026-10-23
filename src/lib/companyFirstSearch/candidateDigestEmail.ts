@@ -1,7 +1,7 @@
 import type { OrgLocale } from "@/i18n/org/locale";
 import { renderCompanyReplyEmail } from "@/lib/email/runtime/format";
 import {
-  companyPresentationFinalFitLabel,
+  companyCriterionFitnessLabel,
   type OrgCompanyCriterionFitness,
 } from "@/lib/org/companyCriteriaEvaluations";
 
@@ -134,6 +134,8 @@ const CRITERION_BARS: Record<OrgCompanyCriterionFitness, { box: string; bar: str
   good: { box: "#E6FBED", bar: "#00B25B", filled: 2 },
   uncertain: { box: "#FFF4C2", bar: "#FF9900", filled: 2 },
   bad: { box: "#FFDBD6", bar: "#A92011", filled: 1 },
+  conflict: { box: "#FFDBD6", bar: "#A92011", filled: 1 },
+  limited: { box: "#FFF4C2", bar: "#FF9900", filled: 2 },
 };
 
 function criteriaHtml(criteria: ActionRow["criteria"]) {
@@ -234,7 +236,7 @@ export function buildCandidateDigestEmail(args: {
       counts[section.kind]++;
       const criteria = (candidate.criteria ?? []).map((item) => ({
         ...item,
-        label: companyPresentationFinalFitLabel(item.fitness === "bad" ? "unfit" : item.fitness, locale),
+        label: companyCriterionFitnessLabel(item.fitness, locale),
       }));
       // Harper's reply context carries the same ratings as plain lines, without URLs.
       if (criteria.length) replyBlocks.push(criteriaText(criteria).join("\n"));

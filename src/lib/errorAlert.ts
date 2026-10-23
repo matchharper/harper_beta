@@ -13,7 +13,7 @@ type ErrorAlertArgs = {
 const UNSUPPORTED_UNICODE_ESCAPE_RE =
   /unsupported Unicode escape sequence|\\u0000|u0000|U\+0000|cannot be converted to text/i;
 
-function getErrorMessage(error: unknown) {
+export function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in error) {
     const message = (error as { message?: unknown }).message;

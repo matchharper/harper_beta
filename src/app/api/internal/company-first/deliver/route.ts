@@ -15,6 +15,9 @@ import type { HarperSlackBlock } from "@/lib/org/slackChoiceButtons";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { recordAcceptedCandidateDelivery } from "@/lib/companyFirstSearch/acceptedDelivery";
 import { enqueueCompanyUpdate } from "@/lib/org/agent/companyUpdate.server";
+import { deliverCompanyFirstEmailRow } from "@/lib/companyFirstSearch/emailDelivery.server";
+import { companyFirstRunDeliveryStatus } from "@/lib/companyFirstSearch/emailDelivery";
+import { getErrorMessage } from "@/lib/errorAlert";
 
 export const runtime = "nodejs";
 
@@ -54,10 +57,7 @@ async function markFailed(
   await (admin.from("company_first_slack_outbox" as any) as any)
     .update({
       available_at: availableAt,
-      last_error: String(error instanceof Error ? error.message : error).slice(
-        0,
-        2_000
-      ),
+      last_error: getErrorMessage(error).slice(0, 2_000),
       status: "failed",
       updated_at: new Date().toISOString(),
     })
@@ -72,24 +72,11 @@ async function finishRunWhenDelivered(
   const { data: outboxRows, error: outboxError } = await (
     admin.from("company_first_slack_outbox" as any) as any
   )
-    .select("status,role_ids,company_workspace_id")
+    .select("status,role_ids,company_workspace_id,available_at,delivery_channel")
     .eq("run_id", runId);
   if (outboxError) throw outboxError;
-  const statuses = (outboxRows ?? []).map(
-    (row: { status: string }) => row.status
-  );
-  if (
-    statuses.length === 0 ||
-    statuses.some((status: string) =>
-      ["pending", "failed", "sending"].includes(status)
-    )
-  )
-    return;
-  const deliveryStatus = statuses.every((status: string) => status === "sent")
-    ? "sent"
-    : statuses.every((status: string) => status === "canceled")
-      ? "canceled"
-      : "partially_canceled";
+  const deliveryStatus = companyFirstRunDeliveryStatus(outboxRows ?? []);
+  if (!deliveryStatus) return;
 
   const { data: run, error: runError } = await (
     admin.from("company_first_search_runs" as any) as any
@@ -144,6 +131,21 @@ async function enqueuePresentedCandidateFollowups(rows: any[], runId: string) {
   }
 }
 
+async function respondUnclaimed(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  status: string | null,
+  runId: string | undefined
+) {
+  if (!status || !runId) {
+    return NextResponse.json({ error: "Outbox not found" }, { status: 404 });
+  }
+  if (status === "sent") {
+    await finishRunWhenDelivered(admin, runId);
+    return NextResponse.json({ ok: true, status: "sent", idempotent: true });
+  }
+  return NextResponse.json({ ok: false, status }, { status: 409 });
+}
+
 export async function POST(req: NextRequest) {
   try {
     requireInternalWorkerSecret(req);
@@ -159,6 +161,28 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getSupabaseAdmin();
+    const { data: target, error: targetError } = await (
+      admin.from("company_first_slack_outbox" as any) as any
+    )
+      .select("id, run_id, company_workspace_id, delivery_channel")
+      .eq("id", outboxId)
+      .maybeSingle();
+    if (targetError) throw targetError;
+    if (target?.delivery_channel === "email") {
+      // One mail per recipient covers every email row of this run (✅ and ☘️),
+      // so the run, not this row, is claimed.
+      const result = await deliverCompanyFirstEmailRow({
+        admin,
+        row: target,
+        markFailed: (item, error) => markFailed(admin, item as OutboxRow, error),
+        finishRun: (runId) => finishRunWhenDelivered(admin, runId),
+      });
+      if (result.status === "unclaimed")
+        return respondUnclaimed(admin, result.requestedStatus, target.run_id);
+      return result.status === "busy" || result.status === "failed"
+        ? NextResponse.json({ ok: false, status: result.status }, { status: 409 })
+        : NextResponse.json({ ok: true, status: result.status });
+    }
     const staleClaim = new Date(Date.now() - 15 * 60_000).toISOString();
     await (admin.from("company_first_slack_outbox" as any) as any)
       .update({ status: "failed", updated_at: new Date().toISOString() })
@@ -193,24 +217,7 @@ export async function POST(req: NextRequest) {
         .eq("id", outboxId)
         .maybeSingle();
       if (existingError) throw existingError;
-      if (!existing) {
-        return NextResponse.json(
-          { error: "Outbox not found" },
-          { status: 404 }
-        );
-      }
-      if (existing.status === "sent") {
-        await finishRunWhenDelivered(admin, existing.run_id);
-        return NextResponse.json({
-          ok: true,
-          status: "sent",
-          idempotent: true,
-        });
-      }
-      return NextResponse.json(
-        { ok: false, status: existing.status },
-        { status: 409 }
-      );
+      return respondUnclaimed(admin, existing?.status ?? null, existing?.run_id);
     }
 
     const row = claimed as OutboxRow;

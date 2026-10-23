@@ -20,5 +20,9 @@ test("English org errors do not expose Korean server copy", () => {
     localizedOrgErrorMessage(new Error("접근 권한이 없습니다."), "ko", "요청 실패"),
     "접근 권한이 없습니다."
   );
+  assert.equal(
+    localizedOrgErrorMessage(new Error("Slack 채널이나 메일 중 하나는 켜 두어야 해요."), "en", "Failed to save role settings."),
+    "Keep at least one Slack channel or email on."
+  );
   assert.equal(getSlackChannelNameError("Bad Name", "en"), "Use only lowercase letters, numbers, hyphens, or underscores.");
 });

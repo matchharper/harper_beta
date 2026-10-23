@@ -7,6 +7,10 @@ import type {
   OrgRoleNotificationSettings,
   OrgRoleNotificationSettingsUpdate,
 } from "@/lib/org/roleNotificationTypes";
+import {
+  leavesRoleWithoutNotificationDestination,
+  ROLE_NOTIFICATION_DESTINATION_REQUIRED,
+} from "@/lib/org/roleNotificationDestinations";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { canAccessOrgRole, resolveOrgRoleAccess } from "./teamAccess";
 
@@ -81,13 +85,14 @@ export async function fetchOrgRoleNotificationSettings(args: {
   if (assigneeResult.error) throw assigneeResult.error;
   const [membershipResult, roleResult] = await Promise.all([
     (admin.from("company_user_workspace") as any).select("company_user_id, authority, access_scope, team_id, company_workspace_team_members(team_id), company_users(name,email)").eq("company_workspace_id", workspaceId),
-    (admin.from("company_roles" as any) as any).select("company_internal_roles(team_id)").eq("company_workspace_id", workspaceId).eq("role_id", roleId).maybeSingle(),
+    (admin.from("company_roles" as any) as any).select("company_internal_roles(team_id, email_notifications_enabled)").eq("company_workspace_id", workspaceId).eq("role_id", roleId).maybeSingle(),
   ]);
   if (membershipResult.error) throw membershipResult.error;
   if (roleResult.error) throw roleResult.error;
   if (!roleResult.data) throw new OrgHttpError(404, "Role을 찾지 못했습니다.");
+  const internalRole = getCompanyInternalRoleRecord(roleResult.data.company_internal_roles);
   const eligibleIds = new Set((membershipResult.data ?? []).filter((row: WorkspaceMemberRow) =>
-    canAccessOrgRole(resolveOrgRoleAccess(row), getCompanyInternalRoleRecord(roleResult.data.company_internal_roles)?.team_id)).map((row: WorkspaceMemberRow) => row.company_user_id));
+    canAccessOrgRole(resolveOrgRoleAccess(row), internalRole?.team_id)).map((row: WorkspaceMemberRow) => row.company_user_id));
 
   const disabledChannelIds = new Set<string>(
     (channelOptOutResult.data ?? []).map(
@@ -120,6 +125,7 @@ export async function fetchOrgRoleNotificationSettings(args: {
       enabled: !disabledChannelIds.has(channel.id),
       ...(channel.slack_channel_id === args.audienceChannelId ? { canAssign } : {}),
     })),
+    emailEnabled: internalRole?.email_notifications_enabled === true,
     roleId,
   };
 }
@@ -230,6 +236,53 @@ async function replaceOptOuts(args: {
   }
 }
 
+async function readRoleDestinations(args: {
+  admin: AdminClient;
+  channels: ChannelRow[];
+  roleId: string;
+}) {
+  const [optOutResult, internalRoleResult] = await Promise.all([
+    (args.admin.from("company_role_notification_channels" as any) as any)
+      .select("channel_id")
+      .eq("role_id", args.roleId),
+    (args.admin.from("company_internal_roles" as any) as any)
+      .select("email_notifications_enabled")
+      .eq("role_id", args.roleId)
+      .maybeSingle(),
+  ]);
+  if (optOutResult.error) throw optOutResult.error;
+  if (internalRoleResult.error) throw internalRoleResult.error;
+  const disabledIds = new Set<string>(
+    (optOutResult.data ?? []).map((row: { channel_id: string }) => row.channel_id)
+  );
+  return {
+    channels: args.channels.map((channel) => ({
+      channelId: channel.slack_channel_id,
+      enabled: !disabledIds.has(channel.id),
+    })),
+    emailEnabled: internalRoleResult.data?.email_notifications_enabled === true,
+  };
+}
+
+async function writeRoleEmailEnabled(args: {
+  admin: AdminClient;
+  emailEnabled: boolean;
+  roleId: string;
+}) {
+  const { data, error } = await (
+    args.admin.from("company_internal_roles" as any) as any
+  )
+    .update({
+      email_notifications_enabled: args.emailEnabled,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("role_id", args.roleId)
+    .select("role_id")
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new OrgHttpError(404, "Role을 찾지 못했습니다.");
+}
+
 export async function updateOrgRoleNotificationSettings(
   args: OrgRoleNotificationSettingsUpdate & { user: User }
 ): Promise<OrgRoleNotificationSettings> {
@@ -270,6 +323,21 @@ export async function updateOrgRoleNotificationSettings(
     }
   }
 
+  const emailEnabled =
+    typeof args.emailEnabled === "boolean" ? args.emailEnabled : undefined;
+  // Every role keeps a Slack channel or email on (rule checked for every save path here).
+  const touchesDestinations =
+    emailEnabled === false || [...channelUpdates.values()].some((enabled) => !enabled);
+  if (
+    touchesDestinations &&
+    leavesRoleWithoutNotificationDestination({
+      ...(await readRoleDestinations({ admin, channels, roleId })),
+      update: { channels: channelUpdates, emailEnabled },
+    })
+  ) {
+    throw new OrgHttpError(400, ROLE_NOTIFICATION_DESTINATION_REQUIRED);
+  }
+
   const channelEnabledIds: string[] = [];
   const channelDisabledIds: string[] = [];
   for (const [channelId, enabled] of channelUpdates) {
@@ -278,6 +346,10 @@ export async function updateOrgRoleNotificationSettings(
     (enabled ? channelEnabledIds : channelDisabledIds).push(databaseId);
   }
 
+  // Email first: switching a role from Slack to email never passes through no destination.
+  if (emailEnabled !== undefined) {
+    await writeRoleEmailEnabled({ admin, emailEnabled, roleId });
+  }
   await replaceOptOuts({
     admin,
     disabledIds: channelDisabledIds,

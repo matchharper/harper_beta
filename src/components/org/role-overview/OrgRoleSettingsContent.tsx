@@ -9,6 +9,7 @@ import {
   ArrowRight,
   CircleStop,
   LoaderCircle,
+  Mail,
   Pause,
   Play,
   Plus,
@@ -119,6 +120,7 @@ export function OrgRoleSettingsContent({
   const [assigneeOverride, setAssigneeOverride] = useState<string[] | null>(
     null
   );
+  const [emailOverride, setEmailOverride] = useState<boolean | null>(null);
   const { locale, c } = useOrgLocale();
   const [statusToConfirm, setStatusToConfirm] = useState<OrgRoleStatus | null>(
     null
@@ -169,7 +171,13 @@ export function OrgRoleSettingsContent({
       })) ?? null,
     [channelOverrides, settingsQuery.data]
   );
-  const notificationChanged = Object.keys(channelOverrides).length > 0;
+  const emailEnabled =
+    emailOverride ?? settingsQuery.data?.emailEnabled ?? false;
+  const emailChanged =
+    emailOverride !== null &&
+    emailOverride !== (settingsQuery.data?.emailEnabled ?? false);
+  const notificationChanged =
+    Object.keys(channelOverrides).length > 0 || emailChanged;
   const assigneeUserIds =
     assigneeOverride ?? settingsQuery.data?.assigneeUserIds ?? [];
   const assigneeChanged =
@@ -283,6 +291,7 @@ export function OrgRoleSettingsContent({
     if (settingsPending) return;
     setChannelOverrides({});
     setAssigneeOverride(null);
+    setEmailOverride(null);
     setSettingsSaveError("");
     setSettingsEditing(false);
   };
@@ -298,11 +307,13 @@ export function OrgRoleSettingsContent({
           channelId,
           enabled,
         })),
+        ...(emailChanged ? { emailEnabled } : {}),
         roleId: role.roleId,
         workspaceId,
       });
       setChannelOverrides({});
       setAssigneeOverride(null);
+      setEmailOverride(null);
       setSettingsEditing(false);
       addToast({
         message: c("Role 설정을 저장했습니다.", "Role settings saved."),
@@ -638,11 +649,43 @@ export function OrgRoleSettingsContent({
               <div className="space-y-2">
                 <RoleSectionHeading
                   description={c(
-                    "이 역할의 새로운 연결 소식을 받을 Slack 채널을 선택하세요.",
-                    "Choose a Slack channel for candidate updates on this role."
+                    "이 역할의 새 후보 소식을 받을 곳이에요. Slack 채널이나 메일 중 하나는 켜 두어야 해요.",
+                    "Choose where new candidates for this role are sent. Keep at least one Slack channel or email on."
                   )}
                   title={c("알림 채널", "Notification channel")}
                 />
+                <div className="flex items-center gap-3 py-1">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-neutral-1000-a05 text-neutral-muted">
+                    <Mail className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-normal text-neutral-primary">
+                      {c("메일", "Email")}
+                    </div>
+                    <div className="truncate text-[12px] text-neutral-muted">
+                      {c(
+                        "담당자와 Owner에게 각자 보내요",
+                        "Sent separately to each role owner and workspace Owner"
+                      )}
+                    </div>
+                  </div>
+                  <Switch
+                    aria-label={c("메일 알림", "Email notifications")}
+                    checked={emailEnabled}
+                    className="data-[state=checked]:bg-positive"
+                    disabled={!canManage || settingsPending}
+                    onCheckedChange={(enabled) => {
+                      if (!canManage || settingsPending) return;
+                      setSettingsEditing(true);
+                      setSettingsSaveError("");
+                      setEmailOverride(
+                        enabled === (settingsQuery.data?.emailEnabled ?? false)
+                          ? null
+                          : enabled
+                      );
+                    }}
+                  />
+                </div>
                 {channels.length > 0 ? (
                   <div className="divide-y divide-neutral-1000-a05 bg-bg-default">
                     {channels.map((channel) => (

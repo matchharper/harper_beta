@@ -260,13 +260,14 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "set_role_notification",
       description:
-        "Save the Slack channel and primary assignee selected or accepted by the user. Determine that selection and consent from the whole conversation, including contextual acceptance of an earlier proposal and subsequent corrections or withdrawal. Ask only when the intended targets or authorization remain unclear; approval of unrelated settings does not authorize this change. For a new draft's final review only, Harper may also save the single available Slack channel and the active current author as transparent defaults; name both defaults clearly and make them easy to change. In that unambiguous-default case, do not stop or ask a separate setup-confirmation question: review this result, then call request_role_creation_confirmation in the same user turn so the final settings and Create role / Keep editing choices arrive together. Omitted fields are preserved.",
+        "Save the Slack channel, the Role's email switch (emailEnabled: new candidates go by email to the Role's assignee and Owners) and primary assignee selected or accepted by the user. Determine that selection and consent from the whole conversation, including contextual acceptance of an earlier proposal and subsequent corrections or withdrawal. Ask only when the intended targets or authorization remain unclear; approval of unrelated settings does not authorize this change. For a new draft's final review only, Harper may also save the single available Slack channel (or, with no Slack channel, emailEnabled=true) and the active current author as transparent defaults; name both defaults clearly and make them easy to change. In that unambiguous-default case, do not stop or ask a separate setup-confirmation question: review this result, then call request_role_creation_confirmation in the same user turn so the final settings and Create role / Keep editing choices arrive together. Omitted fields are preserved.",
       parameters: {
         type: "object",
         minProperties: 1,
         properties: {
           assigneeUserId: { type: "string" },
           channelIds: { type: "array", items: { type: "string" }, minItems: 1 },
+          emailEnabled: { type: "boolean" },
         },
         additionalProperties: false,
       },
@@ -290,7 +291,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "request_role_creation_confirmation",
       description:
-        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member through any useful professional source and explain why that person is a strong reference (on a role start Role, pointing them to the web '참고 인물' box counts as that invitation). LinkedIn is one possible source, not a requirement. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this after reviewing that result in the same user turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
+        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member through any useful professional source and explain why that person is a strong reference (on a role start Role, pointing them to the web '참고 인물' box counts as that invitation). LinkedIn is one possible source, not a requirement. When set_role_notification just saved the single available Slack channel (or email when there is no Slack channel) and active current author as transparent final defaults, call this after reviewing that result in the same user turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
       parameters: {
         type: "object",
         properties: {},
@@ -883,7 +884,7 @@ export async function executeRoleCreationTool(args: {
     return { result: { ok: true }, updateSummary: "회사 정보를 저장했어요." };
   }
   if (args.name === "set_role_notification") {
-    assertOnlyKeys(args.input, ["assigneeUserId", "channelIds"], args.name);
+    assertOnlyKeys(args.input, ["assigneeUserId", "channelIds", "emailEnabled"], args.name);
     const state = await setRoleCreationNotification({
       allowCompletedRole: args.allowCompletedRole,
       ...(Object.prototype.hasOwnProperty.call(args.input, "assigneeUserId")
@@ -891,6 +892,9 @@ export async function executeRoleCreationTool(args: {
         : {}),
       ...(Object.prototype.hasOwnProperty.call(args.input, "channelIds")
         ? { channelIds: stringList(args.input.channelIds) }
+        : {}),
+      ...(typeof args.input.emailEnabled === "boolean"
+        ? { emailEnabled: args.input.emailEnabled }
         : {}),
       roleId: args.roleId,
       user: args.user,

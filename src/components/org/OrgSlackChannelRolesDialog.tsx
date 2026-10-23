@@ -14,6 +14,7 @@ import type { OrgSlackChannel } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
+import { ROLE_NOTIFICATION_DESTINATION_REQUIRED } from "@/lib/org/roleNotificationDestinations";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/store/useToastStore";
 
@@ -85,6 +86,7 @@ export function OrgSlackChannelRolesDialog({
     setOverrides(
       Object.fromEntries(rows.map((row) => [row.role.roleId, row.selected]))
     );
+    let savedCount = 0;
     try {
       // Patch only this channel. Successful rows stay cached if a later request fails.
       for (const row of rows) {
@@ -94,6 +96,7 @@ export function OrgSlackChannelRolesDialog({
           roleId: row.role.roleId,
           channels: [{ channelId: channel.channelId, enabled: row.selected }],
         });
+        savedCount += 1;
       }
       addToast({
         variant: "success",
@@ -105,20 +108,28 @@ export function OrgSlackChannelRolesDialog({
       });
       onClose();
     } catch (cause) {
+      const reason = localizedOrgErrorMessage(
+        cause,
+        locale,
+        c("Role 할당을 완료하지 못했어요.", "Couldn't finish assigning roles.")
+      );
+      // Nothing was saved when the first change is refused for leaving a role
+      // without any destination, so only that reason is true.
+      const refusedBeforeAnySave =
+        savedCount === 0 &&
+        cause instanceof Error &&
+        cause.message.trim() === ROLE_NOTIFICATION_DESTINATION_REQUIRED;
+      if (refusedBeforeAnySave) {
+        setError(reason);
+        return;
+      }
       setError(
         c(
           "일부 변경이 저장됐을 수 있어요. 선택은 유지되며 다시 저장할 수 있어요.",
           "Some changes may have been saved. Your selection is preserved; you can save again."
         ) +
           " " +
-          localizedOrgErrorMessage(
-            cause,
-            locale,
-            c(
-              "Role 할당을 완료하지 못했어요.",
-              "Couldn't finish assigning roles."
-            )
-          )
+          reason
       );
     } finally {
       savingRef.current = false;
