@@ -931,12 +931,12 @@ function BriefStep(props: {
           <p>
             {answered
               ? c(
-                  "답해 주신 내용을 반영해 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주세요.",
-                  "Harper wrote the Brief with your answers. It finds the first three with it. Tell Harper what to change."
+                  "답해 주신 내용을 반영해 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주시거나 Brief를 직접 고쳐도 돼요.",
+                  "Harper wrote the Brief with your answers. It finds the first three with it. Tell Harper what to change, or edit the Brief yourself."
                 )
               : c(
-                  "JD를 바탕으로 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주세요.",
-                  "Harper wrote the Brief from the JD. It finds the first three with it. Tell Harper what to change."
+                  "JD를 바탕으로 Brief를 정리했어요. 이 기준으로 첫 3명을 찾아요. 바꿀 점이 있으면 알려 주시거나 Brief를 직접 고쳐도 돼요.",
+                  "Harper wrote the Brief from the JD. It finds the first three with it. Tell Harper what to change, or edit the Brief yourself."
                 )}
           </p>
           {warnings.length ? (

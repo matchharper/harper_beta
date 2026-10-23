@@ -272,8 +272,8 @@ export function RoleBriefSection({
           <div className="mt-8">
             <RoleSectionHeading
               description={c(
-                "여기 적힌 조건을 갖추지 않은 분은 추천하지 않아요. 프로필로 확인되지 않으면 빼지 않고 '확인 필요'로 표시해요.",
-                "People without these conditions are not recommended. If a profile does not show it, the person stays in, marked 'More information needed'."
+                "여기 적힌 조건을 갖추지 않은 분은 추천하지 않아요.",
+                "People without these conditions are not recommended."
               )}
               title={c("필수 조건", "Required conditions")}
             />
