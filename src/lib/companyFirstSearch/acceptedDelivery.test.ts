@@ -58,3 +58,42 @@ test("a failed receipt update remains a delivery failure", async () => {
   const admin = database([{ id: "candidate", metadata: { deliveryOwner: "role_matching_outbox" } }], [], error);
   await assert.rejects(recordAcceptedCandidateDelivery(admin, outbox, "sent"), error);
 });
+
+test("email delivery writes its own receipt and never overwrites a Slack receipt", async () => {
+  const slackSentAt = "2026-10-22T00:00:00.000Z";
+  const admin = database([{ id: "candidate", metadata: { deliveryOwner: "role_matching_outbox", deliveryStatus: "sent", slackSent: true, slackSentAt } }]);
+  await recordAcceptedCandidateDelivery(admin, outbox, "sent", "email");
+  const metadata = admin.updates[0].metadata;
+  assert.equal(metadata.slackSent, true);
+  assert.equal(metadata.slackSentAt, slackSentAt);
+  assert.equal(metadata.emailSent, true);
+  assert.equal(metadata.deliveryChannel, "email");
+  assert.equal(metadata.deliveryStatus, "sent");
+  assert.ok(Number.isFinite(Date.parse(metadata.emailSentAt)));
+});
+
+test("a later Slack delivery keeps the email receipt", async () => {
+  const admin = database([{ id: "candidate", metadata: { deliveryOwner: "role_matching_outbox", emailSent: true, deliveryChannel: "email" } }]);
+  await recordAcceptedCandidateDelivery(admin, outbox, "sent");
+  assert.equal(admin.updates[0].metadata.emailSent, true);
+  assert.equal(admin.updates[0].metadata.slackSent, true);
+});
+
+test("canceling either channel preserves delivery by the other channel or a pending sibling", async () => {
+  for (const channel of ["slack", "email"] as const) {
+    for (const metadata of [{ emailSent: true }, { slackSent: true }]) {
+      const admin = database([{ id: "candidate", metadata: { deliveryOwner: "role_matching_outbox", ...metadata } }]);
+      await recordAcceptedCandidateDelivery(admin, outbox, "canceled", channel);
+      assert.equal(admin.updates.length, 0);
+    }
+    const admin = database([{ id: "candidate", metadata: { deliveryOwner: "role_matching_outbox" } }], [{ id: "slack-row" }]);
+    await recordAcceptedCandidateDelivery(admin, outbox, "canceled", channel);
+    assert.equal(admin.updates.length, 0);
+  }
+  const admin = database([{ id: "candidate", metadata: { deliveryOwner: "role_matching_outbox" } }]);
+  await recordAcceptedCandidateDelivery(admin, outbox, "canceled", "email");
+  assert.deepEqual(
+    { ...admin.updates[0].metadata, deliveryOwner: undefined },
+    { deliveryOwner: undefined, deliveryStatus: "canceled", emailSent: false, emailSentAt: null }
+  );
+});

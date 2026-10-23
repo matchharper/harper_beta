@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildRoleCreationOutcomePrompt,
   buildRoleCreationOutcomeSystemPrompt,
   buildRoleCreationSystemPrompt,
   buildRoleCreationUserPrompt,
@@ -42,7 +43,7 @@ test("one compact authoring contract retains discovery and confirmation boundari
     "descriptionSourceResearch is the durable one-attempt marker", "Never combine postings",
     "calibrate_role_hiring_brief", "caliber evidence, not a candidate", "Ask at most one follow-up",
     "Translate protected traits or proxies", "availableSlackChannels is empty",
-    "role cannot be registered until Slack is connected", "[Slack 연결하기](/org/settings)",
+    "save email (emailEnabled=true) and the current author", "[Slack 연결하기](/org/settings)", "[Slack 채널 추가하기](/org/settings) when slackInstalled",
     "set_role_notification", "request_role_creation_confirmation", "confirm_pending_role_creation",
     "same turn", "never activates", "immediately following authorization",
   ]) assert.ok(prompt.includes(required), required);
@@ -247,4 +248,20 @@ test("writes company information as prose and keeps its marker out of saved fiel
   assert.match(prompt, /standalone \[\[company_info\]\] marker only in the user-facing reply/);
   assert.match(prompt, /never save or explain the marker/);
   assert.match(prompt, /Omit it when company information was unused or unavailable/);
+});
+
+test("a mail-only completion reply talks about email, not a missing Slack message", () => {
+  const prompt = buildRoleCreationOutcomePrompt({
+    missingFields: [], outcome: "completed", slackNotificationDelivered: false,
+    state: {
+      assigneeUserIds: ["user-a"], channels: [], emailEnabled: true,
+      members: [{ userId: "user-a", name: "Alex", email: null }],
+      metadata: { confirmedSlackChannelIds: [] },
+      role: { name: "IR Lead", status: "active" }, workspace: { companyName: "Example" },
+    } as any,
+  });
+  const context = JSON.parse(prompt.split("<ROLE_CREATION_OUTCOME>\n")[1].split("\n</ROLE_CREATION_OUTCOME>")[0]);
+  assert.equal(context.emailEnabled, true);
+  assert.deepEqual(context.confirmedSlackChannels, []);
+  assert.match(prompt, /If emailEnabled is true and confirmedSlackChannels is empty, do not mention Slack/);
 });
