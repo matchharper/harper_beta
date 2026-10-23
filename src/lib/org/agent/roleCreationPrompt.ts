@@ -40,6 +40,12 @@ export function buildRoleCreationSystemPrompt(args?: {
       : responseLocale === "auto"
         ? "[Slack 연결하기](/org/settings) in Korean or [Connect Slack](/org/settings) in English, matching the conversation language"
         : "[Slack 연결하기](/org/settings)";
+  const slackChannelAddLink =
+    responseLocale === "en"
+      ? "[Add a Slack channel](/org/settings)"
+      : responseLocale === "auto"
+        ? "[Slack 채널 추가하기](/org/settings) in Korean or [Add a Slack channel](/org/settings) in English, matching the conversation language"
+        : "[Slack 채널 추가하기](/org/settings)";
   const registeredRoleGuidance = args?.editingRegisteredRole
     ? `
 REGISTERED ROLE EDITING
@@ -96,8 +102,8 @@ NEW-DRAFT DISCOVERY
 - Use RESOLVED_TALENT_MENTIONS as validated references, without showing IDs. Translate protected traits or proxies into objective job capability questions, not demographic criteria. Company homepage/LinkedIn keep their dedicated fields; other URLs go in relatedLinks.
 
 NOTIFICATIONS AND CONFIRMATION
-- Slack channel and assignee belong at the end, after public facts and private matching judgment. With exactly one channel and the current author an active member, set_role_notification saves those transparent defaults. Then call request_role_creation_confirmation in the same turn. Show a separate brief settings block, not another preliminary confirmation.
-- With several plausible channels or unclear assignee, ask one short choice. Never mention the raw channel count. If availableSlackChannels is empty, do not imply that Slack is optional: the role cannot be registered until Slack is connected. Include ${slackConnectLink} and ask the user to return once Slack and a channel are connected. Do not request final role-creation confirmation yet.
+- Where new candidates go (Slack channel or email) and assignee belong at the end, after public facts and private matching judgment. With exactly one channel and the current author an active member, set_role_notification saves those transparent defaults. Then call request_role_creation_confirmation in the same turn. Show a separate brief settings block, not another preliminary confirmation.
+- With several plausible channels or unclear assignee, ask one short choice. Never mention the raw channel count. If availableSlackChannels is empty, save email (emailEnabled=true) and the current author as the transparent defaults with set_role_notification, state both (new candidates go by email to the assignee and Owners, each separately; Slack can be connected later via ${slackConnectLink}, or ${slackChannelAddLink} when slackInstalled), then call request_role_creation_confirmation in the same turn.
 - request_role_creation_confirmation validates readiness and adds actual Create role / Keep editing choices. It prepares review, never activates. Once presented, a short contextual “응” or another clear immediately following authorization calls confirm_pending_role_creation; do not merely acknowledge or restart discovery. Ambiguity or changed details require clarification/update and a fresh confirmation. Buttons use the same guarded server path.
 
 EXECUTION
@@ -140,6 +146,7 @@ export function buildRoleCreationOutcomePrompt(args: {
     confirmedSlackChannels: args.state.channels.filter((channel) =>
       args.state.metadata.confirmedSlackChannelIds.includes(channel.channelId)
     ),
+    emailEnabled: args.state.emailEnabled,
     missingFields: args.missingFields,
     outcome: args.outcome,
     role: { name: args.state.role.name, status: args.state.role.status },
@@ -155,6 +162,7 @@ Write Harper's next user-facing message for this outcome.
 - needs_ratings: nothing was registered yet; ask them to rate the first three candidates on the right panel, then register.
 - Name the Role and describe its state in plain words. Never write internal status words such as active, draft, 활성 or 초안 상태.
 - State what did not happen, especially when the Role was not created or no Slack message was sent.
+- If emailEnabled is true and confirmedSlackChannels is empty, do not mention Slack; say only that new candidates will be sent by email.
 - If validation failed, name only the fields the user can fix; do not expose raw field names or IDs.
 - Add a next action only if genuinely needed. Completed means the Role was activated, not that a matching worker ran or a candidate was found. Do not claim those unseen effects.
 - Preserve the current web or Slack output format and follow the shared UX writing contract.`;
@@ -200,6 +208,8 @@ export function buildRoleCreationUserPrompt(args: {
     currentSlackChannel: args.slackContext ?? null,
     assignees: args.state.assigneeUserIds,
     availableSlackChannels: args.state.channels,
+    slackInstalled: args.state.slackInstalled,
+    emailNotificationsEnabled: args.state.emailEnabled,
     company: {
       companyInformationDocument: args.state.workspace.pitch,
       homepageUrl: args.state.workspace.homepageUrl,

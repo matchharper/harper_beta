@@ -2552,8 +2552,11 @@ const PREPARE_SETTLE_MS = 3_000;
 
 export async function registerRoleStart(
   args: Access & {
-    /** Chosen on the finish step: the Slack channels and the owner, saved before the Role turns on. */
-    notification?: { channelIds?: string[]; assigneeUserId?: string };
+    /**
+     * Chosen on the finish step: the Slack channels, email and the owner, saved
+     * before the Role turns on. An empty channel list with email means email only.
+     */
+    notification?: { channelIds?: string[]; emailEnabled?: boolean; assigneeUserId?: string };
   }
 ) {
   let state = await access(args);
@@ -2583,9 +2586,12 @@ export async function registerRoleStart(
     let defaults: { channel: string | null; assignee: string | null } | null = null;
     if (state.role.status === "draft") {
       const chosen = args.notification;
-      if (chosen && (chosen.channelIds?.length || chosen.assigneeUserId)) {
+      const chosenChannels =
+        chosen?.channelIds && (chosen.channelIds.length || chosen.emailEnabled === true) ? chosen.channelIds : undefined;
+      if (chosen && (chosenChannels || chosen.assigneeUserId || chosen.emailEnabled !== undefined)) {
         state = await setRoleCreationNotification({
-          ...(chosen.channelIds?.length ? { channelIds: chosen.channelIds } : {}),
+          ...(chosenChannels ? { channelIds: chosenChannels } : {}),
+          ...(chosen.emailEnabled !== undefined ? { emailEnabled: chosen.emailEnabled } : {}),
           ...(chosen.assigneeUserId ? { assigneeUserId: chosen.assigneeUserId } : {}),
           roleId: args.roleId,
           user: args.user,

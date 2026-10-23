@@ -2645,7 +2645,7 @@ async function fetchTagsForBoard(args: {
   return map;
 }
 
-async function fetchFitDetailsForBoard(args: {
+export async function fetchFitDetailsForBoard(args: {
   admin: SupabaseAdminClient;
   recommendationRows: Array<Pick<RecommendationRow, "role_id" | "talent_id">>;
 }) {

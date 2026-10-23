@@ -68,7 +68,7 @@ export function registerMissingMessage(c: LocaleC, missingFields: string[]) {
     location: ["근무 지역", "work location"],
     work_mode: ["근무 형태", "work arrangement"],
     employment_type: ["고용 형태", "employment type"],
-    connected_slack: ["알림 Slack 채널", "Slack channel"],
+    connected_slack: ["알림 받을 곳", "notification destination"],
     assignee: ["담당자", "owner"],
   };
   const missing = missingFields.map((field) => labels[field] ?? [field, field]);
