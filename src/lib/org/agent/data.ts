@@ -38,6 +38,7 @@ import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 import { resolveTalentLocation } from "@/lib/talentLocation";
+import { roleStartOwnsRole } from "@/lib/org/roleStart/ownership";
 import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour } from "@/lib/org/introSearchSchedule";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
@@ -46,6 +47,8 @@ export type OrgAgentAdminClient = ReturnType<typeof getSupabaseAdmin>;
 
 export type OrgAgentRole = OrgRole & {
   hasMemory?: boolean;
+  /** A role start Role: reference people come only through the web 참고 인물 box. */
+  roleStart?: true;
   promotionDemand?: { level: string; reason: string; updatedAt: string; validUntil: string } | null;
 };
 
@@ -296,6 +299,36 @@ export async function fetchOrgAgentRoles(args: {
       (row) => [row.role_id, row]
     )
   );
+  // Role start only: these Roles take reference people from the web box, not the chat.
+  // Absent for every other Role (its context is unchanged).
+  const roleStartIds = new Set<string>();
+  if (roleIds.length > 0) {
+    // Best effort: without it the context is simply as before.
+    const sessions = await Promise.resolve()
+      .then(() =>
+        (args.admin.from("company_role_start_sessions" as any) as any)
+          .select("role_id, phase, updated_at, refined_answers, first_candidates")
+          .in("role_id", roleIds)
+      )
+      .then((result: { data?: unknown[] | null }) => result.data ?? [])
+      .catch(() => []);
+    for (const row of (sessions ?? []) as Array<{
+      role_id: string;
+      phase: string | null;
+      updated_at: string;
+      refined_answers: number | null;
+      first_candidates: unknown[] | null;
+    }>) {
+      // Done Roles keep the box; a flow that cannot move forward hands back to the chat.
+      const owns = roleStartOwnsRole({
+        phase: row.phase ?? "",
+        updatedAt: row.updated_at,
+        refinedAnswers: row.refined_answers ?? undefined,
+        firstCandidates: row.first_candidates ?? undefined,
+      });
+      if (row.phase === "done" || owns) roleStartIds.add(row.role_id);
+    }
+  }
   const memoryRoleIds = new Set(
     (
       (memoryResult.data ?? []) as Array<{
@@ -320,6 +353,7 @@ export async function fetchOrgAgentRoles(args: {
         introSearchDate: parseIntroSearchDays(scheduleByRoleId.get(row.role_id)?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
         introSearchTime: parseIntroSearchHour(scheduleByRoleId.get(row.role_id)?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
         hasMemory: memoryRoleIds.has(row.role_id),
+        ...(roleStartIds.has(row.role_id) ? { roleStart: true as const } : {}),
         locationText: row.location_text ?? null,
         name: row.name,
         request: requestByRoleId.get(row.role_id) ?? null,

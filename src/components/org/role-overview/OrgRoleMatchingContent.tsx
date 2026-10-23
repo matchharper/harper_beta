@@ -5,6 +5,8 @@ import { useState } from "react";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
 import { MuteButton } from "@/components/ui/button";
+import { RoleBriefSection, useRoleStartBriefFlag } from "@/components/org/role-start/RoleBriefSection";
+import { CriterionLevelButtons } from "./CriterionLevelButtons";
 import { DocumentEditor } from "@/components/ui/document-editor";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,8 +15,10 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useUnsavedChangesWarning } from "@/hooks/org/useUnsavedChangesWarning";
 import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
 import {
+  criterionLevel,
   getOrgRoleCriteriaValidationError,
   normalizeOrgRoleCriteria,
+  ORG_ROLE_CRITERION_LEVELS,
   ORG_ROLE_CRITERIA_MIN_ITEMS,
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
@@ -50,15 +54,25 @@ function normalizeMatchingDraft(draft: MatchingDraft) {
   };
 }
 
-export function OrgRoleMatchingContent({
-  role,
-  showBottomBorder = false,
-  workspaceId,
-}: {
+type MatchingContentProps = {
   role: OrgRole;
   showBottomBorder?: boolean;
   workspaceId: string;
-}) {
+};
+
+export function OrgRoleMatchingContent(props: MatchingContentProps) {
+  // A Role started from role start shows its Brief; others keep this tab as is.
+  const structured = useRoleStartBriefFlag(props.role.roleId, props.workspaceId);
+  if (structured === undefined) return null;
+  if (structured) return <RoleBriefSection roleId={props.role.roleId} showBottomBorder={props.showBottomBorder} workspaceId={props.workspaceId} />;
+  return <MatchingContent {...props} />;
+}
+
+function MatchingContent({
+  role,
+  showBottomBorder = false,
+  workspaceId,
+}: MatchingContentProps) {
   const { c } = useOrgLocale();
   const getRoleOverviewErrorMessage = useRoleOverviewErrorMessage();
   const documentEditorCopy = useOrgDocumentEditorCopy();
@@ -284,22 +298,33 @@ export function OrgRoleMatchingContent({
                       {c("기준", "Criteria")}
                       {index + 1}
                     </label>
-                    <MuteButton
-                      aria-label={c("기준 {p0} 삭제", "Delete criterion {p0}", {
-                        p0: index + 1,
-                      })}
-                      disabled={
-                        !canManage ||
-                        currentDraft.criteria.length <=
-                          ORG_ROLE_CRITERIA_MIN_ITEMS ||
-                        updateRole.isPending
-                      }
-                      onClick={() => removeCriterion(index)}
-                      size="sm"
-                      variant="transparent"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </MuteButton>
+                    <div className="flex items-center gap-1">
+                      <CriterionLevelButtons
+                        criterion={item}
+                        disabled={!canManage || updateRole.isPending}
+                        onChange={(fields) => changeCriterion(index, fields)}
+                      />
+                      <MuteButton
+                        aria-label={c(
+                          "기준 {p0} 삭제",
+                          "Delete criterion {p0}",
+                          {
+                            p0: index + 1,
+                          }
+                        )}
+                        disabled={
+                          !canManage ||
+                          currentDraft.criteria.length <=
+                            ORG_ROLE_CRITERIA_MIN_ITEMS ||
+                          updateRole.isPending
+                        }
+                        onClick={() => removeCriterion(index)}
+                        size="sm"
+                        variant="transparent"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </MuteButton>
+                    </div>
                   </div>
                   <Input
                     aria-label={c("기준 {p0} 이름", "Criterion {p0} name", {
@@ -356,6 +381,13 @@ export function OrgRoleMatchingContent({
                   <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                     <BadgeCheck className="size-4 shrink-0 text-positive" />
                     <span>{item.name}</span>
+                    <span className="font-normal text-neutral-soft">
+                      {(({ ko, en }) => c(ko, en))(
+                        ORG_ROLE_CRITERION_LEVELS.find(
+                          (level) => level.level === criterionLevel(item)
+                        )!
+                      )}
+                    </span>
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-neutral-muted">
                     {item.criteria}

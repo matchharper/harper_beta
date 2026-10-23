@@ -296,6 +296,10 @@ function formatRoles(
       `total_roles=${roles.length} returned_roles=${selected.length} role_index_truncated=${selected.length < roles.length}`,
       "anonymous_posting=true means public promotion must conceal the hiring company's identity (real/source company name, logo, website and identifying copy), exclude external job IDs and hide the linked Role ID from public Harper job responses.",
       table,
+      // Role start only: reference people for these Roles come through the web box.
+      ...(selected.some((role) => role.roleStart)
+        ? [`role_start_roles role_ids=${JSON.stringify(selected.filter((role) => role.roleStart).map((role) => role.roleId))} (reference people for these Roles come only through the '참고 인물' box on the Role's web screen, as a link or a profile; Harper records none from chat and points the team there)`]
+        : []),
     ].join("\n"),
   };
 }

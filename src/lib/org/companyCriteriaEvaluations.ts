@@ -11,6 +11,8 @@ export type OrgCompanyCriteriaEvaluation = {
   fitness: OrgCompanyCriterionFitness;
   name: string;
   score?: number;
+  /** Being judged again after the team changed this criterion. */
+  pending?: boolean;
 };
 
 export function companyCriterionScoreLabel(score: unknown): string | null {
@@ -116,7 +118,8 @@ export function normalizeOrgCompanyCriteriaEvaluations(
     const record = item as Record<string, unknown>;
     const name = normalizedText(record.name);
     const content = normalizedText(record.content);
-    if (!name || !content) return [];
+    const pending = record.pending === true;
+    if (!name || (!content && !pending)) return [];
 
     return [
       {
@@ -126,6 +129,7 @@ export function normalizeOrgCompanyCriteriaEvaluations(
         ...(typeof record.score === "number" && Number.isFinite(record.score)
           ? { score: record.score }
           : {}),
+        ...(pending ? { pending: true } : {}),
       },
     ];
   });

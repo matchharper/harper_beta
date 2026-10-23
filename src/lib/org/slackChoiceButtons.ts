@@ -6,7 +6,7 @@ export const HARPER_SLACK_CHOICE_ACTION_PREFIX = "harper_company_agent_choice:";
 export const HARPER_SLACK_CHOICE_BLOCK_PREFIX = "harper_company_agent_choices:";
 export const HARPER_SLACK_COMPANY_INFO_ACTION_ID = "harper_company_info_link";
 
-const MAX_SLACK_CHOICES = 2;
+export const MAX_SLACK_CHOICES = 2;
 const MAX_SLACK_SECTION_LENGTH = 3_000;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -102,8 +102,8 @@ function findChoiceMarkers(source: string, codeMask: Uint8Array) {
 
 /**
  * Extracts the company-side LLM's private Slack button markers. Markers in
- * code spans or fenced code blocks remain literal, and more than two valid
- * markers degrade to their visible labels instead of producing button spam.
+ * code spans or fenced code blocks remain literal, and more than
+ * MAX_SLACK_CHOICES valid markers degrade to their visible labels instead of producing button spam.
  */
 export function parseHarperSlackChoiceMarkers(message: string): {
   choices: HarperSlackChoice[];

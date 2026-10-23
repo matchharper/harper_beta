@@ -29,6 +29,7 @@ import {
   buildRoleCreationSystemPrompt,
   buildRoleCreationUserPrompt,
   selectRoleCreationHistory,
+  type RoleCreationOutcome,
 } from "@/lib/org/agent/roleCreationPrompt";
 import {
   ROLE_CREATION_TOOLS,
@@ -93,6 +94,7 @@ function scheduleRoleCreationSummary(
 type RoleCreationChatEventName =
   | "assistant_message"
   | "role_created"
+  | "role_start"
   | "text_delta"
   | "tool_status"
   | "user_message";
@@ -240,78 +242,55 @@ function statusLabel(
   return labels[status];
 }
 
+/**
+ * Plain progress wording for the role chat's tool lines: one verb, no targets,
+ * counts or method names. Each phrase describes what the step actually does.
+ */
+const TOOL_STEP_LABELS: Record<string, { done: string; error: string; running: string }> = {
+  open_url: { running: "읽는 중", done: "읽었어요", error: "읽지 못했어요" },
+  web_search: { running: "찾아보는 중", done: "찾아봤어요", error: "찾아보지 못했어요" },
+  research_role_description_sources: { running: "찾아보는 중", done: "찾아봤어요", error: "찾아보지 못했어요" },
+  read_other_roles: { running: "살펴보는 중", done: "살펴봤어요", error: "살펴보지 못했어요" },
+  calibrate_role_hiring_brief: { running: "정리하는 중", done: "정리했어요", error: "정리하지 못했어요" },
+  request_role_creation_confirmation: { running: "확인하는 중", done: "확인했어요", error: "확인하지 못했어요" },
+  confirm_pending_role_creation: { running: "등록하는 중", done: "등록했어요", error: "등록하지 못했어요" },
+  answer_role_start_question: { running: "반영하는 중", done: "반영했어요", error: "반영하지 못했어요" },
+  ask_role_start_question: { running: "정리하는 중", done: "정리했어요", error: "정리하지 못했어요" },
+};
+const SAVE_STEP_LABELS = { running: "기억하는 중", done: "기억했어요", error: "기억하지 못했어요" };
+
 function toolLabel(
   name: string,
   status: NonNullable<OrgAgentThinkingLog["status"]>
 ) {
-  if (name === "open_url") {
-    return statusLabel(status, {
-      done: "링크 확인 완료",
-      error: "링크 확인 실패",
-      running: "링크 읽는 중",
-    });
-  }
-  if (name === "web_search") {
-    return statusLabel(status, {
-      done: "웹 검색 완료",
-      error: "웹 검색 실패",
-      running: "웹 검색 중",
-    });
-  }
-  if (name === "research_role_description_sources") {
-    return statusLabel(status, {
-      done: "역할 설명 참고자료 확인 완료",
-      error: "역할 설명 참고자료 확인 실패",
-      running: "역할 설명 참고자료를 찾는 중",
-    });
-  }
-  if (name === "read_other_roles") {
-    return statusLabel(status, {
-      done: "이전 역할 기준 확인 완료",
-      error: "이전 역할 기준 확인 실패",
-      running: "이전 역할 기준을 살펴보는 중",
-    });
-  }
-  if (name === "calibrate_role_hiring_brief") {
-    return statusLabel(status, {
-      done: "Hiring Brief 기준 정리 완료",
-      error: "Hiring Brief 기준 정리 실패",
-      running: "참고 인물을 바탕으로 Hiring Brief를 정리하는 중",
-    });
-  }
-  if (name === "set_role_notification") {
-    return statusLabel(status, {
-      done: "알림 설정 저장 완료",
-      error: "알림 설정 저장 실패",
-      running: "알림 설정 저장 중",
-    });
-  }
-  if (name === "request_role_creation_confirmation") {
-    return statusLabel(status, {
-      done: "등록 조건 확인 완료",
-      error: "등록 조건 확인 실패",
-      running: "등록 조건 확인 중",
-    });
-  }
-  if (name === "confirm_pending_role_creation") {
-    return statusLabel(status, {
-      done: "역할 등록 완료",
-      error: "역할 등록 실패",
-      running: "역할 등록 중",
-    });
-  }
-  if (name === "update_company_context") {
-    return statusLabel(status, {
-      done: "회사 정보 저장 완료",
-      error: "회사 정보 저장 실패",
-      running: "회사 정보 저장 중",
-    });
-  }
-  return statusLabel(status, {
-    done: "역할 정보 저장 완료",
-    error: "역할 정보 저장 실패",
-    running: "역할 정보 저장 중",
-  });
+  // Saving role facts, company facts and notification choices reads as remembering.
+  return statusLabel(status, TOOL_STEP_LABELS[name] ?? SAVE_STEP_LABELS);
+}
+
+/**
+ * The shared role start question state, reduced to what the chat needs: the
+ * open card question and whether questions are finished. No search internals.
+ */
+async function loadRoleStartForPrompt(roleId: string) {
+  const { isRoleStartEnded, loadRoleStartSession } = await import("@/lib/org/roleStart/session");
+  const session = await loadRoleStartSession(roleId, { forView: true });
+  if (!session || isRoleStartEnded(session.phase)) return null;
+  return {
+    phase: session.phase,
+    openQuestion: session.pendingQuestion
+      ? {
+          question: session.pendingQuestion.question,
+          options: session.pendingQuestion.chips.map((chip) => chip.label),
+        }
+      : null,
+    answered: session.questions.history.map((item) => ({
+      question: item.question,
+      answer:
+        item.status === "skipped"
+          ? "skipped"
+          : item.chips.find((chip) => chip.id === item.answer?.chipId)?.label ?? item.answer?.text ?? null,
+    })),
+  };
 }
 
 function emitText(emit: RoleCreationChatEmitter | undefined, value: string) {
@@ -374,7 +353,7 @@ export async function generateRoleCreationOutcomeReply(args: {
   missingFields: string[];
   slackNotificationDelivered?: boolean | null;
   model?: OrgAgentModelId | string | null;
-  outcome: "completed" | "declined" | "revalidation_failed";
+  outcome: RoleCreationOutcome;
   surface?: "chat" | "slack";
   responseLocale?: OrgLocale;
   state: RoleCreationState;
@@ -483,6 +462,48 @@ export async function runOrgRoleCreationChat(args: {
     workspaceId: args.workspaceId,
   });
   if (created) args.emit?.("role_created", { roleId });
+  // A new Role from a written JD: read its basic facts with one small call
+  // beside this turn, so the first step's form fills in seconds.
+  const prefill =
+    created && attachments.length === 0 && !args.imageInputs?.length && text(args.message).length >= 20
+      ? import("@/lib/org/roleStart/rolePrefill")
+          .then(({ prefillRoleFacts }) =>
+            prefillRoleFacts({ roleId: roleId!, workspaceId: args.workspaceId, user: args.user, text: text(args.message) })
+          )
+          .then((result) => {
+            console.info("[org/agent:role-facts]", { roleId, saved: result.saved, isJobDescription: result.facts.isJobDescription, ms: result.usage.ms, usd: result.usage.usd, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens });
+            return result;
+          })
+          .catch((error) => (console.warn("[org/agent:role-facts]", error instanceof Error ? error.message : error), null))
+      : null;
+  // A written JD starts the Brief once the facts are in (2-4 s), not after
+  // this turn: the start screens move on while the chat is still replying.
+  // A bare title, a link or a question leaves the start to the chat as before.
+  if (prefill) {
+    // Tells the page right away whether the start screens are coming, so a
+    // question is not hidden behind their loading line. Ignored once the turn has ended.
+    const startDecided = (fromJd: boolean) => {
+      try {
+        args.emit?.("role_start", { roleId, fromJd });
+      } catch {}
+    };
+    const brief = prefill
+      .then(async (result) => {
+        // A link is read by the chat first; the Brief then starts from what it saved.
+        const fromJd = Boolean(result?.facts.isJobDescription) && !/https?:\/\/|www\./i.test(text(args.message));
+        startDecided(fromJd);
+        if (!fromJd) return null;
+        const { markBriefFromJd, startBriefFromJd } = await import("@/lib/org/roleStart/rolePrefill");
+        markBriefFromJd(roleId!);
+        return startBriefFromJd({ roleId: roleId!, workspaceId: args.workspaceId, user: args.user, text: text(args.message) });
+      })
+      .catch((error) => console.warn("[org/agent:role-start-draft]", error instanceof Error ? error.message : error));
+    try {
+      after(() => brief);
+    } catch {
+      // Outside a request (tests, scripts) the promise simply runs on.
+    }
+  }
 
   const admin = getSupabaseAdmin();
   let mentions: OrgAgentMention[] = [];
@@ -621,6 +642,7 @@ export async function runOrgRoleCreationChat(args: {
     serviceAnswerExamplesText,
     state,
     userMessage: message,
+    roleStart: await loadRoleStartForPrompt(roleId).catch(() => null),
   };
   const companySideUserPrompt = buildRoleCreationUserPrompt(roleInput);
   const messages: LlmMessage[] = [
@@ -959,6 +981,13 @@ export async function runOrgRoleCreationChat(args: {
   if (companyInfoDescriptionUpdated) {
     reply = ensureOrgAgentCompanyInfoMarker(reply);
   }
+  // Every question to the team is a chip card: a question this reply wrote as
+  // plain text moves into a card (unless the turn already posted one).
+  // In Slack the card is sent as chip buttons in the role thread.
+  if (!confirmationRequested && roleId && !toolResults.some((item) => item.name === "ask_role_start_question")) {
+    const { moveReplyQuestionToCard } = await import("@/lib/org/roleStart/service");
+    reply = await moveReplyQuestionToCard({ reply, roleId, user: args.user, workspaceId: args.workspaceId, surface });
+  }
   if (surface === "slack" && confirmationRequested) {
     reply = `${reply}\n\n[Create role](button:이 역할을 지금 등록해 주세요.) [Keep editing](button:이 역할은 아직 등록하지 않고 더 수정할게요.)`;
   }
@@ -1031,6 +1060,12 @@ export async function runOrgRoleCreationChat(args: {
     });
   }
   args.emit?.("assistant_message", assistantMessage);
+  if (prefill) {
+    await prefill;
+    const { releasePrefilledFacts } = await import("@/lib/org/roleStart/rolePrefill");
+    const differed = releasePrefilledFacts(roleId);
+    if (differed) console.info("[org/agent:role-facts] chat read differently", { roleId, differed });
+  }
   scheduleRoleCreationSummary({
     admin,
     conversation: state.conversation,

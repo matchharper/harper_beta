@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
+import { withRecommendationRank } from "@/lib/org/candidateBoardSort";
 import { fetchOrgBoard, OrgHttpError } from "@/lib/org/server";
 import { readOrgCandidateSaves } from "@/lib/org/candidateSaved.server";
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({
       ...payload,
-      items: await readOrgCandidateSaves(getSupabaseAdmin(), payload.workspaceId, payload.items),
+      items: withRecommendationRank(await readOrgCandidateSaves(getSupabaseAdmin(), payload.workspaceId, payload.items)),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return toErrorResponse(error);

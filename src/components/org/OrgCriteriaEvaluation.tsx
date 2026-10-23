@@ -1,7 +1,9 @@
 import Image from "next/image";
+import { LoaderCircle } from "lucide-react";
 import { BareButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { CHANGED_CRITERION_NOTE } from "@/lib/companyFirstSearch/presentation";
 import {
   companyCriterionFitnessLabel,
   companyCriterionScoreLabel,
@@ -23,9 +25,26 @@ export function OrgCriteriaEvaluation({
   );
   const scoreLabel = companyCriterionScoreLabel(evaluation.score);
   const label = [evaluation.name, fitnessLabel, scoreLabel].filter(Boolean).join(" · ");
-  const evidence = scoreLabel
-    ? `${fitnessLabel} · ${scoreLabel}\n\n${evaluation.content}\n\n${companyCriterionScoreExplanation(locale)}`
+  const content = evaluation.content === CHANGED_CRITERION_NOTE && locale !== "ko"
+    ? "The criterion changed and has not been checked again yet."
     : evaluation.content;
+  const evidence = scoreLabel
+    ? `${fitnessLabel} · ${scoreLabel}\n\n${content}\n\n${companyCriterionScoreExplanation(locale)}`
+    : content;
+
+  if (evaluation.pending) {
+    return (
+      <span className="inline-flex min-w-0 max-w-full items-center gap-2" role="status">
+        <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin text-neutral-soft" />
+        <span className="line-clamp-2 min-w-0 text-[12px] font-medium leading-4 text-neutral-primary">
+          {evaluation.name}
+        </span>
+        <span className="shrink-0 text-[12px] leading-4 text-neutral-soft">
+          {locale === "ko" ? "다시 보는 중" : "Reviewing again"}
+        </span>
+      </span>
+    );
+  }
 
   return (
     <Tooltips text={evidence}>

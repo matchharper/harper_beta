@@ -139,3 +139,9 @@ test("ordinary role fields share one authoring contract rather than separate scr
     /Real-person calibration belongs in calibrate_role_hiring_brief/
   );
 });
+
+test("reference people are not answered in the role creation chat: no answer tool and no waiting list in its context", () => {
+  const chatSource = readFileSync(new URL("./roleCreationChat.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /answer_reference_person/);
+  assert.doesNotMatch(chatSource, /answer_reference_person|openReferences/);
+});

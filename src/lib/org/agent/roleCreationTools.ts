@@ -23,7 +23,9 @@ import {
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { OrgHttpError, updateOrgRoleRequestOnly } from "@/lib/org/server";
-import { parseOrgRoleCriteria } from "@/lib/org/roleCriteria";
+import { parseOrgRoleCriteria, normalizeOrgRoleCriteria, type OrgRoleCriterion } from "@/lib/org/roleCriteria";
+import { after } from "next/server";
+import { answerRoleStartQuestion, startRoleStartDraft } from "@/lib/org/roleStart/service";
 import {
   ORG_ROLE_EMPLOYMENT_TYPE_VALUES,
   ORG_ROLE_WORK_MODE_VALUES,
@@ -38,6 +40,8 @@ import type { ChatAttachmentPayload } from "@/types/chat";
 import { applyRoleTextEdits } from "./roleTextEdits";
 
 export const ROLE_CREATION_TOOL_NAMES = [
+  "answer_role_start_question",
+  "ask_role_start_question",
   "open_url",
   "web_search",
   "research_role_description_sources",
@@ -53,6 +57,46 @@ export const ROLE_CREATION_TOOL_NAMES = [
 export type RoleCreationToolName = (typeof ROLE_CREATION_TOOL_NAMES)[number];
 
 export const ROLE_CREATION_TOOLS = [
+  {
+    type: "function" as const,
+    function: {
+      name: "answer_role_start_question",
+      description:
+        "Apply the team's own words as the answer to the open role start question card (ROLE_START_QUESTIONS.openQuestion). Use only when the latest message answers that question; set skip when they decline it. The product updates the Brief and shows the next card.",
+      parameters: {
+        type: "object",
+        properties: {
+          answer: { type: "string", description: "The team's answer in their own words." },
+          skip: { type: "boolean" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "ask_role_start_question",
+      description:
+        "Ask the hiring team one question as a card with answer chips; the team can also answer in their own words. Use this for every question to the team once the Role's description is saved (preferences, trade-offs, reference profiles, compensation, work arrangement). The card joins the role start questions: it shows now if none is open, otherwise next. Do not also write the question in your reply.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "One short Korean question." },
+          why: { type: "string", description: "One short Korean sentence on what the answer changes." },
+          chips: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 4,
+            maxItems: 5,
+            description: "4-5 short Korean answers the team can pick, each a different meaning, including a 'not decided' or 'none' style answer when that is a real option.",
+          },
+        },
+        required: ["question", "chips"],
+        additionalProperties: false,
+      },
+    },
+  },
   OPEN_URL_TOOL_DEFINITION,
   WEB_SEARCH_TOOL_DEFINITION,
   {
@@ -246,7 +290,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "request_role_creation_confirmation",
       description:
-        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member through any useful professional source and explain why that person is a strong reference. LinkedIn is one possible source, not a requirement. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this after reviewing that result in the same user turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
+        "Use only when the saved role is ready for final review and the user has had at least two distinct opportunities to explain team-specific candidate preferences beyond the JD and technical must-haves, including at least one explicit invitation to share a concrete strong-match person or representative ideal current team member through any useful professional source and explain why that person is a strong reference (on a role start Role, pointing them to the web '참고 인물' box counts as that invitation). LinkedIn is one possible source, not a requirement. When set_role_notification just saved the single available Slack channel and active current author as transparent final defaults, call this after reviewing that result in the same user turn; do not insert a separate yes/no question about those unambiguous defaults. The server checks the current state and attaches Create role / Keep editing choices; this tool itself does not activate the role.",
       parameters: {
         type: "object",
         properties: {},
@@ -267,6 +311,34 @@ export function buildRoleDescriptionSourceQuery(args: {
   return `${text(args.companyName)} ${text(args.roleTitle)} 채용 career`
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** The chat writes name/description only; keep strength, signals and change history by name. */
+function carryStructuredCriterionFields(
+  next: OrgRoleCriterion[],
+  previous: unknown
+): OrgRoleCriterion[] {
+  const before = normalizeOrgRoleCriteria(previous);
+  return next.map((criterion) => {
+    const match = before.find((item) => item.name === criterion.name);
+    if (!match) return criterion;
+    const { criteria: _criteria, name: _name, ...structured } = match;
+    return { ...structured, ...criterion };
+  });
+}
+
+function scheduleRoleStartDraft(args: { roleId: string; user: User; workspaceId: string }) {
+  // Starts now, beside the rest of the chat turn; after() only keeps it alive
+  // once the response ends (scheduling the start itself there waited for the
+  // whole reply).
+  const task = startRoleStartDraft(args).catch((error) =>
+    console.warn("[org/agent:role-start-draft]", formatToolError(error))
+  );
+  try {
+    after(() => task);
+  } catch {
+    // Outside a request the promise simply runs on.
+  }
 }
 
 function optionalText(value: unknown) {
@@ -360,6 +432,49 @@ export async function executeRoleCreationTool(args: {
   userMessage: string;
   workspaceId: string;
 }) {
+  if (args.name === "ask_role_start_question") {
+    assertOnlyKeys(args.input, ["question", "why", "chips"], args.name);
+    const { askRoleStartQuestionFromChat } = await import("@/lib/org/roleStart/service");
+    const chips = Array.isArray(args.input.chips) ? args.input.chips.map((item) => text(item)).filter(Boolean) : [];
+    const result = await askRoleStartQuestionFromChat({
+      roleId: args.roleId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+      question: text(args.input.question),
+      why: optionalText(args.input.why) ?? null,
+      chips,
+    });
+    return {
+      result: result.posted
+        ? { ok: true, card: result.shownNow ? "shown_now" : "asked_next" }
+        : { ok: false, reason: result.reason },
+    };
+  }
+  if (args.name === "answer_role_start_question") {
+    assertOnlyKeys(args.input, ["answer", "skip"], args.name);
+    const { loadRoleStartSession } = await import("@/lib/org/roleStart/session");
+    const session = await loadRoleStartSession(args.roleId, { forView: true });
+    const question = session?.pendingQuestion;
+    if (!question) {
+      return { result: { ok: false, error: "no_open_question" } };
+    }
+    const answer = text(args.input.answer);
+    const skip = args.input.skip === true;
+    if (!skip && !answer) throw new OrgHttpError(400, "answer or skip is required");
+    await answerRoleStartQuestion({
+      fromChat: true,
+      questionId: question.id,
+      roleId: args.roleId,
+      skip,
+      text: skip ? null : answer,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    return {
+      result: { ok: true, applied: skip ? "skipped" : "answered", nextCardFollows: true },
+      updateSummary: skip ? "질문을 건너뛰었어요." : "답을 반영하고 있어요.",
+    };
+  }
   if (args.name === "web_search") {
     return {
       result: await executeSharedWebSearch(args.input, {
@@ -459,6 +574,13 @@ export async function executeRoleCreationTool(args: {
   }
   if (args.name === "calibrate_role_hiring_brief") {
     assertOnlyKeys(args.input, [], args.name);
+    {
+      // A Role with a role start Brief takes reference people only from the web
+      // 참고 인물 box: nothing is recorded here (a chat-written Role calibrates as before).
+      const { referenceBoxOnlyTurn } = await import("@/lib/org/roleStart/referenceTurn");
+      const turn = await referenceBoxOnlyTurn(args.roleId);
+      if (turn) return { result: turn, updateSummary: "" };
+    }
     const state = await fetchRoleCreationState(args);
     const otherRoles = await fetchOtherRoleCriteria(args);
     const calibration = await generateRoleHiringBriefCalibration({
@@ -500,13 +622,34 @@ export async function executeRoleCreationTool(args: {
         updateSummary: calibration.summary,
       };
     }
-    await updateOrgRoleRequestOnly({
-      expectedRequest: state.role.request,
-      request: calibration.hiringBrief,
+    // A Role with a role start Brief takes the calibration into that Brief, so
+    // the saved text and the criteria list change together and survive confirming.
+    const { applyCalibrationToRoleStart } = await import("@/lib/org/roleStart/service");
+    const routed = await applyCalibrationToRoleStart({
       roleId: args.roleId,
       user: args.user,
       workspaceId: args.workspaceId,
+      hiringBrief: calibration.hiringBrief,
     });
+    if (routed === "drafting") {
+      return {
+        result: {
+          roleName: state.role.name,
+          status: "needs_more_information",
+          userReply: "Brief를 아직 쓰고 있어요. 1분쯤 뒤에 다시 말씀해 주시면 참고 인물을 반영할게요.",
+        },
+        updateSummary: "",
+      };
+    }
+    if (!routed) {
+      await updateOrgRoleRequestOnly({
+        expectedRequest: state.role.request,
+        request: calibration.hiringBrief,
+        roleId: args.roleId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+    }
     return {
       result: {
         failedReferenceUrls: calibration.failedReferenceUrls,
@@ -542,6 +685,16 @@ export async function executeRoleCreationTool(args: {
       try { args = { ...args, input: applyRoleTextEdits(current.role, args.input) }; }
       catch (error) { throw new OrgHttpError(400, error instanceof Error ? error.message : "Invalid text edits"); }
     }
+    {
+      // Facts the quick JD read saved in this same first turn stay as shown.
+      const { withoutPrefilledFacts } = await import("@/lib/org/roleStart/rolePrefill");
+      const current = (await fetchRoleCreationState(args)).role;
+      const input = withoutPrefilledFacts(args.roleId, args.input, current);
+      if (Object.keys(input).length === 0) {
+        return { result: { roleName: current.name, status: "updated" }, updateSummary: "" };
+      }
+      args = { ...args, input };
+    }
     const rawWorkMode = optionalText(args.input.workMode);
     const workMode =
       rawWorkMode === null || rawWorkMode === undefined
@@ -561,11 +714,51 @@ export async function executeRoleCreationTool(args: {
       if (!normalized) throw new OrgHttpError(400, "Unknown employment type");
       return normalized;
     });
+    {
+      // A registered Role with a role start Brief: its text and criteria list
+      // change only through that Brief, together (the other fields as before).
+      const { request, criteria, ...rest } = args.input;
+      const current = request !== undefined || criteria !== undefined ? (await fetchRoleCreationState(args)).role : null;
+      if (current && current.status !== "draft") {
+        const { applyChatEditToRoleStart } = await import("@/lib/org/roleStart/service");
+        const routed = await applyChatEditToRoleStart({
+          roleId: args.roleId,
+          user: args.user,
+          workspaceId: args.workspaceId,
+          previousRequest: current.request ?? null,
+          ...(request !== undefined ? { request: optionalText(request) ?? null } : {}),
+          ...(criteria !== undefined ? { criteria: roleCriteria(criteria) } : {}),
+        });
+        if (routed && !Object.keys(rest).length) {
+          const state = await fetchRoleCreationState(args);
+          return {
+            result: {
+              savedFields: Object.fromEntries(Object.keys(args.input).map((key) => [key, state.role[key as keyof typeof state.role]])),
+              registeredRole: true,
+              notificationSettings: summarizeRoleCreationNotificationSettings(state),
+              ok: true,
+            },
+            updateSummary: "역할 정보를 저장했어요.",
+          };
+        }
+        if (routed) args = { ...args, input: rest };
+      }
+    }
+    const hasCriteria = Object.prototype.hasOwnProperty.call(args.input, "criteria");
+    const previousState =
+      hasCriteria || Object.prototype.hasOwnProperty.call(args.input, "description")
+        ? await fetchRoleCreationState(args)
+        : null;
     const state = await updateRoleCreationDraft({
       actorLabel: args.actorLabel,
       allowCompletedRole: args.allowCompletedRole,
-      ...(Object.prototype.hasOwnProperty.call(args.input, "criteria")
-        ? { criteria: roleCriteria(args.input.criteria) }
+      ...(hasCriteria
+        ? {
+            criteria: carryStructuredCriterionFields(
+              roleCriteria(args.input.criteria),
+              previousState?.role.criteria
+            ),
+          }
         : {}),
       ...(Object.prototype.hasOwnProperty.call(args.input, "description")
         ? { description: optionalText(args.input.description) ?? null }
@@ -598,7 +791,27 @@ export async function executeRoleCreationTool(args: {
         : {}),
       workspaceId: args.workspaceId,
     });
+    const { briefStartedFromJd } = await import("@/lib/org/roleStart/rolePrefill");
+    if (hasCriteria && !briefStartedFromJd(args.roleId)) {
+      // While the start flow is open, its Brief is the one source of criteria
+      // (in the first turn of a JD-started Role the Brief is written from the same JD).
+      const { applyChatCriteriaToRoleStart } = await import("@/lib/org/roleStart/service");
+      await applyChatCriteriaToRoleStart({
+        roleId: args.roleId,
+        userId: args.user.id,
+        criteria: roleCriteria(args.input.criteria),
+      }).catch((error) => console.warn("[org/agent:role-start-criteria]", formatToolError(error)));
+    }
     const editingRegisteredRole = state.role.status !== "draft";
+    if (
+      !editingRegisteredRole &&
+      !String(previousState?.role.description ?? "").trim() &&
+      String(state.role.description ?? "").trim()
+    ) {
+      // The JD-reading turn also prepares the role start rubric and first
+      // questions; it runs beside the chat so the reply is not delayed.
+      scheduleRoleStartDraft({ roleId: args.roleId, user: args.user, workspaceId: args.workspaceId });
+    }
     return {
       result: {
         // Read-back is authoritative; a success flag alone loses the exact

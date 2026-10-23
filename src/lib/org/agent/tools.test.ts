@@ -433,6 +433,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   const calibrationParameters = calibration?.function.parameters as any;
   assert.ok(calibration);
   assert.deepEqual(calibrationParameters.required, ["roleId"]);
+  // Only the Role: on a role start Role reference people come through the web box, never a referenceId here.
   assert.deepEqual(Object.keys(calibrationParameters.properties), ["roleId"]);
   assert.match(
     calibration?.function.description ?? "",

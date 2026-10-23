@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { BillingActionNotice } from "@/components/org/billing/BillingActionNotice";
@@ -330,6 +331,7 @@ export function OrgAgentMessageBubble({
   message,
   onCompanyInfoClick,
   onRoleCreationChoice,
+  onRoleStartChoice,
   readOnly = false,
   roleId,
   showUserAttribution = false,
@@ -348,6 +350,7 @@ export function OrgAgentMessageBubble({
     decision: "no" | "yes";
     messageId: number;
   }) => void;
+  onRoleStartChoice?: (args: { questionId: string; chipId: string | null }) => void;
   readOnly?: boolean;
   roleId?: string | null;
   showUserAttribution?: boolean;
@@ -385,6 +388,8 @@ export function OrgAgentMessageBubble({
       action.kind !== "entity_updated" && action.kind !== "request_updated"
   );
   const roleChoices = message.metadata.roleCreation?.choices ?? [];
+  const startQuestion = message.metadata.roleStartQuestion;
+  const briefReady = message.metadata.roleStartBriefReady;
   const attachments = message.metadata.attachments ?? [];
 
   return (
@@ -519,6 +524,35 @@ export function OrgAgentMessageBubble({
               }}
               typographyClassName="text-[13px] leading-[1.55]"
             />
+          ) : null}
+          {startQuestion ? (
+            <ChatChoiceList
+              choices={[
+                ...startQuestion.chips.map((chip) => ({ label: chip.label, value: chip.id })),
+                { label: c("건너뛰기", "Skip"), value: "__skip" },
+              ]}
+              disabled={readOnly || choicePending || startQuestion.status !== "pending" || !onRoleStartChoice}
+              hint={
+                startQuestion.status === "pending"
+                  ? c("고르거나 아래에 직접 답해 주세요.", "Pick one or answer below in your own words.")
+                  : undefined
+              }
+              keyPrefix={`role-start-${message.id}`}
+              onSelect={(choice) =>
+                onRoleStartChoice?.({
+                  questionId: startQuestion.questionId,
+                  chipId: choice.value === "__skip" ? null : choice.value,
+                })
+              }
+              typographyClassName="text-[13px] leading-[1.55]"
+            />
+          ) : null}
+          {briefReady ? (
+            <div className="mt-3">
+              <MuteButton asChild variant="dark">
+                <Link href={briefReady.href}>{c("Brief 확인하기", "Review the Brief")}</Link>
+              </MuteButton>
+            </div>
           ) : null}
           {followUpActions.map((action) => (
             <MessageActionView

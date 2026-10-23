@@ -1,5 +1,6 @@
 import { billingErrorResponse } from "@/lib/org/billing/http";
 import { NextRequest, NextResponse } from "next/server";
+import { isRegisteredRoleStartRole } from "@/lib/org/roleStart/session";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { OrgHttpError, updateOrgRole } from "@/lib/org/server";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
@@ -54,6 +55,15 @@ export async function PATCH(req: NextRequest) {
       workMode?: string | null;
       workspaceId?: string;
     };
+    // A Role started from role start changes its Brief text and criteria only
+    // through its Brief (/api/org/role-start update_rubric), so the two stay one.
+    if (
+      (body.request !== undefined || body.criteria !== undefined) &&
+      body.roleId &&
+      (await isRegisteredRoleStartRole(body.roleId, body.workspaceId ?? ""))
+    ) {
+      throw new OrgHttpError(409, "이 역할의 기준은 매칭 기준 탭의 Brief에서 고쳐 주세요.");
+    }
     const payload = await updateOrgRole({
       criteria: body.criteria,
       description: body.description,

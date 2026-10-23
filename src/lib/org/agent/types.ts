@@ -250,6 +250,17 @@ export type OrgAgentMessageMetadata = {
     confirmationPrompt?: string;
     roleId: string;
   };
+  /** A role start question card in the role chat; answered through the shared question state. */
+  roleStartQuestion?: {
+    questionId: string;
+    chips: Array<{ id: string; label: string }>;
+    status: "pending" | "answered" | "skipped" | "closed";
+    answeredChipId?: string | null;
+  };
+  /** Link card shown when the role start questions are finished. */
+  roleStartBriefReady?: { href: string };
+  /** Registration finished from the start flow: how many went to the inbox. */
+  roleStartRegistered?: { kept: number; picked: number };
   roleCreationConfirmation?: {
     actionId: string;
     decision: "no" | "yes";
