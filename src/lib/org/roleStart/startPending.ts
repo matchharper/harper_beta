@@ -59,34 +59,22 @@ export function sessionStorageOrNull() {
 /**
  * The first message on the new-role page passed the JD test: until the Role's
  * page takes over (the chat turn creates the Role, then the page moves), the
- * new-role page shows the same loading line instead of the chat. Per workspace,
- * same 30 s cap; cleared when the turn ends, fails or the message was not a JD.
+ * new-role page shows the same loading line instead of the chat. Kept in this
+ * page's memory (a reload ends it), per workspace, same 30 s cap; cleared when
+ * the turn ends, fails, the message was not a JD, or the Role's page is up.
  */
-const newRoleKey = (workspaceId: string) => `harper:role-start-pending:new:${workspaceId}`;
+const newRolePending = new Map<string, number>();
 
-export function markNewRolePending(storage: Pick<Storage, "setItem"> | null, workspaceId: string, now = Date.now()) {
-  try {
-    storage?.setItem(newRoleKey(workspaceId), String(now));
-    changed();
-  } catch {
-    // Storage blocked: the chat shows as before.
-  }
+export function markNewRolePending(workspaceId: string, now = Date.now()) {
+  newRolePending.set(workspaceId, now);
+  changed();
 }
 
-export function clearNewRolePending(storage: Pick<Storage, "removeItem"> | null, workspaceId: string) {
-  try {
-    storage?.removeItem(newRoleKey(workspaceId));
-    changed();
-  } catch {
-    // Storage blocked: nothing was marked.
-  }
+export function clearNewRolePending(workspaceId: string) {
+  if (newRolePending.delete(workspaceId)) changed();
 }
 
-export function newRolePendingUntil(storage: Pick<Storage, "getItem"> | null, workspaceId: string) {
-  try {
-    const at = Number(storage?.getItem(newRoleKey(workspaceId)));
-    return at > 0 ? at + START_PENDING_MS : null;
-  } catch {
-    return null;
-  }
+export function newRolePendingUntil(workspaceId: string) {
+  const at = newRolePending.get(workspaceId);
+  return at ? at + START_PENDING_MS : null;
 }

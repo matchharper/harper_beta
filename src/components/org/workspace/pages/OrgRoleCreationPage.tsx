@@ -61,7 +61,7 @@ import {
   type OrgRoleTab,
 } from "@/lib/org/routes";
 import { queryKeys } from "@/lib/queryKeys";
-import { newRolePendingUntil, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
+import { clearNewRolePending, newRolePendingUntil, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
 import type { OrgRole } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -754,12 +754,18 @@ export function OrgRoleCreationPage() {
       const until = roleId
         ? startPendingUntil(sessionStorageOrNull(), roleId)
         : isNewRolePage
-          ? newRolePendingUntil(sessionStorageOrNull(), workspace.workspaceId)
+          ? newRolePendingUntil(workspace.workspaceId)
           : null;
       return until !== null && until > Date.now() ? until : null;
     },
     () => null
   );
+  // The Role's own page is up: the new-role page no longer waits for it (a
+  // second new role started meanwhile gets a fresh composer).
+  const roleStartMarked = roleId ? startPendingUntil(sessionStorageOrNull(), roleId) !== null : false;
+  useEffect(() => {
+    if (roleStartMarked) clearNewRolePending(workspace.workspaceId);
+  }, [roleStartMarked, workspace.workspaceId]);
   // Renders again when the 30 s are up, so the line gives way to the chat.
   const [, setStartPendingTick] = useState(0);
   useEffect(() => {

@@ -33,18 +33,10 @@ test("the server's answer that the message was not a JD ends the loading line fo
 });
 
 test("the new-role page waits per workspace, for 30 s at most, until cleared", () => {
-  const values = new Map<string, string>();
-  const storage = {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => void values.set(key, value),
-    removeItem: (key: string) => void values.delete(key),
-  };
-  assert.equal(newRolePendingUntil(storage, "w1"), null);
-  markNewRolePending(storage, "w1", 1_000);
-  assert.equal(newRolePendingUntil(storage, "w1"), 1_000 + START_PENDING_MS);
-  assert.equal(newRolePendingUntil(storage, "w2"), null, "another workspace is not waiting");
-  assert.equal(startPendingUntil(storage, "w1"), null, "a Role's own key is separate");
-  clearNewRolePending(storage, "w1");
-  assert.equal(newRolePendingUntil(storage, "w1"), null);
-  assert.doesNotThrow(() => markNewRolePending(null, "w1"));
+  assert.equal(newRolePendingUntil("w1"), null);
+  markNewRolePending("w1", 1_000);
+  assert.equal(newRolePendingUntil("w1"), 1_000 + START_PENDING_MS);
+  assert.equal(newRolePendingUntil("w2"), null, "another workspace is not waiting");
+  clearNewRolePending("w1");
+  assert.equal(newRolePendingUntil("w1"), null);
 });

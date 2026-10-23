@@ -432,7 +432,7 @@ export function useOrgAgentChat(args: {
         mode === "role_creation" &&
         !activeRoleId &&
         mayStartFromJd(input.message, input.attachments?.length ?? 0);
-      if (newRoleFromJd) markNewRolePending(sessionStorageOrNull(), workspaceId);
+      if (newRoleFromJd) markNewRolePending(workspaceId);
 
       let accessToken = await getInternalAccessToken();
       if (!accessToken) {
@@ -448,7 +448,7 @@ export function useOrgAgentChat(args: {
           isStreaming: false,
           optimisticUserMessage: null,
         });
-        if (newRoleFromJd) clearNewRolePending(sessionStorageOrNull(), workspaceId);
+        if (newRoleFromJd) clearNewRolePending(workspaceId);
         return;
       }
 
@@ -600,7 +600,7 @@ export function useOrgAgentChat(args: {
               const roleId = String(data.roleId ?? "").trim();
               if (roleId && data.fromJd !== true) {
                 clearStartPending(sessionStorageOrNull(), roleId);
-                if (newRoleFromJd) clearNewRolePending(sessionStorageOrNull(), workspaceId);
+                if (newRoleFromJd) clearNewRolePending(workspaceId);
               }
             } else if (parsed.event === "text_delta") {
               const delta = String(
@@ -730,7 +730,7 @@ export function useOrgAgentChat(args: {
           ]);
         }
         // By now the Role's page has taken over, or no Role came: the new-role page shows the chat again.
-        if (newRoleFromJd) clearNewRolePending(sessionStorageOrNull(), workspaceId);
+        if (newRoleFromJd) clearNewRolePending(workspaceId);
         finishStream();
       }
     },
