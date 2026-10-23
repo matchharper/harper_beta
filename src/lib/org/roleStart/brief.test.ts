@@ -156,3 +156,26 @@ test("withLatestBackground keeps the edit and takes background grade signals and
   assert.equal(saved.criteria[1]!.signals, undefined, "an edited criterion does not take the old text's signals");
   assert.deepEqual(saved.references, [{ id: "rf1" }]);
 });
+
+test("the summary follows the conditions and criteria it recaps, and a team-written summary stays theirs", async () => {
+  process.env.OPENAI_API_KEY ||= "test-only-not-used";
+  const { mergeVisibleBriefEdit } = await import("./service");
+  const { roleStartBriefView } = await import("./view");
+  const { needsSummary, summaryKey, verdictBriefHash } = await import("./brief");
+  const stored = normalizeRoleStartBrief({
+    summary: "결제 백엔드를 맡아요. 백엔드 3년 이상이 필요해요.",
+    hardConditions: [],
+    criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", requirement: "required" }],
+  });
+  stored.summaryOf = summaryKey(stored);
+  assert.equal(needsSummary(stored), false);
+  // A criterion changed on the screen: the summary is now out of date (rewritten in the background).
+  const changed = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), criteria: [{ ...roleStartBriefView(stored).criteria[0], criteria: "백엔드 개발 5년 이상" }] }, "test");
+  assert.equal(needsSummary(changed), true);
+  // The team wrote the summary themselves: kept, and counted as up to date.
+  const own = mergeVisibleBriefEdit(stored, { ...roleStartBriefView(stored), summary: "우리 팀이 직접 쓴 요약" }, "test");
+  assert.equal(own.summary, "우리 팀이 직접 쓴 요약");
+  assert.equal(needsSummary(own), false);
+  // A prepared verdict does not depend on the summary.
+  assert.equal(verdictBriefHash({ ...stored, summary: "다른 요약" }), verdictBriefHash(stored));
+});

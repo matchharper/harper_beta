@@ -10,6 +10,7 @@ import {
   normalizeRoleStartBrief,
   ROLE_START_MAX_CRITERIA,
   shortId,
+  summaryKey,
   type RoleStartBrief,
   type RoleStartCriterion,
   type RoleStartProbe,
@@ -158,6 +159,8 @@ export function briefFromRaw(raw: RawBrief, previous?: RoleStartBrief, reason?: 
     const before = previous?.hardConditions.find((item) => item.label === condition.label);
     return before ? { ...condition, id: before.id } : condition;
   });
+  // The model wrote the summary for exactly these conditions and criteria.
+  brief.summaryOf = summaryKey(brief);
   return brief;
 }
 

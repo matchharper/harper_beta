@@ -38,7 +38,9 @@ import {
   keepRequired,
   keepTeamLevels,
   needsSignals,
+  needsSummary,
   signalsKey,
+  summaryKey,
   levelOf,
   reapplySettled,
   shortId,
@@ -73,11 +75,13 @@ import {
   buildDraftSystemPrompt,
   buildNextQuestionsOnlySystemPrompt,
   buildSignalsSystemPrompt,
+  buildSummarySystemPrompt,
   buildNextQuestionsSystemPrompt,
   DRAFT_SCHEMA,
   NEXT_QUESTIONS_ONLY_SCHEMA,
   NEXT_QUESTIONS_SCHEMA,
   SIGNALS_SCHEMA,
+  SUMMARY_SCHEMA,
 } from "./prompts";
 import {
   applyChipEffect,
@@ -657,10 +661,57 @@ async function writeSignals(roleId: string, options: { wait?: boolean; deadline:
   return true;
 }
 
-// Every Brief version saved by any path: fresh signals in the background when a criterion's text changed.
+// Every Brief version saved by any path: fresh signals in the background when a criterion's text changed,
+// and a fresh summary when the conditions or criteria it recaps changed.
 onBriefSaved((roleId, brief) => {
   if (brief.criteria.some(needsSignals)) runAfterResponse(() => refreshRoleStartSignals(roleId));
+  if (needsSummary(brief)) runAfterResponse(() => refreshRoleStartSummary(roleId).catch((error) => console.warn("[role-start] summary", error)));
 });
+
+/**
+ * The summary recaps the conditions and criteria: when they change by any
+ * path (and the team did not write the summary themselves), one small call
+ * rewrites only the summary, in the background, like the grade signals.
+ */
+export async function refreshRoleStartSummary(roleId: string) {
+  const session = await loadRoleStartSession(roleId);
+  if (!session || session.phase === "drafting" || isRoleStartEnded(session.phase) || !needsSummary(session.brief)) return;
+  const token = await claimRoleStartLease(roleId, "summary", 60_000);
+  if (!token) return;
+  try {
+    const key = summaryKey(session.brief);
+    const { data, usage } = await callRoleStartJson<{ summary: string }>({
+      label: "brief_summary",
+      model: ROLE_START_FAST_MODEL,
+      reasoningEffort: "low",
+      schema: SUMMARY_SCHEMA,
+      system: buildSummarySystemPrompt(),
+      user: `<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(session.brief), null, 2)}\n</CURRENT_BRIEF>`,
+    });
+    await persistUsage(roleId, [usage]);
+    const summary = String(data.summary ?? "").trim().slice(0, 4_000);
+    if (!summary) return;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const latest = await loadRoleStartSession(roleId);
+      // Only for the conditions and criteria it was written for, and over a summary nobody edited meanwhile.
+      if (!latest || isRoleStartEnded(latest.phase) || summaryKey(latest.brief) !== key || latest.brief.summary !== session.brief.summary) return;
+      const brief = { ...latest.brief, summary, summaryOf: key };
+      const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
+      if (!saved) continue;
+      await saveBriefVersion({
+        roleId,
+        brief,
+        changeSource: "summary",
+        changeSummary: null,
+        userId: null,
+        writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+      });
+      return;
+    }
+  } finally {
+    await releaseRoleStartLease(roleId, "summary", token);
+  }
+}
 
 const REFINE_LEASE_MS = 120_000;
 const REFINE_WAIT_MS = 150_000;
@@ -1503,6 +1554,11 @@ export function mergeVisibleBriefEdit(stored: RoleStartBrief, sent: unknown, rea
   // Reference people are kept as stored; an edit never adds or changes them.
   if (brief.references?.length) edited.references = brief.references;
   else delete edited.references;
+  // A summary the team wrote stays theirs (it now counts as up to date);
+  // otherwise it keeps the key it was written for and follows the criteria.
+  if (edited.summary !== brief.summary) edited.summaryOf = summaryKey(edited);
+  else if (brief.summaryOf) edited.summaryOf = brief.summaryOf;
+  else delete edited.summaryOf;
   return edited;
 }
 

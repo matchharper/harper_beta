@@ -94,6 +94,8 @@ export type RoleStartBrief = {
    */
   titles?: { matching: string[]; nearMiss: string[] };
   references?: RoleStartReference[];
+  /** The conditions and criteria the summary recaps (summaryKey); a different key means it is rewritten. */
+  summaryOf?: string;
 };
 
 export type RoleStartProbe = {
@@ -273,6 +275,7 @@ export function normalizeRoleStartBrief(value: unknown): RoleStartBrief {
     keywords: textList(source.keywords, 16),
     ...titlesFrom(source),
     ...referencesFrom(source),
+    ...(text(source.summaryOf, 80) ? { summaryOf: text(source.summaryOf, 80) } : {}),
   };
 }
 
@@ -405,10 +408,25 @@ export function needsSignals(criterion: RoleStartCriterion) {
   return !criterion.signals?.excellent || !criterion.signalsOf || criterion.signalsOf !== signalsKey(criterion);
 }
 
-/** Everything a verdict reads from the Brief; a changed hash makes a prepared verdict stale. */
+/** What the summary recaps: the conditions and each criterion's text and level. */
+export function summaryKey(brief: Pick<RoleStartBrief, "hardConditions" | "criteria">) {
+  return stableHash({
+    hard: brief.hardConditions.map((condition) => condition.label),
+    criteria: brief.criteria.map((criterion) => [criterion.name, criterion.criteria, levelOf(criterion)]),
+  });
+}
+
+/** A summary written for other conditions or criteria than the Brief has now. */
+export function needsSummary(brief: RoleStartBrief) {
+  return Boolean(brief.summary) && brief.criteria.length > 0 && brief.summaryOf !== summaryKey(brief);
+}
+
+/**
+ * Everything a verdict reads from the Brief; a changed hash makes a prepared
+ * verdict stale. The summary only recaps the rest, so it is not part of it.
+ */
 export function verdictBriefHash(brief: RoleStartBrief) {
   return stableHash({
-    summary: brief.summary,
     hard: brief.hardConditions.map((condition) => condition.label),
     criteria: brief.criteria.map((criterion) => [
       criterion.id ?? criterion.name,
