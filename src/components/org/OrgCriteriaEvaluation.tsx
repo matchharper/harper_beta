@@ -1,7 +1,9 @@
 import Image from "next/image";
+import { LoaderCircle } from "lucide-react";
 import { BareButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
+import { CHANGED_CRITERION_NOTE } from "@/lib/companyFirstSearch/presentation";
 import {
   companyPresentationFinalFitLabel,
   type OrgCompanyCriteriaEvaluation,
@@ -20,8 +22,28 @@ export function OrgCriteriaEvaluation({
     locale
   );
 
+  if (evaluation.pending) {
+    return (
+      <span className="inline-flex min-w-0 max-w-full items-center gap-2" role="status">
+        <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin text-neutral-soft" />
+        <span className="line-clamp-2 min-w-0 text-[12px] font-medium leading-4 text-neutral-primary">
+          {evaluation.name}
+        </span>
+        <span className="shrink-0 text-[12px] leading-4 text-neutral-soft">
+          {locale === "ko" ? "다시 보는 중" : "Reviewing again"}
+        </span>
+      </span>
+    );
+  }
+
   return (
-    <Tooltips text={evaluation.content}>
+    <Tooltips
+      text={
+        evaluation.content === CHANGED_CRITERION_NOTE && locale !== "ko"
+          ? "The criterion changed and has not been checked again yet."
+          : evaluation.content
+      }
+    >
       <BareButton
         aria-label={`${evaluation.name} · ${fitnessLabel}`}
         className="pointer-events-auto inline-flex min-w-0 max-w-full items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"

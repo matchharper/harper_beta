@@ -5,6 +5,7 @@ import {
   ChevronsRightLeft,
   Columns3,
   Inbox,
+  LoaderCircle,
   Menu,
   MessageSquare,
   PanelRight,
@@ -13,9 +14,12 @@ import {
   Rows3,
   Scale,
   Settings,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
@@ -23,6 +27,12 @@ import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDet
 import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
+import { OrgRoleStartPanel } from "@/components/org/role-start/OrgRoleStartPanel";
+import {
+  isRoleStartOnboarding,
+  RoleStartOnboarding,
+  useRoleStartQuery,
+} from "@/components/org/role-start/RoleStartOnboarding";
 import { TalentDetailSimpleView } from "@/components/org/TalentDetailSimpleView";
 import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
 import { OrgTeamPage } from "@/components/org/workspace/pages/OrgTeamPage";
@@ -50,6 +60,8 @@ import {
   resolveOrgRoleTab,
   type OrgRoleTab,
 } from "@/lib/org/routes";
+import { queryKeys } from "@/lib/queryKeys";
+import { sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
 import type { OrgRole } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -82,6 +94,12 @@ const DETAIL_TABS = [
     value: "settings",
   },
 ] as const;
+
+const START_TAB = {
+  icon: <Sparkles className="size-3.5" strokeWidth={1.65} />,
+  label: "시작",
+  value: "start",
+} as const;
 
 const PIPELINE_TAB = {
   icon: <PanelsTopLeft className="size-3.5" strokeWidth={1.65} />,
@@ -196,6 +214,98 @@ function OrgRoleCandidatesTab({
   );
 }
 
+const registeredNoticeKey = (roleId: string) => `harper:role-start-registered:${roleId}`;
+
+function writeRegisteredNotice(roleId: string, open: boolean) {
+  try {
+    if (open) window.sessionStorage.setItem(registeredNoticeKey(roleId), "1");
+    else window.sessionStorage.removeItem(registeredNoticeKey(roleId));
+  } catch {}
+}
+
+function readRegisteredNotice(roleId: string) {
+  try {
+    return window.sessionStorage.getItem(registeredNoticeKey(roleId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Right after registration: what the extra pick found, above the inbox. */
+function RoleStartRegisteredNotice({
+  onCriteria,
+  roleId,
+  workspaceId,
+}: {
+  onCriteria: () => void;
+  roleId: string;
+  workspaceId: string;
+}) {
+  const { c } = useOrgLocale();
+  const [shown, setShown] = useState(false);
+  // Cached from the step screens; a reload has no cache and shows nothing.
+  const batch = useRoleStartQuery(roleId, workspaceId, false).data?.session?.batch;
+  const ready = batch?.status === "done" || batch?.status === "failed";
+  // Shown once per registration: this mount keeps it, the flag goes.
+  if (ready && !shown && readRegisteredNotice(roleId)) setShown(true);
+  useEffect(() => {
+    if (shown) writeRegisteredNotice(roleId, false);
+  }, [roleId, shown]);
+  if (!batch || !ready || !shown) return null;
+  const picked = batch.status === "done" ? batch.candidates[0] : undefined;
+  const close = () => setShown(false);
+  return (
+    <div
+      className="mb-4 flex items-start gap-3 rounded-md bg-bg-basement px-4 py-3 text-[13px] leading-5"
+      role="status"
+    >
+      <div className="min-w-0 flex-1">
+        {picked ? (
+          <p>
+            {picked.name
+              ? c(
+                  "하퍼가 평가를 반영해 한 분을 더 골랐어요: {p0}님. 아래 후보 목록에서 볼 수 있어요.",
+                  "Harper picked one more person from your ratings: {p0}. You can find them in the list below.",
+                  { p0: picked.name }
+                )
+              : c(
+                  "하퍼가 평가를 반영해 한 분을 더 골랐어요. 아래 후보 목록에서 볼 수 있어요.",
+                  "Harper picked one more person from your ratings. You can find them in the list below."
+                )}
+          </p>
+        ) : (
+          <>
+            <p>
+              {c(
+                "지금 기준에 맞는 새 후보를 찾지 못했어요.",
+                "We couldn't find a new candidate for the current criteria."
+              )}
+            </p>
+            <button
+              className="mt-1 text-link underline-offset-2 hover:underline"
+              onClick={() => {
+                close();
+                onCriteria();
+              }}
+              type="button"
+            >
+              {c("기준 다시 보기", "Review criteria")}
+            </button>
+          </>
+        )}
+      </div>
+      <MuteButton
+        aria-label={c("안내 닫기", "Close notice")}
+        onClick={close}
+        size="sm"
+        variant="transparent"
+      >
+        <X aria-hidden className="size-3.5" strokeWidth={1.7} />
+      </MuteButton>
+    </div>
+  );
+}
+
 function OrgRoleCreationDetails({
   chatActive = false,
   companyInfoOpen = false,
@@ -243,7 +353,9 @@ function OrgRoleCreationDetails({
     mobile || requestedView === "board" ? "board" : "pipeline";
   const detailTabs = [
     ...(expanded ? [CHAT_TAB] : []),
-    ...(roleCreation ? DETAIL_TABS : [INBOX_TAB, PIPELINE_TAB, ...DETAIL_TABS]),
+    ...(roleCreation
+      ? [START_TAB, ...DETAIL_TABS]
+      : [INBOX_TAB, PIPELINE_TAB, ...DETAIL_TABS]),
   ];
   const roleStatus = role ? getOrgRoleStatusPresentation(role.status) : null;
   const setActiveTab = (tab: RoleCreationTab) => {
@@ -434,6 +546,21 @@ function OrgRoleCreationDetails({
             </div>
           ) : null}
           <div
+            aria-label={c("시작 탭 내용", "Start tab content")}
+            aria-labelledby="role-creation-start-tab"
+            hidden={companyInfoOpen || activeTab !== "start"}
+            id="role-creation-start-panel"
+            role="tabpanel"
+          >
+            {!companyInfoOpen && activeTab === "start" && role ? (
+              <OrgRoleStartPanel
+                key={`start:${role.roleId}`}
+                roleId={role.roleId}
+                workspaceId={workspace.workspaceId}
+              />
+            ) : null}
+          </div>
+          <div
             aria-label={c("인박스 탭 내용", "Inbox tab content")}
             aria-labelledby="role-creation-inbox-tab"
             hidden={companyInfoOpen || activeTab !== "inbox"}
@@ -444,12 +571,19 @@ function OrgRoleCreationDetails({
             activeTab === "inbox" &&
             role &&
             !roleCreation ? (
-              <OrgRoleCandidatesTab
-                display="board"
-                mobile={mobile}
-                onDisplayChange={setPipelineDisplay}
-                tab="inbox"
-              />
+              <>
+                <RoleStartRegisteredNotice
+                  onCriteria={() => setActiveTab("matching")}
+                  roleId={role.roleId}
+                  workspaceId={workspace.workspaceId}
+                />
+                <OrgRoleCandidatesTab
+                  display="board"
+                  mobile={mobile}
+                  onDisplayChange={setPipelineDisplay}
+                  tab="inbox"
+                />
+              </>
             ) : null}
           </div>
           <div
@@ -581,6 +715,93 @@ export function OrgRoleCreationPage() {
     onResizeEnd: handleChatPanelResizeEnd,
   });
 
+  const roleDraft =
+    role !== null && normalizeOrgRoleStatus(role.status) === "draft";
+  const roleStartEnabled =
+    Boolean(roleId) && (role === null || roleDraft) && permissions.canManageCandidates;
+  const roleStartQuery = useRoleStartQuery(roleId, workspace.workspaceId, roleStartEnabled);
+  // A Role created a moment ago may not be in the workspace list yet; the
+  // start flow's own read says it is a draft, so its steps open right away.
+  const onboardingRole: OrgRole | null =
+    role ??
+    (roleId && roleStartQuery.data?.role.status === "draft"
+      ? ({
+          criteria: [],
+          createdAt: "",
+          description: null,
+          employmentTypes: [],
+          externalJdUrl: null,
+          locationText: null,
+          name: "",
+          request: null,
+          roleId,
+          status: "draft",
+          updatedAt: "",
+          workMode: null,
+          workspaceId: workspace.workspaceId,
+        } satisfies OrgRole)
+      : null);
+  const onboarding =
+    permissions.canManageCandidates &&
+    isRoleStartOnboarding(onboardingRole, roleStartQuery.data);
+  const queryClient = useQueryClient();
+  // A Role this tab just created from a JD shows the start loading line, not the
+  // chat, until its start session exists (at most 30 s; then the chat as before).
+  // Read while rendering, so the chat does not show for a moment first.
+  const startPendingAt = useSyncExternalStore(
+    subscribeStartPending,
+    () => {
+      const until = roleId ? startPendingUntil(sessionStorageOrNull(), roleId) : null;
+      return until !== null && until > Date.now() ? until : null;
+    },
+    () => null
+  );
+  // Renders again when the 30 s are up, so the line gives way to the chat.
+  const [, setStartPendingTick] = useState(0);
+  useEffect(() => {
+    if (startPendingAt === null) return;
+    const timer = window.setTimeout(() => setStartPendingTick((tick) => tick + 1), startPendingAt - Date.now());
+    return () => window.clearTimeout(timer);
+  }, [startPendingAt]);
+  const waitingForStart =
+    startPendingAt !== null &&
+    roleStartEnabled &&
+    !onboarding &&
+    !roleStartQuery.data?.session;
+  const roleMissing = Boolean(roleId) && role === null;
+  // Only while the start flow still finds the Role: a deleted one errors there.
+  // Members who cannot run the start flow keep the plain re-read.
+  const roleStillLoading =
+    roleMissing && (!permissions.canManageCandidates || (Boolean(roleStartQuery.data) && !roleStartQuery.isError));
+  useEffect(() => {
+    if (!roleStillLoading) return;
+    // Read the workspace's Roles again until the new one is listed; one still missing
+    // after about 30 seconds (deleted, or not visible to this member) is not asked for again.
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      if (tries > 10) window.clearInterval(timer);
+      else void queryClient.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll });
+    }, 3_000);
+    return () => window.clearInterval(timer);
+  }, [queryClient, roleStillLoading]);
+  const wasOnboarding = useRef(false);
+  const registered = roleStartQuery.data?.session?.phase === "done";
+  useEffect(() => {
+    // Registration just finished on the step screens: refresh the Role (now
+    // active) and open its inbox, where the recommended people are.
+    if (wasOnboarding.current && !onboarding && registered) {
+      writeRegisteredNotice(roleId, true);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll });
+      void router.replace(
+        { pathname: router.pathname, query: { ...router.query, tab: "inbox" } },
+        undefined,
+        { shallow: true }
+      );
+    }
+    wasOnboarding.current = onboarding;
+  }, [onboarding, queryClient, registered, roleId, router]);
+
   useEffect(() => {
     setNavigationTriggerHidden(mobileDetailsOpen);
     return () => setNavigationTriggerHidden(false);
@@ -594,6 +815,27 @@ export function OrgRoleCreationPage() {
           "You don't have permission to create roles."
         )}
       </div>
+    );
+  }
+
+  if (waitingForStart) {
+    return (
+      <div className="flex h-full items-center justify-center gap-2 text-[14px] text-neutral-muted">
+        <LoaderCircle aria-hidden className="size-4 animate-spin" />
+        {c("JD를 읽고 있어요", "Reading the JD")}
+      </div>
+    );
+  }
+
+  if (onboarding && onboardingRole) {
+    // Until registration the start flow owns the whole screen; the chat and
+    // the role tabs come back once the Role is registered.
+    return (
+      <RoleStartOnboarding
+        key={`onboarding:${onboardingRole.roleId}`}
+        role={onboardingRole}
+        workspaceId={workspace.workspaceId}
+      />
     );
   }
 
@@ -792,4 +1034,9 @@ export function OrgRoleCreationPage() {
       ) : null}
     </div>
   );
+}
+
+function subscribeStartPending(onChange: () => void) {
+  window.addEventListener(START_PENDING_EVENT, onChange);
+  return () => window.removeEventListener(START_PENDING_EVENT, onChange);
 }

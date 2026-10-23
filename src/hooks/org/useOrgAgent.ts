@@ -28,6 +28,12 @@ import type {
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
 import { upsertOrgAgentThinkingLog } from "@/lib/org/agent/thinkingLogs";
+import {
+  clearStartPending,
+  markStartPending,
+  mayStartFromJd,
+  sessionStorageOrNull,
+} from "@/lib/org/roleStart/startPending";
 import type { ChatAttachmentPayload } from "@/types/chat";
 import { queryKeys } from "@/lib/queryKeys";
 import {
@@ -574,8 +580,15 @@ export function useOrgAgentChat(args: {
                   .getState()
                   .move(streamLiveChatKey, nextLiveChatKey);
                 streamLiveChatKey = nextLiveChatKey;
+                if (mayStartFromJd(input.message, input.attachments?.length ?? 0)) {
+                  markStartPending(sessionStorageOrNull(), roleId);
+                }
                 onRoleCreated?.(roleId);
               }
+            } else if (parsed.event === "role_start") {
+              const data = parsed.data as { roleId?: unknown; fromJd?: unknown };
+              const roleId = String(data.roleId ?? "").trim();
+              if (roleId && data.fromJd !== true) clearStartPending(sessionStorageOrNull(), roleId);
             } else if (parsed.event === "text_delta") {
               const delta = String(
                 (parsed.data as { delta?: unknown }).delta ?? ""
