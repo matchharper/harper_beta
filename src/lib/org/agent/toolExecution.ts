@@ -1,6 +1,7 @@
 import { assertReviewOnboardingTool } from "@/lib/org/workspaceReview.server";
 import { updateCompanyEmailPreferences } from "@/lib/email/companyPreferences";
 import { updateCompanyLanguageSetting } from "@/lib/org/agent/languageSetting";
+import { registerRoleStartFromChat } from "@/lib/org/roleStart/service";
 import { readRoleNotificationContext } from "./roleNotificationContext";
 import {
   changeCompanyFollowup,
@@ -98,6 +99,7 @@ import {
   deleteEmptyOrgRoleReviewStage,
   fetchOrgTalentDetail,
   moveOrgCandidateToRole,
+  OrgHttpError,
   passOrgCompanyIntro,
   requestOrgCompanyIntro,
   setOrgCandidateStage,
@@ -1348,18 +1350,43 @@ async function executeUpdateRoleCriteria(args: {
     }
   }
 
-  const result = await updateOrgRoleCriteria({
-    actorLabel: args.actorLabel,
-    criteria,
-    expectedCriteria,
+  // A Role started from role start changes its list only through its Brief, so the
+  // saved Brief text and the list stay one (roleStart/service.ts applyChatEditToRoleStart).
+  const { applyChatEditToRoleStart } = await import("@/lib/org/roleStart/service");
+  const viaBrief = await applyChatEditToRoleStart({
     roleId: role.roleId,
-    source: args.source,
     user: args.user,
     workspaceId: args.workspaceId,
+    previousRequest: null,
+    criteria,
+    expectedCriteria,
   });
-  const changed = result.status === "updated";
+  const result = viaBrief
+    ? { status: viaBrief.changed ? ("updated_via_brief" as const) : ("unchanged" as const) }
+    : await updateOrgRoleCriteria({
+        actorLabel: args.actorLabel,
+        criteria,
+        expectedCriteria,
+        roleId: role.roleId,
+        source: args.source,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+  if (!viaBrief && text(role.status).toLowerCase() === "draft") {
+    // A draft's start flow Brief follows the list, as update_role_draft does.
+    const { briefStartedFromJd } = await import("@/lib/org/roleStart/rolePrefill");
+    if (!briefStartedFromJd(role.roleId)) {
+      const { applyChatCriteriaToRoleStart } = await import("@/lib/org/roleStart/service");
+      await applyChatCriteriaToRoleStart({ roleId: role.roleId, userId: args.user.id, criteria })
+        .catch((error) => console.warn("[org/agent:role-start-criteria]", formatToolError(error)));
+    }
+  }
+  // Through the Brief, the count is what the Brief kept.
+  const criteriaCount = viaBrief ? viaBrief.brief.criteria.length : criteria.length;
+  const changed = result.status === "updated" || result.status === "updated_via_brief";
   const currentRole = args.state.roleById.get(role.roleId);
-  if (currentRole) {
+  // Through the Brief the saved list is written from the Brief: read again rather than assumed.
+  if (currentRole && !viaBrief) {
     args.state.roleById.set(role.roleId, { ...currentRole, criteria });
   }
   const editSummary = editCounts
@@ -1371,9 +1398,11 @@ async function executeUpdateRoleCriteria(args: {
         .filter(Boolean)
         .join(", ")
     : "전체 교체";
-  const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteria.length}개)`;
-  args.state.fallbackReply = changed
-    ? `${role.name} 역할의 Evaluation Criteria를 저장했어요. ${editSummary}, 총 ${criteria.length}개예요. Hiring Brief와 Context for Harper는 바꾸지 않았어요.`
+  const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteriaCount}개)`;
+  args.state.fallbackReply = viaBrief && changed
+    ? `${role.name} 역할의 평가 기준을 Brief에 반영했어요. ${editSummary}, 총 ${criteriaCount}개예요. 저장된 Brief 글도 같은 Brief로 함께 바뀌어요.`
+    : changed
+    ? `${role.name} 역할의 Evaluation Criteria를 저장했어요. ${editSummary}, 총 ${criteriaCount}개예요. Hiring Brief와 Context for Harper는 바꾸지 않았어요.`
     : "이미 같은 Evaluation Criteria가 저장되어 있어 바뀐 내용은 없어요.";
   if (changed) {
     args.state.updateSummaries.push(summary);
@@ -1391,7 +1420,7 @@ async function executeUpdateRoleCriteria(args: {
     summary,
   });
   return {
-    criteriaCount: criteria.length,
+    criteriaCount,
     ...(editCounts ? { editCounts } : {}),
     mode: editCounts ? "edits" : "replace",
     status: result.status,
@@ -1415,6 +1444,17 @@ async function executeCalibrateRoleHiringBrief(args: {
   workspaceId: string;
 }) {
   const visibleRole = roleOrThrow(args.state, args.input.roleId);
+  {
+    // A Role started from role start takes reference people only from the web 참고 인물 box
+    // (roleStart/referenceTurn.ts); every other Role calibrates exactly as before.
+    const { referenceBoxOnlyTurn } = await import("@/lib/org/roleStart/referenceTurn");
+    const turn = await referenceBoxOnlyTurn(visibleRole.roleId);
+    if (turn) {
+      args.state.fallbackReply = turn.userReply;
+      recordResult(args.state, { callId: args.callId, name: args.name, status: "unchanged", summary: "참고 인물: 웹의 참고 인물 칸으로만" });
+      return { roleId: visibleRole.roleId, roleName: visibleRole.name, status: turn.status, userReply: turn.userReply, summary: "Nothing recorded. Reply with userReply as is." };
+    }
+  }
   const role = await fetchRoleForOrgAgent({
     admin: args.admin,
     roleId: visibleRole.roleId,
@@ -1514,6 +1554,7 @@ async function executeCalibrateRoleHiringBrief(args: {
 
 async function executeUpdateData(args: {
   actorLabel: string;
+  user: User;
   admin: OrgAgentAdminClient;
   callId: string;
   currentUserMessageId: number;
@@ -1676,13 +1717,34 @@ async function executeUpdateData(args: {
     };
   }
 
-  const { data, error } = await applyResolvedCompanyDataChanges({
-    admin: args.admin,
-    changes,
-    eventContent,
-    source: args.source,
-    workspaceId: args.workspaceId,
-  });
+  // A role start Role's Brief text changes only through its Brief (as
+  // /api/org/role refuses it): the changed lines go into the Brief, and the
+  // text and criteria are written again from it.
+  let briefChanged = false;
+  for (const change of changes.filter((item) => item.key === "role_request" && item.role_id)) {
+    const { applyChatEditToRoleStart } = await import("@/lib/org/roleStart/service");
+    const routed = await applyChatEditToRoleStart({
+      roleId: change.role_id!,
+      user: args.user,
+      workspaceId: args.workspaceId,
+      previousRequest: text(change.expected),
+      request: text(change.value),
+    }).catch((error) => {
+      throw error instanceof OrgHttpError ? new OrgAgentToolInputError(error.message) : error;
+    });
+    if (!routed) continue;
+    briefChanged ||= routed.changed;
+    changes = changes.filter((item) => item !== change);
+  }
+  const { data, error } = changes.length
+    ? await applyResolvedCompanyDataChanges({
+        admin: args.admin,
+        changes,
+        eventContent,
+        source: args.source,
+        workspaceId: args.workspaceId,
+      })
+    : { data: { status: briefChanged ? "updated" : "already_reflected" }, error: null };
   if (error) throw error;
   const result = asRpcResult(data);
   const status = text(result.status);
@@ -1881,6 +1943,27 @@ async function executeChangeRoleStatus(args: {
         roleName: role.name,
         roleStatus: "draft",
         status: "role_creation_incomplete",
+      };
+    }
+
+    // While the start flow owns the Role, it turns the Role on after the
+    // first-three ratings reach the Brief and one more person is proposed.
+    const startFlow = await registerRoleStartFromChat({
+      roleId: role.roleId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    if (startFlow !== "not_owned") {
+      return {
+        responseGuidance:
+          startFlow === "registering"
+            ? "Registration is accepted. Harper is applying the ratings of the first three candidates to the Brief and choosing one more person; the Role starts after that, usually within 1-2 minutes. Say exactly that in plain words; do not say the Role is active or started."
+            : startFlow === "needs_ratings"
+              ? "Nothing was registered. Ask the user to rate the first three candidates on the right panel first, then register."
+              : "Nothing was registered because required Role details are missing. Ask for the missing details.",
+        roleName: role.name,
+        roleStatus: "draft",
+        status: startFlow === "registering" ? "role_start_registering" : "role_creation_incomplete",
       };
     }
 
@@ -6482,6 +6565,7 @@ export async function executeOrgAgentTool(args: {
     try {
       return await executeUpdateData({
         actorLabel: args.actorLabel,
+        user: args.user,
         admin: args.admin,
         callId: args.callId,
         currentUserMessageId: args.currentUserMessageId,

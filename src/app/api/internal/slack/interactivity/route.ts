@@ -58,6 +58,7 @@ import {
   HARPER_ROLE_QUICK_ACTION_PREFIX,
 } from "@/lib/org/roleQuickActions";
 import { dispatchSlackReplyJob } from "@/lib/org/slackQueueDispatch";
+import { handleRoleStartSlackAction } from "@/lib/org/roleStart/slackActions";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { OrgHttpError, setOrgCandidateStage } from "@/lib/org/server";
 import { handleSlackCandidateInteraction } from "@/lib/org/slackCandidateInteractivity";
@@ -545,6 +546,9 @@ export async function POST(req: NextRequest) {
 
   const candidateInteraction = await handleSlackCandidateInteraction(payload);
   if (candidateInteraction) return NextResponse.json(candidateInteraction);
+
+  const roleStartInteraction = await handleRoleStartSlackAction(payload);
+  if (roleStartInteraction) return NextResponse.json(roleStartInteraction);
 
   const callbackId = clean(payload.view?.callback_id);
   if (

@@ -6,7 +6,8 @@ import { isOrgLocale } from "@/i18n/org/locale";
 import { OrgHttpError } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
-export const maxDuration = 180;
+// Create role can start the start flow's registration (up to 180 s for the pick) after the response.
+export const maxDuration = 300;
 
 function errorResponse(error: unknown) {
   const billing = billingErrorResponse(error);

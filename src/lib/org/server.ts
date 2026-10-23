@@ -71,6 +71,7 @@ import {
 } from "@/lib/org/roleFieldValues";
 import {
   normalizeOrgRoleCriteria,
+  ORG_ROLE_CRITERIA_MAX_ITEMS,
   parseOrgRoleCriteria,
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
@@ -473,6 +474,8 @@ export type OrgBoardItem = {
   fitReasons: string[];
   fitSummary: string | null;
   recommendationScore?: number | null;
+  /** Rank by recommendation score in browser responses (the score itself stays server-side). */
+  recommendationRank?: number | null;
   recommendedAt: string;
   recommendationId: string;
   processClosureNoticeUnresolved: boolean;
@@ -1189,7 +1192,7 @@ function buildEducationLabel(
   };
 }
 
-async function fetchBoardProfileLabels(args: {
+export async function fetchBoardProfileLabels(args: {
   admin: SupabaseAdminClient;
   talentIds: string[];
 }) {
@@ -2657,9 +2660,11 @@ async function fetchFitDetailsForBoard(args: {
     evaluationsByKey: new Map<string, OrgCompanyCriteriaEvaluation[]>(),
     scoresByKey,
   };
-  const { currentCompanyCriteriaEvaluations } = await import("@/lib/companyFirstSearch/presentation");
+  const { CHANGED_CRITERION_NOTE, currentCompanyCriteriaEvaluations, isGradedCriterion, settleStaleRereads } = await import(
+    "@/lib/companyFirstSearch/presentation"
+  );
   const currentRolesPromise = (args.admin.from("company_internal_roles" as any) as any)
-    .select("role_id,criteria").in("role_id", [...talentIdsByRoleId.keys()]);
+    .select("role_id,criteria,updated_at").in("role_id", [...talentIdsByRoleId.keys()]);
 
   const resultsPromise = Promise.all(
     Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
@@ -2668,7 +2673,7 @@ async function fetchFitDetailsForBoard(args: {
           args.admin.from("talent_opportunity_fit" as any) as any
         )
           .select(
-            "id, opportunity_id, talent_id, score, company_criteria_evaluations, last_evaluated_at, created_at"
+            "id, opportunity_id, talent_id, score, company_criteria_evaluations, last_evaluated_at, created_at, expires_at"
           )
           .eq("opportunity_id", roleId)
           .in("talent_id", talentIdChunk)
@@ -2686,6 +2691,7 @@ async function fetchFitDetailsForBoard(args: {
             | "score"
             | "company_criteria_evaluations"
             | "created_at"
+            | "expires_at"
             | "id"
             | "last_evaluated_at"
             | "opportunity_id"
@@ -2725,27 +2731,83 @@ async function fetchFitDetailsForBoard(args: {
       })
     )
   );
-  const [currentRolesResult, results, presentationResults, introductionResults] =
+  // Role start proposals carry their own per-criterion grades in the company-safe presentation.
+  const companyIntroResultsPromise = Promise.all(
+    Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
+      chunkValues(uniqueTexts(talentIds)).map(async talentIdChunk => {
+        const { data, error } = await (args.admin.from("company_intro_candidates" as any) as any)
+          .select("talent_id,role_id,presentation,created_at")
+          .eq("role_id", roleId).in("talent_id", talentIdChunk)
+          // Only role start's own proposals: other Roles' boards stay as before.
+          .eq("talent_fingerprint", "role-start-v1")
+          .not("presentation->criteriaEvaluations", "is", null)
+          .order("created_at", { ascending: false }).limit(ORG_BOARD_STAGE_DEPENDENCY_CAP);
+        if (error) throw error;
+        return data ?? [];
+      })
+    )
+  );
+  // Grades written after a rubric change win over every older source.
+  const overlayResultsPromise = Promise.all(
+    Array.from(talentIdsByRoleId.entries()).flatMap(([roleId, talentIds]) =>
+      chunkValues(uniqueTexts(talentIds)).map(async talentIdChunk => {
+        const { data, error } = await (args.admin.from("company_role_candidate_evaluations" as any) as any)
+          .select("talent_id,role_id,evaluations,updated_at")
+          .eq("role_id", roleId).in("talent_id", talentIdChunk);
+        // Optional overlay: before its migration the board keeps older sources.
+        if (error && ["PGRST205", "42P01"].includes(String(error.code))) return [];
+        if (error) throw error;
+        return data ?? [];
+      })
+    )
+  );
+  const [currentRolesResult, results, presentationResults, introductionResults, companyIntroResults, overlayResults] =
     await Promise.all([
       currentRolesPromise,
       resultsPromise,
       presentationResultsPromise,
       introductionResultsPromise,
+      companyIntroResultsPromise,
+      overlayResultsPromise,
     ]);
   if (currentRolesResult.error) throw currentRolesResult.error;
   const criteriaByRole = new Map<string, ReturnType<typeof normalizeOrgRoleCriteria>>(
     (currentRolesResult.data ?? []).map((role: any) => [role.role_id, normalizeOrgRoleCriteria(role.criteria)])
   );
+  const criteriaChangedAt = new Map<string, number>(
+    (currentRolesResult.data ?? []).map((role: any) => [role.role_id, Date.parse(role.updated_at ?? "") || 0])
+  );
   const evaluationsByKey = new Map<string, OrgCompanyCriteriaEvaluation[]>();
+  // A grade list with no real grade (every criterion changed since) does not
+  // hide a real one from another source.
+  const hasRealGrade = (cells: OrgCompanyCriteriaEvaluation[] | undefined) =>
+    Boolean(cells?.some(isGradedCriterion));
+  const offer = (key: string, cells: OrgCompanyCriteriaEvaluation[]) => {
+    if (cells.length && !hasRealGrade(cells) && hasRealGrade(evaluationsByKey.get(key))) return;
+    evaluationsByKey.set(key, cells);
+  };
   for (const row of results.flat()) {
     const key = `${row.talent_id}:${row.opportunity_id}`;
     if (evaluationsByKey.has(key)) continue;
     scoresByKey.set(key, typeof row.score === "number" && Number.isFinite(row.score) ? row.score : null);
+    const graded = normalizeOrgCompanyCriteriaEvaluations(row.company_criteria_evaluations);
+    // The regular search stores no criterion text. A Brief change expires the
+    // grade and saves the Role after it; such a grade is not shown as current.
+    const gradedAt = Date.parse(row.last_evaluated_at ?? row.created_at ?? "") || 0;
+    const outdated =
+      graded.length > 0 &&
+      Date.parse(row.expires_at ?? "") <= Date.now() &&
+      gradedAt < (criteriaChangedAt.get(row.opportunity_id) ?? 0);
     evaluationsByKey.set(
       key,
-      normalizeOrgCompanyCriteriaEvaluations(
-        row.company_criteria_evaluations
-      ).slice(0, 6)
+      (outdated
+        ? (criteriaByRole.get(row.opportunity_id) ?? []).map((criterion) => ({
+            name: criterion.name,
+            fitness: "uncertain" as const,
+            content: CHANGED_CRITERION_NOTE,
+          }))
+        : graded
+      ).slice(0, ORG_ROLE_CRITERIA_MAX_ITEMS)
     );
   }
   const seenPresentations = new Set<string>();
@@ -2753,18 +2815,31 @@ async function fetchFitDetailsForBoard(args: {
     const key = `${row.talent_id}:${row.opportunity_id}`;
     if (seenPresentations.has(key)) continue;
     seenPresentations.add(key);
-    evaluationsByKey.set(key,normalizeOrgCompanyCriteriaEvaluations(
+    offer(key,normalizeOrgCompanyCriteriaEvaluations(
       currentCompanyCriteriaEvaluations(row.criteria_evaluations,criteriaByRole.get(row.opportunity_id) ?? [])
-    ).slice(0,6));
+    ).slice(0, ORG_ROLE_CRITERIA_MAX_ITEMS));
   }
   const seenIntroductions = new Set<string>();
   for (const row of introductionResults.flat()) {
     const key = `${row.talent_id}:${row.role_id}`;
     if (seenIntroductions.has(key)) continue;
     seenIntroductions.add(key);
-    evaluationsByKey.set(key, normalizeOrgCompanyCriteriaEvaluations(
+    offer(key, normalizeOrgCompanyCriteriaEvaluations(
       currentCompanyCriteriaEvaluations(row.metadata?.companyPresentation?.criteriaEvaluations,criteriaByRole.get(row.role_id) ?? [])
-    ).slice(0,6));
+    ).slice(0, ORG_ROLE_CRITERIA_MAX_ITEMS));
+  }
+  for (const row of overlayResults.flat()) {
+    const evaluations = normalizeOrgCompanyCriteriaEvaluations(
+      currentCompanyCriteriaEvaluations(settleStaleRereads(row.evaluations, row.updated_at), criteriaByRole.get(row.role_id) ?? [])
+    ).slice(0, ORG_ROLE_CRITERIA_MAX_ITEMS);
+    if (evaluations.length) offer(`${row.talent_id}:${row.role_id}`, evaluations);
+  }
+  for (const row of companyIntroResults.flat()) {
+    const key = `${row.talent_id}:${row.role_id}`;
+    if (hasRealGrade(evaluationsByKey.get(key))) continue;
+    evaluationsByKey.set(key, normalizeOrgCompanyCriteriaEvaluations(
+      currentCompanyCriteriaEvaluations(row.presentation?.criteriaEvaluations, criteriaByRole.get(row.role_id) ?? [])
+    ).slice(0, ORG_ROLE_CRITERIA_MAX_ITEMS));
   }
   return { evaluationsByKey, scoresByKey };
 }
@@ -7944,6 +8019,25 @@ export async function updateOrgRole(args: {
             "작성한 내용은 저장되어 있어요. Role 대화에서 채용 정보와 담당자 설정을 먼저 마무리해 주세요."
           );
         }
+      }
+
+      // While the start flow can move forward it turns the Role on itself,
+      // after the first-three ratings and one more person. A failed or
+      // stalled flow, or one with no one to rate, lets this path register;
+      // the flow then ends so its late results are dropped.
+      const { loadRoleStartSession, roleStartOwnsRole } = await import("@/lib/org/roleStart/session");
+      const startSession = await loadRoleStartSession(roleId, { forView: true }).catch(() => null);
+      if (roleStartOwnsRole(startSession)) {
+        throw new OrgHttpError(
+          409,
+          startSession!.phase === "registering"
+            ? "평가를 반영해 한 분을 더 고르는 중이에요. 끝나면 역할이 자동으로 시작돼요."
+            : "첫 후보 3명을 평가한 뒤 시작 화면에서 등록해 주세요."
+        );
+      }
+      if (startSession && startSession.phase !== "done") {
+        const { supersedeRoleStart } = await import("@/lib/org/roleStart/service");
+        await supersedeRoleStart({ roleId, user: args.user, workspaceId });
       }
 
       const { data: activated, error: activationError } = await (

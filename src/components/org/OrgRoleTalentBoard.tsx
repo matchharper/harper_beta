@@ -10,11 +10,12 @@ import {
   ArrowDownWideNarrow,
   ArrowRight,
   Info,
+  ListFilter,
   LoaderCircle,
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import {
   AcceptIntroDialog,
@@ -32,6 +33,9 @@ import {
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
 import { Tabs } from "@/components/ui/tabs";
+import { FilterChipGroup } from "@/components/ui/filter-chip-group";
+import { RoleRubricEditor } from "@/components/org/role-start/RoleRubricEditor";
+import type { OrgCompanyCriterionFitness } from "@/lib/org/companyCriteriaEvaluations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -623,6 +627,36 @@ export function OrgRoleTalentBoard({
   const addToast = useToastStore((state) => state.add);
   const [activeStageId, setActiveStageId] = useState("");
   const [sort, setSort] = useState<OrgCandidateSort>("latest");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [rubricEditing, setRubricEditing] = useState(false);
+  // Criterion name → grades to keep. Empty means no filter on that criterion.
+  const [gradeFilters, setGradeFilters] = useState<
+    Record<string, OrgCompanyCriterionFitness[]>
+  >({});
+  const gradeOptions = (
+    ["excellent", "good", "uncertain", "bad"] as OrgCompanyCriterionFitness[]
+  ).map((grade) => ({
+    value: grade,
+    label: (
+      <span className="inline-flex items-center gap-1.5">
+        <Image
+          alt=""
+          aria-hidden="true"
+          className="size-3.5"
+          height={14}
+          src={`/svgs/${grade}.svg`}
+          width={14}
+        />
+        {grade === "excellent"
+          ? c("매우 잘 맞음", "Excellent fit")
+          : grade === "good"
+            ? c("잘 맞음", "Good fit")
+            : grade === "uncertain"
+              ? c("확인 필요", "More information needed")
+              : c("맞지 않음", "Not a fit")}
+      </span>
+    ),
+  }));
   const sortOptions = [
     { value: "latest", label: c("최신순", "Newest first") },
     { value: "recommended", label: c("추천순", "Recommended") },
@@ -693,12 +727,51 @@ export function OrgRoleTalentBoard({
   const selectedStage = visibleStages.find(
     (stage) => stage.id === selectedStageId
   );
-  const items = useMemo(
+  // Criteria changed from the filter panel or the 매칭 기준 tab are reviewed
+  // again in the background; refresh until no card shows "다시 보는 중".
+  const reviewingAgain = (board?.items ?? []).some((item) =>
+    item.criteriaEvaluations.some((evaluation) => evaluation.pending)
+  );
+  const refetchBoard = boardQuery.refetch;
+  useEffect(() => {
+    if (!reviewingAgain) return;
+    const timer = window.setInterval(() => void refetchBoard(), 2_000);
+    return () => window.clearInterval(timer);
+  }, [reviewingAgain, refetchBoard]);
+  const stageItems = useMemo(
     () =>
       (board?.items ?? [])
         .filter((item) => item.stage === selectedStageId)
         .sort((left, right) => compareOrgCandidates(left, right, sort)),
     [board?.items, selectedStageId, sort]
+  );
+  const criterionNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          stageItems.flatMap((item) =>
+            item.criteriaEvaluations.map((evaluation) => evaluation.name)
+          )
+        )
+      ),
+    [stageItems]
+  );
+  const activeGradeFilters = Object.entries(gradeFilters).filter(
+    ([name, grades]) => grades.length > 0 && criterionNames.includes(name)
+  );
+  const items = useMemo(
+    () =>
+      activeGradeFilters.length
+        ? stageItems.filter((item) =>
+            activeGradeFilters.every(([name, grades]) => {
+              const evaluation = item.criteriaEvaluations.find(
+                (entry) => entry.name === name
+              );
+              return Boolean(evaluation && !evaluation.pending && grades.includes(evaluation.fitness));
+            })
+          )
+        : stageItems,
+    [activeGradeFilters, stageItems]
   );
   const recommendationStatus =
     section === "inbox" && activeRole ? (
@@ -819,6 +892,24 @@ export function OrgRoleTalentBoard({
             variant="pills"
           />
         </div>
+        {criterionNames.length ? (
+          <MuteButton
+            aria-expanded={filterOpen}
+            aria-label={c("기준별 등급으로 거르기", "Filter by criterion grade")}
+            className="shrink-0"
+            onClick={() => setFilterOpen((open) => !open)}
+            size="md"
+            title={c("기준별 등급으로 거르기", "Filter by criterion grade")}
+            variant={activeGradeFilters.length ? "neutral" : "transparent"}
+          >
+            <ListFilter aria-hidden="true" className="size-4" />
+            {activeGradeFilters.length ? (
+              <span className="text-[12px] tabular-nums">
+                {activeGradeFilters.length}
+              </span>
+            ) : null}
+          </MuteButton>
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <MuteButton
@@ -854,6 +945,58 @@ export function OrgRoleTalentBoard({
 
       {recommendationStatus ? (
         <div className="mt-2">{recommendationStatus}</div>
+      ) : null}
+
+      {filterOpen && criterionNames.length ? (
+        <section
+          aria-label={c("기준별 등급 필터", "Criterion grade filters")}
+          className="mt-3 grid gap-2 rounded-md bg-bg-basement p-3"
+        >
+          {criterionNames.map((name) => (
+            <FilterChipGroup<OrgCompanyCriterionFitness>
+              aria-label={name}
+              key={name}
+              label={name}
+              onValueChange={(value) =>
+                setGradeFilters((current) => ({ ...current, [name]: value }))
+              }
+              options={gradeOptions}
+              value={gradeFilters[name] ?? []}
+            />
+          ))}
+          <div className="flex items-center justify-between gap-2 text-[12px] text-neutral-muted">
+            {activeRole && permissions.canManageCandidates && !rubricEditing ? (
+              <MuteButton onClick={() => setRubricEditing(true)} size="sm" variant="transparent">
+                {c("기준 고치기", "Edit criteria")}
+              </MuteButton>
+            ) : null}
+            <span className="ml-auto">
+              {c("{p0}명 중 {p1}명", "{p1} of {p0}", {
+                p0: stageItems.length,
+                p1: items.length,
+              })}
+            </span>
+            {activeGradeFilters.length ? (
+              <MuteButton
+                onClick={() => setGradeFilters({})}
+                size="sm"
+                variant="transparent"
+              >
+                {c("필터 지우기", "Clear filters")}
+              </MuteButton>
+            ) : null}
+          </div>
+          {rubricEditing && activeRole ? (
+            <div className="mt-2 border-t border-neutral-1000-a05 pt-3">
+              <RoleRubricEditor
+                onClose={() => setRubricEditing(false)}
+                onSaved={() => void boardQuery.refetch()}
+                roleId={activeRole.roleId}
+                workspaceId={workspaceId}
+              />
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       <div
