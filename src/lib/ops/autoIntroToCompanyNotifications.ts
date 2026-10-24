@@ -100,11 +100,18 @@ type RoleSummaryRow = {
 
 type CandidateReplyReminderRow = {
   company_workspace_id: string;
+  created_at: string;
   expects_document: boolean;
   recommendation_id: string | null;
   role_id: string;
   talent_id: string;
   updated_at: string;
+};
+
+type CandidateDocumentRelayRow = {
+  created_at: string;
+  deliveries: { status: string | null; type: string | null }[] | null;
+  recommendation_id: string;
 };
 
 type UpcomingMeetingReminderRow = {
@@ -619,7 +626,7 @@ async function fetchCandidateReplyReminderRows(
       ...(await fetchAllRows<CandidateReplyReminderRow>((from, to) =>
         (admin.from("company_talent_requests" as any) as any)
           .select(
-            "company_workspace_id, role_id, talent_id, recommendation_id, expects_document, updated_at"
+            "company_workspace_id, role_id, talent_id, recommendation_id, expects_document, created_at, updated_at"
           )
           .in("role_id", roleIdChunk)
           .eq("workflow_status", "delivered")
@@ -631,6 +638,53 @@ async function fetchCandidateReplyReminderRows(
   }
   return rows.sort((left, right) =>
     right.updated_at.localeCompare(left.updated_at)
+  );
+}
+
+async function fetchCandidateDocumentRelayRows(
+  admin: AdminClient,
+  recommendationIds: string[]
+) {
+  const rows: CandidateDocumentRelayRow[] = [];
+  for (const recommendationIdChunk of chunkValues(recommendationIds)) {
+    rows.push(
+      ...(await fetchAllRows<CandidateDocumentRelayRow>((from, to) =>
+        (admin.from("company_talent_relays" as any) as any)
+          .select(
+            "recommendation_id, created_at, deliveries:contact_queue(type, status)"
+          )
+          .in("recommendation_id", recommendationIdChunk)
+          .not("document_id", "is", null)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ))
+    );
+  }
+  return rows;
+}
+
+/**
+ * A resume can reach the company through the request itself or through a
+ * later candidate relay on the same connection, so the relay rows are the
+ * shared evidence. Only a document delivered after the request counts.
+ */
+export function companyReceivedRequestedDocument(
+  request: Pick<CandidateReplyReminderRow, "created_at" | "recommendation_id">,
+  documentRelays: CandidateDocumentRelayRow[]
+) {
+  const requestedAt = Date.parse(request.created_at);
+  if (!request.recommendation_id || !Number.isFinite(requestedAt)) return false;
+  return documentRelays.some(
+    (relay) =>
+      relay.recommendation_id === request.recommendation_id &&
+      Date.parse(relay.created_at) >= requestedAt &&
+      (relay.deliveries ?? []).some(
+        (delivery) =>
+          (delivery.type === "company_contact_company_delivery" ||
+            delivery.type === "company_request_company_delivery") &&
+          delivery.status === "sent"
+      )
   );
 }
 
@@ -769,13 +823,23 @@ async function fetchCurrentRoleSummaries(
     fetchCandidateReplyReminderRows(admin, roleIds),
     fetchUpcomingMeetingReminderRows({ admin, now, roleIds }),
   ]);
-  const talentNameById = await fetchRoleSummaryTalentNames(
-    admin,
-    uniqueTexts([
-      ...candidateReplyRows.map((row) => row.talent_id),
-      ...upcomingMeetingRows.map((row) => row.talent_id),
-    ])
-  );
+  const [talentNameById, documentRelayRows] = await Promise.all([
+    fetchRoleSummaryTalentNames(
+      admin,
+      uniqueTexts([
+        ...candidateReplyRows.map((row) => row.talent_id),
+        ...upcomingMeetingRows.map((row) => row.talent_id),
+      ])
+    ),
+    fetchCandidateDocumentRelayRows(
+      admin,
+      uniqueTexts(
+        candidateReplyRows
+          .filter((row) => row.expects_document && row.recommendation_id)
+          .map((row) => row.recommendation_id ?? "")
+      )
+    ),
+  ]);
   const roleById = new Map(
     currentRoles.map((role) => [role.role_id, role] as const)
   );
@@ -803,6 +867,9 @@ async function fetchCurrentRoleSummaries(
       candidateRepliesByWorkspaceId.get(row.company_workspace_id) ?? [];
     reminders.push({
       candidateName: talentNameById.get(row.talent_id) ?? "",
+      documentReceived:
+        row.expects_document &&
+        companyReceivedRequestedDocument(row, documentRelayRows),
       expectsDocument: row.expects_document,
       recommendationId: row.recommendation_id,
       roleId: row.role_id,
