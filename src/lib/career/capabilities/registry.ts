@@ -28,7 +28,7 @@ export const CAREER_CAPABILITIES = [
     id: "opportunities",
     turns: 3,
     summary:
-      "Find and compare public or Harper-connected roles, start Apply with Harper by choosing a resume and showing its start card, or record feedback and priority review. Load before handling application preparation, role requests or recommendation reactions. Review, acceptance and sharing are distinct.",
+      "Find and compare public or Harper-connected roles, start Apply with Harper by choosing a resume and showing its start card, or record feedback and priority review. Load before handling application preparation, role requests or recommendation reactions, including saying they already applied or were rejected there. Review, acceptance and sharing are distinct.",
     tools: [
       ["recommend_job_postings", "find public job postings"],
       [
