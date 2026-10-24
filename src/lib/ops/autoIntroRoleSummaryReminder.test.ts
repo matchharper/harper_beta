@@ -82,11 +82,15 @@ const request = {
 function relay(
   createdAt: string,
   status: string,
-  recommendationId = "recommendation-id"
+  {
+    recommendationId = "recommendation-id",
+    sentAt = status === "sent" ? createdAt : null,
+    type = "company_contact_company_delivery",
+  }: { recommendationId?: string; sentAt?: string | null; type?: string } = {}
 ) {
   return {
     created_at: createdAt,
-    deliveries: [{ status, type: "company_contact_company_delivery" }],
+    deliveries: [{ sent_at: sentAt, status, type }],
     recommendation_id: recommendationId,
   };
 }
@@ -119,7 +123,32 @@ test("an older resume or another connection's resume does not answer this reques
   assert.equal(
     companyReceivedRequestedDocument(request, [
       relay("2026-09-01T00:00:00+00:00", "sent"),
-      relay("2026-10-19T11:26:03+00:00", "sent", "other-recommendation-id"),
+      relay("2026-10-19T11:26:03+00:00", "sent", {
+        recommendationId: "other-recommendation-id",
+      }),
+    ]),
+    false
+  );
+});
+
+test("a resume sent through the older company delivery type counts as received", () => {
+  assert.equal(
+    companyReceivedRequestedDocument(request, [
+      relay("2026-10-19T11:26:03+00:00", "sent", {
+        type: "company_request_company_delivery",
+      }),
+    ]),
+    true
+  );
+});
+
+test("a sent row of another delivery type or without a send time does not count", () => {
+  assert.equal(
+    companyReceivedRequestedDocument(request, [
+      relay("2026-10-19T11:26:03+00:00", "sent", {
+        type: "company_request_candidate_delivery",
+      }),
+      relay("2026-10-19T11:26:03+00:00", "sent", { sentAt: null }),
     ]),
     false
   );

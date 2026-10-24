@@ -110,7 +110,9 @@ type CandidateReplyReminderRow = {
 
 type CandidateDocumentRelayRow = {
   created_at: string;
-  deliveries: { status: string | null; type: string | null }[] | null;
+  deliveries:
+    | { sent_at: string | null; status: string | null; type: string | null }[]
+    | null;
   recommendation_id: string;
 };
 
@@ -651,7 +653,7 @@ async function fetchCandidateDocumentRelayRows(
       ...(await fetchAllRows<CandidateDocumentRelayRow>((from, to) =>
         (admin.from("company_talent_relays" as any) as any)
           .select(
-            "recommendation_id, created_at, deliveries:contact_queue(type, status)"
+            "recommendation_id, created_at, deliveries:contact_queue(type, status, sent_at)"
           )
           .in("recommendation_id", recommendationIdChunk)
           .not("document_id", "is", null)
@@ -667,7 +669,8 @@ async function fetchCandidateDocumentRelayRows(
 /**
  * A resume can reach the company through the request itself or through a
  * later candidate relay on the same connection, so the relay rows are the
- * shared evidence. Only a document delivered after the request counts.
+ * shared evidence. Only a resume relay created after the request and sent to
+ * the company counts.
  */
 export function companyReceivedRequestedDocument(
   request: Pick<CandidateReplyReminderRow, "created_at" | "recommendation_id">,
@@ -683,7 +686,8 @@ export function companyReceivedRequestedDocument(
         (delivery) =>
           (delivery.type === "company_contact_company_delivery" ||
             delivery.type === "company_request_company_delivery") &&
-          delivery.status === "sent"
+          delivery.status === "sent" &&
+          Boolean(delivery.sent_at)
       )
   );
 }
