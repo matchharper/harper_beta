@@ -30,6 +30,7 @@ export type CompanyMatchingResultContextInput = {
   runStatus: string;
   candidateOutreachPauses?: CandidateOutreachPause[];
   requestedByCompany?: boolean;
+  interactiveSearch?: Record<string, unknown>;
 };
 
 export function buildCompanyMatchingResultContext(
@@ -52,7 +53,9 @@ export function buildCompanyMatchingResultContext(
             "- 지금 회사에 소개해도 좋겠다고 판단한 사람들이 아래에 있다.",
             "- 일반 선제 제안은 후보자의 관심을 아직 확인하지 않았다. 본인이 우선 검토를 요청한 사람은 아래에 그 사실이 표시된다. 어느 쪽도 역할 수락이나 연결 완료를 의미하지 않는다. 회사가 만나 보고 싶은 사람을 고르면 Harper가 본인에게 역할 수락 의사를 묻는다.",
           ]
-        : [
+        : input.interactiveSearch ? [
+            "- 이번 실행에서 새로 소개할 후보 카드가 없다. 평가만 요청했거나 기존 결과를 유지했을 수도 있으므로 이 사실만으로 적합한 후보가 없다고 판단하지 않는다. 아래 실행의 실제 요청과 통계를 읽는다.",
+          ] : [
             "- 지금 Harper가 알고 있는 사람들 가운데 회사가 찾는 사람에 비춰 바로 소개해도 좋겠다고 확신할 만한 사람은 고르지 못했다.",
             "- 이 채용에 잘 맞는 사람이 전혀 없다는 뜻은 아니다. 확신이 부족한 사람을 숫자를 채우기 위해 소개하지 않았다는 뜻이다.",
             "- 사람에 따라 자신의 프로필이 회사에 먼저 전달되기보다 본인이 회사를 먼저 보고 대화할지 정하길 원하기도 한다. 그런 사람은 지금 회사에 바로 보여 줄 수 없지만, 충분히 잘 맞는다면 Harper가 회사를 먼저 소개하고 동의를 받은 뒤 연결할 수 있다.",
@@ -82,6 +85,16 @@ export function buildCompanyMatchingResultContext(
         ]
       : []),
   ];
+
+  if (input.interactiveSearch) {
+    const search = input.interactiveSearch;
+    const measured = search.counts && typeof search.counts === "object" ? search.counts as Record<string, unknown> : {};
+    const firstStage = measured.stage1Evaluated === 0 ? "1차는 재실행하지 않음" : `이번 1차 통과 ${search.stage1Passed ?? "미측정"}명`;
+    const count = (value: unknown) => Array.isArray(value) ? value.length : "미측정";
+    lines.push(`- 대화 검색의 Brief 버전: ${search.briefVersion ?? "미확인"}; 범위 ${search.scope ?? "미기록"}; 시작 단계 ${search.startStage ?? "미기록"}.`,
+      `- ${firstStage}, 이번 2차 평가 ${search.stage2Evaluated ?? "미측정"}명. 새 카드 ${count(search.addedTalentIds)}명, 추천 제외 ${count(search.removedTalentIds)}명, 기존 유지 ${count(search.retainedTalentIds)}명. 제외는 회사의 거절이나 후보자의 거절을 뜻하지 않는다.`,
+      `- 기준별 관측: ${JSON.stringify(search.criteriaStats ?? "미측정")}. 후보별·같은 기준 전체 누적 근거는 일반 matching_runs 상세 조회로 확인할 수 있다.`);
+  }
 
   for (const pause of input.candidateOutreachPauses ?? []) {
     const role = input.roles.find(role => role.id === pause.roleId);

@@ -5,7 +5,7 @@ import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
 
-import { FormEvent, useId, useState } from "react";
+import { FormEvent, useId, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 
@@ -37,9 +37,11 @@ export function CompanyIntroRequestDialog({
   const [companyAppeal, setCompanyAppeal] = useState("");
   const [emails, setEmails] = useState(defaultEmail?.trim() ?? "");
   const [error, setError] = useState("");
+  const submitting = useRef(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (pending || submitting.current) return;
     const recipientEmails = Array.from(
       new Set(
         emails
@@ -59,12 +61,13 @@ export function CompanyIntroRequestDialog({
       setError(
         c(
           "연결할 팀원 이메일을 입력해 주세요.",
-          "Add a team email for the introduction."
+          "Add a team member's email for the introduction."
         )
       );
       return;
     }
     setError("");
+    submitting.current = true;
     try {
       await onSubmit({
         companyAppeal: appeal,
@@ -77,10 +80,12 @@ export function CompanyIntroRequestDialog({
           locale,
           c(
             "제안을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-            "Failed to process the offer. Try again later."
+            "We couldn't complete the Intro request. Try again later."
           )
         )
       );
+    } finally {
+      submitting.current = false;
     }
   };
 
@@ -139,7 +144,7 @@ export function CompanyIntroRequestDialog({
         </div>
 
         <label className="mt-4 block text-[13px]">
-          {c("수락 시 연결할 팀원 이메일", "Team email for the introduction")}
+          {c("수락 시 연결할 팀원 이메일", "Team members to introduce")}
           <Input
             className="mt-2"
             value={emails}

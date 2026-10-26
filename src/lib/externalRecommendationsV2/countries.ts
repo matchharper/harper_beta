@@ -16,6 +16,7 @@ export const countriesSchema = z
           (v) => codes.has(v),
           "Expected ISO alpha-2 country code (KR, not KO)"
         ),
+      // Relative share of the HNSW candidate budget and final shortlist.
       weight: z.number().finite().positive().max(100),
       remoteOnly: z.boolean(),
     })

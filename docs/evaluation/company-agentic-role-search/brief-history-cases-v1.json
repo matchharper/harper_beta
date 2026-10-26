@@ -1,0 +1,15 @@
+{
+  "datasetVersion": "brief-history-v1",
+  "createdAt": "2026-10-22",
+  "status": "Pre-execution design; connect actual save and summary contracts after the current full-run freeze ends",
+  "unit": "Actual local web/save/LLM flow and resulting history, summary payload and company message effects",
+  "source": "Original real Role snapshot. No invented talent or history; new history is created by actual product saves under these explicit evaluation actions.",
+  "cases": [
+    {"id":"ARSB01","title":"Web criterion edit and automatic conversation","surface":"web","actions":["Add an instruction to one actual criterion: distinguish missing evidence as an item requiring confirmation. Preserve every other criterion and Hiring Brief field.","Observe successful persistence, background summary completion and the automatic company conversation through the real paths."]},
+    {"id":"ARSB02","title":"Web Hiring Brief edit and narrow summary input","surface":"web","actions":["Append to the actual Hiring Brief a request to distinguish unverified profile facts from confirmed evidence, preserving all existing text and criteria.","Inspect exact before/after snapshots, raw summary request and response, automatic conversation and actual effects."]},
+    {"id":"ARSB03","title":"Company LLM edit without an extra user message","surface":"company_chat","turns":["이 역할의 후보 경력 기준에서 직함이나 회사 이름보다 실제 담당했던 업무 범위를 우선하도록 반영해줘. 나머지 조건은 유지해줘."]},
+    {"id":"ARSB04","title":"Slack edit without the web automatic message","surface":"slack_local_transport","turns":["이 역할의 후보 경력 기준에서 직함이나 회사 이름보다 실제 담당했던 업무 범위를 우선하도록 반영해줘. 나머지 조건은 유지해줘."],"boundary":"Use actual Slack save/executor provenance and captured actor in local transport; block external Slack delivery and do not claim production Slack validation."},
+    {"id":"ARSB05","title":"Identical-value save is a no-op","surface":"web","actions":["Read the actual current Hiring Brief and criteria, then submit exactly the same save request twice without changing a value.","Compare history, summary jobs/provider calls, automatic user messages and matching runs before and after."]},
+    {"id":"ARSB06","title":"Read real version history through general tools","surface":"web_then_company_chat","actions":["Perform the same actual criterion edit as ARSB01 once to create a real version and background summary through the product path."],"turns":["이 역할의 채용 기준이 최근에 어떻게 바뀌었는지, 수정 시점과 이전·현재 내용, 변경 요약을 기록 기준으로 보여줘. 찾는 기준을 또 바꾸거나 새 검색을 요청하는 것은 아니야."]}
+  ]
+}

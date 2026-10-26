@@ -1,0 +1,109 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "hiring-brief-summary-delta-v2",
+  "createdAt": "2026-10-22T13:21:04.264740+00:00",
+  "canonicalRunner": "harper_beta/scripts/evalCompanyHiringBriefSummary.ts",
+  "status": "Frozen before prompt-delta comparison; root manual gold review complete",
+  "privateInputs": "private/hiring-brief-summary-delta-v2/inputs.json",
+  "privateInputsSha256": "77e1ce4bdf66679dc3b90b30f401c2666d17b98c463b557a44013aff5ec490c1",
+  "goldFile": "hiring-brief-summary-delta-gold-v2.json",
+  "files": {
+    "hiring-brief-summary-delta-gold-v2.json": "471d67d58077cf0e15f8e71edba9447b97bfa38d3c629867af2787948b45ad94"
+  },
+  "examples": [
+    {
+      "id": "HBS01",
+      "sourceCase": "ARSB01",
+      "sourceArtifact": "runs/hiring-history-v3-arsb01/provider-130.json",
+      "sourceArtifactSha256": "cda330974266da0fa2b52805ed74f8666b662d862951fc1ce1d2dc26eea06f73",
+      "sourceRequestSha256": "75b78089a99089ff03b4aaa7540a5c1b460b5092a56f399a3c6a7a3475c23f28",
+      "changedParts": [
+        "criteria"
+      ]
+    },
+    {
+      "id": "HBS02",
+      "sourceCase": "ARSB02",
+      "sourceArtifact": "runs/hiring-history-v3-arsb02/provider-131.json",
+      "sourceArtifactSha256": "7062a283d3947df1364d16faf0547376c29a177573312349c45d33721b0b0020",
+      "sourceRequestSha256": "66ca582b746e4acce299ee3c8eaf74be9f9d6b27aa614c88d7971559d219f8d3",
+      "changedParts": [
+        "brief"
+      ]
+    },
+    {
+      "id": "HBS03",
+      "sourceCase": "ARSB03",
+      "sourceArtifact": "runs/hiring-history-v3-arsb03/provider-292.json",
+      "sourceArtifactSha256": "793c6a237018cc6f1da422719c9709709f9fbef550ddf6ee7838176f410750ac",
+      "sourceRequestSha256": "cc1ef2701f0ca53abffff9737ef79a1f0bcff2e2c4599be7598d0dc2344675f7",
+      "changedParts": [
+        "criteria"
+      ]
+    },
+    {
+      "id": "HBS04",
+      "sourceCase": "ARSB03",
+      "sourceArtifact": "runs/hiring-history-v3-arsb03/provider-297.json",
+      "sourceArtifactSha256": "6772a56930fb7a3baa836aa36e23c343a4f6c79165b981653e0dac7f5b232344",
+      "sourceRequestSha256": "a07a3f1e8b82eab620fe5de0476b28cf50a70252fac21688d02cf8c486cad122",
+      "changedParts": [
+        "brief"
+      ]
+    },
+    {
+      "id": "HBS05",
+      "sourceCase": "ARSB04",
+      "sourceArtifact": "runs/hiring-history-v3-arsb04/provider-291.json",
+      "sourceArtifactSha256": "4172b7eadc56574dc01452ceac546795b743396c2d9372d0d6328a04dcf2874b",
+      "sourceRequestSha256": "7d5b9e1d0b2108020c1d107ac7f10bb5c25ab55a6957fc9ce1dcfe3f66a8f663",
+      "changedParts": [
+        "criteria"
+      ]
+    },
+    {
+      "id": "HBS06",
+      "sourceCase": "ARSB04",
+      "sourceArtifact": "runs/hiring-history-v3-arsb04/provider-296.json",
+      "sourceArtifactSha256": "755e92d4c6c4cad2dd7aaeef2572586fdaaf45f1a908f20f78ccbd754403e041",
+      "sourceRequestSha256": "377df2c531de0bed9d4c1152341a004a6c11438b6b3d4d9a25e1a768ca92fe9e",
+      "changedParts": [
+        "brief"
+      ]
+    },
+    {
+      "id": "HBS07",
+      "sourceCase": "ARSB06",
+      "sourceArtifact": "runs/hiring-history-v3-arsb06/provider-128.json",
+      "sourceArtifactSha256": "64b831835e92375548eecdf2e29a886c4d66c3ba6b085feaea3e4fae8d6df426",
+      "sourceRequestSha256": "75b78089a99089ff03b4aaa7540a5c1b460b5092a56f399a3c6a7a3475c23f28",
+      "changedParts": [
+        "criteria"
+      ]
+    },
+    {
+      "id": "HBS08",
+      "sourceCase": "ARSB03",
+      "sourceArtifact": "runs/hiring-history-v4-arsb03/provider-303.json",
+      "sourceArtifactSha256": "d27ec1376f612b19b407e9014d9e9f07562d27e4eb3bef8dc74ba5b84053bb56",
+      "sourceRequestSha256": "d74680e46b21ce662c83b2a606e533d5daef7e64a7b79079a3e6ab2498f4df4d",
+      "changedParts": [
+        "brief"
+      ]
+    }
+  ],
+  "modelContract": {
+    "model": "gpt-6-luna",
+    "reasoning": "low",
+    "maxOutputTokens": 128000,
+    "change": "Same single summary:string schema and original full user change documents; explicit generic system prompt comparison recorded per run."
+  },
+  "comparison": "New run per prompt. No dataset/gold overwrite; no DB/business side effect.",
+  "privacy": "Actual Role text and responses only in ignored private/runs owner-only files. No DB or external business write.",
+  "limitations": [
+    "Seven post-selected actual calls from one Role, including repeated source edits; no representative accuracy estimate.",
+    "Prompt has already been revised on related failures. This diagnostic is development evidence, not an independent held-out benchmark.",
+    "Only summary output contract changes; no company conversation, queue, UI or Worker end-to-end coverage."
+  ],
+  "parentDatasetVersion": "hiring-brief-summary-structure-v1"
+}

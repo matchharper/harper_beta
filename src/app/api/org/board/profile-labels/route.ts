@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       user,
       workspaceId: String(body.workspaceId ?? ""),
     });
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return toErrorResponse(error);
   }

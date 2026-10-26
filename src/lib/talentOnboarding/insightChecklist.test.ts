@@ -21,7 +21,6 @@ const EXPECTED_COMMON_KEYS = [
   "deal_breakers",
   "team_style_fit",
   "additional_question_one",
-  "final_priority_confirmation",
 ];
 
 test("uses one onboarding checklist for every profile location", () => {
@@ -65,9 +64,9 @@ test("combines next role and must-haves into one checklist question", () => {
   assert.match(item.promptHint, /one natural question/);
 });
 
-test("requires five core questions and a final confirmation", () => {
-  assert.equal(ONBOARDING_QUESTION_CHECKLIST.length, 10);
-  assert.equal(ONBOARDING_QUESTION_MIN_COVERED_COUNT, 6);
+test("requires five core questions without a final confirmation", () => {
+  assert.equal(ONBOARDING_QUESTION_CHECKLIST.length, 9);
+  assert.equal(ONBOARDING_QUESTION_MIN_COVERED_COUNT, 5);
   assert.equal(TALENT_INTERVIEW_FINAL_STEP, 5);
   assert.equal(
     TALENT_INTERVIEW_FINAL_STEP,

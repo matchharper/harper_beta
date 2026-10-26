@@ -1,0 +1,242 @@
+{
+  "version": "v6",
+  "synthetic": true,
+  "timingMinutes": {
+    "beforeStart": -120,
+    "afterScheduledEnd": 15
+  },
+  "meeting": {
+    "title": "모아랩 백엔드 엔지니어 첫 대화",
+    "startAt": "2026-10-23T14:00:00+09:00",
+    "endAt": "2026-10-23T14:45:00+09:00",
+    "timezone": "Asia/Seoul",
+    "status": "confirmed",
+    "format": "온라인",
+    "calendarInvitationDelivered": true,
+    "attendanceOrCompletionObserved": false,
+    "joinUrl": "https://example.com/interview-room"
+  },
+  "shared": {
+    "candidate": {
+      "name": "이가온",
+      "background": "5년 차 백엔드 엔지니어. B2B SaaS에서 주문 API와 비동기 작업을 개발하고 운영했으며, 느린 요청을 추적해 개선한 경험이 있다."
+    },
+    "company": {
+      "name": "모아랩",
+      "description": "소규모 브랜드의 주문·재고 관리를 돕는 B2B SaaS 회사. 고객이 늘면서 주문 처리의 안정성을 개선하고 있다.",
+      "role": "백엔드 엔지니어"
+    },
+    "interviewer": {
+      "name": "민서",
+      "role": "백엔드 개발을 이끄는 팀원이며 이번 인터뷰의 주최자"
+    }
+  },
+  "purposes": {
+    "before": "다가오는 인터뷰를 리마인드해 주세요. 상대의 관련 배경과 참여 링크를 맥락에 맞게 담아 주세요.",
+    "after": "인터뷰 뒤 안부를 전하고, 최근 대화에 이어 소감이나 필요한 다음 도움을 챙겨 주세요."
+  },
+  "cases": [
+    {
+      "id": "talent-before",
+      "audience": "talent",
+      "phase": "before",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "모아랩이랑 이야기해볼게요. 오늘 오후 2시로 골랐어요. 주문 처리 쪽을 어느 정도 직접 맡게 되는지 궁금하네요."
+        },
+        {
+          "role": "assistant",
+          "content": "오늘 오후 2시로 일정이 확정됐어요. 캘린더 초대도 전달됐습니다."
+        }
+      ]
+    },
+    {
+      "id": "talent-after",
+      "audience": "talent",
+      "phase": "after",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "모아랩이랑 이야기해볼게요. 오늘 오후 2시로 골랐어요. 주문 처리 쪽을 어느 정도 직접 맡게 되는지 궁금하네요."
+        },
+        {
+          "role": "assistant",
+          "content": "오늘 오후 2시로 일정이 확정됐어요. 캘린더 초대도 전달됐습니다."
+        }
+      ]
+    },
+    {
+      "id": "company-before",
+      "audience": "company",
+      "phase": "before",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "가온 님과 오늘 2시에 먼저 이야기해볼게요. 주문 API를 운영하면서 문제를 어떻게 풀었는지 궁금합니다."
+        },
+        {
+          "role": "assistant",
+          "content": "오늘 오후 2시로 인터뷰가 확정됐고 캘린더 초대도 전달됐어요."
+        }
+      ]
+    },
+    {
+      "id": "company-after",
+      "audience": "company",
+      "phase": "after",
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "가온 님과 오늘 2시에 먼저 이야기해볼게요. 주문 API를 운영하면서 문제를 어떻게 풀었는지 궁금합니다."
+        },
+        {
+          "role": "assistant",
+          "content": "오늘 오후 2시로 인터뷰가 확정됐고 캘린더 초대도 전달됐어요."
+        }
+      ]
+    },
+    {
+      "id": "company-before-en",
+      "audience": "company",
+      "phase": "before",
+      "recentConversation": [],
+      "context": {
+        "locale": "en",
+        "meeting": {
+          "title": "Intro call",
+          "startAt": "2026-10-23T10:00:00+09:00",
+          "timezone": "Asia/Seoul",
+          "status": "confirmed",
+          "joinUrl": "https://example.com/intro-call"
+        },
+        "shared": {
+          "candidate": {
+            "name": "Alex Lee",
+            "background": "Built customer-facing AI agents and evaluated their performance across a large set of support conversations."
+          },
+          "company": {
+            "name": "Northstar",
+            "role": "AI engineer",
+            "description": "Building reliable customer support agents."
+          },
+          "interviewer": {
+            "name": "Jamie",
+            "role": "Hiring manager and call organizer."
+          }
+        }
+      }
+    },
+    {
+      "id": "company-after-en",
+      "audience": "company",
+      "phase": "after",
+      "context": {
+        "locale": "en",
+        "meeting": {
+          "title": "Intro call",
+          "startAt": "2026-10-23T10:00:00+09:00",
+          "timezone": "Asia/Seoul",
+          "status": "confirmed",
+          "joinUrl": "https://example.com/intro-call",
+          "endAt": "2026-10-23T10:30:00+09:00",
+          "attendanceOrCompletionObserved": false
+        },
+        "shared": {
+          "candidate": {
+            "name": "Alex Lee",
+            "background": "Built customer-facing AI agents and evaluated their performance across a large set of support conversations."
+          },
+          "company": {
+            "name": "Northstar",
+            "role": "AI engineer",
+            "description": "Building reliable customer support agents."
+          },
+          "interviewer": {
+            "name": "Jamie",
+            "role": "Hiring manager and call organizer."
+          }
+        }
+      },
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "I’m speaking with Alex at 10 AM today. I’d like to understand how they evaluated those agents."
+        },
+        {
+          "role": "assistant",
+          "content": "The intro call is confirmed for 10 AM Korea time."
+        }
+      ]
+    },
+    {
+      "id": "talent-after-midnight",
+      "audience": "talent",
+      "phase": "after",
+      "context": {
+        "meeting": {
+          "title": "모아랩 백엔드 엔지니어 첫 대화",
+          "startAt": "2026-10-23T23:15:00+09:00",
+          "endAt": "2026-10-23T23:55:00+09:00",
+          "timezone": "Asia/Seoul",
+          "status": "confirmed",
+          "format": "온라인",
+          "calendarInvitationDelivered": true,
+          "attendanceOrCompletionObserved": false,
+          "joinUrl": "https://example.com/interview-room"
+        }
+      },
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "오늘 밤 11시 15분에 모아랩 민서님과 얘기하기로 했어요. 주문 처리 쪽을 어느 정도 직접 맡게 되는지 궁금해요."
+        },
+        {
+          "role": "assistant",
+          "content": "오늘 밤 11시 15분으로 일정이 확정됐어요."
+        }
+      ]
+    },
+    {
+      "id": "company-after-feedback",
+      "audience": "company",
+      "phase": "after",
+      "facts": {
+        "feedbackRecorded": true,
+        "latestFeedback": "인터뷰는 좋았다. 회사 내부에서 먼저 정리한 뒤 다음 일정을 결정하겠다고 했으며, 아직 후보자에게 추가 연락하지 말라고 요청했다."
+      },
+      "context": {
+        "meeting": {
+          "title": "모아랩 백엔드 엔지니어 첫 대화",
+          "startAt": "2026-10-23T14:00:00+09:00",
+          "endAt": "2026-10-23T14:45:00+09:00",
+          "timezone": "Asia/Seoul",
+          "status": "confirmed",
+          "format": "온라인",
+          "calendarInvitationDelivered": true,
+          "attendanceOrCompletionObserved": true,
+          "joinUrl": "https://example.com/interview-room"
+        }
+      },
+      "recentConversation": [
+        {
+          "role": "user",
+          "content": "가온 님과 오늘 2시에 먼저 이야기해볼게요. 주문 API를 운영하면서 문제를 어떻게 풀었는지 궁금합니다."
+        },
+        {
+          "role": "assistant",
+          "content": "오늘 오후 2시로 인터뷰가 확정됐고 캘린더 초대도 전달됐어요."
+        },
+        {
+          "role": "user",
+          "content": "방금 인터뷰 끝났고 좋았어요. 내부에서 먼저 정리해볼 테니 다음 일정은 제가 다시 말할게요. 후보자에게는 아직 추가 연락하지 말아주세요."
+        }
+      ]
+    }
+  ],
+  "availableFollowup": {
+    "talent": "후보자가 원하면 Harper가 회사에 질문이나 다음 대화 희망을 전달할 수 있다.",
+    "company": "회사가 원하면 Harper가 후보자에게 다음 인터뷰의 시간 선택 요청을 보낼 수 있다."
+  },
+  "locale": "ko"
+}

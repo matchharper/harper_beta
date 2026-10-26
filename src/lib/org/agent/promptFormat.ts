@@ -1,4 +1,10 @@
+import { formatLlmDateTime, projectLlmDateTimes } from '@/lib/llm/promptDateTime';
+import {formatHiringBriefHistory} from '../hiringBriefHistory';
+import { formatCompanyMemory } from "./companyMemory";
+import { formatCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
+import { companyPresentationFinalFitLabel } from "@/lib/org/companyCriteriaEvaluations";
 import { formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
+import { projectCandidateEmailPrivacy } from "./candidateEmailPrivacy";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import type { OrgAgentMoreDataToolResult } from "@/lib/org/agent/data";
 import type { MatchingRunHistory } from "@/lib/companyFirstSearch/history";
@@ -11,6 +17,14 @@ import {
 } from "@/lib/org/pipelineStage";
 
 const EMPTY_CELL = "-";
+
+/** Use product-facing meanings, not storage codes, in the model's evidence. */
+export function formatCriterionRating(value: unknown) {
+  const fit = value === "bad" ? "unfit" : value;
+  if (fit !== "excellent" && fit !== "good" && fit !== "uncertain" && fit !== "unfit") return "확인 필요 / More information needed";
+  return `${companyPresentationFinalFitLabel(fit, "ko")} / ${companyPresentationFinalFitLabel(fit, "en")}`;
+}
+
 
 function asRecord(value: unknown): Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
@@ -54,27 +68,12 @@ export function formatPromptMarkdown(value: unknown, maxLength: number) {
  */
 export function formatPromptDate(value: unknown) {
   const normalized = String(value ?? "").trim();
-  const isoDate = normalized.match(/^(\d{4}-\d{2}-\d{2})/);
-  return (isoDate?.[1] ?? clipPromptText(normalized, 24)) || EMPTY_CELL;
+  if (/^\d{4}(?:-\d{2})?$/.test(normalized)) return normalized;
+  return formatLlmDateTime(value).split(" ")[0];
 }
 
-/** Exact company-side conversation-history timestamps are rendered in KST. */
-export function formatPromptKstDateTime(value: unknown) {
-  const date = new Date(String(value ?? ""));
-  if (!Number.isFinite(date.getTime())) return EMPTY_CELL;
-  const parts = new Intl.DateTimeFormat("ko-KR", {
-    day: "numeric",
-    hour: "2-digit",
-    hourCycle: "h23",
-    minute: "2-digit",
-    month: "numeric",
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-  }).formatToParts(date);
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}년 ${part("month")}월 ${part("day")}일 ${part("hour")}:${part("minute")} KST`;
-}
+/** Compatibility name; all model timestamps share the same minute formatter. */
+export const formatPromptKstDateTime = formatLlmDateTime;
 
 export function formatPromptCell(value: unknown, maxLength = 500): string {
   if (Array.isArray(value)) {
@@ -190,7 +189,7 @@ function formatTalentSearchResult(result: Record<string, any>) {
           "role",
           "current_company_stage_id",
           "current_company_stage",
-          "fit",
+          "fit", "capabilities", "criteria",
           ...(hasCompanyProposals ? ["proposal_status"] : []),
           ...(hasProfileMatches ? ["profile_matches"] : []),
           "recommended",
@@ -205,7 +204,8 @@ function formatTalentSearchResult(result: Record<string, any>) {
           item?.currentCompanyStage?.id ?? item?.stage,
           item?.currentCompanyStage?.label ??
             humanizeOrgStage(item?.stage, item?.stageLabel),
-          item?.fitSummary,
+          item?.fitSummary, item?.capabilities,
+          (item?.criteriaEvaluations ?? []).map((c: any) => `${c.name}: ${formatCriterionRating(c.fitness)}`).join("; "),
           ...(hasCompanyProposals ? [item?.companyIntroStatus] : []),
           ...(hasProfileMatches
             ? [
@@ -225,7 +225,7 @@ function formatTalentSearchResult(result: Record<string, any>) {
           160,
           100,
           100,
-          400,
+          400, 300, 1200,
           ...(hasCompanyProposals ? [100] : []),
           ...(hasProfileMatches ? [500] : []),
           10,
@@ -569,25 +569,26 @@ function formatContactDetailResult(result: Record<string, any>) {
   ].join("\n");
 }
 
-function formatTalentProfile(profile: Record<string, any>) {
+function formatTalentProfile(profile: Record<string, any>, sections?: string[]) {
   const experiences = Array.isArray(profile.experiences)
     ? profile.experiences
     : [];
   const education = Array.isArray(profile.education) ? profile.education : [];
   const extras = Array.isArray(profile.extras) ? profile.extras : [];
   return [
+    "profile_dates=Recorded source dates. An absent end date is unrecorded, not confirmation of current employment. Use explicit present-status evidence if available; otherwise preserve that uncertainty.",
     formatPromptSection(
       "profile_summary",
       formatPromptTable(
         ["field", "value"],
         [
           ["location", profile.location],
-          ["bio", profile.bio],
+          ...(sections === undefined || sections.includes("bio") ? [["bio", profile.bio]] : []),
         ],
-        [30, 2_000]
+        [30, Number.MAX_SAFE_INTEGER]
       )
     ),
-    formatPromptSection(
+    ...(sections === undefined || sections.includes("experience") ? [formatPromptSection(
       "experience",
       formatPromptTable(
         ["company", "role", "type", "location", "start", "end", "description"],
@@ -600,10 +601,10 @@ function formatTalentProfile(profile: Record<string, any>) {
           formatPromptDate(item?.end_date),
           item?.description,
         ]),
-        [160, 160, 80, 120, 10, 10, 800]
+        [160, 160, 80, 120, 10, 10, Number.MAX_SAFE_INTEGER]
       )
-    ),
-    formatPromptSection(
+    )] : []),
+    ...(sections === undefined || sections.includes("education") ? [formatPromptSection(
       "education",
       formatPromptTable(
         ["school", "degree", "field", "start", "end", "description"],
@@ -615,21 +616,27 @@ function formatTalentProfile(profile: Record<string, any>) {
           formatPromptDate(item?.end_date),
           item?.description,
         ]),
-        [180, 120, 160, 10, 10, 500]
+        [180, 120, 160, 10, 10, Number.MAX_SAFE_INTEGER]
       )
-    ),
-    formatPromptSection(
+    )] : []),
+    ...(sections === undefined || sections.includes("extras") ? [formatPromptSection(
       "extras",
       formatPromptTable(
         ["title", "date", "description"],
         extras.map((item: any) => [item?.title, item?.date, item?.description]),
-        [300, 100, 1_000]
+        [300, 100, Number.MAX_SAFE_INTEGER]
       )
-    ),
+    )] : []),
   ].join("\n");
 }
 
 function formatSingleTalentResult(result: Record<string, any>) {
+  const accessFacts = [
+    result.capabilities ? `capabilities=${JSON.stringify(result.capabilities)}` : "",
+    result.profileUrl ? `profile_url=${result.profileUrl}` : "",
+    ...(Array.isArray(result.positions) ? result.positions.map((position: any) =>
+      `role=${position.roleId} capabilities=${JSON.stringify(position.capabilities ?? null)} criteria=${JSON.stringify((position.criteriaEvaluations ?? []).map((criterion: any) => ({ name: criterion.name, rating: formatCriterionRating(criterion.fitness) })))}`) : []),
+  ].filter(Boolean).join("\n");
   const candidate = asRecord(result.candidate);
   const positions = Array.isArray(result.positions) ? result.positions : [];
   const progress = Array.isArray(result.recentProgress)
@@ -649,6 +656,9 @@ function formatSingleTalentResult(result: Record<string, any>) {
     : [];
   return [
     "status=ok",
+    ...(result.profileView === "outline" ? ["profile_view=outline; current location and every row of the requested work/education/extras sections are included as metadata. Biography and descriptive bodies were not requested. Use read_talent profileView=full for that source evidence before making substantive claims beyond this outline."] : []),
+    ...(Array.isArray(result.profileSections) ? [`profile_sections=${result.profileSections.join(",") || "location_only"}; only these requested source sections and current location are included. Omitted sections are unexamined, not empty. Read other profileSections when their evidence is needed.`] : []),
+    accessFacts,
     ...(typeof result.responseGuide === "string" ? [formatPromptSection("candidate_read_notes", formatPromptMarkdown(result.responseGuide, 800))] : []),
     `progress_offset=${Number(progressPage.offset ?? 0)} progress_limit=${Number(progressPage.limit ?? progress.length)} progress_has_more=${progressPage.hasMore === true}`,
     `candidate_preferred_language=${formatPromptCell(result.candidatePreferredLanguage, 40)}`,
@@ -691,6 +701,7 @@ function formatSingleTalentResult(result: Record<string, any>) {
           "candidate_decision_kst",
           "intro_requested_kst",
           "candidate_sent_kst",
+          "candidate_accepted",
           "candidate_accepted_kst",
           "recommendation_origin",
         ],
@@ -715,15 +726,24 @@ function formatSingleTalentResult(result: Record<string, any>) {
           formatPromptKstDateTime(item?.talentDecisionAt),
           formatPromptKstDateTime(item?.introRequestedAt),
           formatPromptKstDateTime(item?.candidateSentAt),
+          item?.candidateAccepted,
           formatPromptKstDateTime(item?.candidateAcceptedAt),
           item?.recommendationOrigin,
         ]),
         [
           100, 160, 100, 30, 10, 30, 10, 40, 700, 500, 300, 400, 1_000, 10,
-          10, 40, 80, 40, 40, 40, 40, 40,
+          10, 40, 80, 40, 40, 40, 10, 40, 40,
         ]
       )
     ),
+    ...(positions.some((item: any) => typeof item?.recommendationReason === "string") ? [
+      formatPromptSection("recommendation_reasons", formatPromptTable(
+        ["role_id", "recommendation_reason"],
+        positions.filter((item: any) => typeof item?.recommendationReason === "string")
+          .map((item: any) => [item.roleId, item.recommendationReason]),
+        [100, Number.POSITIVE_INFINITY]
+      )),
+    ] : []),
     ...(result.scheduledFollowups ? [formatPromptSection("stored_company_followups", JSON.stringify(result.scheduledFollowups))] : []),
     ...(positions.some((item: any) => Object.hasOwn(item ?? {}, "harperRecommendation")) ? [
       formatPromptSection("harper_recommendations", [
@@ -858,35 +878,16 @@ function formatSingleTalentResult(result: Record<string, any>) {
       ),
     ] : ["Harper에게 말해준 직업 관련 정보: 이번 조회에 포함되지 않음."]),
     result.profileIncluded && Object.keys(profile).length > 0
-      ? formatTalentProfile(profile)
+      ? formatTalentProfile(profile, Array.isArray(result.profileSections) ? result.profileSections : undefined)
       : "profile_included=false",
   ].join("\n");
 }
 
-const BATCH_TALENT_RESULT_CONTENT_BUDGET = 42_000;
-
-function formatBoundedTalentResult(
-  result: Record<string, any>,
-  index: number,
-  total: number
-) {
-  const serialized = formatSingleTalentResult(result);
-  const itemBudget = Math.max(
-    2_000,
-    Math.floor(BATCH_TALENT_RESULT_CONTENT_BUDGET / Math.max(1, total))
-  );
-  const suffix = [
-    "",
-    "detail_complete=false",
-    "message=This candidate detail was clipped to fit the batch result. Re-read only this talent ID when exact remaining detail is needed.",
-  ].join("\n");
-  const complete = serialized.length <= itemBudget;
-  const content = complete
-    ? serialized
-    : `${serialized.slice(0, Math.max(0, itemBudget - suffix.length))}${suffix}`;
+/** Keep each authorized item whole; only older model-input copies may compact prose. */
+function formatTalentResultItem(result: Record<string, any>, index: number) {
   return [
-    `<talent index="${index + 1}" detail_complete="${complete}">`,
-    content,
+    `<talent index="${index + 1}">`,
+    formatSingleTalentResult(result),
     "</talent>",
   ].join("\n");
 }
@@ -909,7 +910,7 @@ function formatTalentResult(result: Record<string, any>) {
       items.length > 0
         ? items
             .map((item, index) =>
-              formatBoundedTalentResult(item, index, items.length)
+              formatTalentResultItem(item, index)
             )
             .join("\n")
         : EMPTY_CELL
@@ -1077,7 +1078,7 @@ function formatRoleResult(result: Record<string, any>) {
           "headline",
           "current_stage_id",
           "stage",
-          "fit",
+          "fit", "capabilities", "criteria",
           "proposal_status",
           "recommended",
           "updated",
@@ -1089,12 +1090,13 @@ function formatRoleResult(result: Record<string, any>) {
           item?.headline,
           item?.currentStageId,
           item?.currentStageLabel ?? item?.stage,
-          item?.fitSummary,
+          item?.fitSummary, item?.capabilities,
+          (item?.criteriaEvaluations ?? []).map((c: any) => `${c.name}: ${formatCriterionRating(c.fitness)}`).join("; "),
           item?.companyIntroStatus,
           formatPromptDate(item?.recommendedAt),
           formatPromptDate(item?.updatedAt),
         ]),
-        [100, 160, 180, 240, 100, 100, 500, 100, 10, 10]
+        [100, 160, 180, 240, 100, 100, 500, 10, 10, 300, 1200, 100, 10, 10]
       )
     ),
     formatPromptSection(
@@ -1115,6 +1117,37 @@ function formatRoleResult(result: Record<string, any>) {
   ].join("\n");
 }
 
+function formatRoleSearchHistory(item: MatchingRunHistory["items"][number]) {
+  if (!item.roleSearch) return [];
+  const search = item.roleSearch;
+  const counts = asRecord(search.counts);
+  const people = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? `${value}명` : "미측정";
+  const idCount = (value: unknown) => Array.isArray(value) ? people(value.length) : "미측정";
+  const comparisonRecorded = typeof counts.selectionPoolStage2Evaluated === "number";
+  const criteria = Array.isArray(search.criteriaStats) ? search.criteriaStats.map(asRecord) : [];
+  return [
+    ...(search.selectionMethod === "evaluation_only" ? ["평가만 완료. 추천 목록은 변경하지 않았음. matching.view=selection에서 통계·상위 후보·현재 미결정 추천을 읽고 필요한 경우 publish_role_recommendations로 직접 선정할 수 있음."] : []),
+    ...(Array.isArray(asRecord(search.evidence).evaluationIds)
+      ? [`당시 기준·평가 참조·추천 가능 후보 ${idCount(asRecord(search.evidence).rankedEvaluationIds)}·당시 추천 풀을 보존함. matching={roleId,runId:"${item.id}",view:"selection"}으로 현재 풀과 비교 가능. 같은 Brief에서는 sourceRunId를 지정해 재검색 없이 유지·교체 가능.`]
+      : ["이 실행은 당시 전체 후보 목록의 고정 참조가 없음. runId 조회는 직접 저장된 평가 범위이며 당시 전체 풀 복원은 아님."]),
+    ...(search.selectionMethod === "company_agent_selected_ids" ? ["회사 대화 LLM이 지정한 후보만 company-first 목록에 반영. Worker 재선정·인원 보충 없음."] : []),
+    ...(search.selectionMethod === "stage2_mutual_fit_desc_v1"
+      ? ["선정 방식: 저장된 2차 상호 적합 점수순 Top N. 추가 비교 모델 호출 없음. 3차는 기존 평가를 보존한 설명 작성이며 선정 수가 모든 필수조건 충족 인원은 아님."] : []),
+    `대화 검색 · Brief ${search.briefVersion ?? "미기록"}; 요청 범위 ${search.scope ?? "미기록"}. 요청 이유: ${item.request?.reason ?? "기록 없음"}`,
+    `이번 실행의 새 평가: 1차 ${people(counts.stage1Evaluated)} 중 통과 ${people(search.stage1Passed)}, 제외 ${people(counts.stage1Excluded)}; 2차 ${people(search.stage2Evaluated)}. 추천 설명 작성 ${people(counts.stage3Written)}.`,
+    ...(typeof counts.evaluationFailed === "number" ? [`이 실행의 평가 미완료 ${counts.evaluationFailed}건. 성공한 개별 평가 이력은 보존되어 있으며 실패는 부적합 판정이 아님. 미완료 대상은 해당 실행 상세에서 조회할 수 있음.`] : []),
+    `이번 실행의 회사 목록 변화: 추가 ${idCount(search.addedTalentIds)}, 제외 ${idCount(search.removedTalentIds)}, 기존 설명 갱신 ${idCount(search.refreshedTalentIds)}. 현재 목록 전체 인원이나 메시지 전달 수가 아님.`,
+    `실행 완료 시 같은 Brief의 전체 누적 2차 평가 ${people(counts.currentStage2Evaluated)}; 이번 요청 범위·지정 후보로 좁힌 비교 모집단 ${people(counts.selectionPoolStage2Evaluated)}. 공유·기존 결정 자격을 적용하기 전 2차 기록 수이며 실제 선정 입력 수는 아님. 이전 평가 재사용이 포함될 수 있으며 새 2차 평가 인원과 다름.`,
+    ...(criteria.length ? [
+      comparisonRecorded
+        ? "아래 기준별 분포는 이번 비교 모집단의 저장된 평가 라벨이다. 전체 누적 분포는 현재 기준의 summary로 별도 조회한다."
+        : "아래는 이 실행에 저장된 기준별 분포다. 비교 모집단 수가 별도로 기록되지 않은 과거 결과이며 각 기준의 기록된 분모를 표시한다.",
+      ...criteria.map(criterion => `기준 ${criterion.name ?? "이름 미기록"} · 분모 ${people(criterion.count)}: ${Object.entries(asRecord(criterion.labelCounts)).map(([label, count]) => `${label} ${people(count)}`).join(", ") || "라벨 분포 미기록"}. 원래 기준: ${criterion.criterionDefinition ?? "미기록"}`),
+    ] : ["이 실행 요약에 기준별 분포가 기록되지 않음."]),
+  ].map(line => formatPromptMarkdown(line, Number.MAX_SAFE_INTEGER));
+}
+
 export function formatMatchingRunHistory(value: MatchingRunHistory) {
   const missing = "기록 없음 (0으로 해석하지 않음)";
   const statuses: Record<string, string> = { queued: "실행 대기", running: "실행 중", delivery_pending: "회사에 결과 전달 중", succeeded: "완료", failed: "실패", skipped: "실행 건너뜀", canceled: "취소", cancelled: "취소" };
@@ -1122,7 +1155,11 @@ export function formatMatchingRunHistory(value: MatchingRunHistory) {
   const measure = (count: number | null, unit: string) => count === null ? missing : `${count}${unit}`;
   const rows = value.items.map((item, index) => [
     `### 검색 ${value.offset + index + 1} · ${formatPromptCell(statuses[item.status] ?? item.status, 50)}`,
-    `실행: ${formatPromptKstDateTime(item.createdAt)}, ${formatPromptCell(triggers[item.trigger] ?? item.trigger, 80)}`,
+    `실행 ID: ${item.id ?? "기록 없음"}`,
+    ...(item.request?.sourceMessageId !== undefined ? [`이 실행을 요청한 대화 message_id: ${item.request.sourceMessageId}.`] : []),
+    ...formatRoleSearchHistory(item),
+    `요청 등록: ${formatPromptKstDateTime(item.createdAt)}, ${formatPromptCell(triggers[item.trigger] ?? item.trigger, 80)}; 시작: ${formatPromptKstDateTime(item.startedAt)}; 종료: ${formatPromptKstDateTime(item.finishedAt)}.`,
+    ...(item.sourceCutoff ? [`이 실행의 데이터 기준시각: ${formatPromptKstDateTime(item.sourceCutoff)}.`] : []),
     `대상 역할: ${item.roles.map(role => `${formatPromptCell(role.name, 250)} (${role.roleId})`).join(", ") || missing}`,
     `전체 검토: ${measure(item.reviewedTalents ?? null, "명")}, 추천 가능하지만 이번에 추천하지 않음: ${measure(item.rerankPool != null && item.selected != null && item.rerankPool >= item.selected ? item.rerankPool - item.selected : null, "명")}`,
     `회사에게 먼저 추천할 후보자 선정: ${measure(item.companyProposals, "명")} · 후보자에게 먼저 추천 선정: ${measure(item.candidateProposalsSelected, "명")}`,
@@ -1136,20 +1173,30 @@ export function formatMatchingRunHistory(value: MatchingRunHistory) {
     `검색 방향: ${formatPromptMarkdown(item.searchStrategy, 500)}`,
   ].join("\n"));
   return [
-    "회사 전체 검색 실행 이력 (최신 등록 순). 아래 인원은 이번 검색에서 선정한 수다. 실제 추천 발송·후보자 수락·회사 수락·연결 완료 여부는 이 이력에서 제공하지 않는다.",
+    `${value.roleId ? `Role ${value.roleId}의` : "회사 전체"} 검색 실행 이력 (최신 등록 순). 실행별 새 평가·목록 변화와 누적/비교 모집단을 구분한다. 실제 추천 발송·후보자 수락·회사 수락·연결 완료 여부는 이 이력에서 제공하지 않는다.`,
     "양쪽에 선정된 동일 후보자가 두 방향 수에 포함될 수 있다. 기록이 없는 수치는 0이 아니다. 개별 비공개 fit/선정 이유는 제공하지 않는다.",
+    "기준 라벨은 평가 분포이며 limited/conflict 등의 합계가 실제 제외 인원이나 제외 사유는 아니다. 1·2차 Decisions의 당시 판단은 점수·분류로 저장되고 이유 원문은 없다. 후보별 공개 근거와 3차 추천 설명은 일반 상세 조회로 확인한다.",
+    "실패·과거 실행의 요약 수치가 없더라도 저장된 평가가 없다는 뜻은 아니다. 단계별 기록은 matching={roleId,view:\"evaluations\",runId}로 확인하며, 현재 Brief 전체 누적 통계는 runId 없이 matching={roleId,view:\"summary\"}로 조회한다.",
     "역할의 연결 대기 인원·선추천 상한 중단 여부는 기록이 있으면 회사에 설명할 수 있는 운영 사실이다. 상한 해소는 다음 검색에서 새 후보자 선추천 경로를 허용할 뿐, 후보 선정·추천 발송을 보장하지 않는다.",
     rows.length ? rows.join("\n\n") : "이 페이지에 검색 실행 기록 없음.",
     value.nextOffset === null ? "다음 페이지 없음." :
-      `더 오래된 실행: get_more_data(kinds=[\"matching_runs\"], offset=${value.nextOffset}). 개별 run 상세 조회는 제공하지 않는다.`,
+      `더 오래된 실행: get_more_data(kinds=[\"matching_runs\"]${value.roleId ? `, roleId="${value.roleId}"` : ""}, offset=${value.nextOffset}). 역할별 상세·통계·후보 목록은 matching={roleId,view,runId?}로 조회한다.`,
     "개인 정보 보호를 이유로 후보자에게 먼저 추천한 내역을 공유받지 못함.",
   ].join("\n\n");
 }
 
 export function serializeOrgAgentMoreData(value: OrgAgentMoreDataToolResult) {
+  value = projectLlmDateTimes(value) as OrgAgentMoreDataToolResult;
   const blocks: string[] = [
     `requested=${value.requestedKinds.join(",") || EMPTY_CELL}`,
   ];
+  if (value.roleSearch) blocks.push(formatPromptSection("role_search", formatCompanyRoleSearch(value.roleSearch)));
+  if (value.hiringBriefHistory) blocks.push(formatPromptSection("hiring_brief_history",formatHiringBriefHistory(value.hiringBriefHistory)));
+  if (value.companyMemory) blocks.push(formatPromptSection("company_memory", formatCompanyMemory(value.companyMemory)));
+  if (value.teams) blocks.push(formatPromptSection("teams",[
+    `현재 대화 권한으로 조회 가능한 활성 팀 ${value.teams.length}개. 배정된 팀원·Role·Memory 유무와 독립적인 전체 팀 목록이다.`,
+    formatPromptTable(['team_id','name'],value.teams.map(team=>[team.teamId,team.name]),[100,Number.MAX_SAFE_INTEGER]),
+  ].join('\n')));
   if (value.matchingRuns) {
     blocks.push(formatPromptSection("matching_runs", formatMatchingRunHistory(value.matchingRuns)));
   }
@@ -1214,10 +1261,9 @@ export function serializeOrgAgentMoreData(value: OrgAgentMoreDataToolResult) {
       ].join("\n")
     );
   }
-  const serialized = blocks.join("\n");
-  return serialized.length > 14_000
-    ? `serialization_complete=false\nmessage=Output framing exceeded the safety limit; do not treat any long text in this result as complete.\n${serialized.slice(0, 13_860)}…`
-    : serialized;
+  // A page is an evidence ledger: a total-size prefix cut would discard later
+  // identities, scores and pagination. Rolling context may shorten old prose.
+  return blocks.join("\n");
 }
 
 const COMPANY_DETAIL_LONG_KEYS_FOR_FORMAT = new Set(["workspace_request"]);
@@ -2174,7 +2220,7 @@ export function formatOrgAgentToolResult(
   name: OrgAgentToolName,
   value: unknown
 ) {
-  const result = asRecord(value);
+  const result = asRecord(projectLlmDateTimes(projectCandidateEmailPrivacy(value)));
   if (name === "start_role_creation") {
     const requiredContinuationLink = String(
       result.requiredContinuationLink ?? ""
@@ -2191,7 +2237,8 @@ export function formatOrgAgentToolResult(
       `transferred_message_count=${formatPromptCell(result.transferredMessageCount, 20)}`,
       "role_registration_state=in_progress",
       "matching_started=false",
-      "conversation_destination=separate Role conversation",
+      "conversation_destination=web hiring-start onboarding",
+      `saved_fields=${formatPromptCell((Array.isArray(result.savedFields) ? result.savedFields : []).join(", "), 300)}`,
       `required_continuation_link=${exactRequiredContinuationLink}`,
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
@@ -2227,16 +2274,21 @@ export function formatOrgAgentToolResult(
     validUntil: result.request?.validUntil, promotionAllowed: result.promotionAllowed,
     anonymous: result.anonymous, immediatePostingPerformed: false });
   if (name === "read_role") return formatRoleResult(result);
+  if (name === "write_company_memory") return `메모리 저장: ${JSON.stringify(result.applied)}\noperationId=${result.operationId}. 채용 기준·추천·외부 연락은 이 저장으로 변경되지 않음.`;
+  if (name === "publish_role_recommendations" || name === "recommend_talents") {
+    return JSON.stringify(projectLlmDateTimes(result));
+  }
   if (name === "request_matching_search") {
     return [
       `status=${formatPromptCell(result.status, 40)}`,
       `requested_role=${formatPromptCell(result.requestedRoleName ?? result.roleName, 200)}`,
+      `run=${result.runId ?? "없음"}; 실행 상태=${result.runStatus ?? result.status}; Brief=${result.briefVersion ?? "미확인"}; 요청=${JSON.stringify(result.options ?? {})}`,
       ...(result.unavailableReason
         ? [
             `unavailable_reason=${formatPromptCell(result.unavailableReason, 500)}`,
             "result_meaning=No new search was started. Use the verified reason to respond naturally in the current conversation; mention a next step only when it is genuinely useful.",
           ]
-        : [
+        : result.status === "already_completed" ? ["result_meaning=This exact request already reached the returned terminal runStatus. No new search was created. Read this run for its actual results; terminal failure is not a successful search."] : [
             "result_meaning=A search against the saved current Hiring Brief is now queued or already running. Evaluating the pool can take time, and the completed outcome will be shared separately.",
           ]),
       ...formatOptionalResponseGuidance(result),

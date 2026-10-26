@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
-import { queryKeys } from "@/lib/queryKeys";
+import { reconcileOrgCandidateSave } from "@/lib/org/mutationCache";
 
 export function useOrgCandidateSave() {
   const client = useQueryClient();
@@ -12,12 +12,15 @@ export function useOrgCandidateSave() {
       recommendationId: string;
       saved: boolean;
     }) =>
-      fetchWithInternalAuth<{ ok: true }>("/api/org/candidate-save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      }),
-    onSuccess: () =>
-      client.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
+      fetchWithInternalAuth<{ ok: true; savedAt: string | null }>(
+        "/api/org/candidate-save",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        }
+      ),
+    onSuccess: (result, input) =>
+      reconcileOrgCandidateSave(client, input, result.savedAt),
   });
 }

@@ -1,5 +1,7 @@
+import { withOrgRequestScope } from "@/lib/org/requestScope.server";
+import { traceStageStep, withStageTiming } from "@/lib/org/stageTiming.server";
 import { billingErrorResponse } from "@/lib/org/billing/http";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import {
   OrgHttpError,
@@ -56,9 +58,13 @@ function toErrorResponse(error: unknown) {
 }
 
 export async function POST(req: NextRequest) {
+  return withOrgRequestScope(() => withStageTiming(() => handleStagePost(req)), after, { cachePermissions: true });
+}
+
+async function handleStagePost(req: NextRequest) {
   try {
-    const user = await requireAuthenticatedUser(req);
-    const body = (await req.json().catch(() => ({}))) as {
+    const user = await traceStageStep("POST:60", async () => (requireAuthenticatedUser(req)));
+    const body = (await traceStageStep("POST:61", async () => (req.json().catch(() => ({}))))) as {
       acceptReason?: string | null;
       agentActionId?: unknown;
       attendeeEmails?: string[];
@@ -119,7 +125,7 @@ export async function POST(req: NextRequest) {
     // The initial connection has one durable schedule per recommendation, even
     // if a client loses the response and submits again with a new action ID.
     const prepared = schedulesInterview
-      ? await prepareMeetingScheduleDraftForStage({
+      ? await traceStageStep("POST:122", async () => (prepareMeetingScheduleDraftForStage({
           attendeeEmails: body.attendeeEmails,
           durationMinutes: body.durationMinutes,
           meetingCandidateMessage: body.meetingCandidateMessage,
@@ -132,29 +138,29 @@ export async function POST(req: NextRequest) {
           title: body.title,
           user,
           workspaceId: body.workspaceId ?? "",
-        })
+        })))
       : null;
     const meeting = prepared
-      ? await createMeetingScheduleDraft({
+      ? await traceStageStep("POST:138", async () => (createMeetingScheduleDraft({
           ...prepared,
           sourceCompanyMessageId: null,
           webRequestKey: "initial-connection",
-        })
+        })))
       : null;
     const meetingDetail = meeting
-      ? await fetchMeetingScheduleDetail({
+      ? await traceStageStep("POST:145", async () => (fetchMeetingScheduleDetail({
           scheduleId: meeting.scheduleId,
           user,
           workspaceId: body.workspaceId ?? "",
-        })
+        })))
       : null;
     const invitation =
       meeting && meetingDetail?.schedule.status === "preparing"
-        ? await prepareMeetingInvitationPreview({
+        ? await traceStageStep("POST:153", async () => (prepareMeetingInvitationPreview({
             scheduleId: meeting.scheduleId,
             user,
             workspaceId: body.workspaceId ?? "",
-          })
+          })))
         : null;
     if (meeting && !invitation) {
       throw new OrgHttpError(
@@ -163,7 +169,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const payload = await setOrgCandidateStage({
+    const payload = await traceStageStep("POST:166", async () => (setOrgCandidateStage({
       acceptReason: body.acceptReason ?? null,
       contactDirectly: body.contactDirectly === true,
       emailMode: emailMode as InternalConnectionConfirmationEmailMode,
@@ -185,10 +191,10 @@ export async function POST(req: NextRequest) {
       talentId: body.talentId ?? "",
       user,
       workspaceId: body.workspaceId ?? "",
-    });
+    })));
     if (meeting && invitation && meetingDetail && "stage" in payload) {
       try {
-        await queueMeetingInvitation({
+        await traceStageStep("POST:191", async () => (queueMeetingInvitation({
           baseUrl: getPublicSiteUrlFromRequest(req),
           body: invitation.email.body,
           candidateMessage: invitation.email.candidateMessage,
@@ -198,7 +204,7 @@ export async function POST(req: NextRequest) {
           subject: invitation.email.subject,
           user,
           workspaceId: body.workspaceId ?? "",
-        });
+        })));
       } catch (error) {
         console.error("[org/stage:interview-invitation]", error);
         throw new OrgHttpError(
@@ -207,9 +213,10 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    let agentJobId: string | null = null;
+    let agentJobId: string | null = "companyUpdateJobId" in payload ? payload.companyUpdateJobId ?? null : null;
     try {
-      const queued = await enqueueOrgAgentWebActionTurn({
+      if (!agentJobId) {
+      const queued = await traceStageStep("POST:212", async () => (enqueueOrgAgentWebActionTurn({
         actionContext: {
           closureNotificationDelivered:
             "closureNotificationDelivered" in payload
@@ -238,8 +245,9 @@ export async function POST(req: NextRequest) {
         roleId: payload.roleId,
         user,
         workspaceId: body.workspaceId ?? "",
-      });
+      })));
       agentJobId = queued.jobId;
+      }
     } catch (agentError) {
       console.error("[org/stage:agent-wake]", agentError);
     }

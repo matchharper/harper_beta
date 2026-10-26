@@ -228,7 +228,7 @@ test("long-text rewrite visibility is bound to the exact observed value", () => 
   );
 });
 
-test("an authoritative empty long-text target enables the large rewrite completion budget", async () => {
+test("long-text and normal tool work both retain a generous completion budget", async () => {
   const { getOrgAgentToolCompletionMaxTokens } =
     await import("@/lib/org/agent/toolCompletionBudget");
   const state = createOrgAgentToolExecutionState(
@@ -248,12 +248,12 @@ test("an authoritative empty long-text target enables the large rewrite completi
 
   assert.equal(parsed.changes[0].value, eightThousandCharacters);
   assert.equal(state.completeLongTextTargets.size, 1);
-  assert.equal(getOrgAgentToolCompletionMaxTokens(state), 32_000);
+  assert.equal(getOrgAgentToolCompletionMaxTokens(state), 65_536);
   assert.equal(
     getOrgAgentToolCompletionMaxTokens(
       createOrgAgentToolExecutionState(minimalContext())
     ),
-    4_000
+    65_536
   );
 });
 
@@ -352,7 +352,7 @@ test("meeting confirmation equality ignores JSON object key order", () => {
   assert.equal(jsonValuesEqual(left, reordered), true);
 });
 
-test("read_talent input accepts ten unique IDs and rejects invalid batches", () => {
+test("read_talent input accepts arbitrary unique batches and rejects ambiguous targets", () => {
   const tenTalentIds = Array.from(
     { length: 10 },
     (_, index) => `talent-${index}`
@@ -362,13 +362,8 @@ test("read_talent input accepts ten unique IDs and rejects invalid batches", () 
     tenTalentIds
   );
   assert.deepEqual(parseReadTalentIds({ talentId: "talent-1" }), ["talent-1"]);
-  assert.throws(
-    () =>
-      parseReadTalentIds({
-        talentIds: [...tenTalentIds, "talent-10"],
-      }),
-    /talentIds must contain at most 10 items/
-  );
+  const largerBatch = Array.from({ length: 37 }, (_, index) => `talent-${index}`);
+  assert.deepEqual(parseReadTalentIds({ talentIds: largerBatch }), largerBatch);
   assert.throws(
     () =>
       parseReadTalentIds({
@@ -410,17 +405,17 @@ test("workspace-scoped Harper links keep model prose but use the verified org id
   );
 });
 
-test("a started role creation keeps model prose and requires the exact Slack link once", () => {
+test("a started role creation keeps model prose and requires the web onboarding link once", () => {
   const state = createOrgAgentToolExecutionState(minimalContext());
   const requiredLink =
-    "<https://slack.example/thread|새로운 채용 등록 이어가기>";
+    `<https://matchharper.com/org/role?orgId=${state.company.workspaceId}&roleId=role|새로운 채용 등록 이어가기>`;
   state.requiredSlackContinuationLink = requiredLink;
   state.fallbackReply = "역할 등록을 시작할게요.";
   state.toolResults.push({
     callId: "call-start-role",
     name: "start_role_creation",
     status: "success",
-    summary: "Staff Engineer 역할 작성 스레드 시작",
+    summary: "Staff Engineer 역할 초안과 웹 채용 시작 화면 준비",
   });
 
   const reply = enforceOrgAgentReplyInvariants(

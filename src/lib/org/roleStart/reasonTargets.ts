@@ -1,3 +1,4 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import type { RoleStartBrief } from "./brief";
@@ -72,7 +73,7 @@ export async function classifyTypedReason(args: {
       properties: { about: { type: "array", items: { type: "string", enum: ids } } },
     },
     system: CLASSIFY_SYSTEM,
-    user: JSON.stringify({ reason: args.text.slice(0, 1_000), points }),
+    user: formatPromptText({ reason: args.text.slice(0, 1_000), points }),
   });
   const targets = new Set((data.about ?? []).filter((id) => ids.includes(id)));
   const years = yearsIds(args.brief);

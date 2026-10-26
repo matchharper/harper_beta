@@ -4,7 +4,8 @@ Harper 프론트엔드의 디자인 시스템, 상태 관리, 성능 원칙, 그
 **`useEffect`를 의도에 맞게 사용하는 기준**을 정리한 문서. 새 기능을 추가하거나
 모바일을 지원하는 모든 변경은 이 문서를 따른다.
 
-> 마지막 저장소 대조: **2026-07-30**
+> 마지막 전체 저장소 대조: **2026-07-30**
+> 부분 개정: **2026-10-21** — 반응형·상태 관리·로딩 기준. 전체 구현 재검증을 뜻하지 않는다.
 >
 > 이 문서의 MUST 규칙은 **신규 코드와 PR에서 수정한 코드**에 적용한다. 기존
 > 레거시는 관련 영역을 수정할 때 함께 줄이되, PR 범위 밖의 전면 정리를 요구하지
@@ -14,9 +15,9 @@ Harper 프론트엔드의 디자인 시스템, 상태 관리, 성능 원칙, 그
 > 1. **`useEffect`는 외부 시스템 동기화에 사용한다.** 파생값 계산, 이벤트 처리,
 >    서버 데이터 패칭을 effect로 우회하지 않는다.
 > 2. **상태 책임을 깨지 않는다.** 브라우저에서 조회·갱신하는 서버 상태 →
->    TanStack Query, 앱/라우트 간 공유 UI 상태 → Zustand, 한 페이지의 형제들이
->    공유하는 상태 → page-scoped context/domain hook, 한 컴포넌트의 일시적 상태
->    → `useState`.
+>    TanStack Query, 편집 초안·일시적 UI 상태 → 로컬 state를 기본으로 한다.
+>    공유 UI 상태는 수명·변경 빈도·구독 범위에 따라 props, Context, Zustand를
+>    선택한다. 링크·뒤로 가기에 보존할 탭·필터·선택은 URL을 우선한다.
 
 ---
 
@@ -32,19 +33,6 @@ grandfathered 상태로 보되, 수정한 코드 주변에서 합리적으로 �
 제품 소스의 신규·수정 코드에서는 TypeScript의 타입 안전성을 무력화하는 명시적
 `any`를 쓰지 않는다. 자동 생성 파일이나 타입이 없는 외부 모듈을 연결하는 선언
 파일은 예외로 둘 수 있지만, 범위를 최소화하고 예외 이유를 주석으로 남긴다.
-
-```ts
-// ❌ 금지
-function parseData(data: any) {}
-const result = response as any;
-const map = new Map<string, any>();
-
-// ✅ 대안
-function parseData(data: unknown) {}                     // unknown + 타입 가드
-function parseData<T extends Record<string, string>>(data: T) {}  // 제네릭
-const result = response as ApiResponse;                  // 구체적 단언
-const map = new Map<string, CandidateRecord>();          // 구체적 타입 파라미터
-```
 
 | 상황 | 대안 |
 |---|---|
@@ -75,17 +63,10 @@ const map = new Map<string, CandidateRecord>();          // 구체적 타입 파
 <div style={{ gridTemplateColumns, width: `${percent}%` }} />
 ```
 
-### 0.4 viewport 유닛은 `svh` 표준
+### 0.4 viewport 높이는 실제 화면 동작에 맞춘다
 
-모바일 지원으로 전환 중이므로 `vh`를 사용하지 않는다. 자세한 규칙은 §2.3.
-
-```tsx
-// ❌ 금지 — iOS Safari URL bar에서 100vh가 viewport를 넘침
-<div className="h-screen min-h-screen" />
-
-// ✅ Tailwind v4 svh 유틸리티
-<div className="h-svh min-h-svh" />
-```
+페이지 최소 높이는 `svh`를 기본으로 검토하고, 현재 보이는 높이에 맞춰 채워야 하면
+`dvh`를 선택한다. `100vh`를 기본값으로 사용하지 않는다. 자세한 기준은 §2.3.
 
 ### 0.5 신규 styled-jsx 금지
 
@@ -155,17 +136,15 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 
 ## 2. 모바일 지원 전략
 
-> 현재 앱 전역의 데스크탑 강제 게이트는 없다. 라우트별 모바일 완성도를 표로
-> 관리하며, `desktop_only`는 “차단됨”이 아니라 모바일 QA와 디자인이 완료되지
-> 않았다는 뜻이다.
+반응형 레이아웃은 Tailwind breakpoint를 우선한다. 모바일 접근 차단은 명시적인
+제품 요구가 있을 때만 둔다. 라우트별 완성도는 고정 표 대신 변경한 화면에서 확인한다.
 
 ### 2.1 현재 모바일 인프라
-- `src/hooks/useMediaQuery.ts` — `useSyncExternalStore` 기반 미디어 쿼리 훅. `useIsMobile`, `useIsTabletUp`, `useIsDesktop` 등 편의 훅 포함. 차단이 아닌 **레이아웃 분기**용.
-- `src/hooks/useIsMobile.ts` — `useMediaQuery.useIsMobile`의 re-export. 기존 30+ 호출처 호환.
-- `/career/*`/`/career_login`의 이전 모바일 차단은 제거되었고
-  `mobileBlocker.ts`도 현재 존재하지 않는다. 새 차단은 제품 요구가 명시된 경우에만
-  도입하고 §2.7 상태를 `blocked`로 기록한다.
-- `src/components/landing/Orbit.tsx`, `FallingTagsSmall.tsx` 등 `useIsMobile()` 조건부 렌더는 모바일 전용 컴포넌트로 분기.
+- 기본 도구는 Tailwind의 `sm:`·`md:`·`lg:` 등이다. 너비·배치·여백·표시 여부에 사용한다.
+- `src/hooks/useMediaQuery.ts`는 `useSyncExternalStore` 기반이다. 실제 동작이나
+  마운트 수명을 JS에서 바꿔야 할 때 사용한다 (§2.4).
+- `src/hooks/useIsMobile.ts`는 기존 호출처를 위한 re-export다. 단순 레이아웃에
+  이 훅을 추가하는 것을 기본 패턴으로 삼지 않는다.
 
 ### 2.2 Breakpoint 컨벤션 (Mobile-first)
 
@@ -177,16 +156,18 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 | `lg:` | 1024px | 데스크탑 |
 | `xl:` / `2xl:` | 1280/1536px | 와이드 |
 
-작은 화면 스타일을 prefix 없이 먼저, `md:`/`lg:`로 데스크탑 보강. `lg:hidden`으로 데스크탑 숨김 방식은 컨테이너 쿼리가 아닌 한 피한다.
+작은 화면 스타일을 prefix 없이 먼저, `md:`/`lg:`로 넓은 화면을 보강한다.
+`hidden md:block`, `md:hidden`은 일반적인 반응형 표현이다. `md:`는 기기 종류가 아니라
+너비 조건이다. 부모 너비에 반응하는 재사용 UI는 container query도 검토한다.
 
-### 2.3 ⭐ viewport 유닛은 `svh` 표준
+### 2.3 viewport 유닛 선택
 
 | 유닛 | 의미 | 언제 쓰나 |
 |---|---|---|
-| `svh` (small) | 모바일 브라우저 UI가 *전부 보일 때*의 viewport | **기본값** — 어떤 상태에서도 overflow 없음 |
+| `svh` (small) | 모바일 브라우저 UI가 *전부 보일 때*의 viewport | **기본값** — 브라우저 UI가 보일 때의 높이를 기준으로 안정적인 최소 높이 |
 | `lvh` (large) | UI가 *모두 숨겨졌을 때*의 viewport | 히어로 풀블리드처럼 의도적으로 크게 차고 싶을 때만 |
-| `dvh` (dynamic) | UI 상태에 따라 *실시간 변동* | URL bar 토글에 맞춰 늘었다 줄었다 해야 하는 경우 (드물게) — layout shift 주의 |
-| `vh` | 레거시 | **신규 코드 금지**. iOS Safari에서 100vh > visible area 문제 |
+| `dvh` (dynamic) | UI 상태에 따라 *실시간 변동* | 현재 화면 높이를 채워야 하는 앱 shell 등 — 높이 변화와 스크롤 확인 |
+| `vh` | 레거시 | 기본 선택으로 사용하지 않음. 모바일에서 보이는 높이보다 클 수 있음 |
 
 **Tailwind v4 유틸리티 (현재 빌드)**:
 - `h-svh`, `min-h-svh`, `max-h-svh`
@@ -195,10 +176,11 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 - `w-svw` 등 가로 변형도 존재 (가로는 거의 필요 없음)
 
 **규칙**:
-- 풀스크린/모달/sticky 컨테이너 → `h-svh` 또는 `min-h-svh`
+- 풀스크린/모달/sticky 컨테이너 → 공통 컴포넌트의 높이·스크롤 계약을 따라 `svh`/`dvh` 선택
 - 페이지 컨테이너 → `min-h-svh` (콘텐츠가 더 길면 자연 확장)
 - 안전 영역과 결합: `min-h-svh pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`
-- 기존 `h-screen` / `min-h-screen` / `100vh` 는 보일 때마다 `svh`로 교체
+- 기존 `h-screen` / `min-h-screen` / `100vh`는 해당 화면을 수정할 때 실제 동작을 확인해 선택
+- `svh`도 콘텐츠·패딩·키보드에 의한 overflow를 막아주지는 않는다. 스크롤 영역과 safe area를 확인
 
 ```tsx
 // ❌
@@ -210,36 +192,28 @@ Tailwind는 **컬러·spacing·typography의 단일 소스**다. 다음 누수�
 <div className="min-h-svh pb-[env(safe-area-inset-bottom)]" />
 ```
 
-### 2.4 미디어 쿼리는 React에서 어떻게 다루나
-CSS로 풀 수 있으면 CSS로. JS가 필요할 때만 `src/hooks/useMediaQuery.ts`의 훅을 쓴다. `useSyncExternalStore` 기반이라 SSR 안전.
+### 2.4 레이아웃은 Tailwind, 동작 분기만 JavaScript
 
-```ts
-import {
-  useMediaQuery,
-  useIsMobile,
-  useIsTabletUp,
-  useIsDesktop,
-  useBreakpointUp,
-  useBreakpointDown,
-  usePrefersReducedMotion,
-  breakpoints,
-} from "@/hooks/useMediaQuery";
+배치·너비·간격·표시 여부는 Tailwind로 표현한다. 같은 UI를 `isMobile` 조건으로
+두 번 구현하기보다 같은 DOM의 레이아웃을 바꾼다.
 
-// 편의 훅 (Tailwind md=768 기준)
-const isMobile = useIsMobile();         // < 768px
-const isTabletUp = useIsTabletUp();     // >= 768px
-const isDesktop = useIsDesktop();       // >= 1024px
-
-// 임의 브레이크포인트
-const isLargeUp = useBreakpointUp("xl"); // >= 1280px
-
-// 임의 쿼리
-const isLandscape = useMediaQuery("(orientation: landscape)");
+```tsx
+<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
+  <main className="min-w-0">...</main>
+  <aside className="hidden md:block">...</aside>
+</div>
 ```
 
-스크롤 방향에 따라 헤더를 숨기는 hide-on-scroll 패턴은
-`src/hooks/useHideOnScroll.ts`로 통합한다. 신규 구현에서 스크롤 listener와 방향
-판정 로직을 다시 작성하지 않는다.
+CSS로 해결되지 않는 위젯 동작이나 dialog/drawer 마운트 선택에만 기존
+`src/hooks/useMediaQuery.ts`를 사용한다. 공통 컴포넌트가 이미 제공하는 분기는 재사용한다.
+
+- CSS로 숨겨도 컴포넌트의 요청·구독은 실행될 수 있다. 무거운 기능을 중복 마운트하지 않는다.
+- portal은 부모의 `hidden`으로 숨겨지지 않는다. dialog를 소유한 반응형 대안은 활성 변형만 마운트한다.
+- 현재 훅의 서버 snapshot은 `false`다. hydration 이후 분기가 바뀔 수 있으므로
+  훅을 사용했다는 이유만으로 초기 레이아웃이 안정적이라고 가정하지 않는다.
+- viewport listener·breakpoint 목록을 기능마다 별도로 만들지 않는다.
+
+스크롤 방향에 따른 헤더 동작은 기존 `src/hooks/useHideOnScroll.ts`를 재사용한다.
 
 ### 2.5 터치 대응 체크리스트
 - 탭 타깃 최소 44×44px (`min-h-11 min-w-11` 또는 padding)
@@ -308,43 +282,12 @@ import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
 - 강제 분기: `forceVariant="dialog"` 또는 `"drawer"`
 - 기존 `BaseModal.tsx` 위에 만들어진 19개 모달은 점진 마이그레이션 (페이지 단위)
 
-### 2.7 주요 라우트 모바일 상태 표
+### 2.7 변경한 화면의 반응형 검증
 
-사용자에게 직접 노출되는 주요 화면의 상태를 관리한다. 새 화면을 공개하거나
-모바일 디자인·QA를 완료한 PR은 이 표를 업데이트한다. 내부 redirect와 세부
-하위 라우트를 모두 나열하는 전체 route manifest는 아니다.
-
-| 라우트 | 카테고리 | 모바일 상태 | 비고 |
-|---|---|---|---|
-| `/` | landing | partial | `CareerAppBar` 사용, hide-on-scroll 동작. 모바일 분기 검증 필요 |
-| `/ko`, `/en` | landing | partial | `/`과 같은 landing page를 locale별로 제공 |
-| `/network` | landing | partial | inline AppBar + preloader. 통합 헤더로 마이그레이션 대상 |
-| `/company` | landing | desktop_only | inline nav, 모바일 분기 없음 |
-| `/find` | landing | partial | `LandingHeader` 햄버거 있음. 본문 모바일 미검증 |
-| `/pricing` | landing | partial | `LandingHeader` 햄버거 있음 |
-| `/search` | landing/app | partial | `SearchHeader` 햄버거 있음 |
-| `/radar` | app | desktop_only | inline header, 모바일 분기 없음 |
-| `/talent` | landing | desktop_only | `AppHeader` 사용, 모바일 미디자인 |
-| `/join` | auth | desktop_only | 헤더 없음, 모바일 미디자인 |
-| `/invitation/*` | redirect | not_applicable | `next.config.mjs`에서 `/`로 임시 redirect |
-| `/onboard` | auth | desktop_only | 모바일 미디자인 |
-| `/career_login` | career | partial | 모바일 카드와 풋터 wrap 적용. 입력 글꼴 16px 이상으로 보정 후 iOS 줌 QA 필요 |
-| `/career`, `/career/onboarding`, `/career/preview` | career | designed | `CareerWorkspaceScreen` 모바일 분기(`CareerMobile*` 6종). onboarding은 단계별 모바일-퍼스트 그리드 + svh. preview는 workspace를 그대로 사용. |
-| `/org/jobs/new` | org | partial | 데스크톱은 72px 아이콘 사이드바와 hover tooltip, 왼쪽 company-side LLM 채팅, 오른쪽 Role/Company/Setting/Calibration 상세 패널을 제공. 모바일은 채팅만 제공. |
-| `/auths/*` | auth | designed | 단순 콜백 페이지, 시각 요소 거의 없음 |
-| `/my`, `/my/*` | app | partial | `AppLayout`이 모바일에서 햄버거 + 하단 시트 drawer로 분기됨. 콘텐츠 영역 페이지별 모바일 디자인 필요 |
-| `/ops/*` | ops | partial | `OpsShell` overflow-x-auto pill nav. 본문 미검증 |
-| `/admin`, `/admin/career/*` | ops | desktop_only | 자체 admin 화면 |
-| `/blog`, `/blog/[slug]` | public | partial | `LandingHeader`/`SearchHeader` 햄버거 |
-| `/share/*` | public | desktop_only | 셸 없음, 페이지 inline |
-| `/privacy`, `/terms` | public | designed | `LegalDocumentPage` |
-
-상태 정의:
-- `designed` — 모바일 디자인 완료, QA 통과
-- `partial` — 일부 컴포넌트만 모바일 분기 (헤더 등)
-- `desktop_only` — 모바일 분기 0건, 데스크탑 전용
-- `blocked` — `mobileBlocker.ts` 등으로 명시 차단
-- `not_applicable` — redirect나 callback처럼 별도 반응형 화면이 없음
+라우트별 모바일 상태 표는 관리하지 않는다. 변경한 화면을 좁은 화면·넓은 화면과
+관련 breakpoint 전후에서 확인한다. overflow, 주요 조작, 키보드 포커스를 보고,
+입력·고정 영역을 변경했다면 모바일 키보드와 safe area도 확인한다.
+미검증 범위나 실제 제약은 해당 작업에 기록한다.
 
 ---
 
@@ -368,14 +311,18 @@ const fullName = `${firstName} ${lastName}`;
 const filtered = useMemo(() => list.filter(predicate), [list, predicate]);
 ```
 
-#### ❌ B. props가 바뀔 때 state를 리셋
+#### B. 초기화는 편집 대상과 초안의 수명에 맞춘다
 ```tsx
-// ❌
+// 피할 것: 같은 대상의 재조회가 미저장 입력까지 덮어씀
 useEffect(() => { setDraft(initialValue); }, [initialValue]);
 
-// ✅ key prop으로 컴포넌트 재마운트
+// 편집 대상이 바뀌고 전체 초기화가 맞을 때만 key 사용
 <Editor key={candidateId} initialValue={initialValue} />
 ```
+
+서버 값으로 편집 초안을 초기화하는 것은 정상이다. 초안은 별도 수명을 가지며
+background refetch나 늦은 저장 응답이 새 입력을 덮어쓰지 않게 한다. 같은 대상의
+일부 값만 동기화해야 하면 갱신 조건을 정하고, 무조건 재마운트하지 않는다.
 
 #### ❌ C. 이벤트 결과를 `useEffect`에 떠넘기기
 ```tsx
@@ -396,13 +343,11 @@ useEffect(() => { fetch("/api/x").then(setData); }, []);
 const { data } = useCandidateDetail(candidId);
 ```
 
-#### ❌ E. mount 시 zustand store에 1회 dispatch
-```tsx
-// ❌
-useEffect(() => { store.init(); }, []);
+#### E. 외부 구독은 소유한 수명에서 등록·정리
 
-// ✅ Provider.tsx에서 1회 호출하거나, store 내부에서 lazy 초기화
-```
+store 초기화와 외부 구독을 구분한다. 외부 구독은 해당 Provider나 hook의 effect에서
+등록하고 cleanup할 수 있다. 재마운트·Strict Mode에서도 중복 구독이 남지 않아야 한다.
+일반적인 `create()` store는 생성 호출 시 초기화되며 첫 selector가 자동 초기화하는 것이 아니다 (§5.5).
 
 #### ❌ F. `useEffect` 안에서 다시 setState (체이닝)
 ```tsx
@@ -446,27 +391,7 @@ function Parent() {
 - effect를 hook으로 옮기는 것만으로 잘못된 상태 책임이 해결되지는 않는다.
   파생값·이벤트·서버 패칭인지 먼저 확인한다.
 
-```tsx
-// 권장: src/hooks/useFocusOnMount.ts
-export function useFocusOnMount<T extends HTMLElement>(ref: RefObject<T>) {
-  useEffect(() => {
-    const id = requestAnimationFrame(() => ref.current?.focus());
-    return () => cancelAnimationFrame(id);
-  }, [ref]);
-}
-
-useFocusOnMount(inputRef);
-```
-
-### 3.4 자가 점검 체크리스트 (PR 전)
-- [ ] effect 없이 렌더 중 계산으로 못 푸나?
-- [ ] effect 없이 이벤트 핸들러로 못 푸나?
-- [ ] 데이터 패칭이면 TanStack Query 훅으로 옮길 수 있나?
-- [ ] state 리셋이면 `key` prop으로 풀 수 있나?
-- [ ] 외부 시스템 동기화면 `useSyncExternalStore`로 대체 가능한가?
-- [ ] effect가 복잡하거나 재사용된다면 `useXxx` hook으로 분리했는가?
-
-### 3.5 ESLint 집행 상태
+### 3.4 ESLint 집행 상태
 - `eslint-plugin-react-hooks`는 `eslint-config-next`를 통해 적용되어 있다.
 - `react-hooks/set-state-in-effect` 등 신규 규칙은 현재 `warn`이며 기존 코드
   정리 후 신규·수정 코드부터 error 전환을 검토한다.
@@ -537,7 +462,9 @@ export function useCandidateDetail(candidId: string) {
 
 ### 4.4 ⭐ Mutation → Cache Invalidation Contract
 
-모든 mutation은 자신이 영향을 미치는 query key를 명시한다. 도메인별로 표를 유지하고, mutation 신설/수정 시 업데이트한다.
+mutation은 영향을 미치는 query key와 갱신 방식을 코드에서 명확히 한다. 아래는 주요
+도메인의 참고 표이며 실제 정책은 해당 mutation이 소유한다. 정책이 달라진 항목은
+갱신하되, 모든 신규 mutation을 이 중앙 표에 등록할 필요는 없다.
 
 | 액션 | `setQueryData` | `invalidateQueries` | `removeQueries` |
 |---|---|---|---|
@@ -555,11 +482,14 @@ export function useCandidateDetail(candidId: string) {
 | org Slack 설정 변경 | org.slack (알림 optimistic) | org.slack | — |
 | 로그아웃 | — | — | `queryClient.clear()` |
 
-공용 헬퍼는 `src/lib/queryInvalidation.ts`(또는 도메인 모듈)에 모은다. 예: 기존 `invalidateBookmarkRelatedQueries(qc, userId)`. mutation 신설 시 도메인 헬퍼가 있으면 헬퍼를 부르고, 없으면 헬퍼부터 만든다.
+공용 헬퍼는 `src/lib/queryInvalidation.ts`(또는 도메인 모듈)에 모은다. 예: 기존 `invalidateBookmarkRelatedQueries(qc, userId)`. 기존 도메인 헬퍼를 우선 재사용하고, 반복되거나 복잡한 정책일 때 새 헬퍼로 분리한다.
 
 ### 4.5 ⭐ staleTime Policy
 
-스칼라 마법숫자를 흩뿌리지 않는다. 도메인별 staleTime 결정을 표로 유지한다.
+공통 기본값은 `Provider.tsx`, 도메인별 예외는 query options가 소유한다. 아래 표는
+정책을 이해하기 위한 참고다. `staleTime`은 fresh로 취급하는 시간이며 polling 주기가
+아니다. `gcTime`은 비활성 캐시의 보존 시간이다. 외부 변경을 반영하려면 focus/reconnect,
+polling, realtime 등 실제 갱신 계기를 함께 선택한다.
 
 | 쿼리 도메인 | staleTime | gcTime | 근거 |
 |---|---|---|---|
@@ -580,7 +510,8 @@ export function useCandidateDetail(candidId: string) {
 | connections.count | 30s | 10min | mutation invalidation과 함께 사용 |
 | auth session | — | — | Zustand가 관리 (서버 캐시 아님) |
 
-신규 도메인 추가 시 이 표에 한 줄을 더한다. 표에 없는 staleTime은 PR에서 잡는다.
+새 설정은 데이터의 변경 주체와 허용 가능한 지연에 맞춰 정한다. 모든 값을 중앙 표에
+중복 등록하기보다 query 정의에서 정책과 필요한 이유를 확인할 수 있게 한다.
 
 ### 4.6 Mutation 컨벤션
 ```ts
@@ -604,7 +535,20 @@ const mutation = useMutation({
 });
 ```
 - **optimistic update가 필요한 시점**: 사용자가 즉시 피드백을 봐야 하는 토글(북마크, 마크, 업보트).
-- invalidate는 `onSettled`(성공/실패 무관 일관성 보장) 또는 `onSuccess`(성공시만).
+- invalidate는 `onSettled` 또는 `onSuccess`에서 필요한 조회에 적용한다.
+  재조회 자체도 실패할 수 있으므로 호출만으로 일관성이 보장되는 것은 아니다.
+- 서버가 확정한 변경값을 반환하면 `setQueryData`/`setQueriesData`로 바로 반영할 수 있다.
+  복잡한 목록 소속·정렬·집계는 서버 판단을 복제하기보다 필요한 범위를 재조회한다.
+- optimistic UI는 mutation `variables`로 표시할 수도 있다. 캐시를 수정했다면 실패 복구와
+  진행 중인 조회의 덮어쓰기를 처리하고, 동시 변경을 과거 전체 snapshot으로 지우지 않는다.
+- **저장 확정과 재조회 완료를 구분한다.** lifecycle callback이 반환한 Promise를 Query가
+  기다리므로 `return invalidateQueries(...)`/`await`는 mutation의 pending을 연장한다.
+  다음 행동에 최신 결과가 필요하면 해당 조회만 기다리고, 확정 결과를 이미 반영했다면
+  나머지는 background 재검증으로 분리할 수 있다. 단순히 `await`만 없애지 않는다.
+- 저장 성공 뒤 재조회 실패를 저장 자체의 실패로 취급해 중복 실행을 유도하지 않는다.
+  자동 저장에서는 늦은 응답이 최신 입력·저장값을 덮어쓰지 않도록 순서와 충돌을 처리한다.
+- 권한·비용·상태 전이·중복 실행 방지는 서버가 확정한다. 버튼 비활성화나 optimistic UI로
+  대신하지 않는다. 후속 작업을 분리할 때는 안정적인 서버 인계·복구와 결과 반영 계약이 필요하다.
 
 ### 4.7 ⭐ Route + Query Prefetch (hover intent)
 
@@ -637,12 +581,25 @@ function handleCardHover(candidId: string) {
 ### 4.9 절대 하지 말 것
 - Client Component에서 imperative `fetch` 결과를 로컬 state에 캐시
   → Query 훅과 공용 service로
-- `useEffect`로 `data` → `useState` 복사 (3.1-A 안티패턴)
+- 같은 서버 데이터를 별도 캐시로 복사해 effect로 계속 맞추기. 편집 초안처럼 독립된 수명은 §3.1-B
 - queryKey에 함수·class instance·순환 참조 등 JSON 비직렬화 값을 넣기
   → JSON 직렬화 가능한 원시값/정규화된 객체 사용
 - queryFn이 의존하는 변수를 queryKey에서 누락하기
   → 캐시를 구분하는 모든 입력을 factory가 소유
 - 같은 리소스에 factory 없이 다른 queryKey 사용 → §4.3
+
+### 4.10 로딩과 오류의 범위
+
+- 패널·모달·탭은 즉시 열고, 아직 없는 데이터 영역에만 공통 Skeleton을 표시한다.
+  기존 화면·입력·스크롤을 재조회 때문에 통째로 교체하지 않는다.
+- `isPending`은 비활성 query에서도 참일 수 있다. `isLoading`은 첫 fetching,
+  `isFetching`은 background refetch도 포함하므로 각 화면의 데이터 유무와 함께 판단한다.
+- 최초 조회 실패, 기존 데이터가 있는 갱신 실패, 빈 결과를 구분한다. 계정·workspace가
+  바뀔 때는 이전 범위의 민감한 데이터를 placeholder로 재사용하지 않는다.
+- mutation 진행 표시는 관련 버튼·행·폼에 둔다. 같은 대상의 충돌 작업은 막되,
+  독립적인 다른 작업까지 전역 pending으로 막지 않는다. 실패 시 입력과 재시도 수단을 유지한다.
+- 성능은 클릭 반응, 서버 변경 확정, 화면 반영 시간을 구분해 본다. Query나 훅을
+  사용한다는 사실만으로 빨라졌다고 판단하지 않는다.
 
 문서: [Query Invalidation](https://tanstack.com/query/v5/docs/framework/react/guides/query-invalidation), [Invalidations from Mutations](https://tanstack.com/query/v5/docs/react/guides/invalidations-from-mutations)
 
@@ -653,8 +610,9 @@ function handleCardHover(candidId: string) {
 Zustand는 페이지 경계를 넘어 유지하거나 여러 기능 영역에서 접근하는
 **순수 클라이언트 UI 상태**를 담당한다. 한 페이지의 형제 컴포넌트만 공유하는
 상태와 orchestration은 page-scoped context/domain hook으로 제한할 수 있다.
-브라우저에서 캐시하는 remote state는 어느 쪽에도 복제하지 않고 TanStack Query를
-SSOT로 둔다.
+페이지 안/밖만으로 도구를 강제하지 않고 수명·변경 빈도·구독 범위로 선택한다.
+브라우저에서 공유·재조회하는 서버 값은 TanStack Query를 원본으로 두고, 독립적인 편집
+초안이나 진행 중 스트림 등은 소유권과 서버 확정값에 합쳐지는 시점을 구분한다.
 
 ### 5.1 무엇을 Zustand에 넣고, 무엇을 넣지 않는가
 | 넣어야 함 | 넣으면 안 됨 |
@@ -703,7 +661,7 @@ const settings = useSettingsStore();
 const viewType = useSettingsStore((s) => s.viewType);
 ```
 
-다중 필드를 한 번에 구독해야 하면 **`useShallow`로 얕은 비교 강제**.
+다중 필드를 새 객체·배열로 묶는 selector에는 **`useShallow` 또는 안정적인 반환값**을 사용한다.
 
 ```ts
 import { useShallow } from "zustand/react/shallow";
@@ -713,42 +671,22 @@ const { viewType, sortKey } = useSettingsStore(
 );
 ```
 
-`useShallow` 없이 객체 selector를 쓰면 매 렌더마다 새 객체 참조가 만들어져 무한 리렌더 위험이 있다.
+매번 새 객체를 반환하는 selector는 불필요한 갱신이나 무한 리렌더를 일으킬 수 있다.
+이미 store의 안정적인 객체를 반환하는 selector에 무조건 `useShallow`를 추가하지 않는다.
 
-액션을 구독할 때도 selector:
-```ts
-const setViewType = useSettingsStore((s) => s.setViewType);
-```
+액션도 필요한 항목만 selector로 구독한다.
 
 ### 5.4 slice 패턴 (스토어가 커질 때)
 단일 store에 여러 slice를 합성. **미들웨어는 합쳐진 store에 적용**, slice 내부에 적용하지 않는다.
 
-```ts
-import type { StateCreator } from "zustand";
-
-type AuthSlice = { session: Session | null; setSession: (s: Session | null) => void };
-type ModalSlice = { open: boolean; setOpen: (b: boolean) => void };
-
-const createAuthSlice: StateCreator<AuthSlice & ModalSlice, [], [], AuthSlice> = (set) => ({
-  session: null,
-  setSession: (session) => set({ session }),
-});
-
-const createModalSlice: StateCreator<AuthSlice & ModalSlice, [], [], ModalSlice> = (set) => ({
-  open: false,
-  setOpen: (open) => set({ open }),
-});
-
-export const useAppStore = create<AuthSlice & ModalSlice>()((...a) => ({
-  ...createAuthSlice(...a),
-  ...createModalSlice(...a),
-}));
-```
 크로스-slice 호출은 `get()`으로.
 
 ### 5.5 store 초기화 위치
-- **store 안에서 lazy 초기화**가 가장 깔끔. 첫 selector 호출 시 자동.
-- 외부 구독(예: Supabase `onAuthStateChange`)이 필요하면 store에 `init()` 메서드를 두고, **`Provider.tsx`에서 단 1회 호출**한다. 컴포넌트 본문의 `useEffect`로 init을 부르지 않는다.
+- 일반적인 `create()` store는 생성 호출 시 초기화된다. 영역별 store는 해당 Provider 수명 동안
+  인스턴스를 안정적으로 유지한다. render 중 외부 구독을 시작하지 않는다.
+- 외부 구독은 수명을 소유한 Provider나 hook의 effect에서 등록·cleanup한다. `init()`을
+  사용한다면 중복 호출과 정리 계약을 명확히 한다. Provider에 둔다고 정확히 한 번이 보장되지는 않는다.
+- 서버 렌더링에서 사용자별 가변 store·QueryClient를 요청 간 전역 공유하지 않는다.
 
 ### 5.6 절대 하지 말 것
 - Zustand에 서버 응답 캐시 → TanStack Query가 할 일
@@ -780,55 +718,20 @@ const profile = await fetchProfile(user.id); // user에 의존 → 이후
 - 독립 작업(`getRequestUser` + 설정 조회 + 보조 데이터)은 promise를 즉시 생성하고 필요한 시점에 await.
 - `await`는 실제로 값이 필요한 분기에서만 — early return을 먼저.
 
-```ts
-export async function GET(req: Request) {
-  const userPromise = getRequestUser(req);
-  const configPromise = getConfig();
+### 6.2 ⭐ Hot Render Prevention (구독 범위와 표시 주기)
 
-  const user = await userPromise;
-  if (!user) return new Response("unauthorized", { status: 401 });
-
-  const [config, data] = await Promise.all([configPromise, fetchData(user.id)]);
-  return Response.json({ data, config });
-}
-```
-
-### 6.2 ⭐ Hot Render Prevention (빈번한 값은 ref로)
-
-빈번하게 변하는 값(STT 레벨, 음성 진행률, 비디오 currentTime, 마우스 위치)을 state로 두면 트리 전체가 매번 리렌더된다. **값은 `ref`에 두고, 실제 UI가 바뀌는 시점에만 `setState`**.
-
-```tsx
-// ❌ 50ms마다 setState → 트리 전체 리렌더
-const [level, setLevel] = useState(0);
-onLevelUpdate(setLevel);
-
-// ✅ ref에 누적, 실제 UI 단계가 바뀔 때만 setState
-const levelRef = useRef(0);
-const [bucket, setBucket] = useState<"low" | "mid" | "high">("low");
-
-const handleLevel = useCallback((v: number) => {
-  levelRef.current = v;
-  const next = v < 0.33 ? "low" : v < 0.66 ? "mid" : "high";
-  setBucket((prev) => (prev === next ? prev : next));
-}, []);
-```
+빈번한 값은 상태의 위치와 구독 범위에 따라 렌더 비용이 달라진다. 표시할 값은 state나
+구독으로 반응성을 유지하고, 렌더에 필요 없는 중간값만 ref에 둔다. 단계만
+표시하는 UI라면 단계가 바뀔 때만 state를 갱신할 수 있다. 연속 시각 효과는 CSS·Motion도 검토한다.
 
 음성 레벨, STT 진행률, 비디오 `currentTime`처럼 고빈도 값이 있는 화면은 React
 Profiler로 리렌더 빈도를 확인한 뒤 이 패턴을 적용한다.
 
 ### 6.3 lazy 초기 state
 
-비싼 초기값은 **함수 형태**로 전달해 매 렌더 재계산 방지.
-
-```tsx
-// ❌ 매 렌더마다 computeExpensive() 호출
-const [x, setX] = useState(computeExpensive());
-
-// ✅ 최초 1회만
-const [x, setX] = useState(() => computeExpensive());
-```
-
-이미 `Provider.tsx`의 `QueryClient` 초기화에서 사용 중 — 같은 패턴을 다른 곳에도 적용.
+비싼 초기 계산은 `useState(() => computeExpensive())`로 전달해 일반 리렌더마다
+재계산하지 않게 한다. initializer는 반복 호출돼도 안전한 순수 함수로 작성한다.
+기존 `Provider.tsx`의 `QueryClient` 초기화도 이 패턴을 사용한다.
 
 ### 6.4 리렌더 최적화 도구
 먼저 React Profiler로 병목을 확인한다. 아래 도구를 기본 습관처럼 모든 값에
@@ -842,16 +745,8 @@ const [x, setX] = useState(() => computeExpensive());
 
 ### 6.5 조건부 렌더는 삼항 또는 명시적 boolean
 
-`&&` 좌측이 `0`/`""`/`NaN`이면 그 값이 그대로 렌더된다.
-
-```tsx
-// ❌ count === 0이면 "0"이 화면에 박힘
-{count && <Badge value={count} />}
-
-// ✅
-{count > 0 ? <Badge value={count} /> : null}
-{Boolean(count) && <Badge value={count} />}
-```
+`{count && <Badge />}`는 count가 0일 때 숫자 0을 렌더한다.
+`{count > 0 ? <Badge /> : null}` 또는 `{Boolean(count) && <Badge />}`를 사용한다.
 
 ### 6.6 JS 마이크로 성능
 - 반복 조회는 `Map`/`Set` (O(1)).
@@ -869,21 +764,8 @@ PR 설명에 남길 수 있는 경우에만 복잡도를 추가한다.
 memoized child나 외부 라이브러리 API가 참조 동일성을 활용하는 경우, 변하지 않는
 객체·배열은 모듈 스코프로 올린다.
 
-```tsx
-// ❌ 매 렌더마다 새 객체/배열
-function Page() {
-  return <Chart options={{ legend: true, animation: false }} />;
-}
-
-// ✅ 모듈 스코프 상수
-const CHART_OPTIONS = { legend: true, animation: false };
-function Page() {
-  return <Chart options={CHART_OPTIONS} />;
-}
-```
-
 ### 6.8 SVG / 콘텐츠 가시성
-- SVG 좌표 정밀도 소수점 1자리 이하 (DOM 크기 축소).
+- SVG 정밀도는 좌표계·표시 크기·시각 품질을 확인해 조절한다. 소수점 자릿수를 일괄 강제하지 않는다.
 - 긴 리스트는 `content-visibility: auto` 적용 검토.
 
 ---
@@ -900,9 +782,10 @@ function Page() {
 | `use<Behavior>` | 클라이언트 행위 (UI/DOM) | 함수 또는 값/튜플 |
 
 원칙:
-- **한 훅 = 한 책임**. 두 쿼리를 묶어야 하면 그 묶음 자체를 새로운 도메인 훅으로 만든다.
-- `useQuery`/`useMutation`은 페이지 또는 도메인 hook에서 호출한다. 여러 컴포넌트가
-  같은 orchestration을 공유할 때 도메인 hook/context로 분리한다.
+- **한 훅 = 의미 있는 책임**. 한 기능을 위해 여러 query를 조합할 수 있다. 단순 wrapper를 의무화하지 않는다.
+- `useQuery`/`useMutation`은 필요한 컴포넌트나 도메인 hook 가까이에서 호출할 수 있다.
+  반복되거나 복잡한 orchestration을 공유할 때 도메인 hook/context로 분리한다.
+- custom hook은 로직을 재사용하며 내부 로컬 state를 호출 간 공유하지는 않는다.
 - `useEffect`는 §3의 배치 기준을 따른다.
 - 훅 시그니처는 **명시적 입력 → 명시적 출력**. 인자가 5개 넘으면 옵션 객체.
 - 훅이 query factory를 export하면 (§4.3) prefetch에 재사용 가능.
@@ -911,62 +794,31 @@ function Page() {
 
 ## 8. 신규 화면 작성 체크리스트
 
-1. **반응형부터 설계** — mobile-first Tailwind, `svh` 사용 (§2.3).
+1. **반응형부터 설계** — mobile-first Tailwind, 화면 동작에 맞는 `svh`/`dvh` 선택 (§2.3).
 2. **타입** — `any` 금지 (§0.1). Supabase는 `Database` 제네릭.
-3. **데이터** — client remote state는 공용 service + `src/hooks/use<Entity>.ts`
-   Query 훅 + `queryOptions` factory로 구성한다. 서버 경계가 필요할 때만
-   `src/app/api/...` route를 추가한다 (§4.3).
-4. **무효화** — 신규 mutation은 invalidation contract 표(§4.4)에 한 줄 추가.
-5. **staleTime** — staleTime policy 표(§4.5)에 한 줄 추가.
-6. **클라이언트 상태** — 한 컴포넌트면 `useState`, 한 페이지의 형제 간 공유면
-   page-scoped context/domain hook, 페이지 간 공유면 Zustand. 서버 데이터 복제 금지.
+3. **데이터** — client remote state는 Query로 관리하고 재사용되는 정의는
+   `queryOptions`로 공유한다. 단순 wrapper hook·service 계층을 의무화하지 않는다.
+   API route는 실제 서버 경계가 필요할 때 해당 라우터 구조에 맞춰 추가한다 (§4.3).
+4. **무효화** — 해당 mutation의 캐시 반영·재조회 범위와 대기 여부 확인 (§4.4–4.6).
+5. **staleTime** — 변경 주체·허용 지연·실제 갱신 계기에 맞는 정책 확인 (§4.5).
+6. **클라이언트 상태** — 로컬 state를 기본으로, 공유가 필요하면 수명·구독 범위에 따라
+   Context/Zustand를 선택한다. URL 상태와 편집 초안을 서버 캐시와 구분한다.
 7. **부수효과** — `useEffect` 작성 전 §3.1 안티패턴을 확인하고, 복잡하거나
    재사용되는 동기화는 `src/hooks/`에 캡슐화.
 8. **컬러/spacing** — 토큰만. 새 토큰은 `src/globals.css`의 `@theme`에 추가.
-9. **인라인 style 없음** (§0.3), **styled-jsx 없음** (§0.5).
+9. **인라인 style은 동적 값에 사용** (§0.3), **신규 styled-jsx 없음** (§0.5).
 10. **prefetch** — hover/focus에서 route + query prefetch (§4.7) 필요 여부 검토.
 11. **a11y** — focus ring 유지, 탭 타깃 44px+, `aria-*` 누락 없음.
-12. **모바일 상태** — `useIsMobile` 분기와 명시적 blocker 유무를 확인하고
-    §2.7의 라우트 상태를 업데이트.
+12. **반응형** — Tailwind breakpoint를 우선하고, JS 분기는 실제 동작·마운트 변경이
+    필요한 경우인지 확인한다. 변경한 화면을 §2.7 기준으로 확인한다.
 13. **상태 UI** — loading, empty, error, retry 상태를 정의하고 정상 상태와 같은
     반응형·접근성 기준으로 검증.
-14. **검증** — `pnpm lint`와 관련 테스트를 통과시키고, 최소 375px·768px·1024px
-    viewport에서 overflow, 키보드 포커스, 주요 상호작용을 확인.
+14. **검증** — 변경한 경로에 맞는 짧은 타입·lint·테스트·화면 확인을 수행한다.
+    전체 저장소 lint·전체 테스트를 기본 절차로 요구하지 않는다. 문서만 바꾸면 링크·참조·예제를 확인한다.
 
 ---
 
-## 9. 금지 패턴 요약 (PR 리뷰 한눈에 보기)
-
-| 패턴 | 이유 | 대안 |
-|---|---|---|
-| `any` 타입 | 타입 안전성 무력화 | `unknown`, 제네릭, 구체적 타입 (§0.1) |
-| `useEffect`로 데이터 패칭 | 워터폴, 레이스 컨디션 | TanStack Query 훅 (§3.1-D, §4) |
-| `useEffect`로 파생 state 계산 | 불필요한 리렌더 | 렌더 중 계산, `useMemo` (§3.1-A) |
-| `useEffect`로 이벤트 처리 | 의도치 않은 실행 | 이벤트 핸들러 (§3.1-C) |
-| `useEffect`로 부모 알림 | 복잡한 데이터 흐름 | 흐름 역전 (§3.1-G) |
-| `useEffect`로 state 리셋 | 추가 렌더 패스 | `key` 패턴 (§3.1-B) |
-| `useEffect` 체이닝 | N번의 불필요한 리렌더 | 렌더 중 계산 (§3.1-F) |
-| 복잡한 구독/동기화 effect를 여러 컴포넌트에 중복 | cleanup 누락, 동작 불일치 | 의도가 드러나는 custom hook (§3.3) |
-| `fetch` + `useState`로 서버 데이터 | 캐시·중복제거·에러 없음 | TanStack Query (§4) |
-| 롤백 없는 낙관적 업데이트 | 실패 시 캐시 불일치 | `useMutation` `onMutate`/`onError` (§4.6) |
-| 같은 리소스에 factory 없이 다른 queryKey | 캐시 분기 | `queryOptions` factory (§4.3) |
-| 표에 없는 staleTime/invalidation | 일관성 깨짐 | §4.4 / §4.5 표 업데이트 |
-| Zustand에 서버 데이터 | 캐시 불일치 | TanStack Query (§5.1) |
-| Zustand 전체 스토어 구독 | 불필요한 리렌더 | selector + `useShallow` (§5.3) |
-| `set`을 컴포넌트에서 직접 호출 | 액션 응집 깨짐 | 액션을 스토어에 정의 |
-| 순차 `await` | 워터폴 | `Promise.all()` (§6.1) |
-| 빈번한 값을 state로 | 트리 전체 리렌더 | `ref` + 단계 변화 시만 setState (§6.2) |
-| 비싼 `useState(value)` 초기값 | 매 렌더 재계산 | `useState(() => compute())` (§6.3) |
-| 조건부 렌더 `{count && <X/>}` | `0` 렌더 버그 | 삼항 또는 `Boolean()` (§6.5) |
-| 인라인 정적 `style={{}}` | 일관성 부재 | Tailwind 클래스 (§0.3) |
-| 신규 styled-jsx | 일관성 부재 | Tailwind / globals.css `@layer` (§0.5) |
-| `h-screen` / `100vh` | iOS Safari overflow | `h-svh` (§2.3) |
-| 컬러 hex 리터럴 직접 사용 | 토큰 우회 | `globals.css` `@theme` 토큰 (§1.3) |
-| Radix primitive 직접 import | wrapper 우회 | `src/components/ui/` (§1.5) |
-
----
-
-## 10. 참고 문서
+## 9. 참고 문서
 
 ### 공식
 - [react.dev — You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)
@@ -985,3 +837,19 @@ function Page() {
 
 ### 도구
 - [eslint-plugin-react-you-might-not-need-an-effect](https://www.npmjs.com/package/eslint-plugin-react-you-might-not-need-an-effect)
+
+
+## 2026-10-23 변경 응답 지연 기준
+
+- 버튼 pending은 승인된 상태 변경과 필요한 후속 작업의 **영구 저장**까지다. Slack 전송, 대화 기록 생성, 후속 LLM 실행, 큐 발행, 관련 화면의 전체 재조회 완료를 무조건 연결하지 않는다. 메일 전달 자체가 동작의 완료 조건인 수락·인터뷰 요청은 별도로 유지한다.
+- 브라우저 custom hook은 요청·캐시 갱신·오류 표시를 공유한다. 훅에 저장된 권한 결과는 서버 권한 검증을 대체하지 않는다.
+- 서버의 반복 조회는 `withOrgRequestScope` / `memoOrgRequest`로 같은 요청 안에서 재사용한다. 사용자·Workspace·Role·permission을 구분한다. 현재 적용 대상은 후보 단계 변경과 회사 Intro 처리이며, 이 경로는 팀원 권한·Role 설정·사용자 프로필을 변경하지 않는다. 이 데이터를 수정하는 경로에 무효화 설계 없이 적용하지 않는다.
+- 후보 단계 변경(`/api/org/stage`)과 회사 Intro(`/api/org/company-intro`)는 `{ cachePermissions: true }`로 서버 권한 캐시를 사용한다. 서버에서 인증된 사용자·Workspace·내부 접근 여부별로 DB에서 확인한 권한·팀 접근 범위·Workspace 사용 가능 여부를 **최대 30분** 재사용한다. Next Data Cache를 사용하며 새 Redis·DB 테이블을 만들지 않는다. `:00`/`:30` 경계 이후 첫 요청은 새 키로 DB 확인을 기다린다. 단순 TTL의 stale-while-revalidate로 만료 권한을 한 번 더 허용하지 않는다. 실패한 조회는 캐시하지 않는다. 로그인 시 미리 저장하거나 타이머로 계속 조회하는 방식은 아니다.
+- `/api/org/membership`의 탈퇴·팀원 제거·권한 변경, `/api/org/teams`의 팀/팀원 접근 범위 변경 성공 후 해당 Workspace 태그를 `{ expire: 0 }`으로 즉시 무효화한다. 다음 요청은 최신 권한을 읽는다. 직접 DB·별도 운영 경로에서 변경하면 최대 30분 반영 지연을 허용한다. 새로운 권한 변경 API도 이 무효화를 연결해야 한다.
+- 팀원·Workspace·연동 관리 권한은 캐시 사용 중인 요청에서도 최신 DB로 확인한다. 결제 API, 백그라운드 실행, 온보딩 예외, 수신 팀 범위가 제한된 Slack reader에는 이 캐시를 적용하지 않는다. 인증 자체와 현재 Role 정보·후보자 공유 자격·상태·잔액 및 차감·멱등성 검증도 유지한다. 클라이언트의 `alreadyAuthorized` 값은 신뢰하지 않는다.
+- 회사의 후보 수락·종료 소식은 기존 `enqueueCompanyUpdate`에 사실을 저장한다. 회사 메시지 작성·Slack 전달은 기존 company-side LLM과 durable delivery가 담당한다. 같은 결정으로 별도 web-action을 중복 등록하지 않는다. 이전 고정 Slack 알림과 내부 운영 채널 직접 전송은 이 결정 경로에서 제거했다.
+- `after`는 이미 저장된 작업의 큐 발행에만 사용한다. 저장 전에 성공을 반환하거나 bare `void promise`로 필수 작업을 버리지 않는다. 프로세스 종료·발행 실패는 기존 pending/retry dispatcher가 복구한다.
+- 수정 API 성공 후 캐시에 확정된 결과를 먼저 반영하고 관련 범위만 재조회한다. `onSuccess: () => invalidateQueries(...)`도 Promise를 반환하므로 mutation pending을 연장한다. 단, 최신 조회 결과가 다음 행동에 필수인 편집기·권한 변경·결제 화면은 이유를 확인한 뒤 유지한다.
+- 계측은 서버 처리, 응답 전 후속 작업, 브라우저 캐시 반영을 분리한다. 중첩 span을 합산하지 않는다. 토큰·개인정보·메일 본문은 로그에 남기지 않는다. 성능 추정과 실제 재측정 결과를 구분한다.
+
+이번 코드 점검에서는 Role 목록·회사 사용자 갱신을 요청 단위로 공유하고, 후보 작업의 권한은 최대 30분 공유하며, 단계 변경/Intro의 큐 발행을 응답 뒤로 옮겼다. 회사 결정의 Slack 작업은 기존 회사 이벤트로 저장하며 발송을 기다리지 않는다. 상태 태그 변경·진행 이력·이메일 예약 정리는 아직 응답 전에 완료한다. DB 왕복을 트랜잭션 하나로 묶는 변경은 포함하지 않았다. 권한 캐시 추가분은 격리 테스트로 확인했으며 실제 후보 수락·거절의 소요 시간을 다시 측정하거나 배포하지 않았다.

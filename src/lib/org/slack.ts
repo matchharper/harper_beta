@@ -1,3 +1,4 @@
+import { traceStageStep } from "@/lib/org/stageTiming.server";
 import {
   sendHarperWorkspaceSlackMessage,
   type HarperSlackNotificationKey,
@@ -67,8 +68,8 @@ async function postWorkspaceScopedOrgSlackMessage(
   idempotencyKey?: string,
   englishText?: string
 ) {
-  const locale = await getOrgWorkspaceLocale(workspaceId);
-  const [internalResult, workspaceResult] = await Promise.allSettled([
+  const locale = await traceStageStep("postWorkspaceScopedOrgSlackMessage:70", async () => (getOrgWorkspaceLocale(workspaceId)));
+  const [internalResult, workspaceResult] = await traceStageStep("postWorkspaceScopedOrgSlackMessage:71", async () => (Promise.allSettled([
     postOrgSlackMessage(text),
     sendHarperWorkspaceSlackMessage({
       idempotencyKey,
@@ -77,7 +78,7 @@ async function postWorkspaceScopedOrgSlackMessage(
       text: locale === "en" ? (englishText ?? text) : text,
       workspaceId,
     }),
-  ]);
+  ])));
 
   if (workspaceResult.status === "rejected") {
     console.error(
@@ -133,14 +134,14 @@ export async function notifyOrgCandidateAcceptedSlack(args: {
   roleName: string;
   workspace: OrgSlackWorkspace;
 }) {
-  await postWorkspaceScopedOrgSlackMessage(
+  await traceStageStep("notifyOrgCandidateAcceptedSlack:136", async () => (postWorkspaceScopedOrgSlackMessage(
     buildOrgCandidateAcceptedSlackMessage(args),
     args.workspace.workspaceId,
     "candidateAccepted",
     args.roleId,
     undefined,
     buildOrgCandidateAcceptedSlackMessage({ ...args, locale: "en" })
-  );
+  )));
 }
 
 export async function notifyOrgCandidateRejectedSlack(args: {
@@ -153,14 +154,14 @@ export async function notifyOrgCandidateRejectedSlack(args: {
   stopNote?: string | null;
   workspace: OrgSlackWorkspace;
 }) {
-  await postWorkspaceScopedOrgSlackMessage(
+  await traceStageStep("notifyOrgCandidateRejectedSlack:156", async () => (postWorkspaceScopedOrgSlackMessage(
     buildOrgCandidateRejectedSlackMessage(args),
     args.workspace.workspaceId,
     "candidateRejected",
     args.roleId,
     undefined,
     buildOrgCandidateRejectedSlackMessage({ ...args, locale: "en" })
-  );
+  )));
 }
 
 export async function notifyCompanyIntroTalentDeclinedSlack(args: {

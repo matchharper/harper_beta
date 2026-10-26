@@ -113,7 +113,7 @@ export const ORG_AGENT_TOOLS = [
     function: {
       name: "start_role_creation",
       description:
-        "Start a dedicated Slack thread for one new role and hand the user's exact recent Slack context to the role-creation flow. Supply the exact role title established from the available context and the smallest number of recent messages needed to preserve the hiring request. Do not ask the user to restate a title that is already clear. The dedicated flow continues automatically. The result provides the exact required continuation link. This tool is Slack-only.",
+        "Create a draft Role from the hiring information already supplied in Slack and open its web hiring-start onboarding. Saves the supplied basic fields, preserves the selected original messages and files, and prepares the onboarding questions. Returns the exact web continuation link; does not activate hiring or start matching. Slack-only.",
       parameters: {
         additionalProperties: false,
         properties: {
@@ -131,8 +131,22 @@ export const ORG_AGENT_TOOLS = [
             minLength: 1,
             type: "string",
           },
+          draft: {
+            type: "object", additionalProperties: false,
+            description: "Grounded initial Role fields authored by you from the supplied conversation/JD. Omit unknown fields. Keep private selection preferences in request, not public description.",
+            properties: {
+              description: { type: "string", minLength: 1, description: "Candidate-facing work, scope and qualifications actually supplied. Preserve their strength; add no assumed requirements." },
+              request: { type: "string", description: "Private Hiring Brief when supplied criteria warrant it, using the shared authoring contract." },
+              locationText: { type: "string" },
+              workMode: { type: "string", description: "Use the stored value onsite, hybrid, or remote when the company has stated the work mode." },
+              employmentTypes: { type: "array", items: { type: "string" }, description: "Use stored values full_time, part_time, contract, or internship only for stated employment types." },
+              salaryRange: { type: "string", description: "The stated compensation, preserving currency, period and qualifiers." },
+              externalJdUrl: { type: "string", description: "Verified source JD URL, if provided." },
+            },
+            required: ["description"],
+          },
         },
-        required: ["roleTitle", "contextMessageCount"],
+        required: ["roleTitle", "contextMessageCount", "draft"],
         type: "object",
       },
     },

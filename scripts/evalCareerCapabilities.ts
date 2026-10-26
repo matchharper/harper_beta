@@ -127,6 +127,7 @@ async function main() {
     { createPreparation },
     { applicationSessionToolResult },
     { askApplicationInput, applicationInputSchema },
+    { applicationStartOfferSchema },
   ] = await Promise.all([
     import("@/lib/career/llmTools"),
     import("@/lib/career/capabilities/runtime"),
@@ -145,6 +146,7 @@ async function main() {
     import("@/lib/career/simulation/preparation"),
     import("@/lib/career/simulation/sessionTool"),
     import("@/lib/career/simulation/applicationInput"),
+    import("@/lib/career/simulation/startOffer"),
   ]);
   const model = option("--model") ?? CAREER_LLM_CONFIG.assistant.primaryModel;
   const manifest: any = {
@@ -232,6 +234,7 @@ async function main() {
       const expected = gold.cases.find((row: any) => row.id === fixture.id);
       let application = fixture.activeApplication ? createSimulationSession({roleRef:"job:synthetic-engineer",roleName:"합성 소프트웨어 백엔드 엔지니어",documentId,documentName:"민재_백엔드.pdf"}) : undefined;
       if(application) {application.analysisStatus="completed";application.preparation=createPreparation();application.activity={version:1,offerId:1,batches:[],outputs:{}};}
+      if (application && fixture.pendingSwitch) application.switchRequest = { text: fixture.pendingSwitch, messageId: 99 };
       let profileText = fixture.profileText;
       const select = () => resolveCareerChatTools({
         channel: "chat",
@@ -349,6 +352,7 @@ async function main() {
             conversationMode:
               application?.status === "active" ? "simulation" : activity?.status === "active" ? "career_coaching" : "default",
             simulationSession: application?.status === "active" ? application : undefined,
+            simulationAvailability: application?.status === "active" ? undefined : "inactive",
             currentPreferences: {
               preferredLocale: "ko",
               profileVisibility: "open_to_matches",
@@ -412,6 +416,33 @@ async function main() {
               application = askApplicationInput(application,question,`eval:${turnIndex}:${calls.length}`);
               preparedReply = question.introduction ?? question.items.map(item=>item.title).join("\n");
               result={ok:true,awaitingUserInput:true};
+            }
+            else if (name === "simulate_application") {
+              if (application?.status === "active") throw new Error("End the active application before starting another");
+              const document = documents.get(String(data.document_id));
+              if (!document) throw new Error("Document not found");
+              const target = fixture.opportunities?.find((role: any) =>
+                data.roleId ? role.roleId === data.roleId : role.official_job_slug === data.official_job_slug
+              );
+              if (!target) throw new Error("Unknown fixture opportunity");
+              const offer = applicationStartOfferSchema.parse({
+                version: 1, status: "ready", roleName: target.name,
+                ...(data.roleId ? { roleId: data.roleId } : { official_job_slug: data.official_job_slug }),
+                selectedDocumentId: document.id, introduction: data.introduction,
+                resumes: [{ id: document.id, name: document.fileName, primary: true }],
+              });
+              call.startOffer = offer;
+              preparedReply = offer.introduction ?? "";
+              result = { ok: true, startCardDisplayed: true, awaitingUserInput: true };
+            }
+            else if (name === "get_role_context" && fixture.opportunities) {
+              result = { roles: fixture.opportunities.filter((role: any) => data.roleIds?.includes(role.roleId)).map((role: any) => ({roleId:role.roleId,found:true,role:{name:role.name,externalJdUrl:role.url},companyDb:{name:role.company},official_job_slug:role.official_job_slug})) };
+            }
+            else if (name === "read_recommended_opportunities" && fixture.opportunities) {
+              result = { opportunities: fixture.opportunities, hasMore: false };
+            }
+            else if (name === "get_internal_roles" && fixture.opportunities) {
+              result = { roles: [], hasMore: false };
             }
             else if (name === "list_documents")
               result = {
@@ -631,6 +662,10 @@ async function main() {
                 modelOutput:
                   "커리어 방향, 이직 결정, 강점 정리, 면접 준비를 코칭할 수 있습니다.",
               };
+            else if (name === "open_url" && fixture.opportunities?.some((role: any) => role.url === data.url)) {
+              const role = fixture.opportunities.find((role: any) => role.url === data.url);
+              result = { ok: true, url: role.url, title: role.name, markdown: `# ${role.name}\n${role.description ?? ""}` };
+            }
             else if (name === "open_url")
               result = {
                 ok: true,
@@ -903,6 +938,15 @@ async function main() {
         ...(expected.required
           ?.filter((name: string) => !successful.some((c) => c.name === name))
           .map((name: string) => `missing:${name}`) ?? []),
+        ...(expected.startOffer ? successful
+          .filter((call) => call.name === "simulate_application")
+          .flatMap((call) => [
+            ...(call.turnIndex !== expected.startOffer.turnIndex ? ["start_offer_wrong_turn"] : []),
+            ...(!(call.startOffer?.official_job_slug === expected.startOffer.slug ||
+              fixture.opportunities?.some((role: any) => role.official_job_slug === expected.startOffer.slug && role.roleId === call.startOffer?.roleId)) ? ["start_offer_wrong_role"] : []),
+            ...(call.startOffer?.selectedDocumentId !== documentId ? ["start_offer_changed_source"] : []),
+            ...(!call.startOffer?.introduction ? ["start_offer_missing_introduction"] : []),
+          ]) : []),
         ...successful
           .filter((c) => expected.forbidden?.includes(c.name))
           .map((c) => `forbidden:${c.name}`),

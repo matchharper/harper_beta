@@ -16,7 +16,8 @@ import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 
 type DocumentContent = {
   content: string;
-  format?: "pdf" | "resume";
+  format?: "pdf" | "resume" | "authored";
+  documentHtml?: string;
   resume?: ResumeContent;
   revision?: number;
   renderVersion?: string;
@@ -254,7 +255,9 @@ export function CareerDocumentDetail({
               {title}
             </h1>
             <div className="flex flex-wrap gap-2">
-              {result?.format === "pdf" || result?.format === "resume" ? (
+              {result?.format === "pdf" ||
+              result?.format === "resume" ||
+              result?.format === "authored" ? (
                 <MuteButton
                   disabled={downloading || failed}
                   onClick={() => void downloadPdf()}
@@ -298,10 +301,13 @@ export function CareerDocumentDetail({
               </MuteButton>
             </div>
           ) : result ? (
-            result.format === "resume" && result.resume ? (
+            (result.format === "resume" && result.resume) ||
+            (result.format === "authored" && result.documentHtml) ? (
               <ResumePreview
                 key={`${result.documentId}:${result.revision}:${result.renderVersion}`}
                 content={result.resume}
+                documentHtml={result.documentHtml}
+                trackOpen={result.format === "resume"}
                 title={title}
                 documentId={result.documentId}
                 onError={() => setFailedDocumentId(result.documentId)}

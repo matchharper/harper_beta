@@ -45,7 +45,10 @@ export function roleStartView(session: RoleStartSession | null) {
     /** Answers still being applied to the Brief behind the screen. */
     refining: session.refinedAnswers < session.questions.history.length,
     brief: briefView(session.brief),
-    questions: { history: session.questions.history.map(questionView) },
+    questions: {
+      history: session.questions.history.map(questionView),
+      ...(session.questions.compensation ? { compensation: session.questions.compensation } : {}),
+    },
     pendingQuestion: session.pendingQuestion ? questionView(session.pendingQuestion) : null,
     firstCandidates: session.firstCandidates.map(candidateView),
     // The team's own ratings and answers; reason codes stay server-side.

@@ -22,9 +22,10 @@ export function throwBillingDbError(error: { message?: string } | null) {
 }
 export async function billingRpc<T>(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  client = billingDb()
 ): Promise<T> {
-  const { data, error } = await billingDb().rpc(name, args);
+  const { data, error } = await client.rpc(name, args);
   throwBillingDbError(error);
   return data as T;
 }

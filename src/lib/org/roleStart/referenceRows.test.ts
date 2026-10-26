@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { likedAnswer, referenceLink, referenceRowOf } from "./referenceRows";
+import { likedAnswer, referenceLink, referenceRowOf, referenceRowFromInput } from "./referenceRows";
 
 test("a 참고 인물 row needs a link or a profile; 마음에 든 점 alone is not one", () => {
   assert.equal(referenceRowOf({ url: "", text: "  ", liked: "다룬 기술" }), null);
@@ -20,4 +20,15 @@ test("the liked answer is the picked chips, then the team's words", () => {
   assert.equal(likedAnswer(["다룬 기술", "일하는 방식"], " 대규모 트래픽 경험 "), "다룬 기술, 일하는 방식 / 대규모 트래픽 경험");
   assert.equal(likedAnswer([], "대규모 트래픽 경험"), "대규모 트래픽 경험");
   assert.equal(likedAnswer(["다룬 기술"], ""), "다룬 기술");
+});
+
+test("one field carries a profile link and the exact optional reason without turning it into profile evidence", () => {
+  assert.deepEqual(referenceRowFromInput("https://www.linkedin.com/in/synthetic-person"), {
+    url: "https://www.linkedin.com/in/synthetic-person", text: null, liked: null,
+  });
+  assert.deepEqual(referenceRowFromInput("고객 문제를 직접 풀어 본 점이 좋아요.\nlinkedin.com/in/synthetic-person\n관리자 경력은 필요 없어요."), {
+    url: "https://linkedin.com/in/synthetic-person", text: null, liked: "고객 문제를 직접 풀어 본 점이 좋아요.\n\n관리자 경력은 필요 없어요.",
+  });
+  assert.equal(referenceRowFromInput("관련 경험이 좋아요"), null);
+  assert.equal(referenceRowFromInput("ftp://linkedin.com/in/synthetic-person"), null);
 });

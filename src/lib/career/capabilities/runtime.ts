@@ -118,14 +118,10 @@ export class CareerCapabilityRuntime {
     if (promptArgs.careerCoachingActivity?.status === "active")
       this.loaded.add("career_coaching");
     const eligibleTools = this.options.getEligibleTools?.() ?? this.options.eligibleTools;
-    // An existing, server-confirmed activity supplies its required abilities.
-    // No intent classification or model-authored mode state is used here.
-    if (promptArgs.simulationSession?.status === "active") {
-      for (const capability of CAREER_CAPABILITIES) {
-        if (capability.tools.some(([name]) => eligibleTools.some(tool => tool.function.name === name)))
-          this.loaded.add(capability.id);
-      }
-    }
+    // Keep only application-specific tools immediately available. Shared tools
+    // use the same loader and leases as ordinary chat; eligibility still scopes both.
+    if (promptArgs.simulationSession?.status === "active")
+      this.loaded.add("application_support");
     const resolved = resolveCareerCapabilities({
       eligibleTools: eligibleTools.filter(
         (tool) => !this.revokedTools.has(tool.function.name)

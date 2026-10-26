@@ -79,6 +79,7 @@ type WebsiteCompanyDataRpcChange = {
 
 type WebsiteCompanyDataRpcResult = {
   changed_count?: number;
+  history_ids?: string[];
   company_db_id?: number | null;
   key?: string;
   role_id?: string | null;
@@ -459,6 +460,9 @@ async function fetchWebsiteCompanyDataSnapshots(args: {
 
 export async function applyWebsiteCompanyDataChanges(args: {
   actorLabel: string;
+  actorUserId?: string;
+  criteriaChanges?: Array<{role_id:string;expected:unknown;value:unknown}>;
+  requestReview?: boolean;
   admin: AdminClient;
   changes: WebsiteCompanyDataChange[];
   source?: "chat" | "slack" | "website";
@@ -466,7 +470,7 @@ export async function applyWebsiteCompanyDataChanges(args: {
   workspaceId: string;
 }) {
   const hasTargetCompanyDbId = args.targetCompanyDbId !== undefined;
-  if (args.changes.length === 0 && !hasTargetCompanyDbId) {
+  if (args.changes.length === 0 && !args.criteriaChanges?.length && !hasTargetCompanyDbId) {
     return { changedCount: 0, status: "already_reflected" as const };
   }
   const snapshotResult = await fetchWebsiteCompanyDataSnapshots(args);
@@ -480,13 +484,13 @@ export async function applyWebsiteCompanyDataChanges(args: {
     : snapshotResult.companyDbId;
   const associationChanged =
     hasTargetCompanyDbId && snapshotResult.companyDbId !== targetCompanyDbId;
-  if (resolved.rpcChanges.length === 0 && !associationChanged) {
+  if (resolved.rpcChanges.length === 0 && !args.criteriaChanges?.length && !associationChanged) {
     return { changedCount: 0, status: "already_reflected" as const };
   }
 
   const eventContent =
     resolved.eventContent ??
-    `${getCompanyEventActorLabel({ name: args.actorLabel })} · 회사 데이터 연결 변경`;
+    `${getCompanyEventActorLabel({ name: args.actorLabel })} · ${args.criteriaChanges?.length ? "역할 매칭 기준 수정" : "회사 데이터 연결 변경"}`;
 
   const { data, error } = hasTargetCompanyDbId
     ? await (args.admin.rpc as any)("reassociate_company_workspace_db_v1", {
@@ -496,7 +500,12 @@ export async function applyWebsiteCompanyDataChanges(args: {
         p_target_company_db_id: targetCompanyDbId,
         p_workspace_id: args.workspaceId,
       })
-    : await (args.admin.rpc as any)("apply_company_data_changes_v1", {
+    : await (args.admin.rpc as any)(args.criteriaChanges?.length || resolved.rpcChanges.some(change => change.key === "role_request")
+        ? "apply_company_data_with_hiring_history_v1" : "apply_company_data_changes_v1", {
+        ...(args.criteriaChanges?.length || resolved.rpcChanges.some(change => change.key === "role_request") ? {
+          p_criteria_changes:args.criteriaChanges ?? [],p_actor_user_id:args.actorUserId ?? null,
+          p_actor_label:args.actorLabel,p_request_review:args.requestReview ?? false,
+        } : {}),
         p_changes: resolved.rpcChanges,
         p_event_content: eventContent,
         p_source: args.source ?? "website",
@@ -510,7 +519,12 @@ export async function applyWebsiteCompanyDataChanges(args: {
   if (result.status !== "updated" && result.status !== "already_reflected") {
     throw new Error("Unexpected company data update result");
   }
+  if (result.history_ids?.length) {
+    const {publishHiringBriefSummaries}=await import('./hiringBriefHistoryQueue');
+    await publishHiringBriefSummaries(result.history_ids);
+  }
   return {
+    historyIds: result.history_ids ?? [],
     changedCount: Number(result.changed_count ?? 0),
     status: result.status,
   };

@@ -249,11 +249,11 @@ export async function deliverCompanyFirstEmailRow(args: {
     },
     finishRun: args.finishRun,
     emailRoleIds: async (roleIds) => {
-      const { data, error } = await (admin.from("company_internal_roles" as any) as any)
-        .select("role_id").in("role_id", roleIds).eq("email_notifications_enabled", true);
-      if (error) throw error;
-      const enabled = new Set((data ?? []).map((role: { role_id: string }) => role.role_id));
-      return roleIds.filter((id) => enabled.has(id));
+      // The same rule gates Worker selection and the final database send check:
+      // explicit email opt-in, or no usable Slack channel for this Role.
+      const enabled = await Promise.all(roleIds.map((roleId) =>
+        rpc<boolean>(admin, "company_role_candidate_email_enabled_v1", { p_role_id: roleId })));
+      return roleIds.filter((_, index) => enabled[index] === true);
     },
     recipients: async (roleIds) => {
       const byUser = new Map<string, CandidateDigestRecipient>();

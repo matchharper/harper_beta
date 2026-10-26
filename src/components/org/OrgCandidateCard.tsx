@@ -299,7 +299,7 @@ export function OrgCandidateCard({
       </div>
       {item.processClosureNoticeUnresolved ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          {c("프로세스 종료 안내됨", "Notified of process closure")}
+          {c("프로세스 종료 안내됨", "Candidate notified that hiring has ended")}
         </div>
       ) : item.upcomingMeeting ? (
         <div className="-mx-3 mt-3 bg-positive px-3 py-1 text-[12px] font-medium text-neutral-00">

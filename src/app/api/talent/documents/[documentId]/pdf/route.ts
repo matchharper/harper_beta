@@ -6,6 +6,8 @@ import {
 } from "@/lib/talentOnboarding/server";
 import { exportResume, ResumeExportError } from "@/lib/resumes/export";
 import { resumeFileName } from "@/lib/resumes/schema";
+import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
+import { exportDocument } from "@/lib/documents/export";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,10 +34,17 @@ export async function POST(
       );
     const { documentId } = await context.params;
     const admin = getTalentSupabaseAdmin();
-    const artifact = await exportResume({
+    const read = () =>
+      fetchTalentDocument({ admin, userId: user.id, documentId });
+    const document = await read();
+    const exporter =
+      document?.origin_type === AUTHORED_DOCUMENT_ORIGIN
+        ? exportDocument
+        : exportResume;
+    const artifact = await exporter({
       expectedRevision: body.expected_revision,
       renderVersion: body.render_version,
-      read: () => fetchTalentDocument({ admin, userId: user.id, documentId }),
+      read,
     });
     console.info("[ResumeDocument]", {
       event: "download",
@@ -51,7 +60,7 @@ export async function POST(
       headers: {
         ...headers,
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="resume.pdf"; filename*=UTF-8''${name}`,
+        "Content-Disposition": `attachment; filename="document.pdf"; filename*=UTF-8''${name}`,
       },
     });
   } catch (error) {

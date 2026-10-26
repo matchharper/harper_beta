@@ -1,5 +1,8 @@
 import { CareerDailyExternalStatus } from "../CareerDailyExternalRecommendations";
-import { ApplicationPreparationComposerSlot, ApplicationPreparationReopen } from "./ApplicationPreparationComposer";
+import {
+  ApplicationPreparationComposerSlot,
+  ApplicationPreparationReopen,
+} from "./ApplicationPreparationComposer";
 import { useApplicationPreparation } from "./ApplicationPreparationContext";
 import React, {
   KeyboardEvent,
@@ -13,7 +16,6 @@ import React, {
 import {
   ArrowUp,
   AudioLines,
-  BriefcaseBusiness,
   Building2,
   CircleHelp,
   Clock3,
@@ -619,7 +621,7 @@ const CareerComposerSection = ({
             icon: opportunityMentions.isFetchingNextPage ? (
               <Loader2 className="animate-spin" />
             ) : (
-              <Plus />
+              <Plus className="h-5 w-5" strokeWidth={1.6} />
             ),
             id: "load-more",
             onSelect: () => {
@@ -1238,44 +1240,6 @@ const CareerComposerSection = ({
       ),
       // trailingText: "PDF, DOCX, TXT",
     },
-    {
-      disabled: recommendationRequestDisabled,
-      icon: <BriefcaseBusiness />,
-      id: "request-more-open-positions",
-      label: recommendationRequestPending
-        ? t(
-            "career.common.conversation_starters.requesting_more_open_positions",
-            "요청 중..."
-          )
-        : t(
-            "career.common.conversation_starters.more_open_positions",
-            "포지션 더 추천받기"
-          ),
-      loading: recommendationRequestPending,
-      onSelect: () => void handleRequestMoreOpenPositions(),
-    },
-    {
-      disabled: conversationStarterDisabled,
-      icon: <PhoneCall />,
-      id: "conversation-starter-career-coaching",
-      label: t(
-        "career.common.conversation_starters.1sfi8z4",
-        "커리어 상담"
-      ),
-      loading: conversationStarterPending,
-      onSelect: () => void handleStartConversationStarter("career_coaching"),
-    },
-    {
-      disabled: conversationStarterDisabled,
-      icon: <PhoneCall />,
-      id: "conversation-starter-match-quality",
-      label: t(
-        "career.common.conversation_starters.07qcswd",
-        "더 좋은 연결 받기"
-      ),
-      loading: conversationStarterPending,
-      onSelect: () => void handleStartConversationStarter("match_quality"),
-    },
     ...pendingActionMenuItems,
   ];
 
@@ -1293,7 +1257,8 @@ const CareerComposerSection = ({
               variant="composer"
             />
           ) : null}
-          {preparation.record?.state.status !== "active" && desktopRoleActionOpportunity &&
+          {preparation.record?.state.status !== "active" &&
+          desktopRoleActionOpportunity &&
           shouldShowCareerComposerRoleActions(draft) ? (
             <div
               key={desktopRoleActionOpportunity.id}
@@ -1308,6 +1273,48 @@ const CareerComposerSection = ({
                     : undefined
                 }
               />
+            </div>
+          ) : null}
+          {isOnboardingDone &&
+          preparation.record?.state.status !== "active" &&
+          !desktopRoleActionOpportunity &&
+          shouldShowCareerComposerRoleActions(draft) ? (
+            <div className="flex flex-wrap items-center gap-2 px-2 pb-2">
+              <MuteButton
+                size="sm"
+                disabled={recommendationRequestDisabled}
+                aria-busy={recommendationRequestPending || undefined}
+                onClick={() => void handleRequestMoreOpenPositions()}
+              >
+                {recommendationRequestPending
+                  ? t(
+                      "career.common.conversation_starters.requesting_more_open_positions",
+                      "요청 중..."
+                    )
+                  : t(
+                      "career.common.conversation_starters.more_open_positions",
+                      "포지션 더 추천받기"
+                    )}
+              </MuteButton>
+              <MuteButton
+                size="sm"
+                disabled={conversationStarterDisabled}
+                aria-busy={conversationStarterPending || undefined}
+                onClick={() =>
+                  void handleStartConversationStarter("career_coaching")
+                }
+              >
+                {conversationStarterPending ? (
+                  <Loader2
+                    className="h-3 w-3 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : null}
+                {t(
+                  "career.common.conversation_starters.1sfi8z4",
+                  "커리어 상담"
+                )}
+              </MuteButton>
             </div>
           ) : null}
           <div
@@ -1339,9 +1346,11 @@ const CareerComposerSection = ({
               aria-expanded={
                 Boolean(opportunityMentionSearch) && !isTextInputLocked
               }
-              className="overflow-visible"
+              className="overflow-visible md:rounded-xl max-md:data-[expanded=true]:rounded-xl"
               context={
-                (selectedPendingAction || pendingFileAttachment || preparation.record?.state.status === "active") ? (
+                selectedPendingAction ||
+                pendingFileAttachment ||
+                preparation.record?.state.status === "active" ? (
                   <div className="grid gap-2">
                     <ApplicationPreparationReopen />
                     {selectedPendingAction ? (
@@ -1421,6 +1430,7 @@ const CareerComposerSection = ({
               mobileLeadingAction={
                 <ChatComposerActionMenu
                   animated={false}
+                  triggerIcon={<Plus className="size-5 text-black" strokeWidth={1.6} />}
                   contentClassName="max-h-[min(32rem,70dvh)] overflow-y-auto overscroll-contain"
                   disabled={!user}
                   items={composerActionMenuItems}
@@ -1430,7 +1440,7 @@ const CareerComposerSection = ({
                 />
               }
               textareaClassName={cn(
-                "min-h-12 py-3",
+                "min-h-12 py-3 max-md:group-data-[expanded=false]/chat-composer:py-3.5 max-md:group-data-[expanded=false]/chat-composer:text-sm max-md:group-data-[expanded=false]/chat-composer:font-normal max-md:group-data-[expanded=false]/chat-composer:placeholder:text-neutral-soft",
                 opportunityTokens.tokens.length > 0 &&
                   "relative z-10 text-transparent caret-neutral-primary"
               )}

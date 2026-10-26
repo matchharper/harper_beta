@@ -1,7 +1,14 @@
+import {
+  orgCandidateActivityKind,
+  orgCandidateActivityTitle,
+} from "@/lib/org/candidateActivityFeed";
 import { TalentDetailPager } from "./TalentDetailPager";
 import { OrgPassPopover } from "./OrgPassPopover";
 import { OrgCandidateReview } from "./OrgCandidateReview";
+import { OrgCandidateProfilePreview } from "./OrgCandidateProfilePreview";
 import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
+import { isOrgQueryAccessError } from "@/lib/org/queryError";
+import { isOrgCandidateProfilePreview } from "@/lib/org/candidatePreview";
 import { OrgTalentProfile } from "./OrgTalentProfile";
 import { getHarperProgressText } from "@/components/org/harperProgressPresentation";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
@@ -174,7 +181,7 @@ function SystemActivitySummary({
   const { locale, c } = useOrgLocale();
   const metrics = [
     {
-      label: c("가입 날짜", "Join date"),
+      label: c("가입 날짜", "Date joined"),
       value: account?.createdAt,
     },
     {
@@ -421,18 +428,8 @@ function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
   if (item.kind === "internal_process_stopped_notified") {
     return "프로세스 종료 안내";
   }
-  if (item.activity?.eventType === "candidate_contact_sent") {
-    return item.activity.requestKind === "resume"
-      ? "후보자에게 이력서를 요청했어요"
-      : item.activity.requestKind === "contact"
-        ? "후보자에게 연락을 보냈어요"
-        : "후보자에게 질문을 보냈어요";
-  }
-  if (item.activity?.eventType === "candidate_response_received") {
-    return "후보자의 답변이 도착했어요";
-  }
-  if (item.activity?.eventType === "candidate_message_delivered") {
-    return "후보자의 메시지가 전달됐어요";
+  if (item.activity) {
+    return orgCandidateActivityTitle(orgCandidateActivityKind(item.activity), (ko) => ko);
   }
   const { kind } = item;
   if (kind === "org_note") return "메모";
@@ -592,9 +589,9 @@ function FeedPanel({
     let cancelled = false;
     const intervalId = window.setInterval(async () => {
       const result = await refetchDetail();
-      const current = result.data?.connectionConfirmationEmails.find(
+      const current = !isOrgCandidateProfilePreview(result.data) ? result.data?.connectionConfirmationEmails.find(
         (item) => item.id === pollingQueueId
-      );
+      ) : undefined;
       if (
         !cancelled &&
         current &&
@@ -649,7 +646,7 @@ function FeedPanel({
   const feedItems = useMemo<ProgressFeedItem[]>(() => {
     const requestsWithContactProgress = new Set(
       detail.feed.flatMap((item) =>
-        item.activity?.eventType === "candidate_contact_sent"
+        item.activity?.eventType === "candidate_contact_sent" && item.activity.requestId
           ? [item.activity.requestId]
           : []
       )
@@ -1031,16 +1028,23 @@ export function TalentDetailSimpleView({
   presentation = "modal",
   showBack = true,
   navigationItems,
+  nextNavigation,
   advanceAfterAction = false,
   onReviewClose,
   backLabel,
+  navigationTitle,
 }: {
   presentation?: "modal" | "inline";
   showBack?: boolean;
   navigationItems?: readonly OrgTalentSelection[];
+  nextNavigation?: {
+    item: OrgTalentSelection;
+    onNavigate: () => void;
+  };
   advanceAfterAction?: boolean;
   onReviewClose?: () => void;
   backLabel?: string;
+  navigationTitle?: string;
 }) {
   const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
@@ -1058,6 +1062,7 @@ export function TalentDetailSimpleView({
     activeDetailTalentId,
     detailOpen,
     detailQuery,
+    profilePreview,
     selectedAcceptStageId,
   } = useOrgJobsDetail();
   const {
@@ -1075,7 +1080,9 @@ export function TalentDetailSimpleView({
     user,
     workspace,
   } = useOrgWorkspace();
-  const detail = detailQuery.data;
+  const detail = isOrgQueryAccessError(detailQuery.error)
+    ? undefined
+    : detailQuery.data;
   const members = detail?.members ?? bootstrap.members;
   const requestCompanyIntro = useRequestOrgCompanyIntro();
   const passCompanyIntro = usePassOrgCompanyIntro();
@@ -1258,6 +1265,9 @@ export function TalentDetailSimpleView({
   };
 
   if (!open || typeof document === "undefined") return null;
+  if (profilePreview && !isOrgQueryAccessError(detailQuery.error)) {
+    return <OrgCandidateProfilePreview preview={profilePreview} onClose={handleClose} inline={presentation === "inline"} />;
+  }
 
   const title =
     detail?.talent.name ||
@@ -1294,7 +1304,8 @@ export function TalentDetailSimpleView({
       recommendationId: activeDetailRecommendationId,
       roleId: activeDetailRoleId,
       talentId: activeDetailTalentId,
-    }
+    },
+    nextNavigation?.item
   );
   const navigateToTalent = (
     target: (typeof resolvedTalentNavigationItems)[number] | null
@@ -1302,6 +1313,10 @@ export function TalentDetailSimpleView({
     if (!target) return;
     setMobileTab("profile");
     markViewed(target.recommendationId);
+    if (nextNavigation && target === nextNavigation.item) {
+      nextNavigation.onNavigate();
+      return;
+    }
     selectTalent(
       target,
       resolvedTalentNavigationItems,
@@ -1342,6 +1357,7 @@ export function TalentDetailSimpleView({
           onNavigate={navigateToTalent}
           onBack={showBack ? (onReviewClose ?? handleClose) : undefined}
           backLabel={backLabel}
+          navigationTitle={navigationTitle}
           roleMoveButton={roleMoveButton}
           canManage={canManageCandidates}
           pending={
@@ -1446,9 +1462,12 @@ export function TalentDetailSimpleView({
                     />
                   ) : (
                     <MuteButton
+                      className="min-w-11 border-critical bg-critical text-neutral-00 hover:border-critical/90 hover:bg-critical/90 hover:text-neutral-00 active:bg-critical/80"
                       disabled={decisionPending || !onRejectCandidate}
                       onClick={() => setRejectDialogOpen(true)}
-                      variant="neutral"
+                      size="md"
+                      type="button"
+                      variant="transparent"
                     >
                       {CANDIDATE_DECISION_LABELS.reject}
                     </MuteButton>
@@ -1511,6 +1530,13 @@ export function TalentDetailSimpleView({
             </MuteButton>
           </div>
 
+          {error && detail && (
+            <OrgErrorState
+              className="mx-5"
+              message={error.message}
+              onRetry={onRetry}
+            />
+          )}
           {!detail && !error ? (
             <div
               aria-busy="true"
@@ -1544,7 +1570,7 @@ export function TalentDetailSimpleView({
                 ))}
               </div>
             </div>
-          ) : error ? (
+          ) : error && !detail ? (
             <OrgErrorState
               className="m-5"
               message={error.message}
@@ -1818,7 +1844,7 @@ export function TalentDetailSimpleView({
             title,
           });
           closeAcceptDialog();
-          if (presentation === "inline") finishReview();
+          if (result && presentation === "inline") finishReview();
           return result;
         }}
         roleTitle={detail?.role.name ?? ""}
@@ -1871,12 +1897,12 @@ export function TalentDetailSimpleView({
         onClose={() => setRejectDialogOpen(false)}
         onSubmit={async ({ note, notifyCandidateOnClosure }) => {
           if (!onRejectCandidate) return;
-          await onRejectCandidate({
+          const result = await onRejectCandidate({
             notifyCandidateOnClosure,
             stopNote: note,
           });
           setRejectDialogOpen(false);
-          if (presentation === "inline") finishReview();
+          if (result && presentation === "inline") finishReview();
         }}
       />
     </>

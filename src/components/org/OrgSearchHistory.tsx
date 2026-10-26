@@ -54,7 +54,7 @@ export function OrgSearchHistory({
           variant="transparent"
           size="md"
         >
-          <History className="size-4" />
+          <History className="size-4" strokeWidth={1.4} />
         </MuteButton>
       </Popover.Trigger>
       <Popover.Portal>

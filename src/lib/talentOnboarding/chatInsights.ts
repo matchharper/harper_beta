@@ -57,15 +57,16 @@ function compactOlderTranscriptMessage(value: string, maxLength = 2_400) {
   return `${value.slice(0, sideLength)}${marker}${value.slice(-sideLength)}`;
 }
 
-function buildExtractionConversationMessages(args: {
+export function buildExtractionConversationMessages(args: {
   assistantContent: string;
   recentMessages: Array<{ content: string; role: "user" | "assistant" }>;
+  includeFullTranscript?: boolean;
 }) {
   const { assistantContent, recentMessages } = args;
   const messages =
-    recentMessages.length > 0 &&
+    !assistantContent || (recentMessages.length > 0 &&
     recentMessages[recentMessages.length - 1]?.role === "assistant" &&
-    recentMessages[recentMessages.length - 1]?.content === assistantContent
+    recentMessages[recentMessages.length - 1]?.content === assistantContent)
       ? recentMessages
       : [
           ...recentMessages,
@@ -75,14 +76,15 @@ function buildExtractionConversationMessages(args: {
     (message) => message.role === "user"
   );
 
+  const startIndex = args.includeFullTranscript ? 0 : Math.max(0, messages.length - 5);
   const transcript = messages
-    .slice(-5)
+    .slice(startIndex)
     .map((message, index) => {
       const role = message.role === "user" ? "User" : "Harper";
       const normalized = message.content.replace(/\s+/g, " ").trim();
-      const originalIndex = Math.max(0, messages.length - 5) + index;
+      const originalIndex = startIndex + index;
       const content =
-        originalIndex === latestUserIndex
+        args.includeFullTranscript || originalIndex === latestUserIndex
           ? normalized
           : compactOlderTranscriptMessage(normalized);
       return `[${index + 1}] ${role}: ${content}`;
@@ -603,14 +605,16 @@ export async function extractAndPersistChatInsights(args: {
   onboardingChecklistContext?: OnboardingChecklistLocationContext;
   profileChangesAlreadySaved?: string | null;
   sourceChannel?: "text_chat" | "voice_call" | "unknown";
+  /** Final call reconciliation reuses this extractor with the whole spoken context. */
+  transcript?: ExtractionConversationMessage[];
   scheduleAfter?: (task: () => Promise<void>) => void;
   userId: string;
 }) {
   const assistantContent = args.assistantContent.trim();
-  if (!assistantContent) return 0;
+  if (!assistantContent && !args.transcript?.length) return 0;
 
   try {
-    const recentExtractionMessages = (
+    const recentExtractionMessages = args.transcript ?? (
       await fetchRecentMessages({
         admin: args.admin,
         conversationId: args.conversationId,
@@ -634,6 +638,7 @@ export async function extractAndPersistChatInsights(args: {
     const conversationMessages = buildExtractionConversationMessages({
       assistantContent,
       recentMessages: recentExtractionMessages,
+      includeFullTranscript: Boolean(args.transcript),
     });
     const talentContextSnapshot = await fetchTalentContextPromptSnapshot({
       admin: args.admin,

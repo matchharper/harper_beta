@@ -9,6 +9,7 @@ export type OrgAgentLiveChat = {
   assistantStatus: "idle" | "pending" | "streaming";
   error: string | null;
   isStreaming: boolean;
+  isCreatingRole: boolean;
   optimisticUserMessage: OrgAgentMessage | null;
   streamingText: string;
   thinkingLogs: OrgAgentThinkingLog[];
@@ -18,6 +19,7 @@ export const EMPTY_ORG_AGENT_LIVE_CHAT: OrgAgentLiveChat = {
   assistantStatus: "idle",
   error: null,
   isStreaming: false,
+  isCreatingRole: false,
   optimisticUserMessage: null,
   streamingText: "",
   thinkingLogs: [],
@@ -38,7 +40,7 @@ type OrgAgentLiveChatStoreState = {
   finish: (key: string) => void;
   move: (fromKey: string, toKey: string) => void;
   patch: (key: string, patch: Partial<OrgAgentLiveChat>) => void;
-  start: (key: string, optimisticUserMessage: OrgAgentMessage) => void;
+  start: (key: string, optimisticUserMessage: OrgAgentMessage, isCreatingRole?: boolean) => void;
 };
 
 export const useOrgAgentLiveChatStore = create<OrgAgentLiveChatStoreState>(
@@ -55,7 +57,12 @@ export const useOrgAgentLiveChatStore = create<OrgAgentLiveChatStoreState>(
         return {
           chats: {
             ...state.chats,
-            [key]: { ...EMPTY_ORG_AGENT_LIVE_CHAT, error: chat.error },
+            [key]: {
+              ...EMPTY_ORG_AGENT_LIVE_CHAT,
+              error: chat.error,
+              isCreatingRole: chat.isCreatingRole,
+              optimisticUserMessage: chat.isCreatingRole ? chat.optimisticUserMessage : null,
+            },
           },
         };
       }),
@@ -72,7 +79,7 @@ export const useOrgAgentLiveChatStore = create<OrgAgentLiveChatStoreState>(
           [key]: { ...(state.chats[key] ?? EMPTY_ORG_AGENT_LIVE_CHAT), ...patch },
         },
       })),
-    start: (key, optimisticUserMessage) =>
+    start: (key, optimisticUserMessage, isCreatingRole = false) =>
       set((state) => ({
         chats: {
           ...state.chats,
@@ -80,6 +87,7 @@ export const useOrgAgentLiveChatStore = create<OrgAgentLiveChatStoreState>(
             ...EMPTY_ORG_AGENT_LIVE_CHAT,
             assistantStatus: "pending",
             isStreaming: true,
+            isCreatingRole,
             optimisticUserMessage,
           },
         },

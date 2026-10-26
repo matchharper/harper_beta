@@ -1,6 +1,9 @@
 import { SlackLogo as SlackIcon } from "@/components/common/BrandLogos";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
-import { canAccessOrgRole, resolveOrgRoleAccess } from "@/lib/org/teamAccess.shared";
+import {
+  canAccessOrgRole,
+  resolveOrgRoleAccess,
+} from "@/lib/org/teamAccess.shared";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Image from "next/image";
 import Link from "next/link";
@@ -191,7 +194,9 @@ export function OrgRoleSettingsContent({
   const canCreateSlackChannel =
     slackStatusQuery.data?.canCreateChannels ?? (channels?.length ?? 0) > 0;
 
-  useUnsavedChangesWarning(hasChanges || scheduleChanged, { preserveWithinRole: true });
+  useUnsavedChangesWarning(hasChanges || scheduleChanged, {
+    preserveWithinRole: true,
+  });
 
   const assignedMembers = assigneeUserIds.flatMap((userId) => {
     const member = members.find((item) => item.userId === userId);
@@ -432,10 +437,7 @@ export function OrgRoleSettingsContent({
       }
       addToast({
         message: enabled
-          ? c(
-              "정기 후보 검색을 켰습니다.",
-              "Scheduled candidate search is on."
-            )
+          ? c("정기 후보 검색을 켰습니다.", "Scheduled candidate search is on.")
           : c(
               "정기 후보 검색을 껐습니다.",
               "Scheduled candidate search is off."
@@ -581,8 +583,10 @@ export function OrgRoleSettingsContent({
               canManage ? (
                 <MuteButton
                   disabled={
-                    !canManage || updateRoleStatus.isPending ||
-                    settingsPending || settingsQuery.isFetching
+                    !canManage ||
+                    updateRoleStatus.isPending ||
+                    settingsPending ||
+                    settingsQuery.isFetching
                   }
                   onClick={() => void requestHiringStart()}
                   variant="default"
@@ -649,24 +653,18 @@ export function OrgRoleSettingsContent({
               <div className="space-y-2">
                 <RoleSectionHeading
                   description={c(
-                    "이 역할의 새 후보 소식을 받을 곳이에요. Slack 채널이나 메일 중 하나는 켜 두어야 해요.",
-                    "Choose where new candidates for this role are sent. Keep at least one Slack channel or email on."
+                    "이 역할과 관련해 Harper와 소통할 Slack 채널을 선택하세요.",
+                    "Choose a Slack channel to receive updates about this role from Harper."
                   )}
-                  title={c("알림 채널", "Notification channel")}
+                  title={c("슬랙 연결", "Connect Slack")}
                 />
-                <div className="flex items-center gap-3 py-1">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-neutral-1000-a05 text-neutral-muted">
+                {/* <div className="flex items-center gap-3 py-1">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-neutral-1000-a05 text-neutral-muted">
                     <Mail className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] font-normal text-neutral-primary">
                       {c("메일", "Email")}
-                    </div>
-                    <div className="truncate text-[12px] text-neutral-muted">
-                      {c(
-                        "담당자와 Owner에게 각자 보내요",
-                        "Sent separately to each role owner and workspace Owner"
-                      )}
                     </div>
                   </div>
                   <Switch
@@ -685,7 +683,7 @@ export function OrgRoleSettingsContent({
                       );
                     }}
                   />
-                </div>
+                </div> */}
                 {channels.length > 0 ? (
                   <div className="divide-y divide-neutral-1000-a05 bg-bg-default">
                     {channels.map((channel) => (
@@ -694,9 +692,7 @@ export function OrgRoleSettingsContent({
                         key={channel.channelId}
                       >
                         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-neutral-1000-a05 text-neutral-muted">
-                          <SlackIcon
-                            className="size-4"
-                          />
+                          <SlackIcon className="size-4" />
                         </span>
                         <div className="min-w-0 flex-1 truncate text-[14px] font-normal text-neutral-primary">
                           {formatChannelName(

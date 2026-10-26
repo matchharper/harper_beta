@@ -1,0 +1,589 @@
+import "server-only";
+import type { CareerRequestRuntime } from "./requestRuntime.server";
+import {
+  readMockInterviewOpportunityId,
+  fetchMockInterviewContext,
+  MockInterviewRequestError,
+} from "@/lib/career/mockInterview";
+import { buildMockInterviewWrapupContext } from "@/lib/career/prompts/cases/mockInterviewPrompts";
+import type { LiveSessionInstructionUpdate } from "@/lib/career/liveSessionUpdates";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  countUserChatTurns,
+  fetchAllTalentContexts,
+  fetchTalentContextsUpdatedAt,
+  fetchTalentSetting,
+  fetchTalentUserProfile,
+  getCareerOnboardingChecklistCoverage,
+  getOnboardingChecklistCoverageStats,
+  getTalentSupabaseAdmin,
+  projectBriefsToLegacyInsights,
+  serializeOnboardingChecklistProgress,
+  toTalentMessageResponse,
+  toTalentContextResponse,
+  type TalentMessageRow,
+} from "@/lib/talentOnboarding/server";
+import { TALENT_INTERVIEW_FINAL_STEP } from "@/lib/talentOnboarding/progress";
+import { buildCareerInsightExtractionOnlyPrompt } from "@/lib/career/prompts";
+import {
+  completeOnboardingAndQueueInitialOpportunityRun,
+  getActiveOpportunityRun,
+  serializeOpportunityRun,
+} from "@/lib/opportunityDiscovery/store";
+import { extractAndPersistChatInsights } from "@/lib/talentOnboarding/chatInsights";
+import { maybeSummarizeTalentConversation } from "@/lib/talentOnboarding/conversationSummary";
+import { createOnboardingCompletionMessages } from "@/lib/talentOnboarding/onboardingCompletionWrapup";
+import {
+  hasTalentOnboardingCompletionMarker,
+  resolveTalentOnboardingCompletion,
+  stripTalentOnboardingCompletionMarker,
+} from "@/lib/talentOnboarding/completion";
+import { getCareerConversationStarter } from "@/lib/career/prompts/conversationStarters";
+import { getCareerRealtimeToolCandidates } from "@/lib/career/llmTools";
+import { buildCareerRealtimeSessionInstructions } from "@/lib/career/realtimeInstructions";
+import { isMobileRequest, withIsMobile } from "@/lib/requestDevice";
+import { careerT } from "@/lib/career/translatedCareerMessage";
+import {
+  sanitizeSingleLineDbText,
+  stripPostgresUnsafeChars,
+} from "@/lib/textSanitization";
+import { notifyUnsupportedUnicodeEscapeError } from "@/lib/errorAlert";
+import {
+  advanceInternalOpportunityCallRequestQuestion,
+  fetchInternalOpportunityCallRequestById,
+  isOpenInternalOpportunityCallRequestStatus,
+} from "@/lib/talentOnboarding/internalOpportunityCallRequest";
+import { shouldAdvanceInternalOpportunityCallQuestion } from "@/lib/talentOnboarding/internalOpportunityCallProgress";
+import { resolveCareerRequestTimeZone } from "@/lib/career/requestTimeZone";
+
+type Body = {
+  assistantEndedOnboarding?: boolean;
+  conversationStarterId?: string | null;
+  conversationId: string;
+  internalCallRequestId?: string | null;
+  mockInterviewOpportunityId?: string | null;
+  locale?: string | null;
+  userMessage?: string;
+  assistantMessage?: string;
+  isCallMode?: boolean;
+  timeZone?: string | null;
+};
+
+const toResponseMessage = toTalentMessageResponse;
+
+function startOpportunityDiscoveryInBackground(runId: string) {
+  console.info("[opportunity-discovery] queued for harper_worker", {
+    runId,
+  });
+}
+
+export async function saveCareerTurnRequest(req: NextRequest, runtime: CareerRequestRuntime) {
+  try {
+    const user = await runtime.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = (await req.json()) as Body;
+    const mockInterviewOpportunityId = readMockInterviewOpportunityId(body);
+    const isMobile = isMobileRequest(req);
+    const promptTimeZone = resolveCareerRequestTimeZone(req, body.timeZone);
+    const conversationId = sanitizeSingleLineDbText(body.conversationId, 80);
+    const conversationStarterId =
+      typeof body.conversationStarterId === "string"
+        ? (sanitizeSingleLineDbText(body.conversationStarterId, 120) ?? "")
+        : "";
+    const internalCallRequestId =
+      typeof body.internalCallRequestId === "string"
+        ? (sanitizeSingleLineDbText(body.internalCallRequestId, 120) ?? "")
+        : "";
+    const userMessageText =
+      typeof body.userMessage === "string"
+        ? stripPostgresUnsafeChars(body.userMessage).trim()
+        : "";
+    const assistantMessageTextWithMarkers =
+      typeof body.assistantMessage === "string"
+        ? stripPostgresUnsafeChars(body.assistantMessage).trim()
+        : "";
+    const assistantMessageText = stripTalentOnboardingCompletionMarker(
+      assistantMessageTextWithMarkers
+    ).trim();
+    const isCallMode = Boolean(body.isCallMode);
+    const assistantEndedOnboarding =
+      Boolean(assistantMessageText) &&
+      (Boolean(body.assistantEndedOnboarding) ||
+        hasTalentOnboardingCompletionMarker(assistantMessageTextWithMarkers));
+
+    if (!conversationId || (!userMessageText && !assistantMessageText)) {
+      return NextResponse.json(
+        {
+          error: "conversationId and at least one message are required",
+        },
+        { status: 400 }
+      );
+    }
+
+    const admin = getTalentSupabaseAdmin();
+
+    // Verify conversation ownership
+    const { data: conversation, error: conversationError } = await admin
+      .from("talent_conversations")
+      .select("*")
+      .eq("id", conversationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (conversationError || !conversation) {
+      return NextResponse.json(
+        { error: "Conversation not found" },
+        { status: 404 }
+      );
+    }
+
+    if (mockInterviewOpportunityId) {
+      if (!isCallMode)
+        throw new MockInterviewRequestError(
+          "Mock interview requires call mode"
+        );
+      await fetchMockInterviewContext({
+        admin,
+        userId: user.id,
+        opportunityId: mockInterviewOpportunityId,
+      });
+    }
+    const internalCallRequest = internalCallRequestId
+      ? await fetchInternalOpportunityCallRequestById({
+          admin,
+          callId: internalCallRequestId,
+          userId: user.id,
+        })
+      : null;
+    if (internalCallRequestId && !isCallMode) {
+      return NextResponse.json(
+        { error: "internalCallRequestId requires call mode" },
+        { status: 400 }
+      );
+    }
+    if (internalCallRequestId && !internalCallRequest) {
+      return NextResponse.json(
+        { error: "Invalid internalCallRequestId" },
+        { status: 400 }
+      );
+    }
+    if (
+      internalCallRequest &&
+      !isOpenInternalOpportunityCallRequestStatus(internalCallRequest.status)
+    ) {
+      return NextResponse.json(
+        { error: "Internal call already completed" },
+        { status: 409 }
+      );
+    }
+    const isInternalOpportunityCall = Boolean(internalCallRequest);
+    const messageType = isCallMode ? "call_transcript" : "chat";
+
+    const [currentBrief, currentContextsUpdatedAt, talentSetting, profile] =
+      await Promise.all([
+        fetchAllTalentContexts({
+          admin,
+          collection: "brief",
+          userId: user.id,
+        }),
+        fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        fetchTalentSetting({
+          admin,
+          userId: user.id,
+        }),
+        fetchTalentUserProfile({
+          admin,
+          userId: user.id,
+        }),
+      ]);
+    const currentInsightContent = projectBriefsToLegacyInsights(currentBrief);
+    const shouldAutoExtractInsights =
+      !mockInterviewOpportunityId &&
+      !isInternalOpportunityCall &&
+      !Boolean(talentSetting?.is_onboarding_done) &&
+      Boolean(userMessageText) &&
+      Boolean(assistantMessageText);
+    let responseBrief = currentBrief;
+    let responseTalentInsights = currentInsightContent;
+    let responseInsightUpdatedAt = currentContextsUpdatedAt;
+    const responseLocale =
+      talentSetting?.preferred_locale ??
+      body.locale ??
+      req.cookies.get("NEXT_LOCALE")?.value;
+    const conversationStarter = conversationStarterId
+      ? getCareerConversationStarter(conversationStarterId, responseLocale)
+      : null;
+    const skipConversationWrites =
+      Boolean(conversationStarter) || isInternalOpportunityCall;
+    if (conversationStarterId && !conversationStarter) {
+      return NextResponse.json(
+        { error: "Invalid conversationStarterId" },
+        { status: 400 }
+      );
+    }
+
+    const runInsightExtraction = async () => {
+      if (!shouldAutoExtractInsights) return 0;
+
+      const changedCount = await extractAndPersistChatInsights({
+        admin,
+        assistantContent: assistantMessageText,
+        buildPrompt: (promptArgs) =>
+          buildCareerInsightExtractionOnlyPrompt({
+            currentChecklistCoverage: promptArgs.currentChecklistCoverage,
+            onboardingChecklistContext: promptArgs.onboardingChecklistContext,
+            preferredLocale: responseLocale,
+          }),
+        conversationId,
+        logPrefix: "ChatSave",
+        onboardingChecklistContext: profile,
+        sourceChannel: isCallMode ? "voice_call" : "text_chat",
+        scheduleAfter: (task) => runtime.scheduleAfter(task),
+        userId: user.id,
+      });
+      if (changedCount > 0) {
+        [responseBrief, responseInsightUpdatedAt] = await Promise.all([
+          fetchAllTalentContexts({
+            admin,
+            collection: "brief",
+            userId: user.id,
+          }),
+          fetchTalentContextsUpdatedAt({ admin, userId: user.id }),
+        ]);
+        responseTalentInsights = projectBriefsToLegacyInsights(responseBrief);
+      }
+
+      return changedCount;
+    };
+
+    const activeRun = await getActiveOpportunityRun({
+      admin,
+      conversationId,
+      userId: user.id,
+    });
+    if (activeRun && !isInternalOpportunityCall) {
+      return NextResponse.json(
+        {
+          error: careerT(
+            responseLocale,
+            "career.api.chat.active_opportunity_search",
+            "기회를 찾는 중입니다. 검색이 끝나면 바로 이어서 대화할 수 있습니다."
+          ),
+          opportunityRun: serializeOpportunityRun(activeRun),
+        },
+        { status: 423 }
+      );
+    }
+
+    let insertedUserMessage: TalentMessageRow | null = null;
+    if (userMessageText) {
+      const { data, error } = await admin
+        .from("talent_messages")
+        .insert(
+          withIsMobile(
+            {
+              conversation_id: conversationId,
+              user_id: user.id,
+              role: "user",
+              content: userMessageText,
+              message_type: messageType,
+            },
+            isMobile
+          )
+        )
+        .select("*")
+        .single();
+
+      if (error) {
+        await notifyUnsupportedUnicodeEscapeError({
+          conversationId,
+          error,
+          metadata: {
+            isCallMode,
+            messageType,
+            userMessageLength: userMessageText.length,
+          },
+          route: "/api/talent/chat/save",
+          stage: "talent_messages.insert:user_message",
+          userId: user.id,
+        });
+        return NextResponse.json(
+          { error: error.message ?? "Failed to insert user message" },
+          { status: 500 }
+        );
+      }
+      insertedUserMessage = data as TalentMessageRow;
+    }
+
+    let insertedAssistantMessage: TalentMessageRow | null = null;
+    if (assistantMessageText) {
+      const { data, error } = await admin
+        .from("talent_messages")
+        .insert(
+          withIsMobile(
+            {
+              conversation_id: conversationId,
+              user_id: user.id,
+              role: "assistant",
+              content: assistantMessageText,
+              message_type: messageType,
+            },
+            isMobile
+          )
+        )
+        .select("*")
+        .single();
+
+      if (error) {
+        await notifyUnsupportedUnicodeEscapeError({
+          conversationId,
+          error,
+          metadata: {
+            assistantMessageLength: assistantMessageText.length,
+            isCallMode,
+            messageType,
+          },
+          route: "/api/talent/chat/save",
+          stage: "talent_messages.insert:assistant_message",
+          userId: user.id,
+        });
+        return NextResponse.json(
+          {
+            error: error.message ?? "Failed to insert assistant message",
+          },
+          { status: 500 }
+        );
+      }
+      insertedAssistantMessage = data as TalentMessageRow;
+    }
+
+    if (
+      isInternalOpportunityCall &&
+      internalCallRequestId &&
+      internalCallRequest &&
+      insertedUserMessage &&
+      insertedAssistantMessage &&
+      shouldAdvanceInternalOpportunityCallQuestion({
+        assistantText: assistantMessageText,
+        progress: internalCallRequest.questionProgress,
+        questions: internalCallRequest.questions,
+        userText: userMessageText,
+      })
+    ) {
+      try {
+        await advanceInternalOpportunityCallRequestQuestion({
+          admin,
+          callId: internalCallRequestId,
+          userId: user.id,
+        });
+      } catch (error) {
+        console.error(
+          "[ChatSave] Failed to advance internal call question progress",
+          {
+            callId: internalCallRequestId,
+            conversationId,
+            error: error instanceof Error ? error.message : String(error),
+            userId: user.id,
+          }
+        );
+      }
+    }
+
+    let opportunityRun: Awaited<
+      ReturnType<typeof completeOnboardingAndQueueInitialOpportunityRun>
+    > | null = null;
+
+    // 온보딩 답변 저장이 끝나기 전에 완료 처리와 첫 추천을 시작하지 않는다.
+    await runInsightExtraction();
+    runtime.scheduleAfter(async () => {
+      try {
+        await maybeSummarizeTalentConversation({
+          admin,
+          conversationId,
+          userId: user.id,
+        });
+      } catch (error) {
+        console.error("[ChatSave] Failed to summarize conversation", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+        });
+      }
+    });
+
+    // Saved required answers are the completion boundary; a closing marker
+    // cannot make unanswered topics complete.
+    const userTurnCount = await countUserChatTurns({ admin, conversationId });
+    const currentProgressStep = Math.min(
+      userTurnCount,
+      TALENT_INTERVIEW_FINAL_STEP
+    );
+    const markerCompletion = resolveTalentOnboardingCompletion({
+      assistantContent: assistantMessageTextWithMarkers ?? "",
+      assistantEndedOnboarding,
+    });
+    const latestChecklistCoverage =
+      !mockInterviewOpportunityId &&
+      !isInternalOpportunityCall &&
+      !Boolean(talentSetting?.is_onboarding_done)
+        ? await getCareerOnboardingChecklistCoverage({
+            admin,
+            conversationId,
+            currentInsightContent: responseTalentInsights,
+            userId: user.id,
+          })
+        : null;
+    const onboardingChecklistProgress = latestChecklistCoverage
+      ? serializeOnboardingChecklistProgress(
+          getOnboardingChecklistCoverageStats(latestChecklistCoverage, profile)
+        )
+      : null;
+    const checklistCompletion = onboardingChecklistProgress?.completed === true;
+    const completion = checklistCompletion
+      ? {
+          completed: true,
+          reason: markerCompletion.reason ?? "question_checklist_covered" as const,
+        }
+      : { completed: false, reason: null };
+    const isCompleted =
+      !mockInterviewOpportunityId &&
+      !isInternalOpportunityCall &&
+      Boolean(insertedAssistantMessage) &&
+      completion.completed;
+    const shouldApplyCompletion =
+      !mockInterviewOpportunityId && isCompleted && !skipConversationWrites;
+
+    if (!skipConversationWrites) {
+      const now = new Date().toISOString();
+      await admin
+        .from("talent_conversations")
+        .update({
+          stage: isCompleted || talentSetting?.is_onboarding_done ? "completed" : "chat",
+          updated_at: now,
+        })
+        .eq("id", conversationId)
+        .eq("user_id", user.id);
+    }
+
+    if (!opportunityRun && shouldApplyCompletion && completion.reason) {
+      opportunityRun = await completeOnboardingAndQueueInitialOpportunityRun({
+        admin,
+        completionReason: completion.reason,
+        conversationId,
+        source: isCallMode ? "career_call_completion" : "career_chat_save",
+        userId: user.id,
+      });
+      if (opportunityRun) {
+        startOpportunityDiscoveryInBackground(opportunityRun.id);
+      }
+    }
+    const completionMessages =
+      shouldApplyCompletion && insertedUserMessage
+        ? await createOnboardingCompletionMessages({
+            admin,
+            conversationId,
+            isMobile,
+            latestUserMessageId: insertedUserMessage.id,
+            opportunityRunId: opportunityRun?.id ?? null,
+            userId: user.id,
+          })
+        : null;
+    const insertedCompletionWrapupMessage =
+      completionMessages?.wrapupMessage ?? null;
+    const insertedInitialSearchStartedMessage =
+      completionMessages?.initialSearchStartedMessage ?? null;
+    const insertedCompletionNextStepsMessage =
+      completionMessages?.nextStepsMessage ?? null;
+    const assistantResponseMessage = insertedAssistantMessage
+      ? toResponseMessage(insertedAssistantMessage)
+      : null;
+    const assistantResponseMessages = [
+      assistantResponseMessage,
+      insertedCompletionWrapupMessage
+        ? toResponseMessage(insertedCompletionWrapupMessage)
+        : null,
+      insertedInitialSearchStartedMessage
+        ? {
+            ...toResponseMessage(insertedInitialSearchStartedMessage),
+            recommendationSearchRelation: "accepted" as const,
+            recommendationSearchRun: serializeOpportunityRun(opportunityRun),
+          }
+        : null,
+      insertedCompletionNextStepsMessage
+        ? toResponseMessage(insertedCompletionNextStepsMessage)
+        : null,
+    ].filter(
+      (message): message is ReturnType<typeof toResponseMessage> =>
+        message !== null
+    );
+    let nextStepInstructions: string | null = null;
+    let liveSessionUpdate: LiveSessionInstructionUpdate | null = null;
+    if (isCallMode && !shouldApplyCompletion) {
+      try {
+        const nextPlan = await buildCareerRealtimeSessionInstructions({
+          conversationId,
+          conversationStarterId,
+          mockInterviewOpportunityId,
+          internalCallRequestId,
+          preferredLocale: responseLocale,
+          timeZone: promptTimeZone,
+          toolNames: getCareerRealtimeToolCandidates(responseLocale, {
+            includeCareerCoachingActivity:
+              conversationStarterId === "career_coaching",
+          }).map((tool) => tool.name),
+          userId: user.id,
+        });
+        nextStepInstructions = nextPlan.instructions;
+        liveSessionUpdate = {
+          instructions: nextPlan.liveInstructions,
+          onboardingContext: nextPlan.liveOnboardingContext,
+        };
+      } catch (error) {
+        console.error("[ChatSave] Failed to rebuild realtime instructions", {
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+          userId: user.id,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      userMessage: insertedUserMessage
+        ? toResponseMessage(insertedUserMessage)
+        : null,
+      assistantMessage: assistantResponseMessage,
+      assistantMessages: assistantResponseMessages,
+      opportunityDiscoveryQueued: Boolean(opportunityRun),
+      opportunityRun: serializeOpportunityRun(opportunityRun),
+      searchStatusMessage: null,
+      shouldEndCall: isCallMode && shouldApplyCompletion,
+      insightUpdatedAt: responseInsightUpdatedAt,
+      nextStepInstructions,
+      liveSessionUpdate,
+      onboardingChecklistProgress,
+      talentInsights: responseTalentInsights,
+      talentBrief: responseBrief.map(toTalentContextResponse),
+      talentContextsUpdatedAt: responseInsightUpdatedAt,
+      progress: {
+        answeredCount: userTurnCount,
+        targetCount: TALENT_INTERVIEW_FINAL_STEP,
+        completed: shouldApplyCompletion,
+        currentStep: currentProgressStep,
+      },
+    });
+  } catch (error) {
+    if (error instanceof MockInterviewRequestError)
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    const message =
+      error instanceof Error ? error.message : "Failed to save chat messages";
+    console.error("[ChatSave] Error:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

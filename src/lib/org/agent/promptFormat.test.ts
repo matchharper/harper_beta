@@ -18,7 +18,7 @@ test("organization-agent prompt dates keep only day precision", () => {
 test("Slack history timestamps are explicit KST date-times", () => {
   assert.equal(
     formatPromptKstDateTime("2026-08-31T05:30:00.000Z"),
-    "2026년 8월 31일 14:30 KST"
+    "2026-08-31 14:30"
   );
   assert.equal(formatPromptKstDateTime(null), "-");
 });
@@ -217,7 +217,7 @@ test("contact detail includes stored copy and actual company initiator", () => {
   assert.match(compact, /recipient=민수 \(후보자, minsu@example\.com\)/);
   assert.match(compact, /subject=합류 가능 시점 확인/);
   assert.match(compact, /현재 합류 가능 시점을 알려주세요/);
-  assert.match(compact, /2026년 9월 8일 10:30 KST/);
+  assert.match(compact, /2026-09-08 10:30/);
   assert.doesNotMatch(compact, /contact:11111111-1111-4111-8111-111111111111/);
 });
 
@@ -430,7 +430,7 @@ test("contact detail gives the final writer the candidate reply and received tim
   });
 
   assert.match(compact, /<candidate_response>/);
-  assert.match(compact, /received_at=2026년 9월 14일 17:00 KST/);
+  assert.match(compact, /received_at=2026-09-14 17:00/);
   assert.match(compact, /주 2회 서울 오피스 출근 가능합니다\./);
   assert.match(compact, /role=Product Engineer/);
 });
@@ -725,7 +725,7 @@ test("candidate batch details expose structured profiles without raw resume text
   assert.ok(compact.length < 48_000);
 });
 
-test("ten-candidate read_talent results stay inside the shared tool-result budget", () => {
+test("large candidate batches keep complete item frames and each profile tail", () => {
   const compact = serializeOrgAgentToolResult("read_talent", {
     items: Array.from({ length: 10 }, (_, index) => ({
       candidate: { name: `Person ${index}`, talentId: `talent-${index}` },
@@ -752,7 +752,7 @@ test("ten-candidate read_talent results stay inside the shared tool-result budge
           role: "Engineer",
         })),
         extras: Array.from({ length: 5 }, () => ({
-          description: "z".repeat(1_000),
+          description: `profile-tail-${index} ` + "z".repeat(2_000),
           title: "Projects",
         })),
       },
@@ -766,10 +766,13 @@ test("ten-candidate read_talent results stay inside the shared tool-result budge
     returnedCount: 10,
   });
 
-  assert.ok(compact.length < 48_000);
-  assert.match(compact, /detail_complete="false"/);
+  assert.ok(compact.length > 42_000, "a large authorized batch is not prefix-sliced");
+  assert.doesNotMatch(compact, /detail_complete="false"|clipped/);
+  assert.equal(compact.match(/<talent index=/g)?.length, 10);
+  assert.equal(compact.match(/<\/talent>/g)?.length, 10);
   for (let index = 0; index < 10; index += 1) {
     assert.match(compact, new RegExp(`talent-${index}`));
+    assert.ok(compact.includes(`profile-tail-${index} ` + "z".repeat(2_000)));
   }
 });
 
@@ -905,8 +908,8 @@ test("stored Slack history lists thread previews with precise dates and first me
   assert.match(compact, /has_more=true/);
   assert.match(compact, /next_cursor=opaque-cursor/);
   assert.match(compact, /thread_id=internal-thread-id/);
-  assert.match(compact, /started_at=2026년 8월 5일 10:00 KST/);
-  assert.match(compact, /last_message_at=2026년 8월 6일 11:00 KST/);
+  assert.match(compact, /started_at=2026-08-05 10:00/);
+  assert.match(compact, /last_message_at=2026-08-06 11:00/);
   assert.match(compact, /message_count=12/);
   assert.match(compact, /김호진/);
   assert.match(compact, /첫 메시지 두 번째 줄/);
@@ -945,7 +948,7 @@ test("selected Slack history returns a rolling summary and newer messages", () =
 
   assert.match(compact, /type=thread/);
   assert.match(compact, /summary_available=true/);
-  assert.match(compact, /summarized_through=2026년 8월 6일 10:00 KST/);
+  assert.match(compact, /summarized_through=2026-08-06 10:00/);
   assert.match(compact, /Backend 역할의 속도와 오너십 기준/);
   assert.match(compact, /최근 조건을 수정했어요/);
   assert.match(compact, /messages_complete=false/);
@@ -1413,7 +1416,7 @@ test("scheduled candidate contact returns verified state instead of prewritten p
       "네, 요청하신 내용으로 김호진님께 확인을 요청할게요. 답변이 오면 이 대화로 바로 알려드리겠습니다.",
   });
 
-  assert.match(compact, /scheduled_at=2026-08-27T14:55:00.000Z/);
+  assert.match(compact, /scheduled_at=2026-08-27 23:55/);
   assert.match(compact, /current_state=scheduled/);
   assert.match(compact, /candidate_message_sent=false/);
   assert.match(compact, /response_destination=this conversation/);
@@ -1593,7 +1596,7 @@ test("candidate note results keep the saved note internal and bounded", () => {
   assert.doesNotMatch(compact, /response_guidance=/);
 });
 
-test("get_more_data serialization is bounded and keeps completeness markers", () => {
+test("get_more_data retains the reader completeness markers", () => {
   const compact = serializeOrgAgentMoreData({
     companyDetails: {
       complete: false,
@@ -1614,7 +1617,7 @@ test("get_more_data serialization is bounded and keeps completeness markers", ()
   assert.match(compact, /truncated/);
 });
 
-test("get_more_data marks an unexpected framing overflow incomplete", () => {
+test("get_more_data preserves complete frames above the old total-size cap", () => {
   const marker = { complete: true, oversized: false, truncated: false };
   const compact = serializeOrgAgentMoreData({
     companyDetails: {
@@ -1631,9 +1634,11 @@ test("get_more_data marks an unexpected framing overflow incomplete", () => {
     requestedKinds: ["company_details"],
   });
 
-  assert.ok(compact.length <= 14_000);
-  assert.match(compact, /^serialization_complete=false/);
-  assert.match(compact, /do not treat any long text.*complete/);
+  assert.ok(compact.length > 14_000);
+  assert.doesNotMatch(compact, /^serialization_complete=false/);
+  assert.match(compact, /unexpected_detail/);
+  assert.match(compact, /workspace_request/);
+  assert.ok(compact.endsWith("</company_details>"));
 });
 
 test("organization-agent role results expose whole-pipeline stage counts", () => {
@@ -1904,7 +1909,7 @@ test("current talent reader carries acceptance origin into the company prompt", 
       candidateAcceptedAt: "2026-09-28T03:00:00Z", recommendationOrigin: "harper_recommendation" }],
   });
   assert.match(result, /candidate_accepted_kst/);
-  assert.match(result, /2026년 9월 28일 12:00 KST/);
+  assert.match(result, /2026-09-28 12:00/);
   assert.match(result, /harper_recommendation/);
 });
 

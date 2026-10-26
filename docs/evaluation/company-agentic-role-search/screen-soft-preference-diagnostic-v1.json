@@ -1,0 +1,40 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-soft-preference-diagnostic-v1",
+  "sourceRun": "experiment-v4-ars09",
+  "objective": "Inspect affirmative practical prohibition versus nonexclusive preference using actual first-stage false-positive concerns.",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "labelProvenance": "Codex Worker review of five first-stage cases isolated by actual company/work continue and candidate-practical exclude. Two concerns frozen before further prompt/API comparison; unblinded post-observation diagnostic, not a representative sample.",
+  "goldChanged": false,
+  "limitations": [
+    "Checks one explicit machine decision axis; overall stage1 decision may also depend on independent work evidence.",
+    "Two post-observation cases cannot establish general recall.",
+    "Original profile/Brief/Memory/Behavior remain owner-private and unchanged."
+  ],
+  "cases": [
+    {
+      "id": "soft-preference-01",
+      "stage": 1,
+      "sourceTrace": "decisions-13aedeb6ed5e48c9945c0dd952336144.json",
+      "sourceTraceSha256": "6ca377736f2543755663fe42b97527118439ad22a724cd9d0ce506db6f25a195",
+      "inputSha256": "cafbfc80b4f0453bbf9089d4c472e39a6afa75fba3edffdfd4a25e9b840b38ff",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    },
+    {
+      "id": "soft-preference-02",
+      "stage": 1,
+      "sourceTrace": "decisions-1960a826c35a4a339c181b108e4b6bcd.json",
+      "sourceTraceSha256": "cd31996cd52acd9b97683afef50bcbfaa5ea49e0d325a260ba7f67c80fbf59a0",
+      "inputSha256": "f56715663c963608b532b6e7b2a04c12f1580de036f5e012ec506d3009466cc4",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation."
+    }
+  ]
+}

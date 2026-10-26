@@ -1,3 +1,4 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import { openUrlWithDocumentsCache } from "@/lib/talentOnboarding/openUrlTool";
@@ -250,8 +251,8 @@ export async function readReferences(args: { brief: RoleStartBrief; sources: Ref
       schema: READ_SCHEMA,
       system: readSystemPrompt(),
       user: `<CRITERIA_COUNT>${args.brief.criteria.length}</CRITERIA_COUNT>
-<HARD_CONDITIONS>${JSON.stringify(args.brief.hardConditions.map((condition) => condition.label))}</HARD_CONDITIONS>
-<CRITERIA>${JSON.stringify(args.brief.criteria.map((criterion) => ({ name: criterion.name, criteria: criterion.criteria, required: isRequired(criterion) })))}</CRITERIA>
+<HARD_CONDITIONS>${formatPromptText(args.brief.hardConditions.map((condition) => condition.label))}</HARD_CONDITIONS>
+<CRITERIA>${formatPromptText(args.brief.criteria.map((criterion) => ({ name: criterion.name, criteria: criterion.criteria, required: isRequired(criterion) })))}</CRITERIA>
 ${readableSources.map((source) => `<SOURCE key="${source.key}">\n${source.liked ? `<TEAM_LIKED>${source.liked}</TEAM_LIKED>\n` : ""}${source.content}\n</SOURCE>`).join("\n")}`,
     });
     usage.push(used);
@@ -305,8 +306,8 @@ export function roomForAnotherQuestion(answered: number) {
 export function referenceAnswerInput(args: { brief: RoleStartBrief; reference: RoleStartReference; answer: string }) {
   const conflict = args.reference.conflicts.find((item) => !item.answer) ?? null;
   return `<PERSON>${args.reference.label}</PERSON>
-<CRITERIA>${JSON.stringify(args.brief.criteria.map((criterion) => criterion.name))}</CRITERIA>
-<TRAITS>${JSON.stringify(args.reference.traits.map(({ id, label, criterionName }) => ({ id, label, criterionName })))}</TRAITS>
+<CRITERIA>${formatPromptText(args.brief.criteria.map((criterion) => criterion.name))}</CRITERIA>
+<TRAITS>${formatPromptText(args.reference.traits.map(({ id, label, criterionName }) => ({ id, label, criterionName })))}</TRAITS>
 <CONFLICT>${conflict?.question ?? ""}</CONFLICT>
 <ANSWER>${args.answer.slice(0, 2_000)}</ANSWER>`;
 }

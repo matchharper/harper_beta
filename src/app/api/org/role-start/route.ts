@@ -1,6 +1,6 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
-import { fetchRoleCreationState } from "@/lib/org/agent/roleCreationState";
+import { createOrResumeDraftRole, fetchRoleCreationState } from "@/lib/org/agent/roleCreationState";
 import { fetchBoardProfileLabels, OrgHttpError } from "@/lib/org/server";
 import type { OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
 import {
@@ -21,10 +21,10 @@ import {
   runRoleStartFirstThree,
   saveRoleStartBriefEdit,
   applyRoleInfoToRoleStart,
-  startRoleStartDraft,
+  beginRoleStartDraft,
   answerRoleStartCompensation,
 } from "@/lib/org/roleStart/service";
-import { hasRoleStartBrief, listBriefVersions, loadRoleStartSession } from "@/lib/org/roleStart/session";
+import { hasRoleStartBrief, loadRoleStartSession } from "@/lib/org/roleStart/session";
 import { compensationChips } from "@/lib/org/roleStart/compensation";
 import { loadFirstThreeExperiences } from "@/lib/org/roleStart/profiles";
 import { roleStartBriefView, roleStartView, visibleBriefHash } from "@/lib/org/roleStart/view";
@@ -81,7 +81,6 @@ export async function GET(req: NextRequest) {
     const rubric = includeRubric ? await loadRoleRubric({ roleId, user, workspaceId }) : null;
     // Polled every second while a step runs: only what the screen shows.
     const session = await loadRoleStartSession(roleId, { forView: true });
-    const versions = session ? await listBriefVersions(roleId) : [];
     return NextResponse.json({
       session: view(session),
       role: {
@@ -89,6 +88,7 @@ export async function GET(req: NextRequest) {
         hasDescription: Boolean(String((state.role as Record<string, unknown>).description ?? "").trim()),
         // Read from the JD by the chat while Setup is open; the form fills in as they land.
         name: state.role.name,
+        description: state.role.description,
         locationText: state.role.locationText,
         workMode: state.role.workMode,
         employmentTypes: state.role.employmentTypes,
@@ -110,14 +110,9 @@ export async function GET(req: NextRequest) {
         ["questions", "review"].includes(session.phase) &&
         !session.questions.compensation &&
         !String(state.role.salaryRange ?? "").trim()
-          ? { chips: compensationChips(session.brief) }
+          ? { chips: compensationChips() }
           : null,
       ...(rubric ? { rubric: roleStartBriefView(rubric), briefHash: visibleBriefHash(rubric) } : {}),
-      versions: versions.map((version) => ({
-        version: version.version,
-        createdAt: version.created_at,
-        summary: version.change_summary,
-      })),
     });
   } catch (error) {
     return toErrorResponse(error);
@@ -162,8 +157,15 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as Body;
     const access = { roleId: body.roleId ?? "", user, workspaceId: body.workspaceId ?? "" };
     switch (body.action) {
-      case "start":
-        return NextResponse.json({ session: view(await startRoleStartDraft(access)) });
+      case "create": {
+        const roleId = await createOrResumeDraftRole({ draftRoleId: access.roleId, user, workspaceId: access.workspaceId });
+        return NextResponse.json({ roleId });
+      }
+      case "start": {
+        const started = await beginRoleStartDraft(access);
+        after(() => started.completion);
+        return NextResponse.json({ session: view(started.session) });
+      }
       case "answer":
         return NextResponse.json({
           session: view(

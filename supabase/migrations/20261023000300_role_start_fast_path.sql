@@ -1,5 +1,5 @@
 set local lock_timeout = '5s';
--- Role start redesign: structured Brief versions, per-Role start state and two
+-- Role start redesign: per-Role working state and two
 -- reconstructible talent caches used by the synchronous first-candidates path.
 create extension if not exists vector with schema public;
 
@@ -47,23 +47,6 @@ create index if not exists talent_profile_search_embeddings_vector_hnsw
   on public.talent_profile_search_embeddings
   using hnsw ((embedding::public.vector(1536)) public.vector_cosine_ops)
   where embedding_model = 'text-embedding-3-small';
-
--- Every Brief change is a new immutable version. criteria/hard conditions live
--- in the JSON; the Role row keeps the current copy for existing readers.
-create table if not exists public.company_role_brief_versions (
-  id uuid primary key default gen_random_uuid(),
-  role_id uuid not null references public.company_roles(role_id) on delete cascade,
-  version int not null,
-  brief jsonb not null,
-  change_source text not null,
-  change_summary text,
-  created_by uuid,
-  created_at timestamptz not null default now(),
-  unique (role_id, version)
-);
-alter table public.company_role_brief_versions enable row level security;
-revoke all on public.company_role_brief_versions from public, anon, authenticated;
-grant all on public.company_role_brief_versions to service_role;
 
 -- Role start state between first JD read and the first batch. The pool keeps
 -- the first-three candidate set and per-criterion scores for the batch rerank.

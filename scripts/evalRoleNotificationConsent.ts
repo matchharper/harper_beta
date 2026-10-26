@@ -11,6 +11,8 @@ const task = path.join(root, "docs/evaluation/company-side-conversational-qa");
 const runId = process.argv[2];
 const dataset = process.argv[3] ?? "notification-consent-v1";
 const selectedIds = process.argv[4]?.split(",");
+const view = process.argv[5];
+if (view !== undefined && view !== "role_details" && view !== "role_setup") throw Error("Invalid Role editing view");
 if (!/^[a-zA-Z0-9_.-]+$/.test(dataset)) throw Error("Invalid dataset name");
 if (!runId || !/^[a-zA-Z0-9_.-]+$/.test(runId)) throw Error("Provide a fresh run ID");
 const dir = path.join(task, "runs", runId);
@@ -39,18 +41,18 @@ async function main() {
   const llm = await import("../src/lib/llm/llm");
   const config = await import("../src/lib/org/agent/modelConfig");
   const prompt = await import("../src/lib/org/agent/roleCreationPrompt");
-  const { ROLE_CREATION_TOOLS } = await import("../src/lib/org/agent/roleCreationTools");
+  const { getRoleCreationTools } = await import("../src/lib/org/agent/roleCreationTools");
   const { getRoleCreationMissingFields, summarizeRoleCreationNotificationSettings } = await import("../src/lib/org/agent/roleCreationState");
   const { parseOrgRoleCriteria, hasCompleteOrgRoleCriteria } = await import("../src/lib/org/roleCriteria");
   const { applyRoleTextEdits } = await import("../src/lib/org/agent/roleTextEdits");
-  const { validateCompanyCompletion, companyCompletionTokenBudget } = await import("../src/lib/org/agent/completionContract");
-  const model = config.DEFAULT_ORG_AGENT_MODEL;
+  const { validateCompanyCompletion } = await import("../src/lib/org/agent/completionContract");
+  const model = view === "role_setup" ? config.ORG_AGENT_GEMINI_FLASH_MODEL : config.DEFAULT_ORG_AGENT_MODEL;
   const provider = llm.getLlmChatProviderForModel(model);
   providerHost = { openai: "api.openai.com", openrouter: "openrouter.ai", anthropic: "api.anthropic.com" }[provider];
-  const reasoning = config.getOrgAgentReasoningEffort(model);
-  const tools = ROLE_CREATION_TOOLS.filter(t => t.function.name !== "confirm_pending_role_creation");
-  const sourceFiles = ["roleCreationState.ts", "roleCreationTools.ts", "roleCreationPrompt.ts", "modelConfig.ts", "uxWritingPrompt.ts", "serviceKnowledgePrompt.ts", "hiringBriefAuthoringPrompt.ts"];
-  save("manifest.json", { ...frozen, runId, selectedIds: cases.map((item: any) => item.id), createdAt: new Date().toISOString(), model, provider, reasoning, temperature: config.ORG_AGENT_TEMPERATURE, timeoutMs: 120000,
+  const reasoning = view === "role_setup" ? "low" : config.getOrgAgentReasoningEffort(model);
+  const tools = getRoleCreationTools(view).filter(t => t.function.name !== "confirm_pending_role_creation");
+  const sourceFiles = ["roleCreationChat.ts", "roleCreationState.ts", "roleCreationTools.ts", "roleCreationPrompt.ts", "modelConfig.ts", "uxWritingPrompt.ts", "serviceKnowledgePrompt.ts", "hiringBriefAuthoringPrompt.ts"];
+  save("manifest.json", { ...frozen, runId, view, selectedIds: cases.map((item: any) => item.id), createdAt: new Date().toISOString(), model, provider, reasoning, outputTokenLimit: null, toolCallLimit: null, temperature: config.ORG_AGENT_TEMPERATURE, timeoutMs: 120000,
     sourceRevision: execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
     dirty: true, sources: Object.fromEntries([...sourceFiles.map(f => [f, hash(readFileSync(path.join(root, "src/lib/org/agent", f), "utf8"))]),
       ["roleCriteria.ts", hash(readFileSync(path.join(root, "src/lib/org/roleCriteria.ts"), "utf8"))],
@@ -59,8 +61,8 @@ async function main() {
   for (const item of cases) {
     const state = structuredClone(spec.state);
     for (const [key, value] of Object.entries(item.stateOverrides ?? {})) Object.assign((state as any)[key], value);
-    const system = prompt.buildRoleCreationSystemPrompt({ surface: item.surface, responseLocale: "ko", editingRegisteredRole: state.role.status !== "draft" });
-    const context = prompt.buildRoleCreationUserPrompt({ state, history: item.history, attachments: [], mentions: [], userMessage: item.message, includeConversation: false });
+    const system = prompt.buildRoleCreationSystemPrompt({ view, surface: item.surface, responseLocale: item.responseLocale ?? "ko", editingRegisteredRole: state.role.status !== "draft" });
+    const context = prompt.buildRoleCreationUserPrompt({ view, responseLocale: item.responseLocale ?? "ko", state, history: item.history, attachments: [], mentions: [], userMessage: item.message, includeConversation: false });
     const messages: any[] = [{ role: "system", content: system }, { role: "user", content: context }, ...item.history, { role: "user", content: item.message }];
     const trace: any[] = [];
     const effects: any[] = [];
@@ -68,9 +70,9 @@ async function main() {
     let confirmationRequests = 0;
     let final = "";
     try {
-      for (let step = 0; step < 8; step++) {
+      while (true) {
         const completion = await llm.createChatCompletionWithFallback({ model, debugLabel: `eval/${dataset}`,
-          buildRequest: () => ({ messages, tools, tool_choice: "auto", parallel_tool_calls: false, temperature: config.ORG_AGENT_TEMPERATURE, max_tokens: companyCompletionTokenBudget(model, 8192, reasoning) }),
+          buildRequest: () => ({ messages, tools, tool_choice: "auto", parallel_tool_calls: false, temperature: config.ORG_AGENT_TEMPERATURE }),
           validateResponse: validateCompanyCompletion, chatCompletionReasoning: { reasoningEffort: reasoning }, openAIResponses: { reasoningEffort: reasoning } });
         const response: any = completion.response;
         trace.push(response);
@@ -89,10 +91,9 @@ async function main() {
             if (Object.hasOwn(input, "criteria")) state.role.criteria = parseOrgRoleCriteria(input.criteria);
             roleEdits.push(input);
             result = { ok: true, savedFields: Object.fromEntries(Object.keys(savedInput).map(k => [k, state.role[k]])),
-              ...(state.role.status === "draft" ? { missingFields: getRoleCreationMissingFields(state) } : { registeredRole: true }),
-              notificationSettings: summarizeRoleCreationNotificationSettings(state) };
+              ...(!view ? { ...(state.role.status === "draft" ? { missingFields: getRoleCreationMissingFields(state) } : { registeredRole: true }), notificationSettings: summarizeRoleCreationNotificationSettings(state) } : {}) };
           } else if (call.function.name === "read_other_roles") {
-            result = { roles: spec.otherRoles ?? [], currentRole: state.role };
+            result = { roles: item.otherRoles ?? spec.otherRoles ?? [] };
           } else if (call.function.name === "set_role_notification") {
             const previousSelection = JSON.stringify({ channelIds: state.metadata.confirmedSlackChannelIds, assigneeUserId: state.metadata.confirmedAssigneeUserId });
             assert.ok(input.channelIds !== undefined || input.assigneeUserId !== undefined);
@@ -112,8 +113,12 @@ async function main() {
             const missingFields = getRoleCreationMissingFields(state);
             if (missingFields.length) result = { ok: false, error: "role_creation_not_ready", missingFields };
             else { confirmationRequests++; result = { ok: true, presentationRequired: true, status: "confirmation_pending", roleName: state.role.name }; }
+          } else if (call.function.name === "web_search") {
+            result = { results: item.searchResults ?? [] };
+          } else if (call.function.name === "open_url") {
+            result = item.pages?.[input.url] ?? { error: "Source unavailable" };
           } else {
-            result = { ok: false, error: "Unsupported synthetic effect; no change made" };
+            throw Error("Unsupported synthetic effect; no change made");
           }
           messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
         }

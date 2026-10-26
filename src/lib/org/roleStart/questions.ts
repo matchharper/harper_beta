@@ -185,6 +185,8 @@ export function probesFromRaw(raw: RawProbe[], brief: RoleStartBrief): RoleStart
 
 function effectFromRaw(raw: RawEffect): RoleStartChipEffect {
   switch (raw.type) {
+    case "note":
+      return { type: "note" };
     case "set_importance": {
       const level = parseLevel(raw.importance);
       return raw.criterion && level ? { type: "set_importance", criterion: raw.criterion, level } : { type: "none" };

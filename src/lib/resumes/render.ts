@@ -7,12 +7,24 @@ export { resumeHtml, resumePlainText } from "./template";
 export async function renderResumePdf(
   content: ResumeContent
 ): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
+  const assets = await resumeAssets();
+  return renderPaginatedPdf({
+    html: resumePreviewHtml(content, assets),
+    textChunks: resumeBlocks(content).map((block) => block.text),
+    text: resumePlainText(content),
+  });
+}
+
+export async function renderPaginatedPdf(input: {
+  html: string;
+  textChunks: string[];
+  text: string;
+}): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
   const token = process.env.BROWSERLESS_API_TOKEN?.trim();
   if (!token) throw new Error("PDF rendering is not configured.");
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const work = async () => {
-    const assets = await resumeAssets();
     controller.signal.throwIfAborted();
     const url = new URL("https://production-sfo.browserless.io/pdf");
     url.searchParams.set("token", token);
@@ -20,11 +32,14 @@ export async function renderResumePdf(
     try {
       response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-cache" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
         signal: controller.signal,
         body: JSON.stringify({
           // Use exactly the same bundled HTML, fonts and pagination as the preview.
-          html: resumePreviewHtml(content, assets),
+          html: input.html,
           waitForFunction: {
             fn: `() => {
               if (window.__resumeReady?.error) throw new Error("Resume pagination failed");
@@ -32,7 +47,11 @@ export async function renderResumePdf(
             }`,
             timeout: 25_000,
           },
-          options: { format: "A4", preferCSSPageSize: true, printBackground: true },
+          options: {
+            format: "A4",
+            preferCSSPageSize: true,
+            printBackground: true,
+          },
         }),
       });
     } catch {
@@ -41,7 +60,9 @@ export async function renderResumePdf(
     }
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
-      throw new Error(`PDF rendering service returned HTTP ${response.status}.`);
+      throw new Error(
+        `PDF rendering service returned HTTP ${response.status}.`
+      );
     }
     let pdf: Buffer;
     try {
@@ -59,7 +80,10 @@ export async function renderResumePdf(
     const parser = new PDFParse({ data: new Uint8Array(pdf) });
     let parsed;
     try {
-      parsed = await parser.getText({ pageJoiner: "\n", parseHyperlinks: false });
+      parsed = await parser.getText({
+        pageJoiner: "\n",
+        parseHyperlinks: false,
+      });
     } finally {
       await parser.destroy();
     }
@@ -67,10 +91,10 @@ export async function renderResumePdf(
     const extracted = compact(parsed.text);
     if (
       !parsed.total ||
-      resumeBlocks(content).some((x) => !extracted.includes(compact(x.text)))
+      input.textChunks.some((text) => !extracted.includes(compact(text)))
     )
       throw new Error("PDF text validation failed.");
-    return { pdf, pageCount: parsed.total as number, text: resumePlainText(content) };
+    return { pdf, pageCount: parsed.total as number, text: input.text };
   };
   try {
     return await Promise.race([

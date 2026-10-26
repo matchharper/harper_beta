@@ -245,6 +245,8 @@ export type OrgAgentMessageMetadata = {
   slackReplyJobId?: string;
   webActionJobId?: string;
   source?: string | null;
+  /** Server-authored origin of a saved public role-writing response. */
+  roleCreationView?: "role_setup" | "role_details";
   roleCreation?: {
     choices?: OrgRoleCreationChoice[];
     confirmationPrompt?: string;
@@ -346,6 +348,7 @@ export type OrgAgentChatBody = {
   mentions?: OrgAgentMention[];
   message?: string;
   mode?: OrgAgentMode;
+  roleCreationView?: "role_details";
   model?: OrgAgentModelId | string | null;
   responseLocale?: "ko" | "en";
   /** Required for role and role_creation conversations. */

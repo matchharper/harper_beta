@@ -115,7 +115,7 @@ async function controlCached(args: EngineArgs) {
     .sort((a, b) => b.score - a.score);
   if (new Set(ranked.map((r) => r.card.companyWorkspaceId)).size < 5)
     return null;
-  return rerankCandidates(args, loaded.context, ranked);
+  return rerankCandidates(args, loaded.context, ranked, undefined, "control");
 }
 export async function processDailyRun(
   message: unknown,

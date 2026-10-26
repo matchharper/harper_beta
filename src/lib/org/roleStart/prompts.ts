@@ -75,6 +75,7 @@ const EFFECT_SCHEMA = {
     effectVariant("add_criterion", { name: { type: "string" }, criteria: { type: "string" }, importance: IMPORTANCE }),
     effectVariant("remove_criterion", { criterion: CRITERION_NAME }),
     effectVariant("add_hard_condition", { condition: CONDITION_SCHEMA }),
+    effectVariant("note", {}),
     effectVariant("none", {}),
   ],
 };
@@ -258,9 +259,12 @@ const BRIEF_CONTRACT = `STRUCTURED BRIEF
 
 const QUESTION_CONTRACT = `QUESTIONS
 - Each question asks the hiring team for ONE judgment Harper cannot read from the source and that would change who is shown first. Ask about trade-offs (e.g. depth vs breadth, which background counts), not facts already in the JD.
-- Questions change what the Brief already has: how much one criterion matters (including whether it becomes required), or what exactly counts for it. They normally do not add new criteria or hard conditions; Harper's chat asks about what is missing.
+- Discover the company's actual hiring judgment, including useful dimensions absent from the JD or current Brief. Questions may add, refine or remove criteria; do not confine discovery to reweighting existing criteria.
+- Early in discovery, when the team has not already shared this, favor one light, broad invitation about internal preferences and priorities not written in the JD: what would make this team especially want to meet someone. Invite an open answer without turning this into a mandatory script or re-asking an answered topic. Do not force this broad question into a single-criterion importance scale.
+- Use the supplied company facts (product, team size, stage, funding and hiring context) to choose a relevant question. These facts support hypotheses, not proof of a preference: never infer that a company wants a particular pedigree, startup background or seniority merely from its size or funding. Missing facts stay unknown.
+- A strong question resolves a consequential uncertainty: what success requires, which evidence earns an interview, what trade-off the team would accept, or what distinguishes an attractive profile from a merely qualified one. Ask the easiest question that changes a real hiring decision; ground any follow-up in the team's answer. One decision per question, no leading premise, invented threshold or bundle of demands. Abstract traits should be clarified through observable professional evidence when that would help, without inventing a new requirement.
 - why: one short Korean sentence explaining why Harper asks (what it changes in the search).
-- chips: 4-5 short Korean answers, each a different meaning (no rewording of another chip). A question about how much one criterion matters offers exactly, in this order (weaker to stronger), "상관없음" (remove_criterion), "있으면 좋음", "중요", "필수" (set_importance nice / important / required; "필수" means people without it are not shown). Each chip sets exactly one value of one criterion or one hard condition (its effect). Chips of one question must lead to different searches. Do not offer a chip that contradicts an earlier answer.
+- chips: 4-5 short Korean answers, each a different meaning (no rewording of another chip). A question about how much one criterion matters offers exactly, in this order (weaker to stronger), "상관없음" (remove_criterion), "있으면 좋음", "중요", "필수" (set_importance nice / important / required; "필수" means people without it are not shown). For a precise criterion decision, each chip sets one value of one criterion or condition. For open discovery, use effect type note: the selected answer is interpreted in context like free text, without forcing a premature single-criterion edit. Options must represent meaningfully different hiring preferences. Do not offer a chip that contradicts an earlier answer.
 - A free-text answer and skipping are always allowed by the product; do not add chips for those.
 - Return candidate questions ordered by how much they would change the search; the product measures overlap and picks.
 - Korean, polite 해요체, concise. No internal terms (criterion, effect, SQL, embedding).`;

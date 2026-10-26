@@ -258,7 +258,7 @@ async function processQueueMessage(
   });
 }
 
-export const POST = handleCallback(processQueueMessage, {
+const queueCallback = handleCallback(processQueueMessage, {
   retry: (error, metadata) => {
     if (error instanceof SlackQueuePermanentError) {
       console.error("[harper-slack/queue:permanent]", error);
@@ -283,3 +283,7 @@ export const POST = handleCallback(processQueueMessage, {
   },
   visibilityTimeoutSeconds: 390,
 });
+
+export async function POST(request: Request) {
+  return queueCallback(request);
+}

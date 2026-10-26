@@ -33,7 +33,7 @@ export const externalSearchPreviewRequest = z
       .enum(["existing", "filter_first"])
       .default("filter_first")
       .transform(() => "filter_first" as const),
-    candidateLimit: z.number().int().min(500).max(20000).default(3000),
+    candidateLimit: z.number().int().min(500).max(3000).default(3000),
     salaryWeight: z.number().finite().min(0).max(1).default(0.35),
     query: previewQuerySchema.optional(),
   })

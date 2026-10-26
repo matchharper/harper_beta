@@ -1,4 +1,5 @@
 import { recordOrgAction } from "@/lib/org/actionLogs";
+import { invalidateOrgPermissions } from "@/lib/org/permissionCache.server";
 import { NextRequest, NextResponse } from "next/server";
 import { assertOrgWorkspacePermission, OrgHttpError } from "@/lib/org/server";
 import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
@@ -46,6 +47,7 @@ async function mutate(req: NextRequest, action: "create" | "update" | "delete") 
         p_scope: body.accessScope, p_teams: identifiers(body.teamIds),
       });
       if (error) throw error;
+      invalidateOrgPermissions(workspaceId);
       await recordOrgAction({ admin, actorUserId: user.id, type: "org_member_access_saved",
         metadata: { workspaceId, targetUserId: body.userId, after: body.accessScope,
           teamIds: identifiers(body.teamIds) } });
@@ -60,6 +62,7 @@ async function mutate(req: NextRequest, action: "create" | "update" | "delete") 
       p_roles: action === "delete" ? [] : identifiers(body.roleIds),
     });
     if (error) throw error;
+    invalidateOrgPermissions(workspaceId);
     await recordOrgAction({ admin, actorUserId: user.id,
       type: action === "create" ? "org_team_created" : action === "delete" ? "org_team_deleted" : "org_team_saved",
       metadata: { workspaceId, resourceId: action === "create" ? String(data) : body.teamId,

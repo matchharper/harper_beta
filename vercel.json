@@ -59,6 +59,16 @@
           "initialDelaySeconds": 0
         }
       ]
+    },
+    "src/app/api/queues/process-company-hiring-brief-summary/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "company-hiring-brief-summary-v1",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
     }
   },
   "crons": [

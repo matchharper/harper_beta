@@ -33,7 +33,7 @@ export const DEFAULT_ORG_AGENT_MODEL: OrgAgentModelId =
 export const DEFAULT_SLACK_ORG_AGENT_MODEL: OrgAgentModelId =
   ORG_AGENT_GEMINI_FLASH_MODEL;
 export const DEFAULT_ORG_AGENT_REASONING_EFFORT = "medium" as const;
-export type OrgAgentReasoningEffort = "medium" | "high" | "xhigh" | "max";
+export type OrgAgentReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export function getOrgAgentReasoningEffort(
   model: OrgAgentModelId

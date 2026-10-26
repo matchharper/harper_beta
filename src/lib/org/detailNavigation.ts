@@ -23,7 +23,8 @@ export function getOrgTalentDetailNavigationState<
     recommendationId?: string | null;
     roleId?: string | null;
     talentId?: string | null;
-  }
+  },
+  nextItem: T | null = null
 ): OrgTalentDetailNavigationState<T> | null {
   if (items.length === 0) return null;
 
@@ -45,7 +46,7 @@ export function getOrgTalentDetailNavigationState<
 
   return {
     currentIndex,
-    next: items[currentIndex + 1] ?? null,
+    next: items[currentIndex + 1] ?? nextItem,
     position: currentIndex + 1,
     previous: items[currentIndex - 1] ?? null,
     total: items.length,

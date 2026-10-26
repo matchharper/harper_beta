@@ -154,6 +154,7 @@ export type CareerTextTurnAdapter = {
 };
 
 export type RunCareerChatTurnArgs = {
+  scheduleAfter?: (task: () => Promise<void>) => void;
   adapter?: CareerTextTurnAdapter;
   admin: TalentAdminClient;
   assistantMessagePayload?: TalentMessageRow["payload"];
@@ -427,6 +428,7 @@ export async function runCareerChatTurn(
     shouldInsertAssistantMessage,
     userId,
   } = args;
+  const scheduleAfter = args.scheduleAfter ?? after;
   const requestChannel = args.channel === "voice" ? "voice" : "chat";
   if (args.adapter && (args.adapter.sourceMessage.user_id !== userId || args.adapter.sourceMessage.conversation_id !== conversationId || args.adapter.sourceMessage.role !== "user")) {
     throw new Error("Server channel source message does not belong to this turn");
@@ -476,7 +478,7 @@ export async function runCareerChatTurn(
   const summarizeConversationInBackground = (options?: {
     maxToMessageId?: number | null;
   }) => {
-    after(async () => {
+    scheduleAfter(async () => {
       try {
         await maybeSummarizeTalentConversation({
           admin,
@@ -658,7 +660,7 @@ export async function runCareerChatTurn(
           ).join("\n"),
           sourceChannel:
             requestChannel === "voice" ? "voice_call" : "text_chat",
-          scheduleAfter: (task) => after(task),
+          scheduleAfter,
           userId,
         })
       : Promise.resolve(0);
@@ -905,7 +907,7 @@ export async function runCareerChatTurn(
           conversationId,
           isMobile,
           responseLocale,
-          scheduleAfter: (task) => after(task),
+          scheduleAfter,
           userMessageId: insertedUserMessage?.id ?? null,
           userId,
         },
@@ -953,7 +955,7 @@ export async function runCareerChatTurn(
         isMobile,
         responseLocale,
         registerProcessClosureNotices,
-        scheduleAfter: (task) => after(task),
+        scheduleAfter,
         userMessageId: insertedUserMessage?.id ?? null,
         userId,
       },

@@ -1,7 +1,9 @@
 import { ResponsiveLightTooltip } from "@/components/ui/tooltip";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import {
-  companyPresentationFinalFitLabel,
+  companyCriterionFitnessLabel,
+  companyCriterionScoreLabel,
+  companyCriterionScoreExplanation,
   type OrgCompanyCriteriaEvaluation,
 } from "@/lib/org/companyCriteriaEvaluations";
 import { cn } from "@/lib/utils";
@@ -11,6 +13,8 @@ const colors = {
   good: "bg-positive/65",
   uncertain: "bg-info/65",
   bad: "bg-critical/65",
+  limited: "bg-info/65",
+  conflict: "bg-critical/65",
 };
 
 /** The compact inbox summary uses six slots; full evidence remains in the profile. */
@@ -22,7 +26,7 @@ export function OrgCriteriaBars({
   const { c, locale } = useOrgLocale();
   return (
     <div
-      aria-label={c("평가 기준별 적합도", "Fit by criteria")}
+      aria-label={c("평가 기준별 적합도", "Fit by criterion")}
       className="flex shrink-0 gap-1"
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
@@ -30,20 +34,24 @@ export function OrgCriteriaBars({
       {Array.from({ length: 6 }, (_, index) => {
         const evaluation = evaluations[index];
         const fit = evaluation
-          ? companyPresentationFinalFitLabel(
-              evaluation.fitness === "bad" ? "unfit" : evaluation.fitness,
+          ? companyCriterionFitnessLabel(
+              evaluation.fitness,
               locale
             )
           : c("평가 없음", "Not evaluated");
+        const scoreLabel = companyCriterionScoreLabel(evaluation?.score);
+        const label = evaluation
+          ? [evaluation.name, fit, scoreLabel].filter(Boolean).join(" · ")
+          : fit;
         return (
           <ResponsiveLightTooltip
             key={index}
             className="w-auto"
             triggerClassName="w-auto shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-neutral-400"
-            mobileAriaLabel={evaluation ? `${evaluation.name} · ${fit}` : fit}
+            mobileAriaLabel={label}
             trigger={
               <span
-                aria-label={evaluation ? `${evaluation.name} · ${fit}` : fit}
+                aria-label={label}
                 className={cn(
                   "block h-[30px] w-[9px] rounded-[2px]",
                   evaluation
@@ -57,8 +65,15 @@ export function OrgCriteriaBars({
             {evaluation ? (
               <>
                 <div className="font-medium">{evaluation.name}</div>
-                <div className="mt-1 text-neutral-muted">{fit}</div>
+                <div className="mt-1 text-neutral-muted">
+                  {fit}{scoreLabel ? ` · ${scoreLabel}` : ""}
+                </div>
                 <p className="mt-2">{evaluation.content}</p>
+                {scoreLabel ? (
+                  <p className="mt-3 text-neutral-muted">
+                    {companyCriterionScoreExplanation(locale)}
+                  </p>
+                ) : null}
               </>
             ) : (
               fit

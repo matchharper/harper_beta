@@ -21,6 +21,7 @@ import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { convertSlackCandidateIntroToWebMarkdown } from "@/lib/org/agent/navigationMarkdown";
 import {
   formatProfileDuration,
+  formatProfileExperience,
   getProfileCareerSummary,
 } from "@/lib/org/profileCareerSummary";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
@@ -65,7 +66,7 @@ function TalentAvatar({
         onError={() => setFailedImageSrc(profilePicture)}
         className={
           large
-            ? "size-16 rounded-full object-cover"
+            ? "size-12 rounded-full object-cover"
             : "size-11 rounded-full object-cover"
         }
       />
@@ -74,7 +75,7 @@ function TalentAvatar({
 
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-full bg-bg-weak font-medium text-neutral-muted ${large ? "size-16 text-xl" : "size-11 text-xs"}`}
+      className={`flex shrink-0 items-center justify-center rounded-full bg-bg-weak font-medium text-neutral-muted ${large ? "size-12 text-lg" : "size-11 text-xs"}`}
     >
       {name.slice(0, 1).toUpperCase()}
     </div>
@@ -177,13 +178,18 @@ function MarkdownProfile({ value }: { value: string }) {
   );
 }
 
-export function OrgTalentProfile({
-  detail,
-  onResumeClick,
-  review = false,
-  footer,
-}: {
-  detail: OrgTalentDetailResponse;
+export type OrgTalentProfileContentProps = {
+  detail: Pick<
+    OrgTalentDetailResponse,
+    | "talent"
+    | "profile"
+    | "resume"
+    | "profileMarkdown"
+    | "criteriaEvaluations"
+    | "companyPresentation"
+  > & {
+    recommendation?: Pick<OrgTalentDetailResponse["recommendation"], "fitReason">;
+  };
   review?: boolean;
   footer?: ReactNode;
   onResumeClick: (
@@ -191,7 +197,33 @@ export function OrgTalentProfile({
     link?: string | null,
     documentId?: string | null
   ) => void;
+};
+
+export function OrgTalentProfile({
+  detail,
+  onResumeClick,
+  review = false,
+  footer,
+}: Omit<OrgTalentProfileContentProps, "detail"> & {
+  detail: OrgTalentDetailResponse;
 }) {
+  return (
+    <OrgTalentProfileContent
+      detail={detail}
+      onResumeClick={onResumeClick}
+      review={review}
+      footer={footer}
+    />
+  );
+}
+
+/** Shared professional profile body; a preview carries no invented recommendation. */
+export function OrgTalentProfileContent({
+  detail,
+  onResumeClick,
+  review = false,
+  footer,
+}: OrgTalentProfileContentProps) {
   const sourceT = useOrgSourceT();
   const { locale, c } = useOrgLocale();
   const name =
@@ -311,18 +343,31 @@ export function OrgTalentProfile({
 
       {detail.companyPresentation ? (
         <>
+          {detail.companyPresentation.isFromPreviousBrief ? (
+            <p className="text-sm text-muted-foreground">
+              {c(
+                "이 설명은 이전 채용 기준으로 작성됐어요.",
+                "This assessment was written using earlier hiring criteria."
+              )}
+            </p>
+          ) : null}
           <ProfileSection title="TL;DR">
             {detail.companyPresentation.tldr}
           </ProfileSection>
+          {detail.companyPresentation.recommendationReason ? (
+            <ProfileSection title={c("추천 이유와 고려할 점", "Why this candidate and what to consider")}>
+              {detail.companyPresentation.recommendationReason}
+            </ProfileSection>
+          ) : null}
           {detail.companyPresentation.harperNote ? (
             <ProfileSection title="Harper Note">
               {detail.companyPresentation.harperNote}
             </ProfileSection>
           ) : null}
         </>
-      ) : detail.recommendation.fitReason ? (
+      ) : detail.recommendation?.fitReason ? (
         <ProfileSection
-          title={c("Harper의 추천 이유", "Why Harper recommends")}
+          title={c("Harper의 추천 이유", "Why Harper recommends this candidate")}
         >
           <div className="mt-4 mb-10 border-l-2 border-primary px-3">
             <MarkdownProfile
@@ -344,10 +389,7 @@ export function OrgTalentProfile({
           {
             label: c("경력", "Experience"),
             icon: CalendarDays,
-            value: formatProfileDuration(
-              careerSummary.experienceMonths,
-              locale
-            ),
+            value: formatProfileExperience(careerSummary, locale),
           },
           {
             label: c("마지막 이직", "Last job change"),
@@ -372,7 +414,7 @@ export function OrgTalentProfile({
       </dl>
 
       {criteriaEvaluations.length > 0 ? (
-        <ProfileSection title="">
+        <ProfileSection title={c("기준", "Criteria")}>
           <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
             {criteriaEvaluations.map((evaluation) => (
               <OrgCriteriaEvaluation

@@ -1,25 +1,31 @@
 import { buildCompanyUpdatePrompt } from "./companyUpdate";
 import { buildOrgAgentSystemPrompt } from "./prompts";
 import { resolveOrgAgentModel, getOrgAgentReasoningEffort } from "./modelConfig";
+import { formatPromptKstDateTime, formatPromptSection } from "./promptFormat";
 
 /** General company-update composition adapter. No delivery or persistence occurs here. */
 export function buildCompanyUpdateEmailMessages(args: {
   purpose: string; facts: Record<string, unknown>; locale: "ko" | "en";
   recentConversation?: Array<{ role: "user" | "assistant"; content: string }>;
+  requestTime?: Date;
 }) {
   return [
     { role: "system" as const, content: buildOrgAgentSystemPrompt({ surface: "email", emailMode: "outbound",
       responseLocale: args.locale, capabilityCatalogText: "", capabilityPolicyText: "" }) },
     ...(args.recentConversation ?? []),
-    { role: "user" as const, content: buildCompanyUpdatePrompt({ purpose: args.purpose, facts: args.facts }) },
+    { role: "user" as const, content: [
+      formatPromptSection("runtime_context", `time_zone=Asia/Seoul\ncurrent_time_kst=${formatPromptKstDateTime(args.requestTime ?? new Date())}\nrecipient_locale=${args.locale}`),
+      buildCompanyUpdatePrompt({ purpose: args.purpose, facts: args.facts }),
+    ].join("\n\n") },
   ];
 }
 
-export async function composeCompanyUpdateEmail(args: Parameters<typeof buildCompanyUpdateEmailMessages>[0]) {
+export async function composeCompanyUpdateEmail(args: Parameters<typeof buildCompanyUpdateEmailMessages>[0] & { workspaceId: string }) {
   const { runOrgAgentCompletion } = await import("./chat");
   const { model } = resolveOrgAgentModel(undefined);
   const messages = buildCompanyUpdateEmailMessages(args);
   const completion = await runOrgAgentCompletion({ model, messages, allowTools: false,
+    candidateEmailWorkspaceId: args.workspaceId,
     maxTokens: 2000, strictModel: true, reasoningEffort: getOrgAgentReasoningEffort(model),
     signal: AbortSignal.timeout(90_000),
     responseFormat: { type: "json_schema", json_schema: { name: "company_update_email", strict: true,

@@ -1,5 +1,4 @@
-// Keep self-serve signup paused until payment testing is complete.
-export const COMPANY_SELF_SERVE_SIGNUP_ENABLED = false;
+export const COMPANY_SELF_SERVE_SIGNUP_ENABLED = true;
 
 // Workspace used by the internal billing preview. This does not gate billing access.
 export const HARPER_BILLING_WORKSPACE_ID =

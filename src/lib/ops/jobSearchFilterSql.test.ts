@@ -15,7 +15,7 @@ const query: PreviewQuery = {
     roleTitles: ["Backend"],
     ftsKeywords: [{ terms: ["backend"], weight: 1 }],
     countries: [
-      { countryCode: "KR", weight: 100, remoteOnly: false },
+      { countryCode: "KR", weight: 1, remoteOnly: false },
       { countryCode: "US", weight: 1, remoteOnly: true },
     ],
     includeContract: false,
@@ -28,7 +28,7 @@ const query: PreviewQuery = {
   },
   targetSalaryKrw: 100,
 };
-test("filter-first SQL executes hard filters inside the ANN-compatible top N, allocates country weights after the company cap, ranks only that N and reports stages", async () => {
+test("indexed retrieval bounds candidates before dynamic filters, allocates country budgets, and preserves scores, eligibility and company caps", async () => {
   const db = new PGlite({ extensions: { vector } });
   try {
     await db.exec(`create extension vector;
@@ -48,6 +48,21 @@ test("filter-first SQL executes hard filters inside the ANN-compatible top N, al
         "supabase/migrations/20261016090334_job_search_filter_hnsw_rpc.sql",
         "utf8"
       )
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261022120257_job_search_country_non_intern_hnsw.sql",
+        "utf8"
+      ).split("DO $migration$")[0]
+    );
+    await db.exec(
+      readFileSync(
+        "supabase/migrations/20261022132418_job_search_employment_remote_hnsw.sql",
+        "utf8"
+      ).split("DO $migration$")[0]
+    );
+    await db.exec(
+      "ALTER FUNCTION public.search_external_roles_filter_first(text) SET hnsw.iterative_scan='strict_order'"
     );
     const settingsBefore = await db.query(
       "SELECT current_setting('enable_sort') AS sort, current_setting('hnsw.ef_search') AS ef"
@@ -129,6 +144,20 @@ test("filter-first SQL executes hard filters inside the ANN-compatible top N, al
         (ms) => typeof ms === "number" && ms >= 0
       )
     );
+    await db.exec(
+      `update company_roles set expires_at=now()-interval '1 day' where role_id='${uuid(1)}'`
+    );
+    const noRefill = await execute(500, 0);
+    assert.equal(noRefill.counts.candidates, 500);
+    assert.equal(noRefill.counts.filtered, 499);
+    assert.equal(noRefill.rows.length, 499);
+    assert.ok(
+      !noRefill.rows.some((r: any) => r.role_id === uuid(501)),
+      "a filtered candidate must not be replaced from beyond the pool"
+    );
+    await db.exec(
+      `update company_roles set expires_at=null where role_id='${uuid(1)}'`
+    );
     const expanded = await execute(501, 0);
     assert.equal(expanded.rows.length, 500);
     assert.equal(expanded.rows[0].role_id, uuid(501));
@@ -157,21 +186,6 @@ test("filter-first SQL executes hard filters inside the ANN-compatible top N, al
           Number.isFinite(r.salary_utility)
       )
     );
-    const swapped = await execute(500, 0, {
-      ...query,
-      plan: {
-        ...query.plan,
-        countries: query.plan.countries.map((c) => ({
-          ...c,
-          weight: c.weight === 100 ? 1 : 100,
-        })),
-      },
-    });
-    assert.deepEqual(
-      swapped.rows,
-      limited.rows,
-      "when all candidates fit, weights do not change scores or ordering"
-    );
     // One company spans both countries. Cap by final score before the global
     // LIMIT, so other companies can fill the freed slots from the same ANN pool.
     const sameCompany = [1, 2, 3, 400, 501].map(uuid);
@@ -180,23 +194,46 @@ test("filter-first SQL executes hard filters inside the ANN-compatible top N, al
       [uuid(9000), sameCompany]
     );
     const capped = await execute(3000, 1);
-    assert.equal(capped.counts.candidates, 502);
+    assert.equal(capped.counts.candidates, 506);
+    assert.equal(capped.counts.filtered, 502);
     assert.equal(capped.rows.length, 500);
     assert.deepEqual(
-      capped.rows.filter((r: any) => sameCompany.includes(r.role_id)).map((r: any) => r.role_id),
+      capped.rows
+        .filter((r: any) => sameCompany.includes(r.role_id))
+        .map((r: any) => r.role_id),
       [uuid(400), uuid(501), uuid(1)]
     );
-    assert.ok(capped.rows.some((r: any) => r.role_id === uuid(516)), "fill from remaining candidates before LIMIT");
-    const immediate = (await db.query<any>(buildFilterFirstRoleSql({
-      ...query, vector: JSON.parse(v(0)), userId: uuid(1),
-      blockedCompanies: ["Blocked"], salaryWeight: 1, limit: 200, listOnly: true,
-    }))).rows;
+    assert.ok(
+      capped.rows.some((r: any) => r.role_id === uuid(516)),
+      "fill from remaining candidates before LIMIT"
+    );
+    const immediate = (
+      await db.query<any>(
+        buildFilterFirstRoleSql({
+          ...query,
+          vector: JSON.parse(v(0)),
+          userId: uuid(1),
+          blockedCompanies: ["Blocked"],
+          salaryWeight: 1,
+          limit: 200,
+          listOnly: true,
+        })
+      )
+    ).rows;
     assert.equal(immediate.length, 200);
-    assert.equal(immediate.filter(r => Number(r.role_id.slice(-12)) % 2 === 1).length, 198);
-    assert.deepEqual(immediate.filter(r => sameCompany.includes(r.role_id)).map(r => r.role_id),
-      [uuid(400), uuid(501), uuid(1)], "country allocation preserves the global company cap");
+    assert.deepEqual(
+      immediate
+        .filter((r) => sameCompany.includes(r.role_id))
+        .map((r) => r.role_id),
+      [uuid(400), uuid(501), uuid(1)],
+      "global relevance selection preserves the company cap"
+    );
     const sparseCompanies = await execute(500, 1);
-    assert.equal(sparseCompanies.rows.length, 499, "do not exceed the company cap to fill the result limit");
+    assert.equal(
+      sparseCompanies.rows.length,
+      499,
+      "do not exceed the company cap to fill the result limit"
+    );
     await db.query(
       "update company_roles set company_workspace_id=('00000000-0000-4000-8000-'||lpad((right(role_id::text,12)::int+10000)::text,12,'0'))::uuid where role_id=ANY($1::uuid[])",
       [sameCompany]
@@ -208,24 +245,62 @@ test("filter-first SQL executes hard filters inside the ANN-compatible top N, al
     const unrestricted = await execute(500, 0);
     assert.ok(unrestricted.rows.some((r: any) => r.role_id === uuid(2)));
     assert.ok(unrestricted.rows.some((r: any) => r.role_id === uuid(3)));
-    for (const [preference, expected] of [[1, 399], [-1, 398]] as const) {
-      const result = await execute(500, 0, { ...query, plan: { ...query.plan, isPreferEntry: preference } });
+    for (const [preference, expected] of [
+      [1, 399],
+      [-1, 398],
+    ] as const) {
+      const result = await execute(500, 0, {
+        ...query,
+        plan: { ...query.plan, isPreferEntry: preference },
+      });
       assert.equal(result.rows[0].role_id, uuid(expected));
       assert.equal(result.counts.candidates, unrestricted.counts.candidates);
     }
-    for (const [recentWeight, olderWeight, expected] of [[0, 2, 2], [2, 0, 1]]) {
-      const result = await execute(500, 0, { ...query, plan: { ...query.plan,
-        postingRecency: { maxAgeDays: null, recentDays: 7, recentWeight, olderWeight },
-      } });
+    for (const [recentWeight, olderWeight, expected] of [
+      [0, 2, 2],
+      [2, 0, 1],
+    ]) {
+      const result = await execute(500, 0, {
+        ...query,
+        plan: {
+          ...query.plan,
+          postingRecency: {
+            maxAgeDays: null,
+            recentDays: 7,
+            recentWeight,
+            olderWeight,
+          },
+        },
+      });
       assert.equal(result.rows[0].role_id, uuid(expected));
     }
-    const explicitWindow = await execute(500, 0, { ...query, plan: { ...query.plan,
-      postingRecency: { maxAgeDays: 30, recentDays: null, recentWeight: null, olderWeight: null },
-    } });
-    assert.ok(!explicitWindow.rows.some((r: any) => [uuid(2), uuid(3)].includes(r.role_id)));
-    await assert.rejects(execute(500, 0, {
-      ...query, plan: { ...query.plan, countries: [...query.plan.countries, query.plan.countries[0]] },
-    }), /Countries must be unique/);
+    const explicitWindow = await execute(500, 0, {
+      ...query,
+      plan: {
+        ...query.plan,
+        postingRecency: {
+          maxAgeDays: 30,
+          recentDays: null,
+          recentWeight: null,
+          olderWeight: null,
+        },
+      },
+    });
+    assert.ok(
+      !explicitWindow.rows.some((r: any) =>
+        [uuid(2), uuid(3)].includes(r.role_id)
+      )
+    );
+    await assert.rejects(
+      execute(500, 0, {
+        ...query,
+        plan: {
+          ...query.plan,
+          countries: [...query.plan.countries, query.plan.countries[0]],
+        },
+      }),
+      /Countries must be unique/
+    );
     assert.deepEqual(
       (
         await db.query(

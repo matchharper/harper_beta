@@ -166,7 +166,7 @@ export const ko = {
   "faq.pricing-overview.question":
     "Harper 비용은 어떻게 되나요? 월 구독료나 채용 수수료가 있나요?",
   "faq.pricing-overview.answer":
-    "Free에서도 Role을 무제한으로 만들고 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10 Intro는 슬롯을 추가해도 별도로 유지돼요. 표준 슬롯은 배정한 Role 하나에 유료 기능과 월 50 Intro를 제공하고, Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. Enterprise와 기존 별도 계약은 합의한 조건을 따라요. 현재 새 회사의 직접 가입과 일반 회사의 셀프서비스 결제는 일시 중단되어 있어요. Slots와 Billing 메뉴가 표시되는 Workspace에서는 배정·구독·결제 내역을 확인할 수 있고, 메뉴가 없거나 적용 조건이 궁금하면 문의하기로 Harper 팀에 확인해 주세요. /pricing의 공개 상품 설명만으로 회사의 실제 계약이나 잔액을 판단하지 않아요.",
+    "Role은 자유롭게 만들 수 있고, Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10 Intro는 슬롯을 추가해도 별도로 유지돼요. 표준 슬롯은 배정한 Role 하나에 유료 기능과 월 50 Intro를 제공하고, Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. Enterprise와 기존 별도 계약은 합의한 조건을 따라요. 현재 새 회사의 직접 가입과 일반 회사의 셀프서비스 결제는 일시 중단되어 있어요. Slots와 Billing 메뉴가 표시되는 Workspace에서는 배정·구독·결제 내역을 확인할 수 있고, 메뉴가 없거나 적용 조건이 궁금하면 문의하기로 Harper 팀에 확인해 주세요. /pricing의 공개 상품 설명만으로 회사의 실제 계약이나 잔액을 판단하지 않아요.",
   "faq.pricing-subscription.question":
     "월 구독료나 사용료가 따로 있나요? 무료인가요?",
   "faq.pricing-subscription.answer":
@@ -324,6 +324,7 @@ export const ko = {
   "TalentDetailSimpleView.8fef4400": "후보자에게 연락을 보냈어요",
   "TalentDetailSimpleView.8cadb511": "후보자에게 질문을 보냈어요",
   "TalentDetailSimpleView.e290cc9b": "후보자의 답변이 도착했어요",
+  "TalentDetailSimpleView.candidateMessageReceived": "후보자에게 메시지가 왔어요",
   "TalentDetailSimpleView.0ba36805": "후보자의 메시지가 전달됐어요",
   "TalentDetailSimpleView.e608273c": "메모",
   "TalentDetailSimpleView.4fcf75a6": "연결 시작",
@@ -628,11 +629,11 @@ export const ko = {
   "faq.credit-spending.question":
     "Intro는 언제 차감되나요? 슬롯 Intro가 없으면 어떻게 되나요?",
   "faq.credit-spending.answer":
-    "표준 요금에서는 회사가 Intro 요청을 확정하거나 연결 대기의 연결 수락을 실행할 때 1 Intro를 사용해요. 해당 Role의 슬롯 Intro를 먼저 쓰고 부족하면 공용 Intro를 사용해요. 다른 Role 슬롯의 Intro를 가져오지는 않아요. 검색 요청·Role 생성·Pass·연결 거절은 이 두 유료 액션과 달라요. 사용 가능한 Intro가 모두 없으면 해당 요청을 완료할 수 없지만 Role 생성과 채용 시작 자체가 제한되지는 않아요. 실제 차단 시 화면이나 Slack에 표시되는 안내를 확인하고 Harper 팀에 문의해 주세요.",
+    "표준 요금에서는 회사가 Intro 요청을 확정하거나 연결 대기의 연결 수락을 실행할 때 1 Intro를 사용해요. 해당 Role의 슬롯 Intro를 먼저 쓰고 부족하면 공용 Intro를 사용해요. 다른 Role 슬롯의 Intro를 가져오지는 않아요. 검색 요청·Role 생성·Pass·연결 거절에는 Intro를 쓰지 않아요. 사용 가능한 Intro가 모두 없으면 해당 요청을 완료할 수 없어요. Intro 잔액과 별개로 초안은 제한 없이 만들 수 있고, 채용 시작·재개는 활성 Free Role 1개와 유효한 유료 슬롯의 범위 안에서 가능해요. 기존 별도 계약은 해당 조건을 따라요. 실제 차단 시 화면이나 Slack에 표시되는 안내를 확인하고 Harper 팀에 문의해 주세요.",
   "faq.slot-management.question":
     "슬롯을 다른 Role에 배정하거나 구독을 취소하면 Role도 중단되나요?",
   "faq.slot-management.answer":
-    "결제 기능이 제공되는 Workspace의 Slots에서 슬롯 배정을 관리해요. 구독 취소는 해당 슬롯 단위로 처리하며, 사용 종료 시점은 화면의 구독 정보에서 확인해야 해요. 슬롯이 만료되면 그 슬롯에 의존한 유료 기능을 더 사용할 수 없지만 Role이 자동으로 중단되지는 않아요. Role은 Free 기능과 공용 Intro 범위에서 계속 진행할 수 있어요. 다른 Role로 배정을 옮길 때는 기존 Role이 잃는 기능도 확인해 주세요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 메뉴가 없으면 Harper 팀에 문의해야 해요.",
+    "결제 기능이 제공되는 Workspace의 Slots에서 슬롯 배정을 관리해요. 구독 취소는 해당 슬롯 단위로 처리하며, 사용 종료 시점은 화면의 구독 정보에서 확인해야 해요. 슬롯이 만료되면 남은 유효 슬롯에 먼저 배정하고, 슬롯 없이 유지하는 활성 Free Role은 최대 1개예요. 해당 Role이 여러 개라면 먼저 만든 적격 Free Role 1개를 남기고 나머지는 일시 중지해요. 기존 후보자·Intro·진행 이력은 유지하며, 별도 계약은 해당 조건을 따라요. 다른 Role로 슬롯 배정을 옮길 때도 활성 Free Role 한도와 기존 Role이 잃는 기능을 확인해 주세요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 메뉴가 없으면 Harper 팀에 문의해야 해요.",
   "faq.role-public-promotion.question":
     "외부 공고 노출과 회사명 비공개를 설정하면 무엇이 바뀌나요?",
   "faq.role-public-promotion.answer":

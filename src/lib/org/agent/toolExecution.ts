@@ -6495,9 +6495,34 @@ export async function executeOrgAgentTool(args: {
         "contextMessageCount must be an integer between 1 and 12"
       );
     }
+    const draftInput = input.draft;
+    if (!draftInput || typeof draftInput !== "object" || Array.isArray(draftInput)) {
+      throw new OrgAgentToolInputError("draft is required");
+    }
+    const draft = draftInput as Record<string, unknown>;
+    if (typeof draft.description !== "string" || !draft.description.trim()) {
+      throw new OrgAgentToolInputError("draft.description is required");
+    }
+    for (const key of ["request", "locationText", "workMode", "salaryRange", "externalJdUrl"]) {
+      if (draft[key] !== undefined && typeof draft[key] !== "string") {
+        throw new OrgAgentToolInputError(`draft.${key} must be a string`);
+      }
+    }
+    if (draft.employmentTypes !== undefined && (!Array.isArray(draft.employmentTypes) || draft.employmentTypes.some((value) => typeof value !== "string"))) {
+      throw new OrgAgentToolInputError("draft.employmentTypes must be a string array");
+    }
     const started = await startSlackRoleCreation({
       actorLabel: args.actorLabel,
       contextMessageCount,
+      draft: {
+        description: draft.description,
+        request: draft.request as string | undefined,
+        locationText: draft.locationText as string | undefined,
+        workMode: draft.workMode as string | undefined,
+        salaryRange: draft.salaryRange as string | undefined,
+        externalJdUrl: draft.externalJdUrl as string | undefined,
+        employmentTypes: draft.employmentTypes as string[] | undefined,
+      },
       execution: args.slackExecutionContext,
       roleTitle,
       sourceConversation: args.conversation,
@@ -6506,27 +6531,22 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
-    args.state.requiredSlackContinuationLink = `<${started.threadPermalink}|새로운 채용 등록 이어가기>`;
-    args.state.fallbackReply = [
-      `${started.roleTitle} 역할 등록을 함께 시작할게요.`,
-      "",
-      "보내주신 내용은 새 역할 대화로 옮겨 두었어요. 역할 정보와 원하는 매칭 기준은 그곳에서 이어서 정리해요.",
-      "",
-      args.state.requiredSlackContinuationLink,
-      "",
-      "등록 과정이 끝나고 나면 바로 좋은 인재분들과의 연결을 도와드리기 시작할게요 :)",
-    ].join("\n");
+    args.state.requiredSlackContinuationLink = `<${started.webUrl}|새로운 채용 등록 이어가기>`;
+    // Preserve the model's explanation. The link alone is the structural fallback.
+    args.state.fallbackReply = args.state.requiredSlackContinuationLink;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
       status: "success",
-      summary: `${started.roleTitle} 역할 작성 스레드 시작`,
+      summary: `${started.roleTitle} 역할 초안 및 웹 온보딩 준비`,
     });
     return {
       roleTitle: started.roleTitle,
       requiredContinuationLink: args.state.requiredSlackContinuationLink,
       status: "started",
-      transferredMessageCount: contextMessageCount,
+      roleId: started.roleId,
+      transferredMessageCount: started.transferredMessageCount,
+      savedFields: Object.keys(draft).filter((key) => draft[key] !== undefined),
     };
   } else if (args.name === "web_search") {
     result = await executeSharedWebSearch(input, {

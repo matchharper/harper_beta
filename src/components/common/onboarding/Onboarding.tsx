@@ -316,7 +316,7 @@ export function OnboardingFooter({
 }: {
   onNext: () => void;
   onPrev?: () => void;
-  nextLabel: string;
+  nextLabel: ReactNode;
   previousLabel?: string;
   pending?: boolean;
   disabled?: boolean;

@@ -28,7 +28,7 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME =
-  "border-neutral-1000-a05 bg-bg-floating/55 shadow-sm backdrop-blur-lg";
+  "rounded-full border-white md:border-black/4 bg-neutral-50/50 shadow-[0_2px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm";
 
 export function ChatComposerSurface({
   className,
@@ -79,7 +79,7 @@ export const ChatComposerCollapsedFrame = forwardRef<
       variant="default"
       {...props}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-muted">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-black">
         {leadingAction}
       </span>
       <span

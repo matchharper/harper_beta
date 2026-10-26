@@ -1,0 +1,45 @@
+{
+  "datasetVersion": "natural-v3",
+  "createdAt": "2026-10-23",
+  "unit": "one natural user message, executed once per source scenario",
+  "source": "https://app.notion.com/p/New-Design-4007277d26df8083a689cb9e8e50821b",
+  "bindingContract": "Names and criterion labels come from the actual frozen source. No procedure, gold expectation, safety reminder, or scenario description is added to the model input.",
+  "cases": [
+    {
+      "id": "ARSN01",
+      "title": "Brief 변경 후 목록 갱신",
+      "sourceScenario": "1.1",
+      "baseline": "bootstrap-v3",
+      "turns": [
+        "이제 캐나다에 거주하는 분들만 볼게요."
+      ]
+    },
+    {
+      "id": "ARSN02",
+      "title": "Criteria 변경 후 평가 설명 갱신",
+      "sourceScenario": "1.2",
+      "baseline": "bootstrap-v3",
+      "turns": [
+        "{{criterionLabel}}은 이제 필수가 아니라 우대로 볼게."
+      ]
+    },
+    {
+      "id": "ARSN04",
+      "title": "까다로운 조건의 병목과 완화 제안",
+      "sourceScenario": "1.4",
+      "baseline": "natural-zero-source-v1",
+      "turns": [
+        "조건이 너무 빡센가?"
+      ]
+    },
+    {
+      "id": "ARSN06",
+      "title": "추가 추천이 없었던 검색 이후 더 보기",
+      "sourceScenario": "1.6",
+      "baseline": "natural-zero-source-v1",
+      "turns": [
+        "더 보여줘."
+      ]
+    }
+  ]
+}

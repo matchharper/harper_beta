@@ -167,7 +167,7 @@ export function OrgOnboardingSlack({
         <p className="text-[13px] leading-6 text-neutral-muted">
           {c(
             "Slack 연결은 회사의 Owner 또는 Admin이 설정할 수 있어요. 지금은 건너뛰고 Harper를 둘러보세요.",
-            "Slack connection must be configured by the company Owner or Admin. Skip for now and explore Harper."
+            "An Owner or Admin needs to connect Slack. You can skip this step and explore Harper for now."
           )}
         </p>
       ) : !status?.connected ? (
@@ -305,13 +305,13 @@ export function OrgOnboardingSlack({
         }}
         mobileBottomSheet
         title={
-          <>{c("회사 이메일로 초대 보내기", "Send invite to company email")}</>
+          <>{c("회사 이메일로 초대 보내기", "Invite your Slack account")}</>
         }
         description={
           <>
             {c(
               "Slack에서 사용하는 이메일로 이 회사의 초대 메일을 보내드려요. 현재 계정과 같은 권한으로 참여할 수 있어요.",
-              "Send the company's invite to the email used for Slack. The invited account will join with the same permissions as the current account."
+              "Send a workspace invitation to the email you use for Slack. That account will have the same permissions as your current account."
             )}
           </>
         }
@@ -324,7 +324,7 @@ export function OrgOnboardingSlack({
               {invitedEmail}
               {c(
                 "로 초대 메일을 보냈어요. 그 이메일로 로그인한 뒤 Slack을 연결해 주세요.",
-                "Sent an invite to that email. Sign in with that email, then connect Slack."
+                "Invitation sent. Sign in with that email address, then connect Slack."
               )}
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-end gap-2 ">

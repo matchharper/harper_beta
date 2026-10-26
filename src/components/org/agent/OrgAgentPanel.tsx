@@ -97,6 +97,7 @@ function OrgAgentInfo() {
 export function OrgAgentChatSurface({
   autoFocus = true,
   className,
+  initialMessage,
   onClose,
   onCompanyInfoClick,
   onRoleCreated,
@@ -107,6 +108,7 @@ export function OrgAgentChatSurface({
 }: {
   autoFocus?: boolean;
   className?: string;
+  initialMessage?: string;
   onClose?: () => void;
   onCompanyInfoClick?: () => void;
   onRoleCreated?: (roleId: string) => void;
@@ -729,6 +731,8 @@ export function OrgAgentChatSurface({
             </div>
           ) : null}
           <OrgAgentComposer
+            key={initialMessage}
+            initialMessage={initialRoleCreation ? initialMessage : undefined}
             allowAttachments
             autoFocus={autoFocus}
             compactWidth={initialRoleCreation}

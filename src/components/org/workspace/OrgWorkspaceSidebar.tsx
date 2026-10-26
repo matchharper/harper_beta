@@ -34,6 +34,7 @@ import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
+import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocumentsMarkdown";
 import { Page } from "@/components/layout/Page";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -52,6 +53,7 @@ import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavi
 import { useOrgInbox } from "@/hooks/org/useOrg";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
+import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
 import { usePreviousPathname } from "@/hooks/useRouteHistory";
 import { sortOrgRolesForRecentList } from "@/lib/org/recentRoles";
 import { ORG_PRODUCT_LABELS } from "@/lib/org/productVocabulary";
@@ -205,7 +207,7 @@ function WorkspaceControl({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onAddWorkspace}>
           <Plus aria-hidden />
-          {c("Organization 추가하기", "Add Organization")}
+          {c("Organization 추가하기", "Add organization")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -468,11 +470,26 @@ function RecentRolesSection({
   workspaceId: string;
 }) {
   const { c } = useOrgLocale();
+  const router = useRouter();
+  const { permissions } = useOrgWorkspace();
+  const { deleteRole, pauseRole, resumeRole, endRole, roleActionPending } =
+    useOrgRoleActions({
+      canManageCandidates: permissions.canManageCandidates,
+      workspaceId,
+      onDeleted: (role) => {
+        if (activePage === "role" && activeRoleId === role.roleId) {
+          void router.push(
+            buildOrgHref({ orgId: workspaceId, page: "jobs", roleId: "all" }),
+          );
+          onNavigate?.();
+        }
+      },
+    });
   return (
     <section
       className={cn(
         "flex min-h-0 flex-1 flex-col border-t border-neutral-1000-a05",
-        mobile ? "pt-2" : "mt-4 pt-4"
+        mobile ? "pt-2" : "mt-4 pt-4",
       )}
     >
       <div
@@ -480,7 +497,7 @@ function RecentRolesSection({
           "flex items-center justify-between text-neutral-muted",
           mobile
             ? "mb-1 px-4 text-[12px]"
-            : "mx-3 mb-2 px-2.5 text-[13px] font-normal"
+            : "mx-3 mb-2 px-2.5 text-[13px] font-normal",
         )}
       >
         <span>{ORG_PRODUCT_LABELS.recent}</span>
@@ -495,7 +512,7 @@ function RecentRolesSection({
         aria-label={c("Recent roles", "Recent roles")}
         className={cn(
           "min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10",
-          mobile ? "px-2" : "px-3"
+          mobile ? "px-2" : "px-3",
         )}
       >
         <div className={cn("space-y-1", mobile && "pb-2")}>
@@ -509,47 +526,73 @@ function RecentRolesSection({
                 })
               : null;
             return (
-              <Link
-                key={role.roleId}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex min-h-9 min-w-0 items-center font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
-                  mobile
-                    ? "gap-2 rounded-md px-2 py-1.5 text-[13px]"
-                    : "h-9 gap-2.5 rounded-sm px-2.5 text-[14px]",
-                  active &&
-                    (mobile
-                      ? "bg-bg-weak text-neutral-primary"
-                      : "bg-neutral-200/80 text-black"),
-                  !active &&
-                    (mobile
-                      ? "text-neutral-primary hover:bg-bg-weak"
-                      : "text-neutral-primary hover:bg-neutral-100")
-                )}
-                href={buildOrgHref({
-                  orgId: workspaceId,
-                  page: "role",
-                  roleId: role.roleId,
-                  tab: nextTab,
-                  view: pipelineView,
-                })}
-                onClick={onNavigate}
-              >
-                <OrgRoleStatusDot status={role.status} />
-                <RecentRoleTitle mobile={mobile} title={role.name} />
-              </Link>
+              <div key={role.roleId} className="group/role relative">
+                <Link
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-9 min-w-0 items-center font-normal outline-none transition focus-visible:ring-2 focus-visible:ring-neutral-1000-a10",
+                    mobile
+                      ? "gap-2 rounded-md px-2 py-1.5 text-[13px]"
+                      : "h-9 gap-2.5 rounded-sm px-2.5 text-[14px]",
+                    active &&
+                      (mobile
+                        ? "bg-bg-weak text-neutral-primary"
+                        : "bg-neutral-200/80 text-black"),
+                    !active &&
+                      (mobile
+                        ? "text-neutral-primary hover:bg-bg-weak"
+                        : "text-neutral-primary hover:bg-neutral-100"),
+                  )}
+                  href={buildOrgHref({
+                    orgId: workspaceId,
+                    page: "role",
+                    roleId: role.roleId,
+                    tab: nextTab,
+                    view: pipelineView,
+                  })}
+                  onClick={onNavigate}
+                >
+                  <OrgRoleStatusDot status={role.status} />
+                  <RecentRoleTitle mobile={mobile} title={role.name} />
+                </Link>
+                {permissions.canManageCandidates ? (
+                  <OrgRoleActionsMenu
+                    role={role}
+                    pending={roleActionPending}
+                    onDelete={deleteRole}
+                    onPause={pauseRole}
+                    onResume={resumeRole}
+                    onEnd={endRole}
+                    onStart={(draft) => {
+                      void router.push(
+                        buildOrgHref({
+                          orgId: workspaceId,
+                          page: "role",
+                          roleId: draft.roleId,
+                        }),
+                      );
+                      onNavigate?.();
+                    }}
+                    triggerClassName={cn(
+                      "absolute right-1 top-1/2 z-50 -translate-y-1/2",
+                      !mobile &&
+                        "pointer-events-none opacity-0 group-hover/role:pointer-events-auto group-hover/role:opacity-100 group-focus-within/role:pointer-events-auto group-focus-within/role:opacity-100 data-[state=open]:pointer-events-auto data-[state=open]:opacity-100",
+                    )}
+                  />
+                ) : null}
+              </div>
             );
           })}
           {recentRoleCount > 0 && filteredRoles.length === 0 ? (
             <p
               className={cn(
                 "py-2 text-[12px] text-neutral-soft",
-                mobile ? "px-3" : "px-2.5"
+                mobile ? "px-3" : "px-2.5",
               )}
             >
               {c(
                 "선택한 상태의 역할이 없습니다.",
-                "No roles in selected status."
+                "No roles match this status.",
               )}
             </p>
           ) : null}
@@ -1052,7 +1095,7 @@ export function OrgWorkspaceSidebar({
                   src="/images/logos/calendar.png"
                   width={16}
                 />
-                {c("일정 저장", "Save schedule")}
+                {c("일정 저장", "Set availability")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 variant="sm"
@@ -1077,7 +1120,7 @@ export function OrgWorkspaceSidebar({
         </div>
       </aside>
 
-      {navigationTriggerHidden || activePage === "role" ? null : (
+      {navigationTriggerHidden || activePage === "role" || activePage === "home" ? null : (
         <header className="fixed inset-x-0 top-0 z-50 flex h-12 items-center bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
           <MuteButton
             aria-label={c("메뉴 열기", "Open menu")}
@@ -1354,7 +1397,7 @@ export function OrgWorkspaceSidebar({
                       src="/images/logos/calendar.png"
                       width={16}
                     />
-                    {c("일정 저장", "Save schedule")}
+                    {c("일정 저장", "Set availability")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {

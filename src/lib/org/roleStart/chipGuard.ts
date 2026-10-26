@@ -1,3 +1,4 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import { callRoleStartJson, ROLE_START_FAST_MODEL, type RoleStartLlmUsage } from "./llm";
@@ -59,7 +60,7 @@ export async function fillChips(
     maxOutputTokens: 600,
     schema: FILL_SCHEMA,
     system: FILL_SYSTEM,
-    user: JSON.stringify({ question: args.question, givenChips: given, context: args.context ?? "" }),
+    user: formatPromptText({ question: args.question, givenChips: given, context: args.context ?? "" }),
     signal: args.signal,
   });
   const chips = distinctChips([...given, ...(data.chips ?? [])]);
@@ -162,7 +163,7 @@ export async function coveredQuestions(args: {
     maxOutputTokens: 300,
     schema: COVERED_SCHEMA,
     system: COVERED_SYSTEM,
-    user: JSON.stringify({
+    user: formatPromptText({
       ASKED: args.asked,
       DRAFTED: args.drafted,
       ANSWERED: (args.answered ?? []).map((item) => (typeof item === "string" ? { question: item, answer: null } : item)),

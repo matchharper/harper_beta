@@ -72,6 +72,7 @@ export function OrgPassPopover({
           size="md"
           variant="neutral"
           aria-keyshortcuts={shortcut ? "p" : undefined}
+          className="px-3 py-1.5 border-none text-[15px]"
         >
           {c("Pass", "Pass")}
           {shortcut && (
@@ -89,7 +90,7 @@ export function OrgPassPopover({
           align="end"
           sideOffset={8}
           className="z-[100] max-h-[var(--radix-popover-content-available-height)] w-72 overflow-y-auto rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-lg"
-          aria-label={c("Pass 이유", "Pass reason")}
+          aria-label={c("Pass 이유", "Reason for passing")}
         >
           <form
             onSubmit={async (event) => {
@@ -126,6 +127,7 @@ export function OrgPassPopover({
                   onClick={() => toggleReason(value)}
                   aria-pressed={selectedReasons.has(value)}
                   disabled={pending}
+                  className="px-3 py-1.5 border-none text-[15px]"
                 >
                   {value}
                 </MuteButton>

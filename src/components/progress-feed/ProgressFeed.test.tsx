@@ -4,6 +4,7 @@ import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { ProgressFeed } from "./ProgressFeed";
+import { orgCandidateActivityFeedContent } from "@/lib/org/candidateActivityFeed";
 
 test("expands exact candidate email and Harper relay content independently", async () => {
   const dom = new JSDOM('<div id="root"></div>');
@@ -24,10 +25,27 @@ test("expands exact candidate email and Harper relay content independently", asy
   const root = createRoot(container);
 
   try {
+    const standalone = orgCandidateActivityFeedContent({
+      id: "standalone-progress",
+      text: "후보자가 먼저 보낸 메시지와 이력서 링크",
+      metadata: { eventType: "candidate_message_delivered", relayId: "standalone-relay" },
+    });
+    assert.ok(standalone?.delivery);
+    const standaloneDelivery = standalone.delivery;
     await act(async () => {
       root.render(
         <ProgressFeed
           items={[
+            {
+              id: "standalone-progress",
+              createdAt: "2026-10-21T13:15:00Z",
+              title: "후보자에게 메시지가 왔어요",
+              text: standalone.text,
+              delivery: {
+                ...standaloneDelivery,
+                label: standaloneDelivery.disclosureLabel,
+              },
+            },
             {
               createdAt: "2026-08-31T02:03:34.665Z",
               delivery: {
@@ -67,6 +85,12 @@ test("expands exact candidate email and Harper relay content independently", asy
     const relayButton = buttons.find((button) =>
       button.textContent?.includes("Harper가 전달한 내용")
     );
+    const standaloneButton = relayButton;
+    const responseButton = buttons.filter((button) =>
+      button.textContent?.includes("Harper가 전달한 내용")
+    )[1];
+    assert.ok(standaloneButton);
+    assert.ok(responseButton);
     assert.ok(emailButton);
     assert.ok(relayButton);
 
@@ -79,7 +103,12 @@ test("expands exact candidate email and Harper relay content independently", asy
     assert.match(container.textContent ?? "", /본문/);
     assert.match(container.textContent ?? "", /후보자에게 실제로 보낸 본문/);
 
-    await act(async () => relayButton.click());
+    assert.match(container.textContent ?? "", /후보자에게 메시지가 왔어요/);
+    assert.doesNotMatch(container.textContent ?? "", /후보자가 먼저 보낸 메시지와 이력서 링크/);
+    await act(async () => standaloneButton.click());
+    assert.match(container.textContent ?? "", /후보자가 먼저 보낸 메시지와 이력서 링크/);
+    assert.doesNotMatch(container.textContent ?? "", /Harper가 Slack과 채팅에 전달한 최종 문구/);
+    await act(async () => responseButton.click());
     assert.match(
       container.textContent ?? "",
       /Harper가 Slack과 채팅에 전달한 최종 문구/

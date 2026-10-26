@@ -69,7 +69,7 @@ test("external role readers exclude internal authors in both history and latest-
         assert.equal(query.get("internal_author.email"), "ilike.%@matchharper.com");
         assert.equal(query.get("internal_author"), "is.null");
         assert.equal(query.get("conversation_id"), "eq.conversation");
-        assert.equal(query.get("message_type"), "in.(chat,slack)");
+        assert.equal(query.get("message_type"), "eq.chat");
       }
       assert.deepEqual(queries[0].getAll("id"), ["gt.10", "lt.100"]);
       assert.equal(queries[0].get("limit"), "31");
@@ -79,11 +79,14 @@ test("external role readers exclude internal authors in both history and latest-
   }
 });
 
-test("internal viewers retain all authors, including case-insensitive domain matches", async () => {
+test("internal viewers retain all web authors, including case-insensitive domain matches", async () => {
   for (const email of ["user@matchharper.com", " User@MATCHHARPER.COM "]) {
-    for (const query of await readHistory(email)) {
-      assert.equal(query.has("internal_author"), false);
-      assert.equal(query.get("select")?.includes("internal_author"), false);
+    for (const mode of ["role", "role_creation", "general"]) {
+      for (const query of await readHistory(email, mode)) {
+        assert.equal(query.has("internal_author"), false);
+        assert.equal(query.get("select")?.includes("internal_author"), false);
+        assert.equal(query.get("message_type"), "eq.chat");
+      }
     }
   }
 });

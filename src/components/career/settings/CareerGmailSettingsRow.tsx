@@ -19,6 +19,7 @@ import {
 import { useCareerT } from "@/i18n/useCareerT";
 import CareerProfileSourceCard from "./CareerProfileSourceCard";
 import GmailConnectionSuccessModal from "./GmailConnectionSuccessModal";
+import GmailIntegrationOverview from "../integrations/GmailIntegrationOverview";
 
 const CareerGmailSettingsRow = () => {
   const t = useCareerT();
@@ -26,6 +27,17 @@ const CareerGmailSettingsRow = () => {
   const logCareerEvent = useCareerLogEvent();
   const { user } = useCareerProfileContext();
   const gmailIntegration = useGmailIntegration(user?.id ?? null);
+  const overviewOpen = router.isReady && router.query.integration === "gmail";
+  const setOverviewOpen = (open: boolean) => {
+    const query = { ...router.query };
+    if (open) query.integration = "gmail";
+    else delete query.integration;
+    void router[open ? "push" : "replace"](
+      { pathname: router.pathname, query },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+  };
   const gmailConnectionSucceeded =
     router.isReady &&
     router.query[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] === "success";
@@ -59,6 +71,7 @@ const CareerGmailSettingsRow = () => {
 
   const setGmailConnectionSuccessModalOpen = (open: boolean) => {
     const nextQuery = { ...router.query };
+    delete nextQuery.integration;
     if (open) nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM] = "success";
     else delete nextQuery[GMAIL_CONNECTION_SUCCESS_QUERY_PARAM];
     void router.replace(
@@ -170,7 +183,7 @@ const CareerGmailSettingsRow = () => {
       void handleGmailDisconnect();
       return;
     }
-    void handleGmailConnect();
+    setOverviewOpen(true);
   };
 
   const statusText = permissionsRequired
@@ -291,6 +304,18 @@ const CareerGmailSettingsRow = () => {
             <RefreshCw className="m-1.5 h-3.5 w-3.5" aria-hidden="true" />
           ) : null
         }
+      />
+
+      <GmailIntegrationOverview
+        open={
+          overviewOpen && !gmailConnectionSucceeded && !permissionsModalOpen
+        }
+        pending={busy || gmailIntegration.status === "loading"}
+        onClose={() => setOverviewOpen(false)}
+        onContinue={() => {
+          if (!busy && gmailIntegration.status !== "loading")
+            void handleGmailConnect();
+        }}
       />
 
       <GmailPermissionsModal

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import { before, test } from "node:test";
+import { OrgHttpError as HttpError } from "@/lib/org/httpError";
 import type { NextRequest } from "next/server";
 
 const workspaceId = "10000000-0000-4000-8000-000000000001";
@@ -83,28 +84,63 @@ const rows: Record<string, unknown[]> = {
     },
   ],
 };
-class HttpError extends Error {
-  constructor(
-    public status: number,
-    message: string
-  ) {
-    super(message);
-  }
-}
+// Small PostgREST reader fixture: exercise the real route, service and source mapping.
 const admin = {
   from(table: string) {
+    let selected = (rows[table] ?? []) as any[];
+    const field = (row: any, column: string) =>
+      column.includes("->>")
+        ? row.metadata?.[column.split("->>")[1]]
+        : column.split(".").reduce((value, key) => value?.[key], row);
     const query = {
       select: () => query,
       eq: (column: string, value: unknown) => {
         scopes.push([table, column, value]);
+        // These fixtures belong to this workspace and contain company-visible progress.
+        if (!["company_workspace_id", "open_to_company"].includes(column))
+          selected = selected.filter((row) => field(row, column) === value);
         return query;
       },
-      in: (column: string, value: unknown) => {
+      in: (column: string, value: unknown[]) => {
         scopes.push([table, column, value]);
+        selected = selected.filter((row) => value.includes(field(row, column)));
+        return query;
+      },
+      lte: (column: string, value: string) => {
+        selected = selected.filter(
+          (row) =>
+            field(row, column) &&
+            Date.parse(field(row, column)) <= Date.parse(value)
+        );
+        return query;
+      },
+      or: (filter: string) => {
+        if (filter.startsWith("kind.eq."))
+          selected = selected.filter(
+            (row) =>
+              row.kind === "intro_to_company" ||
+              (row.kind === "org_candidate_activity" &&
+                [
+                  "candidate_message_delivered",
+                  "candidate_response_received",
+                  "candidate_contact_sent",
+                ].includes(row.metadata?.eventType))
+          );
+        if (filter.startsWith("status.neq."))
+          selected = selected.filter(
+            (row) => row.status !== "confirmed" || !row.confirmed_start_at
+          );
+        return query;
+      },
+      not: (column: string) => {
+        selected = selected.filter((row) => field(row, column) != null);
         return query;
       },
       order: () => query,
-      limit: async () => ({ data: rows[table] ?? [], error: null }),
+      limit: async (limit: number) => ({
+        data: selected.slice(0, limit),
+        error: null,
+      }),
     };
     return query;
   },
@@ -120,25 +156,32 @@ before(async () => {
     },
     "@/lib/org/server": {
       OrgHttpError: HttpError,
-      assertOrgRoleAccess: async (args: any) => {
-        assert.equal(args.workspaceId, workspaceId);
-        assert.equal(args.roleId, roleId);
-        assert.equal(args.permission, "view");
+      fetchRoleRowsForWorkspace: async () => {
         if (!allowed) throw new HttpError(403, "Forbidden");
+        return [{ role_id: roleId }, { role_id: secondRoleId }];
       },
-      fetchOrgBoard: async (args: { roleId?: string; workspaceId: string }) => {
+      fetchOrgBoard: async (args: {
+        roleId?: string;
+        workspaceId: string;
+        talentIds: string[];
+      }) => {
         assert.equal(args.workspaceId, workspaceId);
         if (!allowed) throw new HttpError(403, "Forbidden");
+        assert.ok(args.talentIds.includes(talentId));
         return {
           items: [
-            {
-              roleId,
-              roleName: "Backend Engineer",
-              talentId,
-              recommendationId: "recommendation",
-              talent: { name: "Fixture Candidate" },
-            },
-            ...(!args.roleId
+            ...(args.roleId === roleId
+              ? [
+                  {
+                    roleId,
+                    roleName: "Backend Engineer",
+                    talentId,
+                    recommendationId: "recommendation",
+                    talent: { name: "Fixture Candidate" },
+                  },
+                ]
+              : []),
+            ...(args.roleId === secondRoleId
               ? [
                   {
                     roleId: secondRoleId,
@@ -154,6 +197,7 @@ before(async () => {
       },
     },
   };
+  mocks["./server"] = mocks["@/lib/org/server"];
   mod._load = function (request: string, parent: unknown, isMain: boolean) {
     return request in mocks
       ? mocks[request]
@@ -268,6 +312,100 @@ test("All merges visible roles and keeps the same candidate scoped to each role"
           !value.includes(hiddenRoleId)
       )
     );
+});
+
+test("All and role feeds distinguish outgoing questions and incoming standalone or linked messages", async () => {
+  const original = rows.talent_progress;
+  const cases = [
+    [
+      "question",
+      {
+        eventType: "candidate_contact_sent",
+        requestId: "q",
+        requestKind: "question",
+      },
+      "company_question",
+    ],
+    [
+      "contact",
+      {
+        eventType: "candidate_contact_sent",
+        requestId: "c",
+        requestKind: "contact",
+      },
+      "company_message",
+    ],
+    [
+      "resume",
+      {
+        eventType: "candidate_contact_sent",
+        requestId: "r",
+        requestKind: "resume",
+      },
+      "company_resume_request",
+    ],
+    [
+      "new-message",
+      { eventType: "candidate_message_delivered", relayId: "relay-1" },
+      "candidate_message",
+    ],
+    [
+      "reply-relay",
+      {
+        eventType: "candidate_message_delivered",
+        relayId: "relay-2",
+        requestId: "q",
+      },
+      "candidate_response",
+    ],
+    [
+      "legacy-reply",
+      { eventType: "candidate_response_received", requestId: "q" },
+      "candidate_response",
+    ],
+  ] as const;
+  rows.talent_progress = cases.map(([id, metadata]) => ({
+    id,
+    metadata,
+    role_id: roleId,
+    talent_id: talentId,
+    kind: "org_candidate_activity",
+    text: `Exact body: ${id}`,
+    created_at: createdAt,
+  }));
+  try {
+    for (const all of [false, true]) {
+      const response = await request(all);
+      assert.equal(response.status, 200);
+      const { items } = await response.json();
+      for (const [id, , expected] of cases) {
+        const item = items.find((item: any) => item.id === id);
+        assert.equal(item?.kind, expected);
+        assert.equal(item?.text, `Exact body: ${id}`);
+        assert.equal(item?.recommendationId, "recommendation");
+      }
+    }
+  } finally {
+    rows.talent_progress = original;
+  }
+});
+
+test("server applies search and type filters and rejects malformed queries", async () => {
+  const run = (suffix: string) =>
+    GET({
+      nextUrl: new URL(
+        `https://example.test/api/org/activity?workspaceId=${workspaceId}${suffix}`
+      ),
+    } as NextRequest);
+  const response = await run("&search=Research&kind=messages");
+  assert.equal(response.status, 200);
+  const page = await response.json();
+  assert.equal(page.items.length, 1);
+  assert.equal(page.items[0].roleId, secondRoleId);
+  assert.equal(page.nextCursor, null);
+  assert.equal((await run("&cursor=not-a-cursor")).status, 400);
+  assert.equal((await run("&kind=unknown")).status, 400);
+  assert.equal((await run(`&roleId=${hiddenRoleId}`)).status, 404);
 });
 
 test("role feed denies access before querying progress", async () => {

@@ -1,3 +1,4 @@
+import { PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 import "server-only";
 
 import { createChatCompletionWithFallback } from "@/lib/llm/llm";
@@ -48,7 +49,7 @@ export async function callRoleStartJson<T>(args: {
       buildRequest: () => ({
         max_completion_tokens: args.maxOutputTokens ?? 16_000,
         messages: [
-          { role: "system", content: args.system },
+          { role: "system", content: `Time zone: ${PROMPT_TIME_ZONE}.\n${args.system}` },
           { role: "user", content: args.user },
         ],
       }),

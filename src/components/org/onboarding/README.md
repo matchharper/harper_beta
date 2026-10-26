@@ -16,6 +16,21 @@ introduced. This section does not claim production deployment.
 
 ## Preview
 
+On entering `guide`, the real flow starts one Exa `auto` search (10 results,
+structured job title/URL output) using the company's public identity. The result,
+including an empty result, is cached per user/workspace in localStorage. There
+are no retries or follow-up searches. Guide remains interactive; only its Next
+button waits if the request is still pending. Failure or a 20-second client
+timeout continues without suggestions. Done shows at most two roles immediately
+above Complete. Selecting one completes onboarding in the web flow, skips the
+Slack welcome handoff, and opens `/org/new` with the localized request and job
+link prefilled; nothing is sent until the user submits the composer.
+
+The preview includes two synthetic jobs and a short simulated search delay.
+Click either job on Done to try the real composer with the prefilled text,
+without creating a Role or sending a message. It never calls Exa. Preview
+results use a separate browser-cache key from real workspaces.
+
 Run `pnpm dev`, then open `/org/onboarding-preview` on the local server.
 You can also open it in a new tab from `/org/home` → Dev controls →
 `온보딩 조건별 미리보기 열기` (`Open onboarding previews`).
@@ -33,7 +48,7 @@ You can also open it in a new tab from `/org/home` → Dev controls →
   alternate-email invitation dialog. The role selector previews no role, draft,
   active, paused, and ended states.
 - `?screen=company` opens a specific screen. Other values: `entry`,
-  `organization-create`, `profile`, `company-details`, `slack`, `slack-channel`,
+  `organization-create`, `profile`, `slack`, `slack-channel`,
   `slack-invite`, `roles`, `plan`, `guide`, `done`. An unavailable screen falls back to the
   first applicable one.
 - `guide` always appears immediately before completion, outside the progress
@@ -44,10 +59,10 @@ You can also open it in a new tab from `/org/home` → Dev controls →
   list spacing and typography. The translated title and `guideItems` copy remain
   in `OrgOnboardingPage.tsx`.
 - `?flow=new` starts with the real signup-entry component; its preview-only button
-  simulates workspace creation. **Ordinary no-workspace entry currently pauses
-  self-serve signup** in `OrgWorkspaceApp`; this option does not enable it.
+  simulates workspace creation. Public signup availability in `OrgWorkspaceApp`
+  follows `COMPANY_SELF_SERVE_SIGNUP_ENABLED`; the preview does not change it.
 - `?flow=additional` starts with the real Organization creation form. Its preview
-  submits only to a local callback, then opens company confirmation.
+  submits only to a local callback, then opens the combined company form.
 - `?screen=roles&roleStatus=active` selects a role status.
 - `?screen=done&roleStatus=none` shows completion when no role is set. The role
   step is skipped, as it is in the actual onboarding flow.
@@ -69,3 +84,8 @@ In production, the page renders only for signed-in accounts allowed to use Org
 dev controls; other accounts see a 404 screen. Local development needs no login.
 This is a UI inspection tool, not a test
 of authentication, OAuth, email delivery, database writes, or LLM behavior.
+
+The signup company step combines company name, LinkedIn URL and Pitch. Background
+research pre-fills the form, including its description in Pitch, without overwriting
+edited fields. Profile continues directly to this form. Company confirmation is
+saved before the existing Pitch submission; old company-details drafts resume here.

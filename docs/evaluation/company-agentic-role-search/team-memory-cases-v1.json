@@ -1,0 +1,14 @@
+{
+  "version": "team-memory-v1",
+  "evaluationUnit": "One real organization-authorized teammate, existing real team, three-turn Memory-only conversation.",
+  "cases": [
+    {
+      "id": "ARSTM01",
+      "turns": [
+        "{{teamName}} 팀에만 적용할 메모리로 저장해 주세요. 이 팀은 후보자 검토 메모에 실제 수행한 업무와 아직 확인이 필요한 점을 구분해서 남깁니다. 회사 전체나 개별 Role 기준은 바꾸지 말고 메모리만 저장해 주세요.",
+        "방금 팀 메모리를 정정할게요. 실제 수행한 업무와 확인이 필요한 점을 구분하는 것은 유지하고, 직함보다 실제 담당 범위를 먼저 확인한다는 내용을 같은 메모리에 추가해 주세요. 새 메모리로 중복 저장하지 마세요.",
+        "이 팀에 저장된 최신 메모리를 원문과 적용 범위, 작성·수정 시각까지 보여 주세요. 이번 대화에서 회사 전체나 개별 Role의 메모리·채용 기준도 바뀌었는지 확인해 주세요."
+      ]
+    }
+  ]
+}

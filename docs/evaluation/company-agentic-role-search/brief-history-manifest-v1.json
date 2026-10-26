@@ -1,0 +1,32 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "brief-history-v1",
+  "createdAt": "2026-10-22T09:15:04.030156+00:00",
+  "casesFile": "brief-history-cases-v1.json",
+  "goldFile": "brief-history-gold-v1.json",
+  "files": {
+    "brief-history-cases-v1.json": "5724ff589f224ff2345bb927f0a3b3a4d160b47ceaba0d14fc3aaa694019dd9f",
+    "brief-history-gold-v1.json": "e18e01de81a173687bdbe078a0e18566d777289a30654aee589d0ac6cd1b49b4"
+  },
+  "status": "Frozen pre-execution design; actual product-contract adapter pending",
+  "canonicalRunner": "harper_beta/scripts/evalCompanyHiringBriefHistory.ts",
+  "canonicalRunnerPlan": "One frozen case per OS process. Reuse actual production role-save service, summary processor, company web-action processor and ordinary company tool loop. Snapshot exact runtime/harness hashes before calls. Web HTTP and browser behavior are separate companion evidence; local queue/auth transport is not production validation.",
+  "frozenSource": "Original real bootstrap-v3; new schema only on new isolated clones with migration hash and no fabricated history rows",
+  "modelConfiguration": "Company product default; background Luna low; record actual provider/model/reasoning/input/output/usage per run",
+  "goldReview": "Codex authored before model execution; parent contract review and actual-six-case execution approved 2026-10-22. Cases and gold unchanged.",
+  "metrics": [
+    "Actual before/after history",
+    "Summary input scope and factual accuracy",
+    "Exactly-once web-only automatic user message",
+    "Noop/retransmission effects",
+    "General history-read accuracy and unauthorized-effect absence"
+  ],
+  "privacy": "Raw Role data/provider/UI traces owner-only in ignored runs; public gold has no private identifiers",
+  "productionWrites": false,
+  "externalDelivery": false,
+  "limitations": [
+    "Design is not proof of implementation or deployment",
+    "Single real Role with local auth/Slack transport substitution",
+    "Separate six-case extension, not original sixteen-case pass rate"
+  ]
+}

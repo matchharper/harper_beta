@@ -40,6 +40,7 @@ export const browserStateSchema = z.object({
   sourceMessageId: z.number().int().positive().optional(),
   progress: browserProgressEntrySchema.array().max(40).optional(),
   cursor: z.string().optional(),
+  usageLoggedCount: z.number().int().nonnegative().optional(),
   leaseUntil: z.string().optional(),
   taskSent: z.boolean().optional(),
   recoveryTurnId: z.string().optional(),

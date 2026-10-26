@@ -7,6 +7,7 @@ import {
 import { EXTERNAL_MEASUREMENT_VERSION } from "../externalRecommendationsV2/measurement";
 import {
   buildExternalRecommendationExperiment as build,
+  selectExternalExperimentRuns,
   type ExternalExperimentRun as Run,
   type ExternalExperimentRecommendation as Rec,
   type ExternalExperimentReceipt,
@@ -246,5 +247,90 @@ test("all surfaces pool run metrics and feedback while counting each user once",
   assert.deepEqual(
     result.variants[1].summaryMetrics!.map((m) => m.value),
     [0.08, 20, 1, null, 1]
+  );
+});
+
+test("observed production version remains visible before the new producers ship", () => {
+  const production = { measurementVersion: "previous-production-version" };
+  const first = run("control", a, 10, { metrics: production });
+  const second = run("v2", b, 9, { metrics: production });
+  const result = summary(
+    [
+      second,
+      run("older", a3, 12, {
+        metrics: { measurementVersion: "older-version" },
+      }),
+      run("internal-new-version", a2, 1),
+      first,
+    ],
+    [{ ...rec(first, 9), feedback: "like" }, rec(second, 8)],
+    [{ request_id: first.id, estimated_cost_usd: 0.04, cost_status: "priced" }],
+    new Set([a2])
+  );
+  assert.equal(result.measurementVersion, production.measurementVersion);
+  assert.equal(result.id, "previous-production-version:web");
+  assert.equal(result.status, "running");
+  assert.deepEqual(
+    result.variants.map((v) => v.sampleCount),
+    [1, 1]
+  );
+  assert.deepEqual(
+    result.variants.map((v) => v.primary.rate),
+    [1, 1]
+  );
+  assert.deepEqual(
+    result.variants[0].summaryMetrics!.map((m) => m.value),
+    [0.04, 20, 1, null, 1]
+  );
+});
+
+test("current version stays separate when old workers still record newer runs", () => {
+  const result = summary([
+    run("new", a, 10),
+    run("old-worker", b, 1, {
+      metrics: { measurementVersion: "previous-version" },
+    }),
+  ]);
+  assert.equal(result.measurementVersion, EXTERNAL_MEASUREMENT_VERSION);
+  assert.deepEqual(
+    result.variants.map((v) => v.sampleCount),
+    [1, 0]
+  );
+  assert.equal(result.status, "observing");
+});
+
+test("fallback selection respects surface, excluded users, and forced cohorts", () => {
+  const production = run("production", a, 10, {
+    metrics: { measurementVersion: "production-version" },
+  });
+  const selected = selectExternalExperimentRuns({
+    runs: [
+      production,
+      run("internal", a2, 1),
+      run("different-surface", a3, 1, { surface: "worker" }),
+      run("forced", b, 1, { variant: "control" }),
+      run("forced-natural", b, 2),
+      run("unversioned", a, 1, { metrics: {} }),
+    ],
+    surface: "web",
+    excludedUserIds: new Set([a2]),
+  });
+  assert.equal(selected.measurementVersion, "production-version");
+  assert.deepEqual(
+    selected.runs.map((r) => r.id),
+    [production.id]
+  );
+});
+
+test("no eligible version remains empty instead of mixing unversioned runs", () => {
+  const result = summary([
+    run("missing", a, 1, { metrics: {} }),
+    run("blank", b, 1, { metrics: { measurementVersion: " " } }),
+  ]);
+  assert.equal(result.measurementVersion, null);
+  assert.equal(result.status, "awaiting_data");
+  assert.deepEqual(
+    result.variants.map((v) => v.sampleCount),
+    [0, 0]
   );
 });

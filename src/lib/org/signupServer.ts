@@ -129,58 +129,55 @@ export async function researchSignupCompany(
     ].map((key) => [key, { type: "string" }])
   );
   const result = await exa.search(
-    `Company information about ${domain}: official company name, what the company does, headquarters and LinkedIn company page`,
+    `${domain} (site:linkedin.com/company | company)`,
     {
       type: "auto",
-      includeDomains: [domain],
-      numResults: 3,
-      contents: {
-        summary: {
-          query:
-            "Extract the company operating this website, not its customers or partners. Use only facts supported by this page. Keep the description concise. Return empty strings for unknown fields. linkedinUrl must be an official LinkedIn company page explicitly linked or stated in the source.",
-          schema: {
-            type: "object",
-            properties,
-            required: Object.keys(properties),
-            additionalProperties: false,
-          },
-        },
+      numResults: 10,
+      systemPrompt: `Extract information about the company operating ${domain}, not its customers or partners. Use only facts supported by the search results. Keep the description concise. Return empty strings for unknown fields. linkedinUrl must be the official LinkedIn company page supported by the sources.`,
+      outputSchema: {
+        type: "object",
+        properties,
+        required: Object.keys(properties),
       },
     }
   );
-  for (const row of result.results) {
-    const sourceDomain = parse(row.url, { allowPrivateDomains: true }).domain;
-    if (sourceDomain !== domain || !row.summary) continue;
+  try {
+    const content = result.output?.content;
+    const data = typeof content === "string" ? JSON.parse(content) : content;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+    // An absent/invalid optional link should not discard supported company facts.
     try {
-      if (!["https:", "http:"].includes(new URL(row.url).protocol)) continue;
-      const data = JSON.parse(row.summary);
-      // An absent/invalid optional link should not discard supported company facts.
-      try {
-        data.linkedinUrl = normalizedLinkedinUrl(data.linkedinUrl);
-      } catch {
-        data.linkedinUrl = "";
-      }
-      const company = companyInput(data);
-      return {
-        ...company,
-        location:
-          typeof data.location === "string" ? data.location.slice(0, 300) : "",
-        ...Object.fromEntries(
-          [
-            "totalFundingRaised",
-            "mainInvestors",
-            "lastFundingStage",
-            "lastFundingRoundDescription",
-          ].map((key) => [
-            key,
-            typeof data[key] === "string" ? data[key].slice(0, 1200) : "",
-          ])
-        ),
-        sources: [{ title: row.title || domain, url: row.url }],
-      };
+      data.linkedinUrl = normalizedLinkedinUrl(data.linkedinUrl);
     } catch {
-      /* Unknown or malformed provider data is not a company fact. */
+      data.linkedinUrl = "";
     }
+    const company = companyInput(data);
+    const citations = (result.output?.grounding ?? [])
+      .flatMap((entry) => entry.citations)
+      .filter((source) =>
+        ["https:", "http:"].includes(new URL(source.url).protocol)
+      );
+    return {
+      ...company,
+      location:
+        typeof data.location === "string" ? data.location.slice(0, 300) : "",
+      ...Object.fromEntries(
+        [
+          "totalFundingRaised",
+          "mainInvestors",
+          "lastFundingStage",
+          "lastFundingRoundDescription",
+        ].map((key) => [
+          key,
+          typeof data[key] === "string" ? data[key].slice(0, 1200) : "",
+        ])
+      ),
+      sources: [
+        ...new Map(citations.map((source) => [source.url, source])).values(),
+      ],
+    };
+  } catch {
+    /* Unknown or malformed provider data is not a company fact. */
   }
   return null;
 }

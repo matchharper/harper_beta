@@ -1,5 +1,8 @@
+import { stringifyLlmDateTimes } from '@/lib/llm/promptDateTime';
 import { throwIfToolControlError } from "@/lib/llm/toolError";
-import { formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
+import { createCandidateEmailPrivacy } from "./candidateEmailPrivacy";
+import { resolveOrgAgentPrivateCandidateEmails } from "../server";
+import { appendToolDiagnosticText, formatToolError, serializeToolResultForModel } from "@/lib/llm/toolError";
 import { runToolCall, unwrapToolCall, prepareToolDeliveryParts } from "@/lib/llm/toolExecution";
 import { buildCompanyUpdatePrompt } from "./companyUpdate";
 import { companyConversationReadAdmin } from "./companyReadScope.server";
@@ -99,9 +102,8 @@ import {
   NORMAL_TOOL_COMPLETION_MAX_TOKENS,
 } from "@/lib/org/agent/toolCompletionBudget";
 import {
-  fitOrgAgentToolResultToBudget,
-  fitOrgAgentDiagnosticSupplements,
-  ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS,
+  buildOrgAgentRollingToolContext,
+  canCompactOrgAgentRead,
 } from "@/lib/org/agent/toolResultBudget";
 import {
   captureOrgAgentContactDraftState,
@@ -209,14 +211,10 @@ type OrgAgentLlmMessage = {
   tool_calls?: OrgAgentLlmToolCall[];
 };
 
-// A completion may request several independent tools. Thirty calls is the
-// explicit per-turn safety boundary; normal batch work should need far fewer
-// model round trips.
-const MAX_TOOL_LOOPS = 30;
-const MAX_TOTAL_TOOL_CALLS = 30;
-const TOOL_FREE_FINAL_MAX_TOKENS = 2_000;
+const TOOL_FREE_FINAL_MAX_TOKENS = 65_536;
 
 export async function generateOrgAgentBackgroundResultReply(args: {
+  workspaceId?: string;
   companyUpdateContext?: Record<string, unknown>;
   model?: unknown;
   candidateTargets?: BackgroundResultCandidateTarget[];
@@ -237,11 +235,12 @@ export async function generateOrgAgentBackgroundResultReply(args: {
   const modelConfig = resolveOrgAgentModel(args.model);
   const surface = args.surface ?? "chat";
   const completion = await runCompletion({
+    candidateEmailWorkspaceId: args.workspaceId,
     responseFormat: args.candidateTargets?.length
       ? backgroundResultResponseFormat(args.candidateTargets.map(candidate => candidate.id))
       : undefined,
     allowTools: false,
-    maxTokens: TOOL_FREE_FINAL_MAX_TOKENS + (args.candidateTargets?.length ?? 0) * 100,
+    maxTokens: TOOL_FREE_FINAL_MAX_TOKENS,
     messages: buildOrgAgentBackgroundResultMessages({
       companyUpdateContext: args.companyUpdateContext,
       candidateTargets: args.candidateTargets,
@@ -459,6 +458,8 @@ function buildProposalPresentation(args: {
 }
 
 export async function runOrgAgentCompletion(args: {
+  /** Trusted workspace scope for the last model-input privacy boundary. */
+  candidateEmailWorkspaceId?: string;
   allowTools: boolean;
   maxTokens: number;
   messages: OrgAgentLlmMessage[];
@@ -476,6 +477,11 @@ export async function runOrgAgentCompletion(args: {
     throw new Error(
       "Tool-enabled completion requires an explicit resolved tool snapshot"
     );
+  const messages = args.candidateEmailWorkspaceId
+    ? await createCandidateEmailPrivacy(emails => resolveOrgAgentPrivateCandidateEmails({
+        admin: getSupabaseAdmin(), workspaceId: args.candidateEmailWorkspaceId!, emails,
+      }))(args.messages)
+    : args.messages;
   const maxTokens = companyCompletionTokenBudget(
     args.model,
     args.maxTokens,
@@ -491,7 +497,7 @@ export async function runOrgAgentCompletion(args: {
       ...(usesMaxCompletionTokensForModel(model)
         ? { max_completion_tokens: maxTokens }
         : { max_tokens: maxTokens }),
-      messages: args.messages as any,
+      messages: messages as any,
       ...(args.responseFormat ? { response_format: args.responseFormat } : {}),
       temperature: ORG_AGENT_TEMPERATURE,
       // Gemini thought signatures must not cross provider implementations.
@@ -577,7 +583,7 @@ export type OrgAgentLoopDependencies = {
 export async function runOrgAgentToolLoop(
   args: {
     allowSilentCompletion?: boolean;
-    backgroundOrigin?: "scheduled_review";
+    backgroundOrigin?: "scheduled_review" | "scheduled_matching";
     capabilityMode?: CompanyCapabilityMode;
     companyMessageAudience?: CompanyMessageAudience;
     actorId: string;
@@ -605,6 +611,8 @@ export async function runOrgAgentToolLoop(
     initialCapabilities?: readonly CompanyCapabilityId[];
     /** Server-owned execution boundary; never taken from model or request data. */
     allowedToolNames?: ReadonlySet<string>;
+    /** Trusted async effect sinks can end a turn after success without another completion. */
+    finishAfterToolNames?: ReadonlySet<string>;
     responseLocale?: OrgLocale | "auto";
     readAudience: "caller" | "company_safe";
     referenceAttachments?: ChatAttachmentPayload[];
@@ -671,20 +679,17 @@ export async function runOrgAgentToolLoop(
     args.reasoningEffort ?? getOrgAgentReasoningEffort(activeModel);
   let calibrationCompleted = false;
   let fallbackReason: ChatCompletionFallbackReason | null = null;
-  let totalToolCalls = 0;
-  let totalToolResultChars = 0;
-  const supplementalResults: Array<{ index: number; content: string; diagnosticText?: string }> = [];
-  const refreshSupplementalResults = () => {
-    const refreshed = fitOrgAgentDiagnosticSupplements(supplementalResults, ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars);
-    supplementalResults.forEach((entry, index) => { messages[entry.index]!.content = refreshed[index]!; });
-  };
-  let toolBudgetReached = false;
+  // The transcript is never rewritten. Only the next completion's working view
+  // may omit old descriptive read detail; actions and exact write evidence stay.
+  const compactableResultIndexes = new Set<number>();
   const usage = createTurnUsage();
   const debugCalls: LlmDebugCall[] = [];
   let visibleProgressPublished = args.visibleProgressPublished === true;
   let upstreamProvider: string | undefined;
 
-  for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
+  for (let loop = 0; ; loop += 1) {
+    args.signal?.throwIfAborted();
+    await args.assertCanContinue?.();
     const resolved = resolveCompanyCapabilities({
       surface: args.source,
       emailReply: args.responseSurface === "email",
@@ -703,13 +708,14 @@ export async function runOrgAgentToolLoop(
         backgroundOrigin: args.backgroundOrigin,
       }),
     };
-    refreshSupplementalResults();
+    const workingContext = buildOrgAgentRollingToolContext({ messages, compactableResultIndexes });
     let completion: Awaited<ReturnType<typeof runCompletion>>;
     try {
       completion = await (dependencies.complete ?? runCompletion)({
+        candidateEmailWorkspaceId: args.conversation.company_workspace_id,
         allowTools: true,
         maxTokens: getOrgAgentToolCompletionMaxTokens(state),
-        messages,
+        messages: workingContext.messages,
         model: activeModel,
         onTextDelta: args.onTextDelta,
         reasoningEffort: activeReasoningEffort,
@@ -735,6 +741,7 @@ export async function runOrgAgentToolLoop(
         getLlmErrorMessage(error)
       );
       return {
+        toolTranscript: messages,
         debugCalls,
         fallbackReason,
         model: activeModel,
@@ -760,6 +767,7 @@ export async function runOrgAgentToolLoop(
     const toolCalls = normalizeToolCalls(responseMessage);
     if (toolCalls.length === 0) {
       return {
+        toolTranscript: messages,
         debugCalls,
         fallbackReason,
         model: activeModel,
@@ -838,26 +846,6 @@ export async function runOrgAgentToolLoop(
           ...event,
         } satisfies OrgAgentToolDebugEvent);
       };
-      if (totalToolCalls >= MAX_TOTAL_TOOL_CALLS) {
-        toolBudgetReached = true;
-        messages.push({
-          content: serializeOrgAgentToolError({
-            kind: "budget",
-            message: "Tool call budget reached.",
-            name: toolName,
-          }),
-          name: toolName || "unknown_tool",
-          role: "tool",
-          tool_call_id: toolCall.id,
-        });
-        emitToolDebug({
-          status: "skipped",
-          summary: "tool call budget reached",
-        });
-        continue;
-      }
-      totalToolCalls += 1;
-
       // Freeze the pre-completion snapshot: a loader in this batch cannot
       // retroactively authorize another call before its policy was exposed.
       if (!offeredTools.has(toolName)) {
@@ -886,6 +874,11 @@ export async function runOrgAgentToolLoop(
         });
         continue;
       }
+      if (toolCalls.length > 1 && toolCalls.some(call => args.finishAfterToolNames?.has(call.function.name))) {
+        messages.push({role: "tool", name: toolName, tool_call_id: toolCall.id,
+          content: "No action executed. A final submission must be called alone; put all selected actions in that one call."});
+        continue;
+      }
       if (toolName === "load_capabilities") {
         let result: ReturnType<typeof loadCompanyCapabilities>;
         try {
@@ -901,21 +894,11 @@ export async function runOrgAgentToolLoop(
             validIds: [],
           };
         }
-        const fitted = fitOrgAgentToolResultToBudget({
-          remainingChars: Math.max(
-            0,
-            ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars
-          ),
-          serializedResult: JSON.stringify(result),
-        });
-        const content = fitted.content;
-        if (!fitted.complete) toolBudgetReached = true;
-        totalToolResultChars += content.length;
         messages.push({
           role: "tool",
           tool_call_id: toolCall.id,
           name: toolName,
-          content,
+          content: JSON.stringify(result),
         });
         state.toolResults.push({
           callId: toolCall.id,
@@ -1034,18 +1017,8 @@ export async function runOrgAgentToolLoop(
         }
         const preparedResult = prepareToolDeliveryParts(toolCapture, value => formatOrgAgentToolResult(toolName, value));
         const serializedResult = preparedResult.content;
-        const remainingResultChars = Math.max(
-          0,
-          ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS - totalToolResultChars
-        );
-        const fittedResult = fitOrgAgentToolResultToBudget({
-          remainingChars: remainingResultChars,
-          serializedResult,
-        });
-        const resultWasTruncated = !fittedResult.complete;
-        const boundedResult = fittedResult.content;
-        totalToolResultChars += boundedResult.length;
-        if (resultWasTruncated) {
+        const serializationIncomplete = serializedResult.startsWith("serialization_complete=false");
+        if (serializationIncomplete) {
           restoreLongTextVisibility({
             completeTargets: completeBefore,
             observedFingerprints: observedBefore,
@@ -1054,19 +1027,28 @@ export async function runOrgAgentToolLoop(
           });
         }
         messages.push({
-          content: boundedResult,
+          content: preparedResult.diagnosticText
+            ? appendToolDiagnosticText(serializedResult, preparedResult.diagnosticText)
+            : serializedResult,
           name: toolName,
           role: "tool",
           tool_call_id: toolCall.id,
         });
-        supplementalResults.push({ index: messages.length - 1, content: boundedResult,
-          ...(preparedResult.diagnosticText ? { diagnosticText: preparedResult.diagnosticText } : {}) });
-        refreshSupplementalResults();
         const resultMetadata = state.toolResults.findLast(
           (item) => item.callId === toolCall.id
         );
         const resultFailed = resultMetadata?.status === "error";
+        // Exact documents whose fingerprints authorize a later rewrite stay
+        // visible. Failures/diagnostics and all non-read tools are also pinned.
+        const addedFullRead = state.pendingFullRoleRequestIds.size > pendingRoleReadsBefore.size
+          || state.completeLongTextTargets.size > completeBefore.size
+          || [...state.observedLongTextFingerprints].some(([key, value]) => observedBefore.get(key) !== value);
+        if (canCompactOrgAgentRead(toolName, toolInput) && !resultFailed && !serializationIncomplete && !preparedResult.diagnosticText && !addedFullRead) {
+          compactableResultIndexes.add(messages.length - 1);
+        }
         emitToolStatus(resultFailed ? "error" : "done");
+        if (!resultFailed && args.finishAfterToolNames?.has(toolName))
+          return {toolTranscript: messages, debugCalls, fallbackReason, model: activeModel, reply: "", state, usage};
         emitToolDebug({
           resultShape: summarizeOrgAgentToolResult(result),
           resultStatus: resultMetadata?.status ?? "success",
@@ -1133,81 +1115,9 @@ export async function runOrgAgentToolLoop(
       });
     }
     promoteOrgAgentToolReadVisibility(state);
-    if (state.companyMessageBatch) return { debugCalls, fallbackReason, model: activeModel, reply: "", state, usage };
-    if (toolBudgetReached || totalToolCalls >= MAX_TOTAL_TOOL_CALLS) break;
+    if (state.companyMessageBatch) return { toolTranscript: messages, debugCalls, fallbackReason, model: activeModel, reply: "", state, usage };
   }
 
-  refreshSupplementalResults();
-  let finalCompletion: Awaited<ReturnType<typeof runCompletion>>;
-  try {
-    finalCompletion = await (dependencies.complete ?? runCompletion)({
-      allowTools: false,
-      maxTokens: TOOL_FREE_FINAL_MAX_TOKENS,
-      messages: [
-        ...messages,
-        {
-          content: args.allowSilentCompletion
-            ? "Tool use is finished for this turn. Write a company-facing response only if there is a useful verified result, warning, necessary question, or next step. Otherwise return no text."
-            : "Tool use is finished for this turn. Write the final company-facing response from the verified results above.",
-          role: "user",
-        },
-      ],
-      model: activeModel,
-      reasoningEffort: activeReasoningEffort,
-      signal: args.signal,
-      strictModel: calibrationCompleted,
-      upstreamProvider,
-      onTextDelta: args.onTextDelta,
-    });
-  } catch (error) {
-    args.signal?.throwIfAborted();
-    if (args.allowSilentCompletion) throw error;
-    if (
-      !state.fallbackReply &&
-      !state.stagedProposal &&
-      !state.requiredPresentationText &&
-      !state.requiredSlackContinuationLink &&
-      state.updateSummaries.length === 0
-    )
-      throw error;
-    console.error(
-      "[org/agent:final-post-tool-completion]",
-      getLlmErrorMessage(error)
-    );
-    return {
-      debugCalls,
-      fallbackReason,
-      model: activeModel,
-      reply: buildFallbackReply(state),
-      completionError: getLlmErrorMessage(error),
-      state,
-      usage,
-    };
-  }
-  activeModel = finalCompletion.model as OrgAgentModelId;
-  fallbackReason = fallbackReason ?? finalCompletion.fallbackReason ?? null;
-  addCompletionUsage({
-    debugCalls,
-    model: finalCompletion.model,
-    response: finalCompletion.response,
-    step: "final_response",
-    usage,
-  });
-  const finalText = extractAssistantText(
-    finalCompletion.response?.choices?.[0]?.message
-  );
-  return {
-    debugCalls,
-    fallbackReason,
-    model: activeModel,
-    reply: finalText
-      ? enforceOrgAgentReplyInvariants(state, finalText)
-      : args.allowSilentCompletion
-        ? ""
-        : enforceOrgAgentReplyInvariants(state, buildFallbackReply(state)),
-    state,
-    usage,
-  };
 }
 
 export function buildAssistantMetadata(args: {
@@ -1380,6 +1290,7 @@ export async function runOrgAgentWebActionTurn(args: {
   });
   const modelConfig = resolveOrgAgentModel(args.actionContext.slackThreadId ? getSlackOrgAgentModel() : undefined);
   const runId = args.jobId;
+  const isHiringBriefRequest = args.actionName === "hiring_brief_saved";
   const isCandidateContact = args.actionName === "candidate_contact_received";
   const isCompanyUpdate = args.actionName === "company_update";
   const slackThreadId = String(args.actionContext.slackThreadId ?? "").trim() || null;
@@ -1500,8 +1411,10 @@ export async function runOrgAgentWebActionTurn(args: {
         allowPendingDelivery: args.actionContext.contactPendingDelivery === true,
       })
     : null;
-  const eventContext = JSON.stringify(args.actionContext).slice(0, 24_000);
-  const eventPrompt = isCompanyUpdate
+  const eventContext = stringifyLlmDateTimes(args.actionContext).slice(0, 24_000);
+  const eventPrompt = isHiringBriefRequest
+    ? String(args.actionContext.userMessage ?? "")
+    : isCompanyUpdate
     ? buildCompanyUpdatePrompt(args.actionContext)
     : isCandidateContact
     ? buildCompanyContactEventPrompt(contactContext!)
@@ -1514,7 +1427,7 @@ export async function runOrgAgentWebActionTurn(args: {
       ].join("\n");
 
   const llmResult = await runOrgAgentToolLoop({
-    allowSilentCompletion: !isCompanyUpdate || companyMessageAlreadyDelivered,
+    allowSilentCompletion: !isHiringBriefRequest && (!isCompanyUpdate || companyMessageAlreadyDelivered),
     companyMessageAudience,
     slackExecutionContext,
     responseLocale: args.responseLocale ?? "auto",
@@ -1537,7 +1450,7 @@ export async function runOrgAgentWebActionTurn(args: {
     slackThreadId,
     source: slackThreadId ? "slack" : "chat",
     user: args.user,
-    userLabel: isCandidateContact
+    userLabel: isHiringBriefRequest ? args.actorLabel : isCandidateContact
       ? "delivered candidate contact event"
       : "authenticated web action",
     userMessage: eventPrompt,
@@ -1679,6 +1592,7 @@ export async function runOrgAgentChat(args: {
   mentions?: OrgAgentMention[];
   message: string;
   model?: unknown;
+  reasoningEffort?: OrgAgentReasoningEffort;
   initialCapabilities?: readonly CompanyCapabilityId[];
   initialDataKinds?: readonly OrgAgentMoreDataKind[];
   responseLocale?: OrgLocale;
@@ -1933,6 +1847,7 @@ export async function runOrgAgentChat(args: {
       emit: args.emit,
       mentions,
       model: modelConfig.model,
+      reasoningEffort: args.reasoningEffort,
       responseLocale: args.responseLocale,
       initialCapabilities: args.initialCapabilities,
       allowedToolNames: args.allowedToolNames,

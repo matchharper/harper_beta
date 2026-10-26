@@ -107,7 +107,8 @@ export type CompanyDataCatalogEntry = {
   confirmationRequired: boolean;
   longText: boolean;
   maxItems?: number;
-  maxLength?: number;
+  /** null means unbounded; undefined uses the type default. */
+  maxLength?: number | null;
   nullable: boolean;
   roleScoped: boolean;
   type: CompanyDataLogicalType;
@@ -116,7 +117,7 @@ export type CompanyDataCatalogEntry = {
 const text = (args: {
   confirmationRequired?: boolean;
   longText?: boolean;
-  maxLength: number;
+  maxLength: number | null;
   nullable?: boolean;
   roleScoped?: boolean;
 }): CompanyDataCatalogEntry => ({
@@ -230,8 +231,20 @@ export const COMPANY_DATA_CATALOG: Record<
     roleScoped: true,
     type: "enum",
   },
-  role_is_promote: { confirmationRequired: false, longText: false, nullable: false, roleScoped: true, type: "boolean" },
-  role_is_anonymous: { confirmationRequired: false, longText: false, nullable: false, roleScoped: true, type: "boolean" },
+  role_is_promote: {
+    confirmationRequired: false,
+    longText: false,
+    nullable: false,
+    roleScoped: true,
+    type: "boolean",
+  },
+  role_is_anonymous: {
+    confirmationRequired: false,
+    longText: false,
+    nullable: false,
+    roleScoped: true,
+    type: "boolean",
+  },
   role_is_company_first_search: {
     confirmationRequired: false,
     longText: false,
@@ -274,7 +287,7 @@ export const COMPANY_DATA_CATALOG: Record<
   role_request: text({
     confirmationRequired: false,
     longText: true,
-    maxLength: 20_000,
+    maxLength: null,
     roleScoped: true,
   }),
   role_memory: text({
@@ -361,4 +374,12 @@ export function companyDataDisplayLabel(
   return COMPANY_DATA_CATALOG[key].roleScoped && roleName
     ? `${roleName} · ${label}`
     : label;
+}
+
+/** Preserve explicit unbounded text fields without changing older field defaults. */
+export function companyDataTextLimit(
+  entry: CompanyDataCatalogEntry,
+  fallback = 20_000
+): number | null {
+  return entry.maxLength === null ? null : (entry.maxLength ?? fallback);
 }

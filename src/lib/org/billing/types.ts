@@ -34,7 +34,7 @@ export class WorkspaceBillingError extends Error {
     public readonly code: BillingErrorCode,
     public readonly status = 409
   ) {
-    super("요청을 완료하지 못했어요. Harper 팀에 문의해 주세요.");
+    super(code === "role_capacity_exceeded" ? billingErrorCopy(code, "ko") : "요청을 완료하지 못했어요. Harper 팀에 문의해 주세요.");
     this.name = "WorkspaceBillingError";
   }
 }
@@ -210,8 +210,8 @@ export function billingErrorCopy(code: BillingErrorCode, locale: "ko" | "en") {
       "Start hiring for this Role before trying again.",
     ],
     role_capacity_exceeded: [
-      "Role을 시작하지 못했어요. 새로고침한 뒤 다시 시도해 주세요. Role 수에는 제한이 없어요.",
-      "Could not start this Role. Refresh and try again. Roles are unlimited.",
+      "Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 다른 Role을 시작하려면 현재 Free Role을 일시 중지하거나 사용 가능한 유료 슬롯이 필요해요.",
+      "Only one Free Role can be active at a time. Starting another Role requires pausing the current Free Role or having an available paid slot.",
     ],
     billing_unavailable: [
       "결제 정보를 불러오지 못했어요. 잠시 후 다시 시도하거나 Harper 팀에 문의해 주세요.",

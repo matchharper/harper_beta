@@ -263,7 +263,7 @@ test("company context always includes the complete pitch document and no legacy 
   assert.doesNotMatch(formatted, /brief|company_description|short_description/);
 });
 
-test("oversized recent pipeline data is replaced by one unambiguous incomplete marker", async () => {
+test("large recent pipeline details retain a compact complete identity and relationship index", async () => {
   const { formatRecentRecommendations } =
     await import("@/lib/org/agent/contextBudget");
   const rows = Object.assign(
@@ -281,16 +281,19 @@ test("oversized recent pipeline data is replaced by one unambiguous incomplete m
       },
       stage: "pending_connection",
       stageLabel: null,
+      companyIntroStatus: "ready",
+      criteriaEvaluations: [{ name: "Ownership", fitness: "good", content: "DETAIL".repeat(2_000) }],
     })),
     { recentComplete: true, returnedItems: 20 }
   ) as any;
 
   const formatted = formatRecentRecommendations(rows);
 
-  assert.match(formatted, /recent_complete=false/);
-  assert.match(formatted, /status=truncated/);
-  assert.doesNotMatch(formatted, /recent_complete=true/);
-  assert.doesNotMatch(formatted, /talent-0/);
+  assert.match(formatted, /recent_complete=true/);
+  assert.match(formatted, /talent-0/);
+  assert.match(formatted, /talent-19/);
+  assert.match(formatted, /ready/);
+  assert.doesNotMatch(formatted, /DETAIL|긴 헤드라인|status=truncated/);
 });
 
 test("total context truncation revokes every retained completeness marker", async () => {
@@ -352,11 +355,8 @@ test("total context truncation revokes every retained completeness marker", asyn
 
   const bounded = enforceOrgAgentContextBudget(context);
 
-  assert.match(bounded.recentRecommendationsText, /recent_complete=false/);
-  assert.doesNotMatch(
-    bounded.recentRecommendationsText,
-    /recent_complete=true/
-  );
+  assert.match(bounded.recentRecommendationsText, /recent_complete=true/);
+  assert.match(bounded.recentRecommendationsText, /talent_id/);
   assert.match(bounded.retainedDataText ?? "", /serialization_complete=false/);
   assert.doesNotMatch(bounded.retainedDataText ?? "", /complete=true/);
   assert.equal(retainedMoreData.companyDetails.complete, false);

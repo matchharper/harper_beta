@@ -1,3 +1,4 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import type { OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
@@ -79,7 +80,7 @@ export async function writeVerdict(args: {
     system: buildVerdictSystemPrompt(),
     user: `<ROLE>${args.roleName}</ROLE>
 <BRIEF>
-${JSON.stringify(verdictBrief(args.brief), null, 2)}
+${formatPromptText(verdictBrief(args.brief))}
 </BRIEF>
 ${args.probe ? `<WHY_INCLUDED>${args.probe.label}</WHY_INCLUDED>\n` : ""}<CANDIDATE_PROFILE>
 ${args.profile.document}

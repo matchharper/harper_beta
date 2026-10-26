@@ -54,11 +54,11 @@ const COMPANY_APP_BAR_COPY: Record<
   }
 > = {
   ko: {
-    audience: "For Talents",
+    audience: "For candidates",
     primary: "Meet",
   },
   en: {
-    audience: "For Talents",
+    audience: "For candidates",
     primary: "Meet",
   },
 };

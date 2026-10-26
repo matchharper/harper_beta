@@ -148,7 +148,7 @@ export function TalentProfileHeader({
             className={cn(
               "font-medium text-neutral-primary",
               variant === "review"
-                ? "break-words text-2xl leading-tight tracking-tight @min-[700px]/review:text-[30px]"
+                ? "break-words text-xl leading-tight tracking-tight @min-[700px]/review:text-[24px]"
                 : "truncate text-xl"
             )}
           >

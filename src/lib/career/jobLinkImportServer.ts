@@ -21,6 +21,7 @@ const EXISTING_ROLE_PROVIDER_ALIASES: Partial<
 };
 
 type ExistingRole = {
+  information: Json | null;
   company_workspace_id: string;
   external_jd_url: string | null;
   name: string;
@@ -41,6 +42,7 @@ export type CareerJobLinkImportResult = {
   recommendationId: string;
   roleId: string;
   roleSourceProvider: string;
+  savedStage: string;
 };
 
 type ImportCareerJobLinkArgs = {
@@ -49,6 +51,7 @@ type ImportCareerJobLinkArgs = {
   fetcher?: typeof fetch;
   manual?: CareerJobPostingManualFields;
   savedStage: "applied" | "closed" | "connected" | "saved";
+  preserveExistingProgress?: boolean;
   talentId: string;
   url: string;
 };
@@ -111,7 +114,7 @@ async function findRoleBySourceIdentity(args: {
     args.admin
       .from("company_roles")
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, source_provider, source_job_id"
+        "role_id, company_workspace_id, name, external_jd_url, source_provider, source_job_id, information"
       )
       .eq("source_type", "external")
       .eq("source_provider", args.provider)
@@ -158,7 +161,7 @@ async function findExistingRole(
         admin
           .from("company_roles")
           .select(
-            "role_id, company_workspace_id, name, external_jd_url, source_provider, source_job_id"
+            "role_id, company_workspace_id, name, external_jd_url, source_provider, source_job_id, information"
           )
           .eq("source_type", "external")
           .like("external_jd_url", `${prefix}${identity.providerJobId}%`)
@@ -179,7 +182,7 @@ async function findExistingRole(
     admin
       .from("company_roles")
       .select(
-        "role_id, company_workspace_id, name, external_jd_url, source_provider, source_job_id"
+        "role_id, company_workspace_id, name, external_jd_url, source_provider, source_job_id, information"
       )
       .eq("source_type", "external")
       .in("external_jd_url", variants)
@@ -420,6 +423,9 @@ export async function importCareerJobLink(
 ): Promise<CareerJobLinkImportResult> {
   const identity = parseCareerJobUrl(args.url);
   const existingRole = await findExistingRole(args.admin, identity);
+  if (existingRole?.information && typeof existingRole.information === "object" && !Array.isArray(existingRole.information) && existingRole.information.testOnly === true) {
+    throw new Error("Test-only roles cannot be imported into a candidate's history.");
+  }
   let draft: CareerJobPostingDraft | null = null;
   let workspace: CompanyWorkspace | null = null;
   let companyDbId: number | null = null;
@@ -451,6 +457,9 @@ export async function importCareerJobLink(
       p_existing_role_id: existingRole?.role_id ?? null,
       p_role: buildRolePayload(draft, identity) as Json,
       p_saved_stage: args.savedStage,
+      ...(args.preserveExistingProgress
+        ? { p_preserve_existing_progress: true }
+        : {}),
       p_talent_id: args.talentId,
       p_workspace: buildWorkspacePayload(draft, companyDbId) as Json,
       p_workspace_id:
@@ -470,6 +479,7 @@ export async function importCareerJobLink(
     recommendation_id?: string;
     role_id?: string;
     role_source_provider?: string;
+    saved_stage?: string;
   } | null;
   const roleId = cleanText(row?.role_id, 120);
   const recommendationId = cleanText(row?.recommendation_id, 120);
@@ -486,5 +496,6 @@ export async function importCareerJobLink(
     roleSourceProvider:
       cleanText(row?.role_source_provider, 120) ||
       (row?.created_role === true ? USER_SUBMITTED_ROLE_PROVIDER : "unknown"),
+    savedStage: cleanText(row?.saved_stage, 120) || args.savedStage,
   };
 }

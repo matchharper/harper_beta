@@ -12,8 +12,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { OrgRole } from "@/lib/org/server";
+import { normalizeOrgRoleStatus } from "@/lib/org/roleStatus";
 
-type RoleLifecycleAction = "delete" | "pause" | "resume";
+type RoleLifecycleAction = "delete" | "pause" | "resume" | "end";
 
 function isRolePaused(status: string | null | undefined) {
   const normalized = String(status ?? "")
@@ -30,6 +31,8 @@ export function OrgRoleActionsMenu({
   onEdit,
   onPause,
   onResume,
+  onEnd,
+  onStart,
   pending,
   role,
 }: {
@@ -37,9 +40,11 @@ export function OrgRoleActionsMenu({
   disabled?: boolean;
   triggerClassName?: string;
   onDelete: (role: OrgRole) => void;
-  onEdit: (role: OrgRole) => void;
+  onEdit?: (role: OrgRole) => void;
   onPause: (role: OrgRole) => void;
   onResume: (role: OrgRole) => void;
+  onEnd?: (role: OrgRole) => void;
+  onStart?: (role: OrgRole) => void;
   pending?: boolean;
   role?: OrgRole | null;
 }) {
@@ -66,13 +71,17 @@ export function OrgRoleActionsMenu({
   }
 
   const paused = isRolePaused(role.status);
+  const status = normalizeOrgRoleStatus(role.status);
+  const resumable = paused || status === "ended";
 
   const actionLabel =
     lifecycleAction === "delete"
       ? c("삭제", "Delete")
-      : lifecycleAction === "pause"
-        ? c("일시 중지", "Pause")
-        : c("다시 시작", "Resume");
+      : lifecycleAction === "end"
+        ? c("채용 종료", "End hiring")
+        : lifecycleAction === "pause"
+          ? c("일시 중지", "Pause")
+          : c("다시 시작", "Resume");
 
   const confirmLifecycleAction = () => {
     if (!lifecycleAction) return;
@@ -80,6 +89,7 @@ export function OrgRoleActionsMenu({
     setLifecycleAction(null);
     if (action === "delete") onDelete(role);
     else if (action === "pause") onPause(role);
+    else if (action === "end") onEnd?.(role);
     else onResume(role);
   };
 
@@ -102,21 +112,44 @@ export function OrgRoleActionsMenu({
             )}
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align={align} className="w-40">
+        <DropdownMenuContent
+          align={align}
+          side="bottom"
+          className="z-[200] w-40"
+        >
+          {onEdit ? (
+            <DropdownMenuItem
+              variant="sm"
+              disabled={isDisabled}
+              onSelect={() => onEdit(role)}
+            >
+              {c("역할 수정", "Edit role")}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             variant="sm"
             disabled={isDisabled}
-            onSelect={() => onEdit(role)}
+            onSelect={() =>
+              status === "draft" && onStart
+                ? onStart(role)
+                : setLifecycleAction(resumable ? "resume" : "pause")
+            }
           >
-            {c("역할 수정", "Edit role")}
+            {status === "draft" && onStart
+              ? c("채용 시작하기", "Start hiring")
+              : resumable
+                ? c("다시 시작", "Resume")
+                : c("일시 중지", "Pause")}
           </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="sm"
-            disabled={isDisabled}
-            onSelect={() => setLifecycleAction(paused ? "resume" : "pause")}
-          >
-            {paused ? c("다시 시작", "Resume") : c("일시 중지", "Pause")}
-          </DropdownMenuItem>
+          {onEnd && status !== "draft" && status !== "ended" ? (
+            <DropdownMenuItem
+              variant="sm"
+              disabled={isDisabled}
+              onSelect={() => setLifecycleAction("end")}
+            >
+              {c("채용 종료", "End hiring")}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem
             variant="sm"
             disabled={isDisabled}
@@ -132,31 +165,32 @@ export function OrgRoleActionsMenu({
         open={Boolean(lifecycleAction)}
         onClose={() => setLifecycleAction(null)}
         mobileBottomSheet
-        title={
-          <>
-            {c("역할", "Role")}
-            {actionLabel}
-          </>
-        }
+        title={c("역할 {action}", "{action} role", { action: actionLabel })}
         description={
           <>
             {lifecycleAction === "delete"
               ? c(
                   "“{p0}” 역할을 삭제합니다. 계속할까요?",
-                  'Delete role "{p0}". Continue?',
+                  'Delete the role "{p0}"?',
                   { p0: role.name }
                 )
-              : lifecycleAction === "pause"
+              : lifecycleAction === "end"
                 ? c(
-                    "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?",
-                    'Pause new recommendations for "{p0}"?',
+                    "“{p0}” 역할의 후보자 추천을 종료하고, 현재 연결된 후보자들에게 채용 종료 알림을 보냅니다. 이미 전달된 알림은 다시 채용을 진행해도 되돌릴 수 없습니다.",
+                    'Stop recommendations for "{p0}" and send closing notifications to currently connected candidates. Notifications already sent cannot be undone if hiring resumes.',
                     { p0: role.name }
                   )
-                : c(
-                    "“{p0}” 역할의 후보자 연결을 다시 시작할까요?",
-                    'Resume recommendations for "{p0}"?',
-                    { p0: role.name }
-                  )}
+                : lifecycleAction === "pause"
+                  ? c(
+                      "“{p0}” 역할의 새 후보자 연결을 일시 중지할까요?",
+                      'Pause new recommendations for "{p0}"?',
+                      { p0: role.name }
+                    )
+                  : c(
+                      "“{p0}” 역할의 후보자 연결을 다시 시작할까요?",
+                      'Resume recommendations for "{p0}"?',
+                      { p0: role.name }
+                    )}
           </>
         }
         panelClassName="max-w-sm"

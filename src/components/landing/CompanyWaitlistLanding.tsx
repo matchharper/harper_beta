@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { useRouter } from "next/router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight,
@@ -56,20 +57,20 @@ const examples = {
     {
       label: "Senior backend engineer",
       request:
-        "We need a senior backend engineer who has built payment systems from scratch and can work in Pangyo.",
+        "We’re looking for a senior backend engineer who has built payment systems from scratch. Ideally, they can work from Pangyo.",
       reply: "Got it. I’ll start with people who have built payment systems.",
     },
     {
       label: "AI infrastructure engineer",
       request:
-        "Find an AI engineer with LLM serving experience and ownership in a small team.",
+        "We’re looking for an AI infrastructure engineer with LLM serving experience who can take ownership on a small team.",
       reply:
-        "I’ll look at their serving experience and the role they played on their team.",
+        "I’ll look for LLM serving experience and a track record of taking ownership.",
     },
     {
       label: "Enterprise sales",
       request:
-        "We need an enterprise sales lead who has closed deals with large Korean companies.",
+        "We’re looking for someone in enterprise sales who has closed deals with large Korean companies.",
       reply:
         "I’ll start by speaking with people who have closed enterprise deals.",
     },
@@ -77,7 +78,7 @@ const examples = {
       label: "Founding PM",
       request:
         "We need a founding PM who has taken a product from zero to one and works closely with engineers.",
-      reply: "I’ll look for people who have built products on early teams.",
+      reply: "I’ll look for people who have launched products at early-stage startups.",
     },
   ],
 };
@@ -153,7 +154,7 @@ function HiringPrompt({
     <div className="mx-auto mt-12 max-w-[720px] md:mt-12">
       <div className="rounded-[18px] border border-neutral-800 bg-bg-floating p-4 text-left shadow-[0_8px_30px] shadow-neutral-1000/5 md:rounded-[22px] md:p-5 md:pb-4">
         <label htmlFor="company-hiring-prompt" className="sr-only">
-          {c("어떤 동료를 찾고 있나요?", "Who are you looking for?")}
+          {c("어떤 동료를 찾고 있나요?", "Who are you hiring for?")}
         </label>
         <Textarea
           id="company-hiring-prompt"
@@ -191,7 +192,7 @@ function HiringPrompt({
               className="rounded-full px-6"
               onClick={onStart}
             >
-              {c("무료로 사용해보기", "Try for free")}
+              {c("무료로 시작하기", "Start for free")}
             </MuteButton>
           </div>
         </div>
@@ -204,7 +205,7 @@ function HiringPrompt({
           onClick={onStart}
           className="w-full"
         >
-          {c("무료로 사용해보기", "Try for free")}
+          {c("무료로 시작하기", "Start for free")}
         </MuteButton>
       </div>
       <div className="mt-3 flex flex-wrap justify-start gap-1.5 md:mt-4 md:justify-center md:gap-2">
@@ -243,25 +244,28 @@ export function CompanyWaitlistLanding({
   const c = (ko: string, en: string) => (locale === "ko" ? ko : en);
   const [purpose, setPurpose] = useState("");
   const reducedMotion = useReducedMotion();
-  const start = () => {
+  const router = useRouter();
+  const signupHref = `/org?lang=${locale}`;
+  const start = () => void router.push(signupHref);
+  const contactSales = () => {
     document.getElementById("company-contact")?.scrollIntoView({
       behavior: reducedMotion ? "instant" : "smooth",
       block: "center",
     });
     document
-      .getElementById("company-waitlist-email")
+      .getElementById("company-contact-email")
       ?.focus({ preventScroll: true });
   };
-  const cta = c("무료로 사용해보기", "Try for free");
+  const cta = c("무료로 시작하기", "Start for free");
   const faqs = [
     [
       c(
         "Harper는 어떤 직무를 채용하기 좋나요?",
-        "What types of roles does Harper work best for?"
+        "What roles can I hire for with Harper?"
       ),
       c(
         "엔지니어링, AI, 프로덕트, 디자인, 마케팅, 세일즈, 운영, 리더십까지 다양한 직무의 채용에 잘 맞아요. Seed 단계에서 첫 팀을 꾸리는 회사부터 Series D 단계에서 조직을 확장하는 회사까지 함께할 수 있어요. 현재 Harper의 인재 풀에는 엔지니어가 가장 많아요.",
-        "Harper works well across engineering, AI, product, design, marketing, sales, operations, and leadership roles. We support companies from Seed to Series D, whether you’re building your first team or expanding an established one. Engineers currently make up the largest group in Harper’s talent network."
+        "Harper supports hiring across engineering, AI, product, design, marketing, sales, operations, and leadership. We work with seed-stage through Series D companies, from first hires to growing teams. Engineers currently make up the largest group in our candidate network."
       ),
     ],
     [
@@ -271,17 +275,17 @@ export function CompanyWaitlistLanding({
       ),
       c(
         "채용 조건을 정리하고, 후보를 찾고, 관심을 확인해 연결하는 일까지 맡길 수 있어요. 후보를 보고 아쉬운 점을 알려주시면 다음 추천에도 반영해요. 회사에서는 만나고 싶은 분을 고르고, 면접과 최종 채용 결정을 진행하시면 돼요.",
-        "Harper helps define the role, finds candidates, checks their interest, and makes introductions. Your feedback on candidates helps shape the next recommendations. Your team chooses who to meet and handles interviews and the hiring decision."
+        "Harper helps you define the role, find candidates, reach out, and arrange introductions. Your feedback helps refine future recommendations. You choose who to meet, run the interviews, and make the hiring decision."
       ),
     ],
     [
       c(
         "이미 채용팀이나 다른 채용 서비스를 쓰고 있어도 도움이 되나요?",
-        "Can Harper help if we already have a hiring team or use other recruiting services?"
+        "Can we use Harper alongside our recruiting team or other services?"
       ),
       c(
         "네. 지금 쓰는 채용 공고나 서비스를 그대로 이용하면서 Harper에게도 후보를 찾아달라고 할 수 있어요. 채용팀이 직접 검색하고 먼저 연락하는 일을 덜어드려요. 그만큼 후보를 만나고 서로 잘 맞는지 알아보는 데 시간을 쓸 수 있어요.",
-        "Yes. You can keep your job postings and recruiting services while Harper finds candidates alongside them. Harper takes on sourcing and initial conversations, giving your hiring team more time to meet people and decide who would work well on the team."
+        "Yes. Keep using your existing job boards and recruiting services. Harper handles sourcing and initial outreach alongside them, giving your team more time to interview candidates."
       ),
     ],
     [
@@ -290,22 +294,22 @@ export function CompanyWaitlistLanding({
         "What can we do on the free plan?"
       ),
       c(
-        "카드 등록 없이 포지션을 만들고 후보를 살펴볼 수 있어요. 포지션 수에는 제한이 없고, 모든 포지션에서 함께 쓰는 Intro가 매달 10개 제공돼요. Intro는 후보자에게 우리 채용 기회를 제안하거나, 관심을 보인 후보자와 연결을 요청할 때 사용해요. 채용이 성사돼도 별도 수수료는 없어요.",
-        "You can create unlimited roles and review candidates without adding a card. The free plan includes 10 Intros each month, shared across all your roles. You use an Intro to ask Harper to present your opportunity to a candidate, or to connect with someone who has already expressed interest. There is no fee when you hire."
+        "카드 등록 없이 포지션을 만들고 후보를 살펴볼 수 있어요. Free에서는 한 번에 포지션 1개까지 채용을 진행할 수 있고, 초안 수에는 제한이 없어요. 공용 Intro가 매달 10개 제공돼요. Intro는 후보자에게 우리 채용 기회를 제안하거나, 관심을 보인 후보자와 연결을 요청할 때 사용해요. 채용이 성사돼도 별도 수수료는 없어요.",
+        "The Free plan lets you hire for one active role, create unlimited drafts, and review candidates without a credit card. You get 10 Intros each month, shared across your roles. Use an Intro to ask Harper to reach out to a candidate about your role. Intros also cover accepting an introduction through Ready to connect, which requires a paid slot or an eligible agreement. There’s no fee when you hire on the Free plan."
       ),
     ],
     [
       c("후보는 어디서 오나요?", "Where do candidates come from?"),
       c(
         "Harper와 자신의 경력과 다음 커리어에 대해 이야기한 분들이에요. 적극적으로 이직을 준비하는 분도 있고, 당장 옮길 생각은 없지만 좋은 기회에는 열려 있는 분도 있어요. 그동안 해온 일과 원하는 조건을 바탕으로 기회를 제안하고, 후보자가 만나보고 싶다고 하면 회사와 연결을 진행해요.",
-        "They come from the people who talk with Harper about their careers and what they want next. Some are looking for a new job; others would consider a move for the right opportunity. Harper uses those conversations to suggest relevant roles and proceeds with an introduction when the candidate wants to meet."
+        "Candidates have spoken with Harper about their experience and what they want next. Some are actively looking; others are open to the right opportunity. Harper uses that context to suggest relevant roles and arrange introductions when candidates are interested."
       ),
     ],
     [
       c("지금 바로 쓸 수 있나요?", "Can I start right away?"),
       c(
-        "지금은 대기 등록을 받고 있어요. 아래에 회사 정보와 찾는 역할을 남겨주시면, 이용 가능한 시점에 이메일로 안내드릴게요. 완성된 채용 공고가 없어도 괜찮아요. 어떤 일을 맡길 분을 찾는지 짧게 적어주세요. 대기 등록에는 비용이 들지 않아요.",
-        "We’re currently accepting waitlist registrations. Leave your company details and the role you’re hiring for below, and we’ll email you when you can get started. You don’t need a finished job description—a few words about the work are enough. Joining the waitlist is free."
+        "회사 이메일로 가입한 뒤 회사 정보를 확인하고 Free를 선택하면 돼요. 카드 등록이나 완성된 채용 공고 없이 시작할 수 있어요.",
+        "Sign up with your work email, confirm your company details, and choose Free. No credit card or finished job description is required."
       ),
     ],
   ];
@@ -316,7 +320,7 @@ export function CompanyWaitlistLanding({
       className="bg-bg-basement pt-[60px] text-neutral-primary md:pb-[76px]"
     >
       <CareerAppBar
-        careerStartHref="#company-contact"
+        careerStartHref={signupHref}
         primaryActionLabel={cta}
         showPrimaryAction={false}
         onCareerStartClick={(event) => {
@@ -348,28 +352,28 @@ export function CompanyWaitlistLanding({
           <span className="inline-flex items-center gap-2 rounded-full bg-bg-weak px-[13px] py-[7px] text-[12px] leading-normal text-neutral-800 md:text-[13px]">
             {c(
               "AI 채용 에이전트 Harper",
-              "Harper, your AI recruiting colleague"
+              "Your AI recruiting partner"
             )}
           </span>
           <h1 className="mt-[18px] text-[clamp(29px,8vw,32px)] leading-[1.3] font-medium break-keep md:mt-[22px] md:text-[52px] md:leading-[1.4]">
             <span className="hidden md:inline">
               {c("채용을 함께할 동료가", "Meet your new")}
               <br />
-              {c("한 명 더 생겼어요.", "recruiting colleague.")}
+              {c("한 명 더 생겼어요.", "recruiting partner.")}
             </span>
             <span className="md:hidden">
               {c("채용을 함께할", "Meet your new")}
               <br />
               {c("동료가 한 명 더", "recruiting")}
               <br />
-              {c("생겼어요.", "colleague.")}
+              {c("생겼어요.", "partner.")}
             </span>
           </h1>
           <p className="flex flex-col mx-auto mt-4 max-w-[550px] text-[15px] leading-[1.7] break-keep text-neutral-muted md:mt-5 md:text-[17px] md:leading-[1.75]">
             <span>
               {c(
                 "이름은 Harper예요. 후보를 찾고, 먼저 이야기해보고,",
-                "Meet Harper. Your AI colleague finds candidates, gets to know them,"
+                "Harper finds candidates, starts the conversation,"
               )}
             </span>
             <span>
@@ -390,7 +394,7 @@ export function CompanyWaitlistLanding({
           className="md:grid md:grid-cols-[1.25fr_1fr] md:items-center md:gap-9 md:border-y md:border-neutral-1000-a10 md:py-8 mt-12"
           aria-label={c(
             "Harper와 함께하는 인재와 회사",
-            "Talent and teams with Harper"
+            "Candidates and companies using Harper"
           )}
         >
           <LandingStats locale={locale} />
@@ -440,6 +444,10 @@ export function CompanyWaitlistLanding({
         <CompanyPricingSection
           locale={locale}
           onStart={(enterprise) => {
+            if (!enterprise) {
+              start();
+              return;
+            }
             if (enterprise && !purpose)
               setPurpose(
                 c(
@@ -447,7 +455,7 @@ export function CompanyWaitlistLanding({
                   "I’d like to discuss Enterprise."
                 )
               );
-            start();
+            contactSales();
           }}
         />
         <section
@@ -458,10 +466,10 @@ export function CompanyWaitlistLanding({
             eyebrow={c("추천 카드", "Your shortlist, explained")}
             description={c(
               "조건마다 맞는지, 대화로 직접 확인한 내용까지 정리해서 보내드려요.",
-              "See how each person fits, with details confirmed through conversation."
+              "See how candidates meet your criteria and what Harper has confirmed with them."
             )}
           >
-            {c("이력서 대신,", "More than a résumé.")}
+            {c("이력서 대신,", "More than a resume.")}
             <br />
             {c("이런 카드를 받아요.", "A reason to meet.")}
           </SectionHeading>
@@ -473,7 +481,7 @@ export function CompanyWaitlistLanding({
                   icon: ListChecks,
                   title: c(
                     "요구사항마다 충족 여부",
-                    "A clear view of each requirement"
+                    "Fit against your criteria"
                   ),
                   body: c(
                     "회사가 정한 조건 하나하나에 맞는지 표시해요.",
@@ -484,11 +492,11 @@ export function CompanyWaitlistLanding({
                   icon: CircleHelp,
                   title: c(
                     "확인이 더 필요한 부분",
-                    "What still needs checking"
+                    "Questions still to answer"
                   ),
                   body: c(
                     "애매한 건 숨기지 않고 따로 알려드려요.",
-                    "Questions that still need answers are clearly called out."
+                    "See where more information is needed before you decide."
                   ),
                 },
                 {
@@ -499,14 +507,14 @@ export function CompanyWaitlistLanding({
                   ),
                   body: c(
                     "희망 연봉, 영어 수준처럼 이력서에 없는 내용이에요.",
-                    "Understand expectations and skills beyond a résumé."
+                    "Learn about salary expectations, English proficiency, and other details a resume may not cover."
                   ),
                 },
                 {
                   icon: CalendarDays,
                   title: c(
                     "바로 인터뷰 일정 잡기",
-                    "Schedule interviews right away"
+                    "Let Harper handle scheduling"
                   ),
                   body: c(
                     "일정 조율까지 도와드리고 바로 인터뷰를 잡아드려요.",
@@ -535,7 +543,7 @@ export function CompanyWaitlistLanding({
         </section>
         <section className="scroll-mt-[84px] pt-[72px] md:scroll-mt-[104px] md:pt-[132px]">
           <SectionHeading eyebrow={c("누가 쓰나요", "Built for your team")}>
-            <div className="flex flex-col md:flex-row items-center justify-center">
+            <div className="flex flex-col md:flex-row md:gap-x-2 items-center justify-center">
               <span>{c("채용팀도,", "For everyone")}</span>
               <span>{c("현업 리더도 함께 써요.", "building a team.")}</span>
             </div>
@@ -547,7 +555,7 @@ export function CompanyWaitlistLanding({
                 title: c("채용팀", "Recruiting teams"),
                 body: c(
                   "포지션은 늘었는데 사람은 그대로일 때. 후보 찾기와 첫 연락은 Harper에게 맡기고, 좋은 후보 관리에 집중하세요.",
-                  "More roles, the same team. Let Harper handle sourcing and first conversations while you focus on candidate relationships."
+                  "More roles to fill, but no extra hands? Let Harper handle sourcing and outreach while you focus on your candidates."
                 ),
               },
               {
@@ -555,7 +563,7 @@ export function CompanyWaitlistLanding({
                 title: c("현업 리더", "Hiring managers"),
                 body: c(
                   "본업하면서 채용까지 챙겨야 할 때. 필요한 동료를 설명하고, 만나볼 분을 고르세요.",
-                  "Hiring alongside your day job. Describe the colleague you need and choose who to meet."
+                  "Hiring on top of your day job? Describe who you need and choose the candidates you’d like to meet."
                 ),
               },
               {
@@ -563,7 +571,7 @@ export function CompanyWaitlistLanding({
                 title: c("대표", "Founders"),
                 body: c(
                   "아직 채용팀이 없을 때. 첫 채용부터 Harper가 함께해요.",
-                  "No recruiting team yet? Harper is with you from your first hire."
+                  "No recruiting team yet? Get help from your very first hire."
                 ),
               },
             ].map(({ icon: Icon, title, body }) => (
@@ -590,7 +598,7 @@ export function CompanyWaitlistLanding({
           className="scroll-mt-[84px] pt-[72px] md:scroll-mt-[104px] md:pt-[132px]"
         >
           <SectionHeading eyebrow={c("진행 방식", "How it works")}>
-            {c("세 단계면 충분해요.", "Three steps. One new colleague.")}
+            {c("세 단계면 충분해요.", "From hiring brief to introduction.")}
           </SectionHeading>
           <ol className="mt-6 grid grid-cols-1 md:mt-11 md:grid-cols-3 md:gap-5">
             {[
@@ -604,18 +612,18 @@ export function CompanyWaitlistLanding({
               [
                 c(
                   "일주일 안에 카드가 와요",
-                  "Get your shortlist within a week"
+                  "Review your shortlist"
                 ),
                 c(
                   "조건과 관심도를 살핀 후보를 소개해요.",
-                  "Meet candidates selected for fit and interest."
+                  "See why each candidate could be a fit."
                 ),
               ],
               [
                 c("만나고 싶은 분만 고르세요", "Choose who you’d like to meet"),
                 c(
                   "나머지 연결은 Harper가 도와드려요.",
-                  "Harper helps connect the conversation."
+                  "Harper handles the introduction."
                 ),
               ],
             ].map(([title, body], i) => (
@@ -651,7 +659,7 @@ export function CompanyWaitlistLanding({
               {'"'}
               {c(
                 "한 달 만에 20명을 연결받았고,",
-                "Within a month, we met 20 candidates —"
+                "We were introduced to 20 candidates in a month"
               )}
               <br />
               {c("채용까지 바로 이어졌습니다.", "and made a hire.")}
@@ -673,7 +681,7 @@ export function CompanyWaitlistLanding({
               eyebrow={c("자주 묻는 질문", "FAQ")}
               className="md:text-left"
             >
-              {c("궁금한 점", "Good questions.")}
+              {c("궁금한 점", "What would you like to know?")}
             </SectionHeading>
             <div className="mt-[22px] md:mt-7">
               {faqs.map(([question, answer]) => (
@@ -723,29 +731,29 @@ export function CompanyPricingSection({
           <>
             {c(
               "Harper는 쉬지 않고 후보를 찾고 이야기를 나눠요.",
-              "Harper keeps finding and getting to know candidates."
+              "Harper handles candidate sourcing and outreach."
             )}
             <br />
             {c(
               "회사는 만나고 싶은 사람만 고르면 돼요. 채용 수수료는 받지 않아요.",
-              "You choose who to meet. No hiring fees."
+              "You choose who to meet. Free and standard plans have no placement fees."
             )}
           </>
         }
       >
         {c(
           `월 $${annual ? 199 : 249}로,`,
-          `From $${annual ? 199 : 249}/month,`
+          "Your recruiting partner."
         )}
         <br />
-        {c("채용을 함께할 동료를", "add a colleague")}
+        {c("채용을 함께할 동료를", `From $${annual ? 199 : 249} per role,`)}
         <br />
-        {c("한 명 더 두세요.", "to your hiring team.")}
+        {c("한 명 더 두세요.", "per month.")}
       </SectionHeading>
       <div className="text-center">
         <div
           className="mt-12 flex gap-1 rounded-lg bg-bg-weak p-1 md:mt-16 md:inline-flex"
-          aria-label={c("결제 주기", "Billing period")}
+          aria-label={c("결제 주기", "Billing cycle")}
         >
           <MuteButton
             variant={annual ? "default" : "transparent"}
@@ -753,7 +761,7 @@ export function CompanyPricingSection({
             aria-pressed={annual}
             onClick={() => setAnnual(true)}
           >
-            {c("연 결제", "Yearly")}
+            {c("연 결제", "Annual")}
             <span className="text-primary">{c("20% 할인", "Save 20%")}</span>
           </MuteButton>
           <MuteButton
@@ -770,20 +778,20 @@ export function CompanyPricingSection({
         {[
           {
             name: "Free",
-            note: c("먼저 써보고 싶다면", "Get to know Harper"),
+            note: c("먼저 써보고 싶다면", "For your first role"),
             price: "$0",
-            unit: c("카드 등록 없음", "No card required"),
+            unit: c("카드 등록 없음", "No credit card required"),
             features: [
-              c("포지션 제한 없음", "No position limit"),
-              c("매달 10명 소개", "10 introductions per month"),
-              c("채용 수수료 없음", "No hiring fee"),
+              c("활성 포지션 1개 · 초안 무제한", "1 active role · unlimited drafts"),
+              c("매달 공용 Intro 10개", "10 shared Intros per month"),
+              c("채용 수수료 없음", "No placement fee"),
             ],
           },
           {
             name: "Hire with Harper",
             note: c(
               "급하게 채용할 포지션이 있다면",
-              "For your next priority hire"
+              "For priority hires"
             ),
             price: annual ? "$199" : "$249",
             unit: c(
@@ -791,32 +799,32 @@ export function CompanyPricingSection({
                 ? "포지션 하나, 한 달 기준 · 연 $2,388 결제"
                 : "포지션 하나, 한 달 기준 · 매월 결제",
               annual
-                ? "Per position / month · $2,388 billed yearly"
-                : "Per position / month · billed monthly"
+                ? "Per role, per month · $2,388 billed annually"
+                : "Per role, per month · billed monthly"
             ),
             features: [
               c(
                 "후보 찾기·대화는 무제한",
-                "Unlimited sourcing and conversations"
+                "Unlimited sourcing and candidate conversations"
               ),
               c(
-                "포지션마다 매달 50명 소개",
-                "50 introductions per position per month"
+                "포지션마다 매달 Intro 50개",
+                "50 Intros per role, per month"
               ),
               c(
                 "관심 있다고 한 분만 연결",
-                "Connect with interested candidates"
+                "Meet candidates who want to talk"
               ),
             ],
           },
           {
             name: "Enterprise",
-            note: c("여러 팀이 함께 채용한다면", "For teams hiring together"),
-            price: c("문의", "Let’s talk"),
+            note: c("여러 팀이 함께 채용한다면", "For hiring across multiple teams"),
+            price: c("문의", "Custom pricing"),
             unit: c("회사에 맞춰 계약해요", "A plan tailored to your company"),
             features: [
-              c("포지션·소개 무제한", "Unlimited positions and introductions"),
-              c("도입부터 Harper 팀이 함께", "Onboarding with the Harper team"),
+              c("포지션·Intro 무제한", "Unlimited roles and Intros"),
+              c("도입부터 Harper 팀이 함께", "Hands-on onboarding support"),
             ],
           },
         ].map((plan, i) => (
@@ -832,7 +840,7 @@ export function CompanyPricingSection({
               <span className="absolute -top-3 left-6 rounded-full bg-neutral-1000 px-3 py-1 text-[11px] font-normal text-neutral-00">
                 {c(
                   "포지션마다 Harper가 전담",
-                  "A dedicated Harper for each role"
+                  "Dedicated sourcing for each role"
                 )}
               </span>
             )}
@@ -869,14 +877,20 @@ export function CompanyPricingSection({
               onClick={() => onStart(i === 2)}
             >
               {i === 2
-                ? c("미팅 신청하기", "Book a meeting")
+                ? c("미팅 신청하기", "Contact sales")
                 : i === 0
-                  ? c("무료로 사용해보기", "Try for free")
-                  : c("시작하기", "Start")}
+                  ? c("무료로 시작하기", "Start for free")
+                  : c("시작하기", "Get started")}
             </MuteButton>
           </article>
         ))}
       </div>
+      <p className="mt-5 text-sm leading-[1.7] text-neutral-muted">
+        {c(
+          "후보자에게 기회 제안을 요청하거나 연결을 수락할 때 Intro 1개를 사용해요. 유료 슬롯을 추가해도 공용 월 10 Intro는 별도로 유지돼요. Intro는 매달 갱신되며 남은 수량은 이월되지 않아요.",
+          "Use 1 Intro to request outreach to a candidate or accept an introduction. Your workspace keeps its 10 shared monthly Intros when you add paid slots. Intros renew monthly, and unused Intros don't roll over."
+        )}
+      </p>
       <PricingCostComparison
         locale={locale}
         harperMonthlyKrw={annual ? 260_000 : 330_000}

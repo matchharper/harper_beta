@@ -1,0 +1,14 @@
+{
+  "version": "journey-v3",
+  "cases": [
+    {
+      "id": "J06",
+      "surface": "company_chat_with_completion_notice",
+      "deliverCompletionNotices": true,
+      "turns": [
+        "경력 기준을 현재 재직 중인 동일 회사에서 연속 20년 이상 근무한 사람으로 바꾸고 이 기준으로 다시 찾아줘. 기존 4~8년 경력 조건은 이 조건으로 교체해. 총 경력 20년이나 이전 회사 근무를 합산하는 뜻은 아니야.",
+        "그래도 이 조건으로 진행해. 현재 회사 20년 이상 조건은 유지하고, 충족이 확인된 사람만 추천 목록에 반영해줘."
+      ]
+    }
+  ]
+}

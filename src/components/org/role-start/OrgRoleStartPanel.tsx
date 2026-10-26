@@ -1,3 +1,4 @@
+import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { BadgeCheck, LoaderCircle, X } from "lucide-react";
@@ -10,9 +11,7 @@ import {
   type RoleStartEvaluation,
 } from "@/components/org/role-start/RoleStartCandidate";
 import { RoleBriefFields } from "@/components/org/role-start/RoleBriefFields";
-import {
-  RoleSectionHeading,
-} from "@/components/org/role-overview/RoleOverviewShared";
+import { RoleSectionHeading } from "@/components/org/role-overview/RoleOverviewShared";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
 import { MuteButton } from "@/components/ui/button";
@@ -22,7 +21,11 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
-import { criterionLevel, ORG_ROLE_CRITERION_LEVELS, type OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
+import {
+  criterionLevel,
+  ORG_ROLE_CRITERION_LEVELS,
+  type OrgRoleCriterionGrade,
+} from "@/lib/org/roleCriteria";
 import type {
   RoleStartBriefView,
   RoleStartCandidateView,
@@ -30,7 +33,7 @@ import type {
 } from "@/lib/org/roleStart/view";
 import { useToastStore } from "@/store/useToastStore";
 
-type Issue = { level: "conflict" | "warning"; text: string };
+type Issue = { level: "conflict"; text: string };
 
 type Evaluation = RoleStartEvaluation;
 type EvaluateBody = RoleStartEvaluateBody;
@@ -46,7 +49,6 @@ type StartResponse = {
   session: SessionView | null;
   role: { status: string; hasDescription: boolean };
   issues: Issue[];
-  versions: Array<{ version: number; createdAt: string; summary: string | null }>;
 };
 
 type MutationResult = {
@@ -56,7 +58,11 @@ type MutationResult = {
   missingFields?: string[];
 };
 
-const ACTIVE_PHASES = new Set<RoleStartPhase>(["drafting", "searching", "batch"]);
+const ACTIVE_PHASES = new Set<RoleStartPhase>([
+  "drafting",
+  "searching",
+  "batch",
+]);
 
 type LocaleC = ReturnType<typeof useOrgLocale>["c"];
 
@@ -76,15 +82,22 @@ export function registerMissingMessage(c: LocaleC, missingFields: string[]) {
   // Korean particles follow the last syllable: 근무 지역을 / 담당자를, 근무 지역과 / 담당자와.
   const hasFinal = (word: string) => {
     const code = word.charCodeAt(word.length - 1) - 0xac00;
-    return code >= 0 && code <= 11171 ? code % 28 !== 0 : /[^aeiouy]$/i.test(word);
+    return code >= 0 && code <= 11171
+      ? code % 28 !== 0
+      : /[^aeiouy]$/i.test(word);
   };
   const ko = missing
     .map(([name], index) =>
-      index === missing.length - 1 ? `${name}${hasFinal(name) ? "을" : "를"}` : `${name}${hasFinal(name) ? "과" : "와"}`
+      index === missing.length - 1
+        ? `${name}${hasFinal(name) ? "을" : "를"}`
+        : `${name}${hasFinal(name) ? "과" : "와"}`
     )
     .join(" ");
   const enNames = missing.map(([, en]) => en);
-  const en = enNames.length > 1 ? `${enNames.slice(0, -1).join(", ")} and ${enNames[enNames.length - 1]}` : enNames[0];
+  const en =
+    enNames.length > 1
+      ? `${enNames.slice(0, -1).join(", ")} and ${enNames[enNames.length - 1]}`
+      : enNames[0];
   return c(
     "등록하려면 {p0} 정해 주세요. 채팅에서 알려 주시거나 설정 탭에서 고를 수 있어요.",
     "To register, set the {p1}. Tell the chat or choose it in Settings.",
@@ -92,13 +105,22 @@ export function registerMissingMessage(c: LocaleC, missingFields: string[]) {
   );
 }
 
-export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; workspaceId: string }) {
+export function OrgRoleStartPanel({
+  roleId,
+  workspaceId,
+}: {
+  roleId: string;
+  workspaceId: string;
+}) {
   const { c } = useOrgLocale();
   const { permissions } = useOrgWorkspace();
   const canManage = permissions.canManageCandidates;
   const addToast = useToastStore((state) => state.add);
   const queryClient = useQueryClient();
-  const queryKey = useMemo(() => ["org-role-start", workspaceId, roleId], [roleId, workspaceId]);
+  const queryKey = useMemo(
+    () => ["org-role-start", workspaceId, roleId],
+    [roleId, workspaceId]
+  );
   const query = useQuery({
     queryKey,
     queryFn: () =>
@@ -110,9 +132,16 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
       if (!session) return false;
       const verdictsPending =
         session.phase === "evaluating" &&
-        session.firstCandidates.some((candidate) => !candidate.verdict && !candidate.failed);
-      const waitingForQuestion = session.phase === "questions" && !session.pendingQuestion;
-      return ACTIVE_PHASES.has(session.phase) || verdictsPending || waitingForQuestion ? 1_000 : false;
+        session.firstCandidates.some(
+          (candidate) => !candidate.verdict && !candidate.failed
+        );
+      const waitingForQuestion =
+        session.phase === "questions" && !session.pendingQuestion;
+      return ACTIVE_PHASES.has(session.phase) ||
+        verdictsPending ||
+        waitingForQuestion
+        ? 1_000
+        : false;
     },
   });
   const mutation = useMutation({
@@ -124,15 +153,20 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
       }),
     onError: (cause) => {
       addToast({
-        message: cause instanceof Error ? cause.message : c("요청을 처리하지 못했어요.", "Request failed."),
+        message:
+          cause instanceof Error
+            ? cause.message
+            : c("요청을 처리하지 못했어요.", "Request failed."),
         variant: "error",
       });
       // Changed elsewhere meanwhile (e.g. a Brief edit): show the latest.
-      if ((cause as { status?: number }).status === 409) void queryClient.invalidateQueries({ queryKey });
+      if ((cause as { status?: number }).status === 409)
+        void queryClient.invalidateQueries({ queryKey });
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey }),
   });
-  const run = (body: Record<string, unknown>) => mutation.mutateAsync(body).catch(() => null);
+  const run = (body: Record<string, unknown>) =>
+    mutation.mutateAsync(body).catch(() => null);
 
   const data = query.data;
   const session = data?.session ?? null;
@@ -166,11 +200,15 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
         ) : null}
         <MuteButton
           className="mt-4"
-          disabled={!canManage || mutation.isPending || !data?.role.hasDescription}
+          disabled={
+            !canManage || mutation.isPending || !data?.role.hasDescription
+          }
           onClick={() => run({ action: "start" })}
           variant="primary"
         >
-          {mutation.isPending ? c("기준 초안을 만드는 중", "Drafting criteria") : c("기준 초안 만들기", "Draft criteria")}
+          {mutation.isPending
+            ? c("기준 초안을 만드는 중", "Drafting criteria")
+            : c("기준 초안 만들기", "Draft criteria")}
         </MuteButton>
       </OrgSection>
     );
@@ -182,22 +220,38 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
       {session.stalled ? (
         <OrgSection>
           <p className="text-[13px] text-neutral-muted">
-            {c("진행이 멈춘 것 같아요. 다시 시도할 수 있어요.", "This step seems to have stopped. You can try again.")}
+            {c(
+              "진행이 멈춘 것 같아요. 다시 시도할 수 있어요.",
+              "This step seems to have stopped. You can try again."
+            )}
           </p>
-          <MuteButton className="mt-3" disabled={!canManage || mutation.isPending} onClick={() => run({ action: "retry" })}>
+          <MuteButton
+            className="mt-3"
+            disabled={!canManage || mutation.isPending}
+            onClick={() => run({ action: "retry" })}
+          >
             {c("다시 시도", "Try again")}
           </MuteButton>
         </OrgSection>
       ) : null}
       {session.phase === "drafting" ? (
-        <ProgressList items={session.progress.filter((item) => item.step === "draft")} />
+        <ProgressList
+          items={session.progress.filter((item) => item.step === "draft")}
+        />
       ) : null}
       {session.phase === "failed" ? (
         <OrgSection>
           <p className="text-[13px] text-neutral-muted">
-            {c("기준 초안을 만들지 못했어요. 다시 시도해 주세요.", "Could not draft the criteria. Please try again.")}
+            {c(
+              "기준 초안을 만들지 못했어요. 다시 시도해 주세요.",
+              "Could not draft the criteria. Please try again."
+            )}
           </p>
-          <MuteButton className="mt-3" disabled={mutation.isPending} onClick={() => run({ action: "start" })}>
+          <MuteButton
+            className="mt-3"
+            disabled={mutation.isPending}
+            onClick={() => run({ action: "start" })}
+          >
             {c("다시 시도", "Try again")}
           </MuteButton>
         </OrgSection>
@@ -210,7 +264,11 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
               "Role start stopped because the Role was registered another way. You can start it again."
             )}
           </p>
-          <MuteButton className="mt-3" disabled={!canManage || mutation.isPending} onClick={() => run({ action: "start" })}>
+          <MuteButton
+            className="mt-3"
+            disabled={!canManage || mutation.isPending}
+            onClick={() => run({ action: "start" })}
+          >
             {c("다시 시작", "Start again")}
           </MuteButton>
         </OrgSection>
@@ -219,7 +277,13 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
         <QuestionSection
           busy={mutation.isPending || !canManage}
           history={session.questions.history}
-          onAnswer={(body) => run({ action: "answer", questionId: session.pendingQuestion!.id, ...body })}
+          onAnswer={(body) =>
+            run({
+              action: "answer",
+              questionId: session.pendingQuestion!.id,
+              ...body,
+            })
+          }
           onFinish={() => run({ action: "finish_questions" })}
           question={session.pendingQuestion}
         />
@@ -229,13 +293,16 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
             <LoaderCircle className="mr-2 size-4 animate-spin" />
             {c("반영하는 중", "Applying")}
           </div>
-          <MuteButton
+          {/* <MuteButton
             disabled={mutation.isPending || !canManage}
             onClick={() => run({ action: "finish_questions" })}
             variant="transparent"
           >
-            {c("질문 그만하고 Brief 보기", "Stop questions and review the Brief")}
-          </MuteButton>
+            {c(
+              "질문 그만하고 Brief 보기",
+              "Stop questions and review the Brief"
+            )}
+          </MuteButton> */}
         </OrgSection>
       ) : session.questions.history.length && session.phase === "review" ? (
         <AnsweredList history={session.questions.history} />
@@ -248,31 +315,53 @@ export function OrgRoleStartPanel({ roleId, workspaceId }: { roleId: string; wor
           onPrewarm={() => run({ action: "prewarm" })}
           onRequest={async (request) => {
             const result = await run({ action: "edit", request });
-            if (result?.applied) addToast({ message: result.applied, variant: "success" });
+            if (result?.applied)
+              addToast({ message: result.applied, variant: "success" });
           }}
-          onSave={(brief) => run({ action: "edit", brief, briefHash: session.briefHash, summaryEdited: brief.summary !== session.brief.summary })}
+          onSave={(brief) =>
+            run({
+              action: "edit",
+              brief,
+              briefHash: session.briefHash,
+              summaryEdited: brief.summary !== session.brief.summary,
+            })
+          }
           readOnly={session.phase === "questions"}
           session={session}
-          versions={data?.versions ?? []}
+          roleId={roleId}
+          workspaceId={workspaceId}
         />
       ) : null}
-      {["searching", "evaluating", "registering", "batch", "done"].includes(session.phase) ? (
+      {["searching", "evaluating", "registering", "batch", "done"].includes(
+        session.phase
+      ) ? (
         <FirstThree
           busy={mutation.isPending || !canManage}
           onEvaluate={(body) => run({ action: "evaluate", ...body })}
           onRegister={async () => {
             const result = await run({ action: "register" });
             if (result && result.missingFields?.length) {
-              addToast({ message: registerMissingMessage(c, result.missingFields), variant: "error" });
+              addToast({
+                message: registerMissingMessage(c, result.missingFields),
+                variant: "error",
+              });
             }
           }}
           onReopen={() => run({ action: "reopen_review" })}
-          onWiden={(conditionId) => run({ action: "widen_condition", conditionId })}
+          onWiden={(conditionId) =>
+            run({ action: "widen_condition", conditionId })
+          }
           session={session}
         />
       ) : null}
-      {session.phase === "registering" || session.phase === "batch" || session.phase === "done" ? (
-        <FirstBatch roleId={roleId} session={session} workspaceId={workspaceId} />
+      {session.phase === "registering" ||
+      session.phase === "batch" ||
+      session.phase === "done" ? (
+        <FirstBatch
+          roleId={roleId}
+          session={session}
+          workspaceId={workspaceId}
+        />
       ) : null}
     </div>
   );
@@ -283,18 +372,26 @@ function StepLine({ phase }: { phase: RoleStartPhase }) {
   const steps: Array<{ label: string; phases: RoleStartPhase[] }> = [
     { label: c("질문", "Questions"), phases: ["drafting", "questions"] },
     { label: c("Brief 확인", "Review Brief"), phases: ["review"] },
-    { label: c("첫 3명", "First three"), phases: ["searching", "evaluating", "registering"] },
+    {
+      label: c("첫 3명", "First three"),
+      phases: ["searching", "evaluating", "registering"],
+    },
     { label: c("등록", "Register"), phases: ["batch", "done"] },
   ];
   const current = steps.findIndex((step) => step.phases.includes(phase));
   return (
-    <ol aria-label={c("진행 단계", "Progress")} className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium">
+    <ol
+      aria-label={c("진행 단계", "Progress")}
+      className="flex flex-wrap items-center gap-1.5 text-[12px] font-medium"
+    >
       {steps.map((step, index) => (
         <li
           aria-current={index === current ? "step" : undefined}
           className={cn(
             "rounded-md px-2 py-1 leading-5",
-            index === current ? "bg-bg-weak text-neutral-primary" : "text-neutral-soft"
+            index === current
+              ? "bg-bg-weak text-neutral-primary"
+              : "text-neutral-soft"
           )}
           key={step.label}
         >
@@ -313,11 +410,17 @@ function useStepLabel() {
       case "read":
         return done ? c("읽었어요", "Read") : c("읽는 중", "Reading");
       case "organize":
-        return done ? c("정리했어요", "Organized") : c("정리하는 중", "Organizing");
+        return done
+          ? c("정리했어요", "Organized")
+          : c("정리하는 중", "Organizing");
       case "find":
-        return done ? c("후보를 찾았어요", "Found candidates") : c("후보 찾는 중", "Finding candidates");
+        return done
+          ? c("후보를 찾았어요", "Found candidates")
+          : c("후보 찾는 중", "Finding candidates");
       case "review":
-        return done ? c("살펴봤어요", "Reviewed") : c("살펴보는 중", "Reviewing");
+        return done
+          ? c("살펴봤어요", "Reviewed")
+          : c("살펴보는 중", "Reviewing");
       case "apply":
         return done ? c("반영했어요", "Applied") : c("반영하는 중", "Applying");
       case "choose":
@@ -332,7 +435,10 @@ function ProgressList({ items }: { items: RoleStartProgress[] }) {
   const label = useStepLabel();
   if (!items.length) return null;
   return (
-    <ul aria-live="polite" className="flex flex-col gap-1.5 text-[13px] leading-5 text-neutral-muted">
+    <ul
+      aria-live="polite"
+      className="flex flex-col gap-1.5 text-[13px] leading-5 text-neutral-muted"
+    >
       {items.map((item) => (
         <li className="flex items-center gap-2" key={item.key}>
           {item.status === "running" ? (
@@ -362,11 +468,19 @@ function QuestionSection(props: {
   return (
     <OrgSection aria-label={c("질문", "Question")}>
       <div>
-        <RoleSectionHeading description={props.question.why} size="large" title={props.question.question} />
+        <RoleSectionHeading
+          description={props.question.why}
+          size="large"
+          title={props.question.question}
+        />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {props.question.chips.map((chip) => (
-          <MuteButton disabled={props.busy} key={chip.id} onClick={() => props.onAnswer({ chipId: chip.id })}>
+          <MuteButton
+            disabled={props.busy}
+            key={chip.id}
+            onClick={() => props.onAnswer({ chipId: chip.id })}
+          >
             {chip.label}
           </MuteButton>
         ))}
@@ -383,19 +497,39 @@ function QuestionSection(props: {
           autoResize
           className="min-h-[72px]"
           onChange={(event) => setText(event.target.value)}
-          placeholder={c("직접 답을 적어도 돼요", "Or answer in your own words")}
+          placeholder={c(
+            "직접 답을 적어도 돼요",
+            "Or answer in your own words"
+          )}
           rows={3}
           value={text}
         />
         <div className="flex flex-wrap items-center gap-2">
-          <MuteButton disabled={props.busy || !text.trim()} type="submit" variant="dark">
+          <MuteButton
+            disabled={props.busy || !text.trim()}
+            type="submit"
+            variant="dark"
+          >
             {props.busy ? c("반영하는 중", "Applying") : c("답하기", "Answer")}
           </MuteButton>
-          <MuteButton disabled={props.busy} onClick={() => props.onAnswer({ skip: true })} type="button" variant="transparent">
+          <MuteButton
+            disabled={props.busy}
+            onClick={() => props.onAnswer({ skip: true })}
+            type="button"
+            variant="transparent"
+          >
             {c("건너뛰기", "Skip")}
           </MuteButton>
-          <MuteButton disabled={props.busy} onClick={props.onFinish} type="button" variant="transparent">
-            {c("질문 그만하고 Brief 보기", "Stop questions and review the Brief")}
+          <MuteButton
+            disabled={props.busy}
+            onClick={props.onFinish}
+            type="button"
+            variant="transparent"
+          >
+            {c(
+              "질문 그만하고 Brief 보기",
+              "Stop questions and review the Brief"
+            )}
           </MuteButton>
         </div>
       </form>
@@ -413,18 +547,26 @@ function AnsweredList({ history }: { history: RoleStartQuestion[] }) {
   return (
     <details className="text-[13px]">
       <summary className="cursor-pointer text-neutral-muted">
-        {c("지금까지 답한 질문 {p0}개", "{p0} answered questions", { p0: history.length })}
+        {c("지금까지 답한 질문 {p0}개", "{p0} answered questions", {
+          p0: history.length,
+        })}
       </summary>
       <div className="mt-3 grid gap-2">
         {history.map((item) => {
-          const chip = item.chips.find((candidate) => candidate.id === item.answer?.chipId);
+          const chip = item.chips.find(
+            (candidate) => candidate.id === item.answer?.chipId
+          );
           return (
             <div className="rounded-md bg-bg-basement px-4 py-3" key={item.id}>
               <p className="text-[13px] font-medium">{item.question}</p>
               <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
-                {item.status === "skipped" ? c("건너뜀", "Skipped") : chip?.label ?? item.answer?.text}
+                {item.status === "skipped"
+                  ? c("건너뜀", "Skipped")
+                  : (chip?.label ?? item.answer?.text)}
                 {item.answer?.applied ? ` · ${item.answer.applied}` : ""}
-                {item.answer?.notApplied ? ` · ${c("반영하지 못해 다시 여쭤볼게요", "Not applied; we'll ask again")}` : ""}
+                {item.answer?.notApplied
+                  ? ` · ${c("반영하지 못해 다시 여쭤볼게요", "Not applied; we'll ask again")}`
+                  : ""}
               </p>
             </div>
           );
@@ -439,7 +581,8 @@ function BriefReview(props: {
   issues: Issue[];
   readOnly: boolean;
   session: SessionView;
-  versions: StartResponse["versions"];
+  roleId: string;
+  workspaceId: string;
   onSave: (brief: RoleStartBrief) => void;
   onRequest: (request: string) => void;
   onConfirm: () => void;
@@ -460,7 +603,8 @@ function BriefReview(props: {
   const dirty = JSON.stringify(draft) !== serverBrief;
   const conflicts = props.issues.filter((issue) => issue.level === "conflict");
   const invalid =
-    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
+    draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) ||
+    Boolean(draft.otherNotes?.some(isProtectedNote));
 
   if (readOnly) {
     return (
@@ -468,12 +612,17 @@ function BriefReview(props: {
         <RoleSectionHeading title={c("지금까지의 Brief", "Brief so far")} />
         <div className="mt-3 grid gap-2">
           {props.session.brief.criteria.map((criterion) => (
-            <div className="flex items-center gap-2 text-[13px]" key={criterion.id ?? criterion.name}>
+            <div
+              className="flex items-center gap-2 text-[13px]"
+              key={criterion.id ?? criterion.name}
+            >
               <BadgeCheck className="size-4 shrink-0 text-positive" />
               <span>{criterion.name}</span>
               <span className="text-neutral-soft">
                 {(({ ko, en }) => c(ko, en))(
-                  ORG_ROLE_CRITERION_LEVELS.find((item) => item.level === criterionLevel(criterion))!
+                  ORG_ROLE_CRITERION_LEVELS.find(
+                    (item) => item.level === criterionLevel(criterion)
+                  )!
                 )}
               </span>
             </div>
@@ -499,20 +648,33 @@ function BriefReview(props: {
           autoResize
           className="mt-4 min-h-[88px]"
           disabled={props.busy}
-          onChange={(event) => setDraft({ ...draft, summary: event.target.value })}
+          onChange={(event) =>
+            setDraft({ ...draft, summary: event.target.value })
+          }
           rows={3}
           value={draft.summary}
         />
 
-        <RoleBriefFields busy={props.busy} dirty={dirty} draft={draft} onRequest={props.onRequest} setDraft={setDraft} />
+        <RoleBriefFields
+          busy={props.busy}
+          dirty={dirty}
+          draft={draft}
+          onRequest={props.onRequest}
+          setDraft={setDraft}
+        />
 
         {props.issues.length ? (
-          <div aria-label={c("확인할 점", "Things to check")} className="mt-8 grid gap-2">
+          <div
+            aria-label={c("확인할 점", "Things to check")}
+            className="mt-8 grid gap-2"
+          >
             {props.issues.map((issue) => (
               <div
                 className={cn(
                   "rounded-md px-4 py-3 text-[13px] leading-5",
-                  issue.level === "conflict" ? "bg-critical-faded text-critical" : "bg-info-faded text-neutral-primary"
+                  issue.level === "conflict"
+                    ? "bg-critical-faded text-critical"
+                    : "bg-info-faded text-neutral-primary"
                 )}
                 key={issue.text}
               >
@@ -523,24 +685,15 @@ function BriefReview(props: {
         ) : null}
 
         <div className="mt-8 flex flex-wrap items-center gap-2">
-          <MuteButton disabled={props.busy || dirty || conflicts.length > 0} onClick={props.onConfirm} size="lg" variant="primary">
+          <MuteButton
+            disabled={props.busy || dirty || conflicts.length > 0}
+            onClick={props.onConfirm}
+            size="lg"
+            variant="primary"
+          >
             {c("확정하고 첫 3명 보기", "Confirm and see the first three")}
           </MuteButton>
-          {props.versions.length ? (
-            <details className="text-[12px] text-neutral-muted">
-              <summary className="cursor-pointer">
-                {c("Brief 버전 {p0}개", "{p0} Brief versions", { p0: props.versions.length })}
-              </summary>
-              <div className="mt-2 grid gap-1">
-                {props.versions.map((version) => (
-                  <span key={version.version}>
-                    v{version.version} · {new Date(version.createdAt).toLocaleString("ko-KR")}
-                    {version.summary ? ` · ${version.summary}` : ""}
-                  </span>
-                ))}
-              </div>
-            </details>
-          ) : null}
+          <OrgRoleMatchingHistory roleId={props.roleId} workspaceId={props.workspaceId} />
         </div>
       </OrgSection>
       {dirty ? (
@@ -570,7 +723,9 @@ function FirstThree(props: {
   const notice = session.notice;
   const allRated =
     session.firstCandidates.length > 0 &&
-    session.firstCandidates.every((candidate) => session.evaluations[candidate.talentId]);
+    session.firstCandidates.every(
+      (candidate) => session.evaluations[candidate.talentId]
+    );
   const editable = session.phase === "evaluating";
   return (
     <OrgSection aria-label={c("첫 3명", "First three")}>
@@ -580,10 +735,14 @@ function FirstThree(props: {
           "Rate each person. When you register, Harper applies your ratings and recommends one more person."
         )}
         size="large"
-        title={c("첫 {p0}명", "First {p0}", { p0: session.firstCandidates.length || 3 })}
+        title={c("첫 {p0}명", "First {p0}", {
+          p0: session.firstCandidates.length || 3,
+        })}
       />
       <div className="mt-4">
-        <ProgressList items={session.progress.filter((item) => item.step === "first_three")} />
+        <ProgressList
+          items={session.progress.filter((item) => item.step === "first_three")}
+        />
         {searching ? (
           <p className="mt-2 text-[12px] leading-5 text-neutral-soft">
             {c("보통 30초쯤 걸려요", "Usually takes about 30 seconds")}
@@ -592,19 +751,35 @@ function FirstThree(props: {
       </div>
       {notice?.thin && !searching ? (
         <div className="mt-4 rounded-md bg-info-faded px-4 py-3 text-[13px] leading-5">
-          <p>{c("지금 조건에 맞는 분이 많지 않아요. 조건을 조금 넓혀 볼까요?", "Few people meet the conditions now. Shall we widen one a little?")}</p>
+          <p>
+            {c(
+              "지금 조건에 맞는 분이 많지 않아요. 조건을 조금 넓혀 볼까요?",
+              "Few people meet the conditions now. Shall we widen one a little?"
+            )}
+          </p>
           {notice.conditions.length ? (
             <ul className="mt-2 grid gap-2">
               {notice.conditions.map((condition) => (
-                <li className="flex flex-wrap items-center justify-between gap-2" key={condition.id}>
+                <li
+                  className="flex flex-wrap items-center justify-between gap-2"
+                  key={condition.id}
+                >
                   <span>
                     {`'${condition.label}': `}
                     {condition.band === "big"
-                      ? c("풀면 후보가 크게 늘어요", "Widening adds many candidates")
-                      : c("풀면 후보가 조금 늘어요", "Widening adds a few candidates")}
+                      ? c(
+                          "풀면 후보가 크게 늘어요",
+                          "Widening adds many candidates"
+                        )
+                      : c(
+                          "풀면 후보가 조금 늘어요",
+                          "Widening adds a few candidates"
+                        )}
                   </span>
                   <MuteButton
-                    disabled={props.busy || Object.keys(session.evaluations).length > 0}
+                    disabled={
+                      props.busy || Object.keys(session.evaluations).length > 0
+                    }
                     onClick={() => props.onWiden(condition.id)}
                     size="sm"
                     variant="transparent"
@@ -629,29 +804,41 @@ function FirstThree(props: {
               {c("살펴보는 중", "Reviewing")}
             </div>
           ) : (
-          <CandidateCard
-            busy={props.busy}
-            candidate={candidate}
-            criteria={session.brief.criteria}
-            editable={editable}
-            evaluation={session.evaluations[candidate.talentId]}
-            key={candidate.talentId}
-            onEvaluate={props.onEvaluate}
-          />
+            <CandidateCard
+              busy={props.busy}
+              candidate={candidate}
+              criteria={session.brief.criteria}
+              editable={editable}
+              evaluation={session.evaluations[candidate.talentId]}
+              key={candidate.talentId}
+              onEvaluate={props.onEvaluate}
+            />
           )
         )}
       </div>
       {editable ? (
-        <div className="mt-6 flex flex-wrap items-center gap-2">
-          <MuteButton disabled={props.busy || !allRated} onClick={props.onRegister} size="lg" variant="primary">
-            {c("역할 등록하기", "Register role")}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
+          <MuteButton
+            disabled={props.busy}
+            onClick={props.onReopen}
+            variant="transparent"
+          >
+            {c("이전", "Back")}
           </MuteButton>
-          <MuteButton disabled={props.busy} onClick={props.onReopen} variant="transparent">
-            {c("Brief로 돌아가 고치기", "Back to the Brief")}
+          <MuteButton
+            disabled={props.busy || !allRated}
+            onClick={props.onRegister}
+            size="lg"
+            variant="primary"
+          >
+            {c("채용 시작하기", "Start hiring")}
           </MuteButton>
           {!allRated ? (
             <span className="text-[12px] text-neutral-muted">
-              {c("세 명 모두 평가하면 등록할 수 있어요.", "Rate all three to register.")}
+              {c(
+                "세 명 모두 평가하면 등록할 수 있어요.",
+                "Rate all three to register."
+              )}
             </span>
           ) : null}
         </div>
@@ -674,21 +861,38 @@ function CandidateCard(props: {
       <CandidateHeader candidate={props.candidate} />
       <CandidateRead candidate={props.candidate} criteria={props.criteria} />
       <div className="mt-6 grid gap-2">
-        <span className="text-[13px] font-medium">{c("이 후보는 어떤가요?", "How does this person look?")}</span>
+        <span className="text-[13px] font-medium">
+          {c("이 후보는 어떤가요?", "How does this person look?")}
+        </span>
         <CandidateRating {...props} />
       </div>
     </article>
   );
 }
 
-function FirstBatch({ roleId, session, workspaceId }: { roleId: string; session: SessionView; workspaceId: string }) {
+function FirstBatch({
+  roleId,
+  session,
+  workspaceId,
+}: {
+  roleId: string;
+  session: SessionView;
+  workspaceId: string;
+}) {
   const { c } = useOrgLocale();
   const batch = session.batch;
   return (
-    <OrgSection aria-label={c("평가를 반영한 추천", "Recommendation from your ratings")}>
-      <RoleSectionHeading size="large" title={c("평가를 반영한 추천", "Recommendation from your ratings")} />
+    <OrgSection
+      aria-label={c("평가를 반영한 추천", "Recommendation from your ratings")}
+    >
+      <RoleSectionHeading
+        size="large"
+        title={c("평가를 반영한 추천", "Recommendation from your ratings")}
+      />
       <div className="mt-4">
-        <ProgressList items={session.progress.filter((item) => item.step === "batch")} />
+        <ProgressList
+          items={session.progress.filter((item) => item.step === "batch")}
+        />
         {batch?.status !== "done" && batch?.status !== "failed" ? (
           <p className="mt-2 text-[12px] leading-5 text-neutral-soft">
             {c("보통 1분 안에 끝나요", "Usually takes 1–2 minutes")}
@@ -698,14 +902,26 @@ function FirstBatch({ roleId, session, workspaceId }: { roleId: string; session:
       {batch?.status === "done" && batch.candidates.length ? (
         <div className="mt-4 grid gap-2">
           {batch.candidates.map((candidate) => (
-            <div className="rounded-md bg-bg-basement px-4 py-3" key={candidate.talentId}>
-              <p className="text-[13px] font-medium">{candidate.name || c("이름 없음", "No name")}</p>
-              <p className="mt-1 text-[13px] leading-5 text-neutral-muted">{candidate.verdict?.tldr ?? candidate.headline}</p>
+            <div
+              className="rounded-md bg-bg-basement px-4 py-3"
+              key={candidate.talentId}
+            >
+              <p className="text-[13px] font-medium">
+                {candidate.name || c("이름 없음", "No name")}
+              </p>
+              <p className="mt-1 text-[13px] leading-5 text-neutral-muted">
+                {candidate.verdict?.tldr ?? candidate.headline}
+              </p>
             </div>
           ))}
           <a
             className="justify-self-start text-[13px] text-link underline-offset-2 hover:underline"
-            href={buildOrgHref({ orgId: workspaceId, page: "role", roleId, tab: "inbox" })}
+            href={buildOrgHref({
+              orgId: workspaceId,
+              page: "role",
+              roleId,
+              tab: "inbox",
+            })}
           >
             {c("인박스에서 보기", "Open the inbox")}
           </a>
@@ -713,12 +929,20 @@ function FirstBatch({ roleId, session, workspaceId }: { roleId: string; session:
       ) : null}
       {batch?.kept?.length ? (
         <p className="mt-3 text-[13px] leading-5 text-neutral-muted">
-          {c("첫 3명 중 {p0}님도 인박스에 있어요.", "{p0} from the first three are in the inbox too.", { p0: batch.kept.join("님, ") })}
+          {c(
+            "첫 3명 중 {p0}님도 인박스에 있어요.",
+            "{p0} from the first three are in the inbox too.",
+            { p0: batch.kept.join("님, ") }
+          )}
         </p>
       ) : null}
-      {batch?.status === "failed" || (batch?.status === "done" && !batch.candidates.length) ? (
+      {batch?.status === "failed" ||
+      (batch?.status === "done" && !batch.candidates.length) ? (
         <p className="mt-4 text-[13px] text-critical">
-          {c("지금은 더 추천할 분이 없어요. 정기 추천에서 이어서 찾아볼게요.", "No one else to recommend right now. We'll keep looking in regular recommendations.")}
+          {c(
+            "지금은 더 추천할 분이 없어요. 정기 추천에서 이어서 찾아볼게요.",
+            "No one else to recommend right now. We'll keep looking in regular recommendations."
+          )}
         </p>
       ) : null}
     </OrgSection>

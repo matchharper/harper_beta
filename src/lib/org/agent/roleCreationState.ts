@@ -40,14 +40,6 @@ export type RoleCreationConversationMetadata = {
   confirmationProcessingStartedAt: string | null;
   confirmedAssigneeUserId: string | null;
   confirmedSlackChannelIds: string[];
-  descriptionSourceResearch?: {
-    attemptedAt: string;
-    query: string;
-    resultCount: number | null;
-    selectedSourceUrl: string | null;
-    source: "role_creation_chat" | "slack_entry";
-    status: "completed" | "failed";
-  } | null;
   lastConfirmationActionId: string | null;
   lastConfirmationDecision: "no" | "yes" | null;
   lastConfirmationHandledAt: string | null;
@@ -59,6 +51,7 @@ export type RoleCreationConversationMetadata = {
     | "confirmation_pending"
     | "confirmation_processing";
   scope: "role_creation";
+  slackRoleCreationSource?: { sourceKey: string; sourceThreadId: string } | null;
   slackRoleCreationThread: {
     slackThreadId: string;
     slackThreadTs: string;
@@ -85,6 +78,8 @@ export type RoleCreationState = {
   role: Awaited<ReturnType<typeof fetchRoleForOrgAgent>>;
   workspace: Awaited<ReturnType<typeof fetchWorkspaceForOrgAgent>> & {
     relatedLinks: string[];
+    locationText?: string | null;
+    companyFacts?: Record<string, unknown>;
   };
 };
 
@@ -123,34 +118,8 @@ export function parseRoleCreationConversationMetadata(
     source.confirmationProcessingMessageId
   );
   const lastConfirmationMessageId = Number(source.lastConfirmationMessageId);
+  const rawSlackRoleCreationSource = record(source.slackRoleCreationSource);
   const rawSlackRoleCreationThread = record(source.slackRoleCreationThread);
-  const rawDescriptionSourceResearch = record(source.descriptionSourceResearch);
-  const descriptionSourceResearch =
-    text(rawDescriptionSourceResearch.attemptedAt) &&
-    text(rawDescriptionSourceResearch.query) &&
-    (rawDescriptionSourceResearch.status === "completed" ||
-      rawDescriptionSourceResearch.status === "failed")
-      ? {
-          attemptedAt: text(rawDescriptionSourceResearch.attemptedAt),
-          query: text(rawDescriptionSourceResearch.query),
-          resultCount:
-            Number.isSafeInteger(
-              Number(rawDescriptionSourceResearch.resultCount)
-            ) && Number(rawDescriptionSourceResearch.resultCount) >= 0
-              ? Number(rawDescriptionSourceResearch.resultCount)
-              : null,
-          selectedSourceUrl:
-            text(rawDescriptionSourceResearch.selectedSourceUrl) || null,
-          source:
-            rawDescriptionSourceResearch.source === "slack_entry"
-              ? ("slack_entry" as const)
-              : ("role_creation_chat" as const),
-          status:
-            rawDescriptionSourceResearch.status === "failed"
-              ? ("failed" as const)
-              : ("completed" as const),
-        }
-      : null;
   const slackRoleCreationThread =
     text(rawSlackRoleCreationThread.slackThreadId) &&
     text(rawSlackRoleCreationThread.slackThreadTs) &&
@@ -182,7 +151,6 @@ export function parseRoleCreationConversationMetadata(
       text(source.confirmationProcessingStartedAt) || null,
     confirmedAssigneeUserId: text(source.confirmedAssigneeUserId) || null,
     confirmedSlackChannelIds: stringList(source.confirmedSlackChannelIds),
-    descriptionSourceResearch,
     lastConfirmationActionId: text(source.lastConfirmationActionId) || null,
     lastConfirmationDecision:
       source.lastConfirmationDecision === "no" ||
@@ -203,6 +171,9 @@ export function parseRoleCreationConversationMetadata(
     phase,
     scope: "role_creation",
     slackRoleCreationThread,
+    slackRoleCreationSource: text(rawSlackRoleCreationSource.sourceKey) && text(rawSlackRoleCreationSource.sourceThreadId)
+      ? { sourceKey: text(rawSlackRoleCreationSource.sourceKey), sourceThreadId: text(rawSlackRoleCreationSource.sourceThreadId) }
+      : null,
   };
 }
 
@@ -352,12 +323,27 @@ export async function fetchRoleCreationState(args: {
   const companyLinksResult = workspace.companyDbId
     ? await admin
         .from("company_db")
-        .select("funding_url, related_links")
+        .select("funding_url, related_links, location, founded_year, employee_count_range, description, short_description, specialities, investors")
         .eq("id", workspace.companyDbId)
         .maybeSingle()
     : { data: null, error: null };
   if (companyLinksResult.error) throw companyLinksResult.error;
   const companyLinks = companyLinksResult.data;
+  const { data: companyFunding, error: fundingError } = await admin
+    .from("company_data")
+    .select("total_funding_raised, main_investors, last_funding_stage, last_funding_round_description")
+    .eq("company_workspace_id", args.workspaceId)
+    .maybeSingle();
+  if (fundingError) throw fundingError;
+  const companyFacts = {
+    source: "저장된 회사 정보 / saved company records; missing values are unknown, not zero",
+    company_description: workspace.companyDescription,
+    companySummary: workspace.brief,
+    companyHiringRequest: workspace.request,
+    careerUrl: workspace.careerUrl,
+    ...companyLinks,
+    ...companyFunding,
+  };
   const relatedLinks = Array.from(
     new Set(
       [
@@ -366,7 +352,7 @@ export async function fetchRoleCreationState(args: {
         ...normalizeWebsiteCompanyDataStringList(companyLinks?.related_links),
       ].filter(Boolean)
     )
-  ).slice(0, 12);
+  );
 
   const rows = (membersResult.data ?? []) as Array<{ company_user_id: string; authority: string; access_scope: "organization" | "team"; team_id: string | null; company_users: unknown }>;
   const members = rows.filter(row => canAccessOrgRole(resolveOrgRoleAccess(row), role.teamId)).map((row) => {
@@ -401,11 +387,13 @@ export async function fetchRoleCreationState(args: {
     members,
     metadata: parseRoleCreationConversationMetadata(conversation.metadata),
     role,
-    workspace: { ...workspace, relatedLinks },
+    workspace: { ...workspace, companyFacts, relatedLinks, locationText: companyLinks?.location ?? null },
   };
 }
 
 export async function updateRoleCreationDraft(args: {
+  /** Server-read state from the same tool invocation; not a client-supplied snapshot. */
+  previousState?: RoleCreationState;
   actorLabel: string;
   source?: "chat" | "slack";
   allowCompletedRole?: boolean;
@@ -423,7 +411,7 @@ export async function updateRoleCreationDraft(args: {
   workMode?: string | null;
   workspaceId: string;
 }) {
-  const previousState=await fetchRoleCreationState(args);
+  const previousState = args.previousState ?? await fetchRoleCreationState(args);
   const changes: Parameters<
     typeof applyWebsiteCompanyDataChanges
   >[0]["changes"] = [];
@@ -720,7 +708,7 @@ export async function fetchOtherRoleCriteria(args: {
   const query = getSupabaseAdmin()
     .from("company_roles")
     .select(
-      "role_id, name, description, salary_range, status, company_internal_roles(team_id, request, criteria)"
+      "role_id, name, description, salary_range, location_text, work_mode, type, status, company_internal_roles(team_id, request, criteria)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("source_type", "internal")
@@ -758,6 +746,9 @@ export async function fetchOtherRoleCriteria(args: {
         null,
       roleId: role.role_id,
       salaryRange: text(role.salary_range).slice(0, 1_000) || null,
+      locationText: role.location_text,
+      workMode: role.work_mode,
+      employmentTypes: role.type,
       status: text(role.status) || null,
     })),
   };
@@ -774,7 +765,7 @@ export async function fetchOtherRoleDescriptionReferences(args: {
   const query = getSupabaseAdmin()
     .from("company_roles")
     .select(
-      "role_id, name, description, external_jd_url, source_type, updated_at, company_internal_roles(team_id)"
+      "role_id, name, description, external_jd_url, source_type, updated_at, location_text, work_mode, type, company_internal_roles(team_id)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .neq("role_id", args.roleId)
@@ -794,6 +785,9 @@ export async function fetchOtherRoleDescriptionReferences(args: {
           description,
           externalJdUrl: text(role.external_jd_url) || null,
           name: role.name,
+          locationText: role.location_text,
+          workMode: role.work_mode,
+          employmentTypes: role.type,
           roleId: role.role_id,
           sourceType: role.source_type,
         },

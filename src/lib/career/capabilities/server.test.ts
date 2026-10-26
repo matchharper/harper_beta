@@ -299,13 +299,30 @@ test("application start owns the turn before an activity exists, and retains its
   assert.ok(!turn.runtime.resolveStep(false).offeredNames.has("manage_simulation_session"));
   currentState = state;
   const started = turn.runtime.resolveStep(false);
-  assert.ok(started.offeredNames.has("manage_simulation_session"));
+  const applicationTools = ["manage_simulation_session", "manage_application_suggestions", "ready_for_role", "apply_for_role"];
+  for (const name of applicationTools) assert.ok(started.offeredNames.has(name), name);
+  assert.ok(started.offeredNames.has("load_career_capabilities"));
   assert.ok(started.offeredNames.has("write_talent_context"));
+  for (const name of ["web_search", "open_url", "update_talent_profile", "list_documents", "read_document", "write_document", "get_role_context"])
+    assert.ok(!started.offeredNames.has(name), name);
+  for (const id of ["web_research", "profile", "documents", "opportunities"])
+    assert.ok(started.catalogText.includes(id), id);
   assert.ok(started.systemBlocks.some(block=>block.text.includes("Verified start result: completed")));
+  assert.equal(turn.runtime.load({capabilityIds:["web_research", "documents"]}, started).ok, true);
+  // A load affects the next completion, and does not load unrelated shared tools.
+  assert.equal(turn.runtime.claimCall("web_search", started), "tool_not_offered");
+  const loaded = turn.runtime.resolveStep(false);
+  for (const name of [...applicationTools, "web_search", "open_url", "list_documents", "read_document", "write_document"])
+    assert.ok(loaded.offeredNames.has(name), name);
+  for (const name of ["update_talent_profile", "get_role_context", "save_job_posting", "generate_resume"])
+    assert.ok(!loaded.offeredNames.has(name), name);
   currentState = undefined;
   const ended = turn.runtime.resolveStep(false);
-  assert.ok(!ended.offeredNames.has("manage_simulation_session"));
-  assert.ok(!ended.offeredNames.has("apply_for_role"));
+  for (const name of applicationTools.filter(name => name !== "manage_simulation_session")) assert.ok(!ended.offeredNames.has(name), name);
+  assert.ok(ended.offeredNames.has("manage_simulation_session"), "saved preparations remain available through the loaded capability");
+  assert.ok(ended.offeredNames.has("web_search"));
+  assert.ok(ended.offeredNames.has("write_document"));
+  assert.ok(!ended.offeredNames.has("update_talent_profile"));
   assert.ok(ended.offeredNames.has("research_company"));
   assert.ok(ended.systemBlocks.some(block=>block.key==="capability_catalog"));
 });

@@ -64,7 +64,8 @@ export const CAREER_LLM_CONFIG = {
       reasoningEffort: "high" as const,
     },
     opportunityFeedbackFollowUp: {
-      model: GPT_61_SOL_MODEL,
+      model: GPT_6_LUNA_MODEL,
+      immediateInternalModel: GPT_61_SOL_MODEL,
       reasoningEffort: "medium" as const,
     },
     recommendationFinalizer: {
@@ -136,6 +137,7 @@ export const CAREER_LLM_CONFIG = {
   // 모델은 assistant.primary/fallback을 쓴다.
   // 사용처: src/lib/talentOnboarding/profileIngestion.ts.
   profileIngestion: {
+    maxTokens: 40_000,
     temperature: 0.1,
   },
   // Realtime 세션 생성 설정.
@@ -2508,6 +2510,7 @@ export async function runCareerProfileIngestion(args: {
 }) {
   return runTalentAssistantCompletion({
     ...assistantModelConfig(),
+    maxTokens: CAREER_LLM_CONFIG.profileIngestion.maxTokens,
     messages: args.messages,
     temperature: CAREER_LLM_CONFIG.profileIngestion.temperature,
     usageLabel: args.usageLabel,

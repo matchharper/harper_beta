@@ -39,6 +39,10 @@ test("Intro submits without a process stage and displays validation errors", asy
     await import("./CompanyIntroDecisionDialogs");
   const root = createRoot(dom.window.document.getElementById("root")!);
   const submissions: unknown[] = [];
+  let finishSubmission!: () => void;
+  const submission = new Promise<void>((resolve) => {
+    finishSubmission = resolve;
+  });
   try {
     await act(async () => {
       root.render(
@@ -48,6 +52,7 @@ test("Intro submits without a process stage and displays validation errors", asy
           onClose={() => {}}
           onSubmit={async (value) => {
             submissions.push(value);
+            await submission;
           }}
           open
           pending={false}
@@ -74,6 +79,7 @@ test("Intro submits without a process stage and displays validation errors", asy
     });
     await act(async () => {
       submit();
+      submit();
     });
     assert.deepEqual(submissions, [
       {
@@ -81,6 +87,9 @@ test("Intro submits without a process stage and displays validation errors", asy
         introRecipientEmails: ["member@example.invalid"],
       },
     ]);
+    await act(async () => {
+      finishSubmission();
+    });
     assert.equal(dom.window.document.querySelector('[role="alert"]'), null);
     assert.equal(
       dom.window.document.querySelectorAll('[role="combobox"]').length,

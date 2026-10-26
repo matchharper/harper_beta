@@ -1,6 +1,8 @@
+import { matchingHistoryKey } from "./useOrgMatchingHistory";
 import {
   type InfiniteData,
   type QueryClient,
+  type Query,
   queryOptions,
   useInfiniteQuery,
   useMutation,
@@ -10,6 +12,7 @@ import {
 } from "@tanstack/react-query";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { isOrgCandidateProfilePreview, type OrgCandidateDetailResult } from "@/lib/org/candidatePreview";
 import type { OpsMatchingConnectionConfirmationEmailActionResponse } from "@/lib/ops/connectionConfirmationEmail";
 import type {
   OrgBoardProfileLabelsResponse,
@@ -26,11 +29,11 @@ import type {
   OrgMemberProfileUpdateResponse,
   OrgMemberRemoveResponse,
   OrgMembershipAuthorityUpdateResponse,
+  OrgRole,
   OrgRoleReviewStageCreateResponse,
   OrgRoleReviewStageDeleteResponse,
   OrgRoleReviewStageUpdateResponse,
   OrgResumeAccessResponse,
-  OrgTalentDetailResponse,
   OrgWorkspaceLeaveResponse,
   OrgWorkspaceUpdateFields,
 } from "@/lib/org/server";
@@ -45,6 +48,13 @@ import {
   type OrgCandidateStageMutationResponse,
 } from "@/lib/org/candidateStageClient";
 import { queryKeys } from "@/lib/queryKeys";
+import {
+  orgBillingMatches,
+  orgBoardMatches,
+  orgDetailMatches,
+  reconcileOrgCompanyIntro,
+  reconcileOrgRole,
+} from "@/lib/org/mutationCache";
 
 type OrgBoardFilters = {
   enabled?: boolean;
@@ -177,7 +187,28 @@ export function useOrgBootstrap(args: {
   enabled?: boolean;
   orgId?: string | null;
 }) {
-  return useQuery(orgBootstrapQueryOptions(args));
+  const queryClient = useQueryClient();
+  const workspaceId = args.orgId?.trim();
+  // The first visit may resolve a default workspace under the empty key. Reuse
+  // that snapshot when URL normalization switches to its canonical ID.
+  const cached = workspaceId
+    ? queryClient
+        .getQueryCache()
+        .findAll({
+          queryKey: queryKeys.org.bootstrapAll,
+          predicate: (query) =>
+            query.state.status === "success" &&
+            !query.state.isInvalidated &&
+            (query.state.data as OrgBootstrapResponse | undefined)?.workspace
+              ?.workspaceId === workspaceId,
+        })
+        .sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt)[0]
+    : undefined;
+  return useQuery({
+    ...orgBootstrapQueryOptions(args),
+    initialData: cached?.state.data as OrgBootstrapResponse | undefined,
+    initialDataUpdatedAt: cached?.state.dataUpdatedAt,
+  });
 }
 
 export function orgInvitePreviewQueryOptions(args: {
@@ -354,7 +385,7 @@ export function orgBoardQueryOptions(filters: OrgBoardFilters) {
       roleId,
       workspaceId,
     }),
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const params = new URLSearchParams({ workspaceId });
       if (roleId) params.set("roleId", roleId);
       if (recommendedDate) params.set("recommendedDate", recommendedDate);
@@ -363,7 +394,8 @@ export function orgBoardQueryOptions(filters: OrgBoardFilters) {
       if (recommendedToDate) params.set("recommendedToDate", recommendedToDate);
       if (query) params.set("query", query);
       return fetchWithInternalAuth<OrgBoardResponse>(
-        `/api/org/board?${params.toString()}`
+        `/api/org/board?${params.toString()}`,
+        { signal }
       );
     },
     enabled: (filters.enabled ?? true) && Boolean(workspaceId),
@@ -396,7 +428,7 @@ export function useOrgAcceptedTalents(args: {
   ).sort();
   return useInfiniteQuery({
     queryKey: [...queryKeys.org.acceptedTalents, workspaceIds.join(",")],
-    queryFn: ({ pageParam }) => {
+    queryFn: ({ pageParam, signal }) => {
       const params = new URLSearchParams({
         offset: String(pageParam),
       });
@@ -404,7 +436,8 @@ export function useOrgAcceptedTalents(args: {
         params.append("workspaceId", workspaceId);
       }
       return fetchWithInternalAuth<OrgAcceptedTalentsResponse>(
-        `/api/org/accepted-talents?${params.toString()}`
+        `/api/org/accepted-talents?${params.toString()}`,
+        { signal }
       );
     },
     getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
@@ -465,12 +498,13 @@ export function orgTalentDetailQueryOptions(args: {
       talentId,
       workspaceId,
     }),
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const params = new URLSearchParams({ talentId, workspaceId });
       if (roleId) params.set("roleId", roleId);
       if (recommendationId) params.set("recommendationId", recommendationId);
-      return fetchWithInternalAuth<OrgTalentDetailResponse>(
-        `/api/org/detail?${params.toString()}`
+      return fetchWithInternalAuth<OrgCandidateDetailResult>(
+        `/api/org/detail?${params.toString()}`,
+        { signal }
       );
     },
     enabled:
@@ -502,18 +536,41 @@ export function useSetOrgCandidateStage() {
           body: JSON.stringify({ ...args, agentActionId: crypto.randomUUID() }),
         }
       ),
-    onSuccess: (result, variables) => {
-      queryClient.setQueriesData<OrgBoardResponse>(
-        { queryKey: queryKeys.org.boardAll },
-        (current) => applyOrgCandidateStageToBoard(current, result, variables)
+    onSuccess: async (result, variables) => {
+      const board = {
+        predicate: (query: Query) =>
+          orgBoardMatches(query, variables.workspaceId, variables.roleId),
+      };
+      const detail = {
+        predicate: (query: Query) =>
+          orgDetailMatches(
+            query,
+            variables.workspaceId,
+            variables.roleId,
+            variables.talentId
+          ),
+      };
+      const accepted = {
+        queryKey: queryKeys.org.acceptedAll,
+        predicate: (query: Query) =>
+          String(query.queryKey[2] ?? "")
+            .split(",")
+            .includes(variables.workspaceId),
+      };
+      await Promise.all([
+        queryClient.cancelQueries(board),
+        queryClient.cancelQueries(detail),
+        queryClient.cancelQueries(accepted),
+      ]);
+      queryClient.setQueriesData<OrgBoardResponse>(board, (current) =>
+        applyOrgCandidateStageToBoard(current, result, variables)
       );
-      queryClient.setQueriesData<OrgTalentDetailResponse>(
-        { queryKey: queryKeys.org.detailAll },
-        (current) => applyOrgCandidateStageToDetail(current, result, variables)
+      queryClient.setQueriesData<OrgCandidateDetailResult>(detail, (current) =>
+        isOrgCandidateProfilePreview(current) ? current : applyOrgCandidateStageToDetail(current, result, variables)
       );
       queryClient.setQueriesData<
         InfiniteData<OrgAcceptedTalentsResponse, number>
-      >({ queryKey: queryKeys.org.acceptedAll }, (current) =>
+      >(accepted, (current) =>
         current
           ? {
               ...current,
@@ -529,14 +586,14 @@ export function useSetOrgCandidateStage() {
           : current
       );
 
-      void queryClient.invalidateQueries({ queryKey: ["org", "billing"] });
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.org.acceptedAll,
+        predicate: (query) => orgBillingMatches(query, variables.workspaceId),
       });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll });
+      void queryClient.invalidateQueries(accepted);
+      void queryClient.invalidateQueries(board);
+      void queryClient.invalidateQueries(detail);
       void queryClient.invalidateQueries({
-        queryKey: queryKeys.org.meetingSchedulesAll,
+        queryKey: [...queryKeys.org.meetingSchedulesAll, variables.workspaceId],
       });
       void refreshOrgAgentWebActionWhenReady({
         jobId: result.agentJobId,
@@ -576,11 +633,11 @@ export function useRequestOrgCompanyIntro() {
         queryClient,
         workspaceId: variables.workspaceId,
       });
-      return Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["org", "billing"] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
-      ]);
+      return reconcileOrgCompanyIntro(
+        queryClient,
+        variables.workspaceId,
+        result
+      );
     },
   });
 }
@@ -588,7 +645,11 @@ export function useRequestOrgCompanyIntro() {
 export function usePassOrgCompanyIntro() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: { introCandidateId: string; workspaceId: string; reason?: string }) =>
+    mutationFn: (args: {
+      introCandidateId: string;
+      workspaceId: string;
+      reason?: string;
+    }) =>
       fetchWithInternalAuth<OrgCompanyIntroMutationResponse>(
         "/api/org/company-intro",
         {
@@ -607,10 +668,11 @@ export function usePassOrgCompanyIntro() {
         queryClient,
         workspaceId: variables.workspaceId,
       });
-      return Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
-      ]);
+      return reconcileOrgCompanyIntro(
+        queryClient,
+        variables.workspaceId,
+        result
+      );
     },
   });
 }
@@ -830,6 +892,7 @@ export function useUpdateOrgRole() {
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
       expectedCriteria?: OrgRoleCriterion[];
+      expectedRequest?: string | null;
       isCompanyFirstSearch?: boolean;
       isPromote?: boolean;
       isAnonymous?: boolean;
@@ -845,26 +908,32 @@ export function useUpdateOrgRole() {
       workMode?: string | null;
       workspaceId: string;
     }) =>
-      fetchWithInternalAuth<{ agentJobId?: string | null; ok: true }>(
-        "/api/org/role",
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...args, agentActionId: crypto.randomUUID() }),
-        }
-      ),
+      fetchWithInternalAuth<{
+        agentJobId?: string | null;
+        hiringBriefHistoryId?: string | null;
+        ok: true;
+        role: OrgRole;
+      }>("/api/org/role", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...args, agentActionId: crypto.randomUUID() }),
+      }),
     onSuccess: (result, variables) => {
+      if (result.hiringBriefHistoryId) {
+        void queryClient.invalidateQueries({ queryKey: matchingHistoryKey(variables.workspaceId, variables.roleId) });
+        // The server owns the durable user message. Refresh it immediately;
+        // the existing job watcher refreshes the subsequent assistant result.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.org.agentMessages({
+          mode: "role", roleId: variables.roleId, workspaceId: variables.workspaceId,
+        }) });
+      }
       void refreshOrgAgentWebActionWhenReady({
         jobId: result.agentJobId,
         queryClient,
         roleId: variables.roleId,
         workspaceId: variables.workspaceId,
       });
-      return Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.boardAll }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.org.detailAll }),
-      ]);
+      return reconcileOrgRole(queryClient, result.role, variables.isExpired);
     },
   });
 }

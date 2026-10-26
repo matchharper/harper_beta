@@ -1,5 +1,12 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   CalendarCheck2,
@@ -30,7 +37,10 @@ import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type {
   OrgHomeActivity,
   OrgHomeActivityKind,
+  OrgHomeActivityFilter,
+  OrgHomeActivityPage,
 } from "@/lib/org/homeActivity";
+import { orgHomeActivityTitle } from "@/lib/org/homeActivity";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
@@ -42,18 +52,10 @@ const eventIcons: Record<OrgHomeActivityKind, LucideIcon> = {
   candidate_message: MessageSquare,
   candidate_response: Reply,
   company_question: ArrowUpRight,
+  company_message: ArrowUpRight,
+  company_resume_request: ArrowUpRight,
   meeting_requested: CalendarDays,
   meeting_confirmed: CalendarCheck2,
-};
-const eventGroups: Record<OrgHomeActivityKind, string> = {
-  intro_sent: "intros",
-  pending_connection: "intros",
-  intro_accepted: "intros",
-  candidate_message: "messages",
-  candidate_response: "messages",
-  company_question: "messages",
-  meeting_requested: "interviews",
-  meeting_confirmed: "interviews",
 };
 const dayFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Seoul",
@@ -67,91 +69,103 @@ export function OrgHomeFeed({
   workspaceId,
   roleId,
   roleName,
+  scrollHeader,
+  navigationHeader,
 }: {
   workspaceId: string;
   roleId: string | null;
   roleName?: string;
+  scrollHeader?: ReactNode;
+  navigationHeader?: ReactNode;
 }) {
   const { c, locale } = useOrgLocale();
   const { selectTalent } = useOrgJobsNavigation();
   const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState("all");
-  const query = useQuery({
-    queryKey: ["org", "home-activity", workspaceId, roleId ?? "all"],
+  const [kindFilter, setKindFilter] = useState<OrgHomeActivityFilter>("all");
+  const [searchText, setSearchText] = useState("");
+  const scrollRef = useRef<HTMLElement>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchText(search.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [workspaceId, roleId, searchText, kindFilter, locale]);
+  const query = useInfiniteQuery({
+    queryKey: [
+      "org",
+      "home-activity",
+      workspaceId,
+      roleId ?? "all",
+      "pages",
+      searchText,
+      kindFilter,
+      locale,
+    ],
     enabled: Boolean(workspaceId),
     staleTime: 30_000,
     refetchOnMount: "always",
-    queryFn: () => {
-      const params = new URLSearchParams({ workspaceId });
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => {
+      const params = new URLSearchParams({
+        workspaceId,
+        search: searchText,
+        kind: kindFilter,
+        locale,
+      });
       if (roleId) params.set("roleId", roleId);
-      return fetchWithInternalAuth<{ items: OrgHomeActivity[] }>(
-        `/api/org/activity?${params}`
+      if (pageParam) params.set("cursor", pageParam);
+      return fetchWithInternalAuth<OrgHomeActivityPage>(
+        `/api/org/activity?${params}`,
+        { signal }
       );
     },
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
   });
+  const { hasNextPage, isFetching, isError, fetchNextPage } = query;
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    const root = scrollRef.current;
+    if (
+      !target ||
+      !root ||
+      !hasNextPage ||
+      isFetching ||
+      isError ||
+      search.trim() !== searchText
+    )
+      return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          observer.disconnect();
+          void fetchNextPage();
+        }
+      },
+      { root, rootMargin: "240px" }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetching, isError, fetchNextPage, search, searchText]);
   const filters = [
     { value: "all", label: c("모든 소식", "All updates") },
     { value: "intros", label: "Intro" },
     { value: "messages", label: c("메시지", "Messages") },
     { value: "interviews", label: c("인터뷰", "Interviews") },
   ];
-  const titleFor = (item: OrgHomeActivity) => {
-    const name = item.talentName || c("후보자", "Candidate");
-    const titles: Record<OrgHomeActivityKind, string> = {
-      intro_sent: c("{name}님에게 Intro를 보냈어요", "Intro sent to {name}", {
-        name,
-      }),
-      pending_connection: c(
-        "새로운 연결 대기 후보 · {name}",
-        "New candidate to review · {name}",
-        { name }
-      ),
-      intro_accepted: c(
-        "{name}님이 Intro를 수락했어요",
-        "{name} accepted your intro",
-        { name }
-      ),
-      candidate_message: c(
-        "{name}님에게 메시지가 왔어요",
-        "New message from {name}",
-        { name }
-      ),
-      candidate_response: c("{name}님이 답변했어요", "{name} replied", {
-        name,
-      }),
-      company_question: c(
-        "{name}님에게 메시지를 보냈어요",
-        "Message sent to {name}",
-        { name }
-      ),
-      meeting_requested: c(
-        "{name}님에게 인터뷰를 요청했어요",
-        "Interview requested with {name}",
-        { name }
-      ),
-      meeting_confirmed: c(
-        "{name}님의 인터뷰 일정이 정해졌어요",
-        "Interview scheduled with {name}",
-        { name }
-      ),
-    };
-    return titles[item.kind];
-  };
-  const searchText = search.trim().toLocaleLowerCase(locale);
-  const items = (query.data?.items ?? [])
-    .filter(
-      (item) =>
-        (kindFilter === "all" || eventGroups[item.kind] === kindFilter) &&
-        (!searchText ||
-          [item.talentName, item.roleName, item.text, titleFor(item)]
-            .join(" ")
-            .toLocaleLowerCase(locale)
-            .includes(searchText))
-    )
-    .sort(
-      (a, b) =>
-        b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)
-    );
+  const titleFor = (item: OrgHomeActivity, name?: string) =>
+    orgHomeActivityTitle(item, locale, name);
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    return (query.data?.pages ?? [])
+      .flatMap((page) => page.items)
+      .filter((item) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+  }, [query.data]);
   const days = new Map<string, OrgHomeActivity[]>();
   for (const item of items) {
     const day = dayFormatter.format(new Date(item.createdAt));
@@ -189,14 +203,24 @@ export function OrgHomeFeed({
   return (
     <>
       <section
+        ref={scrollRef}
         aria-label={c("활동 피드", "Activity feed")}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-8 lg:px-6"
       >
+        {scrollHeader}
+        {navigationHeader}
         <header className="pb-2 lg:pt-7">
-          <h2 className="truncate text-xl font-medium text-neutral-primary">
-            {roleName || c("전체 소식", "All activity")}
-          </h2>
-          <div className="mt-6 flex flex-wrap items-center gap-2">
+          {!navigationHeader && (
+            <h2 className="truncate text-xl font-medium text-neutral-primary">
+              {roleName || c("전체 소식", "All activity")}
+            </h2>
+          )}
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-2",
+              navigationHeader ? "mt-2" : "mt-6"
+            )}
+          >
             <div className="relative min-w-40 flex-1">
               <Search
                 aria-hidden
@@ -235,7 +259,9 @@ export function OrgHomeFeed({
               <DropdownMenuContent align="end">
                 <DropdownMenuRadioGroup
                   value={kindFilter}
-                  onValueChange={setKindFilter}
+                  onValueChange={(value) =>
+                    setKindFilter(value as OrgHomeActivityFilter)
+                  }
                 >
                   {filters.map((filter) => (
                     <DropdownMenuRadioItem
@@ -250,12 +276,12 @@ export function OrgHomeFeed({
             </DropdownMenu>
           </div>
         </header>
-        {query.isError ? (
+        {query.isError && !query.data ? (
           <OrgErrorState
             message={query.error.message}
             onRetry={() => void query.refetch()}
           />
-        ) : query.isLoading ? (
+        ) : query.isPending ? (
           <div
             aria-label={c("소식 불러오는 중", "Loading updates")}
             aria-busy
@@ -280,7 +306,7 @@ export function OrgHomeFeed({
               aria-label={dateLabel(day, events[0].createdAt)}
               className="mt-7"
             >
-              <h3 className="mb-2 px-2 text-xs font-medium text-neutral-soft">
+              <h3 className="mb-2 px-2 text-sm font-normal text-neutral-soft">
                 {dateLabel(day, events[0].createdAt)}
               </h3>
               <ul className="divide-y divide-neutral-1000-a05">
@@ -302,7 +328,7 @@ export function OrgHomeFeed({
                             recommendationId: item.recommendationId,
                           })
                         }
-                        className="group flex w-full gap-3 rounded-md px-2 py-5 text-left outline-none transition-colors hover:bg-bg-weak focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                        className="group flex w-full gap-3 rounded-md px-2 py-3 my-1 text-left outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
                       >
                         <Icon
                           aria-hidden
@@ -311,26 +337,33 @@ export function OrgHomeFeed({
                             item.kind === "intro_accepted" ||
                               item.kind === "meeting_confirmed"
                               ? "text-positive-strong"
-                              : "text-neutral-soft"
+                              : "text-neutral-muted"
                           )}
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="text-[14px] font-medium leading-5 text-neutral-primary">
-                            {titleFor(item)}
-                          </div>
-                          {preview && (
-                            <p className="mt-1.5 line-clamp-2 whitespace-pre-line text-[13px] font-normal leading-5 text-neutral-muted">
-                              {preview}
-                            </p>
-                          )}
-                          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-soft">
-                            {!roleId && item.roleName && (
-                              <>
-                                <span>{item.roleName}</span>
-                                <span aria-hidden>·</span>
-                              </>
-                            )}
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0 text-[13px] font-medium leading-5 text-neutral-primary">
+                              {item.roleName && (
+                                <span className="text-neutral-muted font-normal">
+                                  {item.roleName} ·{" "}
+                                </span>
+                              )}
+                              {titleFor(item, "{name}")
+                                .split("{name}")
+                                .map((text, index) => (
+                                  <Fragment key={index}>
+                                    {index > 0 && (
+                                      <span className="text-action">
+                                        {item.talentName ||
+                                          c("후보자", "Candidate")}
+                                      </span>
+                                    )}
+                                    {text}
+                                  </Fragment>
+                                ))}
+                            </div>
                             <time
+                              className="shrink-0 whitespace-nowrap text-xs font-normal leading-5 text-neutral-muted"
                               dateTime={item.createdAt}
                               title={new Date(item.createdAt).toLocaleString(
                                 locale
@@ -339,11 +372,12 @@ export function OrgHomeFeed({
                               {formatRelativeTime(item.createdAt, locale)}
                             </time>
                           </div>
+                          {/* {preview && (
+                            <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-[13px] font-normal leading-5 text-neutral-muted">
+                              {preview}
+                            </p>
+                          )} */}
                         </div>
-                        <ArrowUpRight
-                          aria-hidden
-                          className="mt-0.5 size-4 shrink-0 text-neutral-soft opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                        />
                       </BareButton>
                     </li>
                   );
@@ -351,7 +385,7 @@ export function OrgHomeFeed({
               </ul>
             </section>
           ))
-        ) : (
+        ) : query.hasNextPage ? null : (
           <div
             role="status"
             className="flex flex-col items-center gap-3 py-20 text-sm text-neutral-muted"
@@ -379,10 +413,28 @@ export function OrgHomeFeed({
             )}
           </div>
         )}
-        {!filtered && query.data?.items.length === 100 && (
-          <p className="pt-6 text-center text-xs text-neutral-soft">
-            {c("최근 100개 소식", "Latest 100 updates")}
-          </p>
+        {query.isError && query.data && (
+          <OrgErrorState
+            message={query.error.message}
+            onRetry={() =>
+              void (query.isFetchNextPageError
+                ? query.fetchNextPage()
+                : query.refetch())
+            }
+          />
+        )}
+        {query.hasNextPage && !query.isError && (
+          <div ref={loadMoreRef} className="flex justify-center py-6">
+            <MuteButton
+              disabled={query.isFetching || search.trim() !== searchText}
+              onClick={() => void query.fetchNextPage()}
+              variant="transparent"
+            >
+              {query.isFetchingNextPage
+                ? c("소식을 불러오는 중", "Loading updates")
+                : c("이전 소식 더 보기", "Load older updates")}
+            </MuteButton>
+          </div>
         )}
       </section>
       <TalentDetailSimpleView />

@@ -12,6 +12,7 @@ import TurndownService from "turndown";
 import { POSTING_LINK_LABEL } from "@/lib/career/postingLinks";
 import { compactUrlLabel, isHarperOwnedUrl, isUrlText } from "@/lib/urlDisplay";
 import { cn } from "@/lib/utils";
+import { typographyVariants, type TypographyVariant } from "./typography";
 import {
   OPPORTUNITY_RUN_MARKER_LABEL,
   stripOpportunityRunMarkers,
@@ -315,17 +316,25 @@ function isStandaloneStrongParagraph(children: ReactNode) {
 
 export type RichTextVariant = "default" | "career";
 
+// Markdown prose inherits the selected typography, including caller overrides.
+const proseTypographyClass =
+  "[&_:is(p,ul,ol,blockquote,table,h1,h2,h3,h4,h5,h6)]:text-[length:inherit] [&_:is(p,ul,ol,blockquote,table,h1,h2,h3,h4,h5,h6)]:leading-[inherit] [&_:is(p,blockquote,em,h1,h2,h3,h4,h5,h6,strong)]:text-inherit [&_:is(h1,h2,h3,h4,h5,h6)]:font-medium";
+export type RichTextTypography = TypographyVariant;
+
 export default function RichText({
   content,
+  children,
   className,
   linkClassName,
   onHarperLinkClick,
   renderEmailLinksAsText = false,
   referenceLinks = false,
   variant = "default",
+  typography,
   trailingInlineNode,
+  additionalRemarkPlugins = [],
+  renderLink,
 }: {
-  content: string;
   className?: string;
   linkClassName?: string;
   onHarperLinkClick?: (href: string) => void;
@@ -333,10 +342,16 @@ export default function RichText({
   /** Render external web sources as compact inline references; Markdown stays unchanged. */
   referenceLinks?: boolean;
   variant?: RichTextVariant;
+  typography?: RichTextTypography;
   trailingInlineNode?: ReactNode;
-}) {
+  additionalRemarkPlugins?: React.ComponentProps<typeof ReactMarkdown>["remarkPlugins"];
+  renderLink?: (args: { href: string; children: ReactNode; text: string }) => ReactNode | undefined;
+} & (
+  | { content: string; children?: never }
+  | { children: string; content?: never }
+)) {
   const normalizedContent = normalizeRichText(
-    stripOpportunityRunMarkers(content)
+    stripOpportunityRunMarkers(content ?? children ?? "")
   );
   const markdownContent = trailingInlineNode
     ? `${normalizedContent}${TRAILING_INLINE_NODE_MARKER}`
@@ -345,7 +360,7 @@ export default function RichText({
   if (!normalizedContent) {
     return trailingInlineNode ? (
       <div
-        className={cn("max-w-none text-sm leading-6", className)}
+        className={cn("max-w-none text-sm leading-6", typography && [typographyVariants[typography], proseTypographyClass], className)}
         data-career-i18n-skip="true"
       >
         {trailingInlineNode}
@@ -357,12 +372,13 @@ export default function RichText({
     <div
       className={cn(
         "max-w-none text-sm leading-6 [&_:is(h1,h2,h3,h4,h5,h6,[data-rich-text-section-title])+:is(p,ul,ol,blockquote,pre,[data-rich-text-table])]:mt-2",
+        typography && [typographyVariants[typography], proseTypographyClass],
         className
       )}
       data-career-i18n-skip="true"
     >
       <ReactMarkdown
-        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkUnderline]}
+        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkUnderline, ...(additionalRemarkPlugins ?? [])]}
         components={{
           h1: ({ children }) => (
             <h1
@@ -460,6 +476,8 @@ export default function RichText({
                 </span>
               );
             }
+            const customLink = renderLink?.({ href, children, text: getPlainText(children) });
+            if (customLink !== undefined) return customLink;
             const childText = getPlainText(children);
             if (
               childText.trim().toLowerCase() === OPPORTUNITY_RUN_MARKER_LABEL

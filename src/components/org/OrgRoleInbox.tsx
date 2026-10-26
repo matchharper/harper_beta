@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { useIsMutating } from "@tanstack/react-query";
 import {
@@ -6,13 +6,15 @@ import {
   LayoutPanelLeft,
   LayoutGrid,
   List,
-  Bookmark,
+  LockKeyhole,
 } from "lucide-react";
 import { CardButton, MuteButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -20,8 +22,10 @@ import {
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
-import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
-import { useOrgCandidateSave } from "@/hooks/org/useOrgCandidateSave";
+import {
+  isOrgQueryAccessError,
+  isOrgQueryBlockingError,
+} from "@/lib/org/queryError";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
 import {
@@ -30,6 +34,7 @@ import {
 } from "@/lib/org/candidateBoardSort";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgCriteriaBars } from "./OrgCriteriaBars";
+import { cn } from "@/lib/utils";
 import { OrgSearchHistory } from "./OrgSearchHistory";
 import { OrgRoleTalentBoard } from "./OrgRoleTalentBoard";
 import { OrgPendingConnectionGate } from "./billing/OrgPendingConnectionGate";
@@ -50,45 +55,66 @@ export function OrgRoleInbox() {
     selectTalent,
     workspaceId,
   } = useOrgJobsNavigation();
-  const { permissions } = useOrgWorkspace();
-  const save = useOrgCandidateSave();
   const listScrollTop = useRef(0);
   const scrollRef = useRef<HTMLElement>(null);
-  const [actionError, setActionError] = useState("");
   const entitlements = useOrgEntitlements(workspaceId);
-  const mutationCount = useIsMutating();
+  const mutationCount = useIsMutating({
+    predicate: (mutation) => {
+      const input = mutation.state.variables as
+        | { workspaceId?: string; talentId?: string; introCandidateId?: string }
+        | undefined;
+      return (
+        input?.workspaceId === workspaceId &&
+        Boolean(input.talentId || input.introCandidateId)
+      );
+    },
+  });
   const savedReview = router.query.review === "saved";
   const stage =
     router.query.inboxStage === "company_intro"
       ? "company_intro"
       : "pending_connection";
   const view =
-    router.query.inboxView === "card"
-      ? "card"
+    router.query.inboxView === "list"
+      ? "list"
       : router.query.inboxView === "grid"
         ? "grid"
-        : "list";
+        : "card";
   const card = view === "card";
   const sort: OrgCandidateSort =
     router.query.sort === "recommended" ? "recommended" : "latest";
+  const sortLabel =
+    sort === "recommended"
+      ? c("추천순", "Recommended")
+      : c("최신순", "Newest first");
+  const stageCounts = useMemo(() => {
+    const counts = { pending_connection: 0, company_intro: 0 };
+    for (const item of board?.items ?? []) {
+      if (
+        !item.savedAt &&
+        (item.stage === "pending_connection" || item.stage === "company_intro")
+      ) {
+        counts[item.stage] += 1;
+      }
+    }
+    return counts;
+  }, [board?.items]);
   const items = useMemo(
     () =>
       (board?.items ?? [])
         .filter((item) =>
           savedReview
-            ? Boolean(item.savedAt) &&
-              (item.stage !== "pending_connection" ||
-                canUsePendingConnections(entitlements.data, item.roleId))
+            ? Boolean(item.savedAt)
             : !item.savedAt && item.stage === stage
         )
         .sort((a, b) => compareOrgCandidates(a, b, sort)),
-    [board?.items, stage, sort, savedReview, entitlements.data]
+    [board?.items, stage, sort, savedReview]
   );
-  const locked =
-    !savedReview &&
-    stage === "pending_connection" &&
+  const pendingLocked =
     Boolean(entitlements.data) &&
     !canUsePendingConnections(entitlements.data, activeRole?.roleId);
+  const locked =
+    !savedReview && stage === "pending_connection" && pendingLocked;
   const change = (patch: Record<string, string>, preserveSelection = false) => {
     if (patch.inboxStage || patch.sort) listScrollTop.current = 0;
     const query = { ...router.query, ...patch };
@@ -109,11 +135,11 @@ export function OrgRoleInbox() {
   useEffect(() => {
     if (
       card &&
+      !(detailTalentId && !detailRecommendationId) &&
       !savedReview &&
       !mutationCount &&
-      !locked &&
-      boardQuery.isSuccess &&
-      !boardQuery.isFetching &&
+      boardQuery.data &&
+      !isOrgQueryBlockingError(boardQuery.error, boardQuery.data) &&
       items.length &&
       !items.some((item) => item.recommendationId === detailRecommendationId)
     ) {
@@ -146,7 +172,7 @@ export function OrgRoleInbox() {
       }}
       className="@container/inbox h-full min-h-0 min-w-0 overflow-y-auto overscroll-contain"
     >
-      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-5 md:pt-6">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-2 pt-3 md:pt-4">
         {savedReview ? (
           <h2 className="mr-auto text-sm font-medium">
             {c("저장함", "Saved")}
@@ -155,34 +181,63 @@ export function OrgRoleInbox() {
           <>
             <Tabs
               activeValue={stage}
+              variant="borderless"
+              size="small"
+              className="
+                mr-auto w-fit gap-1.5 bg-white
+                [&_[role=tab]]:h-8
+                [&_[role=tab]]:px-3
+                [&_[role=tab]]:bg-white
+                [&_[role=tab][aria-selected=true]]:bg-neutral-200
+              "
               aria-label={c("인박스 유형", "Inbox type")}
-              className="mr-auto w-fit"
+              // className="mr-auto w-fit"
               items={[
                 {
                   value: "pending_connection",
-                  label: c("연결 대기", "Inbound"),
+                  label: (
+                    <span className="inline-flex items-center gap-1.5 text-sm">
+                      {c("연결 대기", "Ready to connect")}
+                      {!pendingLocked && stageCounts.pending_connection > 0 && (
+                        <Badge
+                          className="h-4 min-w-6 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
+                          size="sm"
+                        >
+                          {stageCounts.pending_connection}
+                        </Badge>
+                      )}
+                    </span>
+                  ),
+                  icon: pendingLocked ? (
+                    <LockKeyhole className="size-3.5" aria-hidden />
+                  ) : undefined,
                   tooltip: sourceT(ORG_STAGE_DESCRIPTIONS.pending_connection),
                   tooltipVariant: "light",
                 },
                 {
                   value: "company_intro",
-                  label: c("먼저 제안 가능한 후보", "Suggested"),
+                  label: (
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      {c("먼저 제안 가능한 후보", "Suggested candidates")}
+                      <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-800">
+                        {stageCounts.company_intro}
+                      </span>
+                    </span>
+                  ),
                   tooltip: sourceT(ORG_STAGE_DESCRIPTIONS.company_intro),
                   tooltipVariant: "light",
                 },
               ]}
               onValueChange={(inboxStage) => change({ inboxStage })}
-              variant="pills"
-              size="small"
             />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <MuteButton
-                  aria-label={c("정렬", "Sort")}
-                  title={c("정렬", "Sort")}
+                  aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+                  title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
                   variant="transparent"
                 >
-                  <ArrowDownWideNarrow className="size-4" />
+                  <ArrowDownWideNarrow className="size-4" strokeWidth={1.4} />
                 </MuteButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -204,34 +259,43 @@ export function OrgRoleInbox() {
                 <MuteButton
                   aria-label={c("보기 방식", "View options")}
                   title={c("보기 방식", "View options")}
+                  size="sm"
                   variant="transparent"
                 >
                   {card ? (
-                    <LayoutPanelLeft className="size-4" />
+                    <LayoutPanelLeft className="size-4" strokeWidth={1.4} />
                   ) : view === "grid" ? (
-                    <LayoutGrid className="size-4" />
+                    <LayoutGrid className="size-4" strokeWidth={1.4} />
                   ) : (
-                    <List className="size-4" />
+                    <List className="size-4" strokeWidth={1.4} />
                   )}
                 </MuteButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuRadioGroup
-                  value={view}
-                  onValueChange={(inboxView) =>
-                    change({ inboxView }, inboxView === "card")
-                  }
+              <DropdownMenuContent align="end" className="w-40" sideOffset={2}>
+                <DropdownMenuItem
+                  onSelect={() => change({ inboxView: "card" }, true)}
+                  selected={view === "card"}
+                  variant="sm"
                 >
-                  <DropdownMenuRadioItem value="list">
-                    {c("리스트", "List")}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="card">
-                    {c("카드", "Card")}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="grid">
-                    {c("그리드", "Grid")}
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
+                  <LayoutPanelLeft strokeWidth={1.4} />
+                  {c("카드", "Card")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => change({ inboxView: "grid" }, false)}
+                  selected={view === "grid"}
+                  variant="sm"
+                >
+                  <LayoutGrid strokeWidth={1.4} />
+                  {c("그리드", "Grid")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => change({ inboxView: "list" }, false)}
+                  selected={view === "list"}
+                  variant="sm"
+                >
+                  <List strokeWidth={1.4} />
+                  {c("리스트", "List")}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </>
@@ -241,17 +305,22 @@ export function OrgRoleInbox() {
           roleId={activeRole?.roleId}
         />
       </div>
-      {actionError && (
-        <p role="alert" className="mb-3 text-xs text-critical">
-          {actionError}
-        </p>
-      )}
-      {boardQuery.isError ? (
+      {boardQuery.error &&
+        !isOrgQueryBlockingError(boardQuery.error, boardQuery.data) && (
+          <OrgErrorState
+            message={boardQuery.error.message}
+            onRetry={() => void boardQuery.refetch()}
+          />
+        )}
+      {isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
         <OrgErrorState
-          message={boardQuery.error.message}
+          message={boardQuery.error!.message}
           onRetry={() => void boardQuery.refetch()}
         />
-      ) : stage === "pending_connection" && !entitlements.data ? (
+      ) : detailTalentId && !detailRecommendationId ? (
+        <TalentDetailSimpleView presentation="inline" />
+      ) : stage === "pending_connection" &&
+        (!entitlements.data || isOrgQueryAccessError(entitlements.error)) ? (
         entitlements.isError ? (
           <OrgErrorState
             message={entitlements.error.message}
@@ -260,8 +329,6 @@ export function OrgRoleInbox() {
         ) : (
           <ReviewEmptyState loading />
         )
-      ) : locked ? (
-        <OrgPendingConnectionGate workspaceId={workspaceId} />
       ) : boardQuery.isLoading ? (
         <ReviewEmptyState loading />
       ) : reviewing && (detailTalentId || items.length) ? (
@@ -286,89 +353,76 @@ export function OrgRoleInbox() {
           />
         </div>
       ) : !items.length ? (
-        <ReviewEmptyState />
+        locked ? (
+          <OrgPendingConnectionGate workspaceId={workspaceId} />
+        ) : (
+          <ReviewEmptyState />
+        )
       ) : view === "grid" ? (
         <OrgRoleTalentBoard section="inbox" inboxItems={items} />
       ) : (
         <div className="divide-y divide-neutral-1000-a05">
-          {items.map((item) => (
-            <article
-              key={item.recommendationId}
-              className="relative isolate grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-md px-2 py-5 @min-[700px]/inbox:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_64px_auto]"
-            >
-              <CardButton
-                className="absolute inset-0 z-0 h-full border-0 bg-transparent p-0 shadow-none"
-                aria-label={c("{name} 프로필 보기", "View {name}'s profile", {
-                  name: item.talent.name || c("후보자", "Candidate"),
-                })}
-                onClick={() => selectTalent(item, items)}
+          {items.map((item) => {
+            const name = item.talent.name;
+            const headline = item.talent.headline || item.talent.location;
+            const company = item.talent.recentCompanies[0]?.label;
+            const school = item.talent.recentSchools[0]?.label;
+            return (
+              <article
+                key={item.recommendationId}
+                className="relative isolate grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-5 @min-[700px]/inbox:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto_64px]"
               >
-                <span className="sr-only">{item.talent.name}</span>
-              </CardButton>
-              <div className="pointer-events-none relative z-10 flex min-w-0 items-center gap-3">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-weak text-sm text-neutral-muted">
-                  {item.talent.name?.slice(0, 1) || "·"}
-                </span>
-                <div className="min-w-0">
-                  <h3 className="truncate text-[15px] font-medium">
-                    {item.talent.name || c("후보자", "Candidate")}
-                  </h3>
-                  <p className="mt-1 truncate text-xs text-neutral-muted">
-                    {item.talent.headline || item.talent.location}
-                    {item.talent.recentCompanies[0]?.label && (
-                      <span className="@min-[700px]/inbox:hidden">
-                        {" "}
-                        · {item.talent.recentCompanies[0].label}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              <div className="pointer-events-none relative z-10 hidden min-w-0 @min-[700px]/inbox:block">
-                <p className="truncate text-xs">
-                  {item.talent.recentCompanies[0]?.label}
-                </p>
-                <p className="mt-1 truncate text-xs text-neutral-muted">
-                  {item.talent.recentSchools[0]?.label}
-                </p>
-              </div>
-              <div className="relative z-10">
-                <OrgCriteriaBars evaluations={item.criteriaEvaluations} />
-              </div>
-              <time className="pointer-events-none relative z-10 hidden text-xs text-neutral-soft @min-[700px]/inbox:block">
-                {formatKstRelativeDate(getOrgCandidateCardDate(item), {
-                  locale,
-                })}
-              </time>
-              {permissions.canManageCandidates && (
-                <MuteButton
-                  title="Save"
-                  aria-label={c("{name} 저장", "Save {name}", {
+                <CardButton
+                  className="absolute inset-0 z-0 h-full border-0 bg-transparent p-0 shadow-none"
+                  aria-label={c("{name} 프로필 보기", "View {name}'s profile", {
                     name: item.talent.name || c("후보자", "Candidate"),
                   })}
-                  variant="transparent"
-                  className="relative z-10"
-                  disabled={save.isPending}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setActionError("");
-                    save.mutate(
-                      {
-                        workspaceId,
-                        roleId: item.roleId,
-                        talentId: item.talentId,
-                        recommendationId: item.recommendationId,
-                        saved: true,
-                      },
-                      { onError: (error) => setActionError(error.message) }
-                    );
-                  }}
+                  onClick={() => selectTalent(item, items)}
                 >
-                  <Bookmark className="size-4" />
-                </MuteButton>
-              )}
-            </article>
-          ))}
+                  <span className="sr-only">{item.talent.name}</span>
+                </CardButton>
+                <div className="relative z-10 min-w-0">
+                  <div
+                    className="pointer-events-none flex min-w-0 items-center gap-3"
+                  >
+                                          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-weak text-sm text-neutral-muted">
+                        {name?.slice(0, 1) || "·"}
+                      </span>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-[15px] font-medium">
+                        {name || c("후보자", "Candidate")}
+                      </h3>
+                      <p className="mt-1 truncate text-xs text-neutral-muted">
+                        {headline}
+                        {company && (
+                          <span className="@min-[700px]/inbox:hidden">
+                            {" "}
+                            · {company}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="pointer-events-none relative z-10 hidden min-w-0 @min-[700px]/inbox:block"
+                >
+                  <p className="truncate text-xs">{company}</p>
+                  <p className="mt-1 truncate text-xs text-neutral-muted">
+                    {school}
+                  </p>
+                </div>
+                <div className="relative z-10">
+                  <OrgCriteriaBars evaluations={item.criteriaEvaluations} />
+                </div>
+                <time className="pointer-events-none relative z-10 hidden text-xs text-neutral-soft @min-[700px]/inbox:block">
+                  {formatKstRelativeDate(getOrgCandidateCardDate(item), {
+                    locale,
+                  })}
+                </time>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>

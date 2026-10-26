@@ -180,7 +180,7 @@ test("all missing summary texts finish with zero recommendations and no writes",
   assert.deepEqual(selected, []);
 });
 
-test("rerank sees only top twenty with requested-language summary and consumes just IDs plus note", async () => {
+test("rerank sees only top twenty-five with requested-language summary and consumes just IDs plus note", async () => {
   const input = cards(30);
   input.forEach((c, i) => {
     if (i > 0) c.roleSummary = { en: { content: `Summary ${i}` } };
@@ -222,7 +222,7 @@ test("rerank sees only top twenty with requested-language summary and consumes j
     }
   );
   assert.equal(result[0].card.roleId, input[1].roleId);
-  assert.ok(text.includes("Summary 20"));
+  assert.ok(text.includes("Summary 25"));
   assert.ok(text.includes("score: 89.9"));
   assert.ok(text.includes("mutualFit: 60.9"));
   assert.ok(text.includes("roleFit: 64.2"));
@@ -237,7 +237,7 @@ test("rerank sees only top twenty with requested-language summary and consumes j
     assert.ok(prompt.includes(metric + ":"));
   assert.ok(!text.includes("Synthetic backend work"));
   assert.ok(!text.includes("sourceEvidence"));
-  assert.ok(!text.includes("Summary 21"));
+  assert.ok(!text.includes("Summary 26"));
   assert.ok(
     text.indexOf("Synthetic brief authority") >
       text.indexOf("Synthetic tentative behavior")
@@ -812,7 +812,14 @@ test("rerank stops after one repair and propagates transport errors", async () =
   assert.equal(calls, 1);
   const request = v2CompletionRequest("system", "input", "rerank_repair");
   assert.equal(request.primaryModel, "gpt-6-luna");
-  assert.equal(request.openAIResponsesReasoningEffort, "low");
+  assert.equal(request.openAIResponsesReasoningEffort, "high");
+  assert.equal(request.maxTokens, 32768);
+  assert.equal(v2CompletionRequest("system", "input", "rerank").openAIResponsesReasoningEffort, "high");
+  for (const label of ["plan", "summary", "control_rerank", "control_rerank_repair"]) {
+    const unchanged = v2CompletionRequest("system", "input", label);
+    assert.equal(unchanged.openAIResponsesReasoningEffort, "low");
+    assert.equal(unchanged.maxTokens, 8000);
+  }
 });
 
 test("planner clips oversized search arrays before validation and defaults missing weight", () => {

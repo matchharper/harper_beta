@@ -517,7 +517,7 @@ export function onBriefSaved(listener: (roleId: string, brief: RoleStartBrief) =
   afterBriefSaved = listener;
 }
 
-export async function saveBriefVersion(args: {
+export async function saveRoleStartBrief(args: {
   roleId: string;
   brief: RoleStartBrief;
   changeSource: string;
@@ -533,32 +533,27 @@ export async function saveBriefVersion(args: {
   requestReview?: boolean;
 }) {
   const sql = roleStartSql();
-  // Numbered one at a time per Role: concurrent saves (an answer, a chat
-  // edit, a refinement) wait for each other instead of taking the same number.
-  // The Role keeps the team-readable Brief; search internals stay in versions.
-  // Numbered one at a time per Role, and the Role written in the same
-  // transaction: concurrent saves never leave the text and the list apart or
-  // an older version on the Role.
-  const { rows, historyIds } = await sql.begin(async (tx) => {
+  // Serialize writes from the current session and capture one existing history
+  // item per transaction. Internal draft refinements never create fake history.
+  const { version, historyIds } = await sql.begin(async (tx) => {
     await tx`select pg_advisory_xact_lock(hashtext(${`role_brief_version:${args.roleId}`}))`;
-    // Every path saves the session before its version, so the Role is written from the
+    // Published saves use the session, so the Role is written from the
     // session's Brief as it is now: a slower save of an older Brief cannot land last.
     const [current] = await tx<Array<{ brief: unknown }>>`
       select brief from public.company_role_start_sessions where role_id = ${args.roleId}
     `;
     const roleBrief = current?.brief ? normalizeRoleStartBrief(current.brief) : args.brief;
-    // Grade signals stay in the session and versions, never on the Role's list.
+    // Grade signals stay in the working session, never on the Role's list.
     const criteria = roleBrief.criteria.map(
       ({ rule: _rule, kind: _kind, evidenceTerms: _terms, signals: _signals, signalsOf: _of, reference: _reference, ...criterion }) => criterion
     );
     const markdown = renderBriefMarkdown(roleBrief);
-    const inserted = await tx<Array<{ version: number }>>`
-      insert into public.company_role_brief_versions (role_id, version, brief, change_source, change_summary, created_by)
-      select ${args.roleId}, coalesce(max(version), 0) + 1, ${tx.json(wellFormedJson(args.brief))},
-        ${args.changeSource}, ${args.changeSummary}, ${args.userId}
-      from public.company_role_brief_versions where role_id = ${args.roleId}
-      returning version
-    `;
+    // The structured working draft stays in the session. Saved company-facing
+    // text and criteria use the existing history trigger and search hash.
+    if (args.changeSource === "jd_draft" || args.changeSource === "confirmed") {
+      await tx`update public.company_role_start_sessions set brief_source = 'onboarding'
+        where role_id = ${args.roleId} and phase <> 'superseded'`;
+    }
     if (args.writeRole) {
       // Feed the existing history trigger in this same transaction. Background
       // saves without an author remain explicitly unattributed.
@@ -593,7 +588,10 @@ export async function saveBriefVersion(args: {
       ? await tx<Array<{ id: string }>>`select id from public.company_role_hiring_brief_history
           where role_id = ${args.roleId} and transaction_id = txid_current()`
       : [];
-    return { rows: inserted, historyIds: history.map(row => row.id) };
+    const [currentVersion] = await tx<Array<{ version: string }>>`
+      select public.company_role_search_brief_version_v1(${args.roleId}::uuid) as version
+    `;
+    return { version: currentVersion.version, historyIds: history.map(row => row.id) };
   });
   if (historyIds.length) {
     const dispatch = async () => {
@@ -608,53 +606,30 @@ export async function saveBriefVersion(args: {
     try { after(dispatch); } catch { await dispatch(); }
   }
   afterBriefSaved?.(args.roleId, args.brief);
-  return rows[0]?.version ?? null;
+  return version;
 }
 
-/** Whether the Role's Brief came from the role start flow (a draft or a confirmation), not only from the chat's text, and that flow was not ended by registering another way. */
+/** The session records whether its structured draft was authored by onboarding. */
 export async function hasRoleStartBrief(roleId: string) {
-  const sql = roleStartSql();
-  const rows = await sql<Array<{ found: boolean }>>`
+  const rows = await roleStartSql()<Array<{ found: boolean }>>`
     select exists (
-      select 1 from public.company_role_brief_versions
-      where role_id = ${roleId} and change_source in ('jd_draft', 'confirmed')
-    ) and not exists (
-      -- Registered another way: the Role's own text and list are the source, not this draft.
       select 1 from public.company_role_start_sessions
-      where role_id = ${roleId} and phase = 'superseded'
+      where role_id = ${roleId} and brief_source = 'onboarding' and phase <> 'superseded'
     ) as found
   `;
   return Boolean(rows[0]?.found);
 }
 
-/** A registered Role whose saved Brief text and criteria list are written only from its role start Brief. */
 export async function isRegisteredRoleStartRole(roleId: string, workspaceId: string) {
-  const sql = roleStartSql();
-  // Within the asking workspace only: another workspace's Role reads as not found, not as its kind.
-  const rows = await sql<Array<{ found: boolean }>>`
+  const rows = await roleStartSql()<Array<{ found: boolean }>>`
     select exists (
       select 1 from public.company_roles r
-      where r.role_id = ${roleId} and r.company_workspace_id::text = ${workspaceId} and r.status <> 'draft'
-        and exists (
-          select 1 from public.company_role_brief_versions v
-          where v.role_id = r.role_id and v.change_source in ('jd_draft', 'confirmed')
-        )
-        and not exists (
-          select 1 from public.company_role_start_sessions s
-          where s.role_id = r.role_id and s.phase = 'superseded'
-        )
+      join public.company_role_start_sessions s using (role_id)
+      where r.role_id = ${roleId} and r.company_workspace_id::text = ${workspaceId}
+        and r.status <> 'draft' and s.brief_source = 'onboarding' and s.phase <> 'superseded'
     ) as found
   `;
   return Boolean(rows[0]?.found);
-}
-
-export async function listBriefVersions(roleId: string) {
-  const sql = roleStartSql();
-  return sql<Array<{ version: number; change_source: string; change_summary: string | null; created_at: Date }>>`
-    select version, change_source, change_summary, created_at
-    from public.company_role_brief_versions where role_id = ${roleId}
-    order by version desc limit 30
-  `;
 }
 
 export function roleStartCostUsd(session: Pick<RoleStartSession, "llmUsage">) {

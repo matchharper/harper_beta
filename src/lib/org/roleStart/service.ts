@@ -1,3 +1,4 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
@@ -22,7 +23,7 @@ import {
   withoutSettled,
 } from "./chatAnswers";
 import { reasonTargetsByCandidate, typedReason, YEARS_TARGET } from "./reasonTargets";
-import { asksRoleInfo, briefWithRoleInfo, changedRoleInfo, citiesOfLocationText, type RoleInfoField } from "./roleInfoConditions";
+import { asksRoleInfo, briefWithRoleInfo, changedRoleInfo, type RoleInfoField } from "./roleInfoConditions";
 import { notifyOrgRoleCreatedSlack } from "@/lib/org/slack";
 import { OrgHttpError } from "@/lib/org/server";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
@@ -112,7 +113,7 @@ import {
   storedBriefHash,
   createRoleStartSession,
   loadRoleStartSession,
-  saveBriefVersion,
+  saveRoleStartBrief,
   saveRoleStartSession,
   isRoleStartStalled,
   isRoleStartEnded,
@@ -199,7 +200,12 @@ function roleSource(state: RoleCreationState) {
     salaryRange: role.salaryRange ?? null,
     company: {
       name: state.workspace.companyName,
-      about: String(state.workspace.pitch ?? "").slice(0, 3_000),
+      about: state.workspace.pitch ?? null,
+      companyFacts: state.workspace.companyFacts ?? null,
+      workspace_request: state.workspace.request ?? null,
+      homepageUrl: state.workspace.homepageUrl,
+      linkedinUrl: state.workspace.linkedinUrl,
+      relatedLinks: state.workspace.relatedLinks,
     },
   };
 }
@@ -257,11 +263,19 @@ function askedIds(session: RoleStartSession) {
  * candidates in one structured call. Idempotent per Role.
  */
 export async function startRoleStartDraft(args: Access) {
+  return (await beginRoleStartDraft(args)).completion;
+}
+
+/** Persist ownership before handing the user a link; drafting continues beside the reply. */
+export async function beginRoleStartDraft(args: Access): Promise<{
+  session: RoleStartSession | null;
+  completion: Promise<RoleStartSession | null>;
+}> {
   const state = await access(args);
   const existing = await loadRoleStartSession(args.roleId);
   // A draft that stopped writing (the request or its background work died) can start again.
   if (existing && !isRoleStartEnded(existing.phase) && !(existing.phase === "drafting" && isRoleStartStalled(existing))) {
-    return existing;
+    return { session: existing, completion: Promise.resolve(existing) };
   }
   // Only a draft Role starts (or restarts) the flow: a Role already on keeps its own Brief.
   if (String(state.role.status ?? "").toLowerCase() !== "draft") {
@@ -275,7 +289,10 @@ export async function startRoleStartDraft(args: Access) {
     // One draft per Role: when two starts race (the chat and the button), the
     // one that did not create the session returns the running one.
     const created = await createRoleStartSession({ roleId: args.roleId, workspaceId: args.workspaceId });
-    if (!created) return loadRoleStartSession(args.roleId, { forView: true });
+    if (!created) {
+      const session = await loadRoleStartSession(args.roleId, { forView: true });
+      return { session, completion: Promise.resolve(session) };
+    }
   } else {
     const restarted = await saveRoleStartSession({
       roleId: args.roleId,
@@ -286,6 +303,12 @@ export async function startRoleStartDraft(args: Access) {
     });
     if (!restarted) throw new OrgHttpError(409, "이미 다시 시작했어요.");
   }
+  const session = await loadRoleStartSession(args.roleId, { forView: true });
+  return { session, completion: buildRoleStartDraft(args, state) };
+}
+
+async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
+  const source = roleSource(state);
   const started = Date.now();
   await step(args.roleId, "draft", "organize", "running");
   try {
@@ -312,7 +335,7 @@ export async function startRoleStartDraft(args: Access) {
         maxOutputTokens: 6_000,
         schema: DRAFT_SCHEMA,
         system: buildDraftSystemPrompt(),
-        user: `<ROLE_SOURCE>\n${JSON.stringify(source, null, 2)}\n</ROLE_SOURCE>`,
+        user: `<ROLE_SOURCE>\n${formatPromptText(source)}\n</ROLE_SOURCE>`,
       }),
       poolPromise,
     ]);
@@ -335,7 +358,7 @@ export async function startRoleStartDraft(args: Access) {
     await step(args.roleId, "draft", "organize", "done");
     // A Role registered another way meanwhile ended this flow: its draft is dropped.
     if ((await loadRoleStartSession(args.roleId, { forView: true }))?.phase === "drafting") {
-      await saveBriefVersion({
+      await saveRoleStartBrief({
         roleId: args.roleId,
         brief,
         changeSource: "jd_draft",
@@ -607,7 +630,7 @@ async function writeSignals(roleId: string, options: { wait?: boolean; deadline:
       reasoningEffort: "low",
       schema: SIGNALS_SCHEMA,
       system: buildSignalsSystemPrompt(),
-      user: `<CRITERIA>\n${JSON.stringify(stale.map(({ id, name, criteria }) => ({ id, name, criteria })), null, 2)}\n</CRITERIA>`,
+      user: `<CRITERIA>\n${formatPromptText(stale.map(({ id, name, criteria }) => ({ id, name, criteria })))}\n</CRITERIA>`,
       // Confirming waits until its deadline only; signals still missing then are
       // written after it (the confirmed version's save asks for them again).
       signal: options.wait ? AbortSignal.timeout(Math.max(1, options.deadline - Date.now())) : undefined,
@@ -641,7 +664,7 @@ async function writeSignals(roleId: string, options: { wait?: boolean; deadline:
       });
       if (!saved) continue;
       if (latest.pool) await scoreCriteria({ pool: latest.pool, criteria: brief.criteria }).catch(() => undefined);
-      await saveBriefVersion({
+      await saveRoleStartBrief({
         roleId,
         brief,
         changeSource: "signals",
@@ -689,7 +712,7 @@ export async function refreshRoleStartSummary(roleId: string) {
       reasoningEffort: "low",
       schema: SUMMARY_SCHEMA,
       system: buildSummarySystemPrompt(),
-      user: `<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(session.brief), null, 2)}\n</CURRENT_BRIEF>`,
+      user: `<CURRENT_BRIEF>\n${formatPromptText(briefForModel(session.brief))}\n</CURRENT_BRIEF>`,
     });
     await persistUsage(roleId, [usage]);
     const summary = String(data.summary ?? "").trim().slice(0, 4_000);
@@ -701,7 +724,7 @@ export async function refreshRoleStartSummary(roleId: string) {
       const brief = { ...latest.brief, summary, summaryOf: key };
       const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
       if (!saved) continue;
-      await saveBriefVersion({
+      await saveRoleStartBrief({
         roleId,
         brief,
         changeSource: "summary",
@@ -936,7 +959,7 @@ export async function answerRoleStartQuestion(
     throw new OrgHttpError(409, "이미 답한 질문이에요.");
   }
   if (applied) {
-    await saveBriefVersion({
+    await saveRoleStartBrief({
       roleId: args.roleId,
       brief,
       changeSource: args.surface === "slack" ? "slack_answer" : "answer",
@@ -1030,19 +1053,17 @@ async function refineOnce(args: Parameters<typeof refineAfterAnswer>[0] & { star
     reasoningEffort: "low",
     schema: args.freeText ? NEXT_QUESTIONS_SCHEMA : NEXT_QUESTIONS_ONLY_SCHEMA,
     system: args.freeText ? buildNextQuestionsSystemPrompt() : buildNextQuestionsOnlySystemPrompt(),
-    user: `<ROLE_SOURCE>\n${JSON.stringify(roleSource(args.state), null, 2)}\n</ROLE_SOURCE>
-<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(baseBrief), null, 2)}\n</CURRENT_BRIEF>
-<ANSWERED_QUESTIONS>\n${JSON.stringify(
+    user: `<ROLE_SOURCE>\n${formatPromptText(roleSource(args.state))}\n</ROLE_SOURCE>
+<CURRENT_BRIEF>\n${formatPromptText(briefForModel(baseBrief))}\n</CURRENT_BRIEF>
+<ANSWERED_QUESTIONS>\n${formatPromptText(
       session.questions.history.map((item) => ({
         question: item.question,
         status: item.status,
         chip: item.chips.find((c) => c.id === item.answer?.chipId)?.label ?? null,
         freeText: item.answer?.text ?? null,
-      })),
-      null,
-      2
+      }))
     )}\n</ANSWERED_QUESTIONS>
-<ALREADY_SHOWN_NEXT>${JSON.stringify(
+<ALREADY_SHOWN_NEXT>${formatPromptText(
       [session.pendingQuestion, ...session.questions.candidates].filter(Boolean).map((item) => item!.question)
     )}</ALREADY_SHOWN_NEXT>
 ${args.freeText ? `<LATEST_FREE_TEXT_TO_APPLY>${args.freeText}</LATEST_FREE_TEXT_TO_APPLY>` : ""}`,
@@ -1065,7 +1086,7 @@ async function afterRefinement(
 ) {
   const { saved, brief, appliedSummary, fillSlot, nextQuestion } = result;
   if (appliedSummary) {
-    await saveBriefVersion({
+    await saveRoleStartBrief({
       roleId: args.roleId,
       brief,
       changeSource: args.surface === "slack" ? "slack_answer" : "answer",
@@ -1345,16 +1366,14 @@ async function prefetchFollowUps(args: { roleId: string; state: RoleCreationStat
             // The chip is applied here already; the model only proposes what to ask next.
             schema: NEXT_QUESTIONS_ONLY_SCHEMA,
             system: buildNextQuestionsOnlySystemPrompt(),
-            user: `<ROLE_SOURCE>\n${JSON.stringify(roleSource(args.state), null, 2)}\n</ROLE_SOURCE>
-<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(brief), null, 2)}\n</CURRENT_BRIEF>
-<ANSWERED_QUESTIONS>\n${JSON.stringify(
+            user: `<ROLE_SOURCE>\n${formatPromptText(roleSource(args.state))}\n</ROLE_SOURCE>
+<CURRENT_BRIEF>\n${formatPromptText(briefForModel(brief))}\n</CURRENT_BRIEF>
+<ANSWERED_QUESTIONS>\n${formatPromptText(
               history.map((item) => ({
                 question: item.question,
                 status: item.status,
                 chip: item.chips.find((c) => c.id === item.answer?.chipId)?.label ?? null,
-              })),
-              null,
-              2
+              }))
             )}\n</ANSWERED_QUESTIONS>`,
           });
           usage.push(used);
@@ -1423,7 +1442,7 @@ export async function finishRoleStartQuestions(args: Access) {
 
 // ---------------------------------------------------------------- step 2
 
-export type RoleStartConsistencyIssue = { level: "conflict" | "warning"; text: string };
+export type RoleStartConsistencyIssue = { level: "conflict"; text: string };
 
 /** Deterministic checks across Brief, hard conditions and saved Role facts. */
 export function checkBriefConsistency(
@@ -1448,58 +1467,10 @@ export function checkBriefConsistency(
   }
   const workMode = String(role.workMode ?? "");
   const remoteCondition = brief.hardConditions.some((item) => item.kind === "remote_ok");
-  const location = brief.hardConditions.find((item) => item.kind === "location");
   if (remoteCondition && (workMode === "onsite" || workMode === "hybrid")) {
     issues.push({
       level: "conflict",
       text: `역할 정보의 근무 형태는 ${workMode === "onsite" ? "대면 근무" : "하이브리드"}인데 필수 조건은 원격 근무예요.`,
-    });
-  }
-  if (location && workMode === "remote") {
-    issues.push({
-      level: "warning",
-      text: `역할 정보는 원격 근무인데 '${location.label}' 지역 조건이 있어요. 원격이어도 지역 제한이 필요한지 확인해 주세요.`,
-    });
-  }
-  // "NLP 3년 이상" belongs to a required criterion, not to the total-years condition:
-  // the check looks at the first years in the JD that no criterion carries.
-  const yearsInDescription =
-    [...String(role.description ?? "").matchAll(/(\d{1,2})\s*년\s*이상/g)].find(
-      (match) => !brief.criteria.some((criterion) => new RegExp(`(?<!\\d)${match[1]}\\s*년`).test(`${criterion.name} ${criterion.criteria}`))
-    ) ?? null;
-  if (yearsInDescription && min && min.kind === "min_years" && Number(yearsInDescription[1]) !== min.years) {
-    issues.push({
-      level: "warning",
-      text: `JD에는 ${yearsInDescription[1]}년 이상으로 적혀 있는데 필수 조건은 ${min.years}년 이상이에요.`,
-    });
-  }
-  if (yearsInDescription && !min) {
-    issues.push({
-      level: "warning",
-      text: `JD에는 ${yearsInDescription[1]}년 이상으로 적혀 있지만 필수 조건에는 연차가 없어요.`,
-    });
-  }
-  const locationText = String(role.locationText ?? "").trim();
-  // A place the code cannot locate leaves the condition as it was: say so.
-  if (locationText && location && workMode !== "remote" && !citiesOfLocationText(locationText).length && !location.label.includes(locationText)) {
-    issues.push({
-      level: "warning",
-      text: `역할 정보의 근무지는 '${locationText}'인데 지역 필수 조건은 '${location.label}'이에요. 맞는지 확인해 주세요.`,
-    });
-  }
-  if (String(role.locationText ?? "").trim() && workMode !== "remote" && !location) {
-    issues.push({
-      level: "warning",
-      text: `역할 정보의 근무지는 '${String(role.locationText)}'인데 지역 필수 조건이 없어요. 다른 지역 인재도 함께 볼게요.`,
-    });
-  }
-  if (brief.criteria.length && brief.criteria.every((criterion) => criterion.requirement === "must")) {
-    // Everything is 필수 조건: nothing orders the people who pass.
-    issues.push({ level: "warning", text: "평가 기준이 없어요. 우대하는 점이 있으면 더해 주세요. 더 잘 맞는 분을 앞에 보여 줄 수 있어요." });
-  } else if (brief.criteria.length && brief.criteria.length < 3) {
-    issues.push({
-      level: "warning",
-      text: `비교할 기준이 ${brief.criteria.length}개뿐이에요. 몇 개 더 있으면 후보를 더 정확히 고를 수 있어요.`,
     });
   }
   if (!brief.criteria.length) {
@@ -1614,8 +1585,8 @@ export async function saveRoleStartBriefEdit(
       reasoningEffort: "low",
       schema: NEXT_QUESTIONS_SCHEMA,
       system: buildBriefEditSystemPrompt(),
-      user: `<ROLE_SOURCE>\n${JSON.stringify(roleSource(state), null, 2)}\n</ROLE_SOURCE>
-<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(brief), null, 2)}\n</CURRENT_BRIEF>
+      user: `<ROLE_SOURCE>\n${formatPromptText(roleSource(state))}\n</ROLE_SOURCE>
+<CURRENT_BRIEF>\n${formatPromptText(briefForModel(brief))}\n</CURRENT_BRIEF>
 <TEAM_REQUEST>${request}</TEAM_REQUEST>`,
     });
     await persistUsage(args.roleId, [usage]);
@@ -1642,7 +1613,7 @@ export async function saveRoleStartBriefEdit(
         })
       : null;
   if (!saved) throw new OrgHttpError(409, "그사이 Brief가 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
-  await saveBriefVersion({
+  await saveRoleStartBrief({
     roleId: args.roleId,
     brief,
     changeSource: request ? "review_request" : "review_edit",
@@ -1794,7 +1765,7 @@ async function saveReferenceChange(args: Access & { apply: (brief: RoleStartBrie
       if (!saved) continue;
       // A draft still running writes its own first version; this one would carry no criteria.
       if (session.phase !== "drafting") {
-        await saveBriefVersion({ roleId: args.roleId, brief, changeSource: "reference", changeSummary: args.summary, userId: args.user.id, writeRole: false });
+        await saveRoleStartBrief({ roleId: args.roleId, brief, changeSource: "reference", changeSummary: args.summary, userId: args.user.id, writeRole: false });
       }
       return brief;
     }
@@ -2065,7 +2036,7 @@ export async function applyRoleInfoToRoleStart(args: Access & { fields: RoleInfo
       },
     });
     if (!saved) continue;
-    await saveBriefVersion({
+    await saveRoleStartBrief({
       roleId: args.roleId,
       brief,
       changeSource: "role_info",
@@ -2259,7 +2230,7 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
   if (issues.some((issue) => issue.level === "conflict")) {
     return { session, issues, started: false };
   }
-  await saveBriefVersion({
+  await saveRoleStartBrief({
     roleId: args.roleId,
     brief: session.brief,
     changeSource: "confirmed",
@@ -3379,9 +3350,9 @@ async function computeAfterRatings(args: {
         reasoningEffort: "low",
         schema: NEXT_QUESTIONS_SCHEMA,
         system: buildCalibrationSystemPrompt(),
-        user: `<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(brief), null, 2)}\n</CURRENT_BRIEF>
-<SETTLED>\n${JSON.stringify(notes)}\n</SETTLED>
-<FEEDBACK>\n${JSON.stringify(
+        user: `<CURRENT_BRIEF>\n${formatPromptText(briefForModel(brief))}\n</CURRENT_BRIEF>
+<SETTLED>\n${formatPromptText(notes)}\n</SETTLED>
+<FEEDBACK>\n${formatPromptText(
           session.firstCandidates.map((candidate) => {
             const evaluation = session.evaluations[candidate.talentId];
             return {
@@ -3410,9 +3381,7 @@ async function computeAfterRatings(args: {
               // A picked chip for a reason outside the Brief reads as typed text.
               teamUnsureText: evaluation ? typedReason(evaluation) || null : null,
             };
-          }),
-          null,
-          2
+          })
         )}\n</FEEDBACK>`,
       });
       usage.push(used);
@@ -3519,7 +3488,7 @@ async function commitAfterRatings(args: { roleId: string; userId: string | null;
   });
   if (!still) return { candidates: [], introIds: [], passing };
   if (notes.length) {
-    await saveBriefVersion({
+    await saveRoleStartBrief({
       roleId: args.roleId,
       brief,
       changeSource: "evaluation",
@@ -3614,7 +3583,7 @@ export async function applyChatCriteriaToRoleStart(args: {
       patch: { brief, questions: { ...session.questions, speculative: null, briefEdits: (session.questions.briefEdits ?? 0) + 1 } },
     });
     if (!saved) continue;
-    await saveBriefVersion({
+    await saveRoleStartBrief({
       roleId: args.roleId,
       brief,
       changeSource: "chat_edit",
@@ -3662,7 +3631,7 @@ export async function widenRoleStartCondition(args: Access & { conditionId: stri
     timings: { confirmedAt: new Date().toISOString(), firstThreeShownMs: null, firstThreeVerdictsMs: null, thin: null, thinConditions: null },
   });
   if (!saved) throw new OrgHttpError(409, "그사이 바뀌었어요. 다시 확인해 주세요.");
-  await saveBriefVersion({
+  await saveRoleStartBrief({
     roleId: args.roleId,
     brief,
     changeSource: "widen_condition",

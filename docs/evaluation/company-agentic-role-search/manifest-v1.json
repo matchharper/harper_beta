@@ -1,0 +1,35 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "v1",
+  "createdAt": "2026-10-22",
+  "source": "User requested scenario families; de-identified prompts bound to a separately frozen actual Role/talent capture. No fabricated talent set.",
+  "goldReview": "Codex pre-run authoring; independent review pending",
+  "files": {
+    "cases-v1.json": "545408dc30f892647c3de2c0e8566a68fc3559d57ade72800b93e36ab1c7c1b6",
+    "gold-v1.json": "7622a542e07cce7e9cb74dfcae8c35fb85b4e875e4d452b797d4fe804bbd5b2b"
+  },
+  "canonicalRunners": [
+    "harper_worker/llm_evals/company_agentic_role_search/capture.py",
+    "harper_beta/scripts/evalCompanyAgenticRoleSearch.ts",
+    "harper_worker/llm_evals/company_agentic_role_search/local_database.py",
+    "harper_worker/llm_evals/company_agentic_role_search/prepare_baseline.py",
+    "harper_worker/llm_evals/company_agentic_role_search/run_scoring.py",
+    "harper_worker/llm_evals/company_agentic_role_search/smoke_contract.py",
+    "harper_worker/llm_evals/company_agentic_role_search/metrics.py",
+    "harper_beta/scripts/companyAgenticSearchSandbox.mjs"
+  ],
+  "gate": "All executed required conversation meanings/states pass, critical failures zero; not_observed is not pass",
+  "productionWrites": false,
+  "externalDelivery": false,
+  "sourceConditionApproval": {
+    "date": "2026-10-22",
+    "condition": "legacy-approved-by-user",
+    "scope": "Actual legacy paid-access Role experiments on isolated local snapshots; paid Slot requirement remains unmet",
+    "frozenCasesAndGoldChanged": false
+  },
+  "limitations": [
+    "Single actual role challenge, not representative benchmark",
+    "Paid Slot selection is an explicit precondition; legacy is not automatically equivalent",
+    "Company-side LLM and Decisions API use actual runtime settings, recorded per run"
+  ]
+}

@@ -7,7 +7,6 @@ import {
   Columns3,
   Flag,
   Inbox,
-  History,
   LoaderCircle,
   Menu,
   MessageSquare,
@@ -21,16 +20,19 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { OrgAgentChatSurface } from "@/components/org/agent/OrgAgentPanel";
 import { OrgPipeline } from "@/components/org/OrgPipeline";
 import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
 import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
 import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
+import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgRoleStartPanel } from "@/components/org/role-start/OrgRoleStartPanel";
+import { RoleStartPreparation } from "@/components/org/role-start/RoleStartPreparation";
+import { EMPTY_ORG_AGENT_LIVE_CHAT, getOrgAgentLiveChatKey, useOrgAgentLiveChatStore } from "@/store/useOrgAgentLiveChatStore";
 import {
   isRoleStartOnboarding,
   RoleStartOnboarding,
@@ -64,7 +66,7 @@ import {
   type OrgRoleTab,
 } from "@/lib/org/routes";
 import { queryKeys } from "@/lib/queryKeys";
-import { clearNewRolePending, newRolePendingUntil, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
+import { clearNewRolePending, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
 import type { OrgRole } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
 import {
@@ -348,7 +350,6 @@ function OrgRoleCreationDetails({
 }) {
   const { c } = useOrgLocale();
   const sourceT = useOrgSourceT();
-  const [matchingHistoryOpen, setMatchingHistoryOpen] = useState(false);
   const router = useRouter();
   const { workspace } = useOrgWorkspace();
   const roleCreation =
@@ -482,71 +483,39 @@ function OrgRoleCreationDetails({
                   ? chatActive
                   : !chatActive && activeTab === tab.value);
               return (
-                <Fragment key={tab.value}>
-                  <button
-                    aria-controls={`role-creation-${tab.value}-panel`}
-                    aria-selected={active}
-                    className={`flex min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
-                      active
-                        ? " text-neutral-primary"
-                        : "text-neutral-600 hover:text-neutral-primary"
-                    }`}
-                    id={`role-creation-${tab.value}-tab`}
-                    onClick={() => {
-                      if (tab.value === "matching")
-                        setMatchingHistoryOpen(false);
-                      if (tab.value === "chat") {
-                        onChatTabSelect?.();
-                        return;
-                      }
-                      onDetailTabSelect?.();
-                      onCompanyInfoClose?.();
-                      setActiveTab(tab.value);
-                    }}
-                    role="tab"
-                    type="button"
-                  >
-                    {tab.icon}
-                    <span className="truncate">{sourceT(tab.label)}</span>
-                    {tab.value === "inbox" && inboxCount !== undefined ? (
-                      <Badge
-                        className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
-                        size="sm"
-                      >
-                        {String(inboxCount)}
-                      </Badge>
-                    ) : null}
-                  </button>
-                  {tab.value === "matching" && role ? (
-                    <MuteButton
-                      aria-label={c(
-                        "매칭 기준 변경 이력",
-                        "Matching criteria history"
-                      )}
-                      title={c(
-                        "매칭 기준 변경 이력",
-                        "Matching criteria history"
-                      )}
-                      aria-controls="role-creation-matching-panel"
-                      aria-expanded={active && matchingHistoryOpen}
-                      className="-ml-2 shrink-0"
-                      variant="transparent"
+                <button
+                  key={tab.value}
+                  aria-controls={`role-creation-${tab.value}-panel`}
+                  aria-selected={active}
+                  className={`flex min-w-0 shrink-0 items-center justify-center gap-1.5 rounded-xs px-3 py-3 text-[14px] font-light focus-visible:ring-2 focus-visible:ring-neutral-1000-a10 ${
+                    active
+                      ? " text-neutral-primary"
+                      : "text-neutral-600 hover:text-neutral-primary"
+                  }`}
+                  id={`role-creation-${tab.value}-tab`}
+                  onClick={() => {
+                    if (tab.value === "chat") {
+                      onChatTabSelect?.();
+                      return;
+                    }
+                    onDetailTabSelect?.();
+                    onCompanyInfoClose?.();
+                    setActiveTab(tab.value);
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  {tab.icon}
+                  <span className="truncate">{sourceT(tab.label)}</span>
+                  {tab.value === "inbox" && inboxCount !== undefined ? (
+                    <Badge
+                      className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
                       size="sm"
-                      onClick={() => {
-                        onDetailTabSelect?.();
-                        onCompanyInfoClose?.();
-                        setActiveTab("matching");
-                        setMatchingHistoryOpen(true);
-                      }}
                     >
-                      <History
-                        className="size-3.5"
-                        aria-hidden
-                        strokeWidth={1.65}
-                      />
-                    </MuteButton>
+                      {String(inboxCount)}
+                    </Badge>
                   ) : null}
-                </Fragment>
+                </button>
               );
             })}
           </div>
@@ -678,23 +647,20 @@ function OrgRoleCreationDetails({
             >
               {role ? (
                 <>
-                  <div hidden={matchingHistoryOpen}>
-                    <OrgRoleMatchingContent
-                      key={`matching:${role.roleId}`}
-                      role={role}
-                      workspaceId={workspace.workspaceId}
-                    />
+                  <div className="mb-4 flex justify-end">
+                    {!chatActive && !companyInfoOpen && activeTab === "matching" ? (
+                      <OrgRoleMatchingHistory
+                        key={`matching-history:${role.roleId}`}
+                        roleId={role.roleId}
+                        workspaceId={workspace.workspaceId}
+                      />
+                    ) : null}
                   </div>
-                  {matchingHistoryOpen &&
-                  !companyInfoOpen &&
-                  activeTab === "matching" ? (
-                    <OrgRoleMatchingHistory
-                      key={`matching-history:${role.roleId}`}
-                      roleId={role.roleId}
-                      workspaceId={workspace.workspaceId}
-                      onClose={() => setMatchingHistoryOpen(false)}
-                    />
-                  ) : null}
+                  <OrgRoleMatchingContent
+                    key={`matching:${role.roleId}`}
+                    role={role}
+                    workspaceId={workspace.workspaceId}
+                  />
                 </>
               ) : (
                 <div className="py-12 text-center text-sm text-neutral-muted">
@@ -778,7 +744,12 @@ export function OrgRoleCreationPage() {
     "split"
   );
   const isNewRolePage = page === "new-role";
-  const roleId = router.isReady ? getQueryText(router.query.roleId) : "";
+  const isRoleEntry = isNewRolePage || page === "home";
+  // /org/new only creates Roles; an existing Role belongs to /org/role.
+  const roleId = page === "role" && router.isReady ? getQueryText(router.query.roleId) : "";
+  const creationKey = getOrgAgentLiveChatKey({ mode: "role_creation", roleId, workspaceId: workspace.workspaceId });
+  const creation = useOrgAgentLiveChatStore((state) => state.chats[creationKey] ?? EMPTY_ORG_AGENT_LIVE_CHAT);
+  const preparingRole = Boolean(roleId) && creation.isCreatingRole && (creation.isStreaming || Boolean(creation.error));
   const role = roles.find((item) => item.roleId === roleId) ?? null;
   const roleStatus = role ? getOrgRoleStatusPresentation(role.status) : null;
   const isDesktop = useMediaQuery(ORG_ROLE_DESKTOP_MEDIA_QUERY);
@@ -810,7 +781,7 @@ export function OrgRoleCreationPage() {
   const roleDraft =
     role !== null && normalizeOrgRoleStatus(role.status) === "draft";
   const roleStartEnabled =
-    Boolean(roleId) && (role === null || roleDraft) && permissions.canManageCandidates;
+    Boolean(roleId) && !preparingRole && (role === null || roleDraft) && permissions.canManageCandidates;
   const roleStartQuery = useRoleStartQuery(roleId, workspace.workspaceId, roleStartEnabled);
   // A Role created a moment ago may not be in the workspace list yet; the
   // start flow's own read says it is a draft, so its steps open right away.
@@ -834,7 +805,7 @@ export function OrgRoleCreationPage() {
         } satisfies OrgRole)
       : null);
   const onboarding =
-    permissions.canManageCandidates &&
+    roleStartEnabled &&
     isRoleStartOnboarding(onboardingRole, roleStartQuery.data);
   const queryClient = useQueryClient();
   // A Role this tab just created from a JD shows the start loading line, not the
@@ -845,15 +816,12 @@ export function OrgRoleCreationPage() {
     () => {
       const until = roleId
         ? startPendingUntil(sessionStorageOrNull(), roleId)
-        : isNewRolePage
-          ? newRolePendingUntil(workspace.workspaceId)
-          : null;
+        : null;
       return until !== null && until > Date.now() ? until : null;
     },
     () => null
   );
-  // The Role's own page is up: the new-role page no longer waits for it (a
-  // second new role started meanwhile gets a fresh composer).
+  // Clear the transient creation marker once the destination Role page takes over.
   useEffect(() => {
     // Only a Role this tab just created (its own mark still within the 30 s).
     if (roleId && (startPendingUntil(sessionStorageOrNull(), roleId) ?? 0) > Date.now()) clearNewRolePending(workspace.workspaceId);
@@ -866,10 +834,10 @@ export function OrgRoleCreationPage() {
     return () => window.clearTimeout(timer);
   }, [startPendingAt]);
   const waitingForStart =
+    roleStartEnabled &&
     startPendingAt !== null &&
-    // The new-role page: a JD was just sent and the Role's page has not taken over yet.
-    ((!roleId && isNewRolePage && permissions.canManageCandidates) ||
-      (roleStartEnabled && !onboarding && !roleStartQuery.data?.session));
+    !onboarding &&
+    !roleStartQuery.data?.session;
   const roleMissing = Boolean(roleId) && role === null;
   // Only while the start flow still finds the Role: a deleted one errors there.
   // Members who cannot run the start flow keep the plain re-read.
@@ -909,7 +877,7 @@ export function OrgRoleCreationPage() {
     return () => setNavigationTriggerHidden(false);
   }, [mobileDetailsOpen, setNavigationTriggerHidden]);
 
-  if (isNewRolePage && !permissions.canManageCandidates) {
+  if (isRoleEntry && !permissions.canManageCandidates) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-neutral-muted">
         {c(
@@ -920,7 +888,13 @@ export function OrgRoleCreationPage() {
     );
   }
 
-  if (waitingForStart) {
+  if (preparingRole) {
+    return <RoleStartPreparation logs={creation.thinkingLogs} error={creation.error} onBack={() => {
+      void router.replace(buildOrgHref({ page: "new-role", orgId: workspace.workspaceId }));
+    }} />;
+  }
+
+  if (waitingForStart && !onboarding) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-[14px] text-neutral-muted">
         <LoaderCircle aria-hidden className="size-4 animate-spin" />
@@ -937,11 +911,37 @@ export function OrgRoleCreationPage() {
         key={`onboarding:${onboardingRole.roleId}`}
         role={onboardingRole}
         workspaceId={workspace.workspaceId}
+        onRoleCreated={(createdRoleId) => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.org.bootstrapAll });
+          void router.replace(buildOrgHref({ page: "role", orgId: workspace.workspaceId, roleId: createdRoleId }));
+        }}
       />
     );
   }
 
+  if (roleStartEnabled && roleStartQuery.isError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <p role="alert" className="text-sm text-critical">{c("채용 시작 정보를 불러오지 못했어요.", "Could not load hiring setup.")}</p>
+        <MuteButton onClick={() => void roleStartQuery.refetch()}>{c("다시 시도", "Try again")}</MuteButton>
+      </div>
+    );
+  }
+
+  if (roleStartEnabled && roleStartQuery.isLoading && !role) {
+    return (
+      <div className="flex h-full items-center justify-center gap-2 text-sm text-neutral-muted" role="status">
+        <LoaderCircle aria-hidden className="size-4 animate-spin" />
+        {c("역할 불러오는 중", "Loading role")}
+      </div>
+    );
+  }
+
   return (
+    <div className="flex h-full min-h-0 flex-col">
+      {role && normalizeOrgRoleStatus(role.status) !== "draft" ? (
+        <OrgRoleSearchActivity key={role.roleId} roleId={role.roleId} workspaceId={workspace.workspaceId} />
+      ) : null}
     <div
       ref={containerRef}
       className={cn(
@@ -953,7 +953,7 @@ export function OrgRoleCreationPage() {
     >
       <section
         aria-label={
-          isNewRolePage
+          isRoleEntry
             ? c("새 역할 등록 대화", "New role creation dialog")
             : c("역할 대화", "Role dialog")
         }
@@ -978,6 +978,7 @@ export function OrgRoleCreationPage() {
       >
         <div className="min-h-0 flex-1">
           <OrgAgentChatSurface
+            initialMessage={isNewRolePage && typeof router.query.prefill === "string" ? router.query.prefill : undefined}
             header={
               <>
                 <header className="absolute inset-x-0 top-0 z-30 flex h-12 items-center gap-2 bg-linear-to-b from-white/30 to-white/0 px-3 md:hidden">
@@ -1134,6 +1135,7 @@ export function OrgRoleCreationPage() {
           />
         </div>
       ) : null}
+    </div>
     </div>
   );
 }

@@ -187,13 +187,6 @@ export function RoleBriefSection({
   const invalid =
     draft.criteria.some((item) => !item.name.trim() || !item.criteria.trim()) || Boolean(draft.otherNotes?.some(isProtectedNote));
   const shown = server ?? draft;
-  const required = shown.criteria.filter((item) => criterionLevel(item) === "required");
-  const ordering = shown.criteria.filter((item) => criterionLevel(item) !== "required");
-  // Companies see each item numbered: chips then required criteria share one 필수 조건 sequence.
-  const requiredName = (position: number) =>
-    c("필수 조건 {p0}", "Required condition {p0}", { p0: String(position + 1) });
-  const criterionName = (position: number) =>
-    c("평가 기준 {p0}", "Evaluation criterion {p0}", { p0: String(position + 1) });
 
   return (
     <OrgSection className={showBottomBorder ? "last:border-b" : undefined}>
@@ -283,79 +276,30 @@ export function RoleBriefSection({
         </>
       ) : (
         <>
-          <div className="mt-8">
-            <RoleSectionHeading
-              description={c(
-                "여기 적힌 조건을 갖추지 않은 분은 추천하지 않아요.",
-                "People without these conditions are not recommended."
-              )}
-              title={c("필수 조건", "Required conditions")}
-            />
-            {shown.hardConditions.length || required.length ? (
-              <div className="mt-3 grid gap-3">
-                {shown.hardConditions.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {shown.hardConditions.map((condition, position) => (
-                      <span className="rounded-md bg-bg-weak px-2.5 py-1 text-[13px]" key={condition.id}>
-                        <span className="mr-1.5 whitespace-nowrap text-[11px] text-neutral-soft">{requiredName(position)}</span>
-                        {condition.label}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {required.map((item, position) => (
-                  <CriterionCard
-                    criterion={item}
-                    key={item.id ?? item.name}
-                    name={requiredName(shown.hardConditions.length + position)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="mt-3 rounded-md bg-bg-basement px-4 py-3 text-[13px] leading-5 text-neutral-muted">
-                {c("필수 조건이 없어요. 공개된 모든 인재 중에서 골라요.", "No required conditions. Harper considers everyone open to matches.")}
-              </p>
-            )}
-          </div>
           <div className="mt-8 pb-6">
-            <RoleSectionHeading
-              description={c(
-                "추천은 평가 기준을 근거로 해요. 더 잘 맞는 분을 먼저 보여 주고, 기준마다 얼마나 맞는지 함께 보여 드려요. '중요'는 '있으면 좋음'보다 무겁게 봐요.",
-                "Recommendations are based on the evaluation criteria. Better fits come first, with how well each criterion fits. 'Important' weighs more than 'nice to have'."
-              )}
-              title={c("평가 기준", "Evaluation criteria")}
-            />
-            {ordering.length ? (
+            <RoleSectionHeading title={c("평가 기준", "Evaluation criteria")} />
+            {shown.hardConditions.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {shown.hardConditions.map((condition) => (
+                  <span className="rounded-md bg-bg-weak px-2.5 py-1 text-[13px]" key={condition.id}>
+                    <span className="mr-1.5 text-[11px] text-neutral-soft">{c("필수", "Required")}</span>
+                    {condition.label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {shown.criteria.length ? (
               <div className="mt-3 grid gap-3">
-                {ordering.map((item, position) => (
+                {shown.criteria.map((item) => (
                   <CriterionCard
                     criterion={item}
                     key={item.id ?? item.name}
-                    label={criterionLevel(item) === "nice" ? c("있으면 좋음", "Nice to have") : c("중요", "Important")}
-                    name={criterionName(position)}
+                    label={criterionLevel(item) === "required" ? c("필수", "Required") : criterionLevel(item) === "nice" ? c("있으면 좋음", "Nice to have") : c("중요", "Important")}
                   />
                 ))}
               </div>
-            ) : (
-              <p className="mt-3 rounded-md bg-bg-basement px-4 py-3 text-[13px] leading-5 text-neutral-muted">
-                {c("평가 기준이 없어요.", "No evaluation criteria.")}
-              </p>
-            )}
-            {shown.otherNotes?.length ? (
-              <div className="mt-8">
-                <RoleSectionHeading
-                  description={c(
-                    "필수 조건이나 평가 기준은 아니지만 팀이 바라는 점이에요. 매칭에 참고만 하고, 이것만으로 후보를 빼지 않아요.",
-                    "What the team would like that is neither a required condition nor a criterion. Matching only takes it into account; it never excludes anyone."
-                  )}
-                  title={c("기타 참고 사항", "Other notes")}
-                />
-                <ul className="mt-3 grid gap-1.5 text-[14px] leading-6 text-neutral-primary">
-                  {shown.otherNotes.map((note) => (
-                    <li className="rounded-md bg-bg-basement px-3 py-2" key={note}>{note}</li>
-                  ))}
-                </ul>
-              </div>
+            ) : !shown.hardConditions.length ? (
+              <p className="mt-3 text-[13px] leading-5 text-neutral-muted">{c("평가 기준이 없어요.", "No evaluation criteria.")}</p>
             ) : null}
             {canManage ? (
               <div className="mt-8">
@@ -366,8 +310,7 @@ export function RoleBriefSection({
                   onRemove={(referenceId) => references.mutate({ action: "remove_reference", referenceId })}
                   onSubmit={(people) => references.mutate({ action: "add_references", people })}
                   recorded={shown.references}
-                  workspaceId={workspaceId}
-                />
+                          />
               </div>
             ) : (
               <RoleReferenceList references={shown.references} />
@@ -380,19 +323,16 @@ export function RoleBriefSection({
   );
 }
 
-/** One criterion as the 매칭 기준 tab shows it: numbered name, its own name, level, what counts. */
+/** One criterion as the 매칭 기준 tab shows it: name, level and what counts. */
 function CriterionCard({
   criterion,
   label,
-  name,
 }: {
   criterion: RoleStartBriefView["criteria"][number];
   label?: string;
-  name: string;
 }) {
   return (
     <div className="rounded-md bg-bg-basement px-4 py-3">
-      <div className="text-[12px] text-neutral-soft">{name}</div>
       <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
         <BadgeCheck className="size-4 shrink-0 text-positive" />
         <span>{criterion.name}</span>

@@ -1,4 +1,5 @@
 import { reportToolDiagnostic } from "@/lib/llm/toolExecution";
+import { extractCareerDocumentLinks } from "@/lib/career/documentLinks";
 import { executeApplicationPreparationTool } from "@/lib/career/simulation/toolExecution";
 import { awaitApplicationInspection } from "@/lib/career/simulation/applicationInspection";
 import { MANAGE_APPLICATION_SUGGESTIONS } from "@/lib/career/simulation/suggestions";
@@ -1547,10 +1548,11 @@ export async function POST(req: NextRequest) {
     } = { current: null };
     let opportunityRecommendationsChanged = false;
     let documentsChanged = uploadedDocuments.length > 0;
-    const generatedResumeLinks = new Map<string, string>();
-    const withResumeLinks = (text: string) => {
-      for (const [id, link] of generatedResumeLinks) {
-        if (!text.includes(`](documentId:${id})`)) text += `\n\n${link}`;
+    const generatedDocumentLinks = new Map<string, string>();
+    const withGeneratedDocumentLinks = (text: string) => {
+      const visibleIds = new Set(extractCareerDocumentLinks(text).documents.map(document => document.id));
+      for (const [id, link] of generatedDocumentLinks) {
+        if (!visibleIds.has(id)) text += `\n\n${link}`;
       }
       return text;
     };
@@ -1770,12 +1772,18 @@ export async function POST(req: NextRequest) {
         if (!prepared || !("documentId" in prepared.result)) throw new Error("Prepared document unavailable");
         simulationSession=prepared.record;
         onSimulationMessage(prepared.record.message);
-        generatedResumeLinks.set(prepared.result.documentId,prepared.result.documentLink);
+        generatedDocumentLinks.set(prepared.result.documentId,prepared.result.documentLink);
         documentsChanged=true;
         await refreshSimulationRuntime();
         return prepared.result;
       }
       if (toolArgs.name === SIMULATION_SESSION_TOOL) {
+        if (toolInput.action === "list" || toolInput.action === "resume") {
+          const { manageSavedApplications } = await import("@/lib/career/simulation/savedApplications");
+          const result = await manageSavedApplications(simulationStore, toolInput, `turn:${insertedUserMessage.id}`, onSimulationMessage);
+          await refreshSimulationRuntime();
+          return result;
+        }
         if (!simulationSession || simulationSession.state.status !== "active")
           return { ok: false, reason: "No active simulation session." };
         const mutation = sessionMutationSchema.parse(toolInput);
@@ -1896,9 +1904,9 @@ export async function POST(req: NextRequest) {
         name: toolArgs.name,
         input: toolInput,
       });
-      if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && isRecord(result) && result.ok === true && typeof result.documentId === "string" && typeof result.documentLink === "string") {
-        generatedResumeLinks.set(result.documentId, result.documentLink);
-        if (simulationSession?.state.status === "active" && simulationSession.state.preparation && typeof result.revision === "number" && typeof result.fileName === "string") {
+      if ((toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME || toolArgs.name === TALENT_TOOL_NAMES.WRITE_DOCUMENT) && isRecord(result) && result.ok === true && typeof result.documentId === "string" && typeof result.documentLink === "string") {
+        generatedDocumentLinks.set(result.documentId, result.documentLink);
+        if (toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME && simulationSession?.state.status === "active" && simulationSession.state.preparation && typeof result.revision === "number" && typeof result.fileName === "string") {
           const state = recordApplicationResume(simulationSession.state, {documentId: result.documentId, revision: result.revision, fileName: result.fileName});
           const saved = await saveSession(simulationStore, simulationSession, state, `resume:${result.documentId}:${result.revision}`);
           simulationSession = saved;
@@ -1909,7 +1917,7 @@ export async function POST(req: NextRequest) {
       rememberCareerCoachingActivityMessage(result);
       rememberRecommendationPostingRoleIds(result);
 
-      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT || toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME) {
+      if (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_DOCUMENT || toolArgs.name === TALENT_TOOL_NAMES.GENERATE_RESUME || toolArgs.name === TALENT_TOOL_NAMES.WRITE_DOCUMENT) {
         documentsChanged = true;
       }
 
@@ -1928,8 +1936,7 @@ export async function POST(req: NextRequest) {
         }
       }
       const changedRecommendedOpportunity =
-        toolArgs.name ===
-          TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK &&
+        (toolArgs.name === TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK || toolArgs.name === TALENT_TOOL_NAMES.SAVE_JOB_POSTING) &&
         resultRecord?.ok === true;
       if (changedRecommendedOpportunity) {
         opportunityRecommendationsChanged = true;
@@ -1937,7 +1944,9 @@ export async function POST(req: NextRequest) {
           ? resultRecord.opportunity
           : null;
         changedOpportunityRoleId =
-          typeof resultRecord?.targetRoleId === "string"
+          typeof resultRecord?.roleId === "string"
+            ? resultRecord.roleId
+            : typeof resultRecord?.targetRoleId === "string"
             ? resultRecord.targetRoleId.trim() || null
             : typeof opportunity?.roleId === "string"
               ? opportunity.roleId.trim() || null
@@ -2326,7 +2335,7 @@ export async function POST(req: NextRequest) {
             const extractedStartOffer = extractStartOfferPayload(assistantText);
             responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
             if (responseStartOffer) suppressRolePreviews = true;
-            let assistantTextSource = withResumeLinks(extractedStartOffer.content);
+            let assistantTextSource = withGeneratedDocumentLinks(extractedStartOffer.content);
             if (recommendationReceiptRef.current) {
               assistantTextSource =
                 recommendationReceiptRef.current.answerDraft;
@@ -2950,14 +2959,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (generatedResumeLinks.size === 0) {
+    if (generatedDocumentLinks.size === 0) {
       logger.log("\n\nassistantText : ", assistantText, "\n\n");
     }
 
     const extractedStartOffer = extractStartOfferPayload(assistantText);
             responseStartOffer = simulationSession?.state.status === "active" ? undefined : extractedStartOffer.request;
             if (responseStartOffer) suppressRolePreviews = true;
-            let assistantTextSource = withResumeLinks(extractedStartOffer.content);
+            let assistantTextSource = withGeneratedDocumentLinks(extractedStartOffer.content);
     if (recommendationReceiptRef.current) {
       assistantTextSource = recommendationReceiptRef.current.answerDraft;
     }

@@ -1,0 +1,13 @@
+{
+  "name": "harper-application-stagehand-worker",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@browserbasehq/sdk": "2.22.0",
+    "@browserbasehq/stagehand": "3.7.3",
+    "playwright-core": "1.63.0",
+    "zod": "3.25.76",
+    "undici": "6.21.3",
+    "https-proxy-agent": "7.0.6"
+  }
+}

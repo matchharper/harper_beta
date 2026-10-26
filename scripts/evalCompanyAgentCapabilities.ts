@@ -1,4 +1,5 @@
 import { formatToolError } from "../src/lib/llm/toolError";
+import { createCandidateEmailPrivacy, protectsCandidateEmail } from "../src/lib/org/agent/candidateEmailPrivacy";
 import { buildCompanyUpdatePrompt } from "../src/lib/org/agent/companyUpdate";
 import { buildCompanyContactEventPrompt } from "../src/lib/org/agent/contactEventPrompt";
 import { buildCompanyProactiveReviewPrompt } from "../src/lib/org/agent/proactiveReview";
@@ -303,8 +304,11 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         }
       } else { c.stage = x.targetStageId; effects.push({ name: args.name, input: x }); result = { status: "updated", candidateName: c.name, roleName: role.name, previousStageLabel, stageLabel: publicCandidate(c).stageLabel }; }
     } else if (args.name === "start_role_creation") {
+      if (!x.draft || typeof x.draft.description !== "string" || !x.draft.description.trim()) throw Error("Missing grounded draft description");
       effects.push({ name: args.name, input: x });
-      result = { status: "started", roleTitle: x.roleTitle, transferredMessageCount: x.contextMessageCount, requiredContinuationLink: "<https://example.invalid/synthetic-role-thread|새로운 채용 등록 이어가기>" };
+      result = { status: "started", roleId: "00000000-0000-4000-8000-000000000399", roleTitle: x.roleTitle,
+        transferredMessageCount: x.contextMessageCount, savedFields: Object.keys(x.draft),
+        requiredContinuationLink: "<https://example.invalid/org/role?orgId=synthetic&roleId=00000000-0000-4000-8000-000000000399|새로운 채용 등록 이어가기>" };
       args.state.requiredSlackContinuationLink = result.requiredContinuationLink;
     } else if (args.name === "contact_talent") {
       // No semantic policy in the adapter: it records what the model decided.
@@ -518,6 +522,13 @@ for (const scenario of dataset.scenarios) for (const variant of scenario.variant
         signal: AbortSignal.timeout(120_000),
         ...(streaming ? { onTextDelta: () => {}, onTextReset: () => {} } : {}),
       }, { executeTool, requestTime: new Date(dataset.clock), complete: async (args) => {
+        // Same input privacy projection; current stages come only from the frozen
+        // in-memory adapter. Never query production for synthetic addresses.
+        args = { ...args, candidateEmailWorkspaceId: undefined,
+          messages: await createCandidateEmailPrivacy(async emails => candidates
+            .filter((candidate: any) => protectsCandidateEmail(candidate.stage) &&
+              emails.includes(String(candidate.email ?? "").toLowerCase()))
+            .map((candidate: any) => candidate.email))(args.messages) };
         const { signal: _signal, onTextDelta, ...request } = args;
         const call: any = { request: structuredClone(request), streaming: Boolean(onTextDelta), startedAt: new Date().toISOString(), firstTextMs: null, textDeltaCount: 0 };
         completions.push(call);

@@ -54,3 +54,15 @@ test("candidate correspondence stays quoted evidence, not an assistant claim or 
   assert.ok(String(messages[1].content).includes('"content":"제 이력서를 전해주세요"'));
   assert.ok(String(messages[1].content).includes("relay_id=synthetic"));
 });
+
+
+test("conversation metadata uses minute timestamps while spoken timestamps remain exact", () => {
+  const raw = "2026-10-22T07:06:29.344088+00:00";
+  const messages = buildCompanyConversationInput({
+    context: { ...context, conversationMessages: [{ id: 9, createdAt: raw, role: "user", source: "company", content: raw, references: "", speaker: "팀원", complete: true }] },
+    currentUserMessageId: 10, mentions: [], userMessage: "확인", requestTime: new Date(raw),
+  });
+  assert.ok(String(messages[0].content).includes('"createdAt":"2026-10-22 16:06"'));
+  assert.ok(!String(messages[0].content).includes(raw));
+  assert.equal(messages[1].content, raw);
+});

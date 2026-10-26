@@ -10,7 +10,7 @@ const schema = z.object({
   conversationId: z.string().uuid(),
   messageId: z.number().int().positive(),
 });
-export const POST = handleCallback(async (raw: unknown) => {
+const queueCallback = handleCallback(async (raw: unknown) => {
   const { messageId, ...ids } = schema.parse(raw);
   const store = { ...ids, admin: getTalentSupabaseAdmin() };
   await runApplicationBrowser(store, messageId);
@@ -29,3 +29,7 @@ export const POST = handleCallback(async (raw: unknown) => {
       "Application browser is still running; reconnect this session"
     );
 });
+
+export async function POST(request: Request) {
+  return queueCallback(request);
+}

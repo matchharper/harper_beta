@@ -278,7 +278,10 @@ provenance는 넣지 않는다.
 
 ## 10. 길이와 순서
 
-DB 저장 한도는 20,000자다. 로컬 공통 matching 입력은 전체 Brief를 읽지만, company-first Slack writer의
+2026-10-22 운영 DB migration `20261022123546`으로 Brief 20,000자 저장 제한을 제거했다. 로컬 웹·대화 편집도
+이 제한을 제거했지만 아직 배포되지 않았으므로 구 웹 validator는 남아 있을 수 있다. Criteria의 기존 개수·길이 제한도
+같은 범위에서 제거했다. [매칭 기준 저장 이력 계약](company-hiring-brief-history-ko.md)을 따른다.
+로컬 공통 matching 입력은 전체 Brief를 읽지만, company-first Slack writer의
 역할 요약에는 앞 2,000자만 전달하는 경로가 남아 있다. 모든 평가가 2,000자로 잘린다고 가정하지 않는다.
 가장 결정적인 hard requirement와 company bar를 앞부분에 두되, 이 길이를 영구적인 제품 규칙으로
 취급하거나 기존 기준을 조용히 버리지 않는다. 긴 기존 Brief는 짧게 쓴 추가 기준만으로 모든 reader의

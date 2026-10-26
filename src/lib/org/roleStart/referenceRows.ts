@@ -36,3 +36,15 @@ export function referenceRowOf(input: unknown): RoleStartReferenceRow | null {
 export function likedAnswer(chips: string[], words: string) {
   return [chips.join(", "), words.trim()].filter(Boolean).join(" / ");
 }
+
+/** Extract only URL syntax. The rest stays verbatim for the LLM to interpret as the team's reason. */
+export function referenceRowFromInput(input: string): RoleStartReferenceRow | null {
+  const value = input.trim();
+  const match = value.match(/(?<![\w:/.-])(?:https?:\/\/|(?:www\.|[a-z]{2}\.)?linkedin\.com\/)[^\s<>"\[\]]+/i);
+  if (!match) return null;
+  const link = match[0].replace(/[),.;!?]+$/, "");
+  const url = referenceLink(link);
+  if (!url) return null;
+  const reason = (value.slice(0, match.index) + value.slice((match.index ?? 0) + link.length)).trim();
+  return { url, text: null, liked: reason || null };
+}

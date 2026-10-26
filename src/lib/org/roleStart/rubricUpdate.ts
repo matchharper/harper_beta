@@ -1,3 +1,4 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
@@ -18,7 +19,7 @@ import {
   createRoleStartSession,
   loadRoleStartSession,
   mergeRoleStartTimings,
-  saveBriefVersion,
+  saveRoleStartBrief,
   saveRoleStartSession,
   wellFormedJson,
   hasRoleStartBrief,
@@ -153,7 +154,7 @@ export async function updateRoleRubric(
       schema: NEXT_QUESTIONS_SCHEMA,
       system: buildBriefEditSystemPrompt(),
       user: `<ROLE>${state.role.name}</ROLE>
-<CURRENT_BRIEF>\n${JSON.stringify(briefForModel(before), null, 2)}\n</CURRENT_BRIEF>
+<CURRENT_BRIEF>\n${formatPromptText(briefForModel(before))}\n</CURRENT_BRIEF>
 <TEAM_REQUEST>${request}</TEAM_REQUEST>`,
     });
     usage.push(used);
@@ -191,7 +192,7 @@ export async function updateRoleRubric(
     patch: { brief: next, pool: session.pool ?? latest.pool, questions: { ...latest.questions, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 } },
   });
   if (!savedSession) throw new OrgHttpError(409, "그사이 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
-  const version = await saveBriefVersion({
+  const version = await saveRoleStartBrief({
     roleId: args.roleId,
     brief: next,
     changeSource: args.source,
@@ -223,7 +224,7 @@ export async function updateRoleRubric(
       update public.company_role_start_sessions
       set criterion_evaluations = jsonb_set(criterion_evaluations, array[${row.talentId}::text],
         jsonb_build_object('evaluations', ${sql.json(wellFormedJson(row.evaluations))}::jsonb,
-          'briefVersion', ${version}::integer, 'updatedAt', now()))
+          'briefVersion', ${version}::text, 'updatedAt', now()))
       where role_id = ${args.roleId}
     `;
   }
@@ -262,8 +263,8 @@ export async function regradeAfterRegistration(args: {
   );
   if (!judgeNames.size || !args.people.length) return 0;
   const sql = roleStartSql();
-  const role = (await sql<Array<{ name: string; version: number | null }>>`
-    select r.name, (select max(v.version) from public.company_role_brief_versions v where v.role_id = r.role_id) as version
+  const role = (await sql<Array<{ name: string; version: string | null }>>`
+    select r.name, public.company_role_search_brief_version_v1(r.role_id) as version
     from public.company_roles r where r.role_id = ${args.roleId}
   `)[0];
   if (!role) return 0;
@@ -281,7 +282,7 @@ export async function regradeAfterRegistration(args: {
       update public.company_role_start_sessions
       set criterion_evaluations = jsonb_set(criterion_evaluations, array[${row.talentId}::text],
         jsonb_build_object('evaluations', ${sql.json(wellFormedJson(row.evaluations))}::jsonb,
-          'briefVersion', ${role.version}::integer, 'updatedAt', now()))
+          'briefVersion', ${role.version}::text, 'updatedAt', now()))
       where role_id = ${args.roleId}
     `;
   }
@@ -294,7 +295,7 @@ async function rejudge(args: {
   roleName: string;
   brief: RoleStartBrief;
   rows: Array<{ talentId: string; evaluations: Array<Record<string, unknown>> }>;
-  version: number | null;
+  version: string | null;
   started: number;
 }) {
   const sql = roleStartSql();
@@ -315,8 +316,9 @@ async function rejudge(args: {
         'reasonChips', ${sql.json(wellFormedJson(reasonChips ?? []))}::jsonb,
         'updatedAt', now()))
     where role_id = ${args.roleId}
-      and (criterion_evaluations -> ${talentId}::text ->> 'briefVersion')::integer
-        is not distinct from ${args.version}::integer
+      and (criterion_evaluations -> ${talentId}::text ->> 'briefVersion')
+        is not distinct from ${args.version}::text
+      and public.company_role_search_brief_version_v1(role_id) is not distinct from ${args.version}::text
   `;
   await Promise.all(
     args.rows.map(async (row) => {

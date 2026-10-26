@@ -45,6 +45,7 @@ export type OpsTalentMetricDailyActivityPoint = {
 
 export type OpsTalentMetricConversionTrendPoint = {
   bucketStart: string;
+  internalRecommendationCount: number;
   connectedTalentCount: number;
   fullLabel: string;
   internalAcceptanceRate: number | null;

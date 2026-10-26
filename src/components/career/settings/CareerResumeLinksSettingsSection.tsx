@@ -202,22 +202,22 @@ const CareerResumeLinksSettingsSection = ({
 
   return (
     <div className="pb-24">
-      <CareerDocumentsSettingsSection
-        documents={talentDocuments}
-        onAddDocument={() => setAddDocumentOpen(true)}
-        onOpenCallNote={handleOpenCallNote}
-        onOpenDocument={onOpenDocument ?? setInlineDocument}
-        onEditDocument={(document) => setDocumentPendingEditId(document.id)}
-        onRenameDocument={openDocumentRename}
-        onDeleteDocument={setDocumentPendingDeleteId}
-        onUploadComplete={handleResumeUploadComplete}
+      <CareerProfileLinksSettingsSection
+        hasUnsavedChanges={hasUnsavedLinkChanges}
+        onLinkedinRefresh={handleLinkedinRefresh}
+        onSave={handleSaveLinks}
       />
 
       <div className="mt-9">
-        <CareerProfileLinksSettingsSection
-          hasUnsavedChanges={hasUnsavedLinkChanges}
-          onLinkedinRefresh={handleLinkedinRefresh}
-          onSave={handleSaveLinks}
+        <CareerDocumentsSettingsSection
+          documents={talentDocuments}
+          onAddDocument={() => setAddDocumentOpen(true)}
+          onOpenCallNote={handleOpenCallNote}
+          onOpenDocument={onOpenDocument ?? setInlineDocument}
+          onEditDocument={(document) => setDocumentPendingEditId(document.id)}
+          onRenameDocument={openDocumentRename}
+          onDeleteDocument={setDocumentPendingDeleteId}
+          onUploadComplete={handleResumeUploadComplete}
         />
       </div>
 

@@ -149,7 +149,7 @@ export function OrgGoogleCalendarIntegration({
       addToast({
         message: c(
           "Google Calendar 연결을 해제했어요.",
-          "Google Calendar connection disconnected."
+          "Google Calendar disconnected."
         ),
         variant: "success",
       });
@@ -201,11 +201,11 @@ export function OrgGoogleCalendarIntegration({
               )}
             </h3>
             <p className="mt-1 max-w-2xl text-[13px] font-light leading-5 text-neutral-muted">
-              {c("미팅 가능 시간을 확인하고,", "Check meeting availability,")}
+              {c("미팅 가능 시간을 확인하고,", "Connect your calendar to check availability,")}
               <br />
               {c(
                 "인터뷰 링크를 만들고 초대하기 위해 연결이 필요해요.",
-                "Connect to create interview links and send invites."
+                "create meeting links, and send interview invitations."
               )}
             </p>
           </div>
@@ -281,14 +281,14 @@ export function OrgGoogleCalendarIntegration({
           <p className="pb-4 text-[13px] leading-5 text-neutral-muted">
             {c(
               "Harper의 접근은 차단되어 있어요. 외부 계정 연결 해제를 마치려면 다시 시도해 주세요.",
-              "Harper's access is blocked. Retry to complete external account disconnect."
+              "Harper's access is blocked. Try again to finish disconnecting your Google account."
             )}
           </p>
         ) : !hasCallback && state === "expired" ? (
           <p className="pb-4 text-[13px] leading-5 text-neutral-muted">
             {c(
               "Google Calendar 연결이 만료되었거나 해제됐어요. 사용하려면 다시 연결해 주세요.",
-              "Google Calendar connection expired or was disconnected. Reconnect to use."
+              "Your Google Calendar connection has expired or been disconnected. Reconnect to schedule interviews."
             )}
           </p>
         ) : null}
@@ -322,7 +322,7 @@ export function OrgGoogleCalendarIntegration({
           <>
             {c(
               "내 Harper 계정의 연결만 해제해요. 기존 Google Calendar 일정과 다른 팀원의 연결은 변경하지 않아요.",
-              "Only disconnects your Harper account. Does not change existing Google Calendar events or other team members' connections."
+              "This disconnects your calendar from Harper. Existing calendar events and other team members' connections stay unchanged."
             )}
           </>
         }

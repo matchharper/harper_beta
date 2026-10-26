@@ -185,6 +185,7 @@ export function OrgAgentComposer({
   autoFocus,
   compactWidth,
   disabled,
+  initialMessage = "",
   isStreaming,
   model,
   onModelChange,
@@ -199,6 +200,7 @@ export function OrgAgentComposer({
   autoFocus?: boolean;
   compactWidth?: boolean;
   disabled?: boolean;
+  initialMessage?: string;
   isStreaming: boolean;
   model: OrgAgentModelId;
   onModelChange: (model: OrgAgentModelId) => void;
@@ -221,7 +223,7 @@ export function OrgAgentComposer({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastSpaceAtRef = useRef<number>(0);
   const submissionPendingRef = useRef(false);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialMessage);
   const [attachments, setAttachments] = useState<DraftChatAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);

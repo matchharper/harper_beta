@@ -48,6 +48,52 @@ function percentile(values: number[], p: number) {
   const ordered = [...values].sort((a, b) => a - b);
   return ordered[Math.max(0, Math.ceil(ordered.length * p) - 1)];
 }
+export function selectExternalExperimentRuns(args: {
+  runs: ExternalExperimentRun[];
+  excludedUserIds: Set<string>;
+  surface: ExternalSurface;
+}) {
+  const scoped = args.runs.filter(
+    (r) =>
+      r.experiment === EXPERIMENT &&
+      (args.surface === "all" || r.surface === args.surface) &&
+      !args.excludedUserIds.has(r.talent_id)
+  );
+  // Forced developer cohorts must not determine the version or enter the comparison.
+  const contaminated = new Set(
+    scoped
+      .filter((r) => r.variant !== externalVariant(r.talent_id))
+      .map((r) => r.talent_id)
+  );
+  const eligible = scoped
+    .filter(
+      (r) =>
+        !contaminated.has(r.talent_id) &&
+        typeof r.metrics.measurementVersion === "string" &&
+        r.metrics.measurementVersion.trim().length > 0
+    )
+    .sort(
+      (a, b) =>
+        a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
+    );
+  // A web release can precede the recommendation producers. Prefer its version
+  // only when it has eligible samples; otherwise show the last observed version.
+  // Never pool treatments from different measurement versions.
+  const measurementVersion = eligible.some(
+    (r) => r.metrics.measurementVersion === EXTERNAL_MEASUREMENT_VERSION
+  )
+    ? EXTERNAL_MEASUREMENT_VERSION
+    : ((eligible.at(-1)?.metrics.measurementVersion as string | undefined) ??
+      null);
+  return {
+    scoped,
+    measurementVersion,
+    runs: eligible.filter(
+      (r) => r.metrics.measurementVersion === measurementVersion
+    ),
+  };
+}
+
 export function buildExternalRecommendationExperiment(args: {
   runs: ExternalExperimentRun[];
   recommendations: ExternalExperimentRecommendation[];
@@ -56,28 +102,8 @@ export function buildExternalRecommendationExperiment(args: {
   surface: ExternalSurface;
   now: number;
 }): OpsAbTestSummary {
-  const scoped = args.runs.filter(
-    (r) =>
-      r.experiment === EXPERIMENT &&
-      (args.surface === "all" || r.surface === args.surface) &&
-      !args.excludedUserIds.has(r.talent_id)
-  );
-  // Forced developer cohorts and old implementations must not contaminate the comparison.
-  const contaminated = new Set(
-    scoped
-      .filter((r) => r.variant !== externalVariant(r.talent_id))
-      .map((r) => r.talent_id)
-  );
-  const runs = scoped
-    .filter(
-      (r) =>
-        !contaminated.has(r.talent_id) &&
-        r.metrics.measurementVersion === EXTERNAL_MEASUREMENT_VERSION
-    )
-    .sort(
-      (a, b) =>
-        a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)
-    );
+  const { scoped, runs, measurementVersion } =
+    selectExternalExperimentRuns(args);
   const byRun = new Map<string, ExternalExperimentRecommendation[]>();
   const runMap = new Map(runs.map((r) => [r.id, r]));
   for (const rec of args.recommendations) {
@@ -358,7 +384,8 @@ export function buildExternalRecommendationExperiment(args: {
     daily: "매일 추천",
   };
   return {
-    id: `${EXTERNAL_MEASUREMENT_VERSION}:${args.surface}`,
+    id: `${measurementVersion ?? EXTERNAL_MEASUREMENT_VERSION}:${args.surface}`,
+    measurementVersion,
     title: `외부 공고 추천 · ${names[args.surface]}`,
     allocation: "사용자 고정 50:50",
     status: !runs.length
@@ -373,6 +400,6 @@ export function buildExternalRecommendationExperiment(args: {
     conclusion,
     firstObservedAt: runs[0]?.created_at ?? null,
     lastObservedAt: runs.at(-1)?.created_at ?? null,
-    caveat: `현재 버전만 집계. 이전 버전·강제 배정 ${scoped.length - runs.length}건 제외. 선택 기간·추천 경로별 사용자 첫 실행 1건에서 저장한 공고/회사 정보의 첫 클릭을 7일 관찰하며 실패·빈 결과도 분모에 포함합니다. 7일 미경과 사용자는 대기입니다. 기존 clicked_at은 JD 링크와 회사 정보 열기를 포함합니다. 클릭은 지원 완료가 아니며 저장은 실제 화면 노출을 뜻하지 않습니다. 전체 추천 경로 비교이며 양쪽 모두 공통 타이틀 개선이 포함됩니다. CI는 반복 관찰용 참고치로 자동 승패 판정을 하지 않습니다. 시간은 실행 생성부터 종료까지이며 daily 대기를 포함합니다. 비용은 연결된 API 영수증과 Worker 외부 단계의 확인 가능한 소계이며 누락 호출·공유 캐시 생성·인프라 비용은 포함하지 않습니다. 누락을 0원으로 보지 않습니다.`,
+    caveat: `표시된 측정 버전만 집계. 다른 버전·버전 미기록·강제 배정 ${scoped.length - runs.length}건 제외. 선택 기간·추천 경로별 사용자 첫 실행 1건에서 저장한 공고/회사 정보의 첫 클릭을 7일 관찰하며 실패·빈 결과도 분모에 포함합니다. 7일 미경과 사용자는 대기입니다. 기존 clicked_at은 JD 링크와 회사 정보 열기를 포함합니다. 클릭은 지원 완료가 아니며 저장은 실제 화면 노출을 뜻하지 않습니다. 전체 추천 경로 비교이며 양쪽 모두 공통 타이틀 개선이 포함됩니다. CI는 반복 관찰용 참고치로 자동 승패 판정을 하지 않습니다. 시간은 실행 생성부터 종료까지이며 daily 대기를 포함합니다. 비용은 연결된 API 영수증과 Worker 외부 단계의 확인 가능한 소계이며 누락 호출·공유 캐시 생성·인프라 비용은 포함하지 않습니다. 누락을 0원으로 보지 않습니다.`,
   };
 }

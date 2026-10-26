@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildCareerConversationPromptPlan } from "@/lib/career/prompts";
 import { CAREER_HARPER_LINK_OUTPUT_RULE } from "@/lib/career/prompts/rawPrompts";
-import { adaptEmailPromptBlocks } from "./prompt";
+import { adaptEmailPromptBlocks, EMAIL_CHANNEL_RULES } from "./prompt";
 
 test("email adapts channel instructions without mutating the web prompt or its data", () => {
   const args = {
@@ -24,6 +24,7 @@ test("email adapts channel instructions without mutating the web prompt or its d
   assert.equal(JSON.stringify(web), original);
   const text = email.map((b) => b.text).join("\n");
   assert.match(text, /communicating through Email/);
+  assert.equal(text.split(EMAIL_CHANNEL_RULES).length - 1, 1);
   assert.doesNotMatch(text, /CAREER_CHOICE_BUTTONS/);
   assert.ok(!text.includes(CAREER_HARPER_LINK_OUTPUT_RULE));
   assert.ok(!email.some((b) => b.key === "mock_interview_offer"));
@@ -35,6 +36,23 @@ test("email adapts channel instructions without mutating the web prompt or its d
   }
   assert.match(text, /Profile facts preserved/);
   assert.match(text, /서울 또는 원격/);
+});
+
+test("outbound email uses the supplied clock and one channel contract", () => {
+  const plan = buildCareerConversationPromptPlan({
+    channel: "chat", profile: null, structuredProfileText: "Recipient: test candidate",
+    talentContextSection: "", isOnboardingDone: true,
+    currentPreferences: { preferredLocale: "ko" }, timeZone: "Asia/Seoul",
+    requestTime: new Date("2026-10-23T15:10:00Z"),
+  });
+  const email = adaptEmailPromptBlocks(plan.promptBlocks,
+    { subject: "", thread: "Historical conversation", attachments: [] }, "", { mode: "outbound" });
+  const dynamic = email.find(b => b.key === "dynamic_state")!.text;
+  assert.match(dynamic, /현재 시각: 10월 24일 00:10/);
+  const channel = email.find(b => b.key === "email_output_contract")!.text;
+  assert.equal(email.map(b => b.text).join("\n").split(channel).length - 1, 1);
+  assert.ok(!channel.includes(EMAIL_CHANNEL_RULES));
+  assert.ok(email.some(b => b.text.includes("Historical conversation")));
 });
 
 test("email projects setting labels and omits generic enrichment without losing role clarification or facts", () => {

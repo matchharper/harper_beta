@@ -3,9 +3,10 @@ import { useState } from "react";
 import { OrgCriteriaEvaluation } from "@/components/org/OrgCriteriaEvaluation";
 import { RoleToggleButton } from "@/components/org/role-overview/RoleOverviewShared";
 import { MuteButton } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft } from "lucide-react";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
-import { criterionLevel, type OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
+import { type OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
 import type { RoleStartBriefView, RoleStartCandidateView, RoleStartView } from "@/lib/org/roleStart/view";
 
 export type RoleStartEvaluation = RoleStartView["evaluations"][string];
@@ -73,22 +74,16 @@ export function CandidateHeader({ candidate }: { candidate: RoleStartCandidateVi
 /** Harper's read of the person: summary and fit by criterion with evidence, 필수 조건 first. */
 export function CandidateRead({
   candidate,
-  criteria,
 }: {
   candidate: RoleStartCandidateView;
   criteria: RoleStartBriefView["criteria"];
 }) {
   const { c } = useOrgLocale();
   const verdict = candidate.verdict;
-  const required = new Set(
-    criteria.filter((criterion) => criterionLevel(criterion) === "required").map((criterion) => criterion.id ?? criterion.name)
-  );
-  const groups = verdict
-    ? [
-        { label: c("필수 조건", "Required conditions"), items: verdict.criteria.filter((item) => required.has(item.criterionId)) },
-        { label: c("평가 기준", "Evaluation criteria"), items: verdict.criteria.filter((item) => !required.has(item.criterionId)) },
-      ].filter((group) => group.items.length)
+  const groups = verdict?.criteria.length
+    ? [{ label: c("평가 기준", "Evaluation criteria"), items: verdict.criteria }]
     : [];
+
   return (
     <>
       {verdict?.tldr ? <p className="mt-4 text-[13px] leading-5 text-neutral-primary">{verdict.tldr}</p> : null}
@@ -112,134 +107,104 @@ export function CandidateRead({
   );
 }
 
-/**
- * The team's rating of one first-three person and what it was about: reason
- * chips for the picked rating, own words (always open), or skip. A rating is
- * required; reasons are optional.
- */
+/** A rating and optional reasons are saved together by the explicit submit action. */
 export function CandidateRating(props: {
   busy: boolean;
   candidate: RoleStartCandidateView;
   editable: boolean;
   evaluation?: RoleStartEvaluation;
-  onEvaluate: (body: RoleStartEvaluateBody) => void;
+  onEvaluate: (body: RoleStartEvaluateBody) => unknown;
+  onSubmitted?: () => void;
+  onBack?: () => void;
+  submitDisabled?: boolean;
 }) {
   const { c } = useOrgLocale();
   const gradeLabel = useGradeLabel();
   const { candidate } = props;
   const allChips = candidate.verdict?.reasonChips ?? [];
-  // The per-person question is no longer shown; an answer given earlier is kept.
+  // Preserve answers recorded before the per-person question was removed.
   const answer = props.evaluation?.answer ?? "";
   const [rating, setRating] = useState<OrgRoleCriterionGrade | null>(props.evaluation?.rating ?? null);
   const [reasonIds, setReasonIds] = useState<string[]>(() =>
-    allChips
-      .filter((chip) => props.evaluation?.reasons?.some((reason) => reason.chipId === chip.id))
-      .map((chip) => chip.id)
+    allChips.filter((chip) => props.evaluation?.reasons?.some((reason) => reason.chipId === chip.id)).map((chip) => chip.id)
   );
   const [reasonText, setReasonText] = useState(props.evaluation?.reasonText ?? "");
-  const [reasonsSkipped, setReasonsSkipped] = useState(props.evaluation?.reasonsSkipped ?? false);
-  const disabled = !props.editable || props.busy;
-  // At most three chips for the picked rating; none before a rating is picked.
+  const [submitting, setSubmitting] = useState(false);
+  const disabled = !props.editable || props.busy || submitting;
   const chips = rating ? allChips.filter((chip) => chip.appliesTo.includes(rating)).slice(0, REASON_CHIP_MAX) : [];
-  const submit = (next: {
-    rating?: OrgRoleCriterionGrade | null;
-    reasonIds?: string[];
-    reasonText?: string;
-    reasonsSkipped?: boolean;
-  }) => {
-    const nextRating = next.rating ?? rating;
-    if (!nextRating) return;
-    props.onEvaluate({
-      talentId: candidate.talentId,
-      rating: nextRating,
-      answer,
-      reasonIds: next.reasonIds ?? reasonIds,
-      reasonText: next.reasonText ?? reasonText,
-      reasonsSkipped: next.reasonsSkipped ?? reasonsSkipped,
-    });
+
+  const submit = async () => {
+    if (!rating || disabled || props.submitDisabled) return;
+    setSubmitting(true);
+    try {
+      const result = await props.onEvaluate({
+        talentId: candidate.talentId,
+        rating,
+        answer,
+        reasonIds,
+        reasonText,
+        reasonsSkipped: false,
+      });
+      // Mutation owners display failures. Keep this draft and position for retry.
+      if (result !== null && result !== false) props.onSubmitted?.();
+    } catch {
+      // The mutation owner reports the error; do not advance or erase the draft.
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="grid gap-2">
+    <form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <div aria-label={c("후보 평가", "Rate candidate")} className="flex flex-wrap gap-1.5" role="group">
         {ROLE_START_GRADES.map((grade) => (
           <RoleToggleButton
             active={rating === grade}
             disabled={disabled}
             key={grade}
-            onClick={() => {
-              // Chips belong to one rating; switching ratings starts them over. Typed words stay.
-              setRating(grade);
-              setReasonIds([]);
-              setReasonsSkipped(false);
-              submit({ rating: grade, reasonIds: [], reasonsSkipped: false });
-            }}
+            onClick={() => { setRating(grade); setReasonIds([]); }}
           >
             <Image alt="" aria-hidden className="size-4" height={16} src={`/svgs/${grade}.svg`} width={16} />
             {gradeLabel(grade)}
           </RoleToggleButton>
         ))}
       </div>
-
-      <div aria-label={c("평가 이유", "Reason for this rating")} className="grid gap-2 rounded-md bg-bg-basement p-3">
-        {rating ? (
-          <span className="text-[12px] font-medium">
-            {rating === "bad"
-              ? c("어떤 점이 맞지 않나요? 여러 개 골라도 돼요.", "What doesn't fit? Pick any that apply.")
-              : rating === "uncertain"
-                ? c("어떤 정보가 부족한가요? 여러 개 골라도 돼요.", "What information is missing? Pick any that apply.")
-                : c("어떤 점이 잘 맞나요? 여러 개 골라도 돼요.", "What fits well? Pick any that apply.")}
-          </span>
-        ) : null}
+      <div aria-label={c("평가 이유", "Reason for this rating")} className="grid gap-3">
         {chips.length ? (
           <div className="flex flex-wrap gap-1.5">
-            {chips.map((chip) => {
-              const selected = reasonIds.includes(chip.id);
-              return (
-                <RoleToggleButton
-                  active={selected}
-                  disabled={disabled}
-                  key={chip.id}
-                  onClick={() => {
-                    const next = selected ? reasonIds.filter((id) => id !== chip.id) : [...reasonIds, chip.id];
-                    setReasonIds(next);
-                    setReasonsSkipped(false);
-                    submit({ reasonIds: next, reasonsSkipped: false });
-                  }}
-                >
-                  {chip.label}
-                </RoleToggleButton>
-              );
-            })}
+            {chips.map((chip) => (
+              <RoleToggleButton
+                active={reasonIds.includes(chip.id)}
+                disabled={disabled}
+                key={chip.id}
+                onClick={() => setReasonIds(current => current.includes(chip.id) ? current.filter(id => id !== chip.id) : [...current, chip.id])}
+              >
+                {chip.label}
+              </RoleToggleButton>
+            ))}
           </div>
         ) : null}
-        <div className="flex items-center gap-1.5">
-          <Input
-            aria-label={c("평가 이유 직접 적기", "Write the reason yourself")}
-            className="min-w-0 flex-1"
-            disabled={!props.editable}
-            onBlur={() => reasonText !== (props.evaluation?.reasonText ?? "") && submit({ reasonText })}
-            onChange={(event) => setReasonText(event.target.value)}
-            placeholder={c("이유를 직접 적어도 돼요", "Or write the reason yourself")}
-            value={reasonText}
-          />
-          {rating ? (
-            <MuteButton
-              aria-pressed={reasonsSkipped}
-              disabled={disabled}
-              onClick={() => {
-                setReasonIds([]);
-                setReasonText("");
-                setReasonsSkipped(true);
-                submit({ reasonIds: [], reasonText: "", reasonsSkipped: true });
-              }}
-              variant="transparent"
-            >
-              {c("건너뛰기", "Skip")}
-            </MuteButton>
-          ) : null}
-        </div>
+        <Textarea
+          aria-label={c("평가 이유 직접 적기", "Write the reason yourself")}
+          autoResize
+          rows={3}
+          disabled={disabled}
+          onChange={(event) => setReasonText(event.target.value)}
+          placeholder={c("이유를 직접 적어도 돼요", "Or write the reason yourself")}
+          value={reasonText}
+        />
       </div>
-    </div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        {props.onBack ? (
+          <MuteButton disabled={props.busy || submitting} onClick={props.onBack} size="lg" variant="transparent">
+            <ArrowLeft className="size-4" />
+            {c("이전", "Back")}
+          </MuteButton>
+        ) : <span />}
+        <MuteButton disabled={disabled || !rating || props.submitDisabled} size="lg" type="submit" variant="primary">
+          {c("제출하기", "Submit")}
+        </MuteButton>
+      </div>
+    </form>
   );
 }

@@ -11,6 +11,7 @@ import {
 import {
   COMPANY_DATA_CATALOG,
   companyDataDisplayLabel,
+  companyDataTextLimit,
   companyDataTargetKey,
   isCompanyDataKey,
   type CompanyDataChangeKind,
@@ -204,8 +205,10 @@ export function parseCompanyDataChanges(args: {
         "section is only valid for role_request append"
       );
     }
-    totalTextLength +=
-      textInputLength(raw.value) + textInputLength(raw.oldValue);
+    if (companyDataTextLimit(catalog) !== null) {
+      totalTextLength +=
+        textInputLength(raw.value) + textInputLength(raw.oldValue);
+    }
     return {
       key: keyText,
       kind,
@@ -246,7 +249,11 @@ export function parseCompanyDataChanges(args: {
   return { changes: parsed, summary };
 }
 
-function normalizeString(value: unknown, nullable: boolean, maxLength: number) {
+function normalizeString(
+  value: unknown,
+  nullable: boolean,
+  maxLength: number | null
+) {
   if (value === null || value === undefined) {
     if (!nullable) {
       throw new CompanyDataMutationError(
@@ -266,7 +273,7 @@ function normalizeString(value: unknown, nullable: boolean, maxLength: number) {
     }
     return null;
   }
-  if (Array.from(normalized).length > maxLength) {
+  if (maxLength !== null && Array.from(normalized).length > maxLength) {
     throw new CompanyDataMutationError(
       "value_too_long",
       `Value may not exceed ${maxLength.toLocaleString()} characters`
@@ -275,7 +282,11 @@ function normalizeString(value: unknown, nullable: boolean, maxLength: number) {
   return normalized;
 }
 
-function normalizeUrl(value: unknown, nullable: boolean, maxLength: number) {
+function normalizeUrl(
+  value: unknown,
+  nullable: boolean,
+  maxLength: number | null
+) {
   const normalized = normalizeString(value, nullable, maxLength);
   if (normalized === null) return null;
   let url: URL;
@@ -367,16 +378,26 @@ function normalizeRewriteValue(key: CompanyDataKey, value: unknown) {
       nullable: false,
       value,
     });
-    if (!Array.isArray(value) || !Array.isArray(days) || days.length === 0 ||
-        days.length !== value.length) {
-      throw new CompanyDataMutationError("invalid_weekdays", "Choose one or more distinct weekdays");
+    if (
+      !Array.isArray(value) ||
+      !Array.isArray(days) ||
+      days.length === 0 ||
+      days.length !== value.length
+    ) {
+      throw new CompanyDataMutationError(
+        "invalid_weekdays",
+        "Choose one or more distinct weekdays"
+      );
     }
     return days;
   }
   if (key === "role_intro_search_time") {
     const hour = normalizeInteger(value, false);
     if (hour === null || hour > 23) {
-      throw new CompanyDataMutationError("invalid_hour", "Hour must be between 0 and 23");
+      throw new CompanyDataMutationError(
+        "invalid_hour",
+        "Hour must be between 0 and 23"
+      );
     }
     return hour;
   }
@@ -420,12 +441,16 @@ function normalizeRewriteValue(key: CompanyDataKey, value: unknown) {
     return normalized;
   }
   if (catalog.type === "url") {
-    return normalizeUrl(value, catalog.nullable, catalog.maxLength ?? 2_000);
+    return normalizeUrl(
+      value,
+      catalog.nullable,
+      companyDataTextLimit(catalog, 2_000)
+    );
   }
   const normalized = normalizeString(
     value,
     catalog.nullable,
-    catalog.maxLength ?? 20_000
+    companyDataTextLimit(catalog)
   );
   if (
     key === "role_request" &&
@@ -445,7 +470,11 @@ function asText(value: unknown) {
   return typeof value === "string" ? value : value == null ? "" : String(value);
 }
 
-function appendText(current: unknown, value: unknown, maxLength: number) {
+function appendText(
+  current: unknown,
+  value: unknown,
+  maxLength: number | null
+) {
   const addition = normalizeString(value, false, maxLength)!;
   const existing = asText(current);
   let occurrence = existing.indexOf(addition);
@@ -460,7 +489,7 @@ function appendText(current: unknown, value: unknown, maxLength: number) {
   const next = existing.trim()
     ? `${existing.trimEnd()}\n\n${addition}`
     : addition;
-  if (Array.from(next).length > maxLength) {
+  if (maxLength !== null && Array.from(next).length > maxLength) {
     throw new CompanyDataMutationError(
       "value_too_long",
       `Final value may not exceed ${maxLength.toLocaleString()} characters`
@@ -470,7 +499,11 @@ function appendText(current: unknown, value: unknown, maxLength: number) {
 }
 
 function requestBullet(value: unknown) {
-  const normalized = normalizeString(value, false, 4_000)!;
+  const normalized = normalizeString(
+    value,
+    false,
+    companyDataTextLimit(COMPANY_DATA_CATALOG.role_request)
+  )!;
   return `- ${normalized.replace(/^[-*]\s+/, "").replace(/\s*\n\s*/g, " ")}`;
 }
 
@@ -529,10 +562,11 @@ function appendRoleRequest(
     next =
       `${HARD_HEADING}\n\n${hard}\n\n${PREFERRED_HEADING}\n\n${preferred}${legacy}`.trimEnd();
   }
-  if (Array.from(next).length > 20_000) {
+  const maxLength = companyDataTextLimit(COMPANY_DATA_CATALOG.role_request);
+  if (maxLength !== null && Array.from(next).length > maxLength) {
     throw new CompanyDataMutationError(
-      "oversized_legacy",
-      "The final role request would exceed 20,000 characters"
+      "value_too_long",
+      `Final value may not exceed ${maxLength.toLocaleString()} characters`
     );
   }
   return next;
@@ -570,8 +604,8 @@ function validateReplacedText(
   before: unknown
 ) {
   const catalog = COMPANY_DATA_CATALOG[key];
-  const maxLength = catalog.maxLength ?? 20_000;
-  if (Array.from(value).length > maxLength) {
+  const maxLength = companyDataTextLimit(catalog);
+  if (maxLength !== null && Array.from(value).length > maxLength) {
     throw new CompanyDataMutationError(
       "value_too_long",
       `Final value may not exceed ${maxLength.toLocaleString()} characters`
@@ -645,7 +679,7 @@ function applyOperation(change: CompanyDataChangeInput, current: unknown) {
   if (change.key === "role_request") {
     return appendRoleRequest(current, change.value, change.section!);
   }
-  return appendText(current, change.value, catalog.maxLength ?? 20_000);
+  return appendText(current, change.value, companyDataTextLimit(catalog));
 }
 
 function normalizeComparable(value: unknown): unknown {
@@ -775,7 +809,7 @@ function buildChangePreview(args: {
     const addition = normalizeString(
       args.change.value,
       false,
-      catalog.maxLength ?? 20_000
+      companyDataTextLimit(catalog)
     )!;
     return [
       `[추가] ${label}${section}`,
@@ -808,6 +842,20 @@ export function buildCompanyDataFinalDiffPreview(args: {
       ? rewriteDiff(args.before, args.after)
       : `- ${formatCompanyDataValueForPreview(args.key, args.before)}\n+ ${formatCompanyDataValueForPreview(args.key, args.after)}`;
   return `[최종 변경] ${label}\n${diff}`;
+}
+
+// Preserve complete previews for fields whose source text is explicitly unbounded.
+// Other targets retain the existing preview budget, including in mixed batches.
+function boundedChangePreviewLength(changes: ResolvedCompanyDataChange[]) {
+  return Array.from(
+    changes
+      .filter(
+        (change) =>
+          companyDataTextLimit(COMPANY_DATA_CATALOG[change.key]) !== null
+      )
+      .map((change) => change.preview)
+      .join("\n\n")
+  ).length;
 }
 
 function snapshotAlreadyHasFinalValue(
@@ -913,7 +961,7 @@ export function resolveCompanyDataMutation(args: {
   }
 
   const preview = resolved.map((change) => change.preview).join("\n\n");
-  if (Array.from(preview).length > MAX_PREVIEW_LENGTH) {
+  if (boundedChangePreviewLength(resolved) > MAX_PREVIEW_LENGTH) {
     throw new CompanyDataMutationError(
       "smaller_operation_required",
       "The complete change preview is too long. Use smaller append/replace operations or the website editor."
@@ -1033,7 +1081,7 @@ export function mergeCompanyDataProposalRevision(args: {
   });
   const changes = [...inherited, ...revised];
   const preview = changes.map((change) => change.preview).join("\n\n");
-  if (Array.from(preview).length > MAX_PREVIEW_LENGTH) {
+  if (boundedChangePreviewLength(changes) > MAX_PREVIEW_LENGTH) {
     throw new CompanyDataMutationError(
       "smaller_operation_required",
       "The revised proposal preview is too long; use smaller operations"
@@ -1157,7 +1205,9 @@ export async function fetchCompanyDataSnapshot(args: {
 
   const internalResult = roleIds.length
     ? await (args.admin.from("company_internal_roles" as any) as any)
-        .select("role_id, request, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time")
+        .select(
+          "role_id, request, is_company_first_search, is_promote, is_anonymous, intro_search_date, intro_search_time"
+        )
         .in("role_id", roleIds)
     : { data: [], error: null };
   if (internalResult.error) throw internalResult.error;

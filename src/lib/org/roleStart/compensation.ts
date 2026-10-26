@@ -1,22 +1,19 @@
-import type { RoleStartBrief } from "./brief";
-
 /**
- * The fixed compensation question, asked first when the JD states none. Its
- * chips come at once from the Brief's minimum years (no model call); the
- * answer is the Role's 보상 field, never part of the Brief or the question count.
+ * Fixed annual compensation choices, asked first when the JD states none.
+ * Korean uses KRW and English uses USD; these are independent ranges, not FX
+ * conversions. The selected localized text is saved on the Role.
  */
-const COMPENSATION_BANDS: Array<{ belowYears: number; bands: Array<[ko: string, en: string]> }> = [
-  { belowYears: 3, bands: [["3,500만~5,000만 원", "KRW 35M–50M / year"], ["5,000만~7,000만 원", "KRW 50M–70M / year"], ["7,000만 원 이상", "KRW 70M+ / year"]] },
-  { belowYears: 7, bands: [["5,000만~7,000만 원", "KRW 50M–70M / year"], ["7,000만~9,000만 원", "KRW 70M–90M / year"], ["9,000만 원 이상", "KRW 90M+ / year"]] },
-  { belowYears: Infinity, bands: [["7,000만~9,000만 원", "KRW 70M–90M / year"], ["9,000만~1억 2,000만 원", "KRW 90M–120M / year"], ["1억 2,000만 원 이상", "KRW 120M+ / year"]] },
+const COMPENSATION_BANDS: Array<[ko: string, en: string]> = [
+  ["5,000만~7,000만 원", "USD 50,000–70,000 / year"],
+  ["7,000만~9,000만 원", "USD 70,000–90,000 / year"],
+  ["9,000만~1억 2,000만 원", "USD 90,000–120,000 / year"],
+  ["1억 2,000만~1억 5,000만 원", "USD 120,000–150,000 / year"],
+  ["1억 5,000만 원 이상", "USD 150,000+ / year"],
 ];
 
-/** Each chip's text as saved on the Role (ko, prefixed with 연봉) and as shown on English screens. */
-export function compensationChips(brief: Pick<RoleStartBrief, "hardConditions">) {
-  const years = Math.max(0, ...brief.hardConditions.map((item) => (item.kind === "min_years" ? Number(item.years) || 0 : 0)));
-  const { bands } = COMPENSATION_BANDS.find((item) => years < item.belowYears)!;
+export function compensationChips() {
   return [
-    ...bands.map(([ko, en]) => ({ ko: `연봉 ${ko}`, en })),
+    ...COMPENSATION_BANDS.map(([ko, en]) => ({ ko: `연봉 ${ko}`, en })),
     { ko: "연봉 경력에 따라 협의", en: "Negotiable by experience" },
   ];
 }

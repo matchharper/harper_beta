@@ -45,6 +45,7 @@ type ChatComposerActionMenuProps = {
   open?: boolean;
   sideOffset?: number;
   trigger?: ReactNode;
+  triggerIcon?: ReactNode;
   triggerAriaLabel?: string;
 };
 
@@ -60,6 +61,7 @@ export function ChatComposerActionMenu({
   open: controlledOpen,
   sideOffset = 10,
   trigger,
+  triggerIcon,
   triggerAriaLabel = "추가 메뉴 열기",
 }: ChatComposerActionMenuProps) {
   const [internalOpen, setInternalOpen] = useState(false);
@@ -86,7 +88,7 @@ export function ChatComposerActionMenu({
             type="button"
             variant="transparent"
           >
-            <Plus className="h-5 w-5" />
+            {triggerIcon ?? <Plus className="h-5 w-5" />}
           </MuteButton>
         )}
       </DropdownMenuTrigger>

@@ -21,7 +21,7 @@ import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { CANDIDATE_DECISION_LABELS } from "@/lib/org/candidateDecision";
 import { MuteButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -219,11 +219,11 @@ export function AcceptIntroDialog({
         schedulesInterview
           ? c(
               "후보자 이메일이 없어 일정 요청을 준비할 수 없어요.",
-              "Unable to prepare schedule request: candidate has no email."
+              "We can't send an interview request because this candidate has no email address."
             )
           : c(
               "후보자 이메일이 없어 소개 이메일을 보낼 수 없어요.",
-              "Unable to send intro email: candidate has no email."
+              "We can't send an introduction because this candidate has no email address."
             )
       );
       return;
@@ -232,7 +232,7 @@ export function AcceptIntroDialog({
       setError(
         c(
           "Email intro에는 회사 담당자 이메일이 1개 이상 필요해요.",
-          "Email intro requires at least one company contact email."
+          "Select at least one team member for the email introduction."
         )
       );
       return;
@@ -247,7 +247,7 @@ export function AcceptIntroDialog({
       return;
     }
     if (schedulesInterview && !meetingTitle.trim()) {
-      setError(c("인터뷰 제목을 입력해 주세요.", "Enter interview title."));
+      setError(c("인터뷰 제목을 입력해 주세요.", "Enter an interview title."));
       return;
     }
     if (schedulesInterview && !meetingPurpose.trim()) {
@@ -398,12 +398,18 @@ export function AcceptIntroDialog({
                 [
                   "intro_email",
                   c("이메일로 연결받기", "Email introduction"),
-                  "",
+                  c(
+                    "서로 소개받고 이메일로 다음 단계를 이야기해요.",
+                    "Get introduced and discuss next steps over email."
+                  ),
                 ],
                 [
                   "interview",
                   c("바로 인터뷰 요청", "Request an interview"),
-                  c("일정 선택 링크 발송", "Send an availability link"),
+                  c(
+                    "후보자가 가능한 시간을 고를 수 있도록 일정 선택 링크를 보내요.",
+                    "Send a scheduling link so the candidate can choose a time."
+                  ),
                 ],
                 ...(allowContactDirectly
                   ? [
@@ -442,11 +448,9 @@ export function AcceptIntroDialog({
                   <span className="block text-[13px] font-medium text-neutral-primary">
                     {label}
                   </span>
-                  {description && (
-                    <span className="mt-0.5 block text-[12px] leading-5 text-neutral-muted">
-                      {description}
-                    </span>
-                  )}
+                  <span className="mt-0.5 block text-[12px] leading-5 text-neutral-muted">
+                    {description}
+                  </span>
                 </span>
               </label>
             ))}
@@ -638,7 +642,7 @@ export function AcceptIntroDialog({
 
                   <label className="block">
                     <span className="text-[12px] font-medium text-neutral-muted">
-                      {c("미팅 주제", "Meeting topic")}
+                      {c("미팅 주제", "What you'll discuss")}
                     </span>
                     <Input
                       className="mt-1.5 text-[13px]"
@@ -656,7 +660,7 @@ export function AcceptIntroDialog({
                     <span className="mt-1 block text-[12px] leading-5 text-neutral-soft">
                       {c(
                         "후보자에게도 이 내용과 미팅 길이를 함께 안내해요.",
-                        "This will be shared with the candidate along with the meeting length."
+                        "The candidate will see this along with the interview duration."
                       )}
                     </span>
                   </label>
@@ -897,6 +901,8 @@ export function StopCandidateDialog({
   const stopNoteHelpId = useId();
   const stopReasonLabelId = useId();
   const stopFormId = useId();
+  const closureNotificationId = useId();
+  const closureNotificationHelpId = useId();
   const [error, setError] = useState("");
   const [stopNote, setStopNote] = useState("");
   const [notifyCandidateOnClosure, setNotifyCandidateOnClosure] =
@@ -935,7 +941,7 @@ export function StopCandidateDialog({
           locale,
           c(
             "종료 결과를 확인하지 못했어요. 바로 다시 시도하지 말고 후보자의 현재 상태를 먼저 확인해 주세요.",
-            "Couldn't confirm the closure result. Don't retry immediately; check the candidate's current status first."
+            "We couldn't confirm whether the process ended. Check the candidate's current status before trying again."
           )
         )
       );
@@ -998,25 +1004,39 @@ export function StopCandidateDialog({
           <div className="text-neutral-muted">
             {c(
               "종료 상태는 후보자 화면에도 표시돼요. 이미 보낸 소개 이메일이나 연락은 회수할 수 없어요.",
-              "The closed status will also appear to the candidate. Emails and messages already sent cannot be recalled."
+              "The candidate will see that the process has ended. Emails and messages already sent can't be recalled."
             )}
           </div>
         </div>
-        <Checkbox
-          checked={notifyCandidateOnClosure}
-          disabled={pending}
-          onChange={(event) =>
-            setNotifyCandidateOnClosure(event.target.checked)
-          }
-          label={c(
-            "Harper가 후보자에게 종료 안내 보내기",
-            "Have Harper notify the candidate of the closure"
-          )}
-          helperText={c(
-            "해제하면 별도 종료 안내 메일을 보내지 않아요.",
-            "Uncheck to skip Harper's separate closure email."
-          )}
-        />
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <label
+              className="block text-[13px] font-medium text-neutral-primary"
+              htmlFor={closureNotificationId}
+            >
+              {c(
+                "Harper가 후보자에게 종료 안내 보내기",
+                "Have Harper tell the candidate the process has ended"
+              )}
+            </label>
+            <p
+              className="text-[12px] leading-5 text-neutral-muted"
+              id={closureNotificationHelpId}
+            >
+              {c(
+                "해제하면 별도 종료 안내 메일을 보내지 않아요.",
+                "Turn this off if you don't want Harper to send a separate email about this decision."
+              )}
+            </p>
+          </div>
+          <Switch
+            aria-describedby={closureNotificationHelpId}
+            checked={notifyCandidateOnClosure}
+            disabled={pending}
+            id={closureNotificationId}
+            onCheckedChange={setNotifyCandidateOnClosure}
+          />
+        </div>
         <div className="space-y-2">
           <div
             className="text-[12px] font-medium text-neutral-primary"

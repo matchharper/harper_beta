@@ -1,21 +1,26 @@
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { useIsMutating } from "@tanstack/react-query";
-import { ChevronRight, Inbox } from "lucide-react";
+import { ArrowLeft, ChevronRight, Inbox, Menu } from "lucide-react";
+import { MuteButton } from "@/components/ui/button";
+import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { Tabs } from "@/components/ui/tabs";
-import { CardButton, MuteButton } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgErrorState } from "./workspace/OrgErrorState";
+import { isOrgQueryBlockingError } from "@/lib/org/queryError";
 import { compareOrgCandidates } from "@/lib/org/candidateBoardSort";
 import { buildOrgHref } from "@/lib/org/routes";
 import { cn } from "@/lib/utils";
 import { OrgHomeFeed } from "./OrgHomeFeed";
+import { OrgHomeListItem } from "./OrgHomeListItem";
+import { useOrgMobileNavigation } from "./workspace/OrgMobileNavigation";
 
 export function ReviewEmptyState({ loading = false }: { loading?: boolean }) {
   const { c } = useOrgLocale();
@@ -88,13 +93,34 @@ export function OrgInboxRemaining({
 
 export function OrgHomeInbox() {
   const router = useRouter();
+  const { openNavigation } = useOrgMobileNavigation();
   const { c } = useOrgLocale();
   const { roles } = useOrgWorkspace();
   const { board, boardQuery } = useOrgJobsBoard();
-  const { workspaceId, detailRecommendationId } = useOrgJobsNavigation();
+  const { workspaceId, detailRecommendationId, detailTalentId } =
+    useOrgJobsNavigation();
   const feed = router.query.tab === "feed";
+  const isDesktop = useIsDesktop();
+  const mobileDetail = feed
+    ? router.query.feedList !== "1"
+    : Boolean(router.query.queue || detailTalentId || detailRecommendationId);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listScrollTop = useRef(0);
+  const lastGroupId = useRef<string | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const wasMobileDetail = useRef(false);
   const entitlements = useOrgEntitlements(workspaceId);
-  const mutationCount = useIsMutating();
+  const mutationCount = useIsMutating({
+    predicate: (mutation) => {
+      const input = mutation.state.variables as
+        | { workspaceId?: string; talentId?: string; introCandidateId?: string }
+        | undefined;
+      return (
+        input?.workspaceId === workspaceId &&
+        Boolean(input.talentId || input.introCandidateId)
+      );
+    },
+  });
   const groups = useMemo(
     () =>
       roles.flatMap((role) => {
@@ -136,14 +162,26 @@ export function OrgHomeInbox() {
       }),
     [board?.items, roles, entitlements.data]
   );
+  const requestedGroup = groups.find(
+    (group) => group.id === router.query.queue
+  );
+  const candidateGroup = groups.find((group) =>
+    group.items.some((item) => item.recommendationId === detailRecommendationId)
+  );
   const selectedGroup =
-    groups.find((group) => group.id === router.query.queue) ??
-    groups.find((group) =>
-      group.items.some(
-        (item) => item.recommendationId === detailRecommendationId
-      )
-    ) ??
-    groups[0];
+    candidateGroup ??
+    requestedGroup ??
+    (isDesktop && !detailTalentId ? groups[0] : undefined);
+  const nextPendingGroup =
+    selectedGroup?.stage === "pending_connection"
+      ? groups
+          .slice(groups.indexOf(selectedGroup) + 1)
+          .find((group) => group.stage === "pending_connection")
+      : undefined;
+  const hasBlockingInboxError =
+    !feed &&
+    (isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ||
+      isOrgQueryBlockingError(entitlements.error, entitlements.data));
   const selectedFeedRole =
     roles.find((role) => role.roleId === router.query.feedRole)?.roleId ?? null;
   const routeTo = (
@@ -164,6 +202,7 @@ export function OrgHomeInbox() {
     replace = false
   ) => {
     const item = group.items[0];
+    lastGroupId.current = group.id;
     routeTo(
       {
         queue: group.id,
@@ -175,13 +214,50 @@ export function OrgHomeInbox() {
       replace
     );
   };
+  const returnToList = () =>
+    routeTo(
+      {
+        queue: undefined,
+        feedList: feed ? "1" : undefined,
+        talentId: undefined,
+        recommendationId: undefined,
+        detailRoleId: undefined,
+        detailWorkspaceId: undefined,
+      },
+      true
+    );
+  useEffect(() => {
+    if (!isDesktop && mobileDetail && !wasMobileDetail.current) {
+      detailRef.current
+        ?.querySelector<HTMLButtonElement>("[data-org-review-back]")
+        ?.focus({ preventScroll: true });
+    } else if (!isDesktop && !mobileDetail && wasMobileDetail.current) {
+      if (listRef.current) {
+        listRef.current.scrollTop = listScrollTop.current;
+        const button = Array.from(
+          listRef.current.querySelectorAll<HTMLButtonElement>(
+            "button[data-home-list-item]"
+          )
+        ).find(
+          (element) =>
+            element.dataset.homeListItem ===
+            (feed ? (selectedFeedRole ?? "all") : lastGroupId.current)
+        );
+        (button ?? listRef.current).focus({ preventScroll: true });
+      }
+    }
+    wasMobileDetail.current = mobileDetail;
+  }, [feed, isDesktop, mobileDetail, selectedFeedRole]);
   useEffect(() => {
     if (
       feed ||
+      (!isDesktop && !mobileDetail) ||
+      (detailTalentId && !detailRecommendationId) ||
       !router.isReady ||
-      !boardQuery.isSuccess ||
-      boardQuery.isFetching ||
-      mutationCount
+      !boardQuery.data ||
+      isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ||
+      mutationCount ||
+      entitlements.isLoading
     )
       return;
     if (
@@ -192,86 +268,146 @@ export function OrgHomeInbox() {
     )
       selectGroup(selectedGroup, true);
   });
-  return (
-    <div className="isolate grid h-[calc(100dvh-72px)] min-h-0 grid-cols-1 grid-rows-[auto_auto_auto_minmax(0,1fr)] gap-x-5 md:h-[calc(100dvh-24px)] lg:grid-cols-[minmax(240px,28%)_minmax(0,1fr)] lg:grid-rows-[auto_auto_minmax(0,1fr)]">
-      {/* Extend through PageContainer padding and its centered wide-layout gutter, up to the sidebar. */}
-      <div
-        aria-hidden
-        className="pointer-events-none col-start-1 row-start-1 row-span-3 -z-10 -mx-4 -mt-3 bg-bg-weak md:-ml-9 md:-mr-6 lg:-mb-3 lg:mr-0 lg:ml-[calc(-2.75rem-max(0px,(100vw-106rem)/2))]"
-      />
-      <header className="col-start-1 row-start-1 mb-5 flex items-center justify-between lg:mt-7">
+  const selectFeedRole = (roleId: string | null) => {
+    lastGroupId.current = roleId ?? "all";
+    routeTo({ feedRole: roleId ?? undefined, feedList: undefined });
+  };
+  const homeNavigation = (
+    <>
+      <header className="mb-3 lg:mb-5 flex items-center justify-between lg:mt-7">
         <h1 className="text-xl font-medium">Home</h1>
       </header>
       <Tabs
         activeValue={feed ? "feed" : "inbox"}
         aria-label={c("Home 보기", "Home view")}
-        className="col-start-1 row-start-2 mb-5 w-fit"
+        className="mb-3 lg:mb-5 w-fit"
         items={[
           { value: "inbox", label: c("인박스", "Inbox") },
           { value: "feed", label: c("피드", "Feed") },
         ]}
-        onValueChange={(tab) =>
+        onValueChange={(tab) => {
+          listScrollTop.current = 0;
+          lastGroupId.current = null;
+          if (listRef.current) listRef.current.scrollTop = 0;
           routeTo({
             tab,
+            feedList: undefined,
+            feedRole: undefined,
+            queue: undefined,
             talentId: undefined,
             recommendationId: undefined,
             detailRoleId: undefined,
             detailWorkspaceId: undefined,
-          })
-        }
+          });
+        }}
         variant="pills"
         size="small"
       />
-      {!feed && (boardQuery.isError || entitlements.isError) ? (
-        <div className="col-start-1 row-start-3">
-          <OrgErrorState
-            message={(boardQuery.error ?? entitlements.error)!.message}
-            onRetry={() => {
-              void boardQuery.refetch();
-              void entitlements.refetch();
-            }}
-          />
-        </div>
-      ) : (
-        <div className="contents">
+    </>
+  );
+  const mobileNavigationTitle =
+    selectedGroup?.role.name ??
+    roles.find((role) => role.roleId === router.query.detailRoleId)?.name ??
+    c("후보자 검토", "Candidate review");
+  const listBackHeader = (title: string) => (
+    <header className="sticky top-0 z-20 flex min-w-0 items-center gap-1 bg-linear-to-b from-white to-white/0 px-1 py-1">
+      <MuteButton
+        data-org-review-back
+        onClick={returnToList}
+        variant="transparent"
+        size="sm"
+      >
+        <ArrowLeft aria-hidden className="size-4" />
+        {c("목록", "List")}
+      </MuteButton>
+      <h1
+        title={title}
+        className="min-w-0 flex-1 truncate text-[13px] font-medium"
+      >
+        {title}
+      </h1>
+    </header>
+  );
+  const mobileMenu = (
+    <div className="flex h-12 items-center px-2 md:hidden">
+      <MuteButton
+        aria-label={c("메뉴 열기", "Open menu")}
+        onClick={openNavigation}
+        size="md"
+        variant="transparent"
+      >
+        <Menu aria-hidden className="size-4.5" strokeWidth={1.7} />
+      </MuteButton>
+    </div>
+  );
+  return (
+    <div className="isolate grid h-dvh min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)] lg:h-[calc(100dvh-24px)] lg:grid-cols-[minmax(280px,calc(28%+40px))_minmax(0,1fr)] lg:gap-x-5">
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none col-start-1 row-start-1 -z-10 bg-neutral-50/60 lg:-my-3 lg:-ml-4 lg:border-r lg:border-black/5",
+          mobileDetail && "hidden lg:block"
+        )}
+      />
+      <div
+        ref={listRef}
+        tabIndex={-1}
+        onScroll={(event) => {
+          listScrollTop.current = event.currentTarget.scrollTop;
+        }}
+        className={cn(
+          "col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain p-2 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent lg:-my-3 lg:-ml-1 lg:block lg:py-3 lg:pl-1 lg:pr-4",
+          mobileDetail && "hidden"
+        )}
+      >
+        {mobileMenu}
+        {homeNavigation}
+        {hasBlockingInboxError ? (
+          <div className="col-start-1 row-start-3">
+            <OrgErrorState
+              message={(boardQuery.error ?? entitlements.error)!.message}
+              onRetry={() => {
+                void boardQuery.refetch();
+                void entitlements.refetch();
+              }}
+            />
+          </div>
+        ) : (
           <aside
-            className={cn(
-              "col-start-1 row-start-3 mb-5 max-h-44 lg:mb-0 lg:max-h-none lg:pr-3",
-              feed
-                ? "min-w-0 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-0"
-                : "overflow-y-auto"
-            )}
+            className="p-1 pb-6 lg:p-0"
             aria-label={c("역할별 작업", "Tasks by role")}
           >
             {feed ? (
               <nav
                 aria-label={c("피드 Role 필터", "Feed role filter")}
-                className="flex gap-1 lg:block lg:space-y-1"
+                className="space-y-1"
               >
-                <MuteButton
-                  onClick={() => routeTo({ feedRole: undefined })}
-                  aria-current={!selectedFeedRole ? "true" : undefined}
-                  variant={!selectedFeedRole ? "default" : "transparent"}
-                  className="shrink-0 justify-start px-3 py-3 lg:w-full"
+                <OrgHomeListItem
+                  onClick={() => selectFeedRole(null)}
+                  data-home-list-item="all"
+                  selected={!selectedFeedRole}
+                  className="min-h-10 lg:min-h-0"
                 >
                   All
-                </MuteButton>
+                  <ChevronRight
+                    aria-hidden
+                    className="size-4 shrink-0 lg:hidden"
+                  />
+                </OrgHomeListItem>
                 {roles.map((role) => (
-                  <MuteButton
+                  <OrgHomeListItem
                     key={role.roleId}
-                    onClick={() => routeTo({ feedRole: role.roleId })}
-                    aria-current={
-                      role.roleId === selectedFeedRole ? "true" : undefined
-                    }
-                    variant={
-                      role.roleId === selectedFeedRole
-                        ? "default"
-                        : "transparent"
-                    }
-                    className="max-w-60 shrink-0 justify-start px-3 py-3 lg:w-full lg:max-w-none"
+                    onClick={() => selectFeedRole(role.roleId)}
+                    data-home-list-item={role.roleId}
+                    selected={role.roleId === selectedFeedRole}
+                    className="min-h-10 lg:min-h-0"
                   >
                     <span className="truncate">{role.name}</span>
-                  </MuteButton>
+                    <ChevronRight
+                      aria-hidden
+                      className="size-4 shrink-0 lg:hidden"
+                    />
+                  </OrgHomeListItem>
                 ))}
               </nav>
             ) : (
@@ -282,42 +418,36 @@ export function OrgHomeInbox() {
                 if (!roleGroups.length) return null;
                 return (
                   <section key={role.roleId} className="mb-8">
-                    <MuteButton
-                      variant="transparent"
-                      className="mb-2 max-w-full justify-start text-[15px] font-medium text-neutral-primary"
-                      onClick={() =>
-                        void router.push(
-                          buildOrgHref({
-                            page: "role",
-                            roleId: role.roleId,
-                            orgId: workspaceId,
-                            tab: "inbox",
-                          })
-                        )
-                      }
+                    <Link
+                      className="text-sm font-normal text-neutral-primary flex flex-row items-center cursor-pointer px-2 py-1 rounded-sm hover:bg-bg-weak mb-2 w-fit"
+                      href={buildOrgHref({
+                        page: "role",
+                        roleId: role.roleId,
+                        orgId: workspaceId,
+                        tab: "inbox",
+                      })}
                     >
                       <span className="truncate">{role.name}</span>
-                      <ChevronRight className="ml-2 size-4 text-neutral-soft" />
-                    </MuteButton>
+                      <ChevronRight className="ml-1.5 size-4" />
+                    </Link>
                     {roleGroups.map((group) => (
-                      <CardButton
+                      <OrgHomeListItem
                         key={group.id}
+                        data-home-list-item={group.id}
                         onClick={() => selectGroup(group)}
-                        aria-current={
-                          selectedGroup?.id === group.id ? "true" : undefined
+                        selected={
+                          (isDesktop || mobileDetail) &&
+                          selectedGroup?.id === group.id
                         }
-                        className={cn(
-                          "mb-1 flex w-full items-center justify-between gap-3 border-0 bg-transparent px-3 py-4 text-left text-sm font-normal shadow-none transition hover:bg-bg-default/60",
-                          selectedGroup?.id === group.id && "bg-bg-default"
-                        )}
+                        className="min-h-11 lg:min-h-0"
                       >
                         <span>
                           {group.stage === "pending_connection"
                             ? c(
-                                "Intro 수락 또는 거절",
+                                "관심 있는 후보 검토",
                                 group.remaining === 1
-                                  ? "Accept or reject an intro"
-                                  : "Accept or reject intros"
+                                  ? "Review an interested candidate"
+                                  : "Review interested candidates"
                               )
                             : group.remaining >= 10
                               ? c(
@@ -332,13 +462,19 @@ export function OrgHomeInbox() {
                                   { n: group.remaining }
                                 )}
                         </span>
-                        {group.stage === "pending_connection" && (
-                          <OrgInboxRemaining
-                            remaining={group.remaining}
-                            total={group.total}
+                        <span className="ml-auto flex shrink-0 items-center gap-2">
+                          {group.stage === "pending_connection" && (
+                            <OrgInboxRemaining
+                              remaining={group.remaining}
+                              total={group.total}
+                            />
+                          )}
+                          <ChevronRight
+                            aria-hidden
+                            className="size-4 shrink-0 text-neutral-muted lg:hidden"
                           />
-                        )}
-                      </CardButton>
+                        </span>
+                      </OrgHomeListItem>
                     ))}
                   </section>
                 );
@@ -350,15 +486,31 @@ export function OrgHomeInbox() {
               />
             )}
           </aside>
+        )}
+      </div>
+      {(!hasBlockingInboxError || mobileDetail) &&
+        (feed || isDesktop || mobileDetail) && (
           <div
-            data-org-review-scroll={feed ? undefined : true}
+            ref={detailRef}
             className={cn(
-              "col-start-1 row-start-4 min-h-0 min-w-0 lg:col-start-2 lg:row-start-1 lg:row-span-3",
+              "col-start-1 row-start-1 min-h-0 min-w-0 lg:col-start-2",
               feed
                 ? "flex flex-col overflow-hidden"
-                : "overflow-y-auto overscroll-contain"
+                : "overflow-y-auto overscroll-contain",
+              feed && !mobileDetail && "hidden lg:flex"
             )}
+            data-org-review-scroll={feed ? undefined : true}
           >
+            {!feed && mobileMenu}
+            {!feed && (boardQuery.error || entitlements.error) && (
+              <OrgErrorState
+                message={(boardQuery.error ?? entitlements.error)!.message}
+                onRetry={() => {
+                  void boardQuery.refetch();
+                  void entitlements.refetch();
+                }}
+              />
+            )}
             {feed ? (
               <OrgHomeFeed
                 workspaceId={workspaceId}
@@ -366,22 +518,61 @@ export function OrgHomeInbox() {
                 roleName={
                   roles.find((role) => role.roleId === selectedFeedRole)?.name
                 }
+                scrollHeader={
+                  !isDesktop ? (
+                    <>
+                      {mobileMenu}
+                      <div className="px-2 pt-2">{homeNavigation}</div>
+                    </>
+                  ) : undefined
+                }
+                navigationHeader={
+                  !isDesktop
+                    ? listBackHeader(
+                        roles.find((role) => role.roleId === selectedFeedRole)
+                          ?.name ?? "All"
+                      )
+                    : undefined
+                }
               />
             ) : selectedGroup ? (
+              <>
+                <TalentDetailSimpleView
+                  presentation="inline"
+                  showBack={!isDesktop}
+                  navigationTitle={
+                    !isDesktop ? mobileNavigationTitle : undefined
+                  }
+                  advanceAfterAction
+                  onReviewClose={!isDesktop ? returnToList : undefined}
+                  navigationItems={selectedGroup.items}
+                  nextNavigation={
+                    isDesktop && nextPendingGroup
+                      ? {
+                          item: nextPendingGroup.items[0],
+                          onNavigate: () => selectGroup(nextPendingGroup, true),
+                        }
+                      : undefined
+                  }
+                />
+              </>
+            ) : detailTalentId ? (
               <TalentDetailSimpleView
                 presentation="inline"
-                showBack={false}
-                advanceAfterAction
-                navigationItems={selectedGroup.items}
+                showBack
+                navigationTitle={!isDesktop ? mobileNavigationTitle : undefined}
+                onReviewClose={!isDesktop ? returnToList : undefined}
               />
             ) : (
-              <ReviewEmptyState
-                loading={boardQuery.isLoading || entitlements.isLoading}
-              />
+              <>
+                {!isDesktop && listBackHeader(mobileNavigationTitle)}
+                <ReviewEmptyState
+                  loading={boardQuery.isLoading || entitlements.isLoading}
+                />
+              </>
             )}
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }

@@ -29,17 +29,17 @@ export function TalentDetailPager({
         p1: navigation.total,
       })}
       className={cn(
-        "inline-flex shrink-0 overflow-hidden bg-bg-weak/50 backdrop-blur-sm font-normal",
-        compact ? "rounded-full" : "rounded-sm"
+        "inline-flex shrink-0 overflow-hidden bg-bg-weak/80 backdrop-blur-sm py-0.5 px-0.5 font-normal",
+        compact ? "rounded-full" : "rounded-md"
       )}
       role="group"
     >
       <MuteButton
         aria-label={c("이전 후보자", "Previous candidate")}
-        className="rounded-none border-0 border-r border-neutral-1000-a10 shadow-none"
+        className="rounded-none border-0 shadow-none"
         disabled={disabled || !navigation.previous}
         onClick={() => onNavigate(navigation.previous)}
-        size={compact ? "sm" : "lg"}
+        size={compact ? "sm" : "md"}
         variant="transparent"
       >
         <ChevronLeft aria-hidden className="size-4" />
@@ -48,17 +48,17 @@ export function TalentDetailPager({
         aria-live="polite"
         className={cn(
           "flex items-center justify-center tabular-nums text-neutral-primary",
-          compact ? "min-w-12 px-2 text-[12px]" : "min-w-16 px-3 text-[16px]"
+          compact ? "min-w-12 px-2 text-[12px]" : "min-w-14 px-2.5 text-[14px]"
         )}
       >
         {navigation.position} / {navigation.total}
       </div>
       <MuteButton
         aria-label={c("다음 후보자", "Next candidate")}
-        className="rounded-none border-0 border-l border-neutral-1000-a10 shadow-none"
+        className="rounded-none border-0 shadow-none"
         disabled={disabled || !navigation.next}
         onClick={() => onNavigate(navigation.next)}
-        size={compact ? "sm" : "lg"}
+        size={compact ? "sm" : "md"}
         variant="transparent"
       >
         <ChevronRight aria-hidden className="size-4" />

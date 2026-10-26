@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     if (!item) throw new OrgHttpError(404, "Candidate not found");
     if (args.saved && !isOrgInboxStage(item.stage))
       throw new OrgHttpError(409, "This candidate has already left the inbox");
+    const savedAt = args.saved ? new Date().toISOString() : null;
     const { error } = await admin.from("talent_progress").upsert(
       {
         id: candidateSaveId(args.workspaceId, item),
@@ -61,8 +62,8 @@ export async function POST(req: NextRequest) {
         recommendation_id:
           item.source === "recommendation" ? item.recommendationId : null,
         user_id: user.email ?? user.id,
-        text: "",
-        created_at: new Date().toISOString(),
+        text: args.saved ? "saved" : "unsaved",
+        created_at: savedAt ?? new Date().toISOString(),
         open_to_talent: false,
         open_to_company: false,
         metadata: {
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
     );
     if (error) throw error;
     return NextResponse.json(
-      { ok: true },
+      { ok: true, savedAt },
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (error) {

@@ -65,6 +65,7 @@ test("maps the previous DeepSeek selection to GLM", () => {
 test("uses Gemini 3.8 Flash with medium reasoning for web and Slack by default", () => {
   assert.equal(DEFAULT_ORG_AGENT_MODEL, ORG_AGENT_GEMINI_FLASH_MODEL);
   assert.equal(DEFAULT_SLACK_ORG_AGENT_MODEL, ORG_AGENT_GEMINI_FLASH_MODEL);
+  assert.equal(getOrgAgentReasoningEffort(DEFAULT_ORG_AGENT_MODEL), "medium");
   assert.equal(DEFAULT_ORG_AGENT_REASONING_EFFORT, "medium");
   assert.equal(
     getOrgAgentReasoningEffort(ORG_AGENT_GLM_53_FLASH_MODEL),
@@ -125,7 +126,7 @@ test("uses the shared model setting for web and Slack", () => {
   }
 });
 
-test("uses configured Gemini default for an unsupported Slack override", () => {
+test("uses the code default for an unsupported Slack override", () => {
   const original = process.env.SLACK_ORG_AGENT_MODEL;
   const originalShared = process.env.ORG_AGENT_MODEL;
   process.env.SLACK_ORG_AGENT_MODEL = "not-a-model";

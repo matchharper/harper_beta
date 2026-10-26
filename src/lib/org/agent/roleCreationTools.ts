@@ -18,7 +18,6 @@ import {
   setRoleCreationNotification,
   summarizeRoleCreationNotificationSettings,
   updateRoleCreationDraft,
-  updateRoleCreationConversationMetadata,
 } from "@/lib/org/agent/roleCreationState";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -53,6 +52,13 @@ export const ROLE_CREATION_TOOL_NAMES = [
   "confirm_pending_role_creation",
   "request_role_creation_confirmation",
 ] as const;
+
+/** Existing capabilities available from the Role details editor. Used for both exposure and execution. */
+export const ROLE_DETAILS_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "update_role_draft", "open_url", "web_search", "read_other_roles",
+]);
+
+const ROLE_DETAIL_FIELDS = ["name", "description", "locationText", "workMode", "employmentTypes", "salaryRange", "externalJdUrl", "textEdits"] as const;
 
 export type RoleCreationToolName = (typeof ROLE_CREATION_TOOL_NAMES)[number];
 
@@ -104,7 +110,7 @@ export const ROLE_CREATION_TOOLS = [
     function: {
       name: "research_role_description_sources",
       description:
-        "Run the one automatic source-discovery attempt for a sparse new role. The server searches once using the saved company and role title and also returns other roles from this company as fallback style references. Call only after the real role title is saved, only when the user supplied no substantial description, JD URL, or file, and never call again after descriptionSourceResearch is present. Do not use ordinary web_search for this automatic JD discovery.",
+        "Read other roles from this company as Description references; if none exist, search public job descriptions using the saved company and role title.",
       parameters: {
         type: "object",
         properties: {},
@@ -152,7 +158,7 @@ export const ROLE_CREATION_TOOLS = [
           description: {
             type: ["string", "null"],
             description:
-              "The complete candidate-visible Role Description in Markdown, following the shared authoring source-fidelity contract. Complete means all known public facts, not invented qualifications to fill a JD template. Write the actual company introduction from companyInformationDocument as natural prose when usable. Never put [[company_info]], [company_info], or any placeholder or acknowledgement token in this field.",
+              "The complete candidate-visible Role Description in Markdown, following the shared authoring source-fidelity contract. Include the company introduction, role purpose, responsibilities and known working context. For sparse input, adapt researched role responsibilities as an explicitly provisional proposal; do not save invented qualifications to fill a JD template. Write companyInformationDocument as natural prose when usable.",
           },
           request: {
             type: ["string", "null"],
@@ -301,6 +307,37 @@ export const ROLE_CREATION_TOOLS = [
   },
 ] as const;
 
+export function getRoleCreationTools(view?: "role_setup" | "role_details") {
+  if (!view) return [...ROLE_CREATION_TOOLS];
+  return ROLE_CREATION_TOOLS.filter((tool) => ROLE_DETAILS_TOOL_NAMES.has(tool.function.name)).map((tool) => {
+    if (tool.function.name === "read_other_roles") {
+      return { ...tool, function: { ...tool.function, description: "Read accessible roles from this company with their public Descriptions, source URLs and work conditions as writing references." } };
+    }
+    if (tool.function.name !== "update_role_draft") return tool;
+    const properties = tool.function.parameters.properties;
+    if (!("textEdits" in properties)) return tool;
+    return {
+      ...tool,
+      function: {
+        ...tool.function,
+        description: "Save the role's public information. Use full fields for initial writing; textEdits makes exact replacements within the saved Description. Returns the actual saved fields. Omitted fields are preserved.",
+        parameters: {
+          ...tool.function.parameters,
+          properties: {
+            ...Object.fromEntries(Object.entries(properties).filter(([key]) => (ROLE_DETAIL_FIELDS as readonly string[]).includes(key))),
+            description: { type: ["string", "null"], description: "Complete candidate-facing job description in Markdown." },
+            textEdits: {
+              type: "array", minItems: 1,
+              description: "Ordered exact replacements in the saved Description. Each before value must occur exactly once; after replaces that span. Supply either textEdits or a full Description replacement.",
+              items: { ...properties.textEdits.items, properties: { ...properties.textEdits.items.properties, field: { type: "string", enum: ["description"] } } },
+            },
+          },
+        },
+      },
+    };
+  });
+}
+
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -420,6 +457,7 @@ export function isRoleCreationToolName(
 
 export async function executeRoleCreationTool(args: {
   actorLabel: string;
+  view?: "role_setup" | "role_details";
   allowCompletedRole?: boolean;
   companySideContext?: string;
   input: Record<string, unknown>;
@@ -494,17 +532,6 @@ export async function executeRoleCreationTool(args: {
   if (args.name === "research_role_description_sources") {
     assertOnlyKeys(args.input, [], args.name);
     const state = await fetchRoleCreationState(args);
-    const previous = state.metadata.descriptionSourceResearch;
-    if (previous) {
-      return {
-        result: {
-          alreadyAttempted: true,
-          research: previous,
-          instruction:
-            "Do not search for a role-description source again. Continue from the saved draft, conversation, or new material supplied by the user.",
-        },
-      };
-    }
     if (state.role.status !== "draft") {
       throw new OrgHttpError(
         409,
@@ -522,19 +549,6 @@ export async function executeRoleCreationTool(args: {
       companyName: state.workspace.companyName,
       roleTitle,
     });
-    let search: Awaited<ReturnType<typeof executeSharedWebSearch>> | null =
-      null;
-    let searchFailed = false;
-    try {
-      search = await executeSharedWebSearch(
-        { maxResults: 8, query },
-        { admin: getSupabaseAdmin() as unknown as TalentAdminClient }
-      );
-    } catch (error) {
-      reportToolDiagnostic(error);
-      searchFailed = true;
-      console.warn("[org/agent:role-description-source-research]", formatToolError(error));
-    }
     let otherRoles: Awaited<
       ReturnType<typeof fetchOtherRoleDescriptionReferences>
     > | null = null;
@@ -544,34 +558,33 @@ export async function executeRoleCreationTool(args: {
       reportToolDiagnostic(error);
       console.warn("[org/agent:role-description-fallback-roles]", formatToolError(error));
     }
-    const research = {
-      attemptedAt: new Date().toISOString(),
-      query,
-      resultCount: search?.resultCount ?? null,
-      selectedSourceUrl: null,
-      source: "role_creation_chat" as const,
-      status: searchFailed ? ("failed" as const) : ("completed" as const),
-    };
-    await updateRoleCreationConversationMetadata({
-      admin: getSupabaseAdmin(),
-      conversationId: state.conversation.id,
-      current: state.conversation.metadata,
-      patch: { descriptionSourceResearch: research },
-    });
+    let search: Awaited<ReturnType<typeof executeSharedWebSearch>> | null = null;
+    let searchFailed = false;
+    if (!otherRoles?.roles.length) {
+      try {
+        search = await executeSharedWebSearch(
+          { maxResults: 8, query },
+          { admin: getSupabaseAdmin() as unknown as TalentAdminClient }
+        );
+      } catch (error) {
+        reportToolDiagnostic(error);
+        searchFailed = true;
+        console.warn("[org/agent:role-description-source-research]", formatToolError(error));
+      }
+    }
     return {
       result: {
-        alreadyAttempted: false,
         fallbackCompanyRoles: otherRoles?.roles ?? [],
-        instruction:
-          "Choose at most one result only if it is clearly this same company's same role, then open that URL before using its contents. Otherwise do not run another search: draft from analogous company-role structure and the saved company document, clearly labeling it as Harper's draft.",
-        research,
+        sourceScope: otherRoles?.roles.length ? "Existing company Role Descriptions and work conditions" : "Public search references; company and role identity must be checked before treating a result as a company fact",
+        query,
+        searchFailed,
         search,
       },
     };
   }
   if (args.name === "read_other_roles") {
     assertOnlyKeys(args.input, [], args.name);
-    return { result: await fetchOtherRoleCriteria(args) };
+    return { result: await (args.view ? fetchOtherRoleDescriptionReferences(args) : fetchOtherRoleCriteria(args)) };
   }
   if (args.name === "calibrate_role_hiring_brief") {
     assertOnlyKeys(args.input, [], args.name);
@@ -679,17 +692,20 @@ export async function executeRoleCreationTool(args: {
       "memory",
       "textEdits",
     ] as const;
-    assertOnlyKeys(args.input, allowedKeys, args.name);
+    assertOnlyKeys(args.input, args.view ? ROLE_DETAIL_FIELDS : allowedKeys, args.name);
+    if (args.view && Array.isArray(args.input.textEdits) && args.input.textEdits.some((edit) => edit?.field !== "description")) {
+      throw new OrgHttpError(400, "This editor changes the public Description only");
+    }
     requireOneInput(args.input, allowedKeys, args.name);
+    const previousState = await fetchRoleCreationState(args);
     if (args.input.textEdits !== undefined) {
-      const current = await fetchRoleCreationState(args);
-      try { args = { ...args, input: applyRoleTextEdits(current.role, args.input) }; }
+      try { args = { ...args, input: applyRoleTextEdits(previousState.role, args.input) }; }
       catch (error) { throw new OrgHttpError(400, error instanceof Error ? error.message : "Invalid text edits"); }
     }
     {
       // Facts the quick JD read saved in this same first turn stay as shown.
       const { withoutPrefilledFacts } = await import("@/lib/org/roleStart/rolePrefill");
-      const current = (await fetchRoleCreationState(args)).role;
+      const current = previousState.role;
       const input = withoutPrefilledFacts(args.roleId, args.input, current);
       if (Object.keys(input).length === 0) {
         return { result: { roleName: current.name, status: "updated" }, updateSummary: "" };
@@ -719,7 +735,7 @@ export async function executeRoleCreationTool(args: {
       // A registered Role with a role start Brief: its text and criteria list
       // change only through that Brief, together (the other fields as before).
       const { request, criteria, ...rest } = args.input;
-      const current = request !== undefined || criteria !== undefined ? (await fetchRoleCreationState(args)).role : null;
+      const current = request !== undefined || criteria !== undefined ? previousState.role : null;
       if (current && current.status !== "draft") {
         const { applyChatEditToRoleStart } = await import("@/lib/org/roleStart/service");
         const routed = await applyChatEditToRoleStart({
@@ -746,11 +762,8 @@ export async function executeRoleCreationTool(args: {
       }
     }
     const hasCriteria = Object.prototype.hasOwnProperty.call(args.input, "criteria");
-    const previousState =
-      hasCriteria || Object.prototype.hasOwnProperty.call(args.input, "description")
-        ? await fetchRoleCreationState(args)
-        : null;
     const state = await updateRoleCreationDraft({
+      previousState,
       actorLabel: args.actorLabel,
       allowCompletedRole: args.allowCompletedRole,
       ...(hasCriteria
@@ -818,10 +831,10 @@ export async function executeRoleCreationTool(args: {
         // Read-back is authoritative; a success flag alone loses the exact
         // stored copy that the next edit and final confirmation depend on.
         savedFields: Object.fromEntries(Object.keys(args.input).map((key) => [key, state.role[key as keyof typeof state.role]])),
-        ...(editingRegisteredRole
-          ? { registeredRole: true }
-          : { missingFields: getRoleCreationMissingFields(state) }),
-        notificationSettings: summarizeRoleCreationNotificationSettings(state),
+        ...(!args.view ? {
+          ...(editingRegisteredRole ? { registeredRole: true } : { missingFields: getRoleCreationMissingFields(state) }),
+          notificationSettings: summarizeRoleCreationNotificationSettings(state),
+        } : {}),
         ok: true,
       },
       updateSummary: "역할 정보를 저장했어요.",

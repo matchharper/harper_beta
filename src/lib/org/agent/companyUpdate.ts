@@ -1,3 +1,4 @@
+import { stringifyLlmDateTimes } from '@/lib/llm/promptDateTime';
 import { convertMarkdownLinksToSlackMrkdwn, formatSlackLink } from "../slackMessages";
 
 export type CompanyUpdateSlackReceipt = {
@@ -55,6 +56,6 @@ export function buildCompanyUpdatePrompt(context: Record<string, unknown>) {
       "Keep the event's subject identity exact. Use its immutable identifiers to join read results; similar status, circumstances or timing do not establish that another candidate is the event subject. If the event supplies only a name, retain that name without inventing a profile link or alias from unrelated results.",
     ] : []),
     ...(preservedPresentation ? ["The server appends the supplied verified presentation and its links unchanged. Write Harper's surrounding explanation and useful next decision, without repeating or rewriting the presentation."] : []),
-    "<company_update>", JSON.stringify(publicContext), "</company_update>",
+    "<company_update>", stringifyLlmDateTimes(publicContext), "</company_update>",
   ].join("\n");
 }

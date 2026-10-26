@@ -39,3 +39,11 @@ test("removing a criterion by chip drops only the summary sentences that name it
   assert.equal(withoutMentions("Kafka 경험이 있는 분을 찾아요.", "Kafka 경험"), "Kafka 경험이 있는 분을 찾아요.", "never empties the summary");
   assert.equal(withoutMentions("메시징 경험은 가점이에요.", "Kafka 경험"), "메시징 경험은 가점이에요.", "word for word only");
 });
+
+
+test("open discovery chips retain note semantics for contextual answer interpretation", async () => {
+  const { questionsFromRaw } = await import("./questions");
+  const [question] = questionsFromRaw([{ question: "JD 밖에서 먼저 보는 경험은요?", why: "내부 선호 확인", chips: ["고객 관찰", "새 문제 해결", "동료와의 협업", "아직 미정"].map(label => ({ label, effect: { type: "note" } })) }]);
+  assert.equal(question.chips.length, 4);
+  assert.ok(question.chips.every(chip => chip.effect.type === "note"));
+});

@@ -30,21 +30,14 @@ test("role updates stay callable without notification-only arguments", () => {
   );
 });
 
-test("sparse-role source discovery has a dedicated no-argument one-attempt tool", () => {
-  const block = toolBlock(
-    "research_role_description_sources",
-    "update_role_draft"
-  );
-  assert.match(block, /one automatic source-discovery attempt/);
-  assert.match(block, /saved company and role title/);
-  assert.match(block, /other roles from this company/);
-  assert.match(block, /descriptionSourceResearch is present/);
-  assert.match(block, /Do not use ordinary web_search/);
-  assert.match(block, /additionalProperties: false/);
-  assert.match(source, /fetchOtherRoleDescriptionReferences/);
-  assert.match(stateSource, /external_jd_url, source_type, updated_at/);
-  assert.match(stateSource, /slice\(0, 6_000\)/);
-  assert.match(stateSource, /\.limit\(5\)/);
+test("Setup exposes public writing and read tools with no private Brief fields", async () => {
+  const { getRoleCreationTools } = await import("./roleCreationTools");
+  const tools = getRoleCreationTools("role_setup");
+  assert.deepEqual(tools.map(t => t.function.name).sort(), ["open_url", "read_other_roles", "update_role_draft", "web_search"]);
+  const update = tools.find(t => t.function.name === "update_role_draft")!.function.parameters as any;
+  assert.deepEqual(Object.keys(update.properties).sort(), ["description", "employmentTypes", "externalJdUrl", "locationText", "name", "salaryRange", "textEdits", "workMode"]);
+  assert.deepEqual(update.properties.textEdits.items.properties.field.enum, ["description"]);
+  assert.equal(update.additionalProperties, false);
 });
 
 test("role and company updates require at least one declared field", () => {
@@ -89,7 +82,7 @@ test("other role context is available before drafting internal criteria", () => 
   assert.match(block, /before the first internal request or criteria draft/);
   assert.match(block, /Never infer analogy from title alone/);
   assert.match(block, /only after the user's explicit acceptance/);
-  assert.match(stateSource, /description, salary_range, status/);
+  assert.match(stateSource, /description, salary_range, location_text, work_mode, type, status/);
   assert.match(stateSource, /salaryRange: text\(role\.salary_range\)/);
   assert.match(stateSource, /status: text\(role\.status\)/);
 });
@@ -132,7 +125,7 @@ test("ordinary role fields share one authoring contract rather than separate scr
   assert.match(block, /Role eligibility/);
   assert.match(block, /shared authoring source-fidelity contract/);
   assert.match(block, /established company caliber/);
-  assert.match(block, /not invented qualifications to fill a JD template/);
+  assert.match(block, /do not save invented qualifications to fill a JD template/);
   assert.match(block, /Omit this field to preserve existing Criteria/);
   assert.match(
     block,

@@ -1,0 +1,8 @@
+{
+  "datasetVersion": "v1",
+  "provenance": "synthetic, authored before model run",
+  "inputSha256": "0e88ae2048bba152cce7ea326d30afa5e9262e1a96e4be7beeda387ff438a079",
+  "goldSha256": "34fe5fd53e6985851724225d1b6cfe291796012b3e0c6eb825d9a1f58e2176bd",
+  "privacy": "No production data; raw responses in ignored owner-only runs",
+  "runner": "scripts/evalRoleStartDiscovery.ts"
+}

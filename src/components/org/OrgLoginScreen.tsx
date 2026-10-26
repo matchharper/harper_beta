@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 import { MuteButton } from "../ui/button";
 import { OrgEntryAppBar } from "@/components/org/OrgEntryAppBar";
+import { COMPANY_SELF_SERVE_SIGNUP_ENABLED } from "@/lib/org/billing/rollout";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -106,7 +107,7 @@ export function OrgLoginScreen({
       setRequestError(
         c(
           "Harper 팀과 나눈 내용을 간단히 적어 주세요.",
-          "Briefly summarize your discussion with the Harper team."
+          "Tell us briefly what you discussed with the Harper team."
         )
       );
       return;
@@ -123,14 +124,14 @@ export function OrgLoginScreen({
       setRequestError(
         c(
           "답장받을 이메일을 입력해 주세요.",
-          "Enter an email to receive replies."
+          "Enter an email address where we can reach you."
         )
       );
       return;
     }
     if (!EMAIL_PATTERN.test(replyEmail)) {
       setRequestError(
-        c("이메일 형식을 확인해 주세요.", "Check the email format.")
+        c("이메일 형식을 확인해 주세요.", "Enter a valid email address.")
       );
       return;
     }
@@ -167,7 +168,7 @@ export function OrgLoginScreen({
             responseBody.error ??
               c(
                 "초대 링크 요청을 보내지 못했습니다.",
-                "Failed to send invite link request."
+                "We couldn't send your request for an invitation. Try again."
               )
           );
         }
@@ -180,7 +181,7 @@ export function OrgLoginScreen({
           locale,
           c(
             "초대 링크 요청을 보내지 못했습니다.",
-            "Failed to send invite link request."
+            "We couldn't send your request for an invitation. Try again."
           )
         )
       );
@@ -222,7 +223,7 @@ export function OrgLoginScreen({
       return (
         <div className="flex items-center gap-2 text-sm font-normal text-neutral-muted">
           <LoaderCircle className="h-4 w-4 animate-spin" />
-          {c("초대 정보를 확인하는 중입니다.", "Verifying invite details.")}
+          {c("초대 정보를 확인하는 중입니다.", "Checking your invitation…")}
         </div>
       );
     }
@@ -236,13 +237,13 @@ export function OrgLoginScreen({
           <h1 className="mt-2.5 text-[16px] font-medium leading-6 tracking-[-0.025em] text-neutral-primary">
             {c(
               "초대 링크를 확인할 수 없습니다.",
-              "Unable to verify invite link."
+              "We couldn't verify this invitation."
             )}
           </h1>
           <p className="mt-2 text-[13px] font-normal leading-5 text-neutral-muted">
             {c(
               "링크가 잘렸거나 더 이상 유효하지 않을 수 있습니다. 초대한 사람에게 새 링크를 요청해 주세요.",
-              "Link may be truncated or expired. Request a new link from the inviter."
+              "The link may be incomplete or expired. Ask the person who invited you for a new link."
             )}
           </p>
           <Link
@@ -313,7 +314,7 @@ export function OrgLoginScreen({
           {isAuthenticated
             ? c(
                 "아직 가입된 Workspace가 없습니다.",
-                "No workspaces joined yet."
+                "You haven't joined a workspace yet."
               )
             : "Harper Workspace"}
         </h1>
@@ -322,15 +323,15 @@ export function OrgLoginScreen({
             <>
               {c(
                 "받으신 초대 링크를 통해 접속해주세요.",
-                "Access via the invite link you received."
+                "Open your invitation link to join a workspace."
               )}
               <br />
               {c(
                 "미팅을 했지만 아직 초대 링크를 받지 못하셨다면",
-                "If you had a meeting but haven't received an invite link,"
+                "Met with the Harper team but haven't received an invitation?"
               )}
               <br />
-              {c("아래를 통해 문의를 남겨주세요.", "leave an inquiry below.")}
+              {c("아래를 통해 문의를 남겨주세요.", "Send us a request below.")}
             </>
           ) : (
             <>
@@ -405,7 +406,7 @@ export function OrgLoginScreen({
                   >
                     {c(
                       "답장받을 이메일도 알려주세요.",
-                      "Also provide an email for replies."
+                      "Where should we send your invitation?"
                     )}
                   </label>
                   <input
@@ -463,7 +464,26 @@ export function OrgLoginScreen({
         <OrgEntryAppBar isAuthenticated={isAuthenticated} />
         <main className="flex min-h-[calc(100vh-52px)] items-center justify-center px-4 pb-14">
           <section className="w-full max-w-[400px]">
-            {hasInvite ? renderInviteContent() : renderAccessRequestContent()}
+            {hasInvite ? (
+              renderInviteContent()
+            ) : COMPANY_SELF_SERVE_SIGNUP_ENABLED ? (
+              <div>
+                <h1 className="text-center text-[18px] font-normal leading-6 text-neutral-primary">
+                  Harper Workspace
+                </h1>
+                <p className="mb-6 mt-3 text-center text-[14px] font-light leading-5 text-neutral-muted">
+                  {c("회사 이메일로 시작하세요.", "Get started with your work email.")}
+                </p>
+                {renderLoginButton()}
+                {loginError ? (
+                  <p role="alert" className="mt-3 text-sm text-critical">
+                    {loginError}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              renderAccessRequestContent()
+            )}
           </section>
         </main>
       </div>

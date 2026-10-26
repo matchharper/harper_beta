@@ -8,6 +8,7 @@ import {
 } from "@/lib/org/agent/onboardingPrompt";
 import { canProvideOrgCompanyContext } from "@/lib/org/onboarding";
 import { sendOrgOnboardingSlackWelcome } from "@/lib/org/onboardingSlack.server";
+import { findOnboardingJobs } from "@/lib/org/onboardingJobs.server";
 import {
   isAdditionalOrgCreator,
   isOrgOnboardingComplete,
@@ -172,6 +173,7 @@ export async function POST(req: NextRequest) {
       submissionId?: unknown;
       responseLocale?: unknown;
       email?: unknown;
+      continueInWeb?: unknown;
     };
     if (typeof body.workspaceId !== "string" || !body.workspaceId.trim()) {
       throw new OrgHttpError(400, "회사를 선택해 주세요.");
@@ -194,11 +196,16 @@ export async function POST(req: NextRequest) {
     );
     if (additionalOrg && member.authority !== "owner")
       throw new OrgHttpError(403, "이 회사 설정을 완료할 권한이 없습니다.");
+    if (body.action === "jobs") {
+      const jobs = bootstrap.workspace.isReviewing || member.authority === "viewer"
+        ? [] : await findOnboardingJobs(bootstrap.workspace);
+      return NextResponse.json({ jobs });
+    }
     if (body.action === "complete") {
       if (body.responseLocale != null && !isOrgLocale(body.responseLocale)) {
         throw new OrgHttpError(400, "Invalid response locale");
       }
-      const welcome = (completedAt: string) => bootstrap.workspace?.isReviewing
+      const welcome = (completedAt: string) => bootstrap.workspace?.isReviewing || body.continueInWeb === true
         ? Promise.resolve(null) : sendOrgOnboardingSlackWelcome({
         user, workspaceId, completedAt, member, roles: bootstrap.roles,
         responseLocale: isOrgLocale(body.responseLocale) ? body.responseLocale : undefined,

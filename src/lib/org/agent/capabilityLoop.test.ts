@@ -143,6 +143,24 @@ test("intro projection exposes only board facts and exact follow-up time, never 
   assert.ok(!JSON.stringify(result).includes("private@example.invalid"));
 });
 
+test("the public presentation reason reaches talent reads without selector rationale or truncation", async () => {
+  const { serializeOrgAgentToolResult } = await import("./promptFormat");
+  const reason = "Public experience and its tradeoff. ".repeat(180) + "Final verified limitation.";
+  const item = {
+    talentId: "talent", talent: { name: "Synthetic", headline: "Finance" }, roleId: "role", roleName: "Finance",
+    companyIntro: { status: "ready", recommendationReason: reason, selectionReason: "Private selector rationale" },
+  };
+  const result = buildCompanyIntroTalentRead([item] as any, []);
+  assert.equal(result.positions[0].recommendationReason, reason);
+  const serialized = serializeOrgAgentToolResult("read_talent", result);
+  assert.ok(serialized.includes(reason));
+  assert.ok(serialized.includes("<recommendation_reasons>"));
+  assert.ok(!serialized.includes("Private selector rationale"));
+  const legacy = buildCompanyIntroTalentRead([{ ...item, companyIntro: { status: "ready", selectionReason: "Private selector rationale" } }] as any, []);
+  assert.equal(Object.hasOwn(legacy.positions[0], "recommendationReason"), false);
+  assert.ok(!serializeOrgAgentToolResult("read_talent", legacy).includes("<recommendation_reasons>"));
+});
+
 for (const emailSentAt of ["2026-10-06T01:15:00Z", null]) {
   test(`candidate-first delivery facts survive the intro reader and LLM serializer: ${emailSentAt}`, async () => {
     const { serializeOrgAgentToolResult } = await import("./promptFormat");
@@ -170,6 +188,7 @@ for (const emailSentAt of ["2026-10-06T01:15:00Z", null]) {
 test("provider errors and output exhaustion are machine failures, not successful empty answers", () => {
   assert.equal(companyCompletionTokenBudget(ORG_AGENT_GEMINI_FLASH_MODEL, 4000), 8192);
   assert.throws(() => validateCompanyCompletion({ choices: [{ finish_reason: "error", error: { code: 429, message: "rate limited" } }] }), (error: any) => error.status === 429);
+  assert.throws(() => validateCompanyCompletion({ id: "provider-request", error: { code: 504, message: "A Timeout Occurred", metadata: { error_type: "timeout" } } }), (error: any) => error.status === 504 && error.message === "A Timeout Occurred");
   assert.throws(() => validateCompanyCompletion({ choices: [{ finish_reason: "length", message: { content: "" } }] }), /output budget/);
   assert.doesNotThrow(() => validateCompanyCompletion({ choices: [{ finish_reason: "stop", message: { content: "" } }] })); // Silent event completion is allowed.
 });
@@ -180,15 +199,15 @@ test("actual executor checks Role access then rejects incompatible targets befor
   await assert.rejects(executeOrgAgentTool({ ...f, audience: "company_safe", callId: "contact", name: "contact_talent", state: createOrgAgentToolExecutionState(f.context), input: { action: "send", relayId: "relay", talentId: "talent", roleId: "role", messageContent: "확인 부탁드려요" } }), /not both target forms/);
 });
 
-test("repeated loading consumes the ordinary tool budget and ends with a tool-free completion", async () => {
-  let completions = 0, final = false;
+test("tool rounds can continue beyond thirty and finish through the ordinary completion", async () => {
+  let completions = 0;
   await runOrgAgentToolLoop(fixture(), { complete: async (args) => {
     completions++;
-    if (!args.allowTools) { final = true; return response([]); }
+    assert.equal(args.allowTools, true);
+    if (completions === 36) return response([]);
     return response([call(`load-${completions}`, "load_capabilities", { capabilityIds: ["candidate_contact"] })]);
   }, executeTool: async () => { throw Error("No domain execution expected"); } });
-  assert.ok(final);
-  assert.ok(completions <= 31);
+  assert.equal(completions, 36);
 });
 
 test("actual direct-contact retry returns persisted delivery without writing copy or presenting a draft", async () => {

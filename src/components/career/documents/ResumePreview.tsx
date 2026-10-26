@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ResumeContent } from "@/lib/resumes/schema";
-import { resumePreviewHtml, type ResumeAssets } from "@/lib/resumes/preview";
+import {
+  resumePreviewHtml,
+  paginatedPreviewHtml,
+  type ResumeAssets,
+} from "@/lib/resumes/preview";
 import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -29,12 +33,14 @@ function loadAssets() {
 
 export function ResumePreview({
   content,
+  documentHtml,
   title,
   documentId,
   onError,
   trackOpen = true,
 }: {
-  content: ResumeContent;
+  content?: ResumeContent;
+  documentHtml?: string;
   title: string;
   documentId: string;
   onError: () => void;
@@ -53,8 +59,15 @@ export function ResumePreview({
     fail.current = onError;
   }, [onError]);
   const html = useMemo(
-    () => (assets ? resumePreviewHtml(content, assets) : undefined),
-    [content, assets]
+    () =>
+      assets
+        ? documentHtml
+          ? paginatedPreviewHtml(documentHtml, assets)
+          : content
+            ? resumePreviewHtml(content, assets)
+            : undefined
+        : undefined,
+    [content, documentHtml, assets]
   );
   useEffect(() => {
     let disposed = false;

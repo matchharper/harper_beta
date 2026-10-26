@@ -77,6 +77,8 @@ const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
   "list_documents",
   "read_document",
   "update_document",
+  "write_document",
+  "save_job_posting",
 ] as const;
 
 function shouldIncludeToolPolicyDuringOnboarding(toolNames: string[]) {
@@ -144,6 +146,7 @@ export function buildCareerConversationPromptPlan(args: {
   recentActivitySummaries?: readonly CareerPromptActivitySummary[] | null;
   recentRecommendedOpportunitiesText?: string | null;
   recentConversationSection?: string;
+  requestTime?: Date;
   runtimeInstruction?: string | null;
   simulationSession?: SimulationSession;
   simulationAvailability?: "inactive" | "unavailable";
@@ -429,7 +432,7 @@ export function buildCareerConversationPromptPlan(args: {
 
   if (!isOnboardingActive && args.channel === "chat" && args.simulationAvailability === "inactive") promptBlocks.push({
     key: "application_start_payload",
-    text: "When the user wants application help for a known role, load opportunities and documents if necessary, choose one readable resume from list_documents, and call simulate_application with the role identifier and document_id. This displays the existing selection/start card; only the user's Start click runs preparation. Judge the current attempt from tools called in this turn: a historical failure does not establish a current blocker. Fulfill a renewed preparation request by making the current tool call, and report its actual result. If the tool is not yet loaded, load the opportunities capability (and documents when needed). If no readable resume exists, offer upload or ask whether Harper should create a simple resume from the profile, then use generate_resume after consent. The successful call ends this turn with the interactive card, which owns resume selection and the next Start action. Let that card explain the flow. Do not output hidden JSON markers or run a lengthy analysis before Start. No exact activation phrase is needed. Resolve an ambiguous target first."
+    text: "When the user wants to continue a saved application preparation, load application_support and use manage_simulation_session list/resume instead of starting over. For new application help for a known role, load opportunities and documents if necessary, choose one readable resume from list_documents, and call simulate_application with the role identifier and document_id. This displays the existing selection/start card; only the user's Start click runs preparation. Judge the current attempt from tools called in this turn: a historical failure does not establish a current blocker. Fulfill a renewed preparation request by making the current tool call, and report its actual result. If the tool is not yet loaded, load the opportunities capability (and documents when needed). If no readable resume exists, offer upload or ask whether Harper should create a simple resume from the profile, then use generate_resume after consent. The successful call ends this turn with the interactive card, which owns resume selection and the next Start action. Use its introduction for useful context about the transition and next step. Do not output hidden JSON markers or run a lengthy analysis before Start. No exact activation phrase is needed. Resolve an ambiguous target first."
 
   });
   if (args.simulationAvailability) {
@@ -511,7 +514,7 @@ export function buildCareerConversationPromptPlan(args: {
   const dynamicStateLines = [
     // 항상 포함: 현재 채널, 현재 시각, 활성 runtime instruction.
     `## Runtime context\n현재 후보자와 ${channelType}을 통해 소통하고 있습니다.\n현재 시각: ${formatCareerPromptKoreanDateTime(
-      new Date().toISOString(),
+      (args.requestTime ?? new Date()).toISOString(),
       {
         preferredLocale: args.currentPreferences?.preferredLocale,
         timeZone: promptTimeZone,
