@@ -1,7 +1,14 @@
+import { realpathSync } from "node:fs";
+import path from "node:path";
 import { assertLocalStack } from "./scripts/localE2e/isolation.mjs";
 assertLocalStack();
 const supabaseHostname = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
 const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
+
+// Trace package assets through their real directories so pnpm symlink aliases
+// do not produce conflicting directory entries in Vercel function packages.
+const packageAsset = (packageName, asset) =>
+  `./${path.relative(process.cwd(), realpathSync(`node_modules/${packageName}`)).split(path.sep).join("/")}/${asset}`;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -14,19 +21,19 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/*": ["./src/lib/career/simulation/applicationStagehand/*.mjs", "./src/lib/career/simulation/applicationStagehand/*.cjs", "./src/lib/career/simulation/applicationStagehand/package*.json"],
     "/api/resume-assets/*": [
-      "./node_modules/pagedjs/dist/paged.min.js",
-      "./node_modules/@fontsource/noto-sans-kr/400.css",
-      "./node_modules/@fontsource/noto-sans-kr/700.css",
-      "./node_modules/@fontsource/noto-sans-kr/files/*-400-normal.woff2",
-      "./node_modules/@fontsource/noto-sans-kr/files/*-700-normal.woff2",
+      packageAsset("pagedjs", "dist/paged.min.js"),
+      packageAsset("@fontsource/noto-sans-kr", "400.css"),
+      packageAsset("@fontsource/noto-sans-kr", "700.css"),
+      packageAsset("@fontsource/noto-sans-kr", "files/*-400-normal.woff2"),
+      packageAsset("@fontsource/noto-sans-kr", "files/*-700-normal.woff2"),
     ],
     "/api/{talent/documents/*/pdf,org/generated-resume,talent/simulation,talent/chat,queues/process-application-browser,queues/process-email,internal/email/dispatch}": [
-      "./node_modules/pagedjs/dist/paged.min.js",
-      "./node_modules/pdf-parse/dist/worker/pdf.worker.mjs",
-      "./node_modules/@fontsource/noto-sans-kr/400.css",
-      "./node_modules/@fontsource/noto-sans-kr/700.css",
-      "./node_modules/@fontsource/noto-sans-kr/files/*-400-normal.woff2",
-      "./node_modules/@fontsource/noto-sans-kr/files/*-700-normal.woff2",
+      packageAsset("pagedjs", "dist/paged.min.js"),
+      packageAsset("pdf-parse", "dist/worker/pdf.worker.mjs"),
+      packageAsset("@fontsource/noto-sans-kr", "400.css"),
+      packageAsset("@fontsource/noto-sans-kr", "700.css"),
+      packageAsset("@fontsource/noto-sans-kr", "files/*-400-normal.woff2"),
+      packageAsset("@fontsource/noto-sans-kr", "files/*-700-normal.woff2"),
     ],
   },
   ...(process.env.HARPER_LOCAL_E2E === "1" ? {
