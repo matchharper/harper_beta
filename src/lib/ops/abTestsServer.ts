@@ -1,9 +1,13 @@
 import "server-only";
 import {
   buildExternalRecommendationExperiment,
+  selectExternalExperimentRuns,
   type ExternalSurface,
 } from "./externalRecommendationExperiment";
-import { fetchExternalExperimentRows } from "./externalRecommendationExperimentServer";
+import {
+  fetchExternalExperimentRuns,
+  fetchExternalExperimentOutcomes,
+} from "./externalRecommendationExperimentServer";
 import { buildOfficialJobsExperiment } from "./officialJobsExperiment";
 import { buildLandingStatsExperiment } from "./landingStatsExperiment";
 import { fetchLandingStatsExperimentRows } from "./landingStatsExperimentServer";
@@ -471,20 +475,35 @@ export async function fetchOpsAbTests(args: {
   let experiment: OpsAbTestSummary;
   switch (args.experiment) {
     case "external": {
-      const rows = await fetchExternalExperimentRows(
-        getTalentSupabaseAdmin(),
+      const admin = getTalentSupabaseAdmin();
+      const endIso = new Date(now).toISOString();
+      const runs = await fetchExternalExperimentRuns(
+        admin,
         startIso,
-        new Date(now).toISOString(),
+        endIso,
         externalSurface
       );
+      const excludedUserIds = await fetchExcludedUserIds(
+        [...new Set(runs.map((row) => row.talent_id))],
+        exclusionTerms
+      );
+      const selected = selectExternalExperimentRuns({
+        runs,
+        excludedUserIds,
+        surface: externalSurface,
+      });
+      const outcomes = await fetchExternalExperimentOutcomes(
+        admin,
+        selected.runs,
+        startIso,
+        endIso
+      );
       experiment = buildExternalRecommendationExperiment({
-        ...rows,
+        runs,
+        ...outcomes,
         surface: externalSurface,
         now,
-        excludedUserIds: await fetchExcludedUserIds(
-          [...new Set(rows.runs.map((row) => row.talent_id))],
-          exclusionTerms
-        ),
+        excludedUserIds,
       });
       break;
     }

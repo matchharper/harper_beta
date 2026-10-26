@@ -1,5 +1,15 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+> 2026-10-26 공통 평가 저장 변경: 온보딩과 정기 Role 검색은 `worker_inputs.load_worker_inputs`의 동일한 입력, 1·2차 Decisions 평가, fingerprint와 `company_role_candidate_evaluations` 저장을 공유한다. 동일 Role·후보자·단계·입력은 실행 중에도 잠금 후 다시 확인해 재사용하고, 완료된 1차는 2차 실패 뒤에도 남긴다. 실제 출처는 회사 검색 `run_id` 또는 온보딩 `discovery_run_id`이며 선정 기록의 `evaluation_ref.evaluationId`로 정확한 평가를 연결한다. 새 Opportunity 평가는 `talent_opportunity_fit`에 중복 저장하지 않는다. 운영 DB migration `20261026052249`는 적용·검증했으며 웹·Worker 코드는 미배포다. 상세 검증과 한계는 [평가 기록](../evaluation/unified-talent-role-fit/README.md)을 따른다.
+
+> 2026-10-26 웹·Worker 로컬 변경·미배포, DB 선반영: `candidate_first`/`both`의 후보자 방향은 matching review만 저장하고 후보자 정기 주기의 공통 연락 판단으로 넘긴다. 신규 역할별 forced run은 생성하지 않으며 이미 큐에 있던 run은 호환 처리한다. Decisions `evaluation_ref`가 현재 유효하면 legacy fit 행 없이 읽을 수 있다. 연락 판단은 `gpt-6.1-sol high`이며 회사명+역할명으로 사용자 Memory를 검색한다. `roleIds`는 추천, `handledRoleIds`는 연락에 함께 처리하는 제안, `rejectedRoleIds`는 즉시 종료하는 비추천이다. `reason`과 정확한 review ID들을 기존 discovery `context_metrics`에 저장하고 같은 run의 재시도에서 재사용한다. `matching_refresh`는 fit/선정만 갱신한다. 검색 요일은 이미 선정한 제안의 전달을 제한하지 않는다. 새 전달은 실제 contact 선택 receipt와 현재 근거·공개·설정·역할·중복 검사를 통과해야 한다. `20261026034255_candidate_contact_cadence.sql`은 로컬 임시 DB 검증 뒤 사용자 승인으로 운영 migration `20261026044735`(`candidate_contact_cadence`)로 적용했다. 기존 함수 2개의 본문·권한을 확인했으며, 웹·Worker 배포와 신규 경로 활성화는 별도다. [평가 기록](../evaluation/unified-talent-role-fit/README.md)을 따른다.
+
+> 2026-10-25 로컬 변경·미배포: 새 Role 등록 완료 시 첫 실행을 정기 시각과 자동 추천 설정에 관계없이 즉시 한 번 접수한다. 기존 활성화 영수증을 유지하고, 새 정기 경로가 켜져 있으면 같은 회사 LLM 선정·Worker 전달 경로로 위임한다. 재시도·일시 중지 후 재개는 첫 실행을 중복 생성하지 않는다. 상세 실행·권한·일정 예외와 운영 미적용 범위는 [현재 정기 추천 계약](company-scheduled-agentic-role-search-implementation-ko.md)을 따른다.
+
+> 2026-10-23 로컬 변경·미배포: 수락 후보의 `connect` 최대 2명 지시를 제거했다. 현재 근거로 소개할 만한 수락자는 인원수 때문에 `defer`하지 않으며, 미해결 근거·시점에 따른 보류와 부적합 판단은 LLM이 유지한다. 수락 후보에는 신규 candidate-first·company-first 수량 한도를 적용하지 않는다. 수락 prompt를 포함하는 기존 selection fingerprint가 변경되어 과거 제한 아래의 선정 결과를 그대로 재사용하지 않으며, 기존 fit 평가 cache와 동의·공유·중복 소개 검증은 유지한다. 아래 2026-10-09의 2명 지시는 당시 이력이며 현재 로컬 코드에서는 해제됐다.
+
+> 2026-10-21 DB 선적용·Worker 미배포: 회사 ID별 검색 제외 목록과 관련 환경변수 계약을 제거했다. 모든 회사가 역할의 기존 실행 자격·설정에 따라 검색에 참여하며, 현재 유효한 수락 후보는 일반/Harper tailored 구분 없이 연결·거절·보류 검토에 포함한다. 후보자 동의·공유 범위·회사 차단·역할 종료·테스트 격리·중복 소개 방지는 유지한다. 아래 과거의 회사 제외 및 일반 역할 한정 설명보다 이 변경이 우선하며, DB 함수 변경은 `20261021054303_remove_accepted_review_role_type_exclusion.sql`으로 운영 적용·검증했다. Worker는 미배포여서 회사 ID와 역할 유형에 따른 기존 Worker 제한은 아직 유지된다.
+
 > 2026-10-16 추가 로컬 변경·미배포: 같은 회사라도 역할 범위가 겹치지 않는 run은 기존 Worker pool 한도(기본 4개) 안에서 함께 실행한다. 같은 역할과 겹치는 과거 다중 역할 run은 직렬 실행하며, 역할 범위를 알 수 없는 과거 run은 회사 전체 범위로 취급한다. Claim의 짧은 transaction만 공통 advisory lock으로 직렬화하고, lock 획득 다음 SQL에서 최신 running 상태를 읽어 동시 claim의 중복을 막는다. 최종 저장의 회사 ready 상한·후보자/회사 pair·동의·공개 범위·원본 변경·lease 검사는 유지한다. 저장 전에 다른 실행이 상한이나 전달 가능 상태를 바꾸면 transaction을 rollback하고 최신 회사/후보 상태로 최종 선정을 다시 판단한다(최초 포함 최대 3회). 검색과 pair 평가는 반복하지 않으며 원본 fingerprint가 바뀐 후보의 평가를 재사용하지 않는다. 재선정 횟수는 `selectionRetryCount`, 누적 단계 시간과 모델 사용량은 기존 run 결과에 남긴다. 평가 호출의 공용 동시성 한도는 이번 변경에 포함하지 않는다. 검증은 `harper_worker/tests/test_company_first_parallel.py`의 격리 로컬 PostgreSQL 동시 claim 및 저장 충돌 재시도로 수행하며 운영 DB 변경은 없다.
 
 > 2026-10-16 운영 반영: beta `d30ff764`와 Worker `d007a57`를 배포했다. 첫 역할 검색의 후보자 선추천 검토 안내, 본사 위치가 비어 있을 때 한국어 안내, 회사 검색 운영 보고를 반영했다. 후보자 선추천 최대 20명과 회사 선검토의 별도 상한은 유지한다. 프로필·Brief·회사·역할 수정에 따른 기존 선정 자동 취소는 운영 DB에서 제거했으며 현재 전달 권한·동의·역할 유효성 확인은 유지한다. 아래 로컬·미배포 표기는 작성 당시 이력이며, 현재 배포 코드와 실제 운영 기록을 우선한다.
@@ -284,14 +294,11 @@ Calibration 후 첫 검색은 이 정기 설정과 무관하게 한 번 예약�
 다음은 LLM 호출 전에 Python이 전체 회사를 skip한다.
 
 - 자격을 만족하는 Role이 0개
-- Mistral, Sierra, Wonderful에 해당하는 exact workspace ID
 - 회사가 피드백하지 않은 company-first 카드가 30명 이상
 - 같은 schedule slot의 queued/running/succeeded run이 이미 존재
 - active Slack integration 또는 전달 가능한 channel이 없음
 
-제외 회사는 이름 문자열 비교로 판정하지 않는다. 배포 환경의
-`COMPANY_FIRST_SEARCH_EXCLUDED_WORKSPACE_IDS`에 확인된 workspace UUID를 넣고, 이름은 운영 문서의 설명으로만
-남긴다. Rename이나 동명 회사가 안전 경계를 바꾸면 안 된다.
+회사 이름이나 workspace ID를 기준으로 한 제외 목록은 없다. 과거 회사 제외 환경변수는 읽지 않는다.
 
 “피드백하지 않은 카드”는 `company_intro_candidates.status='ready'`인 unique Talent다. 회사가
 `먼저 제안하기`를 누른 `awaiting_talent`는 회사 피드백이 이미 있었으므로 30명 계산에서는 제외하지만,
@@ -1385,7 +1392,7 @@ Read-only executor는 Supabase transaction pool이 아니라 기존 dedicated se
 
 - production read-only shadow
 - exact pilot workspace allowlist
-- Mistral/Sierra/Wonderful exclusion 검증
+- 회사별 제외 목록 없이 공통 자격이 적용되는지 검증
 - alert, metrics, retry 운영 화면
 - candidate-first displacement와 company response 검토 후 확대
 
@@ -1403,7 +1410,7 @@ Read-only executor는 Supabase transaction pool이 아니라 기존 dedicated se
 - 정기 run에는 `is_company_first_search=true`를 강제하고, 명시적 run에는 요청한
   exact Role을 일회성으로 포함한다. 두 경로 모두 active Slack, non-test, availability, pending capacity를
   강제한다.
-- exact workspace ID로 세 회사가 제외된다.
+- 회사별 제외 목록 없이 공통 실행 자격과 역할 설정을 적용한다.
 - unresolved ready 30명에서 자동 실행이 멈춘다.
 - Planner가 run 여부, strategy, 100/150/200 budget, Role SQL을 한 번에 만든다.
 - SQL은 talent source allowlist와 read-only sandbox 안에서만 실행된다.
@@ -1433,7 +1440,7 @@ Read-only executor는 Supabase transaction pool이 아니라 기존 dedicated se
 ## 23. 명시적으로 하지 않는 것
 
 - Codex Scheduled task를 production selection engine으로 유지하지 않는다.
-- 회사 이름 문자열로 대상·제외 회사를 판정하지 않는다.
+- 회사 이름 또는 workspace ID로 별도 검색 제외 회사를 두지 않는다.
 - Query LLM이 쓴 SQL을 service role로 그대로 실행하지 않는다.
 - `candid`나 외부 People Search profile을 Harper Talent처럼 추천하지 않는다.
 - `fit.recommend=false`만 모아서 회사에 보내지 않는다.

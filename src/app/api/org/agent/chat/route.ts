@@ -8,7 +8,9 @@ import { resolveOrgChatResponseLocale } from "@/lib/org/memberLocale.server";
 import { OrgHttpError } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 
-export const maxDuration = 300;
+// Node 24 + Pro Fluid Compute supports this per-function duration.
+// Long read/tool conversations must not inherit the five-minute default.
+export const maxDuration = 1800;
 
 function getVisibleErrorMessage(error: unknown) {
   const detail = getLlmErrorMessage(error);
@@ -59,6 +61,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
     });
     const args = {
+      signal: req.signal,
       attachments: Array.isArray(body.attachments) ? body.attachments : [],
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
@@ -69,8 +72,10 @@ export async function POST(req: NextRequest) {
       workspaceId: body.workspaceId ?? "",
     };
     const roleCreationArgs = {
+      signal: req.signal,
       attachments: Array.isArray(body.attachments) ? body.attachments : [],
       draftRoleId: body.draftRoleId ?? null,
+      view: body.roleCreationView === "role_details" ? "role_details" as const : undefined,
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       message: body.message ?? "",
       model: body.model ?? null,
@@ -89,11 +94,26 @@ export async function POST(req: NextRequest) {
     }
 
     const encoder = new TextEncoder();
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    const stopHeartbeat = () => {
+      if (heartbeat) clearInterval(heartbeat);
+      heartbeat = undefined;
+    };
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const emit = (event: string, data: unknown) => {
           controller.enqueue(encoder.encode(createSseMessage(event, data)));
         };
+
+        // SSE comments keep idle HTTP/1.1 connections alive without inventing
+        // user-visible progress while the provider is still working.
+        heartbeat = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(": keep-alive\n\n"));
+          } catch {
+            stopHeartbeat();
+          }
+        }, 15_000);
 
         try {
           if (isRoleCreation) {
@@ -109,8 +129,12 @@ export async function POST(req: NextRequest) {
           emit("error", { error: message });
           emit("done", { ok: false });
         } finally {
+          stopHeartbeat();
           controller.close();
         }
+      },
+      cancel() {
+        stopHeartbeat();
       },
     });
 

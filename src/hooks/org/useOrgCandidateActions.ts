@@ -79,7 +79,10 @@ export function useOrgCandidateActions(args: {
 
     locallyPendingCandidateKeysRef.current.add(candidateKey);
     try {
+      const timingStart = performance.now();
+      if (process.env.NODE_ENV !== "production") console.log("[org-stage-client] mutation.start", mutationInput.stage);
       const result = await setStage.mutateAsync(mutationInput);
+      if (process.env.NODE_ENV !== "production") console.log("[org-stage-client] mutation.complete", JSON.stringify({ stage: mutationInput.stage, ms: Math.round(performance.now() - timingStart) }));
       if (
         "status" in result &&
         result.status === "candidate_reengagement_required"
@@ -324,6 +327,7 @@ export function useOrgCandidateActions(args: {
   };
 
   const rejectTalent = async (options: OrgStageChangeOptions) => {
+    const timingStart = performance.now();
     if (!args.canManageCandidates) return;
     const roleId = args.detail?.role.roleId ?? args.activeDetailRoleId;
     const recommendationId =
@@ -343,6 +347,7 @@ export function useOrgCandidateActions(args: {
       workspaceId: args.workspaceId,
     });
     if (!changed) return;
+    if (process.env.NODE_ENV !== "production") console.log("[org-stage-client] reject.toast", JSON.stringify({ ms: Math.round(performance.now() - timingStart) }));
     const endedExistingConnection =
       args.detail?.recommendation.stage !== undefined &&
       args.detail.recommendation.stage !== "pending_connection";
@@ -358,6 +363,7 @@ export function useOrgCandidateActions(args: {
           ),
       variant: "success",
     });
+    return changed;
   };
 
   const moveTalentToPendingConnection = async (

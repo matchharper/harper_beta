@@ -1,0 +1,484 @@
+{
+  "datasetVersion": "screen-api-policy-contract-v1",
+  "objective": "Single supported API policy-placement change, original evidence and every question/choice otherwise unchanged.",
+  "labelProvenance": {
+    "old32": "Unchanged frozen v1 labels; actual v36 baseline responses preserved.",
+    "new2": "Actual v7 first complete candidate-only nine-source review; assistant judged two clear false-exclusion cases before this API call; no independent human gold.",
+    "limits": "Repeatedly tuned/failure-selected; not population accuracy. Old32 historical input retains original truncation, new2 actual full-source."
+  },
+  "cases": [
+    {
+      "id": "v6-candidate-01",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-01.json",
+      "sourceTraceSha256": "06251d06df336e90552116e14afff2e60449d562628dfdd607c304f7833d59a1",
+      "inputSha256": "3d49eb40b865ed5ab5f51fdcabf536d327680ca90c3fd20c6ffdabae822f4e82",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Positive preferred countries and domestic focus, but no ban on Canada or overseas roles. Pay must not decrease, with no evidence this role is below it. Conditional mobility stays unresolved.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-0c019c9f265d44fc960236b91e378149.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-04",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-04.json",
+      "sourceTraceSha256": "402c3913cdd20805907e4a0ef30e28af6d664a76a51feba175f0cac6e144b5f2",
+      "inputSha256": "7e2ed02803d870403df4a900a896774e12de8796132274aa19bf4102515b0159",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly does not apply to startups/SMEs; actual role is a startup.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1408474cd7944a87b085d1ac33572c75.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-05",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-05.json",
+      "sourceTraceSha256": "896d590c8fc8605dbf5d64669acea67a95622741c60d7b7cd8983675c89fbd38",
+      "inputSha256": "0e3f0ec08b4232b6533779bfa0dd3004199f183255187c64e1c6ab5130cb85c8",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly not considering overseas work currently; actual Toronto onsite role.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-14bed8818cde4582a33c6342584fece9.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-06",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-06.json",
+      "sourceTraceSha256": "b8d53ba3ce1cd2737f45886d4b8cdfdb7283328e7811b725fd59f058f67ac643",
+      "inputSha256": "cf9276c20cf7f8eddef0c16eaeb175bb6d65fb0b7c9c7dd9349c5b61377a6117",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Strict entry level 0–2 years is explicitly nonnegotiable; also excludes small startups. Actual role is 4–8 years startup.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-151dc8ab42b842c1ab0f84dbccd0ca4f.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-07",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-07.json",
+      "sourceTraceSha256": "65bc039903c31d3b85f8ce31e19f542143861f1a7ac4d32c803377c782bf7daa",
+      "inputSha256": "2785ee4c3cc04630ae496924748a454313b2be94d5c64b8fe0141a352a2deea0",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "For regions outside Singapore/Korea, requires full remote; Toronto role is onsite.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1624b28efea84a8b8d40b350dd630618.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-08",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-08.json",
+      "sourceTraceSha256": "cc10bd5a740133faf803b159b6e8ac7bae852cb9ef4e8e16530282a75916596d",
+      "inputSha256": "563d5658c7281814463030839b0d5dccabcb7073260f7281f4a0928ca1fb3f23",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Must remain Seoul for next 2+ years; role requires Toronto onsite.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-16cb556686a24a059ace216b026963a7.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-09",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-09.json",
+      "sourceTraceSha256": "6eeec9a4f6a8e5e1318f2722b13428dd99d3dc2ddf687d0ba754bd542faa36d1",
+      "inputSha256": "8a3697566fcefedcf7898474f4f1c3267eaa72c6300c4ce0253a3d5acfa573cb",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Accepts English-speaking overseas work conditional on visa and compensation arrangements. Neither is confirmed impossible. Desired C-level/seniority is not itself a practical nonnegotiable.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1db9b18e8ba04cbe8b808e8b1952863c.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-10",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-10.json",
+      "sourceTraceSha256": "fa9e42f0aa52c21fc6d16e8e014bdc36eb62723ca57bc578d28ebb9fd169e974",
+      "inputSha256": "0b01e14272fc8862caf35c10308f706cfd13ab577971d5d4d30d2931d3d39293",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Confirmed Seoul-based opportunities and chose not to include roles abroad.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-1e31049237f1479191ac42c3b9857f87.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-11",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-11.json",
+      "sourceTraceSha256": "4748821b6753c20a9277df90b67cc9c0d64a4a6806324829f08f2f2d57521944",
+      "inputSha256": "1e8889531c791fa047555de9cb70f6594692fd5e629478e7e10ad5d8bb027f11",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicit instruction excludes overseas roles unless sponsorship/relocation are confirmed. This is an explicit evidence prerequisite, unlike ordinary unknown sponsorship.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-201cd3ccb38d4708b8d88873a0934855.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-12",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-12.json",
+      "sourceTraceSha256": "d72e55224c9cbf0dcb8d1953e4245444cd8b35d1205f41f35f69e7f2ad043700",
+      "inputSha256": "99c12e4fe5b6bc8dca83fcd0f2b8b9aea4a8fec3d05d72269fde90e89380c4e4",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Local locations, large stable companies and text-based English communication are preferences. No exclusive geographic or company-type prohibition. Startup dislike is not declared nonnegotiable.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-2173eb48f3704a7c9db6160ddde6dfa9.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-13",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-13.json",
+      "sourceTraceSha256": "0a8f0ebee7b3c49d976640a47974b91123551831a6e22774bfdab1de395a3ebf",
+      "inputSha256": "f0f68dd4a5cbcf5d4f92649d2379d611f9700918ae9d050fd94fe0e2a2a7c74b",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly does not want overseas work; additionally high minimum compensation.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-29d95a009c474e418a8e018ee2956090.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-15",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-15.json",
+      "sourceTraceSha256": "f2ce2fb01af71dc0f64a995bd4d69e951706f01b6c6cd3b11b2a2294ad0146e0",
+      "inputSha256": "c6311a5b00c9d216499b47d3d8c6142a2abc71609b2ff0d8bdc57d69a27e3e3f",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Commute region, foreign companies and flexible work are positive preferences. No foreign work authorization means sponsorship is unknown, not impossible. Childcare must not create an unstated practical ban.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-307cee3848a14f3ab5709474445a3dc8.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-16",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-16.json",
+      "sourceTraceSha256": "5e1dc1229dc1c71a00b492ad43d701ddf8b355b1e8e05ce85ad8d2fba6aa34af",
+      "inputSha256": "0024a6971a0ef440f76bd82dc7b1c71375c24f601607f5c52b1efd298cc86458",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Explicitly considers only Korea or Singapore and not other regions.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-3a0630c39e2245bea82a9902831f3f7a.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-17",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-17.json",
+      "sourceTraceSha256": "792350dbb78fc90dcfb360d14b0fff7d3f908cd65bc66b0e96aabac94fcfedce",
+      "inputSha256": "45402e3d93ad047020b6843555aed6d62cd81c97eaf374321bb72211d73cc3e5",
+      "expectedObservation": "candidatePracticalScreen=exclude",
+      "reviewNote": "Requires specifically Seoul-located roles and does not want even commutable outside regions.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-4131745a22204cec8f1f12f2414fdc07.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v6-candidate-18",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v6-candidate-18.json",
+      "sourceTraceSha256": "d58739cafb69ec954d909e4dbde4b3bdacb40d78c6200a7a04c7baa6cee98cd5",
+      "inputSha256": "9d86a23f1d62c5ac1b22645c8be85fb8a022d3dff5f522a04275fc923d6f47c4",
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Explicit US exclusion does not cover Canada. Domestic roles prioritized, not exclusive. Max5 preferred/8+ excluded does not conflict with role4–8 minimum4. Basic English may affect fit but no explicit candidate practical prohibition.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v6-ars09/ARS09/worker-8584850c-7daf-4caf-9afe-06a25a38f859/decisions-418401e91f4e432a822ece8ad68e09c1.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "screen-01",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/screen-01.json",
+      "sourceTraceSha256": "c68630afd245ec8adf58da14f5804030e6f8d16cc67073465c3b5185af4f9339",
+      "inputSha256": "fba6c0e481940fcf6eb117571ec25282873650c5fe77456ab644114ce776b265",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented software implementation work without a bridge to the role core function.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-7e653e46923844e1819ebf595d8c045a.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "screen-02",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/screen-02.json",
+      "sourceTraceSha256": "244b5baccafd063631df5fe586a8debf54adb3f1a9790c27c571fc4ce1ea4b69",
+      "inputSha256": "4d50688cdf24e7c89408faa4cf0cc11f0815e0394d1f69960f844e5369fefe23",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented specialist research work without a bridge to the role core function.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-c5a337d1664e446ca6cdbd9d4d3b8f87.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "screen-03",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/screen-03.json",
+      "sourceTraceSha256": "f46f75c27b323c1f16591ad189cd32ec4c2cba6bcf9082d64f03299a19eb0c06",
+      "inputSha256": "fa44a273beebd7a4c672307950b96addd0a9ce31c0146db66219f9feeb2dcc01",
+      "expectedDecision": "exclude",
+      "reviewNote": "Documented interface design work without a bridge to the role core function.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-89d0ec31ab114be2a02fc0b1d8fd5b88.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "screen-04",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/screen-04.json",
+      "sourceTraceSha256": "61485363397d40b23f01148b2a34402743d571e90a4f54c6b71d9b331779ed0e",
+      "inputSha256": "d0fd90f252eb23e3626c3b72fa9527c4d1a89dd6fe2996f00a8ba7f32557d15d",
+      "expectedDecision": "continue",
+      "reviewNote": "Adjacent title with actual inventory, pricing and operating ownership.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-86acfddc34e54d98b98648e119e5337c.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "screen-05",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/screen-05.json",
+      "sourceTraceSha256": "4904ebbc96a19e456670347cce91e824de272fb6c65d79b746bb6397c274f9be",
+      "inputSha256": "5a46a68582220d1ebf6cabe9d0ef1d6404e957e3caf411134ed5f1488187ba47",
+      "expectedDecision": "continue",
+      "reviewNote": "Different sectors with actual financial modeling and operating ownership.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-668820a45e064ff7a9135c42d616916c.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "screen-06",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/screen-06.json",
+      "sourceTraceSha256": "b4fe53c9c97340aaeb96b5ae991cd36c102d5220320f8ec3cea502099f7c3a2a",
+      "inputSha256": "ebfdea359ea049d068786d8ad3372ab0fb24b83a319e72d695143b954b669b30",
+      "expectedDecision": "continue",
+      "reviewNote": "Different formal education with actual financial and operational ownership.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-24f6ed187cd84b1a8990b1aff7e86c75.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "screen-07",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/screen-07.json",
+      "sourceTraceSha256": "b0ed93e57eb84acde21eba8b2b1ba6faefb9e79161a6d441a88cf05e8a0c095c",
+      "inputSha256": "c78015798ca029cdfbe033709c91a4928ecf752fd1c6ffbdb27d658aa69fd752",
+      "expectedDecision": "exclude",
+      "reviewNote": "Existing correct exclusion: documented different core work.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-0087bbe0df0844d2b73173ffc3de7034.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "location-01",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/location-01.json",
+      "sourceTraceSha256": "bb53edabe98bdf2d91c538ff52bcc4a13514728b507af8024ff85be65148b621",
+      "inputSha256": "17864f4247aaebf3c6260d70e227be89dafc3c157f802b0830a0ac284b0586c4",
+      "expectedDecision": "exclude",
+      "reviewNote": "Explicitly exclusive work geography conflicts with an on-site role in another geography; general no-dealbreakers elsewhere does not erase this specific boundary.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-9d12633dcdc44d2f9ec7b9621ce1dcfc.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "location-02",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/location-02.json",
+      "sourceTraceSha256": "aac8e2fbd5a9a736e2deee29075c90408f49145706907bf720bc7e858c157a32",
+      "inputSha256": "91b5ed6075575632ee808de68b6f7d4c7b61996aba7dfe50e2b138e7e7a12adc",
+      "expectedDecision": "continue",
+      "reviewNote": "Current overseas residence and preferred location retain an explicit willingness to relocate; authorization is unknown, not a confirmed obstacle.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-bea37f61f3de4b299e3e26b4fab40500.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "location-03",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/location-03.json",
+      "sourceTraceSha256": "1474fdc5f02ccd93eeee0e9109282f77fe9aa0e022cb706545daa6d299d43994",
+      "inputSha256": "7ead6381c77d916c1cf24277f1b28d77baa19aa670344fd527fe2f53cc06afd3",
+      "expectedDecision": "continue",
+      "reviewNote": "The role location is explicitly in the candidate stated opportunity set; no conflicting practical condition is evidenced.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "bootstrap-v2/worker/decisions-2eef2eaae48242249d6d0675ee05c10e.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "present-state-01",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/present-state-01.json",
+      "sourceTraceSha256": "80a49f3ca5cb744683212798ea99ab663e8c13cbc4e6ebd082586823d2837fa9",
+      "inputSha256": "9adb368a53cce326d8a86876b126f1e58e3196de6d7b3e0a6a86b831a3453060",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-c9047ff504e740faa6b60f1d3f36faeb.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "present-state-02",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/present-state-02.json",
+      "sourceTraceSha256": "da4aea7f0f96006f3773e790f5887eaf584a234045e6b6ee35fcf9ebf558e5c9",
+      "inputSha256": "624b8e76f926d03613d78daa862f6bca60ad52ca57a27f359d498640c7558220",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-a0b5cadef53943e692db829ed8ccef9f.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "present-state-03",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/present-state-03.json",
+      "sourceTraceSha256": "e2f8729a0c7d357e68545a41227e20aa04d858f875942613f647bd72392c2d96",
+      "inputSha256": "0c272a4a88aff9e77441cd731228393443808c3fa12aa92dc823295958927143",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v3-sol-ars09/ARS09/worker-3802f100-878e-499f-bef9-d8c557e1eaa9/decisions-02b9b309926548e8b386a8f5edd391bc.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "soft-preference-01",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/soft-preference-01.json",
+      "sourceTraceSha256": "803754e7d08fa54d0eb12a48e1a76adfad5bcfb083f18620b878f0e8f6f3dd6c",
+      "inputSha256": "6b47b72be2eb9661c4047f4986fd6e26ab3501f1a9f2645d5a89154f2a6cee50",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-13aedeb6ed5e48c9945c0dd952336144.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "soft-preference-02",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/soft-preference-02.json",
+      "sourceTraceSha256": "db50d324f31a5fa2509f8b712aa16bb9e9ef64d24f3f57697ca8d8ea2ee33b67",
+      "inputSha256": "d917db2ea927bcfde58e4703409e2832c6805d8252d33adcceecbec8465553df",
+      "expectedObservation": "candidatePracticalScreen=continue: the source describes preferences and/or conditional on-site openness, without an explicit incompatible practical prohibition. Work-screen suitability is a separate judgment, not the target of this diagnostic.",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "reviewNote": "Full Profile, Brief, Memory and Behavior evidence manually read. A preferred region list is not asserted to be an exclusive permitted list; do not infer unwillingness from absent relocation confirmation.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-1960a826c35a4a339c181b108e4b6bcd.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "soft-preference-03",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/soft-preference-03.json",
+      "sourceTraceSha256": "7ba535c1fe3a7738c1d2229a10dd4b9ac38277ba6287e49e777fcbdd6e624a7f",
+      "inputSha256": "2184737ece6a82d92170668bdfd9b3475fa636b7bfaa2608a038b92e2dae4d2d",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-7e8cf65b34b947feb9d62f30757c9247.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "soft-preference-04",
+      "stage": 1,
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/soft-preference-04.json",
+      "sourceTraceSha256": "56f4d4d323c9e3f52414c98693378e075f63681667495c4a1536f84333c37155",
+      "inputSha256": "bdc6439abd3ce10ebee1e658074ca66d87c351371911fa8d6aff680f1e34e65a",
+      "expectedAssessment": {
+        "candidatePracticalScreen": "continue"
+      },
+      "expectedObservation": "candidatePracticalScreen=continue: positive preferred regions and conditional mobility, without explicit practical prohibition of this role.",
+      "reviewNote": "Independent parent read of complete original Brief/Memory/Behavior. Current Korea is recorded; target regions are not asserted exclusive. Work suitability is separate.",
+      "originalSource": {
+        "dataset": "screen-question-order-diagnostic-v1",
+        "sourceTrace": "experiment-v4-ars09/ARS09/worker-d8f87752-7826-4a6d-b48d-e221fb33baa4/decisions-fcd128280b0d4258ae3b3e2de9ae25cb.json",
+        "baselineRun": "screen-candidate-korean-v36"
+      }
+    },
+    {
+      "id": "v7-new-soft-03",
+      "stage": 1,
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "Explicit foreign-company/full-time conditions are not contradicted by known role facts. Local commuting and hoped pay rise do not establish a prohibition; unknown arrangements remain unknown.",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v7-new-soft-03.json",
+      "sourceTraceSha256": "a72b5acb930c7c49aa4337fac3e19919882ffd6207a89285308892840533900e",
+      "inputSha256": "1669611ae57466cab6fee015886287d5739d87961af85593cec70a2298e7538a",
+      "originalSource": {
+        "sourceTrace": "experiment-v7-ars06/ARS06/worker-6617322c-73b1-461d-b1bb-c818284efd35/decisions-5a36a49694b7420d97eb55ba11c641ae.json",
+        "baselineRun": "experiment-v7-ars06"
+      }
+    },
+    {
+      "id": "v7-new-soft-05",
+      "stage": 1,
+      "expectedObservation": "candidatePracticalScreen=continue",
+      "reviewNote": "A role with a 4–8 year range is not a role requiring at least5 years. No confirmed practical contradiction from preferred domestic locations or unknown team size; professional fit remains separate.",
+      "sourceTrace": "policy-contract-v1-config/baseline-traces/v7-new-soft-05.json",
+      "sourceTraceSha256": "9baa29a781416f48983e2d9209b9e6ed1c0bc7f2c58d1ce3eeaa17f8d066a63b",
+      "inputSha256": "93dae8394acf5713b27840970254f8a7af905c795acb0c19c624433b94b10368",
+      "originalSource": {
+        "sourceTrace": "experiment-v7-ars06/ARS06/worker-6617322c-73b1-461d-b1bb-c818284efd35/decisions-7e54fba1a2f845b593e1a984cdb67430.json",
+        "baselineRun": "experiment-v7-ars06"
+      }
+    }
+  ]
+}

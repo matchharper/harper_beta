@@ -1,3 +1,4 @@
+import { deferOrgResponseWork } from "../requestScope.server";
 import "server-only";
 import type { User } from "@supabase/supabase-js";
 import type { OrgLocale } from "@/i18n/org/locale";
@@ -52,6 +53,7 @@ export async function composeCompanyUpdate(args: {
   };
   const { generateOrgAgentBackgroundResultReply } = await import("./chat");
   return generateOrgAgentBackgroundResultReply({
+    workspaceId: args.workspaceId,
     companyName: workspace.published_name || workspace.company_name,
     roleId: args.roleIds[0] ?? "", roleName: "", surface: "slack",
     responseLocale: args.responseLocale ?? await getOrgWorkspaceLocale(args.workspaceId, admin),
@@ -148,6 +150,17 @@ export async function enqueueCompanyUpdate(args: QueuedCompanyUpdate | InlineSla
     return { slackUrl, threadId: delivered.threadId };
   }
   const admin = getSupabaseAdmin();
+  if (args.messageAlreadyDelivered && typeof args.facts.selectionRunId === "string") {
+    const { data: run, error: runError } = await (admin.from("company_first_search_runs") as any)
+      .select("id,contract_version").eq("id", args.facts.selectionRunId).eq("company_workspace_id",args.workspaceId).maybeSingle();
+    if(runError) throw runError;
+    if(run?.contract_version === "scheduled_agentic_role_search_v1") {
+      const {data: jobId,error: resumeError}=await (admin.rpc as any)("resume_scheduled_matching_v1",{p_run:run.id});
+      if(resumeError) throw resumeError;
+      if(!jobId) throw new Error("Scheduled delivery continuation is not complete yet");
+      return {jobId:String(jobId)};
+    }
+  }
   const { data, error } = await (admin.rpc as any)("enqueue_company_update_v1", {
     p_workspace_id: args.workspaceId, p_role_id: args.roleId, p_event_key: args.eventKey,
     p_purpose: args.purpose, p_facts: {
@@ -174,7 +187,9 @@ export async function enqueueCompanyUpdate(args: QueuedCompanyUpdate | InlineSla
       await dispatchOrgAgentWebActionJob({ admin, jobId });
       throw error;
     }
-  } else {
+  } else if (!deferOrgResponseWork(async () => {
+    await dispatchOrgAgentWebActionJob({ admin, jobId });
+  })) {
     await dispatchOrgAgentWebActionJob({ admin, jobId });
   }
   return { jobId };

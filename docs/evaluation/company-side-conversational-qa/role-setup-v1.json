@@ -1,0 +1,108 @@
+{
+  "datasetVersion": "role-setup-v1",
+  "frozenAt": "2026-10-25",
+  "provenance": "Synthetic sparse-JD and supplied-JD cases authored before this run; existing role-criteria-v1 context shape reused. No production data.",
+  "state": {
+    "assigneeUserIds": [],
+    "channels": [
+      {
+        "channelId": "channel-a",
+        "channelName": "hiring",
+        "enabled": true
+      },
+      {
+        "channelId": "channel-b",
+        "channelName": "team",
+        "enabled": true
+      }
+    ],
+    "currentUser": {
+      "userId": "user-a",
+      "name": "김민수",
+      "email": "minsu@example.com"
+    },
+    "members": [
+      {
+        "userId": "user-a",
+        "name": "김민수",
+        "email": "minsu@example.com"
+      }
+    ],
+    "metadata": {},
+    "role": {
+      "roleId": "role-a",
+      "name": "새 역할",
+      "status": "draft",
+      "description": null,
+      "request": null,
+      "criteria": [],
+      "locationText": null,
+      "workMode": null,
+      "employmentTypes": [],
+      "salaryRange": null,
+      "memory": null
+    },
+    "workspace": {
+      "companyName": "Studio Example",
+      "pitch": "Studio Example은 소규모 팀을 위한 프로젝트 관리 SaaS를 만듭니다. 서울 성수동 사무실에서 일하며, 제품팀과 고객지원팀이 함께 고객 피드백을 검토합니다.",
+      "request": null,
+      "relatedLinks": [],
+      "locationText": "서울 성수동"
+    }
+  },
+  "cases": [
+    {
+      "id": "RS01",
+      "surface": "chat",
+      "history": [],
+      "message": "프론트엔드 엔지니어 채용 시작해줘.",
+      "expectedRoleFields": {
+        "name": "프론트엔드 엔지니어"
+      },
+      "expectedCriteria": "preserved",
+      "expectedSelection": null,
+      "expectedConfirmationRequests": 0,
+      "otherRoles": [
+        {
+          "name": "프로덕트 디자이너",
+          "description": "## 회사 소개\nStudio Example은 소규모 팀의 프로젝트 관리 SaaS를 만듭니다.\n## 주요 업무\n프로젝트 현황 대시보드와 업무 관리 화면을 설계합니다. 고객 인터뷰에서 문제를 찾고 제품팀과 개선합니다.\n## 근무 조건\n서울 성수동 사무실, 정규직, 대면 근무.",
+          "locationText": "서울 성수동",
+          "workMode": "onsite",
+          "employmentTypes": [
+            "full_time"
+          ]
+        }
+      ],
+      "searchResults": [
+        {
+          "title": "Frontend Engineer — Sample Tasks",
+          "url": "https://reference.example/frontend",
+          "text": "Frontend engineer for a collaboration SaaS: build task boards and dashboards, manage UI state and API integration, improve accessibility and responsiveness, test and monitor browser performance."
+        }
+      ],
+      "pages": {
+        "https://reference.example/frontend": {
+          "url": "https://reference.example/frontend",
+          "markdown": "# Frontend Engineer\nBuild project dashboards, task boards and interactive collaboration workflows. Integrate backend APIs and handle loading, empty and error states. Work with design and product, improve responsive layouts and accessibility, test changes and diagnose browser performance. Example employer requires 5 years of experience and offers a stock bonus."
+        }
+      }
+    },
+    {
+      "id": "RS02",
+      "surface": "chat",
+      "responseLocale": "en",
+      "history": [],
+      "message": "Create a Customer Support Specialist role from this JD. Company: Studio Example, project management software for small teams. The role handles customer questions by email and chat, investigates product issues with engineers, and improves our help articles using recurring feedback. Requirements: experience helping customers with software and clear written English. SaaS support experience is a plus. Full-time, remote within Korea. Keep these requirements as written.",
+      "expectedRoleFields": {
+        "name": "Customer Support Specialist",
+        "workMode": "remote",
+        "employmentTypes": [
+          "full_time"
+        ]
+      },
+      "expectedCriteria": "preserved",
+      "expectedSelection": null,
+      "expectedConfirmationRequests": 0
+    }
+  ]
+}

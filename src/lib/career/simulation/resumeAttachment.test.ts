@@ -6,6 +6,7 @@ import { createSimulationSession, simulationSessionContext } from "./session";
 import { createPreparation } from "./preparation";
 import { buildPreparationPrompt } from "./preparationPrompt";
 import { SIMULATION_TOOL_NAMES } from "./sessionTool";
+import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
 
 const document = () => ({id: "generated", file_name: "Resume.pdf", revision: 2,
   origin_type: "harper_generated_resume", kind: "resume", is_deleted: false,
@@ -14,6 +15,40 @@ const document = () => ({id: "generated", file_name: "Resume.pdf", revision: 2,
   }}} as unknown as TalentDocumentRow);
 const render = async () => ({pdf: Buffer.from("test PDF"), text: "Test Candidate", pageCount: 1});
 const download = async () => {throw new Error("Generated resumes must not use storage download");};
+const authoredDocument = () => ({
+  ...document(), id: "supporting-document", kind: "document",
+  origin_type: AUTHORED_DOCUMENT_ORIGIN, file_name: "지원 동기.pdf",
+  extracted_text: "# 지원 동기\n\n확인된 경험과 지원 이유.",
+  structured_content: null, updated_at: "2026-10-22T00:00:00.000Z",
+} as TalentDocumentRow);
+
+test("authored supporting documents render the selected revision as PDF attachments", async () => {
+  const doc = authoredDocument();
+  let renders = 0;
+  const result = await applicationAttachment({read: async () => doc, download,
+    renderDocument: async (title, markdown) => {
+      renders++;
+      assert.equal(title, doc.file_name);
+      assert.equal(markdown, doc.extracted_text);
+      return {pdf: Buffer.from("%PDF-supporting-document"), text: markdown, pageCount: 1};
+    }});
+  assert.equal(renders, 1);
+  assert.equal(result.bytes.toString(), "%PDF-supporting-document");
+  assert.equal(result.fingerprint, documentFingerprint(doc));
+  assert.equal(result.contentHash.length, 64);
+  assert.equal(applicationAttachmentName({...doc, file_name: "지원 동기.md"}), "지원_동기.pdf");
+});
+
+test("authored attachments reject deleted, revised or inaccessible documents and rendering failures", async () => {
+  for (const change of [null, {...authoredDocument(), is_deleted:true},
+    {...authoredDocument(), revision:3}, {...authoredDocument(), updated_at:"later"}]) {
+    let current: TalentDocumentRow | null = authoredDocument();
+    await assert.rejects(applicationAttachment({read: async () => current, download,
+      renderDocument: async () => {current = change; return render();}}), /not found|changed/);
+  }
+  await assert.rejects(applicationAttachment({read: async () => authoredDocument(), download,
+    renderDocument: async () => {throw new Error("renderer failed");}}), /renderer failed/);
+});
 
 test("generated resume exports the selected revision and fingerprints actual attachment bytes", async () => {
   const doc = document();

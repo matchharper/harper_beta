@@ -150,7 +150,7 @@ test("closure persists private role progress atomically, idempotently, including
     await db.close();
   }
 });
-test("unrelated request awaits another user turn and retains that request for the handoff", () => {
+test("switch requests preserve the handoff without imposing another user turn", () => {
   const state = createSimulationSession({
     roleRef: "role:r",
     roleName: "Example",
@@ -165,13 +165,11 @@ test("unrelated request awaits another user turn and retains that request for th
   );
   assert.equal(pending.status, "active");
   assert.equal(pending.switchRequest?.text, "Find backend roles in Berlin");
-  assert.throws(() =>
-    mutateSimulationSession(
-      pending,
-      { action: "end", endReason: "switched" },
-      10
-    )
+  const sameTurnEnd = mutateSimulationSession(
+    pending, { action: "end", endReason: "switched" }, 10
   );
+  assert.equal(sameTurnEnd.status, "ended");
+  assert.equal(sameTurnEnd.switchRequest?.text, pending.switchRequest?.text);
   const declined = mutateSimulationSession(
     pending,
     { action: "cancel_switch" },

@@ -125,6 +125,7 @@ export function applyOrgCandidateStageToBoard(
         ? {
             ...item,
             processClosureNoticeUnresolved: false,
+            savedAt: item.stage === update.stage ? item.savedAt : null,
             stage: update.stage,
             stageTag: update.stageTag,
           }

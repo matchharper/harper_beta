@@ -1,3 +1,4 @@
+import { traceStageStep } from "@/lib/org/stageTiming.server";
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
 import type { User } from "@supabase/supabase-js";
 import { getEmailDomain, INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
@@ -398,10 +399,10 @@ export async function ensureOrgRoleCreationConversation(args: {
     throw new OrgHttpError(400, "workspaceId and roleId are required");
   }
 
-  await upsertOrgCompanyUser(admin, args.user);
-  await assertOrgRoleAccess({ admin, permission: "manage_candidates", user: args.user, workspaceId, roleId });
+  await traceStageStep("ensureOrgRoleCreationConversation:401", async () => (upsertOrgCompanyUser(admin, args.user)));
+  await traceStageStep("ensureOrgRoleCreationConversation:402", async () => (assertOrgRoleAccess({ admin, permission: "manage_candidates", user: args.user, workspaceId, roleId })));
 
-  const { data: role, error: roleError } = await (
+  const { data: role, error: roleError } = await traceStageStep("ensureOrgRoleCreationConversation:404", async () => ((
     admin.from("company_roles" as any) as any
   )
     .select("role_id, status")
@@ -409,7 +410,7 @@ export async function ensureOrgRoleCreationConversation(args: {
     .eq("role_id", roleId)
     .eq("source_type", "internal")
     .not("is_expired", "is", true)
-    .maybeSingle();
+    .maybeSingle()));
   if (roleError) throw roleError;
   if (!role) throw new OrgHttpError(404, "Role not found");
   const roleStatus = normalizeText(role.status).toLowerCase();
@@ -419,13 +420,13 @@ export async function ensureOrgRoleCreationConversation(args: {
 
   const select =
     "id, company_workspace_id, role_id, title, last_message_at, last_message_id, summary_cursor_message_id, metadata, created_at, updated_at";
-  const { data: existing, error: existingError } = await (
+  const { data: existing, error: existingError } = await traceStageStep("ensureOrgRoleCreationConversation:422", async () => ((
     admin.from("company_conversations" as any) as any
   )
     .select(select)
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
-    .maybeSingle();
+    .maybeSingle()));
   if (existingError) throw existingError;
   if (existing) {
     return { admin, conversation: existing as OrgAgentConversationRow };
@@ -439,7 +440,7 @@ export async function ensureOrgRoleCreationConversation(args: {
     phase: roleStatus === "draft" ? "collecting" : "completed",
     scope: "role_creation",
   };
-  const { data, error } = await (
+  const { data, error } = await traceStageStep("ensureOrgRoleCreationConversation:442", async () => ((
     admin.from("company_conversations" as any) as any
   )
     .insert({
@@ -451,19 +452,19 @@ export async function ensureOrgRoleCreationConversation(args: {
       updated_at: now,
     })
     .select(select)
-    .single();
+    .single()));
   if (!error) {
     return { admin, conversation: data as OrgAgentConversationRow };
   }
   if ((error as { code?: string }).code !== "23505") throw error;
 
-  const { data: raced, error: racedError } = await (
+  const { data: raced, error: racedError } = await traceStageStep("ensureOrgRoleCreationConversation:460", async () => ((
     admin.from("company_conversations" as any) as any
   )
     .select(select)
     .eq("company_workspace_id", workspaceId)
     .eq("role_id", roleId)
-    .single();
+    .single()));
   if (racedError) throw racedError;
   return { admin, conversation: raced as OrgAgentConversationRow };
 }
@@ -561,7 +562,9 @@ export async function fetchOrgAgentMessages(args: {
       hideInternalAuthors
         ? `${columns}, internal_author:company_users!company_messages_company_user_id_fkey()`
         : columns
-    ).is("metadata->companyEventUiDuplicateOf", null);
+    )
+      .eq("message_type", "chat")
+      .is("metadata->companyEventUiDuplicateOf", null);
     // Anti-join before pagination, preserving messages without a human author.
     return hideInternalAuthors
       ? query
@@ -580,11 +583,6 @@ export async function fetchOrgAgentMessages(args: {
     query = query.gt("id", hiddenThroughMessageId);
   }
 
-  query =
-    args.mode === "role_creation" || args.mode === "role"
-      ? query.in("message_type", ["chat", "slack"])
-      : query.eq("message_type", "chat");
-
   if (typeof args.beforeMessageId === "number" && args.beforeMessageId > 0) {
     query = query.lt("id", args.beforeMessageId);
   }
@@ -602,10 +600,6 @@ export async function fetchOrgAgentMessages(args: {
       hiddenThroughMessageId
     );
   }
-  latestUserMessageQuery =
-    args.mode === "role_creation" || args.mode === "role"
-      ? latestUserMessageQuery.in("message_type", ["chat", "slack"])
-      : latestUserMessageQuery.eq("message_type", "chat");
   const { data: latestUserMessage, error: latestUserMessageError } =
     await latestUserMessageQuery.maybeSingle();
   if (latestUserMessageError) throw latestUserMessageError;

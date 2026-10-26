@@ -28,7 +28,7 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME =
-  "border-neutral-1000-a05 bg-bg-floating/55 shadow-sm backdrop-blur-lg";
+  "border-white md:border-black/4 bg-neutral-50/50 shadow-[0_2px_12px_rgba(0,0,0,0.08)] backdrop-blur-sm";
 
 export function ChatComposerSurface({
   className,
@@ -38,7 +38,7 @@ export function ChatComposerSurface({
     <div
       {...props}
       className={cn(
-        "group/chat-composer origin-bottom overflow-hidden rounded-[18px] border transition-[background-color,border-color,box-shadow,opacity,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        "group/chat-composer origin-bottom overflow-hidden rounded-xl border transition-[background-color,border-color,box-shadow,opacity,transform] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
         CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME,
         className
       )}
@@ -71,7 +71,7 @@ export const ChatComposerCollapsedFrame = forwardRef<
     <MuteButton
       ref={ref}
       className={cn(
-        "grid h-12 w-full gap-0.5 grid-cols-[auto_minmax(0,1fr)_auto] items-center rounded-[18px] border px-2 py-0 text-left transition-[background-color,border-color,box-shadow,opacity,transform] duration-200 ease-out active:scale-[0.99] motion-reduce:transition-none",
+        "grid h-12 w-full gap-0.5 grid-cols-[auto_minmax(0,1fr)_auto] items-center rounded-full border px-2 py-0 text-left transition-[background-color,border-color,box-shadow,opacity,transform] duration-200 ease-out active:scale-[0.99] motion-reduce:transition-none",
         CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME,
         className
       )}
@@ -79,7 +79,7 @@ export const ChatComposerCollapsedFrame = forwardRef<
       variant="default"
       {...props}
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-muted">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-black">
         {leadingAction}
       </span>
       <span
@@ -244,6 +244,7 @@ export const ChatComposerFrame = forwardRef<
   return (
     <ChatComposerSurface
       data-expanded={expanded}
+      data-has-context={Boolean(context)}
       onClickCapture={handleCollapsedTokenClickCapture}
       onPointerCancel={finishPointerInteraction}
       onPointerDown={() => {
@@ -251,6 +252,7 @@ export const ChatComposerFrame = forwardRef<
       }}
       onPointerUp={finishPointerInteraction}
       className={cn(
+        "max-md:data-[expanded=false]:data-[has-context=false]:rounded-full",
         pointerActive &&
           "max-md:scale-[1.01] max-md:opacity-85 max-md:duration-[180ms]",
         className

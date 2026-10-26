@@ -10,12 +10,12 @@ const ENGLISH_STATUS_LABELS: Record<
   OrgAgentThinkingLogIcon,
   Record<"done" | "error" | "running", string>
 > = {
-  link: { running: "Opening link", done: "Link checked", error: "Could not open link" },
-  read: { running: "Reading information", done: "Information checked", error: "Could not read information" },
-  run: { running: "Working", done: "Completed", error: "Could not complete" },
-  search: { running: "Searching", done: "Search complete", error: "Search failed" },
+  link: { running: "Reading", done: "Read", error: "Could not read" },
+  read: { running: "Reviewing", done: "Reviewed", error: "Could not review" },
+  run: { running: "Working", done: "Done", error: "Could not finish" },
+  search: { running: "Looking around", done: "Looked around", error: "Could not look around" },
   send: { running: "Handling contact", done: "Contact step complete", error: "Contact step failed" },
-  write: { running: "Updating", done: "Update complete", error: "Update failed" },
+  write: { running: "Remembering", done: "Remembered", error: "Could not remember" },
 };
 
 export function localizeOrgAgentThinkingLogs(
@@ -64,6 +64,8 @@ export function getOrgAgentThinkingLogIcon(
       "set_role_notification",
       "confirm_pending_role_creation",
       "update_company_context",
+      "answer_role_start_question",
+      "ask_role_start_question",
     ].includes(toolName)
   ) {
     return "write";

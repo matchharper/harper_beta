@@ -7,6 +7,14 @@
 [최신 계약·실행 보고서](evaluation/company-side-conversational-qa/reports/2026-09-25-contract-v8.md)에 구분한다.
 앱은 미배포이며 이번 평가를 위해 운영 migration이나 테스트 Role을 추가하지 않는다.
 
+## 2026-10-25 로컬 변경: Slack의 새 Role 등록
+
+기존 company-side LLM이 받은 업무·JD·조건으로 초안을 만들 수 있는지 판단한다. 충분하면 `start_role_creation`의 `draft`에 확인된 공개 업무·자격과 비공개 Hiring Brief, 근무·고용·보상 정보를 구분해 작성한다. 정보가 부족하면 핵심만 묻고, 미정 조건을 채워 넣지 않는다. 글자 수·키워드·조건 개수로 정보 충분성을 분류하지 않는다.
+
+서버는 Role 초안과 선택한 Slack 원문·파일을 저장하고 웹 채용 시작 session을 만든 뒤 `/org/role?orgId=...&roleId=...`를 반환한다. 원본 회사 LLM이 짧은 설명과 이 링크를 안내하며, 이후 기준 정리와 등록은 웹 온보딩에서 이어간다. 별도 Slack 등록 스레드나 고정 성공 문장은 만들지 않는다. 초안 생성은 활성화·정기 매칭 접수가 아니다. 같은 요청의 재시도는 초안을 재사용하고 이후 웹에서 수정한 내용을 덮어쓰지 않는다.
+
+웹·Worker·migration은 미배포다. 새 Role 활성화 후 첫 정기 실행 계약은 [정기 추천 구현 문서](company/company-scheduled-agentic-role-search-implementation-ko.md), 합성 원본 LLM 검증은 [v38](evaluation/company-side-conversational-qa/gold-v38.md)을 따른다.
+
 ## 목적과 변경 절차
 
 Harper는 회사의 채용 파트너다. 대화를 이해하고, 근거를 확인하고, 권한 안에서 일을 이어간다.
@@ -41,6 +49,16 @@ Hiring Brief는 [작성 정본](company/company-role-hiring-brief-authoring-guid
 [입력·지연 로딩 계획](company-side-agent-input-and-capability-refactor-plan-ko.md)을 참고한다.
 
 ## 입력과 지연 로딩
+
+2026-10-21 로컬 개인정보 경계: 연결 대기(`pending_connection`), 먼저 제안 가능한 후보(`company_intro`),
+Intro 응답 대기(`intro_requested`)의 후보자 이메일 주소는 company-side LLM 입력에서 제외한다.
+프로필 열람 여부는 이 주소 공개의 근거가 아니다. 도구 결과는 형식화·길이 제한 전에 주소를 제거하고,
+일반 대화·연락 원문·이전 답변·회사 사건·오류 진단은 모델 전송 직전에 현재 조직의 후보자 단계와
+등록 주소를 대조해 제외한다. 같은 후보자가 여러 Role에 있으면 제한 대상 Role의 주소가 다른 Role을
+통해 유입되지 않게 한다. 판단에는 기존 단계 계산을 재사용하고, 확인 조회가 실패하거나 불완전하면
+모델에 보내지 않는다. 실제 발송 주소와 저장된 원문은 수정하지 않으며, 연결된 후보자·회사 팀원 주소는
+이 제한만으로 제거하지 않는다. [검증과 한계](evaluation/company-side-conversational-qa/reports/2026-10-21-candidate-email-privacy.md).
+운영 배포 완료를 뜻하지 않는다.
 
 기본 조회 5개와 핵심 연락 3개(`list_contacts`, `read_contact`, `contact_talent`), loader 및 짧은 기능 개요는 항상 보인다.
 연락의 schema와 policy도 기본 포함한다. 초안 작성·수정·승인·회신 확인은 부가 기능이 아니라 회사 agent의 핵심 업무다.
@@ -127,7 +145,9 @@ Haiku의 sampling 옵션은 API 계약에 따라 생략하고 다른 모델로 �
 
 2026-10-15 로컬 변경: 일반 회사 대화도 `read_role`의 `notification` 조회로 실제 설정과 가능한 대상·현재 팀원/채널을 읽고, 기존 `set_role_notification` 저장 능력으로 채용 상태와 독립적으로 설정한다. 같은 대화의 복수 Role 설정·채용 시작 제안에 대한 동의는 원본 LLM이 해석하며, 승인된 활성화는 기존 `change_role_status` 완료 검사를 따른다. Role 작성 입력에도 실제 현재 Slack 채널을 전달한다. 팀원 온보딩 첫인사는 접근 가능한 draft의 확인된 설정 사실만 받아 유용한 제안을 판단하고, 가입 사건 자체로 설정·채용을 실행하지 않는다. 새 테이블·동의 classifier·시나리오 router는 없다. v27 및 member-welcome-v2 검증은 로컬·합성이며 운영 배포 완료를 뜻하지 않는다.
 
-Role 작성은 하나의 간결한 discovery 계약을 사용한다. 반복된 진행 예문·설정 설명을 추가하지 않는다.
+2026-10-25 로컬 웹 Setup: `/org/new` 첫 입력과 역할 정보 편집은 `ROLE_SETUP_SYSTEM_PROMPT` 하나로 공개 역할 정보와 JD를 작성·저장한다. 회사 자료·같은 회사 공고·웹 참고 자료로 내용을 구체화하며, 공개 필드 저장과 자료 조회 네 도구만 제공한다. Brief·질문·보상 확인·Align은 후속 채용 시작 화면에서 처리한다. 알림과 담당자는 Finalize의 기존 설정/기본값을 사용한다. `descriptionSourceResearch` 기록과 역할 작성 loop의 호출·출력 토큰 상한은 제거했다. provider의 모델/context 한도와 요청 취소 처리는 유지한다. 검증 범위는 evaluation registry의 `role-setup-v1`이며 로컬 미배포다.
+
+별도 웹 Setup을 사용하지 않는 기존 Role 작성 경로는 간결한 discovery 계약을 사용한다. 반복된 진행 예문·설정 설명을 추가하지 않는다.
 등록 완료도 별도 장문 템플릿이 아니라 동일 voice/outcome 계약을 사용하며, 역할 활성화와 Slack 전달 결과만 제공한다.
 활성화를 worker 실행·후보 발견 증거로 확대하지 않는다. 채용 자격 문구는 source clause로 보존한다.
 새 Role은 LLM이 등록 확인 전에 Description, Brief와 Criteria를 작성·저장하도록 지침을 따른다.

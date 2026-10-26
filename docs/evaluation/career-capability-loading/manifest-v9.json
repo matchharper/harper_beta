@@ -1,0 +1,25 @@
+{
+  "task": "career-capability-loading",
+  "datasetVersion": "v9",
+  "createdAt": "2026-10-23",
+  "provenance": "Synthetic transition challenge informed by read-only inspection of a repeated-confirmation incident. No real names, role IDs, resumes or conversation excerpts. Prior frozen versions remain unchanged.",
+  "goldStatus": "Codex contract review before model execution; independent human review pending.",
+  "labelReviewHistory": [
+    {
+      "date": "2026-10-23",
+      "reviewer": "Codex",
+      "change": "An explicit next-role request already authorizes saving and leaving current preparation. A capability question does not. Successful switch includes contextual explanation and the existing Start card, not submission.",
+      "evidence": [
+        "src/lib/career/simulation/session.ts",
+        "src/lib/career/simulation/preparationPrompt.ts",
+        "src/lib/career/simulation/startOffer.ts"
+      ]
+    }
+  ],
+  "caseCount": 4,
+  "turnCount": 4,
+  "files": {
+    "cases-v9.json": "9afefba2f2b74d3af970e9ee3a95616dab81f93e665c104fde007ab6387ec4e4",
+    "gold-v9.json": "5959d06bc4e4f87c82cf819b17d9f2e686b574d83b9fa47da82f53f370dd498e"
+  }
+}

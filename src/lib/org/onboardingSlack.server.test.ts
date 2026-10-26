@@ -20,7 +20,7 @@ const args = {
 const target = { channelId: "C1", channelName: "hiring", slackUserId: "U1", teamId: "T1" };
 const dependencies = {
   findChannel: async () => target,
-  readRoleSettings: async () => ({ assigneeUserIds: [], availableAssignees: [], channels: [], confirmedAssigneeUserId: null, confirmedChannelIds: [] }),
+  readRoleSettings: async () => ({ assigneeUserIds: [], availableAssignees: [], channels: [], confirmedAssigneeUserId: null, confirmedChannelIds: [], emailEnabled: false }),
   readCalendar: async () => null as CalendarIntegrationRow | null,
   canShareRole: async (input: { roleId?: string | null }) => input.roleId === "allowed",
   deliver: async (_notice: InlineSlackCompanyUpdate) => ({ slackUrl: "https://example.invalid/slack", threadId: "thread" }),
@@ -81,7 +81,7 @@ test("welcome reads setup only for visible drafts and supplies current targets w
       reads.push(input.roleId);
       assert.equal(input.currentChannelId, "C1");
       assert.equal(input.user.id, "teammate");
-      return { assigneeUserIds: [], confirmedAssigneeUserId: null, confirmedChannelIds: [],
+      return { assigneeUserIds: [], confirmedAssigneeUserId: null, confirmedChannelIds: [], emailEnabled: false,
         availableAssignees: [{ userId: "teammate", name: "Alex", current: true }],
         channels: [{ channelId: "C1", channelName: "hiring", current: true, enabled: true }] };
     },

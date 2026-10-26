@@ -205,7 +205,7 @@ with psycopg.connect(os.environ['DATABASE_URL']) as c:
       )
     ),
     ...ORG_ONBOARDING_COMPANY_AGENT_OPTIONS,
-    reasoning: getOrgAgentReasoningEffort(
+    reasoning: ORG_ONBOARDING_COMPANY_AGENT_OPTIONS.reasoningEffort ?? getOrgAgentReasoningEffort(
       ORG_ONBOARDING_COMPANY_AGENT_OPTIONS.model
     ),
     provider: "OpenRouter",

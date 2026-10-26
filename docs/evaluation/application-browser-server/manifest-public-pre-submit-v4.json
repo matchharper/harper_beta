@@ -1,0 +1,137 @@
+{
+  "task": "application-browser-server",
+  "datasetVersion": "public-pre-submit-v4",
+  "createdAt": "2026-10-22T16:49:45.439Z",
+  "status": "executed-and-independently-reviewed",
+  "model": "gpt-6-luna",
+  "provider": "OpenAI Responses direct",
+  "reasoning": "medium",
+  "sampling": "provider default",
+  "serviceTier": "default",
+  "maxOutputTokens": 128000,
+  "maxSteps": 55,
+  "agentTimeoutSeconds": 450,
+  "browserTimeoutSeconds": 600,
+  "concurrency": 3,
+  "proxy": false,
+  "canonicalRunner": "scripts/experiments/application-browser-lab/invoke.mjs <origin> preflight <case> public-pre-submit-v4",
+  "sourceHashes": {
+    "lib/preflight.js": "850f0afc85a0d640689f063b2942c66cc8c492d7e27206e7377b1117821b8660",
+    "lib/preflight-model.js": "2c39cd889d52628b7b3652e40ff6222e59eb6ca0a7a4eaf4a3e315ce8990b269",
+    "lib/preflight-cases-v3.js": "9efae3c49fe8f601588df68270ff0f4bcd16aa3e024239739708733699069a5e",
+    "lib/preflight-guard.js": "694d03c89a2dd991a67866a7a630fe0e23d9ee122f6a8bc5835088b305eea069",
+    "lib/fixture.js": "4ccf6299b79c43fe03b0fdb913ff47095c037a56abf5a99a7b2631d5650597a1",
+    "package-lock.json": "2989a0077b44bc5407ab1c0d8a946caf6656758ed8cd0c11902c5931469310b6",
+    "lib/preflight-cases-v4.js": "6d6cf43d16cc39fd5161059d561c6ba8462356a1c1491407090457e56ab04b9b",
+    "invoke.mjs": "d1be6590cdb3d958332979852b9755f3606ac4086a86c116cc267b9e62d55d00"
+  },
+  "privacy": "Synthetic candidate/files only; no real submission or verification messages; raw owner-only ignored runs",
+  "pricingSource": "https://developers.openai.com/api/docs/pricing",
+  "pricingPerMillion": {
+    "input": 0.1,
+    "output": 0.5,
+    "cacheRead": 0.01,
+    "cacheWrite": 0.125,
+    "longInput": 0.2,
+    "longOutput": 0.75,
+    "longCacheRead": 0.02,
+    "longCacheWrite": 0.25
+  },
+  "completionGold": null,
+  "reason": "Replaces precheck-invalid DoorDash with public active Affirm before job-agent execution",
+  "sourceRevision": "296269eb440f921e0567aa0c9eb5dc944ceee485",
+  "dirty": true,
+  "authorization": "2026-10-23 user: 테스트 서버만 배포하고 10개 실행",
+  "deployment": {
+    "projectId": "prj_6kxbmw9gYT3tYN7UZCE34fqDrsIT",
+    "id": "dpl_GyANmhivfsV8x2rD29wz19pew4Hs",
+    "url": "https://harper-apply-browser-lab-20261022-izzle5xqj-harper-108ca378.vercel.app",
+    "alias": "https://harper-apply-browser-lab-20261022.vercel.app"
+  },
+  "completedAt": "2026-10-22T17:08:05.436Z",
+  "report": "report-2026-10-23-luna.md",
+  "sourceHashesBeforeFirstDeployment": {
+    "lib/preflight.js": "850f0afc85a0d640689f063b2942c66cc8c492d7e27206e7377b1117821b8660",
+    "lib/preflight-model.js": "2c39cd889d52628b7b3652e40ff6222e59eb6ca0a7a4eaf4a3e315ce8990b269",
+    "lib/preflight-cases-v3.js": "9efae3c49fe8f601588df68270ff0f4bcd16aa3e024239739708733699069a5e",
+    "lib/preflight-guard.js": "694d03c89a2dd991a67866a7a630fe0e23d9ee122f6a8bc5835088b305eea069",
+    "lib/fixture.js": "4ccf6299b79c43fe03b0fdb913ff47095c037a56abf5a99a7b2631d5650597a1",
+    "package-lock.json": "2989a0077b44bc5407ab1c0d8a946caf6656758ed8cd0c11902c5931469310b6",
+    "lib/preflight-cases-v4.js": "6d6cf43d16cc39fd5161059d561c6ba8462356a1c1491407090457e56ab04b9b",
+    "invoke.mjs": "d1be6590cdb3d958332979852b9755f3606ac4086a86c116cc267b9e62d55d00"
+  },
+  "sourceHashesAfterFinalDeployment": {
+    "lib/preflight.js": "5890a850ee3bd6d399db7bdec7a2321431c2442d335aff012ce8e865bf0c3dd4",
+    "lib/preflight-model.js": "2c39cd889d52628b7b3652e40ff6222e59eb6ca0a7a4eaf4a3e315ce8990b269",
+    "lib/preflight-cases-v3.js": "9efae3c49fe8f601588df68270ff0f4bcd16aa3e024239739708733699069a5e",
+    "lib/preflight-guard.js": "2082f45fa51611e618bb13d3331762ede2e56cf4a7b69d0939fc22c523d43cd6",
+    "lib/fixture.js": "4ccf6299b79c43fe03b0fdb913ff47095c037a56abf5a99a7b2631d5650597a1",
+    "package-lock.json": "2989a0077b44bc5407ab1c0d8a946caf6656758ed8cd0c11902c5931469310b6",
+    "lib/preflight-cases-v4.js": "6d6cf43d16cc39fd5161059d561c6ba8462356a1c1491407090457e56ab04b9b",
+    "invoke.mjs": "d1be6590cdb3d958332979852b9755f3606ac4086a86c116cc267b9e62d55d00"
+  },
+  "deployments": [
+    {
+      "projectId": "prj_6kxbmw9gYT3tYN7UZCE34fqDrsIT",
+      "id": "dpl_GyANmhivfsV8x2rD29wz19pew4Hs",
+      "url": "https://harper-apply-browser-lab-20261022-izzle5xqj-harper-108ca378.vercel.app",
+      "alias": "https://harper-apply-browser-lab-20261022.vercel.app"
+    },
+    {
+      "id": "dpl_HxwusdoHKvjNZ6NcoaPPYKGsVDTB",
+      "url": "https://harper-apply-browser-lab-20261022-7r3qs1jdo-harper-108ca378.vercel.app",
+      "change": "Lever file-only parseResume and browser challenge/configuration reads"
+    },
+    {
+      "id": "dpl_UyWUMTeZuHCreTBAiDMy42MMoeVA",
+      "url": "https://harper-apply-browser-lab-20261022-rb0uhlziv-harper-108ca378.vercel.app",
+      "change": "Exact Ashby file-ticket guard; comma normalization initially too strict"
+    },
+    {
+      "id": "dpl_9qrz9wqiefy5G5LHHS4TzpXoP7LC",
+      "url": "https://harper-apply-browser-lab-20261022-kd09duwnp-harper-108ca378.vercel.app",
+      "change": "GraphQL ignored-comma normalization and bounded file-ticket diagnostics"
+    }
+  ],
+  "latestDeployment": {
+    "id": "dpl_9qrz9wqiefy5G5LHHS4TzpXoP7LC",
+    "url": "https://harper-apply-browser-lab-20261022-kd09duwnp-harper-108ca378.vercel.app",
+    "change": "GraphQL ignored-comma normalization and bounded file-ticket diagnostics"
+  },
+  "results": {
+    "uniqueCases": 10,
+    "attempts": 14,
+    "uiRequiredFieldsAndAttachmentComplete": 3,
+    "additionalUiCompleteButDocumentPhotoMissing": 1,
+    "missingCandidateFact": 1,
+    "incompleteInteraction": 2,
+    "missingFactAndHarnessRestrictedAttachment": 1,
+    "pageUnavailable": 2,
+    "realSubmissions": 0,
+    "allProviderCallsReportedExactModel": true,
+    "providerCalls": 344,
+    "usageEstimatedUsd": 1.1791068366666666,
+    "llmUsd": 1.13809707,
+    "browserUsd": 0.04100976666666666,
+    "transportSmokeUsd": 0.0000167,
+    "notionCheck": "No production behavior changed; no Notion write",
+    "runningBrowserSessionsAfterRun": 0
+  },
+  "reruns": [
+    {
+      "case": "learning360",
+      "additionalAttempts": 1,
+      "reason": "Lever parser blocked by initial harness"
+    },
+    {
+      "case": "palantir",
+      "additionalAttempts": 1,
+      "reason": "Lever parser blocked by initial harness; final form still incomplete"
+    },
+    {
+      "case": "wayve",
+      "additionalAttempts": 2,
+      "reason": "Ashby file-ticket investigation; ticket eventually 200, storage upload still harness-blocked"
+    }
+  ]
+}

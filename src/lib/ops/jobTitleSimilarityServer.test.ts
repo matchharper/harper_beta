@@ -23,7 +23,7 @@ test("role search reranks eligible roles without a title dictionary", async () =
   const { flattenRpcRows } =
     await import("../talentOnboarding/jobPostingRecommendations");
   const db = new PGlite({ extensions: { vector } });
-  const embedding = Array.from({ length: 1536 }, (_, i) => (i === 0 ? 1 : 0));
+  const embedding: number[] = Array.from({ length: 1536 }, (_, i) => (i === 0 ? 1 : 0));
   try {
     await db.exec(`CREATE EXTENSION vector;
       CREATE TABLE company_roles (role_id text, name text, company_workspace_id text, source_type text, is_expired boolean, expires_at timestamptz, status text, source_provider text, information jsonb, title_embedding vector(1536), title_embedding_text text);
@@ -90,6 +90,15 @@ test("role search reranks eligible roles without a title dictionary", async () =
       );
     }
     assert.throws(() => buildJobTitleSimilaritySql(embedding, 20, 1.5));
+    assert.equal(
+      jobTitleSimilarityRequestSchema.parse({ text: "Engineer" }).rerank,
+      true
+    );
+    assert.equal(
+      jobTitleSimilarityRequestSchema.parse({ text: "Engineer", rerank: false })
+        .rerank,
+      false
+    );
 
     // Candidate count now limits roles even when several roles share a title.
     const otherEmbedding = [...embedding];
@@ -136,6 +145,52 @@ test("role search reranks eligible roles without a title dictionary", async () =
       (await query(buildJobTitleSimilaritySql(embedding, 1, 1))).rows.every(
         (row) => ["1", "2", "3"].includes(row.role_id)
       )
+    );
+
+    // Skipping reranking must retain eligibility and use the halfvec score,
+    // even when it differs from the original vector's score.
+    const preciseEmbedding = [...embedding];
+    preciseEmbedding[1] = 0.1234567;
+    await db.query(
+      "UPDATE company_roles SET title_embedding = $1::vector WHERE role_id = '1'",
+      [JSON.stringify(preciseEmbedding)]
+    );
+    const withoutRerankSql = buildJobTitleSimilaritySql(
+      embedding,
+      20,
+      5000,
+      undefined,
+      false
+    );
+    const withoutRerank = await query(withoutRerankSql);
+    const withRerank = await query(
+      buildJobTitleSimilaritySql(embedding, 20, 5000)
+    );
+    const expectedHalf = await db.query<{ similarity: number }>(
+      "SELECT 1 - (title_embedding::halfvec(1536) <=> $1::halfvec(1536)) AS similarity FROM company_roles WHERE role_id = '1'",
+      [JSON.stringify(embedding)]
+    );
+    assert.deepEqual(withoutRerank.rows.map((row) => row.role_id).sort(), [
+      "1",
+      "2",
+      "3",
+    ]);
+    assert.equal(
+      withoutRerank.rows.find((row) => row.role_id === "1")!.similarity,
+      expectedHalf.rows[0].similarity
+    );
+    assert.notEqual(
+      withoutRerank.rows.find((row) => row.role_id === "1")!.similarity,
+      withRerank.rows.find((row) => row.role_id === "1")!.similarity
+    );
+    assert.ok(!withoutRerankSql.includes("::public.vector(1536)"));
+    assert.equal(
+      (
+        await query(
+          buildJobTitleSimilaritySql(embedding, 20, 1, undefined, false)
+        )
+      ).rows.length,
+      1
     );
 
     // Delays inside each materialized stage must be charged to that stage.

@@ -79,14 +79,14 @@ export function LandingStats({
         {
           label: c(
             "Harper와 직접 이야기 나눈 인재",
-            "People who have spoken with Harper"
+            "Candidates who’ve spoken with Harper"
           ),
           value: formatStat(stats?.talentCount, c("명", " people")),
         },
         {
           label: c(
             "한 명과 주고받은 평균 메시지",
-            "Messages exchanged per person"
+            "Average messages per candidate"
           ),
           value: formatStat(
             stats?.averageConversationMessages,
@@ -94,7 +94,7 @@ export function LandingStats({
           ),
         },
         {
-          label: c("인재와 포지션을 맞춰본 횟수", "Talent–role pairs assessed"),
+          label: c("인재와 포지션을 맞춰본 횟수", "Candidate–role matches assessed"),
           value: stats ? <MatchingCount stats={stats} locale={locale} /> : "—",
         },
       ].map(({ label, value }) => (

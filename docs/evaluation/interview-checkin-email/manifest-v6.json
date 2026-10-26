@@ -1,0 +1,13 @@
+{
+  "version": "v6",
+  "frozenAt": "2026-10-23",
+  "parents": [
+    "v4",
+    "v5"
+  ],
+  "provenance": "The same eight synthetic scenarios with concise task purposes and explicit follow-up actor/recipient. This is an input-contract revision, not a new model. No production data. Gold frozen before generation.",
+  "hashes": {
+    "cases-v6.json": "6f3212e5ace914615fbdefd70ecfeff0e4b1398060076096ce2364f254a1aa17",
+    "gold-v6.json": "12413639e54193ad1a43837c1b2fe5719772c837700d3432f424024d6a7f8892"
+  }
+}

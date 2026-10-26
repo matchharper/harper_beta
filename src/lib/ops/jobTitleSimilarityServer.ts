@@ -15,7 +15,8 @@ export function buildJobTitleSimilaritySql(
   vector: number[],
   limit?: number,
   candidateLimit?: number,
-  source?: JobTitleSimilaritySource
+  source?: JobTitleSimilaritySource,
+  rerank = true
 ) {
   jobTitleSimilaritySourceSchema.parse(source);
   const resultLimit = jobTitleSimilarityLimitSchema.parse(limit);
@@ -31,16 +32,17 @@ export function buildJobTitleSimilaritySql(
       AND r.status NOT IN ('ended', 'expired', 'closed', 'inactive', 'archived')
       AND coalesce(r.source_provider, '') <> 'user_submitted'
       AND lower(coalesce(r.information->>'testOnly', 'false')) <> 'true'`;
-  const candidates = `SELECT r.role_id, r.name AS role_name, r.company_workspace_id, r.title_embedding
+  const distance = `r.title_embedding::public.halfvec(1536) OPERATOR(public.<=>) ${queryVector}::public.halfvec(1536)`;
+  const candidates = `SELECT r.role_id, r.name AS role_name, r.company_workspace_id, ${rerank ? "r.title_embedding" : `${distance} AS distance`}
     FROM public.company_roles r
     WHERE r.title_embedding IS NOT NULL
       AND r.title_embedding_text = r.name
       AND ${eligibleRoles}
       AND (SELECT at FROM search_started) IS NOT NULL
-    ORDER BY r.title_embedding::public.halfvec(1536) OPERATOR(public.<=>) ${queryVector}::public.halfvec(1536)
+    ORDER BY ${distance}
     LIMIT ${roleCandidateLimit}`;
   const scoredRoles = `SELECT role_id, role_name, company_workspace_id,
-      1 - (title_embedding OPERATOR(public.<=>) ${queryVector}::public.vector(1536)) AS similarity
+      1 - (${rerank ? `title_embedding OPERATOR(public.<=>) ${queryVector}::public.vector(1536)` : "distance"}) AS similarity
     FROM nearest_roles
     WHERE (SELECT at FROM search_finished) IS NOT NULL`;
   // Aggregate barriers consume each stage before recording its completion.
@@ -89,19 +91,22 @@ export async function searchJobTitleSimilarity(
     throw new InternalApiError(400, parsed.error.issues[0].message);
 
   const [vector] = await embedTitles([parsed.data.text]);
+  // This RPC applies HNSW planner/scan settings before planning p_sql;
+  // it adds no filters. The title search keeps only its eligibility checks.
   const { data, error } = await getSupabaseAdmin().rpc(
-    "search_external_roles_v2",
+    "search_external_roles_filter_first",
     {
       p_sql: buildJobTitleSimilaritySql(
         vector,
         parsed.data.limit,
         parsed.data.candidateLimit,
-        parsed.data.source
+        parsed.data.source,
+        parsed.data.rerank
       ),
     }
   );
   if (error) throw new Error(error.message);
   const [result] = flattenRpcRows(data) as JobTitleSimilarityResult[];
   if (!result) throw new Error("검색 결과를 받지 못했습니다.");
-  return result;
+  return { ...result, rerank: parsed.data.rerank };
 }

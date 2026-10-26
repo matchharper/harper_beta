@@ -2,7 +2,6 @@ import { formatPromptTable } from "@/lib/org/agent/promptFormat";
 import { humanizeOrgStage } from "@/lib/org/pipelineStage";
 import { conversationCompatibilityText, type OrgAgentConversationInput } from "./conversationInput";
 
-export const DEFAULT_RECENT_PIPELINE_MAX_CHARS = 6_000;
 // Leave room for the expanded recent-conversation section alongside the
 // company, Role, and current workflow context that the model also needs.
 export const ORG_AGENT_CONTEXT_MAX_CHARS = 96_000;
@@ -15,6 +14,10 @@ type RecentRecommendationRows = Array<{
   };
   role: { name: string | null; roleId: string };
   stage: unknown;
+  capabilities?: Record<string, boolean>;
+  criteriaEvaluations?: Array<{ name: string; fitness: string }>;
+  companyIntroStatus?: string | null;
+  recommendationId?: string | null;
   stageLabel?: string | null;
 }> & {
   recentComplete: boolean;
@@ -52,28 +55,26 @@ type OrgAgentContextBudgetShape = {
 };
 
 export function formatRecentRecommendations(rows: RecentRecommendationRows) {
+  // Keep the identity and current relationship index even when optional detail
+  // is large. Professional profiles and criterion explanations belong to reads.
   const table = formatPromptTable(
-    ["talent_id", "name", "role_id", "role", "stage", "headline"],
+    ["talent_id", "name", "role_id", "role", "stage", "proposal_status", "capabilities"],
     rows.map((row) => [
       row.candidate.talentId,
       row.candidate.name,
       row.role.roleId,
       row.role.name,
       humanizeOrgStage(row.stage, row.stageLabel),
-      row.candidate.headline,
+      row.companyIntroStatus,
+      row.capabilities,
     ]),
-    [100, 140, 100, 160, 100, 160]
+    [Number.MAX_SAFE_INTEGER, 140, Number.MAX_SAFE_INTEGER, 160, 100, 100, 300]
   );
-  if (table.length > DEFAULT_RECENT_PIPELINE_MAX_CHARS) {
-    return [
-      "recent_complete=false",
-      "status=truncated",
-      "message=Recent pipeline rows exceeded the context budget; read the relevant role pipeline before reporting exact results.",
-    ].join("\n");
-  }
   return [
     `returned_items=${rows.returnedItems} recent_complete=${rows.recentComplete}`,
+    "아래 후보는 이미 회사의 추천·진행 목록에 등록되어 있다. 현재 목록 상태이며, 이 대화에서 소개했거나 외부 메시지를 전달했다는 증거는 아니다. 새로 추가된 인원은 해당 실행의 추가·제외 기록으로 확인한다.",
     table,
+    "개별 경력·평가·진행은 read_talent, 전체 Role 목록은 read_role 또는 get_talents로 조회한다. 최근 목록의 완전성은 recent_complete를 따른다.",
   ].join("\n");
 }
 
@@ -143,13 +144,8 @@ export function enforceOrgAgentContextBudget<
     // Compatibility for older callers; production uses complete message units.
     trimOldest("conversationText", "older_conversation_truncated=true");
   }
-  if (size() > ORG_AGENT_CONTEXT_MAX_CHARS) {
-    mutable.recentRecommendationsText = [
-      "recent_complete=false",
-      "status=truncated",
-      "message=Recent pipeline data exceeded the total context budget; read the relevant role pipeline before reporting exact results.",
-    ].join("\n");
-  }
+  // Preserve the compact current-pair index. Dropping it would erase known
+  // recommendations while retaining older conversational interpretations.
   if (size() > ORG_AGENT_CONTEXT_MAX_CHARS) {
     markRetainedDataPartial(mutable.retainedMoreData ?? null);
     // Never preserve a serialized `complete=true` prefix after cutting away

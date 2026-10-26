@@ -121,7 +121,7 @@ export default function JobSearchFilterTab() {
             <Input
               type="number"
               min={500}
-              max={20000}
+              max={3000}
               step={1}
               required
               value={candidateLimit}
@@ -217,7 +217,9 @@ export default function JobSearchFilterTab() {
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell>1. 하드 필터 · HNSW 후보 검색</TableCell>
+                  <TableCell>
+                    1. 국가 비중 · 고용 형태·원격 반영 후보 검색
+                  </TableCell>
                   <TableCell>
                     {result.counts.candidates.toLocaleString()}
                   </TableCell>
@@ -226,7 +228,7 @@ export default function JobSearchFilterTab() {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>2. FTS·연봉 정렬</TableCell>
+                  <TableCell>2. 나머지 필터 · 점수·정렬</TableCell>
                   <TableCell>{result.rows.length}</TableCell>
                   <TableCell>{seconds(result.timings.rerankMs)}</TableCell>
                 </TableRow>

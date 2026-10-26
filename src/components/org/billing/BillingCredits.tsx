@@ -45,9 +45,9 @@ export function BillingCredits({ summary }: { summary: BillingSummary }) {
                     title={slot.roleName ?? undefined}
                   >
                     {slot.slotId === null
-                      ? c("전체 Role 공용", "Shared across all Roles")
+                      ? c("전체 Role 공용", "Shared across all roles")
                       : (slot.roleName ??
-                        c("담당 Role 없음", "No Role assigned"))}
+                        c("담당 Role 없음", "No role assigned"))}
                   </p>
                 </div>
                 <div>

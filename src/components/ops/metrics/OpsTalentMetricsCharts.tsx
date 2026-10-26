@@ -472,9 +472,18 @@ export function OpsTalentMetricsConversionCharts({
       />
       <MetricChart
         data={trend}
-        description="처음 internal 추천을 받은 뒤 14일의 판단 기간이 모두 지난 추천 중, 14일 안에 talent가 수락한 비율입니다."
+        description="선은 처음 internal 추천을 받은 뒤 14일의 판단 기간이 모두 지난 추천 중, 14일 안에 talent가 수락한 비율입니다(왼쪽 축). 막대는 각 기간의 Internal Role 추천 건수로, 미응답과 추천 후 14일이 지나지 않은 건도 포함합니다(오른쪽 축). 같은 Role을 여러 후보자에게 추천하면 각각 집계합니다."
         percentAxis
+        rightAxisFormatter={(value) => `${value.toLocaleString("ko-KR")}건`}
         series={[
+          {
+            axis: "right",
+            color: "var(--color-neutral-1000-a10)",
+            formatter: (value) => `${value.toLocaleString("ko-KR")}건`,
+            key: "internalRecommendationCount",
+            label: "Internal Role 추천 수",
+            type: "bar",
+          },
           {
             color: "var(--color-positive)",
             formatter: formatPercent,

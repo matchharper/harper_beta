@@ -58,19 +58,19 @@ function SlotPurchaseForm({
   const features = [
     c(
       "한 슬롯당 하나의 Role을 배정할 수 있어요.",
-      "Assign one Role to each slot."
+      "Each slot covers one role."
     ),
     c(
       "배정된 Role은 직접 Intro 요청을 보내지 않아도 Harper가 먼저 후보자에게 역할을 추천하고, 만나보겠다고 한 사람을 소개해드릴 수 있어요. 월 50 Intro를 제공합니다.",
-      "Harper can recommend the assigned Role to candidates and introduce those interested in meeting, without a direct Intro request. Each slot includes 50 Intros per month."
+      "Harper reaches out to candidates about this role and brings you those who want to talk. You don't need to request each outreach. Each slot includes 50 Intros per month."
     ),
     c(
       "전체 Role 공용 월 10 Intro는 별도로 유지돼요. 모든 Intro는 이월되지 않아요.",
-      "The 10 monthly Intros shared across all Roles remain available separately. Unused Intros do not roll over."
+      "You also keep 10 shared Intros each month. Unused Intros don't roll over."
     ),
     c(
       "슬롯별로 갱신을 취소할 수 있고, 결제한 기간 끝까지 이용할 수 있어요.",
-      "Cancel renewal for individual slots anytime and keep access through the paid period."
+      "Cancel any slot's renewal at any time. You keep access until the end of its paid period."
     ),
   ];
   return (

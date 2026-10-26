@@ -1,3 +1,4 @@
+import {applicationStagehandRuntime as remote} from "./applicationStagehandRuntime";
 import { documentFingerprint } from "./resumeAttachment";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -593,4 +594,45 @@ test("manual application choice blocks browser launch even with a confirmed file
   f.set(s);
   await assert.rejects(()=>startApplicationBrowser(f.store,f.record(),{purpose:"Apply"}),/chose to apply themselves/);
   assert.equal(f.record().state.browser,undefined);
+});
+
+for (const provider of ["browserbase", "browser-use"] as const)
+test(`${provider} run uses the existing question UI and resumes an exact approved request only once`, async () => {
+  const originals={...remote}, originalFetch=globalThis.fetch;
+  const f=fixture();let s=f.record().state;s.preparation!.finalDocumentId="final-file";f.set(s);
+  s=(await startApplicationBrowser(f.store,f.record(),{purpose:"Apply"})).state;
+  heldSubmission(s,"unused");
+  s.browser!.driver={...s.browser!.driver!,provider,sessionId:"compute",environmentId:"environment",browserSessionId:"browserbase-session"};
+  s.browser!.sessionId="compute";s.browser!.model="gpt-6-luna";s.browser!.taskSent=true;f.set(s);
+  let sends=0,answers=0;
+  const held=s.browser!.pendingRequest!;
+  remote.status=async()=>({status:"waiting",sessionId:"browserbase-session",steps:4,maxSteps:100,pendingRequest:held,required_actions:[{type:"function_call",name:"confirm_application_submission",call_id:held.id,turn_id:"stagehand"}]});
+  remote.resolve=async(_ref,request,approved)=>{assert.deepEqual(request,held);assert(approved);sends++;return {executed:true};};
+  remote.respond=async(_ref,id,output)=>{assert.equal(id,held.id);assert.equal((output as any).approved,true);answers++;};
+  globalThis.fetch=async()=>{throw Error("Browserbase activity must not call the legacy planner");};
+  try {
+    await runApplicationBrowser(f.store,10);
+    assert.equal(f.record().state.browser!.status,"waiting");assert.equal(sends,0);
+    s=f.record().state;const batch=s.activity!.batches.at(-1)!;
+    assert.equal(batch.purpose,"final_submission");assert.equal(batch.browser!.kind,"submission");
+    assert.match(batch.browser!.summary!,/Fixture Person/);
+    s=finishApplicationAnswer(mutateSimulationSession(s,{action:"respond",actionId:batch.itemIds[0],response:{decision:"answer",optionId:"submit"}},1));f.set(s);
+    const saved=await resumeApplicationBrowser(f.store,f.record(),batch.id);
+    assert.equal(saved.state.browser!.approval!.executed,true);assert.equal(saved.state.browser!.pendingRequest,undefined);
+    await resumeApplicationBrowser(f.store,saved,batch.id);assert.equal(sends,1);assert.equal(answers,1);
+  } finally {Object.assign(remote,originals);globalThis.fetch=originalFetch;}
+});
+
+test("new applications start the Luna Browserbase worker with confirmed attachments and preserve missing-information flow", async () => {
+  const originals={...remote}, originalFetch=globalThis.fetch;
+  const f=fixture();const s=f.record().state;s.preparation!.finalDocumentId="final-file";f.set(s);
+  f.set((await startApplicationBrowser(f.store,f.record(),{purpose:"Apply"})).state);
+  (f.store.admin as any).storage={from:()=>({download:async()=>({data:new Blob(["SYNTHETIC RESUME"]),error:null})})};
+  let starts=0;
+  remote.create=async(files,url)=>{assert.equal(files.length,1);assert.equal(files[0].documentId,"final-file");assert.equal(url,s.applicationUrl);return {name:"fixture",provider:"browserbase",sessionId:"compute",environmentId:"environment",browserSessionId:"bb",expiresAt:new Date(Date.now()+60_000).toISOString()};};
+  remote.start=async(_ref,instruction)=>{starts++;assert.match(instruction,/100 action steps/);assert.match(instruction,/final-file/);};
+  remote.status=async()=>({status:"waiting",sessionId:"bb",steps:1,maxSteps:100,required_actions:[{type:"function_call",call_id:"phone",turn_id:"stagehand",name:"request_application_information",arguments:{purpose:"Contact",items:[{kind:"question",title:"Phone number?"}]}}]});
+  globalThis.fetch=async()=>{throw Error("No legacy planner");};
+  try {await runApplicationBrowser(f.store,10);const state=f.record().state;assert.equal(starts,1);assert.equal(state.browser!.model,"gpt-6-luna");assert.equal(state.browser!.status,"waiting");assert.equal(state.activity!.batches.at(-1)!.browser!.kind,"information");await runApplicationBrowser(f.store,10);assert.equal(starts,1);}
+  finally {Object.assign(remote,originals);globalThis.fetch=originalFetch;}
 });

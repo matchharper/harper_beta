@@ -59,6 +59,11 @@ with conn, conn.cursor() as cur:
         for user, email, name in [(candidate,"khj605123@gmail.com","김하준"),(company,"daniel@matchharper.com","박서윤")]:
             cur.execute("insert into company_users(user_id,email,name,is_authenticated,onboarding_completed_at) values (%s,%s,%s,true,now()) on conflict do nothing",(user,email,name))
             cur.execute("insert into company_user_workspace(company_user_id,company_workspace_id,authority) values (%s,%s,'owner') on conflict do nothing",(user,workspace))
+        # External-domain member: the same workspace seen as a customer account.
+        if f.get("externalCompanyUserId"):
+            external = f["externalCompanyUserId"]; UUID(external)
+            cur.execute("insert into company_users(user_id,email,name,is_authenticated,onboarding_completed_at) values (%s,%s,%s,true,now()) on conflict do nothing",(external,os.environ.get("HARPER_LOCAL_EXTERNAL_COMPANY_EMAIL","hiring-team@harper-local.test"),"로컬 채용 담당"))
+            cur.execute("insert into company_user_workspace(company_user_id,company_workspace_id,authority) values (%s,%s,'owner') on conflict do nothing",(external,workspace))
         cur.execute("insert into talent_users(user_id,email,name,headline,bio,resume_text,location) values (%s,'khj605123@gmail.com','김하준','백엔드 엔지니어 · Python / PostgreSQL',%s,%s,'서울') on conflict do nothing",(candidate,"실제 인물 경력이 아닌 로컬 E2E 합성 프로필입니다.","[로컬 E2E 합성 프로필] 백엔드 개발 5년. Python과 PostgreSQL로 B2B SaaS API와 비동기 작업 처리를 개발했습니다. 중복 작업 방지와 재시도 설계를 담당했고, 고객 피드백에 따라 제품 기능을 개선했습니다."))
         cur.execute("insert into talent_setting(user_id,is_onboarding_done,profile_visibility,get_internal_recommendation,get_external_recommendation,status) values (%s,true,'open_to_matches',true,false,'stopped') on conflict do nothing",(candidate,))
         cur.execute("insert into talent_conversations(id,user_id,stage) values (%s,%s,'completed') on conflict do nothing",(f["conversationId"],candidate))

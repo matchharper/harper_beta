@@ -370,23 +370,23 @@ export function PricingCostComparison({
   const serviceRateLabel = `${decimal.format(serviceRate * 100)}%`;
   const bars = {
     headhunter: {
-      label: c("헤드헌터 수수료", "Headhunter fee"),
-      caption: c(`연봉의 ${headhunterRateLabel}`, `${headhunterRateLabel} fee`),
+      label: c("헤드헌터 수수료", "Recruiter placement fee"),
+      caption: c(`연봉의 ${headhunterRateLabel}`, `${headhunterRateLabel} of annual salary`),
       value: headhunter,
     },
     advertising: {
-      label: c("채용 공고 광고비", "Job platform advertising"),
+      label: c("채용 공고 광고비", "Job ads"),
       caption: c("월 광고 예산", "Monthly budget"),
       value: advertising,
     },
     service: {
-      label: c("채용 사이트 수수료", "Platform hiring fee"),
-      caption: c(`연봉의 ${serviceRateLabel}`, `${serviceRateLabel} fee`),
+      label: c("채용 사이트 수수료", "Job board placement fee"),
+      caption: c(`연봉의 ${serviceRateLabel}`, `${serviceRateLabel} of annual salary`),
       value: service,
     },
     harper: {
       label: c("Harper", "Harper subscription"),
-      caption: c("수수료 없음", "No success fee"),
+      caption: c("수수료 없음", "No placement fee"),
       value: harper,
     },
   };
@@ -431,7 +431,7 @@ export function PricingCostComparison({
                 >
                   {c(
                     "예상 비용을 계산해보세요.",
-                    "The cost of your next hire."
+                    "Estimate your hiring costs."
                   )}
                   {/* <br />
                 {c("얼마나 달라질까요?", "See the difference.")} */}
@@ -464,16 +464,7 @@ export function PricingCostComparison({
                       {locale === "ko" ? (
                         <span>{formatComparisonKrw(salary)}</span>
                       ) : (
-                        <>
-                          <span>{integer.format(salary / 10_000)}</span>
-                          <span
-                            className={
-                              isLight ? "text-neutral-muted" : "text-white/64"
-                            }
-                          >
-                            × ₩10,000
-                          </span>
-                        </>
+                        <span>{formatKrw(salary)}</span>
                       )}
                     </div>
                   </div>
@@ -563,7 +554,7 @@ export function PricingCostComparison({
                         isLight ? "text-neutral-muted" : "text-white/82"
                       )}
                     >
-                      {c("헤드헌터 수수료", "Headhunter fee")}
+                      {c("헤드헌터 수수료", "Recruiter placement fee")}
                     </dt>
                     <dd className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
                       <span>{c("연봉의", "Salary ×")}</span>
@@ -578,7 +569,7 @@ export function PricingCostComparison({
                           size="sm"
                           aria-label={c(
                             "헤드헌터 수수료율",
-                            "Headhunter commission rate"
+                            "Recruiter placement fee rate"
                           )}
                           className={cn(
                             "w-18 px-2 tabular-nums",
@@ -620,7 +611,7 @@ export function PricingCostComparison({
                         isLight ? "text-neutral-muted" : "text-white/82"
                       )}
                     >
-                      {c("채용 공고 광고비", "Job platform advertising")}
+                      {c("채용 공고 광고비", "Job ads")}
                     </dt>
                     <dd className="shrink-0 text-right whitespace-nowrap">
                       {formatKrw(AD_MONTHLY_KRW)}
@@ -652,7 +643,7 @@ export function PricingCostComparison({
                         isLight ? "text-neutral-muted" : "text-white/82"
                       )}
                     >
-                      {c("채용 사이트 수수료", "Platform hiring fee")}
+                      {c("채용 사이트 수수료", "Job board placement fee")}
                     </dt>
                     <dd className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
                       <span>{c("연봉의", "Salary ×")}</span>
@@ -690,7 +681,7 @@ export function PricingCostComparison({
                         </span>
                       )}
                       <span className="block text-neutral-muted">
-                        {c("수수료 없음", "No success fee")}
+                        {c("수수료 없음", "No placement fee")}
                       </span>
                     </dd>
                   </div>

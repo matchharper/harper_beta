@@ -119,7 +119,7 @@ async function poll() {
 }
 function htmlPage() {
   const entries = Object.values(box.outgoing).reverse().map(m => `<article><h2>${escape(m.subject)}</h2><p>${escape(m.to)} · ${escape(m.mode)} · ${escape(m.created_at)}</p><iframe sandbox="allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation" srcdoc="${escape(m.html || `<pre>${escape(m.text)}</pre>`)}" style="width:100%;height:400px;border:1px solid #ddd"></iframe><form method="post" action="/reply"><input type="hidden" name="token" value="${escape(config().secret)}"><input type="hidden" name="id" value="${escape(m.id)}"><label>Reply as <select name="from">${config().recipients.map(e=>`<option>${escape(e)}</option>`).join("")}</select></label><br><textarea name="text" rows="4" cols="90" required></textarea><br><button>로컬 이메일 회신 보내기</button></form></article>`).join("<hr>");
-  return `<!doctype html><meta charset="utf-8"><title>Harper Local Mail</title><body style="max-width:1000px;margin:30px auto;font-family:system-ui"><h1>Harper Local Mail</h1><p><a href="/login/company">회사 담당자로 로그인</a> · <a href="/login/candidate">후보자로 로그인</a></p><p>Mode: ${escape(config().mailMode)} · Gmail: ${escape(gmailState)}</p><p>로컬 전용 메일함. capture 모드는 실제 이메일을 발송하지 않습니다. 회신은 실제 로컬 이메일 Worker가 처리합니다.</p>${entries || "아직 메일이 없습니다."}</body>`;
+  return `<!doctype html><meta charset="utf-8"><title>Harper Local Mail</title><body style="max-width:1000px;margin:30px auto;font-family:system-ui"><h1>Harper Local Mail</h1><p><a href="/login/company">회사 담당자로 로그인</a> · <a href="/login/candidate">후보자로 로그인</a> · <a href="/login/company-internal">내부 계정으로 로그인</a></p><p>Mode: ${escape(config().mailMode)} · Gmail: ${escape(gmailState)}</p><p>로컬 전용 메일함. capture 모드는 실제 이메일을 발송하지 않습니다. 회신은 실제 로컬 이메일 Worker가 처리합니다.</p>${entries || "아직 메일이 없습니다."}</body>`;
 }
 const server = http.createServer(async (req,res) => {
   try {
@@ -128,9 +128,12 @@ const server = http.createServer(async (req,res) => {
     }
     const pathname = new URL(req.url, "http://127.0.0.1:3211").pathname;
     const json = (code, data) => {res.writeHead(code,{"content-type":"application/json"}); res.end(JSON.stringify(data));};
-    if (req.method === "GET" && ["/login/candidate","/login/company"].includes(pathname)) {
+    if (req.method === "GET" && ["/login/candidate","/login/company","/login/company-internal"].includes(pathname)) {
       const candidate=pathname.endsWith("candidate");
-      const {data,error}=await admin.auth.admin.generateLink({type:"magiclink",email:candidate?"khj605123@gmail.com":"daniel@matchharper.com",options:{redirectTo:`http://localhost:3000/auths/callback?next=${candidate?"/career":"/org"}`}});
+      // The company login is an external-domain member, so Roles it creates
+      // stay visible to the company; the internal account has its own link.
+      const email=candidate?"khj605123@gmail.com":pathname.endsWith("internal")?"daniel@matchharper.com":(config().externalCompanyEmail||"hiring-team@harper-local.test");
+      const {data,error}=await admin.auth.admin.generateLink({type:"magiclink",email,options:{redirectTo:`http://localhost:3000/auths/callback?next=${candidate?"/career":"/org"}`}});
       if(error)throw error;res.writeHead(303,{location:data.properties.action_link,"cache-control":"no-store"});return res.end();
     }
     if (req.method === "GET" && pathname === "/health") return json(200,{ok:true,mode:config().mailMode,gmail:gmailState,outgoing:Object.keys(box.outgoing).length,incoming:Object.keys(box.incoming).length});

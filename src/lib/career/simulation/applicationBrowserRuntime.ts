@@ -1,3 +1,5 @@
+import { isStagehandBrowser } from "./applicationBrowserRuntimeRef";
+import { applicationStagehandRuntime } from "./applicationStagehandRuntime";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
@@ -83,8 +85,9 @@ export function createApplicationBrowserRuntime(
     request?: typeof agentsRequest;
     results?: BrowserResultStore;
     sleep?: (ms: number) => Promise<void>;
+    worker?: {files: {type: string; path: string; data: string}[]; setupCommands: {command: string; cwd: string}[]; startScript?: string};
   } = {}
-): ApplicationBrowserRuntime {
+): ApplicationBrowserRuntime & {command(ref: ApplicationBrowserRuntimeRef,input: Record<string, unknown>,signal?: AbortSignal): Promise<Record<string, unknown>>} {
   const request = options.request ?? agentsRequest;
   const results = options.results ?? browserResultStore;
   const sleep =
@@ -237,7 +240,8 @@ export function createApplicationBrowserRuntime(
       }
     }
   }
-  const runtime: ApplicationBrowserRuntime = {
+  const runtime: ApplicationBrowserRuntime & {command: typeof command} = {
+    command,
     async create(files, initialUrl, configuration = {}) {
       const signal = configuration.signal;
       signal?.throwIfAborted();
@@ -282,10 +286,10 @@ export function createApplicationBrowserRuntime(
                   container_size: "medium",
                   network: { access: "enabled" },
                   files: [
-                    inline(`${directory}/server.cjs`, controlledBrowserDriver),
+                    ...(options.worker?.files ?? [inline(`${directory}/server.cjs`, controlledBrowserDriver)]),
                     inline(`${directory}/worker.cjs`, hostedBrowserWorker),
                     inline(`${directory}/publish.py`, hostedBrowserPublish),
-                    inline(`${directory}/start.py`, hostedBrowserStart),
+                    inline(`${directory}/start.py`, options.worker?.startScript ?? hostedBrowserStart),
                     inline(`${directory}/trust.py`, playwrightTrustSetup),
                     inline(`${directory}/initial-url`, initialUrl),
                     inline(
@@ -297,7 +301,7 @@ export function createApplicationBrowserRuntime(
                       })
                     ),
                   ],
-                  setup_commands: [
+                  setup_commands: options.worker?.setupCommands ?? [
                     ...playwrightSetup,
                     {
                       command: `mkdir -p ${directory}/commands ${directory}/chunks /workspace/attachments && python3 ${directory}/start.py`,
@@ -339,12 +343,9 @@ export function createApplicationBrowserRuntime(
           await withBrowserAbort(() => sleep(1000), signal);
         }
         await current(ref, signal);
-        if (
-          !z
-            .object({ ready: z.literal(true) })
-            .safeParse(await wait(ready, 15_000, signal)).success
-        )
-          throw new Error("Application browser did not start");
+        const startup = await wait(ready, 15_000, signal) as {ready?: boolean; error?: string};
+        if (startup.ready !== true)
+          throw new Error(startup.error || "Application browser did not start");
         if (files.length) await upload(ref, files);
         return ref;
       } catch (error) {
@@ -430,4 +431,13 @@ export function createApplicationBrowserRuntime(
   };
   return runtime;
 }
-export const applicationBrowserRuntime = createApplicationBrowserRuntime();
+const legacyApplicationBrowserRuntime = createApplicationBrowserRuntime();
+export const applicationBrowserRuntime: ApplicationBrowserRuntime = {
+  ...legacyApplicationBrowserRuntime,
+  resolve: (ref,request,approved) => isStagehandBrowser(ref)
+    ? applicationStagehandRuntime.resolve(ref,request,approved) : legacyApplicationBrowserRuntime.resolve(ref,request,approved),
+  upload: (ref,files) => isStagehandBrowser(ref)
+    ? applicationStagehandRuntime.upload(ref,files) : legacyApplicationBrowserRuntime.upload(ref,files),
+  stop: (ref,signal) => isStagehandBrowser(ref)
+    ? applicationStagehandRuntime.stop(ref) : legacyApplicationBrowserRuntime.stop(ref,signal),
+};

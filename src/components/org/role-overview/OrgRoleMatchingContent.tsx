@@ -5,6 +5,8 @@ import { useState } from "react";
 import { OrgSection } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
 import { MuteButton } from "@/components/ui/button";
+import { RoleBriefSection, useRoleStartBriefFlag } from "@/components/org/role-start/RoleBriefSection";
+import { CriterionLevelButtons } from "./CriterionLevelButtons";
 import { DocumentEditor } from "@/components/ui/document-editor";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,9 +15,10 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useUnsavedChangesWarning } from "@/hooks/org/useUnsavedChangesWarning";
 import { createOrgEditingDismissHandlers } from "@/lib/org/editingInteraction";
 import {
+  criterionLevel,
   getOrgRoleCriteriaValidationError,
   normalizeOrgRoleCriteria,
-  ORG_ROLE_CRITERIA_MAX_ITEMS,
+  ORG_ROLE_CRITERION_LEVELS,
   ORG_ROLE_CRITERIA_MIN_ITEMS,
   type OrgRoleCriterion,
 } from "@/lib/org/roleCriteria";
@@ -27,6 +30,8 @@ import {
 } from "./RoleOverviewShared";
 
 type MatchingDraft = {
+  expectedRequest: string | null;
+  expectedCriteria: OrgRoleCriterion[];
   criteria: OrgRoleCriterion[];
   request: string;
 };
@@ -35,6 +40,8 @@ type MatchingEditingField = "criteria" | "request";
 
 function toMatchingDraft(role: OrgRole): MatchingDraft {
   return {
+    expectedRequest: role.request ?? null,
+    expectedCriteria: normalizeOrgRoleCriteria(role.criteria),
     criteria: normalizeOrgRoleCriteria(role.criteria),
     request: role.request ?? "",
   };
@@ -47,15 +54,25 @@ function normalizeMatchingDraft(draft: MatchingDraft) {
   };
 }
 
-export function OrgRoleMatchingContent({
-  role,
-  showBottomBorder = false,
-  workspaceId,
-}: {
+type MatchingContentProps = {
   role: OrgRole;
   showBottomBorder?: boolean;
   workspaceId: string;
-}) {
+};
+
+export function OrgRoleMatchingContent(props: MatchingContentProps) {
+  // A Role started from role start shows its Brief; others keep this tab as is.
+  const structured = useRoleStartBriefFlag(props.role.roleId, props.workspaceId);
+  if (structured === undefined) return null;
+  if (structured) return <RoleBriefSection roleId={props.role.roleId} showBottomBorder={props.showBottomBorder} workspaceId={props.workspaceId} />;
+  return <MatchingContent {...props} />;
+}
+
+function MatchingContent({
+  role,
+  showBottomBorder = false,
+  workspaceId,
+}: MatchingContentProps) {
   const { c } = useOrgLocale();
   const getRoleOverviewErrorMessage = useRoleOverviewErrorMessage();
   const documentEditorCopy = useOrgDocumentEditorCopy();
@@ -72,9 +89,12 @@ export function OrgRoleMatchingContent({
   const hasChanges =
     draft !== null &&
     JSON.stringify(normalizeMatchingDraft(draft)) !==
-      JSON.stringify(normalizeMatchingDraft(toMatchingDraft(role)));
+      JSON.stringify({
+        criteria: draft.expectedCriteria,
+        request: draft.expectedRequest ?? "",
+      });
 
-  useUnsavedChangesWarning(hasChanges);
+  useUnsavedChangesWarning(hasChanges, { preserveWithinRole: true });
 
   const changeDraft = (
     patch: Partial<MatchingDraft>,
@@ -113,7 +133,6 @@ export function OrgRoleMatchingContent({
   };
 
   const addCriterion = () => {
-    if (currentDraft.criteria.length >= ORG_ROLE_CRITERIA_MAX_ITEMS) return;
     changeDraft(
       {
         criteria: [...currentDraft.criteria, { criteria: "", name: "" }],
@@ -146,8 +165,7 @@ export function OrgRoleMatchingContent({
 
     const criteria = normalizeOrgRoleCriteria(draft.criteria);
     const criteriaChanged =
-      JSON.stringify(criteria) !==
-      JSON.stringify(normalizeOrgRoleCriteria(role.criteria));
+      JSON.stringify(criteria) !== JSON.stringify(draft.expectedCriteria);
     if (criteriaChanged) {
       const criteriaError = getOrgRoleCriteriaValidationError(criteria);
       if (criteriaError) {
@@ -164,10 +182,13 @@ export function OrgRoleMatchingContent({
         ...(criteriaChanged
           ? {
               criteria,
-              expectedCriteria: normalizeOrgRoleCriteria(role.criteria),
             }
           : {}),
-        request: draft.request.trim() || null,
+        ...(draft.request !== (draft.expectedRequest ?? "")
+          ? { request: draft.request.trim() || null }
+          : {}),
+        expectedRequest: draft.expectedRequest,
+        expectedCriteria: draft.expectedCriteria,
         roleId: role.roleId,
         workspaceId,
       });
@@ -207,7 +228,7 @@ export function OrgRoleMatchingContent({
               <div className="mt-1 text-[14px] font-normal leading-5 text-black/60">
                 {c(
                   "인재를 평가할 때 내부적으로 사용하는 기준입니다.",
-                  "Internal summary used to evaluate talents."
+                  "Your internal brief for finding and evaluating candidates."
                 )}
               </div>
             </div>
@@ -243,8 +264,8 @@ export function OrgRoleMatchingContent({
           <div className="flex items-start justify-between gap-4">
             <RoleSectionHeading
               info={c(
-                "이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적어요. 2–4개를 권장하며 최대 6개까지 추가할 수 있어요.",
-                "Give each criterion a clear name. Add the required level, rationale, strengths, and concerns in the details. Use 2–4 criteria, up to 6."
+                "이름은 기준을 나타내고, 상세 내용에는 필요한 수준과 근거, 가산점 또는 우려 요소를 적어요. 서로 다른 비교 요소를 각각 적어주세요.",
+                "Give each criterion a clear name. Add the required level, rationale, strengths, and concerns in the details. Use a separate criterion for each distinct comparison."
               )}
               size="large"
               title={c("Evaluation Criteria", "Evaluation Criteria")}
@@ -277,22 +298,33 @@ export function OrgRoleMatchingContent({
                       {c("기준", "Criteria")}
                       {index + 1}
                     </label>
-                    <MuteButton
-                      aria-label={c("기준 {p0} 삭제", "Delete criterion {p0}", {
-                        p0: index + 1,
-                      })}
-                      disabled={
-                        !canManage ||
-                        currentDraft.criteria.length <=
-                          ORG_ROLE_CRITERIA_MIN_ITEMS ||
-                        updateRole.isPending
-                      }
-                      onClick={() => removeCriterion(index)}
-                      size="sm"
-                      variant="transparent"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </MuteButton>
+                    <div className="flex items-center gap-1">
+                      <CriterionLevelButtons
+                        criterion={item}
+                        disabled={!canManage || updateRole.isPending}
+                        onChange={(fields) => changeCriterion(index, fields)}
+                      />
+                      <MuteButton
+                        aria-label={c(
+                          "기준 {p0} 삭제",
+                          "Delete criterion {p0}",
+                          {
+                            p0: index + 1,
+                          }
+                        )}
+                        disabled={
+                          !canManage ||
+                          currentDraft.criteria.length <=
+                            ORG_ROLE_CRITERIA_MIN_ITEMS ||
+                          updateRole.isPending
+                        }
+                        onClick={() => removeCriterion(index)}
+                        size="sm"
+                        variant="transparent"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </MuteButton>
+                    </div>
                   </div>
                   <Input
                     aria-label={c("기준 {p0} 이름", "Criterion {p0} name", {
@@ -323,23 +355,21 @@ export function OrgRoleMatchingContent({
                     }
                     placeholder={c(
                       "필요한 수준, 판단 근거, 가산점과 우려 요소를 구체적으로 적어주세요.",
-                      "Specify required level, evaluation rationale, plus points, and concerns."
+                      "Describe the required level, why it matters, strengths to look for, and potential concerns."
                     )}
                     rows={4}
                     value={item.criteria}
                   />
                 </div>
               ))}
-              {currentDraft.criteria.length < ORG_ROLE_CRITERIA_MAX_ITEMS ? (
-                <MuteButton
-                  disabled={!canManage || updateRole.isPending}
-                  onClick={addCriterion}
-                  variant="transparent"
-                >
-                  <Plus className="size-3.5" />
-                  {c("기준 추가하기", "Add criterion")}
-                </MuteButton>
-              ) : null}
+              <MuteButton
+                disabled={!canManage || updateRole.isPending}
+                onClick={addCriterion}
+                variant="transparent"
+              >
+                <Plus className="size-3.5" />
+                {c("기준 추가하기", "Add criterion")}
+              </MuteButton>
             </div>
           ) : currentDraft.criteria.length ? (
             <div className="mt-4 grid gap-3">
@@ -351,6 +381,13 @@ export function OrgRoleMatchingContent({
                   <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                     <BadgeCheck className="size-4 shrink-0 text-positive" />
                     <span>{item.name}</span>
+                    <span className="font-normal text-neutral-soft">
+                      {(({ ko, en }) => c(ko, en))(
+                        ORG_ROLE_CRITERION_LEVELS.find(
+                          (level) => level.level === criterionLevel(item)
+                        )!
+                      )}
+                    </span>
                   </div>
                   <p className="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-neutral-muted">
                     {item.criteria}

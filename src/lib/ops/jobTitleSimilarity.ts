@@ -29,6 +29,7 @@ export const jobTitleSimilarityRequestSchema = z
     text: z.string().trim().min(1, "검색 텍스트를 입력하세요.").max(8000),
     limit: jobTitleSimilarityLimitSchema,
     candidateLimit: jobTitleSimilarityCandidateLimitSchema,
+    rerank: z.boolean().default(true),
   })
   .strict();
 
@@ -40,6 +41,7 @@ export type JobTitleSimilarityRow = {
 };
 
 export type JobTitleSimilarityResult = {
+  rerank: boolean;
   rows: JobTitleSimilarityRow[];
   timings: {
     candidateSearchMs: number;

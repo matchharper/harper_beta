@@ -1,0 +1,449 @@
+-- Add Internal-only recommendation volume, including unanswered and recent recommendations.
+CREATE OR REPLACE FUNCTION public.get_ops_talent_metrics_conversion_v1(p_from date, p_to date, p_interval text DEFAULT 'week'::text, p_excluded_email_terms text[] DEFAULT '{}'::text[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_from date := least(p_from, p_to);
+  v_to date := greatest(p_from, p_to);
+  v_start timestamptz;
+  v_requested_end timestamptz;
+  v_effective_end timestamptz;
+  v_duration interval;
+  v_comparison_start timestamptz;
+  v_generated_at timestamptz := clock_timestamp();
+  v_result jsonb;
+begin
+  if p_from is null or p_to is null then
+    raise exception 'from and to are required';
+  end if;
+  if v_to - v_from + 1 > 366 then
+    raise exception 'date range cannot exceed 366 days';
+  end if;
+  if p_interval not in ('day', 'week', 'month') then
+    raise exception 'interval must be day, week, or month';
+  end if;
+
+  v_start := v_from::timestamp at time zone 'Asia/Seoul';
+  v_requested_end := (v_to + 1)::timestamp at time zone 'Asia/Seoul';
+  v_effective_end := greatest(v_start, least(v_requested_end, v_generated_at));
+  v_duration := v_requested_end - v_start;
+  v_comparison_start := v_start - v_duration;
+
+  with
+  included_users as materialized (
+    select users.user_id, users.created_at
+    from public.talent_users users
+    where users.deleted_at is null
+      and split_part(lower(coalesce(users.email, '')), '@', 2) <> 'matchharper.com'
+      and not exists (
+        select 1
+        from unnest(coalesce(p_excluded_email_terms, '{}'::text[])) term(value)
+        where nullif(btrim(term.value), '') is not null
+          and position(lower(btrim(term.value)) in lower(coalesce(users.email, ''))) > 0
+      )
+  ),
+  internal_roles as materialized (
+    select role.role_id
+    from public.company_roles role
+    where lower(coalesce(role.source_type, '')) = 'internal'
+      and lower(coalesce(role.information ->> 'testOnly', 'false')) <> 'true'
+  ),
+  test_only_roles as materialized (
+    select role.role_id
+    from public.company_roles role
+    where lower(coalesce(role.information ->> 'testOnly', 'false')) = 'true'
+  ),
+  event_completion as materialized (
+    select event.talent_id as user_id, min(event.created_at) as completed_at
+    from public.talent_activity_events event
+    join included_users users on users.user_id = event.talent_id
+    where event.event_type = 'onboarding_completed'
+    group by event.talent_id
+  ),
+  completion as materialized (
+    select
+      setting.user_id,
+      coalesce(event.completed_at, setting.updated_at) as completed_at
+    from public.talent_setting setting
+    join included_users users on users.user_id = setting.user_id
+    left join event_completion event on event.user_id = setting.user_id
+    where setting.is_onboarding_done is true
+  ),
+  ready_talents as materialized (
+    select completion.user_id, completion.completed_at
+    from completion
+    join public.talent_setting setting on setting.user_id = completion.user_id
+    where setting.get_internal_recommendation is not false
+      and lower(coalesce(setting.profile_visibility, '')) <> 'dont_share'
+  ),
+  latest_decisions as materialized (
+    select distinct on (recommendation.talent_id, recommendation.role_id)
+      recommendation.talent_id,
+      recommendation.role_id,
+      case
+        when lower(btrim(recommendation.feedback)) in ('like', 'positive') then 'accepted'
+        else 'rejected'
+      end as decision,
+      coalesce(recommendation.feedback_at, recommendation.updated_at) as decided_at
+    from public.talent_opportunity_recommendation recommendation
+    join included_users users on users.user_id = recommendation.talent_id
+    where lower(btrim(coalesce(recommendation.feedback, ''))) in (
+      'like', 'positive', 'dislike', 'negative'
+    )
+      and coalesce(recommendation.feedback_at, recommendation.updated_at) >= v_comparison_start
+      and not exists (
+        select 1
+        from test_only_roles test_role
+        where test_role.role_id = recommendation.role_id
+      )
+    order by
+      recommendation.talent_id,
+      recommendation.role_id,
+      coalesce(recommendation.feedback_at, recommendation.updated_at) desc,
+      recommendation.id desc
+  ),
+  internal_pairs as materialized (
+    select
+      recommendation.talent_id,
+      recommendation.role_id,
+      min(recommendation.recommended_at) as first_recommended_at
+    from public.talent_opportunity_recommendation recommendation
+    join included_users users on users.user_id = recommendation.talent_id
+    join internal_roles role on role.role_id = recommendation.role_id
+    where recommendation.recommended_at < v_effective_end
+    group by recommendation.talent_id, recommendation.role_id
+    having min(recommendation.recommended_at) >= v_comparison_start
+  ),
+  internal_outcomes as materialized (
+    select
+      pair.talent_id,
+      pair.role_id,
+      pair.first_recommended_at,
+      decision.decision = 'accepted'
+        and decision.decided_at >= pair.first_recommended_at
+        and decision.decided_at <= pair.first_recommended_at + interval '14 days'
+        as accepted_within_14_days
+    from internal_pairs pair
+    left join latest_decisions decision
+      on decision.talent_id = pair.talent_id
+      and decision.role_id = pair.role_id
+  ),
+  stage_events as materialized (
+    select
+      progress.talent_id,
+      progress.role_id,
+      case
+        when lower(btrim(coalesce(progress.metadata ->> 'stage', ''))) like 'custom:%' then 'custom'
+        else lower(btrim(coalesce(progress.metadata ->> 'stage', '')))
+      end as stage,
+      progress.created_at as occurred_at
+    from public.talent_progress progress
+    join included_users users on users.user_id = progress.talent_id
+    join internal_roles role on role.role_id = progress.role_id
+    where progress.kind = 'org_stage_change'
+      and progress.created_at < v_effective_end
+
+    union all
+
+    select
+      tag.talent_id,
+      tag.opportunity_id,
+      case
+        when regexp_replace(tag.tag, '\s+', '', 'g') = '내부:연결대기' then 'pending_connection'
+        when regexp_replace(tag.tag, '\s+', '', 'g') = '내부:연결됨' then 'connected'
+        when regexp_replace(tag.tag, '\s+', '', 'g') = '내부:최종오퍼' then 'final_offer'
+        when regexp_replace(tag.tag, '\s+', '', 'g') like '내부단계:%' then 'custom'
+        else null
+      end,
+      tag.updated_at
+    from public.talent_opportunity_tag tag
+    join included_users users on users.user_id = tag.talent_id
+    join internal_roles role on role.role_id = tag.opportunity_id
+    where tag.updated_at < v_effective_end
+  ),
+  pair_stage_first as materialized (
+    select
+      stage.talent_id,
+      stage.role_id,
+      min(stage.occurred_at) filter (where stage.stage = 'pending_connection') as pending_at,
+      min(stage.occurred_at) filter (
+        where stage.stage in ('connected', 'final_offer', 'custom')
+      ) as connected_at
+    from stage_events stage
+    where stage.stage is not null
+    group by stage.talent_id, stage.role_id
+  ),
+  periods(period_key, start_at, end_at) as (
+    values
+      ('current'::text, v_start, v_effective_end),
+      ('comparison'::text, v_comparison_start, v_start)
+  ),
+  period_metrics as (
+    select
+      period.period_key,
+      (
+        select count(*)::bigint
+        from latest_decisions decision
+        where decision.decision = 'accepted'
+          and decision.decided_at >= period.start_at
+          and decision.decided_at < period.end_at
+      ) as recommendation_accepted_count,
+      (
+        select count(*)::bigint
+        from latest_decisions decision
+        where decision.decision = 'rejected'
+          and decision.decided_at >= period.start_at
+          and decision.decided_at < period.end_at
+      ) as recommendation_rejected_count,
+      (
+        select count(*)::bigint
+        from internal_outcomes outcome
+        where outcome.first_recommended_at >= period.start_at
+          and outcome.first_recommended_at < period.end_at
+          and outcome.first_recommended_at <= v_generated_at - interval '14 days'
+      ) as internal_matured_recommendation_count,
+      (
+        select count(*)::bigint
+        from internal_outcomes outcome
+        where outcome.first_recommended_at >= period.start_at
+          and outcome.first_recommended_at < period.end_at
+          and outcome.first_recommended_at <= v_generated_at - interval '14 days'
+          and outcome.accepted_within_14_days
+      ) as internal_accepted_count,
+      (
+        select count(*)::bigint
+        from included_users users
+        where users.created_at >= period.start_at
+          and users.created_at < period.end_at
+          and users.created_at <= v_generated_at - interval '14 days'
+      ) as onboarding_matured_signup_count,
+      (
+        select count(*)::bigint
+        from included_users users
+        join completion on completion.user_id = users.user_id
+        where users.created_at >= period.start_at
+          and users.created_at < period.end_at
+          and users.created_at <= v_generated_at - interval '14 days'
+          and completion.completed_at >= users.created_at
+          and completion.completed_at <= users.created_at + interval '14 days'
+      ) as onboarding_completed_within_14_days_count,
+      (
+        select count(distinct stage.talent_id)::bigint
+        from pair_stage_first stage
+        where stage.pending_at >= period.start_at
+          and stage.pending_at < period.end_at
+      ) as pending_connection_talent_count,
+      (
+        select count(distinct stage.talent_id)::bigint
+        from pair_stage_first stage
+        where stage.connected_at >= period.start_at
+          and stage.connected_at < period.end_at
+      ) as connected_talent_count,
+      (
+        select count(*)::bigint
+        from ready_talents talent
+        where talent.completed_at < period.end_at
+          and greatest(period.start_at, talent.completed_at) < period.end_at
+      ) as service_ready_talent_count,
+      (
+        select coalesce(
+          sum(
+            extract(epoch from period.end_at - greatest(period.start_at, talent.completed_at))
+          ) / 86400.0 / 90.0,
+          0
+        )::numeric
+        from ready_talents talent
+        where talent.completed_at < period.end_at
+          and greatest(period.start_at, talent.completed_at) < period.end_at
+      ) as service_ready_talent_quarter_equivalents
+    from periods period
+  ),
+  period_json as (
+    select
+      metric.period_key,
+      jsonb_build_object(
+        'connectedTalentCount', metric.connected_talent_count,
+        'internalAcceptedCount', metric.internal_accepted_count,
+        'internalAcceptanceRate', metric.internal_accepted_count::numeric / nullif(metric.internal_matured_recommendation_count, 0),
+        'internalMaturedRecommendationCount', metric.internal_matured_recommendation_count,
+        'onboardingCompletedWithin14DaysCount', metric.onboarding_completed_within_14_days_count,
+        'onboardingCompletionRate', metric.onboarding_completed_within_14_days_count::numeric / nullif(metric.onboarding_matured_signup_count, 0),
+        'onboardingMaturedSignupCount', metric.onboarding_matured_signup_count,
+        'pendingConnectionTalentCount', metric.pending_connection_talent_count,
+        'recommendationAcceptRejectRatio', metric.recommendation_accepted_count::numeric / nullif(metric.recommendation_rejected_count, 0),
+        'recommendationAcceptedCount', metric.recommendation_accepted_count,
+        'recommendationDecisionAcceptanceRate', metric.recommendation_accepted_count::numeric / nullif(metric.recommendation_accepted_count + metric.recommendation_rejected_count, 0),
+        'recommendationRejectedCount', metric.recommendation_rejected_count,
+        'serviceReadyTalentCount', metric.service_ready_talent_count,
+        'serviceReadyTalentQuarterEquivalents', metric.service_ready_talent_quarter_equivalents,
+        'verifiedConnectionYieldPer100TalentQuarters', metric.connected_talent_count::numeric * 100 / nullif(metric.service_ready_talent_quarter_equivalents, 0)
+      ) as value
+    from period_metrics metric
+  ),
+  bucket_bounds as materialized (
+    select
+      series.local_start::date as bucket_start,
+      greatest(v_start, series.local_start at time zone 'Asia/Seoul') as start_at,
+      least(
+        v_effective_end,
+        (series.local_start + case p_interval
+          when 'day' then interval '1 day'
+          when 'week' then interval '7 days'
+          else interval '1 month'
+        end) at time zone 'Asia/Seoul'
+      ) as end_at
+    from generate_series(
+      date_trunc(p_interval, v_start at time zone 'Asia/Seoul'),
+      date_trunc(p_interval, (v_effective_end - interval '1 microsecond') at time zone 'Asia/Seoul'),
+      case p_interval
+        when 'day' then interval '1 day'
+        when 'week' then interval '7 days'
+        else interval '1 month'
+      end
+    ) series(local_start)
+    where v_effective_end > v_start
+  ),
+  recommendation_buckets as (
+    select
+      date_trunc(p_interval, recommendation.recommended_at at time zone 'Asia/Seoul')::date as bucket_start,
+      count(*)::bigint as recommendation_count,
+      count(*) filter (where internal_role.role_id is not null)::bigint as internal_recommendation_count
+    from public.talent_opportunity_recommendation recommendation
+    join included_users users on users.user_id = recommendation.talent_id
+    left join internal_roles internal_role on internal_role.role_id = recommendation.role_id
+    where recommendation.recommended_at >= v_start
+      and recommendation.recommended_at < v_effective_end
+      and not exists (
+        select 1
+        from test_only_roles test_role
+        where test_role.role_id = recommendation.role_id
+      )
+    group by 1
+  ),
+  decision_buckets as (
+    select
+      date_trunc(p_interval, decision.decided_at at time zone 'Asia/Seoul')::date as bucket_start,
+      count(*) filter (where decision.decision = 'accepted')::bigint as accepted_count,
+      count(*) filter (where decision.decision = 'rejected')::bigint as rejected_count
+    from latest_decisions decision
+    where decision.decided_at >= v_start
+      and decision.decided_at < v_effective_end
+    group by 1
+  ),
+  internal_buckets as (
+    select
+      date_trunc(p_interval, outcome.first_recommended_at at time zone 'Asia/Seoul')::date as bucket_start,
+      count(*)::bigint as matured_count,
+      count(*) filter (where outcome.accepted_within_14_days)::bigint as accepted_count
+    from internal_outcomes outcome
+    where outcome.first_recommended_at >= v_start
+      and outcome.first_recommended_at < v_effective_end
+      and outcome.first_recommended_at <= v_generated_at - interval '14 days'
+    group by 1
+  ),
+  onboarding_buckets as (
+    select
+      date_trunc(p_interval, users.created_at at time zone 'Asia/Seoul')::date as bucket_start,
+      count(*)::bigint as matured_count,
+      count(*) filter (
+        where completion.completed_at >= users.created_at
+          and completion.completed_at <= users.created_at + interval '14 days'
+      )::bigint as completed_count
+    from included_users users
+    left join completion on completion.user_id = users.user_id
+    where users.created_at >= v_start
+      and users.created_at < v_effective_end
+      and users.created_at <= v_generated_at - interval '14 days'
+    group by 1
+  ),
+  stage_buckets as (
+    select
+      bucket.bucket_start,
+      count(distinct stage.talent_id) filter (
+        where stage.pending_at >= bucket.start_at and stage.pending_at < bucket.end_at
+      )::bigint as pending_count,
+      count(distinct stage.talent_id) filter (
+        where stage.connected_at >= bucket.start_at and stage.connected_at < bucket.end_at
+      )::bigint as connected_count
+    from bucket_bounds bucket
+    left join pair_stage_first stage
+      on (stage.pending_at >= bucket.start_at and stage.pending_at < bucket.end_at)
+      or (stage.connected_at >= bucket.start_at and stage.connected_at < bucket.end_at)
+    group by bucket.bucket_start
+  ),
+  exposure_buckets as (
+    select
+      bucket.bucket_start,
+      coalesce(
+        sum(
+          extract(epoch from bucket.end_at - greatest(bucket.start_at, talent.completed_at))
+        ) / 86400.0 / 90.0,
+        0
+      )::numeric as talent_quarter_equivalents
+    from bucket_bounds bucket
+    left join ready_talents talent
+      on talent.completed_at < bucket.end_at
+      and greatest(bucket.start_at, talent.completed_at) < bucket.end_at
+    group by bucket.bucket_start
+  ),
+  trend_json as (
+    select coalesce(
+      jsonb_agg(
+        jsonb_build_object(
+          'bucketStart', bucket.bucket_start::text,
+          'connectedTalentCount', coalesce(stage.connected_count, 0),
+          'fullLabel', case p_interval
+            when 'day' then bucket.bucket_start::text
+            when 'week' then to_char(bucket.bucket_start, 'MM.DD') || ' - ' || to_char(bucket.bucket_start + 6, 'MM.DD')
+            else to_char(bucket.bucket_start, 'YYYY.MM')
+          end,
+          'internalRecommendationCount', coalesce(recommendation.internal_recommendation_count, 0),
+          'internalAcceptanceRate', internal.accepted_count::numeric / nullif(internal.matured_count, 0),
+          'label', case p_interval
+            when 'month' then to_char(bucket.bucket_start, 'YYYY.MM')
+            else to_char(bucket.bucket_start, 'MM.DD')
+          end,
+          'onboardingCompletionRate', onboarding.completed_count::numeric / nullif(onboarding.matured_count, 0),
+          'pendingConnectionTalentCount', coalesce(stage.pending_count, 0),
+          'recommendationAcceptRejectRatio', decision.accepted_count::numeric / nullif(decision.rejected_count, 0),
+          'recommendationAcceptedCount', coalesce(decision.accepted_count, 0),
+          'recommendationCount', coalesce(recommendation.recommendation_count, 0),
+          'recommendationDecisionAcceptanceRate', decision.accepted_count::numeric / nullif(coalesce(decision.accepted_count, 0) + coalesce(decision.rejected_count, 0), 0),
+          'recommendationRejectedCount', coalesce(decision.rejected_count, 0),
+          'serviceReadyTalentQuarterEquivalents', exposure.talent_quarter_equivalents,
+          'verifiedConnectionYieldPer100TalentQuarters', coalesce(stage.connected_count, 0)::numeric * 100 / nullif(exposure.talent_quarter_equivalents, 0)
+        )
+        order by bucket.bucket_start
+      ),
+      '[]'::jsonb
+    ) as value
+    from bucket_bounds bucket
+    left join recommendation_buckets recommendation using (bucket_start)
+    left join decision_buckets decision using (bucket_start)
+    left join internal_buckets internal using (bucket_start)
+    left join onboarding_buckets onboarding using (bucket_start)
+    left join stage_buckets stage using (bucket_start)
+    left join exposure_buckets exposure using (bucket_start)
+  )
+  select jsonb_build_object(
+    'comparison', (select value from period_json where period_key = 'comparison'),
+    'filters', jsonb_build_object(
+      'from', v_from::text,
+      'interval', p_interval,
+      'to', v_to::text
+    ),
+    'generatedAt', to_char(v_generated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    'sourceLimitReached', false,
+    'summary', (select value from period_json where period_key = 'current'),
+    'trend', (select value from trend_json)
+  ) into v_result;
+
+  return v_result;
+end;
+$function$;
+
+revoke all on function public.get_ops_talent_metrics_conversion_v1(date, date, text, text[]) from public, anon, authenticated;
+grant execute on function public.get_ops_talent_metrics_conversion_v1(date, date, text, text[]) to service_role;

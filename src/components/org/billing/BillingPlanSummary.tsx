@@ -58,8 +58,8 @@ export function BillingPlanSummary({
   const description =
     summary.model === "free"
       ? c(
-          "채용 역할 생성은 무제한이며, 모든 Role이 매월 공용 Intro 10개를 함께 사용해요. 슬롯을 추가해도 공용 Intro는 별도로 유지돼요.",
-          "Unlimited Roles share 10 Intros every month. Shared Intros remain available separately when you add paid slots."
+          "Role은 자유롭게 만들 수 있으며, Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 매월 공용 Intro 10개가 제공돼요. 슬롯을 추가해도 공용 Intro는 별도로 유지돼요.",
+          "Hire for one active role, create unlimited drafts, and use 10 shared Intros each month. You keep these shared Intros when you add paid slots."
         )
       : summary.model === "slot"
         ? paid.length === 0

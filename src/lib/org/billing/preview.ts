@@ -176,7 +176,7 @@ export function previewBillingSummary(
   return {
     ...summary,
     model: free ? "free" : "slot",
-    capacity: null,
+    capacity: activeSlots.length + 1,
     freeRenewsAt: creditEnd.toISOString(),
     creditSlots: [shared, ...activeCredits],
     hasCustomer:

@@ -20,6 +20,7 @@ import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { humanizeOrgCompanyIntroStatus } from "@/lib/org/pipelineStage";
 import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import { OrgPassPopover } from "./OrgPassPopover";
 
 export function getOrgCandidateDisplayName(item: OrgBoardItem) {
   return item.talent.name || item.talent.email || "이름 없음";
@@ -155,7 +156,7 @@ export function OrgCandidateCard({
   internalOpsAccess?: boolean;
   item: OrgBoardItem;
   onMove?: (item: OrgBoardItem, stage: OrgStageId) => void;
-  onPass?: (item: OrgBoardItem) => void;
+  onPass?: (item: OrgBoardItem, reason: string) => Promise<void>;
   onRequestIntro?: (item: OrgBoardItem) => void;
   onSelect: (item: OrgBoardItem) => void;
   pending?: boolean;
@@ -167,6 +168,7 @@ export function OrgCandidateCard({
   const { locale, c } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const displayName = sourceT(getOrgCandidateDisplayName(item));
+  const [passOpen, setPassOpen] = useState(false);
   const recentCompanies = item.talent.recentCompanies.map((company) => ({
     ...company,
     period: localizeOrgProfilePeriod(company.period, c("현재", "Present")),
@@ -189,6 +191,7 @@ export function OrgCandidateCard({
       draggable={canDrag}
       onClick={() => onSelect(item)}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onSelect(item);
@@ -296,7 +299,7 @@ export function OrgCandidateCard({
       </div>
       {item.processClosureNoticeUnresolved ? (
         <div className="-mx-3 mt-3 bg-critical px-3 py-1 text-[12px] font-medium text-neutral-00">
-          {c("프로세스 종료 안내됨", "Notified of process closure")}
+          {c("프로세스 종료 안내됨", "Candidate notified that hiring has ended")}
         </div>
       ) : item.upcomingMeeting ? (
         <div className="-mx-3 mt-3 bg-positive px-3 py-1 text-[12px] font-medium text-neutral-00">
@@ -323,16 +326,17 @@ export function OrgCandidateCard({
       item.source === "company_intro" &&
       item.companyIntro?.status === "ready" ? (
         <div className="mt-3 grid grid-cols-2 gap-1.5">
-          <MuteButton
-            disabled={pending}
-            onClick={(event) => {
-              event.stopPropagation();
-              onPass?.(item);
-            }}
-            size="sm"
-          >
-            {c("제안하지 않기", "Pass")}
-          </MuteButton>
+          <div onClick={(event) => event.stopPropagation()}>
+            <OrgPassPopover
+              open={passOpen}
+              onOpenChange={setPassOpen}
+              onSubmit={async (reason) => {
+                await onPass?.(item, reason);
+              }}
+              pending={Boolean(pending)}
+              shortcut={false}
+            />
+          </div>
           <MuteButton
             disabled={pending}
             onClick={(event) => {
@@ -342,7 +346,7 @@ export function OrgCandidateCard({
             size="sm"
             variant="dark"
           >
-            {c("먼저 제안하기", "Request intro")}
+            {c("Intro 보내기", "Send intro")}
           </MuteButton>
         </div>
       ) : null}

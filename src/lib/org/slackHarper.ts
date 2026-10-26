@@ -1,3 +1,4 @@
+import { traceStageStep } from "@/lib/org/stageTiming.server";
 import { assertWorkspaceAvailable } from "./workspaceReview.server";
 import { recordOrgAction } from "@/lib/org/actionLogs";
 import "server-only";
@@ -1563,20 +1564,20 @@ export async function isHarperSlackAudienceAllowed(args: {
 }) {
   let channelInstallation: Awaited<ReturnType<typeof installation>> | undefined;
   const getIntegration = async () => {
-    channelInstallation ??= await installation(args.workspaceId);
+    channelInstallation ??= await traceStageStep("isHarperSlackAudienceAllowed:1566", async () => (installation(args.workspaceId)));
     if (!channelInstallation) throw new Error("Slack installation not found");
     return { row: channelInstallation, token: decryptHarperSlackToken(channelInstallation.bot_token_ciphertext) };
   };
   try {
-    return await canShareOrgTeamSlackAudience({
+    return await traceStageStep("isHarperSlackAudienceAllowed:1571", async () => (canShareOrgTeamSlackAudience({
       ...args, admin: getSupabaseAdmin(), botUserId: "",
       readMembers: async cursor => {
-        const { row, token } = await getIntegration();
-        const page = await slackApi<SlackApiResult & { members?: string[] }>(token, "conversations.members", { channel: args.channelId, cursor, limit: 200 });
+        const { row, token } = await traceStageStep("isHarperSlackAudienceAllowed:1574", async () => (getIntegration()));
+        const page = await traceStageStep("isHarperSlackAudienceAllowed:1575", async () => (slackApi<SlackApiResult & { members?: string[] }>(token, "conversations.members", { channel: args.channelId, cursor, limit: 200 })));
         return { ...page, members: page.members?.filter(member => member !== row.slack_bot_user_id) };
       },
-      readEmail: async slackUserId => getHarperSlackUserEmail({ token: (await getIntegration()).token, userId: slackUserId }),
-    });
+      readEmail: async slackUserId => getHarperSlackUserEmail({ token: (await traceStageStep("isHarperSlackAudienceAllowed:1578", async () => (getIntegration()))).token, userId: slackUserId }),
+    })));
   } catch (error) {
     console.warn("[org/slack] channel audience could not be authorized", error);
     return false;
@@ -1643,7 +1644,7 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   unfurlMedia?: boolean;
   workspaceId: string;
 }) {
-  const row = await installation(text(args.workspaceId));
+  const row = await traceStageStep("sendHarperWorkspaceSlackMessage:1646", async () => (installation(text(args.workspaceId))));
   if (!row) return false;
   const admin = getSupabaseAdmin();
   let query = (admin.from("company_slack_channels" as any) as any)
@@ -1659,16 +1660,16 @@ export async function sendHarperWorkspaceSlackMessage(args: {
     query = query.eq("notify_candidate_rejected", true);
   if (args.notificationKey === "memberJoined")
     query = query.eq("notify_member_joined", true);
-  const { data: channelRows, error } = await query;
+  const { data: channelRows, error } = await traceStageStep("sendHarperWorkspaceSlackMessage:1662", async () => (query));
   if (error) throw error;
   let channels = channelRows ?? [];
   const roleId = text(args.roleId);
   if (roleId && channels.length > 0) {
-    const { data: optOutRows, error: optOutError } = await (
+    const { data: optOutRows, error: optOutError } = await traceStageStep("sendHarperWorkspaceSlackMessage:1667", async () => ((
       admin.from("company_role_notification_channels" as any) as any
     )
       .select("channel_id")
-      .eq("role_id", roleId);
+      .eq("role_id", roleId)));
     if (optOutError) throw optOutError;
     const disabledChannelIds = new Set(
       (optOutRows ?? []).map(
@@ -1681,16 +1682,16 @@ export async function sendHarperWorkspaceSlackMessage(args: {
   }
   if (channels.length === 0) return false;
   if (roleId || args.enforceAudiencePermission) {
-    const allowed = await Promise.all(channels.map(async (channel: any) =>
-      await isHarperSlackAudienceAllowed({ workspaceId: args.workspaceId, roleId, channelId: channel.slack_channel_id }) ? channel : null));
+    const allowed = await traceStageStep("sendHarperWorkspaceSlackMessage:1684", async () => (Promise.all(channels.map(async (channel: any) =>
+      await traceStageStep("sendHarperWorkspaceSlackMessage:1685", async () => (isHarperSlackAudienceAllowed({ workspaceId: args.workspaceId, roleId, channelId: channel.slack_channel_id }))) ? channel : null))));
     channels = allowed.filter(Boolean);
     if (channels.length === 0) return false;
   }
   const token = decryptHarperSlackToken(row.bot_token_ciphertext);
-  const results = await Promise.allSettled(
+  const results = await traceStageStep("sendHarperWorkspaceSlackMessage:1690", async () => (Promise.allSettled(
     channels.map(async (channel: any) => {
       if (args.postedReceipts?.[channel.slack_channel_id]?.slackMessageTs) return;
-      const posted = await postHarperSlackMessage({
+      const posted = await traceStageStep("sendHarperWorkspaceSlackMessage:1693", async () => (postHarperSlackMessage({
         blocks: args.blocks,
         entityMetadata: args.entityMetadata,
         channelId: channel.slack_channel_id,
@@ -1705,12 +1706,12 @@ export async function sendHarperWorkspaceSlackMessage(args: {
         threadTs: args.threadTs,
         unfurlLinks: args.unfurlLinks,
         unfurlMedia: args.unfurlMedia,
-      });
+      })));
       if (args.requireAllDeliveries && !posted.ts) {
         throw new Error("Slack delivery did not return a timestamp");
       }
       if (posted.ts) {
-        const { data: thread, error: threadError } = await (
+        const { data: thread, error: threadError } = await traceStageStep("sendHarperWorkspaceSlackMessage:1713", async () => ((
           admin.from("company_slack_threads" as any) as any
         )
           .upsert(
@@ -1724,20 +1725,20 @@ export async function sendHarperWorkspaceSlackMessage(args: {
             { onConflict: "channel_id,slack_thread_ts" }
           )
           .select("id")
-          .single();
+          .single()));
         if (threadError) throw threadError;
-        await args.onPosted?.({
+        await traceStageStep("sendHarperWorkspaceSlackMessage:1729", async () => (args.onPosted?.({
           channelId: channel.slack_channel_id,
-          slackMessageTs: posted.ts,
+          slackMessageTs: posted.ts!,
           threadId: thread.id,
-        });
+        })));
         if (args.recordConversationMessage === false) return;
-        const conversation = await ensureSlackConversation({
+        const conversation = await traceStageStep("sendHarperWorkspaceSlackMessage:1735", async () => (ensureSlackConversation({
           admin,
           roleId: roleId || null,
           workspaceId: row.company_workspace_id,
-        });
-        await insertOrgAgentMessage({
+        })));
+        await traceStageStep("sendHarperWorkspaceSlackMessage:1740", async () => (insertOrgAgentMessage({
           admin,
           content: args.text,
           conversation,
@@ -1752,10 +1753,10 @@ export async function sendHarperWorkspaceSlackMessage(args: {
           slackMessageTs: posted.ts,
           slackThreadId: thread.id,
           slackUserId: row.slack_bot_user_id,
-        });
+        })));
       }
     })
-  );
+  )));
   const failedDelivery = results.find((result) => result.status === "rejected");
   if (args.requireAllDeliveries && failedDelivery?.status === "rejected") {
     throw failedDelivery.reason;

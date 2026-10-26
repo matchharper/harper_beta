@@ -5,7 +5,6 @@ import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 export type OrgOnboardingStep =
   | "profile"
   | "slack"
-  | "company-details"
   | "company"
   | "plan"
   | "roles"
@@ -41,14 +40,12 @@ export function getOrgOnboardingRoles(roles: OrgRole[]) {
 export function getOrgOnboardingSteps(args: {
   showSlack: boolean;
   showCompany: boolean;
-  showCompanyDetails?: boolean;
   roles: OrgRole[];
   showPlan?: boolean;
   showProfile?: boolean;
 }): OrgOnboardingStep[] {
   return [
     ...(args.showProfile !== false ? ["profile" as const] : []),
-    ...(args.showCompanyDetails ? ["company-details" as const] : []),
     ...(args.showCompany ? ["company" as const] : []),
     ...(args.showSlack ? ["slack" as const] : []),
     ...(getOrgOnboardingRoles(args.roles).length ? ["roles" as const] : []),

@@ -33,7 +33,9 @@ type Case = {
   gold: string;
 };
 const root = path.resolve("docs/evaluation/career-voice-onboarding");
-const fixturePath = path.join(root, "live-prompt-cases-v1.json");
+const version = process.env.CAREER_VOICE_EVAL_VERSION ?? "v1";
+if (!["v1", "v2"].includes(version)) throw new Error("Unknown fixture version");
+const fixturePath = path.join(root, `live-prompt-cases-${version}.json`);
 const fixtureBytes = readFileSync(fixturePath);
 const fixture = JSON.parse(fixtureBytes.toString()) as {
   version: string;
@@ -341,7 +343,7 @@ async function main() {
     commit: execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
     }).trim(),
-    diffSha256: hash(execFileSync("git", ["diff"])),
+    diffSha256: hash(execFileSync("git", ["diff", "--", "src/lib/career/prompts", "src/lib/career/liveOnboarding.ts", "src/lib/career/voiceSessionInstructions.ts", "src/lib/talentOnboarding/insightChecklist.ts", "src/lib/talentOnboarding/tools.ts", "scripts/evalCareerLiveOnboardingPrompt.ts"], { maxBuffer: 8 * 1024 * 1024 })),
     config,
     selectedCases: cases.map((item) => item.id),
     transport: "websocket",

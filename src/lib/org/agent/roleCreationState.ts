@@ -10,7 +10,6 @@ import {
   assertOrgWorkspacePermission,
   assertOrgRoleAccess,
   OrgHttpError,
-  updateOrgRoleCriteria,
   upsertOrgCompanyUser,
 } from "@/lib/org/server";
 import {
@@ -41,14 +40,6 @@ export type RoleCreationConversationMetadata = {
   confirmationProcessingStartedAt: string | null;
   confirmedAssigneeUserId: string | null;
   confirmedSlackChannelIds: string[];
-  descriptionSourceResearch?: {
-    attemptedAt: string;
-    query: string;
-    resultCount: number | null;
-    selectedSourceUrl: string | null;
-    source: "role_creation_chat" | "slack_entry";
-    status: "completed" | "failed";
-  } | null;
   lastConfirmationActionId: string | null;
   lastConfirmationDecision: "no" | "yes" | null;
   lastConfirmationHandledAt: string | null;
@@ -60,6 +51,7 @@ export type RoleCreationConversationMetadata = {
     | "confirmation_pending"
     | "confirmation_processing";
   scope: "role_creation";
+  slackRoleCreationSource?: { sourceKey: string; sourceThreadId: string } | null;
   slackRoleCreationThread: {
     slackThreadId: string;
     slackThreadTs: string;
@@ -76,12 +68,18 @@ export type RoleCreationState = {
     enabled: boolean;
   }>;
   conversation: OrgAgentConversationRow;
+  /** The role's email switch. It is off until the company chooses email, so it needs no separate confirmation record. */
+  emailEnabled: boolean;
+  /** Slack is connected for the company, even if it has no channel yet. */
+  slackInstalled: boolean;
   currentUser: { email: string | null; name: string; userId: string; teamName?: string | null; accessScope?: "organization" | "team"; authority?: string };
   members: Array<{ email: string | null; name: string; userId: string }>;
   metadata: RoleCreationConversationMetadata;
   role: Awaited<ReturnType<typeof fetchRoleForOrgAgent>>;
   workspace: Awaited<ReturnType<typeof fetchWorkspaceForOrgAgent>> & {
     relatedLinks: string[];
+    locationText?: string | null;
+    companyFacts?: Record<string, unknown>;
   };
 };
 
@@ -120,34 +118,8 @@ export function parseRoleCreationConversationMetadata(
     source.confirmationProcessingMessageId
   );
   const lastConfirmationMessageId = Number(source.lastConfirmationMessageId);
+  const rawSlackRoleCreationSource = record(source.slackRoleCreationSource);
   const rawSlackRoleCreationThread = record(source.slackRoleCreationThread);
-  const rawDescriptionSourceResearch = record(source.descriptionSourceResearch);
-  const descriptionSourceResearch =
-    text(rawDescriptionSourceResearch.attemptedAt) &&
-    text(rawDescriptionSourceResearch.query) &&
-    (rawDescriptionSourceResearch.status === "completed" ||
-      rawDescriptionSourceResearch.status === "failed")
-      ? {
-          attemptedAt: text(rawDescriptionSourceResearch.attemptedAt),
-          query: text(rawDescriptionSourceResearch.query),
-          resultCount:
-            Number.isSafeInteger(
-              Number(rawDescriptionSourceResearch.resultCount)
-            ) && Number(rawDescriptionSourceResearch.resultCount) >= 0
-              ? Number(rawDescriptionSourceResearch.resultCount)
-              : null,
-          selectedSourceUrl:
-            text(rawDescriptionSourceResearch.selectedSourceUrl) || null,
-          source:
-            rawDescriptionSourceResearch.source === "slack_entry"
-              ? ("slack_entry" as const)
-              : ("role_creation_chat" as const),
-          status:
-            rawDescriptionSourceResearch.status === "failed"
-              ? ("failed" as const)
-              : ("completed" as const),
-        }
-      : null;
   const slackRoleCreationThread =
     text(rawSlackRoleCreationThread.slackThreadId) &&
     text(rawSlackRoleCreationThread.slackThreadTs) &&
@@ -179,7 +151,6 @@ export function parseRoleCreationConversationMetadata(
       text(source.confirmationProcessingStartedAt) || null,
     confirmedAssigneeUserId: text(source.confirmedAssigneeUserId) || null,
     confirmedSlackChannelIds: stringList(source.confirmedSlackChannelIds),
-    descriptionSourceResearch,
     lastConfirmationActionId: text(source.lastConfirmationActionId) || null,
     lastConfirmationDecision:
       source.lastConfirmationDecision === "no" ||
@@ -200,6 +171,9 @@ export function parseRoleCreationConversationMetadata(
     phase,
     scope: "role_creation",
     slackRoleCreationThread,
+    slackRoleCreationSource: text(rawSlackRoleCreationSource.sourceKey) && text(rawSlackRoleCreationSource.sourceThreadId)
+      ? { sourceKey: text(rawSlackRoleCreationSource.sourceKey), sourceThreadId: text(rawSlackRoleCreationSource.sourceThreadId) }
+      : null,
   };
 }
 
@@ -326,7 +300,7 @@ export async function fetchRoleCreationState(args: {
   workspaceId: string;
 }): Promise<RoleCreationState> {
   const { admin, conversation } = await ensureOrgRoleCreationConversation(args);
-  const [role, workspace, notificationSettings, membersResult] =
+  const [role, workspace, notificationSettings, membersResult, slackResult] =
     await Promise.all([
       fetchRoleForOrgAgent({
         admin,
@@ -338,19 +312,38 @@ export async function fetchRoleCreationState(args: {
       (admin.from("company_user_workspace") as any)
         .select("company_user_id, authority, access_scope, team_id, company_workspace_team_members(team_id), company_users(email, name)")
         .eq("company_workspace_id", args.workspaceId),
+      (admin.from("company_slack_integrations" as any) as any)
+        .select("id").eq("company_workspace_id", args.workspaceId)
+        .eq("status", "active").not("bot_token_ciphertext", "is", null).limit(1),
     ]);
   if (membersResult.error) throw membersResult.error;
+  if (slackResult.error) throw slackResult.error;
   const access = await readOrgRoleAccess({ ...args, admin });
 
   const companyLinksResult = workspace.companyDbId
     ? await admin
         .from("company_db")
-        .select("funding_url, related_links")
+        .select("funding_url, related_links, location, founded_year, employee_count_range, description, short_description, specialities, investors")
         .eq("id", workspace.companyDbId)
         .maybeSingle()
     : { data: null, error: null };
   if (companyLinksResult.error) throw companyLinksResult.error;
   const companyLinks = companyLinksResult.data;
+  const { data: companyFunding, error: fundingError } = await admin
+    .from("company_data")
+    .select("total_funding_raised, main_investors, last_funding_stage, last_funding_round_description")
+    .eq("company_workspace_id", args.workspaceId)
+    .maybeSingle();
+  if (fundingError) throw fundingError;
+  const companyFacts = {
+    source: "저장된 회사 정보 / saved company records; missing values are unknown, not zero",
+    company_description: workspace.companyDescription,
+    companySummary: workspace.brief,
+    companyHiringRequest: workspace.request,
+    careerUrl: workspace.careerUrl,
+    ...companyLinks,
+    ...companyFunding,
+  };
   const relatedLinks = Array.from(
     new Set(
       [
@@ -359,7 +352,7 @@ export async function fetchRoleCreationState(args: {
         ...normalizeWebsiteCompanyDataStringList(companyLinks?.related_links),
       ].filter(Boolean)
     )
-  ).slice(0, 12);
+  );
 
   const rows = (membersResult.data ?? []) as Array<{ company_user_id: string; authority: string; access_scope: "organization" | "team"; team_id: string | null; company_users: unknown }>;
   const members = rows.filter(row => canAccessOrgRole(resolveOrgRoleAccess(row), role.teamId)).map((row) => {
@@ -378,6 +371,8 @@ export async function fetchRoleCreationState(args: {
     assigneeUserIds: notificationSettings.assigneeUserIds,
     channels: notificationSettings.channels,
     conversation,
+    emailEnabled: notificationSettings.emailEnabled,
+    slackInstalled: (slackResult.data ?? []).length > 0,
     currentUser: {
       teamName: access.teamNames.join(", "),
       accessScope: access.scope,
@@ -392,12 +387,15 @@ export async function fetchRoleCreationState(args: {
     members,
     metadata: parseRoleCreationConversationMetadata(conversation.metadata),
     role,
-    workspace: { ...workspace, relatedLinks },
+    workspace: { ...workspace, companyFacts, relatedLinks, locationText: companyLinks?.location ?? null },
   };
 }
 
 export async function updateRoleCreationDraft(args: {
+  /** Server-read state from the same tool invocation; not a client-supplied snapshot. */
+  previousState?: RoleCreationState;
   actorLabel: string;
+  source?: "chat" | "slack";
   allowCompletedRole?: boolean;
   criteria?: OrgRoleCriterion[];
   employmentTypes?: string[];
@@ -413,7 +411,7 @@ export async function updateRoleCreationDraft(args: {
   workMode?: string | null;
   workspaceId: string;
 }) {
-  await fetchRoleCreationState(args);
+  const previousState = args.previousState ?? await fetchRoleCreationState(args);
   const changes: Parameters<
     typeof applyWebsiteCompanyDataChanges
   >[0]["changes"] = [];
@@ -467,12 +465,14 @@ export async function updateRoleCreationDraft(args: {
       value: args.externalJdUrl,
     });
   }
-  if (changes.length > 0) {
+  if (changes.length > 0 || args.criteria !== undefined) {
     await applyWebsiteCompanyDataChanges({
       actorLabel: args.actorLabel,
+      actorUserId:args.user.id,
+      criteriaChanges:args.criteria === undefined ? [] : [{role_id:args.roleId,expected:previousState.role.criteria,value:args.criteria}],
       admin: getSupabaseAdmin(),
       changes,
-      source: "chat",
+      source: args.source ?? "chat",
       workspaceId: args.workspaceId,
     });
   }
@@ -493,16 +493,6 @@ export async function updateRoleCreationDraft(args: {
     if (error) throw error;
   }
 
-  if (args.criteria !== undefined) {
-    await updateOrgRoleCriteria({
-      actorLabel: args.actorLabel,
-      criteria: args.criteria,
-      roleId: args.roleId,
-      source: "chat",
-      user: args.user,
-      workspaceId: args.workspaceId,
-    });
-  }
 
   if (args.memory !== undefined) {
     const admin = getSupabaseAdmin();
@@ -546,18 +536,21 @@ type RoleCreationNotificationSelectionArgs = {
   allowCompletedRole?: boolean;
   assigneeUserId?: string;
   channelIds?: string[];
+  emailEnabled?: boolean;
   roleId: string;
   user: User;
   workspaceId: string;
 };
 
 export function summarizeRoleCreationNotificationSettings(
-  state: Pick<RoleCreationState, "channels" | "assigneeUserIds" | "members">
+  state: Pick<RoleCreationState, "channels" | "assigneeUserIds" | "members"> &
+    Partial<Pick<RoleCreationState, "emailEnabled">>
 ) {
   return {
     channels: state.channels
       .filter((channel) => channel.enabled)
       .map((channel) => channel.channelName || "Slack 채널"),
+    ...(state.emailEnabled ? { email: true } : {}),
     assignees: state.assigneeUserIds.map((id) =>
       state.members.find((member) => member.userId === id)?.name || "팀원"
     ),
@@ -572,12 +565,14 @@ export function resolveRoleCreationNotificationSelection(args: {
   const state = args.state;
   const hasChannels = input.channelIds !== undefined;
   const hasAssignee = input.assigneeUserId !== undefined;
+  const hasEmail = typeof input.emailEnabled === "boolean";
   const channelIds = stringList(input.channelIds);
   const assigneeUserId = text(input.assigneeUserId);
-  if (!hasChannels && !hasAssignee) {
-    throw new OrgHttpError(400, "Slack channel or assignee is required");
+  if (!hasChannels && !hasAssignee && !hasEmail) {
+    throw new OrgHttpError(400, "Slack channel, email or assignee is required");
   }
-  if (hasChannels && channelIds.length === 0) {
+  // No channel is allowed only when email is chosen instead (the role start's last sentence).
+  if (hasChannels && channelIds.length === 0 && input.emailEnabled !== true) {
     throw new OrgHttpError(400, "At least one Slack channel is required");
   }
   if (hasAssignee && !assigneeUserId) {
@@ -596,7 +591,13 @@ export function resolveRoleCreationNotificationSelection(args: {
     throw new OrgHttpError(400, "Assignee must be a teammate with access to this Role. Read the current draft's available teammates and use an exact returned userId.");
   }
 
-  return { assigneeUserId, channelIds, hasAssignee, hasChannels };
+  return {
+    assigneeUserId,
+    channelIds,
+    ...(hasEmail ? { emailEnabled: input.emailEnabled } : {}),
+    hasAssignee,
+    hasChannels,
+  };
 }
 
 async function persistRoleCreationNotificationSelection(args: {
@@ -605,11 +606,12 @@ async function persistRoleCreationNotificationSelection(args: {
   user: User;
   workspaceId: string;
 }) {
-  const { assigneeUserId, channelIds, hasAssignee, hasChannels } =
+  const { assigneeUserId, channelIds, emailEnabled, hasAssignee, hasChannels } =
     args.selection;
   const state = args.state;
   await updateOrgRoleNotificationSettings({
     ...(hasAssignee ? { assigneeUserIds: [assigneeUserId] } : {}),
+    ...(emailEnabled !== undefined ? { emailEnabled } : {}),
     ...(hasChannels
       ? {
           channels: state.channels.map((channel) => ({
@@ -672,11 +674,13 @@ export function getRoleCreationMissingFields(state: RoleCreationState) {
       .filter((channel) => channel.enabled)
       .map((channel) => channel.channelId)
   );
+  // Where new candidates go: a Slack channel the company confirmed, or the role's email.
   if (
-    state.metadata.confirmedSlackChannelIds.length === 0 ||
-    state.metadata.confirmedSlackChannelIds.some(
-      (channelId) => !availableChannels.has(channelId)
-    )
+    (state.metadata.confirmedSlackChannelIds.length === 0 ||
+      state.metadata.confirmedSlackChannelIds.some(
+        (channelId) => !availableChannels.has(channelId)
+      )) &&
+    !state.emailEnabled
   ) {
     missing.push("connected_slack");
   }
@@ -704,7 +708,7 @@ export async function fetchOtherRoleCriteria(args: {
   const query = getSupabaseAdmin()
     .from("company_roles")
     .select(
-      "role_id, name, description, salary_range, status, company_internal_roles(team_id, request, criteria)"
+      "role_id, name, description, salary_range, location_text, work_mode, type, status, company_internal_roles(team_id, request, criteria)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .eq("source_type", "internal")
@@ -742,6 +746,9 @@ export async function fetchOtherRoleCriteria(args: {
         null,
       roleId: role.role_id,
       salaryRange: text(role.salary_range).slice(0, 1_000) || null,
+      locationText: role.location_text,
+      workMode: role.work_mode,
+      employmentTypes: role.type,
       status: text(role.status) || null,
     })),
   };
@@ -758,7 +765,7 @@ export async function fetchOtherRoleDescriptionReferences(args: {
   const query = getSupabaseAdmin()
     .from("company_roles")
     .select(
-      "role_id, name, description, external_jd_url, source_type, updated_at, company_internal_roles(team_id)"
+      "role_id, name, description, external_jd_url, source_type, updated_at, location_text, work_mode, type, company_internal_roles(team_id)"
     )
     .eq("company_workspace_id", args.workspaceId)
     .neq("role_id", args.roleId)
@@ -778,6 +785,9 @@ export async function fetchOtherRoleDescriptionReferences(args: {
           description,
           externalJdUrl: text(role.external_jd_url) || null,
           name: role.name,
+          locationText: role.location_text,
+          workMode: role.work_mode,
+          employmentTypes: role.type,
           roleId: role.role_id,
           sourceType: role.source_type,
         },

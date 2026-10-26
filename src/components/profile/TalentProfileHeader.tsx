@@ -117,6 +117,7 @@ export function TalentProfileHeader({
   name,
   primaryResources = [],
   secondaryResources = [],
+  variant = "default",
 }: {
   avatar: ReactNode;
   headline?: string | null;
@@ -124,19 +125,35 @@ export function TalentProfileHeader({
   name: string;
   primaryResources?: TalentProfileResource[];
   secondaryResources?: TalentProfileResource[];
+  variant?: "default" | "review";
 }) {
   const t = useOrgT();
   const hasResources =
     primaryResources.length > 0 || secondaryResources.length > 0;
+  const Name = variant === "review" ? "h2" : "div";
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div
+      className={cn(
+        "flex min-w-0 gap-4",
+        variant === "review"
+          ? "flex-col"
+          : "flex-col sm:flex-row sm:items-start sm:justify-between"
+      )}
+    >
       <div className="flex min-w-0 items-start gap-3">
         <div className="shrink-0">{avatar}</div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xl font-medium text-neutral-primary">
+          <Name
+            className={cn(
+              "font-medium text-neutral-primary",
+              variant === "review"
+                ? "break-words text-xl leading-tight tracking-tight @min-[700px]/review:text-[24px]"
+                : "truncate text-xl"
+            )}
+          >
             {name}
-          </div>
+          </Name>
           {headline?.trim() ? (
             <div className="mt-1 text-sm leading-5 text-neutral-primary">
               {headline.trim()}
@@ -153,10 +170,22 @@ export function TalentProfileHeader({
       {hasResources ? (
         <div
           aria-label={t("profile.resources", "등록 자료")}
-          className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:max-w-[55%] sm:items-end"
+          className={cn(
+            "flex w-full shrink-0 gap-2",
+            variant === "review"
+              ? "flex-wrap"
+              : "flex-col sm:w-auto sm:max-w-[55%] sm:items-end"
+          )}
         >
           {primaryResources.length > 0 ? (
-            <div className="flex w-full flex-nowrap gap-2 sm:w-auto sm:justify-end">
+            <div
+              className={cn(
+                "flex gap-2",
+                variant === "review"
+                  ? "flex-wrap"
+                  : "w-full flex-nowrap sm:w-auto sm:justify-end"
+              )}
+            >
               {primaryResources.map((resource) => (
                 <TalentProfileResourceChip
                   key={resource.key}
@@ -166,7 +195,12 @@ export function TalentProfileHeader({
             </div>
           ) : null}
           {secondaryResources.length > 0 ? (
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            <div
+              className={cn(
+                "flex flex-wrap gap-2",
+                variant !== "review" && "w-full sm:w-auto sm:justify-end"
+              )}
+            >
               {secondaryResources.map((resource) => (
                 <TalentProfileResourceChip
                   key={resource.key}

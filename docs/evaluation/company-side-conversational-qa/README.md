@@ -1,3 +1,38 @@
+## 웹 Setup 공개 JD 작성: role-setup-v1 (2026-10-25)
+
+목적은 첫 `/org/new` 입력의 공개 JD 작성·저장·결과 설명과 후속 공개 정보 편집이다. [입력](role-setup-v1.json), [gold](role-setup-gold-v1.md), [manifest](role-setup-manifest-v1.json)는 실제 호출 전에 동결한 합성 2건이며 기존 Role/알림 입력을 바꾸지 않는다.
+
+Canonical runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/evalRoleNotificationConsent.ts <fresh-run-id> role-setup-v1 RS01,RS02 role_setup`. 실제 Setup 시스템/context builder와 view별 도구 schema를 재사용하고 조회·저장은 in-memory adapter로 처리한다. `google/gemini-3.8-flash`, low, 기존 temperature를 사용하며 출력 토큰·도구 호출 횟수 상한을 지정하지 않는다. provider 요청 timeout은 120초다. 입력/gold/source/prompt hash와 전체 provider 응답·저장 결과는 ignored owner-only runs에 둔다. provider 외 네트워크·DB·발송은 차단한다.
+
+Gate는 2/2 저장 효과와 전체 JD·답변·tool trace 의미 검토, 근거 없는 필수 자격·허위 완료·미승인 효과 0이다. 공개 문서 완성도와 원본 요구 수준·출처 활용을 판단하며 문구/단어 일치로 채점하지 않는다. 소규모 작성자 challenge로 실제 검색 품질·DB·UI·운영 평균·독립 검토는 포함하지 않는다. 기존 frozen RC04를 별도 run으로 재실행하여 공개 필드 부분 수정 호환도 확인한다.
+
+[최종 결과·실패 기록·검증 한계](reports/2026-10-25-role-setup-simplified.md): 최종 새 역할 2/2와 기존 수정 1/1 의미 검토. 로컬 미배포.
+
+## Slack 새 Role → 웹 채용 시작: v38 (2026-10-25)
+
+[동결 입력](cases-v38.json) · [gold](gold-v38.md) · [manifest](manifest-v38.json) · [실행 결과와 한계](reports/2026-10-25-slack-role-web.md). 합성 4대화/5발화로 상세 JD의 근거 기반 초안 저장·직접 웹 링크, 간단한 의사의 핵심 질문, 영어·이전 대화 보존을 확인한다. 최초 실행 전에 입력/gold를 동결했으며 기존 v6 배경만 재사용한다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v38 --model=gpt-6.1-sol --run=<fresh>`. 현재 회사 기본 Sol/high의 원본 loop·prompt·schema, 합성 tool adapter를 사용한다. Gate는 전체 답변/저장 필드의 의미 4/4와 미승인 효과·허위 사실·공개 JD의 비공개 정보 포함 0이다. 최종 r2가 통과했으며 r1의 추가 기준 작성 시도와 adapter 한계를 별도 보존했다.
+
+모든 입력은 합성, provider 외 네트워크는 차단한다. Gold는 모델에 넣지 않는다. 설정·source/input/prompt hash·provider 원문·tool 효과는 ignored owner-only runs에 둔다. 작은 작성자 challenge로 독립 팀원 검토·운영 분포·실제 DB/Slack/Worker/브라우저 E2E를 증명하지 않는다. 웹·Worker·migration은 로컬 미배포다.
+
+## Free 프로필·월 10 Intro 복원과 활성 Role 1개: v37 (2026-10-22)
+
+[최종 검증·실패 기록·적용 범위](reports/2026-10-22-free-plan-restoration.md): 실제 모델 r2 의미 3/3, 미승인 효과 0. 로컬 PostgreSQL 동시 활성화·Intro 차감·슬롯 만료, 변경 경로 검사와 한국어/영어 화면을 확인했다. 기존 범위 밖 타입 오류 1개는 남아 있다. 후속 승인으로 운영 DB migration `20261022081230`을 적용하고 10 Intro·활성 한도 1 및 이력 보존을 확인했다. 웹·Worker는 미배포다.
+
+[동결 입력](cases-v37.json) · [gold](gold-v37.md) · [manifest](manifest-v37.json). 목적은 Free 프로필 조회, 10 공용 Intro와 1개 활성 Free Role, 유료 슬롯 공존·만료 설명을 확인하는 것이다. 평가 단위는 합성 3대화/3발화이며 모델 호출 전에 입력과 gold를 동결했다. 기존 v18 및 free-views 기대값은 바꾸지 않는다.
+
+Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyAgentCapabilities.ts --dataset=v37 --model=gpt-6.1-sol --run=<fresh>`. 현재 회사 기본 모델 Sol/high의 실제 loop·prompt·tool 계약과 회사 공개용 소개 projection을 사용하며 도구 효과는 합성 adapter다. 모델에는 gold를 보내지 않는다. source/input/prompt fingerprint·provider 설정·timeout·원문은 owner-only ignored runs에 보존한다. DB·메일·Slack·결제 통신은 차단한다.
+
+Gate는 3/3 핵심 의미 검토와 미승인 효과·허위 사실·비공개 정보 유출 0이다. 실제 운영 권한·DB/Stripe/전달·브라우저 E2E·독립 팀원 검토 및 대표 품질은 포함하지 않는다. SQL 동시성 검증과 모델 의미 검증을 별도로 기록한다. 모델 실행은 로컬 소스 기준이며, 후속 운영 DB 적용은 위 보고서에서 구분한다.
+
+## 2026-10-21 연결 전 후보자 이메일 입력 제외
+
+기존 frozen v11의 연결 수락·회사 Intro 두 대화만 새 run으로 재실행했다.
+2대화·4발화의 원문 의미와 효과를 확인했으며, 신규 개인정보 경계·기존 관련 검사 80개와 타입 검사가 통과했다.
+주소 제외는 합성 HTTP 전송 경계에서 별도로 확인했다. 기존 비관련 검사 실패 3건과
+운영 DB/발송/배포 미검증 범위는 [검증 기록](reports/2026-10-21-candidate-email-privacy.md)에 남겼다.
+
 ## 다른 Slack 앱 메시지 인용: v34 (2026-10-15)
 
 - 동결 입력/gold: `cases-v34.json`, `gold-v34.md`, `manifest-v34.json`. v6 회사 맥락에 다른 Slack 앱 메시지가 인용된 합성 Slack 스레드 3건이다. production 데이터는 없다.
@@ -52,6 +87,10 @@ v26 [입력](cases-v26.json)·[gold](gold-v26.md)·[manifest](manifest-v26.json)
 Canonical runner: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/evalRoleNotificationConsent.ts <new-run-id> role-criteria-v1`. 기존 runner를 dataset 선택과 공통 Role 편집 adapter로 확장했으며, 기본 `notification-consent-v1` 실행 명령은 유지한다. 실제 Role prompt/input builder·tool schema·criteria parser·문서 부분 수정·완료 검사와 현재 기본 모델/OpenRouter/reasoning/temperature를 재사용한다. 도구 효과는 in-memory이며 전용 production Role loop·DB executor·Slack/메일 통신은 제외한다.
 
 Gate는 4/4 구조·저장 효과와 전체 정의/답변 원문 의미 검토, 새 hard bar·criteria 승인 병목·미승인 활성화·외부 효과 0이다. 모든 입력은 합성이고, 모델 provider 이외의 네트워크는 차단한다. Gold를 모델에 주입하지 않는다. input/gold/source/prompt hash·설정·provider 원문·tool 효과를 ignored runs의 0700/0600 파일로 보존한다. 소규모 작성자 challenge이며 독립 팀원 검토·전체 discovery E2E·매칭 품질·운영 분포는 미검증이다. 실행 완료는 의미 검토 통과가 아니다. 로컬 구현이며 미배포다.
+
+2026-10-24 역할 정보 입력 화면: 같은 runner의 다섯 번째 인자로 `role_details`를 지정하면 실제 역할 정보 편집 지침과 동일한 도구 범위로 실행한다. 예: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --import tsx scripts/evalRoleNotificationConsent.ts <new-run-id> role-criteria-v1 RC04 role_details`. 기존 동결 입력·gold는 그대로 유지한다. [RC04 확인 결과와 한계](reports/2026-10-24-role-details-editor.md).
+
+2026-10-25 첫 웹 Setup 모델 확인: 다섯 번째 인자 `role_setup`은 실제 Setup prompt·도구 범위와 `google/gemini-3.8-flash` / low를 사용한다. 같은 frozen RC04는 공개 역할 필드 수정·도구 호출의 작은 호환 확인이며, 새 역할의 자료 조사·Description 품질이나 종단 지연 평가가 아니다. provider 외 네트워크 차단·합성 저장·기존 gold·owner-only run 계약을 유지한다. [확인 결과](reports/2026-10-25-role-setup-preparation.md).
 
 ## 회사 사건·소개 후 선택적 후속 행동: v24 (2026-10-15)
 
@@ -741,3 +780,27 @@ Slack 전달 기록, 재시도 중복 없음, fixture 외 추천·fit 0, exact-I
 0700/0600 파일에 저장한다. 운영 식별자·원문·provider 결과를 공개 gold에 넣지 않는다.
 Gmail inbound 파싱과 Career LLM의 도구 선택은 검증 범위에 포함하지 않는다.
 DB 적용과 새 로컬 runtime의 검증이며 웹·Worker 운영 배포를 의미하지 않는다.
+
+> 2026-10-22: 아래 free-views v1/v2는 폐기된 열람 정책의 고정 이력이다. 입력·gold·보고서는 보존하고, 운영 fixture를 변경하던 `freeCandidateViewsQa.mjs`는 제거했다. 새 복원 정책의 gate로 실행하거나 이전 기대값을 수정하지 않는다.
+
+## Free 실제 Workspace 열람: free-views-live-v1 (2026-10-21)
+
+사용자가 요청한 재사용 가능한 Free QA 조직에 합성 후보 6명과 중지된 test-only Role 2개를 둔다. [고정 발화·gold](free-views-live-v1.json)는 첫 모델 호출 전에 작성했다. canonical procedure는 인증된 로컬 `/org` 웹에서 실제 후보 열람과 역할 채팅을 사용하고 운영 DB의 해당 fixture 원장만 전후 대조하는 수동 E2E다. `scripts/freeCandidateViewsQa.mjs`는 이 fixture의 상태·API 확인을 보조한다. preview와 tool mock은 사용하지 않는다.
+
+단위는 익명 비교→3명 상세 요청→재조회 대화와 단일 클릭·다른 Role·다른 팀원의 차감 확인이다. 현재 제품 기본 company-side 모델/provider/reasoning을 사용하며 실제 값, source/input fingerprint, 답변과 원장 변화는 ignored owner-only `runs/`에 보존한다. 모델에는 합성 데이터와 테스트 조직 대화만 전달한다. 실제 후보자 연락·Slack·결제는 실행하지 않는다.
+
+Gate는 개인정보 제외, 정확한 차감/재열람, 자연스러운 실행·설명, 링크의 실제 대상 일치, 미승인 연락/허위 사실/격리 누수 0이다. 작은 작성자 challenge로 운영 평균·독립 품질 검토·Slack 전달을 증명하지 않는다. 기존 일반 테스트 정리와 달리 이번 사용자는 직접 후속 테스트할 Workspace 보존을 요청했으므로 fixture를 남기되 모든 역할은 paused·testOnly, 검색/홍보 off, 후보자 추천 off를 유지한다. 열람 차감은 기존 원장을 사용하고, 2026-10-22 이후 열람 권한은 `talent_progress.kind = candidate_profile_opened`로 판단한다. test-only Role의 fit은 0건이어야 한다. fixture capture/reset은 해당 합성 Role×talent의 열람 로그도 함께 보존/초기화한다.
+
+[실제 검증 결과와 수정 사항](reports/2026-10-21-free-views-live.md): 최초 실패를 보존하고 깨끗한 대화에서 비교 10→10, 3명 상세 10→7, 재조회 7→7을 확인했다. 실제 링크 이동까지 검증했으며 직접 테스트할 잔액과 대화는 초기화했다. 로컬 웹과 운영 DB fixture 검증이고 웹·Worker 배포는 하지 않았다.
+
+## Free 열람과 기존 연결 대기: free-views-live-v2 (2026-10-21)
+
+[고정 발화·gold v2](free-views-live-v2.json)는 v1의 세 발화를 그대로 보존하고, 사용자가 요청한 기존 연결 대기 후보의 익명 비교·현재 플랜 질문 한 건과 데스크톱 UI 검증을 추가했다. v1과 그 실행 결과는 변경하지 않는다. 이번 입력과 gold는 v2 모델 실행 전에 작성했으며, 작은 작성자 challenge의 확장이다. 현재 항목은 실행 계약이며 통과 결과를 뜻하지 않는다.
+
+Canonical runner는 동일한 `scripts/freeCandidateViewsQa.mjs`다. `node scripts/freeCandidateViewsQa.mjs chat <case-index> <role-index> [primary|secondary] --dataset=free-views-live-v2`로 선택한다. 옵션을 생략하면 기존 v1이다. 0–2번은 같은 Role에서 익명 비교→상세 요청→재조회 순서로 실행하고, 3번은 아직 열람하지 않은 기존 연결 대기 후보와 신원 공개 대화 이력이 없는 fixture Role에서 별도로 실행한다. 해당 Role의 인덱스와 관심·연결 대기 상태의 원본 근거는 ignored private fixture와 run에 기록한다. fixture 준비는 이 runner의 dataset 선택과 별개이며 공개 dataset에 운영 식별자를 넣지 않는다.
+
+입력은 기존 합성 후보·기준 평가와 합성 관심 기록으로 한정한다. 실제 로컬 제품 API가 현재 기본 company-side 모델/provider/reasoning과 prompt/tool 계약을 사용하며 timeout은 300초다. 선택한 datasetVersion·입력 hash, fixture hash, source revision·fingerprint와 실제 실행 정보는 owner-only run manifest/result 및 대화 기록에 보존한다. 외부 모델에는 전용 테스트 조직의 합성 정보만 전달하며 실제 후보자 연락·Slack·결제는 실행하지 않는다.
+
+추가 gate는 읽기 전용 질문에서 차감·미열람 개인정보·허위 관심·미승인 연락 0, 실제 기준 평가에 근거한 비교, Free 열람과 유료 연결 기능의 정확한 구분이다. 관심을 이미 인터뷰에 합의했다는 뜻으로 확대하지 않는다. UI는 실제 연결 대기 행을 숨기지 않는지, 목록·그리드·카드의 원래 배치/높이를 유지한 채 개인정보 자리만 합성 자료로 흐리는지, hover/focus와 직접 열람·중복 클릭 방지·토스트·다른 Role/팀원 차감 경계를 확인한다. 전체 응답을 문맥과 원장 변화에 대조해 직접 검토하며 tool 성공이나 키워드 검사만으로 의미 품질을 승인하지 않는다. 이전과 동일하게 운영 평균·독립 품질·실제 Slack 전달은 검증 범위 밖이다.
+
+[Free UI와 실제 대화 재검증](reports/2026-10-21-free-views-ui.md): v2 4개 발화의 익명 경계·차감·조회와 기존 구조 위 blur UI를 확인했다. 실제 3명 상세 답변은 151초였으며 latency 한계를 보존했다.

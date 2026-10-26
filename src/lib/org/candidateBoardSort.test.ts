@@ -42,3 +42,19 @@ test("equal dates and absent or invalid scores retain a deterministic order", ()
   assert.ok(compareOrgCandidates(a, b, "recommended") < 0);
   assert.ok(compareOrgCandidates(b, a, "recommended") > 0);
 });
+
+test("a rank replaces the raw recommendation score and sorts the same way", async () => {
+  const { withRecommendationRank, compareOrgCandidates } = await import("./candidateBoardSort");
+  const base = { companyPresentedAt: null, recommendedAt: "2026-10-01T00:00:00Z", source: "recommendation" as const, stage: "inbox" as never };
+  const items = [
+    { ...base, recommendationId: "a", recommendationScore: 0.42 },
+    { ...base, recommendationId: "b", recommendationScore: 0.91 },
+    { ...base, recommendationId: "c", recommendationScore: null },
+    { ...base, recommendationId: "d", recommendationScore: 0.42 },
+  ];
+  const ranked = withRecommendationRank(items);
+  assert.ok(ranked.every((item) => !("recommendationScore" in item)));
+  const order = (list: typeof items) =>
+    [...list].sort((left, right) => compareOrgCandidates(left as never, right as never, "recommended")).map((item) => item.recommendationId);
+  assert.deepEqual(order(ranked as never), order(items));
+});

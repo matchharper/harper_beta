@@ -1,3 +1,4 @@
+import { isStagehandBrowser } from "./applicationBrowserRuntimeRef";
 export class ApplicationBrowserApiError extends Error {
   constructor(readonly status: number) {
     super(`Application browser API returned ${status}`);
@@ -90,7 +91,7 @@ export async function stopApplicationBrowser(browser?: {status: string; sessionI
     const { applicationBrowserRuntime } = await import("./applicationBrowserRuntime");
     await applicationBrowserRuntime.stop(browser.driver);
   }
-  if (browser?.sessionId && ["queued", "running", "waiting"].includes(browser.status)) {
+  if (!isStagehandBrowser(browser?.driver) && browser?.sessionId && ["queued", "running", "waiting"].includes(browser.status)) {
     await cancelBrowserSession(browser.sessionId);
   }
 }

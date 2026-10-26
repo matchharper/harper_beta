@@ -125,6 +125,7 @@ function harness(
     workspaceId?: string;
     detailError?: Error;
     rowError?: Error;
+    paidRoleIds?: string[];
   } = {}
 ) {
   const calls: any[] = [];
@@ -1640,4 +1641,16 @@ test("Slack details events forward legacy identity and URL directly to the prese
   assert.equal(received[0].candidateId, null);
   assert.equal(received[0].entityUrl, legacyUrl);
   assert.equal(received[0].externalRef.id, externalRef.id);
+});
+
+
+test("Free candidate Slack Work Objects include the authorized name, headline and experience", async () => {
+  const { server } = harness({ row: [{...row, presentation: {name:"VISIBLE_NAME",headline:"VISIBLE_HEADLINE"}}],
+    experiences: [{talent_id:"talent",role:"VISIBLE_ROLE",company_name:"VISIBLE_COMPANY"}] });
+  const cards = await server.loadSlackCandidateCards({workspaceId:"workspace",candidateIds:[candidateId]});
+  assert.equal(cards.length,1);
+  assert.equal(cards[0].name,"VISIBLE_NAME");
+  assert.equal(cards[0].headline,"VISIBLE_HEADLINE");
+  assert.equal(cards[0].latestExperience.companyName,"VISIBLE_COMPANY");
+  assert.ok(!JSON.stringify(cards).includes("PRIVATE_"));
 });

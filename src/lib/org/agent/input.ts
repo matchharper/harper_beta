@@ -1,3 +1,4 @@
+import { stringifyLlmDateTimes } from '@/lib/llm/promptDateTime';
 import { buildOrgAgentSystemPrompt, buildOrgAgentUserPrompt } from "./prompts";
 import { buildLlmImageMessageContent, type LlmImageInput, type LlmMessageContent } from "@/lib/llm/imageInput";
 import type { resolveCompanyCapabilities } from "./capabilities/resolver";
@@ -9,7 +10,7 @@ export function buildCompanySystemInput(args: {
   surface: "chat" | "slack" | "email";
   responseLocale?: CompanyResponseLocale;
   allowSilentCompletion?: boolean;
-  backgroundOrigin?: "scheduled_review";
+  backgroundOrigin?: "scheduled_review" | "scheduled_matching";
 }) {
   return buildOrgAgentSystemPrompt({
     surface: args.surface,
@@ -29,16 +30,16 @@ export function buildCompanyConversationInput(args: Parameters<typeof buildOrgAg
   const history = args.context.conversationMessages ?? [];
   const selected = history.filter((m) => m.id !== args.currentUserMessageId);
   const reference = buildOrgAgentUserPrompt({ ...args, includeConversation: false });
-  const historyInfo = JSON.stringify(args.context.conversationHistoryInfo ?? { hasMore: "unknown", returnedItems: selected.length });
+  const historyInfo = stringifyLlmDateTimes(args.context.conversationHistoryInfo ?? { hasMore: "unknown", returnedItems: selected.length });
   return [
-    { role: "user", content: `<reference_context source="workspace_snapshot" not_a_company_message="true">\n${reference}\nhistory_scope_and_completeness: ${historyInfo}\nmessage_index (metadata only; not spoken text): ${JSON.stringify(selected.map(({ content: _content, ...metadata }, index) => ({ ...metadata, followingMessageIndex: index + 1 })))}\ncurrent_message_id: ${args.currentUserMessageId ?? "unknown"}\n</reference_context>` },
+    { role: "user", content: `<reference_context source="workspace_snapshot" not_a_company_message="true">\n${reference}\nhistory_scope_and_completeness: ${historyInfo}\nmessage_index (metadata only; not spoken text): ${stringifyLlmDateTimes(selected.map(({ content: _content, ...metadata }, index) => ({ ...metadata, followingMessageIndex: index + 1 })))}\ncurrent_message_id: ${args.currentUserMessageId ?? "unknown"}\n</reference_context>` },
     // Identity-based boundary; repeated text in different messages is preserved.
     ...selected.map((m): CompanyInputMessage => ({
       role: m.source === "candidate_contact" || m.source === "other_slack_app" ? "user" : m.role,
       content: m.source === "candidate_contact"
-        ? `<candidate_correspondence not_a_company_message="true">${JSON.stringify({ messageId: m.id, references: m.references, content: m.content })}</candidate_correspondence>`
+        ? `<candidate_correspondence not_a_company_message="true">${stringifyLlmDateTimes({ messageId: m.id, references: m.references, content: m.content })}</candidate_correspondence>`
         : m.source === "other_slack_app"
-          ? `<other_slack_app_message not_a_company_message="true">${JSON.stringify({ messageId: m.id, createdAt: m.createdAt, references: m.references, content: m.content })}</other_slack_app_message>`
+          ? `<other_slack_app_message not_a_company_message="true">${stringifyLlmDateTimes({ messageId: m.id, createdAt: m.createdAt, references: m.references, content: m.content })}</other_slack_app_message>`
           : m.content,
     })),
     ...(!args.context.conversationMessages && args.context.conversationText !== "-" ? [{

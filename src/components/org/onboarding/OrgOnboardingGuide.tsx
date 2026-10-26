@@ -1,4 +1,5 @@
-import { MessageSquare, type LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { Text } from "@/components/ui/text";
 
@@ -6,7 +7,13 @@ import { Text } from "@/components/ui/text";
 export function OrgOnboardingGuideHeader({ title }: { title: ReactNode }) {
   return (
     <header className="flex flex-col items-center gap-4 pb-1 pt-2 text-center">
-      <MessageSquare aria-hidden className="size-8 text-neutral-primary" />
+      <Image
+        src="/images/greencheck.png"
+        alt=""
+        width={32}
+        height={32}
+        className="size-10 object-contain"
+      />
       <Text
         as="h1"
         className="text-[20px] font-normal leading-[1.5] text-neutral-primary md:text-[24px]"
@@ -39,7 +46,7 @@ export function OrgOnboardingGuideBody({
             <h2 className="text-[15px] font-medium leading-6 text-neutral-primary">
               {title}
             </h2>
-            <p className="mt-1 text-[13px] leading-6 text-neutral-muted">
+            <p className="mt-1 text-[14px] leading-5 text-neutral-muted">
               {description}
             </p>
           </div>

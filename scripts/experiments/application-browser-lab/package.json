@@ -1,0 +1,1 @@
+{"name":"harper-apply-browser-lab","private":true,"type":"module","scripts":{"build":"next build","start":"next start"},"dependencies":{"@browserbasehq/sdk":"2.22.0","@browserbasehq/stagehand":"3.7.3","next":"16.4.2","playwright-core":"1.63.0","react":"19.2.6","react-dom":"19.2.6","zod":"3.25.76"}}

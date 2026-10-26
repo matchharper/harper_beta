@@ -2,12 +2,14 @@ import { useOrgVisit } from "@/hooks/org/useOrgVisit";
 import { useOrgNavigation } from "@/hooks/org/useOrgNavigation";
 import { OrgPageLoading } from "./OrgPageLoading";
 import { OrgReviewPage } from "./OrgReviewPage";
-// Self-serve signup is paused while payments are being tested.
-// import { OrgSignupEntry } from "@/components/org/onboarding/OrgSignupEntry";
+import { OrgSignupEntry } from "@/components/org/onboarding/OrgSignupEntry";
+import { COMPANY_SELF_SERVE_SIGNUP_ENABLED } from "@/lib/org/billing/rollout";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import Head from "next/head";
+import dynamic from "next/dynamic";
+import { isOrgQueryBlockingError } from "@/lib/org/queryError";
 import { useRouter } from "next/router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { OrgLoginScreen } from "@/components/org/OrgLoginScreen";
 import { OrgAnnouncement } from "@/components/org/OrgAnnouncement";
 import { Page } from "@/components/layout/Page";
@@ -29,6 +31,11 @@ import {
   isAdditionalOrgCreator,
   isOrgOnboardingComplete,
 } from "@/lib/org/signup";
+
+const OrgRoleCreationPage = dynamic(
+  () => import("./pages/OrgRoleCreationPage").then((module) => module.OrgRoleCreationPage),
+  { loading: () => <OrgPageLoading /> }
+);
 
 export function OrgWorkspaceApp({
   children,
@@ -55,8 +62,21 @@ export function OrgWorkspaceApp({
   useOrgVisit(workspace?.isReviewing ? undefined : workspace?.workspaceId, user?.id);
   const navigation = useOrgNavigation(workspace?.workspaceId ?? "");
   const displayPage = navigation?.page ?? page;
+  const [confirmedHomeWorkspaceId, setConfirmedHomeWorkspaceId] = useState<string | null>(null);
+  const homeRolesResolved = page === "home" && workspace &&
+    bootstrapQuery.isSuccess && !bootstrapQuery.isFetching;
+  if (homeRolesResolved && confirmedHomeWorkspaceId !== workspace.workspaceId) {
+    setConfirmedHomeWorkspaceId(workspace.workspaceId);
+  }
+  // Wait for the first read, including a stale empty cache being revalidated.
+  // Later background reads keep the mounted composer and its unsent input.
+  const awaitingHomeRoles = page === "home" && contextValue?.roles.length === 0 &&
+    confirmedHomeWorkspaceId !== workspace?.workspaceId && bootstrapQuery.isFetching;
+  const emptyRoleHome = page === "home" && contextValue?.roles.length === 0 &&
+    (homeRolesResolved || confirmedHomeWorkspaceId === workspace?.workspaceId);
+  const layoutPage = emptyRoleHome ? "new-role" : page;
   const isRoleWorkspacePage =
-    displayPage === "new-role" || displayPage === "role";
+    emptyRoleHome || displayPage === "new-role" || displayPage === "role";
   const isRoleCreationStarted = false;
   // const isRoleCreationStarted =
   //   isRoleCreationPage &&
@@ -64,6 +84,7 @@ export function OrgWorkspaceApp({
   //   Boolean(router.query.roleId.trim());
 
   const useWideLayout =
+    displayPage === "home" ||
     displayPage === "documents" ||
     displayPage === "inbox" ||
     displayPage === "jobs" ||
@@ -80,7 +101,7 @@ export function OrgWorkspaceApp({
   if (!user) {
     return <OrgLoginScreen orgId={orgId} />;
   }
-  if (bootstrapQuery.isLoading) {
+  if (bootstrapQuery.isLoading || awaitingHomeRoles) {
     return (
       <OrgWorkspaceShellSkeleton
         compact={isRoleCreationStarted}
@@ -88,7 +109,7 @@ export function OrgWorkspaceApp({
       />
     );
   }
-  if (bootstrapQuery.error) {
+  if (isOrgQueryBlockingError(bootstrapQuery.error, bootstrapQuery.data)) {
     return (
       <Page
         as="main"
@@ -119,11 +140,12 @@ export function OrgWorkspaceApp({
     );
   }
   if (!workspace || !contextValue) {
-    // return <OrgSignupEntry email={user.email} />;
+    if (COMPANY_SELF_SERVE_SIGNUP_ENABLED)
+      return <OrgSignupEntry email={user.email} />;
     return <OrgLoginScreen authenticatedEmail={user.email} />;
   }
 
-  const pageTitle = isRoleWorkspacePage
+  const pageTitle = !emptyRoleHome && isRoleWorkspacePage
     ? `${workspace.companyName} · ${page === "new-role" ? c("새 역할 등록", "Create new role") : c("역할", "Role")}`
     : `${workspace.companyName} · ${page === "personal-settings" ? c("개인 설정", "Personal settings") : `${page[0].toUpperCase()}${page.slice(1)}`}`;
   const requiresOnboarding =
@@ -168,30 +190,44 @@ export function OrgWorkspaceApp({
           />
           <div
             className={cn(
-              page === "role" ? "md:pt-0" : "pt-12 md:pt-0",
-              isRoleCreationStarted ? "md:pl-[72px]" : "md:pl-[256px]"
+              page === "role" || page === "home" ? "md:pt-0" : "pt-12 md:pt-0",
+              isRoleCreationStarted
+                ? "md:pl-[72px]"
+                : layoutPage === "home"
+                  ? "md:pl-[244px]"
+                  : "md:pl-[256px]"
             )}
           >
             <PageContainer
               key={workspace.workspaceId}
               className={cn(
-                page === "role"
+                layoutPage === "role" || emptyRoleHome
                   ? "h-svh min-h-[520px] md:h-screen md:min-h-0"
-                  : page === "new-role"
+                  : layoutPage === "new-role"
                     ? "h-[calc(100svh-3rem)] min-h-[472px] md:h-screen md:min-h-0"
-                    : "py-6 sm:py-9 lg:py-10"
+                    : layoutPage === "home"
+                      ? "px-1 py-0 md:px-1 lg:py-3 lg:pl-4 lg:pr-8"
+                      : "py-6 sm:py-9 lg:py-10"
               )}
               padding={isRoleWorkspacePage ? "none" : "default"}
               size={
-                isRoleWorkspacePage ? "full" : useWideLayout ? "wide" : "narrow"
+                isRoleWorkspacePage || page === "home"
+                  ? "full"
+                  : useWideLayout ? "wide" : "narrow"
               }
             >
-              {navigation ? <OrgPageLoading page={displayPage} /> : children}
+              {bootstrapQuery.error && (
+                <OrgErrorState
+                  message={bootstrapQuery.error.message}
+                  onRetry={() => void bootstrapQuery.refetch()}
+                />
+              )}
+              {navigation ? <OrgPageLoading page={displayPage} /> : emptyRoleHome ? <OrgRoleCreationPage /> : children}
             </PageContainer>
           </div>
         </Page>
       </OrgMobileNavigationProvider>
-      {!navigation && page === "home" && router.pathname === "/org/home" && (
+      {!navigation && !emptyRoleHome && page === "home" && router.pathname === "/org/home" && (
         <OrgAnnouncement userId={user.id} workspaceId={workspace.workspaceId} />
       )}
     </OrgWorkspaceProvider>

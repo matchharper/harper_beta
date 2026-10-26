@@ -245,11 +245,24 @@ export type OrgAgentMessageMetadata = {
   slackReplyJobId?: string;
   webActionJobId?: string;
   source?: string | null;
+  /** Server-authored origin of a saved public role-writing response. */
+  roleCreationView?: "role_setup" | "role_details";
   roleCreation?: {
     choices?: OrgRoleCreationChoice[];
     confirmationPrompt?: string;
     roleId: string;
   };
+  /** A role start question card in the role chat; answered through the shared question state. */
+  roleStartQuestion?: {
+    questionId: string;
+    chips: Array<{ id: string; label: string }>;
+    status: "pending" | "answered" | "skipped" | "closed";
+    answeredChipId?: string | null;
+  };
+  /** Link card shown when the role start questions are finished. */
+  roleStartBriefReady?: { href: string };
+  /** Registration finished from the start flow: how many went to the inbox. */
+  roleStartRegistered?: { kept: number; picked: number };
   roleCreationConfirmation?: {
     actionId: string;
     decision: "no" | "yes";
@@ -335,6 +348,7 @@ export type OrgAgentChatBody = {
   mentions?: OrgAgentMention[];
   message?: string;
   mode?: OrgAgentMode;
+  roleCreationView?: "role_details";
   model?: OrgAgentModelId | string | null;
   responseLocale?: "ko" | "en";
   /** Required for role and role_creation conversations. */

@@ -108,6 +108,8 @@ export function ChatAssistantContent({
   onHarperLinkClick,
   renderEmailLinksAsText = false,
   variant,
+  additionalRemarkPlugins,
+  renderLink,
 }: {
   className?: string;
   content: string;
@@ -115,10 +117,14 @@ export function ChatAssistantContent({
   onHarperLinkClick?: (href: string) => void;
   renderEmailLinksAsText?: boolean;
   variant?: RichTextVariant;
+  additionalRemarkPlugins?: React.ComponentProps<typeof RichText>["additionalRemarkPlugins"];
+  renderLink?: React.ComponentProps<typeof RichText>["renderLink"];
 }) {
   return (
     <RichText
       variant={variant}
+      additionalRemarkPlugins={additionalRemarkPlugins}
+      renderLink={renderLink}
       className={className}
       content={content}
       linkClassName={linkClassName}

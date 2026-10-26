@@ -166,6 +166,14 @@ export function shouldShowPreparationQuestions(s?: SimulationSession | null) {
   );
 }
 
+export function shouldShowPreparationReopen(s?: SimulationSession | null) {
+  return Boolean(
+    s?.status === "active" &&
+    !s.preparation?.showInputs &&
+    applicationQuestionItems(s).length > 0
+  );
+}
+
 // The parent places this slot inside the same width/padding wrapper as the ordinary composer.
 export function ApplicationPreparationComposerSlot({
   children,
@@ -219,14 +227,7 @@ export function ApplicationPreparationComposerSlot({
 export function ApplicationPreparationReopen() {
   const { record, pending, command } = useApplicationPreparation();
   const t = useCareerT();
-  const s = record?.state;
-  if (
-    !s ||
-    s.status !== "active" ||
-    s.preparation?.showInputs ||
-    !applicationQuestionItems(s).length
-  )
-    return null;
+  if (!shouldShowPreparationReopen(record?.state)) return null;
   return (
     <MuteButton
       disabled={pending}

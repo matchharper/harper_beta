@@ -4,9 +4,11 @@ import OpsShell from "@/components/ops/OpsShell";
 import { useCanFetchInternal } from "@/components/ops/debugging/shared";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs } from "@/components/ui/tabs";
 import JobSearchFilterTab from "@/components/ops/debugging/JobSearchFilterTab";
+import JobSearchComparisonTab from "@/components/ops/debugging/JobSearchComparisonTab";
 import {
   Table,
   TableBody,
@@ -24,9 +26,10 @@ import {
 } from "@/lib/ops/jobTitleSimilarity";
 
 export default function JobTitleSimilarityPage() {
-  const [tab, setTab] = useState("similarity");
+  const [tab, setTab] = useState("compare");
   const canFetch = useCanFetchInternal();
   const [text, setText] = useState("");
+  const [rerank, setRerank] = useState(true);
   const [limit, setLimit] = useState(
     String(JOB_TITLE_SIMILARITY_DEFAULT_LIMIT)
   );
@@ -59,6 +62,7 @@ export default function JobTitleSimilarityPage() {
               text,
               limit: Number(limit),
               candidateLimit: Number(candidateLimit),
+              rerank,
             }),
           }
         )
@@ -85,10 +89,14 @@ export default function JobTitleSimilarityPage() {
           activeValue={tab}
           onValueChange={setTab}
           items={[
+            { value: "compare", label: "조건 비교" },
             { value: "similarity", label: "제목 유사도" },
             { value: "filter-first", label: "필터 → 임베딩 → TOP 500" },
           ]}
         />
+        <div role="tabpanel" aria-label="조건 비교" hidden={tab !== "compare"}>
+          <JobSearchComparisonTab />
+        </div>
         <div
           role="tabpanel"
           aria-label="필터 → 임베딩 → TOP 500"
@@ -167,6 +175,13 @@ export default function JobTitleSimilarityPage() {
                 {running ? "검색 중" : "실행"}
               </MuteButton>
             </div>
+            <Checkbox
+              checked={rerank}
+              onChange={(event) => setRerank(event.target.checked)}
+              disabled={running}
+              label="원본 정밀도로 유사도 재계산"
+              helperText="끄면 1차 검색의 코사인 점수로 결과를 표시합니다."
+            />
           </form>
           <p className="text-sm text-neutral-muted">
             공고별 현재 제목 임베딩으로 검색합니다. 후보 수는 공고 수입니다.
@@ -190,7 +205,10 @@ export default function JobTitleSimilarityPage() {
                 {(result.timings.candidateSearchMs / 1000).toFixed(3)}초
                 <>
                   {" "}
-                  · 정밀 유사도·공고 조회·정렬{" "}
+                  ·{" "}
+                  {result.rerank
+                    ? "정밀 유사도·공고 조회·정렬"
+                    : "공고 조회·정렬 (재계산 없음)"}{" "}
                   {(result.timings.rerankAndFetchMs / 1000).toFixed(3)}초
                 </>
               </p>

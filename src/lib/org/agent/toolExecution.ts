@@ -1,6 +1,12 @@
+import {readHiringBriefHistory} from '../hiringBriefHistory.server';
+import { throwBillingDbError } from "@/lib/org/billing/store";
+import { readCompanyMemory, writeCompanyMemory, object as memoryObject } from "./companyMemory";
+import { readCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
+import { slackCandidateProfileUrl } from "@/lib/org/slackCandidateWorkObject.server";
 import { assertReviewOnboardingTool } from "@/lib/org/workspaceReview.server";
 import { updateCompanyEmailPreferences } from "@/lib/email/companyPreferences";
 import { updateCompanyLanguageSetting } from "@/lib/org/agent/languageSetting";
+import { registerRoleStartFromChat } from "@/lib/org/roleStart/service";
 import { readRoleNotificationContext } from "./roleNotificationContext";
 import {
   changeCompanyFollowup,
@@ -61,11 +67,11 @@ import {
   type OrgAgentConversationHistoryType,
 } from "@/lib/org/agent/conversationHistory";
 import { hasPendingOrgAgentUpdateProposal } from "@/lib/org/agent/proposals";
-import { parseReadTalentIds } from "@/lib/org/agent/readTalentInput";
+import { parseReadTalentIds, parseReadTalentProfileView, parseReadTalentProfileSections, projectReadTalentProfile } from "@/lib/org/agent/readTalentInput";
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import { formatMatchingRunHistory } from "@/lib/org/agent/promptFormat";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
-import { enqueueOrgMatchingSearch, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
+import { enqueueOrgAgenticMatchingSearch, enqueueOrgRecommendationPublication, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
 import {
   assertOrgAgentToolAvailable,
   OrgAgentToolInputError,
@@ -98,6 +104,7 @@ import {
   deleteEmptyOrgRoleReviewStage,
   fetchOrgTalentDetail,
   moveOrgCandidateToRole,
+  OrgHttpError,
   passOrgCompanyIntro,
   requestOrgCompanyIntro,
   setOrgCandidateStage,
@@ -267,6 +274,13 @@ function requiredText(value: unknown, field: string, maxLength: number) {
     );
   }
   return normalized;
+}
+
+function requiredBoolean(value: unknown, field: string) {
+  if (typeof value !== "boolean") {
+    throw new OrgAgentToolInputError(`${field} must be a boolean`);
+  }
+  return value;
 }
 
 function requiredTextList(
@@ -445,6 +459,7 @@ export function getOrgAgentToolStatusLabel(args: {
   status: "done" | "error" | "running";
 }) {
   const labels: Record<OrgAgentToolName, [string, string, string]> = {
+    write_company_memory: ["회사 메모리를 저장하는 중", "회사 메모리 저장 완료", "회사 메모리를 저장하지 못했습니다"],
     update_email_preferences: [
       "이메일 수신 설정을 바꾸는 중",
       "이메일 수신 설정 저장 완료",
@@ -501,6 +516,8 @@ export function getOrgAgentToolStatusLabel(args: {
       "역할 확인 완료",
       "역할을 읽지 못했습니다",
     ],
+    publish_role_recommendations: ["추천 목록을 갱신하는 중", "추천 목록 갱신 요청 완료", "추천 목록을 갱신하지 못했습니다"],
+    recommend_talents: ["추천 선정 접수 중", "추천 선정 접수", "추천 선정 접수 실패"],
     request_matching_search: [
       "새 후보자 검색을 요청하는 중",
       "새 후보자 검색 요청 완료",
@@ -713,10 +730,12 @@ async function executeReadTalent(args: {
   workspaceId: string;
 }) {
   const talentIds = parseReadTalentIds(args.input);
+  const profileView = parseReadTalentProfileView(args.input);
+  const profileSections = parseReadTalentProfileSections(args.input);
   const result = await readOrgAgentTalents({
     admin: args.admin,
     audience: args.audience,
-    includeProfile: booleanField(args.input, "includeProfile", false),
+    includeProfile: profileView !== undefined || profileSections !== undefined || booleanField(args.input, "includeProfile", false),
     progressLimit: boundedInteger(args.input.progressLimit, 10, 1, 30),
     progressOffset: boundedInteger(args.input.progressOffset, 0, 0, 100000),
     roleId: text(args.input.roleId) || null,
@@ -726,7 +745,7 @@ async function executeReadTalent(args: {
   });
   const items = await Promise.all(
     result.items.map(async (item) => ({
-      ...item,
+      ...projectReadTalentProfile(item, profileView, profileSections),
       candidatePreferredLanguage: (
         await readCandidatePreferredLanguage({
           admin: args.admin,
@@ -888,14 +907,18 @@ async function executeReadRole(args: {
 async function executeRequestMatchingSearch(args: {
   admin: OrgAgentAdminClient;
   callId: string;
+  currentUserMessageId: number;
   input: Record<string, unknown>;
   name: OrgAgentToolName;
   state: OrgAgentToolExecutionState;
   user: User;
   workspaceId: string;
 }) {
+  await assertOrgWorkspacePermission({admin:args.admin,user:args.user,workspaceId:args.workspaceId,permission:"manage_candidates"});
   const role = roleOrThrow(args.state, args.input.roleId);
-  const queued = await enqueueOrgMatchingSearch({
+  await assertOrgTeamRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId, roleId: role.roleId });
+  const queued = await (args.name === "publish_role_recommendations" ? enqueueOrgRecommendationPublication : enqueueOrgAgenticMatchingSearch)({
+    input: args.input, requestId: args.callId, sourceMessageId:args.currentUserMessageId,
     admin: args.admin,
     roleId: role.roleId,
     userId: args.user.id,
@@ -906,7 +929,7 @@ async function executeRequestMatchingSearch(args: {
 
   if (status === "not_queued") {
     const unavailableReason =
-      matchingSearchUnavailableReason(queued.reason);
+      matchingSearchUnavailableReason(typeof queued.reason === "string" ? queued.reason : null);
     args.state.fallbackReply = unavailableReason;
     recordResult(args.state, {
       callId: args.callId,
@@ -921,20 +944,22 @@ async function executeRequestMatchingSearch(args: {
     };
   }
 
-  args.state.fallbackReply =
-    "좋아요. 현재 Hiring Brief를 기준으로 전체 후보자를 찾고 있어요. 전체 풀을 평가해서 조금 걸리지만, 끝나는 대로 가장 적합한 분들을 공유할게요.";
+  args.state.fallbackReply = status === "already_completed"
+    ? "이 검색 요청의 기존 종료 기록을 확인했어요."
+    : "저장된 채용 기준으로 검색 요청이 접수됐어요.";
   recordResult(args.state, {
     callId: args.callId,
     name: args.name,
     status: status === "queued" ? "success" : "unchanged",
     summary:
-      status === "already_running"
+      status === "already_completed"
+        ? `${role.name} 기존 검색 종료 기록 확인`
+        : status === "already_running"
         ? `${role.name} 새 후보자 검색 진행 중`
         : `${role.name} 새 후보자 검색 대기`,
   });
   return {
-    requestedRoleName: role.name,
-    status,
+    ...queued, requestedRoleName: role.name,
   };
 }
 
@@ -1015,15 +1040,17 @@ function moreDataKinds(value: unknown) {
     "company_details",
     "workspace_memory",
     "matching_runs",
+    "company_memory",
+    "hiring_brief_history",
+    "teams",
   ] as const;
   const kinds = Array.from(new Set(value.map(text).filter(Boolean)));
   if (
     kinds.length < 1 ||
-    kinds.length > 3 ||
     kinds.some((kind) => !allowed.includes(kind as any))
   ) {
     throw new OrgAgentToolInputError(
-      `kinds must contain 1-3 of: ${allowed.join(", ")}`
+      `kinds must contain one or more of: ${allowed.join(", ")}`
     );
   }
   return kinds as Array<(typeof allowed)[number]>;
@@ -1056,7 +1083,7 @@ async function executeGetMoreData(args: {
   workspaceId: string;
 }) {
   const kinds = moreDataKinds(args.input.kinds);
-  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs");
+  const retainedKinds = kinds.filter((kind) => kind !== "matching_runs" && kind !== "company_memory" && kind !== "hiring_brief_history" && kind !== "teams");
   const readsHistory = kinds.includes("matching_runs");
   const offset = args.input.offset ?? 0;
   if (
@@ -1070,6 +1097,15 @@ async function executeGetMoreData(args: {
     );
   }
   const fullTextKeys = moreDataFullTextKeys(args.input.fullTextKeys);
+  if (args.input.roleId !== undefined && !readsHistory) {
+    throw new OrgAgentToolInputError("roleId requires matching_runs");
+  }
+  const historyRoleId = args.input.roleId === undefined
+    ? undefined : roleOrThrow(args.state, args.input.roleId).roleId;
+  const matchingInput = args.input.matching ? memoryObject(args.input.matching) : undefined;
+  if (matchingInput && historyRoleId && matchingInput.roleId !== historyRoleId) {
+    throw new OrgAgentToolInputError("roleId and matching.roleId must identify the same Role");
+  }
   if (fullTextKeys.length > 0 && !kinds.includes("company_details")) {
     throw new OrgAgentToolInputError(
       "fullTextKeys requires company_details in kinds"
@@ -1077,7 +1113,13 @@ async function executeGetMoreData(args: {
   }
   const { readMatchingRunHistory } =
     await import("@/lib/companyFirstSearch/history");
-  const [retained, matchingRuns] = await Promise.all([
+  if (args.input.matching && !readsHistory) throw new OrgAgentToolInputError("matching requires matching_runs");
+  if (args.input.memory && !kinds.includes("company_memory")) throw new OrgAgentToolInputError("memory requires company_memory");
+  if (args.input.hiringBriefHistory && !kinds.includes('hiring_brief_history')) throw new OrgAgentToolInputError('hiringBriefHistory requires hiring_brief_history');
+  const briefHistoryInput=memoryObject(args.input.hiringBriefHistory);
+  const briefRoleId=kinds.includes('hiring_brief_history') ? roleOrThrow(args.state,briefHistoryInput.roleId).roleId : null;
+  const {readCompanyTeams}=await import('./teamIndex');
+  const [retained, matchingRuns, roleSearch, companyMemory, hiringBriefHistory, teams] = await Promise.all([
     retainedKinds.length
       ? getOrgAgentMoreData({
           admin: args.admin,
@@ -1087,14 +1129,21 @@ async function executeGetMoreData(args: {
           workspaceId: args.workspaceId,
         })
       : Promise.resolve<OrgAgentMoreDataResult>({ requestedKinds: [] }),
-    readsHistory
+    readsHistory && !args.input.matching
       ? readMatchingRunHistory({
           admin: args.admin,
           workspaceId: args.workspaceId,
           user: args.user,
+          roleId: historyRoleId,
           offset,
         })
       : Promise.resolve(undefined),
+    args.input.matching ? readCompanyRoleSearch({admin:args.admin,user:args.user,workspaceId:args.workspaceId,input:memoryObject(args.input.matching)}) : Promise.resolve(undefined),
+    kinds.includes("company_memory") ? readCompanyMemory({admin:args.admin,user:args.user,workspaceId:args.workspaceId,input:memoryObject(args.input.memory)}) : Promise.resolve(undefined),
+    briefRoleId ? readHiringBriefHistory({admin:args.admin,user:args.user,workspaceId:args.workspaceId,roleId:briefRoleId,
+      historyId:typeof briefHistoryInput.historyId==='string' ? briefHistoryInput.historyId : undefined,
+      offset:briefHistoryInput.offset as number|undefined,limit:briefHistoryInput.limit as number|undefined}) : Promise.resolve(undefined),
+    kinds.includes('teams') ? readCompanyTeams({admin:args.admin,user:args.user,workspaceId:args.workspaceId}) : Promise.resolve(undefined),
   ]);
   if (matchingRuns && retainedKinds.length) {
     fitOrgAgentMoreDataContent({
@@ -1105,9 +1154,13 @@ async function executeGetMoreData(args: {
     });
   }
   const result: OrgAgentMoreDataToolResult = {
+    ...(teams ? {teams} : {}),
     ...retained,
     requestedKinds: kinds,
     ...(matchingRuns ? { matchingRuns } : {}),
+    ...(roleSearch ? { roleSearch } : {}),
+    ...(companyMemory ? { companyMemory } : {}),
+    ...(hiringBriefHistory ? {hiringBriefHistory} : {}),
   };
 
   if (result.companyDetails) {
@@ -1152,26 +1205,16 @@ function asRpcResult(value: unknown) {
 }
 
 async function applyResolvedCompanyDataChanges(args: {
-  admin: OrgAgentAdminClient;
-  changes: ResolvedCompanyDataChange[];
-  eventContent: string;
-  source: "chat" | "slack";
-  workspaceId: string;
+  admin: OrgAgentAdminClient; actorId: string; actorLabel: string;
+  changes: ResolvedCompanyDataChange[]; eventContent: string;
+  source: "chat" | "slack"; workspaceId: string;
 }) {
-  const includesSalaryRange = args.changes.some(
-    (change) => change.key === "salaryRange"
-  );
-  return (args.admin.rpc as any)(
-    includesSalaryRange
-      ? "apply_company_data_changes_with_role_salary_v1"
-      : "apply_company_data_changes_v1",
-    {
-      p_changes: args.changes,
-      p_event_content: args.eventContent,
-      p_source: args.source,
-      p_workspace_id: args.workspaceId,
-    }
-  );
+  const includesBrief=args.changes.some(change=>change.key==='role_request');
+  return (args.admin.rpc as any)(includesBrief ? 'apply_company_data_with_hiring_history_v1'
+    : args.changes.some(change=>change.key==='salaryRange') ? 'apply_company_data_changes_with_role_salary_v1' : 'apply_company_data_changes_v1', {
+    p_changes:args.changes,p_event_content:args.eventContent,p_source:args.source,p_workspace_id:args.workspaceId,
+    ...(includesBrief ? {p_criteria_changes:[],p_actor_user_id:args.actorId,p_actor_label:args.actorLabel} : {}),
+  });
 }
 
 async function executeProposalAction(args: {
@@ -1348,18 +1391,44 @@ async function executeUpdateRoleCriteria(args: {
     }
   }
 
-  const result = await updateOrgRoleCriteria({
-    actorLabel: args.actorLabel,
-    criteria,
-    expectedCriteria,
+  // A Role started from role start changes its list only through its Brief, so the
+  // saved Brief text and the list stay one (roleStart/service.ts applyChatEditToRoleStart).
+  const { applyChatEditToRoleStart } = await import("@/lib/org/roleStart/service");
+  const viaBrief = await applyChatEditToRoleStart({
     roleId: role.roleId,
-    source: args.source,
     user: args.user,
     workspaceId: args.workspaceId,
+    historySource: args.source,
+    previousRequest: null,
+    criteria,
+    expectedCriteria,
   });
-  const changed = result.status === "updated";
+  const result = viaBrief
+    ? { status: viaBrief.changed ? ("updated_via_brief" as const) : ("unchanged" as const) }
+    : await updateOrgRoleCriteria({
+        actorLabel: args.actorLabel,
+        criteria,
+        expectedCriteria,
+        roleId: role.roleId,
+        source: args.source,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      });
+  if (!viaBrief && text(role.status).toLowerCase() === "draft") {
+    // A draft's start flow Brief follows the list, as update_role_draft does.
+    const { briefStartedFromJd } = await import("@/lib/org/roleStart/rolePrefill");
+    if (!briefStartedFromJd(role.roleId)) {
+      const { applyChatCriteriaToRoleStart } = await import("@/lib/org/roleStart/service");
+      await applyChatCriteriaToRoleStart({ roleId: role.roleId, userId: args.user.id, criteria })
+        .catch((error) => console.warn("[org/agent:role-start-criteria]", formatToolError(error)));
+    }
+  }
+  // Through the Brief, the count is what the Brief kept.
+  const criteriaCount = viaBrief ? viaBrief.brief.criteria.length : criteria.length;
+  const changed = result.status === "updated" || result.status === "updated_via_brief";
   const currentRole = args.state.roleById.get(role.roleId);
-  if (currentRole) {
+  // Through the Brief the saved list is written from the Brief: read again rather than assumed.
+  if (currentRole && !viaBrief) {
     args.state.roleById.set(role.roleId, { ...currentRole, criteria });
   }
   const editSummary = editCounts
@@ -1371,9 +1440,11 @@ async function executeUpdateRoleCriteria(args: {
         .filter(Boolean)
         .join(", ")
     : "전체 교체";
-  const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteria.length}개)`;
-  args.state.fallbackReply = changed
-    ? `${role.name} 역할의 Evaluation Criteria를 저장했어요. ${editSummary}, 총 ${criteria.length}개예요. Hiring Brief와 Context for Harper는 바꾸지 않았어요.`
+  const summary = `${role.name} 역할 평가 기준 ${editSummary} (총 ${criteriaCount}개)`;
+  args.state.fallbackReply = viaBrief && changed
+    ? `${role.name} 역할의 평가 기준을 Brief에 반영했어요. ${editSummary}, 총 ${criteriaCount}개예요. 저장된 Brief 글도 같은 Brief로 함께 바뀌어요.`
+    : changed
+    ? `${role.name} 역할의 Evaluation Criteria를 저장했어요. ${editSummary}, 총 ${criteriaCount}개예요. Hiring Brief와 Context for Harper는 바꾸지 않았어요.`
     : "이미 같은 Evaluation Criteria가 저장되어 있어 바뀐 내용은 없어요.";
   if (changed) {
     args.state.updateSummaries.push(summary);
@@ -1391,7 +1462,7 @@ async function executeUpdateRoleCriteria(args: {
     summary,
   });
   return {
-    criteriaCount: criteria.length,
+    criteriaCount,
     ...(editCounts ? { editCounts } : {}),
     mode: editCounts ? "edits" : "replace",
     status: result.status,
@@ -1415,6 +1486,17 @@ async function executeCalibrateRoleHiringBrief(args: {
   workspaceId: string;
 }) {
   const visibleRole = roleOrThrow(args.state, args.input.roleId);
+  {
+    // A Role started from role start takes reference people only from the web 참고 인물 box
+    // (roleStart/referenceTurn.ts); every other Role calibrates exactly as before.
+    const { referenceBoxOnlyTurn } = await import("@/lib/org/roleStart/referenceTurn");
+    const turn = await referenceBoxOnlyTurn(visibleRole.roleId);
+    if (turn) {
+      args.state.fallbackReply = turn.userReply;
+      recordResult(args.state, { callId: args.callId, name: args.name, status: "unchanged", summary: "참고 인물: 웹의 참고 인물 칸으로만" });
+      return { roleId: visibleRole.roleId, roleName: visibleRole.name, status: turn.status, userReply: turn.userReply, summary: "Nothing recorded. Reply with userReply as is." };
+    }
+  }
   const role = await fetchRoleForOrgAgent({
     admin: args.admin,
     roleId: visibleRole.roleId,
@@ -1513,7 +1595,9 @@ async function executeCalibrateRoleHiringBrief(args: {
 }
 
 async function executeUpdateData(args: {
+  actorId: string;
   actorLabel: string;
+  user: User;
   admin: OrgAgentAdminClient;
   callId: string;
   currentUserMessageId: number;
@@ -1676,13 +1760,37 @@ async function executeUpdateData(args: {
     };
   }
 
-  const { data, error } = await applyResolvedCompanyDataChanges({
-    admin: args.admin,
-    changes,
-    eventContent,
-    source: args.source,
-    workspaceId: args.workspaceId,
-  });
+  // A role start Role's Brief text changes only through its Brief (as
+  // /api/org/role refuses it): the changed lines go into the Brief, and the
+  // text and criteria are written again from it.
+  let briefChanged = false;
+  for (const change of changes.filter((item) => item.key === "role_request" && item.role_id)) {
+    const { applyChatEditToRoleStart } = await import("@/lib/org/roleStart/service");
+    const routed = await applyChatEditToRoleStart({
+      roleId: change.role_id!,
+      user: args.user,
+      workspaceId: args.workspaceId,
+      historySource: args.source,
+      previousRequest: text(change.expected),
+      request: text(change.value),
+    }).catch((error) => {
+      throw error instanceof OrgHttpError ? new OrgAgentToolInputError(error.message) : error;
+    });
+    if (!routed) continue;
+    briefChanged ||= routed.changed;
+    changes = changes.filter((item) => item !== change);
+  }
+  const { data, error } = changes.length
+    ? await applyResolvedCompanyDataChanges({
+        actorId: args.actorId,
+        actorLabel: args.actorLabel,
+        admin: args.admin,
+        changes,
+        eventContent,
+        source: args.source,
+        workspaceId: args.workspaceId,
+      })
+    : { data: { status: briefChanged ? "updated" : "already_reflected" }, error: null };
   if (error) throw error;
   const result = asRpcResult(data);
   const status = text(result.status);
@@ -1691,6 +1799,11 @@ async function executeUpdateData(args: {
       "The data changed while this update was being prepared. Read it again before retrying."
     );
   }
+  if (Array.isArray(result.history_ids) && result.history_ids.length) {
+    const {publishHiringBriefSummaries}=await import('../hiringBriefHistoryQueue');
+    await publishHiringBriefSummaries(result.history_ids.map(String));
+  }
+
   if (status === "updated") {
     args.state.fallbackReply = `변경 내용을 저장했어요. ${summary}`;
     args.state.updateSummaries.push(summary);
@@ -1748,11 +1861,15 @@ async function executeChangeRoleStatus(args: {
     "notificationChannelIds"
   );
   const assigneeProvided = has(args.input, "assigneeUserId");
+  const notificationEmailProvided = has(args.input, "emailEnabled");
   const draftActivation =
     text(role.status).toLowerCase() === "draft" && status === "active";
-  if ((notificationChannelsProvided || assigneeProvided) && !draftActivation) {
+  if (
+    (notificationChannelsProvided || assigneeProvided || notificationEmailProvided) &&
+    !draftActivation
+  ) {
     throw new OrgAgentToolInputError(
-      "Notification channels and assignee can be supplied only while activating a draft Role"
+      "Notification channels, email and assignee can be supplied only while activating a draft Role"
     );
   }
 
@@ -1773,7 +1890,7 @@ async function executeChangeRoleStatus(args: {
       workspaceId: args.workspaceId,
     });
     const notificationSelectionSaved =
-      notificationChannelsProvided || assigneeProvided;
+      notificationChannelsProvided || assigneeProvided || notificationEmailProvided;
     if (notificationSelectionSaved) {
       creationState = await setRoleCreationNotification({
         ...(assigneeProvided
@@ -1794,6 +1911,9 @@ async function executeChangeRoleStatus(args: {
               ),
             }
           : {}),
+        ...(notificationEmailProvided
+          ? { emailEnabled: requiredBoolean(args.input.emailEnabled, "emailEnabled") }
+          : {}),
         roleId: role.roleId,
         user: args.user,
         workspaceId: args.workspaceId,
@@ -1804,7 +1924,7 @@ async function executeChangeRoleStatus(args: {
     if (missingFieldKeys.length > 0) {
       const missingFieldLabels: Record<string, string> = {
         assignee: "담당자",
-        connected_slack: "알림을 받을 Slack 채널",
+        connected_slack: "알림 받을 곳(Slack 채널이나 메일)",
         description: "역할 설명",
         employment_type: "고용 형태",
         location: "근무 지역",
@@ -1817,6 +1937,10 @@ async function executeChangeRoleStatus(args: {
       );
       const needsChannels = missingFieldKeys.includes("connected_slack");
       const needsAssignee = missingFieldKeys.includes("assignee");
+      // Without an enabled Slack channel, email is the default place to hear about new candidates.
+      const offerEmail =
+        needsChannels &&
+        !creationState.channels.some((channel) => channel.enabled);
       const availableChannels = needsChannels
         ? creationState.channels.map((channel) => ({
             channelId: channel.channelId,
@@ -1856,6 +1980,7 @@ async function executeChangeRoleStatus(args: {
                   .join(",")}`,
               ]
             : []),
+          ...(offerEmail ? ["notification_email_option=true"] : []),
           ...(availableAssignees.length > 0
             ? [
                 `assignee_options=${availableAssignees
@@ -1877,10 +2002,31 @@ async function executeChangeRoleStatus(args: {
         missingFields,
         notificationSelectionSaved,
         responseGuidance:
-          "The Role is still a draft. Ask only for the missing information that the user can answer now. If the assignee is missing, ask whether to set the current conversation partner (the available assignee marked current) as the owner; if that person is not available, ask the user to choose an available teammate. Do not assign anyone without contextual authorization. Name relevant channel options when needed. Do not request a second activation confirmation; after the missing information is saved, complete the user's still-authorized request in the same turn when possible.",
+          "The Role is still a draft. Ask only for the missing information that the user can answer now. If the assignee is missing, ask whether to set the current conversation partner (the available assignee marked current) as the owner; if that person is not available, ask the user to choose an available teammate. Do not assign anyone without contextual authorization. Name relevant channel options when needed. With no Slack channel (notification_email_option), propose email to the Role's assignee and Owners as the default place for new candidates and save it with emailEnabled=true once the user accepts. Do not request a second activation confirmation; after the missing information is saved, complete the user's still-authorized request in the same turn when possible.",
         roleName: role.name,
         roleStatus: "draft",
         status: "role_creation_incomplete",
+      };
+    }
+
+    // While the start flow owns the Role, it turns the Role on after the
+    // first-three ratings reach the Brief and one more person is proposed.
+    const startFlow = await registerRoleStartFromChat({
+      roleId: role.roleId,
+      user: args.user,
+      workspaceId: args.workspaceId,
+    });
+    if (startFlow !== "not_owned") {
+      return {
+        responseGuidance:
+          startFlow === "registering"
+            ? "Registration is accepted. Harper is applying the ratings of the first three candidates to the Brief and choosing one more person; the Role starts after that, usually within 1-2 minutes. Say exactly that in plain words; do not say the Role is active or started."
+            : startFlow === "needs_ratings"
+              ? "Nothing was registered. Ask the user to rate the first three candidates on the right panel first, then register."
+              : "Nothing was registered because required Role details are missing. Ask for the missing details.",
+        roleName: role.name,
+        roleStatus: "draft",
+        status: startFlow === "registering" ? "role_start_registering" : "role_creation_incomplete",
       };
     }
 
@@ -1890,7 +2036,7 @@ async function executeChangeRoleStatus(args: {
       p_role_id: role.roleId,
       p_workspace_id: args.workspaceId,
     });
-    if (activationError) throw activationError;
+    if (activationError) throwBillingDbError(activationError);
 
     let completionState = await fetchRoleCreationState({
       allowCompletedRole: true,
@@ -1979,10 +2125,22 @@ async function executeChangeRoleStatus(args: {
       status: changed ? "success" : "unchanged",
       summary,
     });
+    // A mail-only Role has no Slack channel to post to; the reply talks about email instead.
+    const mailOnly =
+      completionState.emailEnabled &&
+      !completionState.channels.some((channel) =>
+        completionState.metadata.confirmedSlackChannelIds.includes(channel.channelId)
+      );
     return {
       effect: copy.effect,
       expectation: copy.expectation,
       nextProcess: copy.nextProcess,
+      ...(mailOnly
+        ? {
+            responseGuidance:
+              "This Role receives new candidates by email and has no confirmed Slack channel. Do not mention Slack; say only that new candidates will be sent by email.",
+          }
+        : {}),
       roleName: role.name,
       roleStatus: "active",
       slackNotificationDelivered,
@@ -2558,6 +2716,13 @@ async function executeCandidateContactLifecycleItem(args: {
         "현재 회사 대화에서 답장할 수 있는 후보자 전달 내역을 찾지 못했습니다."
       );
     }
+    roleOrThrow(args.state, target.roleId);
+    await assertOrgTeamRoleAccess({
+      admin: args.admin,
+      user: args.user,
+      workspaceId: args.workspaceId,
+      roleId: target.roleId,
+    });
     args.state.preferredRoleId = target.roleId;
     if (!target.candidateEmail) {
       recordResult(args.state, {
@@ -6330,9 +6495,34 @@ export async function executeOrgAgentTool(args: {
         "contextMessageCount must be an integer between 1 and 12"
       );
     }
+    const draftInput = input.draft;
+    if (!draftInput || typeof draftInput !== "object" || Array.isArray(draftInput)) {
+      throw new OrgAgentToolInputError("draft is required");
+    }
+    const draft = draftInput as Record<string, unknown>;
+    if (typeof draft.description !== "string" || !draft.description.trim()) {
+      throw new OrgAgentToolInputError("draft.description is required");
+    }
+    for (const key of ["request", "locationText", "workMode", "salaryRange", "externalJdUrl"]) {
+      if (draft[key] !== undefined && typeof draft[key] !== "string") {
+        throw new OrgAgentToolInputError(`draft.${key} must be a string`);
+      }
+    }
+    if (draft.employmentTypes !== undefined && (!Array.isArray(draft.employmentTypes) || draft.employmentTypes.some((value) => typeof value !== "string"))) {
+      throw new OrgAgentToolInputError("draft.employmentTypes must be a string array");
+    }
     const started = await startSlackRoleCreation({
       actorLabel: args.actorLabel,
       contextMessageCount,
+      draft: {
+        description: draft.description,
+        request: draft.request as string | undefined,
+        locationText: draft.locationText as string | undefined,
+        workMode: draft.workMode as string | undefined,
+        salaryRange: draft.salaryRange as string | undefined,
+        externalJdUrl: draft.externalJdUrl as string | undefined,
+        employmentTypes: draft.employmentTypes as string[] | undefined,
+      },
       execution: args.slackExecutionContext,
       roleTitle,
       sourceConversation: args.conversation,
@@ -6341,27 +6531,22 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
-    args.state.requiredSlackContinuationLink = `<${started.threadPermalink}|새로운 채용 등록 이어가기>`;
-    args.state.fallbackReply = [
-      `${started.roleTitle} 역할 등록을 함께 시작할게요.`,
-      "",
-      "보내주신 내용은 새 역할 대화로 옮겨 두었어요. 역할 정보와 원하는 매칭 기준은 그곳에서 이어서 정리해요.",
-      "",
-      args.state.requiredSlackContinuationLink,
-      "",
-      "등록 과정이 끝나고 나면 바로 좋은 인재분들과의 연결을 도와드리기 시작할게요 :)",
-    ].join("\n");
+    args.state.requiredSlackContinuationLink = `<${started.webUrl}|새로운 채용 등록 이어가기>`;
+    // Preserve the model's explanation. The link alone is the structural fallback.
+    args.state.fallbackReply = args.state.requiredSlackContinuationLink;
     recordResult(args.state, {
       callId: args.callId,
       name: args.name,
       status: "success",
-      summary: `${started.roleTitle} 역할 작성 스레드 시작`,
+      summary: `${started.roleTitle} 역할 초안 및 웹 온보딩 준비`,
     });
     return {
       roleTitle: started.roleTitle,
       requiredContinuationLink: args.state.requiredSlackContinuationLink,
       status: "started",
-      transferredMessageCount: contextMessageCount,
+      roleId: started.roleId,
+      transferredMessageCount: started.transferredMessageCount,
+      savedFields: Object.keys(draft).filter((key) => draft[key] !== undefined),
     };
   } else if (args.name === "web_search") {
     result = await executeSharedWebSearch(input, {
@@ -6423,16 +6608,21 @@ export async function executeOrgAgentTool(args: {
       user: args.user,
       workspaceId,
     });
-  } else if (args.name === "request_matching_search") {
+  } else if (args.name === "request_matching_search" || args.name === "publish_role_recommendations") {
     return executeRequestMatchingSearch({
       admin: args.admin,
       callId: args.callId,
+      currentUserMessageId: args.currentUserMessageId,
       input,
       name: args.name,
       state: args.state,
       user: args.user,
       workspaceId,
     });
+  } else if (args.name === "write_company_memory") {
+    result = await writeCompanyMemory({admin:args.admin,user:args.user,workspaceId,input});
+    recordResult(args.state, {callId:args.callId,name:args.name,status:"success",summary:"회사 메모리 변경 저장"});
+    return result;
   } else if (args.name === "calibrate_role_hiring_brief") {
     return executeCalibrateRoleHiringBrief({
       admin: args.admin,
@@ -6481,7 +6671,9 @@ export async function executeOrgAgentTool(args: {
   } else if (args.name === "update_data") {
     try {
       return await executeUpdateData({
+        actorId:args.user.id,
         actorLabel: args.actorLabel,
+        user: args.user,
         admin: args.admin,
         callId: args.callId,
         currentUserMessageId: args.currentUserMessageId,
@@ -6516,6 +6708,9 @@ export async function executeOrgAgentTool(args: {
       ...(has(input, "channelIds")
         ? { channelIds: requiredTextList(input.channelIds, "channelIds", 20) }
         : {}),
+      ...(has(input, "emailEnabled")
+        ? { emailEnabled: requiredBoolean(input.emailEnabled, "emailEnabled") }
+        : {}),
     });
     recordResult(args.state, {
       callId: args.callId,
@@ -6532,6 +6727,7 @@ export async function executeOrgAgentTool(args: {
         saved.assigneeUserIds.includes(member.userId)
       ),
       channels: saved.channels.filter((channel) => channel.enabled),
+      emailEnabled: saved.emailEnabled,
       hiringStatusChanged: false,
     };
   } else if (args.name === "change_role_status") {

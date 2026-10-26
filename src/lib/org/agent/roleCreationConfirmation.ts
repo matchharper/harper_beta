@@ -1,8 +1,11 @@
+import { throwBillingDbError } from "@/lib/org/billing/store";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { generateRoleCreationOutcomeReply } from "@/lib/org/agent/roleCreationChat";
+import type { RoleCreationOutcome } from "@/lib/org/agent/roleCreationPrompt";
+import { registerRoleStartFromChat } from "@/lib/org/roleStart/service";
 import {
   canReclaimRoleCreationConfirmation,
   isRoleCreationConfirmationProcessing,
@@ -369,8 +372,18 @@ export async function confirmRoleCreationChoice(args: {
       : getRoleCreationMissingFields(refreshed);
 
   let completed = false;
-  let outcome: "completed" | "declined" | "revalidation_failed" = "declined";
+  let outcome: RoleCreationOutcome = "declined";
+  // While the start flow owns the Role, it turns the Role on after the
+  // ratings and one more person; the chat only starts that registration.
+  const startFlow =
+    args.decision === "yes" && missingFields.length === 0 && refreshed.role.status !== "active"
+      ? await registerRoleStartFromChat({ roleId, user: args.user, workspaceId })
+      : "not_owned";
   if (args.decision === "yes" && missingFields.length > 0) {
+    outcome = "revalidation_failed";
+  } else if (startFlow === "registering" || startFlow === "needs_ratings") {
+    outcome = startFlow;
+  } else if (startFlow === "missing") {
     outcome = "revalidation_failed";
   } else if (args.decision === "yes") {
     if (refreshed.role.status !== "active") {
@@ -380,7 +393,7 @@ export async function confirmRoleCreationChoice(args: {
         p_role_id: roleId,
         p_workspace_id: workspaceId,
       });
-      if (activateError) throw activateError;
+      if (activateError) throwBillingDbError(activateError);
       if (activated !== true) {
         throw new OrgHttpError(409, "Role was already updated");
       }

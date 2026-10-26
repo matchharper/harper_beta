@@ -1,4 +1,5 @@
-import { buildLiveFrontendInstructions } from "@/lib/career/voiceSessionInstructions";
+import { getCareerLiveSessionConfig } from "@/lib/career/llm";
+import { buildCareerLiveSessionConfig } from "@/lib/career/liveSessionConfig.server";
 import {
   readMockInterviewOpportunityId,
   MockInterviewRequestError,
@@ -6,7 +7,6 @@ import {
 import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getCareerLiveSessionConfig } from "@/lib/career/llm";
 import {
   getCareerRealtimeToolCandidates,
   resolveCareerRealtimeTools,
@@ -317,7 +317,6 @@ export async function POST(req: NextRequest) {
       enabledToolNames: promptPlan.enabledToolNames,
       preferredLocale: responseLocale,
     });
-    const liveConfig = getCareerLiveSessionConfig();
     const attemptLog = logCareerVoiceModelSessionAttempt({
       admin,
       callSessionId,
@@ -336,29 +335,14 @@ export async function POST(req: NextRequest) {
           "OpenAI-Safety-Identifier": buildSafetyIdentifier(user.id),
         },
         body: JSON.stringify({
-          session: {
-            model: liveConfig.model,
-            audio: { output: { voice: liveConfig.voice } },
-            instructions: buildLiveFrontendInstructions({
-              initialResponseInstruction: openingInstruction,
-              responseLocale,
-              isMockInterview: Boolean(mockInterviewOpportunityId),
-              onboardingContext: promptPlan.liveOnboardingContext,
-            }),
-            delegation: {
-              type: "responses",
-              responses: {
-                model: liveConfig.delegationModel,
-                instructions: backendInstructions,
-                tools: toolSelection.tools,
-                tool_choice: "auto",
-                parallel_tool_calls: false,
-                reasoning: { effort: liveConfig.delegationReasoningEffort },
-                text: { verbosity: "low" },
-              },
-            },
-            store: false,
-          },
+          session: buildCareerLiveSessionConfig({
+            openingInstruction,
+            responseLocale,
+            isMockInterview: Boolean(mockInterviewOpportunityId),
+            onboardingContext: promptPlan.liveOnboardingContext,
+            backendInstructions,
+            tools: toolSelection.tools,
+          }),
           transport: { type: "webrtc", sdp },
         }),
         cache: "no-store",
@@ -438,7 +422,7 @@ export async function POST(req: NextRequest) {
     ]);
 
     return NextResponse.json({
-      model: liveConfig.model,
+      model: getCareerLiveSessionConfig().model,
       session: { id: sessionId },
       transport: { type: "webrtc", sdp: answerSdp },
     });

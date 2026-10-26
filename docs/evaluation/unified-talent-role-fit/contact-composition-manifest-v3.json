@@ -1,0 +1,8 @@
+{
+  "datasetVersion": "contact-composition-v3",
+  "sha256": "997ada1109a348830ca2a38ac9bd1d0207ae50a2a2802b90c547c9ec4972213e",
+  "provenance": "v2 three synthetic cases unchanged; three synthetic company/role-scoped user Memory cases added before execution. No production data.",
+  "goldReview": "Codex authored expected decisions before model execution; independent human review pending.",
+  "runner": "harper_worker/llm_evals/unified_talent_role_fit/eval_contact_composition.py",
+  "changes": "Adds required recommendation decisions and immediate rejectedRoleIds; preserves v1/v2 fixtures and results."
+}

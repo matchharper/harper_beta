@@ -1,0 +1,12 @@
+{
+  "datasetVersion": "public-gausslabs-v1",
+  "selection": "Exact public JD explicitly supplied by user; no replacement. Frozen before agent execution.",
+  "cases": {
+    "gausslabs": {
+      "site": "Lever",
+      "company": "Gauss Labs",
+      "title": "AI Scientist - Machine Learning (KR/US)",
+      "url": "https://jobs.lever.co/gausslabs/dbfd0b6c-d2e9-460c-91a0-6dde6f29046d"
+    }
+  }
+}

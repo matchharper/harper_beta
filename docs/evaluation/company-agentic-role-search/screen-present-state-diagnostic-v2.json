@@ -1,0 +1,40 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "screen-present-state-diagnostic-v2",
+  "sourceRun": "experiment-v3-sol-ars09/ARS09",
+  "objective": "Distinguish an explicitly required present-state eligibility condition from future workplace and mobility preferences, using unchanged real pointwise inputs.",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "labelProvenance": "Manual unblinded review of actual v3 company-produced Hiring Brief and stage1 inputs; source version differs from v1 and is frozen before projection replay.",
+  "goldChanged": false,
+  "limitations": [
+    "Three post-observation cases, not representative model accuracy.",
+    "Exact private source profile/Brief/Memory/Behavior inputs; no synthetic replacement facts.",
+    "No DB writes, recommendations, or external delivery."
+  ],
+  "cases": [
+    {
+      "id": "present-state-01",
+      "sourceTrace": "decisions-c9047ff504e740faa6b60f1d3f36faeb.json",
+      "sourceTraceSha256": "924c1457b7605605ad28f0f1a194a712581c6dd3a868cb790fc7903d58ad8104",
+      "inputSha256": "241b045745980ef2207dd3908a4d00350d64cf67eeaca84ee4092e36b9a4b60a",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "present-state-02",
+      "sourceTrace": "decisions-a0b5cadef53943e692db829ed8ccef9f.json",
+      "sourceTraceSha256": "59df2909e66dddc8ea53fcc8e9b2c7f9c28cf7b32f5c6a391d1c9767b9b29dce",
+      "inputSha256": "bfa139d3e908ffd0934b5e16692b41d97025cc05b0b22333f481b12542be889c",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    },
+    {
+      "id": "present-state-03",
+      "sourceTrace": "decisions-02b9b309926548e8b386a8f5edd391bc.json",
+      "sourceTraceSha256": "751e3f08d6fad0e6b1ea96b09a50ddf3194d4f105bbd14da2d7bc5ad6eccf68a",
+      "inputSha256": "76c3c599343f94afdf8f8857e5912d646ee71dfe4009782d809042e0582f528c",
+      "expectedDecision": "exclude",
+      "reviewNote": "The current explicit present-residence eligibility condition contradicts the supplied current profile. Dated candidate Brief/Memory contain no superseding current evidence."
+    }
+  ]
+}

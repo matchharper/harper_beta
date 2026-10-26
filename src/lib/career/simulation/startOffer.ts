@@ -4,6 +4,7 @@ export const applicationStartOfferSchema = z.object({
   replyId: z.number().int().positive().optional(),
   status: z.enum(["ready", "started"]),
   roleName: z.string(),
+  introduction: z.string().optional(),
   roleTitle: z.string().optional(),
   companyName: z.string().optional(),
   companyLogoUrl: z.string().nullable().optional(),

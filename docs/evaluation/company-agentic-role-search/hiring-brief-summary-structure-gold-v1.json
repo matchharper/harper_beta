@@ -1,0 +1,71 @@
+{
+  "datasetVersion": "hiring-brief-summary-structure-v1",
+  "createdAt": "2026-10-22T12:46:44.638167+00:00",
+  "review": "Authored before strict-schema calls after reviewing the original free-text outputs; unblinded diagnostic selection, not independent accuracy evidence.",
+  "examples": [
+    {
+      "id": "HBS01",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS02",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS03",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS04",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS05",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS06",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    },
+    {
+      "id": "HBS07",
+      "expected": [
+        "Accurately describe the actual saved delta, without changing unknown into confirmed evidence or reversing negation.",
+        "Preserve required versus preferred strength and unchanged conditions.",
+        "A finished short entry in the language of the edited source; every phrase relates to the actual change, with no unrelated fragment.",
+        "Only one machine-consumed summary string; no additional semantic decomposition."
+      ]
+    }
+  ],
+  "judging": "Manual semantic review of actual saved change and full raw output. Deterministic checks are limited to the one-field machine schema; do not keyword-score, replace or discard prose."
+}

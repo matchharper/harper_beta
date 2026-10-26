@@ -28,6 +28,8 @@ import { queryKeys } from "@/lib/queryKeys";
 import { OrgOnboardingFlow } from "./OrgOnboardingPage";
 import { OrgSignupEntry } from "./OrgSignupEntry";
 import { OrgOrganizationCreationPage } from "./OrgOrganizationCreationPage";
+import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
+import { DEFAULT_ORG_AGENT_MODEL } from "@/lib/org/agent/modelConfig";
 
 const flows = [
   { value: "first", label: "기존 Workspace · 첫 팀원" },
@@ -41,7 +43,6 @@ const screens = [
   { id: "entry", step: null, label: "Workspace 생성" },
   { id: "organization-create", step: null, label: "Organization 추가" },
   { id: "profile", step: "profile", label: "환영" },
-  { id: "company-details", step: "company-details", label: "회사 정보 확인" },
   { id: "company", step: "company", label: "회사 소개" },
   { id: "slack", step: "slack", label: "Slack" },
   { id: "slack-channel", step: "slack", label: "채널 연결" },
@@ -61,7 +62,7 @@ const workspace: OrgWorkspace = {
   workspaceId: "onboarding-preview-workspace",
   companyName: "모먼트랩",
   companyDescription: "작은 팀의 더 나은 결정을 돕는 제품을 만듭니다.",
-  logoUrl: null,
+  logoUrl: "/images/onboarding-preview-company.svg",
   pitch:
     "## 우리가 만드는 것\n작은 팀이 더 좋은 결정을 내리도록 돕는 협업 제품을 만들고 있어요.\n\n## 함께 일하는 방식\n각자의 전문성을 존중하고, 문제를 발견한 사람이 해결 방향을 제안합니다.",
   request: null,
@@ -193,7 +194,6 @@ function previewSetup(
   const roles = previewRoles(status);
   const steps = getOrgOnboardingSteps({
     showProfile: !(flow === "additional" && profileReady),
-    showCompanyDetails: flow === "new" || flow === "additional",
     showCompany:
       flow === "additional" ||
       canProvideOrgCompanyContext(members, currentMember),
@@ -275,6 +275,7 @@ function PreviewSession({
   const router = useRouter();
   const { currentMember, members, workspace, roles, availableScreens } = setup;
   const [completed, setCompleted] = useState(false);
+  const [roleDraft, setRoleDraft] = useState<string | null>(null);
   const [queryClient] = useState(() => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, enabled: false } },
@@ -526,7 +527,22 @@ function PreviewSession({
             ) : null}
           </header>
         ) : null}
-        {screen.id === "entry" ? (
+        {roleDraft !== null ? (
+          <div className="flex min-h-[70svh] items-center justify-center px-4">
+            <div className="w-full">
+              <OrgAgentComposer
+                initialMessage={roleDraft}
+                autoFocus
+                compactWidth
+                workspaceId=""
+                isStreaming={false}
+                model={DEFAULT_ORG_AGENT_MODEL}
+                onModelChange={() => {}}
+                onSend={() => setCompleted(true)}
+              />
+            </div>
+          </div>
+        ) : screen.id === "entry" ? (
           <OrgSignupEntry
             email={currentMember.email ?? undefined}
             preview={{ onBegin: () => navigate("profile") }}
@@ -534,7 +550,7 @@ function PreviewSession({
         ) : screen.id === "organization-create" ? (
           <OrgOrganizationCreationPage
             preview={{
-              onCreate: () => navigate("company-details"),
+              onCreate: () => navigate("company"),
               onCancel: () => navigate("organization-create"),
             }}
           />
@@ -545,6 +561,11 @@ function PreviewSession({
               step: screen.step ?? "profile",
               onStepChange: (step) => navigate(step),
               onComplete: () => setCompleted(true),
+              onStartRole: setRoleDraft,
+              jobs: [
+                { title: "Research Engineer", url: "https://example.com/momentlab/jobs/research-engineer" },
+                { title: "Product Designer", url: "https://example.com/momentlab/jobs/product-designer" },
+              ],
               companyReply:
                 "미리보기 응답이에요. 실제 온보딩에서는 Harper가 입력한 회사 이야기를 읽고 회사 정보에 반영한 내용을 이곳에서 안내해 드려요.",
               slack: {

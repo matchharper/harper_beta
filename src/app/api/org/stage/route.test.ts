@@ -9,6 +9,7 @@ let setupFails = false,
   previewFails = false,
   queueFails = false;
 let scheduleStatus = "preparing";
+let companyUpdateJobId: string | null = null;
 let queued: any, stageArgs: any;
 class HttpError extends Error {
   constructor(
@@ -34,6 +35,7 @@ before(async () => {
         stageArgs = args;
         return {
           ok: true,
+          companyUpdateJobId,
           stage: "connected",
           roleId: "role",
           talentId: "talent",
@@ -175,4 +177,16 @@ test("rejects incompatible stage or contact choices before side effects", async 
     assert.equal((await submit(overrides)).status, 400);
     assert.deepEqual(calls, []);
   }
+});
+
+
+test("a durable company decision event is returned without queuing a duplicate turn", async () => {
+  companyUpdateJobId = "decision-event";
+  calls.length = 0;
+  try {
+    const response = await submit({ scheduleInterview: false });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).agentJobId, "decision-event");
+    assert.equal(calls.includes("notify"), false);
+  } finally { companyUpdateJobId = null; }
 });

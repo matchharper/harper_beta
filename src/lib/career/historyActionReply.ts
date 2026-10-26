@@ -2,6 +2,7 @@ import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { CAREER_LLM_CONFIG } from "@/lib/career/llm";
 import {
   buildCareerOpportunityFeedbackFollowUpTurnInstruction,
+  CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER,
   type CareerOpportunityFeedbackFollowUpTrigger,
 } from "@/lib/career/prompts";
 import { partitionOpportunityFeedbackReasons } from "@/lib/career/opportunityFeedbackSignals";
@@ -226,7 +227,11 @@ export async function createTalentOpportunityFeedbackFollowUpReply(args: {
     isMobile: args.isMobile,
     pendingOpportunityFeedbackContext: feedbackContext,
     proactiveContext,
-    assistantModel: CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.model,
+    assistantModel:
+      args.trigger ===
+      CAREER_OPPORTUNITY_FEEDBACK_FOLLOW_UP_TRIGGER.ImmediateInternalFeedback
+        ? CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.immediateInternalModel
+        : CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.model,
     assistantOpenAIResponsesReasoningEffort:
       CAREER_LLM_CONFIG.chat.opportunityFeedbackFollowUp.reasoningEffort,
     usageLabel: "career/chat:opportunity_feedback_followup",

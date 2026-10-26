@@ -55,7 +55,7 @@ export function OrgMemberProfileDialog({
       setError(
         c(
           "이름, 성, 직함을 모두 입력해 주세요.",
-          "Enter first name, last name, and job title."
+          "Enter your first name, last name, and job title."
         )
       );
       return;
@@ -84,7 +84,7 @@ export function OrgMemberProfileDialog({
       open
       onClose={() => {}}
       mobileBottomSheet
-      title={<>{c("프로필을 완성해 주세요", "Complete profile")}</>}
+      title={<>{c("프로필을 완성해 주세요", "Complete your profile")}</>}
       panelClassName="max-w-md"
       bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
       showCloseButton={false}

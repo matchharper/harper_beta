@@ -1,3 +1,7 @@
+import { projectCompanyPublicExtras, projectCompanyPublicProfile, projectCompanyPublicProfileFromDetail } from "../publicProfile";
+import { readOrgCandidateDetail } from "../candidatePreview.server";
+import { isOrgCandidateProfilePreview } from "../candidatePreview";
+import { projectOrgCandidateDetailForAgent } from "./candidatePreviewRead";
 import { isCompanyVisibleRole } from "@/lib/org/roleVisibility";
 import { readOpsCompatibleContacts } from "@/lib/companyTalentRequests/readOpsCompatible";
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
@@ -5,6 +9,7 @@ import type { User } from "@supabase/supabase-js";
 import { readOrgRoleAccess, scopeOrgRoleQuery, assertOrgTeamRoleAccess, visibleOrgRoleIds } from "@/lib/org/teamAccess";
 import {
   fetchOrgBoard,
+  fetchOrgTalentDetail,
   OrgHttpError,
   type OrgBoardItem,
   type OrgRole,
@@ -26,13 +31,14 @@ import type {
   OrgAgentMoreDataKind,
   OrgAgentReadAudience,
 } from "@/lib/org/agent/types";
-import { formatOrgAgentKstDateTime } from "@/lib/org/agent/dateTime";
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { hasOrgWorkspaceAccessBypass } from "@/lib/org/access";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { summarizeCompanyTalentRequestStatus } from "@/lib/companyTalentRequests/status";
 import { normalizeOrgRoleCriteria } from "@/lib/org/roleCriteria";
 import { fetchOrgProcessClosureNotifications } from "@/lib/org/processClosureNotification";
 import { resolveTalentLocation } from "@/lib/talentLocation";
+import { roleStartOwnsRole } from "@/lib/org/roleStart/ownership";
 import { DEFAULT_INTRO_SEARCH_DAYS, DEFAULT_INTRO_SEARCH_HOUR, parseIntroSearchDays, parseIntroSearchHour } from "@/lib/org/introSearchSchedule";
 
 export { serializeOrgAgentMoreData } from "@/lib/org/agent/promptFormat";
@@ -41,6 +47,8 @@ export type OrgAgentAdminClient = ReturnType<typeof getSupabaseAdmin>;
 
 export type OrgAgentRole = OrgRole & {
   hasMemory?: boolean;
+  /** A role start Role: reference people come only through the web 참고 인물 box. */
+  roleStart?: true;
   promotionDemand?: { level: string; reason: string; updatedAt: string; validUntil: string } | null;
 };
 
@@ -66,7 +74,11 @@ export type OrgAgentMoreDataFieldState = {
 };
 
 export type OrgAgentMoreDataToolResult = Omit<OrgAgentMoreDataResult, "requestedKinds"> & {
-  requestedKinds: Array<OrgAgentMoreDataKind | "matching_runs">;
+  requestedKinds: Array<OrgAgentMoreDataKind | "matching_runs" | "company_memory" | "hiring_brief_history" | "teams">;
+  teams?: Array<{teamId:string;name:string}>;
+  roleSearch?: import("@/lib/companyFirstSearch/agenticSearch").RoleSearchRead;
+  companyMemory?: import("./companyMemory").CompanyMemoryRead;
+  hiringBriefHistory?: import("../hiringBriefHistory").HiringBriefHistoryRead;
   matchingRuns?: import("@/lib/companyFirstSearch/history").MatchingRunHistory;
 };
 
@@ -287,6 +299,36 @@ export async function fetchOrgAgentRoles(args: {
       (row) => [row.role_id, row]
     )
   );
+  // Role start only: these Roles take reference people from the web box, not the chat.
+  // Absent for every other Role (its context is unchanged).
+  const roleStartIds = new Set<string>();
+  if (roleIds.length > 0) {
+    // Best effort: without it the context is simply as before.
+    const sessions = await Promise.resolve()
+      .then(() =>
+        (args.admin.from("company_role_start_sessions" as any) as any)
+          .select("role_id, phase, updated_at, refined_answers, first_candidates")
+          .in("role_id", roleIds)
+      )
+      .then((result: { data?: unknown[] | null }) => result.data ?? [])
+      .catch(() => []);
+    for (const row of (sessions ?? []) as Array<{
+      role_id: string;
+      phase: string | null;
+      updated_at: string;
+      refined_answers: number | null;
+      first_candidates: unknown[] | null;
+    }>) {
+      // Done Roles keep the box; a flow that cannot move forward hands back to the chat.
+      const owns = roleStartOwnsRole({
+        phase: row.phase ?? "",
+        updatedAt: row.updated_at,
+        refinedAnswers: row.refined_answers ?? undefined,
+        firstCandidates: row.first_candidates ?? undefined,
+      });
+      if (row.phase === "done" || owns) roleStartIds.add(row.role_id);
+    }
+  }
   const memoryRoleIds = new Set(
     (
       (memoryResult.data ?? []) as Array<{
@@ -311,6 +353,7 @@ export async function fetchOrgAgentRoles(args: {
         introSearchDate: parseIntroSearchDays(scheduleByRoleId.get(row.role_id)?.intro_search_date) ?? DEFAULT_INTRO_SEARCH_DAYS,
         introSearchTime: parseIntroSearchHour(scheduleByRoleId.get(row.role_id)?.intro_search_time) ?? DEFAULT_INTRO_SEARCH_HOUR,
         hasMemory: memoryRoleIds.has(row.role_id),
+        ...(roleStartIds.has(row.role_id) ? { roleStart: true as const } : {}),
         locationText: row.location_text ?? null,
         name: row.name,
         request: requestByRoleId.get(row.role_id) ?? null,
@@ -368,6 +411,7 @@ function compactBoardItem(
         : {}),
       talentId: item.talentId,
     },
+    criteriaEvaluations: item.criteriaEvaluations,
     fitSummary: clip(item.fitSummary, 400) || null,
     capabilities: item.capabilities,
     companyIntroStatus: item.companyIntro
@@ -402,6 +446,7 @@ async function fetchVisibleOrgAgentBoard(args: {
       ? ({ ...args.user, email: undefined } as User)
       : args.user;
   const board = await fetchOrgBoard({
+    admin: args.admin,
     includeInternalStages: audience === "caller",
     includeProfileLabels: false,
     recommendationIds: args.recommendationIds,
@@ -409,8 +454,7 @@ async function fetchVisibleOrgAgentBoard(args: {
     user: audienceUser,
     workspaceId: args.workspaceId,
   });
-  // The board uses its own service client. Apply the caller's narrower shared
-  // reader scope again before any board data can enter agent context or tools.
+  // Keep the caller's narrower shared reader scope on the board projection.
   const allowedRoleIds = await visibleOrgRoleIds(args);
   if (allowedRoleIds === null) return board;
   const allowed = new Set(allowedRoleIds);
@@ -913,7 +957,7 @@ async function findOrgAgentProfileMatches(args: {
       });
     }
     for (const extraRow of result.extras) {
-      for (const extra of compactTalentExtras(extraRow.content)) {
+      for (const extra of projectCompanyPublicExtras(extraRow.content)) {
         addProfileSearchMatch({
           label: "extra",
           matches,
@@ -1039,8 +1083,8 @@ function safePreferenceValue(value: unknown) {
 }
 
 function formatRequestTimestamp(value: unknown) {
-  const formatted = formatOrgAgentKstDateTime(value, { includeYear: true });
-  return formatted ? `${formatted} KST` : null;
+  const formatted = formatLlmDateTime(value);
+  return formatted === "-" ? null : formatted;
 }
 
 function objectValue(value: unknown): Record<string, unknown> {
@@ -1345,43 +1389,6 @@ async function readHarperSharedInformation(args: {
   }));
 }
 
-function talentExtraEntries(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
-  if (!value || typeof value !== "object") return [];
-  const extraRecord = value as Record<string, unknown>;
-  for (const key of [
-    "talent_extras",
-    "talentExtras",
-    "extras",
-    "items",
-    "publications",
-    "projects",
-    "activities",
-  ]) {
-    if (Array.isArray(extraRecord[key])) return extraRecord[key];
-  }
-  return [];
-}
-
-function compactTalentExtras(value: unknown) {
-  return talentExtraEntries(value)
-    .flatMap((item) => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-      const extra = item as Record<string, unknown>;
-      const title = clip(extra.title ?? extra.name ?? extra.role, 300) || null;
-      const date = clip(
-        extra.date ?? extra.issued_at ?? extra.published_at ?? extra.start_date,
-        100
-      );
-      const description =
-        clip(extra.description ?? extra.content ?? extra.summary, 1_000) ||
-        null;
-      if (!title && !date && !description) return [];
-      return [{ date: date || null, description, title }];
-    })
-    .slice(0, 5);
-}
-
 export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: ProgressRow[]) {
   if (!items.length || items.some((item) => !item.companyIntro)) throw new Error("Expected visible company-intro items");
   const first = items[0];
@@ -1395,6 +1402,10 @@ export function buildCompanyIntroTalentRead(items: OrgBoardItem[], progress: Pro
       candidateAccepted: false, closed: ["closed", "passed"].includes(item.companyIntro!.status), processClosureNotification: null,
       savedStage: null, stage: item.stage, stageLabel: humanizeOrgStage(item.stage),
       talentMemo: null, tradeoffs: null, updatedAt: item.updatedAt,
+      capabilities: item.capabilities,
+      criteriaEvaluations: item.criteriaEvaluations,
+      ...(item.companyIntro?.recommendationReason !== undefined
+        ? { recommendationReason: item.companyIntro.recommendationReason } : {}),
       companyIntroStatus: item.companyIntro!.status,
       introCloseReason: item.companyIntro!.closeReason ?? null,
       talentDecisionAt: item.companyIntro!.talentDecisionAt ?? null,
@@ -1427,7 +1438,7 @@ async function storedFollowupsForTalent(args: { admin: OrgAgentAdminClient; user
   catch { return { available: false }; }
 }
 
-export async function readOrgAgentTalent(args: {
+async function readOrgAgentTalentFromPairs(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
   includeProfile?: boolean;
@@ -1503,8 +1514,8 @@ export async function readOrgAgentTalent(args: {
     throw new OrgHttpError(404, "Talent not found in this workspace");
   }
   const visibleIntroItems = visibleItems.filter((item) => item.source === "company_intro");
-  // Before acceptance, reuse only the company's safe board projection. Do not
-  // reach raw profile/email, resume, Career memory or hidden recommendation data.
+  // Before acceptance, reuse the company's safe board and authorized public
+  // profile projections; do not read private contact, resume or Career memory.
   if (visibleItems.every((item) => item.source === "company_intro")) {
     const visibleIntroIds = new Set(visibleIntroItems.map((item) => item.companyIntro!.id));
     const scopedRows = introRows.filter((row) => visibleIntroIds.has(row.id));
@@ -1525,7 +1536,11 @@ export async function readOrgAgentTalent(args: {
       roleById: new Map([...roleById].filter(([id]) => visibleIntroItems.some((item) => item.roleId === id))),
       includeResumeAvailability: false,
     });
-    return { ...projection, requestHistory: contacts.requestHistory, scheduledFollowups: await storedFollowupsForTalent(args) };
+    const detail = args.includeProfile && visibleIntroItems.length > 0
+      ? await fetchOrgTalentDetail({ admin: args.admin, user: args.user, workspaceId: args.workspaceId,
+          roleId: visibleIntroItems[0].roleId, talentId }) : null;
+    return { ...projection, requestHistory: contacts.requestHistory, scheduledFollowups: await storedFollowupsForTalent(args),
+      ...(detail ? { profileIncluded: true, profile: projectCompanyPublicProfileFromDetail(detail.profile) } : {}) };
   }
   const visibleItemByRecommendationId = new Map(
     visibleItems.filter((item) => item.source !== "company_intro").map((item) => [item.recommendationId, item])
@@ -1583,7 +1598,7 @@ export async function readOrgAgentTalent(args: {
       .range(progressOffset, progressOffset + progressLimit),
     readCompanyTalentRequestProjection({
       admin: args.admin,
-      roleById,
+      roleById: new Map([...roleById].filter(([id]) => visibleRoleIds.includes(id))),
       talentId,
       workspaceId: args.workspaceId,
     }),
@@ -1624,13 +1639,11 @@ export async function readOrgAgentTalent(args: {
             "company_name, role, employment_type, company_location, start_date, end_date, description"
           )
           .eq("talent_id", talentId)
-          .order("start_date", { ascending: false, nullsFirst: false })
-          .limit(8),
+          .order("start_date", { ascending: false, nullsFirst: false }),
         (args.admin.from("talent_educations" as any) as any)
           .select("school, degree, field, start_date, end_date, description")
           .eq("talent_id", talentId)
-          .order("start_date", { ascending: false, nullsFirst: false })
-          .limit(5),
+          .order("start_date", { ascending: false, nullsFirst: false }),
         (args.admin.from("talent_extras" as any) as any)
           .select("content")
           .eq("talent_id", talentId)
@@ -1640,23 +1653,13 @@ export async function readOrgAgentTalent(args: {
     for (const result of [experienceResult, educationResult, extrasResult]) {
       if (result.error) throw result.error;
     }
-    profile = {
-      bio: clip(talent.bio, 2_000) || null,
-      education: (
-        (educationResult.data ?? []) as Array<Record<string, unknown>>
-      ).map((item) => ({
-        ...item,
-        description: clip(item.description, 500) || null,
-      })),
-      experiences: (
-        (experienceResult.data ?? []) as Array<Record<string, unknown>>
-      ).map((item) => ({
-        ...item,
-        description: clip(item.description, 800) || null,
-      })),
-      extras: compactTalentExtras(extrasResult.data?.content),
+    profile = projectCompanyPublicProfile({
+      bio: talent.bio,
+      education: educationResult.data ?? [],
+      experiences: experienceResult.data ?? [],
+      extras: extrasResult.data?.content,
       location: resolveTalentLocation(talent),
-    };
+    });
   }
 
   const candidateName = talent.name ?? talent.email ?? talentId;
@@ -1700,6 +1703,8 @@ export async function readOrgAgentTalent(args: {
           savedStage: text(row.saved_stage) || null,
           stage: visibleItem.stage,
           stageLabel: getBoardStageLabel(board, visibleItem),
+          capabilities: visibleItem.capabilities,
+          criteriaEvaluations: visibleItem.criteriaEvaluations,
           talentMemo: null,
           tradeoffs: compactJson(row.tradeoffs, 1_000),
           updatedAt: row.updated_at,
@@ -1734,6 +1739,20 @@ export async function readOrgAgentTalent(args: {
   };
 }
 
+export async function readOrgAgentTalent(args: Parameters<typeof readOrgAgentTalentFromPairs>[0]) {
+  try {
+    return await readOrgAgentTalentFromPairs(args);
+  } catch (error) {
+    if (!(error instanceof OrgHttpError) || error.status !== 404) throw error;
+    const detail = await readOrgCandidateDetail({ admin: args.admin, user: args.user,
+      workspaceId: args.workspaceId, roleId: text(args.roleId) || null, talentId: text(args.talentId) });
+    if (isOrgCandidateProfilePreview(detail)) return projectOrgCandidateDetailForAgent(detail, Boolean(args.includeProfile));
+    // A badge without a pair can resolve an existing visible pair in another
+    // accessible Role. Reuse its normal company-safe history projection.
+    return readOrgAgentTalentFromPairs({ ...args, roleId: detail.role.roleId });
+  }
+}
+
 export async function readOrgAgentTalents(args: {
   admin: OrgAgentAdminClient;
   audience?: OrgAgentReadAudience;
@@ -1748,9 +1767,6 @@ export async function readOrgAgentTalents(args: {
   const talentIds = unique(args.talentIds);
   if (talentIds.length === 0) {
     throw new OrgHttpError(400, "talentIds is required");
-  }
-  if (talentIds.length > 10) {
-    throw new OrgHttpError(400, "talentIds must contain at most 10 items");
   }
 
   const byTalentId = new Map<
@@ -2129,6 +2145,7 @@ export async function readOrgAgentRole(args: {
         fitSummary: clip(item.fitSummary, 500) || null,
         headline: item.talent.headline,
         name: item.talent.name ?? item.talent.email ?? item.talentId,
+            criteriaEvaluations: item.criteriaEvaluations,
         recommendedAt: item.recommendedAt,
         source: item.source,
         stage: humanizeOrgStage(

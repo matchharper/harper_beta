@@ -12,6 +12,35 @@ import {
   TALENT_TOOL_NAMES,
 } from "@/lib/talentOnboarding/tools";
 
+test("authoring tools are eligible in ordinary chat and application research stays inside the mode", () => {
+  const ordinary = resolveCareerChatTools({
+    isOnboardingDone: true,
+    channel: "chat",
+  });
+  for (const name of [
+    "save_job_posting",
+    "write_document",
+    "update_talent_profile",
+  ])
+    assert.ok(ordinary.toolNames.includes(name));
+  const application = resolveCareerChatTools({
+    isOnboardingDone: true,
+    channel: "chat",
+    simulationActive: true,
+    simulationPreparation: true,
+  });
+  for (const name of ["web_search", "open_url", "write_document"])
+    assert.ok(application.toolNames.includes(name));
+  assert.ok(!application.toolNames.includes("save_job_posting"));
+  const bounded = resolveCareerChatTools({
+    isOnboardingDone: true,
+    channel: "chat",
+    simulationActive: true,
+    allowedToolNames: ["read_document"],
+  });
+  assert.deepEqual(bounded.toolNames, ["read_document"]);
+});
+
 test("post-onboarding voice can apply confirmed recommendation settings", () => {
   assert.ok(
     CAREER_REALTIME_VOICE_POST_ONBOARDING_TOOL_NAMES.includes(
@@ -172,4 +201,17 @@ test("Start uses ordinary-chat authorization before switching into preparation t
   assert.equal(canStartApplication({...allowed,allowedToolNames:[]}),false);
   assert.equal(canStartApplication({...allowed,allowedToolNames:["simulate_application"]}),true);
   assert.equal(canStartApplication({...allowed,allowedToolNames:["ready_for_role"]}),false);
+});
+
+test("saved application lifecycle is deferred in ordinary chat and uses the same tool name while active", async () => {
+  const { resolveCareerCapabilities } = await import("./capabilities/resolver");
+  const tools = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true }).tools;
+  const cold = resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(), mode: "progressive" });
+  assert.ok(cold.catalogText.includes("list/resume saved preparations"));
+  assert.ok(!cold.offeredNames.has("manage_simulation_session"));
+  const loaded = resolveCareerCapabilities({ eligibleTools: tools, loaded: new Set(["application_support"]), mode: "progressive" });
+  assert.ok(loaded.offeredNames.has("manage_simulation_session"));
+  assert.ok(!loaded.offeredNames.has("apply_for_role"));
+  const active = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true, simulationActive: true }).tools;
+  assert.equal(active.filter(t => t.function.name === "manage_simulation_session").length, 1);
 });

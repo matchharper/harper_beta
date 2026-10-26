@@ -470,7 +470,12 @@ function InviteMemberDialog({
         (member) => member.email?.trim().toLowerCase() === normalizedEmail
       )
     ) {
-      setError(c("이미 참여 중인 팀원입니다.", "Member already in workspace."));
+      setError(
+        c(
+          "이미 참여 중인 팀원입니다.",
+          "This person has already joined the workspace."
+        )
+      );
       return;
     }
     if (
@@ -482,7 +487,7 @@ function InviteMemberDialog({
       setError(
         c(
           "이미 초대 대기 중입니다. 팀원 목록의 더보기에서 다시 보내기를 선택해 주세요.",
-          "Invitation already pending. In the member list, choose Resend from More."
+          "An invitation is already pending. Open the person's menu in Members and choose Resend."
         )
       );
       return;
@@ -528,7 +533,7 @@ function InviteMemberDialog({
       open={open}
       onClose={() => handleOpenChange(false)}
       mobileBottomSheet
-      title={<>{c("팀원 초대", "Invite member")}</>}
+      title={<>{c("팀원 초대", "Invite team member")}</>}
       description={
         <>
           {c(
@@ -930,7 +935,7 @@ export function OrgTeamPage({
     if (!memberRoleToEdit || updateMemberProfile.isPending) return;
     const role = memberRoleDraft.trim();
     if (!role) {
-      setMemberRoleError(c("직함을 입력해 주세요.", "Enter title."));
+      setMemberRoleError(c("직함을 입력해 주세요.", "Enter a job title."));
       return;
     }
 
@@ -941,7 +946,7 @@ export function OrgTeamPage({
         workspaceId: workspace.workspaceId,
       });
       addToast({
-        message: c("팀원 직함을 저장했습니다.", "Member title saved."),
+        message: c("팀원 직함을 저장했습니다.", "Job title saved."),
         variant: "success",
       });
       setMemberRoleToEdit(null);
@@ -1016,7 +1021,7 @@ export function OrgTeamPage({
               ) : null
             ) : permissions.canManageMembers ? (
               <MuteButton variant="dark" onClick={() => setInviteOpen(true)}>
-                {c("팀원 초대", "Invite member")}
+                {c("팀원 초대", "Invite team member")}
               </MuteButton>
             ) : null
           ) : showCompany &&
@@ -1116,7 +1121,7 @@ export function OrgTeamPage({
       <OrgSection hidden={!showCompany}>
         <div className="text-[13px] text-neutral-900 bg-neutral-100 rounded-lg p-3 mb-4">
           {c(
-            "Harper가 후보자에게 회사를 정확히 설명할 때 사용하는 정보예요. 모든 역할에 공통으로 적용되며, 후보자의 관심사와 질문에 맞춰 필요한 내용을 자연스럽게 활용해요.",
+            "Harper가 후보자에게 회사를 정확히 설명할 때 사용하는 정보예요. 후보자의 관심사와 질문에 맞춰 필요한 내용을 자연스럽게 활용해요.",
             "Harper uses this company information across roles to answer candidates' questions."
           )}
         </div>
@@ -1324,13 +1329,13 @@ export function OrgTeamPage({
                 />
                 <CompanyInfoRow
                   icon={<FileText className="size-4" strokeWidth={2} />}
-                  label={c("최근 투자 라운드", "Recent funding round")}
+                  label={c("최근 투자 라운드", "Latest funding round")}
                   value={
                     companyInfoEditing ? (
                       <Input
                         aria-label={c(
                           "최근 투자 라운드",
-                          "Recent funding round"
+                          "Latest funding round"
                         )}
                         className="h-9 w-full text-[13px]"
                         disabled={updateWorkspace.isPending}
@@ -1341,7 +1346,7 @@ export function OrgTeamPage({
                         }
                         placeholder={c(
                           "최근 투자 라운드",
-                          "Recent funding round"
+                          "Latest funding round"
                         )}
                         value={currentCompanyDraft.lastFundingRoundDescription}
                       />
@@ -1505,7 +1510,7 @@ export function OrgTeamPage({
                               onSelect={() => openMemberRoleEdit(member)}
                             >
                               <Pencil />
-                              {c("직함 수정", "Edit title")}
+                              {c("직함 수정", "Edit job title")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               disabled={removeMember.isPending}
@@ -1513,7 +1518,7 @@ export function OrgTeamPage({
                               tone="danger"
                             >
                               <Trash2 />
-                              {c("팀원 제거", "Remove member")}
+                              {c("팀원 제거", "Remove team member")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -1531,7 +1536,7 @@ export function OrgTeamPage({
                       </div>
                       <div className="min-w-0">
                         <dt className="text-[11px] text-neutral-soft">
-                          {c("가입 날짜", "Join date")}
+                          {c("가입 날짜", "Date joined")}
                         </dt>
                         <dd className="mt-1 truncate text-[13px] text-neutral-primary">
                           {formatDate(member.joinedAt, locale)}
@@ -1675,7 +1680,7 @@ export function OrgTeamPage({
                         </OrgTableHead>
                       ) : null}
                       <OrgTableHead className="w-40">
-                        {c("가입 날짜", "Join date")}
+                        {c("가입 날짜", "Date joined")}
                       </OrgTableHead>
                       {permissions.canManageMembers ? (
                         <OrgTableHead className="w-12">
@@ -1790,7 +1795,7 @@ export function OrgTeamPage({
                                   onSelect={() => openMemberRoleEdit(member)}
                                 >
                                   <Pencil />
-                                  {c("직함 수정", "Edit title")}
+                                  {c("직함 수정", "Edit job title")}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   disabled={removeMember.isPending}
@@ -1798,7 +1803,7 @@ export function OrgTeamPage({
                                   tone="danger"
                                 >
                                   <Trash2 />
-                                  {c("팀원 제거", "Remove member")}
+                                  {c("팀원 제거", "Remove team member")}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1922,7 +1927,7 @@ export function OrgTeamPage({
               }
             }}
             mobileBottomSheet
-            title={<>{c("직함 수정", "Edit title")}</>}
+            title={<>{c("직함 수정", "Edit job title")}</>}
             description={
               <>
                 {c(
@@ -2048,7 +2053,7 @@ export function OrgTeamPage({
             open={Boolean(memberToRemove)}
             onClose={() => setMemberToRemove(null)}
             mobileBottomSheet
-            title={<>{c("팀원 제거", "Remove member")}</>}
+            title={<>{c("팀원 제거", "Remove team member")}</>}
             description={
               <>
                 {c(
@@ -2085,7 +2090,7 @@ export function OrgTeamPage({
                   {removeMember.isPending ? (
                     <LoaderCircle className="size-4 animate-spin" />
                   ) : null}
-                  {c("팀원 제거", "Remove member")}
+                  {c("팀원 제거", "Remove team member")}
                 </MuteButton>
               </div>
             }

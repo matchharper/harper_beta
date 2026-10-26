@@ -1,0 +1,10 @@
+{
+  "version": "v2",
+  "frozenAt": "2026-10-23",
+  "parent": "v1",
+  "provenance": "Same synthetic interview and semantic gold; lightweight purposes and compact followup capability facts after v1 review. No production data.",
+  "hashes": {
+    "cases-v2.json": "8503d87be163b63e92c8728ccad11e3b8b1d96fc0b5d0ad7d56fd2d9416f4d75",
+    "gold-v2.json": "956e59b6a853f52738017e959b9fdad4bac79168fea5e3a8ea7c76725f0be0b7"
+  }
+}

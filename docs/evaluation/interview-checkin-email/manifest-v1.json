@@ -1,0 +1,9 @@
+{
+  "version": "v1",
+  "frozenAt": "2026-10-23",
+  "provenance": "Synthetic fixture authored for user-authorized pre/post interview email preview; no production records.",
+  "hashes": {
+    "cases-v1.json": "157c6bd069094e6ac4b27553a9724cc77ba4294648f50d63be2b9461225b7e6b",
+    "gold-v1.json": "bbdc82a28b2d0aae09b09a2c2f5e66069289c17e3852eac02f99c0c07fe31d27"
+  }
+}

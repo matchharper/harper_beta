@@ -55,6 +55,32 @@ test("falls back to role and talent identity without a recommendation id", () =>
   assert.equal(state?.previous, items[2]);
 });
 
+test("continues into the next role while keeping the current role's count", () => {
+  const nextRoleItem = {
+    recommendationId: "rec-next-role",
+    roleId: "role-b",
+    talentId: "talent-next-role",
+  };
+  const middle = getOrgTalentDetailNavigationState(
+    items,
+    { recommendationId: "rec-2" },
+    nextRoleItem
+  );
+  const last = getOrgTalentDetailNavigationState(
+    items,
+    { recommendationId: "rec-3" },
+    nextRoleItem
+  );
+  assert.equal(middle?.next, items[2]);
+  assert.equal(last?.next, nextRoleItem);
+  assert.equal(last?.position, 3);
+  assert.equal(last?.total, 3);
+  const nextRole = getOrgTalentDetailNavigationState([nextRoleItem], nextRoleItem);
+  assert.equal(nextRole?.position, 1);
+  assert.equal(nextRole?.total, 1);
+  assert.equal(nextRole?.next, null);
+});
+
 test("returns null when the current candidate is outside the source list", () => {
   assert.equal(
     getOrgTalentDetailNavigationState(items, {

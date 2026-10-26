@@ -1,9 +1,11 @@
+import { withOrgRequestScope } from "@/lib/org/requestScope.server";
 import { billingErrorResponse } from "@/lib/org/billing/http";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   OrgHttpError,
   passOrgCompanyIntro,
   requestOrgCompanyIntro,
+  type OrgCompanyIntroMutationResponse,
 } from "@/lib/org/server";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
@@ -17,16 +19,39 @@ function actionIdentity(value: unknown) {
   );
 }
 
-async function roleIdForIntro(introCandidateId: string) {
+async function readIntroUpdate(introCandidateId: string, workspaceId: string) {
   const admin = getSupabaseAdmin();
   const { data, error } = await (
     admin.from("company_intro_candidates" as any) as any
   )
-    .select("role_id")
+    .select(
+      "role_id, talent_id, status, requested_at, candidate_sent_at, talent_decision_at, close_reason, company_appeal, next_stage_id, updated_at"
+    )
     .eq("id", introCandidateId)
+    .eq("company_workspace_id", workspaceId)
     .maybeSingle();
   if (error) throw error;
-  return String(data?.role_id ?? "").trim() || null;
+  const roleId = String(data?.role_id ?? "").trim() || null;
+  const candidateUpdate: OrgCompanyIntroMutationResponse["candidateUpdate"] =
+    data &&
+    data.close_reason !== "route_replaced" &&
+    ["ready", "awaiting_talent", "connecting", "closed", "passed"].includes(
+      data.status
+    )
+      ? {
+          roleId: data.role_id,
+          talentId: data.talent_id,
+          status: data.status,
+          requestedAt: data.requested_at,
+          candidateSentAt: data.candidate_sent_at,
+          talentDecisionAt: data.talent_decision_at,
+          closeReason: data.close_reason,
+          companyAppeal: data.company_appeal,
+          nextStageId: data.next_stage_id,
+          updatedAt: data.updated_at,
+        }
+      : undefined;
+  return { roleId, candidateUpdate };
 }
 
 function errorResponse(error: unknown) {
@@ -49,6 +74,10 @@ function errorResponse(error: unknown) {
 }
 
 export async function POST(req: NextRequest) {
+  return withOrgRequestScope(() => handlePost(req), after, { cachePermissions: true });
+}
+
+async function handlePost(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
     const body = (await req.json()) as Record<string, unknown>;
@@ -59,9 +88,21 @@ export async function POST(req: NextRequest) {
       workspaceId: String(body.workspaceId ?? "").trim(),
     };
     if (action === "pass") {
-      const payload = await passOrgCompanyIntro(common);
+      const payload = await passOrgCompanyIntro({
+        ...common,
+        reason:
+          typeof body.reason === "string"
+            ? body.reason.trim().slice(0, 2000)
+            : undefined,
+      });
       let agentJobId: string | null = null;
+      let candidateUpdate: OrgCompanyIntroMutationResponse["candidateUpdate"];
       try {
+        const update = await readIntroUpdate(
+          common.introCandidateId,
+          common.workspaceId
+        );
+        candidateUpdate = update.candidateUpdate;
         const queued = await enqueueOrgAgentWebActionTurn({
           actionContext: {
             decision: "pass",
@@ -78,7 +119,7 @@ export async function POST(req: NextRequest) {
             "pass",
             actionIdentity(body.agentActionId),
           ].join(":"),
-          roleId: await roleIdForIntro(common.introCandidateId),
+          roleId: update.roleId,
           user,
           workspaceId: common.workspaceId,
         });
@@ -86,7 +127,7 @@ export async function POST(req: NextRequest) {
       } catch (agentError) {
         console.error("[org/company-intro:agent-wake]", agentError);
       }
-      return NextResponse.json({ ...payload, agentJobId });
+      return NextResponse.json({ ...payload, agentJobId, candidateUpdate });
     }
     if (action === "request") {
       const payload = await requestOrgCompanyIntro({
@@ -98,7 +139,13 @@ export async function POST(req: NextRequest) {
         nextStageId: String(body.nextStageId ?? "").trim(),
       });
       let agentJobId: string | null = null;
+      let candidateUpdate: OrgCompanyIntroMutationResponse["candidateUpdate"];
       try {
+        const update = await readIntroUpdate(
+          common.introCandidateId,
+          common.workspaceId
+        );
+        candidateUpdate = update.candidateUpdate;
         const queued = await enqueueOrgAgentWebActionTurn({
           actionContext: {
             decision: "request_intro",
@@ -119,7 +166,7 @@ export async function POST(req: NextRequest) {
             "request",
             actionIdentity(body.agentActionId),
           ].join(":"),
-          roleId: await roleIdForIntro(common.introCandidateId),
+          roleId: update.roleId,
           user,
           workspaceId: common.workspaceId,
         });
@@ -127,7 +174,7 @@ export async function POST(req: NextRequest) {
       } catch (agentError) {
         console.error("[org/company-intro:agent-wake]", agentError);
       }
-      return NextResponse.json({ ...payload, agentJobId });
+      return NextResponse.json({ ...payload, agentJobId, candidateUpdate });
     }
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {

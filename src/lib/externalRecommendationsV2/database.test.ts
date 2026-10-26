@@ -37,6 +37,7 @@ async function setup() {
     create table talent_external_fit(talent_id uuid,role_id uuid,meta jsonb default '{}',created_at timestamptz default now(),primary key(talent_id,role_id));
     create table talent_opportunity_recommendation(id uuid primary key default gen_random_uuid(),talent_id uuid,role_id uuid,kind text,opportunity_type text,rank int,score real,fit_summary text,fit_reasons jsonb,tradeoffs jsonb,evidence jsonb,created_at timestamptz default now());`);
   await db.exec(await readFile(migration, "utf8"));
+  await db.exec((await readFile(new URL('../../../supabase/migrations/20261022132418_job_search_employment_remote_hnsw.sql',import.meta.url),'utf8')).split('DO $migration$')[0]);
   await db.exec(
     await readFile(
       new URL(
@@ -59,6 +60,7 @@ async function setup() {
     "20261014230152_external_salary_partial_bounds.sql",
     "20261015051422_daily_external_visit_eligibility.sql",
     "20261016110152_retire_external_role_title_dictionary.sql",
+    "20261022120257_job_search_country_non_intern_hnsw.sql",
   ])
     await db.exec(
       await readFile(
@@ -545,7 +547,7 @@ test("country weights are unique ISO codes and quotas sum to the exact budget", 
     false
   );
 });
-test("real SQL allocates weighted country quotas after ANN and keeps exact codes and conditional remote", async () => {
+test("real SQL allocates country budgets and keeps exact codes and conditional remote", async () => {
   const db = await setup();
   try {
     await db.exec("delete from company_roles");
@@ -572,6 +574,7 @@ test("real SQL allocates weighted country quotas after ANN and keeps exact codes
         { countryCode: "US", weight: 0.2, remoteOnly: true },
       ],
     };
+    await db.exec("SET hnsw.iterative_scan='strict_order'; SET hnsw.ef_search=100; SET hnsw.max_scan_tuples=100000; SET hnsw.scan_mem_multiplier=4");
     const retrieve = async (limit: 200 | 500) =>
       (
         await db.query<any>(
@@ -589,14 +592,15 @@ test("real SQL allocates weighted country quotas after ANN and keeps exact codes
       assert.equal(rows.length, limit);
       assert.equal(new Set(rows.map((r) => r.role_id)).size, limit);
       assert.ok(rows.every((r) => ["KR", "US"].includes(r.country_code)));
-      assert.equal(rows.filter((r) => r.country_code === "US").length, limit * 0.2);
+      assert.equal(rows.filter(r=>r.country_code==='KR').length,limit*.8);
+      assert.equal(rows.filter(r=>r.country_code==='US').length,limit*.2);
       assert.ok(
         rows
           .filter((r) => r.country_code === "US")
           .every((r) => r.work_mode === "remote")
       );
     }
-    // Leave only 15 eligible US roles; fill remaining 25 slots from KR, never JP/NULL.
+    // Leave only 15 eligible US roles; other results can only come from listed KR.
     await db.exec(
       "update company_roles set is_expired=true where country_code='US' and role_id > '00000000-0000-4000-8000-000000001029'"
     );

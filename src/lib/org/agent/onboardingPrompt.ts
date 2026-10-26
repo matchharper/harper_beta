@@ -2,6 +2,7 @@ import { ORG_AGENT_HAIKU_MODEL } from "./modelConfig";
 
 export const ORG_ONBOARDING_COMPANY_AGENT_OPTIONS = {
   model: ORG_AGENT_HAIKU_MODEL,
+  reasoningEffort: "low" as const,
   initialCapabilities: ["company_role_edit"] as const,
   initialDataKinds: ["company_details"] as const,
 };

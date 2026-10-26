@@ -24,6 +24,9 @@ export function readCandidateOutreachPauses(value: unknown): CandidateOutreachPa
 
 export type MatchingRunHistoryItem = {
   id?: string;
+  roleSearch?: Record<string, unknown>;
+  request?: Record<string, unknown>;
+  sourceCutoff?: string | null;
   createdAt: string | null;
   startedAt: string | null;
   finishedAt: string | null;
@@ -46,6 +49,7 @@ export type MatchingRunHistoryItem = {
 
 export type MatchingRunHistory = {
   items: MatchingRunHistoryItem[];
+  roleId?: string;
   offset: number;
   nextOffset: number | null;
 };
@@ -79,7 +83,7 @@ export async function readMatchingRunHistory(args: {
     throw new Error("History requires a nonnegative integer offset and a limit between 1 and 20");
   }
   let query = (args.admin.from("company_first_search_runs" as any) as any)
-    .select("id,role_id,created_at,started_at,finished_at,status,trigger_reason,scheduled_role_ids,requested_role_ids,query_plan,result")
+    .select("id,role_id,created_at,started_at,finished_at,status,trigger_reason,scheduled_role_ids,requested_role_ids,query_plan,result,request_options,source_cutoff")
     .eq("company_workspace_id", args.workspaceId);
   if (args.roleId) {
     query = query.or(`role_id.eq.${args.roleId},scheduled_role_ids.cs.{${args.roleId}},requested_role_ids.cs.{${args.roleId}}`);
@@ -114,6 +118,8 @@ export async function readMatchingRunHistory(args: {
         ? evaluatedPairs + cachedPairs : null);
     return {
       id: String(row.id),
+      ...(result.roleSearch ? { roleSearch: record(result.roleSearch) } : {}),
+      request: record(row.request_options), sourceCutoff: text(row.source_cutoff),
       createdAt: text(row.created_at), startedAt: text(row.started_at), finishedAt: text(row.finished_at),
       status: text(row.status) ?? "unknown", trigger: text(row.trigger_reason) ?? "unknown",
       roles: ids.map(roleId => ({ roleId, name: names.get(roleId) ?? null })),
@@ -131,5 +137,5 @@ export async function readMatchingRunHistory(args: {
       searchStrategy: text(plan.searchStrategy), searchReason: text(plan.reason),
     };
   });
-  return { items, offset, nextOffset: rows.length > limit ? offset + limit : null };
+  return { items, ...(args.roleId ? { roleId: args.roleId } : {}), offset, nextOffset: rows.length > limit ? offset + limit : null };
 }

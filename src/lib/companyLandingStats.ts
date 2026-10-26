@@ -59,5 +59,24 @@ export function projectCompanyLandingPairCount(
   const rate = Number.isFinite(stats.assessedPairsPerSecond)
     ? Math.max(0, stats.assessedPairsPerSecond)
     : 0;
-  return stats.assessedPairCount + rate * elapsed;
+  if (rate === 0 || elapsed === 0) return stats.assessedPairCount;
+
+  // Replay the same random bursts for a snapshot so rerenders and cached API
+  // refreshes do not reshuffle the count. The measured rate sets only the
+  // long-run pace; individual minutes have no quota or catch-up correction.
+  let seed = Date.parse(stats.assessedPairUpdatedAt ?? stats.updatedAt) |
+    stats.assessedPairCount;
+  const random = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let value = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+  let projected = 0;
+  // 1–19 seconds between bursts, averaging 7 seconds. Draw the size
+  // independently, allowing small consecutive changes and occasional jumps.
+  for (let at = 1 + random() ** 2 * 18; at <= elapsed; at += 1 + random() ** 2 * 18) {
+    projected += rate * 7 * (0.1 + random() ** 2 * 2.7);
+  }
+  return stats.assessedPairCount + Math.floor(projected);
 }

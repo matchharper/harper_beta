@@ -76,7 +76,7 @@ export function BillingSubscriptionOverview({
             <p className="font-medium">
               {c(
                 "결제 확인이 필요한 슬롯이 있어요.",
-                "A slot needs payment attention."
+                "A payment issue is affecting one of your slots."
               )}
             </p>
             <p className="mt-1 text-neutral-muted">
@@ -118,16 +118,16 @@ export function BillingSubscriptionOverview({
         <dl className="mt-7 grid grid-cols-2 gap-y-6 sm:grid-cols-3 sm:divide-x sm:divide-neutral-1000-a05">
           <div className="sm:pr-6">
             <dt className="text-[12px] text-neutral-muted">
-              {c("진행 중인 채용", "Active Roles")}
+              {c("진행 중인 채용", "Active roles")}
             </dt>
             <dd className="mt-2 text-[22px] font-medium tabular-nums">
               {summary.activeRoles}
               <span className="ml-1.5 text-[14px] font-normal text-neutral-muted">
-                / ∞
+                / {summary.capacity ?? (unlimited ? "∞" : "—")}
               </span>
             </dd>
             <p className="mt-1 text-[12px] text-neutral-soft">
-              {c("Role 무제한", "Unlimited Roles")}
+              {unlimited || legacy ? c("계약에 따른 이용 범위", "Access under your agreement") : c("Free Role 1개 + 슬롯별 Role 1개", "1 free role + 1 role per slot")}
             </p>
           </div>
           <div className="sm:px-6">
@@ -145,7 +145,7 @@ export function BillingSubscriptionOverview({
               onClick={onCredits}
               className="mt-0.5"
             >
-              {c("잔액과 갱신일 보기", "Balance & reset dates")}
+              {c("잔액과 갱신일 보기", "Balances and renewal dates")}
             </MuteButton>
           </div>
           <div className="col-span-2 sm:col-span-1 sm:pl-6">
@@ -257,7 +257,7 @@ export function BillingSubscriptionOverview({
                   <DropdownMenuContent align="end">
                     {slot.active && canAssign && (
                       <DropdownMenuItem onSelect={() => onAssign(slot)}>
-                        {c("담당 Role 변경", "Change assigned Role")}
+                        {c("담당 Role 변경", "Change assigned role")}
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem onSelect={onPortal}>

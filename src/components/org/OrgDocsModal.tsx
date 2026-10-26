@@ -163,7 +163,7 @@ export function OrgDocsModal({
                 </span>
                 {c(
                   "추천 이유와 경력을 확인합니다.",
-                  "View recommendation reason and experience."
+                  "Read why Harper recommends this candidate and review their experience."
                 )}
               </li>
               <li>
@@ -189,7 +189,7 @@ export function OrgDocsModal({
 
           <DocsSection
             id="decision"
-            title={c("연결 수락과 연결 거절", "Accept or reject connection")}
+            title={c("연결 수락과 연결 거절", "Accept or decline an introduction")}
             description={c(
               "Accept Intro를 누르면 이메일로 소개받거나 바로 인터뷰를 요청하는 방식을 선택할 수 있습니다. 내용을 확인하고 수락하면 선택한 방식으로 진행합니다. Reject는 이번 역할의 진행을 끝내는 결정입니다. 이유는 선택 사항이며 다음 추천에 참고합니다.",
               "Choose Accept Intro to get introduced by email or request an interview. Review the details and confirm to proceed with your chosen method. Reject ends consideration for this role. A reason is optional and helps improve future recommendations."
@@ -233,7 +233,7 @@ export function OrgDocsModal({
               <div className="min-h-[64px] px-3 py-2.5 text-xs font-normal leading-5 text-neutral-muted">
                 {c(
                   "다음 인터뷰에서는 0-1 제품 의사결정 사례를 확인해 주세요.",
-                  "For the next interview, review a 0-1 product decision case."
+                  "In the next interview, ask how they made product decisions before launch."
                 )}
               </div>
               <div className="flex justify-end border-t border-neutral-1000-a05 px-2 py-2">
@@ -261,7 +261,7 @@ export function OrgDocsModal({
                 <span className="text-neutral-soft">→</span>
                 <span>{c("최종 오퍼", "Final offer")}</span>
                 <span className="text-neutral-soft">/</span>
-                <span>{c("프로세스 중단", "Process closed")}</span>
+                <span>{c("프로세스 중단", "Process ended")}</span>
               </div>
             </div>
           </DocsSection>

@@ -669,7 +669,7 @@ export function OrgTeamEditor({
           {existingRoles > 0
             ? c(
                 "배정된 Role을 다른 팀 또는 미배정으로 옮긴 뒤 팀을 삭제해 주세요.",
-                "Move assigned Roles to another team or leave them unassigned before deleting this team."
+                "Move this team's roles to another team or unassign them before deleting the team."
               )
             : c(
                 "다른 팀에 배정되지 않은 팀원은 새 팀을 배정받기 전까지 Role에 접근할 수 없어요.",

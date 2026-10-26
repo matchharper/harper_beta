@@ -26,7 +26,10 @@ export async function fetchResponseWithInternalAuth(
   }
 
   if (!accessToken) {
-    throw new Error("로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요.");
+    throw Object.assign(
+      new Error("로그인 세션을 찾지 못했습니다. 다시 로그인해 주세요."),
+      { status: 401 }
+    );
   }
 
   const fetchWithToken = (token: string) =>

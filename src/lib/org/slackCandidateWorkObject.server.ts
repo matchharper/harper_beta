@@ -20,7 +20,7 @@ import {
 import type { OrgAgentMessageMetadata } from "@/lib/org/agent/types";
 import type { HarperSlackBlock } from "@/lib/org/slackChoiceButtons";
 import type { BackgroundResultPart } from "./agent/backgroundResultParts";
-import { companyPresentationFinalFitLabel } from "./companyCriteriaEvaluations";
+import { companyCriterionFitnessLabel, companyPresentationFinalFitLabel } from "./companyCriteriaEvaluations";
 import {
   buildSlackCandidateEntity,
   buildSlackCandidateResultPosts,
@@ -668,7 +668,7 @@ export function slackCandidateProfileFields(
     { key: "final_fit", label: ko ? "역할 적합도" : "Role fit", value: finalFit ? companyPresentationFinalFitLabel(finalFit, locale) : "" },
     ...(detail.companyPresentation?.criteriaEvaluations ?? []).map((item, index) => ({
       key: `criterion_${index}`, label: item.name,
-      value: escapeSlackText(`${companyPresentationFinalFitLabel(item.fitness === "bad" ? "unfit" : item.fitness, locale)} · ${item.content}`), markdown: true, long: true,
+      value: escapeSlackText(`${companyCriterionFitnessLabel(item.fitness, locale)} · ${item.content}`), markdown: true, long: true,
     })),
     ...experiences.map((item, index) => ({
       key: `experience_${index}`,

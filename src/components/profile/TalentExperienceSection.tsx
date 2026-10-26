@@ -5,7 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { useOrgT } from "@/i18n/org/OrgLocaleProvider";
-import { ProfileSection } from "../org/TalentDetailSimpleView";
+import { ProfileSection } from "./ProfileSection";
 
 export type TalentExperienceItem = {
   companyLogo?: string | null;

@@ -1,0 +1,22 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "fit-positive-work-mode-diagnostic-v1",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "objective": "Check an additional real detailed-scoring case against the already chosen v28 contract without further tuning.",
+  "labelProvenance": "Original input and expectation frozen after manual review of v5 ARS08 final presentation and source evidence, before any v28 call on this case.",
+  "limitations": [
+    "Failure-selected additional case, not an independent representative sample.",
+    "No prompt revision, exact score target, runtime relabeling or cutoff.",
+    "Read-only frozen source; no database write or external delivery."
+  ],
+  "cases": [
+    {
+      "id": "fit-positive-work-mode-01",
+      "stage": 2,
+      "sourceTrace": "experiment-v5-ars08/ARS08/worker-f9aa55ef-652c-42ef-a9be-75954af86fde/decisions-701203d3ce0d4815b2dd2f726462f413.json",
+      "sourceTraceSha256": "808ed13324614dc07dd1f7c6d9111813319f277d968fdf7650069006126f9778",
+      "inputSha256": "b81ff44861069698eff8ffbfccbdc37e0485bb75e457a30631c0919d38602ec3",
+      "expectedObservation": "Practical criterion remains uncertain: current residence satisfies the express geographic boundary; openness to hybrid and remote does not explicitly forbid onsite. Work-mode acceptance, benefits and compensation details remain unconfirmed rather than affirmative contradictions. No exact score target."
+    }
+  ]
+}

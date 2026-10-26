@@ -1,8 +1,8 @@
+import type { CareerEndCallOptions } from "@/lib/career/realtimeEndCall";
 import { MOCK_INTERVIEW_OPENING_PROMPT } from "@/lib/career/prompts/cases/mockInterviewPrompts";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -17,7 +17,6 @@ import type { LiveSessionInstructionUpdate } from "@/lib/career/liveSessionUpdat
 import type {
   CallLiveTranscriptPlacement,
   CareerCallStartRequest,
-  CareerInterviewProgress,
   CareerInternalOpportunityCallRequest,
   CareerMessage,
   CareerMessagePayload,
@@ -47,7 +46,6 @@ import {
 } from "@/lib/talentOnboarding/completion";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import type { TalentUserChatMessageType } from "@/lib/talentOnboarding/onboarding";
-import { resolveCareerInterviewProgress } from "@/lib/career/onboardingInterviewProgress";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
 import { useMessages } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -106,10 +104,10 @@ const ONBOARDING_CALL_OPENING_RESPONSE_INSTRUCTION = `
 첫 응답의 자연스러운 흐름:
 1. 가벼운 인사로 시작한다. (반갑습니다 질문이 몇개 남지 않았어요, 다시 전화가 연결되었네요, 시간 내주셔서 감사합니다 등)
 2. 이 대화가 왜 필요한지 가볍게 안내하세요. 더 잘 맞는 기회 추천과 회사 연결을 위해 현재 상황과 선호를 짧게 확인한다는 취지입니다.
-3. 이전 대화 내역이 있다면, 이어서 가볼게요라는 식의 말과 함께 질문 하나로 마무리한다.
+3. 이전 대화가 있다면 인사와 설명을 반복하지 말고 아직 답하지 않은 필수 주제 하나로 이어간다. 필수 정보가 이미 충분하면 추가 질문 없이 온보딩 완료와 통화 종료를 요청한다.
 
 - {output_language}로, 실제 전화 첫마디처럼 자연스럽게 말하세요.
-- 질문은 세션 instructions의 Onboarding Question Checklist에서 current_status가 missing인 항목 중 우선순위가 높은 항목을 고르고, 해당 항목의 question hint를 기반으로 만드세요.
+- 질문은 세션 instructions의 Onboarding Question Checklist에서 필수이며 아직 답하지 않은 항목을 고르고, 해당 항목의 question hint를 기반으로 만드세요.
 - 이미 covered인 항목이나 최근 대화에서 답한 주제는 다시 묻지 마세요.
 예시: "안녕하세요. 전화로 이어가주셔서 감사합니다. 5분 커리어 인터뷰는 하퍼가 더 잘 맞는 기회를 추천하고, 필요하면 회사와 연결할 때 후보자님의 맥락을 잘 전달하기 위해 짧게 확인하는 대화예요. 편하게 답해주시면 되고, 먼저 현재 탐색 온도부터 확인해볼게요. 지금 적극적으로 다음 기회를 찾고 계신 건지, 아니면 좋은 게 있으면 받아는 보고 싶다 정도인지 편하게 말씀해주세요.
 `;
@@ -222,7 +220,6 @@ function buildCallOpeningRecentConversationContext(
 }
 
 function buildCallOpeningResponseInstruction(args: {
-  interviewProgress?: CareerInterviewProgress | null;
   isInternalOpportunityCall?: boolean;
   isMockInterview?: boolean;
   isOnboardingDone?: boolean;
@@ -234,7 +231,6 @@ function buildCallOpeningResponseInstruction(args: {
 }) {
   if (args.isMockInterview) return MOCK_INTERVIEW_OPENING_PROMPT;
   const {
-    interviewProgress,
     isConversationStarter,
     isInternalOpportunityCall,
     isOnboardingDone,
@@ -244,12 +240,6 @@ function buildCallOpeningResponseInstruction(args: {
     t,
   } = args;
   const normalizedOpeningText = openingText?.trim();
-  const shouldUseNearFinishOpening =
-    !isInternalOpportunityCall &&
-    !isOnboardingDone &&
-    !isConversationStarter &&
-    typeof interviewProgress?.percent === "number" &&
-    interviewProgress.percent >= 75;
   const shouldUseOnboardingOpening =
     !isInternalOpportunityCall && !isOnboardingDone && !isConversationStarter;
   const outputLanguage = getCallOpeningOutputLanguage(locale);
@@ -261,28 +251,6 @@ function buildCallOpeningResponseInstruction(args: {
 
   const sections = [
     applyCallOpeningPromptValues(baseOpeningInstruction, { outputLanguage }),
-    shouldUseNearFinishOpening &&
-      t(
-        "career.call.opening.instruction.near_finish",
-        [
-          "",
-          "## Incomplete onboarding near-finish opening",
-          "현재 커리어 인터뷰는 아직 완료되지 않았지만 거의 끝난 상태입니다.",
-          "- filledInsights: {filledCount}/{totalCount}",
-          "- remainingInsights: {remainingCount}",
-          "- 일반적인 새 통화 인사나 '오늘 어떠세요?', '최근 우선순위가 바뀐 게 있나요?' 같은 넓은 질문으로 시작하지 마세요.",
-          "- 첫 문장은 '대화가 거의 끝났고, 더 정확한 추천/연결을 위해 마지막 확인만 빠르게 하겠다'는 취지를 자연스럽게 담으세요.",
-          "- 최근 대화 맥락은 배경으로만 참고하고, 마지막으로 남은 한 가지 missing checklist question hint나 final priority confirmation으로 바로 이어가세요.",
-          "- 이미 final priority confirmation에 사용자가 답한 맥락이면 같은 확인 질문을 반복하지 말고 짧게 closing으로 넘어가세요.",
-        ].join("\n"),
-        {
-          values: {
-            filledCount: interviewProgress?.filledCount ?? "(unknown)",
-            remainingCount: interviewProgress?.remainingCount ?? "(unknown)",
-            totalCount: interviewProgress?.totalCount ?? "(unknown)",
-          },
-        }
-      ),
     isConversationStarter &&
       t(
         "career.call.opening.instruction.conversation_starter",
@@ -371,7 +339,7 @@ type UseCareerOnboardingVoiceArgs = {
   ) => void | Promise<void>;
 };
 
-type EndCallModeOptions = {
+type EndCallModeOptions = CareerEndCallOptions & {
   forceCompleteOnboarding?: boolean;
 };
 
@@ -384,8 +352,6 @@ export const useCareerOnboardingVoice = ({
   fetchWithAuth,
   isVoiceInteractionLocked,
   isOnboardingDone,
-  canForceCompleteOnboarding = false,
-  onboardingChecklistProgress = null,
   onSendChatMessage,
   onOpportunityRunChanged,
   onTalentPreferencesRefreshed,
@@ -399,7 +365,6 @@ export const useCareerOnboardingVoice = ({
   appendMessage,
   setChatError,
   setStage,
-  talentInsights,
   enqueueAssistantTypewriter,
   onMessagesChanged,
 }: UseCareerOnboardingVoiceArgs) => {
@@ -420,26 +385,6 @@ export const useCareerOnboardingVoice = ({
     useState<CareerMockInterviewCallDisplay | null>(null);
   const [liveUserTranscriptPlacement, setLiveUserTranscriptPlacement] =
     useState<CallLiveTranscriptPlacement>("beforeCurrentAssistant");
-  const callInterviewProgress = useMemo<CareerInterviewProgress>(() => {
-    const userChatCount = messages.filter(
-      (message) =>
-        message.role === "user" && (message.messageType ?? "chat") === "chat"
-    ).length;
-    return resolveCareerInterviewProgress({
-      canForceComplete: canForceCompleteOnboarding,
-      checklistProgress: onboardingChecklistProgress,
-      isOnboardingDone: Boolean(isOnboardingDone),
-      talentInsights: talentInsights ?? null,
-      userChatCount,
-    });
-  }, [
-    canForceCompleteOnboarding,
-    isOnboardingDone,
-    messages,
-    onboardingChecklistProgress,
-    talentInsights,
-  ]);
-
   const beginOnboardingConversation = useCallback(
     async (options?: {
       skipTypewriter?: boolean;
@@ -543,6 +488,7 @@ export const useCareerOnboardingVoice = ({
     ((options?: EndCallModeOptions) => void) | null
   >(null);
   const pendingCallEndRef = useRef(false);
+  const pendingCallEndOptionsRef = useRef<CareerEndCallOptions>({});
   const wasAssistantSpeakingRef = useRef(false);
   const callStartedAtRef = useRef<number | null>(null);
   const callWrapUpPendingRef = useRef(false);
@@ -560,14 +506,19 @@ export const useCareerOnboardingVoice = ({
     typeof useCareerVoiceSession
   > | null>(null);
 
-  const scheduleCallEndAfterRealtimePlayback = useCallback(() => {
+  const scheduleCallEndAfterRealtimePlayback = useCallback((options?: CareerEndCallOptions) => {
+    if (options) pendingCallEndOptionsRef.current = options;
     pendingCallEndRef.current = true;
 
     const finishCallEnd = () => {
       if (!pendingCallEndRef.current) return;
+      if (pendingCallEndOptionsRef.current.completeOnboarding &&
+          (userSpeechObservedRef.current || userTranscriptionPendingRef.current)) return;
       pendingCallEndRef.current = false;
       if (inputModeRef.current !== "call") return;
-      endCallModeRef.current?.();
+      const endOptions = pendingCallEndOptionsRef.current;
+      pendingCallEndOptionsRef.current = {};
+      endCallModeRef.current?.(endOptions);
     };
 
     const runAfterPlayback =
@@ -626,6 +577,7 @@ export const useCareerOnboardingVoice = ({
         };
       }
       if (
+        pendingCallEndRef.current ||
         pendingAssistant?.hasEndMarker ||
         pendingAssistant?.hasOnboardingDoneMarker
       ) {
@@ -788,7 +740,7 @@ export const useCareerOnboardingVoice = ({
             appendMessage(toUiMessage(payload.searchStatusMessage));
           }
           if (response.ok && args.isCallMode && (payload?.shouldEndCall || payload?.progress?.completed)) {
-            scheduleCallEndAfterRealtimePlayback();
+            scheduleCallEndAfterRealtimePlayback({ completeOnboarding: true });
           }
           if (response.ok && payload?.nextStepInstructions) {
             const updateSessionInstructions =
@@ -900,7 +852,10 @@ export const useCareerOnboardingVoice = ({
       liveUserTranscriptPlacementRef.current = "beforeCurrentAssistant";
       setLiveUserTranscriptPlacement("beforeCurrentAssistant");
 
-      if (!pendingAssistant || inputModeRef.current !== "call") return;
+      if (!pendingAssistant || inputModeRef.current !== "call") {
+        if (pendingCallEndRef.current) scheduleCallEndAfterRealtimePlayback();
+        return;
+      }
 
       pendingAssistantDoneRef.current = null;
       finalizeCallAssistantTranscriptRef.current?.(pendingAssistant.text, {
@@ -915,10 +870,11 @@ export const useCareerOnboardingVoice = ({
       lastRealtimeUserTextRef.current = "";
 
       if (
+        pendingCallEndRef.current ||
         pendingAssistant.hasEndMarker ||
         pendingAssistant.hasOnboardingDoneMarker
       ) {
-        scheduleCallEndAfterRealtimePlayback();
+        scheduleCallEndAfterRealtimePlayback(pendingAssistant.hasOnboardingDoneMarker ? { completeOnboarding: true } : undefined);
       }
     },
     [
@@ -1024,7 +980,7 @@ export const useCareerOnboardingVoice = ({
             setLiveUserTranscriptPlacement("beforeCurrentAssistant");
 
             if (hasEndMarker || hasOnboardingDoneMarker) {
-              scheduleCallEndAfterRealtimePlayback();
+              scheduleCallEndAfterRealtimePlayback({ completeOnboarding: hasOnboardingDoneMarker });
             }
             return;
           }
@@ -1069,7 +1025,7 @@ export const useCareerOnboardingVoice = ({
         // AI signaled end of interview — wait for audio then end call.
         // The onboarding-done marker also means the live interview is finished.
         if (hasEndMarker || hasOnboardingDoneMarker) {
-          scheduleCallEndAfterRealtimePlayback();
+          scheduleCallEndAfterRealtimePlayback({ completeOnboarding: hasOnboardingDoneMarker });
         }
         return;
       }
@@ -1148,6 +1104,7 @@ export const useCareerOnboardingVoice = ({
       pendingAssistantDeltaTextRef.current = "";
       suppressNextAssistantDoneRef.current = false;
       pendingCallEndRef.current = false;
+      pendingCallEndOptionsRef.current = {};
       clearVoiceBufferRef.current?.();
     },
     [clearAssistantBufferFlushTimeout, clearUserTranscriptionTimeout]
@@ -1584,7 +1541,6 @@ export const useCareerOnboardingVoice = ({
         const openingInstructions = careerCoachingActivityMessageId
           ? ""
           : buildCallOpeningResponseInstruction({
-              interviewProgress: callInterviewProgress,
               isInternalOpportunityCall: Boolean(internalCallRequestId),
               isMockInterview: Boolean(mockInterviewOpportunityId),
               isOnboardingDone,
@@ -1676,7 +1632,6 @@ export const useCareerOnboardingVoice = ({
     [
       beginOnboardingConversation,
       callStartPending,
-      callInterviewProgress,
       clearRealtimeTurnSyncState,
       conversationId,
       fetchWithAuth,
@@ -1699,10 +1654,21 @@ export const useCareerOnboardingVoice = ({
     (options?: EndCallModeOptions) => {
       setCallStartPending(false);
       pendingCallEndRef.current = false;
-      if (callWrapUpPendingRef.current) return;
+      if (callWrapUpPendingRef.current) {
+        // A user stop must remain immediate even while normal completion saves.
+        if (!options?.completeOnboarding) endCallMode();
+        return;
+      }
       const forceCompleteOnboarding = Boolean(options?.forceCompleteOnboarding);
 
       // Capture transcript before ending (endCallMode doesn't clear it)
+      const requireOnboardingCompletion = Boolean(options?.completeOnboarding) &&
+        !activeCallOnboardingCompletedAtStartRef.current &&
+        !activeCallConversationStarterIdRef.current &&
+        !activeInternalCallRequestIdRef.current &&
+        !activeCareerCoachingActivityMessageIdRef.current &&
+        !activeMockInterviewOpportunityIdRef.current &&
+        !activeResumeCallNoteIdRef.current;
       const transcript = getCallTranscriptEntries();
       const startedAt = callStartedAtRef.current;
       const endedAt = Date.now();
@@ -1725,20 +1691,36 @@ export const useCareerOnboardingVoice = ({
         activeMockInterviewOpportunityIdRef.current;
       const activeCallSessionId = activeCallSessionIdRef.current;
       const pendingUserText = lastRealtimeUserTextRef.current.trim();
-      if (pendingUserText) {
+      const pendingAssistant = pendingAssistantDoneRef.current;
+      if (pendingAssistant) {
+        finalizeCallAssistantTranscriptRef.current?.(pendingAssistant.text, {
+          alreadyRendered: pendingAssistant.rendered,
+        });
+      }
+      if (pendingUserText || pendingAssistant) {
         void saveRealtimeTurn({
           userText: pendingUserText,
+          assistantText: pendingAssistant?.text,
           isCallMode: true,
         });
       }
-      callStartedAtRef.current = null;
       pendingAssistantDoneRef.current = null;
-      pendingAssistantDeltaTextRef.current = "";
-      suppressNextAssistantDoneRef.current = false;
       lastRealtimeUserTextRef.current = "";
-      clearRealtimeTurnSyncState();
-      endCallMode();
-      setActiveMockInterviewDisplay(null);
+      let didEndCall = false;
+      const disconnectCall = () => {
+        didEndCall = true;
+        callStartedAtRef.current = null;
+        pendingAssistantDoneRef.current = null;
+        pendingAssistantDeltaTextRef.current = "";
+        suppressNextAssistantDoneRef.current = false;
+        lastRealtimeUserTextRef.current = "";
+        clearRealtimeTurnSyncState();
+        endCallMode();
+        setActiveMockInterviewDisplay(null);
+      };
+      // A normal onboarding ending stays connected until the server has
+      // committed completion. Explicit user stops still disconnect immediately.
+      if (!requireOnboardingCompletion || !conversationId) disconnectCall();
 
       if (!conversationId) {
         activeCallConversationStarterIdRef.current = null;
@@ -1760,6 +1742,7 @@ export const useCareerOnboardingVoice = ({
       if (
         !hasUserSpeech &&
         !forceCompleteOnboarding &&
+        !requireOnboardingCompletion &&
         !activeInternalCallRequestId &&
         !activeCareerCoachingActivityMessageId &&
         activeCallConversationStarterId !== "career_coaching"
@@ -1781,9 +1764,21 @@ export const useCareerOnboardingVoice = ({
       // Lock composer while generating follow-up so user can't send messages before it
       setOnboardingBeginPending(true);
 
+      const reportCompletionFailure = () => {
+        if (requireOnboardingCompletion && inputModeRef.current === "call") {
+          realtimeSessionRef.current?.triggerResponse(
+            "The completion request failed; onboarding completion has not been verified and the call is still connected. Briefly explain the save problem without claiming completion or asking answered questions again. Wait for the caller before retrying."
+          );
+        }
+      };
+
       void (async () => {
         try {
-          await saveQueueRef.current.catch(() => undefined);
+          let pendingSaves: Promise<void>;
+          do {
+            pendingSaves = saveQueueRef.current;
+            await pendingSaves;
+          } while (pendingSaves !== saveQueueRef.current);
 
           const response = await fetchWithAuth("/api/talent/chat/call-wrapup", {
             method: "POST",
@@ -1801,7 +1796,7 @@ export const useCareerOnboardingVoice = ({
               resumeCallNoteId: activeResumeCallNoteId ?? undefined,
               mockInterviewOpportunityId:
                 activeMockInterviewOpportunityId ?? undefined,
-              transcript: transcript.map((e) => ({
+              transcript: (requireOnboardingCompletion ? getCallTranscriptEntries() : transcript).map((e) => ({
                 role: e.role,
                 text: e.text,
                 timestamp: e.timestamp,
@@ -1812,6 +1807,7 @@ export const useCareerOnboardingVoice = ({
                 : undefined,
               endedAt: new Date(endedAt).toISOString(),
               forceCompleteOnboarding,
+              requireOnboardingCompletion,
               locale,
               onboardingCompletedAtStart,
               timeZone: getCareerBrowserTimeZone(),
@@ -1821,7 +1817,21 @@ export const useCareerOnboardingVoice = ({
           if (!response.ok) {
             console.error("[CareerOnboardingVoice] Follow-up failed:", payload);
             setChatError(tCareer(H.callWrapupMessageFailed));
+            reportCompletionFailure();
             return;
+          }
+
+          if (requireOnboardingCompletion) {
+            if (payload?.progress?.completed !== true) {
+              if (payload?.nextStepInstructions) {
+                updateSessionInstructionsRef.current?.(payload.nextStepInstructions, payload.liveSessionUpdate);
+              }
+              realtimeSessionRef.current?.triggerResponse(
+                "Onboarding has not been completed and the call is still connected. Use the updated required-topic facts and the latest conversation to ask one genuinely unanswered topic. Do not repeat a final confirmation or ask for permission to hang up."
+              );
+              return;
+            }
+            disconnectCall();
           }
 
           if (payload?.activityMessage?.coachingActivity) {
@@ -1984,19 +1994,22 @@ export const useCareerOnboardingVoice = ({
         } catch (error) {
           console.error("[CareerOnboardingVoice] Follow-up error:", error);
           setChatError(tCareer(H.callWrapupMessageFailed));
+          reportCompletionFailure();
         } finally {
           setOnboardingBeginPending(false);
           callWrapUpPendingRef.current = false;
           setCallWrapUpPending(false);
-          activeCallConversationStarterIdRef.current = null;
-          activeCareerCoachingActivityMessageIdRef.current = null;
-          activeCareerCoachingActivityRevisionRef.current = null;
-          activeInternalCallRequestIdRef.current = null;
-          activeResumeCallNoteIdRef.current = null;
-          activeMockInterviewOpportunityIdRef.current = null;
-          activeCallIdRef.current = null;
-          activeCallOnboardingCompletedAtStartRef.current = false;
-          activeCallSessionIdRef.current = null;
+          if (didEndCall || inputModeRef.current !== "call") {
+            activeCallConversationStarterIdRef.current = null;
+            activeCareerCoachingActivityMessageIdRef.current = null;
+            activeCareerCoachingActivityRevisionRef.current = null;
+            activeInternalCallRequestIdRef.current = null;
+            activeResumeCallNoteIdRef.current = null;
+            activeMockInterviewOpportunityIdRef.current = null;
+            activeCallIdRef.current = null;
+            activeCallOnboardingCompletedAtStartRef.current = false;
+            activeCallSessionIdRef.current = null;
+          }
         }
       })();
     },
@@ -2061,6 +2074,7 @@ export const useCareerOnboardingVoice = ({
     pendingAssistantDoneRef.current = null;
     pendingAssistantDeltaTextRef.current = "";
     pendingCallEndRef.current = false;
+    pendingCallEndOptionsRef.current = {};
     suppressNextAssistantDoneRef.current = false;
     lastRealtimeUserTextRef.current = "";
     activeCallConversationStarterIdRef.current = null;

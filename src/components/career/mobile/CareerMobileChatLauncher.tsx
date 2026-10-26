@@ -365,7 +365,7 @@ function CareerMobileChatLauncher({
               onContinue={onAcknowledgeIdleWarning}
             />
           ) : null}
-          <div className="flex items-center gap-2 px-4 pb-3 pt-1">
+          <div className="flex items-center gap-2 px-4 pb-2 pt-1">
             {showMinimizedCall ? (
               <div
                 className="flex w-full items-center justify-center"
@@ -415,7 +415,7 @@ function CareerMobileChatLauncher({
                 aria-label={
                   showChatInterviewCta ? chatInterviewCtaLabel : "채팅 열기"
                 }
-                leadingAction={<Plus className="h-4 w-4" />}
+                leadingAction={<Plus className="h-5 w-5" strokeWidth={1.6} />}
                 onClick={openDrawer}
                 textClassName={cn(
                   (showChatInterviewCta ||
@@ -487,9 +487,9 @@ function CareerMobileChatLauncher({
             </DrawerPrimitive.Description>
 
             <div
-              className="relative flex shrink-0 items-center justify-center px-4 pb-2"
+              className="pointer-events-none fixed inset-x-0 z-[70] flex items-center justify-center"
               style={{
-                paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+                top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
               }}
             >
               {navigation ? (
@@ -510,7 +510,7 @@ function CareerMobileChatLauncher({
                     <MuteButton
                       aria-label="메뉴 열기"
                       className={cn(
-                        "rounded-full text-neutral-muted",
+                        "pointer-events-auto rounded-full text-neutral-muted",
                         CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
                       )}
                       size="md"
@@ -522,12 +522,13 @@ function CareerMobileChatLauncher({
               ) : null}
               <DrawerPrimitive.Handle
                 preventCycle
-                className="!h-[3px] !w-10 !rounded-full !bg-black/20"
+                className="pointer-events-auto !h-[3px] !w-10 !rounded-full !bg-black/20"
               />
               <DrawerPrimitive.Close asChild>
                 <MuteButton
                   aria-label="채팅 접기"
                   className={cn(
+                    "pointer-events-auto",
                     "fixed right-3 z-[70] rounded-full text-neutral-muted",
                     CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
                   )}

@@ -442,9 +442,11 @@ function SummaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
               <div className="text-base text-neutral-primary">
                 {variant.label}
               </div>
-              <div className="font-normal text-neutral-muted">
-                {variant.sampleCount}명
-              </div>
+              {experiment.metricLayout !== "summary" ? (
+                <div className="font-normal text-neutral-muted">
+                  {variant.sampleCount}명
+                </div>
+              ) : null}
             </TableHead>
           ))}
         </TableRow>
@@ -494,9 +496,12 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
   const [detailsExpanded, setDetailsExpanded] = useState(false);
   const detailsId = useId();
   const hasSummary = Boolean(experiment.variants[0].summaryMetrics?.length);
+  if (experiment.metricLayout === "summary") {
+    return <SummaryComparison experiment={experiment} />;
+  }
   return (
     <div>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Badge size="sm" variant="subtle">
           {experiment.allocation}
         </Badge>
@@ -509,6 +514,11 @@ function ExperimentCard({ experiment }: { experiment: OpsAbTestSummary }) {
                 ? "한쪽 그룹만 관측"
                 : "진행 중"}
         </Badge>
+        {experiment.measurementVersion ? (
+          <Text className="break-all" tone="muted" variant="subtle">
+            측정 버전 {experiment.measurementVersion}
+          </Text>
+        ) : null}
       </div>
       <div>
         {hasSummary ? (

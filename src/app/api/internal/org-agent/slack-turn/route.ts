@@ -848,6 +848,9 @@ export async function processSlackTurn(args: ProcessSlackTurnArgs) {
       await markSlackReplyJobIgnored({ admin, jobId: job.id, lastError: "slack_team_audience_denied" });
       return NextResponse.json({ ok: true, outcome: "ignored", accessDenied: true });
     }
+    // A reply while a role start question is open goes to the role chat,
+    // which applies it as the answer only when it answers the question
+    // (answer_role_start_question); other messages are handled as usual.
     let roleLinkUser: User | null = actorAccount.data.user;
     let responseText = clean(job.response_text);
     let responseMessageId = Number(job.response_message_id || 0);

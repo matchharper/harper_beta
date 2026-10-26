@@ -387,10 +387,7 @@ export function getOnboardingChecklistCoverageStats(
     additionalCoveredCount,
     coveredCount,
     finalConfirmationCovered,
-    isComplete:
-      coveredCount >= ONBOARDING_QUESTION_MIN_COVERED_COUNT &&
-      finalConfirmationCovered &&
-      requiredQuestionsCovered,
+    isComplete: requiredQuestionsCovered,
     minCoveredCount: ONBOARDING_QUESTION_MIN_COVERED_COUNT,
     missingItems: checklist.filter(
       (item) => normalized[item.key] !== "covered"

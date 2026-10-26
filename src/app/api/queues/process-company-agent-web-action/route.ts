@@ -7,7 +7,7 @@ import {
 } from "@/lib/org/agent/webActionProcessor.server";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 1800;
 const queueCallback = handleCallback(processCompanyAgentWebActionJob, {
   retry: (error, metadata) => {
     if (error instanceof WebActionQueuePermanentError) {
@@ -19,7 +19,7 @@ const queueCallback = handleCallback(processCompanyAgentWebActionJob, {
     }
     return { afterSeconds: Math.min(300, 2 ** metadata.deliveryCount * 5) };
   },
-  visibilityTimeoutSeconds: 390,
+  visibilityTimeoutSeconds: 1860,
 });
 
 export async function POST(request: Request) {

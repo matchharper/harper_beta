@@ -4,6 +4,13 @@ import { formatToolError } from "@/lib/llm/toolError";
 import { resolveCompanyLogoUrl } from "@/lib/imageUrl";
 import { buildCareerCoachingResultInstruction } from "@/lib/career/prompts/cases/coachingPrompts";
 import { GENERATE_RESUME_PARAMETERS } from "@/lib/resumes/schema";
+import { savedApplicationSessionTool } from "@/lib/career/simulation/sessionTool";
+import { WRITE_DOCUMENT_PARAMETERS } from "@/lib/documents/authoring";
+import {
+  executeProfileRows,
+  PROFILE_ROWS_PARAMETERS,
+  PROFILE_READ_ROWS_PARAMETERS,
+} from "./profileRows";
 import { readTalentContactHistory } from "@/lib/career/talentContactHistory";
 import {
   OPEN_URL_TOOL_DEFINITION,
@@ -251,6 +258,7 @@ export class TalentToolError extends Error {
 }
 
 export const TALENT_TOOL_NAMES = {
+  MANAGE_SIMULATION_SESSION: "manage_simulation_session",
   SIMULATE_APPLICATION: "simulate_application",
   END_CALL: "end_call",
   RECOMMEND_JOB_POSTINGS: "recommend_job_postings",
@@ -267,6 +275,8 @@ export const TALENT_TOOL_NAMES = {
   SEARCH_CONNECTED_GMAIL: "search_connected_gmail",
   RESEARCH_COMPANY: "research_company",
   GENERATE_RESUME: "generate_resume",
+  WRITE_DOCUMENT: "write_document",
+  SAVE_JOB_POSTING: "save_job_posting",
   LIST_DOCUMENTS: "list_documents",
   READ_DOCUMENT: "read_document",
   UPDATE_DOCUMENT: "update_document",
@@ -288,6 +298,7 @@ export type TalentToolName =
   (typeof TALENT_TOOL_NAMES)[keyof typeof TALENT_TOOL_NAMES];
 
 export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION,
   TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
   TALENT_TOOL_NAMES.END_CALL,
   TALENT_TOOL_NAMES.WEB_SEARCH,
@@ -301,6 +312,8 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK,
   TALENT_TOOL_NAMES.RESEARCH_COMPANY,
   TALENT_TOOL_NAMES.GENERATE_RESUME,
+  TALENT_TOOL_NAMES.WRITE_DOCUMENT,
+  TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,
   TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
@@ -2634,10 +2647,16 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.END_CALL]: {
     name: TALENT_TOOL_NAMES.END_CALL,
     description:
-      "End the current live voice call. Call it immediately when the user clearly asks to end, stop, hang up, or says they are done for today. For an assistant-initiated normal ending, call it only after the user agrees to end. You may include one short spoken closing in the same response; if the provider cannot combine speech and a function call, prioritize calling this tool because the client supplies a brief closing fallback. This tool ends only the live call session and does not change recommendation, email, account, or profile settings.",
+      "End the current live voice call. When the required onboarding topics are answered, set complete_onboarding=true to save the final answers and complete onboarding before disconnecting; separate final confirmation or hangup approval is not required. If the caller asks to stop with onboarding unfinished, or this is another call mode, set complete_onboarding=false to end only the call. An explicit stop takes priority over further questions. This tool does not change recommendation, email, account, or profile settings.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        complete_onboarding: {
+          type: "boolean",
+          description: "Complete onboarding before disconnecting. False ends only the call.",
+        },
+      },
+      required: ["complete_onboarding"],
       additionalProperties: false,
     },
     channels: ["voice"],
@@ -2734,6 +2753,46 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         maxResults,
         query,
         talentId: userId,
+      });
+    },
+  },
+  [TALENT_TOOL_NAMES.SAVE_JOB_POSTING]: {
+    name: TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
+    description:
+      "Save one specific external public job posting to this user's Jobs, using the same import as adding a link in history. Use only when the user asks to add/save it or authorizes finding and adding a particular posting; verify its URL with web tools when needed. A link, question or request for analysis alone does not authorize saving. Not for Harper-connected/internal roles. Reuses an existing recommendation and preserves its saved/application progress; does not apply, contact a company or change future search preferences.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["url"],
+      properties: {
+        url: {
+          type: "string",
+          description: "Verified public URL for one job opening.",
+        },
+        title: {
+          type: "string",
+          description: "Exact title from the user or posting, if known.",
+        },
+        company_name: {
+          type: "string",
+          description:
+            "Exact hiring company from the user or posting, if known.",
+        },
+      },
+    },
+    channels: ["chat"],
+    async execute(input, context) {
+      if (!context?.admin || !context.userId || !optionalToolString(input.url))
+        throw new TalentToolError(
+          "Saving a posting requires user context and its URL.",
+        );
+      const { saveJobPosting } = await import("@/lib/career/saveJobPosting");
+      return saveJobPosting({
+        admin: context.admin as TalentAdminClient,
+        talentId: context.userId,
+        url: String(input.url),
+        title: optionalToolString(input.title) ?? undefined,
+        companyName: optionalToolString(input.company_name) ?? undefined,
       });
     },
   },
@@ -2898,6 +2957,27 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.WRITE_DOCUMENT]: {
+    name: TALENT_TOOL_NAMES.WRITE_DOCUMENT,
+    description:
+      "Write or revise a general document on the user's request: cover letters, interview notes, reports or other material. Author the content yourself; use exact edits for small revisions after reading the relevant passage. Saves a private document with preview and PDF download; edits preserve its current visibility. Read the current text and revision before editing; preserve unrelated content. Use the offered resume writer (generate_resume or ready_for_role) for resumes. Does not send, share or submit anything. Returns only the saved link and revision, not a copy of the content.",
+    parameters: WRITE_DOCUMENT_PARAMETERS,
+    channels: ["chat"],
+    async execute(input, context) {
+      if (!context?.admin || !context.userId || !context.userMessageId)
+        throw new TalentToolError(
+          "Document authoring requires authenticated conversation context.",
+        );
+      const { writeDocument } = await import("@/lib/documents/authoring");
+      return writeDocument({
+        admin: context.admin as TalentAdminClient,
+        userId: context.userId,
+        userMessageId: context.userMessageId,
+        requestId: context.resumeRequestId,
+        input,
+      });
+    },
+  },
   [TALENT_TOOL_NAMES.LIST_DOCUMENTS]: {
     name: TALENT_TOOL_NAMES.LIST_DOCUMENTS,
     description:
@@ -2958,6 +3038,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           description: "Exact saved document id.",
         },
+        query: { type: "string", maxLength: 300, description: "Optional exact text to locate from offset; returns a bounded passage around its first match. For targeted edits without reading the entire document." },
         offset: {
           type: "integer",
           minimum: 0,
@@ -3485,9 +3566,23 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       });
     },
   },
+  [TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION]: {
+    ...savedApplicationSessionTool,
+    channels: ["chat"],
+    async execute(input, context) {
+      if (!context?.admin || !context.userId || !context.conversationId)
+        throw new TalentToolError("Saved preparations require an authenticated conversation.");
+      const { manageSavedApplications } = await import("@/lib/career/simulation/savedApplications");
+      return manageSavedApplications(
+        { admin: context.admin as TalentAdminClient, userId: context.userId, conversationId: context.conversationId },
+        input, `turn:${context.userMessageId ?? context.toolCallId}`,
+        context.onSimulationMessage,
+      );
+    },
+  },
   [TALENT_TOOL_NAMES.SIMULATE_APPLICATION]: {
     name: TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
-    description: "Show the Apply with Harper start card for one known role and one chosen resume. Read/list the user's resumes and select document_id before calling. If there is no readable resume, offer upload or ask whether to create a simple resume from their profile, then use generate_resume with consent. The card lets the user change the selection and press Start; only that button starts preparation. Harper improves the existing resume for the role, prepares needed application materials with the user, and can help submit with confirmations. This call does not run analysis, edit files or apply.",
+    description: "Show the Apply with Harper start card for one known role and one chosen resume. Read/list the user's resumes and select document_id before calling. If there is no readable resume, offer upload or ask whether to create a simple resume from their profile, then use generate_resume with consent. The card lets the user change the selection and press Start; only that button starts preparation. Harper improves the existing resume for the role, prepares needed application materials with the user, and can help submit with confirmations. This call does not run analysis, edit files or apply. Optional introduction is your user-visible explanation displayed immediately above the card; this tool ends the turn.",
     channels: ["chat"],
     parameters: {
       type: "object", additionalProperties: false,
@@ -3496,6 +3591,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         roleId: { type: "string", description: "Exact known Harper role ID. Supply this or official_job_slug, never both." },
         official_job_slug: { type: "string", description: "Known public Harper /jobs slug." },
         document_id: { type: "string", description: "Selected readable resume ID belonging to this user." },
+        introduction: { type: "string", description: "Optional conversational explanation shown with the card." },
       },
     },
     async execute(input, context) {
@@ -3505,7 +3601,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         if (!documentId) return {ok:false,reason:"Choose a readable resume first. If none exists, offer upload or creation from the profile with the user's consent."};
         if (Boolean(input.roleId) === Boolean(input.official_job_slug)) throw new TalentToolError("Choose exactly one role identifier");
         const {prepareApplicationStartPayload}=await import("@/lib/career/simulation/startOfferStore");
-        const message=await prepareApplicationStartPayload({admin:context.admin as TalentAdminClient,userId:context.userId,conversationId:context.conversationId,replyId:Number(context.userMessageId),documentId,request: input.official_job_slug ? {official_job_slug:String(input.official_job_slug)} : {roleId:String(input.roleId)}});
+        const message=await prepareApplicationStartPayload({admin:context.admin as TalentAdminClient,userId:context.userId,conversationId:context.conversationId,replyId:Number(context.userMessageId),documentId,introduction:optionalToolString(input.introduction) ?? undefined,request: input.official_job_slug ? {official_job_slug:String(input.official_job_slug)} : {roleId:String(input.roleId)}});
         context.onSimulationMessage?.(message);
         return {ok:true,startCardDisplayed:true,awaitingUserInput:true,assistantInstruction:"The displayed card owns resume selection and Start. Wait for the user's button action."};
       }
@@ -4443,7 +4539,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
   [TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE]: {
     name: TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
     description:
-      "Update saved profile state from the latest user statement: exact name, profile summary, current base, the talent's own profile/material links, row memos, or recommendationBatchSize. Save only facts the user stated; never infer or add details the user did not provide. Use write_talent_context for Search Brief and Memory. Never add company, job-posting, recruiting, or third-party links as the talent's profile links. Do not use for subscription/contact actions; use update_setting for stop_external, stop_all, or resume. Skip questions, one-off searches, hypotheticals, assistant statements, and already-saved information.",
+      "Read or update saved profile state from explicit user facts: exact name, headline, summary, current base, personal links, experience/education/extra rows, row memos or recommendationBatchSize. readRows retrieves full rows when the compact profile is insufficient. rows edits actual profile fields; rowMemos retains supplementary context. Preserve unrelated fields and uploaded originals. Use write_talent_context for Brief/Memory, update_setting for subscriptions. Questions, hypotheticals and assistant inferences are not profile facts.",
     parameters: {
       type: "object",
       properties: {
@@ -4452,6 +4548,11 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           description:
             "Profile-level fields. Use name only when the user explicitly states or corrects it, copied exactly as written. Use bio for an explicit profile summary/about correction. Use location only for an explicit current main base/residence; do not infer it from travel, past or target jobs, or work-location preference.",
           properties: {
+            headline: {
+              type: ["string", "null"],
+              maxLength: 240,
+              description: "User-requested profile headline; null clears it.",
+            },
             name: {
               type: "string",
               minLength: 1,
@@ -4537,6 +4638,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           description:
             "Recommendations per batch, 3-10. Exact count uses that value; vague more = current +2 capped at 10 or 5 if unknown; maximum = 10; vague fewer = current -2 floored at 3 or 3 if unknown.",
         },
+        rows: PROFILE_ROWS_PARAMETERS,
+        readRows: PROFILE_READ_ROWS_PARAMETERS,
       },
       additionalProperties: false,
     },
@@ -4546,7 +4649,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const userId = context?.userId;
       if (!admin || !userId) {
         throw new TalentToolError(
-          "update_talent_profile requires user context."
+          "update_talent_profile requires user context.",
         );
       }
 
@@ -4597,6 +4700,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         url?: string;
       }> = [];
       const updatedRecommendationSettings: string[] = [];
+      const profileRows = await executeProfileRows({
+        admin,
+        userId,
+        requestId: context?.resumeRequestId ?? context?.userMessageId ?? context?.toolCallId,
+        rows: input.rows,
+        readRows: input.readRows,
+      });
 
       if (profileLinksInput.length > 0) {
         const { data: currentUser, error: currentUserError } = await admin
@@ -4606,7 +4716,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           .maybeSingle();
         if (currentUserError) {
           throw new TalentToolError(
-            currentUserError.message ?? "Failed to read profile links."
+            currentUserError.message ?? "Failed to read profile links.",
           );
         }
 
@@ -4632,7 +4742,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           }
 
           const existingIndex = nextLinks.findIndex(
-            (link: string) => normalizeToolProfileLink(link) === url
+            (link: string) => normalizeToolProfileLink(link) === url,
           );
           if (action === "add") {
             if (existingIndex >= 0) {
@@ -4671,7 +4781,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             .eq("user_id", userId);
           if (updateLinksError) {
             throw new TalentToolError(
-              updateLinksError.message ?? "Failed to update profile links."
+              updateLinksError.message ?? "Failed to update profile links.",
             );
           }
         }
@@ -4680,25 +4790,42 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       // talent_users — direct profile-level updates.
       const hasTalentUserNameUpdate = Boolean(
         talentUserInput &&
-        Object.prototype.hasOwnProperty.call(talentUserInput, "name")
+        Object.prototype.hasOwnProperty.call(talentUserInput, "name"),
+      );
+      const hasTalentUserHeadlineUpdate = Boolean(
+        talentUserInput &&
+        Object.prototype.hasOwnProperty.call(talentUserInput, "headline"),
       );
       const hasTalentUserBioUpdate = Boolean(
         talentUserInput &&
-        Object.prototype.hasOwnProperty.call(talentUserInput, "bio")
+        Object.prototype.hasOwnProperty.call(talentUserInput, "bio"),
       );
       const hasTalentUserLocationUpdate = Boolean(
         talentUserInput &&
-        Object.prototype.hasOwnProperty.call(talentUserInput, "location")
+        Object.prototype.hasOwnProperty.call(talentUserInput, "location"),
       );
       if (
         talentUserInput &&
-        (hasTalentUserNameUpdate ||
+        (hasTalentUserHeadlineUpdate ||
+          hasTalentUserNameUpdate ||
           hasTalentUserBioUpdate ||
           hasTalentUserLocationUpdate)
       ) {
         const nextName = hasTalentUserNameUpdate
           ? normalizeToolName(talentUserInput.name)
           : undefined;
+        const nextHeadline = hasTalentUserHeadlineUpdate
+          ? talentUserInput.headline === null
+            ? null
+            : typeof talentUserInput.headline === "string"
+              ? talentUserInput.headline
+              : undefined
+          : undefined;
+        if (
+          typeof nextHeadline === "string" &&
+          (nextHeadline.length > 240 || nextHeadline.includes("\0"))
+        )
+          throw new TalentToolError("Invalid headline.");
         const nextBio = hasTalentUserBioUpdate
           ? normalizeToolBio(talentUserInput.bio)
           : undefined;
@@ -4707,22 +4834,35 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           : undefined;
 
         if (
+          nextHeadline !== undefined ||
           nextName !== undefined ||
           nextBio !== undefined ||
           nextLocation !== undefined
         ) {
           const { data: currentUser, error: currentUserError } = await admin
             .from("talent_users")
-            .select("name, bio, location")
+            .select("name, headline, bio, location")
             .eq("user_id", userId)
             .maybeSingle();
           if (currentUserError) {
             throw new TalentToolError(
-              currentUserError.message ?? "Failed to read talent_users."
+              currentUserError.message ?? "Failed to read talent_users.",
             );
           }
 
           const talentUserPatch: Record<string, string | null> = {};
+          if (
+            nextHeadline !== undefined &&
+            (currentUser?.headline ?? null) !== nextHeadline
+          ) {
+            talentUserPatch.headline = nextHeadline;
+            updatedTalentUserFields.push("headline");
+            talentUserActivityChanges.push({
+              field: "headline",
+              from: currentUser?.headline ?? null,
+              to: nextHeadline,
+            });
+          }
           if (nextName !== undefined) {
             const previousName = normalizeToolName(currentUser?.name) ?? null;
             if (previousName !== nextName) {
@@ -4774,7 +4914,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             if (talentUserUpdateError) {
               throw new TalentToolError(
                 talentUserUpdateError.message ??
-                  "Failed to update talent_users."
+                  "Failed to update talent_users.",
               );
             }
             if (
@@ -4795,21 +4935,21 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                 item &&
                 typeof item === "object" &&
                 optionalToolString((item as Record<string, unknown>).type) ===
-                  "experience"
+                  "experience",
             ),
             educations: rowMemosInput.filter(
               (item) =>
                 item &&
                 typeof item === "object" &&
                 optionalToolString((item as Record<string, unknown>).type) ===
-                  "education"
+                  "education",
             ),
             extras: rowMemosInput.filter(
               (item) =>
                 item &&
                 typeof item === "object" &&
                 optionalToolString((item as Record<string, unknown>).type) ===
-                  "extra"
+                  "extra",
             ),
           }
         : rowMemosInput && typeof rowMemosInput === "object"
@@ -4818,7 +4958,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
 
       if (groupedRowMemosInput) {
         const experiencesEntries = Array.isArray(
-          groupedRowMemosInput.experiences
+          groupedRowMemosInput.experiences,
         )
           ? (groupedRowMemosInput.experiences as unknown[])
           : [];
@@ -4940,7 +5080,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       if (
         Object.prototype.hasOwnProperty.call(
           input,
-          "recommendationBatchSize"
+          "recommendationBatchSize",
         ) &&
         typeof input.recommendationBatchSize === "number" &&
         Number.isFinite(input.recommendationBatchSize)
@@ -4953,7 +5093,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         if (
           !isSameActivityValue(
             previousRecommendationBatchSize,
-            nextRecommendationBatchSize
+            nextRecommendationBatchSize,
           )
         ) {
           await upsertTalentSetting({
@@ -5016,9 +5156,32 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       }
 
       const rowMemoSummary = buildRowMemoActivitySummary(rowMemoActivityItems);
+      const changedProfileRows = profileRows.filter(
+        (row) => row.changed === true,
+      );
+      if (changedProfileRows.length) {
+        await insertTalentActivityEvent({
+          admin,
+          userId,
+          eventType: "profile_updated",
+          changedDomains: [
+            "profile",
+            ...new Set(changedProfileRows.map((row) => String(row.type))),
+          ],
+          conversationId: context?.conversationId ?? null,
+          messageId: context?.userMessageId ?? null,
+          source: getTalentToolActivitySource(context),
+          summary: changedProfileRows
+            .map(
+              (row) =>
+                `${row.type} ${row.operation}: ${(row.fields as string[]).join(", ")}`,
+            )
+            .join("; "),
+        });
+      }
       if (rowMemoSummary) {
         const rowMemoEventType = rowMemoActivityItems.some(
-          (item) => item.operation === "update"
+          (item) => item.operation === "update",
         )
           ? "row_memo_updated"
           : "row_memo_added";
@@ -5028,8 +5191,8 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
             "profile_memo",
             ...Array.from(
               new Set(
-                rowMemoActivityItems.map((item) => `${item.entityType}_memo`)
-              )
+                rowMemoActivityItems.map((item) => `${item.entityType}_memo`),
+              ),
             ),
           ],
           conversationId: context?.conversationId ?? null,
@@ -5075,6 +5238,10 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       const result = {
         assistantInstruction: replyInstructions.join(" "),
         ok: true,
+        ...(profileRows.some((row) => row.ok === false)
+          ? { hasFailedProfileRows: true }
+          : {}),
+        ...(profileRows.length ? { profileRows } : {}),
         updatedTalentUserFields,
         updatedProfileLinks,
         updatedRowMemos,

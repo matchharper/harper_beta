@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { BillingActionNotice } from "@/components/org/billing/BillingActionNotice";
@@ -23,7 +24,8 @@ import {
 } from "@/components/chat/ChatTimeline";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { useSendOrgAgentMeetingRequest } from "@/hooks/org/useOrgAgent";
-import { splitOrgAgentMentionText } from "@/lib/org/agent/mentionText";
+import { orgTalentReferenceHref, readOrgTalentReferenceHref, remarkOrgTalentReferences, splitOrgTalentReferences } from "@/lib/org/agent/talentReference";
+import { OrgTalentReferenceBadge } from "./OrgTalentReferenceBadge";
 import { formatOrgChatMessageTime } from "@/lib/org/agent/messagePresentation";
 import { splitOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import {
@@ -111,17 +113,35 @@ function OrgMessageLayout({
   );
 }
 
-function MentionText({ content }: { content: string }) {
+function useTalentReferenceNavigation(workspaceId: string) {
+  const router = useRouter();
+  return (href: string) => {
+    const reference = readOrgTalentReferenceHref(href, workspaceId);
+    if (reference && ["/org/home", "/org/inbox", "/org/jobs", "/org/role"].includes(router.pathname) && router.query.orgId === workspaceId) {
+      const query = { ...router.query, talentId: reference.talentId, detailRoleId: reference.roleId ?? undefined,
+        recommendationId: reference.recommendationId ?? undefined, detailWorkspaceId: workspaceId };
+      void router.push({ pathname: router.pathname, query }, undefined, { shallow: true, scroll: false });
+      return;
+    }
+    const route = getHarperOwnedUrlRoute(href);
+    if (route) void router.push(route);
+  };
+}
+
+function MentionText({ content, workspaceId, roleId }: { content: string; workspaceId: string; roleId?: string | null }) {
+  const openTalent = useTalentReferenceNavigation(workspaceId);
   return (
     <>
-      {splitOrgAgentMentionText(content).map((segment, index) =>
-        segment.kind === "mention" ? (
-          <span
-            key={`${segment.talentId}:${index}`}
-            className="font-medium text-link"
-          >
-            {segment.text}
-          </span>
+      {splitOrgTalentReferences(content).map((segment, index) =>
+        segment.reference ? (
+          <OrgTalentReferenceBadge
+            key={`${segment.reference.talentId}:${index}`}
+            className="border-white/30 text-white hover:bg-white/10 focus-visible:ring-white/40"
+            talentId={segment.reference.talentId}
+            label={segment.reference.label}
+            href={orgTalentReferenceHref({ talentId: segment.reference.talentId, workspaceId, roleId })}
+            onClick={() => openTalent(orgTalentReferenceHref({ talentId: segment.reference!.talentId, workspaceId, roleId }))}
+          />
         ) : (
           <span key={`text:${index}`}>{segment.text}</span>
         )
@@ -172,14 +192,17 @@ function OrgAssistantContent({
   content,
   fromSlack = false,
   onCompanyInfoClick,
+  roleId,
   workspaceId,
 }: {
   content: string;
   fromSlack?: boolean;
   onCompanyInfoClick?: () => void;
+  roleId?: string | null;
   workspaceId: string;
 }) {
   const router = useRouter();
+  const openTalent = useTalentReferenceNavigation(workspaceId);
   const visibleContent = fromSlack
     ? parseHarperSlackChoiceMarkers(stripSlackSentUsingAttribution(content))
         .text
@@ -214,6 +237,7 @@ function OrgAssistantContent({
             ? convertSlackMrkdwnToWebMarkdown(segment.text)
             : segment.text,
           workspaceId,
+          roleId,
         });
         return (
           <ChatAssistantContent
@@ -222,6 +246,14 @@ function OrgAssistantContent({
               index > 0 && "mt-3"
             )}
             content={markdown}
+            additionalRemarkPlugins={[[remarkOrgTalentReferences, { workspaceId, roleId }]]}
+            renderLink={({ href, text }) => {
+              const reference = readOrgTalentReferenceHref(href, workspaceId);
+              if (!reference) return undefined;
+              return <OrgTalentReferenceBadge talentId={reference.talentId}
+                label={text}
+                href={href} onClick={() => openTalent(href)} />;
+            }}
             key={`text:${index}`}
             onHarperLinkClick={(href) => {
               const route = getHarperOwnedUrlRoute(href);
@@ -299,6 +331,7 @@ export function OrgAgentMessageBubble({
   message,
   onCompanyInfoClick,
   onRoleCreationChoice,
+  onRoleStartChoice,
   readOnly = false,
   roleId,
   showUserAttribution = false,
@@ -317,6 +350,7 @@ export function OrgAgentMessageBubble({
     decision: "no" | "yes";
     messageId: number;
   }) => void;
+  onRoleStartChoice?: (args: { questionId: string; chipId: string | null }) => void;
   readOnly?: boolean;
   roleId?: string | null;
   showUserAttribution?: boolean;
@@ -354,6 +388,8 @@ export function OrgAgentMessageBubble({
       action.kind !== "entity_updated" && action.kind !== "request_updated"
   );
   const roleChoices = message.metadata.roleCreation?.choices ?? [];
+  const startQuestion = message.metadata.roleStartQuestion;
+  const briefReady = message.metadata.roleStartBriefReady;
   const attachments = message.metadata.attachments ?? [];
 
   return (
@@ -438,13 +474,14 @@ export function OrgAgentMessageBubble({
         >
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">
-              <MentionText content={visibleMessageContent} />
+              <MentionText content={visibleMessageContent} workspaceId={workspaceId} roleId={roleId} />
             </div>
           ) : (
             <OrgAssistantContent
               content={assistantContentOverride ?? message.content}
               fromSlack={fromSlack}
               onCompanyInfoClick={onCompanyInfoClick}
+              roleId={roleId}
               workspaceId={workspaceId}
             />
           )}
@@ -488,6 +525,35 @@ export function OrgAgentMessageBubble({
               typographyClassName="text-[13px] leading-[1.55]"
             />
           ) : null}
+          {startQuestion ? (
+            <ChatChoiceList
+              choices={[
+                ...startQuestion.chips.map((chip) => ({ label: chip.label, value: chip.id })),
+                { label: c("건너뛰기", "Skip"), value: "__skip" },
+              ]}
+              disabled={readOnly || choicePending || startQuestion.status !== "pending" || !onRoleStartChoice}
+              hint={
+                startQuestion.status === "pending"
+                  ? c("고르거나 아래에 직접 답해 주세요.", "Pick one or answer below in your own words.")
+                  : undefined
+              }
+              keyPrefix={`role-start-${message.id}`}
+              onSelect={(choice) =>
+                onRoleStartChoice?.({
+                  questionId: startQuestion.questionId,
+                  chipId: choice.value === "__skip" ? null : choice.value,
+                })
+              }
+              typographyClassName="text-[13px] leading-[1.55]"
+            />
+          ) : null}
+          {briefReady ? (
+            <div className="mt-3">
+              <MuteButton asChild variant="dark">
+                <Link href={briefReady.href}>{c("Brief 확인하기", "Review the Brief")}</Link>
+              </MuteButton>
+            </div>
+          ) : null}
           {followUpActions.map((action) => (
             <MessageActionView
               key={action.id}
@@ -507,10 +573,12 @@ export function OrgAgentMessageBubble({
 
 export function OrgAgentStreamingBubble({
   onCompanyInfoClick,
+  roleId,
   text,
   workspaceId,
 }: {
   onCompanyInfoClick?: () => void;
+  roleId?: string | null;
   text: string;
   workspaceId: string;
 }) {
@@ -525,6 +593,7 @@ export function OrgAgentStreamingBubble({
         <OrgAssistantContent
           content={text}
           onCompanyInfoClick={onCompanyInfoClick}
+          roleId={roleId}
           workspaceId={workspaceId}
         />
       </ChatMessageBubbleFrame>

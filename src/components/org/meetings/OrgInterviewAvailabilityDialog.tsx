@@ -470,7 +470,7 @@ function HourTimeline({
                     src="/images/logos/calendar.png"
                     width={14}
                   />
-                  {c("자동 불가 처리", "Auto mark unavailable")}
+                  {c("자동 불가 처리", "Exclude busy times automatically")}
                 </span>
               ) : available ? (
                 <Check className="size-4 text-primary" />
@@ -668,7 +668,7 @@ function WeeklyEditor({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-[16px] font-medium text-neutral-primary">
-            {c("가능한 일정", "Available schedule")}
+            {c("가능한 일정", "Interview availability")}
           </h3>
           <p className="mt-1 text-[12px] font-light leading-4 text-neutral-muted">
             {c(
@@ -720,7 +720,7 @@ function WeeklyEditor({
                   value={presetDays}
                 >
                   <SelectTrigger
-                    aria-label={c("적용할 요일", "Days to apply")}
+                    aria-label={c("적용할 요일", "Repeat on")}
                     className="col-span-2"
                     size="sm"
                   >
@@ -744,7 +744,7 @@ function WeeklyEditor({
                 </Select>
                 <TimeSelect
                   className="w-full"
-                  label={c("반복 시작 시간", "Repeat start time")}
+                  label={c("반복 시작 시간", "Start time")}
                   onChange={(value) => {
                     setPresetStart(value);
                     const startMinutes = meetingTimeToMinutes(value) ?? 0;
@@ -762,7 +762,7 @@ function WeeklyEditor({
                 <TimeSelect
                   className="w-full"
                   endOfDay
-                  label={c("반복 종료 시간", "Repeat end time")}
+                  label={c("반복 종료 시간", "End time")}
                   onChange={(value) => {
                     setPresetEnd(value);
                     const endMinutes = meetingTimeToMinutes(value, true) ?? 0;
@@ -948,7 +948,7 @@ export function OrgInterviewAvailabilityDialog({
       addToast({
         message: c(
           "알려주신 가능 시간으로 설정해두었어요.",
-          "Availability set to the times provided."
+          "Interview availability saved."
         ),
         variant: "success",
       });
@@ -1234,7 +1234,7 @@ export function OrgInterviewAvailabilityDialog({
                   side="top"
                   text={c(
                     "자동으로 일정을 읽어와 불가능한 시간을 처리합니다.",
-                    "Automatically read calendars and mark unavailable times."
+                    "Use your calendar to exclude times when you're busy."
                   )}
                 >
                   <div className="flex flex-row items-center gap-1.5 rounded-md bg-black/5 px-2 py-1 text-neutral-primary">
@@ -1308,7 +1308,7 @@ export function OrgInterviewAvailabilityDialog({
           <>
             {c(
               "방금 바꾼 반복 시간과 날짜별 예외는 저장되지 않아요.",
-              "Recent changes to recurring times and date exceptions won't be saved."
+              "Your changes to weekly hours and specific dates won't be saved."
             )}
           </>
         }

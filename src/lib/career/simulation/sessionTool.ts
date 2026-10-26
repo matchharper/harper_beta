@@ -8,6 +8,13 @@ export function applicationSessionToolResult(
   return {
     ok: true,
     sessionStatus: session.status,
+    ...(session.status === "ended" ? {
+      preparationSaved: true,
+      canResume: !!session.preparation && !!session.activity && session.analysisStatus === "completed",
+      roleName: session.roleName,
+      sourceDocumentId: session.documentId,
+      submissionPerformedByThisAction: false,
+    } : {}),
     ...(action === "request_switch"
       ? { awaitingWrapUpConfirmation: true, modeChanged: false }
       : {}),
@@ -15,14 +22,11 @@ export function applicationSessionToolResult(
       ? {
           progressRecorded: false,
           assistantInstruction:
-            "Apply with Harper mode has ended. If the latest user message also requests another task, continue it in this same turn using the tools and capability catalog offered in the next completion. Load a deferred capability when needed. Do not treat the previous mode's tool list as a permanent limitation or ask the user to repeat an already clear request. If they only asked to stop, briefly confirm that it ended.",
+            "The preparation was saved and the mode ended; ending performs no submission. If the user requested another task, continue it in this same turn using the current tools and capability catalog; load a deferred capability when needed. An already clear request needs no further wrap-up confirmation. Help the user understand what work remains available, how to return to it when canResume is true (by asking Harper), and the next step. If presenting a new application start card, carry this explanation in its introduction. If they only asked to stop, acknowledge the outcome briefly. Keep the explanation scoped to this preparation. This receipt describes saving/leaving it; it does not establish the submission status of this or other applications.",
           skipCommonAssistantInstruction: true,
           ...(session.endReason === "switched" && session.switchRequest
             ? {
                 nextUserRequest: session.switchRequest.text,
-                assistantInstruction:
-                  "The user confirmed ending Apply with Harper mode. Continue their saved nextUserRequest in this same turn using the tools and capability catalog actually offered in the next completion. Load a deferred capability if needed. Do not deny an available capability based on the previous mode, ask the user to repeat the request, or claim work is complete before its tool succeeds.",
-                skipCommonAssistantInstruction: true,
               }
             : {}),
         }
@@ -46,13 +50,28 @@ export const SIMULATION_TOOL_NAMES: readonly string[] = [
   "list_documents",
   "read_document",
   "generate_resume",
+  "write_document",
+  "web_search",
+  "open_url",
 ];
+export const savedApplicationSessionTool = {
+  name: SIMULATION_SESSION_TOOL,
+  description: "Find saved Apply with Harper preparations with action=list, then resume one on the user's request with action=resume and its sessionMessageId. Returns a compact index, not document bodies. Resuming restores saved answers, suggestions and documents in this conversation; it does not submit or restart a website browser. End an active application first when the user asks to switch. Use before starting a new preparation when the user wants to continue earlier work.",
+  parameters: {
+    type: "object", additionalProperties: false, required: ["action"],
+    properties: {
+      action: { type: "string", enum: ["list", "resume"] },
+      sessionMessageId: { type: "integer", description: "Exact saved preparation from list, required for resume." },
+      beforeMessageId: { type: "integer", description: "Read the next older page using nextBeforeMessageId from list." },
+    },
+  },
+};
 export const simulationSessionTool = {
   type: "function" as const,
   function: {
     name: SIMULATION_SESSION_TOOL,
     description:
-      "Manage the current application-simulation session: select an action, record progress backed by the conversation, correct session facts, propose one next action, add a user-requested action or end the session. Does not edit documents or save long-term memory. Only use for the current active session. For preparation mode, use respond with actionId and response to save the user’s explicit decision or answer, Use ordinary chat to write revised resume or cover letter text. Use revise_item with newAction to update an existing preparation item by its stable ID or add a user-requested item. Existing answers are retained; reconsiderResponse=true clears only that item’s answer when a correction invalidates it. Documents are checked for ownership. These operations do not submit applications. For propose, supply actionId, title, reason and request. For update_action, supply actionId, status and an evidence-based reason. completed means the action was addressed through a successful edit or useful bullet/direction suggestion; it does not require the user to have applied the suggestion. The reason records the actual edit or concrete suggestion and distinguishes guidance from an applied change. For save_fact, supply text and use factId only when correcting an existing fact. For request_switch, supply the requested task outside this mode's scope or available capabilities in request, even if it concerns the same role and wait for the user to confirm ending; cancel_switch clears a declined switch. For end, text may contain a concise evidence-grounded closing summary. Ending releases the current mode; role progress archival is currently disabled. After a confirmed switch ends, continue the saved new request using the normal tools. After a change, continue the conversation from the returned state.",
+      "Manage the current application-simulation session: select an action, record progress backed by the conversation, correct session facts, propose one next action, add a user-requested action or end the session. Does not edit documents or save long-term memory. Only use for the current active session. For preparation mode, use respond with actionId and response to save the user’s explicit decision or answer, Use ordinary chat for drafts; write_document can save requested general documents and cover letters with PDF download. web_search/open_url can verify public information within this mode. Use revise_item with newAction to update an existing preparation item by its stable ID or add a user-requested item. Existing answers are retained; reconsiderResponse=true clears only that item’s answer when a correction invalidates it. Documents are checked for ownership. These operations do not submit applications. For propose, supply actionId, title, reason and request. For update_action, supply actionId, status and an evidence-based reason. completed means the action was addressed through a successful edit or useful bullet/direction suggestion; it does not require the user to have applied the suggestion. The reason records the actual edit or concrete suggestion and distinguishes guidance from an applied change. For save_fact, supply text and use factId only when correcting an existing fact. A clear instruction to stop or start another task authorizes end directly; a recorded switch request is optional and needs no separate confirmation. Use request_switch only for a proposed change the user has not chosen; cancel_switch clears it. For end, text may contain a concise evidence-grounded closing summary. Ending preserves the session and documents without submitting. Continue a requested next task using the normal tools in the same turn. After a change, continue the conversation from the returned state.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -175,6 +194,8 @@ export const simulationSessionTool = {
 // Preparation suggestions and document writes each have one owner. Keep the legacy
 // action graph available only to older sessions without preparation state.
 export const APPLICATION_PREPARATION_SESSION_ACTIONS: readonly string[] = [
+  "list",
+  "resume",
   "save_fact",
   "remove_fact",
   "request_switch",
@@ -186,7 +207,7 @@ export const applicationPreparationSessionTool = {
   function: {
     name: SIMULATION_SESSION_TOOL,
     description:
-      "Manage the active application's lifecycle or correct its confirmed session facts. save_fact records a confirmed fact; factId identifies a fact to correct or remove. Use shared Profile/Brief/Memory tools for durable user information. request_switch records the user's next task and waits for confirmation to leave this application; cancel_switch keeps the application active. end releases the mode, then continue an already confirmed switch in the same turn. Suggestions are managed only with manage_application_suggestions; resume changes are saved with ready_for_role.",
+      "Manage application preparations. list returns a compact index of saved preparations; resume restores an exact sessionMessageId after ending any other active application. end saves the current preparation and leaves the mode WITHOUT submitting; saved answers, suggestions and documents can be resumed later. It stops an active website browser; resuming preparation does not restart that browser or repeat a submission. A clear request to stop or start another application authorizes end directly, without request_switch or another confirmation. request_switch is only for a proposed change the user has not chosen; cancel_switch keeps this application active. Continue a requested switch in the same turn. save_fact records a confirmed session fact; factId identifies a correction/removal. Use shared Profile/Brief/Memory tools for durable user information, manage_application_suggestions for suggestions and ready_for_role for resume edits.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -197,6 +218,8 @@ export const applicationPreparationSessionTool = {
           enum: APPLICATION_PREPARATION_SESSION_ACTIONS,
         },
         factId: { type: "string" },
+        sessionMessageId: { type: "integer" },
+        beforeMessageId: { type: "integer" },
         text: { type: "string" },
         request: { type: "string" },
         endReason: { type: "string", enum: ["user", "switched"] },

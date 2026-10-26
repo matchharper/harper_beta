@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { shouldSpeakRealtimeEndCallFallback } from "./realtimeEndCall";
+import { parseCareerEndCallArguments, shouldSpeakRealtimeEndCallFallback } from "./realtimeEndCall";
 
 test("requests a spoken fallback when end_call has no assistant text", () => {
   assert.equal(
@@ -31,4 +31,12 @@ test("does not speak a fallback when no end_call was requested", () => {
     }),
     false
   );
+});
+
+
+test("only explicit completion commands request saved onboarding completion", () => {
+  assert.equal(parseCareerEndCallArguments('{"complete_onboarding":true}').completeOnboarding, true);
+  for (const input of ['{}', '{"complete_onboarding":false}', '{"complete_onboarding":"true"}', 'null', 'invalid']) {
+    assert.equal(parseCareerEndCallArguments(input).completeOnboarding, false);
+  }
 });

@@ -139,6 +139,7 @@ function parseTalentExtrasContent(content: unknown): TalentExtraItem[] {
 
   const candidateArrays = [
     record.talent_extras,
+    record.talentExtras,
     record.extras,
     record.items,
     record.publications,
@@ -149,6 +150,79 @@ function parseTalentExtrasContent(content: unknown): TalentExtraItem[] {
   }
 
   return [];
+}
+
+// Keep the original JSON envelope and unknown fields when editing one extra.
+// RowIDs use the same mapping as the compact profile shown to the agent.
+export function profileExtraEntries(content: unknown) {
+  const record = asRecord(content);
+  const keys = [
+    "talent_extras",
+    "talentExtras",
+    "extras",
+    "items",
+    "publications",
+  ];
+  const key =
+    keys.find(
+      (k) =>
+        Array.isArray(record?.[k]) &&
+        (record![k] as unknown[]).some(toTalentExtraItem)
+    ) ??
+    keys.find((k) => Array.isArray(record?.[k])) ??
+    "talent_extras";
+  const raw: unknown[] = Array.isArray(content)
+    ? content
+    : Array.isArray(record?.[key])
+      ? (record![key] as unknown[])
+      : [];
+  const parsed = raw
+    .map((value, index) => ({ value, index, item: toTalentExtraItem(value) }))
+    .filter((entry) => entry.item !== null);
+  const items = assignTalentExtraRowIds(parsed.map((entry) => entry.item!));
+  const rows = items.map((item, index) => ({
+    id: item.id!,
+    fields: item,
+    index: parsed[index].index,
+  }));
+  return {
+    rows,
+    mutate(change: {
+      rowId: string;
+      operation: "add" | "update" | "delete";
+      patch: Record<string, string | null>;
+    }) {
+      const target = rows.find((row) => row.id === change.rowId);
+      const next = raw.map((value, index) => {
+        const row = rows.find((row) => row.index === index);
+        return row ? { ...asRecord(value), id: row.id } : value;
+      });
+      if (change.operation === "add")
+        next.push({ id: change.rowId, ...change.patch });
+      else if (target && change.operation === "delete")
+        next.splice(target.index, 1);
+      else if (target) {
+        const updated: Record<string, unknown> = {
+          ...asRecord(raw[target.index]),
+          id: target.id,
+          ...change.patch,
+        };
+        // Clearing a field also clears its legacy aliases; other stored rows keep their original interpretation.
+        for (const [field, aliases] of Object.entries({
+          title: ["name", "role"],
+          description: ["content", "summary"],
+          date: ["issued_at", "published_at", "start_date"],
+        })) {
+          if (field in change.patch && !change.patch[field])
+            for (const alias of aliases) delete updated[alias];
+        }
+        next[target.index] = updated;
+      }
+      return Array.isArray(content) || !record
+        ? next
+        : { ...record, [key]: next };
+    },
+  };
 }
 
 function serializeTalentExtraItems(items: TalentExtraItem[]) {
@@ -411,7 +485,9 @@ export function buildTalentProfileContext(args: {
       );
       if (dateRange) parts.push(`Dates: ${dateRange}`);
       if (experience.months && experience.months > 0) {
-        parts.push(`Recorded work duration: ${experience.months} months (duration summary, not a separate calendar end date)`);
+        parts.push(
+          `Recorded work duration: ${experience.months} months (duration summary, not a separate calendar end date)`
+        );
       }
       if (experience.employment_type) {
         parts.push(`Employment type: ${experience.employment_type}`);

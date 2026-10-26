@@ -28,7 +28,17 @@ import type {
   OrgAgentThinkingLog,
 } from "@/lib/org/agent/types";
 import { upsertOrgAgentThinkingLog } from "@/lib/org/agent/thinkingLogs";
+import {
+  clearNewRolePending,
+  clearStartPending,
+  markNewRolePending,
+  markStartPending,
+  mayStartFromJd,
+  sessionStorageOrNull,
+} from "@/lib/org/roleStart/startPending";
 import type { ChatAttachmentPayload } from "@/types/chat";
+import type { OrgMatchingSearchStatusResponse } from "@/lib/companyFirstSearch/activity";
+import { isOrgQueryAccessError } from "@/lib/org/queryError";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   EMPTY_ORG_AGENT_LIVE_CHAT,
@@ -37,11 +47,6 @@ import {
 } from "@/store/useOrgAgentLiveChatStore";
 
 type OrgAgentMessagesPage = OrgAgentMessagesResponse;
-
-type OrgMatchingSearchStatusResponse = {
-  active: boolean;
-  ok: true;
-};
 
 function compareOrgAgentMessages(
   left: OrgAgentMessage,
@@ -217,6 +222,8 @@ export function orgAgentMessageHistoryQueryOptions(args: {
       Boolean(workspaceId) &&
       (mode === "general" || Boolean(roleId)),
     refetchOnWindowFocus: false,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     staleTime: 20_000,
   });
 }
@@ -267,6 +274,7 @@ export function useOrgAgentMessageHistory(args: {
 
 export function useOrgMatchingSearchStatus(args: {
   enabled?: boolean;
+  watchAutomatic?: boolean;
   roleId?: string | null;
   workspaceId?: string | null;
 }) {
@@ -281,8 +289,11 @@ export function useOrgMatchingSearchStatus(args: {
       );
     },
     enabled: (args.enabled ?? true) && Boolean(roleId) && Boolean(workspaceId),
-    refetchInterval: (query) =>
-      query.state.data?.active === true ? 4_000 : false,
+    refetchInterval: (query) => {
+      if (isOrgQueryAccessError(query.state.error)) return false;
+      if (query.state.data?.active || (args.watchAutomatic && query.state.data?.activity)) return 4_000;
+      return args.watchAutomatic ? 15_000 : false;
+    },
     refetchOnWindowFocus: true,
     staleTime: 0,
   });
@@ -380,13 +391,21 @@ export function useOrgAgentChat(args: {
       draftRoleId?: string | null;
       mentions?: OrgAgentMention[];
       message: string;
+      roleCreationView?: "role_details";
+      onComplete?: () => void;
       model?: OrgAgentModelId | string | null;
     }) => {
       const workspaceId = activeWorkspaceId;
       if (!workspaceId) return;
 
-      let streamLiveChatKey = liveChatKey;
+      const creatingRoleId = mode === "role_creation" && !activeRoleId
+        ? input.draftRoleId?.trim() || ""
+        : "";
+      let streamLiveChatKey = creatingRoleId
+        ? getOrgAgentLiveChatKey({ mode, roleId: creatingRoleId, workspaceId })
+        : liveChatKey;
       let streamFinished = false;
+      let completed = false;
       const finishStream = () => {
         if (streamFinished) return;
         streamFinished = true;
@@ -417,7 +436,17 @@ export function useOrgAgentChat(args: {
       };
       useOrgAgentLiveChatStore
         .getState()
-        .start(streamLiveChatKey, optimisticUserMessage);
+        .start(streamLiveChatKey, optimisticUserMessage, Boolean(creatingRoleId));
+      // The UUID is already the idempotent draft target. Navigate before any
+      // network/LLM work; the destination reads this same live stream.
+      if (creatingRoleId) onRoleCreated?.(creatingRoleId);
+      // A JD sent from the new-role page: its loading line shows (not the chat)
+      // until the Role's page takes over or the turn ends.
+      const newRoleFromJd =
+        mode === "role_creation" &&
+        !activeRoleId &&
+        mayStartFromJd(input.message, input.attachments?.length ?? 0);
+      const newRoleMark = newRoleFromJd ? markNewRolePending(workspaceId) : undefined;
 
       let accessToken = await getInternalAccessToken();
       if (!accessToken) {
@@ -433,6 +462,7 @@ export function useOrgAgentChat(args: {
           isStreaming: false,
           optimisticUserMessage: null,
         });
+        if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
         return;
       }
 
@@ -446,6 +476,7 @@ export function useOrgAgentChat(args: {
             mentions: input.mentions ?? [],
             attachments: input.attachments ?? [],
             draftRoleId: input.draftRoleId ?? null,
+            roleCreationView: input.roleCreationView,
             message: input.message,
             responseLocale,
             mode,
@@ -470,6 +501,7 @@ export function useOrgAgentChat(args: {
                 mentions: input.mentions ?? [],
                 attachments: input.attachments ?? [],
                 draftRoleId: input.draftRoleId ?? null,
+                roleCreationView: input.roleCreationView,
                 message: input.message,
                 responseLocale,
                 mode,
@@ -574,7 +606,17 @@ export function useOrgAgentChat(args: {
                   .getState()
                   .move(streamLiveChatKey, nextLiveChatKey);
                 streamLiveChatKey = nextLiveChatKey;
-                onRoleCreated?.(roleId);
+                if (mayStartFromJd(input.message, input.attachments?.length ?? 0)) {
+                  markStartPending(sessionStorageOrNull(), roleId);
+                }
+                if (roleId !== creatingRoleId) onRoleCreated?.(roleId);
+              }
+            } else if (parsed.event === "role_start") {
+              const data = parsed.data as { roleId?: unknown; fromJd?: unknown };
+              const roleId = String(data.roleId ?? "").trim();
+              if (roleId && data.fromJd !== true) {
+                clearStartPending(sessionStorageOrNull(), roleId);
+                if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
               }
             } else if (parsed.event === "text_delta") {
               const delta = String(
@@ -599,7 +641,9 @@ export function useOrgAgentChat(args: {
                 streamingText: text,
               });
             } else if (parsed.event === "done") {
-              finishStream();
+              completed = (parsed.data as { ok?: boolean }).ok === true;
+              // Keep the preparation screen until the saved role is refreshed.
+              if (!creatingRoleId) finishStream();
             } else if (parsed.event === "tool_status") {
               const log = toThinkingLog(parsed.data);
               if (log) {
@@ -611,7 +655,7 @@ export function useOrgAgentChat(args: {
                   thinkingLogs: upsertOrgAgentThinkingLog(
                     current.thinkingLogs,
                     log,
-                    6
+                    creatingRoleId ? 20 : 6
                   ),
                 });
               }
@@ -642,6 +686,9 @@ export function useOrgAgentChat(args: {
           }
         }
 
+        if (creatingRoleId && !completed && !useOrgAgentLiveChatStore.getState().chats[streamLiveChatKey]?.error) {
+          throw new Error(c("역할 작성을 완료하지 못했어요. 다시 시도해 주세요.", "Role preparation did not finish. Please try again."));
+        }
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.org.all }),
           queryClient.invalidateQueries({
@@ -703,8 +750,11 @@ export function useOrgAgentChat(args: {
               : []),
           ]);
         }
+        // By now the Role's page has taken over, or no Role came: the new-role page shows the chat again.
+        if (newRoleMark !== undefined) clearNewRolePending(workspaceId, newRoleMark);
         finishStream();
       }
+      if (completed) input.onComplete?.();
     },
     [
       activeRoleId,

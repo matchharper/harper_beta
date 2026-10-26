@@ -198,6 +198,8 @@ export const queryKeys = {
       scheduleId?: string | null
     ) =>
       ["org", "meetingSchedules", workspaceId ?? "", scheduleId ?? ""] as const,
+    emailAction: (token?: string | null) =>
+      ["org", "emailAction", token ?? ""] as const,
     roleNotifications: (workspaceId?: string | null, roleId?: string | null) =>
       ["org", "roleNotifications", workspaceId ?? "", roleId ?? ""] as const,
     internalTalent: (filters?: {

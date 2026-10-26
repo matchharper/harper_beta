@@ -1,5 +1,4 @@
 import {
-  ONBOARDING_FINAL_CONFIRMATION_KEY,
   ONBOARDING_QUESTION_MIN_COVERED_COUNT,
   getInsightChecklist,
   getOnboardingQuestionInsightKeys,
@@ -90,20 +89,15 @@ export function buildOnboardingRuntimeStateSection(args: {
   const missingRequiredQuestionKeys = requiredQuestionKeys.filter(
     (key) => coverage[key] !== "covered"
   );
-  const isFinalPriorityConfirmationCovered =
-    coverage[ONBOARDING_FINAL_CONFIRMATION_KEY] === "covered";
   const requiredCoveredCount =
-    requiredQuestionKeys.length - missingRequiredQuestionKeys.length +
-    (isFinalPriorityConfirmationCovered ? 1 : 0);
+    requiredQuestionKeys.length - missingRequiredQuestionKeys.length;
   const isMinimumCoverageMet =
     requiredCoveredCount >= ONBOARDING_QUESTION_MIN_COVERED_COUNT;
 
   const checklistLines = [...onboardingChecklist]
     .sort((left, right) => left.priority - right.priority)
     .map((item) => {
-      const required =
-        requiredQuestionKeySet.has(item.key) ||
-        item.key === ONBOARDING_FINAL_CONFIRMATION_KEY;
+      const required = requiredQuestionKeySet.has(item.key);
       return [
         `- ${renderInsightKey(item.key, quoteKeys)} (${item.label})`,
         `  - priority: ${required ? "required" : "optional"}`,
@@ -116,10 +110,9 @@ export function buildOnboardingRuntimeStateSection(args: {
   const onboardingSummary = [
     "## Onboarding runtime state",
     "### Source of truth",
-    "- Use checklist coverage below as the only progress source of truth.",
-    "- Do not infer onboarding progress from filled insight count or recent-message guesses.",
+    "- The checklist below records saved answers. Reconcile it with explicit facts in the profile and recent conversation, including the latest answer whose save may still be pending.",
     "- If a checklist key is covered, do not ask that topic again even if the corresponding insight value is empty or terse.",
-    "- The latest user reply may not yet be reflected in checklist coverage. If recent conversation clearly shows Harper already asked final_priority_confirmation and the latest user reply answered it, you may treat final_priority_confirmation as effectively satisfied for this response.",
+    "- A clear answer counts even when brief, undecided, or stating no preference. Do not infer an answer from unrelated facts or ask again solely because the saved snapshot lags behind speech.",
     "### Closing conditions",
     `- Required checklist items covered: ${requiredCoveredCount}/${ONBOARDING_QUESTION_MIN_COVERED_COUNT} (${isMinimumCoverageMet ? "satisfied" : "not yet"})`,
     `- Required checklist keys: ${
@@ -132,13 +125,12 @@ export function buildOnboardingRuntimeStateSection(args: {
         ? missingRequiredQuestionKeys.join(", ")
         : "(none)"
     }`,
-    `- Final priority confirmation: ${isFinalPriorityConfirmationCovered ? "covered" : "missing"}`,
     "### Choosing the next response",
     "- Use the checklist and recent conversation to choose one natural next question or closing move.",
     "- Prefer a missing required item that fits the user's latest answer. Optional items are not prerequisites and must not prolong the first conversation.",
     "- Ask at most one question.",
-    "- Do not close until all closing conditions above are satisfied, except that a latest reply that clearly answered final_priority_confirmation may count for this response.",
-    "- If all closing conditions are satisfied, close onboarding using this channel's completion transport instead of asking another question.",
+    "- Normal completion needs answers to the required topics. A separate final confirmation, summary approval, and permission to hang up are not prerequisites.",
+    "- When the required topics are answered in saved context or the conversation, close naturally using this channel's completion transport. If the user requests stopping earlier, end the call without marking unfinished onboarding complete.",
   ]
     .filter((line) => line.trim().length > 0)
     .join("\n");
@@ -194,7 +186,7 @@ export function buildExtractionInsightChecklistSection(args: {
     checklistLines.join("\n"),
     "## Onboarding question checklist coverage",
     "Only output checklist keys that became covered in the given transcript and are not already covered.",
-    "A single user reply can cover multiple checklist keys. The next_scope checklist question intentionally covers both next_scope and must_haves; mark next_scope covered when the user substantively answers that combined question, and extract the two insight values separately when both are present. If Harper asked final_priority_confirmation and the user answers with an additional must-have condition, mark final_priority_confirmation covered and extract the condition under the must_haves insight key; must_haves is an insight key, not a separate checklist key.",
+    "A single user reply can cover multiple checklist keys. A clear answer counts even when brief, undecided, stating no preference, or explicitly declining to answer; judge it in the context of the question. The next_scope checklist question covers next_scope and must_haves; extract the desired role and any separate hard requirement separately. must_haves is an insight key, not a separate checklist key. Closing or asking to stop is not evidence that unanswered topics were covered.",
     onboardingChecklistLines.join("\n"),
   ]
     .filter((line) => line.trim().length > 0)

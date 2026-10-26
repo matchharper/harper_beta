@@ -139,13 +139,14 @@ export function v2CompletionRequest(
   input: string,
   label: string,
 ): Parameters<typeof runTalentAssistantCompletion>[0] {
+  const isV2Rerank = label === "rerank" || label === "rerank_repair";
   return {
     abortSignal: AbortSignal.timeout(90_000),
     primaryModel: "gpt-6-luna",
     fallbackModel: "gpt-6-luna",
     jsonMode: true,
-    maxTokens: 8000,
-    openAIResponsesReasoningEffort: "low",
+    maxTokens: isV2Rerank ? 32768 : 8000,
+    openAIResponsesReasoningEffort: isV2Rerank ? "high" : "low",
     messages: [
       { role: "system", content: system },
       { role: "user", content: input },
@@ -480,6 +481,7 @@ export async function rerankCandidates(
   context: unknown,
   ranked: Array<{ card: RoleCard; score: number; fit: unknown }>,
   complete = jsonCall,
+  variant: "control" | "v2" = "v2",
 ): Promise<SelectedRole[]> {
   const valid = ranked.flatMap((r) => {
     const fit = priorFitSchema.safeParse(r.fit);
@@ -500,7 +502,7 @@ export async function rerankCandidates(
     throw new Error("No valid fit evaluations returned");
   const candidates = valid
     .filter((r) => summary(r.card, args.language))
-    .slice(0, 20);
+    .slice(0, variant === "v2" ? 25 : 20);
   if (!candidates.length) return [];
   args.onProgress?.("reranking", { candidateCount: candidates.length });
   const target = Math.min(args.targetCount ?? 5, candidates.length);
@@ -549,7 +551,7 @@ export async function rerankCandidates(
             ? "\n\nCorrect the previous output using the supplied validation errors. Return the complete JSON selection using only supplied candidate IDs, unique roles and at most one role per company, within target_count."
             : ""),
         input + correction,
-        attempt ? "rerank_repair" : "rerank",
+        `${variant === "control" ? "control_" : ""}${attempt ? "rerank_repair" : "rerank"}`,
         args.signal,
       );
       const result = outputSchema.parse(raw);

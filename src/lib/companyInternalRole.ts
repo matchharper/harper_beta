@@ -2,6 +2,7 @@ type CompanyInternalRoleRecord = {
   team_id?: string | null;
   considerations?: unknown;
   criteria?: unknown;
+  email_notifications_enabled?: boolean | null;
   is_company_first_search?: boolean | null;
   is_promote?: boolean | null;
   is_anonymous?: boolean | null;

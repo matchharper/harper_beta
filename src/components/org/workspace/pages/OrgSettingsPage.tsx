@@ -204,7 +204,7 @@ export function OrgSettingsPage() {
       addToast({
         message: c(
           "{p0}을 Harper 채널로 추가했습니다.",
-          "Added {p0} to Harper channel.",
+          "Connected {p0} to Harper.",
           {
             p0: formatChannel(c, channel?.channelName, channelId),
           }
@@ -222,7 +222,7 @@ export function OrgSettingsPage() {
       await removeSlackChannel.mutateAsync(removeChannelId);
       setRemoveChannelId(null);
       addToast({
-        message: c("{p0} 연결을 제거했습니다.", "Removed {p0} connection.", {
+        message: c("{p0} 연결을 제거했습니다.", "Disconnected {p0}.", {
           p0: formatChannel(c, channelToRemove?.channelName, removeChannelId),
         }),
       });
@@ -546,7 +546,7 @@ export function OrgSettingsPage() {
                           <div className="mt-1 text-[12px] font-light text-neutral-muted">
                             {c(
                               "연결되었습니다.",
-                              "Auto-select role from message"
+                              "Harper identifies the role from your message"
                             )}
                             {channel.replyToHarperThreads
                               ? c(
@@ -667,7 +667,7 @@ export function OrgSettingsPage() {
               <div
                 aria-label={c(
                   "내 인터뷰 가능 시간 설정 열기",
-                  "Open my interview availability"
+                  "Edit my interview availability"
                 )}
                 className="min-h-[88px] flex flex-row items-center gap-4 text-left"
               >
@@ -677,7 +677,7 @@ export function OrgSettingsPage() {
                   </span>
                   <span className="min-w-0">
                     <span className="flex flex-wrap items-center gap-2 text-[14px] font-normal text-neutral-primary">
-                      {c("인터뷰 일정", "Interview schedule")}
+                      {c("인터뷰 일정", "Interview availability")}
                       {availability ? (
                         <Badge
                           radius="full"

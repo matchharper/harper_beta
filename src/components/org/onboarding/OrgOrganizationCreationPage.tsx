@@ -32,7 +32,7 @@ export function OrgOrganizationCreationPage({
   const [error, setError] = useState("");
   const submitting = useRef(false);
   const request = useRef<{ homepage: string; id: string } | null>(null);
-  const title = c("Organization을 추가하세요", "Add an Organization");
+  const title = c("Organization을 추가하세요", "Add an organization");
   const homeHref = buildOrgHref({ orgId: workspace.workspaceId, page: "home" });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -148,7 +148,7 @@ export function OrgOrganizationCreationPage({
               disabled={pending || !homepageUrl.trim()}
             >
               {pending
-                ? c("Organization을 만들고 있어요…", "Creating Organization…")
+                ? c("Organization을 만들고 있어요…", "Creating organization…")
                 : c("계속하기", "Continue")}
             </MuteButton>
           </div>

@@ -8,7 +8,7 @@ import {
   parseHarperSlackChoiceMarkers,
 } from "./slackChoiceButtons";
 
-test("extracts up to two private button markers from a Slack answer", () => {
+test("extracts private button markers from a Slack answer", () => {
   const parsed = parseHarperSlackChoiceMarkers(`이 변경안을 적용할까요?
 
 [적용해주세요](button:네, 위 변경안을 그대로 적용해 주세요.) [아니요](button:아니요, 지금은 적용하지 않을게요.)`);
@@ -24,6 +24,26 @@ test("extracts up to two private button markers from a Slack answer", () => {
       userMessage: "아니요, 지금은 적용하지 않을게요.",
     },
   ]);
+});
+
+test("keeps at most two choices as buttons", () => {
+  const parsed = parseHarperSlackChoiceMarkers(
+    "어느 쪽에 가까운가요? [A](button:A) [B](button:B) [C](button:C)"
+  );
+  assert.deepEqual(parsed.choices, []);
+  assert.equal(parsed.text, "어느 쪽에 가까운가요? A B C");
+  assert.deepEqual(
+    decodeHarperSlackChoiceActionValue(
+      JSON.stringify({ choiceIndex: 1, sourceJobId: "123e4567-e89b-42d3-a456-426614174000" })
+    ),
+    { choiceIndex: 1, sourceJobId: "123e4567-e89b-42d3-a456-426614174000" }
+  );
+  assert.equal(
+    decodeHarperSlackChoiceActionValue(
+      JSON.stringify({ choiceIndex: 2, sourceJobId: "123e4567-e89b-42d3-a456-426614174000" })
+    ),
+    null
+  );
 });
 
 test("allows ordinary parentheses inside the synthetic user reply", () => {
@@ -45,13 +65,13 @@ test("leaves markers in code literal and degrades button spam to labels", () => 
     "`[예시](button:누르기)`\n\n일반 답변"
   );
   const spam = parseHarperSlackChoiceMarkers(
-    "선택: [A](button:A 선택) [B](button:B 선택) [C](button:C 선택)"
+    "선택: [A](button:A 선택) [B](button:B 선택) [C](button:C 선택) [D](button:D 선택) [E](button:E 선택) [F](button:F 선택)"
   );
 
   assert.equal(code.choices.length, 0);
   assert.match(code.text, /\[예시\]\(button:누르기\)/);
   assert.deepEqual(spam.choices, []);
-  assert.equal(spam.text, "선택: A B C");
+  assert.equal(spam.text, "선택: A B C D E F");
 });
 
 test("builds Slack actions with opaque job references and removes them after selection", () => {

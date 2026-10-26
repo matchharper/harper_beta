@@ -156,19 +156,37 @@ export async function retrieveRoles(args: {
   listOnly?: boolean;
   signal?: AbortSignal;
 }) {
+  // The RPC has a 50s DB budget. Do not race it with the admin client's
+  // default 50s fetch abort; allow time for PostgREST to return its result.
+  // Include embedding and at most one read-only retry in the 120s route budget.
+  const budget = AbortSignal.timeout(110_000);
+  const signal = args.signal ? AbortSignal.any([args.signal, budget]) : budget;
+  signal.throwIfAborted();
   const vectors =
-    args.vectors ??
-    (await embedSearchTitles(args.plan.roleTitles, args.signal));
+    args.vectors ?? (await embedSearchTitles(args.plan.roleTitles, signal));
   if (vectors.length !== 1)
     throw new Error("Expected one combined search-title embedding");
-  args.signal?.throwIfAborted();
+  signal.throwIfAborted();
   const sql = buildFilterFirstRoleSql({ ...args, vector: vectors[0] });
-  const request = args.admin.rpc("search_external_roles_filter_first", {
-    p_sql: sql,
-  });
-  const { data, error } = await (args.signal
-    ? request.abortSignal(args.signal)
-    : request);
-  if (error) throw new Error(error.message);
-  return { rows: flattenRpcRows(data) as RawRoleRow[], sql };
+  for (let attempt = 0; ; attempt++) {
+    const requestDeadline = AbortSignal.timeout(60_000);
+    const { data, error } = await args.admin
+      .rpc("search_external_roles_filter_first", { p_sql: sql })
+      .abortSignal(AbortSignal.any([signal, requestDeadline]));
+    // Caller cancellation and the total budget must never launch another read.
+    signal.throwIfAborted();
+    if (!error) return { rows: flattenRpcRows(data) as RawRoleRow[], sql };
+    const timedOut =
+      error.code === "57014" ||
+      requestDeadline.aborted ||
+      error.message.startsWith("AbortError:");
+    if (attempt > 0 || !timedOut)
+      throw new Error(`External role retrieval: ${error.message}`);
+    console.warn(
+      "[external-recommendations] retrying timed-out role retrieval",
+      {
+        code: error.code,
+      }
+    );
+  }
 }

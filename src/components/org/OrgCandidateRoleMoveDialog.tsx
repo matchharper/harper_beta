@@ -309,13 +309,13 @@ export function OrgCandidateRoleMoveDialog({
             <fieldset
               disabled={formDisabled}
               className="space-y-1"
-              aria-label={c("이동 방법", "Move method")}
+              aria-label={c("이동 방법", "How would you like to proceed?")}
             >
               {(
                 [
                   [
                     "ask_candidate",
-                    c("Harper가 물어보기", "Ask through Harper"),
+                    c("Harper가 물어보기", "Have Harper ask the candidate"),
                     c(
                       "후보자가 수락하면 선택한 Role로 바로 옮겨요.",
                       "Move automatically if the candidate accepts."
@@ -323,7 +323,7 @@ export function OrgCandidateRoleMoveDialog({
                   ],
                   [
                     "direct",
-                    c("직접 대화했어요", "Already discussed"),
+                    c("직접 대화했어요", "Already agreed with the candidate"),
                     c(
                       "후보자와 합의한 내용대로 지금 옮겨요.",
                       "Move now, as agreed with the candidate."

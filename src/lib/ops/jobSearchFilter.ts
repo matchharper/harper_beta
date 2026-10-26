@@ -30,7 +30,7 @@ export const JOB_SEARCH_FIXED_QUERY: PreviewQuery = {
 export const jobSearchFilterRequestSchema = z
   .object({
     query: previewQuerySchema,
-    candidateLimit: z.number().int().min(500).max(20000).default(3000),
+    candidateLimit: z.number().int().min(500).max(3000).default(3000),
     salaryWeight: z.number().finite().min(0).max(1).default(0.35),
     talentId: z.string().uuid().nullable().default(null),
     blockedCompanies: z

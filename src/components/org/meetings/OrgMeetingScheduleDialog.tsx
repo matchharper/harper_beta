@@ -254,7 +254,7 @@ export function OrgMeetingScheduleDialog({
       setError(
         c(
           "후보자에게 보낼 메일 제목과 본문을 확인해 주세요.",
-          "Review the email subject and body for the candidate."
+          "Review the email you'll send to the candidate."
         )
       );
       return;
@@ -273,7 +273,7 @@ export function OrgMeetingScheduleDialog({
       addToast({
         message: c(
           "일정 요청 이메일 전달을 시작했어요. 아직 발송 완료는 아니에요.",
-          "Started delivering schedule request email. Sending not complete yet."
+          "Sending the scheduling email. Delivery hasn't been confirmed yet."
         ),
         variant: "success",
       });
@@ -283,7 +283,7 @@ export function OrgMeetingScheduleDialog({
           ? sendError.message
           : c(
               "일정 요청 전달을 시작하지 못했어요.",
-              "Failed to start delivering schedule request."
+              "We couldn't send the scheduling request. Try again."
             )
       );
     }
@@ -344,7 +344,7 @@ export function OrgMeetingScheduleDialog({
       addToast({
         message: c(
           "변경한 미팅 정보로 준비해두었어요.",
-          "Prepared with updated meeting details."
+          "Email draft updated with the new meeting details."
         ),
         variant: "success",
       });
@@ -391,12 +391,12 @@ export function OrgMeetingScheduleDialog({
           schedule?.status === "confirmed"
             ? c(
                 "후보자가 제출한 가능 시간 중 하나로 확정된 일정입니다.",
-                "Confirmed using one of the candidate's submitted times."
+                "The interview is confirmed for a time the candidate selected."
               )
             : schedule?.status === "awaiting_talent"
               ? c(
                   "후보자에게 가능한 시간을 요청했고 답변을 기다리고 있어요.",
-                  "Requested availability from candidate. Awaiting response."
+                  "We've asked the candidate to choose a time and are waiting for their reply."
                 )
               : c(
                   "후보자에게 보낼 일정과 이메일을 확인해 주세요. 아직 후보자에게는 아무것도 보내지 않았어요.",
@@ -541,18 +541,24 @@ export function OrgMeetingScheduleDialog({
             <section className="rounded-lg border border-neutral-1000-a05 p-4">
               <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                 <CalendarClock className="size-4 text-neutral-muted" />
-                {c("후보자에게 보여줄 시간", "Times shown to candidate")}
+                {c("후보자에게 보여줄 시간", "Available times for the candidate")}
               </div>
               <p className="mt-1.5 text-[12px] leading-5 text-neutral-muted">
-                {invitationPreview.slotSummary.slotCount}
-                {c("개의 시간을 제안해요 ·", "suggested times ·")}{" "}
-                {formatScheduleTime(
-                  invitationPreview.slotSummary.firstSlotAt,
-                  invitationPreview.slotSummary.timezone,
-                  locale
+                {c(
+                  "{count}개의 시간을 제안해요 · {firstTime}부터 · {timezone}",
+                  invitationPreview.slotSummary.slotCount === 1
+                    ? "1 available time · {firstTime} · {timezone}"
+                    : "{count} available times · starting {firstTime} · {timezone}",
+                  {
+                    count: invitationPreview.slotSummary.slotCount,
+                    firstTime: formatScheduleTime(
+                      invitationPreview.slotSummary.firstSlotAt,
+                      invitationPreview.slotSummary.timezone,
+                      locale
+                    ),
+                    timezone: invitationPreview.slotSummary.timezone,
+                  }
                 )}
-                {c("부터 ·", "from ·")}
-                {invitationPreview.slotSummary.timezone}
               </p>
             </section>
 
@@ -565,7 +571,7 @@ export function OrgMeetingScheduleDialog({
                 <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
                   {c(
                     "후보자의 언어에 맞춰 작성했어요. 제목과 본문을 직접 고칠 수 있어요. 일정 선택 링크는 발송할 때 생성돼요.",
-                    "Drafted in the candidate's language. Edit the subject and body. Schedule selection link is generated when sending."
+                    "This draft uses the candidate's language. You can edit the subject and message. A scheduling link will be added when you send it."
                   )}
                 </p>
               </div>
@@ -596,7 +602,7 @@ export function OrgMeetingScheduleDialog({
               <p className="rounded-lg bg-bg-weak p-3 text-[12px] leading-5 text-neutral-muted">
                 {c(
                   "이메일을 보내면 후보자가 가능한 시간을 고를 수 있어요. 후보자가 시간을 제출해 확정되면 담당자의 Google Calendar에서 양측 초대와 Google Meet 링크를 만들어요.",
-                  "Email lets the candidate pick available times. When the candidate submits a time and it's confirmed, invites and a Google Meet link are created on the organizer's Google Calendar."
+                  "The candidate can use the email link to choose a time. Once that time is confirmed, Harper creates the calendar event and Google Meet link in the organizer's Google Calendar."
                 )}
               </p>
             </section>
@@ -638,7 +644,7 @@ export function OrgMeetingScheduleDialog({
             {schedule.round.candidateOptions.length > 1 ? (
               <section>
                 <div className="text-[12px] font-medium text-neutral-primary">
-                  {c("후보자가 제출한 시간", "Candidate-submitted time")}
+                  {c("후보자가 제출한 시간", "Time selected by the candidate")}
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {schedule.round.candidateOptions.map((option) => (
@@ -821,7 +827,7 @@ export function OrgMeetingScheduleDialog({
                 <div>
                   <div className="flex items-center gap-2 text-[13px] font-medium text-neutral-primary">
                     <CalendarClock className="size-4 text-neutral-muted" />
-                    {c("제안할 가능 시간", "Available times to propose")}
+                    {c("제안할 가능 시간", "Times to offer the candidate")}
                   </div>
                   <p className="mt-1 text-[12px] leading-5 text-neutral-muted">
                     {schedule.availability
@@ -981,7 +987,7 @@ export function OrgMeetingScheduleDialog({
                       {c("후보자에게만", "Candidate only")}
                     </SelectItem>
                     <SelectItem value="internal">
-                      {c("회사 내부만", "Company internal only")}
+                      {c("회사 내부만", "Your team only")}
                     </SelectItem>
                   </SelectContent>
                 </Select>

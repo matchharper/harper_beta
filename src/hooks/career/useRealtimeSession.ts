@@ -7,7 +7,7 @@ import type { CareerConversationStarterId } from "@/lib/career/prompts/conversat
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
 import { CAREER_HOOK_MESSAGES as H } from "./careerHookMessages";
-import { shouldSpeakRealtimeEndCallFallback } from "@/lib/career/realtimeEndCall";
+import { parseCareerEndCallArguments, shouldSpeakRealtimeEndCallFallback, type CareerEndCallOptions } from "@/lib/career/realtimeEndCall";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
 export type UseRealtimeSessionArgs = {
   conversationId: string | null;
@@ -17,7 +17,7 @@ export type UseRealtimeSessionArgs = {
   onAssistantDone: (fullText: string) => void;
   onError: (error: string) => void;
   onConnectionChange: (connected: boolean) => void;
-  onEndCallTool?: () => void;
+  onEndCallTool?: (options?: CareerEndCallOptions) => void;
   onUserSpeechStarted?: (context: RealtimeUserSpeechStartedContext) => void;
   onUserSpeechStopped?: () => void;
 };
@@ -289,6 +289,8 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
   const onErrorRef = useRef(onError);
   const onConnectionChangeRef = useRef(onConnectionChange);
   const onEndCallToolRef = useRef(onEndCallTool);
+  const endCallOptionsRef = useRef<CareerEndCallOptions>({});
+  const pendingEndCallToolIdRef = useRef<string | null>(null);
   const onUserSpeechStartedRef = useRef(onUserSpeechStarted);
   const onUserSpeechStoppedRef = useRef(onUserSpeechStopped);
 
@@ -1155,10 +1157,15 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
             }
             const functionCalls = Array.from(functionCallsById.values());
 
-            const endCallRequested = functionCalls.some(
+            const endCallRequest = functionCalls.find(
               (functionCall) =>
                 functionCall.name === REALTIME_END_CALL_TOOL_NAME
             );
+            const endCallRequested = Boolean(endCallRequest);
+            if (endCallRequest) {
+              endCallOptionsRef.current = parseCareerEndCallArguments(endCallRequest.arguments);
+              pendingEndCallToolIdRef.current = endCallRequest.callId;
+            }
             const executableFunctionCalls = functionCalls.filter(
               (functionCall) =>
                 functionCall.name !== REALTIME_END_CALL_TOOL_NAME
@@ -1174,7 +1181,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
                 });
               }
               onAssistantDoneRef.current(fullText);
-              onEndCallToolRef.current?.();
+              onEndCallToolRef.current?.(endCallOptionsRef.current);
               break;
             }
 
@@ -1197,7 +1204,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
                 });
               }
               onAssistantDoneRef.current(fullText);
-              onEndCallToolRef.current?.();
+              onEndCallToolRef.current?.(endCallOptionsRef.current);
               break;
             }
 
@@ -1383,6 +1390,7 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     suppressCancelledResponseDoneRef.current = false;
     partialTranscriptItemIdRef.current = null;
     pendingResponseFunctionCallsRef.current = [];
+    pendingEndCallToolIdRef.current = null;
     activeToolExecutionIdsRef.current.clear();
     setActiveToolNames([]);
     currentResponseAssistantItemIdsRef.current = [];
@@ -1658,7 +1666,17 @@ export function useRealtimeSession(args: UseRealtimeSessionArgs) {
     [sendEvent]
   );
 
-  const triggerResponse = useCallback(() => {
+  const triggerResponse = useCallback((instructions?: string) => {
+    if (instructions) {
+      const callId = pendingEndCallToolIdRef.current;
+      pendingEndCallToolIdRef.current = null;
+      sendEvent({
+        type: "conversation.item.create",
+        item: callId
+          ? { type: "function_call_output", call_id: callId, output: JSON.stringify({ completed: false, callEnded: false, instructions }) }
+          : { type: "message", role: "system", content: [{ type: "input_text", text: instructions }] },
+      });
+    }
     sendEvent({ type: "response.create" });
   }, [sendEvent]);
 

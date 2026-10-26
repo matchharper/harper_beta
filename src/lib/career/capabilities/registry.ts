@@ -3,7 +3,6 @@ export const CAREER_CORE_TOOLS = [
   "research_company",
   "update_language_setting",
   "update_setting",
-  "update_talent_profile",
   "read_talent_context",
   "write_talent_context",
 ] as const;
@@ -13,30 +12,58 @@ export const CAREER_CONDITIONAL_TOOLS = [
 ] as const;
 export const CAREER_CAPABILITIES = [
   {
+    id: "profile",
+    turns: 2,
+    summary:
+      "Read or edit Profile facts, experience/education/extra rows, personal links and memos, or recommendations per batch. Load for profile corrections; Brief and Memory use their own tools.",
+    tools: [
+      [
+        "update_talent_profile",
+        "read full profile rows or edit only the requested fields",
+      ],
+    ],
+  },
+  {
     id: "application_support",
     turns: 1,
     summary:
-      "Continue the user's active application preparation, resolve suggestions, improve the selected resume, or assist with an explicitly approved public application. Available only while the server confirms an active application. Other tasks require agreement to end that activity first; shared Profile, Brief and Memory tools remain available inside it.",
+      "Find and resume saved Apply with Harper preparations. While an application is active, save and leave it without submitting, resolve suggestions, improve its resume or assist with an explicitly approved application. A clear request to switch authorizes saving and ending the current preparation before continuing the other task.",
     tools: [
-      ["manage_simulation_session", "manage the active application and its confirmed answers"],
-      ["manage_application_suggestions", "resolve, revise or present application suggestions"],
+      [
+        "manage_simulation_session",
+        "list/resume saved preparations, or save and leave the active application without submitting",
+      ],
+      [
+        "manage_application_suggestions",
+        "resolve, revise or present application suggestions",
+      ],
       ["ready_for_role", "save the tailored resume and offer to apply"],
-      ["apply_for_role", "prepare a public application and request final submission approval"],
+      [
+        "apply_for_role",
+        "prepare a public application and request final submission approval",
+      ],
     ],
   },
   {
     id: "opportunities",
     turns: 3,
     summary:
-      "Find and compare public or Harper-connected roles, start Apply with Harper by choosing a resume and showing its start card, or record feedback and priority review. Load before handling application preparation, role requests or recommendation reactions. Review, acceptance and sharing are distinct.",
+      "Find/compare public or Harper-connected roles, save a specific external posting on request, start Apply with Harper with a resume-selection card, or record feedback/priority review. Load for role requests, application preparation or recommendation reactions, including saying they already applied or were rejected there. Review, acceptance and sharing are distinct.",
     tools: [
       ["recommend_job_postings", "find public job postings"],
+      [
+        "save_job_posting",
+        "add a specific external posting to Jobs on request; a URL question alone is not a save request",
+      ],
       [
         "read_recommended_opportunities",
         "retrieve prior recommendations and progress",
       ],
       ["get_role_context", "read details of already-shown roles"],
-      ["simulate_application", "choose a resume and show the application start card"],
+      [
+        "simulate_application",
+        "choose a resume and show the application start card",
+      ],
       [
         "update_recommended_opportunity_feedback",
         "record recommendation feedback",
@@ -82,10 +109,11 @@ export const CAREER_CAPABILITIES = [
     id: "documents",
     turns: 2,
     summary:
-      "Find and read saved material; manage kind, primary/public status or removal when authorized. Preserve uploaded originals.",
+      "Find/read saved material, write general documents with PDF download, or manage metadata and removal when authorized. Preserve uploaded originals; resumes use resume_authoring.",
     tools: [
       ["list_documents", "find saved documents"],
       ["read_document", "read saved document content"],
+      ["write_document", "save or revise a general document with PDF download"],
       [
         "update_document",
         "change document metadata, visibility or soft-delete status when authorized",

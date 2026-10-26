@@ -91,7 +91,7 @@ async function processQueueMessage(
   });
 }
 
-export const POST = handleCallback(processQueueMessage, {
+const queueCallback = handleCallback(processQueueMessage, {
   retry: (error, metadata) => {
     if (error instanceof GmailCareerHistoryPermanentError) {
       console.error("[gmail-career-history/queue] permanent failure", {
@@ -114,3 +114,7 @@ export const POST = handleCallback(processQueueMessage, {
   },
   visibilityTimeoutSeconds: 330,
 });
+
+export async function POST(request: Request) {
+  return queueCallback(request);
+}

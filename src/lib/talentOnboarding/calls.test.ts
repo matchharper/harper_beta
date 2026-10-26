@@ -219,3 +219,13 @@ test("returns insight-backed coverage without recreating a completed call", asyn
     search_intensity: "covered",
   });
 });
+
+
+test("optional answers and legacy confirmation cannot replace any required topic", () => {
+  for (const missing of ["search_intensity", "location", "next_scope", "compensation", "language"]) {
+    const coverage = Object.fromEntries(ONBOARDING_QUESTION_CHECKLIST.map((item) => [item.key, "covered" as const]));
+    coverage.final_priority_confirmation = "covered";
+    delete coverage[missing];
+    assert.equal(getOnboardingChecklistCoverageStats(coverage).isComplete, false, missing);
+  }
+});

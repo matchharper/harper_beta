@@ -1,11 +1,53 @@
 export const ORG_ROLE_CRITERIA_MIN_ITEMS = 0;
 export const ORG_ROLE_CRITERIA_RECOMMENDED_MIN_ITEMS = 2;
-export const ORG_ROLE_CRITERIA_MAX_ITEMS = 6;
+
+export type OrgRoleCriterionRequirement = "must" | "preferred";
+
+export type OrgRoleCriterionGrade = "excellent" | "good" | "uncertain" | "bad";
+
+/** How the fast path measures a criterion: SQL/rules, section similarity, or a judgment left to the verdict LLM. */
+export type OrgRoleCriterionKind = "rule" | "similarity" | "judgment";
 
 export type OrgRoleCriterion = {
   criteria: string;
   name: string;
+  // Structured Brief fields. Older rows only have name/criteria; readers treat
+  // a missing requirement as preferred and missing signals as unspecified.
+  id?: string;
+  requirement?: OrgRoleCriterionRequirement;
+  /** 1 있으면 좋음 / 2 중요 for a preferred criterion; must is 필수 (3). See criterionLevel. */
+  importance?: number;
+  kind?: OrgRoleCriterionKind;
+  signals?: Partial<Record<OrgRoleCriterionGrade, string>>;
+  changeReason?: string;
+  changedAt?: string;
 };
+
+/**
+ * How much a criterion matters, left to right on screen: 있으면 좋음 · 중요 · 필수.
+ * Only 필수 keeps people out; ranking weights are 1 / 2 / 3. Stored as
+ * requirement "must" (필수) or "preferred" + importance 1 / 2, so older
+ * criteria read must → 필수 and preferred → 중요.
+ */
+export type OrgRoleCriterionLevel = "nice" | "important" | "required";
+
+export const ORG_ROLE_CRITERION_LEVELS: Array<{ level: OrgRoleCriterionLevel; ko: string; en: string; weight: number }> = [
+  { level: "nice", ko: "있으면 좋음", en: "Nice to have", weight: 1 },
+  { level: "important", ko: "중요", en: "Important", weight: 2 },
+  { level: "required", ko: "필수", en: "Required", weight: 3 },
+];
+
+export function criterionLevel(criterion: { importance?: number | null; requirement?: string | null }): OrgRoleCriterionLevel {
+  if (criterion.requirement === "must") return "required";
+  return Number(criterion.importance) === 1 ? "nice" : "important";
+}
+
+export function criterionLevelFields(level: OrgRoleCriterionLevel) {
+  return {
+    requirement: (level === "required" ? "must" : "preferred") as OrgRoleCriterionRequirement,
+    importance: ORG_ROLE_CRITERION_LEVELS.find((item) => item.level === level)!.weight,
+  };
+}
 
 export type OrgRoleCriteriaEdit = {
   criteria?: string;
@@ -39,6 +81,43 @@ function has(value: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
+const GRADES: OrgRoleCriterionGrade[] = ["excellent", "good", "uncertain", "bad"];
+
+function structuredFields(source: Record<string, unknown>) {
+  const fields: Partial<OrgRoleCriterion> = {};
+  const id = text(source.id);
+  if (id) fields.id = id.slice(0, 80);
+  if (source.requirement === "must" || source.requirement === "preferred") {
+    fields.requirement = source.requirement;
+  }
+  const importance = Number(source.importance);
+  if (importance === 1 || importance === 2 || importance === 3) {
+    fields.importance = importance;
+  }
+  if (
+    source.kind === "rule" ||
+    source.kind === "similarity" ||
+    source.kind === "judgment"
+  ) {
+    fields.kind = source.kind;
+  }
+  const signalSource = record(source.signals);
+  const signals = Object.fromEntries(
+    GRADES.flatMap((grade) => {
+      const value = text(signalSource[grade]).slice(0, 2_000);
+      return value ? [[grade, value]] : [];
+    })
+  );
+  if (Object.keys(signals).length) fields.signals = signals;
+  const changeReason = text(source.changeReason).slice(0, 1_000);
+  if (changeReason) fields.changeReason = changeReason;
+  const changedAt = text(source.changedAt);
+  if (changedAt && !Number.isNaN(Date.parse(changedAt))) {
+    fields.changedAt = changedAt;
+  }
+  return fields;
+}
+
 export function normalizeOrgRoleCriteria(value: unknown): OrgRoleCriterion[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => {
@@ -46,6 +125,7 @@ export function normalizeOrgRoleCriteria(value: unknown): OrgRoleCriterion[] {
     return {
       criteria: text(source.criteria),
       name: text(source.name),
+      ...structuredFields(source),
     };
   });
 }
@@ -54,22 +134,10 @@ export function getOrgRoleCriteriaValidationError(value: unknown) {
   if (!Array.isArray(value)) {
     return "평가 기준은 목록 형태여야 합니다.";
   }
-  if (
-    value.length < ORG_ROLE_CRITERIA_MIN_ITEMS ||
-    value.length > ORG_ROLE_CRITERIA_MAX_ITEMS
-  ) {
-    return `평가 기준은 ${ORG_ROLE_CRITERIA_MIN_ITEMS}개 이상 ${ORG_ROLE_CRITERIA_MAX_ITEMS}개 이하로 작성해 주세요.`;
-  }
 
   const criteria = normalizeOrgRoleCriteria(value);
   if (criteria.some((item) => !item.name || !item.criteria)) {
     return "각 평가 기준의 이름과 상세 내용을 모두 작성해 주세요.";
-  }
-  if (criteria.some((item) => item.name.length > 200)) {
-    return "평가 기준 이름은 200자 이하로 작성해 주세요.";
-  }
-  if (criteria.some((item) => item.criteria.length > 8_000)) {
-    return "평가 기준 상세 내용은 항목당 8,000자 이하로 작성해 주세요.";
   }
   return null;
 }
@@ -81,7 +149,7 @@ export function parseOrgRoleCriteria(value: unknown): OrgRoleCriterion[] {
 }
 
 /**
- * Applies name-addressed edits in order and validates the final 0-6 item list.
+ * Applies name-addressed edits in order and validates the final structured list.
  * Names are intentionally exact: stored criteria do not have stable item IDs,
  * so fuzzy matching could mutate the wrong evaluation dimension.
  */
@@ -91,9 +159,6 @@ export function applyOrgRoleCriteriaEdits(
 ): OrgRoleCriteriaEditResult {
   if (!Array.isArray(editsValue) || editsValue.length < 1) {
     throw new Error("평가 기준 변경은 한 개 이상이어야 합니다.");
-  }
-  if (editsValue.length > 6) {
-    throw new Error("평가 기준 변경은 한 번에 6개 이하로 작성해 주세요.");
   }
 
   const criteria = normalizeOrgRoleCriteria(currentValue);
@@ -180,7 +245,11 @@ export function applyOrgRoleCriteriaEdits(
       ? detail
       : criteria[targetIndex]!.criteria;
     assertUniqueName(nextName, targetIndex);
-    criteria[targetIndex] = { criteria: nextDetail, name: nextName };
+    criteria[targetIndex] = {
+      ...criteria[targetIndex]!,
+      criteria: nextDetail,
+      name: nextName,
+    };
     counts.updated += 1;
   }
 

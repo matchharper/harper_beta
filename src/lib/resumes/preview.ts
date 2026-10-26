@@ -9,7 +9,10 @@ export function resumePreviewHtml(
   content: ResumeContent,
   assets: ResumeAssets
 ) {
-  const html = resumeHtml(content, assets.fontCss);
+  return paginatedPreviewHtml(resumeHtml(content, ""), assets);
+}
+
+export function paginatedPreviewHtml(html: string, assets: ResumeAssets) {
   const scripts = `
 <script>${assets.script.replace(/<\/script/gi, "<\\/script")}</script>
 <script>
@@ -51,6 +54,7 @@ export function resumePreviewHtml(
 })();
 </script>`;
   return html
+    .replace("</head>", () => `<style>${assets.fontCss}</style></head>`)
     .replace(
       '<meta charset="utf-8">',
       `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' blob:; font-src data:; connect-src blob:; img-src data:; base-uri 'none'; form-action 'none'">`

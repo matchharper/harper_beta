@@ -50,6 +50,8 @@ import {
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import { buildOrgHref } from "@/lib/org/routes";
 import { queryKeys } from "@/lib/queryKeys";
+import { onboardingJobMessage, type OnboardingJob } from "@/lib/org/onboardingJobs";
+import { useOnboardingJobs } from "./useOnboardingJobs";
 import {
   OrgOnboardingSlack,
   type OrgOnboardingSlackPreview,
@@ -73,7 +75,6 @@ type Draft = {
   role: string;
   companyText: string;
   companyName: string;
-  companyDescription: string;
   companyLinkedinUrl: string;
   companyTouched: string[];
   submittedText: string;
@@ -104,7 +105,6 @@ function readDraft(key: string, fallback: Draft): Draft {
     const steps: OrgOnboardingStep[] = [
       "profile",
       "slack",
-      "company-details",
       "company",
       "roles",
       "plan",
@@ -112,22 +112,32 @@ function readDraft(key: string, fallback: Draft): Draft {
       "done",
     ];
     return {
-      step: steps.includes(saved.step) ? saved.step : fallback.step,
+      step:
+        saved.step === "company-details"
+          ? "company"
+          : steps.includes(saved.step)
+            ? saved.step
+            : fallback.step,
       companyName:
         typeof saved.companyName === "string"
           ? saved.companyName
           : fallback.companyName,
-      companyDescription:
-        typeof saved.companyDescription === "string"
-          ? saved.companyDescription
-          : fallback.companyDescription,
       companyLinkedinUrl:
         typeof saved.companyLinkedinUrl === "string"
           ? saved.companyLinkedinUrl
           : fallback.companyLinkedinUrl,
       companyTouched: Array.isArray(saved.companyTouched)
-        ? saved.companyTouched.filter((s: unknown) => typeof s === "string")
-        : [],
+        ? ([
+            ...new Set([
+              ...saved.companyTouched.filter(
+                (s: unknown) => typeof s === "string"
+              ),
+              ...(saved.companyText ? ["pitch"] : []),
+            ]),
+          ] as string[])
+        : saved.companyText
+          ? ["pitch"]
+          : [],
       showSlack:
         typeof saved.showSlack === "boolean"
           ? saved.showSlack
@@ -153,7 +163,10 @@ function readDraft(key: string, fallback: Draft): Draft {
 export function OrgOnboardingPage() {
   const { c } = useOrgLocale();
   const { workspace, user } = useOrgWorkspace();
-  const slack = useOrgSlackStatus({ workspaceId: workspace.workspaceId, enabled: !workspace.isReviewing });
+  const slack = useOrgSlackStatus({
+    workspaceId: workspace.workspaceId,
+    enabled: !workspace.isReviewing,
+  });
   if (!workspace.isReviewing && !slack.data && !slack.isError)
     return (
       <main
@@ -161,7 +174,7 @@ export function OrgOnboardingPage() {
       >
         <LoaderCircle
           className="size-5 animate-spin text-neutral-muted"
-          aria-label={c("온보딩을 준비하고 있어요", "Preparing onboarding")}
+          aria-label={c("온보딩을 준비하고 있어요", "Getting things ready…")}
         />
       </main>
     );
@@ -178,6 +191,8 @@ export type OrgOnboardingPreviewOptions = {
   companyReply: string;
   onStepChange: (step: OrgOnboardingStep) => void;
   onComplete: () => void;
+  jobs: OnboardingJob[];
+  onStartRole: (message: string) => void;
   slack: OrgOnboardingSlackPreview;
 };
 
@@ -207,7 +222,10 @@ export function OrgOnboardingFlow({
     user.id
   );
   const research = useSignupCompany(workspaceId, selfServe && !preview);
-  const slack = useOrgSlackStatus({ workspaceId, enabled: !preview && !workspace.isReviewing });
+  const slack = useOrgSlackStatus({
+    workspaceId,
+    enabled: !preview && !workspace.isReviewing,
+  });
   const updateProfile = useUpdateOrgMemberProfile();
   const sessionKey = `org-onboarding:${user.id}:${workspaceId}`;
   const [draft, setDraft] = useState<Draft>(() => {
@@ -220,17 +238,14 @@ export function OrgOnboardingFlow({
             ? !additionalOrg && workspace.signupState.planSelectedAt
               ? "guide"
               : "company"
-            : "company-details"
+            : "company"
           : "profile"),
       showSlack: Boolean(preview) || !initiallyConnected,
       name: name === currentUser?.email || name === "Anonymous" ? "" : name,
       role: currentUser?.role || "",
-      companyText: "",
+      companyText: workspace.companyDescription ?? "",
       companyName: workspace.signupState?.companyConfirmedAt
         ? workspace.companyName
-        : "",
-      companyDescription: workspace.signupState?.companyConfirmedAt
-        ? (workspace.companyDescription ?? "")
         : "",
       companyLinkedinUrl: workspace.signupState?.companyConfirmedAt
         ? (workspace.companyProfile?.linkedinUrl ?? "")
@@ -246,7 +261,7 @@ export function OrgOnboardingFlow({
     if (router.query.step === "plan" && !additionalOrg)
       saved.step = workspace.signupState?.companyConfirmedAt
         ? "plan"
-        : "company-details";
+        : "company";
     if (router.query.step === "slack") {
       saved.showSlack = true;
       saved.step = "slack";
@@ -258,7 +273,7 @@ export function OrgOnboardingFlow({
         saved.step !== "profile" &&
         !workspace.signupState?.companyConfirmedAt
       )
-        saved.step = "company-details";
+        saved.step = "company";
       else if (
         !additionalOrg &&
         saved.step === "done" &&
@@ -270,12 +285,13 @@ export function OrgOnboardingFlow({
         hasProfile &&
         (saved.step === "profile" || saved.step === "plan")
       )
-        saved.step = workspace.signupState?.companyConfirmedAt
-          ? "company"
-          : "company-details";
+        saved.step = "company";
     }
-    if (workspace.isReviewing && (saved.step === "slack" || saved.step === "plan"))
-      saved.step = workspace.signupState?.companyConfirmedAt ? "company" : "company-details";
+    if (
+      workspace.isReviewing &&
+      (saved.step === "slack" || saved.step === "plan")
+    )
+      saved.step = "company";
     return saved;
   });
   const [error, setError] = useState(() =>
@@ -285,6 +301,7 @@ export function OrgOnboardingFlow({
       : ""
   );
   const [pending, setPending] = useState(false);
+  const [waitingForJobs, setWaitingForJobs] = useState(false);
   const [slackBusy, setSlackBusy] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(
     preview?.slack.inviteOpen ?? false
@@ -292,6 +309,19 @@ export function OrgOnboardingFlow({
   const submitting = useRef(false);
   const [completionStarted, setCompletionStarted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const companyReplyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!draft.companyReply || pending) return;
+    const frame = requestAnimationFrame(() => {
+      companyReplyRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+        block: "start",
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [draft.companyReply, pending]);
   useHtmlClass("bg-bg-basement");
   const [planBusy, setPlanBusy] = useState(false);
   useEffect(() => {
@@ -310,9 +340,10 @@ export function OrgOnboardingFlow({
       companyName: value.companyTouched.includes("name")
         ? value.companyName
         : company.name,
-      companyDescription: value.companyTouched.includes("description")
-        ? value.companyDescription
-        : company.description,
+      companyText:
+        value.companyTouched.includes("pitch") || value.companyReply
+          ? value.companyText
+          : company.description,
       companyLinkedinUrl: value.companyTouched.includes("linkedinUrl")
         ? value.companyLinkedinUrl
         : company.linkedinUrl,
@@ -326,7 +357,8 @@ export function OrgOnboardingFlow({
   try {
     const next = new URL(nextValue, "https://harper.local");
     if (
-      !workspace.isReviewing && !selfServe &&
+      !workspace.isReviewing &&
+      !selfServe &&
       nextValue &&
       next.origin === "https://harper.local" &&
       (next.pathname === "/org" || next.pathname.startsWith("/org/")) &&
@@ -372,13 +404,18 @@ export function OrgOnboardingFlow({
   const steps = getOrgOnboardingSteps({
     showSlack: !workspace.isReviewing && (draft?.showSlack ?? false),
     showCompany,
-    showCompanyDetails: selfServe,
     roles: visibleRoles,
     showPlan: selfServe && !additionalOrg && !workspace.isReviewing,
     showProfile: !(additionalOrg && hasProfile),
   });
   const step = draft && steps.includes(draft.step) ? draft.step : steps[0];
   const stepIndex = steps.indexOf(step);
+  const jobSuggestions = useOnboardingJobs({
+    workspaceId,
+    userId: user.id,
+    enabled: (step === "guide" || step === "done") && permissions.canManageCandidates && !workspace.isReviewing,
+    previewJobs: preview?.jobs,
+  });
   const progressSteps: OrgOnboardingStep[] = steps.filter(
     (item) => item !== "guide" && item !== "done"
   );
@@ -392,7 +429,7 @@ export function OrgOnboardingFlow({
   const companySubmitted = Boolean(
     draft?.companyReply && draft.submittedText === draft.companyText.trim()
   );
-  const busy = pending || updateProfile.isPending || slackBusy || planBusy;
+  const busy = pending || waitingForJobs || updateProfile.isPending || slackBusy || planBusy;
   const roleCopy = getOrgOnboardingRoleCopy(visibleRoles);
   const guideItems = [
     {
@@ -412,8 +449,8 @@ export function OrgOnboardingFlow({
         "Schedule interviews and send questions"
       ),
       description: c(
-        "Calendar를 등록하시면, 요청시 바로 가능한 일정을 후보자에게 보내 인터뷰를 확정할 수 있어요.\n대신 후보자에게 질문도 전달할 수 있어요. ex) @Harper 혹시 지금 당장 이직 가능하신가요?",
-        "Connect your calendar, and Harper can share your available times with candidates to arrange an interview when you ask.\nHarper can also pass along your questions. For example: @Harper, could you ask whether they’re open to a move right now?"
+        "후보자와 미팅 스케줄링까지 도와드리고 바로 인터뷰를 잡아드려요.\n제가 대신 후보자에게 질문도 전달할 수 있어요. ex) @Harper 혹시 지금 당장 이직 가능하신가요?",
+        "I can coordinate schedules with candidates and book interviews for you.\nI can also pass along questions on your behalf. For example: @Harper, could you ask if they’re available to start right away?"
       ),
     },
     {
@@ -421,7 +458,7 @@ export function OrgOnboardingFlow({
       icon: MessageCircleText,
       title: c("후보자에 대해 질문하기", "Ask about candidates"),
       description: c(
-        "Harper가 후보자에 대해 아는 내용을 바탕으로, 공개가능한 정보라면 답변드릴 수 있어요. ex) @Harper 이 분 지금 왜 이직하려고 하시는거야?",
+        "Harper는 후보자들과 항상 대화하고, 많은 이야기를 듣고 있어요. 공개가능한 정보라면 답변드릴 수 있어요. ex) @Harper 이 분 지금 왜 이직하려고 하시는거야?",
         "Harper can answer questions based on what it knows about a candidate, using information that can be shared. For example: @Harper, why are they considering a move?"
       ),
     },
@@ -430,8 +467,8 @@ export function OrgOnboardingFlow({
     step === "guide"
       ? definition(
           [
-            c("Harper에게 이런 걸", "Here’s what you can ask"),
-            c("요청할 수 있어요.", "Harper to do."),
+            c("Harper에게 이런 걸", "How Harper helps"),
+            c("요청할 수 있어요.", "your team"),
           ],
           ""
         )
@@ -448,59 +485,46 @@ export function OrgOnboardingFlow({
               "Start free, and add slots when you need them."
             )
           )
-        : step === "company-details"
+        : step === "profile"
           ? definition(
-              [c("회사 정보를 확인해 주세요", "Confirm your company details")],
-              research.data?.company
-                ? c(
-                    "회사 이메일을 바탕으로 찾은 정보예요. 틀린 부분은 수정해 주세요.",
-                    "We found these details using your work email domain. Review them and make any corrections."
-                  )
-                : c(
-                    "회사 이름을 확인해 주세요. 회사 소개는 선택 사항이며, 나중에도 수정할 수 있어요.",
-                    "Confirm your company’s name. A description is optional, and you can edit these details later."
-                  )
-            )
-          : step === "profile"
-            ? definition(
-                ["Welcome to Harper"],
-                c(
-                  "Harper와 함께하게 되신 것을 환영합니다. 가벼운 정보를 알려주세요.",
-                  "Welcome to Harper. Share a few quick details."
-                )
+              ["Welcome to Harper"],
+              c(
+                "Harper와 함께하게 되신 것을 환영합니다. 가벼운 정보를 알려주세요.",
+                "Welcome to Harper. Share a few quick details."
               )
-            : step === "slack"
+            )
+          : step === "slack"
+            ? definition(
+                [
+                  c("Harper와 슬랙을 통해", "Chat with Harper"),
+                  c("소통하세요.", "in Slack"),
+                ],
+                slack.data?.connected &&
+                  !connectedChannel &&
+                  permissions.canManageIntegrations
+                  ? ORG_SLACK_PRIVATE_CHANNEL_HELP.map(sourceT)
+                  : c(
+                      "Slack을 통해 실제 리크루터처럼 소통하실 수 있어요.",
+                      "Chat with Harper in Slack as you would with a recruiter."
+                    )
+              )
+            : step === "company"
               ? definition(
                   [
-                    c("Harper와 슬랙을 통해", "Chat with Harper"),
-                    c("소통하세요.", "in Slack"),
-                  ],
-                  slack.data?.connected &&
-                    !connectedChannel &&
-                    permissions.canManageIntegrations
-                    ? ORG_SLACK_PRIVATE_CHANNEL_HELP.map(sourceT)
-                    : c(
-                        "Slack을 통해 실제 리크루터처럼 소통하실 수 있어요.",
-                        "Chat with Harper in Slack as you would with a recruiter."
-                      )
-                )
-              : step === "company"
-                ? definition(
-                    [
-                      c(
-                        "회사에 대해서 더 알려주세요.",
-                        "Tell us about your company"
-                      ),
-                    ],
                     c(
-                      "인재에게 회사를 소개할 때 사용할 정보를 알려주세요. 외부에 공개되지 않은 특별한 포인트라면 더 좋아요. 직접적으로 공개되지 않고, Harper가 적절한 순간에 활용합니다.",
-                      "Add details Harper can use when introducing your company to candidates, especially points they won't find elsewhere. Harper will use them where relevant rather than publishing this text as written."
-                    )
+                      "회사에 대해서 알려주세요.",
+                      "Tell us about your company"
+                    ),
+                  ],
+                  c(
+                    "인재에게 회사를 소개할 때 사용할 정보를 알려주세요. 외부에 공개되지 않은 특별한 포인트라면 더 좋아요. 직접적으로 공개되지 않고, Harper가 적절한 순간에 활용합니다.",
+                    "Add details Harper can use when introducing your company to candidates, especially points they won't find elsewhere. Harper will use them where relevant rather than publishing this text as written."
                   )
-                : definition(
-                    [sourceT(roleCopy.title)],
-                    sourceT(roleCopy.description)
-                  );
+                )
+              : definition(
+                  [sourceT(roleCopy.title)],
+                  sourceT(roleCopy.description)
+                );
 
   const go = useCallback(
     (nextStep: OrgOnboardingStep) => {
@@ -518,10 +542,12 @@ export function OrgOnboardingFlow({
   const patch = (values: Partial<Draft>) =>
     setDraft((value) => (value ? { ...value, ...values } : value));
 
-  async function finish() {
+  async function finish(job?: OnboardingJob) {
     if (submitting.current) return;
+    const message = job ? onboardingJobMessage(job, responseLocale) : "";
     if (preview) {
-      preview.onComplete();
+      if (job) preview.onStartRole(message);
+      else preview.onComplete();
       return;
     }
     submitting.current = true;
@@ -534,6 +560,7 @@ export function OrgOnboardingFlow({
         {
           action: "complete",
           responseLocale,
+          ...(job ? { continueInWeb: true } : {}),
         }
       );
       try {
@@ -544,8 +571,12 @@ export function OrgOnboardingFlow({
       await queryClient.invalidateQueries({
         queryKey: queryKeys.org.bootstrapAll,
       });
-      await router.replace(nextHref);
-      if (!workspace.isReviewing && result.slackUrl) window.location.assign(result.slackUrl);
+      const destination = job
+        ? `${buildOrgHref({ page: "new-role", orgId: workspaceId })}&prefill=${encodeURIComponent(message)}`
+        : nextHref;
+      await router.replace(destination);
+      if (!job && !workspace.isReviewing && result.slackUrl)
+        window.location.assign(result.slackUrl);
     } catch (error) {
       setError(
         selfServe
@@ -576,15 +607,23 @@ export function OrgOnboardingFlow({
       return;
     }
     if (step === "plan") return;
-    if (step === "roles" || step === "guide") {
+    if (step === "guide") {
+      submitting.current = true;
+      setWaitingForJobs(true);
+      try {
+        await jobSuggestions.wait();
+        advance();
+      } finally {
+        submitting.current = false;
+        setWaitingForJobs(false);
+      }
+      return;
+    }
+    if (step === "roles") {
       advance();
       return;
     }
     if (!formRef.current?.reportValidity()) return;
-    if (step === "company" && companySubmitted) {
-      advance();
-      return;
-    }
     submitting.current = true;
     setPending(true);
     setError("");
@@ -598,19 +637,30 @@ export function OrgOnboardingFlow({
           });
         }
         advance();
-      } else if (step === "company-details") {
-        if (!preview) {
+      } else {
+        if (
+          selfServe &&
+          !preview &&
+          (!companySubmitted ||
+            draft.companyName.trim() !== workspace.companyName ||
+            draft.companyLinkedinUrl.trim() !==
+              (workspace.companyProfile?.linkedinUrl ?? ""))
+        ) {
           await signupRequest(workspaceId, "company", {
             name: draft.companyName,
-            description: draft.companyDescription,
+            description: companySubmitted
+              ? (workspace.companyDescription ?? draft.companyText)
+              : draft.companyText,
             linkedinUrl: draft.companyLinkedinUrl,
           });
           await queryClient.invalidateQueries({
             queryKey: queryKeys.org.bootstrapAll,
           });
         }
-        advance();
-      } else {
+        if (companySubmitted) {
+          advance();
+          return;
+        }
         const message = draft.companyText.trim();
         const submissionId =
           draft.submissionText === message && draft.submissionId
@@ -656,7 +706,7 @@ export function OrgOnboardingFlow({
               "회사 정보 반영 결과를 아직 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
               "We couldn't confirm whether your company information was saved. Try again shortly to check the same request."
             )
-          : step === "company-details"
+          : selfServe && step === "company"
             ? signupErrorMessage(error, responseLocale)
             : localizedOrgErrorMessage(
                 error,
@@ -680,7 +730,7 @@ export function OrgOnboardingFlow({
       >
         <LoaderCircle
           className="size-5 animate-spin text-neutral-muted"
-          aria-label={c("온보딩을 준비하고 있어요", "Preparing onboarding")}
+          aria-label={c("온보딩을 준비하고 있어요", "Getting things ready…")}
         />
       </main>
     );
@@ -708,9 +758,7 @@ export function OrgOnboardingFlow({
           progressStep={Math.max(0, progressSteps.indexOf(step))}
           totalSteps={progressSteps.length}
           showProgress={progressSteps.includes(step)}
-          expandContent={
-            step === "company-details" || step === "company" || step === "plan"
-          }
+          expandContent={step === "company" || step === "plan"}
           title={
             step === "done" ? null : (
               <OnboardingTransition
@@ -760,11 +808,11 @@ export function OrgOnboardingFlow({
                 <OnboardingConversationPreview
                   userMessage={c(
                     "뛰어난 엔지니어를 찾고 있어요.",
-                    "Looking for a stellar engineer."
+                    "We're looking for an engineer to join our team."
                   )}
                   assistantText={c(
                     "어떤 일을 맡을 분인가요? 지금 팀에서 가장 먼저 해결하고 싶은 문제부터 알려주세요.\n\n꼭 필요한 경험과 함께 일하는 방식을 듣고, 찾는 분의 기준을 같이 정리할게요.",
-                    "What will this person do? Start with the biggest problem your team needs to solve now.\n\nTell us must-have experience and working style, and we'll help define the candidate criteria."
+                    "What will this person work on? Start with the biggest problem your team needs to solve.\n\nShare the experience they need and how your team works. We'll help you define what to look for."
                   )}
                 />
               </div>
@@ -795,6 +843,29 @@ export function OrgOnboardingFlow({
                   </MuteButton>
                 </div>
               ) : null}
+              {step === "done" && permissions.canManageCandidates && jobSuggestions.jobs.length > 0 ? (
+                <div className="mb-5 space-y-2">
+                  <p className="text-sm text-neutral-primary">
+                    {c("바로 채용을 시작하시겠어요?", "Ready to start hiring?")}
+                  </p>
+                  {jobSuggestions.jobs.map((job) => (
+                    <button
+                      key={job.url}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void finish(job)}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-md py-1.5 text-left text-sm text-action hover:bg-bg-weak hover:underline focus-visible:outline-2 focus-visible:outline-action disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {workspace.logoUrl ? (
+                        <Image src={workspace.logoUrl} alt="" width={24} height={24} unoptimized className="size-6 shrink-0 rounded-md object-contain" />
+                      ) : (
+                        <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-md bg-bg-weak text-xs text-neutral-muted">{workspace.companyName.slice(0, 1)}</span>
+                      )}
+                      <span>{job.title}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {step !== "plan" ? (
                 <OnboardingFooter
                   onNext={() => void next()}
@@ -807,30 +878,27 @@ export function OrgOnboardingFlow({
                   pending={busy}
                   disabled={step === "slack" && !connectedChannel}
                   nextLabel={
-                    pending
+                    waitingForJobs
+                      ? <span className="inline-flex items-center gap-2"><LoaderCircle aria-hidden className="size-4 animate-spin" />{c("다음", "Next")}</span>
+                      : pending
                       ? step === "company"
                         ? c(
                             "회사 이야기를 읽고 있어요…",
-                            "Reading company info…"
+                            "Looking up your company…"
                           )
                         : step === "done" && slackLinks
                           ? c(
                               "Harper가 인사를 준비하고 있어요…",
-                              "Preparing your welcome…"
+                              "Finishing setup…"
                             )
                           : c("저장 중…", "Saving…")
                       : step === "profile"
                         ? c("시작하기", "Get started")
-                        : step === "company-details"
-                          ? c("확인하고 계속하기", "Confirm and continue")
-                          : step === "company" && !companySubmitted
-                            ? c(
-                                "회사 정보에 반영하기",
-                                "Apply to company profile"
-                              )
-                            : step === "done"
-                              ? c("완료", "Complete")
-                              : c("다음", "Next")
+                        : step === "company" && !companySubmitted
+                          ? c("회사 정보에 반영하기", "Save to company profile")
+                          : step === "done"
+                            ? c("완료", "Complete")
+                            : c("다음", "Next")
                   }
                   hint={
                     step === "profile" ? (
@@ -841,7 +909,7 @@ export function OrgOnboardingFlow({
                     ) : undefined
                   }
                 >
-                  {step === "slack" || step === "company" ? (
+                  {step === "slack" || (step === "company" && !selfServe) ? (
                     <div className="mt-3 text-center">
                       <MuteButton
                         variant="transparent"
@@ -949,122 +1017,6 @@ export function OrgOnboardingFlow({
                 />
               </>
             ) : null}
-            {step === "company-details" ? (
-              <form
-                ref={formRef}
-                className="space-y-5"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void next();
-                }}
-              >
-                {(
-                  [
-                    [
-                      "name",
-                      c("회사명", "Company name"),
-                      draft.companyName,
-                      "companyName",
-                    ],
-                    [
-                      "linkedinUrl",
-                      c(
-                        "LinkedIn 회사 페이지 · 선택",
-                        "LinkedIn company page · optional"
-                      ),
-                      draft.companyLinkedinUrl,
-                      "companyLinkedinUrl",
-                    ],
-                    [
-                      "description",
-                      c(
-                        "회사 소개 · 선택",
-                        "What does your company do? · optional"
-                      ),
-                      draft.companyDescription,
-                      "companyDescription",
-                    ],
-                  ] as const
-                ).map(([key, label, value, field]) => (
-                  <div key={key} className="grid gap-2">
-                    <OnboardingFieldLabel htmlFor={`signup-company-${key}`}>
-                      {label}
-                    </OnboardingFieldLabel>
-                    {key === "description" ? (
-                      <Textarea
-                        id={`signup-company-${key}`}
-                        rows={6}
-                        maxLength={8000}
-                        value={value}
-                        disabled={busy}
-                        onChange={(event) =>
-                          setDraft((d) => ({
-                            ...d,
-                            [field]: event.target.value,
-                            companyTouched: [
-                              ...new Set([...d.companyTouched, key]),
-                            ],
-                          }))
-                        }
-                      />
-                    ) : (
-                      <Input
-                        id={`signup-company-${key}`}
-                        value={value}
-                        required={key === "name"}
-                        maxLength={key === "name" ? 160 : 400}
-                        placeholder={
-                          key === "linkedinUrl"
-                            ? "https://www.linkedin.com/company/…"
-                            : undefined
-                        }
-                        disabled={busy}
-                        onChange={(event) =>
-                          setDraft((d) => ({
-                            ...d,
-                            [field]: event.target.value,
-                            companyTouched: [
-                              ...new Set([...d.companyTouched, key]),
-                            ],
-                          }))
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
-                {research.data?.state.researchStatus === "pending" ? (
-                  <p
-                    role="status"
-                    className="text-xs leading-6 text-neutral-muted"
-                  >
-                    {c(
-                      "회사 정보를 찾고 있어요. 기다리지 않고 직접 입력해도 괜찮아요.",
-                      "We’re looking up your company. You can also fill in the details now."
-                    )}
-                  </p>
-                ) : null}
-                {research.isError ||
-                research.data?.state.researchStatus === "failed" ? (
-                  <p className="text-xs leading-6 text-neutral-muted"></p>
-                ) : null}
-                {research.data?.company?.sources.length ? (
-                  <p className="text-xs text-neutral-soft">
-                    {c("참고한 페이지: ", "Source: ")}
-                    {research.data.company.sources.map((source) => (
-                      <a
-                        key={source.url}
-                        href={source.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline underline-offset-4"
-                      >
-                        {source.title}
-                      </a>
-                    ))}
-                  </p>
-                ) : null}
-              </form>
-            ) : null}
             {step === "plan" && selfServe ? (
               <OrgSignupPlan
                 workspaceId={workspaceId}
@@ -1082,6 +1034,56 @@ export function OrgOnboardingFlow({
                   void next();
                 }}
               >
+                {selfServe ? (
+                  <>
+                    {(
+                      [
+                        [
+                          "name",
+                          c("회사명", "Company name"),
+                          draft.companyName,
+                          "companyName",
+                        ],
+                        [
+                          "linkedinUrl",
+                          c(
+                            "LinkedIn 회사 페이지 · 선택",
+                            "LinkedIn company page · optional"
+                          ),
+                          draft.companyLinkedinUrl,
+                          "companyLinkedinUrl",
+                        ],
+                      ] as const
+                    ).map(([key, label, value, field]) => (
+                      <div key={key} className="grid gap-2">
+                        <OnboardingFieldLabel htmlFor={`signup-company-${key}`}>
+                          {label}
+                        </OnboardingFieldLabel>
+                        <Input
+                          id={`signup-company-${key}`}
+                          value={value}
+                          required={key === "name"}
+                          maxLength={key === "name" ? 160 : 400}
+                          placeholder={
+                            key === "linkedinUrl"
+                              ? "https://www.linkedin.com/company/…"
+                              : undefined
+                          }
+                          disabled={busy}
+                          onChange={(event) =>
+                            setDraft((d) => ({
+                              ...d,
+                              [field]: event.target.value,
+                              companyTouched: [
+                                ...new Set([...d.companyTouched, key]),
+                              ],
+                            }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </>
+                ) : null}
                 <div className="grid gap-2">
                   <OnboardingFieldLabel htmlFor="org-onboarding-company">
                     {c("Pitch", "Pitch")}
@@ -1091,11 +1093,16 @@ export function OrgOnboardingFlow({
                     id="org-onboarding-company"
                     value={draft.companyText}
                     onChange={(event) =>
-                      patch({ companyText: event.target.value })
+                      patch({
+                        companyText: event.target.value,
+                        companyTouched: [
+                          ...new Set([...draft.companyTouched, "pitch"]),
+                        ],
+                      })
                     }
                     placeholder={c(
                       "ex. 최근에 공격적으로 팀을 확장하고 있습니다. 미국 비자 Sponsorship 가능합니다. 등",
-                      "ex. Recently scaling aggressively. US visa sponsorship available."
+                      "e.g. We're expanding our team and offer US visa sponsorship."
                     )}
                     className="min-h-[220px]"
                     rows={8}
@@ -1109,16 +1116,17 @@ export function OrgOnboardingFlow({
                     className="flex items-center gap-3 text-[13px] text-neutral-muted"
                     role="status"
                   >
-                    <Face status="closing" size={40} />
+                    <Face status="closing" size={32} />
                     {c(
                       "회사 이야기를 읽고, 기존 정보와 함께 정리하고 있어요.",
-                      "Reading company story and consolidating with existing info…"
+                      "Updating your company profile with these details…"
                     )}
                   </div>
                 ) : null}
                 {draft.companyReply ? (
                   <div
-                    className="border-t border-neutral-1000-a10 pt-5"
+                    ref={companyReplyRef}
+                    className="scroll-mt-6 border-t border-neutral-1000-a10 pt-5"
                     aria-live="polite"
                   >
                     <div className="mb-3 flex items-center gap-2">
@@ -1188,13 +1196,16 @@ export function OrgOnboardingFlow({
                 })}
                 description={
                   workspace.isReviewing ? (
-                    c("입력한 정보를 저장했어요. 완료 후 가입 검토 상태를 확인할 수 있어요.", "Your information is saved. Complete onboarding to view your account review status.")
+                    c(
+                      "입력한 정보를 저장했어요. 완료 후 가입 검토 상태를 확인할 수 있어요.",
+                      "Your information is saved. Complete onboarding to view your account review status."
+                    )
                   ) : slackLinks ? (
                     <>
                       <span className="block">
                         {c(
                           "이제 채용 이야기를 함께 시작해요.",
-                          "Now start the hiring conversation."
+                          "You're ready to talk hiring with Harper."
                         )}
                       </span>
                       <span className="block">
@@ -1212,13 +1223,13 @@ export function OrgOnboardingFlow({
                     </>
                   ) : selfServe ? (
                     c(
-                      "준비가 끝났어요. 첫 채용을 등록하고\nHarper와 원하는 인재의 기준을 함께 정리해 보세요.",
+                      "준비가 끝났어요. 첫 역할을 등록하고\nHarper의 연결을 받아보세요.",
                       "You’re ready. Create your first role and\nwork with Harper to define who you’re looking for."
                     )
                   ) : (
                     c(
                       "이제 채용 이야기를 함께 시작해요.\n회사 화면에서 역할을 열고 Harper에게 말씀해 주세요.\n원하는 인재의 기준부터 함께 정리할 수 있어요.",
-                      "Now start the hiring conversation.\nOpen a role in the company view and message Harper.\nStart by defining the desired candidate criteria together."
+                      "Open a role in your workspace and message Harper.\nDescribe who you're looking for, and refine the criteria together."
                     )
                   )
                 }
