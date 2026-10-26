@@ -17,6 +17,8 @@ export async function readRoleNotificationContext(args: {
     assigneeUserIds: settings.assigneeUserIds,
     availableAssignees: settings.availableAssignees,
     channels: settings.channels.map(channel => ({ ...channel, current: channel.channelId === args.currentChannelId })),
+    // New candidates also go by email to the Role's assignees and Owners.
+    emailEnabled: settings.emailEnabled,
     // Draft readiness distinguishes explicit selections from workspace-wide default delivery.
     confirmedAssigneeUserId: metadata.confirmedAssigneeUserId,
     confirmedChannelIds: metadata.confirmedSlackChannelIds,

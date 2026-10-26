@@ -61,6 +61,7 @@ test("applies a completed stage to duplicate board cards for the same pair", () 
     roleId: variables.roleId,
     stage: "pending_connection",
     stageTag: "old-tag",
+    savedAt: "2026-10-21T00:00:00Z",
     talentId: variables.talentId,
   } as OrgBoardItem;
   const duplicateItem = {
@@ -92,6 +93,8 @@ test("applies a completed stage to duplicate board cards for the same pair", () 
   );
   assert.equal(next?.items[0]?.stageTag, "내부:연결됨");
   assert.equal(next?.items[0]?.processClosureNoticeUnresolved, false);
+  assert.equal(next?.items[0]?.savedAt, null);
+  assert.equal(next?.items[2]?.savedAt, matchingItem.savedAt);
 });
 
 test("keeps detail and accepted-list caches aligned with a stage response", () => {

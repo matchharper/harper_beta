@@ -6,6 +6,7 @@ import {
   requireAuthenticatedUser,
 } from "@/lib/server/candidateAccess";
 import { fetchOrgTalentDetail, OrgHttpError } from "@/lib/org/server";
+import { readOrgCandidateDetail } from "@/lib/org/candidatePreview.server";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof OrgHttpError) {
@@ -24,14 +25,14 @@ function toErrorResponse(error: unknown) {
 export async function GET(req: NextRequest) {
   try {
     const user = await requireAuthenticatedUser(req);
-    const payload = await fetchOrgTalentDetail({
+    const payload = await readOrgCandidateDetail({
       recommendationId: req.nextUrl.searchParams.get("recommendationId"),
       roleId: req.nextUrl.searchParams.get("roleId"),
       talentId: req.nextUrl.searchParams.get("talentId") ?? "",
       user,
       workspaceId: req.nextUrl.searchParams.get("workspaceId") ?? "",
     });
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -1,0 +1,17 @@
+{
+  "datasetVersion": "explicit-unassessed-v1",
+  "createdAt": "2026-10-22T09:06:19.965897+00:00",
+  "unit": "One independent conversation restored from the unchanged real bootstrap-v3 snapshot",
+  "provenance": "Post-hoc coverage supplement: ARS06 conditionally requests new assessment only after prior evaluated candidates are exhausted, which was not observed in completed v4. Does not replace or relabel cases-v1.",
+  "bindingContract": "Uses the same captured primary Role and current Brief; no fabricated candidate, score, team, or exhausted-pool state.",
+  "cases": [
+    {
+      "id": "ARSU01",
+      "title": "미평가 후보 최대50명 평가만 명시 요청",
+      "turns": [
+        "현재 기준은 바꾸지 말고, 기존 평가 결과에서 추가 추천하는 것도 하지 말아줘. 이 기준으로 아직 평가하지 않은 후보 50명을 새로 평가만 해줘. 추천 목록에 올리거나 후보자에게 연락하는 건 아직 아니야.",
+        "평가가 끝났는지 확인하고, 이번에 실제로 몇 명을 평가했는지와 추천 목록이 바뀌었는지 알려줘."
+      ]
+    }
+  ]
+}

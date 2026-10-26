@@ -45,6 +45,12 @@ function route(options: { denied?: boolean; rpcError?: boolean } = {}) {
       }),
     },
     "@/lib/org/teamAccess": { fetchOrgTeams: async () => [] },
+    "@/lib/org/permissionCache.server": {
+      invalidateOrgPermissions(workspaceId: string) {
+        assert.equal(workspaceId, id);
+        calls.push("invalidate");
+      },
+    },
     "@/lib/org/actionLogs": {
       async recordOrgAction(args: unknown) {
         calls.push("log");
@@ -81,7 +87,7 @@ test("team access is logged only after authorized successful mutation", async ()
     request({ workspaceId: id, userId: id, accessScope: "team", teamIds: [id] })
   );
   assert.equal(response.status, 200);
-  assert.deepEqual(r.calls, ["authorize", "mutate", "log"]);
+  assert.deepEqual(r.calls, ["authorize", "mutate", "invalidate", "log"]);
   assert.equal(r.logs[0].type, "org_member_access_saved");
   assert.equal(r.logs[0].actorUserId, "actor");
   assert.equal(r.logs[0].metadata.workspaceId, id);
@@ -93,6 +99,7 @@ test("authorization and mutation failures never create successful-action logs", 
     const response = await r.DELETE(request({ workspaceId: id, teamId: id }));
     assert.ok(response.status >= 400);
     assert.equal(r.logs.length, 0);
+    assert.ok(!r.calls.includes("invalidate"));
     if (options.denied) assert.deepEqual(r.calls, ["authorize"]);
   }
 });
@@ -113,6 +120,7 @@ test("team create and delete retain resource and action identity", async () => {
       })
     );
     assert.equal(response.status, 200);
+    assert.deepEqual(r.calls, ["authorize", "mutate", "invalidate", "log"]);
     assert.equal(r.logs[0].type, type);
     assert.equal(r.logs[0].metadata.resourceId, id);
   }

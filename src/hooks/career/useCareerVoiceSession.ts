@@ -76,7 +76,7 @@ export function useCareerVoiceSession({
       disconnect,
       sendTextMessage: (text: string) =>
         getCurrentSession().sendTextMessage(text),
-      triggerResponse: () => getCurrentSession().triggerResponse(),
+      triggerResponse: (instructions?: string) => getCurrentSession().triggerResponse(instructions),
       cancelResponse: () => getCurrentSession().cancelResponse(),
       primePlayback: () => getCurrentSession().primePlayback(),
       runAfterCurrentPlayback: (callback: () => void) =>

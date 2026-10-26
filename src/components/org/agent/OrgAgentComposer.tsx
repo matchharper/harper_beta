@@ -185,6 +185,7 @@ export function OrgAgentComposer({
   autoFocus,
   compactWidth,
   disabled,
+  initialMessage = "",
   isStreaming,
   model,
   onModelChange,
@@ -192,12 +193,14 @@ export function OrgAgentComposer({
   onSubmitBlocked,
   roleId,
   submitBlocked,
+  suggestions,
   workspaceId,
 }: {
   allowAttachments?: boolean;
   autoFocus?: boolean;
   compactWidth?: boolean;
   disabled?: boolean;
+  initialMessage?: string;
   isStreaming: boolean;
   model: OrgAgentModelId;
   onModelChange: (model: OrgAgentModelId) => void;
@@ -209,6 +212,8 @@ export function OrgAgentComposer({
   onSubmitBlocked?: () => void;
   roleId?: string | null;
   submitBlocked?: boolean;
+  /** Example starts shown under the field; a click fills the field to edit or send. */
+  suggestions?: Array<{ label: string; message: string }>;
   workspaceId: string;
 }) {
   const { locale, c } = useOrgLocale();
@@ -218,7 +223,7 @@ export function OrgAgentComposer({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastSpaceAtRef = useRef<number>(0);
   const submissionPendingRef = useRef(false);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialMessage);
   const [attachments, setAttachments] = useState<DraftChatAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState("");
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
@@ -684,6 +689,23 @@ export function OrgAgentComposer({
         {attachmentError ? (
           <div className="mt-2 px-1 text-[12px] text-critical" role="alert">
             {attachmentError}
+          </div>
+        ) : null}
+        {suggestions?.length && !draft.trim() ? (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {suggestions.map((suggestion) => (
+              <MuteButton
+                disabled={disabled || isStreaming}
+                key={suggestion.label}
+                onClick={() => {
+                  setDraft(suggestion.message);
+                  textareaRef.current?.focus();
+                }}
+                type="button"
+              >
+                {suggestion.label}
+              </MuteButton>
+            ))}
           </div>
         ) : null}
         {/* <div className="mt-2 flex items-center justify-between gap-2">

@@ -380,10 +380,7 @@ export function OrgRolesOverview({
           <div className="space-y-3">
             {filteredRoles.length === 0 ? (
               <div className="flex h-32 items-center justify-center border border-neutral-1000-a05 bg-bg-floating text-[13px] text-neutral-muted">
-                {c(
-                  "조건에 맞는 역할이 없어요.",
-                  "No roles match the criteria."
-                )}
+                {c("아직 채용중인 역할이 없습니다.", "No hiring roles yet.")}
               </div>
             ) : null}
             {filteredRoles.map((role) => {
@@ -460,24 +457,20 @@ export function OrgRolesOverview({
                         )}
                       </RoleMetaChip>
                       <RoleStatusBadge status={role.status} />
+                      {normalizeRoleStatus(role.status) === "draft" && (
+                        <MuteButton
+                          onClick={() => onOpenRole(role)}
+                          size="md"
+                          variant="dark"
+                        >
+                          {c("이어서 작성", "Continue")}
+                        </MuteButton>
+                      )}
                     </div>
                   </div>
 
                   {normalizeRoleStatus(role.status) === "draft" ? (
-                    <div className="flex min-h-[52px] items-center justify-between gap-4 px-3.5 py-1 text-[13px] text-neutral-muted">
-                      <span>
-                        {c(
-                          "{roleName} 역할 작성을 이어가세요.",
-                          "Continue drafting {roleName}.",
-                          {
-                            roleName: role.name,
-                          }
-                        )}
-                      </span>
-                      <MuteButton onClick={() => onOpenRole(role)} size="md">
-                        {c("이어서 작성", "Continue")}
-                      </MuteButton>
-                    </div>
+                    <></>
                   ) : (
                     <div className="md:hidden">
                       <div className="grid grid-cols-2 border-b border-neutral-1000-a05 bg-bg-weak/45 px-3.5 py-2.5 text-[12px] text-neutral-muted">

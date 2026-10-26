@@ -1,0 +1,40 @@
+{
+  "task": "application-browser-server",
+  "datasetVersion": "public-pre-submit-v3",
+  "createdAt": "2026-10-22T16:47:33.711Z",
+  "status": "superseded-before-job-agent-execution",
+  "model": "gpt-6-luna",
+  "provider": "OpenAI Responses direct",
+  "reasoning": "medium",
+  "sampling": "provider default",
+  "serviceTier": "default",
+  "maxOutputTokens": 128000,
+  "maxSteps": 55,
+  "agentTimeoutSeconds": 450,
+  "browserTimeoutSeconds": 600,
+  "concurrency": 3,
+  "proxy": false,
+  "canonicalRunner": "scripts/experiments/application-browser-lab/invoke.mjs <origin> preflight <case> public-pre-submit-v3",
+  "sourceHashes": {
+    "lib/preflight.js": "82f8a394453508a87bdd781154ec647c45b5755d6c7f14b03edcafa7d529309d",
+    "lib/preflight-model.js": "2c39cd889d52628b7b3652e40ff6222e59eb6ca0a7a4eaf4a3e315ce8990b269",
+    "lib/preflight-cases-v3.js": "9efae3c49fe8f601588df68270ff0f4bcd16aa3e024239739708733699069a5e",
+    "lib/preflight-guard.js": "694d03c89a2dd991a67866a7a630fe0e23d9ee122f6a8bc5835088b305eea069",
+    "lib/fixture.js": "4ccf6299b79c43fe03b0fdb913ff47095c037a56abf5a99a7b2631d5650597a1",
+    "package-lock.json": "2989a0077b44bc5407ab1c0d8a946caf6656758ed8cd0c11902c5931469310b6"
+  },
+  "privacy": "Synthetic candidate/files only; no real submission or verification messages; raw owner-only ignored runs",
+  "pricingSource": "https://developers.openai.com/api/docs/pricing",
+  "pricingPerMillion": {
+    "input": 0.1,
+    "output": 0.5,
+    "cacheRead": 0.01,
+    "cacheWrite": 0.125,
+    "longInput": 0.2,
+    "longOutput": 0.75,
+    "longCacheRead": 0.02,
+    "longCacheWrite": 0.25
+  },
+  "completionGold": null,
+  "reason": "Public HTTP precheck showed DoorDash redirects to error list; new v4 frozen before any job-agent execution."
+}

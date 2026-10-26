@@ -40,7 +40,7 @@ const copy = {
       {
         question: "무료로 어디까지 써볼 수 있나요?",
         answer:
-          "Free에서는 카드 등록 없이 포지션을 개수 제한 없이 만들고 후보자를 살펴볼 수 있어요. 매월 제공되는 Intro 10개는 모든 포지션의 Intro 요청에 함께 사용할 수 있어요. 현재 새 회사의 직접 가입은 잠시 중단되어 있어, 도입과 이용 범위는 Harper 팀과 미팅에서 확인할 수 있어요.",
+          "Free에서는 카드 등록 없이 포지션 1개까지 채용을 진행하고 후보자를 살펴볼 수 있어요. 초안 수에는 제한이 없고, 매월 제공되는 Intro 10개는 모든 포지션의 Intro 요청에 함께 사용할 수 있어요.",
         pricing: true,
       },
       {
@@ -94,7 +94,7 @@ const copy = {
       {
         question: "Can we start for free?",
         answer:
-          "Free includes unlimited roles, candidate profile reviews, and 10 monthly Intros shared across all your roles, with no card required. Self-serve signup for new companies is temporarily paused. Meet with the Harper team to discuss access.",
+          "Free includes one active role, unlimited drafts, candidate profile reviews, and 10 monthly Intros shared across all your roles, with no card required.",
         pricing: true,
       },
       {

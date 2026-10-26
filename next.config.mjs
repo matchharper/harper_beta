@@ -12,6 +12,7 @@ const nextConfig = {
     "@fontsource/noto-sans-kr",
   ],
   outputFileTracingIncludes: {
+    "/*": ["./src/lib/career/simulation/applicationStagehand/*.mjs", "./src/lib/career/simulation/applicationStagehand/*.cjs", "./src/lib/career/simulation/applicationStagehand/package*.json"],
     "/api/resume-assets/*": [
       "./node_modules/pagedjs/dist/paged.min.js",
       "./node_modules/@fontsource/noto-sans-kr/400.css",
@@ -106,6 +107,11 @@ const nextConfig = {
               "camera=(), microphone=(self), geolocation=(), browsing-topics=()",
           },
         ],
+      },
+      {
+        // Mail button links carry a one-time token in the path.
+        source: "/email-action/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
     ];
   },

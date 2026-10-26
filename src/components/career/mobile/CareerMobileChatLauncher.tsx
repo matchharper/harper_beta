@@ -365,7 +365,7 @@ function CareerMobileChatLauncher({
               onContinue={onAcknowledgeIdleWarning}
             />
           ) : null}
-          <div className="flex items-center gap-2 px-4 pb-3 pt-1">
+          <div className="flex items-center gap-2 px-4 pb-2 pt-1">
             {showMinimizedCall ? (
               <div
                 className="flex w-full items-center justify-center"
@@ -415,7 +415,7 @@ function CareerMobileChatLauncher({
                 aria-label={
                   showChatInterviewCta ? chatInterviewCtaLabel : "채팅 열기"
                 }
-                leadingAction={<Plus className="h-4 w-4" />}
+                leadingAction={<Plus className="h-5 w-5" strokeWidth={1.6} />}
                 onClick={openDrawer}
                 textClassName={cn(
                   (showChatInterviewCta ||

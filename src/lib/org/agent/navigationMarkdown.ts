@@ -1,4 +1,5 @@
 import { buildOrgHref } from "@/lib/org/routes";
+import { orgTalentReferenceHref } from "./talentReference";
 
 const HARPER_SITE_ORIGIN = "https://matchharper.com";
 const PRIVATE_NAVIGATION_LINK_PATTERN =
@@ -26,7 +27,7 @@ export function convertSlackCandidateIntroToWebMarkdown(value: string) {
   return convertSlackMrkdwnToWebMarkdown(value);
 }
 
-function toHarperWebUrl(args: { target: string; workspaceId: string }) {
+function toHarperWebUrl(args: { target: string; workspaceId: string; roleId?: string | null }) {
   const { target, workspaceId } = args;
   if (target === "home") {
     return `${HARPER_SITE_ORIGIN}${buildOrgHref({
@@ -60,12 +61,7 @@ function toHarperWebUrl(args: { target: string; workspaceId: string }) {
   if (target.startsWith("talent:")) {
     const talentId = target.slice("talent:".length).trim();
     if (!talentId) return null;
-    return `${HARPER_SITE_ORIGIN}${buildOrgHref({
-      detail: { talentId },
-      orgId: workspaceId,
-      page: "jobs",
-      roleId: "all",
-    })}`;
+    return orgTalentReferenceHref({ talentId, workspaceId, roleId: args.roleId });
   }
   return null;
 }
@@ -74,6 +70,7 @@ function toHarperWebUrl(args: { target: string; workspaceId: string }) {
 export function renderOrgAgentWebLinks(args: {
   markdown: string;
   workspaceId: string;
+  roleId?: string | null;
 }) {
   return args.markdown.replace(
     PRIVATE_NAVIGATION_LINK_PATTERN,
@@ -81,6 +78,7 @@ export function renderOrgAgentWebLinks(args: {
       const href = toHarperWebUrl({
         target,
         workspaceId: args.workspaceId,
+        roleId: args.roleId,
       });
       return href ? `](${href})` : match;
     }

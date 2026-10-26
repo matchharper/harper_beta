@@ -1,0 +1,38 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "fit-present-state-diagnostic-v1",
+  "sourceRun": "experiment-v4-ars09",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/screen_diagnostic.py",
+  "objective": "Separate a satisfied current residence requirement from unknown future workplace/authorization in detailed scores.",
+  "labelProvenance": "Three actual v4 recommended candidates manually read across original scores and stage3 explanations; frozen before new stage2 API requests. Post-observation, not representative or independent.",
+  "limitations": [
+    "No exact numeric target or code score correction.",
+    "Earlier explicit-exclusive and permitted-mobility controls remain fit-practical-context-diagnostic-v1 unchanged."
+  ],
+  "cases": [
+    {
+      "id": "fit-current-location-01",
+      "stage": 2,
+      "sourceTrace": "decisions-4e64ec0629f54a8995be299eff82ade3.json",
+      "sourceTraceSha256": "ad66dac0f6d69ea21c4022d948f631cdaa10d4880c309ab0473e0422afd9f22d",
+      "inputSha256": "1cc32a731a94b6c7b651a70cc6b24277984f1767acf1dd56ab75d4ac18b5a87e",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence."
+    },
+    {
+      "id": "fit-current-location-02",
+      "stage": 2,
+      "sourceTrace": "decisions-9cf027bba3874c51951d2ef956bbfe6e.json",
+      "sourceTraceSha256": "6cd6d326df67158416535fece146317c9e062c9a7c2af33291daf7440da34fa3",
+      "inputSha256": "9d9ba9a1798934deb4edcb83ac7c0ec4950f25e1618faacc4b31ce25645b0ee2",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence."
+    },
+    {
+      "id": "fit-current-location-03",
+      "stage": 2,
+      "sourceTrace": "decisions-a575a167c7d841e8b16f8f053722254a.json",
+      "sourceTraceSha256": "e9e5b8acc9d835fb510a831ce460e4306423bac01c81007722812700edda93db",
+      "inputSha256": "ac3fc52cfef0170985f1db095ac912ac0df9619de69464878127d97f42c5d0a5",
+      "expectedObservation": "Current Korea residence is supplied and satisfies the explicit current-state condition. Future Toronto onsite acceptance, relocation and authorization are unconfirmed or negotiable, not an affirmative contradiction. The combined practical criterion should preserve uncertainty, rather than treating missing acceptance as conflict. Other professional criteria retain their independent evidence."
+    }
+  ]
+}

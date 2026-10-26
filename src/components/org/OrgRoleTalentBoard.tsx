@@ -1,5 +1,7 @@
+import { OrgSavedCandidates } from "./OrgSavedCandidates";
+import { OrgPassPopover } from "./OrgPassPopover";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
-import styles from "./OrgRoleTalentBoard.module.css";
+import { OrgAcceptIntroButton } from "./OrgAcceptIntroButton";
 import { canUsePendingConnections } from "@/lib/org/billing/types";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { OrgPendingConnectionGate } from "@/components/org/billing/OrgPendingConnectionGate";
@@ -10,20 +12,18 @@ import {
   ArrowDownWideNarrow,
   ArrowRight,
   Info,
+  ListFilter,
   LoaderCircle,
 } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
 import {
   AcceptIntroDialog,
   StopCandidateDialog,
 } from "@/components/org/OrgCandidateDecisionDialogs";
-import {
-  CompanyIntroPassDialog,
-  CompanyIntroRequestDialog,
-} from "@/components/org/CompanyIntroDecisionDialogs";
+import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
 import {
   getOrgCandidateDisplayName,
   formatOrgUpcomingMeetingTime,
@@ -32,6 +32,9 @@ import {
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
 import { Tabs } from "@/components/ui/tabs";
+import { FilterChipGroup } from "@/components/ui/filter-chip-group";
+import { RoleRubricEditor } from "@/components/org/role-start/RoleRubricEditor";
+import type { OrgCompanyCriterionFitness } from "@/lib/org/companyCriteriaEvaluations";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -97,7 +100,11 @@ function getBoardStageLabel(
   sourceT: (source: string) => string
 ) {
   const label = sourceT(getStageLabel(stage, roleName));
-  if (stage.id !== "accepted" && ORG_STAGE_DESCRIPTIONS[stage.id]) {
+  if (
+    stage.id !== "accepted" &&
+    !isOrgInboxStage(stage.id) &&
+    ORG_STAGE_DESCRIPTIONS[stage.id]
+  ) {
     return (
       <span className="inline-flex items-center gap-1.5">
         {label}
@@ -140,7 +147,7 @@ function OrgRoleRecommendationStatus({
       : active
         ? c(
             "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
-            "Even without a search or intro request, Harper introduces your company and role to suitable candidates.\n\nAfter a candidate accepts the role, Harper prepares their introduction and recommends them in Ready to connect."
+            "Harper introduces your company and role to suitable candidates without waiting for a search or Intro request.\n\nWhen someone agrees to talk, Harper prepares their introduction for your team to review in Ready to connect."
           )
         : status === "paused"
           ? c(
@@ -375,6 +382,7 @@ export function OrgRoleTalentBoardCard({
   onMove,
   onOpen,
   onReject,
+  onPass,
   pending = false,
   stages,
 }: {
@@ -385,10 +393,11 @@ export function OrgRoleTalentBoardCard({
   onMove?: (item: OrgBoardItem, stage: OrgStageId) => void;
   onOpen: () => void;
   onReject?: () => void;
+  onPass?: (reason: string) => Promise<void>;
   pending?: boolean;
   stages: OrgStage[];
 }) {
-  const [introEntering, setIntroEntering] = useState(true);
+  const [passOpen, setPassOpen] = useState(false);
   const sourceT = useOrgSourceT();
   const { locale, c } = useOrgLocale();
   const name =
@@ -403,7 +412,7 @@ export function OrgRoleTalentBoardCard({
   return (
     <article className="@container/talent-card relative isolate min-w-0 overflow-hidden rounded-lg">
       <CardButton
-        aria-label={c("{p0} 후보자 상세 보기", "View {p0} candidate details", {
+        aria-label={c("{p0} 후보자 상세 보기", "View {p0}'s details", {
           p0: name,
         })}
         className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05"
@@ -463,7 +472,7 @@ export function OrgRoleTalentBoardCard({
 
         {item.criteriaEvaluations.length > 0 ? (
           <section
-            aria-label={c("평가 기준별 적합도", "Fit by criteria")}
+            aria-label={c("평가 기준별 적합도", "Fit by criterion")}
             className="mt-6 grid grid-cols-1 gap-2 @sm/talent-card:grid-cols-2 @xl/talent-card:grid-cols-3"
           >
             {item.criteriaEvaluations.map((evaluation, index) => (
@@ -501,7 +510,7 @@ export function OrgRoleTalentBoardCard({
 
         {item.processClosureNoticeUnresolved ? (
           <div className="-mx-4 mt-5 bg-critical px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:px-5">
-            {c("프로세스 종료 안내됨", "Process closed — notified")}
+            {c("프로세스 종료 안내됨", "Hiring ended · candidate notified")}
           </div>
         ) : item.upcomingMeeting ? (
           <div className="-mx-4 -mb-4 mt-5 bg-positive px-4 py-1.5 text-[12px] font-medium text-neutral-00 sm:-mx-5 sm:-mb-5 sm:px-5">
@@ -512,72 +521,46 @@ export function OrgRoleTalentBoardCard({
 
         {showDecisionActions ? (
           <div className="pointer-events-auto mt-6 grid grid-cols-[108px_minmax(0,1fr)] gap-2">
-            <MuteButton
-              disabled={pending}
-              onClick={onReject}
-              size="md"
-              variant="neutral"
-              className="py-2"
-            >
-              {item.source === "company_intro"
-                ? "Pass"
-                : CANDIDATE_DECISION_LABELS.reject}
-            </MuteButton>
-            <MuteButton
-              className={cn(
-                "w-full py-2",
-                item.source !== "company_intro" &&
-                  "bg-positive-strong text-white border-positive-strong hover:bg-positive-strong",
-                item.source !== "company_intro" && styles.acceptIntro,
-                introEntering && styles.introEntering
-              )}
-              disabled={pending}
-              onClick={onAccept}
-              size="md"
-              variant="dark"
-            >
-              {item.source === "company_intro" ? (
-                <>
-                  {c("Intro 요청", "Request intro")}
-                  <ArrowRight className="size-4" />
-                </>
-              ) : (
-                <>
-                  <svg
-                    aria-hidden="true"
-                    className="size-4 shrink-0 overflow-visible"
-                    fill="none"
-                    focusable="false"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    {/* Lucide Handshake paths, grouped by hand for motion. */}
-                    <g
-                      className={styles.handshake}
-                      onAnimationEnd={(event) => {
-                        if (event.target === event.currentTarget) {
-                          setIntroEntering(false);
-                        }
-                      }}
-                    >
-                      <g className={styles.leftHand}>
-                        <path d="M3 4h8" />
-                        <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
-                        <path d="m11 17 2 2a1 1 0 1 0 3-3" />
-                      </g>
-                      <g className={styles.rightHand}>
-                        <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
-                        <path d="m21 3 1 11h-2" />
-                      </g>
-                    </g>
-                  </svg>
-                  {CANDIDATE_DECISION_LABELS.connect}
-                </>
-              )}
-            </MuteButton>
+            {item.source === "company_intro" ? (
+              <OrgPassPopover
+                open={passOpen}
+                onOpenChange={setPassOpen}
+                onSubmit={async (reason) => {
+                  await onPass?.(reason);
+                }}
+                pending={pending}
+                shortcut={false}
+              />
+            ) : (
+              <MuteButton
+                disabled={pending}
+                onClick={onReject}
+                size="md"
+                variant="neutral"
+                className="py-2"
+              >
+                {CANDIDATE_DECISION_LABELS.reject}
+              </MuteButton>
+            )}
+            {item.source === "company_intro" ? (
+              <MuteButton
+                className="w-full py-2"
+                disabled={pending}
+                onClick={onAccept}
+                size="md"
+                variant="dark"
+              >
+                {c("Intro 보내기", "Send intro")}
+                <ArrowRight className="size-4" />
+              </MuteButton>
+            ) : (
+              <OrgAcceptIntroButton
+                className="w-full py-2"
+                disabled={pending}
+                onClick={onAccept}
+                size="md"
+              />
+            )}
           </div>
         ) : null}
       </div>
@@ -588,9 +571,11 @@ export function OrgRoleTalentBoardCard({
 export function OrgRoleTalentBoard({
   displayControl,
   section = "pipeline",
+  inboxItems,
 }: {
   displayControl?: ReactNode;
   section?: "inbox" | "pipeline";
+  inboxItems?: OrgBoardItem[];
 }) {
   const router = useRouter();
 
@@ -623,6 +608,36 @@ export function OrgRoleTalentBoard({
   const addToast = useToastStore((state) => state.add);
   const [activeStageId, setActiveStageId] = useState("");
   const [sort, setSort] = useState<OrgCandidateSort>("latest");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [rubricEditing, setRubricEditing] = useState(false);
+  // Criterion name → grades to keep. Empty means no filter on that criterion.
+  const [gradeFilters, setGradeFilters] = useState<
+    Record<string, OrgCompanyCriterionFitness[]>
+  >({});
+  const gradeOptions = (
+    ["excellent", "good", "uncertain", "bad"] as OrgCompanyCriterionFitness[]
+  ).map((grade) => ({
+    value: grade,
+    label: (
+      <span className="inline-flex items-center gap-1.5">
+        <Image
+          alt=""
+          aria-hidden="true"
+          className="size-3.5"
+          height={14}
+          src={`/svgs/${grade}.svg`}
+          width={14}
+        />
+        {grade === "excellent"
+          ? c("매우 잘 맞음", "Excellent fit")
+          : grade === "good"
+            ? c("잘 맞음", "Good fit")
+            : grade === "uncertain"
+              ? c("확인 필요", "More information needed")
+              : c("맞지 않음", "Not a fit")}
+      </span>
+    ),
+  }));
   const sortOptions = [
     { value: "latest", label: c("최신순", "Newest first") },
     { value: "recommended", label: c("추천순", "Recommended") },
@@ -643,9 +658,7 @@ export function OrgRoleTalentBoard({
   const [companyIntroRequest, setCompanyIntroRequest] = useState<{
     item: OrgBoardItem;
   } | null>(null);
-  const [companyIntroPass, setCompanyIntroPass] = useState<OrgBoardItem | null>(
-    null
-  );
+
   const visibleStages = useMemo(() => {
     const stages = (board?.stages ?? []).filter(
       (stage) =>
@@ -693,15 +706,55 @@ export function OrgRoleTalentBoard({
   const selectedStage = visibleStages.find(
     (stage) => stage.id === selectedStageId
   );
+  // Criteria changed from the filter panel or the 매칭 기준 tab are reviewed
+  // again in the background; refresh until no card shows "다시 보는 중".
+  const reviewingAgain = (board?.items ?? []).some((item) =>
+    item.criteriaEvaluations.some((evaluation) => evaluation.pending)
+  );
+  const refetchBoard = boardQuery.refetch;
+  useEffect(() => {
+    if (!reviewingAgain) return;
+    const timer = window.setInterval(() => void refetchBoard(), 2_000);
+    return () => window.clearInterval(timer);
+  }, [reviewingAgain, refetchBoard]);
+  const stageItems = useMemo(
+    () =>
+      inboxItems ??
+      (board?.items ?? [])
+        .filter((item) => item.stage === selectedStageId && !item.savedAt)
+        .sort((left, right) => compareOrgCandidates(left, right, sort)),
+    [board?.items, selectedStageId, sort, inboxItems]
+  );
+  const criterionNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          stageItems.flatMap((item) =>
+            item.criteriaEvaluations.map((evaluation) => evaluation.name)
+          )
+        )
+      ),
+    [stageItems]
+  );
+  const activeGradeFilters = Object.entries(gradeFilters).filter(
+    ([name, grades]) => grades.length > 0 && criterionNames.includes(name)
+  );
   const items = useMemo(
     () =>
-      (board?.items ?? [])
-        .filter((item) => item.stage === selectedStageId)
-        .sort((left, right) => compareOrgCandidates(left, right, sort)),
-    [board?.items, selectedStageId, sort]
+      activeGradeFilters.length
+        ? stageItems.filter((item) =>
+            activeGradeFilters.every(([name, grades]) => {
+              const evaluation = item.criteriaEvaluations.find(
+                (entry) => entry.name === name
+              );
+              return Boolean(evaluation && !evaluation.pending && grades.includes(evaluation.fitness));
+            })
+          )
+        : stageItems,
+    [activeGradeFilters, stageItems]
   );
   const recommendationStatus =
-    section === "inbox" && activeRole ? (
+    section === "inbox" && !inboxItems && activeRole ? (
       <OrgRoleRecommendationStatus
         capacityBlocked={
           board?.talentFirstCapacityBlockedRoleIds?.includes(
@@ -785,80 +838,164 @@ export function OrgRoleTalentBoard({
       aria-label={c("후보자 보드", "Candidate board")}
       className="@container/talent-board min-w-0"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
-          <Tabs
-            activeValue={selectedStageId}
-            aria-label={c("보드 단계 선택", "Select board stage")}
-            className="min-w-max w-fit gap-0.5"
-            items={visibleStages.map((stage) => ({
-              label: (
-                <span className="inline-flex items-center gap-2">
-                  {getBoardStageLabel(stage, activeRole?.name ?? null, sourceT)}
-                  <span
-                    className={cn(
-                      "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
+      {!inboxItems && (
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
+            <Tabs
+              activeValue={selectedStageId}
+              aria-label={c("보드 단계 선택", "Select board stage")}
+              className="min-w-max w-fit gap-0.5"
+              items={visibleStages.map((stage) => ({
+                label: (
+                  <span className="inline-flex items-center gap-2">
+                    {getBoardStageLabel(
+                      stage,
+                      activeRole?.name ?? null,
+                      sourceT
                     )}
-                  >
-                    {stage.id === "pending_connection" && pendingLocked ? (
-                      <LockKeyhole
-                        aria-label={locale === "ko" ? "유료 슬롯" : "Paid slot"}
-                        className="size-3"
-                      />
-                    ) : (
-                      (stageCounts.get(stage.id) ?? 0)
-                    )}
+                    <span
+                      className={cn(
+                        "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
+                      )}
+                    >
+                      {stage.id === "pending_connection" && pendingLocked ? (
+                        <LockKeyhole
+                          aria-label={
+                            locale === "ko" ? "유료 슬롯" : "Paid slot"
+                          }
+                          className="size-3"
+                        />
+                      ) : (
+                        (stageCounts.get(stage.id) ?? 0)
+                      )}
+                    </span>
                   </span>
-                </span>
-              ),
-              tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
-              value: stage.id,
-            }))}
-            onValueChange={selectStage}
-            size="small"
-            variant="pills"
-          />
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <MuteButton
-              aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-              title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
-              className="shrink-0"
-              size="md"
-              variant="transparent"
-            >
-              <ArrowDownWideNarrow aria-hidden="true" className="size-4" />
-            </MuteButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuRadioGroup
-              value={sort}
-              onValueChange={(value) => {
-                if (value === "latest" || value === "recommended")
-                  setSort(value);
-              }}
-            >
-              {sortOptions.map((option) => (
-                <DropdownMenuRadioItem key={option.value} value={option.value}>
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {displayControl ? (
-          <div className="shrink-0">{displayControl}</div>
+                ),
+                tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
+                tooltipVariant: isOrgInboxStage(stage.id) ? "light" : "dark",
+                value: stage.id,
+              }))}
+              onValueChange={selectStage}
+              size="small"
+              variant="pills"
+            />
+          </div>
+        {criterionNames.length ? (
+          <MuteButton
+            aria-expanded={filterOpen}
+            aria-label={c("기준별 등급으로 거르기", "Filter by criterion grade")}
+            className="shrink-0"
+            onClick={() => setFilterOpen((open) => !open)}
+            size="md"
+            title={c("기준별 등급으로 거르기", "Filter by criterion grade")}
+            variant={activeGradeFilters.length ? "neutral" : "transparent"}
+          >
+            <ListFilter aria-hidden="true" className="size-4" />
+            {activeGradeFilters.length ? (
+              <span className="text-[12px] tabular-nums">
+                {activeGradeFilters.length}
+              </span>
+            ) : null}
+          </MuteButton>
         ) : null}
-      </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <MuteButton
+                aria-label={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+                title={c("정렬: {p0}", "Sort: {p0}", { p0: sortLabel })}
+                className="shrink-0"
+                size="md"
+                variant="transparent"
+              >
+                <ArrowDownWideNarrow aria-hidden="true" className="size-4" />
+              </MuteButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuRadioGroup
+                value={sort}
+                onValueChange={(value) => {
+                  if (value === "latest" || value === "recommended")
+                    setSort(value);
+                }}
+              >
+                {sortOptions.map((option) => (
+                  <DropdownMenuRadioItem
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {displayControl ? (
+            <div className="shrink-0">{displayControl}</div>
+          ) : null}
+        </div>
+      )}
 
+      {section === "pipeline" && <OrgSavedCandidates column={false} />}
       {recommendationStatus ? (
         <div className="mt-2">{recommendationStatus}</div>
       ) : null}
 
+      {filterOpen && criterionNames.length ? (
+        <section
+          aria-label={c("기준별 등급 필터", "Criterion grade filters")}
+          className="mt-3 grid gap-2 rounded-md bg-bg-basement p-3"
+        >
+          {criterionNames.map((name) => (
+            <FilterChipGroup<OrgCompanyCriterionFitness>
+              aria-label={name}
+              key={name}
+              label={name}
+              onValueChange={(value) =>
+                setGradeFilters((current) => ({ ...current, [name]: value }))
+              }
+              options={gradeOptions}
+              value={gradeFilters[name] ?? []}
+            />
+          ))}
+          <div className="flex items-center justify-between gap-2 text-[12px] text-neutral-muted">
+            {activeRole && permissions.canManageCandidates && !rubricEditing ? (
+              <MuteButton onClick={() => setRubricEditing(true)} size="sm" variant="transparent">
+                {c("기준 고치기", "Edit criteria")}
+              </MuteButton>
+            ) : null}
+            <span className="ml-auto">
+              {c("{p0}명 중 {p1}명", "{p1} of {p0}", {
+                p0: stageItems.length,
+                p1: items.length,
+              })}
+            </span>
+            {activeGradeFilters.length ? (
+              <MuteButton
+                onClick={() => setGradeFilters({})}
+                size="sm"
+                variant="transparent"
+              >
+                {c("필터 지우기", "Clear filters")}
+              </MuteButton>
+            ) : null}
+          </div>
+          {rubricEditing && activeRole ? (
+            <div className="mt-2 border-t border-neutral-1000-a05 pt-3">
+              <RoleRubricEditor
+                onClose={() => setRubricEditing(false)}
+                onSaved={() => void boardQuery.refetch()}
+                roleId={activeRole.roleId}
+                workspaceId={workspaceId}
+              />
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <div
         className={cn(
-          "relative isolate mt-4 grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
+          "relative isolate grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
+          !inboxItems && "mt-4",
           selectedStage?.id === "accepted" && "overflow-hidden"
         )}
       >
@@ -906,19 +1043,22 @@ export function OrgRoleTalentBoard({
                   : c("후보자 보드", "Candidate board")
               )
             }
-            onReject={() =>
-              item.source === "company_intro"
-                ? setCompanyIntroPass(item)
-                : requestMove(item, "process_stopped")
+            onReject={() => requestMove(item, "process_stopped")}
+            onPass={async (reason) => {
+              if (item.companyIntro)
+                await passCompanyIntro.mutateAsync({
+                  introCandidateId: item.companyIntro.id,
+                  workspaceId,
+                  reason,
+                });
+            }}
+            pending={
+              isCandidateStagePending(item) ||
+              passCompanyIntro.isPending
             }
-            pending={isCandidateStagePending(item)}
             stages={board?.stages ?? []}
           />
         ))}
-        {items.length === 0 &&
-        !(pendingHidden && selectedStageId === "pending_connection") ? (
-          <div className="col-span-full px-4 py-12 text-center text-[13px] text-neutral-muted"></div>
-        ) : null}
       </div>
 
       <AcceptIntroDialog
@@ -1026,41 +1166,12 @@ export function OrgRoleTalentBoard({
           });
           setCompanyIntroRequest(null);
           addToast({
-            message: c(
-              "후보자에게 보낼 제안 준비를 시작했습니다. 발송 후 후보자의 답변을 기다립니다.",
-              "Started preparing an offer to send to the candidate. Waiting for the candidate's response after sending."
-            ),
+            message: c("Intro를 요청했어요.", "Intro requested."),
             variant: "success",
           });
         }}
         open={Boolean(companyIntroRequest)}
         pending={requestCompanyIntro.isPending}
-      />
-
-      <CompanyIntroPassDialog
-        candidateName={
-          companyIntroPass
-            ? sourceT(getOrgCandidateDisplayName(companyIntroPass))
-            : ""
-        }
-        onClose={() => setCompanyIntroPass(null)}
-        onConfirm={async () => {
-          if (!companyIntroPass?.companyIntro) return;
-          await passCompanyIntro.mutateAsync({
-            introCandidateId: companyIntroPass.companyIntro.id,
-            workspaceId,
-          });
-          setCompanyIntroPass(null);
-          addToast({
-            message: c(
-              "후보자에게 제안하지 않고 목록에서 제외했습니다.",
-              "Removed from the list without making an offer to the candidate."
-            ),
-            variant: "success",
-          });
-        }}
-        open={Boolean(companyIntroPass)}
-        pending={passCompanyIntro.isPending}
       />
     </section>
   );

@@ -3,11 +3,11 @@ import type { OrgMessageKey } from "./ko";
 export const en: Record<OrgMessageKey, string> = {
   "teams.duplicateName":
     "A team with that name already exists. Choose a different name.",
-  "teams.ownerOnly": "Only Owners can manage teams and access scopes.",
+  "teams.ownerOnly": "Only Owners can manage teams and their access permissions.",
   "teams.notFound": "Team not found.",
   "teams.invalidMembers": "Check the selected team members.",
-  "teams.invalidRoles": "Check the selected Roles.",
-  "teams.invalidScope": "Check the access scope.",
+  "teams.invalidRoles": "Check the selected roles.",
+  "teams.invalidScope": "Check the access permissions.",
   "teams.invalidTarget": "Check the selected item.",
   "teams.nameLength": "Enter a team name of up to 100 characters.",
   "teams.title": "Teams",
@@ -16,7 +16,7 @@ export const en: Record<OrgMessageKey, string> = {
   "teams.cancel": "Cancel",
   "teams.save": "Save changes",
   "teams.deleteBlocked":
-    "Move assigned Roles to another team or leave them unassigned before deleting this team.",
+    "Move this team's roles to another team or unassign them before deleting the team.",
   "teams.members": "Team members",
   "teams.unassigned": "Unassigned",
   "teams.noResults": "No results found.",
@@ -133,7 +133,7 @@ export const en: Record<OrgMessageKey, string> = {
   "profile.untitled": "Untitled",
   "profile.experience": "Experience",
   "profile.unknownRole": "Unknown role",
-  "profile.resources": "Attached resources",
+  "profile.resources": "Attachments and links",
   "hooks.candidate.fallbackName": "Candidate",
   "hooks.candidate.fallbackRole": "this role",
   "hooks.candidate.stageChangeFailed":
@@ -156,63 +156,63 @@ export const en: Record<OrgMessageKey, string> = {
   "shared.onboarding.description":
     "Tell Harper whenever your criteria or hiring needs change. Harper will use the updated criteria to find candidates.",
   "faq.service-overview.question":
-    "What does Harper do for company hiring teams?",
+    "How does Harper help my team hire?",
   "faq.service-overview.answer":
-    "Harper is your recruiting partner. We help define Roles and hiring criteria, find relevant candidates, and review their experience and working preferences. In Suggested candidates, your team chooses whom to approach and requests an Intro. When a candidate accepts, an introduction email connects them with your selected team members. Ready to connect is available for Roles with an assigned slot: Harper introduces the Role first, confirms the candidate is willing to talk, and presents them for your connection decision. Existing agreements retain their own access terms. After connecting, Harper can help with candidate correspondence and scheduling while your team manages the process in Pipeline.",
+    "Harper is your recruiting partner. We help define roles and hiring criteria, find candidates, and review their experience and work preferences. In Suggested candidates, you choose who you'd like to meet and request an Intro. If they accept, Harper introduces them to your selected team members by email. For roles with a paid slot, Ready to connect brings you candidates Harper has already spoken with about the role. You decide whether to connect. Existing agreements may include different access. After the introduction, Harper can help with messages and scheduling while your team tracks hiring progress in Pipeline.",
   "faq.getting-started.question": "I just signed up. What should I do first?",
   "faq.getting-started.answer":
-    "Start by reviewing your company information and Pitch, inviting the team members involved in hiring, and setting up a Slack notification channel. If you do not have a Role, open New role on the web or tell Harper in Slack what you want to hire for. A finished JD is optional; Harper can help draft the Description and Hiring Brief through conversation. Finish registering any draft Role, then review candidate search and its schedule in Settings for active Roles. Request an Intro from Suggested candidates, and decide on any Ready to connect candidates available for the Role in Inbox. You do not need to keep the page open while waiting. Roles can be paused or deleted when needed.",
+    "Review your company information and Pitch, invite the team members involved in hiring, and choose a Slack channel for notifications. To create a role, select New role on the web or tell Harper in Slack who you're hiring for. You don't need a finished job description: Harper can help write the Description and Hiring Brief with you. Finish setting up any draft roles, then check Scheduled candidate search and its schedule in Settings. Review Suggested candidates to request Intros, and use Ready to connect in Inbox when it's available for your role. You can close the page while you wait and pause or delete roles when needed.",
   "faq.pricing-overview.question":
     "How much does Harper cost? Is there a monthly subscription or hiring fee?",
   "faq.pricing-overview.answer":
-    "Free includes unlimited Roles and 10 monthly Intros shared across all Roles. The shared allowance remains separate when slots are added. A standard slot provides paid features and 50 monthly Intros for its assigned Role. Free and standard slot subscriptions have no hiring success fee; Enterprise and existing agreements follow their agreed terms. Self-serve signup for new companies and billing for ordinary workspaces are temporarily paused. Where Slots and Billing are available, they show assignments, subscriptions, and invoices. If those menus are absent or your terms are unclear, contact the Harper team through Contact us. The public offer on /pricing does not establish your company's actual agreement or balance.",
+    "Free includes one active role, unlimited drafts, and 10 monthly Intros shared across your roles. Each paid slot adds paid features and 50 monthly Intros for one role. You keep your shared Intros when you add slots. Free and standard subscriptions have no placement fee; Enterprise and existing agreements follow their own terms. New companies can't currently create a workspace themselves, and self-service payments are temporarily paused for most workspaces. If you have access to Slots and Billing, you can review your assignments, subscriptions, and invoices there. Otherwise, choose Contact Harper to check your terms. Public pricing doesn't replace your company's agreement or show its actual balance.",
   "faq.pricing-subscription.question":
     "Is there a monthly subscription or usage fee? Is the service free?",
   "faq.pricing-subscription.answer":
-    "Free and standard monthly or annual slot subscriptions are available as plan types. Annual subscriptions are billed for the year, while Intros renew monthly. Self-serve billing for ordinary workspaces is temporarily paused. Where billing is enabled, review your current subscription in Slots and Billing. If those menus are absent, ask the Harper team about your agreement and access.",
+    "Harper offers Free, monthly, and annual slot plans. Annual plans are paid upfront for the year, but Intros renew monthly. Self-service payments are temporarily paused for most workspaces. If you have access to Slots and Billing, check your subscription there. Otherwise, contact the Harper team to confirm your plan and what it includes.",
   "faq.pricing-success-fee.question":
-    "If a hire is made, how much does it cost? Is there a set fee rate?",
+    "Is there a fee when we hire someone?",
   "faq.pricing-success-fee.answer":
-    "Free and standard paid Slot subscriptions have no hiring success fee. Enterprise is available by request with separately agreed pricing that may include a success fee. Existing separate agreements keep their agreed terms. Contact the Harper team with your company name to confirm the terms and amounts that apply to you.",
+    "Free and standard slot subscriptions have no placement fee. Enterprise pricing is agreed separately and may include one. If your company already has a separate agreement, those terms still apply. Contact the Harper team with your company name to confirm your pricing.",
   "faq.recommendation-timing.question":
-    "I registered a role—why aren’t candidate recommendations arriving immediately?",
+    "I've created a role. When will I see candidates?",
   "faq.recommendation-timing.answer":
-    "Registering a Role does not mean candidates have already been found or contacted. Searching and reviewing candidates against your current criteria takes time. Suggested candidates are presented for company review before acceptance; Ready to connect candidates have accepted Harper's recommendation and been introduced to your company. These lists can arrive at different times, and a search may find no suitable candidates. Review the search settings and saved Hiring Brief, or use Run Search in the Role conversation to request a fresh search. A search request does not guarantee a candidate count or delivery time.",
+    "Creating a role doesn't mean candidates have already been found or contacted. Harper needs time to search and review them against your criteria. Suggested candidates are people your team can approach; Ready to connect contains people who have already agreed to discuss the role. The two lists may update at different times, and some searches may find no suitable candidates. Check your Hiring Brief and search settings, or choose Run search in the role's chat to start a new search. Candidate numbers and timing aren't guaranteed.",
   "faq.pending-connection.question":
     "What's the difference between Ready to connect and Suggested candidates?",
   "faq.pending-connection.answer":
-    "Suggested candidates have not accepted this Role. They may have received or declined an earlier Harper recommendation, so the list does not prove the Role is new to them or that they are interested. Once your team confirms an Intro request, Harper approaches the candidate with your reasons for meeting. Acceptance connects them with your selected team members by introduction email. Ready to connect candidates have heard about the company and Role, agreed to talk, and are waiting for your decision. This requires an assigned slot or access under an existing agreement. Your team must accept or decline the connection. Candidate acceptance and the actual introduction to your company can occur at different times.",
+    "Suggested candidates are people who haven't agreed to discuss this role yet. They may have seen or declined an earlier recommendation, so being listed doesn't mean they're interested or that the role is new to them. Confirm an Intro request, and Harper will reach out with your reasons for wanting to meet. If they accept, Harper introduces them to your selected team members by email. Ready to connect contains candidates who have heard about your company and role, agreed to talk, and are waiting for your decision. It requires a paid slot or an eligible agreement. Your team can accept or decline the introduction. A candidate's acceptance and their introduction to your team may happen at different times.",
   "faq.recommendation-paused.question":
-    "Recommendations started arriving but then stopped. Why aren’t new candidates coming?",
+    "Why have new recommendations stopped?",
   "faq.recommendation-paused.answer":
-    "Check whether the Role is paused or ended, whether candidate search is enabled in Settings, and when the next search is scheduled. When Ready to connect reaches the Role's review limit, some new candidate-first outreach is limited. Accepting or declining existing connections can free that capacity; it does not mean all Suggested candidates searches stop. Slot or contract access, unresolved suggestions, and candidate availability can also affect results. Ask Harper for recent search history to see what is known, and contact support with the Role name and situation if needed.",
+    "Check that the role is active, Scheduled candidate search is on, and the next search is scheduled. If Ready to connect has reached its review limit, Harper may pause some outreach until your team accepts or declines those introductions. This doesn't stop all searches for Suggested candidates. Your plan, pending proposals, and the availability of suitable candidates can also affect results. Ask Harper about recent searches. If you still need help, contact the team with the role name and what's happening.",
   "faq.recommendation-feedback.question":
     "The recommended candidates aren't quite what I'm looking for.",
   "faq.recommendation-feedback.answer":
-    "Tell Harper which candidate felt off and why. We distinguish feedback about that person from criteria you want applied to future recommendations. Shared criteria can be reflected in the Hiring Brief or Evaluation Criteria after you review the proposed changes. Pass in Suggested candidates removes the suggestion without contacting the candidate. Declining a Ready to connect connection ends this Role's process; it is not a hold. Candidates already introduced may have been reviewed under earlier criteria, so review them separately against the updated requirements.",
+    "Tell Harper which candidate wasn't a good fit and why. Harper will distinguish feedback about that person from criteria you want to use for future recommendations. You can review proposed changes to the Hiring Brief or Evaluation Criteria before they're applied. In Suggested candidates, Pass removes someone from the list without contacting them. Declining an introduction in Ready to connect ends the process for that role; it doesn't put the candidate on hold. Candidates already introduced may have been assessed against earlier criteria, so review whether you still want to meet them.",
   "faq.connect.question": "What happens when I choose Accept Intro?",
   "faq.connect.answer":
     "Accept Intro lets you choose an email introduction or an interview request. With an email introduction, Harper introduces the candidate and your selected teammates by email. With an interview request, Harper sends a scheduling link so the candidate can choose a time. Opening the dialog does not send anything; review the method and details, then accept to proceed. The candidate has already expressed interest in discussing this Role, but accepting the Intro does not itself confirm an interview time.",
   "faq.reject.question":
-    "What does rejecting a candidate connection mean? Is Reject a pause?",
+    "What happens if we decline an introduction?",
   "faq.reject.answer":
-    "Reject is not a temporary hold — it signals the company will not move forward with that candidate for the current role. If you select Reject, no intro email is sent and the candidate will be shown that the company has closed their consideration; Harper will initiate the closure notification. Any messages the candidate has already seen or received cannot be recalled, so choose carefully. If you need more information before deciding, you can ask Harper to request details or an updated resume instead of rejecting. If you leave a reason for rejection, it won’t be sent to the candidate but will be used to improve future recommendations.",
+    "Declining means your company won't move forward with this candidate for this role. It isn't a temporary hold. Harper doesn't send an introduction email, the candidate can see that the process has ended, and Harper begins notifying them. Messages already seen or received can't be recalled. If you need more information first, ask Harper to request details or an updated resume. Any reason you leave is used to improve future recommendations and isn't shared with the candidate.",
   "faq.intro-email.question":
-    "Who is included in the intro email? Who receives the Email intro?",
+    "Who receives the introduction email?",
   "faq.intro-email.answer":
-    "The introduction email is addressed to the candidate, with your selected team members CC'd. Choose the people who will greet the candidate and coordinate the next step. Multiple team members can be included. If someone is missing, an Owner must invite them through Organization's Members page. For a company-requested Intro, select recipients beforehand because the introduction is sent to them after the candidate accepts.",
+    "Harper emails the candidate and CCs the team members you select. Choose the people who will greet the candidate and arrange next steps. You can include several team members. If someone is missing, an Owner can invite them from Members under Organization. When you request an Intro, choose these recipients in advance: they'll receive the introduction after the candidate accepts.",
   "faq.direct-contact.question":
     "Can we contact a candidate directly without a Harper intro email?",
   "faq.direct-contact.answer":
-    "Yes. If you choose Direct contact, Harper will not send an intro email and will record the connection as started. After that, your company is responsible for the first outreach and scheduling, so select Direct contact when you already have the person who will reach out and the contact method ready. Asking questions alone does not change the candidate’s status; Harper will confirm that it will not send an email and that the company must make first contact before proceeding. If you want both sides introduced in a single email, the default Email intro is better suited.",
+    "Yes. With Direct contact, Harper marks the candidate as connected without sending an introduction email. Your team is responsible for the first message and scheduling, so choose this when you know who will reach out and how. Asking about direct contact doesn't change the status. Harper confirms that your team will make contact before proceeding. Choose Email introduction if you'd prefer Harper to introduce both sides in one email.",
   "faq.candidate-contact.question":
     "Can you ask a candidate questions or request an updated resume?",
   "faq.candidate-contact.answer":
-    "Harper can handle questions, resume requests, and information sharing before a Ready to connect decision and during an active process after connection. In Intro requested, follow-up contact is also available after the proposal has been delivered and while the candidate's reply is pending. An uncontacted suggestion must first go through the Intro request flow. Clear routine messages can be conveyed directly; first outreach or important proposals may need a reviewed draft. Creating or editing a draft does not send it. If a request for a reply or material remains valid, Harper can send one considerate follow-up email at least three days after the initial delivery. Replies are reported in the conversation where the request began. Additional contact does not establish acceptance or a connection.",
+    "Yes. You can ask Harper to send questions, request a resume, or share information before a Ready to connect decision and while hiring is in progress after connecting. For Intro requested, you can send additional messages once the proposal has been delivered. For a candidate you haven't approached yet, start with an Intro request. Harper can send clear, routine messages directly; first outreach and important proposals may need your review. Writing or editing a draft doesn't send it. If you're still waiting for a requested reply or document, Harper may send one follow-up email at least three days after the first message. Replies appear in the conversation where you made the request. Additional messages don't replace the candidate's acceptance or an introduction.",
   "faq.compensation.question":
     "Can you tell us this candidate’s current salary or desired compensation?",
   "faq.compensation.answer":
-    "Harper does not disclose current or expected compensation figures the candidate has not authorized for company sharing. Private compensation is not copied into profiles or Harper Note. If needed, Harper can ask the candidate for a fresh answer and let them choose the sharing scope. Specify only what you need, such as a figure or range, base or total compensation, and currency. We relay the actual authorized response and do not infer amounts when there is no reply.",
+    "Harper only shares compensation figures the candidate has agreed to share with your company. Private salary information isn't included in profiles or Harper Note. You can ask Harper to request an answer from the candidate, who decides what to share. Specify what you need, such as a figure or range, base salary or total compensation, and currency. Harper passes on the answer the candidate authorizes and doesn't guess if they haven't replied.",
   "faq.role-status.question":
     "What’s the difference between pausing a role and ending it completely?",
   "faq.role-status.answer":
@@ -237,33 +237,33 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.role-creation.answer":
     "Yes — you can start without a finished JD. Provide as much as you know: why you’re hiring, the work the hire will do, must-have experience, and working conditions. If it’s hard to describe, share a representative person’s LinkedIn, GitHub, or bio and note which aspects to use as reference. Harper won’t treat that example person as a candidate; it will use your team’s required level and strengths to shape the role criteria. Before registering the role you must select a Slack channel for notifications and assign one primary owner. You can change criteria later in the role conversation, but candidates already in Inbox’s connection queue may have been introduced under the previous criteria. If you make big changes, reconfirm for each existing candidate whether you still want to meet them under the new criteria.",
   "faq.exploratory-hiring.question":
-    "We don’t have a concrete hiring plan yet. I’d like to meet good people as they appear. Is that okay?",
+    "Can we meet candidates before we have a firm hiring plan?",
   "faq.exploratory-hiring.answer":
-    "A finished JD is optional. Start by defining the Role's actual work and criteria, and explain undecided conditions in the New role conversation. After registering it, your team can choose whom to approach in Suggested candidates. Being listed does not establish interest or an application: the candidate must accept your Intro request before you connect. Where the Role has access, Harper can also introduce the Role first and present only candidates who are willing to talk in Ready to connect.",
+    "You don't need a finished job description. Start with the work and criteria you know, and explain what's still undecided in the New role chat. Once the role is set up, choose people to approach from Suggested candidates. Being listed doesn't mean they've applied or expressed interest: they need to accept your Intro request before you connect. If your role has access to Ready to connect, Harper can also introduce the role first and bring you candidates who want to talk.",
   "faq.role-visibility.question":
     "Are the Description, Hiring Brief, and Evaluation Criteria all visible to candidates?",
   "faq.role-visibility.answer":
-    "Description is the public explanation candidates use to understand the company and Role. Hiring Brief and Evaluation Criteria are internal review criteria; Context for Harper holds lasting company or Role context. Internal documents are not automatically shown as a public JD. New Roles start with a Description and Hiring Brief; Evaluation Criteria can be added when needed. Updating one document does not automatically rewrite all the others. Keep work and employment conditions candidates need in Description, and review external job visibility and company-name disclosure separately in Role Settings.",
+    "Description explains the company and role to candidates. Hiring Brief and Evaluation Criteria are for your team's internal assessment. Context for Harper stores ongoing company or role context. These internal documents aren't automatically published as a job description. New roles start with a Description and Hiring Brief, and you can add Evaluation Criteria later. Editing one document doesn't rewrite the others. Keep the work and employment conditions candidates need in Description, and check public job promotion and company name visibility separately in the role's Settings.",
   "shared.5f41a68b":
     "You can request an Intro to a candidate who has not accepted this role yet. They may have received or declined a previous Harper recommendation. When you request an Intro, Harper delivers your proposal to the candidate.",
   "shared.b7c09ff5":
     "Your company has requested an Intro. Harper prepares and delivers the proposal, then waits for the candidate’s response. If they accept, the status changes to Connected and Harper proceeds with the email introduction.",
   "shared.01f06f3c":
     "The candidate accepted Harper’s recommendation for this role and is waiting for your company’s decision. Accept the connection or request an interview so Harper can connect you and help you move forward.",
-  "shared.58ae8bef": "Candidate accepted · preparing connection",
+  "shared.58ae8bef": "Candidate accepted · arranging introduction",
   "shared.25da2e1a": "Awaiting candidate response",
   "shared.company_intro_closed": "Proposal closed",
   "shared.003ae54f": "Preparing candidate outreach",
   "shared.4d496020": "Outreach status needs review",
-  "shared.507214f6": "Internal acceptance",
+  "shared.507214f6": "Candidate accepted",
   "shared.c5cf91d1": "Archived",
   "shared.9d5bf4e1": "Suggested candidates",
   "shared.ca3372f3": "Connected",
   "shared.876d30df": "Final offer",
   "shared.3f04ffa6": "Ready to connect",
-  "shared.bbe180bf": "Process closed",
+  "shared.bbe180bf": "Process ended",
   "shared.93184741": "Hybrid",
-  "shared.e0fa4fca": "Office",
+  "shared.e0fa4fca": "On-site",
   "shared.2a8640d2": "Remote",
   "shared.ec873cb1": "Admin",
   "shared.c6415dfc": "member",
@@ -282,7 +282,7 @@ export const en: Record<OrgMessageKey, string> = {
   "shared.52144f25": "Candidate confirmation needed to resume",
   "shared.58ae0214": "Asked candidate to confirm renewed interest",
   "shared.1f27e644": "Candidate replied about resuming",
-  "shared.110fcab2": "Process closure notice sent",
+  "shared.110fcab2": "Candidate notified that the process ended",
   "shared.50d28a3a": "Candidate activity",
   "shared.e9953055": "Company note",
   "shared.1cf99dd3": "Hiring stage changed",
@@ -294,7 +294,7 @@ export const en: Record<OrgMessageKey, string> = {
   "shared.2ab096e7": "Question",
   "shared.c1d8bd63": "Resume request",
   "shared.534fb589": "No information",
-  "shared.91b5616d": "Company assigned stage",
+  "shared.91b5616d": "Stage set by your team",
   "shared.a8fa59ad": "Candidate feedback",
   "shared.7cac734c": "Activity log",
   "shared.1bc58373": "Candidate request",
@@ -325,6 +325,7 @@ export const en: Record<OrgMessageKey, string> = {
   "TalentDetailSimpleView.8fef4400": "Contacted candidate",
   "TalentDetailSimpleView.8cadb511": "Sent question to candidate",
   "TalentDetailSimpleView.e290cc9b": "Received candidate response",
+  "TalentDetailSimpleView.candidateMessageReceived": "New message from the candidate",
   "TalentDetailSimpleView.0ba36805": "Candidate message delivered",
   "TalentDetailSimpleView.e608273c": "Note",
   "TalentDetailSimpleView.4fcf75a6": "Start connection",
@@ -378,19 +379,19 @@ export const en: Record<OrgMessageKey, string> = {
   "profile.language": "Language",
   "profile.korean": "Korean",
   "profile.english": "English",
-  "CompanyIntroDecisionDialogs.e0eb989a": "Request intro",
+  "CompanyIntroDecisionDialogs.e0eb989a": "Send intro",
   "OrgAllRolesOverview.00381055": "Updated",
   "OrgAllRolesOverview.6883bd4c": "Loading",
   "OrgAllRolesOverview.d145476b": "Roles",
   "OrgAppBar.05cfb2ab": "Slack",
-  "OrgAppBar.2acd6035": "Enter email to invite.",
+  "OrgAppBar.2acd6035": "Enter an email address to invite.",
   "OrgAppBar.2d8f3055": "Sending",
   "OrgAppBar.47e3a0eb": "Me",
   "OrgAppBar.5815e707": "Verifying",
   "OrgAppBar.5e25a1ac": "Failed to send invite email.",
   "OrgAppBar.5eefbd11": "Leave",
   "OrgAppBar.6118ed2a": "Failed to complete Slack connection.",
-  "OrgAppBar.8b30f7c6": "Check the email format.",
+  "OrgAppBar.8b30f7c6": "Enter a valid email address.",
   "OrgAppBar.91ce0989": "Connect Slack",
   "OrgAppBar.ba27826d": "Sent",
   "OrgAppBar.c636f3b2": "",
@@ -405,7 +406,7 @@ export const en: Record<OrgMessageKey, string> = {
   "OrgCandidateDecisionDialogs.5db6feff": "'s",
   "OrgCandidateDecisionDialogs.6c1cce40": "Recipients",
   "OrgCandidateDecisionDialogs.747ee859": "Direct contact",
-  "OrgCandidateDecisionDialogs.76556b18": "Enter interview title.",
+  "OrgCandidateDecisionDialogs.76556b18": "Enter an interview title.",
   "OrgCandidateDecisionDialogs.a5ce18fd": "Email intro",
   "OrgDocsModal.0c99ff6a": "3.",
   "OrgDocsModal.1a172f6f": "Final offer",
@@ -415,15 +416,15 @@ export const en: Record<OrgMessageKey, string> = {
   "OrgDocsModal.9ff5b96b": "1.",
   "OrgDocsModal.a9f86905": "Reject",
   "OrgDocsModal.c387abc5": "Company and role",
-  "OrgDocsModal.cb0b11bc": "Process closed",
+  "OrgDocsModal.cb0b11bc": "Process ended",
   "OrgDocsModal.f26705aa": "Pipeline",
   "OrgLoginScreen.01b16a8f": "Workspace",
   "OrgLoginScreen.362a63ea": "Harper",
   "OrgLoginScreen.5346243f": "name@company.com",
   "OrgLoginScreen.5670ec7e": "Company",
   "OrgLoginScreen.8a25c44c":
-    "Briefly summarize your discussion with the Harper team.",
-  "OrgLoginScreen.bd40208e": "Enter an email to receive replies.",
+    "Tell us briefly what you discussed with the Harper team.",
+  "OrgLoginScreen.bd40208e": "Enter an email address where we can reach you.",
   "OrgLoginScreen.ca1356e7": "Submitting",
   "OrgLoginScreen.d032699c": "Google",
   "OrgLoginScreen.e04a3165": "Send",
@@ -452,7 +453,7 @@ export const en: Record<OrgMessageKey, string> = {
   "OrgSlackPanel.d93fc452": "Reconnect",
   "TalentDetailSimpleView.2fc1c257": "No feed yet",
   "TalentDetailSimpleView.452acc9c": "LinkedIn",
-  "TalentDetailSimpleView.556631d5": "Join date",
+  "TalentDetailSimpleView.556631d5": "Date joined",
   "TalentDetailSimpleView.56b436f3": "Next candidate",
   "TalentDetailSimpleView.59d76d8e": "Close",
   "TalentDetailSimpleView.65bec4e3": "Resume",
@@ -491,7 +492,7 @@ export const en: Record<OrgMessageKey, string> = {
   "meetings.OrgMeetingScheduleDialog.3de052c6": "Role",
   "meetings.OrgMeetingScheduleDialog.53111d24": "Company and candidate",
   "meetings.OrgMeetingScheduleDialog.5aadb613":
-    "Review the email subject and body for the candidate.",
+    "Review the email you'll send to the candidate.",
   "meetings.OrgMeetingScheduleDialog.5d5c76d2": "Meeting time confirmed",
   "meetings.OrgMeetingScheduleDialog.9bf8cbe2": "Meeting",
   "meetings.OrgMeetingScheduleDialog.a92b5c71": "Organizer",
@@ -526,17 +527,17 @@ export const en: Record<OrgMessageKey, string> = {
   "role.overview.OrgRoleSettingsContent.promotionExample": "Example",
   "role.overview.OrgRoleSettingsContent.anonymityTitle":
     "Company name visibility",
-  "role.overview.OrgRoleSettingsContent.anonymousState": "Company hidden",
-  "role.overview.OrgRoleSettingsContent.namedState": "Company shown",
+  "role.overview.OrgRoleSettingsContent.anonymousState": "Company name hidden",
+  "role.overview.OrgRoleSettingsContent.namedState": "Company name visible",
   "role.overview.OrgRoleSettingsContent.9b8461a2": "Status",
-  "role.overview.OrgRoleSettingsContent.adbf70e1": "Company-first suggestions",
+  "role.overview.OrgRoleSettingsContent.adbf70e1": "Scheduled candidate search",
   "role.overview.OrgRoleSettingsContent.f3674383": "No email",
   "workspace.OrgGoogleCalendarIntegration.074866b9":
-    "Connect to create interview links and send invites.",
+    "create meeting links, and send interview invitations.",
   "workspace.OrgGoogleCalendarIntegration.6d825a32": "Google Calendar",
   "workspace.OrgGoogleCalendarIntegration.a865cf6c": "Retry disconnect",
   "workspace.OrgGoogleCalendarIntegration.b34542e1":
-    "Check meeting availability,",
+    "Connect your calendar to check availability,",
   "workspace.OrgGoogleCalendarIntegration.db12bd89": "Connect",
   "workspace.OrgTalentTable.0d494035": "Reviewed",
   "workspace.OrgTalentTable.1e4b7d53": "Role",
@@ -549,7 +550,7 @@ export const en: Record<OrgMessageKey, string> = {
   "workspace.OrgWorkspaceSidebar.562916df": "Contact Harper",
   "workspace.OrgWorkspaceSidebar.5b4f72fc": "Organization",
   "workspace.OrgWorkspaceSidebar.d2aab2e3": "All statuses",
-  "workspace.OrgWorkspaceSidebar.ec0a3091": "Save schedule",
+  "workspace.OrgWorkspaceSidebar.ec0a3091": "Set availability",
   "workspace.pages.OrgDocumentsPage.51aa3f5e": "Document content",
   "workspace.pages.OrgDocumentsPage.bd6b70f0": "FAQ",
   "workspace.pages.OrgHomePage.6afe34fc": "Home",
@@ -559,11 +560,11 @@ export const en: Record<OrgMessageKey, string> = {
   "workspace.pages.OrgInboxPage.08943503": "Suggested candidate",
   "workspace.pages.OrgInboxPage.364caaeb": "Unnamed role",
   "workspace.pages.OrgInboxPage.3cff6bc8": "Date added",
-  "workspace.pages.OrgInboxPage.8fd03ff8": "Awaiting Harper review",
+  "workspace.pages.OrgInboxPage.8fd03ff8": "Harper is preparing the introduction",
   "workspace.pages.OrgInboxPage.f6f6dae1": "Inbox",
   "workspace.pages.OrgRoleCreationPage.7df56925": "Role dialog",
   "workspace.pages.OrgRoleCreationPage.ceed6860": "Pipeline",
-  "workspace.pages.OrgSettingsPage.16c1f28c": "Interview schedule",
+  "workspace.pages.OrgSettingsPage.16c1f28c": "Interview availability",
   "workspace.pages.OrgSettingsPage.31a5eb8e": "channels",
   "workspace.pages.OrgSettingsPage.b568de28":
     "Failed to process Slack request.",
@@ -573,7 +574,7 @@ export const en: Record<OrgMessageKey, string> = {
   "workspace.pages.OrgSettingsPage.e5d67468": "Integrations",
   "workspace.pages.OrgTeamPage.165fe503": "Unspecified",
   "workspace.pages.OrgTeamPage.1f8abbb8": "Selected members",
-  "workspace.pages.OrgTeamPage.2fd8af36": "Invite member",
+  "workspace.pages.OrgTeamPage.2fd8af36": "Invite team member",
   "workspace.pages.OrgTeamPage.511e7c42": "Email",
   "workspace.pages.OrgTeamPage.948045e5": "https://",
   "workspace.pages.OrgTeamPage.a0aa3e23": "Headquarters",
@@ -581,34 +582,34 @@ export const en: Record<OrgMessageKey, string> = {
   "workspace.pages.OrgTeamPage.b7428b09": "Founded",
   "workspace.pages.OrgTeamPage.c196286e": "Funding stage",
   "workspace.pages.OrgTeamPage.c5b7908f": "Permission",
-  "workspace.pages.OrgTeamPage.e094f135": "Remove member",
+  "workspace.pages.OrgTeamPage.e094f135": "Remove team member",
   "workspace.pages.OrgTeamPage.fd1593d1": "Enter a valid email.",
   "role.overview.OrgRoleSettingsContent.scheduleDays": "Search on",
   "role.overview.OrgRoleSettingsContent.scheduleTime": "Search at",
   "faq.signup-invitations.question":
     "How do I join a company workspace or invite team members?",
   "faq.signup-invitations.answer":
-    "Self-serve workspace creation for new companies is temporarily paused. If invited, sign in with the invited email and accept the invitation. If your company has a workspace, ask an Owner to invite you. Signing in with the same company email domain does not make you a member automatically. New companies can contact the Harper team through the company page's meeting request or Contact us.",
+    "New companies can't currently create a workspace themselves. If you've been invited, sign in with the email address on your invitation and accept it. If your company already uses Harper, ask an Owner to invite you. A matching company email domain doesn't automatically give you access. New companies can join the waitlist on the company page or contact the Harper team.",
   "faq.company-pitch-memory.question":
     "What belongs in Pitch and Context for Harper?",
   "faq.company-pitch-memory.answer":
     "Pitch explains what your company builds and the concrete achievements, culture, and benefits that make it worth joining. Put lasting company background or operating context in Context for Harper, and Role-specific requirements and preferences in Hiring Brief. Ask Harper to read or update company information and saved context; memory and Hiring Brief changes are applied after you review the proposal. A temporary situation involving one candidate is not a company-wide hiring rule.",
   "faq.role-reference.question":
-    "Can reference people help clarify hiring criteria?",
+    "Can I share someone's profile as an example of who we're looking for?",
   "faq.role-reference.answer":
-    "Yes. Share a real person's LinkedIn, GitHub, or other professional material and the strengths to use as a reference. Harper refines the Hiring Brief using verified professional facts and the reasons you provide. A reference person is not treated as a candidate unless you separately request candidate assessment.",
+    "Yes. Share their LinkedIn, GitHub, or other professional profile and explain which strengths matter to you. Harper uses verified career details and your reasoning to refine the Hiring Brief. Sharing a reference profile doesn't make that person a candidate unless you separately ask Harper to assess them for the role.",
   "faq.regular-search.question":
-    "When does recurring candidate search run, and can I change or disable it?",
+    "When does scheduled candidate search run?",
   "faq.regular-search.answer":
-    "Role Settings lets you enable candidate search and set its days and time. New Roles default to enabled at 9 AM on Monday, Wednesday, and Friday in Asia/Seoul; existing Roles keep their saved settings. This controls recurring searches for company-reviewed suggestions. Turning it off does not prevent an explicit Run Search request or disable all candidate-first recommendations available under a slot or existing agreement. A setting change does not cancel a search already started or a proposal already delivered.",
+    "In the role's Settings, turn Scheduled candidate search on or off and choose its days and time. New roles default to Monday, Wednesday, and Friday at 9 AM Korea time; existing roles keep their saved settings. This schedule finds candidates your team can approach. Turning it off doesn't stop a manual Run search or every recommendation Harper makes directly to candidates under an eligible plan. Changing the schedule doesn't cancel a search already running or a proposal already sent.",
   "faq.run-search.question":
-    "What does Run Search do? Does it contact candidates immediately?",
+    "Does Run search contact candidates?",
   "faq.run-search.answer":
-    "Run Search requests a fresh search for people your company might approach based on the saved current Hiring Brief. It is different from reading the existing candidate list and does not wait for the recurring schedule. Suitable results can appear in Suggested candidates after review, but a search alone does not send a company proposal. Outreach begins after your team confirms an Intro request. If the same search is already underway, Harper reports that state. Results can be fewer than expected or empty.",
+    "No. Run search starts a fresh search using the current Hiring Brief without waiting for the next scheduled search. It doesn't just reload your existing candidate list. Suitable candidates can appear in Suggested candidates after review. Harper only approaches them on your behalf after your team confirms an Intro request. If the same search is already running, Harper lets you know. A search may return fewer candidates than expected or none at all.",
   "faq.search-history.question":
     "Can I see when searches ran and how many candidates were reviewed?",
   "faq.search-history.answer":
-    "Ask Harper for recent search history to see recorded execution times, triggers, reviewed counts, and selection totals. Older records can also be requested. Selection counts are not delivery or acceptance counts, and an unrecorded number is not zero. Private candidate-first outreach histories and internal assessments are not disclosed to the company. Check actual delivery and replies separately using the available records for candidates shared with your company.",
+    "Ask Harper for recent or older search history to see when searches ran, what started them, and how many candidates were reviewed and selected. A selected candidate hasn't necessarily been contacted or accepted an introduction, and a missing count doesn't mean zero. Harper doesn't share private outreach history or internal assessments. Check the available activity for candidates shared with your company to see what was delivered and how they replied.",
   "faq.candidate-profile-summary.question":
     "What do TL;DR, Harper Note, and fit assessments mean?",
   "faq.candidate-profile-summary.answer":
@@ -616,31 +617,31 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.intro-request.question":
     "What does an Intro request require, and how is it different from Pass?",
   "faq.intro-request.answer":
-    "An Intro request needs concrete reasons you want to meet the candidate and the company recipients for an introduction if they accept. After your team reviews and confirms the request, Harper introduces the company and Role and asks whether the candidate wants to talk. Acceptance triggers the email introduction and normally moves the candidate to Connected without another company approval. A custom process stage is optional. Pass removes the suggestion without contacting or notifying the candidate.",
+    "Explain why you'd like to meet the candidate and select the team members who should receive the introduction if they accept. After you review and confirm the request, Harper introduces your company and role and asks whether the candidate would like to talk. If they accept, Harper normally moves them to Connected and sends the introduction email without another approval from your team. You can optionally choose a custom hiring stage. Pass removes the suggestion without contacting or notifying the candidate.",
   "faq.intro-awaiting.question":
-    "What is Intro requested waiting for? Does silence mean a decline?",
+    "What does Intro requested mean? Is no reply a rejection?",
   "faq.intro-awaiting.answer":
-    "Intro requested covers proposal preparation and the wait for the candidate's response. The card distinguishes preparing, awaiting a reply, and accepted but being connected. A request alone does not establish delivery or acceptance. Silence means neither acceptance nor decline. Additional contact can be requested after actual proposal delivery. Interviews and ordinary Pipeline moves are unavailable before acceptance. Acceptance leads to the introduction without another company approval; a decline closes the proposal and is reported to your team.",
+    "Intro requested covers the time Harper spends preparing the proposal and waiting for the candidate's reply. The card shows whether outreach is being prepared, a reply is pending, or an accepted introduction is being arranged. Making a request doesn't by itself confirm delivery or acceptance. No reply means neither acceptance nor rejection. You can request another message after the proposal has been delivered, but interviews and ordinary Pipeline moves aren't available before acceptance. If the candidate accepts, Harper introduces you without another approval. If they decline, the proposal ends and your team is notified.",
   "faq.connection-access.question":
     "Why is Ready to connect locked? Do shared Intros unlock it?",
   "faq.connection-access.answer":
-    "Under standard subscriptions, Ready to connect requires a slot assigned to that Role. Shared Intros can fund actions such as Intro requests, but they do not grant Ready to connect access. A slot for one Role does not unlock paid features for another. Existing agreements and Enterprise follow their own access terms. Check the assignment if Slots is available; otherwise contact the Harper team to confirm access.",
+    "On standard plans, Ready to connect needs a paid slot assigned to the role. Shared Intros can be used for Intro requests, but don't unlock Ready to connect. A slot assigned to one role doesn't unlock paid features for another. Enterprise and existing agreements may have different terms. Check Slots if it's available, or contact Harper to confirm your access.",
   "faq.slots-and-credits.question":
-    "How do shared Free Intros differ from slot Intros?",
+    "What's the difference between shared Intros and slot Intros?",
   "faq.slots-and-credits.answer":
-    "Free and standard slot workspaces have 10 monthly Intros shared across all Roles. Each slot adds 50 monthly Intros for its assigned Role. Shared Intros are not a free slot assigned to one Role and do not limit the number of Roles or hires. Intros renew monthly and unused Intros do not roll over. Confirm actual balances, renewal dates, and any contract exceptions from your company's own information.",
+    "Free and standard plans include 10 monthly Intros shared across your roles. Each paid slot adds 50 monthly Intros for the role assigned to it. Shared Intros aren't a free slot and don't represent a limit on drafts or hires. Intros renew monthly, and unused Intros don't roll over. Check your company's balance, renewal dates, and agreement for any exceptions.",
   "faq.credit-spending.question":
-    "When are Intros spent, and what happens when slot Intros run out?",
+    "When is an Intro used? What if we run out?",
   "faq.credit-spending.answer":
-    "On standard plans, confirming a company Intro request or accepting a Ready to connect connection spends one Intro. The Role's own slot Intros are used first, then shared Intros. Intros from another Role's slot cannot fund it. Searching, creating a Role, Pass, and declining a connection are separate from these two paid actions. If all usable Intros are exhausted, the action cannot complete, but Role creation and hiring activation remain available. Follow the notice shown in the web or Slack and contact the Harper team if needed.",
+    "On standard plans, confirming an Intro request or accepting an introduction in Ready to connect uses one Intro. Harper uses the role's slot Intros first, then shared Intros. It can't use Intros from another role's slot. Searching, creating a role, passing on a suggestion, and declining an introduction don't use Intros. If none are available, the request can't go through. Your Intro balance doesn't change the active-role limit: you can have one active Free role plus one per paid slot, with unlimited drafts. Existing agreements keep their own terms. Follow the notice in Harper or Slack, or contact the Harper team for help.",
   "faq.slot-management.question":
     "Does changing or canceling a slot pause its Role?",
   "faq.slot-management.answer":
-    "Where billing is enabled, Slots manages assignments. Cancellation applies to an individual slot; check the subscription information for its access end date. When the slot expires, features dependent on it become unavailable, but the Role is not automatically paused. It can continue with Free features and shared Intros. When reassigning a slot, review which features the previous Role will lose. Self-serve billing for ordinary workspaces is temporarily paused, so contact the Harper team if the menus are absent.",
+    "If you have access to Slots, manage assignments there. Each slot has its own subscription and access end date. When a slot expires, Harper assigns any available valid slots first. One Free role can remain active without a slot; if several qualify, the oldest stays active and the others are paused. Existing candidates, Intros, and hiring history are preserved. Separate agreements keep their own terms. Reassigning a slot also affects which role has paid features and must respect the active Free role limit. Self-service payments are temporarily paused for most workspaces, so contact Harper if these menus aren't available.",
   "faq.role-public-promotion.question":
-    "What changes when I enable external job promotion or hide the company name?",
+    "What do public job promotion and company name visibility do?",
   "faq.role-public-promotion.answer":
-    "Enabling external job visibility in Role Settings allows Harper to promote the Role on channels such as LinkedIn. Enabling it does not prove a posting is already live. Company-name disclosure can be turned off separately, but changing the setting does not automatically rewrite existing external postings. Review Description for identifying text as well. Turning off external visibility does not delete the internal Role or stop hiring.",
+    "Public job promotion lets Harper share the role on channels such as LinkedIn. Turning it on doesn't mean a job has already been posted. You can hide the company name separately, but this won't automatically update existing postings. Check the Description for details that could identify your company, too. Turning promotion off doesn't delete the role or stop hiring.",
   "faq.workspace-language.question":
     "Can I change Harper's language on the web and in Slack?",
   "faq.workspace-language.answer":
@@ -648,35 +649,35 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.contact-drafts.question": "When is a reviewed contact draft sent?",
   "faq.contact-drafts.answer":
     "Creating or editing a draft does not send it. Once you approve the displayed final copy, it is normally delivered after a short delay; an explicit send-now request allows immediate delivery. A pending contact can be canceled only while cancellation is available, and a delivered message cannot be recalled. If the copy changes before approval, review the latest draft. Clear routine correspondence can also be conveyed without a separate draft review.",
-  "faq.category.0": "Getting started and Roles",
+  "faq.category.0": "Getting started and roles",
   "faq.category.1": "Search and recommendations",
   "faq.category.2": "Introductions and connections",
-  "faq.category.3": "Candidate communication and process",
+  "faq.category.3": "Candidate communication and hiring",
   "faq.category.4": "Team and integrations",
   "faq.category.5": "Slots and pricing",
   "documents.heading.harper-introduction": "About Harper",
   "documents.heading.company-and-team": "Company and team",
   "documents.heading.slack": "Using Slack",
-  "documents.heading.create-a-role": "Creating a Role",
+  "documents.heading.create-a-role": "Creating a role",
   "documents.heading.candidate-search": "Managing candidate search",
   "documents.heading.review-recommendations": "Reviewing candidates",
   "documents.heading.accept-or-decline":
-    "Introduction and connection decisions",
+    "Accepting or declining introductions",
   "documents.heading.ask-harper": "Candidate communication",
   "documents.heading.pipeline": "Pipeline and scheduling",
   "documents.heading.slots-and-credits": "Slots and Intros",
   "documents.heading.public-job-visibility":
-    "External jobs and company-name disclosure",
+    "Public job posts and company visibility",
   "documents.eyebrow.company-and-team": "Company and team members",
   "documents.eyebrow.candidate-search": "Search settings and history",
   "documents.eyebrow.slots-and-credits": "Access and pricing",
-  "documents.eyebrow.public-job-visibility": "Publication settings",
+  "documents.eyebrow.public-job-visibility": "Job posting settings",
   "shared.stageDescription.accepted":
-    "The candidate has accepted the role, but it has not yet moved to the stage where your company decides whether to connect. This internal status tracks Harper’s follow-up processing; it does not require a separate team member’s approval.",
+    "The candidate has agreed to discuss this role. Harper is preparing their introduction before your team decides whether to connect. No separate approval from a Harper team member is needed.",
   "shared.stageDescription.connected":
-    "The candidate has accepted your company’s Intro, or your company has agreed to connect after the candidate accepted the role. The email introduction or next connection step may still be in progress. Check Pipeline for the current hiring stage.",
+    "The candidate accepted your Intro request, or your team accepted an introduction from an interested candidate. The email introduction or next step may still be in progress. Check Pipeline for the current hiring stage.",
   "shared.stageDescription.intro_declined":
-    "The candidate declined your company’s Intro proposal, ending this proposal. This is different from waiting for a response.",
+    "The candidate declined your Intro request, so this proposal has ended. This is different from waiting for a reply.",
   "shared.stageDescription.process_stopped":
     "The process for this role has ended. This includes cases where your company declined to connect. See the candidate’s details for the reason and previous activity.",
   "shared.stageDescription.decision_made":

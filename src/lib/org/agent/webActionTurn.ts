@@ -1,3 +1,5 @@
+import { deferOrgResponseWork } from "../requestScope.server";
+import { traceStageStep } from "@/lib/org/stageTiming.server";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
@@ -18,7 +20,7 @@ function clean(value: unknown) {
 /** The normal dispatcher resumes interrupted work under its original job ID. */
 export async function recoverOrgAgentWebActionJobs(admin = getSupabaseAdmin()) {
   const { data, error } = await (admin.rpc as any)("recover_company_agent_web_action_jobs_v1", {
-    p_stale_after_seconds: 360, p_max_attempts: 5, p_limit: 20,
+    p_stale_after_seconds: 1860, p_max_attempts: 5, p_limit: 20,
   });
   if (error) throw error;
   return Number(data ?? 0);
@@ -48,24 +50,24 @@ export async function enqueueOrgAgentWebActionTurn(args: {
   const actionContext = JSON.parse(serializedContext) as JsonObject;
 
   const scoped = roleId
-    ? await ensureOrgRoleCreationConversation({
+    ? await traceStageStep("enqueueOrgAgentWebActionTurn:51", async () => (ensureOrgRoleCreationConversation({
         allowCompletedRole: true,
         roleId,
         user: args.user,
         workspaceId,
-      })
-    : await ensureOrgAgentConversation({ user: args.user, workspaceId });
+      })))
+    : await traceStageStep("enqueueOrgAgentWebActionTurn:57", async () => (ensureOrgAgentConversation({ user: args.user, workspaceId })));
   const admin = scoped.admin;
   let conversation = scoped.conversation;
   if (args.conversationId) {
-    const { data, error } = await (admin.from("company_conversations" as any) as any)
+    const { data, error } = await traceStageStep("enqueueOrgAgentWebActionTurn:61", async () => ((admin.from("company_conversations" as any) as any)
       .select("id,role_id").eq("id", args.conversationId)
-      .eq("company_workspace_id", workspaceId).single();
+      .eq("company_workspace_id", workspaceId).single()));
     if (error) throw error;
     // The authenticated scope above verifies the related Role.
     conversation = chooseWebActionConversation(conversation, data, roleId);
   }
-  const { data, error } = await (admin.rpc as any)(
+  const { data, error } = await traceStageStep("enqueueOrgAgentWebActionTurn:68", async () => ((admin.rpc as any)(
     "enqueue_company_agent_web_action_v1",
     {
       p_action_context: actionContext,
@@ -76,14 +78,17 @@ export async function enqueueOrgAgentWebActionTurn(args: {
       p_idempotency_key: idempotencyKey,
       p_role_id: conversation.role_id,
     }
-  );
+  )));
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   const jobId = clean(row?.job_id);
   if (!jobId)
     throw new Error("Company agent web-action enqueue returned no job");
 
-  const dispatched = args.dispatch === false ? false : await dispatchOrgAgentWebActionJob({ admin, jobId });
+  const deferred = args.dispatch !== false && deferOrgResponseWork(async () => {
+    await dispatchOrgAgentWebActionJob({ admin, jobId });
+  });
+  const dispatched = args.dispatch === false || deferred ? false : await traceStageStep("enqueueOrgAgentWebActionTurn:86", async () => (dispatchOrgAgentWebActionJob({ admin, jobId })));
 
   return { created: row?.created === true, dispatched, jobId };
 }
@@ -95,19 +100,19 @@ export async function dispatchOrgAgentWebActionJob(args: {
   const jobId = clean(args.jobId);
   if (!jobId) throw new Error("Company agent web-action job id is required");
   const admin = args.admin ?? getSupabaseAdmin();
-  const { data: job, error: jobError } = await (
+  const { data: job, error: jobError } = await traceStageStep("dispatchOrgAgentWebActionJob:98", async () => ((
     admin.from("company_agent_web_action_jobs" as any) as any
   )
     .select("queue_dispatch_attempt_count, status")
     .eq("id", jobId)
-    .maybeSingle();
+    .maybeSingle()));
   if (jobError) throw jobError;
   if (!job || !["queued", "retry"].includes(clean(job.status))) return false;
 
   try {
-    await publishCompanyAgentWebActionJob(jobId);
+    await traceStageStep("dispatchOrgAgentWebActionJob:108", async () => (publishCompanyAgentWebActionJob(jobId)));
     const now = new Date().toISOString();
-    const { error: dispatchError } = await (
+    const { error: dispatchError } = await traceStageStep("dispatchOrgAgentWebActionJob:110", async () => ((
       admin.from("company_agent_web_action_jobs" as any) as any
     )
       .update({
@@ -119,7 +124,7 @@ export async function dispatchOrgAgentWebActionJob(args: {
         updated_at: now,
       })
       .eq("id", jobId)
-      .in("status", ["queued", "retry"]);
+      .in("status", ["queued", "retry"])));
     if (dispatchError) throw dispatchError;
     return true;
   } catch (error) {
@@ -129,7 +134,7 @@ export async function dispatchOrgAgentWebActionJob(args: {
         : "Queue publish failed";
     const attempts = Number(job.queue_dispatch_attempt_count ?? 0) + 1;
     const terminal = attempts >= 5;
-    const { error: markError } = await (
+    const { error: markError } = await traceStageStep("dispatchOrgAgentWebActionJob:132", async () => ((
       admin.from("company_agent_web_action_jobs" as any) as any
     )
       .update({
@@ -143,7 +148,7 @@ export async function dispatchOrgAgentWebActionJob(args: {
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId)
-      .in("status", ["queued", "retry"]);
+      .in("status", ["queued", "retry"])));
     if (markError) {
       console.error("[org-agent/web-action:mark-dispatch-retry]", markError);
     }

@@ -19,6 +19,7 @@ export async function createApplicationStartOffer(args: {
   replyId?: number;
   documentId?: string;
   roleName: string;
+  introduction?: string;
   roleTitle?: string;
   companyName?: string;
   companyLogoUrl?: string | null;
@@ -49,6 +50,7 @@ export async function createApplicationStartOffer(args: {
     replyId: args.replyId,
     status: "ready",
     roleName: args.roleName,
+    introduction: args.introduction,
     roleTitle: args.roleTitle,
     companyName: args.companyName,
     companyLogoUrl: args.companyLogoUrl,
@@ -68,7 +70,7 @@ export async function createApplicationStartOffer(args: {
       conversation_id: args.conversationId,
       role: "assistant",
       message_type: "application_start_offer",
-      content: args.roleName,
+      content: args.introduction || args.roleName,
       payload: payload as unknown as Json,
     })
     .select("*")
@@ -131,6 +133,7 @@ export async function prepareApplicationStartPayload(args: {
   conversationId: string;
   replyId: number;
   documentId?: string;
+  introduction?: string;
   request: import("./startOfferPayload").StartOfferPayload;
 }) {
   // Shared data readers perform the same visibility checks as role-context lookup.

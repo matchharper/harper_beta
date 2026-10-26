@@ -18,11 +18,11 @@ test("role creation preserves Responses reasoning state between sequential tools
 test("role creation reports confirmed pre-execution rejection separately from later HTTP failures", async () => {
   const { roleCreationToolErrorResult } = await import("./roleCreationChat");
   const { OrgHttpError } = await import("@/lib/org/server");
-  const rejected = JSON.parse(roleCreationToolErrorResult({ error: new Error("Invalid arguments"), name: "update_role_draft", executed: false }));
-  assert.equal(rejected.effectStatus, "not_executed");
-  const partial = JSON.parse(roleCreationToolErrorResult({ error: new OrgHttpError(400, "A later field failed"), name: "update_role_draft", executed: true }));
-  assert.equal(partial.effectStatus, "unknown");
-  assert.match(partial.error, /A later field failed/);
+  const rejected = roleCreationToolErrorResult({ error: new Error("Invalid arguments"), name: "update_role_draft", executed: false });
+  assert.match(rejected, /effect Status: not_executed/);
+  const partial = roleCreationToolErrorResult({ error: new OrgHttpError(400, "A later field failed"), name: "update_role_draft", executed: true });
+  assert.match(partial, /effect Status: unknown/);
+  assert.match(partial, /A later field failed/);
 });
 
 test("notification errors give the model verified saved settings instead of optimistic requested settings", async () => {
@@ -36,16 +36,18 @@ test("notification errors give the model verified saved settings instead of opti
     assigneeUserIds: ["current-owner"],
     members: [{ userId: "current-owner", name: "Current teammate", email: null }],
   });
-  const result = JSON.parse(roleCreationToolErrorResult({
+  const result = roleCreationToolErrorResult({
     error: new Error("Invalid assignee"), name: "set_role_notification",
     executed: true, savedNotificationSettings: saved,
-  }));
-  assert.deepEqual(result.currentNotificationSettings, { channels: ["recruiting"], assignees: ["Current teammate"] });
-  assert.equal(result.effectStatus, "unknown");
-  assert.match(result.instruction, /Compare the requested change/);
-  assert.match(result.instruction, /without repeating an already clear approval/);
-  const unknown = JSON.parse(roleCreationToolErrorResult({ error: new Error("Read-back unavailable"), name: "set_role_notification", executed: true }));
-  assert.equal("currentNotificationSettings" in unknown, false);
+  });
+  assert.match(result, /recruiting/);
+  assert.match(result, /Current teammate/);
+  assert.doesNotMatch(result, /other/);
+  assert.match(result, /effect Status: unknown/);
+  assert.match(result, /Compare the requested change/);
+  assert.match(result, /without repeating an already clear approval/);
+  const unknown = roleCreationToolErrorResult({ error: new Error("Read-back unavailable"), name: "set_role_notification", executed: true });
+  assert.doesNotMatch(unknown, /current Notification Settings:/);
 });
 
 test("notification executor validates exact targets without reclassifying the user's approval wording", async () => {

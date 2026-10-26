@@ -1,7 +1,8 @@
 import { getCompanyInternalRoleRecord } from "@/lib/companyInternalRole";
 import type { User } from "@supabase/supabase-js";
 import { hasOrgWorkspaceAccessBypass } from "./access";
-import { assertWorkspaceAvailable } from "./workspaceReview.server";
+import { assertWorkspaceAvailable, isReviewOnboarding } from "./workspaceReview.server";
+import { readCachedOrgPermission } from "./permissionCache.server";
 import { OrgHttpError } from "./httpError";
 import { canAccessOrgRole, resolveOrgRoleAccess, type OrgRoleAccess, type OrgTeam } from "./teamAccess.shared";
 export { canAccessOrgRole, resolveOrgRoleAccess, orgMemberTeamIds } from "./teamAccess.shared";
@@ -27,8 +28,18 @@ export function constrainOrgRoleAudience(access: OrgRoleAccess, teamIds?: string
     teamIds: access.scope === "organization" ? [...teamIds] : access.teamIds.filter(id => teamIds.includes(id)) };
 }
 
-/** Authorization is read from current membership, never user-editable claims or the LLM. */
-export async function readOrgRoleAccess(args: { admin: Admin; user: User; workspaceId: string; allowReviewSetup?: boolean }): Promise<OrgRoleAccess> {
+type RoleAccessArgs = { admin: Admin; user: User; workspaceId: string; allowReviewSetup?: boolean; fresh?: boolean };
+
+/** Candidate routes may reuse DB-derived access; privileged/background calls stay fresh. */
+export async function readOrgRoleAccess(args: RoleAccessArgs): Promise<OrgRoleAccess> {
+  if (args.fresh || args.allowReviewSetup || (args.admin as any)[orgRoleAudienceScope] !== undefined || isReviewOnboarding(args.workspaceId, args.user.id)) {
+    return readCurrentOrgRoleAccess(args);
+  }
+  return readCachedOrgPermission({ workspaceId: args.workspaceId, userId: args.user.id,
+    internalAccess: hasOrgWorkspaceAccessBypass(args.user.email) }, () => readCurrentOrgRoleAccess(args));
+}
+
+async function readCurrentOrgRoleAccess(args: RoleAccessArgs): Promise<OrgRoleAccess> {
   await assertWorkspaceAvailable(args);
   const audienceTeamIds = (args.admin as any)[orgRoleAudienceScope] as string[] | undefined;
   if (hasOrgWorkspaceAccessBypass(args.user.email)) {

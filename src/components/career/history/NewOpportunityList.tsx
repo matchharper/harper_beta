@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { AnimatedHandshake } from "@/components/ui/animated-handshake";
 import { Badge } from "@/components/ui/badge";
 import { BareButton, MuteButton } from "@/components/ui/button";
 import { ClickablePanel } from "@/components/ui/clickable-panel";
@@ -37,6 +38,7 @@ import {
 } from "../opportunityTypeMeta";
 import type { CareerHistoryOpportunity } from "../types";
 import OpportunityPreferenceFit from "./OpportunityPreferenceFit";
+import { OpportunitySwipeRow } from "./OpportunitySwipeRow";
 
 type OpportunityAction = (item: CareerHistoryOpportunity) => void;
 
@@ -64,7 +66,7 @@ const DESCRIPTION_PREVIEW_HEIGHT = 280;
 const INTERNAL_CONNECTION_LABEL = "Harper 연결 제안";
 // career-i18n-skip-next-line Source is translated by useCareerT below.
 const INTERNAL_CONNECTION_DESCRIPTION =
-  "Harper가 회사와의 연결을 도와드리는 기회입니다. 아직 결정하기 어렵다면 저장해 두세요. 저장만으로 회사에 연결되지는 않습니다.";
+  "Harper가 회사와의 연결을 도와드리는 기회입니다.";
 const DATE_LABEL_FORMATTERS: Record<Locale, Intl.DateTimeFormat> = {
   ko: new Intl.DateTimeFormat("ko-KR", {
     month: "short",
@@ -90,6 +92,7 @@ function PositiveActionIconView({
   icon: LucideIcon;
   className?: string;
 }) {
+  if (Icon === Handshake) return <AnimatedHandshake className={className} />;
   return <Icon aria-hidden className={className} />;
 }
 
@@ -115,20 +118,24 @@ function OpportunityDescription({ item }: { item: CareerHistoryOpportunity }) {
   if (!item.description?.trim()) return null;
 
   return (
-    <section className="space-y-3">
-      <h4 className="text-[13px] font-medium text-neutral-muted">
+    <section className="space-y-3 pt-2">
+      <h4 className="text-[14px] font-medium leading-5 text-neutral-primary">
         {t("career.common.career.0f24yir", "역할 설명")}
       </h4>
       <div className="relative">
         <div
           className={cn(
-            "overflow-hidden text-[14px] leading-6",
+            "overflow-hidden",
             !expanded && "max-h-[280px]"
           )}
           id={contentId}
           ref={contentRef}
         >
-          <RichText variant="career" content={item.description} />
+          <RichText
+            variant="career"
+            typography="body"
+            content={item.description}
+          />
         </div>
         {!expanded && truncated ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-linear-to-b from-transparent to-white" />
@@ -214,288 +221,321 @@ function NewOpportunityCard({
   );
   const postingUrl = item.externalJdUrl ?? item.href;
 
-  const actionClass = "py-2.5 rounded-sm font-light text-sm";
+  const actionClass = "py-2.5 rounded-sm font-normal md:font-light text-sm";
 
   return (
-    <article
-      className={cn(
-        "group relative rounded-lg border border-neutral-1000-a05/50 transition-colors",
-        expanded ? "bg-white" : "bg-neutral-50"
-      )}
-      data-opportunity-id={item.id}
+    <OpportunitySwipeRow
+      disabled={pending || expanded}
+      positive={{
+        label: positiveLabel,
+        icon: (
+          <PositiveActionIconView
+            icon={PositiveActionIcon}
+            className="size-5"
+          />
+        ),
+        onSelect: () => onPositive(item),
+      }}
+      negative={{
+        label: negativeLabel,
+        icon: <ThumbsDown aria-hidden className="size-5" />,
+        onSelect: () => onNegative(item),
+      }}
     >
-      {isInternal ? (
-        <Badge
-          className="pointer-events-none absolute left-[2px] top-[-4px] z-10 bg-primary-faded text-primary"
-          icon={<Handshake aria-hidden />}
-          size="sm"
-          variant="faded"
-        >
-          {connectionLabel}
-        </Badge>
-      ) : null}
-      <ClickablePanel
-        aria-controls={contentId}
-        aria-expanded={expanded}
-        aria-label={`${item.title} · ${item.companyName}`}
-        className="flex min-w-0 cursor-pointer items-center gap-3 px-3 py-4 sm:gap-4 sm:px-4"
-        onActivate={() => onToggleOpportunity(item)}
+      <article
+        className={cn(
+          "group relative rounded-lg border border-neutral-1000-a05/50 transition-colors",
+          expanded ? "bg-white" : "bg-neutral-50"
+        )}
+        data-opportunity-id={item.id}
       >
-        <span className="flex shrink-0 items-center gap-0.5">
+        {isInternal ? (
+          <Badge
+            className="pointer-events-none absolute left-[2px] top-[-4px] z-10 bg-primary-faded text-primary"
+            icon={<Handshake aria-hidden />}
+            size="sm"
+            variant="faded"
+          >
+            {connectionLabel}
+          </Badge>
+        ) : null}
+        <ClickablePanel
+          aria-controls={contentId}
+          aria-expanded={expanded}
+          aria-label={`${item.title} · ${item.companyName}`}
+          className="flex min-w-0 cursor-pointer items-center gap-3 px-3 py-4 sm:gap-4 sm:px-4"
+          onActivate={() => onToggleOpportunity(item)}
+        >
+          <span className="flex shrink-0 items-center gap-0.5">
+            <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md md:rounded-lg bg-white sm:size-11">
+              {item.companyLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt=""
+                  className="size-full object-contain"
+                  loading="lazy"
+                  src={item.companyLogoUrl}
+                />
+              ) : (
+                <Building2 aria-hidden className="size-5 text-neutral-muted" />
+              )}
+            </span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-1.5">
+              {!item.viewedAt ? (
+                <span
+                  aria-hidden
+                  className="pointer-events-none size-1.5 shrink-0 rounded-full bg-action"
+                />
+              ) : null}
+              <span className="block truncate text-[14px] font-normal md:font-medium leading-6 text-neutral-primary sm:text-[15px]">
+                {item.title}
+              </span>
+            </span>
+            <div className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1 text-[12px] font-normal leading-5 text-neutral-muted sm:text-[13px]">
+              {canOpenCompany ? (
+                <BareButton
+                  type="button"
+                  className="min-w-0 max-w-full shrink-0 whitespace-normal wrap-break-word text-left font-medium text-neutral-primary underline decoration-dotted underline-offset-2 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
+                  onClick={() => onOpenCompanyInfo?.(item)}
+                >
+                  {item.companyName}
+                </BareButton>
+              ) : (
+                <span className="min-w-0 max-w-full shrink-0 whitespace-normal wrap-break-word">
+                  {item.companyName}
+                </span>
+              )}
+              {expanded ? (
+                metaItems.map((meta, index) => (
+                  <span
+                    className="min-w-0 max-w-full whitespace-normal wrap-break-word"
+                    key={index}
+                  >
+                    · {meta}
+                  </span>
+                ))
+              ) : metaItems.length > 0 ? (
+                <span className="min-w-0 max-w-full whitespace-normal wrap-break-word">
+                  · {metaItems.join(" · ")}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          {!expanded ? (
+            <div
+              className={cn(
+                "flex shrink-0 items-center gap-0 md:gap-1 opacity-100 transition-opacity md:[@media(hover:hover)]:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+                pending && "md:[@media(hover:hover)]:opacity-100"
+              )}
+            >
+              {isInternal ? (
+                <Tooltips
+                  text={t(
+                    "career.history.keep.tooltip",
+                    "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
+                  )}
+                >
+                  <MuteButton
+                    disabled={pending}
+                    variant="transparent"
+                    aria-label={t(
+                      "career.history.keep.action",
+                      "저장하고 나중에 결정"
+                    )}
+                    onClick={() => onKeep(item)}
+                  >
+                    <Bookmark aria-hidden className="size-3.5 md:size-4" />
+                  </MuteButton>
+                </Tooltips>
+              ) : null}
+              <Tooltips text={negativeLabel}>
+                <MuteButton
+                  aria-label={`${item.title}: ${negativeLabel}`}
+                  disabled={pending}
+                  onClick={() => onNegative(item)}
+                  variant="transparent"
+                >
+                  <ThumbsDown aria-hidden className="size-3.5 md:size-4" />
+                </MuteButton>
+              </Tooltips>
+              <Tooltips text={positiveLabel}>
+                <MuteButton
+                  aria-label={`${item.title}: ${positiveLabel}`}
+                  disabled={pending}
+                  onClick={() => onPositive(item)}
+                  variant="transparent"
+                >
+                  {pending ? (
+                    <Loader2
+                      aria-hidden
+                      className="size-3.5 md:size-4 animate-spin"
+                    />
+                  ) : (
+                    <PositiveActionIconView
+                      icon={PositiveActionIcon}
+                      className="size-3.5 md:size-4"
+                    />
+                  )}
+                </MuteButton>
+              </Tooltips>
+            </div>
+          ) : null}
           <ChevronRight
             aria-hidden
             className={cn(
-              "size-3 shrink-0 text-neutral-soft transition-transform md:hidden",
+              "size-3 shrink-0 text-neutral-soft transition-transform md:size-4",
               expanded && "rotate-90"
             )}
           />
-          <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md md:rounded-lg bg-white sm:size-11">
-            {item.companyLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt=""
-                className="size-full object-contain"
-                loading="lazy"
-                src={item.companyLogoUrl}
-              />
-            ) : (
-              <Building2 aria-hidden className="size-5 text-neutral-muted" />
-            )}
-          </span>
-        </span>
-        <div className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5">
-            {!item.viewedAt ? (
-              <span
-                aria-hidden
-                className="pointer-events-none size-1.5 shrink-0 rounded-full bg-action"
-              />
-            ) : null}
-            <span className="block truncate text-[14px] font-normal md:font-medium leading-6 text-neutral-primary sm:text-[15px]">
-              {item.title}
-            </span>
-          </span>
-          <div className="mt-0.5 flex min-w-0 flex-wrap items-baseline gap-x-1 text-[12px] font-normal leading-5 text-neutral-muted sm:text-[13px]">
-            {canOpenCompany ? (
-              <BareButton
-                type="button"
-                className="min-w-0 max-w-full shrink-0 whitespace-normal wrap-break-word text-left font-medium text-neutral-primary underline decoration-dotted underline-offset-2 transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-1000-a10"
-                onClick={() => onOpenCompanyInfo?.(item)}
-              >
-                {item.companyName}
-              </BareButton>
-            ) : (
-              <span className="min-w-0 max-w-full shrink-0 whitespace-normal wrap-break-word">
-                {item.companyName}
-              </span>
-            )}
-            {expanded ? (
-              metaItems.map((meta, index) => (
-                <span
-                  className="min-w-0 max-w-full whitespace-normal wrap-break-word"
-                  key={index}
-                >
-                  · {meta}
-                </span>
-              ))
-            ) : metaItems.length > 0 ? (
-              <span className="min-w-0 max-w-full whitespace-normal wrap-break-word">
-                · {metaItems.join(" · ")}
-              </span>
-            ) : null}
-          </div>
-        </div>
-        {!expanded ? (
+        </ClickablePanel>
+        {expanded ? (
           <div
-            className={cn(
-              "flex shrink-0 items-center gap-0 md:gap-1 opacity-100 transition-opacity md:[@media(hover:hover)]:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
-              pending && "md:[@media(hover:hover)]:opacity-100"
-            )}
+            className="space-y-6 border-t border-neutral-1000-a05 px-4 pb-4 pt-5 sm:px-5 sm:pb-5"
+            id={contentId}
           >
-            {isInternal ? (
-              <Tooltips
-                text={t(
-                  "career.history.keep.tooltip",
-                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
-                )}
-              >
-                <MuteButton
-                  disabled={pending}
-                  variant="transparent"
-                  aria-label={t(
-                    "career.history.keep.action",
-                    "저장하고 나중에 결정"
-                  )}
-                  onClick={() => onKeep(item)}
-                >
-                  <Bookmark aria-hidden className="size-3.5 md:size-4" />
-                </MuteButton>
-              </Tooltips>
-            ) : null}
-            <Tooltips text={negativeLabel}>
-              <MuteButton
-                aria-label={`${item.title}: ${negativeLabel}`}
-                disabled={pending}
-                onClick={() => onNegative(item)}
-                variant="transparent"
-              >
-                <ThumbsDown aria-hidden className="size-3.5 md:size-4" />
-              </MuteButton>
-            </Tooltips>
-            <Tooltips text={positiveLabel}>
-              <MuteButton
-                aria-label={`${item.title}: ${positiveLabel}`}
-                disabled={pending}
-                onClick={() => onPositive(item)}
-                variant="transparent"
-              >
-                {pending ? (
-                  <Loader2
-                    aria-hidden
-                    className="size-3.5 md:size-4 animate-spin"
+            {item.recommendationNote ||
+            item.recommendationSummary?.trim() ||
+            item.recommendationReasons.length > 0 ||
+            (item.recommendationConcerns?.length ?? 0) > 0 ? (
+              <div className="space-y-3 text-[14px] leading-[22px] text-neutral-primary">
+                {item.recommendationSummary?.trim() ? (
+                  <RichText
+                    variant="career"
+                    typography="body"
+                    content={item.recommendationSummary}
                   />
-                ) : (
-                  <PositiveActionIconView
-                    icon={PositiveActionIcon}
-                    className="size-3.5 md:size-4"
-                  />
-                )}
-              </MuteButton>
-            </Tooltips>
-          </div>
-        ) : null}
-        <ChevronRight
-          aria-hidden
-          className={cn(
-            "hidden size-4 shrink-0 text-neutral-soft transition-transform md:block",
-            expanded && "rotate-90"
-          )}
-        />
-      </ClickablePanel>
-      {expanded ? (
-        <div
-          className="space-y-6 border-t border-neutral-1000-a05 px-4 pb-4 pt-5 sm:px-5 sm:pb-5"
-          id={contentId}
-        >
-          {item.recommendationNote ||
-          item.recommendationSummary?.trim() ||
-          item.recommendationReasons.length > 0 ||
-          (item.recommendationConcerns?.length ?? 0) > 0 ? (
-            <div className="space-y-3 text-[14px] leading-6 text-neutral-primary">
-              {item.recommendationNote ? (
-                <RichText variant="career" content={item.recommendationNote} />
-              ) : null}
-              {item.recommendationSummary?.trim() ? (
-                <RichText
-                  variant="career"
-                  content={item.recommendationSummary}
-                />
-              ) : null}
-              {item.recommendationReasons.length > 0 ? (
-                <ul className="list-disc space-y-1.5 pl-5 marker:text-neutral-soft">
-                  {item.recommendationReasons.map((reason, index) => (
-                    <li key={index}>
-                      <RichText variant="career" content={reason} />
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {(item.recommendationConcerns?.length ?? 0) > 0 ? (
-                <div className="space-y-2 text-neutral-muted">
-                  <h4 className="text-[13px] font-medium">
-                    {t("career.common.career.0z5xpdx", "지원전 검토 사항")}
-                  </h4>
+                ) : null}
+                {item.recommendationNote?.trim() ? (
+                  <section className="space-y-2 pt-2">
+                    <h4 className="text-[14px] font-medium leading-5">
+                      {t(
+                        "career.history.new_opportunity_list.harper_opinion",
+                        "Harper의 의견"
+                      )}
+                    </h4>
+                    <RichText
+                      variant="career"
+                      typography="description"
+                      content={item.recommendationNote}
+                    />
+                  </section>
+                ) : null}
+                {item.recommendationReasons.length > 0 ? (
                   <ul className="list-disc space-y-1.5 pl-5 marker:text-neutral-soft">
-                    {item.recommendationConcerns?.map((concern, index) => (
+                    {item.recommendationReasons.map((reason, index) => (
                       <li key={index}>
-                        <RichText variant="career" content={concern} />
+                        <RichText
+                          variant="career"
+                          typography="body"
+                          content={reason}
+                        />
                       </li>
                     ))}
                   </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-          <OpportunityDescription item={item} />
-          <OpportunityPreferenceFit
-            items={item.preferenceFit}
-            variant="icons"
-          />
-          {postingUrl && onOpenLink ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <MuteButton
-                className="underline underline-offset-4"
-                onClick={() => onOpenLink(item, postingUrl)}
-                variant="transparent"
-                size="sm"
-              >
-                {t("career.common.career.0wohsg4", "JD 확인하기")}
-                <ArrowUpRight aria-hidden className="size-3.5" />
-              </MuteButton>
-            </div>
-          ) : null}
-          {/* <EstimatedSalaryNotice item={item} /> */}
-          <div className="flex-wrap items-center justify-end gap-2 pt-4 grid grid-cols-3">
-            {isInternal ? (
-              <Tooltips
-                text={t(
-                  "career.history.keep.tooltip",
-                  "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
-                )}
-              >
-                <MuteButton
-                  disabled={pending}
-                  onClick={() => onKeep(item)}
-                  size="md"
-                  variant="neutral"
-                  className={actionClass}
-                >
-                  <Bookmark aria-hidden className="size-3.5" />
-                  {t("career.history.keep.action", "저장하고 나중에 결정")}
-                </MuteButton>
-              </Tooltips>
+                ) : null}
+                {(item.recommendationConcerns?.length ?? 0) > 0 ? (
+                  <div className="space-y-2 text-neutral-primary">
+                    <h4 className="text-[14px] font-medium leading-5">
+                      {t("career.common.career.0z5xpdx", "지원전 검토 사항")}
+                    </h4>
+                    <ul className="list-disc space-y-1.5 pl-5 marker:text-neutral-soft">
+                      {item.recommendationConcerns?.map((concern, index) => (
+                        <li key={index}>
+                          <RichText
+                            variant="career"
+                            typography="body"
+                            content={concern}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
-            <MuteButton
-              disabled={pending}
-              onClick={() => onNegative(item)}
-              size="md"
-              className={actionClass}
-            >
-              <ThumbsDown aria-hidden className="size-3.5 stroke-0.5" />
-              {negativeLabel}
-            </MuteButton>
-            <MuteButton
-              disabled={pending}
-              onClick={() => onPositive(item)}
-              size="md"
-              variant={isInternal ? "primary" : "dark"}
-              className={actionClass}
-            >
-              {pending ? (
-                <Loader2 aria-hidden className="size-3.5 animate-spin" />
-              ) : (
-                <PositiveActionIconView
-                  icon={PositiveActionIcon}
-                  className="size-3.5"
-                />
-              )}
-              {positiveLabel}
-            </MuteButton>
-            {!isInternal ? (
+            <OpportunityDescription item={item} />
+            <OpportunityPreferenceFit
+              items={item.preferenceFit}
+              variant="icons"
+            />
+            {postingUrl && onOpenLink ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <MuteButton
+                  className="underline underline-offset-4"
+                  onClick={() => onOpenLink(item, postingUrl)}
+                  variant="transparent"
+                  size="sm"
+                >
+                  {t("career.common.career.0wohsg4", "JD 확인하기")}
+                  <ArrowUpRight aria-hidden className="size-3.5" />
+                </MuteButton>
+              </div>
+            ) : null}
+            {/* <EstimatedSalaryNotice item={item} /> */}
+            <div className="grid grid-cols-2 items-center gap-2 pt-4 md:grid-cols-3 max-md:[&>button:last-child:nth-child(odd)]:col-start-2">
+              {isInternal ? (
+                <Tooltips
+                  text={t(
+                    "career.history.keep.tooltip",
+                    "가능한 모든 추천에 응답을 해주실수록 더 좋은 기회가 전달될 확률이 높아집니다. 이 선택은 회사에 전달되지 않습니다."
+                  )}
+                >
+                  <MuteButton
+                    disabled={pending}
+                    onClick={() => onKeep(item)}
+                    size="md"
+                    variant="neutral"
+                    className={actionClass}
+                  >
+                    <Bookmark aria-hidden className="size-3.5" />
+                    {t("career.history.keep.action", "저장하고 나중에 결정")}
+                  </MuteButton>
+                </Tooltips>
+              ) : null}
               <MuteButton
                 disabled={pending}
-                onClick={() => onApply(item)}
+                onClick={() => onNegative(item)}
                 size="md"
-                variant="primary"
                 className={actionClass}
               >
-                {t("career.history.external_application.apply", "지원하기")}
+                <ThumbsDown aria-hidden className="size-3.5 stroke-0.5" />
+                {negativeLabel}
               </MuteButton>
-            ) : null}
+              <MuteButton
+                disabled={pending}
+                onClick={() => onPositive(item)}
+                size="md"
+                variant={isInternal ? "primary" : "dark"}
+                className={actionClass}
+              >
+                {pending ? (
+                  <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                ) : (
+                  <PositiveActionIconView
+                    icon={PositiveActionIcon}
+                    className="size-3.5"
+                  />
+                )}
+                {positiveLabel}
+              </MuteButton>
+              {!isInternal ? (
+                <MuteButton
+                  disabled={pending}
+                  onClick={() => onApply(item)}
+                  size="md"
+                  variant="primary"
+                  className={actionClass}
+                >
+                  {t("career.history.external_application.apply", "지원하기")}
+                </MuteButton>
+              ) : null}
+            </div>
           </div>
-        </div>
-      ) : null}
-    </article>
+        ) : null}
+      </article>
+    </OpportunitySwipeRow>
   );
 }
 

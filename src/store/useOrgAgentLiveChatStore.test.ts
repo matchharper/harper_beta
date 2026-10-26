@@ -51,6 +51,7 @@ test("keeps role-creation progress while the new role receives its id", () => {
     assistantStatus: "pending",
     error: null,
     isStreaming: true,
+    isCreatingRole: false,
     optimisticUserMessage,
     streamingText: "",
     thinkingLogs: [

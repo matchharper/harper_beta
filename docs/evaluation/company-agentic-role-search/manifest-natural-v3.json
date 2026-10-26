@@ -1,0 +1,35 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "natural-v3",
+  "createdAt": "2026-10-23",
+  "casesFile": "cases-natural-v3.json",
+  "goldFile": "gold-natural-v3.json",
+  "source": "https://app.notion.com/p/New-Design-4007277d26df8083a689cb9e8e50821b",
+  "sourceLastEditedAt": "2026-10-22T03:07:42.142Z",
+  "sourceScenarioCoverage": [
+    "1.1",
+    "1.2",
+    "1.4",
+    "1.6"
+  ],
+  "files": {
+    "cases-natural-v3.json": "3e730972f15ae3e96fcee536bceadd8faad3c9330013ab540ad7a6988d0c330f",
+    "gold-natural-v3.json": "fb69417117cadf4b5de6c000d2b271de019c07be7caa0b827c0745857f893890",
+    "NATURAL-V3.md": "c3576772baa1504c8f22db12399214359b851d1dc37adbb7f994a2a594feb38d"
+  },
+  "canonicalRunners": [
+    "harper_beta/scripts/runCompanyAgenticRoleSearchMatrix.py",
+    "harper_beta/scripts/evalCompanyAgenticRoleSearch.ts",
+    "harper_worker/llm_evals/company_agentic_role_search/run_scoring.py"
+  ],
+  "repeatPolicy": "Each case once; preserve actual failures; no quality reruns",
+  "productionWrites": false,
+  "externalDelivery": false,
+  "preconditionCoverage": "Recorded zero-selection state is not an exhausted pool. Excluded cases do not count against completion. Latest full conversation run is pending.",
+  "supersedes": "manifest-natural-v2.json",
+  "excludedCases": [
+    "ARSN03",
+    "ARSN05"
+  ],
+  "labelReview": "User clarified complete Top N replacement and removed two scenarios; remaining expectations reviewed by Codex before any new run."
+}

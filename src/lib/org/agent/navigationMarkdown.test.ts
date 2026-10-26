@@ -35,6 +35,26 @@ test("external Markdown links and Slack button markers remain unchanged", () => 
   assert.equal(renderOrgAgentWebLinks({ markdown, workspaceId }), markdown);
 });
 
+test("candidate links preserve the Role used to open a profile", () => {
+  const rendered = renderOrgAgentWebLinks({
+    markdown: "[Candidate](talent:talent-1)", workspaceId, roleId: "role-1",
+  });
+  const url = new URL(rendered.slice(rendered.indexOf("](") + 2, -1));
+  assert.equal(url.pathname, "/org/role");
+  assert.equal(url.searchParams.get("roleId"), "role-1");
+  assert.equal(url.searchParams.get("detailRoleId"), "role-1");
+  assert.equal(url.searchParams.get("tab"), null);
+  assert.equal(url.searchParams.get("talentId"), "talent-1");
+});
+
+test("candidate links without a Role use the home detail surface", () => {
+  const rendered = renderOrgAgentWebLinks({
+    markdown: "[Candidate](talent:talent-1)", workspaceId,
+  });
+  assert.match(rendered, /\/org\/home\?orgId=workspace-1&talentId=talent-1/);
+  assert.doesNotMatch(rendered, /roleId=all/);
+});
+
 test("Slack role-creation messages render as web Markdown", () => {
   assert.equal(
     convertSlackMrkdwnToWebMarkdown(

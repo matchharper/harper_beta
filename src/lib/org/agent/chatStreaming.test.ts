@@ -148,3 +148,45 @@ test("provider errors, exhausted budgets and truncated streams cannot become suc
     openrouterClient.chat.completions.create = original;
   }
 });
+
+test("a long chain executes beyond thirty calls with compact working reads and an intact original transcript", async () => {
+  let step = 0;
+  let executions = 0;
+  let sawCompaction = false;
+  const result = await runOrgAgentToolLoop({ ...fixture(), initialCapabilities: ["web_research"] }, {
+    complete: async args => {
+      sawCompaction ||= args.messages.some(message => typeof message.content === "string" && message.content.includes("context_detail_complete=false"));
+      for (const message of args.messages) {
+        for (const call of message.tool_calls ?? []) assert.ok(args.messages.some(result => result.role === "tool" && result.tool_call_id === call.id));
+      }
+      step++;
+      return { model: args.model, response: { choices: [{ message: step <= 36
+        ? { content: "", tool_calls: [{ id: `long-${step}`, type: "function", function: { name: "open_url", arguments: JSON.stringify({ url: `https://example.com/${step}` }) } }] }
+        : { content: "전체 확인을 마쳤어요." } }] } };
+    },
+    executeTool: async args => {
+      executions++;
+      const input = args.input as { url: string };
+      return { url: input.url, resolvedUrl: input.url, markdown: "source evidence ".repeat(2500), markdownCharCount: 40_000 };
+    },
+  });
+  assert.equal(executions, 36);
+  assert.equal(step, 37);
+  assert.equal(sawCompaction, true);
+  assert.equal(result.reply, "전체 확인을 마쳤어요.");
+  assert.equal(result.toolTranscript.filter(message => message.role === "tool").length, 36);
+  assert.ok(result.toolTranscript.filter(message => message.role === "tool").every(message => typeof message.content === "string" && message.content.includes("source evidence")));
+});
+
+test("the loop obeys an actual cancellation before another model call", async () => {
+  const controller = new AbortController();
+  let modelCalls = 0;
+  await assert.rejects(runOrgAgentToolLoop({ ...fixture(), signal: controller.signal }, {
+    complete: async args => {
+      modelCalls++;
+      return { model: args.model, response: { choices: [{ message: { content: "", tool_calls: [{ id: "cancel-read", type: "function", function: { name: "get_talents", arguments: "{}" } }] } }] } };
+    },
+    executeTool: async () => { controller.abort(); return { items: [] }; },
+  }), { name: "AbortError" });
+  assert.equal(modelCalls, 1);
+});

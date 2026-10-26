@@ -65,7 +65,7 @@ export function OrgSlackChannelPicker({
       <div className="max-h-[244px] min-h-[76px] rounded-xl px-2 border border-neutral-1000-a05 py-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10 [scrollbar-gutter:stable]">
         {visibleChannels.length ? (
           <ul
-            aria-label={c("초대할 Slack 채널", "Slack channel to invite")}
+            aria-label={c("초대할 Slack 채널", "Channel to connect")}
             className="space-y-0.5"
           >
             {visibleChannels.map((channel) => {
@@ -124,7 +124,7 @@ export function OrgSlackChannelPicker({
               ? c("일치하는 채널이 없어요.", "No matching channels.")
               : c(
                   "초대할 수 있는 채널이 없어요.",
-                  "No channels available to invite."
+                  "No channels available to connect."
                 )}
           </p>
         )}

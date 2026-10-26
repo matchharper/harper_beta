@@ -1,3 +1,4 @@
+import { runCompanyScheduledMatching } from "./scheduledMatching.server";
 import "server-only";
 import { sendProactiveHiringOverview } from "@/lib/ops/autoIntroToCompanyNotifications";
 import { deliverCompanyContactEventMessages } from "./contactEvent.server";
@@ -76,7 +77,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     {
       p_job_id: message.jobId,
       p_max_attempts: MAX_ATTEMPTS,
-      p_stale_after_seconds: 360,
+      p_stale_after_seconds: 1860,
       p_worker_id: `vercel-queue:${metadata.messageId}`,
     }
   );
@@ -143,7 +144,7 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     if (companyUserError) throw companyUserError;
     const responseLocale: "ko" | "en" | "auto" = job.action_context?.responseLocale === "ko" || job.action_context?.responseLocale === "en"
       ? job.action_context.responseLocale
-      : job.action_name === "company_update" || job.action_name === "proactive_recruiting_review" || job.action_name === "role_search_kickoff"
+      : job.action_name === "scheduled_matching_review" || job.action_name === "company_update" || job.action_name === "proactive_recruiting_review" || job.action_name === "role_search_kickoff"
       ? await getOrgWorkspaceLocale(job.company_workspace_id, admin)
       : companyUser?.locale === "ko" || companyUser?.locale === "en" ? companyUser.locale : "auto";
     const turnArgs = {
@@ -166,7 +167,8 @@ export async function processCompanyAgentWebActionJob(raw: unknown, metadata: { 
     };
     const isProactive = job.action_name === "proactive_recruiting_review";
     const isResearch = job.action_name === "role_search_kickoff";
-    const result = isResearch ? await runRoleSearchKickoff(turnArgs)
+    const result = job.action_name === "scheduled_matching_review" ? await runCompanyScheduledMatching(turnArgs)
+      : isResearch ? await runRoleSearchKickoff(turnArgs)
       : isProactive ? await runCompanyProactiveReview(turnArgs) : await runOrgAgentWebActionTurn(turnArgs);
     {
       await assertEventAccess();

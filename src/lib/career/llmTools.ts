@@ -63,6 +63,8 @@ export const CAREER_CHAT_ONBOARDING_TOOL_NAMES = [
   // 온보딩 중 사용자가 말한 프로필 row memo 같은 저장 가능한 정보 기록.
   TALENT_TOOL_NAMES.UPDATE_TALENT_PROFILE,
   TALENT_TOOL_NAMES.GENERATE_RESUME,
+  TALENT_TOOL_NAMES.WRITE_DOCUMENT,
+  TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
   TALENT_TOOL_NAMES.LIST_DOCUMENTS,
   TALENT_TOOL_NAMES.READ_DOCUMENT,
   TALENT_TOOL_NAMES.UPDATE_DOCUMENT,
@@ -84,6 +86,7 @@ export const CAREER_CHAT_VOICE_ONBOARDING_TOOL_NAMES = [
 
 // 온보딩 완료 후 텍스트 채팅에서 노출할 tool allowlist.
 export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
+  TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION,
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,
@@ -91,6 +94,7 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.OPEN_URL,
   // 새 추천 공고를 찾아 저장할 때. 예: "미국 AI PM 공고 찾아줘".
   TALENT_TOOL_NAMES.RECOMMEND_JOB_POSTINGS,
+  TALENT_TOOL_NAMES.SAVE_JOB_POSTING,
   // 내부 Harper-connected role을 role title/company keyword로 직접 조회할 때.
   TALENT_TOOL_NAMES.GET_INTERNAL_ROLES,
   // 특정 internal role에 대한 후보자의 우선 검토/연결 요청을 등록하거나 철회할 때.
@@ -115,6 +119,7 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   TALENT_TOOL_NAMES.WRITE_TALENT_CONTEXT,
   TALENT_TOOL_NAMES.GENERATE_RESUME,
   TALENT_TOOL_NAMES.SIMULATE_APPLICATION,
+  TALENT_TOOL_NAMES.WRITE_DOCUMENT,
   TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST,
   // Eligible after onboarding; the capability resolver may defer this schema.
   // Its prompt keeps ordinary chat as the default without an intent classifier.
@@ -186,7 +191,7 @@ function shouldExposeCareerChatTool(
 ) {
   const channel = args.channel === "voice" ? "voice" : "chat";
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
-  if(toolName===TALENT_TOOL_NAMES.SIMULATE_APPLICATION && channel!=="chat") return false;
+  if([TALENT_TOOL_NAMES.SIMULATE_APPLICATION, TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION].some(name => name === toolName) && channel!=="chat") return false;
 
   if (
     toolName === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING &&
@@ -225,7 +230,7 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
     const tools = applyAllowedToolNames([
       ...getOpenAIChatTools("chat", {
         responseLocale: args.responseLocale,
-      }).filter((t) => SIMULATION_TOOL_NAMES.includes(t.function.name) && (args.simulationPreparation === false || t.function.name !== TALENT_TOOL_NAMES.GENERATE_RESUME)),
+      }).filter((t) => SIMULATION_TOOL_NAMES.includes(t.function.name) && t.function.name !== TALENT_TOOL_NAMES.MANAGE_SIMULATION_SESSION && (args.simulationPreparation === false || t.function.name !== TALENT_TOOL_NAMES.GENERATE_RESUME)),
       args.simulationPreparation === false ? simulationSessionTool : applicationPreparationSessionTool,
       manageApplicationSuggestionsTool,
       readyForRoleTool,

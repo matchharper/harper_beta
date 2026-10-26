@@ -23,3 +23,15 @@ test("otherwise-ready drafts have no programmatic criteria completion gate", () 
     ...readyState, role: { ...readyState.role, criteria: [{ name: "파트너 행사 운영 경험", criteria: "" }] },
   }), []);
 });
+
+test("a draft with email on is ready without a confirmed Slack channel", () => {
+  const noSlack = { ...readyState, channels: [], metadata: { ...readyState.metadata, confirmedSlackChannelIds: [] } };
+  assert.deepEqual(getRoleCreationMissingFields({ ...noSlack, emailEnabled: true }), []);
+  assert.deepEqual(getRoleCreationMissingFields({ ...noSlack, emailEnabled: false }), ["connected_slack"]);
+  // Email only at a Slack company: its channel was turned off, nothing confirmed.
+  assert.deepEqual(getRoleCreationMissingFields({
+    ...readyState, emailEnabled: true,
+    channels: [{ channelId: "channel-a", channelName: null, enabled: false }],
+    metadata: { ...readyState.metadata, confirmedSlackChannelIds: [] },
+  }), []);
+});

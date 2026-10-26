@@ -4,6 +4,7 @@ import {
   type CareerPromptPreferences,
 } from "@/lib/career/prompts";
 import { runCareerChatAssistant } from "@/lib/career/llm";
+import { GPT_6_LUNA_MODEL } from "@/lib/llm/modelConfig";
 import {
   getCareerPromptLanguageName,
   getCareerPromptToneRule,
@@ -521,6 +522,8 @@ export async function generateOnboardingCompletionNextStepsContent(args: {
   const generated = await runCareerChatAssistant({
     executeTool: async () => null,
     messages: conversationMessages,
+    primaryModel: GPT_6_LUNA_MODEL,
+    openAIResponsesReasoningEffort: "medium",
     responseLocale,
     stopAfterToolNames: [],
     systemBlocks: promptPlan.promptBlocks,

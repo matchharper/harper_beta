@@ -88,11 +88,10 @@ test("new company onboarding shows plans and no invented role step", () => {
     getOrgOnboardingSteps({
       showSlack: true,
       showCompany: true,
-      showCompanyDetails: true,
       showPlan: true,
       roles: [],
     }),
-    ["profile", "company-details", "company", "slack", "plan", "guide", "done"]
+    ["profile", "company", "slack", "plan", "guide", "done"]
   );
   assert.deepEqual(
     getOrgOnboardingSteps({ showSlack: false, showCompany: false, roles: [] }),
@@ -100,32 +99,32 @@ test("new company onboarding shows plans and no invented role step", () => {
   );
 });
 
-test("company research retains supported fields and ignores unrelated sources and invalid optional links", async () => {
+test("company research uses structured search output and external sources", async () => {
   const { researchSignupCompany } = await import("./signupServer");
   const queries: unknown[][] = [];
   const exa = {
     search: async (...args: unknown[]) => {
       queries.push(args);
       return {
-        results: [
-          {
-            url: "https://unrelated.com",
-            summary: JSON.stringify({
-              name: "Wrong company",
-              description: "Wrong company description",
-            }),
+        results: [],
+        output: {
+          content: {
+            name: "Example",
+            description: "Example builds software.",
+            linkedinUrl: "https://linkedin.com/in/person",
+            mainInvestors: "Publicly named investor",
           },
-          {
-            url: "https://example.com/about",
-            title: "About Example",
-            summary: JSON.stringify({
-              name: "Example",
-              description: "Example builds software.",
-              linkedinUrl: "https://linkedin.com/in/person",
-              mainInvestors: "Publicly named investor",
-            }),
-          },
-        ],
+          grounding: ["name", "description"].map((field) => ({
+            field,
+            confidence: "high",
+            citations: [
+              {
+                title: "Example on LinkedIn",
+                url: "https://www.linkedin.com/company/example",
+              },
+            ],
+          })),
+        },
       };
     },
   };
@@ -134,15 +133,49 @@ test("company research retains supported fields and ignores unrelated sources an
   assert.equal(result?.linkedinUrl, "");
   assert.equal(result?.mainInvestors, "Publicly named investor");
   assert.deepEqual(result?.sources, [
-    { title: "About Example", url: "https://example.com/about" },
+    {
+      title: "Example on LinkedIn",
+      url: "https://www.linkedin.com/company/example",
+    },
   ]);
-  assert.deepEqual((queries[0][1] as any).includeDomains, ["example.com"]);
   assert.equal(
-    await researchSignupCompany("example.com", {
-      search: async () => ({
-        results: [{ url: "https://example.com", summary: "malformed" }],
-      }),
-    } as any),
-    null
+    queries[0][0],
+    "example.com (site:linkedin.com/company | company)"
   );
+  const options = queries[0][1] as any;
+  assert.equal(options.includeDomains, undefined);
+  assert.equal(options.numResults, 10);
+  assert.equal(options.outputSchema.type, "object");
+  assert.equal(options.outputSchema.properties.name.type, "string");
+  assert.equal(options.contents, undefined);
+
+  const serialized = await researchSignupCompany("example.com", {
+    search: async () => ({
+      results: [],
+      output: {
+        content: JSON.stringify({
+          name: "Example",
+          description: "Example builds software.",
+          linkedinUrl: "https://linkedin.com/company/example/",
+        }),
+        grounding: [],
+      },
+    }),
+  } as any);
+  assert.equal(
+    serialized?.linkedinUrl,
+    "https://www.linkedin.com/company/example"
+  );
+
+  for (const content of [undefined, "malformed", null, [], {}]) {
+    assert.equal(
+      await researchSignupCompany("example.com", {
+        search: async () => ({
+          results: [],
+          output: { content, grounding: [] },
+        }),
+      } as any),
+      null
+    );
+  }
 });

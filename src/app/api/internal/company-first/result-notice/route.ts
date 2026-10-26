@@ -1,8 +1,10 @@
 import { readRoleSearchKickoffExplanation } from "@/lib/org/agent/roleSearchKickoff.server";
 import type { User } from "@supabase/supabase-js";
+import { fetchOrgBoard } from "@/lib/org/server";
 import { NextRequest, NextResponse } from "next/server";
 import { readCandidateOutreachPauses } from "@/lib/companyFirstSearch/history";
 import { buildCompanyMatchingResultContext } from "@/lib/companyFirstSearch/resultContext";
+import { readCompanyRoleSearch, formatCompanyRoleSearch } from "@/lib/companyFirstSearch/agenticSearch";
 import {
   DEFAULT_INTRO_SEARCH_DAYS,
   DEFAULT_INTRO_SEARCH_HOUR,
@@ -230,7 +232,12 @@ async function deliverRunNotice(args: {
   const roleNameById = new Map<string, string>(
     roleRows.map((role: { id: string; name: string }) => [role.id, role.name])
   );
-  const candidates = (intros ?? []).map((row: any) => {
+  const user = await workspaceUser({ admin, workspaceId });
+  const board = await fetchOrgBoard({ user, workspaceId,
+    recommendationIds: (intros ?? []).map((row: any) => `company-intro:${row.id}`) });
+  const visible = new Map(board.items.map(item => [item.companyIntro?.id, item]));
+  const candidates = (intros ?? []).filter((row: any) => visible.has(row.id)).map((row: any) => {
+    const item = visible.get(row.id)!;
     const presentation = record(row.presentation);
     const role = Array.isArray(row.role) ? row.role[0] : row.role;
     const roleId = text(row.role_id, 100);
@@ -244,7 +251,7 @@ async function deliverRunNotice(args: {
         talentId: text(row.talent_id, 100),
         workspaceId,
       }),
-      reason: text(row.selection_reason, 2_000),
+      reason: item.companyIntro?.selectionReason ?? "",
       roleId,
       roleName: text(role?.name, 300) || roleNameById.get(roleId) || "Role",
       summary: text(presentation.summary, 2_000) || null,
@@ -279,7 +286,7 @@ async function deliverRunNotice(args: {
     .maybeSingle();
   if (existingMessageError) throw existingMessageError;
 
-  const user = await workspaceUser({ admin, workspaceId });
+
   const { data: storedConversation, error: conversationError } = await (
     admin.from("company_conversations" as any) as any
   )
@@ -325,10 +332,15 @@ async function deliverRunNotice(args: {
       runStatus: text(run.status, 40),
       candidateOutreachPauses: readCandidateOutreachPauses(runResult),
       requestedByCompany: companyRequested,
+      ...(runResult.roleSearch ? { interactiveSearch: record(runResult.roleSearch) } : {}),
     });
     const searchDirection = companyRequested ? await readRoleSearchKickoffExplanation({
       admin, workspaceId, roleId: primaryRoleId, runId,
     }) : null;
+    const selectionReview = companyRequested && run.status === "succeeded"
+      && record(runResult.roleSearch).selectionMethod === "evaluation_only"
+      ? formatCompanyRoleSearch(await readCompanyRoleSearch({admin,user,workspaceId,
+          input:{roleId:primaryRoleId,view:"selection",runId}})) : null;
     const { jobId } = await enqueueCompanyUpdate({
       workspaceId, roleId: primaryRoleId, eventKey: idempotencyKey,
       purpose: companyRequested
@@ -339,6 +351,7 @@ async function deliverRunNotice(args: {
         ...(searchDirection ? { previouslyExplainedSearchDirection: searchDirection } : {}),
         candidateIds,
         matchingSearchRunId: runId,
+        ...(selectionReview ? {selectionReview, recommendationListChanged:false} : {}),
         firstDelivery: firstCompanyFirstResultDelivery,
       },
       immediate: true,

@@ -108,3 +108,14 @@ test("explicit review request is known interest without invented acceptance", ()
   assert.match(result, /후보자 본인이 이 역할의 우선 검토를 요청했다/);
   assert.match(result, /역할 수락이나 회사의 Intro 요청은 아니다/);
 });
+
+
+test("interactive evaluation without new cards does not invent a lack of suitable candidates", () => {
+  const result = buildCompanyMatchingResultContext({ candidates: [], roles: [{id:"role-1",name:"Engineer",automaticSearchEnabled:false}], runStatus:"succeeded", interactiveSearch: {
+    briefVersion:"version-1",scope:"unassessed",startStage:1,stage1Passed:22,stage2Evaluated:22,addedTalentIds:[],removedTalentIds:[],retainedTalentIds:["existing-1"],criteriaStats:[],
+  }});
+  assert.match(result,/평가만 요청했거나 기존 결과를 유지/);
+  assert.match(result,/2차 평가 22명/);
+  assert.match(result,/기존 유지 1명/);
+  assert.doesNotMatch(result,/확신할 만한 사람은 고르지 못/);
+});

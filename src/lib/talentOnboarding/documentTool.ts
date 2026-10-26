@@ -144,7 +144,18 @@ export async function readTalentDocumentForTool(args: {
   admin: TalentAdminClient;
   input: Record<string, unknown>;
   userId: string;
-}) {
+}): Promise<{
+  document: ReturnType<typeof toDocumentMetadata>;
+  revision?: number;
+  structuredContent?: TalentDocumentRow["structured_content"];
+  excerpt?: string;
+  hasMore?: boolean;
+  nextOffset?: number | null;
+  offset?: number;
+  textAvailable?: boolean;
+  matchFound?: boolean;
+  matchOffset?: number | null;
+}> {
   const documentId = optionalString(args.input.document_id);
   if (!documentId) throw new Error("document_id is required.");
 
@@ -159,11 +170,21 @@ export async function readTalentDocumentForTool(args: {
   }
 
   if (args.input.format === "structured") {
-    if (document.origin_type !== GENERATED_RESUME_ORIGIN || !document.structured_content) throw new Error("This document has no editable resume JSON. Read its text and create a new resume instead.");
-    return { document: toDocumentMetadata(document, Boolean(document.extracted_text)), structuredContent: document.structured_content, revision: document.revision };
+    if (
+      document.origin_type !== GENERATED_RESUME_ORIGIN ||
+      !document.structured_content
+    )
+      throw new Error(
+        "This document has no editable resume JSON. Read its text and create a new resume instead."
+      );
+    return {
+      document: toDocumentMetadata(document, Boolean(document.extracted_text)),
+      structuredContent: document.structured_content,
+      revision: document.revision,
+    };
   }
   const content = document.extracted_text?.trim() ?? "";
-  const offset = normalizeInteger(
+  let offset = normalizeInteger(
     args.input.offset,
     0,
     0,
@@ -175,12 +196,19 @@ export async function readTalentDocumentForTool(args: {
     MIN_READ_CHARS,
     MAX_READ_CHARS
   );
-  const excerpt = content.slice(offset, offset + maxChars);
+  const query = optionalString(args.input.query);
+  const matchOffset = query ? content.indexOf(query, offset) : null;
+  if (matchOffset !== null && matchOffset >= 0)
+    offset = Math.max(0, matchOffset - 200);
+  const excerpt =
+    matchOffset === -1 ? "" : content.slice(offset, offset + maxChars);
   const nextOffset = offset + excerpt.length;
-  const hasMore = nextOffset < content.length;
+  const hasMore = matchOffset !== -1 && nextOffset < content.length;
 
   return {
     document: toDocumentMetadata(document, content.length > 0),
+    revision: document.revision,
+    ...(query ? { matchFound: matchOffset !== -1, matchOffset } : {}),
     excerpt,
     hasMore,
     nextOffset: hasMore ? nextOffset : null,
@@ -231,8 +259,13 @@ export async function updateTalentDocumentForTool(args: {
     throw new Error("At least one document change is required.");
   }
 
-  if (document.origin_type === GENERATED_RESUME_ORIGIN && (update.is_primary === true || (update.kind && update.kind !== "resume"))) {
-    throw new Error("Harper-generated resumes cannot be selected as primary or changed to another kind.");
+  if (
+    document.origin_type === GENERATED_RESUME_ORIGIN &&
+    (update.is_primary === true || (update.kind && update.kind !== "resume"))
+  ) {
+    throw new Error(
+      "Harper-generated resumes cannot be selected as primary or changed to another kind."
+    );
   }
   const effectiveKind = update.kind ?? document.kind;
   const willBeDeleted = update.is_deleted ?? document.is_deleted;
@@ -310,12 +343,13 @@ export async function updateTalentDocumentForTool(args: {
 
   const updated = updatedDocument as TalentDocumentMetadataRow &
     Pick<TalentDocumentRow, "is_deleted">;
-  if (document.origin_type !== GENERATED_RESUME_ORIGIN && (
-    document.kind === "resume" ||
-    updated.kind === "resume" ||
-    hasOwn(args.input, "is_primary") ||
-    hasOwn(args.input, "is_deleted")
-  )) {
+  if (
+    document.origin_type !== GENERATED_RESUME_ORIGIN &&
+    (document.kind === "resume" ||
+      updated.kind === "resume" ||
+      hasOwn(args.input, "is_primary") ||
+      hasOwn(args.input, "is_deleted"))
+  ) {
     await syncLegacyResumeFromDocuments({
       admin: args.admin,
       userId: args.userId,

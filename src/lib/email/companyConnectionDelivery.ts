@@ -52,6 +52,7 @@ export async function deliverCompanyConnectionJob(args: {
     const plan = planSlackConnectionReminder(recipient, args.history, args.now);
     if (!plan) return "ineligible";
     const composed = args.job.draft ?? await deps.compose({ purpose: CONNECTION_EMAIL_PURPOSE, facts: plan.facts,
+      workspaceId: recipient.workspaces[0]!.id,
       locale: recipient.locale, recentConversation: args.priorMessages });
     await deps.saveDraft(args.job,args.owner,{subject:composed.subject,body:composed.body});
     payload = await deps.prepare(args.job, composed, recipient.workspaces[0]!.id);

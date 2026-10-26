@@ -135,14 +135,26 @@ try {
     updatedAt: "2026-10-20T00:05:00Z",
   });
   assert.equal(stats.assessedPairsPerSecond, 0.2);
-  assert.equal(
-    projectCompanyLandingPairCount(stats, Date.parse("2026-10-20T00:08:00Z")),
-    1096,
-    "projection follows measured net growth"
+  const start = Date.parse(stats.assessedPairUpdatedAt);
+  const samples = Array.from({ length: 601 }, (_, second) =>
+    projectCompanyLandingPairCount(stats, start + second * 1000)
   );
+  const changes = samples.flatMap((value, second) => {
+    assert.ok(Number.isInteger(value));
+    if (second === 0) return [];
+    assert.ok(value >= samples[second - 1], "a snapshot's projection never decreases");
+    return value > samples[second - 1]
+      ? [{ second, amount: value - samples[second - 1] }]
+      : [];
+  });
+  assert.ok(new Set(changes.map((change) => change.amount)).size > 1, "burst sizes vary");
+  assert.ok(new Set(changes.slice(1).map((change, index) => change.second - changes[index].second)).size > 1,
+    "visible changes have irregular gaps");
+  assert.deepEqual(samples, samples.map((_, second) => projectCompanyLandingPairCount(stats, start + second * 1000)),
+    "rerenders replay the same bursts");
   assert.equal(
     projectCompanyLandingPairCount(stats, Date.parse("2026-10-20T01:00:00Z")),
-    1180,
+    samples[600],
     "stale data cannot keep growing beyond ten minutes"
   );
   assert.equal(
@@ -165,7 +177,7 @@ try {
   );
   const cold = combineCompanyLandingStats(baseline, { ...baseline, recentAssessmentsPerSecond: 1.5 });
   assert.equal(cold.assessedPairsPerSecond, 1.5, "cold cache starts from recent activity without waiting five minutes");
-  assert.equal(projectCompanyLandingPairCount(cold, Date.parse("2026-10-20T00:00:02Z")), 1003);
+  assert.ok(projectCompanyLandingPairCount(cold, Date.parse("2026-10-20T00:01:00Z")) > 1000);
   const warm = combineCompanyLandingStats(baseline, {
     assessedPairCount: 1060, updatedAt: "2026-10-20T00:05:00Z", recentAssessmentsPerSecond: 1.5,
   });

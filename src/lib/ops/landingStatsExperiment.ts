@@ -5,11 +5,7 @@ import {
   LANDING_STATS_EXPERIMENT,
   LANDING_STATS_EXPOSURE,
 } from "@/lib/landingStatsExperiment";
-import {
-  extractEmailFromLandingLoginType,
-  getLandingLogBaseType,
-  isStartLandingLogType,
-} from "@/lib/landingLogTypes";
+import { extractEmailFromLandingLoginType } from "@/lib/landingLogTypes";
 import {
   compareOpsAbTestRates,
   makeOpsAbTestRate,
@@ -28,16 +24,22 @@ export type LandingStatsSignup = {
   createdAt: string;
   userId: string;
 };
+export type LandingStatsSubmission = {
+  userId: string;
+  createdAt: string;
+};
 
 export function buildLandingStatsExperiment({
   rows,
   signups,
+  submissions = [],
   excludedUserIds = new Set<string>(),
   excludeEmail,
   now,
 }: {
   rows: LandingStatsLog[];
   signups: LandingStatsSignup[];
+  submissions?: LandingStatsSubmission[];
   excludedUserIds?: Set<string>;
   excludeEmail: (email: string) => boolean;
   now: number;
@@ -50,6 +52,12 @@ export function buildLandingStatsExperiment({
     visitors.set(row.local_id, logs);
   }
   const signupsByVisitor = new Map<string, LandingStatsSignup[]>();
+  const submissionsByUser = new Map<string, LandingStatsSubmission[]>();
+  for (const submission of submissions) {
+    const events = submissionsByUser.get(submission.userId) ?? [];
+    events.push(submission);
+    submissionsByUser.set(submission.userId, events);
+  }
   for (const signup of signups) {
     const events = signupsByVisitor.get(signup.localId) ?? [];
     events.push(signup);
@@ -82,21 +90,21 @@ export function buildLandingStatsExperiment({
       const time = Date.parse(date);
       return time >= start && time <= Math.min(deadline, now);
     };
-    const subsequent = logs.filter((log) => inWindow(log.created_at));
+    const windowSignups = signupEvents.filter((event) =>
+      inWindow(event.createdAt)
+    );
     return [
       {
         variant: exposure.abtest_type,
         at: exposure.created_at,
         mature: deadline <= now,
-        signedUp: signupEvents.some((event) => inWindow(event.createdAt)),
-        started: subsequent.some((log) => isStartLandingLogType(log.type)),
-        emailSubmitted: subsequent.some((log) =>
-          ["email_capture_sent", "email_capture_already_sent"].includes(
-            getLandingLogBaseType(log.type)
+        signedUp: windowSignups.length > 0,
+        submitted: windowSignups.some((signup) =>
+          (submissionsByUser.get(signup.userId) ?? []).some(
+            (submission) =>
+              inWindow(submission.createdAt) &&
+              Date.parse(submission.createdAt) >= Date.parse(signup.createdAt)
           )
-        ),
-        loggedIn: subsequent.some((log) =>
-          Boolean(extractEmailFromLandingLoginType(log.type))
         ),
       },
     ];
@@ -117,43 +125,27 @@ export function buildLandingStatsExperiment({
         mature.filter((visitor) => visitor.signedUp).length,
         mature.length
       ),
-      metrics: [
+      metrics: [],
+      summaryMetrics: [
         {
-          format: "count",
-          label: "24시간 관찰 중",
-          value: group.length - mature.length,
-        },
-        {
-          format: "count",
-          label: "가입 완료 브라우저",
-          value: group.filter((visitor) => visitor.signedUp).length,
+          format: "rate",
+          label: "진입 대비 회원가입 비율",
+          value: makeOpsAbTestRate(
+            group.filter((visitor) => visitor.signedUp).length,
+            group.length
+          ).rate,
           description:
-            "관찰 중인 방문자를 포함한 누적 가입 완료 수. 비율 비교는 24시간 관찰 완료 표본만 사용합니다.",
+            "현재까지 수집된 홈 진입 브라우저 중 진입 후 24시간 내 신규 가입한 비율. 관찰 중인 진입도 포함하며 이후 전환에 따라 갱신됩니다.",
         },
         {
           format: "rate",
-          label: "시작 클릭률 · 24시간",
+          label: "진입 대비 제출 완료 비율",
           value: makeOpsAbTestRate(
-            mature.filter((visitor) => visitor.started).length,
-            mature.length
+            group.filter((visitor) => visitor.submitted).length,
+            group.length
           ).rate,
-        },
-        {
-          format: "rate",
-          label: "이메일 제출률 · 24시간",
-          value: makeOpsAbTestRate(
-            mature.filter((visitor) => visitor.emailSubmitted).length,
-            mature.length
-          ).rate,
-        },
-        {
-          format: "rate",
-          label: "로그인 전환율 · 24시간",
-          value: makeOpsAbTestRate(
-            mature.filter((visitor) => visitor.loggedIn).length,
-            mature.length
-          ).rate,
-          description: "신규 가입과 기존 계정 로그인을 모두 포함합니다.",
+          description:
+            "현재까지 수집된 홈 진입 브라우저 중 진입 후 24시간 내 신규 가입과 온보딩 제출을 완료한 비율. 관찰 중인 진입도 포함하며 회원가입 비율과 같은 분모를 사용합니다.",
         },
       ],
     };
@@ -173,11 +165,12 @@ export function buildLandingStatsExperiment({
     allocation: "브라우저별 고정 50:50",
     unitLabel: "브라우저",
     primaryMetricLabel: "신규 가입 완료율 · 24시간",
+    metricLayout: "summary",
     status: groups.length ? "running" : "awaiting_data",
     firstObservedAt: dates[0] ?? null,
     lastObservedAt: dates.at(-1) ?? null,
     caveat:
-      "로그아웃 상태의 홈 방문자를 집계합니다. 선택 기간의 첫 방문 이후 24시간 내 서버 가입 완료 기록을 같은 브라우저 ID로 연결합니다. 24시간 관찰이 끝난 방문자만 전환율과 차이 계산에 포함하며, 재방문·중복 이벤트는 한 번만 셉니다. 통계 로딩 실패나 스크롤 여부로 표본을 제외하지 않습니다. 기존 가입 화면 실험과는 별도 배정입니다. 확인된 내부 이메일은 제외하며, 저장소 삭제·다른 기기에서는 연결이 끊길 수 있습니다.",
+      "로그아웃 상태의 홈 방문자를 집계합니다. 선택 기간의 첫 방문 이후 24시간 내 서버 가입 완료 기록을 같은 브라우저 ID로 연결하고 해당 계정의 온보딩 제출을 확인합니다. 표시 비율은 관찰 중인 방문자도 포함하며, 통계적 차이 계산은 24시간 관찰이 끝난 방문자만 사용합니다. 재방문·중복 이벤트는 한 번만 셉니다. 통계 로딩 실패나 스크롤 여부로 표본을 제외하지 않습니다. 기존 가입 화면 실험과는 별도 배정입니다. 확인된 내부 이메일은 제외하며, 저장소 삭제·다른 기기에서는 연결이 끊길 수 있습니다.",
     variants,
     conclusion: compareOpsAbTestRates({
       first: variants[0].primary,

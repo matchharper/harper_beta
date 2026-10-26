@@ -151,10 +151,9 @@ test("tool scope preserves shared facts while excluding unrelated capabilities",
     "update_document",
     "contact_company",
     "recommend_job_postings",
-    "web_search",
   ])
     assert.ok(!tools.toolNames.includes(forbidden));
-  for (const common of ["read_talent_context", "write_talent_context", "update_talent_profile"])
+  for (const common of ["read_talent_context", "write_talent_context", "update_talent_profile", "web_search"])
     assert.ok(tools.toolNames.includes(common));
   assert.match(
     buildSimulationSessionPrompt(ready())[0].text,

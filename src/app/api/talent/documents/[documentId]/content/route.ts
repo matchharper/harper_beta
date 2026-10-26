@@ -1,4 +1,9 @@
 import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
+import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
+import {
+  DOCUMENT_RENDER_VERSION,
+  documentTemplate,
+} from "@/lib/documents/template";
 import {
   GENERATED_RESUME_ORIGIN,
   readResumeContent,
@@ -62,6 +67,23 @@ export async function GET(req: NextRequest, context: RouteContext) {
       return noStoreJson({ error: "Document not found" }, { status: 404 });
     }
 
+    if (document.origin_type === AUTHORED_DOCUMENT_ORIGIN) {
+      const template = await documentTemplate(
+        document.file_name,
+        document.extracted_text ?? ""
+      );
+      return noStoreJson({
+        documentId: document.id,
+        fileName: document.file_name,
+        originType: document.origin_type,
+        updatedAt: document.updated_at,
+        revision: document.revision,
+        content: document.extracted_text ?? "",
+        format: "authored",
+        documentHtml: template.html,
+        renderVersion: DOCUMENT_RENDER_VERSION,
+      });
+    }
     if (document.origin_type === GENERATED_RESUME_ORIGIN) {
       try {
         const resume = readResumeContent(document.structured_content);

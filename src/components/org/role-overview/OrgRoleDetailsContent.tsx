@@ -79,7 +79,7 @@ export function OrgRoleDetailsContent({
     draft !== null &&
     draft.description !== toRoleDetailsDraft(role).description;
 
-  useUnsavedChangesWarning(hasChanges);
+  useUnsavedChangesWarning(hasChanges, { preserveWithinRole: true });
 
   const changeDraft = (
     patch: Partial<RoleDetailsDraft>,
@@ -178,7 +178,7 @@ export function OrgRoleDetailsContent({
           }
           placeholder={c(
             "후보자에게 보여줄 역할 설명을 문서처럼 작성해 주세요.",
-            "Write the role description shown to candidates as a document."
+            "Write the role description candidates will see."
           )}
           readOnly={!canManage}
           rows={7}

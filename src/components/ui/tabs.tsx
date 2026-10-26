@@ -19,6 +19,7 @@ export interface TabItem {
   icon?: React.ReactNode;
   label: React.ReactNode;
   tooltip?: string;
+  tooltipVariant?: "dark" | "light";
   value: string;
 }
 
@@ -143,7 +144,11 @@ const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
             </button>
           );
           return item.tooltip ? (
-            <Tooltips key={item.value} text={item.tooltip}>
+            <Tooltips
+              key={item.value}
+              text={item.tooltip}
+              variant={item.tooltipVariant}
+            >
               {tab}
             </Tooltips>
           ) : (

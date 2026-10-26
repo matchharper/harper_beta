@@ -4,7 +4,7 @@ import { EmailPermanentError, EmailContinuationPending } from "@/lib/email/runti
 
 export const runtime = "nodejs";
 export const maxDuration = 480;
-export const POST = handleCallback(
+const queueCallback = handleCallback(
   async (message) => {
     await processEmailRuntimeMessage(message);
   },
@@ -16,3 +16,7 @@ export const POST = handleCallback(
         : { afterSeconds: error instanceof EmailContinuationPending ? 1 : 60 },
   }
 );
+
+export async function POST(request: Request) {
+  return queueCallback(request);
+}

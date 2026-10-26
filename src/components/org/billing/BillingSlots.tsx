@@ -150,12 +150,12 @@ export function BillingSlots({
             title={c("공용 Intro", "Shared Intros")}
             description={c(
               "매월 제공되는 기본 Intro입니다. 모든 역할에 공통적으로 사용됩니다.",
-              "Provided monthly. Shared across all Roles."
+              "Renewed monthly and shared across all roles."
             )}
           />
           <Card className="rounded-[20px] bg-bg-default py-3.5 px-5 shadow-none">
             <p className="text-[14px] font-normal">
-              {c("월간 한도", "Monthly limit")}
+              {c("월간 한도", "Monthly allowance")}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[12px] text-neutral-600">
               {free.renewsAt ? (
@@ -214,7 +214,7 @@ export function BillingSlots({
           summary.model === "scale"
             ? c(
                 "Enterprise에서는 Role과 Intro에 제한이 없어요.",
-                "Enterprise includes unlimited Roles and Intros."
+                "Enterprise includes unlimited roles and Intros."
               )
             : c(
                 `슬롯 ${slots.filter((slot) => slot.active).length}개 · 채용 중인 Role ${summary.activeRoles}개`,
@@ -322,7 +322,7 @@ export function BillingSlots({
           <Tooltips
             text={c(
               "슬롯에 배정되지 않은 채용 중인 Role도 공용 Intro로 이용할 수 있어요. 유료 기능이 필요한 Role을 슬롯에 배정하세요.",
-              "Active Roles without a slot can use shared Intros. Assign a slot to a Role that needs paid features."
+              "An active role without a slot can use shared Intros. Assign a slot to give a role access to paid features."
             )}
           >
             <Info
@@ -333,7 +333,7 @@ export function BillingSlots({
         </h3>
         <ul
           className="space-y-1.5"
-          aria-label={c("Role별 슬롯 배정", "Slot assignments by Role")}
+          aria-label={c("Role별 슬롯 배정", "Slot assignments")}
         >
           {visibleRoles.map((role) => {
             const assigned = slotByRole.get(role.roleId);
@@ -425,7 +425,7 @@ export function BillingSlots({
         </ul>
         {!visibleRoles.length && (
           <p className="rounded-lg bg-bg-weak px-3 py-3 text-[12px] text-neutral-muted">
-            {c("종료되지 않은 Role이 없어요", "No open Roles")}
+            {c("종료되지 않은 Role이 없어요", "No open roles")}
           </p>
         )}
       </div>

@@ -186,7 +186,7 @@ test("organization-agent user prompt keeps recent conversation next to the lates
   );
   assert.match(
     prompt,
-    /<runtime_context>\ncurrent_time_kst=2026년 9월 14일 19:09 KST\ncurrent_slack_channel_id=C123\ncurrent_slack_channel_name=hiring-backend\n<\/runtime_context>/
+    /<runtime_context>\ntime_zone=Asia\/Seoul\ncurrent_time_kst=2026-09-14 19:09\ncurrent_slack_channel_id=C123\ncurrent_slack_channel_name=hiring-backend\n<\/runtime_context>/
   );
   assert.ok(
     prompt.indexOf("<workspace_context>") < prompt.indexOf("<user_message>")

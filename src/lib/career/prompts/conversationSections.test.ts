@@ -133,7 +133,7 @@ test("onboarding voice asks for core context without generic deep probing", () =
   assert.ok(runtimeState);
   assert.doesNotMatch(voiceRules.text, /장려할 질문 주제/);
   assert.match(runtimeState.text, /cross_border_work_authorization[\s\S]*priority: optional/);
-  assert.match(runtimeState.text, /Required checklist items covered: 0\/6/);
+  assert.match(runtimeState.text, /Required checklist items covered: 0\/5/);
 });
 
 test("keeps canonical onboarding Brief fields separate without discounting free-form Briefs", () => {

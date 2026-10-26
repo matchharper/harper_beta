@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
+import { readRoleMatchingActivity } from "@/lib/companyFirstSearch/activity.server";
 import {
   getSupabaseAdmin,
   requireAuthenticatedUser,
@@ -34,12 +36,12 @@ export async function GET(req: NextRequest) {
     const user = await requireAuthenticatedUser(req);
     const workspaceId = text(req.nextUrl.searchParams.get("workspaceId"));
     const roleId = text(req.nextUrl.searchParams.get("roleId"));
-    if (!workspaceId || !roleId) {
-      throw new OrgHttpError(400, "workspaceId and roleId are required");
+    if (!z.string().uuid().safeParse(workspaceId).success || !z.string().uuid().safeParse(roleId).success) {
+      throw new OrgHttpError(400, "Valid workspaceId and roleId are required");
     }
 
     const admin = getSupabaseAdmin();
-    await assertOrgRoleAccess({ admin, user, workspaceId, roleId });
+    await assertOrgRoleAccess({ admin, user, workspaceId, roleId, permission: "view" });
 
     const { data: role, error: roleError } = await (
       admin.from("company_roles" as any) as any
@@ -51,19 +53,9 @@ export async function GET(req: NextRequest) {
     if (roleError) throw roleError;
     if (!role) throw new OrgHttpError(404, "Role not found");
 
-    const { data: activeRun, error: runError } = await (
-      admin.from("company_first_search_runs" as any) as any
-    )
-      .select("id")
-      .eq("company_workspace_id", workspaceId)
-      .eq("trigger_reason", "company_requested")
-      .contains("requested_role_ids", [roleId])
-      .in("status", ["queued", "running", "delivery_pending"])
-      .limit(1)
-      .maybeSingle();
-    if (runError) throw runError;
-
-    return NextResponse.json({ active: Boolean(activeRun), ok: true });
+    return NextResponse.json(await readRoleMatchingActivity({ admin, workspaceId, roleId }), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
     return toErrorResponse(error);
   }

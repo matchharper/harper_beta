@@ -1,0 +1,50 @@
+{
+  "task": "company-agentic-role-search",
+  "datasetVersion": "selector-reasoning-diagnostic-v1",
+  "createdAt": "2026-10-22",
+  "baseline": "bootstrap-v3 actual xhigh outputs",
+  "canonicalRunner": "harper_worker/llm_evals/company_agentic_role_search/selector_diagnostic.py",
+  "change": "reasoningEffort only; model, system, full input, temperature, output budget and timeout unchanged",
+  "expectations": [
+    "Select only supplied stage-2 identifiers; do not remove any unpresented person.",
+    "Use comparative evidence, not arbitrary numerical cutoffs, pedigree requirements or quota filling.",
+    "Treat undocumented evidence as uncertainty, and separate weaker ranking from affirmative conflict.",
+    "Give source-supported public work evidence and material tradeoff without private preferences, salary or Memory.",
+    "No exact candidate-set equality is required; manually review any inclusion or omission against the full frozen evidence."
+  ],
+  "metrics": [
+    "manual selection/rationale review",
+    "actual elapsed seconds and reported token usage",
+    "provider-reported USD or unknown; never infer zero from absent cost"
+  ],
+  "limitations": [
+    "Two unblinded diagnostic units selected after inspecting xhigh outputs, not a representative quality benchmark.",
+    "Medium calls occur later at concurrency 2; xhigh original ran within larger production batching, so load/cache variance confounds latency.",
+    "The final-profile input lacks exact private hard preferences; this diagnostic cannot resolve the observed US-only versus Toronto conflict.",
+    "No database, publication, outreach or candidate side effects. Raw data remain ignored owner-private."
+  ],
+  "cases": [
+    {
+      "id": "SRD01",
+      "phase": "first compact batch",
+      "sourceTrace": "llm/company-requested-afbae9ae-ebc1-4040-b9d9-10f7ad622537.json",
+      "sourceTraceSha256": "a564eccdec5fe07d1bc657eeac2ee83355f19c0b514b270369030a8c6bdc3ae3",
+      "callIndex": 1,
+      "inputSha256": "f5ec0f0a17bd7061e4d535ea96393977912c679b3d5da301b23e9c5157110be8",
+      "systemSha256": "3773f6734e99b0a73bcf7f3aafbcfc9d39f9665cf9a05bb0c76640cded12804e",
+      "baselineReasoning": "xhigh",
+      "model": "gpt-6.1-sol"
+    },
+    {
+      "id": "SRD02",
+      "phase": "final full-profile confirmation",
+      "sourceTrace": "llm/company-requested-afbae9ae-ebc1-4040-b9d9-10f7ad622537.json",
+      "sourceTraceSha256": "a564eccdec5fe07d1bc657eeac2ee83355f19c0b514b270369030a8c6bdc3ae3",
+      "callIndex": 74,
+      "inputSha256": "bf0bcb8a73caec0274961460115036fdb39eacfbb140d934b0d5136bc84bc936",
+      "systemSha256": "3773f6734e99b0a73bcf7f3aafbcfc9d39f9665cf9a05bb0c76640cded12804e",
+      "baselineReasoning": "xhigh",
+      "model": "gpt-6.1-sol"
+    }
+  ]
+}

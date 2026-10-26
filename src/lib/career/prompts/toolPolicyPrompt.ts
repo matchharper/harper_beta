@@ -4,7 +4,7 @@ import { normalizeToolNames } from "@/lib/career/prompts/promptUtils";
 import type { CareerToolPolicyChannel } from "@/lib/career/prompts/types";
 import { COMPANY_RELAY_CONTENT_CONTRACT } from "@/lib/companyTalentRequests/relayContract";
 
-export const WEB_APPLICATION_START_POLICY = "Call the experience Apply with Harper (하퍼로 지원하기), and the active mode 함께 지원 모드. simulate_application displays a resume-selection start card for one known role and document_id. List/read the user's resumes and choose one. Resolve references such as the previously selected source from the available session and document identifiers; do not ask the user to select again when the source is already identifiable. The card itself allows changing the chosen resume. Previous inspection failures are historical evidence, not a current determination that another or retried application requires self-submission; let the new preparation verify access. If none exists, offer upload or creation from the profile with consent. Only the Start button runs preparation. The successful call ends the turn with the interactive card; wait for its Start action. Never output hidden start-payload markers or claim preparation/submission succeeded without evidence.";
+export const WEB_APPLICATION_START_POLICY = "Call the experience Apply with Harper (하퍼로 지원하기), and the active mode 함께 지원 모드. To continue saved preparation, load application_support and use manage_simulation_session list/resume; ending preparation preserves work without submitting. For new preparation, simulate_application displays a resume-selection start card for one known role and document_id. List/read the user's resumes and choose one. Resolve references such as the previously selected source from the available session and document identifiers; do not ask the user to select again when the source is already identifiable. The card itself allows changing the chosen resume. Previous inspection failures are historical evidence, not a current determination that another or retried application requires self-submission; let the new preparation verify access. If none exists, offer upload or creation from the profile with consent. Only the Start button runs preparation. The successful call ends the turn with the interactive card. Put useful conversational context in its introduction, including the outcome of a preceding task when relevant, so the user understands the transition and next step. Wait for its Start action. Never output hidden start-payload markers or claim preparation/submission succeeded without evidence.";
 
 export function buildCareerToolPolicyPrompt(args: {
   channel: CareerToolPolicyChannel;
@@ -76,6 +76,7 @@ export function buildCareerToolPolicyPrompt(args: {
         : "- Voice mode: if a tool is needed, call it directly. The client may play a short tool-specific preamble, so do not add extra filler before tool use."
       : `- Chat mode: if a tool is needed, call it directly and then answer naturally using only the relevant findings. Write the entire final response consistently in ${outputLanguage}, apart from proper nouns or technical terms that are clearer in their original form. Only an explicit language request from the user changes this, as the language rule describes.`;
   const onboardingToolExceptionNames = [
+    hasEndCallTool ? "`end_call`" : null,
     hasUpdateLanguageSettingTool ? "`update_language_setting`" : null,
     hasUpdateSettingTool ? "`update_setting`" : null,
     hasUpdateTalentProfileTool ? "`update_talent_profile`" : null,
@@ -103,7 +104,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : "",
     ...(hasEndCallTool
       ? [
-          "- `end_call` takes no parameters. Call it immediately when the user clearly asks to end, stop, hang up, or says they are done for today. For an assistant-initiated ending, call it only after the user agrees. Include a short closing in the same response when possible; if speech and a function call cannot be combined, prioritize the tool because the client supplies a brief spoken fallback. Do not include `_uiStatusMessage` with `end_call`.",
+          "- Use `end_call` to finish the voice session. For completed onboarding, set complete_onboarding=true to save completion before disconnecting; no separate closing approval is needed. For an early stop or a different call mode, set it to false. Respect an explicit stop immediately. Do not include `_uiStatusMessage` with `end_call`.",
         ]
       : []),
     ...(args.channel === "chat"
@@ -216,7 +217,7 @@ export function buildCareerToolPolicyPrompt(args: {
       : []),
     ...(hasUpdateRecommendedOpportunityFeedbackTool
       ? [
-          "- Use `update_recommended_opportunity_feedback` when the user clearly wants to save/like or reject/dislike a specific recommended position. Use the roleId from `[posting](roleId)` when available. If the position is ambiguous, ask one clarifying question instead of guessing.",
+          "- Use `update_recommended_opportunity_feedback` when the user wants to save/like or reject/dislike a specific recommended position, or their words imply it no longer fits (e.g. already applied or rejected there); for implied cases ask once before rejecting, and use feedbackReason `이미 지원했던 회사/역할입니다.` when they already applied. Use the roleId from `[posting](roleId)` when available. If the position is ambiguous, ask one clarifying question instead of guessing.",
           "- Use `feedback=review` when a role has been verified through `get_internal_roles` with `matchedOnly=true` and the user asks to add it to Positions/Jobs for their detailed review, or when an earlier `update_recommended_opportunity_feedback` result for the same role returned `reason=internal_role_review_required`, or after priority registration returns recommendationAvailable=true for that exact role. Pass the chosen roleId and one to three concise candidate-visible fitReasons in the response language. Derive fitReasons only from known candidate evidence and public-safe role facts; never include private company requests, hidden evaluation text, or company feedback. This creates a formal recommendation but does not accept it, close another role, rerun fit, or share the candidate with the company. Priority registration comes first; the server-qualified recommendation is then presented with `feedback=review`, while acceptance still needs a later explicit choice.",
           "- Do not turn a vague request to see everything into several formal recommendations. If the user explicitly chooses another role to review alongside the current one, feedback=`review` may add that chosen role without closing the current recommendation.",
           "- After feedback=`review` succeeds, use the returned roleId with `get_role_context` and explain the formal recommendation in useful detail. Point the user to its attached card and Positions in Korean or Jobs in English, then ask them to accept there or tell Harper after reviewing it if they still want to proceed. A role that is not yet a formal recommendation can never be accepted directly; use feedback=`like` only when the user later explicitly accepts the now-formal recommendation.",
@@ -278,11 +279,11 @@ export function buildCareerToolPolicyPrompt(args: {
           "",
           "### update_talent_profile (profile writer)",
           args.isOnboardingActive
-            ? "- Purpose: update talentUser.name/bio/location, personal profileLinks, or rowMemos during onboarding."
-            : "- Purpose: update talentUser.name/bio/location, personal profileLinks, rowMemos, or recommendationBatchSize.",
+            ? "- Purpose: update talentUser.name/headline/bio/location, personal profileLinks, rows or rowMemos during onboarding."
+            : "- Purpose: update talentUser.name/headline/bio/location, personal profileLinks, rows, rowMemos, or recommendationBatchSize.",
           args.isOnboardingActive
-            ? "- Boundary: exact name/profile summary/current base -> talentUser; row facts -> rowMemos; subscription actions -> update_setting."
-            : "- Boundary: row facts -> rowMemos; saved career context -> write_talent_context; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
+            ? "- Boundary: exact name/profile summary/current base -> talentUser; structured row fields -> rows; supplementary context -> rowMemos; subscription actions -> update_setting."
+            : "- Boundary: structured row fields -> rows; supplementary context -> rowMemos; saved career context -> write_talent_context; batch size -> recommendationBatchSize; subscription actions -> update_setting.",
           "- For recommendationBatchSize, choose a 3-10 value per schema; vague more/less adjusts by 2, maximum requests use 10, and you should not ask a follow-up just to pick the number.",
           ...(hasUpdateSettingTool
             ? [
@@ -291,9 +292,10 @@ export function buildCareerToolPolicyPrompt(args: {
             : [
                 "- Do not write subscription/contact actions or cadence/frequency changes through this tool; answer naturally instead.",
               ]),
-          "- Do NOT call for one-off browsing, curiosity, informational searches, questions, hypotheticals, assistant summaries, duplicates, or aspirational/off-profile role mentions without explicit future intent.",
+          "- Read existing rows as needed; write only explicit user facts or requested corrections, never hypotheticals or assistant inferences.",
           "- After this tool returns, respond naturally in the current channel. Do not return an empty assistant message, and do not return only an onboarding marker.",
-          "- Trigger conditions: call ONLY when the user's latest statement directly maps to a writable field in this tool:",
+          "- For writes, map confirmed facts to the appropriate fields:",
+          "- rows adds/updates/deletes actual experience, education or extra fields; readRows retrieves complete rows before replacing truncated descriptions. Keep unrelated fields unchanged. headline edits the profile headline.",
           "1) talentUser.name: the user explicitly states or corrects their name; copy it exactly as written without translation or transliteration.",
           "2) talentUser.bio: explicit final Summary/About/Bio replacement, correction, or clear request; never infer it from assistant-only summaries.",
           "3) talentUser.location: explicit current primary base/residence only; not travel, past/target job location, desired work location, or relocation preference.",
@@ -301,7 +303,7 @@ export function buildCareerToolPolicyPrompt(args: {
           "- Never store overly sensitive personal information in rowMemos, even if the user discloses it.",
           "- If related context must be retained, record only the generalized consequence and omit the sensitive cause and details.",
           args.isOnboardingActive
-            ? "- Use only talentUser.name, talentUser.bio, talentUser.location, profileLinks, and rowMemos. Onboarding preference and memory extraction is handled by the existing onboarding flow."
+            ? "- Use only talentUser.name, talentUser.headline, talentUser.bio, talentUser.location, profileLinks, rows, readRows, and rowMemos. Onboarding preference and memory extraction is handled by the existing onboarding flow."
             : "",
           `- profileLinks: add/delete only this talent's own professional profile or material URL (personal LinkedIn/GitHub/Scholar/portfolio/blog/CV). Never add company, job-posting, recruiting, company-document, or another person's URL. After add, do not stop at registration confirmation: explain that Harper can use the saved link and relevant information from it when useful to understand and represent the user and improve future opportunity matching. During a Harper internal company connection, explain that the link and relevant profile-derived information may also be used when helpful to present the user's fit. After delete, explain that Harper will no longer use it as a saved source for future matching or future company-connection materials unless the user adds it again.`,
           "- Do not write resume files or the same fact twice. Use only user-provided new information, not assistant summaries.",

@@ -36,7 +36,7 @@ export function OrgCandidateReengagementDialog({
             size="lg"
             variant="default"
           >
-            {c("회사에서 이미 확인했어요", "Confirmed by company")}
+            {c("회사에서 이미 확인했어요", "Interest confirmed")}
           </MuteButton>
           <MuteButton
             disabled={pending}
@@ -45,7 +45,7 @@ export function OrgCandidateReengagementDialog({
             variant="primary"
           >
             {pending ? <LoaderCircle className="size-4 animate-spin" /> : null}
-            {c("Harper가 먼저 물어보기", "Harper will ask first")}
+            {c("Harper가 먼저 물어보기", "Have Harper ask")}
           </MuteButton>
         </div>
       }
@@ -58,7 +58,7 @@ export function OrgCandidateReengagementDialog({
       showCloseButton={!pending}
       title={c(
         "후보자에게 종료 안내가 전달됐어요",
-        "Candidate has been notified of closure"
+        "The candidate was told the process had ended"
       )}
     >
       <div className="space-y-3 text-[13px] leading-5 text-neutral-muted">
@@ -72,7 +72,7 @@ export function OrgCandidateReengagementDialog({
         <p>
           {c(
             "Harper가 회사 대신 다시 진행할 생각이 있는지 물어보고, 긍정 답변이 오면 자동으로 상태를 복구할 수 있어요. 회사에서 이미 직접 확인했다면 하려던 단계를 이어서 진행할 수 있어요.",
-            "Harper can ask the candidate on the company's behalf; if they respond positively, the status can be restored automatically. If the company already confirmed directly, continue with your previous steps."
+            "Harper can ask whether the candidate is still interested and reopen the process if they say yes. If you've already confirmed their interest directly, you can continue now."
           )}
         </p>
       </div>

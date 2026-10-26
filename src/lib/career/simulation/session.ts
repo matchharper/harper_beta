@@ -233,7 +233,7 @@ export function endSimulationSession(
           activity: {
             ...s.activity,
             batches: s.activity.batches.map((b) =>
-              b.status === "waiting"
+              b.status === "waiting" && (b.browser || !["user", "switched", "expired"].includes(reason ?? ""))
                 ? { ...b, status: "cancelled" as const }
                 : b
             ),
@@ -408,13 +408,8 @@ export function mutateSimulationSession(
   )
     throw new Error("Unknown action");
   if (input.action === "end") {
-    if (
-      next.switchRequest &&
-      next.switchRequest.messageId === evidenceMessageId
-    )
-      throw new Error(
-        "Wait for the user's reply before ending for a proposed switch"
-      );
+    // The conversational agent interprets authorization. A request recorded in
+    // this turn must not invalidate an explicit stop/switch in that same turn.
     if (input.text?.trim()) next.closingSummary = input.text.trim();
     return endSimulationSession(next, input.endReason ?? "user", now);
   }
@@ -511,6 +506,7 @@ export function simulationSessionContext(s: SimulationSession, toolNames?: reado
     // Free answers retain the immutable question they answer; UI history is unchanged.
     questionBatches: applicationAnswerContext(s, true, {compactButtonDecisions: !!s.preparation}),
     role: s.roleName,
+    roleRef: s.roleRef,
     document: s.documentName,
     workingResume: s.preparation?.workingResume,
     selectedResume: {

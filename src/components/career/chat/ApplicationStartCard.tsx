@@ -1,4 +1,6 @@
 import { FileText } from "lucide-react";
+import RichText from "@/components/ui/rich-text";
+import { careerTimelineAssistantRichTextClassName, careerTimelineTypographyStyle } from "./careerTimelineTypography";
 import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { useState, useRef, useEffect } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -134,6 +136,12 @@ export function ApplicationStartCard({
     }
   };
   return (
+    <div className="space-y-4">
+      {offer.introduction && (
+        <div style={careerTimelineTypographyStyle}>
+          <RichText content={offer.introduction} variant="career" className={careerTimelineAssistantRichTextClassName} />
+        </div>
+      )}
     <section className="w-full max-w-[640px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm">
       <header className="p-4 pb-0">
         <h3 className="font-medium">
@@ -256,5 +264,6 @@ export function ApplicationStartCard({
         </MuteButton>
       </div>
     </section>
+    </div>
   );
 }

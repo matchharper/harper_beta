@@ -844,3 +844,37 @@ test("Hiring Brief rewrite and compensation can be saved together without confir
   assert.equal(result.changes.length, 2);
   assert.equal(result.changes[0].value, request);
 });
+
+test("Hiring Brief rewrite, append and exact replacement preserve long source and complete previews", () => {
+  const original = `## Hard constraints\n\n${"Original requirement. ".repeat(1800)}\n\n## Preferred criteria\n\nOriginal preference.`;
+  const revised = original.replace("Original preference.", "Revised preference.");
+  const resolve = (changes: unknown, current: string | null) => resolveCompanyDataMutation({
+    ...parseCompanyDataChanges({ changes, summary: "기준 변경" }),
+    isComplete: () => true, snapshot: snapshot({ "role_request:role-1": current }),
+  });
+  const rewritten = resolve([{ key: "role_request", roleId: "role-1", kind: "rewrite", value: original }], null);
+  assert.equal(rewritten.changes[0].value, original);
+  assert.ok(rewritten.preview.includes("Original requirement. ".repeat(1800).trim()));
+  const replaced = resolve([{ key: "role_request", roleId: "role-1", kind: "replace", oldValue: original, value: revised }], original);
+  assert.equal(replaced.changes[0].value, revised);
+  assert.ok(replaced.preview.includes(original));
+  assert.ok(replaced.preview.includes(revised));
+  const addition = "Additional evidence. ".repeat(400).trim();
+  const appended = resolve([{ key: "role_request", roleId: "role-1", kind: "append", section: "preferred_criteria", value: addition }], original);
+  assert.ok(String(appended.changes[0].value).includes(original));
+  assert.ok(String(appended.changes[0].value).endsWith(addition));
+  assert.ok(appended.preview.includes(addition));
+  const merged = mergeCompanyDataProposalRevision({ baseChanges: rewritten.changes, revisedChanges: replaced.changes });
+  assert.equal(merged.changes[0].value, revised);
+  assert.ok(merged.preview.includes("Original requirement. ".repeat(1800).trim()));
+});
+
+test("unbounded Hiring Brief does not relax another field's length contract in a mixed batch", () => {
+  const parsed = parseCompanyDataChanges({ summary: "기준과 메모 변경", changes: [
+    { key: "role_request", roleId: "role-1", kind: "rewrite", value: `## Hard constraints\n${"source ".repeat(5000)}\n## Preferred criteria` },
+    { key: "role_memory", roleId: "role-1", kind: "rewrite", value: "x".repeat(12_001) },
+  ] });
+  assert.throws(() => resolveCompanyDataMutation({ ...parsed, isComplete: () => true,
+    snapshot: snapshot({ "role_request:role-1": null, "role_memory:role-1": null }),
+  }), (error: unknown) => error instanceof CompanyDataMutationError && error.code === "value_too_long");
+});

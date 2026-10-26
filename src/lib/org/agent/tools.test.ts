@@ -286,14 +286,12 @@ test("company agent can request an asynchronous current-Brief matching search", 
     true
   );
   assert.deepEqual(parameters.required, ["roleId"]);
-  assert.deepEqual(Object.keys(parameters.properties), ["roleId"]);
-  assert.match(search?.function.description ?? "", /explicitly asks/i);
-  assert.match(search?.function.description ?? "", /asynchronous/i);
-  assert.match(search?.function.description ?? "", /company-scoped/i);
-  assert.match(
-    search?.function.description ?? "",
-    /no candidate has been selected or contacted/i
-  );
+  assert.deepEqual(parameters.properties.scope.enum, ["unassessed","new_members","all","evaluated"]);
+  assert.deepEqual(parameters.properties.startStage.enum, [1,2]);
+  assert.equal(parameters.properties.recommendCount.minimum,0);
+  assert.equal(parameters.properties.recommendCount.maximum,undefined);
+  assert.equal(parameters.properties.limit.maximum,undefined);
+  assert.match(search?.function.description ?? "", /queued result does not prove completed/i);
 });
 
 test("stage scheduling can prepare a meeting without moving an already-staged candidate", () => {
@@ -435,6 +433,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   const calibrationParameters = calibration?.function.parameters as any;
   assert.ok(calibration);
   assert.deepEqual(calibrationParameters.required, ["roleId"]);
+  // Only the Role: on a role start Role reference people come through the web box, never a referenceId here.
   assert.deepEqual(Object.keys(calibrationParameters.properties), ["roleId"]);
   assert.match(
     calibration?.function.description ?? "",
@@ -462,13 +461,13 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   assert.equal(criteriaParameters.minProperties, 2);
   assert.equal(criteriaParameters.anyOf, undefined);
   assert.equal(criteriaParameters.properties.criteria.minItems, 0);
-  assert.equal(criteriaParameters.properties.criteria.maxItems, 6);
+  assert.equal(criteriaParameters.properties.criteria.maxItems, undefined);
   assert.deepEqual(criteriaParameters.properties.criteria.items.required, [
     "name",
     "criteria",
   ]);
   assert.equal(criteriaParameters.properties.edits.minItems, 1);
-  assert.equal(criteriaParameters.properties.edits.maxItems, 6);
+  assert.equal(criteriaParameters.properties.edits.maxItems, undefined);
   assert.deepEqual(
     criteriaParameters.properties.edits.items.properties.operation.enum,
     ["add", "update", "delete"]
@@ -478,7 +477,7 @@ test("company-side tools separate lifecycle changes from the batch writer", () =
   ]);
   assert.match(updateRoleCriteria?.function.description ?? "", /targetName/);
   assert.match(updateRoleCriteria?.function.description ?? "", /exactly one/);
-  assert.match(updateRoleCriteria?.function.description ?? "", /Zero to six/);
+  assert.match(updateRoleCriteria?.function.description ?? "", /empty list is valid/);
   assert.match(updateRoleCriteria?.function.description ?? "", /no separate criteria request is needed/);
   assert.match(
     updateRoleCriteria?.function.description ?? "",
@@ -671,7 +670,7 @@ test("read_role documents built-in pipeline stage filter values", () => {
   assert.match(stageDescription, /response-language contract for UI labels/);
 });
 
-test("read_talent accepts up to ten IDs and keeps resume output availability-only", () => {
+test("read_talent has no ordinary batch ceiling and keeps resume output availability-only", () => {
   const readTalent = ORG_AGENT_TOOLS.find(
     (item) => item.function.name === "read_talent"
   );
@@ -692,7 +691,7 @@ test("read_talent accepts up to ten IDs and keeps resume output availability-onl
   assert.equal(parameters.minProperties, 1);
   assert.equal(parameters.anyOf, undefined);
   assert.equal((properties.talentIds as any).minItems, 1);
-  assert.equal((properties.talentIds as any).maxItems, 10);
+  assert.equal((properties.talentIds as any).maxItems, undefined);
   assert.equal((properties.talentIds as any).uniqueItems, true);
   assert.equal("preferenceTopics" in properties, false);
   assert.match(

@@ -311,7 +311,7 @@ export default function CareerLandingFooter({
                 className="font-hedvig mt-5 mb-3.5 text-lg leading-[1.6] font-medium tracking-tight break-keep md:mt-[26px] md:mb-[22px]"
                 lang="en"
               >
-                Get introduced to your dream role.
+                Build your next great team.
                 <br />
                 <span className="text-neutral-muted">With Harper.</span>
               </p>
@@ -327,12 +327,10 @@ export default function CareerLandingFooter({
                 <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                   <li>
                     <Link
-                      // href={`/org?lang=${resolvedLocale}`}
-                      href={`${companyPageHref}#company-contact`}
+                      href={`/org?lang=${resolvedLocale}`}
                       className="inline-flex items-center gap-1 py-0.5 text-sm leading-normal font-light underline-offset-[5px] hover:underline focus-visible:rounded-[2px] focus-visible:outline-2 focus-visible:outline-offset-[5px] focus-visible:outline-action md:text-[15px]"
                     >
-                      {/* {isKo ? "무료로 시작하기" : "Start for free"} */}
-                      {isKo ? "무료로 사용해보기" : "Try for free"}
+                      {isKo ? "무료로 시작하기" : "Start for free"}
                     </Link>
                   </li>
                   <li>

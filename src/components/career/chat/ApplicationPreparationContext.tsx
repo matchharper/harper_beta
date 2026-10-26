@@ -74,8 +74,12 @@ export function ApplicationPreparationProvider({
   const localAnswers = useRef<LocalQuestionAnswers | null>(null);
   const storageKey = `harper-application-answers:${conversationId}`;
   const persistLocal = useCallback((value: LocalQuestionAnswers | null) => {
+    const previous = localAnswers.current;
     localAnswers.current=value;
-    try { if(value) localStorage.setItem(storageKey, JSON.stringify(value)); else localStorage.removeItem(storageKey); } catch { /* In-memory answers remain available. */ }
+    try {
+      if(value) localStorage.setItem(`${storageKey}:${value.batchId}`, JSON.stringify(value));
+      else if(previous) localStorage.removeItem(`${storageKey}:${previous.batchId}`);
+    } catch { /* In-memory answers remain available. */ }
   }, [storageKey]);
   const conversationRef = useRef(conversationId);
   const hydratedConversation = useRef<string | null>(null);
@@ -96,8 +100,18 @@ export function ApplicationPreparationProvider({
     hydratedConversation.current = conversationId;
     if (data.session) {
       if (!serverRecord.current || data.session.messageId !== serverRecord.current.messageId || data.session.state.revision >= serverRecord.current.state.revision) serverRecord.current=data.session;
-      if (!localAnswers.current) { try { localAnswers.current=JSON.parse(localStorage.getItem(storageKey) || "null"); } catch {} }
-      if (localAnswers.current && pendingApplicationBatch(serverRecord.current!.state)?.id !== localAnswers.current.batchId) persistLocal(null);
+      const batchId = pendingApplicationBatch(serverRecord.current!.state)?.id;
+      if (localAnswers.current?.batchId !== batchId) {
+        // Leaving one preparation must not discard its unsubmitted answers.
+        localAnswers.current = null;
+        if (batchId) try {
+          const saved = JSON.parse(localStorage.getItem(`${storageKey}:${batchId}`) || localStorage.getItem(storageKey) || "null");
+          if (saved?.batchId === batchId) {
+            persistLocal(saved);
+            localStorage.removeItem(storageKey);
+          }
+        } catch { /* Keep the server's saved answers. */ }
+      }
       data.session=projectLocalAnswers(serverRecord.current!,localAnswers.current);
       if (localAnswers.current && !lock.current && data.session.state.activity?.batches.find((b: {id:string;status:string}) => b.id === localAnswers.current!.batchId)?.status === "submitted") {
         setError(t("career.application.answers.unsent", "답변이 이 기기에 저장되어 있어요. 전송을 다시 시도해 주세요."));
@@ -248,7 +262,7 @@ export function ApplicationPreparationProvider({
             const incoming = data.session;
             submittedRecord = incoming;
             serverRecord.current=incoming;
-            if(submission || incoming.state.status !== "active") persistLocal(null);
+            if(submission) persistLocal(null);
             setRecord((prev) =>
               prev &&
               incoming.messageId === prev.messageId &&

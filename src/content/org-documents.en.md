@@ -323,8 +323,8 @@ Role count, paid-feature access, and Intro balance are separate limits. Existing
 
 | Plan | Role count | Intros and features |
 | --- | --- | --- |
-| Free | Unlimited | 10 monthly Intros shared across all Roles |
-| Slot | Roles remain unlimited | Paid features and 50 monthly Intros for the assigned Role; the shared 10 remain separate |
+| Free | 1 active Role; unlimited drafts | 10 monthly Intros shared across all Roles |
+| Slot | 1 active Role per slot, plus 1 Free Role | Paid features and 50 monthly Intros for the assigned Role; the shared 10 remain separate |
 | Enterprise or existing agreement | Agreed terms | Check your company's contract |
 
 Ready to connect requires an assigned slot or access under an existing agreement. Shared Intros alone do not unlock it. Free and standard slot subscriptions have no hiring success fee.
@@ -337,7 +337,7 @@ Intros renew monthly and do not roll over. Annual billing still uses monthly Int
 
 ### Assignment and access expiry <!-- id: slots-and-credits-assignment-and-access-expiry -->
 
-An expired slot does not automatically pause its Role. Slot-dependent paid features end, while the Role can continue with Free features and shared Intros. Review the previous Role's access when reassigning a slot.
+When a slot expires, its paid features end. After assigning remaining slots, the oldest eligible Free Role stays active and surplus Free Roles are paused. Existing candidates, Intros and progress history are preserved. Review the previous Role's access when reassigning a slot.
 
 ```callout
 Current billing access

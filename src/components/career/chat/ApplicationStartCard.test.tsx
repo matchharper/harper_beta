@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MessagesProvider } from "@/i18n/useMessage";
 import { ApplicationStartCard } from "./ApplicationStartCard";
 import { JSDOM } from "jsdom";
-import { applicationStartRequestSchema } from "@/lib/career/simulation/startOffer";
+import { applicationStartRequestSchema, parseApplicationStartOffer } from "@/lib/career/simulation/startOffer";
 test("compact start card and disables starting until a resume is selected", () => {
   const html = renderToStaticMarkup(
     <MessagesProvider locale="ko">
@@ -64,4 +64,19 @@ test("start request carries only the card and selected document, not a client-de
     }).success,
     false
   );
+});
+
+test("persisted start card keeps the authored explanation above the next role without another confirmation", () => {
+  const offer = parseApplicationStartOffer(JSON.parse(JSON.stringify({
+    version: 1, status: "ready", roleName: "Example · Field Engineer", roleId: "role-b",
+    introduction: "이전 준비는 저장해 두었어요. 나중에 이어갈 수 있어요. **Field Engineer** 지원을 도와드릴게요.",
+    selectedDocumentId: "resume", resumes: [{ id: "resume", name: "My CV.pdf", primary: true }],
+  })))!;
+  const html = renderToStaticMarkup(<MessagesProvider locale="ko"><ApplicationStartCard offer={offer} messageId={2} disabled={false} onAction={() => {}} /></MessagesProvider>);
+  const doc = new JSDOM(html).window.document;
+  assert.ok(doc.body.textContent?.includes(offer.introduction!.replaceAll("**", "")));
+  assert.ok(html.indexOf("이전 준비는") < html.indexOf("<section"));
+  assert.equal(doc.querySelector("strong")?.textContent, "Field Engineer");
+  const start = [...doc.querySelectorAll("button")].find(button => button.textContent?.includes("함께 지원 시작하기"));
+  assert.equal(start?.hasAttribute("disabled"), false);
 });

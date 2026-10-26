@@ -139,15 +139,6 @@ const ADDITIONAL_QUESTION_ONE_ITEM = {
   kind: "additional_question",
 } satisfies OnboardingQuestionChecklistItem;
 
-const FINAL_PRIORITY_CONFIRMATION_ITEM = {
-  key: "final_priority_confirmation",
-  label: "마지막 우선순위 확인 혹은 종료 확인",
-  promptHint:
-    "지금까지의 우선순위와 제약을 짧게 정리한 뒤 빠진 것이 있는지 물었고 사용자가 그 확인에 답했는지 혹은 사용자가 종료를 요청했는지",
-  priority: 10,
-  kind: "final_confirmation",
-} satisfies OnboardingQuestionChecklistItem;
-
 export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
   [
     ...INSIGHT_BACKED_ONBOARDING_ITEMS,
@@ -160,7 +151,6 @@ export const ONBOARDING_QUESTION_CHECKLIST: OnboardingQuestionChecklistItem[] =
     //   kind: "additional_question",
     // },
     ADDITIONAL_QUESTION_ONE_ITEM,
-    FINAL_PRIORITY_CONFIRMATION_ITEM,
   ];
 
 /** The short first conversation only needs enough context to begin searching. */
@@ -173,7 +163,7 @@ export const ONBOARDING_REQUIRED_QUESTION_KEYS = [
 ] as const;
 
 export const ONBOARDING_QUESTION_MIN_COVERED_COUNT =
-  ONBOARDING_REQUIRED_QUESTION_KEYS.length + 1; // final confirmation
+  ONBOARDING_REQUIRED_QUESTION_KEYS.length;
 
 const ALL_ONBOARDING_QUESTION_CHECKLIST = ONBOARDING_QUESTION_CHECKLIST;
 
@@ -222,10 +212,14 @@ export const ONBOARDING_ADDITIONAL_QUESTION_KEYS =
     (item) => item.kind === "additional_question"
   ).map((item) => item.key);
 
+/** Read historical coverage without making confirmation a current question. */
 export const ONBOARDING_FINAL_CONFIRMATION_KEY = "final_priority_confirmation";
 
 export const ONBOARDING_QUESTION_CHECKLIST_KEY_SET = new Set(
-  ALL_ONBOARDING_QUESTION_CHECKLIST.map((item) => item.key)
+  [
+    ...ALL_ONBOARDING_QUESTION_CHECKLIST.map((item) => item.key),
+    ONBOARDING_FINAL_CONFIRMATION_KEY,
+  ]
 );
 
 export const ONBOARDING_QUESTION_BY_INSIGHT_KEY = new Map(

@@ -56,7 +56,8 @@ export type OpsAbTestSummary = {
   id: string;
   lastObservedAt: string | null;
   primaryMetricLabel: string;
-  metricLayout?: "table";
+  metricLayout?: "table" | "summary";
+  measurementVersion?: string | null;
   status: "running" | "awaiting_data" | "observing" | "ended";
   title: string;
   unitLabel: string;

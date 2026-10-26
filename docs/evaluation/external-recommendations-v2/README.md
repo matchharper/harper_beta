@@ -1,5 +1,11 @@
 # External recommendation V2 comparison
 
+## 2026-10-26 최종 선정 변경 (로컬·미배포)
+
+사용자 요청으로 V2 최종 선정은 요약이 있는 상위25개를 입력하고 Luna reasoning high를 사용한다. 구조 재시도도 같은 설정이며 추론·출력 여유를 위해 토큰 상한은32,768이다. 검색 계획·중립 요약은 기존 low, 공유 함수를 이용하는 V1 daily cache 선정은 기존20개/low를 유지한다. 가중치는 변경하지 않았다. 웹·Worker 측정 버전은 `weighted-country-employment-rerank25-high-2026-10-26-v1`로 함께 변경해 기존 측정과 구분한다.
+
+[실제 저장 점수의 6개 가중치 비교](../external-v2-weight-replay/README.md)는 새로운 LLM 호출 없이 복원 가능한125개 실행을 재정렬했다. 이는 high 선정 모델의 실제 품질 검증이 아니다. 관련 engine 테스트19개 통과, 배포·운영 데이터 쓰기 없음.
+
 ## 2026-10-15 현재 연봉 검색 계약
 
 Opportunity quality score 생성/필드/가중치는 제거했다. 현재 planner는 annual KRW salary target을 반환하며 초기 SQL만 연봉 만족도를 사용한다. Fit 가중합에는 보너스가 없다. Control/V2 모두 공유 salary cache를 채우고 예측 급여는 LLM 입력에서 제외한다. 현재 검색 version은 `external-search-v2-salary-v1`; 옛 default는 다시 계획한다. DB boolean/칼럼 제거와 salary RPC/공통 utility는 적용했지만 코드와 예측값 persistence는 배포 승인을 기다린다.

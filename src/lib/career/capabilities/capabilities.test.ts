@@ -80,6 +80,14 @@ test("cold input retains all capability awareness but excludes their schemas and
   assert.ok(!text.includes("## Opportunity request triage"));
   assert.ok(!text.includes("## Active focused career-coaching conversation"));
   assert.ok(text.includes("inbox search is available through connected_inbox"));
+  for (const name of [
+    "update_talent_profile",
+    "write_document",
+    "save_job_posting",
+  ])
+    assert.ok(!step.offeredNames.has(name));
+  for (const capability of ["profile", "documents", "opportunities"])
+    assert.ok(step.catalogText.includes(capability));
 });
 test("loading is atomic, idempotent, and grants schemas only in the next response", () => {
   const runtime = make(),

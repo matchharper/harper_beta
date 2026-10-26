@@ -16,6 +16,7 @@ import type {
   UseRealtimeSessionArgs,
 } from "./useRealtimeSession";
 import { getCareerBrowserTimeZone } from "@/lib/career/requestTimeZone";
+import { parseCareerEndCallArguments, type CareerEndCallOptions } from "@/lib/career/realtimeEndCall";
 import {
   getLiveCallTimeoutAction,
   LIVE_MAX_DURATION_MS,
@@ -174,6 +175,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     Map<string, PendingInstructionAction>
   >(new Map());
   const pendingEndCallRef = useRef(false);
+  const endCallOptionsRef = useRef<CareerEndCallOptions>({});
+  const pendingEndCallToolIdRef = useRef<string | null>(null);
   const pendingEndCallFallbackTimerRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -345,7 +348,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       clearTimeout(pendingEndCallFallbackTimerRef.current);
       pendingEndCallFallbackTimerRef.current = null;
     }
-    runAfterCurrentPlayback(() => onEndCallToolRef.current?.());
+    const options = endCallOptionsRef.current;
+    runAfterCurrentPlayback(() => onEndCallToolRef.current?.(options));
   }, [runAfterCurrentPlayback]);
 
   const flushAssistantTranscript = useCallback(
@@ -428,6 +432,8 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         executedFunctionCallIdsRef.current.add(functionCall.callId);
 
         if (functionCall.name === LIVE_END_CALL_TOOL_NAME) {
+          endCallOptionsRef.current = parseCareerEndCallArguments(functionCall.arguments);
+          pendingEndCallToolIdRef.current = functionCall.callId;
           pendingEndCallRef.current = true;
           if (pendingEndCallFallbackTimerRef.current) {
             clearTimeout(pendingEndCallFallbackTimerRef.current);
@@ -790,6 +796,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     executedFunctionCallIdsRef.current.clear();
     lastOnboardingContextRef.current = null;
     pendingEndCallRef.current = false;
+    pendingEndCallToolIdRef.current = null;
     assistantPlaybackStartedAtRef.current = null;
     playbackDrainUntilRef.current = 0;
     setPartialTranscript("");
@@ -1152,12 +1159,25 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
     [sendEvent]
   );
 
-  const triggerResponse = useCallback(() => {
+  const triggerResponse = useCallback((instructions?: string) => {
+    if (instructions && pendingEndCallToolIdRef.current) {
+      sendEvent({
+        type: "response.item.create",
+        item: {
+          type: "function_call_output",
+          call_id: pendingEndCallToolIdRef.current,
+          output: JSON.stringify({ completed: false, callEnded: false, instructions }),
+        },
+      });
+      pendingEndCallToolIdRef.current = null;
+      sendEvent({ type: "response.create" });
+      return;
+    }
     sendInstructionThenCommentary(
-      "For the next spoken turn, begin the call now and follow the opening guidance already provided. Speak first, then listen.",
-      "Begin the call now."
+      instructions ?? "For the next spoken turn, begin the call now and follow the opening guidance already provided. Speak first, then listen.",
+      instructions ? "Continue the conversation using the updated facts." : "Begin the call now."
     );
-  }, [sendInstructionThenCommentary]);
+  }, [sendEvent, sendInstructionThenCommentary]);
 
   const cancelResponse = useCallback(() => {
     flushAssistantTranscript({ interrupted: true });

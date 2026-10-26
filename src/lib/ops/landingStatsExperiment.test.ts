@@ -8,6 +8,7 @@ import {
 import {
   buildLandingStatsExperiment,
   type LandingStatsLog,
+  type LandingStatsSubmission,
 } from "./landingStatsExperiment";
 
 const HOUR = 3_600_000;
@@ -30,11 +31,13 @@ const exposure = (id: string, variant = A, hour = 0) =>
   row(id, LANDING_STATS_EXPOSURE, hour, variant);
 const build = (
   rows: LandingStatsLog[],
-  signups: { localId: string; createdAt: string; userId: string }[] = []
+  signups: { localId: string; createdAt: string; userId: string }[] = [],
+  submissions: LandingStatsSubmission[] = []
 ) =>
   buildLandingStatsExperiment({
     rows,
     signups,
+    submissions,
     now: origin + 48 * HOUR,
     excludeEmail: (email) => email.endsWith("@internal.test"),
   });
@@ -67,19 +70,15 @@ test("joins actual signup across independent signup-flow experiments and dedupli
     result.variants.map((v) => v.primary.rate),
     [1, 0]
   );
-  assert.equal(
-    result.variants[0].metrics.find((m) => m.label.startsWith("시작 클릭률"))
-      ?.value,
-    1
-  );
-  assert.equal(
-    result.variants[1].metrics.find((m) => m.label.startsWith("로그인 전환율"))
-      ?.value,
-    1
+  assert.equal(result.metricLayout, "summary");
+  assert.deepEqual(result.variants[0].metrics, []);
+  assert.deepEqual(
+    result.variants[0].summaryMetrics?.map((metric) => metric.label),
+    ["진입 대비 회원가입 비율", "진입 대비 제출 완료 비율"]
   );
 });
 
-test("conversions before enrollment or after 24 hours do not count; immature cohorts stay pending", () => {
+test("conversions outside 24 hours do not count; current rates include immature cohorts", () => {
   const result = build(
     [
       exposure("early"),
@@ -105,8 +104,48 @@ test("conversions before enrollment or after 24 hours do not count; immature coh
     denominator: 0,
     rate: null,
   });
-  assert.equal(result.variants[1].metrics[0].value, 1);
-  assert.equal(result.variants[1].metrics[1].value, 1);
+  assert.deepEqual(
+    result.variants[1].summaryMetrics?.map((metric) => metric.value),
+    [1, 0]
+  );
+});
+
+test("submission rate uses entry denominator and actual submissions after signup within 24 hours", () => {
+  const result = build(
+    [
+      exposure("submitted"),
+      exposure("signup-only"),
+      exposure("no-signup"),
+      exposure("late", B),
+      exposure("before-signup", B),
+      exposure("pending", B, 40),
+      row("signup-only", "email_capture_sent", 3),
+    ],
+    [
+      { localId: "submitted", userId: "submitted", createdAt: at(1) },
+      { localId: "signup-only", userId: "signup-only", createdAt: at(1) },
+      { localId: "late", userId: "late", createdAt: at(1) },
+      { localId: "before-signup", userId: "before-signup", createdAt: at(2) },
+      { localId: "pending", userId: "pending", createdAt: at(41) },
+    ],
+    [
+      { userId: "submitted", createdAt: at(2) },
+      { userId: "submitted", createdAt: at(3) },
+      { userId: "unlinked", createdAt: at(2) },
+      { userId: "late", createdAt: at(25) },
+      { userId: "before-signup", createdAt: at(1) },
+      { userId: "pending", createdAt: at(42) },
+    ]
+  );
+  assert.deepEqual(
+    result.variants.map((variant) =>
+      variant.summaryMetrics?.map((metric) => metric.value)
+    ),
+    [
+      [2 / 3, 1 / 3],
+      [1, 1 / 3],
+    ]
+  );
 });
 
 test("first assignment wins, internal emails and internal signup identities are excluded", () => {

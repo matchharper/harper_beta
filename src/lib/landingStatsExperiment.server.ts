@@ -1,4 +1,3 @@
-import { randomInt } from "node:crypto";
 import type { GetServerSidePropsContext } from "next";
 import {
   LANDING_STATS_COOKIE,
@@ -19,7 +18,7 @@ export function assignLandingStatsVariant({
       ? parseLandingStatsVariant(query.landing_stats)
       : null;
   const existing = parseLandingStatsVariant(req.cookies[LANDING_STATS_COOKIE]);
-  const variant = preview ?? existing ?? (randomInt(2) === 0 ? "A" : "B");
+  const variant = preview ?? existing ?? (globalThis.crypto.getRandomValues(new Uint8Array(1))[0] % 2 === 0 ? "A" : "B");
   res.setHeader("Cache-Control", "private, no-store");
   if (existing !== variant) {
     const prior = res.getHeader("Set-Cookie");

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { isOrgCandidateProfilePreview } from "@/lib/org/candidatePreview";
 import {
   useOrgBoard,
   useOrgBoardProfileLabels,
@@ -68,13 +69,20 @@ export function useOrgJobsDetailData(args: {
   const activeDetailRecommendationId = args.detailRecommendationId;
   const activeDetailRoleId = args.detailRoleId;
   const detailOpen = Boolean(activeDetailTalentId);
-  const detailQuery = useOrgTalentDetail({
+  const candidateQuery = useOrgTalentDetail({
     enabled: detailOpen,
     recommendationId: activeDetailRecommendationId || null,
     roleId: activeDetailRoleId || null,
     talentId: activeDetailTalentId || null,
     workspaceId: args.workspaceId,
   });
+  const profilePreview = isOrgCandidateProfilePreview(candidateQuery.data)
+    ? candidateQuery.data
+    : undefined;
+  const detailQuery = {
+    ...candidateQuery,
+    data: isOrgCandidateProfilePreview(candidateQuery.data) ? undefined : candidateQuery.data,
+  };
 
   return {
     activeDetailRecommendationId,
@@ -82,6 +90,7 @@ export function useOrgJobsDetailData(args: {
     activeDetailTalentId,
     detailOpen,
     detailQuery,
+    profilePreview,
     selectedAcceptStageId: detailOpen ? ("connected" as const) : null,
   };
 }

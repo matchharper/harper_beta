@@ -63,3 +63,16 @@
 [2026-10-06 최근 30일 재평가](reports/2026-10-06-month-v2.md): 성숙 113명의 성공 확인 비율은 Realtime 23/59=39.0%, Live 13/54=24.1%. 첫 session 기록 기반 비용은 배정 사용자당 각각 $0.63, $0.34이며 성공 확인 1명당 $1.61, $1.42다. Realtime을 온보딩 기본 선택으로 유지하는 운영 판단이다. 판정 불가 45명, 95% 차이 구간의 0 포함, 누락된 비용 때문에 확정적 모델 우열이나 자동 rollout 승인은 아니다. 배정/배포는 변경하지 않았다.
 
 [2026-09-28 결과](reports/2026-09-28-pilot-v1.md): 성숙 40명의 성공 확인 비율은 Realtime 9/18=50.0%, Live 5/22=22.7%. 기록 부족 17명 및 정성 평가 불확실성으로 확정 승자는 아니다. Realtime 우선 선택의 잠정 근거이며, 자동 rollout 승인 gate는 충족하지 않는다. 실제 전환 판단에는 동일 session 단위 관측 누락 해소, 독립적인 기준 검토, 주 지표의 불확실성과 실패·지연·비용 확인이 필요하다. 배포 또는 실험 비율 변경은 수행하지 않았다.
+
+## 최종 확인 선택화와 실제 종료 (`live-prompt-v2`)
+
+[2026-10-25 검증 결과](reports/2026-10-25-completion-v2.md): A/B 각각 합성 5개 사례의 최신 유효 실행 통과, 코드 검사 41개 통과. 최초 실패·연결 오류를 보존했다. 로컬·미배포이며 운영 DB/브라우저 전체 E2E는 미검증. [재현 manifest](completion-manifest-v2.json).
+
+- 목적/단위: 마지막 필수 답변 이후 별도 최종 확인 없이 정상 완료·종료하는지, 필수 정보 누락과 중도 종료를 구별하는지 확인하는 합성 사례별 1회 응답이다. v1은 보존한다.
+- Frozen input/gold: `live-prompt-cases-v2.json`의 5개 합성 대화·coverage·다음 발화·기대 행동. 2026-10-25 작성. 운영 원문·식별자 없음. 독립 human gold가 아니다.
+- Canonical runners: B는 기존 `scripts/evalCareerLiveOnboardingPrompt.ts`에 `CAREER_VOICE_EVAL_VERSION=v2`를 설정한다. A는 `scripts/evalCareerRealtimeOnboardingPrompt.ts [case-id ...]`. 둘 다 실제 제품 prompt builder·모델 설정·end_call schema를 재사용한다. B는 Yuna 음성 입력, A는 합성 텍스트 입력과 실제 Realtime 음성 응답이므로 음성 인식 품질을 비교하지 않는다.
+- 실행: `TSX_TSCONFIG_PATH=scripts/tsconfig.json node --env-file=.env.local --import tsx <runner> [case-id ...]`. 명시한 사례만 실행한다. 제품 DB·도구 실행은 없으며 OpenAI에는 합성 입력만 전송한다.
+- 설정: 각 ignored run manifest에 fixture/runner/prompt 코드 diff fingerprint, revision, 모델·reasoning(해당 시)·선택 사례를 보존한다. 전체 요청·응답·음성은 `runs/` 또는 `private/live-prompt-v2/`에 owner-only로 저장한다. sampling은 제품/서비스 기본값이며 출력 상한을 추가하지 않는다.
+- Gate: 입력/응답이 유효하고, 필수 주제 완료 시 end_call complete_onboarding=true, 중도 종료 시 false, 누락 시 실제 필요한 한 질문, 최종 확인 재강제 없음. Codex가 문맥과 도구 인자를 직접 읽는다. 실패·연결 오류·미실행은 통과로 세지 않는다. 사례별 최신 유효 결과를 보고하고 최초 실패를 보존한다.
+- 저장 경계: `src/app/api/talent/chat/call-wrapup/route.test.ts`는 실제 route를 격리된 저장·추출 의존성과 실행해 저장 지연/누락/실패/중도 종료를 확인한다. `src/hooks/career/useCareerOnboardingVoice.test.ts`는 실제 콜백을 격리된 hook host/transport에서 실행해 마지막 전사·저장·완료 이전에 연결을 끊지 않는지 확인한다.
+- 한계: 합성 사례이며 운영 DB transaction, 브라우저 WebRTC 재생, 실제 잡음·지연, 서비스 전체 완료율은 검증하지 않는다. hook 검사는 React 렌더링 검증이 아니다. 모델 smoke와 격리된 저장 검사를 합쳐 production E2E 통과라고 부르지 않는다.

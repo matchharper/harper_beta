@@ -50,11 +50,11 @@ export function WorkspacePlans({
       price: "$0",
       detail: c("이용료 없음", "No monthly fee"),
       features: [
-        c("카드 등록 필요없음", "No card needed"),
-        c("Role 무제한", "Unlimited Roles"),
-        c("모든 Role이 함께 쓰는 월 10 Intro", "10 shared Intros every month"),
+        c("카드 등록 필요없음", "No credit card required"),
+        c("활성 Role 1개", "1 active role"),
+        c("월 10개의 Intro", "10 Intros every month"),
         c("Slack 연결 지원", "Slack integration included"),
-        c("채용 성공보수 없음", "No hiring success fee"),
+        c("채용 성공보수 없음", "No placement fee"),
       ],
       action: contactHref ? (
         <MuteButton asChild variant="neutral" size="lg" className="w-full">
@@ -68,12 +68,12 @@ export function WorkspacePlans({
           disabled={busy}
           onClick={onFree}
         >
-          {c("무료로 시작하기", "Start free")}
+          {c("무료로 시작하기", "Start for free")}
         </MuteButton>
       ) : (
         <MuteButton asChild variant="neutral" size="lg" className="w-full">
           <Link href={`/org?lang=${locale}`}>
-            {c("무료로 시작하기", "Start free")}
+            {c("무료로 시작하기", "Start for free")}
           </Link>
         </MuteButton>
       ),
@@ -83,7 +83,7 @@ export function WorkspacePlans({
     {
       name: "Hire with Harper",
       price: price ?? (catalog ? c("별도 문의", "Contact us") : "—"),
-      unit: c("/ Slot / 월", "/ Slot / month"),
+      unit: c("/ Slot / 월", "/ slot / month"),
       detail:
         price && amount != null && catalog?.currency
           ? interval === "year"
@@ -100,16 +100,13 @@ export function WorkspacePlans({
               ),
       features: [
         c("슬롯당 매월 50 Intro", "50 monthly Intros per slot"),
-        c(
-          "공용 월 10 Intro도 계속 제공",
-          "10 shared monthly Intros remain included"
-        ),
+        c("공용 월 10 Intro도 계속 제공", "Plus 10 shared Intros per month"),
         c(
           "Harper-first 채용: Harper가 먼저 후보자를 찾고, 역할을 소개하고, 수락한 사람만 연결",
-          "Harper-first hiring: Harper finds candidates, introduces the role, and connects you only with those who accept."
+          "Harper finds candidates, introduces your role, and brings you people who want to talk."
         ),
         c("Slack 연결 지원", "Slack integration included"),
-        c("채용 성공보수 없음", "No hiring success fee"),
+        c("채용 성공보수 없음", "No placement fee"),
       ],
       action: contactHref ? (
         <MuteButton asChild variant="dark" size="lg" className="w-full">
@@ -146,7 +143,7 @@ export function WorkspacePlans({
       features: [
         c("채용 진행 역할 수 제한 없음", "Unlimited active roles"),
         c("무제한 Intro", "Unlimited Intros"),
-        c("Harper 팀의 도입 지원", "Onboarding support from Harper"),
+        c("Harper 팀의 도입 지원", "Hands-on onboarding support"),
       ],
       action: (
         <MuteButton asChild variant="neutral" size="lg" className="w-full">

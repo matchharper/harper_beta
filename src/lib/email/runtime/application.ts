@@ -152,6 +152,15 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
     if (active?.state.status === "active") return { ok: false, reason: "Use ready_for_role to save the active application's resume and preserve its source." };
   }
   if (!["manage_application_suggestions", "ready_for_role", "apply_for_role", "manage_simulation_session"].includes(name)) return undefined;
+  if (name === "manage_simulation_session" && ["list", "resume"].includes(String(input.action))) {
+    const { manageSavedApplications } = await import("@/lib/career/simulation/savedApplications");
+    const result = await manageSavedApplications(store, input, `email:${ctx.sourceMessage.id}`);
+    if (input.action !== "resume" || !result.ok) return result;
+    const restored = await sessionOperation({ ...store, operation: "read" });
+    if (restored) await linkApplication(ctx, restored.messageId);
+    return { ...result, applicationContext: restored ? await emailApplicationContext(ctx, restored) : undefined,
+      assistantInstruction: "Continue the restored preparation from its saved answers in this email. Explain any pending review using the email channel contract; there is no composer. Resuming does not submit or restart a website browser." };
+  }
   let record: SessionRecord | null = await loadEmailApplication(ctx);
   if (!record || record.state.status !== "active") return { ok: false, reason: "No active application" };
   await linkApplication(ctx, record.messageId);

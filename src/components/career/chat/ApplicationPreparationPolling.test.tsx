@@ -207,3 +207,53 @@ test("preparation refreshes background work without polling idle sessions or cha
     dom.window.close();
   }
 });
+
+test("unsubmitted answers survive leaving A, working on B and returning to A", async () => {
+  const { askApplicationInput } = await import("@/lib/career/simulation/applicationInput");
+  const { endSimulationSession } = await import("@/lib/career/simulation/session");
+  const { resumeSavedPreparation } = await import("@/lib/career/simulation/savedApplications");
+  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+  const keys = ["Event", "CustomEvent", "window", "document", "navigator", "localStorage", "IS_REACT_ACT_ENVIRONMENT"];
+  const previous = keys.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
+  for (const key of keys) Object.defineProperty(globalThis, key, { configurable: true, value: key === "IS_REACT_ACT_ENVIRONMENT" ? true : (dom.window as unknown as Record<string, unknown>)[key] });
+  const auth = mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "test" } }, error: null }));
+  function prepared(role: string) {
+    const s = createSimulationSession({ roleRef: role, roleName: role, documentId: "cv", documentName: "CV" });
+    s.analysisStatus = "completed"; s.preparation = createPreparation();
+    s.activity = { version: 1, outputs: {}, batches: [] };
+    return askApplicationInput(s, { purpose: "Prepare", items: [{ kind: "question", title: "Your work?" }, { kind: "question", title: "Result?" }] }, role);
+  }
+  const a = prepared("A"), b = prepared("B");
+  let current: SessionRecord = { messageId: 10, state: a };
+  const fetchMock = mock.method(globalThis, "fetch", async (_url: RequestInfo | URL, options?: RequestInit) => {
+    assert.ok(!options?.method || options.method === "GET", "unsubmitted inputs must not become an application or a chat turn");
+    return Response.json({ session: current, drafts: [] });
+  });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  let controls: ReturnType<typeof useApplicationPreparation>;
+  function Capture() { controls = useApplicationPreparation(); return null; }
+  let panel = { conversationId: "saved-applications", messages: [], chatPending: false, onSendChatMessage: async () => { assert.fail("No chat submission"); } } as unknown as CareerChatPanelContextValue;
+  const render = async () => act(async () => root.render(<MessagesProvider locale="ko"><CareerChatPanelProvider value={panel}><ApplicationPreparationProvider><Capture /></ApplicationPreparationProvider></CareerChatPanelProvider></MessagesProvider>));
+  const refresh = async () => { panel = { ...panel, chatPending: true }; await render(); panel = { ...panel, chatPending: false }; await render(); };
+  try {
+    await render();
+    const aId = a.actions[0].id, bId = b.actions[0].id;
+    await act(async () => { await controls!.command({ operation: "respond", itemId: aId, response: { decision: "answer", text: "A draft answer" } }); });
+    current = { messageId: 10, state: { ...endSimulationSession(a, "user"), revision: 2 } };
+    await refresh();
+    current = { messageId: 20, state: b };
+    await refresh();
+    await act(async () => { await controls!.command({ operation: "respond", itemId: bId, response: { decision: "answer", text: "B draft answer" } }); });
+    current = { messageId: 10, state: { ...resumeSavedPreparation(endSimulationSession(a, "user")), revision: 3 } };
+    await refresh();
+    assert.equal(controls!.record!.state.preparation!.responses[aId].text, "A draft answer");
+    assert.ok(!Object.hasOwn(controls!.record!.state.preparation!.responses, bId));
+    current = { messageId: 20, state: { ...resumeSavedPreparation(endSimulationSession(b, "user")), revision: 3 } };
+    await refresh();
+    assert.equal(controls!.record!.state.preparation!.responses[bId].text, "B draft answer");
+  } finally {
+    await act(async () => root.unmount()); fetchMock.mock.restore(); auth.mock.restore();
+    for (const [key, descriptor] of previous) { if (descriptor) Object.defineProperty(globalThis, key, descriptor); else Reflect.deleteProperty(globalThis, key); }
+    dom.window.close();
+  }
+});

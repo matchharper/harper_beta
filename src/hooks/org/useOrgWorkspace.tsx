@@ -7,7 +7,12 @@ import {
   useEffect,
   useMemo,
 } from "react";
-import { useOrgBootstrap } from "@/hooks/org/useOrg";
+import {
+  orgBoardQueryOptions,
+  orgTalentDetailQueryOptions,
+  useOrgBootstrap,
+} from "@/hooks/org/useOrg";
+import { useQueryClient } from "@tanstack/react-query";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import { getOrgPermissions, type OrgPermissions } from "@/lib/org/permissions";
 import { buildOrgHref, type OrgWorkspacePageId } from "@/lib/org/routes";
@@ -78,6 +83,7 @@ export function useOrgWorkspaceController({
   page: OrgWorkspacePageId;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const authLoading = useAuthStore((state) => state.loading);
   const user = useAuthStore((state) => state.user);
   const orgId = router.isReady ? getQueryText(router.query.orgId) : "";
@@ -91,6 +97,44 @@ export function useOrgWorkspaceController({
     (state) => state.setLastWorkspaceId
   );
   const requestedOrgId = orgId || lastWorkspaceId;
+  const routeRoleId = getQueryText(router.query.roleId);
+  const routeTalentId = getQueryText(router.query.talentId);
+  const routeDetailRoleId =
+    getQueryText(router.query.detailRoleId) || routeRoleId;
+  const routeRecommendationId = getQueryText(router.query.recommendationId);
+  useEffect(() => {
+    if (!router.isReady || !user || !requestedOrgId) return;
+    // These endpoints authorize independently. Start known route reads alongside
+    // bootstrap; Query shares the in-flight request when the page mounts.
+    if (["home", "inbox", "jobs", "role"].includes(page)) {
+      void queryClient.prefetchQuery(
+        orgBoardQueryOptions({
+          workspaceId: requestedOrgId,
+          roleId: routeRoleId === "all" ? "" : routeRoleId,
+        })
+      );
+    }
+    if (routeTalentId) {
+      void queryClient.prefetchQuery(
+        orgTalentDetailQueryOptions({
+          workspaceId: requestedOrgId,
+          talentId: routeTalentId,
+          roleId: routeDetailRoleId,
+          recommendationId: routeRecommendationId,
+        })
+      );
+    }
+  }, [
+    page,
+    queryClient,
+    requestedOrgId,
+    routeRoleId,
+    routeTalentId,
+    routeDetailRoleId,
+    routeRecommendationId,
+    router.isReady,
+    user,
+  ]);
   const bootstrapQuery = useOrgBootstrap({
     enabled:
       router.isReady &&
@@ -163,9 +207,14 @@ export function useOrgWorkspaceController({
       void router.replace(`/org/onboarding?${params}`);
       return;
     }
-    if (workspace.isReviewing && page !== "home" &&
-      isOrgOnboardingComplete(workspace.signupState, currentUser, user.id)) {
-      void router.replace(buildOrgHref({ orgId: workspace.workspaceId, page: "home" }));
+    if (
+      workspace.isReviewing &&
+      page !== "home" &&
+      isOrgOnboardingComplete(workspace.signupState, currentUser, user.id)
+    ) {
+      void router.replace(
+        buildOrgHref({ orgId: workspace.workspaceId, page: "home" })
+      );
       return;
     }
     if (!legacyEntry && orgId === workspace.workspaceId) {

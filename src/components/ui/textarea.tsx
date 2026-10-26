@@ -8,12 +8,21 @@ export const textareaSurfaceClassName =
 export type TextareaProps =
   React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
     autoResize?: boolean;
+    /** Emphasized input surface; ignored when unstyled is true. */
+    isMain?: boolean;
     unstyled?: boolean;
   };
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   (
-    { autoResize = false, className, rows = 4, unstyled = false, ...props },
+    {
+      autoResize = false,
+      className,
+      isMain = false,
+      rows = 4,
+      unstyled = false,
+      ...props
+    },
     forwardedRef
   ) => {
     const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -33,17 +42,48 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         return;
       }
 
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
-      textarea.style.overflowY = textarea.scrollHeight > textarea.clientHeight ? "auto" : "hidden";
-    }, [autoResize, props.value]);
+      // Measure the native rows/CSS height before expanding to fit the content.
+      textarea.style.height = "";
+      const computed = window.getComputedStyle(textarea);
+      const borderHeight =
+        parseFloat(computed.borderTopWidth) +
+        parseFloat(computed.borderBottomWidth);
+      const paddingHeight =
+        parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom);
+      const height = Math.max(
+        textarea.getBoundingClientRect().height,
+        textarea.scrollHeight + borderHeight
+      );
+      textarea.style.height = `${
+        computed.boxSizing === "border-box"
+          ? height
+          : height - borderHeight - paddingHeight
+      }px`;
+      textarea.style.overflowY =
+        textarea.scrollHeight > textarea.clientHeight ? "auto" : "hidden";
+    }, [
+      autoResize,
+      isMain,
+      unstyled,
+      rows,
+      className,
+      props.style,
+      props.value,
+    ]);
 
     return (
       <textarea
         ref={textareaRef}
         rows={rows}
         className={
-          unstyled ? className : cn(textareaSurfaceClassName, className)
+          unstyled
+            ? className
+            : cn(
+                textareaSurfaceClassName,
+                isMain &&
+                  "rounded-2xl px-3 py-2.5 shadow-md border-black/5 text-black",
+                className
+              )
         }
         {...props}
       />

@@ -89,7 +89,7 @@ test("Company pricing copy states the approved commercial boundary", () => {
     .map((item) => item.answer)
     .join("\n");
 
-  assert.match(pricingCopy, /Role을 무제한/);
+  assert.match(pricingCopy, /Free Role은 한 번에 1개/);
   assert.match(pricingCopy, /월 10 Intro.*별도로 유지/);
   assert.match(pricingCopy, /월 50 Intro/);
   assert.match(pricingCopy, /Free와 표준 슬롯 구독에는 채용 성공보수가 없어요/);

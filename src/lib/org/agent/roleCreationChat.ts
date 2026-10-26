@@ -2,14 +2,14 @@ import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
 import { formatToolError, serializeToolResultForModel, toolResultDiagnostics } from "@/lib/llm/toolError";
 import "server-only";
-import { companyCompletionTokenBudget, companyCompletionProviderHint, validateCompanyCompletion } from "./completionContract";
+import { formatPromptText } from "@/lib/llm/promptText";
+import { companyCompletionProviderHint, validateCompanyCompletion } from "./completionContract";
 
 import type { User } from "@supabase/supabase-js";
 import type { OrgLocale } from "@/i18n/org/locale";
 import { after } from "next/server";
 import {
   createChatCompletionWithFallback,
-  usesMaxCompletionTokensForModel,
 } from "@/lib/llm/llm";
 import {
   DEFAULT_ORG_AGENT_REASONING_EFFORT,
@@ -28,10 +28,13 @@ import {
   buildRoleCreationOutcomeSystemPrompt,
   buildRoleCreationSystemPrompt,
   buildRoleCreationUserPrompt,
+  roleDetailsForPrompt,
   selectRoleCreationHistory,
+  type RoleCreationOutcome,
 } from "@/lib/org/agent/roleCreationPrompt";
 import {
-  ROLE_CREATION_TOOLS,
+  getRoleCreationTools,
+  ROLE_DETAILS_TOOL_NAMES,
   executeRoleCreationTool,
   isRoleCreationToolName,
 } from "@/lib/org/agent/roleCreationTools";
@@ -67,7 +70,6 @@ import {
   referenceAttachmentMetadata,
   validateOrgAgentReferenceAttachments,
 } from "@/lib/org/agent/referenceAttachments";
-import { ensureOrgAgentCompanyInfoMarker } from "@/lib/org/agent/companyInfoMarker";
 import {
   buildServiceAnswerExamplesPromptBlock,
   lookupAnswerExamples,
@@ -93,6 +95,7 @@ function scheduleRoleCreationSummary(
 type RoleCreationChatEventName =
   | "assistant_message"
   | "role_created"
+  | "role_start"
   | "text_delta"
   | "tool_status"
   | "user_message";
@@ -118,9 +121,6 @@ type LlmMessage = {
   tool_calls?: LlmToolCall[];
 };
 
-const MAX_TOOL_LOOPS = 10;
-const MAX_TOOL_CALLS = 10;
-const ROLE_CREATION_MAX_OUTPUT_TOKENS = 4_800;
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -212,7 +212,7 @@ export function roleCreationToolErrorResult(args: { error: unknown; name: string
         : inputError
           ? "Correct the arguments from the saved Role state and retry when the user's intent is still clear. Continue any independent unfinished part of the request."
           : "Do not claim the save or external effect succeeded and do not blindly repeat the action. Use the next step to verify current saved state when possible, continue independent work, or explain the blocker.";
-  return JSON.stringify({
+  return formatPromptText({
     effectStatus: args.executed === false ? "not_executed" : "unknown",
     error: message,
     ...(args.savedRole ? { currentSavedRole: args.savedRole } : {}),
@@ -223,7 +223,7 @@ export function roleCreationToolErrorResult(args: { error: unknown; name: string
 }
 
 function deferredRoleCreationToolResult() {
-  return JSON.stringify({
+  return formatPromptText({
     executed: false,
     instruction:
       "Review the first tool result. If this action is still needed and authorized, request it again as the next single tool call. Do not claim it ran.",
@@ -300,6 +300,20 @@ function toolLabel(
       running: "역할 등록 중",
     });
   }
+  if (name === "answer_role_start_question") {
+    return statusLabel(status, {
+      done: "답변 반영 완료",
+      error: "답변 반영 실패",
+      running: "답변 반영 중",
+    });
+  }
+  if (name === "ask_role_start_question") {
+    return statusLabel(status, {
+      done: "질문 준비 완료",
+      error: "질문 준비 실패",
+      running: "질문 준비 중",
+    });
+  }
   if (name === "update_company_context") {
     return statusLabel(status, {
       done: "회사 정보 저장 완료",
@@ -314,6 +328,32 @@ function toolLabel(
   });
 }
 
+/**
+ * The shared role start question state, reduced to what the chat needs: the
+ * open card question and whether questions are finished. No search internals.
+ */
+async function loadRoleStartForPrompt(roleId: string) {
+  const { isRoleStartEnded, loadRoleStartSession } = await import("@/lib/org/roleStart/session");
+  const session = await loadRoleStartSession(roleId, { forView: true });
+  if (!session || isRoleStartEnded(session.phase)) return null;
+  return {
+    phase: session.phase,
+    openQuestion: session.pendingQuestion
+      ? {
+          question: session.pendingQuestion.question,
+          options: session.pendingQuestion.chips.map((chip) => chip.label),
+        }
+      : null,
+    answered: session.questions.history.map((item) => ({
+      question: item.question,
+      answer:
+        item.status === "skipped"
+          ? "skipped"
+          : item.chips.find((chip) => chip.id === item.answer?.chipId)?.label ?? item.answer?.text ?? null,
+    })),
+  };
+}
+
 function emitText(emit: RoleCreationChatEmitter | undefined, value: string) {
   for (let index = 0; index < value.length; index += 32) {
     emit?.("text_delta", { delta: value.slice(index, index + 32) });
@@ -324,22 +364,20 @@ async function completion(args: {
   upstreamProvider?: string;
   allowPendingConfirmation: boolean;
   allowTools: boolean;
+  view?: "role_setup" | "role_details";
+  signal?: AbortSignal;
   messages: LlmMessage[];
   model: OrgAgentModelId;
   reasoningEffort?: OrgAgentReasoningEffort;
   strictModel?: boolean;
 }) {
-  const maxTokens = companyCompletionTokenBudget(args.model, ROLE_CREATION_MAX_OUTPUT_TOKENS, args.reasoningEffort);
   return createChatCompletionWithFallback({
     ...(args.strictModel
       ? {}
       : {
           anthropicOverloadFallbackModel: getOrgAgentFallbackModel(args.model),
         }),
-    buildRequest: (model) => ({
-      ...(usesMaxCompletionTokensForModel(model)
-        ? { max_completion_tokens: maxTokens }
-        : { max_tokens: maxTokens }),
+    buildRequest: () => ({
       messages: args.messages,
       ...(args.model === ORG_AGENT_GEMINI_FLASH_MODEL && args.upstreamProvider ? { provider: { only: [args.upstreamProvider], allow_fallbacks: false } } : {}),
       temperature: ORG_AGENT_TEMPERATURE,
@@ -347,15 +385,13 @@ async function completion(args: {
         ? {
             parallel_tool_calls: false,
             tool_choice: "auto" as const,
-            tools: args.allowPendingConfirmation
-              ? ROLE_CREATION_TOOLS
-              : ROLE_CREATION_TOOLS.filter(
-                  (tool) =>
-                    tool.function.name !== "confirm_pending_role_creation"
-                ),
+            tools: getRoleCreationTools(args.view).filter((tool) =>
+              args.allowPendingConfirmation || tool.function.name !== "confirm_pending_role_creation"
+            ),
           }
         : {}),
     }),
+    signal: args.signal,
     debugLabel: "org/agent:role-creation",
     validateResponse: validateCompanyCompletion,
     chatCompletionReasoning: { reasoningEffort: args.reasoningEffort ?? DEFAULT_ORG_AGENT_REASONING_EFFORT },
@@ -374,7 +410,7 @@ export async function generateRoleCreationOutcomeReply(args: {
   missingFields: string[];
   slackNotificationDelivered?: boolean | null;
   model?: OrgAgentModelId | string | null;
-  outcome: "completed" | "declined" | "revalidation_failed";
+  outcome: RoleCreationOutcome;
   surface?: "chat" | "slack";
   responseLocale?: OrgLocale;
   state: RoleCreationState;
@@ -384,10 +420,7 @@ export async function generateRoleCreationOutcomeReply(args: {
     resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
   const result = await createChatCompletionWithFallback({
     anthropicOverloadFallbackModel: getOrgAgentFallbackModel(selectedModel),
-    buildRequest: (model) => ({
-      ...(usesMaxCompletionTokensForModel(model)
-        ? { max_completion_tokens: companyCompletionTokenBudget(selectedModel, ROLE_CREATION_MAX_OUTPUT_TOKENS) }
-        : { max_tokens: companyCompletionTokenBudget(selectedModel, ROLE_CREATION_MAX_OUTPUT_TOKENS) }),
+    buildRequest: () => ({
       messages: [
         {
           content: buildRoleCreationOutcomeSystemPrompt(args.surface, args.responseLocale),
@@ -422,6 +455,7 @@ export async function generateRoleCreationOutcomeReply(args: {
 }
 
 export async function runOrgRoleCreationChat(args: {
+  signal?: AbortSignal;
   assistantMessageMetadata?: OrgAgentMessageMetadata;
   attachments?: ChatAttachmentPayload[];
   draftRoleId?: string | null;
@@ -441,6 +475,7 @@ export async function runOrgRoleCreationChat(args: {
   slackUserId?: string | null;
   slackUserMessageTs?: string | null;
   surface?: "chat" | "slack";
+  view?: "role_details";
   user: User;
   userMessageMetadata?: OrgAgentMessageMetadata;
   workspaceId: string;
@@ -460,10 +495,14 @@ export async function runOrgRoleCreationChat(args: {
       : "");
   if (!persistedMessage) throw new Error("메시지 또는 첨부 파일이 필요합니다.");
   const message = text(args.llmUserMessage) || persistedMessage;
-  const serviceAnswerExamplesPromise = lookupAnswerExamples(message, {
+  const surface = args.surface ?? (args.slackThreadId ? "slack" : "chat");
+  const setupTurn = !requestedRoleId && surface === "chat";
+  const serviceAnswerExamplesPromise = (setupTurn || args.view) ? null : lookupAnswerExamples(message, {
     audience: "company",
   });
-  const surface = args.surface ?? (args.slackThreadId ? "slack" : "chat");
+  const view: "role_setup" | "role_details" | undefined = setupTurn ? "role_setup" : args.view;
+  // Setup and the details editor only author role information and read sources.
+  const allowedToolNames = view ? ROLE_DETAILS_TOOL_NAMES : undefined;
 
   let roleId = requestedRoleId;
   let created = false;
@@ -474,6 +513,7 @@ export async function runOrgRoleCreationChat(args: {
       workspaceId: args.workspaceId,
     });
     created = true;
+    args.emit?.("role_created", { roleId });
   }
 
   const state = await fetchRoleCreationState({
@@ -482,7 +522,48 @@ export async function runOrgRoleCreationChat(args: {
     user: args.user,
     workspaceId: args.workspaceId,
   });
-  if (created) args.emit?.("role_created", { roleId });
+  // A new Role from a written JD: read its basic facts with one small call
+  // beside this turn, so the first step's form fills in seconds.
+  const prefill =
+    !setupTurn && created && attachments.length === 0 && !args.imageInputs?.length && text(args.message).length >= 20
+      ? import("@/lib/org/roleStart/rolePrefill")
+          .then(({ prefillRoleFacts }) =>
+            prefillRoleFacts({ roleId: roleId!, workspaceId: args.workspaceId, user: args.user, text: text(args.message) })
+          )
+          .then((result) => {
+            console.info("[org/agent:role-facts]", { roleId, saved: result.saved, isJobDescription: result.facts.isJobDescription, ms: result.usage.ms, usd: result.usage.usd, inputTokens: result.usage.inputTokens, outputTokens: result.usage.outputTokens });
+            return result;
+          })
+          .catch((error) => (console.warn("[org/agent:role-facts]", error instanceof Error ? error.message : error), null))
+      : null;
+  // A written JD starts the Brief once the facts are in (2-4 s), not after
+  // this turn: the start screens move on while the chat is still replying.
+  // A bare title, a link or a question leaves the start to the chat as before.
+  if (prefill) {
+    // Tells the page right away whether the start screens are coming, so a
+    // question is not hidden behind their loading line. Ignored once the turn has ended.
+    const startDecided = (fromJd: boolean) => {
+      try {
+        args.emit?.("role_start", { roleId, fromJd });
+      } catch {}
+    };
+    const brief = prefill
+      .then(async (result) => {
+        // A link is read by the chat first; the Brief then starts from what it saved.
+        const fromJd = Boolean(result?.facts.isJobDescription) && !/https?:\/\/|www\./i.test(text(args.message));
+        startDecided(fromJd);
+        if (!fromJd) return null;
+        const { markBriefFromJd, startBriefFromJd } = await import("@/lib/org/roleStart/rolePrefill");
+        markBriefFromJd(roleId!);
+        return startBriefFromJd({ roleId: roleId!, workspaceId: args.workspaceId, user: args.user, text: text(args.message) });
+      })
+      .catch((error) => console.warn("[org/agent:role-start-draft]", error instanceof Error ? error.message : error));
+    try {
+      after(() => brief);
+    } catch {
+      // Outside a request (tests, scripts) the promise simply runs on.
+    }
+  }
 
   const admin = getSupabaseAdmin();
   let mentions: OrgAgentMention[] = [];
@@ -497,9 +578,10 @@ export async function runOrgRoleCreationChat(args: {
     console.warn("[org/agent:role-creation-mention-filter]", error);
   }
 
-  const selectedModel =
-    migrateOrgAgentModel(args.model) ??
-    resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
+  const selectedModel = setupTurn
+    ? ORG_AGENT_GEMINI_FLASH_MODEL
+    : migrateOrgAgentModel(args.model) ??
+      resolveOrgAgentModel(DEFAULT_ORG_AGENT_MODEL).model;
   const userMetadata: OrgAgentMessageMetadata = {
     attachments: referenceAttachmentMetadata(attachments),
     roleCreationAttachments: attachments,
@@ -604,9 +686,11 @@ export async function runOrgRoleCreationChat(args: {
   const serviceAnswerExamples = await serviceAnswerExamplesPromise;
   const serviceAnswerExamplesText = buildServiceAnswerExamplesPromptBlock({
     audience: "company",
-    examples: serviceAnswerExamples.examples,
+    examples: serviceAnswerExamples?.examples ?? [],
   });
   const roleInput = {
+    view,
+    responseLocale: args.responseLocale,
     slackContext: args.slackContext,
     attachments,
     history: historyPage.messages
@@ -621,12 +705,14 @@ export async function runOrgRoleCreationChat(args: {
     serviceAnswerExamplesText,
     state,
     userMessage: message,
+    roleStart: view ? null : await loadRoleStartForPrompt(roleId).catch(() => null),
   };
   const companySideUserPrompt = buildRoleCreationUserPrompt(roleInput);
   const messages: LlmMessage[] = [
     {
       content: buildRoleCreationSystemPrompt({
         editingRegisteredRole: state.role.status !== "draft",
+        view,
         responseLocale: args.responseLocale,
         surface,
       }),
@@ -638,7 +724,7 @@ export async function runOrgRoleCreationChat(args: {
     },
     ...selectRoleCreationHistory(roleInput.history).filter((item) => item.role === "user" || item.role === "assistant").map((item): LlmMessage => ({
       role: item.role === "assistant" ? "assistant" : "user",
-      content: item.content + (item.untrustedAttachments.length ? `\n<untrusted_attachments>${JSON.stringify(item.untrustedAttachments)}</untrusted_attachments>` : ""),
+      content: item.content + (item.untrustedAttachments.length ? `\n<untrusted_attachments>${formatPromptText(item.untrustedAttachments)}</untrusted_attachments>` : ""),
     })),
     { role: "user", content: buildLlmImageMessageContent(message, args.imageInputs) },
   ];
@@ -646,15 +732,13 @@ export async function runOrgRoleCreationChat(args: {
   let activeModel = selectedModel;
   let upstreamProvider: string | undefined;
   let activeReasoningEffort: OrgAgentReasoningEffort =
-    getOrgAgentReasoningEffort(activeModel);
+    setupTurn ? "low" : getOrgAgentReasoningEffort(activeModel);
   let calibrationCompleted = false;
-  let totalCalls = 0;
   let reply = "";
   let lastAssistantText = "";
   let confirmationRequested = false;
   let pendingConfirmationAccepted = false;
   let confirmationNarrativeGenerated = false;
-  let companyInfoDescriptionUpdated = false;
   let confirmationState: Awaited<
     ReturnType<typeof fetchRoleCreationState>
   > | null = null;
@@ -662,8 +746,11 @@ export async function runOrgRoleCreationChat(args: {
   let logs: OrgAgentThinkingLog[] = [];
   const toolResults: NonNullable<OrgAgentMessageMetadata["toolResults"]> = [];
 
-  for (let loop = 0; loop < MAX_TOOL_LOOPS; loop += 1) {
+  while (true) {
+    args.signal?.throwIfAborted();
     const result = await completion({
+      view,
+      signal: args.signal,
       allowPendingConfirmation: canConfirmPendingRole,
       allowTools: !confirmationRequested,
       messages,
@@ -696,21 +783,6 @@ export async function runOrgRoleCreationChat(args: {
 
     const deferredCalls = calls.slice(1);
     for (const call of calls.slice(0, 1)) {
-      if (totalCalls >= MAX_TOOL_CALLS) {
-        messages.push({
-          content: JSON.stringify({
-            error: "tool_budget_reached",
-            executed: false,
-            instruction:
-              "Explain completed and incomplete work without claiming this action ran.",
-            ok: false,
-          }),
-          role: "tool",
-          tool_call_id: call.id,
-        });
-        continue;
-      }
-      totalCalls += 1;
       const startedLog = {
         at: new Date().toISOString(),
         id: call.id,
@@ -726,11 +798,15 @@ export async function runOrgRoleCreationChat(args: {
         if (!isRoleCreationToolName(call.function.name)) {
           throw new RoleCreationToolInputError("Unknown role creation tool");
         }
+        if (allowedToolNames && !allowedToolNames.has(call.function.name)) {
+          throw new RoleCreationToolInputError("This view supports role detail edits and source reads only");
+        }
         const executionToolName = call.function.name;
         const toolInput = parseArguments(call.function.arguments);
         executorStarted = true;
         const toolCapture = await runToolCall(() => executeRoleCreationTool({
           actorLabel: state.currentUser.name,
+          view,
           allowCompletedRole: true,
           companySideContext: companySideUserPrompt,
           input: toolInput,
@@ -758,15 +834,6 @@ export async function runOrgRoleCreationChat(args: {
           const execution = unwrapToolCall(toolCapture);
         if (execution.updateSummary) {
           updateSummaries.push(execution.updateSummary);
-        }
-        if (
-          surface === "slack" &&
-          call.function.name === "update_role_draft" &&
-          Object.prototype.hasOwnProperty.call(toolInput, "description") &&
-          text(toolInput.description) &&
-          text(state.workspace.pitch)
-        ) {
-          companyInfoDescriptionUpdated = true;
         }
         if (call.function.name === "calibrate_role_hiring_brief") {
           calibrationCompleted = true;
@@ -806,7 +873,7 @@ export async function runOrgRoleCreationChat(args: {
           summary: execution.updateSummary ?? doneLog.label,
         });
         messages.push({
-          content: serializeToolResultForModel(execution.result, value => JSON.stringify(value), [...toolResultDiagnostics(execution.result, false), ...toolCapture.diagnostics]),
+          content: serializeToolResultForModel(execution.result, formatPromptText, [...toolResultDiagnostics(execution.result, false), ...toolCapture.diagnostics]),
           role: "tool",
           tool_call_id: call.id,
         });
@@ -819,7 +886,7 @@ export async function runOrgRoleCreationChat(args: {
         if (call.function.name === "update_role_draft" || call.function.name === "set_role_notification") {
           try {
             const savedState = await fetchRoleCreationState({ roleId, user: args.user, workspaceId: args.workspaceId, allowCompletedRole: true });
-            if (call.function.name === "update_role_draft") savedRole = savedState.role;
+            if (call.function.name === "update_role_draft") savedRole = view ? roleDetailsForPrompt(savedState.role) : savedState.role;
             else savedNotificationSettings = summarizeRoleCreationNotificationSettings(savedState);
           } catch (readError) {
             capturedDiagnostics = [...capturedDiagnostics, { error: readError, source: "saved_state_refresh" }];
@@ -867,6 +934,8 @@ export async function runOrgRoleCreationChat(args: {
   if (!pendingConfirmationAccepted && !confirmationRequested && !reply) {
     const result = await completion({
       upstreamProvider,
+      view,
+      signal: args.signal,
       allowPendingConfirmation: false,
       allowTools: false,
       messages: [
@@ -939,6 +1008,8 @@ export async function runOrgRoleCreationChat(args: {
     });
     if (!confirmationNarrativeGenerated) {
       const result = await completion({
+        view,
+        signal: args.signal,
         allowPendingConfirmation: false,
         allowTools: false,
         messages,
@@ -956,8 +1027,12 @@ export async function runOrgRoleCreationChat(args: {
   if (!reply) {
     throw new Error("Role creation assistant returned no content");
   }
-  if (companyInfoDescriptionUpdated) {
-    reply = ensureOrgAgentCompanyInfoMarker(reply);
+  // Every question to the team is a chip card: a question this reply wrote as
+  // plain text moves into a card (unless the turn already posted one).
+  // In Slack the card is sent as chip buttons in the role thread.
+  if (!view && !confirmationRequested && roleId && !toolResults.some((item) => item.name === "ask_role_start_question")) {
+    const { moveReplyQuestionToCard } = await import("@/lib/org/roleStart/service");
+    reply = await moveReplyQuestionToCard({ reply, roleId, user: args.user, workspaceId: args.workspaceId, surface });
   }
   if (surface === "slack" && confirmationRequested) {
     reply = `${reply}\n\n[Create role](button:이 역할을 지금 등록해 주세요.) [Keep editing](button:이 역할은 아직 등록하지 않고 더 수정할게요.)`;
@@ -979,6 +1054,7 @@ export async function runOrgRoleCreationChat(args: {
     model: activeModel,
     source: "org_role_creation_assistant",
     ...args.assistantMessageMetadata,
+    ...(view && { roleCreationView: view }),
     ...(toolResults.length > 0 && { toolResults }),
     ...(confirmationRequested && actionId
       ? {
@@ -1031,6 +1107,25 @@ export async function runOrgRoleCreationChat(args: {
     });
   }
   args.emit?.("assistant_message", assistantMessage);
+  if (args.view === "role_details" && toolResults.some((item) => item.name === "update_role_draft")) {
+    after(async () => {
+      try {
+        const latest = await fetchRoleCreationState({ roleId, user: args.user, workspaceId: args.workspaceId, allowCompletedRole: true });
+        const { changedRoleInfo } = await import("@/lib/org/roleStart/roleInfoConditions");
+        const fields = changedRoleInfo(state.role, latest.role);
+        const { applyRoleInfoToRoleStart } = await import("@/lib/org/roleStart/service");
+        await applyRoleInfoToRoleStart({ roleId, user: args.user, workspaceId: args.workspaceId, fields });
+      } catch (error) {
+        console.error("[role-start] role details sync", error);
+      }
+    });
+  }
+  if (prefill) {
+    await prefill;
+    const { releasePrefilledFacts } = await import("@/lib/org/roleStart/rolePrefill");
+    const differed = releasePrefilledFacts(roleId);
+    if (differed) console.info("[org/agent:role-facts] chat read differently", { roleId, differed });
+  }
   scheduleRoleCreationSummary({
     admin,
     conversation: state.conversation,

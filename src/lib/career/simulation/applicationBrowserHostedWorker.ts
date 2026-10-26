@@ -39,7 +39,9 @@ const send=async(input)=>{
  return response.json();
 };
 (async()=>{
- await publish(configuration.ready,{ready:true});
+ const startupError=fs.existsSync(directory+'/startup-error')?fs.readFileSync(directory+'/startup-error','utf8'):null;
+ await publish(configuration.ready,startupError?{ready:false,error:startupError}:{ready:true});
+ if(startupError)return;
  const processed=new Set();
  while(Date.now()<Date.parse(configuration.expiresAt)) {
   for(const name of fs.readdirSync(directory+'/commands').filter(name=>name.endsWith('.json')).sort()) {

@@ -1,5 +1,6 @@
 import { billingErrorResponse } from "@/lib/org/billing/http";
 import { NextRequest, NextResponse } from "next/server";
+import { isRegisteredRoleStartRole } from "@/lib/org/roleStart/session";
 import { requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { OrgHttpError, updateOrgRole } from "@/lib/org/server";
 import { enqueueOrgAgentWebActionTurn } from "@/lib/org/agent/webActionTurn";
@@ -38,6 +39,7 @@ export async function PATCH(req: NextRequest) {
       employmentTypes?: string[] | null;
       externalJdUrl?: string | null;
       expectedCriteria?: unknown;
+      expectedRequest?: string | null;
       isCompanyFirstSearch?: boolean;
       isPromote?: boolean;
       isAnonymous?: boolean;
@@ -53,12 +55,23 @@ export async function PATCH(req: NextRequest) {
       workMode?: string | null;
       workspaceId?: string;
     };
+    // A Role started from role start changes its Brief text and criteria only
+    // through its Brief (/api/org/role-start update_rubric), so the two stay one.
+    if (
+      (body.request !== undefined || body.criteria !== undefined) &&
+      body.roleId &&
+      (await isRegisteredRoleStartRole(body.roleId, body.workspaceId ?? ""))
+    ) {
+      throw new OrgHttpError(409, "이 역할의 기준은 매칭 기준 탭의 Brief에서 고쳐 주세요.");
+    }
     const payload = await updateOrgRole({
       criteria: body.criteria,
       description: body.description,
       employmentTypes: body.employmentTypes,
       externalJdUrl: body.externalJdUrl,
       expectedCriteria: body.expectedCriteria,
+      expectedRequest: body.expectedRequest,
+      requestReview: true,
       isCompanyFirstSearch: body.isCompanyFirstSearch,
       isPromote: body.isPromote,
       isAnonymous: body.isAnonymous,
@@ -76,6 +89,11 @@ export async function PATCH(req: NextRequest) {
       workspaceId: body.workspaceId ?? "",
     });
     let agentJobId: string | null = null;
+    if (payload.hiringBriefHistoryId) {
+      const {enqueueHiringBriefReview}=await import('@/lib/org/hiringBriefHistory.server');
+      try { agentJobId=await enqueueHiringBriefReview({historyId:payload.hiringBriefHistoryId,user}); }
+      catch(error) { console.error('[org/role:brief-review-enqueue]',error); }
+    }
     const wakesCompanySideLlm =
       body.status !== undefined || body.isExpired !== undefined;
     if (wakesCompanySideLlm) {

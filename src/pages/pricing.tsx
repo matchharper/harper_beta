@@ -37,7 +37,7 @@ export default function PricingPage({ locale }: { locale: Locale }) {
       >
         <CareerAppBar
           locale={locale}
-          careerStartHref={contactHref}
+          careerStartHref={`/org?lang=${locale}`}
           showPrimaryAction={false}
           showSectionLinks={false}
           audienceHref="/"
@@ -61,7 +61,9 @@ export default function PricingPage({ locale }: { locale: Locale }) {
         <div className="mx-auto w-[calc(100%_-_48px)] max-w-[1040px] pb-20 md:w-[calc(100%_-_64px)] md:pb-32">
           <CompanyPricingSection
             locale={locale}
-            onStart={() => void router.push(contactHref)}
+            onStart={(enterprise) =>
+              void router.push(enterprise ? contactHref : `/org?lang=${locale}`)
+            }
           />
         </div>
       </main>

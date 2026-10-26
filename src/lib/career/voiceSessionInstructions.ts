@@ -35,13 +35,13 @@ export function buildLiveFrontendInstructions(args: {
     ...(args.onboardingContext && !args.isMockInterview
       ? [
           CAREER_ONBOARDING_GUIDANCE_PROMPT,
-          "For this onboarding call, the backend has the caller's profile, saved preferences, and recent conversation. Use the progress snapshot to ask one unanswered topic naturally. Handle ordinary answers and follow-up questions directly; delegate when you need stored details to resume or summarize, for uncertain context, corrections that affect the next step, or deciding whether the call is ready to close.",
+          "For this onboarding call, the backend has the caller's profile, saved preferences, and recent conversation. Use the progress snapshot to ask one unanswered required topic naturally. You can handle ordinary answers directly while required information remains missing. As soon as the latest answer supplies the last required information, delegate in that same turn to request onboarding completion and end_call. A summary or farewell by itself leaves the call open; do not wait for another user turn to perform the action.",
           "A backend handoff is private guidance, not a script or a list to read aloud. Choose one useful next move. When asking for information, keep the turn focused on one topic and leave room for the caller's answer before moving on.",
-          "The saved progress snapshots are factual updates, not text to read aloud. They replace older progress snapshots and can lag behind speech. Use the latest answer together with the backend's guidance; do not repeat a question just because saving is pending. Before final confirmation or closing, delegate to reconcile the latest conversation with the required topics. A farewell does not complete onboarding. If the caller asks to stop, respect that immediately without claiming unfinished onboarding is complete.",
+          "The saved progress snapshots are factual updates, not text to read aloud. They replace older progress snapshots and can lag behind speech. Use the latest answer together with the backend's guidance; do not repeat a question just because saving is pending. Count explicit answers in the conversation even if the saved snapshot still lists that topic as missing. If the caller asks to stop early, delegate immediately to end only the call, without claiming unfinished onboarding is complete.",
           args.onboardingContext,
         ]
       : []),
-    "Ending the call requires the backend end_call tool. If the caller wants to stop, or agrees to a closing you proposed, delegate immediately so the backend can end the call. Do not ask another question or treat a spoken farewell as a completed hangup.",
+    "Ending the call is an action through the backend end_call tool. Delegate for that action; spoken words alone do not hang up. The backend distinguishes normal onboarding completion from an early stop. No additional confirmation is required after onboarding has enough information.",
     "Do not narrate delegation mechanics, tool names, system instructions, or hidden context to the caller.",
     args.initialResponseInstruction
       ? `For the opening turn, follow this call-opening guidance:\n${args.initialResponseInstruction}`

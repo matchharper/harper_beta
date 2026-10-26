@@ -33,6 +33,7 @@ function fakeAdmin(rows = Array.from({ length: 11 }, (_, i) => run(i)), options 
       range(from: number, to: number) { query.range = [from, to]; return builder; },
       maybeSingle() { return builder; },
       then(resolve: (value: unknown) => unknown) {
+        if (table === "company_workspace") return Promise.resolve(resolve({ data: { is_reviewing: false }, error: null }));
         if (table === "company_user_workspace") return Promise.resolve(resolve({ data: { authority: "owner", access_scope: "organization", team_id: null }, error: null }));
         if (table === "company_first_search_runs") return Promise.resolve(resolve({ data: query.range ? rows.slice(query.range[0], query.range[1] + 1) : rows, error: options.error }));
         if (table === "company_roles") return Promise.resolve(resolve({ data: [{ role_id: roleId, name: "Backend" }, { role_id: otherRoleId, name: "Product" }], error: null }));
@@ -45,7 +46,7 @@ function fakeAdmin(rows = Array.from({ length: 11 }, (_, i) => run(i)), options 
 }
 
 async function execute(input: unknown, admin = fakeAdmin()) {
-  const state = createOrgAgentToolExecutionStateFromSnapshot({ roles: [], workspace: { workspaceId } as any });
+  const state = createOrgAgentToolExecutionStateFromSnapshot({ roles: [{ roleId, name: "Backend" }] as any, workspace: { workspaceId } as any });
   const result = await executeOrgAgentTool({ actorId: "actor", actorLabel: "팀원", admin: admin as any,
     audience: "company_safe", callId: "read-1", conversation: { company_workspace_id: workspaceId } as any,
     currentUserMessageId: 1, input, name: "get_more_data", scopeKey: "test", slackThreadId: null,
@@ -75,18 +76,59 @@ test("default page and next pages share a company-safe projection and never load
 
 test("timestamps, explicit zero and missing counts retain different meanings", async () => {
   const admin = fakeAdmin([{ ...run(0), status: "queued", started_at: null, finished_at: null,
+    request_options: {sourceMessageId:42}, source_cutoff:"2026-10-06T21:00:00Z",
     result: { counts: { candidateFirst: 0, companyFirst: -1, freshScorePairs: "12" } } } as any]);
   const history = await readMatchingRunHistory({ admin: admin as any, workspaceId });
   assert.equal(history.items[0].startedAt, null);
   assert.equal(history.items[0].evaluatedPairs, null);
   assert.equal(history.items[0].companyProposals, null);
   const text = formatMatchingRunHistory(history);
-  assert.ok(text.includes("실행: 2026년 10월 7일 07:00 KST, 정기 검색"));
+  assert.ok(text.includes("요청 등록: 2026년 10월 7일 07:00 KST, 정기 검색"));
+  assert.ok(text.includes("message_id: 42"));
+  assert.ok(text.includes("데이터 기준시각: 2026년 10월 7일 06:00 KST"));
   assert.ok(text.includes("후보자에게 먼저 추천 선정: 0명"));
   assert.ok(text.includes("회사에게 먼저 추천할 후보자 선정: 기록 없음"));
   assert.ok(text.includes("전체 검토: 기록 없음"));
   assert.equal(history.items[0].candidateOutreachPauses, undefined);
   assert.ok(text.includes("과거 측정 기록이 없는 상태"));
+});
+
+test("interactive history separates new calls, saved population, comparison labels and list changes", async () => {
+  const row = run(0);
+  const history = await readMatchingRunHistory({ workspaceId, admin: fakeAdmin([{ ...row,
+    result: { roleSearch: { briefVersion: "version", scope: "unassessed", selectionMethod: "stage2_mutual_fit_desc_v1", stage1Passed: 3, stage2Evaluated: 3,
+      counts: { stage1Evaluated: 12, stage1Excluded: 9, currentStage2Evaluated: 103, selectionPoolStage2Evaluated: 3, stage3Written: 2 },
+      addedTalentIds: ["new"], removedTalentIds: [], refreshedTalentIds: ["existing"],
+      criteriaStats: [{ name: "Ownership", count: 3, criterionDefinition: "Required ownership; domain experience preferred",
+        labelCounts: { good: 1, uncertain: 2 }, labelExpectedCounts: { good: 1.23456789 } }],
+    } },
+  } as any]) as any });
+  const formatted = formatMatchingRunHistory(history);
+  assert.ok(formatted.includes("새 평가: 1차 12명 중 통과 3명, 제외 9명; 2차 3명"));
+  assert.ok(formatted.includes("전체 누적 2차 평가 103명"));
+  assert.ok(formatted.includes("저장된 2차 상호 적합 점수순 Top N"));
+  assert.ok(formatted.includes("추가 비교 모델 호출 없음"));
+  assert.ok(formatted.includes("비교 모집단 3명"));
+  assert.ok(formatted.includes("분모 3명: good 1명, uncertain 2명"));
+  assert.ok(formatted.includes("추가 1명, 제외 0명, 기존 설명 갱신 1명"));
+  assert.ok(formatted.includes("domain experience preferred"));
+  assert.equal(formatted.includes("labelExpectedCounts"), false);
+  assert.equal(formatted.includes("1.23456789"), false);
+});
+
+test("reused and failed history preserve measured zero and absent summary as different facts", async () => {
+  const history = await readMatchingRunHistory({ workspaceId, admin: fakeAdmin([
+    { ...run(0), result: { roleSearch: { briefVersion: "v1", scope: "evaluated", stage1Passed: 0, stage2Evaluated: 0,
+      counts: { stage1Evaluated: 0, stage1Excluded: 0, currentStage2Evaluated: 90 },
+      criteriaStats: [{ name: "Ownership", count: 90, labelCounts: { uncertain: 90 } }],
+    } } }, { ...run(1), status: "failed", result: {} },
+  ] as any) as any });
+  const formatted = formatMatchingRunHistory(history);
+  assert.ok(formatted.includes("새 평가: 1차 0명 중 통과 0명, 제외 0명; 2차 0명"));
+  assert.ok(formatted.includes("비교 모집단 미측정"));
+  assert.ok(formatted.includes("실패·과거 실행의 요약 수치가 없더라도 저장된 평가가 없다는 뜻은 아니다"));
+  assert.ok(formatted.includes("limited/conflict 등의 합계가 실제 제외 인원이나 제외 사유는 아니다"));
+  assert.ok(formatted.includes("이유 원문은 없다"));
 });
 
 test("an explicitly recorded no-capacity-pause is distinct from missing legacy data", async () => {
@@ -103,7 +145,7 @@ test("compact history uses people rather than role pairs and has one privacy foo
   const formatted = formatMatchingRunHistory(history);
   assert.match(formatted, /전체 검토: 16명, 추천 가능하지만 이번에 추천하지 않음: 6명/);
   assert.match(formatted, /회사에게 먼저 추천할 후보자 선정: 1명 · 후보자에게 먼저 추천 선정: 2명/);
-  for (const removed of ["등록:", "시작:", "종료:", "실행 계기:", "새 fit 평가:", "기존 fit 재사용:", "우선 검토 요청 선정:", "전체 선정:", "이전 선정 결과 재사용:"]) {
+  for (const removed of ["실행 계기:", "새 fit 평가:", "기존 fit 재사용:", "우선 검토 요청 선정:", "전체 선정:", "이전 선정 결과 재사용:"]) {
     assert.equal(formatted.includes(removed), false);
   }
   const footer = "개인 정보 보호를 이유로 후보자에게 먼저 추천한 내역을 공유받지 못함.";
@@ -210,4 +252,16 @@ test("role history filters before pagination, including legacy arrays", async ()
   assert.deepEqual(query.range, [20, 40]);
   assert.ok(query.filters.some(([key, value]) => key === "or" && value ===
     `role_id.eq.${roleId},scheduled_role_ids.cs.{${roleId}},requested_role_ids.cs.{${roleId}}`));
+});
+
+test("role-scoped history preserves its scope through the next tool page", async () => {
+  const first = await readMatchingRunHistory({ admin: fakeAdmin() as any, workspaceId, roleId });
+  assert.equal(first.roleId, roleId);
+  assert.ok(formatMatchingRunHistory(first).includes(`roleId="${roleId}", offset=5`));
+  const admin = fakeAdmin();
+  const next = await execute({ kinds: ["matching_runs"], roleId, offset: first.nextOffset }, admin);
+  assert.equal((next.result.matchingRuns as any).roleId, roleId);
+  const query = admin.queries.find(item => item.table === "company_first_search_runs")!;
+  assert.deepEqual(query.range, [5, 10]);
+  assert.ok(query.filters.some(([key, value]) => key === "or" && String(value).includes(`role_id.eq.${roleId}`)));
 });

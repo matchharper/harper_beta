@@ -1,3 +1,4 @@
+import { resumeCompletedScheduledMatching } from "@/lib/org/agent/scheduledMatching.server";
 import { dispatchWorkspaceSignupNotifications } from "@/lib/org/signupNotification.server";
 import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
@@ -36,7 +37,10 @@ export async function GET(req: NextRequest) {
     } catch (error) {
       console.error("[org/signup-notification:dispatch]", error instanceof Error ? error.message : "failed");
     }
+    const {dispatchHiringBriefHistory}=await import('@/lib/org/hiringBriefHistory.server');
+    await dispatchHiringBriefHistory();
     await releasePendingCompanyUpdates();
+    await resumeCompletedScheduledMatching(admin);
     const recovered = await recoverOrgAgentWebActionJobs(admin);
     const proactiveEnqueued = await enqueueDueCompanyProactiveReviews();
     const { data: jobs, error } = await (

@@ -1,3 +1,3 @@
 // Bump when either treatment changes; keep the allocation salt stable.
 export const EXTERNAL_MEASUREMENT_VERSION =
-  "filter-first-hnsw-2026-10-16-v1";
+  "weighted-country-employment-rerank25-high-2026-10-26-v1";

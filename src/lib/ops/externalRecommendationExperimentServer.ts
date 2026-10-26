@@ -1,7 +1,6 @@
 import "server-only";
 import type { TalentAdminClient } from "../talentOnboarding/admin";
 import { EXPERIMENT } from "../externalRecommendationsV2/contract";
-import { EXTERNAL_MEASUREMENT_VERSION } from "../externalRecommendationsV2/measurement";
 import type {
   ExternalExperimentRun,
   ExternalExperimentRecommendation,
@@ -36,7 +35,7 @@ async function pages<T>(query: () => any): Promise<T[]> {
     afterId = data[data.length - 1].id;
   }
 }
-export async function fetchExternalExperimentRows(
+export async function fetchExternalExperimentRuns(
   admin: TalentAdminClient,
   start: string,
   end: string,
@@ -58,11 +57,16 @@ export async function fetchExternalExperimentRows(
     ...row,
     metrics: Object.fromEntries(METRIC_KEYS.map((key) => [key, row[key]])),
   }));
-  const ids = runs
-    .filter(
-      (r) => r.metrics.measurementVersion === EXTERNAL_MEASUREMENT_VERSION
-    )
-    .map((r) => r.id);
+  return runs;
+}
+
+export async function fetchExternalExperimentOutcomes(
+  admin: TalentAdminClient,
+  runs: ExternalExperimentRun[],
+  start: string,
+  end: string
+) {
+  const ids = runs.map((r) => r.id);
   const recommendations: ExternalExperimentRecommendation[] = [];
   const receipts: ExternalExperimentReceipt[] = [];
   // Bound concurrency instead of waiting for every run batch sequentially.
@@ -103,5 +107,5 @@ export async function fetchExternalExperimentRows(
   await Promise.all(
     Array.from({ length: Math.min(6, Math.ceil(ids.length / 100)) }, loadBatch)
   );
-  return { runs, recommendations, receipts };
+  return { recommendations, receipts };
 }

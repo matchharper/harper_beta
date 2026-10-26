@@ -211,7 +211,7 @@ const COMPANY_PAGE_COPY = {
       title: "지금 필요한 Top talent를 알려주세요.",
       description:
         "Harper는 후보자와 직접 대화해 연봉 범위, 이동 의향, 관심도처럼 프로필만으로 알 수 없는 정보를 확인합니다. 그래서 회사는 많은 이력서를 검토하는 대신, 바로 인터뷰할 만한 소수의 후보자만 받을 수 있습니다.",
-      talentLink: "For Talents",
+      talentLink: "For candidates",
       help: "궁금한 점이 있으신가요?",
       formTitle: "신청하기",
       email: "이메일*",
@@ -245,16 +245,16 @@ const COMPANY_PAGE_COPY = {
   },
   en: {
     meta: {
-      title: "Harper for Companies | Your AI Recruiting Colleague",
+      title: "Harper for Companies | Your AI Recruiting Partner",
       description:
-        "Harper speaks directly with candidates to confirm compensation expectations, relocation preferences, and genuine interest, then introduces only top talent your team is ready to interview.",
+        "Your AI recruiting partner. Harper finds candidates, learns what they want next, and helps you connect with the right people.",
       ogLocale: "en_US",
       language: "en-US",
     },
     hero: {
-      title: ["Warm intros to candidates", " who already fit."],
+      title: ["Meet candidates", " who fit your team."],
       description: [
-        "Harper speaks directly with talent and companies to understand the context on both sides, finds the right match, and brings everyone together as your AI agent.",
+        "Harper gets to know your team and your candidates, then helps you connect with people who could be a great fit.",
       ],
       // cta: "Start for free",
       cta: "Request a demo",
@@ -267,7 +267,7 @@ const COMPANY_PAGE_COPY = {
       criteria:
         "Someone experienced with LLM serving and Rust who is excited about challenging problems.",
       answer:
-        "Got it. I’ll introduce only candidates whose compensation range, relocation preferences, and interest in Harper has personally confirmed.",
+        "I’ll find candidates with that experience and check their interest, compensation expectations, and willingness to relocate.",
       notificationTitle: "Meet your candidate",
       notificationBody: "Choose a time to meet.",
     },
@@ -279,20 +279,20 @@ const COMPANY_PAGE_COPY = {
       lastMoveLabel: "Last job change",
       lastMove: "1 yr, 6 mo ago",
       summary:
-        "An ex-NVIDIA and ex-Coupang engineer who has designed LLM serving and distributed systems at production scale.",
+        "Previously at NVIDIA and Coupang, Alex has designed and operated production-scale LLM serving and distributed systems.",
       recommendationLabel: "Why we recommend Alex",
       recommendation: [
         "Alex is not actively searching, but is open to a role with ownership of an AI product and broader impact on a small team. In a conversation with Harper, Alex expressed specific interest in this opportunity.",
-        "At Kakao, Alex reduced monthly GPU costs by 28% through Attention Cache optimization and has experience leading a team. The background is similar to the candidate you previously identified as a strong fit.",
-        "Harper's conversation and GitHub review also confirmed recent experience building a side project from scratch and attracting real users.",
+        "At Kakao, Alex reduced monthly GPU costs by 28% through Attention Cache optimization and has experience leading a team. Alex’s experience is similar to the candidate you previously liked.",
+        "Conversations with Alex and a review of their GitHub show recent experience launching a side project and growing its user base.",
       ],
       requirements: [
         {
           fitness: "excellent",
           rating: "Excellent",
-          title: "LLM serving design and operations",
+          title: "Designing and operating LLM serving systems",
           description:
-            "Designed and operated a Rust-based LLM serving pipeline at NVIDIA. (1 year, 6 months)",
+            "Spent 18 months designing and operating a Rust-based LLM serving pipeline at NVIDIA.",
         },
         {
           fitness: "good",
@@ -304,54 +304,54 @@ const COMPANY_PAGE_COPY = {
         {
           fitness: "uncertain",
           rating: "Uncertain",
-          title: "Availability to join within four weeks",
+          title: "Available to start within four weeks",
           description:
-            "Availability to join within four weeks of the interview still needs to be confirmed directly.",
+            "We still need to confirm whether Alex can start within four weeks of the interview.",
         },
       ],
-      confirmedLabel: "Details confirmed directly by Harper",
+      confirmedLabel: "Confirmed by Harper",
       confirmedItems: [
         "Compensation expectations are within the proposed range.",
-        "English fluency is sufficient for technical discussions.",
+        "Comfortable discussing technical topics in English.",
       ],
       scheduleInterview: "Schedule an interview",
     },
     agents: {
       title: "How Harper works",
       requestCard: {
-        title: "Tell us what the right person looks like.",
+        title: "Tell us who you’re looking for.",
         description:
           "Go beyond the job title: share your team context, technical bar, and non-negotiables. Harper speaks directly with candidates and introduces them over Slack or email only when the fit is clear.",
       },
       verifiedCard: {
-        title: "Meet only talent we have spoken with and vetted.",
+        title: "Meet candidates Harper has spoken with.",
         description:
           "Harper speaks directly with candidates to confirm your requirements, their interest, compensation expectations, and relocation preferences—so you can decide whether to interview as soon as an introduction arrives.",
       },
     },
     closing: [
-      "Even for the hardest roles to fill, Harper gives you someone worth meeting within a week.",
-      "Describe the role, and Harper defines who will thrive on your team, then finds that person we have already spoken with.",
+      "Get help finding candidates for even your hardest-to-fill roles.",
+      "Describe the role, and Harper helps define what a strong fit looks like, then searches its candidate network.",
       "We present your opportunity, answer questions, and build genuine interest before introducing only the candidates who want to interview.",
       "You do not get another list of names. You meet people who are ready to start a hiring conversation now.",
     ],
     contact: {
-      title: "Let's find the top talent your team needs now.",
+      title: "Tell us who you need on your team.",
       description:
-        "Harper speaks directly with candidates to uncover what a profile cannot show. Instead of reviewing a pile of resumes, your team receives a small group of candidates who are truly worth interviewing.",
-      talentLink: "For Talents",
+        "Harper talks with candidates to learn what a profile can’t tell you. Get a shortlist with the context you need to decide who to meet.",
+      talentLink: "For candidates",
       help: "Have a question?",
       formTitle: "Request a demo",
-      email: "Email*",
+      email: "Work email*",
       name: "Name*",
       organization: "Company or team*",
       organizationPlaceholder: "Company or team",
-      purpose: "Hiring goal*",
+      purpose: "Who are you hiring for?*",
       purposePlaceholder:
         "e.g. We are looking for a senior backend engineer to lead our Korea/APAC expansion.",
       submit: "Submit request",
       submitting: "Submitting...",
-      submittedTitle: "Your request has been received.",
+      submittedTitle: "Request received.",
       submittedBody: [
         "We’ll review what you shared and get back to you as soon as possible.",
         "Thank you.",
@@ -361,13 +361,13 @@ const COMPANY_PAGE_COPY = {
       toast: {
         copied: "Link copied.",
         copyFailed: "Could not copy the link.",
-        emailRequired: "Please enter your email.",
-        emailInvalid: "Please enter a valid email address.",
-        companyEmailRequired: "Please use your company email.",
-        nameRequired: "Please enter your name.",
-        organizationRequired: "Please enter your company or team.",
-        purposeRequired: "Please describe your hiring goal.",
-        submitFailed: "We could not submit your meeting request.",
+        emailRequired: "Enter your work email.",
+        emailInvalid: "Enter a valid email address.",
+        companyEmailRequired: "Use your work email.",
+        nameRequired: "Enter your name.",
+        organizationRequired: "Enter your company or team name.",
+        purposeRequired: "Tell us who you’re hiring for.",
+        submitFailed: "We couldn’t send your request. Try again.",
       },
     },
   },
@@ -1173,7 +1173,7 @@ function ContactSalesSection({
             <label className={labelClass}>
               {copy.email}
               <Input
-                id="company-waitlist-email"
+                id="company-contact-email"
                 ref={emailInputRef}
                 value={form.email}
                 onChange={(event) => updateForm("email", event.target.value)}
@@ -1431,43 +1431,18 @@ export default function CompanyPage({
               <ContactSalesSection
                 copy={{
                   ...copy.contact,
-                  title:
-                    companyLocale === "ko"
-                      ? "다음 채용, Harper와 함께해요."
-                      : "Make your next hire with Harper.",
                   description:
                     companyLocale === "ko"
-                      ? "카드 등록 없이 시작해요."
-                      : "No card needed.",
+                      ? "Enterprise는 채용 규모와 지원 범위에 따라 별도 계약으로 이용해요."
+                      : "Enterprise agreements are tailored to your hiring volume and support needs.",
                   formTitle:
                     companyLocale === "ko"
-                      ? "무료로 사용해보기"
-                      : "Try for free",
+                      ? "Enterprise 도입 문의"
+                      : "Contact Enterprise sales",
                   submit:
                     companyLocale === "ko"
-                      ? "사용 신청하기"
-                      : "Apply for access",
-                  submittedTitle:
-                    companyLocale === "ko"
-                      ? "대기 등록이 완료됐어요."
-                      : "You’re on the waitlist.",
-                  submittedBody:
-                    companyLocale === "ko"
-                      ? [
-                          "한시간 이내에 남겨주신 이메일로 안내드릴게요.",
-                          "채용 목표도 함께 확인하겠습니다.",
-                        ]
-                      : [
-                          "We’ll email you within an hour.",
-                          "We’ll also review your hiring goals.",
-                        ],
-                  toast: {
-                    ...copy.contact.toast,
-                    submitFailed:
-                      companyLocale === "ko"
-                        ? "신청 제출에 실패했습니다. 다시 시도해주세요."
-                        : "Could not submit your request. Please try again.",
-                  },
+                      ? "미팅 신청하기"
+                      : "Request a meeting",
                 }}
                 shareUrl={canonicalUrl}
                 purpose={purpose}

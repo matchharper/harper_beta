@@ -1,0 +1,15 @@
+{
+  "version": "selection-gold-v1",
+  "dataset": "read-only-roles-v1",
+  "source": "2026-10-23 user correction; frozen before replay",
+  "criteria": [
+    "Only authorized current stage-two candidates enter Top N",
+    "Descending recorded mutualFit; stable talent ID for ties; no selector model",
+    "Count is the requested selection size, not a lifetime pool cap",
+    "Outside Top N alone never deletes a previous suggestion",
+    "A fresh stage-one exclusion can retire only an untouched existing suggestion",
+    "Every selected candidate gets all current criteria and original numeric scores",
+    "No DB writes, publication or contact",
+    "Qualitative writing review remains separate from structural checks"
+  ]
+}

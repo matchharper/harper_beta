@@ -339,11 +339,11 @@ function WorkspaceBillingContent({
           ),
           resume: c(
             "이 슬롯은 다음 결제일에 자동 갱신돼요.",
-            "Subscription kept. It will renew at the next billing date."
+            "Automatic renewal restored. Your subscription will renew on the next billing date."
           ),
           assign: c(
             "슬롯의 담당 Role을 변경했어요.",
-            "The slot’s assigned Role has been updated."
+            "Slot assignment updated."
           ),
         }[action];
         if (message)
@@ -473,7 +473,7 @@ function WorkspaceBillingContent({
               <p>
                 {c(
                   "결제 확인이 필요한 슬롯이 있어요.",
-                  "A slot needs payment attention."
+                  "A payment issue is affecting one of your slots."
                 )}
                 {!canViewBilling &&
                   c(
@@ -592,7 +592,7 @@ function WorkspaceBillingContent({
           <>
             {billing.preview ? c("UI 미리보기 · ", "UI preview · ") : ""}
             {cancelSlot?.label} ·{" "}
-            {cancelSlot?.roleName ?? c("담당 Role 없음", "No Role assigned")}
+            {cancelSlot?.roleName ?? c("담당 Role 없음", "No role assigned")}
           </>
         }
         bodyClassName="space-y-4 px-4 pb-5 sm:px-5"
@@ -623,20 +623,20 @@ function WorkspaceBillingContent({
           <p>
             {c(
               `${date(cancelSlot?.periodEnd ?? null, true)}까지 이용할 수 있어요. 다음 갱신부터 이 슬롯의 요금은 청구되지 않아요.`,
-              `Access continues until ${date(cancelSlot?.periodEnd ?? null, true)}. This slot will no longer be charged from the next renewal.`
+              `You can use this slot until ${date(cancelSlot?.periodEnd ?? null, true)}. It won't renew, and you won't be charged again for this slot.`
             )}
           </p>
           <p>
             {c(
-              "슬롯이 종료돼도 모든 Role은 계속 유지돼요. 다른 빈 슬롯이 있으면 자동 이동하고, 없으면 공용 Intro를 사용해요. 유료 기능은 이용 중인 슬롯에 연결된 Role에서 사용할 수 있어요.",
-              "All Roles stay active when a slot ends. Its Role moves to another available slot, or uses shared Intros. Paid features require an active slot assignment."
+              "슬롯이 종료되면 남은 유효 슬롯을 먼저 배정해요. 슬롯이 없는 Free Role은 먼저 만든 1개만 활성 상태로 유지하고 나머지는 일시 중지해요. 기존 후보자·Intro·진행 이력은 보존돼요. 별도 계약은 해당 조건을 따라요.",
+              "When a slot expires, Harper assigns any available valid slots first. Of the roles without a slot, the oldest eligible Free role stays active and the others are paused. Existing candidates, Intros, and hiring history are preserved. Separate agreements keep their own terms."
             )}
           </p>
           {cancelSlot?.roleId && (
             <p className="text-neutral-muted">
               {c(
                 "취소 후에도 담당 Role을 변경할 수 있어요. 종료 시점의 배정에 따라 영향이 달라져요.",
-                "You can change the assigned Role after cancelling. The assignment at the end of the period determines the impact."
+                "You can reassign the slot after canceling. The change will affect whichever role is assigned when the slot expires."
               )}
             </p>
           )}

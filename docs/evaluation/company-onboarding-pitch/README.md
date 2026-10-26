@@ -22,7 +22,7 @@
 - 입력 계약: 이름, 기존 Pitch, 사용자 입력, `ko|en`. 실제 온보딩 prompt와 route의 공통 모델/capability 옵션을 import한다.
 - Canonical runner: `pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCompanyOnboardingPitch.ts --run=<new-id>`.
 - 실행 조건: 기존 `.local/full-stack` 격리 DB가 실행 중이어야 한다. loopback URL과 `local_e2e.environment=harper-local-e2e`를 확인한다. 운영 DB·메일·Slack·Worker는 사용하지 않는다. Role은 만들지 않는다.
-- 설정: 기본은 route와 같은 Haiku 5.5 / OpenRouter / high. 모델·입력/source hash, provider request/response, 실제 저장본과 latency는 owner-only ignored `runs/`에 기록한다.
+- 설정: 기본은 route와 같은 Haiku 5.5 / OpenRouter / low (2026-10-25 로컬 변경, 미배포). 모델·입력/source hash, provider request/response, 실제 저장본과 latency는 owner-only ignored `runs/`에 기록한다.
 - Metrics: 실제 저장 완료, 호출 수, 전체 latency, 답변과 저장본의 의미·언어·기존 정보 보존, 잘못된 효과.
 - Gate: 3/3 저장 및 gold의 필수 의미 자체 검토, 미승인 효과·허위 완료 0. 속도 목표는 각 30초 이내이며 실패를 숨기지 않는다. 문자열/말투 규칙으로 LLM 품질을 판정하지 않는다.
 - 출처/개인정보: 모든 자료는 합성. 첫 사례는 2026-10-08 기존 지연 확인 입력을 고정한 재현 사례이고, 나머지는 정정·한국어 범위를 확장한다. 실제 후보자/회사 데이터는 없다. 생성 계정·회사는 exact ID로 즉시 정리한다.

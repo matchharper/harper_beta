@@ -75,23 +75,21 @@ test("additional organization steps reuse company and Slack without profile, pla
   assert.deepEqual(
     getOrgOnboardingSteps({
       showProfile: false,
-      showCompanyDetails: true,
       showCompany: true,
       showSlack: true,
       showPlan: false,
       roles: [],
     }),
-    ["company-details", "company", "slack", "guide", "done"]
+    ["company", "slack", "guide", "done"]
   );
   assert.deepEqual(
     getOrgOnboardingSteps({
       showProfile: true,
-      showCompanyDetails: true,
       showCompany: true,
       showSlack: false,
       roles: [],
     }),
-    ["profile", "company-details", "company", "guide", "done"]
+    ["profile", "company", "guide", "done"]
   );
 });
 test("organization creation and the existing Role creation route remain distinct", () => {

@@ -1057,7 +1057,7 @@ export function CompanyConceptFaq({
           [
             "비용은 어떻게 되나요?",
             <span key="pricing">
-              Free에서도 Role은 무제한이며 월 10 Intro를 함께 사용합니다. 유료
+              Free에서는 활성 Role 1개와 월 10 Intro를 제공합니다. 유료
               기능이 필요한 Role에 슬롯을 추가할 수 있습니다. Free와 표준 슬롯
               구독에는 채용 성공보수가 없습니다. Enterprise와 기존 별도 계약은
               합의한 조건을 따릅니다.{" "}
@@ -1087,8 +1087,7 @@ export function CompanyConceptFaq({
           [
             "How does pricing work?",
             <span key="pricing">
-              Free includes unlimited roles with 10 monthly Intros shared
-              across them. Add slots to roles that need paid features. Free and
+              Free includes one active role and 10 shared monthly Intros. Add slots to roles that need paid features. Free and
               standard slot subscriptions have no hiring success fee. Enterprise
               and existing agreements follow their agreed terms.{" "}
               <Link href="/pricing?lang=en" className={styles.inlineLink}>

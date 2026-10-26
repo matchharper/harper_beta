@@ -14197,6 +14197,7 @@ export type Database = {
       import_talent_job_link: {
         Args: {
           p_existing_role_id: string
+          p_preserve_existing_progress?: boolean
           p_role: Json
           p_saved_stage: string
           p_talent_id: string
@@ -14210,6 +14211,7 @@ export type Database = {
           recommendation_id: string
           role_id: string
           role_source_provider: string
+          saved_stage: string
         }[]
       }
       internal_opportunity_is_stage_tag: {

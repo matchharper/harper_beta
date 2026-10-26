@@ -18,7 +18,7 @@ test("English org screens localize saved tool progress without changing the reco
     label: "웹 검색 완료",
     status: "done",
   }];
-  assert.equal(localizeOrgAgentThinkingLogs(logs, "en")[0]?.label, "Search complete");
+  assert.equal(localizeOrgAgentThinkingLogs(logs, "en")[0]?.label, "Looked around");
   assert.equal(localizeOrgAgentThinkingLogs(logs, "ko"), logs);
   assert.equal(logs[0]?.label, "웹 검색 완료");
 });

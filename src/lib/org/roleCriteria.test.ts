@@ -41,15 +41,7 @@ test("accepts complete criteria without a creation minimum", () => {
   );
 });
 
-test("rejects oversized and incomplete criteria lists", () => {
-  assert.match(
-    getOrgRoleCriteriaValidationError([
-      ...completeCriteria,
-      ...completeCriteria,
-      completeCriteria[0],
-    ])!,
-    /6개/
-  );
+test("rejects incomplete criteria lists", () => {
   assert.match(
     getOrgRoleCriteriaValidationError([
       ...completeCriteria.slice(0, 2),
@@ -133,7 +125,7 @@ test("supports adding one criterion and deleting one criterion", () => {
   assert.deepEqual(cleared.criteria, []);
 });
 
-test("rejects ambiguous targets, invalid edit shapes, and oversized results", () => {
+test("rejects ambiguous targets and invalid edit shapes", () => {
   assert.throws(
     () =>
       applyOrgRoleCriteriaEdits(completeCriteria, [
@@ -159,15 +151,25 @@ test("rejects ambiguous targets, invalid edit shapes, and oversized results", ()
       ]),
     /name이나 criteria/
   );
-  assert.throws(() =>
-    applyOrgRoleCriteriaEdits(
-      [
-        ...completeCriteria,
-        { name: "Ownership", criteria: "끝까지 맡은 경험" },
-        { name: "Communication", criteria: "명확한 협업 경험" },
-        { name: "Domain", criteria: "관련 도메인 경험" },
-      ],
-      [{ operation: "add", name: "Extra", criteria: "추가 기준" }]
-    )
+});
+
+test("preserves larger complete lists, long source text, and batches of exact edits", () => {
+  const criteria = Array.from({ length: 12 }, (_, index) => ({
+    name: `Criterion ${index} ${"source ".repeat(40)}`,
+    criteria: "original evidence ".repeat(600),
+  }));
+  assert.deepEqual(
+    parseOrgRoleCriteria(criteria),
+    criteria.map((item) => ({
+      name: item.name.trim(),
+      criteria: item.criteria.trim(),
+    }))
   );
+  const result = applyOrgRoleCriteriaEdits(
+    [],
+    criteria.map((item) => ({ operation: "add", ...item }))
+  );
+  assert.equal(result.criteria.length, 12);
+  assert.ok(result.criteria[11].criteria.length > 8_000);
+  assert.ok(result.criteria[11].name.length > 200);
 });

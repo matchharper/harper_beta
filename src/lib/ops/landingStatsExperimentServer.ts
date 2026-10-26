@@ -7,6 +7,7 @@ import {
 import type {
   LandingStatsLog,
   LandingStatsSignup,
+  LandingStatsSubmission,
 } from "./landingStatsExperiment";
 
 const PAGE_SIZE = 1000;
@@ -90,5 +91,28 @@ export async function fetchLandingStatsExperimentRows(
       })(),
     ]);
   }
-  return { rows, signups };
+  const submissions: LandingStatsSubmission[] = [];
+  const userIds = [...new Set(signups.map((signup) => signup.userId))];
+  for (let index = 0; index < userIds.length; index += ID_CHUNK_SIZE) {
+    const ids = userIds.slice(index, index + ID_CHUNK_SIZE);
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("logs")
+        .select("id,user_id,created_at")
+        .eq("type", "career_onboarding_submitted")
+        .in("user_id", ids)
+        .gte("created_at", startIso)
+        .lte("created_at", endIso)
+        .order("id")
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        if (row.user_id) {
+          submissions.push({ userId: row.user_id, createdAt: row.created_at });
+        }
+      }
+      if (!data || data.length < PAGE_SIZE) break;
+    }
+  }
+  return { rows, signups, submissions };
 }

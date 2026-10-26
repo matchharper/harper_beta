@@ -68,3 +68,18 @@ Canonical runner는 그대로 `scripts/evalCareerCapabilities.ts`다. `activeApp
 pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerCapabilities.ts --dataset-version v8 --validate-only
 pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerCapabilities.ts --dataset-version v8 --mode progressive --strict-model --only application_memory,application_brief,application_profile,application_switch
 ```
+
+## 지원 준비 전환 challenge (v9)
+
+4개의 독립 합성 대화로 명확한 다른 공고 시작, 이미 확인한 전환, 가능 여부 질문, 저장 후 종료를 확인한다. 실제 사용자 사건은 읽기 전용으로 조사했고 재사용 입력에는 이름·회사·공고 ID·이력서·원문을 넣지 않았다. `cases-v9.json`, `gold-v9.json`, `manifest-v9.json`은 실행 전에 동결한다. 기존 버전은 유지한다.
+
+Canonical runner는 `scripts/evalCareerCapabilities.ts`다. session mutation, 종료 결과, 실제 preparation prompt·lazy loader·공통 assistant loop를 사용하고 시작 카드는 실제 schema로 검증하는 stub로 대체한다. 모델은 해당 incident와 활성 지원 모드에서 쓰는 `claude-haiku-5-5`, 별도 reasoning override 없이 production 설정을 쓴다. 네트워크는 모델 provider만 허용하고 실제 사용자·공고 상태, 지원 사이트, 발송에는 접근하지 않는다. Raw run은 기존 ignored `runs/` 아래 owner-only로 보관한다.
+
+Gate는 두 전환 모두 같은 턴의 end→새 공고 카드, 정확한 공고·기존 문서 유지, 중복 질문/실행/접수 없음, 안내 원문 의미 검토 통과다. 질문과 단순 종료가 전환을 실행하면 실패한다. 자동 검사는 도구·상태·ID만 판단하고 자연어는 Codex가 원문을 읽는다. 실제 DB 저장·재개는 `savedApplications.test.ts`, 안내의 UI 보존은 `ApplicationStartCard.test.tsx`로 별도 확인한다. 자유 대화 전체나 운영 배포 완료를 증명하지 않는 좁은 로컬 검증이다.
+
+```sh
+pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerCapabilities.ts --dataset-version v9 --validate-only
+pnpm exec tsx --tsconfig scripts/tsconfig.json scripts/evalCareerCapabilities.ts --dataset-version v9 --mode progressive --model claude-haiku-5-5 --strict-model
+```
+
+[2026-10-23 전환 검증 보고서](reports/2026-10-23-application-switch.md): 구조 4/4, 안내 수정 후 관련 2사례 부분 재실행과 원문 의미 검토. 기존 실패 보존, 로컬·미배포.

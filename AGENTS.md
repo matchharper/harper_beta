@@ -1,5 +1,57 @@
 # Harper Repository Instructions
 
+- 2026-10-26 Slack 미연결 Role 이메일 대체 DB 선반영(웹·Worker 미배포): 사용자 승인으로 운영 migration `20261026054701`(`company_candidate_email_without_slack`)을 적용했다. 로컬 정본은 `supabase/migrations/20261026054133_company_candidate_email_without_slack.sql`이다. 활성 integration·같은 Slack team의 enabled 채널·Role opt-out을 확인해 전달 가능한 채널이 없으면 기존 `email_notifications_enabled=false`여도 이메일을 허용한다. 검색·발송 직전 검사와 Slack 연결 안내 대상 조회가 같은 조건을 사용하며 담당자·Owner 수신 권한과 개인 수신 거부는 유지한다. 기존 함수 5개의 운영 본문을 사전 대조했고 새 helper 포함 6개 본문 일치·서버 전용 권한·신규 security advisory 없음을 검증했다. 적용 직후 86개 Role의 저장된 메일 설정은 모두 false로 보존됐고 이메일 outbox·버튼 링크는 0건이다. 웹·Worker 배포와 실제 자동 발송은 별도이며 과거 후보 재발송·데이터 backfill·서비스 재시작은 하지 않았다. 같은 migration을 다시 적용하지 않는다.
+
+- 2026-10-26 정기 검색 기본 경로 변경(미배포): `COMPANY_SCHEDULED_AGENTIC_MATCHING`에 따른 웹 접수 차단과 Worker 경로 분기를 제거했다. 새 정기 검색과 Role 활성화 첫 검색은 설정 유무/값과 무관하게 변경된 공통 경로를 사용한다. 아래 과거의 `true` 전환 필요 기록은 이 로컬 변경으로 대체된다. 웹 endpoint를 먼저 배포한 뒤 Worker를 전환하며 기존 인증·권한·일정·중복 방지·실행 중 작업 보존은 유지한다. 환경변수 변경이나 새 migration은 필요하지 않다.
+
+- 2026-10-26 온보딩·정기 Role 검색 평가 원장 통합 DB 선반영(웹·Worker 미배포): 사용자 승인으로 운영 migration `20261026052249`(`shared_worker_role_evaluations`)를 적용했다. 로컬 정본은 `supabase/migrations/20261026051109_shared_worker_role_evaluations.sql`이다. `company_role_candidate_evaluations.run_id`를 nullable로 바꾸고 Opportunity 생산 실행을 가리키는 `discovery_run_id` FK와 재시도·공통 조회 index를 추가했다. 기존 행 2,318건은 보존했으며 적용 직후 새 `worker_behavior_v1`/Opportunity 생산 행은 0건이다. 후보자 전달 guard는 회사 검색과 온보딩 선정 모두의 정확한 공통 평가 행을 확인한다. 함수 본문 정본 일치·SECURITY INVOKER·서버 전용 권한·RLS 유지와 신규 security advisory 없음을 확인했다. 로컬 Worker는 동일한 전체 입력·fingerprint·Decisions evaluator·원장을 양방향 재사용하며, 신규 온보딩 평가는 `talent_opportunity_fit`에 쓰지 않는다. 코드 배포·기능 설정 변경·기존 평가 backfill·실제 연락은 하지 않았다. 같은 migration을 재적용하지 않는다.
+
+- 2026-10-26 후보자 연락 주기 DB 선반영(웹·Worker 미배포): 사용자 승인으로 운영 migration `20261026044735`(`candidate_contact_cadence`)를 적용했다. 로컬 정본은 `supabase/migrations/20261026034255_candidate_contact_cadence.sql`이다. `scheduled_candidate_delivery_is_current_v1`과 `talent_first_pair_is_available_v1` 두 함수만 교체했고 본문 정본 일치·SECURITY INVOKER·anon/authenticated 실행 차단·service_role 실행 권한을 확인했다. 신규 테이블·데이터 backfill·추천 생성·발송·서비스 재시작은 없다. 적용 당시 `worker_behavior_v1` 선정 review는 0건이다. 후보자 주기·Memory 판단·비추천 종료의 전체 동작은 후속 Worker 반영과 신규 검색 활성화가 필요하며 DB 적용만으로 live라고 보지 않는다. 같은 migration을 재적용하지 않는다.
+
+- 2026-10-26 배포 전 DB 보완(웹·Worker 미배포): 운영 실제 정의를 대조하고 `20261026013436`(reopen_company_intro_only_this_ending), `20261026013702`(matching_review_evaluation_reference), `20261026013714`(company_evaluation_input_contract), `20261026013716`(scheduled_agentic_and_immediate_role_matching), `20261026013901`(opportunity_fit_decisions)을 적용했다. 로컬 정본은 `20261023000100`·`20261023000200`, `20261023102919`, `20261025061447`, `20261026001247` migration이다. 운영에 없는 `slack_notifications_enabled`를 새로 만들지 않고 기존 채널 활성·Role별 opt-out과 이메일 수신 계약을 사용하도록 정본을 수정했으며, Decisions 우선 검토 함수의 기존 paid Role 경계를 보존했다. 새 칼럼 3개, 함수 17개의 본문 일치·서버 전용 실행 권한·트리거를 확인했다. 잠금/정의 오류로 실패한 시도는 롤백됐으며 이력 번호가 다른 파일을 일괄 재적용하지 않는다. 기존 후보·검색 backfill·발송·서비스 재시작은 하지 않았다. Role 재개 시 미전달 제안 복원과 신규 활성화 검색 즉시 등록은 DB에서 적용됐지만, 새 대화 기반 검색은 웹/Worker 배포와 `COMPANY_SCHEDULED_AGENTIC_MATCHING=true` 전환이 필요하다. 점검 당시 운영 위치/프로필 chunk 캐시는 0건이고 `harper-role-start-refresh.timer`는 미설치다. 캐시 초기 준비·갱신 서비스 설치는 아직 수행하지 않았다.
+
+- 2026-10-25 역할 채용 온보딩 DB 선반영: 사용자 승인으로 운영 migration `20261025092416`(`role_start_existing_brief_history`)을 적용했다. 로컬 정본은 `supabase/migrations/20261025091944_role_start_existing_brief_history.sql`이다. `company_role_start_sessions`, `company_role_start_pools`, `talent_location_facets`, `talent_profile_chunk_embeddings`, `job_title_embeddings` 5개 테이블의 RLS·서버 전용 권한을 확인했다. 별도 `company_role_brief_versions`는 만들지 않는다. 저장된 Brief는 기존 `company_internal_roles`·`company_role_hiring_brief_history`와 `company_role_search_brief_version_v1` 해시를 재사용하고 온보딩 작업 중 초안은 session에만 둔다. 적용 직후 5개 테이블은 0건이며 캐시 backfill·실제 검색·연락·웹/Worker 배포는 하지 않았다. 앞선 `20261023000300`~`20261023000900`의 온보딩 schema를 포함하므로 일괄 재적용하지 않는다.
+
+- 2026-10-23 후보 소개 이메일 DB 선반영: 사용자 승인으로 운영 migration `20261023133456`(`company_candidate_email`)을 적용했다. 로컬 정본은 `supabase/migrations/20261023133155_company_candidate_email.sql`이며 PR #194의 `20261023001000_company_candidate_email.sql`을 대체한다. 두 migration을 중복 적용하지 않는다. 역할별 이메일 설정, 이메일 전달 구분·중복 방지, 수신 권한 조회, 버튼 토큰·처리 결과 저장 및 서버 전용 RPC를 추가했다. 팀별 접근 권한과 메일에 포함된 모든 Role의 수신 자격을 확인하며 action/channel 값 목록 CHECK는 두지 않는다. 적용 시 기존 Slack outbox 96건의 전달 판단·기존 연결 안내 메일 조회/내용·후보 평가 테이블 구조가 동일함을 같은 transaction에서 확인했다. 새 함수 6개의 정본·서버 전용 권한, 예약 멱등·수신 비활성 차단·run 소유권을 검증했고 검증용 쓰기는 rollback했다. 80개 Role 모두 이메일 비활성, 새 후보 메일·버튼 링크는 0건이다. 웹·Worker는 배포하지 않았으며 실제 작동하는 버튼 포함 메일도 아직 발송하지 않았다. 이후 웹 통합 시 수신자별 접근 가능한 Role/후보만 묶어야 한다(PR #194 원본의 전체 Role 합본은 DB에서 차단됨). PR #193의 `company_role_candidate_evaluations` 동일 이름/다른 구조 충돌은 해결하거나 적용하지 않았으므로 기존 평가 원장을 덮어쓰지 않는다. DB 준비만으로 이메일 기능 전체가 live라고 기록하지 않는다.
+
+- 2026-10-22 공고 재저장 진행 상태 보존 DB 선반영: 사용자 승인으로 운영 migration `20261022142740`(`preserve_job_link_import_progress`)를 적용했다. 로컬 정본은 `supabase/migrations/20261022132918_preserve_job_link_import_progress.sql`이다. `import_talent_job_link`에 선택적 `p_preserve_existing_progress` 인자와 실제 `saved_stage` 반환을 추가했다. 보존 옵션 사용 시 기존 저장·지원 진행 상태와 피드백·시각을 유지하며, 기본값 `false`로 기존 6인자 호출과 History의 명시적 단계 변경을 유지한다. 운영 함수 정본 일치·기존 호출 해석·service_role 전용 실행을 확인했다. 실제 후보자·공고 데이터 수정이나 테스트 데이터 생성은 없었다. 웹은 미배포이며 새 저장 도구의 보존 옵션 사용 및 일반 문서 PDF 지원 첨부 변경은 아직 live가 아니다. 같은 migration을 재적용하지 않는다.
+
+- 2026-10-22 검색 통계 출처 DB 보완: 운영 migration `20261022131045`(`company_search_inventory_provenance`)를 적용했다. 로컬 정본은 `supabase/migrations/20261022131500_company_search_inventory_provenance.sql`이다. 기존 모집단·미평가·신규 가입 인원 계산은 유지하고 신규 가입 비교의 실제 기준시각과 완료 실행 ID만 같은 RPC 결과에 추가했다. 서버 전용 권한 유지와 읽기 결과를 확인했다. 검색 실행·메시지·데이터 backfill은 없고 웹·Worker는 미배포다. 재적용하지 않는다.
+
+- 2026-10-22 매칭 기준 이력 DB 선반영: 사용자 승인으로 운영 migration `20261022123546`(`company_hiring_brief_history`)을 적용했다. 로컬 정본은 `supabase/migrations/20261022094500_company_hiring_brief_history.sql`이다. Brief+Criteria 저장 전후 스냅샷·수정자·출처·비동기 요약 상태를 보존하는 원장과 trigger, 원자적 저장·요약 claim·웹 검토 요청 멱등 함수를 추가했다. 기존 Brief 20,000자 및 Criteria 6개/이름 200자/본문 8,000자 제한만 제거하고 필수 필드·역할 소유권·동시 수정 검증은 유지한다. 적용 직후 이력 0건, RLS·anon/authenticated 차단·service_role 전용 실행을 확인했다. 기존 writer의 변경도 snapshot은 남지만 새 actor context가 없으면 수정자는 미기록이며, 웹·요약 consumer 미배포 상태에서는 History UI·요약·자동 검토 채팅이 live가 아니다. 기존 데이터를 가짜 변경으로 backfill하지 않았고 운영 검색·연락·실험 메시지를 만들지 않았다. 같은 migration을 다시 적용하지 않는다. 설계와 실제 검증 범위는 `docs/company/company-hiring-brief-history-ko.md` 및 회사 검색 평가 레지스트리를 따른다.
+
+## UI 문구 절제와 참조 디자인 준수 — 필수
+
+- 사용자에게 새로운 정보나 판단 근거를 주지 않는 UI 문구는 넣지 않는다. 화면에 이미 보이는 제목·버튼·대화·배치를 다시 설명하는 라벨, 당연한 이용 조건, 장식용 슬로건, 관성적인 helper text와 버튼 아래 꼬리말은 금지한다. 빈 공간을 채우거나 친절해 보이게 하려는 이유로 추가하지 않는다.
+- 문구를 지워도 사용자가 기능의 가치·현재 상태·다음 행동을 똑같이 이해할 수 있다면 삭제한다. `슬롯이 연결된 Role에서 시작할 수 있어요.`처럼 구매 화면에서 설명할 조건을 기능 소개에 반복하거나, `이렇게 연결돼요 · 예시`처럼 눈앞의 콘텐츠를 해설하거나, `지민님과 Harper`처럼 대화 배치만으로 충분한 참여자 설명을 덧붙이지 않는다. 이는 해당 문자열만의 금지가 아니라 같은 역할을 하는 군더더기 전체에 적용되는 기준이다.
+- 필요한 설명은 실제로 알 수 없던 기능·차이·결과를 구체적으로 전달해야 한다. 오류 원인·복구 방법, 비용·동의·공개 범위·되돌릴 수 없는 결과처럼 판단에 필요한 정보와 접근성 이름은 유지하되, 실제 필요한 위치에 한 번만 제공한다. 불필요한 설명을 tooltip이나 다른 위치로 옮겨 남겨두지 않는다.
+- 사용자가 특정 화면을 디자인 참조로 지정하면 실제 구현의 정보 구조·아이콘·타이포그래피·간격·행동 배치를 확인하고 따른다. 배경색이나 분위기만 가져오고 핵심 구성을 임의로 생략하지 않는다. 참조가 기능별 아이콘 + 제목 + 설명의 세로 목록이면 같은 구조와 밀도를 재사용하며, 체크 아이콘을 반복한 한 줄 요약으로 대체하지 않는다.
+- 이 규칙은 UI 작성·검토의 판단 기준이다. 예시 단어를 정규식·키워드 목록으로 검열하거나 LLM의 실제 답변을 결정론적 문구로 덮어쓰는 런타임 로직으로 구현하지 않는다.
+
+## LLM 날짜 입력 계약
+
+- LLM에 제공하는 시스템 날짜·시각은 반드시 공통 formatter를 거친다. 원본 ISO timestamp(초·소수점·`T`·`Z`·offset 포함)를 prompt/context/tool result에 직접 보간하거나 JSON으로 덤프하지 않는다. 시각이 필요하면 `YYYY-MM-DD HH:mm`, 날짜만 필요하면 `YYYY-MM-DD`까지만 제공한다. 시간대는 context에 한 번 명시한다.
+- 웹 정본은 `src/lib/llm/promptDateTime.ts`다. 새 경로도 이 함수를 재사용한다. DB 원본·정렬·cursor·revision·멱등성 값과 사용자/승인 원문은 변형하지 않고 모델용 사실 projection만 포맷한다. 상세 계약은 [도구 정보 설계 가이드](docs/company-side-tool-information-guide-ko.md)의 날짜·시각 절을 따른다.
+
+## 2026-10-22 Free 정책 복원 (운영 DB 적용·웹/Worker 미배포)
+
+사용자 요청으로 Free 프로필 블러·열람 차감·LLM/Slack 정보 제한을 제거하고 월 10 공용 Intro를 복원한다. 활성 Free Role은 조직당 최대 1개이며 유효한 유료 슬롯에 배정된 Role은 별도다. 초안은 제한하지 않고 legacy·Enterprise·tailored 계약은 유지한다. 슬롯 만료나 기존 초과 상태를 정리할 때 유효한 슬롯을 먼저 배정한 뒤 먼저 만든 Free Role 1개를 유지하고 나머지를 일시 중지한다. 기존 후보자·Intro·진행 이력은 삭제하지 않는다.
+
+사용자 승인으로 운영 migration `20261022081230`(`restore_free_intros_and_single_active_role`)을 적용했다. 로컬 정본은 `supabase/migrations/20261022071755_restore_free_intros_and_single_active_role.sql`이다. 실제 Intro/연결 차감만 보존해 월 10 공용 Intro를 복원하고 활성 Free Role을 1개로 제한한다. 열람 조회·차감 RPC와 outbox의 열람 제한 필드를 제거했으며 과거 열람 기록 5건은 보존했다. 전환은 가입된 standard Workspace만 잠그며 별도 계약의 잔액·연결 권한·무차감 동작을 유지한다. 운영 조회의 capacity 1·allowance/remaining 10과 함수 정본·서버 전용 권한을 확인했고, 적용으로 중지된 Role은 0개다. 같은 migration을 다시 적용하지 않는다.
+
+웹·Worker는 배포하지 않았다. 확인한 운영 웹 revision은 `e97850a6c26c90af0f0d64a65c5c010b273702d5`이며 열람 RPC/필드에 의존하지 않는다. 운영 웹의 요금제·LLM 기본 안내에는 이전 무제한 Role 설명이 남아 있어 후속 웹 배포에서 로컬 문구·오류 안내를 반영해야 한다. 아래 열람 정책 항목은 당시 적용 기록이며 이번 복원으로 대체됐다. Notion 종합·공개 범위·Role lifecycle 문서는 실제 DB 정책과 웹 미배포 범위를 구분해 갱신했다.
+
+
+- 2026-10-22 회사 대화 검색 DB 선반영: 사용자 승인으로 운영 migration `20261022045532`(`company_agentic_role_search`)를 적용했다. 로컬 정본은 `supabase/migrations/20261022041333_company_agentic_role_search.sql`이다. Brief별 평가 이력, 회사·팀·Role Memory와 멱등 처리 영수증, 검색 request 옵션 및 서버 전용 함수 6개를 추가했다. 새 테이블 RLS·anon/authenticated 접근 차단·service_role 권한과 실제 Brief/version·후보 재고 조회를 확인했다. 적용 시 신규 평가·Memory·영수증·새 계약 검색은 모두 0건이다. 웹·Worker 배포 및 운영 검색 실행은 하지 않았으므로 기능 전체가 live라고 간주하지 않는다. 같은 migration을 다시 적용하지 않는다. 실제 모델 평가는 승인된 legacy 유료 권한 Role의 로컬 사본에서 수행한다.
+
+- 2026-10-21 Free 열람 정책 DB 선반영: 사용자 승인으로 운영 migration `20261021094846`(`workspace_candidate_views`)를 적용했다. 로컬 정본은 `supabase/migrations/20261021091411_workspace_candidate_views.sql`이다. `talent_opportunity_fit.is_opened`, 서버 전용 열람 조회·차감 RPC, 조직 월 10회 열람, Free Intro 무차감과 유료 Intro/연결 권한 경계를 설치했다. 운영 REST에서 열람 조회·기존 billing summary 200 응답과 서버 전용 실행 권한을 확인했다. 실제 후보 열람·차감 테스트나 연락 발송은 하지 않았다. 웹·Worker는 배포하지 않았으므로 잠금 UI·신원 제외·LLM/Slack 변경을 운영 반영 완료로 간주하지 않는다. 구 웹의 미열람 Free Intro 요청은 새 열람 조건으로 제한될 수 있다. 후속 배포에서 같은 migration을 재적용하지 않는다.
+
+- 2026-10-21 Free QA 검증 보완: 운영 migration `20261021111142`(`candidate_views_test_role_isolation`)를 적용했다. 로컬 정본은 `supabase/migrations/20261021130000_candidate_views_test_role_isolation.sql`이다. test-only Role은 allowlist를 확인한 뒤 기존 열람 원장만 사용하고 fit에는 기록하지 않는다. 일반 Role의 `is_opened`·차감 계약은 유지한다. 사용자 요청으로 보존하는 `Harper Free QA`의 합성 후보와 paused/testOnly 역할만 실제 로컬 UI·LLM 검증에 사용한다. 웹·Worker 배포는 하지 않았다.
+
+- 2026-10-22 열람 기록 전환: 운영 migration `20261022024141`(`candidate_views_progress_log`)를 적용했다. 로컬 정본은 `supabase/migrations/20261022023917_candidate_views_progress_log.sql`이다. 기존 열람 권한 5쌍을 `talent_progress.kind = candidate_profile_opened`로 이전하고 `talent_opportunity_fit.is_opened`를 제거했다. 열람 조회·중복 차감 방지·Free Intro 조건은 같은 Role×talent의 이 로그만 읽는다. 별도 상태 칼럼·metadata는 추가하지 않으며 차감은 기존 원장에 남긴다. 이 로그는 후보자 행동 맥락 갱신을 발생시키지 않는다. 운영 QA의 10→9→9→8 차감·재열람·다른 Role 경계를 rollback 트랜잭션으로 검증했고 fixture는 10회·미열람 상태를 유지한다. 웹·Worker 배포는 하지 않았다. 앞의 두 migration은 적용 당시의 기록이며 열람 저장 기준은 이 항목이 우선한다. 같은 migration을 재적용하지 않는다.
+
+- 2026-10-22 문서 후속 점검: 운영 `service_answer_examples`의 회사 FAQ 중 요금·Intro 사용·슬롯 만료 한·영 답변 6행을 현재 정책으로 수정했다. 질문·검색 embedding·태그·활성 상태·나머지 82행은 유지했다. 로컬 FAQ 원본과 번역, 미공개 회사 약관 초안도 맞췄으며 공개 약관·동의 버전은 변경하지 않았다. 웹 기본 안내의 후속 배포 필요 상태는 유지한다.
+
 ## PR 작성 기준
 
 - Harper 저장소의 PR을 작성하거나 수정하기 전에 [harper_incidents](https://github.com/matchharper/harper_incidents)의 최신 README를 직접 열어 읽고, 그 기준을 참고해 PR 내용을 작성한다.
@@ -101,6 +153,9 @@
 - Agent-system data must accommodate diverse inputs an LLM may generate; avoid overly restrictive database constraints that reject otherwise valid variations.
 
 ## Prompt and context design
+
+- Company-side LLM의 tool policy·schema·result·loader·기능 목록·기본 context를 설계·수정·리뷰하기 전에 [도구 정보 설계 가이드](docs/company-side-tool-information-guide-ko.md)를 읽고 따른다. 로딩 전의 기능 인식, 실행 계약, 결과 사실, 호출하지 않은 도구의 기존 효과와 후속 대화의 정보 제공 범위를 이 가이드에 따라 설계한다.
+- 회사 대화 기반 Role 검색·평가 이력·범위별 Memory를 변경할 때는 `docs/company/company-agentic-role-search-implementation-ko.md`와 연결된 evaluation registry를 함께 참고한다. 도구 정보 배치는 기존 도구 정보 설계 가이드를 우선한다.
 
 - Company-side LLM의 prompt, context, tool, model 또는 evaluation을 변경하기 전에 `docs/company-side-agent-engineering-contract-ko.md`를 읽는다. 지침은 해당 책임 원본에서 수정하고 시나리오별 규칙을 다른 prompt에 덧붙이지 않는다. 관련 frozen 평가를 재실행하고 한계와 실패를 기록한다.
 

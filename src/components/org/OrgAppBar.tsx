@@ -253,7 +253,7 @@ export function OrgAppBar({
       addToast({
         message: c(
           "{p0}은 이미 초대 수락을 기다리고 있습니다.",
-          "{p0} is already awaiting invitation acceptance.",
+          "An invitation to {p0} is already pending.",
           { p0: pendingInvitationEmail }
         ),
         variant: "error",
@@ -269,13 +269,13 @@ export function OrgAppBar({
     }
     setInviteInputError(
       invalidEmails.length > 0
-        ? c("{p0}의 형식을 확인해 주세요.", "Check the format for {p0}.", {
+        ? c("{p0}의 형식을 확인해 주세요.", "Check that {p0} is a valid email address.", {
             p0: invalidEmails[0],
           })
         : skippedDuplicate
           ? c(
               "이미 추가한 이메일은 제외했습니다.",
-              "Already-added emails were excluded."
+              "Duplicate email addresses were skipped."
             )
           : ""
     );
@@ -312,7 +312,7 @@ export function OrgAppBar({
     if (tail) {
       if (tail.length > 320 || !EMAIL_PATTERN.test(tail)) {
         setInviteInputError(
-          c("이메일 형식을 확인해 주세요.", "Check the email format.")
+          c("이메일 형식을 확인해 주세요.", "Enter a valid email address.")
         );
         return;
       }
@@ -332,7 +332,7 @@ export function OrgAppBar({
         setInviteInputError(
           c(
             "{p0}은 이미 수락 대기중입니다. 아래에서 다시 보내기를 이용해 주세요.",
-            "{p0} is already awaiting acceptance. Use Resend below.",
+            "An invitation to {p0} is already pending. Choose Resend below to send it again.",
             { p0: tail }
           )
         );
@@ -342,7 +342,7 @@ export function OrgAppBar({
     }
     if (emails.length === 0) {
       setInviteInputError(
-        c("초대할 이메일을 입력해 주세요.", "Enter email to invite.")
+        c("초대할 이메일을 입력해 주세요.", "Enter an email address to invite.")
       );
       return;
     }
@@ -402,7 +402,7 @@ export function OrgAppBar({
         addToast({
           message: c(
             "입력한 이메일은 이미 참여 중입니다.",
-            "The entered email is already a member."
+            "Someone with this email address has already joined the workspace."
           ),
           variant: "error",
         });
@@ -702,7 +702,7 @@ export function OrgAppBar({
         open={open}
         onClose={() => setOpen(false)}
         mobileBottomSheet
-        title={<>{c("팀원 초대", "Invite members")}</>}
+        title={<>{c("팀원 초대", "Invite team members")}</>}
         description={
           <>
             {c(
@@ -839,7 +839,7 @@ export function OrgAppBar({
               <p className="mt-1.5 text-xs text-critical">
                 {c(
                   "발송하지 못한 주소가 남아 있습니다. 확인 후 다시 시도해 주세요.",
-                  "Some addresses couldn't be sent. Review and try again."
+                  "We couldn't send some invitations. Check the email addresses and try again."
                 )}
               </p>
             ) : null}
@@ -970,7 +970,7 @@ export function OrgAppBar({
             {workspace.companyName}{" "}
             {c(
               "Workspace에 더 이상 접근할 수 없습니다. Harper 계정과 다른 Workspace는 그대로 유지됩니다.",
-              "Access to this workspace will be removed. Harper account and other Workspaces will remain unchanged."
+              "You'll lose access to this workspace. Your Harper account and other workspaces won't be affected."
             )}
           </>
         }

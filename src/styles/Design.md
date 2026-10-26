@@ -132,6 +132,12 @@ Harper 로고, 로그인된 사용자의 로그아웃, Company 링크를 같은 
 
 ## Dev billing previews
 
+회사 제품 UI는 데스크톱을 먼저 설계한다. 실제 작업 공간의 목록·카드·상세 pane에서
+정보 밀도, 나란한 비교와 hover/focus 동작을 먼저 확인하고 좁은 화면에 맞춰 줄인다.
+모바일 카드 배치를 넓게 늘린 화면을 데스크톱의 기본으로 삼지 않는다.
+
+Free 후보자도 원래 카드·목록·상세의 회사 공개 가능 정보를 그대로 보여준다. 프로필 열람 버튼·별도 차감·합성 신원·블러를 사용하지 않는다.
+
 Harper Workspace의 `OrgBillingDevControls`는 브라우저 전용 결제 미리보기다.
 Free·슬롯 수 외에 예시 카드, 구독 상태, Intro 잔액, 내역, 결제 결과를 선택한다.
 Slots·Billing의 `OrgBillingPreviewNotice`에서도 같은 control을 펼칠 수 있다.
@@ -157,6 +163,10 @@ Role도 지원하며, 실제 Role 상태와 슬롯 배정을 변경하지 않는
 textarea의 `min-height` 같은 layout만 보완한다. `unstyled`는 chat composer처럼
 부모가 border와 background를 모두 소유하는 composite field에서만 사용한다.
 
+주요 입력 영역은 `<Textarea isMain />`을 사용한다. 기본 Typography와 상태 스타일은
+유지하고 `rounded-xl`, `px-4 py-3`, `shadow-md`를 적용한다. 기본값은 `false`이며,
+`unstyled`가 `true`이면 `isMain`의 표면 스타일도 적용하지 않는다.
+
 label, helper, error는 control 바깥에서 조합하고 `htmlFor`,
 `aria-describedby`, `aria-invalid`로 연결한다. 같은 파일에 있는 `TextField`는
 새로 사용하지 않으며, 기존 사용처를 수정할 때 `Input`과 외부 label/message로
@@ -174,6 +184,45 @@ chat composer처럼 부모가 하나의 field surface를 만드는 경우에만 
 role, pipeline, workspace 편집과 후보자 dialog의 기존 패턴처럼 기본 `Input`과
 `Textarea`를 사용한다. `/org` 전용 variant나 `TextField`를 추가하지 않으며,
 label과 오류 문구는 기존 row/dialog의 정보 구조 안에서 control 밖에 둔다.
+
+## Chat composer surface
+
+`ChatComposerSurface` owns the shared `rounded-xl` panel shape; glass surface
+classes contain only color, border, shadow, and blur. `ChatComposerFrame` uses
+`rounded-full` only below `md` while collapsed and without a context area.
+Focused inputs, inputs with context/attachments, desktop inputs, and Apply with
+Harper preparation panels keep `rounded-xl`. The separate one-line mobile chat
+launcher (`ChatComposerCollapsedFrame`) always uses `rounded-full`.
+Callers must not duplicate these radius conditions.
+
+## Typography
+
+일반 텍스트는 `src/components/ui/typography.tsx`의 `Typography`를 사용한다.
+기존 `Text`의 태그·ref·`asChild` 처리를 재사용하며 기존 Text 사용처는 변경하지 않는다.
+`children`에 텍스트나 JSX를 넣고 `as`로 의미에 맞는 태그를 선택한다(기본 `p`).
+
+```tsx
+import { Typography } from "@/components/ui/typography";
+import RichText from "@/components/ui/rich-text";
+
+<Typography as="h2" variant="title">제목</Typography>
+<Typography variant="description">보조 설명</Typography>
+<Typography as="span" variant="caption" className="text-action font-medium">
+  업데이트됨
+</Typography>
+<RichText variant="career" typography="description">{markdown}</RichText>
+```
+
+자주 쓰는 옵션: `page-title`, `section-title`, `title`, `item-title`, `body`
+(기본), `reading`, `description`, `label`, `helper`, `caption`.
+상세 옵션은 같은 파일의 24개 scale (`heading-sm`, `body-xs`, `label-md` 등)을 쓴다.
+일반 Typography의 `tone`은 `ink`, `secondary`, `subtle`이며 생략하면 preset을 따른다.
+`className`은 마지막에 병합하므로 같은 조건의 크기·행간·색·굵기를 덮어쓸 수 있다.
+반응형 스타일을 덮어쓸 때는 해당 breakpoint 클래스도 함께 지정한다.
+
+`RichText`는 같은 옵션을 `typography`로 받는다. Markdown 문자열은 `children` 또는
+기존 `content` 중 하나로 전달한다. `typography`를 생략한 기존 렌더링은 유지한다.
+`Typography`는 JSX용이고 `RichText`는 Markdown 문자열용이다.
 
 ## Common Recipes
 
@@ -293,7 +342,9 @@ Shared component catalog:
 | Main action | `MuteButton` |
 | Login persona switch | `AuthPersonaGate` from `src/components/common/AuthPersonaGate.tsx`: existing sessions without a login type adopt the first Career/Company area they visit and enter directly. Ops-enabled login accounts, including email-allowlisted UTM viewers, can move between both areas without logout; reuse `canSwitchAuthPersonaWithoutLogout`, and keep workspace/API permissions unchanged. For other accounts, show confirmation only when a recorded login type differs from the destination, inside the existing `CareerAppBar` and `CareerLandingFooter`, with the current login type and email, a local logout/re-login action, and a return action. Label the talent login as 커리어 / Career. The main `MuteButton` combines a white `/svgs/face.svg` without a background, an arrow, and a compass for Career or a building for Company to the left of its label. Mount it before workspace effects; reuse `MuteButton` and `Loading`. |
 | Quiet compact action | `MuteButton` |
+| Tab explanations | `Tabs` items support `tooltipVariant="light"`, sharing the existing light tooltip appearance through `Tooltips`. Org Inbox's pending and suggested tabs show plain labels without info icons and reveal their existing descriptions on hover/focus. |
 | Icon-only action | `MuteButton` |
+| Animated acceptance icon | `AnimatedHandshake` from `src/components/ui/animated-handshake.tsx`: shared by Org Accept Intro and Career connection acceptance buttons. Plays on entrance, button hover, and keyboard focus; respects disabled buttons and reduced motion. |
 | GitHub, LinkedIn, Slack logos | `GithubLogo`, `LinkedinLogo`, `SlackLogo` from `src/components/common/BrandLogos.tsx`: existing public SVG assets; GitHub follows the surrounding text color for light and dark surfaces. |
 | Compact repeated action | `MuteButton` |
 | Clickable card | `CardButton` |
@@ -303,23 +354,34 @@ Shared component catalog:
 | Increasing numeric counters | `RollingNumber` from `src/components/ui/rolling-number.tsx`: changed digits roll upward; separators and units stay still. Use tabular digits, a single screen-reader value without live announcements, and reduced-motion support. Callers own the data and update cadence; the component never invents growth. |
 | Public landing statistics | `LandingStats` from `src/components/landing/LandingStats.tsx` shares the three metrics, cached data query, bilingual labels, and rolling matching count between company and talent landing pages. Pass `locale` and optional outer `className`; use `align="center"` for centered values and labels on the home page. Keep surrounding logos and experiment assignment in the page. |
 | Chat work progress | `ChatThinkingLogPanel` is shared by chat tool work and application-browser progress. Pass public progress text only, never command arguments or reasoning. Optional `statusLabel` names an input-waiting state without changing the shared layout; `active=false` stops animation. |
+| Role Brief questions | `BriefQuestion` in `src/components/org/role-start/RoleStartOnboarding.tsx` shares the vertically centered question, textarea, choices and navigation for compensation, Brief questions and answer history. Keep question text left-aligned without a numbered eyebrow; the single right action switches from neutral Skip to primary Next with an arrow when text is entered. |
+| Role Setup preparation | `RoleStartPreparation` replaces both onboarding panes with an opaque full-area surface during the initial role-writing turn. Center the preparation heading and list live tool-status logs underneath without an accordion; show the saved Setup only after creation and its refresh complete. |
+| Sidebar role actions | Use `OrgRoleActionsMenu` as a sibling of the role link, positioned absolutely at its right edge. Reveal on hover, keyboard focus, or an open menu; keep visible on touch layouts. Open the portaled menu below for lifecycle actions and confirmed deletion. |
 | Career Markdown | `RichText variant="career"`: H1 uses 20px/medium; tables keep only horizontal separators with no outer border or edge padding. External HTTP(S) links use `ReferenceLink` (favicon + `text-action`, a user-requested Career link style). Shared chat content forwards the variant; other surfaces keep default Markdown styling. Copy/export always uses the unchanged Markdown. |
 | Inline source links | `ReferenceLink` from `src/components/ui/reference-link.tsx`; `RichText referenceLinks` opts in outside Career. Uses a hostname-only favicon request with a globe fallback, destination tooltip, and keyboard focus. |
 | Career message width | `CareerMessageBubble` limits both user and assistant bubbles to 740px (and the available mobile width). Keep the shared `ChatMessageBubbleFrame` defaults unchanged for other products. |
 | Career recommendation search | `RecommendationSearchStatusPanel` + `RecommendationSearchProgress` use a 420px card, a CSS-only abstract wire ring and four compact 32px steps. A single gray highlight slides between steps; numbers/checkmarks have no badge background and counts animate upward without React updates per frame. Read progress from the existing status stream/run coverage; never advance steps on a timer in the real search. Dev controls lazily open `CareerRecommendationSearchPreview` for local stage selection and playback without a search request. Respect reduced motion. |
 | Labels/status chips | `Badge` |
-| Org candidate criteria | `OrgCriteriaEvaluation` from `src/components/org/OrgCriteriaEvaluation.tsx`: shared fitness icon and compact criterion title with `Tooltips` evidence on hover or keyboard focus. Keep the indicator unstyled: no padding or hover background. Use it in Role candidate cards and candidate details; card callers pass their existing open action. Keep criteria independent from the presence of a full company introduction. |
+| Role 검색 진행 | `OrgRoleSearchActivity` from `src/components/org/role-overview/OrgRoleSearchActivity.tsx`: 등록된 Role 화면의 공통 상단에 진행 중일 때만 한 줄로 표시한다. 공통 `Loading`과 12px 상태 문구를 쓰고 별도 카드·탭·퍼센트를 만들지 않는다. 기존 검색 원장과 회사 후속 작업의 실제 상태를 읽으며, 완료되면 행을 제거한다. 채팅 전체 화면·모바일에서도 같은 한 행을 유지하고 reduced motion, 조회 실패와 접근 권한 변경을 처리한다. |
+| Org chat candidate references | `OrgTalentReferenceBadge` in `src/components/org/agent/` uses shared badge variants for named mentions, candidate links, and bare talent IDs. Keep the current chat and tab when opening a candidate. Existing company-visible pairs open their detail; an eligible unintroduced candidate opens `OrgCandidateProfilePreview`, which shares `OrgTalentProfileContent` and has no recommendation or contact actions. |
+| Org candidate recommendation explanation | `OrgTalentProfile` renders a stored public `recommendationReason` in the existing `ProfileSection` after TL;DR, titled “추천 이유와 고려할 점” / “Why this candidate and what to consider”. Preserve the authored paragraph and the existing criteria, Harper Note, and earlier-Brief indicator. Omit this section for legacy reports without the field; never use an internal selection rationale as its fallback. |
+| Org candidate criteria | `OrgCriteriaEvaluation` from `src/components/org/OrgCriteriaEvaluation.tsx`: shared fitness icon, compact criterion title, and stored score out of 100 when present, with `Tooltips` evidence and the shared score explanation on hover or keyboard focus. Never derive a missing legacy score from its fitness label. Keep the indicator unstyled: no padding or hover background. Use it in candidate profiles and existing pipeline cards. Inbox list rows and Saved cards use `OrgCriteriaBars`: six 9×30px fitness bars with 4px gaps and `ResponsiveLightTooltip` evidence, stored score, and the same score explanation on hover/focus/touch. Keep criteria independent from the presence of a full company introduction. |
+| Org inbox candidate review | `TalentDetailSimpleView` owns detail queries, permissions and mutations; its inline mode composes `OrgCandidateReview` for Home and Role Inbox. `OrgCandidateReviewHeader` owns navigation, decision buttons, shortcuts and action errors. `OrgCandidateReviewContent` is the independently reusable information body: pass profile data and `onResumeClick`, with optional error/retry and a `footer` slot. It requires no workspace/action provider and installs no decision shortcuts. Role-start Align renders this body directly in the right pane through `RoleStartCandidateProfile`, which adapts the existing contact-free profile and verdict; keep evaluation controls in the left pane and do not create inbox records or fetch contact/resume data for this view. The full review injects `OrgTalentNotes` through `footer`; standalone information does not include notes or mutations. Both review and modal reuse `OrgTalentProfileContent` (exported props contract in `OrgTalentProfile.tsx`); only its identity/resources header uses the review variant. Do not add a section navigation menu. Reuse `TalentDetailPager` from the existing modal. The enclosing pane owns scrolling: the Inbox toolbar scrolls away and the candidate action header sticks at the pane top. Do not add a border or rounded frame around the detail. List/Grid selection opens the same surface and Back restores the collection position. Grid reuses `OrgRoleTalentBoard` and `OrgRoleTalentBoardCard`. Append `OrgTalentNotes` for company notes only. Pending connections retain `StopCandidateDialog` for Reject and `OrgAcceptIntroButton` for the existing green Accept Intro action and handshake animation. Suggested candidates use `OrgPassPopover` with the existing rejection reasons and saved custom reasons. Keep the sticky action wrapper transparent, without a divider or top padding; outer Inbox padding must scroll with the toolbar. On desktop Home, the candidate pane starts near the viewport top alongside the Home title and tabs; search history remains in Role only. Domain containers own permissions, queries and mutations. |
 | Candidate experience, education, and other history | `TalentExperienceSection`, `TalentEducationSection`, and `TalentExtraSection` from `src/components/profile/TalentExperienceSection.tsx` share the local `ProfileEntry` layout: experience-based 15px medium title, 15px metadata, muted 14px dates/location, and shared Markdown description/memo. Adjust typography and spacing in `ProfileEntry`; company logos and education's `GraduationCap` use the same `ProfileEntryIcon` frame. |
 | Persistent announcements | `AnnouncementQueue` + `AnnouncementCard` from `src/components/common/`: register notices with stable IDs, publication dates, localized titles/descriptions and optional image/text/icon media. An optional `action` accepts `label` plus either `href` or `onClick`, rendered as a full-width `MuteButton` below the description with a 20px gap. Omit it for the original button-free layout. The Welcome action opens the current workspace’s new-position page through `buildOrgHref`. Display unread, published notices oldest first, one at a time; X advances to the next, up to three per browser-document visit (including client-side navigation). Reloading starts the next visit. Each displayed item is atomically recorded in `user_announcement_receipts` for the account; unopened items remain unread. Use a 320px maximum width, `rounded-lg`, no shadow, a medium-weight title, shared title/body text color and inherited line height; leave 24px above the description and 32px below it. No focus capture or auto-dismiss; safe areas, short viewports and reduced motion are supported. `AnnouncementCard` always gives its media area a `bg-primary-faded` background and `rounded-md` corners. `HarperAnnouncementVisual` shows only a centered 96px Harper face in a 112px-high area, without extra icons or rings. The Welcome preview button in `/org/home` Dev controls opens the same card repeatedly without reading or writing announcement receipts. Company-side notices live in `src/components/org/announcements.tsx`, using Org translation keys and `org-` notice IDs. Automatic display mounts only on the authenticated, fully loaded `/org/home` workspace after onboarding. Other Org pages, `/career` (including its preview), and public/login pages do not mount this queue. Leaving home dismisses the displayed card; its receipt remains recorded. |
+| Matching criteria 변경 이력 | `OrgRoleMatchingHistory` from `src/components/org/role-overview/OrgRoleMatchingHistory.tsx`: Matching criteria 탭 본문 안 오른쪽 위 History 아이콘으로 연다. `OrgSearchHistory`와 같은 Radix Popover 구성으로 기존 채팅과 편집 draft를 유지하며, 높이가 제한된 드롭다운 안에서 목록→전후 Hiring Brief·Criteria 원문과 중요도를 표시한다. 선택한 기록의 변경 후 버전을 먼저 열고, 상단 변경 전·후 버튼으로 긴 원문을 전환한다. 목록에는 상대 시각, 상세에는 분 단위의 정확한 시각을 표시한다. 요약 갱신 실패 때 이미 읽은 원문을 유지하되 접근 권한이 사라지면 가린다. 닫기 버튼과 Escape로 닫을 수 있으며 목록으로 돌아오면 스크롤 위치와 선택 행의 포커스를 복원한다. 수정자·시각은 즉시, 작성 중 요약은 공통 `Skeleton`, 재시도·실패는 짧은 상태 안내로 표시한다. 요약 완료 전에도 상세를 열 수 있고 목록은 페이지별로 이어 읽는다. 웹 저장의 후속 채팅은 서버가 한 번 기록하며 UI는 저장 결과로 기존 채팅과 이력 query만 갱신한다. |
 | Calibration 평가 상태 (목록·상세) | `OrgCalibrationReviewBadge` from `src/components/org/role-overview/OrgCalibrationReviewBadge.tsx` |
 | Org internal-only surfaces | `InternalOnlySurface` / `InternalOnlyHatch` from `src/components/org/internal/InternalOnlySurface.tsx`: reuse the same decorative, pointer-transparent hatch for Harper-only sections and controls. Table/mobile rows use `INTERNAL_ONLY_HATCH_BACKGROUND` through `OrgTalentTableRow.internalOnly`; mark individual internal rows even in mixed lists. These indicators do not grant access; preserve the existing account gates. |
 | Internal role search | `RoleSearchControls` from `src/components/org/internal/RoleSearchControls.tsx`: Ops Pipeline and Org home dev controls share a manual Talent-first action, blue queued/running state, and a paginated role history table. Org exposes it only to matchharper.com accounts. |
 | Org tables | `OrgTable`, `OrgTableHeader`, `OrgTableRow`, `OrgTableHead`, `OrgTableCell`, `OrgTableBody` from `src/components/org/workspace/OrgTable.tsx`: shared UI Table primitives with the same outlined surface, muted header and spacing for Members, Teams, Slots usage and Billing invoices. |
+| Home list selection | `OrgHomeListItem` from `src/components/org/OrgHomeListItem.tsx` composes `CardButton` for both Inbox queue rows and Feed role filters, including All. It owns the shared padding, typography, transparent resting background, `black/6` hover, and `black/4` selected background with a `black/8` ring, plus `aria-current`. Callers own labels, counts, selection and navigation; use caller classes only for responsive layout. Keep space around scroll boundaries for selection and keyboard focus rings. |
+| Empty workspace Home | `OrgWorkspaceApp` reuses `OrgRoleCreationPage` when the existing bootstrap finishes with no roles, without filtering by status or making another request. Keep the Home URL and selected navigation, use the new-role entry's full-width composer and suggestions, and retain the page's own mobile menu button. Wait through initial loading and stale empty-cache revalidation; background refreshes keep the mounted input. Role onboarding starts only after navigating to `/org/role`. |
 | Form fields | `Input`, `Textarea`, `Select`, `Checkbox`, `Switch`, `Radio` |
+| Role hiring onboarding | `role-start/RoleStartLayout.tsx`: `RoleStartStepHeader` owns the shared title and optional description typography and spacing; children hold step-specific notices. `RoleStartCentered`, `RoleStartSplit`, and `RoleStartPane` own content width and responsive scrolling. Step callers own copy, forms, actions, and state. |
 | Career / company onboarding | `src/components/common/onboarding/Onboarding.tsx`: shared frame, progress, transition, header, footer, face ready state and conversation preview. Keep domain steps, copy, persistence and submissions in each domain. Career retains its original geometry by default; company may use flexible title height and place the mobile research preview after the title. `OnboardingStepHeader` accepts an optional `titleLeading` slot; only Org's profile step supplies a decorative 28px `/svgs/face.svg`, aligned to the left of the first title line, “Welcome to”. Org’s guide step uses `OrgOnboardingGuideHeader` and `OrgOnboardingGuideBody` in `src/components/org/onboarding/OrgOnboardingGuide.tsx`; edit its icon and Tailwind classes directly for the centered header and list design. |
 | Company plan selection | `WorkspacePlans` from `src/components/org/billing/WorkspacePlans.tsx`: shared Free / Slot / Enterprise panels for pricing, onboarding and billing; `BillingIntervalTabs` controls monthly/yearly prices. Flat pale panels, a separate price header, aligned pill actions and a single-column mobile layout. Onboarding uses `OnboardingFrame wide` for this step only; the default frame remains narrow. |
 | Slot purchase | `SlotPurchaseDialog` from `src/components/org/billing/SlotPurchaseDialog.tsx` is shared by onboarding, Slots and Billing. Reuse `TalentCareerModal` with `mobileBottomSheet`, `BillingIntervalTabs`, `Input` and `MuteButton`: select 1–100 slots, show `N Slot` / `N Slots` at the left and the monthly or annual total at the right with `currencyDisplay: narrowSymbol` (`$` for USD), and preserve per-slot Intro/cancellation wording. Wrap only the price, benefits and quantity area in a rounded `border-action` / `bg-action-faded` card. Use blue circle-check bullets with no horizontal dividers and a single white quantity control containing minus, editable count and plus. Keep the title, right-aligned billing-period tabs (`headerActions`) and checkout actions outside the scrolling form body; show `20% OFF` beside the annual option in this purchase dialog, use visible bullet points for explanations, and place the quantity selector last in the body. Link the submit action to the form's unique ID. |
-| Organization slots and billing | While public billing is paused, only the verified Harper Workspace shows Slots (`/org/slots`) and Owner-only Billing (`/org/billing`) as separate left sidebar entries. Other workspaces redirect direct visits to the company page. There are no internal page tabs. `BillingSlots` uses one/two/three outlined card columns at mobile/sm/lg widths, with the add action in the section header. Each card ends with its Intro meter. `BillingSlotMenu` shares the ellipsis menu between cards and the compact `BillingSlotSubscriptions` table beneath the current plan; subscription information appears first, followed by permitted payment/cancel/resume actions. Countdown dates use `N일 뒤` / `in N days`, with exact dates in time-element titles and absolute subscription start dates in the table. Complimentary slots have no payment or cancellation actions and do not appear in the paid-subscription table. A separate shared-Intro panel precedes the grid: all Free/standard workspaces retain 10 monthly shared Intros, with no Role assignment. Only actual paid/complimentary Slots appear as assignment cards; Roles are unlimited. `BillingUsageHistory` uses `Table` and 20-row `useQuery` pagination. `BillingPlanSummary` and `BillingInvoiceHistory` form the Billing page. These user-requested outlined surfaces keep `bg-bg-default` and no shadow. |
+| Organization slots and billing | While public billing is paused, only the verified Harper Workspace shows Slots (`/org/slots`) and Owner-only Billing (`/org/billing`) as separate left sidebar entries. Other workspaces redirect direct visits to the company page. There are no internal page tabs. `BillingSlots` uses one/two/three outlined card columns at mobile/sm/lg widths, with the add action in the section header. Each card ends with its Intro meter. `BillingSlotMenu` shares the ellipsis menu between cards and the compact `BillingSlotSubscriptions` table beneath the current plan; subscription information appears first, followed by permitted payment/cancel/resume actions. Countdown dates use `N일 뒤` / `in N days`, with exact dates in time-element titles and absolute subscription start dates in the table. Complimentary slots have no payment or cancellation actions and do not appear in the paid-subscription table. A separate shared-Intro panel precedes the grid: all Free/standard workspaces retain 10 monthly shared Intros, with no Role assignment. Only actual paid/complimentary Slots appear as assignment cards. Drafts are unlimited; one Free Role can remain active alongside the Roles assigned to paid slots. `BillingUsageHistory` uses `Table` and 20-row `useQuery` pagination. `BillingPlanSummary` and `BillingInvoiceHistory` form the Billing page. These user-requested outlined surfaces keep `bg-bg-default` and no shadow. |
 | Company Slack channel invitation | `OrgSlackChannelPicker` from `src/components/org/OrgSlackChannelPicker.tsx`: shared search, compact divider-free scrolling channel list, per-row `MuteButton dark / sm` invitation and primary create action. Use inline in onboarding and inside `TalentCareerModal` with `mobileBottomSheet` in settings; domain callers own mutations and errors. |
 | Company Slack channel creation | `OrgSlackCreateChannelDialog` from `src/components/org/OrgSlackCreateChannelDialog.tsx`: shared name and privacy form for Workspace settings and Role notification settings; it creates and connects the channel, while the caller refreshes any Role-specific channel list. |
 | Menu | `ActionDropdown`, `DropdownMenu`; `DropdownMenuItem` and `DropdownMenuSubTrigger` share `variant="sm"` for compact rows and `variant="md"` (default) for standard rows, including spacing, text, and icon sizing. `DropdownMenuItem` uses `text-neutral-800/80` for SVG icons. |
@@ -342,6 +404,7 @@ Shared component catalog:
 | Career saved document preview: Markdown copy/export or generated resume paginated A4 HTML preview/on-demand PDF download | `CareerDocumentDetail` from `src/components/career/documents/CareerDocumentDetail.tsx`, opened at `/career/documents?documentId=...` like call notes; chat links use `DocumentPreviewCards` with `CardButton`. Do not open saved documents in a modal. Generated resumes share `src/lib/resumes/template.ts` between the paginated preview and PDF: centered name/contact header, organization and dates on opposite sides, italic role/location row, ruled sections, and semantic bullet lists. Preserve text and allow multi-page flow rather than shrinking or clipping content to one page. |
 | Career position actions | `HistoryOpportunityRoleActions`: use `variant="tags"` above the desktop composer for small white text-only actions without entrance animation; use the default list in mobile and detail content |
 | Career new positions | `NewOpportunityList` from `src/components/career/history/NewOpportunityList.tsx`: shared by desktop and mobile, with separate internal/external sections, a flat internal list with connection guidance, external recommendation-date groups, spaced collapsible cards, bounded role descriptions, and card-scoped feedback. Internal cards use a small Handshake `Badge` at `absolute left-1 top-[-2px]` with `bg-primary-faded text-faded`; Intro requests keep the direct-connection label. Collapsed positive actions reuse the opportunity type's icon. Use `OpportunityPreferenceFit variant="icons"` for colored fit icons with `Tooltips`. |
+| Career opportunity swipe | `OpportunitySwipeRow` in `src/components/career/history/`: mobile touch/pen shortcut on collapsed new-opportunity cards. Left invokes the existing negative action; right invokes the existing positive action, including connection consent. A distance threshold changes the revealed pill’s text/icon color; release commits, retreat/cancel restores. Preserve vertical scrolling, normal taps, nested buttons, and keyboard alternatives. Disable while expanded or pending. |
 | Career estimated salary | `EstimatedSalaryNotice` from `src/components/career/history/EstimatedSalaryNotice.tsx` displays a separately labeled annual estimate and an accuracy disclaimer below the JD link. Collapsed history cards append the range with `(추정)` after employment type; omit the display when no estimate is available. |
 | Career external application choices | `ExternalOpportunityApplyModal` from `src/components/career/history/ExternalOpportunityApplyModal.tsx`: shared by desktop and mobile new-position lists. Compose `TalentCareerModal mobileBottomSheet` with two stacked full-width actions: direct application saves positive feedback at `applied` and opens the posting; applying with Harper saves positive feedback at `saved` and reuses `ApplyWithHarperButton` to start the role-attached chat. |
 | Career welcome | `CareerWelcomeHeader` from `src/components/career/CareerWelcomeHeader.tsx`: centered greeting and current network scan count at the top of Tasks. Reuse `useCareerWelcomeContent` in the existing Home layout so both surfaces use the same profile name, scan count, and translated description. |
@@ -353,6 +416,7 @@ Shared component catalog:
 | Career job previews in chat and company details | `CareerOpportunityPreviewCard` shares the logo, metadata, posting status, and optional Recommended/Fit badges; `CareerOpportunityPreviewModal` opens the detail with a Save action |
 | Career company details and jobs | `CareerCompanyDetailDrawer` composes `CompanyDetailView` and `CompanyJobsList` inside `TalentCareerModal`; jobs use 20-item infinite pagination |
 | Career profile sources and documents | `CareerProfileSourceCard` from `src/components/career/settings/CareerProfileSourceCard.tsx`; use the 136×148 card for profile links, connected sources, resumes, documents, and add/upload actions |
+| Career integration introduction | `IntegrationOverview` in `src/components/career/integrations/` composes `TalentCareerModal` with a compact logo/name header, 13–14px body copy, `IntegrationConversationCarousel` with a soft gradient and one user/Harper exchange per slide (native swipe, keyboard arrows, and pagination dots), a vertical feature list, and a visible connection button. Keep normal font weight for body copy, modest spacing, and no section/footer dividers or authorization-process filler. Each integration provides localized content and callbacks; `GmailIntegrationOverview` supplies Gmail content. Open via the `integration` URL query before starting authorization. |
 | Career source icons | `CareerProfileSourceIcon` from `src/components/career/settings/CareerProfileSourceIcon.tsx`; reuse the profile source-card logos. Source slots come from `src/lib/career/profileSources.ts`. The Tasks source reminder uses the Lucide `Link2` icon. |
 | Company logo previews | `CompanyLogo` from `src/components/career/watchlist/CompanyLogo.tsx`; use `size="xs"` for 16px logos in the Tasks 2×2 recommendation preview. Existing `sm/md/lg` sizes keep their original styles. |
 | Career blocked companies | `CareerBlockedCompaniesSettingsSection` from `src/components/career/CareerProfileSettingsSection.tsx`; reuses the existing blocked-company field and immediate add/remove save actions. Place it below the Search Brief at `/career/brief`, using `CareerProfileWorkspace view="brief"` without profile in-page tabs. |
@@ -512,12 +576,42 @@ focus trap/ESC/overlay를 재사용하되 가운데 정렬 translate를 해제�
 모드를 사용한다. 상단 고정 서식 바에 제목·굵게·밑줄·목록·링크를 제공한다. 기존 문서의
 기본 Markdown 직렬화는 바꾸지 않는다. 보낸 HTML 미리보기는 sandbox iframe으로 격리한다.
 
+### Free 연결 대기 소개
+
+`OrgPendingConnectionGate`는 Role Inbox와 보드의 잠긴 빈 연결 대기 화면에서 공유한다.
+Gmail integration 소개의 은은한 배경과 말풍선 구성을 참고한 `PendingConnectionPreview`로
+후보자 관심 확인 → 회사 수락 → 일정 조율 후 Google Meet 초대의 가상 대화를 보여준다.
+마지막 초대는 화면 전체나 캘린더 상세 카드가 아니라 휴대폰 알림 배너 형태다. 공식 Meet 앱 아이콘, 앱 이름, 상대 시각, 미팅 제목과 시간만 담고 반투명 배경·둥근 모서리·약한 그림자를 사용한다. 입장 화면, 카메라 미리보기, 가짜 참여 버튼은 추가하지 않는다. 로고 원본은 `https://www.gstatic.com/images/branding/productlogos/meet_2026/v2/web/192px.svg`이며 `public/images/logos/google-meet.svg`로 보관한다.
+실제 후보 데이터와 분리된 가상 대화이며 두 대화 사이를 가로 슬라이드로 전환한다.
+자동 재생은 마지막 장면에서 멈춘다. 단계 표시, 예시 안내 문구, 영문 슬로건과 재생·이동 버튼은 두지 않는다.
+키보드로 대화에 진입하거나 reduced motion을 사용하면 자동 전환하지 않는다.
+대화 위의 브랜드·참여자 라벨과 장식용 마무리 문구도 생략한다. 대화 아래에는 Gmail integration 소개와 같은 기능별 아이콘 + 13px 제목 + 13px 설명의 세로 목록을 두고, 마지막에 전체 너비 `Slot 구매하기` 버튼을 둔다. 버튼 아래 이용 조건 꼬리말은 넣지 않는다. 구매 버튼은 기존 Slots 구매 흐름으로 이동하며, 예시 화면은 실제 연락이나 미팅을 만들지 않는다.
+
 ### Checkbox and modal select
 
 Shared `Checkbox` sizes are 16/20/24px (small/medium/large), with `rounded-xs` and a centered 14px check/indeterminate graphic. Keep the native input's keyboard and label behavior.
 `TalentCareerModal` supplies `FloatingPortalContainer` to shared Base UI `SelectContent` so dropdown focus stays inside the Radix modal. Use `Select`'s `items` for dynamically loaded value labels.
 
 Org candidate progress uses `ProgressFeed` with `icon="harper"` for Harper-authored introduction and follow-up events. It renders the decorative `/svgs/face.svg`; localized event copy is selected by `kind` in `harperProgressPresentation.ts`, including other-role history.
+
+Home의 `OrgHomeFeed`는 후보자와의 진행에서 달라진 일을 날짜별 행으로 보여준다.
+Home 왼쪽 영역은 제목·탭·Role 목록·남은 높이를 모두 `bg-bg-weak`로 채운다.
+선택한 행은 밝은 표면으로 구분하고 오른쪽 후보자 정보와 소식은 기본 배경을 유지한다.
+Role 필터는 항상 `All`로 시작하고 최초 선택도 `All`이다. 모바일 피드는 `All` 소식을 바로 열고,
+`목록`을 눌렀을 때만 세로 Role 목록을 보여준다. Role을 선택하면 해당 소식 화면으로 들어간다.
+모바일 Home 제목·인박스/피드 탭은 각 목록 또는 소식과 같은 영역에서 함께 스크롤된다.
+Home의 모바일 메뉴 버튼도 각 화면의 스크롤 영역 맨 위에 두고 함께 스크롤한다. 별도 fixed 메뉴와 상단 예약 여백은 두지 않는다.
+모바일 후보자 검토는 별도 바깥 헤더 없이 기존 `OrgCandidateReview` 안의 compact sticky 헤더를 쓴다.
+목록 버튼·Role 이름·오른쪽 끝 후보 이동을 한 줄에 두며, 후보자 정보 내부 레이아웃은 유지한다.
+목록·Role 이름·버튼을 감싸는 sticky 헤더는 위쪽의 완전한 흰색(100%)에서 아래쪽의 완전 투명으로 자연스럽게 이어지는 세로 gradient를 쓴다. Backdrop blur는 적용하지 않으며 개별 버튼의 기존 표면은 유지한다.
+제목에는 Role 이름을 먼저 붙이고 후보자와 발생한 일을 이어서 표시한다.
+상대 시각은 제목 줄 오른쪽 끝에 두고, 본문에는 실제 전달된 메시지 미리보기 또는 확정된 인터뷰 일정을 둔다.
+얇은 구분선과 hover를 사용하고 전체 목록을 별도 카드로 감싸지 않는다. 검색은 후보자·Role·내용,
+유형 필터는 Intro·메시지·인터뷰를 대상으로 한다. 행을 누르면 기존 후보자 상세와 피드를 열고,
+닫으면 Role·검색·유형 선택을 유지한다. 읽음 상태나 필요한 액션을 기록 없이 추정하지 않는다.
+소식은 `useInfiniteQuery`와 서버 커서로 30개씩 불러오고 목록 끝에서 이전 소식을 자동으로 이어 붙인다.
+검색과 유형 필터는 로드된 행에만 적용하지 않고 접근 가능한 전체 기록에 서버에서 적용한다.
+Role·검색·유형이 바뀌면 첫 페이지부터 다시 조회하며, 추가 로딩 실패 시 기존 행을 유지하고 재시도할 수 있다.
 
 Org Intro follow-up guidance is derived once per Intro request from `company_talent_followups` through `automaticFollowupFeed.ts`. Automatic initial schedule/date-anchor progress is omitted from the user feed; explicit scheduling changes and delivery receipts remain separate events.
 

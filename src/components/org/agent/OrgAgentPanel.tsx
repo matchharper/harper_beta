@@ -5,9 +5,12 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
 import {
   ChatLoadOlderButton,
@@ -94,6 +97,7 @@ function OrgAgentInfo() {
 export function OrgAgentChatSurface({
   autoFocus = true,
   className,
+  initialMessage,
   onClose,
   onCompanyInfoClick,
   onRoleCreated,
@@ -104,6 +108,7 @@ export function OrgAgentChatSurface({
 }: {
   autoFocus?: boolean;
   className?: string;
+  initialMessage?: string;
   onClose?: () => void;
   onCompanyInfoClick?: () => void;
   onRoleCreated?: (roleId: string) => void;
@@ -123,11 +128,80 @@ export function OrgAgentChatSurface({
         ? "role"
         : "general";
   const initialRoleCreation = purpose === "role-creation" && !roleId;
+  // Example roles under the JD field: each fills the field with a short start to edit.
+  const roleStartSuggestions = [
+    c("백엔드 엔지니어", "Backend Engineer"),
+    c("프로덕트 매니저", "Product Manager"),
+    c("프로덕트 디자이너", "Product Designer"),
+    c("데이터 사이언티스트", "Data Scientist"),
+    c("퍼포먼스 마케터", "Performance Marketer"),
+  ].map((label) => ({
+    label,
+    message: c("{p0}를 채용하려고 해요. ", "We're hiring a {p0}. ", { p0: label }),
+  }));
   const history = useOrgAgentMessageHistory({
     enabled: Boolean(workspaceId) && (mode === "general" || Boolean(roleId)),
     mode,
     roleId,
     workspaceId,
+  });
+  // Role start question cards live in this chat and in the 시작 tab with one
+  // shared state; poll only while a card is being prepared.
+  const queryClient = useQueryClient();
+  const roleStartKey = useMemo(() => ["org-role-start", workspaceId, roleId ?? ""], [roleId, workspaceId]);
+  const roleStart = useQuery({
+    queryKey: roleStartKey,
+    queryFn: () =>
+      fetchWithInternalAuth<{
+        session: { phase: string; pendingQuestion: { id: string } | null; questions: { history: unknown[] } } | null;
+      }>(`/api/org/role-start?roleId=${encodeURIComponent(roleId ?? "")}&workspaceId=${encodeURIComponent(workspaceId)}`),
+    enabled: purpose === "role-creation" && Boolean(roleId) && !readOnly,
+    refetchInterval: (query) => {
+      const session = query.state.data?.session;
+      // Same limit as the start screen: a Role that never starts the flow stops being asked after ~30s.
+      if (!session) return query.state.dataUpdateCount < 10 ? 3_000 : false;
+      // Registration also writes a chat line when it is done.
+      const working = session.phase === "drafting" || session.phase === "registering" || session.phase === "batch";
+      return working || (session.phase === "questions" && !session.pendingQuestion) ? 1_500 : false;
+    },
+  });
+  const roleStartSignature = [
+    roleStart.data?.session?.phase,
+    roleStart.data?.session?.pendingQuestion?.id,
+    roleStart.data?.session?.questions.history.length,
+  ].join(":");
+  const refetchHistory = history.refetch;
+  useEffect(() => {
+    if (roleStartSignature === "::") return;
+    void refetchHistory();
+    // The card message is written right after the question state; read again
+    // shortly so a card written a moment later is not missed.
+    const timer = window.setTimeout(() => void refetchHistory(), 1_200);
+    return () => window.clearTimeout(timer);
+  }, [roleStartSignature, refetchHistory]);
+  const answerRoleStart = useMutation({
+    mutationFn: (args: { questionId: string; chipId: string | null }) =>
+      fetchWithInternalAuth("/api/org/role-start", {
+        body: JSON.stringify({
+          action: "answer",
+          chipId: args.chipId,
+          questionId: args.questionId,
+          roleId,
+          skip: args.chipId === null,
+          workspaceId,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      }),
+    onError: (cause) =>
+      addToast({
+        message: cause instanceof Error ? cause.message : c("답을 반영하지 못했어요.", "Could not apply the answer."),
+        variant: "error",
+      }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: roleStartKey });
+      void refetchHistory();
+    },
   });
   const chat = useOrgAgentChat({
     appendMessagesToCache: history.appendMessagesToCache,
@@ -137,6 +211,12 @@ export function OrgAgentChatSurface({
     roleId,
     workspaceId,
   });
+  // A chat turn that just ended may have started the flow after polling stopped: look again once.
+  const wasStreaming = useRef(false);
+  useEffect(() => {
+    if (wasStreaming.current && !chat.isStreaming) void queryClient.invalidateQueries({ queryKey: roleStartKey });
+    wasStreaming.current = chat.isStreaming;
+  }, [chat.isStreaming, queryClient, roleStartKey]);
   const matchingSearchStatus = useOrgMatchingSearchStatus({
     enabled: purpose === "role" && !readOnly,
     roleId,
@@ -407,8 +487,8 @@ export function OrgAgentChatSurface({
             <div className="flex min-h-[260px] items-center justify-center px-8">
               <p className="max-w-[320px] text-center leading-5 text-neutral-muted text-base text-normal">
                 {c(
-                  "역할이나 후보자에 대해 물어보거나 원하시는 사항을 요청해주세요.",
-                  "Ask about a role or candidate, or request what you need."
+                  "어떤 채용 업무를 도와드릴까요?",
+                  "How can I help with hiring?"
                 )}
               </p>
             </div>
@@ -454,7 +534,8 @@ export function OrgAgentChatSurface({
                         : undefined
                     }
                     authorName={authorName}
-                    choicePending={readOnly || confirmRoleCreation.isPending}
+                    choicePending={readOnly || confirmRoleCreation.isPending || answerRoleStart.isPending}
+                    onRoleStartChoice={readOnly || !roleId ? undefined : (args) => answerRoleStart.mutate(args)}
                     currentUserId={user.id}
                     message={message}
                     onCompanyInfoClick={onCompanyInfoClick}
@@ -538,6 +619,7 @@ export function OrgAgentChatSurface({
           ) : null}
           <OrgAgentStreamingBubble
             onCompanyInfoClick={onCompanyInfoClick}
+            roleId={roleId}
             text={chat.streamingText}
             workspaceId={workspaceId}
           />
@@ -586,7 +668,7 @@ export function OrgAgentChatSurface({
             </p>
           ) : null}
           {visibleRoleQuickActions.length > 0 ? (
-            <div className="mx-auto mb-3 flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:px-5 md:pt-0">
+            <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0">
               {visibleRoleQuickActions.map((action) => {
                 const isRunSearchAction = action.id === "run_search";
                 const actionCopy = roleQuickActionCopy[action.id];
@@ -649,6 +731,8 @@ export function OrgAgentChatSurface({
             </div>
           ) : null}
           <OrgAgentComposer
+            key={initialMessage}
+            initialMessage={initialRoleCreation ? initialMessage : undefined}
             allowAttachments
             autoFocus={autoFocus}
             compactWidth={initialRoleCreation}
@@ -670,6 +754,7 @@ export function OrgAgentChatSurface({
               });
             }}
             roleId={roleId}
+            suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
             workspaceId={workspaceId}
           />
         </div>

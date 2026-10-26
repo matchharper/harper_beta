@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildRoleCreationOutcomePrompt,
   buildRoleCreationOutcomeSystemPrompt,
   buildRoleCreationSystemPrompt,
+  ROLE_SETUP_SYSTEM_PROMPT,
   buildRoleCreationUserPrompt,
 } from "@/lib/org/agent/roleCreationPrompt";
 
@@ -36,13 +38,13 @@ test("one compact authoring contract retains discovery and confirmation boundari
     "<company_service_core>", "<tool_outcome_response_contract>", "<hiring_brief_authoring_contract>",
     "source-preserving editing", "not a questionnaire", "actual blockers",
     "Duties and future goals", "Preferred criteria may stay empty", "breadth and strength",
-    "update_role_draft.textEdits", "at most six dimensions", "criteria do not replace",
+    "update_role_draft.textEdits", "distinct dimensions", "criteria do not replace",
     "save onsite", "save full_time", "at least two distinct substantive opportunities",
     "read_other_roles once", "salaryRange is one free-form value", "never average or choose silently",
-    "descriptionSourceResearch is the durable one-attempt marker", "Never combine postings",
+    "provisional role proposal",
     "calibrate_role_hiring_brief", "caliber evidence, not a candidate", "Ask at most one follow-up",
     "Translate protected traits or proxies", "availableSlackChannels is empty",
-    "role cannot be registered until Slack is connected", "[Slack 연결하기](/org/settings)",
+    "save email (emailEnabled=true) and the current author", "[Slack 연결하기](/org/settings)", "[Slack 채널 추가하기](/org/settings) when slackInstalled",
     "set_role_notification", "request_role_creation_confirmation", "confirm_pending_role_creation",
     "same turn", "never activates", "immediately following authorization",
   ]) assert.ok(prompt.includes(required), required);
@@ -64,40 +66,20 @@ test("role creation and its confirmation reply use the selected web response lan
   assert.match(outcome, /<response_language locale="en">/);
 });
 
-test("includes the durable one-attempt source-research marker in role state", () => {
+test("Setup context contains public role facts instead of registration and private selection state", () => {
   const prompt = buildRoleCreationUserPrompt({
-    attachments: [],
-    history: [],
-    mentions: [],
+    view: "role_setup", responseLocale: "en", attachments: [], history: [], mentions: [], userMessage: "Write the job description.",
     state: {
-      assigneeUserIds: [],
-      channels: [],
-      currentUser: { name: "채용 담당자" },
-      members: [],
-      metadata: {
-        descriptionSourceResearch: {
-          attemptedAt: "2026-08-17T00:00:00.000Z",
-          query: "Harper Founding Designer 채용 career",
-          resultCount: 0,
-          selectedSourceUrl: null,
-          source: "role_creation_chat",
-          status: "completed",
-        },
-      },
-      role: { criteria: [], name: "Founding Designer" },
-      workspace: {
-        companyName: "Harper",
-        pitch: "# Harper",
-        relatedLinks: [],
-        request: null,
-      },
+      assigneeUserIds: ["private-owner"], channels: [{channelId: "private-channel"}], members: [],
+      metadata: { descriptionSourceResearch: { query: "old search" } },
+      role: { name: "Engineer", description: "Public duties", request: "Private selection", criteria: [{name: "private"}] },
+      workspace: { companyName: "Example", pitch: "Public company", request: "Private company preference" },
     } as any,
-    userMessage: "다음 내용을 정리해 주세요.",
   });
-
-  assert.match(prompt, /"descriptionSourceResearch"/);
-  assert.match(prompt, /Harper Founding Designer 채용 career/);
-  assert.match(prompt, /"resultCount": 0/);
+  const context = prompt.split("<ROLE_CREATION_STATE>\n")[1].split("\n</ROLE_CREATION_STATE>")[0];
+  assert.match(context, /Public company/);
+  assert.match(context, /Public duties/);
+  assert.doesNotMatch(context, /private-owner|private-channel|Private selection|Private company preference|old search/);
 });
 
 test("keeps long pasted descriptions beyond the old twelve-thousand-character cutoff", () => {
@@ -191,9 +173,9 @@ test("includes server-resolved talent mentions in role creation context", () => 
   });
 
   assert.match(prompt, /<RESOLVED_TALENT_MENTIONS>/);
-  assert.match(prompt, /"companyInformationDocument"/);
+  assert.match(prompt, /회사 소개 문서/);
   assert.match(prompt, /후보자에게 전달할 전체 회사 정보/);
-  assert.match(prompt, /"relatedLinks"/);
+  assert.match(prompt, /참고 링크/);
   assert.doesNotMatch(prompt, /"brief"/);
   assert.doesNotMatch(prompt, /"description":/);
   assert.match(prompt, /김테스트/);
@@ -201,7 +183,7 @@ test("includes server-resolved talent mentions in role creation context", () => 
   assert.match(prompt, /talent-1/);
 });
 
-test("criteria context exposes storage limits without a completion requirement", () => {
+test("criteria context exposes structural validity without a count ceiling or completion requirement", () => {
   const prompt = buildRoleCreationUserPrompt({
     attachments: [],
     history: [],
@@ -232,19 +214,38 @@ test("criteria context exposes storage limits without a completion requirement",
   });
 
   assert.doesNotMatch(prompt, /draftRecommended|recommendedMinItems/);
-  assert.match(prompt, /"valid": true/);
+  assert.match(prompt, /valid: 예/);
   assert.doesNotMatch(prompt, /requiredBeforeCompletion/);
-  assert.match(prompt, /"minItems": 0/);
-  assert.match(prompt, /"maxItems": 6/);
+  assert.match(prompt, /min Items: 0/);
+  assert.doesNotMatch(prompt, /"maxItems"/);
 });
 
-test("writes company information as prose and keeps its marker out of saved fields", () => {
+test("writes company information as prose without a company-info marker instruction", () => {
   const prompt = buildRoleCreationSystemPrompt({ surface: "chat" });
 
   assert.match(prompt, /supplied JD text, URL, or file as the primary source/);
   assert.match(prompt, /begin with an accurate company introduction/);
-  assert.match(prompt, /Description must contain the real prose/);
-  assert.match(prompt, /standalone \[\[company_info\]\] marker only in the user-facing reply/);
-  assert.match(prompt, /never save or explain the marker/);
-  assert.match(prompt, /Omit it when company information was unused or unavailable/);
+  assert.doesNotMatch(prompt, /\[\[?company_info\]?\]/);
+});
+
+test("web Setup and its editor use the complete standalone system prompt", () => {
+  for (const view of ["role_setup", "role_details"] as const) {
+    assert.equal(buildRoleCreationSystemPrompt({ surface: "chat", view }), ROLE_SETUP_SYSTEM_PROMPT);
+  }
+});
+
+test("a mail-only completion reply talks about email, not a missing Slack message", () => {
+  const prompt = buildRoleCreationOutcomePrompt({
+    missingFields: [], outcome: "completed", slackNotificationDelivered: false,
+    state: {
+      assigneeUserIds: ["user-a"], channels: [], emailEnabled: true,
+      members: [{ userId: "user-a", name: "Alex", email: null }],
+      metadata: { confirmedSlackChannelIds: [] },
+      role: { name: "IR Lead", status: "active" }, workspace: { companyName: "Example" },
+    } as any,
+  });
+  const context = prompt.split("<ROLE_CREATION_OUTCOME>\n")[1].split("\n</ROLE_CREATION_OUTCOME>")[0];
+  assert.match(context, /email Enabled: 예/);
+  assert.match(context, /confirmed Slack Channels: 없음/);
+  assert.match(prompt, /If emailEnabled is true and confirmedSlackChannels is empty, do not mention Slack/);
 });
