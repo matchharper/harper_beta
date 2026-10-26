@@ -345,6 +345,11 @@ shared level that has multiple realistic consumers and add it to this catalog.
 
 Shared component catalog:
 
+Mobile settings detail headers use equal-width left/right grid columns around
+the centered title, shared by Profile, Resume/Links, Referral, and Account.
+Keep back/close controls at the outer edges and allow long titles to wrap within
+the center column; unequal action widths must not shift the title off-center.
+
 | Need | Component |
 | --- | --- |
 | Main action | `MuteButton` |

@@ -1402,17 +1402,19 @@ const CareerSettingsModal = ({
               </>
             ) : (
               <>
-                <header className="flex shrink-0 items-center justify-between border-b border-neutral-1000-a05 px-3 pb-2">
+                <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-2 border-b border-neutral-1000-a05 px-3 pb-2">
                   <MuteButton
                     type="button"
                     variant="transparent"
                     onClick={handleBackToMenu}
-                    className="min-h-11 min-w-11 gap-1 text-sm"
+                    className="min-h-11 min-w-0 max-w-full justify-self-start gap-1 text-sm"
                   >
-                    <ArrowLeft className="h-4 w-4" />
-                    {t("career.settings.career_settings_modal.1338q8i", "설정")}
+                    <ArrowLeft className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {t("career.settings.career_settings_modal.1338q8i", "설정")}
+                    </span>
                   </MuteButton>
-                  <h2 className="text-[15px] font-semibold text-neutral-primary">
+                  <h2 className="min-w-0 break-words text-center text-[15px] font-semibold text-neutral-primary">
                     {settingsTabs.find((tab) => tab.key === mobileView)
                       ?.label ??
                       (mobileView === "referral"
@@ -1421,7 +1423,7 @@ const CareerSettingsModal = ({
                   </h2>
                   <DrawerPrimitive.Close
                     aria-label={"설정 닫기"}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
+                    className="inline-flex h-9 w-9 justify-self-end items-center justify-center rounded-full text-neutral-muted transition-colors hover:bg-bg-weak hover:text-neutral-primary"
                   >
                     <X className="h-4 w-4" />
                   </DrawerPrimitive.Close>
