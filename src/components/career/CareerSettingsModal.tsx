@@ -1402,7 +1402,7 @@ const CareerSettingsModal = ({
               </>
             ) : (
               <>
-                <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)] items-center gap-2 border-b border-neutral-1000-a05 px-3 pb-2">
+                <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_fit-content(50%)_minmax(0,1fr)] items-center gap-2 border-b border-neutral-1000-a05 px-3 pb-2">
                   <MuteButton
                     type="button"
                     variant="transparent"
