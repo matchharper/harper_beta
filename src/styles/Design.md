@@ -198,6 +198,11 @@ Only pass a context area when it has visible content. An active Apply with Harpe
 session alone must not reserve top padding or change the ordinary mobile input's
 pill shape; use `shouldShowPreparationReopen` for the actual question-reopen action.
 
+The open mobile chat drawer's drag handle and navigation/close controls float over
+the conversation in a transparent overlay, without a reserved header row or white
+strip. Only the handle and buttons capture pointer events; keep the conversation
+scrollable underneath and preserve visual-viewport/safe-area positioning.
+
 ## Typography
 
 일반 텍스트는 `src/components/ui/typography.tsx`의 `Typography`를 사용한다.
