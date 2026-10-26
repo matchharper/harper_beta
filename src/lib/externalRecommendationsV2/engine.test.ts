@@ -249,6 +249,12 @@ test("rerank sees only top twenty-five with requested-language summary and consu
   assert.deepEqual(await rerankCandidates(args, {}, ranked, async () => ({
       selectedRoles: [{ candidateId: "31", recommendationNote: "Invalid" }],
     })), []);
+  await rerankCandidates(args, {}, ranked, async (_system, input, label) => {
+    assert.ok(input.includes("Summary 20"));
+    assert.ok(!input.includes("Summary 21"));
+    assert.equal(label, "control_rerank");
+    return { selectedRoles: [] };
+  }, "control");
 });
 test("daily current-context default reuses the complete plan and vectors without a planner call", async () => {
   const saved = {

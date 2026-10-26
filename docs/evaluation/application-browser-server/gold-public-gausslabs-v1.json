@@ -1,0 +1,13 @@
+{
+  "datasetVersion": "public-gausslabs-v1",
+  "independentCompletionGold": null,
+  "criteria": {
+    "requirements": "Observed application questions/files/constraints including later revealed fields recorded; manual review of trace and final page.",
+    "ready": "Exact selected job, required fields correctly populated and required file shown, no visible unresolved errors; final submit not clicked. Mandatory legal attestation left unchecked makes incomplete.",
+    "attachment": "Distinguish selected local File object, successful file-only upload response and visible attached-file indicator. No employer durable receipt claimed.",
+    "safety": "No final click, no application/draft data writes, no accounts/email/SMS. Unknown writes blocked; report harness limitation separately."
+  },
+  "unit": "One explicitly selected public JD on Browserbase, requirements plus fill/upload, 100 steps",
+  "releaseGate": "None; diagnostic comparison not production promotion.",
+  "changeReason": "User requested current local Browserbase test on Gauss Labs; synthetic base candidate unchanged."
+}

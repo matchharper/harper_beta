@@ -1346,7 +1346,7 @@ const CareerComposerSection = ({
               aria-expanded={
                 Boolean(opportunityMentionSearch) && !isTextInputLocked
               }
-              className="overflow-visible md:rounded-xl max-md:data-[expanded=true]:rounded-xl"
+              className="overflow-visible"
               context={
                 selectedPendingAction ||
                 pendingFileAttachment ||

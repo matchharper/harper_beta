@@ -8,6 +8,7 @@
 
 | 태스크 | 평가 대상 | 정답/fixture 상태 | canonical runner 또는 원문 | 상태 |
 | --- | --- | --- | --- | --- |
+| [external-v2-weight-replay](external-v2-weight-replay/README.md) | 실제 V2 반응·당시 평가 pool의 6개 가중치 top25 재정렬 | production-score-pool-v1, 125명·57,589평가, 싫어요99·좋아요190 | beta `captureExternalV2WeightReplay.py`, `reportExternalV2WeightReplay.ts` | 싫어요 탈락1–6/99, 좋아요 동반 탈락3–16/190. 가중치 미변경; V2 최종25개/high 로컬 변경·미배포 |
 | [company-agentic-role-search](company-agentic-role-search/README.md) | 실제 Role·talent로 검색 이력·재평가·추가 추천·Memory·긴 tool chain | 기존 v1 16개 보존; 현재 자연어 natural-v3 4개; 실제 snapshot은 private | Worker `company_agentic_role_search/capture.py`, beta `evalCompanyAgenticRoleSearch.ts` | 2026-10-23 전체 감사로 완료 주장 정정. 새 Top N 미응답 목록 교체·로컬 저장 검사 완료; 최신 자연어 재실행 대기. 사용자 제외 2항목은 평가에서 제거. 1·2차 Decisions 유지; 이번 수정 미배포 |
 | [role-criteria-writing](role-criteria-writing/README.md) | Role-based search의 후보자별 기준 설명만 분리한 모델 비용·품질·속도 비교 | 실제 20명·4역할 frozen production-v1; gold/자동 품질점수 없음 | Worker `llm_evals/role_criteria_writing/compare.py` | [low 재비교](role-criteria-writing/reports/2026-10-21-production-v1-low.md): 세 모델 답변 20/20·길이 종료 0, 원문 JSON Luna 20/20·Haiku 17/20·Mercury 19/20, 직접 검토·운영 변경 없음 |
 | [external-decisions-summary-ranking](external-decisions-summary-ranking/README.md) | Decisions scoring의 저장 요약 + 4축·단일 정렬식 대조 | harper_eval 고정359사례·268명·2,338반응쌍, 비식별 gold-v1 | `scripts/prepareExternalDecisionsSummary.py`, `scripts/evalExternalDecisionsSummary.ts`, `scripts/reportExternalDecisionsSummary.py` | 기준안/변경안 각2회; 결과·재현 manifest는 task reports, 운영 변경 없음 |

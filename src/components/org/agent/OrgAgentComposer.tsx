@@ -594,7 +594,7 @@ export function OrgAgentComposer({
         <ChatComposerFrame
           ref={textareaRef}
           actionLayout={allowAttachments ? "footer" : "overlay"}
-          className="overflow-visible rounded-xl"
+          className="overflow-visible"
           context={attachmentContext}
           value={draft}
           rows={allowAttachments ? 2 : 3}

@@ -185,6 +185,16 @@ role, pipeline, workspace 편집과 후보자 dialog의 기존 패턴처럼 기�
 `Textarea`를 사용한다. `/org` 전용 variant나 `TextField`를 추가하지 않으며,
 label과 오류 문구는 기존 row/dialog의 정보 구조 안에서 control 밖에 둔다.
 
+## Chat composer surface
+
+`ChatComposerSurface` owns the shared `rounded-xl` panel shape; glass surface
+classes contain only color, border, shadow, and blur. `ChatComposerFrame` uses
+`rounded-full` only below `md` while collapsed and without a context area.
+Focused inputs, inputs with context/attachments, desktop inputs, and Apply with
+Harper preparation panels keep `rounded-xl`. The separate one-line mobile chat
+launcher (`ChatComposerCollapsedFrame`) always uses `rounded-full`.
+Callers must not duplicate these radius conditions.
+
 ## Typography
 
 일반 텍스트는 `src/components/ui/typography.tsx`의 `Typography`를 사용한다.

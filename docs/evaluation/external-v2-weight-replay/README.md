@@ -2,6 +2,8 @@
 
 문서 기준: 2026-10-26. 아래 여섯 조합은 결과 계산 전에 고정한다.
 
+실행 결과: [2026-10-26 고정 pool 비교](reports/2026-10-26.md). 125명·125실행·57,589개 유효 평가, 싫어요99개·좋아요190개를 복원했다. 전체 싫어요482개 중99개만 포함하며 캐시 재사용/부분 복원 실행은 제외했다. 어떤 조합도 싫어요 대부분을 top25 밖으로 내리지 못했다. 제품 가중치는 유지한다.
+
 ## 목적·단위·입력
 
 측정 버전 `filter-first-hnsw-2026-10-16-v1`에서 실제 좋아요/싫어요를 받은 추천을 같은 실행의 평가 완료 pool 안에서 재정렬한다. 새 검색·모델 평가·최종 선정 호출은 하지 않는다. 단위는 run × 추천 공고이며 사용자 중복을 별도로 센다. 최신 반응은 capture 시점에 동결하고 관측 반응을 대리 gold로 사용한다. 무반응 공고는 negative로 간주하지 않는다.
@@ -24,6 +26,13 @@
 ## 정본 실행·지표·판정
 
 beta `scripts/captureExternalV2WeightReplay.py`는 Worker의 `connect_read_only`를 사용한다. `scripts/reportExternalV2WeightReplay.ts`는 실제 `rankScore`와 `fitSchema`를 import하고 동일 고정 pool을 여섯 번 정렬한다. 첫 capture는 `private/frozen-v1`에 배타 생성하며 재실행으로 덮어쓰지 않는다. 분석마다 별도 runs 디렉터리와 source hash를 남긴다.
+
+```sh
+../myenv/bin/python scripts/captureExternalV2WeightReplay.py
+node --import tsx scripts/reportExternalV2WeightReplay.ts
+```
+
+기존 snapshot을 재사용할 때는 두 번째 명령만 실행한다. [비식별 gold](gold-v1.json)와 [재현 manifest](manifest-2026-10-26T06-11-08.251Z.json)를 함께 보존한다.
 
 1차: 기존 25위 이내 싫어요가 변경 후 26위 이하로 내려가는 수/비율. 보조: 전체 싫어요의 top25 잔류, 좋아요의 top25 탈락, 평균 순위 변화, 경로별 결과, 비식별 사례. 동점의 역할 ID 순서 효과도 기록한다. 가중치 결과만으로 운영 반영하거나 추천 성공을 주장하지 않는다. 별도 출시 gate 없음.
 
