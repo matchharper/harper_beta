@@ -2,6 +2,7 @@ import { CareerDailyExternalStatus } from "../CareerDailyExternalRecommendations
 import {
   ApplicationPreparationComposerSlot,
   ApplicationPreparationReopen,
+  shouldShowPreparationReopen,
 } from "./ApplicationPreparationComposer";
 import { useApplicationPreparation } from "./ApplicationPreparationContext";
 import React, {
@@ -1350,7 +1351,7 @@ const CareerComposerSection = ({
               context={
                 selectedPendingAction ||
                 pendingFileAttachment ||
-                preparation.record?.state.status === "active" ? (
+                shouldShowPreparationReopen(preparation.record?.state) ? (
                   <div className="grid gap-2">
                     <ApplicationPreparationReopen />
                     {selectedPendingAction ? (

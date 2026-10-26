@@ -194,6 +194,9 @@ Focused inputs, inputs with context/attachments, desktop inputs, and Apply with
 Harper preparation panels keep `rounded-xl`. The separate one-line mobile chat
 launcher (`ChatComposerCollapsedFrame`) always uses `rounded-full`.
 Callers must not duplicate these radius conditions.
+Only pass a context area when it has visible content. An active Apply with Harper
+session alone must not reserve top padding or change the ordinary mobile input's
+pill shape; use `shouldShowPreparationReopen` for the actual question-reopen action.
 
 ## Typography
 
