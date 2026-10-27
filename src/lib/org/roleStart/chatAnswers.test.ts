@@ -109,7 +109,6 @@ test("skip and drop: a queued question the Harper answer settles is skipped and 
   });
   const plan = planDraftQueue({
     drafted: draft,
-    fillers: [],
     pending: null,
     chatQueued: [],
     historyLength: 1,
@@ -141,7 +140,6 @@ test("fallback: nothing left to ask, so the screen waits for the apply", async (
   const only = { ...drafted("d1", "참고할 인물이 있나요?"), status: "pending" as const, overlap: null, askedAt: "" };
   const plan = planDraftQueue({
     drafted: [only],
-    fillers: [],
     pending: null,
     chatQueued: [],
     historyLength: [harper].length,
@@ -150,7 +148,7 @@ test("fallback: nothing left to ask, so the screen waits for the apply", async (
   });
   assert.equal(plan.pending, null);
   assert.equal(plan.waitForWords, true, "the questions step stays open for the refinement to ask next");
-  const done = planDraftQueue({ drafted: [only], fillers: [], pending: null, chatQueued: [], historyLength: 1, covered: new Set(["d1"]), wordsPending: false });
+  const done = planDraftQueue({ drafted: [only], pending: null, chatQueued: [], historyLength: 1, covered: new Set(["d1"]), wordsPending: false });
   assert.equal(done.waitForWords, false, "with no words left to apply the Brief opens instead");
 });
 

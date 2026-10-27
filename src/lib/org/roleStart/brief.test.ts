@@ -158,6 +158,66 @@ test("withLatestBackground keeps the edit and takes background grade signals and
   assert.deepEqual(saved.references, [{ id: "rf1" }]);
 });
 
+test("withLatestBackground keeps the draft's background signals, summary, keywords and titles under an answer applied meanwhile", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-only-not-used";
+  const { withLatestBackground } = await import("./view");
+  const { signalsKey } = await import("./brief");
+  const criterion = { id: "c1", name: "Spark 경험", criteria: "Spark로 배치를 운영한 경험", requirement: "must" as const, importance: 3 };
+  // The answer was applied to the Brief as read before the draft's background step finished.
+  const base = { summary: "", hardConditions: [], keywords: ["spark"], criteria: [criterion, { ...criterion, id: "c2", name: "SQL", criteria: "SQL 경험" }] };
+  const signals = { excellent: ["배경 신호"] };
+  const latest = {
+    summary: "배경에서 쓴 요약",
+    summaryOf: "s1",
+    hardConditions: [],
+    keywords: ["spark"],
+    titles: { matching: ["데이터 엔지니어"], nearMiss: ["백엔드 개발자"] },
+    criteria: [
+      { ...criterion, signals, signalsOf: signalsKey(criterion) },
+      { ...criterion, id: "c2", name: "SQL", criteria: "SQL 경험", signals, signalsOf: "k2" },
+    ],
+  };
+  const answered = { ...base, criteria: [criterion, { ...criterion, id: "c2", name: "SQL", criteria: "SQL로 지표를 만든 경험" }] };
+  const saved = withLatestBackground(answered as never, latest as never, base as never);
+  assert.deepEqual(saved.criteria[0]!.signals, signals, "a criterion the answer left alone keeps the background signals");
+  assert.equal(saved.criteria[0]!.signalsOf, signalsKey(criterion));
+  assert.equal(saved.criteria[1]!.signals, undefined, "a criterion the answer changed does not take signals for the old text");
+  assert.equal(saved.summary, "배경에서 쓴 요약");
+  assert.equal(saved.summaryOf, "s1");
+  assert.deepEqual(saved.titles, latest.titles);
+  assert.deepEqual(saved.keywords, ["spark"]);
+  // What the answer itself rewrote stays; an empty rewritten summary does not wipe the latest one.
+  const rewritten = withLatestBackground(
+    { ...answered, summary: "답을 반영한 요약", summaryOf: "s2", keywords: ["spark", "airflow"], titles: { matching: ["ML 엔지니어"], nearMiss: [] } } as never,
+    latest as never,
+    { ...base, summary: "예전 요약" } as never
+  );
+  assert.equal(rewritten.summary, "답을 반영한 요약");
+  assert.equal(rewritten.summaryOf, "s2");
+  assert.deepEqual(rewritten.keywords, ["spark", "airflow"]);
+  assert.deepEqual(rewritten.titles, { matching: ["ML 엔지니어"], nearMiss: [] });
+  const empty = withLatestBackground({ ...answered, summary: "" } as never, latest as never, { ...base, summary: "예전 요약" } as never, {
+    blankSummaryFromLatest: true,
+  });
+  assert.equal(empty.summary, "배경에서 쓴 요약");
+});
+
+test("withLatestBackground keeps a summary the team cleared on a Brief edit, while an empty answer rewrite takes the latest", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-only-not-used";
+  const { withLatestBackground } = await import("./view");
+  const criterion = { id: "c1", name: "Spark 경험", criteria: "Spark로 배치를 운영한 경험", requirement: "must" as const, importance: 3 };
+  const before = { summary: "예전 요약", summaryOf: "s1", hardConditions: [], keywords: [], criteria: [criterion] };
+  const latest = { ...before, summary: "배경에서 쓴 요약", summaryOf: "s2" };
+  const cleared = { ...before, summary: "", summaryOf: undefined };
+  const edited = withLatestBackground(cleared as never, latest as never, before as never);
+  assert.equal(edited.summary, "", "the team's cleared summary is not brought back");
+  const answered = withLatestBackground(cleared as never, latest as never, before as never, { blankSummaryFromLatest: true });
+  assert.equal(answered.summary, "배경에서 쓴 요약");
+  assert.equal(answered.summaryOf, "s2");
+});
+
 test("the summary follows the conditions and criteria it recaps, and a team-written summary stays theirs", async () => {
   process.env.OPENAI_API_KEY ||= "test-only-not-used";
   const { mergeVisibleBriefEdit } = await import("./service");
@@ -233,4 +293,58 @@ test("a model rewrite that returns no notes keeps the team's notes unless the re
   // A Brief with no notes keeps the hash it had before notes existed.
   const { otherNotes: _notes, ...withoutNotes } = previous;
   assert.equal(verdictBriefHash(withoutNotes), verdictBriefHash({ ...withoutNotes, otherNotes: [] }));
+});
+
+test("the first-three key follows everything the ranking reads, not only what a verdict reads", async () => {
+  const { criterionHash, hardConditionsHash, rankingBriefHash, verdictBriefHash } = await import("./brief");
+  const base = normalizeRoleStartBrief({
+    summary: "",
+    hardConditions: [{ kind: "location", label: "서울 근무", countries: ["KR"], cities: ["Seoul"], allowRelocation: false }],
+    criteria: [
+      { id: "c1", name: "데이터 파이프라인", criteria: "Kafka, Airflow 운영", importance: "required", kind: "similarity", evidenceTerms: [["Kafka", "카프카"]] },
+      { id: "c2", name: "총 경력", criteria: "5년 이상", importance: "important", kind: "rule", rule: { minYears: 5, maxYears: null } },
+    ],
+  });
+  const changed = (edit: (brief: RoleStartBrief) => RoleStartBrief) => {
+    const next = edit(structuredClone(base));
+    return { verdict: verdictBriefHash(next) !== verdictBriefHash(base), ranking: rankingBriefHash(next) !== rankingBriefHash(base) };
+  };
+  // Search words, a criterion's kind, a rule's years and a condition's values change who ranks first without changing what a verdict reads.
+  assert.deepEqual(changed((b) => ((b.criteria[0]!.evidenceTerms = [["Flink"]]), b)), { verdict: false, ranking: true });
+  assert.deepEqual(changed((b) => ((b.criteria[0]!.kind = "judgment"), b)), { verdict: false, ranking: true });
+  assert.deepEqual(changed((b) => ((b.criteria[1]!.rule = { minYears: 3, maxYears: null }), b)), { verdict: false, ranking: true });
+  assert.deepEqual(changed((b) => (((b.hardConditions[0] as { cities: string[] }).cities = ["Busan"]), b)), { verdict: false, ranking: true });
+  // A label rewording or a level change: the label is only a verdict's, the level both.
+  assert.deepEqual(changed((b) => ((b.hardConditions[0]!.label = "서울 사무실 근무"), b)), { verdict: true, ranking: false });
+  assert.deepEqual(changed((b) => ({ ...b, criteria: [withLevel(b.criteria[0]!, levelOf(b.criteria[0]!) === "nice" ? "required" : "nice") as never, b.criteria[1]!] })), { verdict: true, ranking: true });
+  assert.equal(hardConditionsHash(base), hardConditionsHash({ ...base, hardConditions: base.hardConditions.map((c) => ({ ...c, id: "other-id" })) }));
+  // Only a rule criterion's score key reads its years: stored scores of every other kind keep their key.
+  const similarity = base.criteria[0]!;
+  assert.equal(criterionHash(similarity), criterionHash({ ...similarity, rule: { minYears: 9, maxYears: null } } as never));
+  assert.notEqual(criterionHash(base.criteria[1]!), criterionHash({ ...base.criteria[1]!, rule: { minYears: 3, maxYears: null } } as never));
+});
+
+test("the draft's first summary is kept when an answer changes the Brief meanwhile, and then reads as needing a rewrite", async () => {
+  const { needsSummary, SUMMARY_PENDING, summaryKey, summaryToSave } = await import("./brief");
+  const draft = normalizeRoleStartBrief({
+    summary: "",
+    hardConditions: [],
+    criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", importance: "important" }],
+  });
+  draft.summaryOf = SUMMARY_PENDING;
+  // An answer made the criterion required while the summary was being written.
+  const answered = { ...draft, criteria: [withLevel(draft.criteria[0]!, "required") as never] };
+  const saved = summaryToSave({ written: draft, summary: "결제 백엔드를 맡아요.", latest: answered });
+  assert.equal(saved?.summary, "결제 백엔드를 맡아요.");
+  assert.equal(saved?.summaryOf, summaryKey(draft), "kept with the key it was written for");
+  assert.equal(needsSummary(saved!), true, "so the next refresh follows the answer");
+  // Nothing changed meanwhile: saved as up to date.
+  assert.equal(needsSummary(summaryToSave({ written: draft, summary: "요약", latest: draft })!), false);
+  // The team wrote their own summary meanwhile: never replaced.
+  const own = { ...answered, summary: "팀이 쓴 요약", summaryOf: summaryKey(answered) };
+  assert.equal(summaryToSave({ written: draft, summary: "요약", latest: own }), null);
+  // A later rewrite still lands only on the Brief it was written for.
+  const current = { ...answered, summary: "예전 요약", summaryOf: "old" };
+  assert.equal(summaryToSave({ written: current, summary: "새 요약", latest: { ...current, criteria: draft.criteria } }), null);
+  assert.equal(summaryToSave({ written: current, summary: "새 요약", latest: current })?.summaryOf, summaryKey(current));
 });

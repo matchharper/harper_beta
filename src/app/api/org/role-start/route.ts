@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
           },
         });
         if (result.registered) {
-          // Ratings → Brief, one more person, then the Role turns on.
+          // Ratings → Brief, then the Role turns on.
           after(() => runRoleStartFirstBatch({ roleId: access.roleId, userId: user.id, user, workspaceId: access.workspaceId }));
         }
         return NextResponse.json({ ...result, session: view(result.session) });

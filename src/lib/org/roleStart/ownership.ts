@@ -7,12 +7,12 @@ export function isRoleStartEnded(phase: string) {
 
 /** A background step that has not written anything for this long is treated as stopped. */
 export const ROLE_START_STALL_MS = 3 * 60_000;
-/** Registering picks one more person for up to 3 minutes first: it counts as stopped later. */
+/** Registering applies the ratings for up to 3 minutes first: it counts as stopped later. */
 export const ROLE_START_REGISTER_STALL_MS = 5 * 60_000;
 
 /** drafting, searching or batch with no write for three minutes: the step can be started again. */
 export function isRoleStartStalled(
-  session: { phase: string; updatedAt: string; refinedAnswers?: number; questions?: { history: unknown[] } },
+  session: { phase: string; updatedAt: string; refinedAnswers?: number; questions?: { history: unknown[] }; pendingQuestion?: unknown },
   now = Date.now()
 ) {
   const idle = now - Date.parse(session.updatedAt);
@@ -20,14 +20,13 @@ export function isRoleStartStalled(
   // Registering may spend its whole 3-minute pick budget without a write.
   if (session.phase === "registering") return idle > ROLE_START_REGISTER_STALL_MS;
   if (["drafting", "searching", "batch"].includes(session.phase)) return quiet;
+  if (!["questions", "review"].includes(session.phase) || !quiet) return false;
   // Answers whose refinement never finished (the work after the response died).
   const answered = session.questions?.history.length ?? 0;
-  return (
-    ["questions", "review"].includes(session.phase) &&
-    session.refinedAnswers !== undefined &&
-    session.refinedAnswers < answered &&
-    quiet
-  );
+  if (session.refinedAnswers !== undefined && session.refinedAnswers < answered) return true;
+  // No question on screen and nothing written for a while: the questions part
+  // after an answer (which runs after it counts as refined) never filled the slot.
+  return session.phase === "questions" && session.pendingQuestion === null;
 }
 
 /**
@@ -40,7 +39,7 @@ export function roleStartOwnsRole(
   session:
     | ({ phase: string; firstCandidates?: unknown[] } & (
         | { stalled: boolean }
-        | { updatedAt: string; refinedAnswers?: number; questions?: { history: unknown[] } }
+        | { updatedAt: string; refinedAnswers?: number; questions?: { history: unknown[] }; pendingQuestion?: unknown }
       ))
     | null
     | undefined,
