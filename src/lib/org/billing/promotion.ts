@@ -4,7 +4,7 @@ import { WorkspaceBillingError } from "./types";
 export const EARLY_TEAM_PROMOTION = "early_teams_202610";
 export const EARLY_TEAM_PRICE_LOOKUP = "harper_slot_early_teams_202610";
 export const PROMOTION_COOKIE = "harper_billing_promotion";
-export const PROMOTION_END = Date.parse("2026-11-15T00:00:00+09:00");
+export const PROMOTION_END = Date.parse("2026-11-06T00:00:00+09:00");
 
 // A bearer invitation grants the offer, never workspace access or payment authority.
 export function buildPromotionToken(invitationId: string) {
@@ -23,5 +23,5 @@ export function readPromotion(token?: string | null, now = Date.now()) {
   const actual = Buffer.from(signature);
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
     throw new WorkspaceBillingError("billing_promotion_invalid", 400);
-  return { id: EARLY_TEAM_PROMOTION, endsOn: "2026-11-14" };
+  return { id: EARLY_TEAM_PROMOTION, endsOn: "2026-11-05" };
 }

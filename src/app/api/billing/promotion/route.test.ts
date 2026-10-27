@@ -11,8 +11,8 @@ test("promotion entry retains a signed offer through login without granting work
   process.env.SUPABASE_SERVICE_ROLE_KEY = "synthetic-test-key";
   t.after(() => { if (before === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY; else process.env.SUPABASE_SERVICE_ROLE_KEY = before; });
   const token = buildPromotionToken("fixture");
-  assert.equal(PROMOTION_END, Date.parse("2026-11-15T00:00:00+09:00"));
-  assert.equal(readPromotion(token, Date.parse("2026-11-01T00:00:00+09:00"))?.endsOn, "2026-11-14");
+  assert.equal(PROMOTION_END, Date.parse("2026-11-06T00:00:00+09:00"));
+  assert.equal(readPromotion(token, Date.parse("2026-11-05T00:00:00+09:00"))?.endsOn, "2026-11-05");
   assert.ok(readPromotion(token, PROMOTION_END - 1));
   assert.throws(() => readPromotion(token, PROMOTION_END));
   const response = await GET(new NextRequest(`https://harper.invalid/api/billing/promotion?token=${token}`));

@@ -167,8 +167,8 @@ function SlotPurchaseForm({
             {catalog?.promotion && interval === "month" && (
               <p className="mb-3 text-sm text-action">
                 {c(
-                  "초기 팀 가격 · 11월 14일까지 시작하면 구독 유지 중 월 $199",
-                  "Early team offer · Start by November 14 and keep $199/month while subscribed"
+                  "초기 팀 가격 · 11월 5일까지 시작하면 구독 유지 중 월 $199",
+                  "Early team offer · Start by November 5 and keep $199/month while subscribed"
                 )}
               </p>
             )}
