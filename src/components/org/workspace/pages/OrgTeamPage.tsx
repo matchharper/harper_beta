@@ -43,6 +43,7 @@ import {
   OrgSectionHeader,
 } from "@/components/org/workspace/OrgSection";
 import { OrgUnsavedChangesBar } from "@/components/org/workspace/OrgUnsavedChangesBar";
+import { OrgWorkspaceDangerZone } from "@/components/org/workspace/OrgWorkspaceDangerZone";
 import { Badge } from "@/components/ui/badge";
 import { MuteButton } from "@/components/ui/button";
 
@@ -1895,6 +1896,8 @@ export function OrgTeamPage({
           </div>
         </OrgSection>
       ) : null}
+
+      {showCompany && !companyOnly && !readOnlyCompany ? <OrgWorkspaceDangerZone /> : null}
 
       {showCompany &&
       canEditCompany &&

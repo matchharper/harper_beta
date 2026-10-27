@@ -3,7 +3,9 @@ import test from "node:test";
 import { OpportunityType } from "./opportunityType";
 import {
   buildInternalRecommendationProgress,
+  resolveHistorySavedStage,
   fetchTalentOpportunityHistoryPage,
+  fetchTalentOpportunityHistoryCounts,
   fetchTalentOpportunitySavedStageHistoryPages,
   formatRecentRecommendedOpportunitiesForPrompt,
   formatRecommendationTimeForPrompt,
@@ -475,4 +477,42 @@ test("archive notices use the talent's saved language, not the screen language",
       name: "archive_ended_internal_opportunities_for_talent",
     },
   ]);
+});
+
+
+test("history uses actual process closure, preserving hidden entries and live final offers", () => {
+  const legacy = { ...baseItem, savedStage: null };
+  assert.equal(resolveHistorySavedStage(legacy, processStoppedTags), "closed");
+  assert.equal(resolveHistorySavedStage({ ...legacy, savedStage: "connected" }, processStoppedTags), "closed");
+  assert.equal(resolveHistorySavedStage({ ...legacy, savedStage: "hidden" }, processStoppedTags), "hidden");
+  assert.equal(resolveHistorySavedStage({ ...legacy, status: "ended" }, []), "closed");
+  assert.equal(resolveHistorySavedStage({ ...legacy, status: "ended", savedStage: "connected" }, [{ opportunity_id: "role-1", tag: "내부:최종오퍼", updated_at: null }]), "connected");
+  assert.equal(resolveHistorySavedStage(legacy, []), null, "elapsed time alone is not closure");
+});
+
+
+test("stage counts include legacy internal closure and every API page", async () => {
+  const rows = [
+    { role_id: "external", feedback: "like", saved_stage: "saved", opportunity_type: OpportunityType.ExternalJd, company_role: { source_type: "external", status: "active" } },
+    { role_id: "role-1", feedback: "like", saved_stage: "accepted", opportunity_type: OpportunityType.InternalRecommendation, company_role: { source_type: "internal", status: "active" } },
+    { role_id: "hidden", feedback: null, saved_stage: "hidden", opportunity_type: OpportunityType.ExternalJd, company_role: { source_type: "external", status: "active" } },
+  ];
+  const offsets: number[] = [];
+  const admin = { from(table: string) {
+    let head = false;
+    let offset = 0;
+    const query: any = {
+      select(_fields: string, options?: { head?: boolean }) { head = Boolean(options?.head); return query; },
+      eq() { return query; }, is() { return query; }, or() { return query; }, in() { return query; }, order() { return query; },
+      range(start: number) { offset = start; offsets.push(start); return query; },
+      then(resolve: (value: unknown) => unknown) {
+        return Promise.resolve(resolve({ error: null, count: head ? 0 : rows.length,
+          data: head ? null : table === "talent_opportunity_tag" ? processStoppedTags : rows.slice(offset, offset + 1) }));
+      },
+    };
+    return query;
+  } } as any;
+  const counts = await fetchTalentOpportunityHistoryCounts({ admin, userId: "fixture" });
+  assert.deepEqual(counts.savedStages, { saved: 1, applied: 0, connected: 0, closed: 1, hidden: 1 });
+  assert.deepEqual(offsets, [0, 1, 2]);
 });

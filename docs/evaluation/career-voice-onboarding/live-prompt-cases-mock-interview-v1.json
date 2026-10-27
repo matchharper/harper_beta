@@ -1,0 +1,21 @@
+{
+  "version": "mock-interview-v1",
+  "provenance": "Synthetic fixture authored 2026-10-26 before running the changed Live prompt. No production data. Gold is author review, not independent human gold.",
+  "profile": "서울의 6년차 백엔드 개발자. 대규모 결제 시스템과 분산 처리 경험이 있다. 한국어로 면접을 연습한다.",
+  "cases": [{
+    "id": "opening-and-spoken-interruption",
+    "covered": [],
+    "history": [],
+    "mockInterview": {
+      "companyName": "Example Payments",
+      "roleTitle": "Senior Backend Engineer",
+      "location": "Seoul, South Korea",
+      "jd": "결제 API와 비동기 결제 이벤트 처리를 설계한다. 분산 시스템의 중복 전달, 멱등성, 데이터 일관성을 다룬다.",
+      "companyDescription": "온라인 결제 서비스를 개발하는 합성 테스트 회사."
+    },
+    "searchResult": { "results": [], "note": "No public interview reports were found. Use role-based practice questions without claiming actual interview evidence." },
+    "utteranceDelayMs": 30000,
+    "utterance": "잠깐만요. 질문에서 말하는 조건을 조금 더 설명해 주세요.",
+    "gold": "사용자 음성 이전에 실제 backend 위임과 web_search 호출을 수행하고, 합성 검색 결과에 맞춰 회사 기출을 날조하지 않으면서 한국어 기술 질문을 시작한다. 인사나 준비 예고만으로 끝나지 않는다. 이후 사용자 음성을 전사하고 조건 설명 요청에 맞춰 응답한다. API 오류 없이 종료한다."
+  }]
+}

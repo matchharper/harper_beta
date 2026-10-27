@@ -1,27 +1,32 @@
 import type { ResumeContent } from "./schema";
 import { resumeAssets } from "./assets";
 import { resumePreviewHtml } from "./preview";
-import { resumeBlocks, resumePlainText } from "./template";
+import { resumePlainText } from "./template";
+import { PdfRenderError } from "./pdfError";
 export { resumeHtml, resumePlainText } from "./template";
 
 export async function renderResumePdf(
   content: ResumeContent
 ): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
-  const assets = await resumeAssets();
+  const assets = await resumeAssets().catch(cause => {
+    throw new PdfRenderError("PDF fonts or pagination assets could not be loaded.", { stage: "local_assets", pdfReceived: false, cause });
+  });
   return renderPaginatedPdf({
     html: resumePreviewHtml(content, assets),
-    textChunks: resumeBlocks(content).map((block) => block.text),
     text: resumePlainText(content),
   });
 }
 
 export async function renderPaginatedPdf(input: {
   html: string;
-  textChunks: string[];
   text: string;
 }): Promise<{ pdf: Buffer; pageCount: number; text: string }> {
   const token = process.env.BROWSERLESS_API_TOKEN?.trim();
-  if (!token) throw new Error("PDF rendering is not configured.");
+  if (!token) throw new PdfRenderError("PDF rendering is not configured.", { stage: "configuration", pdfReceived: false });
+  let stage = "provider_request";
+  let pdfReceived = false;
+  let httpStatus: number | undefined;
+  const failure = (message: string, cause?: unknown) => new PdfRenderError(message, { stage, pdfReceived, httpStatus, cause });
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const work = async () => {
@@ -54,47 +59,51 @@ export async function renderPaginatedPdf(input: {
           },
         }),
       });
-    } catch {
-      // Provider errors may contain the credential-bearing URL. Never propagate them.
-      throw new Error("PDF rendering request failed.");
+    } catch (cause) {
+      // Diagnostic transport redacts credentials while retaining network error codes.
+      throw failure("PDF rendering request failed.", cause);
     }
+    httpStatus = response.status;
     if (!response.ok) {
-      await response.body?.cancel().catch(() => {});
-      throw new Error(
-        `PDF rendering service returned HTTP ${response.status}.`
+      const contentType = response.headers.get("content-type") ?? "";
+      let providerError: unknown;
+      if (contentType.includes("application/json")) {
+        const body = await response.json().catch(() => null);
+        if (body && typeof body === "object") providerError = { code: body.code, message: body.message, error: body.error };
+      } else if (contentType.includes("text/plain")) {
+        providerError = (await response.text().catch(() => "")).slice(0, 4000);
+      } else await response.body?.cancel().catch(() => {});
+      throw failure(
+        `PDF rendering service returned HTTP ${response.status}.`, providerError
       );
     }
     let pdf: Buffer;
+    stage = "provider_response";
     try {
       pdf = Buffer.from(await response.arrayBuffer());
-    } catch {
-      throw new Error("PDF rendering response was interrupted.");
+    } catch (cause) {
+      throw failure("PDF rendering response was interrupted.", cause);
     }
     if (pdf.subarray(0, 5).toString() !== "%PDF-")
-      throw new Error("PDF rendering service returned an invalid document.");
+      throw failure("PDF rendering service returned an invalid document.");
+    pdfReceived = true;
+    stage = "pdf_read";
 
-    // Verify actual PDF text before downloads or application attachments receive it.
+    // Read the page count, not text order: PDF extraction can reorder positioned
+    // content even when every paragraph is visibly present in the rendered file.
     const { getPath } = await import("pdf-parse/worker");
     const { PDFParse } = await import("pdf-parse");
     PDFParse.setWorker(getPath());
     const parser = new PDFParse({ data: new Uint8Array(pdf) });
     let parsed;
     try {
-      parsed = await parser.getText({
-        pageJoiner: "\n",
-        parseHyperlinks: false,
-      });
+      parsed = await parser.getInfo();
     } finally {
       await parser.destroy();
     }
-    const compact = (s: string) => s.normalize("NFKC").replace(/\s/g, "");
-    const extracted = compact(parsed.text);
-    if (
-      !parsed.total ||
-      input.textChunks.some((text) => !extracted.includes(compact(text)))
-    )
-      throw new Error("PDF text validation failed.");
-    return { pdf, pageCount: parsed.total as number, text: input.text };
+    if (!parsed.total)
+      throw failure("PDF rendering service returned an empty document.");
+    return { pdf, pageCount: parsed.total, text: input.text };
   };
   try {
     return await Promise.race([
@@ -102,10 +111,13 @@ export async function renderPaginatedPdf(input: {
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           controller.abort();
-          reject(new Error("PDF rendering timed out."));
+          reject(failure("PDF rendering timed out."));
         }, 30_000);
       }),
     ]);
+  } catch (cause) {
+    if (cause instanceof PdfRenderError) throw cause;
+    throw failure("The generated PDF could not be read.", cause);
   } finally {
     if (timer) clearTimeout(timer);
   }

@@ -1,3 +1,7 @@
+## Free 추천·연결 및 3 Intro: v39 (2026-10-27)
+
+목적은 슬롯 없는 Role의 추천·연결 권한과 월 3 공용 Intro를 원본 회사 LLM이 정확히 설명하는지 확인하는 것이다. [동결 입력](cases-v39.json) · [의미 기준](gold-v39.md) · [재현 manifest](manifest-v39.json). 실행 단위·runner·모델·privacy·gate·한계는 manifest를 따른다. [실행 및 의미 검토 결과](REPORT-FREE-ACCESS-V39.md): 3/3 통과. 과거 v37의 10 Intro 기대값은 이력으로 보존한다. 새 run의 실제 provider 입력과 전체 답변을 읽어 검토하며 운영 효과는 차단한다.
+
 ## 웹 Setup 공개 JD 작성: role-setup-v1 (2026-10-25)
 
 목적은 첫 `/org/new` 입력의 공개 JD 작성·저장·결과 설명과 후속 공개 정보 편집이다. [입력](role-setup-v1.json), [gold](role-setup-gold-v1.md), [manifest](role-setup-manifest-v1.json)는 실제 호출 전에 동결한 합성 2건이며 기존 Role/알림 입력을 바꾸지 않는다.
@@ -804,3 +808,9 @@ Canonical runner는 동일한 `scripts/freeCandidateViewsQa.mjs`다. `node scrip
 추가 gate는 읽기 전용 질문에서 차감·미열람 개인정보·허위 관심·미승인 연락 0, 실제 기준 평가에 근거한 비교, Free 열람과 유료 연결 기능의 정확한 구분이다. 관심을 이미 인터뷰에 합의했다는 뜻으로 확대하지 않는다. UI는 실제 연결 대기 행을 숨기지 않는지, 목록·그리드·카드의 원래 배치/높이를 유지한 채 개인정보 자리만 합성 자료로 흐리는지, hover/focus와 직접 열람·중복 클릭 방지·토스트·다른 Role/팀원 차감 경계를 확인한다. 전체 응답을 문맥과 원장 변화에 대조해 직접 검토하며 tool 성공이나 키워드 검사만으로 의미 품질을 승인하지 않는다. 이전과 동일하게 운영 평균·독립 품질·실제 Slack 전달은 검증 범위 밖이다.
 
 [Free UI와 실제 대화 재검증](reports/2026-10-21-free-views-ui.md): v2 4개 발화의 익명 경계·차감·조회와 기존 구조 위 blur UI를 확인했다. 실제 3명 상세 답변은 151초였으며 latency 한계를 보존했다.
+
+## 기존 활성 Role 보존과 신규 활성화 한도: v40 (2026-10-27)
+
+[동결 입력](cases-v40.json) · [gold](gold-v40.md) · [manifest](manifest-v40.json). 기존 Free Role 2개 보존, 슬롯 만료·재배정, 신규 시작·재개·만료 복구의 구분을 확인한다. 합성 2대화·2턴이며 실행 전 동결했다. 기존 v39 3사례도 별도 run으로 재실행하며 이전 입력/gold는 변경하지 않는다.
+
+Canonical runner는 `scripts/evalCompanyAgentCapabilities.ts --dataset=v40 --run=<fresh>`다. 실제 회사 loop/core·Gemini 3.8 Flash medium과 합성 도구를 사용한다. 모델에는 gold를 넣지 않는다. Gate는 전체 답변의 의미 2/2와 미승인 효과·허위 실행·자동 중지 오안내 0이다. source/input/prompt hash·설정·provider 요청/응답은 ignored owner-only runs에 보존한다. 운영 DB·외부 발송은 차단하며 작은 합성 세트·작성자 검토라는 한계가 있다. DB 전이는 별도 격리 PostgreSQL 테스트로 검증한다. 운영 반영·배포 완료를 뜻하지 않는다.

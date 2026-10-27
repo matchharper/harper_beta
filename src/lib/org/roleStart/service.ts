@@ -2,6 +2,7 @@ import { formatPromptText } from "@/lib/llm/promptText";
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
+import { billingErrorCode, type BillingErrorCode } from "@/lib/org/billing/types";
 import {
   fetchRoleCreationState,
   getRoleCreationMissingFields,
@@ -12,7 +13,7 @@ import {
 import { after } from "next/server";
 import { createHash } from "node:crypto";
 import { recordOrgIntroDecision } from "@/lib/org/actionLogs";
-import { coveredQuestions, fillChips, keptWithoutFill, mayAsk, MIN_CHIPS, questionCardFromReply } from "./chipGuard";
+import { coveredQuestions, distinctChips, fillChips, keptWithoutFill, mayAsk, MIN_CHIPS, questionCardFromReply } from "./chipGuard";
 import {
   answeredForOverlap,
   isChatQuestion,
@@ -38,8 +39,11 @@ import {
   keepTeamLevels,
   needsSignals,
   needsSummary,
+  rankingBriefHash,
   signalsKey,
   summaryKey,
+  summaryToSave,
+  SUMMARY_PENDING,
   levelOf,
   reapplySettled,
   shortId,
@@ -52,6 +56,7 @@ import {
   type RoleStartReference,
 } from "./brief";
 import { roleStartSql } from "./db";
+import { jobScoreKey } from "./jobMatch";
 import {
   buildBroadPool,
   countByConditions,
@@ -62,25 +67,33 @@ import {
   scoreCriteria,
   completePool,
   ensureJobScores,
+  fetchCriterionEvidence,
+  stillEligible,
   type PickedCandidate,
   type RankedMember,
   type RoleStartPool,
 } from "./fastPath";
 import { callRoleStartJson, ROLE_START_FAST_MODEL, type RoleStartLlmUsage } from "./llm";
 import { loadRoleStartProfiles, type RoleStartProfile } from "./profiles";
+import { rawBriefFromPatch, type ReflectPatch } from "./reflectPatch";
 import {
   buildBriefEditSystemPrompt,
   buildCalibrationSystemPrompt,
   buildDraftSystemPrompt,
+  buildReflectPatchSchema,
+  buildReflectPatchSystemPrompt,
+  buildReflectSystemPrompt,
+  REFLECT_SCHEMA,
   buildNextQuestionsOnlySystemPrompt,
   buildSignalsSystemPrompt,
   buildSummarySystemPrompt,
-  buildNextQuestionsSystemPrompt,
+  buildTitlesSystemPrompt,
   DRAFT_SCHEMA,
   NEXT_QUESTIONS_ONLY_SCHEMA,
   NEXT_QUESTIONS_SCHEMA,
   SIGNALS_SCHEMA,
   SUMMARY_SCHEMA,
+  TITLES_SCHEMA,
 } from "./prompts";
 import {
   applyChipEffect,
@@ -103,6 +116,10 @@ import {
   mergeRoleStartTimings,
   savePreparedEntry,
   savePreparedInflight,
+  savePreparedPick,
+  loadRoleStartPool,
+  saveRoleStartPool,
+  roleStartPoolBuiltAt,
   roleStartLeaseHeld,
   savePreparedBatch,
   saveSpeculativeFollowUps,
@@ -178,8 +195,6 @@ async function syncChatCards(session: RoleStartSession) {
 
 /** Product limit from the design: confirm → first three on screen. */
 export const ROLE_START_FIRST_THREE_BUDGET_MS = 60_000;
-/** People recommended right after registration, before the scheduled search takes over. */
-export const ROLE_START_BATCH_SIZE = 1;
 
 type Access = { roleId: string; user: User; workspaceId: string };
 
@@ -224,7 +239,8 @@ async function step(
   section: RoleStartProgressStep,
   kind: StepKind,
   status: "running" | "done" | "error",
-  text?: string
+  text?: string,
+  billingCode?: BillingErrorCode | null
 ) {
   try {
     await upsertRoleStartProgress(roleId, {
@@ -233,6 +249,7 @@ async function step(
       status,
       kind,
       text: text ?? "",
+      ...(billingCode ? { billingCode } : {}),
     });
   } catch (error) {
     console.error("[role-start] progress", error);
@@ -259,8 +276,8 @@ function askedIds(session: RoleStartSession) {
 // ---------------------------------------------------------------- step 0
 
 /**
- * Reads the JD once and returns the rubric draft, probes and first question
- * candidates in one structured call. Idempotent per Role.
+ * Reads the JD once and returns the rubric draft and first question
+ * candidates. Idempotent per Role.
  */
 export async function startRoleStartDraft(args: Access) {
   return (await beginRoleStartDraft(args)).completion;
@@ -307,9 +324,16 @@ export async function beginRoleStartDraft(args: Access): Promise<{
   return { session, completion: buildRoleStartDraft(args, state) };
 }
 
+/** The Brief draft and its titles: the small model, so the first question shows after one short wait. */
+const DRAFT_MODEL = ROLE_START_FAST_MODEL;
+const DRAFT_EFFORT = "low" as const;
+
 async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
   const source = roleSource(state);
   const started = Date.now();
+  // Settles once the draft is in the session (false when it is not saved), so its grade signals can be saved onto it.
+  let markSaved: (saved: boolean) => void = () => undefined;
+  const draftSaved = new Promise<boolean>((resolve) => (markSaved = resolve));
   await step(args.roleId, "draft", "organize", "running");
   try {
     // The broad pool needs no rubric: SQL eligibility + JD similarity run while
@@ -320,25 +344,32 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
       queryText: jdQueryText({ roleName: state.role.name, description: String(source.description ?? source.hiringBrief ?? "") }),
       excludeIds: [],
     }).then((pool) => ({ pool, ms: Date.now() - poolStarted }));
-    const [{ data, usage }, broad] = await Promise.all([
-      callRoleStartJson<{
-        summary: string;
-        hardConditions: RawBrief["hardConditions"];
-        criteria: RawBrief["criteria"];
-        keywords: string[];
-        probes: RawProbe[];
-        questions: RawQuestion[];
-      }>({
-        label: "rubric_draft",
-        reasoningEffort: "medium",
-        // A normal draft is ~2.5k tokens; a runaway list fails fast and retries.
-        maxOutputTokens: 6_000,
-        schema: DRAFT_SCHEMA,
-        system: buildDraftSystemPrompt(),
-        user: `<ROLE_SOURCE>\n${formatPromptText(source)}\n</ROLE_SOURCE>`,
-      }),
-      poolPromise,
-    ]);
+    // Titles and keywords do not depend on the criteria: written beside the draft so
+    // its questions wait on a shorter output; merged in later if they land after it.
+    let titlesLanded = null as DraftTitles | null;
+    const titles = writeDraftTitles(args.roleId, source).then((value) => (titlesLanded = value));
+    const draftCall = callRoleStartJson<{
+      hardConditions: RawBrief["hardConditions"];
+      criteria: RawBrief["criteria"];
+      otherNotes: string[];
+      questions: RawQuestion[];
+    }>({
+      label: "rubric_draft",
+      model: DRAFT_MODEL,
+      reasoningEffort: DRAFT_EFFORT,
+      // A normal draft is ~2k tokens; a runaway list fails fast and retries.
+      maxOutputTokens: 6_000,
+      schema: DRAFT_SCHEMA,
+      system: buildDraftSystemPrompt(),
+      user: `<ROLE_SOURCE>\n${formatPromptText(source)}\n</ROLE_SOURCE>`,
+    });
+    // The grade signals start the moment the criteria exist (their ids are set here),
+    // not after the save; the summary is written after the questions are shown.
+    const draftedCall = draftCall.then(({ data }) => {
+      const drafted: RoleStartBrief = { ...briefFromRaw({ ...data, summary: "", keywords: [] }), summary: "", summaryOf: SUMMARY_PENDING };
+      return { drafted, signals: writeDraftSignals(args.roleId, drafted.criteria, draftSaved) };
+    });
+    const [{ data, usage }, { drafted, signals }, broad] = await Promise.all([draftCall, draftedCall, poolPromise]);
     await persistUsage(args.roleId, [usage]);
     // Location or work arrangement changed on the first step while the Brief
     // was being written: those fields follow before anything is shown.
@@ -348,13 +379,15 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
     const roleInfoChanged = changedRoleInfo(state.role, latestRole).filter((field) =>
       field === "location" ? Boolean(String(state.role.locationText ?? "").trim()) : Boolean(state.role.workMode)
     );
-    const brief = briefWithRoleInfo(briefFromRaw(data), latestRole, roleInfoChanged);
+    const landed = titlesLanded;
+    const brief = briefWithRoleInfo(landed ? withDraftTitles(drafted, landed) : drafted, latestRole, roleInfoChanged);
+    // The questions do not rank anyone: the broad pool is saved with them and
+    // completed (tool names, job titles, criterion scores) after they show.
     const pool = broad.pool;
-    const supplement = await completePool({ pool, roleId: args.roleId, brief });
-    const probes = probesFromRaw(data.probes, brief);
-    const candidates = (await questionsWithChips(args.roleId, data.questions)).filter(
-      (item) => !asksRoleInfo(item, roleInfoChanged)
-    );
+    const withChips = await questionsWithChips(args.roleId, data.questions);
+    const kept = withChips.filter((item) => !asksRoleInfo(item, roleInfoChanged));
+    // Never straight to the Brief with no question: the role-info filter yields when it would drop them all.
+    const candidates = kept.length ? kept : withChips;
     await step(args.roleId, "draft", "organize", "done");
     // A Role registered another way meanwhile ended this flow: its draft is dropped.
     if ((await loadRoleStartSession(args.roleId, { forView: true }))?.phase === "drafting") {
@@ -367,15 +400,7 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
         writeRole: false,
       });
     }
-    const scoring = await scoreCriteria({ pool, criteria: brief.criteria });
-    const selected = await selectNextQuestion({
-      roleId: args.roleId,
-      roleName: state.role.name,
-      brief,
-      pool,
-      candidates,
-      askedCount: 0,
-    });
+    const selected = selectNextQuestion({ candidates, askedCount: 0 });
     const covered = new Set<string>();
     // Chat answers the overlap check has read; an answer given after it is read on the next try.
     const checkedAnswers = new Set<string>();
@@ -396,14 +421,16 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
       // A question the chat asked that a draft question already covers is
       // dropped: the draft's own question carries chip effects on the Brief.
       const drafted = [selected.question, ...selected.remaining].filter((item): item is NonNullable<typeof item> => Boolean(item));
+      // A broad first question from an older session (shown while its draft ran) is not compared.
       const fromChat = [meanwhile?.pendingQuestion ?? null, ...(meanwhile?.questions.candidates ?? [])].filter(
-        (item): item is NonNullable<typeof item> => Boolean(item) && item!.chips.every((chip) => chip.effect.type === "note")
+        (item): item is NonNullable<typeof item> =>
+          Boolean(item) && !(item as RoleStartQuestion).first && item!.chips.every((chip) => chip.effect.type === "note")
       );
       // A chat question the team already answered while the draft ran drops
       // the drafted question that asks the same thing, or that its answer
       // already settles (a chip label or short words; never a link or a pasted
       // profile, whose person is not read yet).
-      const answeredChat = meanwhile.questions.history.filter(isChatQuestion);
+      const answeredChat = meanwhile.questions.history.filter((item) => isChatQuestion(item) && !item.first);
       const unchecked = answeredChat.filter((item) => !checkedAnswers.has(item.id));
       // Overlap with the chat's questions is checked on the first try, and again
       // only for an answer given while this saved; a question the chat adds
@@ -427,7 +454,6 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
       // are applied behind it (refineOpenAnswers below), never waited on here.
       const plan = planDraftQueue({
         drafted,
-        fillers: selected.fillers,
         pending: meanwhile.pendingQuestion,
         chatQueued: meanwhile.questions.candidates,
         historyLength: meanwhile.questions.history.length,
@@ -454,7 +480,8 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
           questions: {
             history: meanwhile?.questions.history ?? [],
             candidates: queued,
-            probes,
+            // Probes no longer pick anyone; the draft writes none.
+            probes: [],
             stopped: !pending && !waitForWords,
             briefEdits: meanwhile.questions.briefEdits,
           },
@@ -463,19 +490,14 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
         timings: {
           draftMs: Date.now() - started,
           broadPoolMs: broad.ms,
-          draftScoringMs: scoring.ms,
-          supplementAdded: supplement.termsAdded,
-          jobSupplementAdded: supplement.jobAdded,
-          supplementMs: supplement.ms,
-          firstQuestionSelectMs: selected.ms,
           questionCandidates: candidates.length,
-          questionOverlaps: JSON.stringify(selected.measured.map((item) => item.overlap)),
           ...(overlapMs ? { chatOverlapMs: overlapMs } : {}),
         },
       });
       if (session) break;
     }
     if (!session && attempts >= 8) console.warn("[role-start] draft could not be saved; the stalled-step retry writes it again", { roleId: args.roleId });
+    markSaved(Boolean(session));
     // An answer given while the draft ran can leave nothing to ask: then the
     // Brief is ready, unless words are still to be applied (that refinement tells).
     if (session && (session.pendingQuestion || (session.questions.history.length && !wordsPending(session)))) {
@@ -487,6 +509,20 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
       );
     }
     if (session) await syncChatCards(session);
+    // Titles and keywords that landed late, the grade signals and the summary
+    // follow the questions; the pool is completed after them, since criterion
+    // scores read the grade signals and the job-title top-up reads the titles.
+    if (session) {
+      runAfterResponse(async () => {
+        await finishDraftBrief({ roleId: args.roleId, titles, signals, source });
+        await completeDraftPool({ roleId: args.roleId, roleName: state.role.name }).catch((error) =>
+          console.warn("[role-start] draft pool", error)
+        );
+        // After the late titles and signals, so the verdicts are for the Brief as shown.
+        prepareWhenBriefReady(args.roleId, await loadRoleStartSession(args.roleId, { forView: true }));
+      });
+    }
+    // Follow-ups for the first question are prepared while the team reads it.
     if (session?.pendingQuestion) runAfterResponse(() => prefetchFollowUps({ roleId: args.roleId, state }));
     if (session && boxRows.length) {
       const rows = boxRows;
@@ -505,10 +541,140 @@ async function buildRoleStartDraft(args: Access, state: RoleCreationState) {
     return session;
   } catch (error) {
     console.error("[role-start] draft failed", error);
+    markSaved(false);
     await step(args.roleId, "draft", "organize", "error", "정리하지 못했어요");
     await saveRoleStartSession({ roleId: args.roleId, expectedPhase: "drafting", patch: { phase: "failed" } });
     throw error;
   }
+}
+
+type DraftTitles = { keywords: string[]; matchingTitles: string[]; nearMissTitles: string[] };
+
+/** The draft's job titles and keywords, read from the source alone; null when they could not be written (the Brief goes on without them). */
+async function writeDraftTitles(roleId: string, source: ReturnType<typeof roleSource>): Promise<DraftTitles | null> {
+  try {
+    const { data, usage } = await callRoleStartJson<DraftTitles>({
+      label: "rubric_titles",
+      model: DRAFT_MODEL,
+      reasoningEffort: DRAFT_EFFORT,
+      maxOutputTokens: 4_000,
+      schema: TITLES_SCHEMA,
+      system: buildTitlesSystemPrompt(),
+      user: `<ROLE_SOURCE>\n${formatPromptText(source)}\n</ROLE_SOURCE>`,
+    });
+    await persistUsage(roleId, [usage]);
+    return data;
+  } catch (error) {
+    console.warn("[role-start] draft titles", error);
+    return null;
+  }
+}
+
+/** The draft's titles and keywords on a Brief that has none yet; ones already there stay. */
+function withDraftTitles(brief: RoleStartBrief, titles: DraftTitles): RoleStartBrief {
+  return normalizeRoleStartBrief({
+    ...brief,
+    keywords: brief.keywords.length ? brief.keywords : titles.keywords,
+    titles: brief.titles ?? { matching: titles.matchingTitles, nearMiss: titles.nearMissTitles },
+  });
+}
+
+/**
+ * The draft criteria's grade signals, started as soon as the draft lands and
+ * saved onto it once it is in the session, without waiting for anything else.
+ * The signals lease is held meanwhile, so a Brief save in between (an answer)
+ * does not write the same signals again; it is let go right after the save,
+ * or when the draft fails. Never throws: settles once they are saved.
+ */
+async function writeDraftSignals(roleId: string, criteria: RoleStartCriterion[], saved: Promise<boolean>) {
+  const started = Date.now();
+  const lease = claimRoleStartLease(roleId, "signals", 60_000).catch(() => null);
+  try {
+    const written = await signalsFor(roleId, criteria);
+    if (written.size && (await saved)) await saveSignals(roleId, criteria, written, started);
+  } catch (error) {
+    console.warn("[role-start] draft signals", error);
+  } finally {
+    const token = await lease;
+    if (token) await releaseRoleStartLease(roleId, "signals", token).catch(() => undefined);
+  }
+  // A criterion whose call failed, or that the team changed meanwhile, is written the usual way.
+  if (await saved) await refreshRoleStartSignals(roleId).catch((error) => console.warn("[role-start] signals", error));
+}
+
+/** How long the draft's pool completion waits for titles that land after the draft. */
+const DRAFT_TITLES_WAIT_MS = 30_000;
+
+/**
+ * What the draft leaves for after its questions are on screen: titles and
+ * keywords that landed after it, the grade signals written beside it, and the
+ * summary. One awaitable step, so work that needs the finished Brief (the
+ * pool's job-title top-up, criterion scores) can follow it; titles slower than
+ * DRAFT_TITLES_WAIT_MS are still saved when they land, but not waited for.
+ */
+async function finishDraftBrief(args: { roleId: string; titles: Promise<DraftTitles | null>; signals: Promise<void>; source: ReturnType<typeof roleSource> }) {
+  const titlesSaved = args.titles.then(async (titles) => {
+    if (titles) await saveDraftTitles(args.roleId, titles).catch((error) => console.warn("[role-start] draft titles save", error));
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.all([
+    writeDraftSummary(args.roleId, args.source).catch((error) => console.warn("[role-start] draft summary", error)),
+    args.signals,
+    Promise.race([titlesSaved, new Promise<void>((resolve) => (timer = setTimeout(resolve, DRAFT_TITLES_WAIT_MS)))]).finally(() => clearTimeout(timer)),
+  ]);
+}
+
+async function saveDraftTitles(roleId: string, titles: DraftTitles) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const latest = await loadRoleStartSession(roleId);
+    if (!latest || isRoleStartEnded(latest.phase)) return;
+    const brief = withDraftTitles(latest.brief, titles);
+    // Already in it (they landed before the draft was saved): nothing to save.
+    if (JSON.stringify([brief.keywords, brief.titles]) === JSON.stringify([latest.brief.keywords, latest.brief.titles])) return;
+    const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
+    if (!saved) continue;
+    await saveRoleStartBrief({
+      roleId,
+      brief,
+      changeSource: "titles",
+      changeSummary: null,
+      userId: null,
+      writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+    });
+    return;
+  }
+}
+
+/**
+ * The draft's pending summary, from the same role text the draft read; once
+ * more if the first call failed or found another write running. A Brief
+ * changed meanwhile does not drop it (refreshRoleStartSummary rewrites it for
+ * the change), and any later Brief save that still finds it pending writes it too.
+ */
+async function writeDraftSummary(roleId: string, source: ReturnType<typeof roleSource>) {
+  for (let round = 0; round < 2; round += 1) {
+    await refreshRoleStartSummary(roleId, source);
+    const latest = await loadRoleStartSession(roleId);
+    if (!latest || latest.brief.summaryOf !== SUMMARY_PENDING || !needsSummary(latest.brief)) return;
+  }
+}
+
+/**
+ * The draft's broad pool (saved with its questions), completed after them:
+ * tool-name and job-title top-ups and criterion scores, against the Brief as it
+ * is now (an answer or edit may have changed it meanwhile). A step that ranks
+ * people before this starts completes it itself; one that ranks while it runs
+ * waits for it (readyPool).
+ */
+async function completeDraftPool(args: { roleId: string; roleName: string }) {
+  const ready = await readyPool({ roleId: args.roleId, roleName: args.roleName, brief: null });
+  if (!ready?.completed) return;
+  await mergeRoleStartTimings(args.roleId, {
+    draftScoringMs: ready.scoringMs,
+    supplementAdded: ready.completed.termsAdded,
+    jobSupplementAdded: ready.completed.jobAdded,
+    supplementMs: ready.completed.ms,
+  });
 }
 
 /**
@@ -624,67 +790,98 @@ async function writeSignals(roleId: string, options: { wait?: boolean; deadline:
   }
   try {
     const started = Date.now();
-    const { data, usage } = await callRoleStartJson<{ criteria: Array<{ id: string; signals: RoleStartCriterion["signals"] }> }>({
-      label: "criterion_signals",
-      model: ROLE_START_FAST_MODEL,
-      reasoningEffort: "low",
-      schema: SIGNALS_SCHEMA,
-      system: buildSignalsSystemPrompt(),
-      user: `<CRITERIA>\n${formatPromptText(stale.map(({ id, name, criteria }) => ({ id, name, criteria })))}\n</CRITERIA>`,
-      // Confirming waits until its deadline only; signals still missing then are
-      // written after it (the confirmed version's save asks for them again).
-      signal: options.wait ? AbortSignal.timeout(Math.max(1, options.deadline - Date.now())) : undefined,
-    });
-    await persistUsage(roleId, [usage]);
-    // Only a complete set is kept: one with an empty grade would read as stale and be written again on every save.
-    const complete = (signals: RoleStartCriterion["signals"]) =>
-      Boolean(signals?.excellent?.trim() && signals.good?.trim() && signals.uncertain?.trim() && signals.bad?.trim());
-    const written = new Map(data.criteria.filter((item) => complete(item.signals)).map((item) => [item.id, item.signals]));
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const latest = await loadRoleStartSession(roleId);
-      if (!latest || isRoleStartEnded(latest.phase)) return false;
-      let changed = false;
-      const criteria = latest.brief.criteria.map((criterion) => {
-        const was = stale.find((item) => item.id === criterion.id);
-        const signals = written.get(criterion.id ?? "");
-        // Only where the criterion still reads as it did when the signals were written.
-        if (!was || !signals || was.name !== criterion.name || was.criteria !== criterion.criteria) return criterion;
-        changed = true;
-        return { ...criterion, signals, signalsOf: signalsKey(criterion) };
-      });
-      // Nothing complete to save (or every criterion changed again): no further round now;
-      // the next save of the Brief asks again.
-      if (!changed) return false;
-      const brief = { ...latest.brief, criteria };
-      const saved = await saveRoleStartSession({
-        roleId,
-        expectedRevision: latest.revision,
-        patch: { brief },
-        timings: { signalsMs: Date.now() - started },
-      });
-      if (!saved) continue;
-      if (latest.pool) await scoreCriteria({ pool: latest.pool, criteria: brief.criteria }).catch(() => undefined);
-      await saveRoleStartBrief({
-        roleId,
-        brief,
-        changeSource: "signals",
-        changeSummary: null,
-        userId: null,
-        // Once confirmed, the saved Brief text and the criteria list carry them too.
-        // A chat-written Role's list is its own (this session copy can be older): left as it is.
-        writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
-      });
-      return true;
-    }
+    // Confirming waits until its deadline only; signals still missing then are
+    // written after it (the confirmed version's save asks for them again).
+    const written = await signalsFor(roleId, stale, options.wait ? AbortSignal.timeout(Math.max(1, options.deadline - Date.now())) : undefined);
+    return await saveSignals(roleId, stale, written, started);
   } finally {
     await releaseRoleStartLease(roleId, "signals", token);
+  }
+}
+
+type WrittenSignals = Map<string, RoleStartCriterion["signals"]>;
+
+/**
+ * Grade signals for the given criteria, one small call per criterion in
+ * parallel, so a long list does not wait on one long output. A call that
+ * fails leaves its criterion stale, written again on the next refresh.
+ */
+async function signalsFor(roleId: string, criteria: RoleStartCriterion[], signal?: AbortSignal): Promise<WrittenSignals> {
+  const usage: RoleStartLlmUsage[] = [];
+  const results = await Promise.all(
+    criteria.map(async ({ id, name, criteria: text }) => {
+      try {
+        const { data, usage: used } = await callRoleStartJson<{ criteria: Array<{ id: string; signals: RoleStartCriterion["signals"] }> }>({
+          label: "criterion_signals",
+          model: ROLE_START_FAST_MODEL,
+          reasoningEffort: "low",
+          schema: SIGNALS_SCHEMA,
+          system: buildSignalsSystemPrompt(),
+          user: `<CRITERIA>\n${formatPromptText([{ id, name, criteria: text }])}\n</CRITERIA>`,
+          signal,
+        });
+        usage.push(used);
+        return data.criteria;
+      } catch (error) {
+        console.warn("[role-start] criterion signals", error);
+        return [];
+      }
+    })
+  );
+  if (usage.length) await persistUsage(roleId, usage);
+  // Only a complete set is kept: one with an empty grade would read as stale and be written again on every save.
+  const complete = (signals: RoleStartCriterion["signals"]) =>
+    Boolean(signals?.excellent?.trim() && signals.good?.trim() && signals.uncertain?.trim() && signals.bad?.trim());
+  return new Map(results.flat().filter((item) => complete(item.signals)).map((item) => [item.id, item.signals]));
+}
+
+/** Signals written for `stale` saved onto the latest Brief; false when nothing could be saved now. */
+async function saveSignals(roleId: string, stale: RoleStartCriterion[], written: WrittenSignals, started: number) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const latest = await loadRoleStartSession(roleId);
+    if (!latest || isRoleStartEnded(latest.phase)) return false;
+    let changed = false;
+    const criteria = latest.brief.criteria.map((criterion) => {
+      const was = stale.find((item) => item.id === criterion.id);
+      const signals = written.get(criterion.id ?? "");
+      // Only where the criterion still reads as it did when the signals were written.
+      if (!was || !signals || was.name !== criterion.name || was.criteria !== criterion.criteria) return criterion;
+      changed = true;
+      return { ...criterion, signals, signalsOf: signalsKey(criterion) };
+    });
+    // Nothing complete to save (or every criterion changed again): no further round now;
+    // the next save of the Brief asks again.
+    if (!changed) return false;
+    const brief = { ...latest.brief, criteria };
+    const saved = await saveRoleStartSession({
+      roleId,
+      expectedRevision: latest.revision,
+      patch: { brief },
+      timings: { signalsMs: Date.now() - started },
+    });
+    if (!saved) continue;
+    await saveRoleStartBrief({
+      roleId,
+      brief,
+      changeSource: "signals",
+      changeSummary: null,
+      userId: null,
+      // Once confirmed, the saved Brief text and the criteria list carry them too.
+      // A chat-written Role's list is its own (this session copy can be older): left as it is.
+      writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
+    });
+    // New signals change the verdicts' Brief: the first three are prepared for it (nothing to do when they match).
+    prepareWhenBriefReady(roleId, saved);
+    return true;
   }
   return true;
 }
 
 // Every Brief version saved by any path: fresh signals in the background when a criterion's text changed,
-// and a fresh summary when the conditions or criteria it recaps changed.
-onBriefSaved((roleId, brief) => {
+// and a fresh summary when the conditions or criteria it recaps changed. The draft's own save is left to
+// the draft, which writes both itself (writeDraftSignals, writeDraftSummary).
+onBriefSaved((roleId, brief, changeSource) => {
+  if (changeSource === "jd_draft") return;
   if (brief.criteria.some(needsSignals)) runAfterResponse(() => refreshRoleStartSignals(roleId));
   if (needsSummary(brief)) runAfterResponse(() => refreshRoleStartSummary(roleId).catch((error) => console.warn("[role-start] summary", error)));
 });
@@ -694,9 +891,10 @@ onBriefSaved((roleId, brief) => {
  * path (and the team did not write the summary themselves), one small call
  * rewrites only the summary, in the background, like the grade signals.
  */
-export async function refreshRoleStartSummary(roleId: string) {
+export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnType<typeof roleSource>) {
   const session = await loadRoleStartSession(roleId);
   if (!session || session.phase === "drafting" || isRoleStartEnded(session.phase) || !needsSummary(session.brief)) return;
+  const pending = session.brief.summaryOf === SUMMARY_PENDING;
   // A Brief from before summaries followed the criteria: its summary (maybe the team's own) is kept and only stamped.
   if (!session.brief.summaryOf) {
     await saveRoleStartSession({ roleId, expectedRevision: session.revision, patch: { brief: { ...session.brief, summaryOf: summaryKey(session.brief) } } });
@@ -704,24 +902,36 @@ export async function refreshRoleStartSummary(roleId: string) {
   }
   const token = await claimRoleStartLease(roleId, "summary", 60_000);
   if (!token) return;
+  // A pending summary saved over a Brief changed meanwhile: written once more for the Brief as it is.
+  let followUp = false;
   try {
     const key = summaryKey(session.brief);
+    // The draft's first summary has no summary to keep the work from: it reads the
+    // role's own text, as the draft read it (passed by the draft and confirming) or
+    // from the Role, so any later save that finds it pending writes it too.
+    const source = pending
+      ? roleText
+        ? { name: roleText.name, description: roleText.description, hiringBrief: roleText.hiringBrief }
+        : await summaryRoleText(roleId)
+      : null;
+    if (pending && !source) return;
     const { data, usage } = await callRoleStartJson<{ summary: string }>({
       label: "brief_summary",
       model: ROLE_START_FAST_MODEL,
       reasoningEffort: "low",
       schema: SUMMARY_SCHEMA,
-      system: buildSummarySystemPrompt(),
-      user: `<CURRENT_BRIEF>\n${formatPromptText(briefForModel(session.brief))}\n</CURRENT_BRIEF>`,
+      system: buildSummarySystemPrompt({ fromSource: Boolean(source) }),
+      user: `<CURRENT_BRIEF>\n${formatPromptText(briefForModel(session.brief))}\n</CURRENT_BRIEF>${
+        source ? `\n<ROLE_SOURCE>\n${formatPromptText(source)}\n</ROLE_SOURCE>` : ""
+      }`,
     });
     await persistUsage(roleId, [usage]);
     const summary = String(data.summary ?? "").trim().slice(0, 4_000);
     if (!summary) return;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const latest = await loadRoleStartSession(roleId);
-      // Only for the conditions and criteria it was written for, and over a summary nobody edited meanwhile.
-      if (!latest || isRoleStartEnded(latest.phase) || summaryKey(latest.brief) !== key || latest.brief.summary !== session.brief.summary) return;
-      const brief = { ...latest.brief, summary, summaryOf: key };
+      const brief = latest && !isRoleStartEnded(latest.phase) ? summaryToSave({ written: session.brief, summary, latest: latest.brief }) : null;
+      if (!latest || !brief) return;
       const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
       if (!saved) continue;
       await saveRoleStartBrief({
@@ -732,11 +942,35 @@ export async function refreshRoleStartSummary(roleId: string) {
         userId: null,
         writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
       });
-      return;
+      followUp = summaryKey(latest.brief) !== key;
+      break;
     }
   } finally {
     await releaseRoleStartLease(roleId, "summary", token);
   }
+  // After the lease is let go, so this second write is not refused by the first's lease.
+  if (followUp) await refreshRoleStartSummary(roleId);
+}
+
+/** The role's own text a pending summary is written from, read from the Role. */
+async function summaryRoleText(roleId: string) {
+  const [row] = await roleStartSql()<Array<{ name: string | null; description: string | null; request: string | null }>>`
+    select r.name, r.description, i.request
+    from public.company_roles r
+    left join public.company_internal_roles i on i.role_id = r.role_id
+    where r.role_id = ${roleId}
+  `;
+  return row ? { name: row.name, description: row.description, hiringBrief: row.request } : null;
+}
+
+/**
+ * Confirming saves against the session as it reads it: a summary rewrite
+ * already running is waited for until it is saved (20 s at most), so its save
+ * does not land between confirm's read and its own save. Confirm never starts one.
+ */
+async function waitForRoleStartSummary(roleId: string) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline && (await roleStartLeaseHeld(roleId, "summary"))) await sleep(500);
 }
 
 const REFINE_LEASE_MS = 120_000;
@@ -769,26 +1003,25 @@ export async function refineInOrder(args: { roleId: string; state: RoleCreationS
           await releaseRoleStartLease(args.roleId, "refine", token);
           return;
         }
+        const answered = session.questions.history[args.seq - 1];
+        // Only words wait in line: a chip is already in the Brief, so its turn
+        // passes at once and confirming never waits for it.
+        const words = Boolean(answered?.answer?.text);
+        const refine = answered ? refineArgs(args, answered) : null;
         try {
-          const answered = session.questions.history[args.seq - 1];
-          // A prepared answer still needs its words applied to the Brief. On the
-          // Brief screen, an answer without words has nothing left to apply.
-          const words = Boolean(answered?.answer?.text);
-          if (answered && (words || (!answered.answer?.prepared && session.phase !== "review"))) {
-            const chip = answered.chips.find((item) => item.id === answered.answer?.chipId);
-            await refineAfterAnswer({
-              roleId: args.roleId,
-              state: args.state,
-              userId: args.userId,
-              answerId: answered.id,
-              freeText: answered.answer?.text ?? null,
-              reason: `질문 '${answered.question}'에 대한 답${chip ? `: ${chip.label}` : ""}`,
-              surface: answered.answer?.surface ?? "web",
-            });
-          }
+          if (refine && words) await refineAfterAnswer({ ...refine, part: "reflect" });
         } finally {
           await markRoleStartRefined(args.roleId, args.seq);
           await releaseRoleStartLease(args.roleId, "refine", token);
+        }
+        // The next questions after the Brief part, outside the line. A prepared
+        // chip answer already has them; on the Brief screen the questions are over
+        // and none are written (a save there would only race the confirm).
+        const after = await loadRoleStartSession(args.roleId, { forView: true });
+        // The last answer is in behind the Brief screen: start the first three now.
+        prepareWhenBriefReady(args.roleId, after);
+        if (refine && after && after.phase !== "review" && (words || !answered!.answer?.prepared)) {
+          await refineAfterAnswer({ ...refine, part: "questions" });
         }
         return;
       }
@@ -796,6 +1029,20 @@ export async function refineInOrder(args: { roleId: string; state: RoleCreationS
     await sleep(500);
   }
   console.warn("[role-start] refinement waited too long for an earlier answer", { roleId: args.roleId, seq: args.seq });
+}
+
+/** What refineAfterAnswer needs for one answered question. */
+function refineArgs(args: { roleId: string; state: RoleCreationState; userId: string }, answered: RoleStartQuestion) {
+  const chip = answered.chips.find((item) => item.id === answered.answer?.chipId);
+  return {
+    roleId: args.roleId,
+    state: args.state,
+    userId: args.userId,
+    answerId: answered.id,
+    freeText: answered.answer?.text ?? null,
+    reason: `질문 '${answered.question}'에 대한 답${chip ? `: ${chip.label}` : ""}`,
+    surface: answered.answer?.surface ?? ("web" as const),
+  };
 }
 
 /** Waits until every answer so far is refined, e.g. before the Brief is confirmed. */
@@ -808,12 +1055,25 @@ export async function waitForRoleStartRefinements(roleId: string, timeoutMs = RE
   }
 }
 
-/** Stalled-step retry for answers: refine every unrefined answer in order. */
+/**
+ * Stalled-step retry for answers: refine every unrefined answer in order,
+ * then fill a slot still empty (the last answer's questions part was lost).
+ */
 export async function continueRoleStartRefinements(args: Access) {
   const state = await access(args);
   const session = await loadRoleStartSession(args.roleId, { forView: true });
   if (!session) return;
   await refineOpenAnswers({ roleId: args.roleId, state, userId: args.user.id, from: session.refinedAnswers + 1, to: session.questions.history.length });
+  const after = await loadRoleStartSession(args.roleId, { forView: true });
+  if (!after || after.phase !== "questions" || after.pendingQuestion || after.refinedAnswers < after.questions.history.length) return;
+  const last = after.questions.history.at(-1);
+  // Words, or a chip without prepared follow-ups: write its questions part again
+  // (it fills the slot, or fillEmptySlot does on failure). Otherwise the queue has them.
+  if (last && (last.answer?.text || !last.answer?.prepared)) {
+    await refineAfterAnswer({ ...refineArgs({ roleId: args.roleId, state, userId: args.user.id }, last), part: "questions" });
+  } else {
+    await fillEmptySlot(args.roleId, state);
+  }
 }
 
 /** Refines answers in order; stops at one that could not be refined, so a stuck answer is waited on once. */
@@ -1000,9 +1260,12 @@ export async function answerRoleStartQuestion(
 }
 
 /**
- * Background, in answer order: apply a free-text answer to the Brief (then
- * replay chips answered meanwhile), rescore changed criteria, and refresh the
- * candidate questions. Fills the open slot if the team is waiting for one.
+ * Background work for one answer, in two parts. "reflect" (words only, in
+ * answer order): apply the words to the Brief, replay chips answered
+ * meanwhile and rescore changed criteria. "questions": refresh the candidate
+ * questions from the Brief as it is now. Only the questions part fills the
+ * open slot if the team is waiting for one: with the follow-ups added and
+ * settled questions dropped, so the reflect part never ends the questions early.
  */
 async function refineAfterAnswer(args: {
   roleId: string;
@@ -1012,6 +1275,7 @@ async function refineAfterAnswer(args: {
   freeText: string | null;
   reason: string;
   surface: "web" | "slack";
+  part: "reflect" | "questions";
 }) {
   const started = Date.now();
   // Words applied to a Brief that someone else changed meanwhile are applied
@@ -1024,60 +1288,103 @@ async function refineAfterAnswer(args: {
       if (result !== "stale") return;
     } catch (error) {
       console.error("[role-start] refine failed", error);
-      if (args.freeText) await askAgainAfterFailedRefine(args.roleId, args.answerId, args.state);
+      if (args.part === "reflect") await askAgainAfterFailedRefine(args.roleId, args.answerId, args.state);
       else await fillEmptySlot(args.roleId, args.state);
       return;
     }
   }
-  if (args.freeText) await askAgainAfterFailedRefine(args.roleId, args.answerId, args.state);
+  if (args.part === "reflect") await askAgainAfterFailedRefine(args.roleId, args.answerId, args.state);
   else await fillEmptySlot(args.roleId, args.state);
 }
 
 async function refineOnce(args: Parameters<typeof refineAfterAnswer>[0] & { started: number }) {
   const { started } = args;
+  const reflect = args.part === "reflect";
   const session = await loadRoleStartSession(args.roleId);
   if (!session || !["questions", "review"].includes(session.phase)) return;
   // Brief changes made outside answers after this read mean the words must be applied again.
   const baseEdits = session.questions.briefEdits ?? 0;
   const answerIndex = session.questions.history.findIndex((item) => item.id === args.answerId);
   const baseBrief = session.brief;
-  // A chip answer is already in the Brief: only the next questions are asked for.
-  const { data, usage } = await callRoleStartJson<{
-    brief?: RawBrief;
-    appliedSummary?: string;
-    probes: RawProbe[];
-    questions: RawQuestion[];
-  }>({
-    label: "next_questions",
-    model: ROLE_START_FAST_MODEL,
-    reasoningEffort: "low",
-    schema: args.freeText ? NEXT_QUESTIONS_SCHEMA : NEXT_QUESTIONS_ONLY_SCHEMA,
-    system: args.freeText ? buildNextQuestionsSystemPrompt() : buildNextQuestionsOnlySystemPrompt(),
-    user: `<ROLE_SOURCE>\n${formatPromptText(roleSource(args.state))}\n</ROLE_SOURCE>
+  const user = `<ROLE_SOURCE>\n${formatPromptText(roleSource(args.state))}\n</ROLE_SOURCE>
 <CURRENT_BRIEF>\n${formatPromptText(briefForModel(baseBrief))}\n</CURRENT_BRIEF>
 <ANSWERED_QUESTIONS>\n${formatPromptText(
-      session.questions.history.map((item) => ({
-        question: item.question,
-        status: item.status,
-        chip: item.chips.find((c) => c.id === item.answer?.chipId)?.label ?? null,
-        freeText: item.answer?.text ?? null,
-      }))
-    )}\n</ANSWERED_QUESTIONS>
+    session.questions.history.map((item) => ({
+      question: item.question,
+      status: item.status,
+      chip: item.chips.find((c) => c.id === item.answer?.chipId)?.label ?? null,
+      freeText: item.answer?.text ?? null,
+    }))
+  )}\n</ANSWERED_QUESTIONS>`;
+  const data: { brief?: RawBrief; appliedSummary?: string; probes: RawProbe[]; questions: RawQuestion[] } = reflect
+    ? {
+        ...(await reflectAnswer({
+          roleId: args.roleId,
+          baseBrief,
+          user: `${user}
+<LATEST_FREE_TEXT_TO_APPLY>${args.freeText}</LATEST_FREE_TEXT_TO_APPLY>`,
+        })),
+        probes: [],
+        questions: [],
+      }
+    : await (async () => {
+        // The answer is already in the Brief (a chip, or words reflected first): only the next questions.
+        const { data: next, usage } = await callRoleStartJson<{ probes: RawProbe[]; questions: RawQuestion[] }>({
+          label: "next_questions",
+          model: ROLE_START_FAST_MODEL,
+          reasoningEffort: "low",
+          schema: NEXT_QUESTIONS_ONLY_SCHEMA,
+          system: buildNextQuestionsOnlySystemPrompt(),
+          user: `${user}
 <ALREADY_SHOWN_NEXT>${formatPromptText(
-      [session.pendingQuestion, ...session.questions.candidates].filter(Boolean).map((item) => item!.question)
-    )}</ALREADY_SHOWN_NEXT>
-${args.freeText ? `<LATEST_FREE_TEXT_TO_APPLY>${args.freeText}</LATEST_FREE_TEXT_TO_APPLY>` : ""}`,
-  });
-  await persistUsage(args.roleId, [usage]);
-  const pool = await ensurePool({ roleId: args.roleId, roleName: args.state.role.name, brief: baseBrief, session });
-  const result = await applyRefinement({ ...args, data, baseBrief, baseEdits, answerIndex, pool, started });
+            [session.pendingQuestion, ...session.questions.candidates].filter(Boolean).map((item) => item!.question)
+          )}</ALREADY_SHOWN_NEXT>`,
+        });
+        await persistUsage(args.roleId, [usage]);
+        return next;
+      })();
+  const result = await applyRefinement({ ...args, data, baseBrief, baseEdits, answerIndex, started });
   if (!result || result === "stale") return result;
+  // Changed criteria are scored after the answer counts as refined, so
+  // confirming waits only for the Brief (later ranking fills in what is missing).
+  if (reflect) runAfterResponse(() => scoreRefinedCriteria(args.roleId, args.state));
   // The words are in from here on: a failure below must not ask the question again.
   try {
     await afterRefinement(args, result);
   } catch (error) {
     console.error("[role-start] after refinement", error);
   }
+}
+
+/**
+ * The words as changes to the Brief, applied here as the same full Brief a
+ * whole rewrite would give (the rewrite took 12-18 s for 2k tokens). A patch
+ * that names an unknown criterion or is malformed is never guessed at: that
+ * answer is reflected once more the old way, as the whole Brief.
+ */
+async function reflectAnswer(args: { roleId: string; baseBrief: RoleStartBrief; user: string }) {
+  const { data: patch, usage } = await callRoleStartJson<ReflectPatch>({
+    label: "answer_reflect",
+    model: ROLE_START_FAST_MODEL,
+    reasoningEffort: "low",
+    schema: buildReflectPatchSchema(args.baseBrief.criteria.flatMap((criterion) => (criterion.id ? [criterion.id] : []))),
+    system: buildReflectPatchSystemPrompt(),
+    user: args.user,
+  });
+  await persistUsage(args.roleId, [usage]);
+  const applied = rawBriefFromPatch(args.baseBrief, patch);
+  if (applied.ok) return { brief: applied.raw, appliedSummary: patch.appliedSummary };
+  console.warn("[role-start] reflect patch not applicable; rewriting the whole Brief", { roleId: args.roleId, error: applied.error });
+  const { data: reflected, usage: fullUsage } = await callRoleStartJson<{ brief: RawBrief; appliedSummary: string }>({
+    label: "answer_reflect_full",
+    model: ROLE_START_FAST_MODEL,
+    reasoningEffort: "low",
+    schema: REFLECT_SCHEMA,
+    system: buildReflectSystemPrompt(),
+    user: args.user,
+  });
+  await persistUsage(args.roleId, [fullUsage]);
+  return reflected;
 }
 
 async function afterRefinement(
@@ -1102,12 +1409,19 @@ async function afterRefinement(
       state: args.state,
     }).catch(() => undefined);
     await syncChatCards(saved);
-  } else if (saved.phase === "review" && args.freeText && lastWords(saved)?.id === args.answerId) {
+    // The queue ran out: the Brief screen comes next.
+    prepareWhenBriefReady(args.roleId, saved);
+  } else if (saved.phase === "review" && args.part === "reflect" && lastWords(saved)?.id === args.answerId) {
     // The last answer's words landed behind the Brief screen: the Brief is ready now.
     void notifyRoleStartSlack({ kind: "brief_ready", session: saved, state: args.state }).catch(() => undefined);
   }
   // Outside the refine lease, so the next answer's refinement does not wait for it.
   if (saved.pendingQuestion) runAfterResponse(() => prefetchFollowUps({ roleId: args.roleId, state: args.state }));
+}
+
+/** Scores the pool for the Brief's criteria after words changed them and saves it. */
+async function scoreRefinedCriteria(roleId: string, state: RoleCreationState) {
+  await readyPool({ roleId, roleName: state.role.name, brief: null });
 }
 
 const REFINE_SAVE_ATTEMPTS = 3;
@@ -1125,12 +1439,13 @@ export async function applyRefinement(args: {
   answerId: string;
   freeText: string | null;
   reason: string;
+  /** "reflect": the words into the Brief (queue kept); "questions": the queue refreshed (Brief kept). */
+  part: "reflect" | "questions";
   data: { brief?: RawBrief; appliedSummary?: string; probes: RawProbe[]; questions: RawQuestion[] };
   baseBrief: RoleStartBrief;
   /** questions.briefEdits when baseBrief was read; a later edit makes the words stale. */
   baseEdits?: number;
   answerIndex: number;
-  pool: RoleStartPool;
   started: number;
   /** Test hook: runs right before each save attempt. */
   beforeSave?: (attempt: number) => Promise<void>;
@@ -1141,7 +1456,7 @@ export async function applyRefinement(args: {
   const settledCache = new Map<string, boolean>();
   const settledByAnswer = async (latest: RoleStartSession) => {
     const answered = latest.questions.history[args.answerIndex];
-    const answer = args.freeText && answered ? settlingAnswer(answered) : null;
+    const answer = args.part === "questions" && args.freeText && answered ? settlingAnswer(answered) : null;
     if (!answered || !answer) return new Set<string>();
     const unknown = latest.questions.candidates.filter((item) => !isChatQuestion(item) && !settledCache.has(item.id));
     if (unknown.length) {
@@ -1160,34 +1475,44 @@ export async function applyRefinement(args: {
   for (let attempt = 0; attempt < REFINE_SAVE_ATTEMPTS; attempt += 1) {
     const latest = await loadRoleStartSession(args.roleId);
     if (!latest || !["questions", "review"].includes(latest.phase)) return null;
+    // Behind the Brief screen there are no more questions to write: nothing to save.
+    if (args.part === "questions" && latest.phase === "review") return null;
     let brief = latest.brief;
     let appliedSummary: string | null = null;
-    if (args.freeText) {
+    if (args.part === "reflect") {
       if (args.baseEdits !== undefined && (latest.questions.briefEdits ?? 0) !== args.baseEdits) return "stale" as const;
-      // Words are always asked for with the full schema, so the Brief is there.
+      // The Brief part is asked for with the Brief schema, so the Brief is there.
       // The words win over earlier choices; chips answered after that are replayed.
-      brief = replayLaterChips({
-        rewritten: briefFromRaw(args.data.brief!, args.baseBrief, args.reason),
-        history: latest.questions.history,
-        answerIndex: args.answerIndex,
-      });
+      // What the answer left as it was takes what background work wrote meanwhile
+      // (the draft's grade signals, summary and job titles).
+      brief = withLatestBackground(
+        replayLaterChips({
+          rewritten: briefFromRaw(args.data.brief!, args.baseBrief, args.reason),
+          history: latest.questions.history,
+          answerIndex: args.answerIndex,
+        }),
+        latest.brief,
+        args.baseBrief,
+        { blankSummaryFromLatest: true }
+      );
       appliedSummary = args.data.appliedSummary || null;
     }
-    await scoreCriteria({ pool: args.pool, criteria: brief.criteria });
     // Questions already queued are chosen again with the new ones, not replaced
     // by them; Harper's own questions from the chat stay queued as they are.
     // Behind the Brief screen the questions are over: the queue stays as it is.
-    // Queued questions this answer settled are dropped (never asked, never counted).
+    // The Brief part keeps the queue; the questions part drops queued questions
+    // this answer settled (never asked, never counted).
     const ranked =
-      latest.phase === "review"
+      latest.phase === "review" || args.part === "reflect"
         ? latest.questions.candidates
         : withoutSettled(
             ...(await Promise.all([
-              rankedAfterAnswer(args, latest, brief, (filled ??= questionsWithChips(args.roleId, args.data.questions))),
+              rankedAfterAnswer(latest, (filled ??= questionsWithChips(args.roleId, args.data.questions))),
               settledByAnswer(latest),
             ]))
           );
-    const fillSlot = latest.phase === "questions" && !latest.pendingQuestion;
+    // Only the questions part fills an empty slot, from the refreshed queue.
+    const fillSlot = args.part === "questions" && latest.phase === "questions" && !latest.pendingQuestion;
     const nextQuestion: RoleStartQuestion | null =
       fillSlot && roomForAnotherQuestion(latest.questions.history.length) && ranked[0]
         ? { overlap: null, ...ranked[0], status: "pending", askedAt: new Date().toISOString() }
@@ -1203,8 +1528,7 @@ export async function applyRefinement(args: {
       roleId: args.roleId,
       expectedRevision: latest.revision,
       patch: {
-        brief,
-        pool: args.pool,
+        ...(args.part === "reflect" ? { brief } : {}),
         ...(fillSlot
           ? { pendingQuestion: nextQuestion, phase: (nextQuestion ? "questions" : "review") as RoleStartPhase }
           : {}),
@@ -1217,25 +1541,26 @@ export async function applyRefinement(args: {
           }),
           probes: probes.length ? probes : latest.questions.probes,
           // Follow-ups prepared before the team's words were applied are stale.
-          ...(appliedSummary || args.freeText ? { speculative: null } : {}),
+          ...(args.part === "reflect" ? { speculative: null } : {}),
           stopped: fillSlot && !nextQuestion,
         },
       },
-      timings: { [`refine${args.answerIndex + 1}Ms`]: Date.now() - args.started, [`refine${args.answerIndex + 1}Attempts`]: attempt + 1 },
+      timings: {
+        [`${args.part === "reflect" ? "refine" : "questions"}${args.answerIndex + 1}Ms`]: Date.now() - args.started,
+        [`${args.part === "reflect" ? "refine" : "questions"}${args.answerIndex + 1}Attempts`]: attempt + 1,
+      },
     });
     if (saved) return { saved, brief, appliedSummary, fillSlot, nextQuestion };
     console.warn("[role-start] refine lost a race; applying the answer again", { attempt: attempt + 1 });
   }
-  // Every save lost a race: words are asked again; a chip answer's empty slot is filled.
-  if (args.freeText) await askAgainAfterFailedRefine(args.roleId, args.answerId, args.state);
+  // Every save lost a race: words are asked again; otherwise an empty slot is filled.
+  if (args.part === "reflect") await askAgainAfterFailedRefine(args.roleId, args.answerId, args.state);
   else await fillEmptySlot(args.roleId, args.state);
   return null;
 }
 
 async function rankedAfterAnswer(
-  args: { roleId: string; state: RoleCreationState; data: { questions: RawQuestion[] }; pool: RoleStartPool },
   latest: RoleStartSession,
-  brief: RoleStartBrief,
   /** The new questions with chips filled once for this answer; a save retry reuses them. */
   filled: ReturnType<typeof questionsWithChips>
 ) {
@@ -1243,11 +1568,8 @@ async function rankedAfterAnswer(
   const draftedQueued = latest.questions.candidates.filter((item) => !isChatQuestion(item));
   const freshCandidates = await filled;
   const known = new Set(draftedQueued.map((item) => item.question.trim()));
-  const fresh = await selectNextQuestion({
-    roleId: args.roleId,
-    roleName: args.state.role.name,
-    brief,
-    pool: args.pool,
+  // The model's new questions go after the ones already queued.
+  const fresh = selectNextQuestion({
     candidates: [...draftedQueued, ...freshCandidates.filter((item) => !known.has(item.question.trim()))],
     // Questions on screen or queued from the chat count toward the minimum like answered ones.
     askedCount: latest.questions.history.length + (latest.pendingQuestion ? 1 : 0) + chatQueued.length,
@@ -1272,6 +1594,7 @@ async function fillEmptySlot(roleId: string, state: RoleCreationState) {
     if (!saved) continue;
     void notifyRoleStartSlack({ kind: next ? "question" : "brief_ready", session: saved, state }).catch(() => undefined);
     await syncChatCards(saved).catch((error) => console.warn("[role-start] chat card after a failed refinement", error));
+    if (!next) prepareWhenBriefReady(roleId, saved);
     return;
   }
 }
@@ -1344,13 +1667,12 @@ async function prefetchFollowUps(args: { roleId: string; state: RoleCreationStat
   const token = await claimRoleStartLease(args.roleId, lease, 180_000);
   if (!token) return;
   try {
-    const pool = await ensurePool({ roleId: args.roleId, roleName: args.state.role.name, brief: session.brief, session });
     const options = [
       ...question.chips.map((chip) => ({ key: chip.id, chip })),
       { key: "skip", chip: null as RoleStartChip | null },
     ].slice(0, PREFETCH_MAX_OPTIONS);
     const usage: RoleStartLlmUsage[] = [];
-    // Model calls in parallel; ranking runs one at a time on the shared pool.
+    // Model calls in parallel.
     const drafted = await Promise.all(
       options.map(async ({ key, chip }) => {
         try {
@@ -1393,11 +1715,7 @@ async function prefetchFollowUps(args: { roleId: string; state: RoleCreationStat
       if (!item) continue;
       const fresh = await questionsWithChips(args.roleId, item.data.questions);
       const known = new Set(draftedQueued.map((entry) => entry.question.trim()));
-      const selected = await selectNextQuestion({
-        roleId: args.roleId,
-        roleName: args.state.role.name,
-        brief: item.brief,
-        pool,
+      const selected = selectNextQuestion({
         candidates: [...draftedQueued, ...fresh.filter((entry) => !known.has(entry.question.trim()))],
         askedCount: item.askedCount + chatQueued,
       });
@@ -1437,6 +1755,8 @@ export async function finishRoleStartQuestions(args: Access) {
     }).catch((error) => console.warn("[role-start] close card", error));
   }
   if (saved) await syncChatCards(saved);
+  // Words still being applied start it from their refinement instead.
+  prepareWhenBriefReady(args.roleId, saved);
   return saved;
 }
 
@@ -2048,17 +2368,25 @@ export async function applyRoleInfoToRoleStart(args: Access & { fields: RoleInfo
   }
 }
 
-/** The broad pool, reused while fresh; rebuilt from the current Brief otherwise. */
+type PoolCompletion = Awaited<ReturnType<typeof completePool>>;
+
+/**
+ * The broad pool, reused while fresh (completed first if it is not yet:
+ * timings.completeMs unset); rebuilt from the current Brief otherwise.
+ */
 async function ensurePool(args: {
   roleId: string;
   roleName: string;
   brief: RoleStartBrief;
-  session: RoleStartSession;
-}): Promise<RoleStartPool> {
-  const pool = args.session.pool;
+  pool: RoleStartPool | null;
+}): Promise<{ pool: RoleStartPool; completed: PoolCompletion | null }> {
+  const pool = args.pool;
   if (pool && Array.isArray(pool.members) && Date.now() - Date.parse(pool.builtAt) < ROLE_START_POOL_TTL_MS) {
+    if (pool.timings?.completeMs == null) {
+      return { pool, completed: await completePool({ pool, roleId: args.roleId, brief: args.brief }) };
+    }
     await ensureJobScores({ pool, brief: args.brief });
-    return pool;
+    return { pool, completed: null };
   }
   // Same text as the first pool (the JD), so the first three and the first
   // batch are drawn from candidates found the same way.
@@ -2072,7 +2400,7 @@ async function ensurePool(args: {
     queryText: pool?.queryText ?? jdQueryText({ roleName: args.roleName, description: role?.description ?? null }),
     excludeIds: [],
   });
-  await completePool({ pool: rebuilt, roleId: args.roleId, brief: args.brief });
+  const completed = await completePool({ pool: rebuilt, roleId: args.roleId, brief: args.brief });
   if (pool && Array.isArray(pool.members) && pool.scores) {
     // Only people who are new or whose profile changed since the last pool
     // are scored again; the others keep their criterion scores.
@@ -2095,9 +2423,69 @@ async function ensurePool(args: {
     }
     rebuilt.timings.carriedScores = common.length - changed.size;
   }
-  return rebuilt;
+  return { pool: rebuilt, completed };
 }
 
+/** One step at a time completes, scores or rebuilds the stored pool (across servers). */
+const POOL_LEASE = "pool";
+const POOL_LEASE_MS = 180_000;
+/** How long a step waits for another's pool work before doing it itself (that one may have died). */
+const POOL_WAIT_MS = 90_000;
+const PAST_REVIEW = (phase: string | undefined) => !phase || !["questions", "review"].includes(phase);
+
+/** Confirming waits less for it: the holder is usually background work that stops once confirmed. */
+const POOL_CONFIRM_WAIT_MS = 10_000;
+
+/**
+ * The stored pool, fresh, complete and scored for the Brief's criteria, saved
+ * for reuse (saveRoleStartPool, not the session). Under the pool lease, so a
+ * step that finds another completing or scoring it waits for that (bounded)
+ * and then finds the work done, instead of doing the same work beside it.
+ * brief null: background work for the latest Brief, which stops once the
+ * session is past the review (null then). stored: the pool saved is this one.
+ */
+async function readyPool(args: { roleId: string; roleName: string; brief: RoleStartBrief | null; waitMs?: number }) {
+  const until = Date.now() + (args.waitMs ?? POOL_WAIT_MS);
+  let token: string | null = null;
+  while (!(token = await claimRoleStartLease(args.roleId, POOL_LEASE, POOL_LEASE_MS)) && Date.now() < until) {
+    await sleep(500);
+    while ((await roleStartLeaseHeld(args.roleId, POOL_LEASE)) && Date.now() < until) await sleep(500);
+  }
+  try {
+    let brief = args.brief;
+    if (!brief) {
+      const latest = await loadRoleStartSession(args.roleId);
+      if (PAST_REVIEW(latest?.phase)) return null;
+      brief = latest!.brief;
+    }
+    const before = await loadRoleStartPool(args.roleId);
+    const { pool, completed } = await ensurePool({ roleId: args.roleId, roleName: args.roleName, brief, pool: before });
+    const save = () => saveRoleStartPool(args.roleId, pool, before?.builtAt ?? null);
+    // Confirmed while this completed the pool (checked right before scoring):
+    // kept, and the first three score it themselves.
+    if (!args.brief && PAST_REVIEW((await loadRoleStartSession(args.roleId))?.phase)) {
+      await save();
+      return null;
+    }
+    const scoring = await scoreCriteria({ pool, criteria: brief.criteria });
+    return { pool, completed, scoringMs: scoring.ms, stored: await save() };
+  } finally {
+    if (token) await releaseRoleStartLease(args.roleId, POOL_LEASE, token);
+  }
+}
+
+
+/**
+ * readyPool for picking the first three: a pool whose save was refused (a
+ * newer or completed one was stored meanwhile) is not the one confirming will
+ * find, so the three are picked again from the stored latest pool.
+ */
+async function readyPickPool(args: { roleId: string; roleName: string; brief: RoleStartBrief; waitMs?: number }) {
+  const ready = (await readyPool(args))!;
+  if (ready.stored) return ready;
+  console.warn("[role-start] pool save refused; picking from the stored pool", { roleId: args.roleId });
+  return (await readyPool(args))!;
+}
 
 /**
  * Brief review: pick the first three from the current Brief and write their
@@ -2116,14 +2504,30 @@ export async function prepareRoleStartFirstThree(roleId: string) {
   try {
     const sql = roleStartSql();
     const role = (await sql<Array<{ name: string }>>`select name from public.company_roles where role_id = ${roleId}`)[0];
-    const pool = await ensurePool({ roleId, roleName: role?.name ?? "", brief: session.brief, session });
-    await scoreCriteria({ pool, criteria: session.brief.criteria });
+    // Waits for a completion or scoring in progress (the draft's, an answer's) instead of doing it again.
+    const { pool, stored } = await readyPickPool({ roleId, roleName: role?.name ?? "", brief: session.brief });
     const { ranked } = rankPool({ pool, brief: session.brief, excludeIds: referenceTalentIds(session.brief) });
-    const picked = pickFirstThree({ ranked, probes: session.questions.probes, criteria: session.brief.criteria });
-    await saveRoleStartSession({ roleId, expectedPhase: "review", patch: { pool }, timings: { prewarmMs: Date.now() - started } });
+    const picked = pickFirstThree({ ranked });
+    const pickedIds = picked.map((member) => member.talentId);
+    const [, profiles, evidence] = await Promise.all([
+      mergeRoleStartTimings(roleId, { prewarmMs: Date.now() - started }),
+      loadRoleStartProfiles(pickedIds),
+      shownEvidence(pickedIds, session.brief, pool),
+    ]);
+    // Confirming this Brief shows these people without ranking again (pickFirstThreeForBrief),
+    // only while the stored pool is the complete one they were picked from.
+    if (stored) {
+      await savePreparedPick(roleId, {
+        briefHash: firstThreeKey(session!.brief),
+        poolBuiltAt: pool.builtAt,
+        passing: ranked.filter((member) => member.passesMust).length,
+        candidates: picked.map((member) =>
+          candidateFromRanked(member, session!.brief, profiles.get(member.talentId), evidence.get(member.talentId))
+        ),
+      });
+    }
     const missing = picked.filter((member) => session!.prepared.entries[member.talentId]?.briefHash !== hash);
     if (!missing.length) return;
-    const profiles = await loadRoleStartProfiles(missing.map((member) => member.talentId));
     const usage: RoleStartLlmUsage[] = [];
     // Confirming while these run waits for them instead of judging the same people again.
     await savePreparedInflight(roleId, {
@@ -2202,21 +2606,42 @@ async function waitForPreparedVerdict(
 
 /** Kept for the review screen call; preparation includes the pool refresh. */
 export async function prewarmRoleStartPool(roleId: string) {
-  // The first three are judged against the final Brief: answers still being
-  // applied behind the Brief screen finish first.
+  // The first three are judged against the Brief that will be confirmed:
+  // answers still being applied finish first, then the grade signals that
+  // confirming would write, so the verdicts' Brief matches at confirm.
   await waitForRoleStartRefinements(roleId);
+  await refreshRoleStartSignals(roleId, { wait: true }).catch((error) => console.warn("[role-start] signals before prepare", error));
   return prepareRoleStartFirstThree(roleId);
+}
+
+/**
+ * The first three are prepared once the Brief screen is due and every answer
+ * is in, without waiting for the screen to ask (it may open late). The
+ * screen's own prewarm stays as a fallback; a second start finds the lease
+ * for this Brief held, or the verdicts already written, and does nothing more.
+ */
+function prepareWhenBriefReady(roleId: string, session: RoleStartSession | null | undefined) {
+  if (session?.phase !== "review" || session.refinedAnswers < session.questions.history.length) return;
+  runAfterResponse(() => prewarmRoleStartPool(roleId));
 }
 
 export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings?: boolean }) {
   const state = await access(args);
   await waitForRoleStartRefinements(args.roleId);
-  // Grade signals for criteria edited just before confirming (usually already written).
-  await refreshRoleStartSignals(args.roleId, { wait: true }).catch((error) => console.warn("[role-start] signals before confirm", error));
+  // Grade signals for criteria edited just before confirming (usually already written),
+  // and the summary rewrite an answer or edit started, so neither saves over confirming.
+  await Promise.all([
+    refreshRoleStartSignals(args.roleId, { wait: true }).catch((error) => console.warn("[role-start] signals before confirm", error)),
+    waitForRoleStartSummary(args.roleId).catch((error) => console.warn("[role-start] summary before confirm", error)),
+  ]);
   const session = await loadRoleStartSession(args.roleId);
   if (!session) throw new OrgHttpError(404, "시작 정보를 찾을 수 없어요.");
   if (!["questions", "review"].includes(session.phase)) {
     throw new OrgHttpError(409, "이미 확정했어요.");
+  }
+  // The draft's summary when its background call failed (or it had no criteria then): written behind the confirmation.
+  if (session.brief.summaryOf === SUMMARY_PENDING) {
+    runAfterResponse(() => refreshRoleStartSummary(args.roleId, roleSource(state)).catch((error) => console.warn("[role-start] summary", error)));
   }
   // A new confirmation starts a new registration: an earlier stopped one no longer applies.
   if (session.progress.some((item) => item.key === "batch:choose" && item.status === "error")) {
@@ -2230,18 +2655,41 @@ export async function confirmRoleStartBrief(args: Access & { acknowledgeWarnings
   if (issues.some((issue) => issue.level === "conflict")) {
     return { session, issues, started: false };
   }
-  await saveRoleStartBrief({
-    roleId: args.roleId,
-    brief: session.brief,
-    changeSource: "confirmed",
-    changeSummary: "Brief 확정",
-    userId: args.user.id,
-    writeRole: true,
-  });
+  const saveConfirmed = () =>
+    saveRoleStartBrief({
+      roleId: args.roleId,
+      brief: session.brief,
+      changeSource: "confirmed",
+      changeSummary: "Brief 확정",
+      userId: args.user.id,
+      writeRole: true,
+    });
+  // Back from the first three with the Brief unchanged: the same people and
+  // the team's ratings come back at once, without another search, while every
+  // card's read is finished and none of them is now a reference person.
+  const key = firstThreeKey(session.brief);
+  const references = new Set(referenceTalentIds(session.brief));
+  if (
+    session.firstCandidates.length &&
+    session.firstCandidates.every(
+      (candidate) => candidate.briefHash === key && candidate.verdict && !candidate.verdictError && !references.has(candidate.talentId)
+    )
+  ) {
+    const kept = await saveRoleStartSession({
+      roleId: args.roleId,
+      expectedRevision: session.revision,
+      patch: { phase: "evaluating", pendingQuestion: null },
+    });
+    if (!kept) throw new OrgHttpError(409, "다른 곳에서 먼저 확정했어요.");
+    // The Role carries the confirmed Brief (an edit made after going back included).
+    await saveConfirmed();
+    return { session: kept, issues, started: false };
+  }
+  await saveConfirmed();
   const saved = await saveRoleStartSession({
     roleId: args.roleId,
     expectedRevision: session.revision,
-    patch: { phase: "searching", pendingQuestion: null, firstCandidates: [] },
+    patch: { phase: "searching", pendingQuestion: null, firstCandidates: [], evaluations: {} },
     timings: { confirmedAt: new Date().toISOString(), firstThreeShownMs: null, firstThreeVerdictsMs: null },
   });
   if (!saved) throw new OrgHttpError(409, "다른 곳에서 먼저 확정했어요.");
@@ -2255,19 +2703,43 @@ export async function reopenRoleStartReview(args: Access) {
   if (!session || !["evaluating", "review"].includes(session.phase)) {
     throw new OrgHttpError(409, "등록한 뒤에는 Brief로 돌아갈 수 없어요.");
   }
-  return saveRoleStartSession({
+  // The first three and their ratings stay: confirming the same Brief again
+  // brings them back, and a changed Brief starts a new search (confirm).
+  const saved = await saveRoleStartSession({
     roleId: args.roleId,
     expectedRevision: session.revision,
-    patch: { phase: "review", firstCandidates: [], evaluations: {} },
+    patch: { phase: "review" },
   });
+  // Verdicts for an unchanged Brief are found and kept; only the pick is read again.
+  prepareWhenBriefReady(args.roleId, saved);
+  return saved;
 }
 
 // ---------------------------------------------------------------- step 3
 
+/** Longest wait for the shown people's section text before the cards go without it. */
+const SHOWN_EVIDENCE_TIMEOUT_MS = 3_000;
+
+/** Section text for the people shown; cards still show without it if the lookup fails or is slow. */
+async function shownEvidence(talentIds: string[], brief: RoleStartBrief, pool: RoleStartPool) {
+  const signal = AbortSignal.timeout(SHOWN_EVIDENCE_TIMEOUT_MS);
+  try {
+    return await Promise.race([
+      fetchCriterionEvidence({ talentIds, criteria: brief.criteria, queryVectors: pool.queryVectors, signal }),
+      new Promise<never>((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true })),
+    ]);
+  } catch (error) {
+    console.warn("[role-start] criterion evidence", error);
+    return new Map<string, Record<string, string>>();
+  }
+}
+
 function candidateFromRanked(
   member: RankedMember & { probe: RoleStartProbe | null },
   brief: RoleStartBrief,
-  profile: { name: string | null; headline: string | null; location: string | null; current: string | null } | undefined
+  profile: { name: string | null; headline: string | null; location: string | null; current: string | null } | undefined,
+  /** Section text by criterionHash (fetchCriterionEvidence); the pool no longer stores it. */
+  evidence: Record<string, string> | undefined
 ): RoleStartCandidate {
   return {
     talentId: member.talentId,
@@ -2286,7 +2758,8 @@ function candidateFromRanked(
         criterionId: criterion.id ?? criterion.name,
         name: criterion.name,
         score: Math.round((score?.score ?? 0.5) * 100) / 100,
-        evidence: score?.evidence ?? null,
+        // Older pools still carry the text; rule criteria keep their short line.
+        evidence: evidence?.[criterionHash(criterion)] ?? score?.evidence ?? null,
       };
     }),
     verdict: null,
@@ -2326,6 +2799,70 @@ export async function setCandidateVerdict(
   return rows.length > 0;
 }
 
+/**
+ * The Brief as the first three were picked for it: what their verdicts read,
+ * the job titles and everything else the ranking reads (a reflected answer can
+ * change search words, a criterion's kind or a rule's years without its text).
+ */
+function firstThreeKey(brief: RoleStartBrief) {
+  return `${verdictBriefHash(brief)}:${jobScoreKey(brief)}:${rankingBriefHash(brief)}`;
+}
+
+/**
+ * The first three for this Brief, before their verdicts. The pick made on the
+ * Brief screen is reused while the Brief, the pool it came from and every
+ * person in it still hold; otherwise the pool is ranked now. The one place a
+ * different picker would go.
+ */
+async function pickFirstThreeForBrief(args: { roleId: string; roleName: string; session: RoleStartSession; key: string }): Promise<{
+  candidates: RoleStartCandidate[];
+  /** The pool ranked now; null when the Brief screen's pick was reused. */
+  pool: RoleStartPool | null;
+  passing: number;
+  scoringMs: number | null;
+  thinConditions: string | null;
+}> {
+  const { session, key } = args;
+  const ready = session.prepared.pick;
+  if (ready && ready.briefHash === key && ready.passing >= 4 && ready.candidates.length) {
+    const ids = ready.candidates.map((candidate) => candidate.talentId);
+    const references = new Set(referenceTalentIds(session.brief));
+    const [builtAt, eligible] = await Promise.all([roleStartPoolBuiltAt(args.roleId), stillEligible(args.roleId, ids)]);
+    if (builtAt === ready.poolBuiltAt && ids.every((id) => eligible.has(id) && !references.has(id))) {
+      return { candidates: ready.candidates, pool: null, passing: ready.passing, scoringMs: null, thinConditions: null };
+    }
+  }
+  // Saved for reuse here (the batch ranks the same pool); waits briefly for pool work in progress.
+  const { pool, scoringMs } = await readyPickPool({
+    roleId: args.roleId,
+    roleName: args.roleName,
+    brief: session.brief,
+    waitMs: POOL_CONFIRM_WAIT_MS,
+  });
+  const excludeIds = referenceTalentIds(session.brief);
+  const ranked = rankPool({ pool, brief: session.brief, excludeIds }).ranked;
+  const passing = ranked.filter((member) => member.passesMust).length;
+  const picked = pickFirstThree({ ranked });
+  const pickedIds = picked.map((member) => member.talentId);
+  const [profiles, evidence] = await Promise.all([loadRoleStartProfiles(pickedIds), shownEvidence(pickedIds, session.brief, pool)]);
+  return {
+    candidates: picked.map((member) =>
+      candidateFromRanked(member, session.brief, profiles.get(member.talentId), evidence.get(member.talentId))
+    ),
+    pool,
+    passing,
+    scoringMs,
+    thinConditions:
+      passing < 4
+        ? JSON.stringify(
+            thinConditions(session.brief, (candidate) =>
+              rankPool({ pool, brief: candidate }).ranked.filter((member) => member.passesMust).length
+            )
+          )
+        : null,
+  };
+}
+
 /** Background: confirmed Brief → three people on screen in under a minute. */
 export async function runRoleStartFirstThree(args: { roleId: string; userId: string | null }) {
   const startedAt = Date.now();
@@ -2333,29 +2870,19 @@ export async function runRoleStartFirstThree(args: { roleId: string; userId: str
   if (!session || session.phase !== "searching") return;
   const sql = roleStartSql();
   const role = (await sql<Array<{ name: string }>>`select name from public.company_roles where role_id = ${args.roleId}`)[0];
+  // Measurement only (timings), after the cards are on screen.
+  let cardsSaved = false;
   try {
     await step(args.roleId, "first_three", "find", "running");
-    const pool = await ensurePool({ roleId: args.roleId, roleName: role?.name ?? "", brief: session.brief, session });
-    // Counts stay server-side (timings) for measurement; the screen shows no numbers.
-    const counts = await countByConditions({ roleId: args.roleId, brief: session.brief, excludeIds: [] });
-    const changed = session.brief.criteria.filter((criterion) => !pool.scores[criterionHash(criterion)]).length;
-    const { ranked } = rankPool({ pool, brief: session.brief, excludeIds: referenceTalentIds(session.brief) });
-    const scored = await scoreCriteria({ pool, criteria: session.brief.criteria });
-    const final = changed ? rankPool({ pool, brief: session.brief, excludeIds: referenceTalentIds(session.brief) }).ranked : ranked;
-    const passing = final.filter((member) => member.passesMust);
-    const picked: PickedCandidate[] = pickFirstThree({
-      ranked: final,
-      probes: session.questions.probes,
-      criteria: session.brief.criteria,
-    });
     const hash = verdictBriefHash(session.brief);
+    const key = firstThreeKey(session.brief);
+    const pick = await pickFirstThreeForBrief({ roleId: args.roleId, roleName: role?.name ?? "", session, key });
     const prepared = session.prepared.entries;
-    const profiles = await loadRoleStartProfiles(picked.map((member) => member.talentId));
     // Verdicts written later are matched to this run, not to array positions.
     const runId = crypto.randomUUID();
-    const candidates = picked.map((member) => {
-      const candidate = { ...candidateFromRanked(member, session!.brief, profiles.get(member.talentId)), runId };
-      const entry = prepared[member.talentId];
+    const candidates: RoleStartCandidate[] = pick.candidates.map((picked) => {
+      const candidate = { ...picked, runId, briefHash: key, verdict: null };
+      const entry = prepared[candidate.talentId];
       return entry && entry.briefHash === hash
         ? {
             ...candidate,
@@ -2368,6 +2895,8 @@ export async function runRoleStartFirstThree(args: { roleId: string; userId: str
         : candidate;
     });
     const reused = candidates.filter((candidate) => candidate.verdict).length;
+    // Profiles only for the people whose verdict is still to be written.
+    const profiles = await loadRoleStartProfiles(candidates.filter((candidate) => !candidate.verdict).map((candidate) => candidate.talentId));
     // Verdicts written for an older Brief are discarded; ones for this Brief
     // stay usable (e.g. after reopening and confirming the same Brief again).
     const unusedPrepared = Object.entries(prepared).filter(([, entry]) => entry.briefHash !== hash);
@@ -2382,35 +2911,27 @@ export async function runRoleStartFirstThree(args: { roleId: string; userId: str
       expectedPhase: "searching",
       patch: {
         phase: "evaluating",
-        pool,
         firstCandidates: candidates,
       },
       timings: {
         firstThreeShownMs: shownMs,
         firstThreeVerdictsReused: reused,
-        scoringMs: scored.ms,
-        poolSize: pool.members.length,
-        passingCount: passing.length,
+        firstThreePickReused: pick.pool ? "no" : "yes",
+        scoringMs: pick.scoringMs,
+        poolSize: pick.pool?.members.length ?? null,
+        passingCount: pick.passing,
         // Shown without numbers: that few people qualify, the conditions that
         // narrowed most in coarse bands, and a way to widen each.
-        thin: passing.length < 4 ? "true" : null,
+        thin: pick.passing < 4 ? "true" : null,
         thinConditionLabel: null,
-        thinConditions:
-          passing.length < 4
-            ? JSON.stringify(
-                thinConditions(session!.brief, (candidate) =>
-                  rankPool({ pool, brief: candidate }).ranked.filter((member) => member.passesMust).length
-                )
-              )
-            : null,
-        filteredCount: counts.filteredIds.length,
-        eligibleCount: counts.eligibleCount,
+        thinConditions: pick.thinConditions,
         // Cards appear one by one as verdicts land; prepared ones appear now.
         firstCardMs: reused ? shownMs : null,
         ...(reused === candidates.length ? { firstThreeVerdictsMs: shownMs, lastCardMs: shownMs } : {}),
       },
     });
     if (!session) return;
+    cardsSaved = true;
     await roleStartSql()`
       update public.company_role_start_sessions
       set prepared = jsonb_set(prepared, '{entries}', coalesce((
@@ -2516,6 +3037,13 @@ export async function runRoleStartFirstThree(args: { roleId: string; userId: str
     console.error("[role-start] first three failed", error);
     await step(args.roleId, "first_three", "find", "error", "후보를 찾는 중 문제가 생겼어요");
     await saveRoleStartSession({ roleId: args.roleId, expectedPhase: "searching", patch: { phase: "review" } });
+  } finally {
+    if (cardsSaved && session) {
+      const brief = session.brief;
+      await countByConditions({ roleId: args.roleId, brief, excludeIds: [] })
+        .then((counts) => mergeRoleStartTimings(args.roleId, { filteredCount: counts.filteredIds.length, eligibleCount: counts.eligibleCount }))
+        .catch((error) => console.warn("[role-start] first-three counts", error));
+    }
   }
 }
 
@@ -2535,7 +3063,7 @@ async function fetchRoleCreationStateForBackground(session: RoleStartSession, us
 export async function evaluateRoleStartCandidate(
   args: Access & {
     talentId: string;
-    rating: OrgRoleCriterionGrade;
+    rating?: OrgRoleCriterionGrade | null;
     answer?: string | null;
     note?: string | null;
     reasonIds?: string[] | null;
@@ -2550,18 +3078,21 @@ export async function evaluateRoleStartCandidate(
   }
   const candidate = session.firstCandidates.find((item) => item.talentId === args.talentId);
   if (!candidate) throw new OrgHttpError(404, "후보를 찾을 수 없어요.");
+  const rating = args.rating ?? null;
+  const reasonText = typeof args.reasonText === "string" ? args.reasonText.trim().slice(0, 1_000) : "";
+  if (!rating && !reasonText) throw new OrgHttpError(400, "평가를 고르거나 의견을 적어 주세요.");
   // Every rating can carry reasons: chips for its rating and the team's own words.
   const chips = [...(candidate.verdict?.reasonChips ?? []), ...likedReasonChips(candidate.verdict)].filter((chip) =>
-    chip.appliesTo.includes(args.rating)
+    rating !== null && chip.appliesTo.includes(rating)
   );
   const sql = roleStartSql();
   const entry = {
     reasons: chips
       .filter((chip) => (args.reasonIds ?? []).includes(chip.id))
       .map(({ id, criterionId, kind, label, evidence, scope }) => ({ chipId: id, criterionId, kind, label, evidence, ...(scope ? { scope } : {}) })),
-    reasonText: String(args.reasonText ?? "").trim().slice(0, 1_000) || null,
+    reasonText: reasonText || null,
     reasonsSkipped: args.reasonsSkipped === true,
-    rating: args.rating,
+    rating,
     answer: String(args.answer ?? "").trim().slice(0, 500) || null,
     note: String(args.note ?? "").trim().slice(0, 1_000) || null,
     at: new Date().toISOString(),
@@ -2574,8 +3105,8 @@ export async function evaluateRoleStartCandidate(
   `;
   if (!rows.length) throw new OrgHttpError(404, "시작 정보를 찾을 수 없어요.");
   const updated = await loadRoleStartSession(args.roleId);
-  // All three rated: start the pick after the ratings now, so the last step
-  // only commits it. A short pause lets a quick follow-up change (a reason
+  // All three rated: start applying the ratings to the Brief now, so the last
+  // step only commits it. A short pause lets a quick follow-up change (a reason
   // chip) settle first; a later change computes again.
   if (updated?.firstCandidates.length && updated.firstCandidates.every((candidate) => updated.evaluations[candidate.talentId])) {
     runAfterResponse(async () => {
@@ -2669,13 +3200,6 @@ export async function registerRoleStart(
   }
 }
 
-const RATING_WEIGHT: Record<OrgRoleCriterionGrade, number> = {
-  excellent: 1,
-  good: 0.6,
-  uncertain: 0,
-  bad: -1,
-};
-
 /** Probe ratings settle the open point deterministically. */
 /**
  * Info candidates settle their open point. Liked → the criterion becomes
@@ -2698,7 +3222,7 @@ export function applyProbeRatings(
   for (const candidate of session.firstCandidates) {
     const probe = candidate.probe;
     const evaluation = session.evaluations[candidate.talentId];
-    if (!probe || !evaluation || evaluation.rating === "uncertain") continue;
+    if (!probe || !evaluation?.rating || evaluation.rating === "uncertain") continue;
     const liked = evaluation.rating === "excellent" || evaluation.rating === "good";
     const about = reasonTargets.get(candidate.talentId) ?? new Set<string>();
     if (probe.type === "criterion_low") {
@@ -2734,88 +3258,6 @@ export function applyProbeRatings(
 }
 
 
-/** A criterion score at or below this reads as weak on that criterion. */
-const SHARED_WEAKNESS = 0.35;
-
-/**
- * Rank nudges from the first-three ratings, at most ±0.08 per rated person.
- * Liked: people whose whole career resembles that person move up. "맞지 않음":
- * only people who share the weak point the team named (weak on that criterion
- * too) and resemble that person move down; no reason, or a reason about years
- * or something else, pushes nobody down.
- */
-export function adjustmentsFrom(args: {
-  ratings: Array<{ talentId: string; rating: OrgRoleCriterionGrade; similarity: Map<string, number>; weakOn: string[] }>;
-  criterionScores: (criterionId: string, talentId: string) => number | null;
-}) {
-  const adjustments = new Map<string, number>();
-  for (const rated of args.ratings) {
-    const weight = RATING_WEIGHT[rated.rating];
-    if (!weight || !rated.similarity.size) continue;
-    if (weight < 0 && !rated.weakOn.length) continue;
-    const values = [...rated.similarity.values()];
-    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-    const sd = Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length) || 1;
-    for (const [talentId, similarity] of rated.similarity) {
-      const z = Math.max(-2, Math.min(2, (similarity - mean) / sd));
-      if (weight < 0) {
-        const shares = rated.weakOn.some((criterionId) => {
-          const score = args.criterionScores(criterionId, talentId);
-          return score !== null && score <= SHARED_WEAKNESS;
-        });
-        // Only alike people (z > 0) who share the weak point move down.
-        if (!shares || z <= 0) continue;
-        adjustments.set(talentId, (adjustments.get(talentId) ?? 0) + weight * z * 0.04);
-        continue;
-      }
-      adjustments.set(talentId, (adjustments.get(talentId) ?? 0) + weight * z * 0.04);
-    }
-  }
-  return adjustments;
-}
-
-async function similarityAdjustments(
-  pool: RoleStartPool,
-  session: RoleStartSession,
-  brief: RoleStartBrief,
-  reasonTargets: Map<string, Set<string>>
-) {
-  const sql = roleStartSql();
-  const ids = pool.members.map((member) => member.talentId);
-  const ratings: Parameters<typeof adjustmentsFrom>[0]["ratings"] = [];
-  for (const candidate of session.firstCandidates) {
-    const evaluation = session.evaluations[candidate.talentId];
-    if (!evaluation || !RATING_WEIGHT[evaluation.rating] || !ids.length) continue;
-    const weakOn = [...(reasonTargets.get(candidate.talentId) ?? [])].filter((id) =>
-      brief.criteria.some((criterion) => (criterion.id ?? criterion.name) === id)
-    );
-    if (RATING_WEIGHT[evaluation.rating] < 0 && !weakOn.length) continue;
-    const rows = await sql<Array<{ talent_id: string; similarity: number }>>`
-      with target as (
-        select avg(embedding) as vec from public.talent_profile_chunk_embeddings where talent_id = ${candidate.talentId}
-      )
-      select c.talent_id::text as talent_id, 1 - (avg(c.embedding) <=> (select vec from target)) as similarity
-      from public.talent_profile_chunk_embeddings c
-      where c.talent_id = any(${ids}::uuid[])
-      group by c.talent_id
-    `;
-    ratings.push({
-      talentId: candidate.talentId,
-      rating: evaluation.rating,
-      similarity: new Map(rows.map((row) => [row.talent_id, Number(row.similarity)])),
-      weakOn,
-    });
-  }
-  return adjustmentsFrom({
-    ratings,
-    criterionScores: (criterionId, talentId) => {
-      const criterion = brief.criteria.find((item) => (item.id ?? item.name) === criterionId);
-      const score = criterion ? pool.scores[criterionHash(criterion)]?.[talentId] : undefined;
-      return score ? (score.similarity ?? score.score) : null;
-    },
-  });
-}
-
 /** The Role's role-start selection run, created once and shared by every proposal it makes. */
 async function ensureSelectionRun(workspaceId: string, roleId: string, sql = roleStartSql()) {
   const existing = await sql<Array<{ id: string }>>`
@@ -2835,30 +3277,8 @@ async function ensureSelectionRun(workspaceId: string, roleId: string, sql = rol
   return rows[0]!.id;
 }
 
-/** Applying the ratings and picking one person; past this the Role turns on without that person. */
+/** Applying the ratings; past this the Role turns on with the Brief as it was. */
 const BATCH_BUDGET_MS = 180_000;
-/** People judged at once, and at most this many in all. */
-const BATCH_WAVE = 3;
-/** A wave is not started with less time left than one verdict needs. */
-const BATCH_WAVE_RESERVE_MS = 20_000;
-const BATCH_MAX_JUDGED = 9;
-const GRADE_ORDER: Record<OrgRoleCriterionGrade, number> = { excellent: 3, good: 2, uncertain: 1, bad: 0 };
-const FIT_ORDER: Record<RoleStartVerdict["finalFit"], number> = { excellent: 4, good: 3, borderline: 2, uncertain: 1, unfit: 0 };
-
-/**
- * Inbox proposals: every required criterion read as good or better (or a good
- * overall read when there is none). `named`: criteria the team named as the
- * reason an info candidate did not fit; they must read good or better too.
- */
-export function qualifiesForBatch(verdict: RoleStartVerdict, brief: RoleStartBrief, named: string[] = []) {
-  if (verdict.finalFit === "unfit") return false;
-  const must = new Set([...brief.criteria.filter((c) => isRequired(c)).map((c) => c.id ?? c.name), ...named]);
-  if (!must.size) return verdict.finalFit === "excellent" || verdict.finalFit === "good";
-  return verdict.criteria
-    .filter((item) => must.has(item.criterionId))
-    .every((item) => item.fitness === "excellent" || item.fitness === "good");
-}
-
 /**
  * Inbox proposals written before the Role turns on. A change to the Role row
  * closes its open proposals while the Role is not live
@@ -3001,27 +3421,7 @@ export async function passDislikedFirstThree(
   return ids.length;
 }
 
-/** Criteria the team named as why an info candidate did not fit (years and conditions excluded). */
-export function namedWeakCriteria(
-  session: Pick<RoleStartSession, "firstCandidates" | "evaluations">,
-  reasonTargets: Map<string, Set<string>>,
-  brief: RoleStartBrief
-) {
-  const ids = new Set(brief.criteria.map((criterion) => criterion.id ?? criterion.name));
-  return [
-    ...new Set(
-      session.firstCandidates
-        .filter((candidate) => candidate.probe && session.evaluations[candidate.talentId]?.rating === "bad")
-        .flatMap((candidate) => [...(reasonTargets.get(candidate.talentId) ?? [])].filter((id) => ids.has(id)))
-    ),
-  ];
-}
-
-function batchOrder(verdict: RoleStartVerdict) {
-  return FIT_ORDER[verdict.finalFit] * 100 + verdict.criteria.reduce((sum, item) => sum + GRADE_ORDER[item.fitness], 0);
-}
-
-/** Background: registration → up to six new people in under a minute. */
+/** Background: registration → ratings applied to the Brief, then the Role turns on. */
 export async function runRoleStartFirstBatch(args: {
   roleId: string;
   userId: string | null;
@@ -3039,14 +3439,14 @@ export async function runRoleStartFirstBatch(args: {
       (error) => console.error("[role-start] passing disliked first three failed", error)
     );
   }
-  const pick = recommendAfterRatings({ ...args, session, startedAt }).catch((error) => {
-    console.error("[role-start] recommendation after ratings failed", error);
+  const applying = applyRatingsAfterRegistration({ ...args, session, startedAt }).catch((error) => {
+    console.error("[role-start] applying the ratings failed", error);
     return null;
   });
-  let outcome = await Promise.race([pick, sleep(BATCH_BUDGET_MS).then(() => null)]);
-  // Without a pick in time, mark it before turning the Role on: a pick that
-  // finishes later sees the mark and changes nothing. A pick already writing
-  // its result (it claimed the batch first) is waited for instead.
+  let outcome = await Promise.race([applying, sleep(BATCH_BUDGET_MS).then(() => null)]);
+  // Not applied in time: mark it before turning the Role on, so a result that
+  // finishes later sees the mark and changes nothing. One already writing its
+  // result (it claimed the batch first) is waited for instead.
   if (!outcome) {
     let claimed = false;
     // An unrelated save in between only moves the revision: read again and mark.
@@ -3066,7 +3466,7 @@ export async function runRoleStartFirstBatch(args: {
       if (marked) break;
     }
     // Only the database writes are left once it claimed the batch: wait for them.
-    if (claimed) outcome = await pick;
+    if (claimed) outcome = await applying;
   }
   // A retry (back to rating) or a Role registered another way meanwhile ends
   // this run: nothing more is written for it.
@@ -3074,19 +3474,19 @@ export async function runRoleStartFirstBatch(args: {
     (await loadRoleStartSession(args.roleId, { forView: true }))?.phase === "registering";
   if (!(await stillRegistering())) return;
   // The Role turns on last, so the scheduled search starts from the Brief the
-  // ratings updated; without a recommendation it still turns on.
+  // ratings updated; when they could not be applied it still turns on.
   try {
     await activateRoleStartRole({ roleId: args.roleId, userId: args.userId, user: args.user, workspaceId: args.workspaceId ?? session.workspaceId });
   } catch (error) {
     console.error("[role-start] activation after ratings failed", error);
-    await step(args.roleId, "batch", "choose", "error", "등록을 마치지 못했어요");
+    await step(args.roleId, "batch", "choose", "error", "등록을 마치지 못했어요", billingErrorCode(error));
     await saveRoleStartSession({ roleId: args.roleId, expectedPhase: "registering", patch: { phase: "evaluating" } });
     return;
   }
   // The people the team liked go to the inbox once the Role is on (a proposal
   // saved while it is still a draft is closed by a later change to the Role's
   // status or information, e.g. the test-only allow-list update in insertProposals),
-  // whatever happened to the pick above (their first-three verdicts are reused).
+  // whatever happened to the ratings above (their first-three verdicts are reused).
   if (!(await stillRegistering())) return;
   let keptCount = 0;
   const kept = await keepLikedFirstThree(roleStartSql(), { roleId: args.roleId, workspaceId: session.workspaceId, session })
@@ -3116,7 +3516,7 @@ export async function runRoleStartFirstBatch(args: {
     "batch",
     "choose",
     "done",
-    candidates.length ? "인박스에 새 후보를 올렸어요" : "지금 기준에 맞는 새 후보를 찾지 못했어요"
+    "역할을 켰어요"
   );
   // Ratings that reworded a criterion leave the moved people's grades on the
   // old wording: re-read just that criterion for them.
@@ -3201,7 +3601,7 @@ export async function supersedeRoleStart(args: Access) {
 /**
  * The role chat's Create role (button, tool or API) while the start flow owns
  * the Role: register through the flow so the Role turns on only after the
- * ratings reach the Brief and one more person is proposed. "not_owned": no
+ * ratings reach the Brief. "not_owned": no
  * open start flow; the caller activates as before.
  */
 export async function registerRoleStartFromChat(
@@ -3227,7 +3627,7 @@ export async function registerRoleStartFromChat(
   return "registering";
 }
 
-/** What the pick after the ratings depends on: the confirmed Brief and the team's ratings, not when they were saved. */
+/** What applying the ratings depends on: the confirmed Brief and the team's ratings, not when they were saved. */
 export function ratingsKey(session: Pick<RoleStartSession, "brief" | "firstCandidates" | "evaluations">) {
   return createHash("sha1")
     .update(
@@ -3247,8 +3647,8 @@ export function ratingsKey(session: Pick<RoleStartSession, "brief" | "firstCandi
 type AfterRatings = NonNullable<RoleStartPreparedBatch["result"]>;
 
 /**
- * Compute the pick after the first-three ratings as soon as the team has
- * rated all three, so the last step only commits it. Writes nothing the
+ * Apply the first-three ratings to the Brief as soon as the team has rated
+ * all three, so the last step only commits it. Writes nothing the
  * Role or the inbox can see; a later change of ratings computes again.
  */
 export async function prepareRoleStartBatch(args: { roleId: string; userId: string | null }) {
@@ -3282,13 +3682,12 @@ export async function prepareRoleStartBatch(args: { roleId: string; userId: stri
 }
 
 /**
- * Apply the first-three ratings to the Brief, then pick one more person from
- * the same pool: unseen must-passers judged three at a time in ranking order,
- * the best whose must criteria all read good or better, up to nine judged.
- * Uses the pick prepared when the team finished rating when the ratings are
- * the same (waiting for it while it runs), then commits it.
+ * Apply the first-three ratings to the Brief. Uses the result prepared when
+ * the team finished rating when the ratings are the same (waiting for it
+ * while it runs), then commits it. No one else is picked here: turning the
+ * Role on starts a regular search right away.
  */
-async function recommendAfterRatings(args: {
+async function applyRatingsAfterRegistration(args: {
   roleId: string;
   userId: string | null;
   session: RoleStartSession;
@@ -3317,10 +3716,6 @@ async function computeAfterRatings(args: {
   const session = args.session;
   const startedAt = args.startedAt;
   const report = (kind: StepKind, status: "running" | "done") => (args.report ? step(args.roleId, "batch", kind, status) : Promise.resolve());
-  const sql = roleStartSql();
-  const role = (await sql<Array<{ name: string; company_workspace_id: string }>>`
-    select name, company_workspace_id from public.company_roles where role_id = ${args.roleId}
-  `)[0];
   const usage: RoleStartLlmUsage[] = [];
   try {
     // (1) Brief changes from the evaluation and (3) info candidate outcomes.
@@ -3397,83 +3792,23 @@ async function computeAfterRatings(args: {
       }
       await report("apply", "done");
     }
-    await report("choose", "running");
-    const shownIds = session.firstCandidates.map((candidate) => candidate.talentId);
-    const pool = await ensurePool({ roleId: args.roleId, roleName: role?.name ?? "", brief, session });
-    await scoreCriteria({ pool, criteria: brief.criteria });
-    // (2) Move people who resemble well-rated candidates up, poorly rated down.
-    const adjustments = await similarityAdjustments(pool, session, brief, reasons.targets);
-    // A weak point the team named on an info candidate must hold for the pick:
-    // that criterion has to read good or better too. Nobody qualifying means
-    // no pick now (the team said it matters), not a pick that leaves it open.
-    const named = namedWeakCriteria(session, reasons.targets, brief);
-    const ranked = rankPool({ pool, brief, excludeIds: [...shownIds, ...referenceTalentIds(brief)], adjustments }).ranked.filter(
-      (member) => member.passesMust
-    );
-    // Judge the best-ranked people three at a time until one qualifies.
-    const deadline = AbortSignal.timeout(Math.max(10_000, BATCH_BUDGET_MS - (Date.now() - startedAt)));
-    const judged: Array<{ member: RankedMember; verdict: RoleStartVerdict; profile: RoleStartProfile; rank: number }> = [];
-    let next = 0;
-    while (
-      next < ranked.length &&
-      next < BATCH_MAX_JUDGED &&
-      judged.filter((item) => qualifiesForBatch(item.verdict, brief, named)).length < ROLE_START_BATCH_SIZE &&
-      Date.now() - startedAt < BATCH_BUDGET_MS - BATCH_WAVE_RESERVE_MS
-    ) {
-      const wave = ranked.slice(next, next + BATCH_WAVE);
-      const offset = next;
-      next += wave.length;
-      const profiles = await loadRoleStartProfiles(wave.map((member) => member.talentId));
-      const results = await Promise.all(
-        wave.map(async (member, index) => {
-          const profile = profiles.get(member.talentId);
-          if (!profile) return null;
-          try {
-            const result = await writeVerdict({ roleName: role?.name ?? "", brief, profile, probe: null, signal: deadline });
-            usage.push(result.usage);
-            return { member, verdict: result.verdict, profile, rank: offset + index };
-          } catch (error) {
-            console.error("[role-start] batch verdict", error);
-            return null;
-          }
-        })
-      );
-      judged.push(...results.filter((item): item is NonNullable<typeof item> => Boolean(item)));
-    }
-    const accepted = judged
-      .filter((item) => qualifiesForBatch(item.verdict, brief, named))
-      .sort((left, right) => batchOrder(right.verdict) - batchOrder(left.verdict) || left.rank - right.rank)
-      .slice(0, ROLE_START_BATCH_SIZE);
     await persistUsage(args.roleId, usage);
-    await mergeRoleStartTimings(args.roleId, { batchPassingCount: ranked.length, batchJudged: judged.length, batchComputeMs: Date.now() - startedAt });
-    return {
-      brief,
-      notes,
-      proposals: accepted.map((item) => ({ talentId: item.member.talentId, verdict: item.verdict })),
-      candidates: accepted.map((item) => ({
-        ...candidateFromRanked({ ...item.member, probe: null }, brief, item.profile),
-        verdict: item.verdict,
-      })),
-      passing: ranked.length,
-      judged: judged.length,
-    };
+    await mergeRoleStartTimings(args.roleId, { batchComputeMs: Date.now() - startedAt });
+    return { brief, notes, proposals: [], candidates: [], passing: 0, judged: 0 };
   } catch (error) {
     await persistUsage(args.roleId, usage);
     throw error;
   }
 }
 
-/** Save the Brief the ratings changed and put the pick in the inbox. */
+/** Save the Brief the ratings changed. */
 async function commitAfterRatings(args: { roleId: string; userId: string | null; result: AfterRatings }) {
-  const { notes, proposals, candidates, passing } = args.result;
-  const sql = roleStartSql();
-  const role = (await sql<Array<{ company_workspace_id: string }>>`
-    select company_workspace_id from public.company_roles where role_id = ${args.roleId}
-  `)[0];
-  // Only while registration still waits for it: a pick that finished after
+  const { notes } = args.result;
+  const none = { candidates: [] as RoleStartCandidate[], introIds: [] as string[], passing: 0 };
+  // Only while registration still waits for it: a result that finished after
   // the time limit (the Role is already on and the screen says so) changes nothing.
   const current = await loadRoleStartSession(args.roleId, { forView: true });
-  if (!current || current.phase !== "registering" || current.batch) return { candidates: [], introIds: [], passing };
+  if (!current || current.phase !== "registering" || current.batch) return none;
   // People added or answered after the ratings were read stay with the Brief.
   const brief = withLatestReferences(args.result.brief, current.brief);
   // Claims the batch, so the time limit no longer marks it failed while this writes.
@@ -3486,7 +3821,7 @@ async function commitAfterRatings(args: { roleId: string; userId: string | null;
       batch: { status: "running", shown: 0, passing: 0, introIds: [], candidates: [] },
     },
   });
-  if (!still) return { candidates: [], introIds: [], passing };
+  if (!still) return none;
   if (notes.length) {
     await saveRoleStartBrief({
       roleId: args.roleId,
@@ -3497,19 +3832,7 @@ async function commitAfterRatings(args: { roleId: string; userId: string | null;
       writeRole: true,
     });
   }
-  const runId = proposals.length ? await ensureSelectionRun(role!.company_workspace_id, args.roleId) : null;
-  const introIds = await insertProposals(sql, {
-    roleId: args.roleId,
-    workspaceId: role!.company_workspace_id,
-    runId,
-    items: proposals.map((item) => ({
-      talentId: item.talentId,
-      reason: item.verdict.tldr,
-      presentation: JSON.parse(JSON.stringify(verdictPresentation(item.verdict, brief))),
-    })),
-    roleFingerprint: `role-start:${hardConditionsHash(brief)}`,
-  });
-  return { candidates, introIds, passing };
+  return none;
 }
 
 /**
@@ -3523,7 +3846,13 @@ export async function retryStalledRoleStart(args: Access) {
   if (!session) throw new OrgHttpError(404, "시작 정보를 찾을 수 없어요.");
   if (!isRoleStartStalled(session)) throw new OrgHttpError(409, "아직 진행하고 있어요. 조금만 기다려 주세요.");
   if (session.phase === "questions" || session.phase === "review") {
-    // Answers whose refinement died: continue from the first one.
+    if (session.refinedAnswers >= session.questions.history.length) {
+      // Only the slot is empty: touch the row so a second click does not write the questions twice.
+      const touched = await saveRoleStartSession({ roleId: args.roleId, expectedRevision: session.revision, patch: {} });
+      if (!touched) throw new OrgHttpError(409, "이미 다시 시작했어요.");
+      return { session: touched, run: "refine" as const };
+    }
+    // Answers whose refinement died: continue from the first one, then fill the slot.
     return { session, run: "refine" as const };
   }
   if (session.phase === "registering") {

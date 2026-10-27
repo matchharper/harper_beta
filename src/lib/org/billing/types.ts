@@ -9,7 +9,7 @@ export function isSlotPurchaseQuantity(value: unknown): value is number {
   );
 }
 
-export const FREE_MONTHLY_CREDITS = 10;
+export const FREE_MONTHLY_CREDITS = 3;
 export const SLOT_MONTHLY_CREDITS = 50;
 export const BILLING_SUPPORT_EMAIL = "chris@matchharper.com";
 export const BILLING_SUPPORT_HREF = `mailto:${BILLING_SUPPORT_EMAIL}`;
@@ -21,6 +21,7 @@ export type BillingErrorCode =
   | "credits_exhausted"
   | "role_capacity_exceeded"
   | "role_slot_required"
+  | "billing_promotion_invalid"
   | "billing_unavailable"
   | "billing_conflict"
   | "billing_forbidden"
@@ -39,6 +40,18 @@ export class WorkspaceBillingError extends Error {
   }
 }
 
+/** Preserve known billing failures across HTTP and background UI updates. */
+export function billingErrorCode(error: unknown): BillingErrorCode | null {
+  if (error instanceof WorkspaceBillingError) return error.code;
+  const message =
+    typeof error === "object" && error && "message" in error
+      ? String(error.message)
+      : "";
+  if (message.includes("workspace_credits_exhausted")) return "credits_exhausted";
+  if (message.includes("workspace_role_capacity_exceeded")) return "role_capacity_exceeded";
+  return null;
+}
+
 /** Display-only failure information, never a company-side LLM tool result. */
 export type BillingActionNotice = { code: "credits_exhausted" };
 
@@ -52,6 +65,7 @@ export function billingActionNotice(
 }
 
 export type BillingCatalog = {
+  promotion?: { id: string; endsOn: string };
   available: boolean;
   amount: number | null;
   annualAmount: number | null;
@@ -111,21 +125,6 @@ export type BillingEntitlements = {
   pendingConnections: boolean;
   creditSlots: BillingCreditSlot[];
 };
-
-// Paid connection access is attached to a Role's Slot. Legacy and Enterprise
-// have no finite pools and retain their existing workspace-wide access.
-export function canUsePendingConnections(
-  entitlements: BillingEntitlements | undefined,
-  roleId: string | null | undefined
-) {
-  if (!entitlements?.pendingConnections || !roleId) return false;
-  return (
-    entitlements.creditSlots.length === 0 ||
-    entitlements.creditSlots.some(
-      (slot) => slot.slotId !== null && slot.roleId === roleId
-    )
-  );
-}
 
 export function isLowCreditBalance(balance: number | null | undefined) {
   return typeof balance === "number" && balance >= 0 && balance <= 10;
@@ -198,8 +197,8 @@ export type BillingUsage = {
 export function billingErrorCopy(code: BillingErrorCode, locale: "ko" | "en") {
   const copy: Record<BillingErrorCode, [string, string]> = {
     feature_unavailable: [
-      "연결 대기는 유료 슬롯에 연결된 Role에서 이용할 수 있어요. Slots에서 Role 배정을 확인해 주세요.",
-      "Ready to connect is available for Roles assigned to a paid slot. Review Role assignments in Slots.",
+      "지금은 요청을 완료할 수 없어요. Harper 팀에 문의해 주세요.",
+      "This request is currently unavailable. Contact Harper for help.",
     ],
     credits_exhausted: [
       "이 Role에서 사용할 수 있는 슬롯 Intro와 공용 Intro가 모두 소진됐어요. Harper 팀에 문의해 주세요.",
@@ -212,6 +211,10 @@ export function billingErrorCopy(code: BillingErrorCode, locale: "ko" | "en") {
     role_capacity_exceeded: [
       "Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 다른 Role을 시작하려면 현재 Free Role을 일시 중지하거나 사용 가능한 유료 슬롯이 필요해요.",
       "Only one Free Role can be active at a time. Starting another Role requires pausing the current Free Role or having an available paid slot.",
+    ],
+    billing_promotion_invalid: [
+      "프로모션이 만료되었거나 가격이 변경됐어요. 페이지를 새로고침하고 결제 금액을 다시 확인해 주세요.",
+      "The offer has expired or the price has changed. Refresh and review the payment amount.",
     ],
     billing_unavailable: [
       "결제 정보를 불러오지 못했어요. 잠시 후 다시 시도하거나 Harper 팀에 문의해 주세요.",
@@ -241,6 +244,7 @@ export function isBillingErrorCode(value: unknown): value is BillingErrorCode {
       "credits_exhausted",
       "role_capacity_exceeded",
       "role_slot_required",
+      "billing_promotion_invalid",
       "billing_unavailable",
       "billing_conflict",
       "billing_forbidden",

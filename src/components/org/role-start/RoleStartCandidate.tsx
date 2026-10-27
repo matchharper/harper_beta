@@ -13,7 +13,7 @@ export type RoleStartEvaluation = RoleStartView["evaluations"][string];
 
 export type RoleStartEvaluateBody = {
   talentId: string;
-  rating: OrgRoleCriterionGrade;
+  rating: OrgRoleCriterionGrade | null;
   answer?: string | null;
   reasonIds?: string[];
   reasonText?: string | null;
@@ -107,7 +107,7 @@ export function CandidateRead({
   );
 }
 
-/** A rating and optional reasons are saved together by the explicit submit action. */
+/** A rating, written feedback, or both are saved by the explicit submit action. */
 export function CandidateRating(props: {
   busy: boolean;
   candidate: RoleStartCandidateView;
@@ -131,10 +131,11 @@ export function CandidateRating(props: {
   const [reasonText, setReasonText] = useState(props.evaluation?.reasonText ?? "");
   const [submitting, setSubmitting] = useState(false);
   const disabled = !props.editable || props.busy || submitting;
+  const hasFeedback = rating !== null || Boolean(reasonText.trim());
   const chips = rating ? allChips.filter((chip) => chip.appliesTo.includes(rating)).slice(0, REASON_CHIP_MAX) : [];
 
   const submit = async () => {
-    if (!rating || disabled || props.submitDisabled) return;
+    if (!hasFeedback || disabled || props.submitDisabled) return;
     setSubmitting(true);
     try {
       const result = await props.onEvaluate({
@@ -162,7 +163,7 @@ export function CandidateRating(props: {
             active={rating === grade}
             disabled={disabled}
             key={grade}
-            onClick={() => { setRating(grade); setReasonIds([]); }}
+            onClick={() => { setRating(current => current === grade ? null : grade); setReasonIds([]); }}
           >
             <Image alt="" aria-hidden className="size-4" height={16} src={`/svgs/${grade}.svg`} width={16} />
             {gradeLabel(grade)}
@@ -201,7 +202,7 @@ export function CandidateRating(props: {
             {c("이전", "Back")}
           </MuteButton>
         ) : <span />}
-        <MuteButton disabled={disabled || !rating || props.submitDisabled} size="lg" type="submit" variant="primary">
+        <MuteButton disabled={disabled || !hasFeedback || props.submitDisabled} size="lg" type="submit" variant="primary">
           {c("제출하기", "Submit")}
         </MuteButton>
       </div>

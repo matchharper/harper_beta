@@ -4,6 +4,8 @@
 
 온보딩 Opportunity도 정기 검색과 동일한 전체 Profile·Search Brief·Behavior Context·회사 Memory·Role 입력, 1·2차 Decisions 평가와 fingerprint를 사용한다. 양쪽 결과를 `company_role_candidate_evaluations`에 저장하며 동일한 입력·모델·프롬프트 버전의 완료된 평가는 양방향으로 재사용한다. 온보딩의 실제 실행은 `discovery_run_id`, 회사 검색은 `run_id`로 구분하고 선정 기록에 정확한 평가 ID를 남긴다. 기존 다른 입력 계약의 이력은 새 계약으로 소급 변환하지 않는다. [공통 평가 검증](../evaluation/unified-talent-role-fit/README.md).
 
+2026-10-26 18:28 KST 운영 반영(Worker `759dc82`): Role-based 검색은 저장된 Talent Behavior Context와 버전만 읽는다. 정기 검색·활성화 첫 검색과 구형 회사 검색의 공통 평가 경로에서 후보별 생성·갱신 호출을 제거했다. 미반영 변경 목록을 조회하거나 소비하지 않으며, 최신 Profile·전체 Brief와 저장된 Context로 평가한다. 저장된 Context가 없는 경우에는 기존 입력 부족 오류로 중단하고 검색 안에서 새로 만들지 않는다. Opportunity의 후보자 추천 실행이 Context 생성·갱신을 계속 담당하며, 평가·발행 중 입력이 달라졌을 때의 fingerprint 검증은 유지한다.
+
 정기 실행에서는 Worker가 평가를 준비한 뒤 **회사와 대화하는 기존 company-side LLM**에게 일반 후보 Top 50과 미소개 수락 후보 전원을 함께 제공한다. 회사 LLM은 이 간단한 입력에서 바로 추천을 선택한다. 후보 전체의 상세 원문을 다시 읽거나 별도 Worker LLM이 재선정하는 단계는 없다.
 
 이 문서는 앞선 ‘전체 원문을 묶음별로 별도 선정 LLM에 넣는’ 설계를 대체한다. 변경 전 조사 기록은 [기존 Worker 대조표](company-scheduled-worker-current-behavior-audit-ko.md), 앞선 실제 실행의 계약과 한계는 [읽기 전용 v1](../evaluation/company-agentic-role-search/SCHEDULED-READONLY-V1.md)에 보존한다.
@@ -24,7 +26,7 @@ Role 등록이 완료되어 `active`가 되면 정기 요일·시각과 자동 �
 
 | 순서 | 누가 하는가 | 입력과 실행 | 결과 |
 | --- | --- | --- | --- |
-| 1 | 기존 스케줄러 | 유료 Role의 월·수·금 09시 KST 또는 Role별 회사 추천 설정을 확인 | 같은 Role·시각의 정기 작업을 한 번 접수 |
+| 1 | 기존 스케줄러 | Free·유료 Role의 월·수·금 09시 KST 또는 Role별 회사 추천 설정을 확인 | 같은 Role·시각의 정기 작업을 한 번 접수 |
 | 2 | 회사 작업 처리기 | 첫 작업에서 후보 준비 작업을 접수. 초기 기본값은 미평가 최대 5,000명, 회사 추천 최대 10명, 후보자 제안 최대 20명 | 후보 정보 없이 회사 LLM부터 호출하지 않음 |
 | 3 | Worker | 역할에 맞는 검색 범위를 찾고 현재 입력과 같은 1·2차 평가를 재사용. 필요한 단계만 Decisions로 평가 | 성공한 단계별 평가 기록. 평가 오류는 부적합으로 취급하지 않음 |
 | 4 | Worker | 새 평가와 이미 저장된 호환 2차 평가를 함께 비교. 실제 실행 가능한 일반 후보를 mutualFit 내림차순으로 정렬해 50명까지 가져옴. 미소개 수락 후보는 별도 전원 추가 | `selectionInput`을 기존 검색 결과 JSON에 저장. 아직 추천·연락·연결 상태는 변경하지 않음 |

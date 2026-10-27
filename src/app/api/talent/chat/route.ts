@@ -1747,13 +1747,13 @@ export async function POST(req: NextRequest) {
         throw new Error("Tool unavailable in Apply with Harper mode");
       if (toolArgs.name === APPLY_TO_ROLE) {
         if (!simulationSession || simulationSession.state.status !== "active") throw new Error("No active application");
-        const saved=await startApplicationBrowser(simulationStore,simulationSession,toolInput);
+        const saved=await startApplicationBrowser(simulationStore,simulationSession,toolInput,Number(insertedUserMessage.id));
         simulationSession=saved;
         onSimulationMessage(saved.message);
-        await dispatchBrowser(saved);
-        applicationQuestionsAsked=true;
-        thinkingLogs.length=0;
-        return {ok:true,applicationInProgress:true};
+        if (saved.execution.applicationInProgress) await dispatchBrowser(saved);
+        applicationQuestionsAsked=saved.execution.awaitingUserInput;
+        if (applicationQuestionsAsked) thinkingLogs.length=0;
+        return saved.execution;
       }
       if(toolArgs.name===MANAGE_APPLICATION_SUGGESTIONS) {
         if(!simulationSession) throw new Error("No active application");

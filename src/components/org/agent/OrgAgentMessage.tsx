@@ -456,6 +456,7 @@ export function OrgAgentMessageBubble({
           />
         ) : null}
         <ChatMessageBubbleFrame
+          animateEntrance={isOwnUserMessage && message.id < 0}
           className={cn(
             "mb-2",
             isUser ? "max-w-[min(680px,92%)]" : "max-w-[min(680px,100%)]",
@@ -470,7 +471,11 @@ export function OrgAgentMessageBubble({
               "border border-critical/20 bg-critical-faded"
           )}
           isUser={isOwnUserMessage}
-          typographyClassName="text-[15px] leading-[1.72] md:text-[15.5px] md:leading-[1.75]"
+          typographyClassName={
+            isUser
+              ? "text-sm leading-[1.72] md:leading-[1.75]"
+              : "text-[15px] leading-[1.72] md:text-[15.5px] md:leading-[1.75]"
+          }
         >
           {isUser ? (
             <div className="whitespace-pre-wrap break-words">

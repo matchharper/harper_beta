@@ -261,6 +261,22 @@ export function describeOpsCompanyAction(args: {
       args.targetName,
       ORG_ACTION_LABELS[args.type],
     ])!,
-    subtitle: joinActivitySubtitle([transition, args.metadata.resumeFileName]),
+    subtitle: joinActivitySubtitle([
+      transition,
+      args.metadata.resumeFileName,
+      args.metadata.interval === "year"
+        ? "연간"
+        : args.metadata.interval === "month"
+          ? "월간"
+          : null,
+      args.metadata.quantity != null ? `${args.metadata.quantity} 슬롯` : null,
+      args.metadata.result === "cancelled"
+        ? "결제 취소 후 복귀"
+        : args.metadata.result === "success"
+          ? "결제 완료 화면에서 복귀 · 실제 결제는 서버 기록 확인"
+          : null,
+      args.metadata.invoiceId,
+      args.metadata.errorCode,
+    ]),
   };
 }

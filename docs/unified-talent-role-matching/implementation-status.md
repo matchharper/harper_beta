@@ -6,7 +6,13 @@
 
 2026-10-08 Free/Paid·월수금·scoring 전 방향별 제외 보완은 **로컬만 반영**했다. 새 migration `20261008043437_role_matching_route_eligibility.sql`은 운영 미적용이다. 격리 Postgres 검증은 운영 데이터·실제 LLM·발송 없이 수행한다. 이 검증은 이전 통합 작업 전체의 release gate를 대체하지 않는다. 이번 실행 권한 변경과 관련된 회귀 검증 320개 및 subtest 4개가 통과했다. 그중 27개는 disposable localhost Postgres에서 실제 migration·billing 함수·공개 범위·이력·alias 충돌을 검사했다. 실행: Worker checkout에서 `HARPER_RUN_LOCAL_POSTGRES_TESTS=1 HARPER_TEST_POSTGRES_BIN=<Postgres bin> python -m pytest tests/test_role_matching_postgres.py tests/test_role_matching_eligibility.py tests/test_unified_matching.py tests/test_company_first_search.py tests/test_opp_delivery_format_outbox.py tests/test_internal_role_safety.py tests/test_matching_inspection.py tests/test_matching_volume.py tests/test_post_calibration_company_matching.py tests/test_company_matching_local.py`. 추가 확인에서 기존 `test_opp_worker_prefilter.py::OpportunityWorkerSchedulerTest::test_scheduler_checks_actual_internal_work_before_marking_due`는 앞선 통합 변경의 scheduler SQL과 과거 문자열 assertion 불일치로 실패했다(54개 통과). 이번 작업에서 `opp/worker.py`와 그 테스트는 수정하지 않았다.
 
-## 1. 제품 흐름별 대조
+## 2026-10-27 Free 정책 후속 점검 — 로컬·미배포
+
+현재 로컬 정책은 Free·Paid 모두 talent-first·회사 선추천·연결 대기·연결 수락을 허용하며, 공용 Intro는 월 3개다. 최초 활성화 검색은 요일과 관계없이 즉시 시작하고 선정 결과도 저장할 수 있다. 활성 Free Role 1개·슬롯별 월 50 Intro 및 기존 동의·공유·test-only·중복 방지는 유지한다. [현재 실행 규칙](../unified-talent-role-matching-implementation-plan-ko.md#3-언제-무엇을-실행하는가)과 [검증·적용 상태](../company/workspace-billing-stripe-setup-ko.md)를 따른다.
+
+아래 표와 검증 수치는 2026-10-08 당시 대조 기록이다. Free talent-first 제외, 첫 허용일 대기, Free 자동 추천 OFF의 활성화 제외는 위 후속 정책으로 대체됐다. 당시 평가 원장·모델·다른 기능의 출시 상태까지 이 점검에서 다시 검증했다는 뜻은 아니다.
+
+## 1. 2026-10-08 제품 흐름별 대조
 
 | 요구 | 실제 실행 경로 | 판정·남은 경계 |
 | --- | --- | --- |

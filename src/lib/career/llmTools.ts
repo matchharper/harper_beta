@@ -1,5 +1,5 @@
 import { withUiStatusMessageParameter } from "@/lib/talentOnboarding/tools";
-import { applyToRoleTool, APPLY_TO_ROLE } from "./simulation/applicationBrowser";
+import { applyToRoleTool } from "./simulation/applicationBrowser";
 import { manageApplicationSuggestionsTool } from "./simulation/suggestions";
 import { readyForRoleTool } from "./simulation/readyForRole";
 import {
@@ -236,11 +236,11 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
       readyForRoleTool,
       applyToRoleTool,
     ].map(tool=>({...tool,function:{...tool.function,parameters:withUiStatusMessageParameter(tool.function.parameters)}})), getOpenAIChatToolName, args.allowedToolNames);
-    const names = new Set(tools.map(getOpenAIChatToolName));
     return {
       tools,
       toolNames: tools.map((t) => t.function.name),
-      stopAfterToolNames: [APPLY_TO_ROLE].filter(name => names.has(name)),
+      // Yield only when the tool reports pending work; existing outcomes need a reply.
+      stopAfterToolNames: [],
     };
   }
   const selectedTools = applyAllowedToolNames(

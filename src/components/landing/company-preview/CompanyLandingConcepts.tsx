@@ -1017,13 +1017,6 @@ export function CompanyConceptGettingStarted({
         </div>
         <StartLink locale={locale} />
       </div>
-      <p className={styles.startFootnote}>
-        {text(
-          locale,
-          "회사 이메일로 가입 · Free로 시작 · 유료 기능과 Intro는 요금제에서 확인",
-          "Sign up with your work email · Start on Free · See plans for paid features and Intros"
-        )}
-      </p>
     </ConceptSection>
   );
 }
@@ -1057,8 +1050,8 @@ export function CompanyConceptFaq({
           [
             "비용은 어떻게 되나요?",
             <span key="pricing">
-              Free에서는 활성 Role 1개와 월 10 Intro를 제공합니다. 유료
-              기능이 필요한 Role에 슬롯을 추가할 수 있습니다. Free와 표준 슬롯
+              Free에서는 활성 Role 1개와 월 3 Intro, 후보자 추천과 연결 대기를 제공합니다.
+              더 많은 Role과 Intro가 필요하면 슬롯을 추가할 수 있습니다. Free와 표준 슬롯
               구독에는 채용 성공보수가 없습니다. Enterprise와 기존 별도 계약은
               합의한 조건을 따릅니다.{" "}
               <Link href="/pricing?lang=ko" className={styles.inlineLink}>
@@ -1087,7 +1080,7 @@ export function CompanyConceptFaq({
           [
             "How does pricing work?",
             <span key="pricing">
-              Free includes one active role and 10 shared monthly Intros. Add slots to roles that need paid features. Free and
+              Free includes one active role and 3 shared monthly Intros. Free also includes candidate recommendations and Ready to connect. Add slots for more active roles and Intros. Free and
               standard slot subscriptions have no hiring success fee. Enterprise
               and existing agreements follow their agreed terms.{" "}
               <Link href="/pricing?lang=en" className={styles.inlineLink}>

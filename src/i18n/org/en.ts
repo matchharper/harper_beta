@@ -40,7 +40,7 @@ export const en: Record<OrgMessageKey, string> = {
   "agent.quickAction.pendingIntrosMessage":
     "Show candidates in Ready to connect who need our decision.",
   "agent.quickAction.runSearchMessage":
-    "Find candidates we might want to send an intro request.",
+    "Find candidates outside this role’s current recommendation list and add those worth requesting an intro with.",
   "shared.introRequested": "Intro requested",
   "announcement.welcome.title": "Welcome.",
   "announcement.welcome.description":
@@ -158,14 +158,14 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.service-overview.question":
     "How does Harper help my team hire?",
   "faq.service-overview.answer":
-    "Harper is your recruiting partner. We help define roles and hiring criteria, find candidates, and review their experience and work preferences. In Suggested candidates, you choose who you'd like to meet and request an Intro. If they accept, Harper introduces them to your selected team members by email. For roles with a paid slot, Ready to connect brings you candidates Harper has already spoken with about the role. You decide whether to connect. Existing agreements may include different access. After the introduction, Harper can help with messages and scheduling while your team tracks hiring progress in Pipeline.",
+    "Harper is your recruiting partner. We help define roles and hiring criteria, find candidates, and review their experience and work preferences. In Suggested candidates, you choose who you'd like to meet and request an Intro. If they accept, Harper introduces them to your selected team members by email. Ready to connect brings you candidates Harper has already spoken with about the role. You decide whether to connect. Existing agreements may include different access. After the introduction, Harper can help with messages and scheduling while your team tracks hiring progress in Pipeline.",
   "faq.getting-started.question": "I just signed up. What should I do first?",
   "faq.getting-started.answer":
     "Review your company information and Pitch, invite the team members involved in hiring, and choose a Slack channel for notifications. To create a role, select New role on the web or tell Harper in Slack who you're hiring for. You don't need a finished job description: Harper can help write the Description and Hiring Brief with you. Finish setting up any draft roles, then check Scheduled candidate search and its schedule in Settings. Review Suggested candidates to request Intros, and use Ready to connect in Inbox when it's available for your role. You can close the page while you wait and pause or delete roles when needed.",
   "faq.pricing-overview.question":
     "How much does Harper cost? Is there a monthly subscription or hiring fee?",
   "faq.pricing-overview.answer":
-    "Free includes one active role, unlimited drafts, and 10 monthly Intros shared across your roles. Each paid slot adds paid features and 50 monthly Intros for one role. You keep your shared Intros when you add slots. Free and standard subscriptions have no placement fee; Enterprise and existing agreements follow their own terms. New companies can't currently create a workspace themselves, and self-service payments are temporarily paused for most workspaces. If you have access to Slots and Billing, you can review your assignments, subscriptions, and invoices there. Otherwise, choose Contact Harper to check your terms. Public pricing doesn't replace your company's agreement or show its actual balance.",
+    "Free includes one active role, unlimited drafts, and 3 monthly Intros shared across your roles. Each paid slot adds one active role and 50 monthly Intros for that role. You keep your shared Intros when you add slots. Free and standard subscriptions have no placement fee; Enterprise and existing agreements follow their own terms. New companies can't currently create a workspace themselves, and self-service payments are temporarily paused for most workspaces. If you have access to Slots and Billing, you can review your assignments, subscriptions, and invoices there. Otherwise, choose Contact Harper to check your terms. Public pricing doesn't replace your company's agreement or show its actual balance.",
   "faq.pricing-subscription.question":
     "Is there a monthly subscription or usage fee? Is the service free?",
   "faq.pricing-subscription.answer":
@@ -181,11 +181,11 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.pending-connection.question":
     "What's the difference between Ready to connect and Suggested candidates?",
   "faq.pending-connection.answer":
-    "Suggested candidates are people who haven't agreed to discuss this role yet. They may have seen or declined an earlier recommendation, so being listed doesn't mean they're interested or that the role is new to them. Confirm an Intro request, and Harper will reach out with your reasons for wanting to meet. If they accept, Harper introduces them to your selected team members by email. Ready to connect contains candidates who have heard about your company and role, agreed to talk, and are waiting for your decision. It requires a paid slot or an eligible agreement. Your team can accept or decline the introduction. A candidate's acceptance and their introduction to your team may happen at different times.",
+    "Suggested candidates are people who haven't agreed to discuss this role yet. They may have seen or declined an earlier recommendation, so being listed doesn't mean they're interested or that the role is new to them. Confirm an Intro request, and Harper will reach out with your reasons for wanting to meet. If they accept, Harper introduces them to your selected team members by email. Ready to connect contains candidates who have heard about your company and role, agreed to talk, and are waiting for your decision. It is also available on Free. Your team can accept or decline the introduction. A candidate's acceptance and their introduction to your team may happen at different times.",
   "faq.recommendation-paused.question":
     "Why have new recommendations stopped?",
   "faq.recommendation-paused.answer":
-    "Check that the role is active, Scheduled candidate search is on, and the next search is scheduled. If Ready to connect has reached its review limit, Harper may pause some outreach until your team accepts or declines those introductions. This doesn't stop all searches for Suggested candidates. Your plan, pending proposals, and the availability of suitable candidates can also affect results. Ask Harper about recent searches. If you still need help, contact the team with the role name and what's happening.",
+    "Check that the role is active, Scheduled candidate search is on, and the next search is scheduled. If Ready to connect has reached its review limit, Harper may pause some outreach until your team accepts or declines those introductions. This doesn't stop all searches for Suggested candidates. The role’s active status, pending proposals, and the availability of suitable candidates can also affect results. Ask Harper about recent searches. If you still need help, contact the team with the role name and what's happening.",
   "faq.recommendation-feedback.question":
     "The recommended candidates aren't quite what I'm looking for.",
   "faq.recommendation-feedback.answer":
@@ -601,7 +601,7 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.regular-search.question":
     "When does scheduled candidate search run?",
   "faq.regular-search.answer":
-    "In the role's Settings, turn Scheduled candidate search on or off and choose its days and time. New roles default to Monday, Wednesday, and Friday at 9 AM Korea time; existing roles keep their saved settings. This schedule finds candidates your team can approach. Turning it off doesn't stop a manual Run search or every recommendation Harper makes directly to candidates under an eligible plan. Changing the schedule doesn't cancel a search already running or a proposal already sent.",
+    "In the role's Settings, turn Scheduled candidate search on or off and choose its days and time. New roles default to Monday, Wednesday, and Friday at 9 AM Korea time; existing roles keep their saved settings. This schedule finds candidates your team can approach. Turning it off doesn't stop a manual Run search or candidate-first recommendations for active roles, including Free roles. Changing the schedule doesn't cancel a search already running or a proposal already sent.",
   "faq.run-search.question":
     "Does Run search contact candidates?",
   "faq.run-search.answer":
@@ -623,13 +623,13 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.intro-awaiting.answer":
     "Intro requested covers the time Harper spends preparing the proposal and waiting for the candidate's reply. The card shows whether outreach is being prepared, a reply is pending, or an accepted introduction is being arranged. Making a request doesn't by itself confirm delivery or acceptance. No reply means neither acceptance nor rejection. You can request another message after the proposal has been delivered, but interviews and ordinary Pipeline moves aren't available before acceptance. If the candidate accepts, Harper introduces you without another approval. If they decline, the proposal ends and your team is notified.",
   "faq.connection-access.question":
-    "Why is Ready to connect locked? Do shared Intros unlock it?",
+    "Can we receive recommendations and use Ready to connect without a slot?",
   "faq.connection-access.answer":
-    "On standard plans, Ready to connect needs a paid slot assigned to the role. Shared Intros can be used for Intro requests, but don't unlock Ready to connect. A slot assigned to one role doesn't unlock paid features for another. Enterprise and existing agreements may have different terms. Check Slots if it's available, or contact Harper to confirm your access.",
+    "Yes. For Free roles, Harper can introduce the role to candidates, confirm their interest, and bring them to Ready to connect for your review. Use shared Intros to request an introduction or accept a connection. A paid slot adds one active role and 50 monthly Intros for its assigned role.",
   "faq.slots-and-credits.question":
     "What's the difference between shared Intros and slot Intros?",
   "faq.slots-and-credits.answer":
-    "Free and standard plans include 10 monthly Intros shared across your roles. Each paid slot adds 50 monthly Intros for the role assigned to it. Shared Intros aren't a free slot and don't represent a limit on drafts or hires. Intros renew monthly, and unused Intros don't roll over. Check your company's balance, renewal dates, and agreement for any exceptions.",
+    "Free and standard plans include 3 monthly Intros shared across your roles. Each paid slot adds 50 monthly Intros for the role assigned to it. Shared Intros aren't a free slot and don't represent a limit on drafts or hires. Intros renew monthly, and unused Intros don't roll over. Check your company's balance, renewal dates, and agreement for any exceptions.",
   "faq.credit-spending.question":
     "When is an Intro used? What if we run out?",
   "faq.credit-spending.answer":
@@ -637,7 +637,7 @@ export const en: Record<OrgMessageKey, string> = {
   "faq.slot-management.question":
     "Does changing or canceling a slot pause its Role?",
   "faq.slot-management.answer":
-    "If you have access to Slots, manage assignments there. Each slot has its own subscription and access end date. When a slot expires, Harper assigns any available valid slots first. One Free role can remain active without a slot; if several qualify, the oldest stays active and the others are paused. Existing candidates, Intros, and hiring history are preserved. Separate agreements keep their own terms. Reassigning a slot also affects which role has paid features and must respect the active Free role limit. Self-service payments are temporarily paused for most workspaces, so contact Harper if these menus aren't available.",
+    "If you have access to Slots, manage assignments there. Each slot has its own subscription and access end date. When a slot expires, Harper can assign another valid slot, but it does not pause roles that are already active for exceeding capacity. Existing active Free roles stay active. The limit of one Free role plus available paid slots is checked only when starting or reactivating a role. Existing candidates, Intros, and hiring history are preserved. Separate agreements keep their own terms. Reassigning a slot changes which role can use its slot Intros. Self-service payments are temporarily paused for most workspaces, so contact Harper if these menus aren't available.",
   "faq.role-public-promotion.question":
     "What do public job promotion and company name visibility do?",
   "faq.role-public-promotion.answer":

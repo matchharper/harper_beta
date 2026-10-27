@@ -1,0 +1,30 @@
+{
+  "datasetVersion": "v40",
+  "baseDataset": "cases-v6.json",
+  "provenance": "Synthetic policy clarification cases authored before execution on 2026-10-27. No production data.",
+  "scenarios": [
+    {
+      "id": "CSCQ4001",
+      "variants": [
+        {
+          "id": "existing_free_ko",
+          "surface": "chat",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "turns": [
+            "일반 Free 정책을 묻는 거야. 유료 슬롯 없이 이미 활성 Free Role이 두 개면 조회하거나 저장할 때 하나가 자동 중지돼? 새 Role 시작이나 기존 Role을 중지했다가 재개하는 경우는 어떻게 달라? 실제 계정 조회나 변경은 하지 마."
+          ]
+        },
+        {
+          "id": "expiry_en",
+          "surface": "slack",
+          "workspaceRoleIds": [],
+          "currentRoleId": null,
+          "turns": [
+            "Explain the standard policy only; do not inspect or change my account. If my paid slot expires or I reassign it, will existing active roles be paused for exceeding capacity? What happens to slot Intros, and can I start another role or restore an expired role?"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import { PushNavigationFrame } from "@/components/ui/push-navigation";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 type OrgMobileNavigationContextValue = {
   closeNavigation: () => void;
@@ -25,21 +27,29 @@ export function OrgMobileNavigationProvider({
 }) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [navigationTriggerHidden, setNavigationTriggerHidden] = useState(false);
+  const isMobile = useIsMobile();
   const value = useMemo<OrgMobileNavigationContextValue>(
     () => ({
       closeNavigation: () => setNavigationOpen(false),
-      navigationOpen,
+      navigationOpen: isMobile && navigationOpen,
       navigationTriggerHidden,
       openNavigation: () => setNavigationOpen(true),
       setNavigationOpen,
       setNavigationTriggerHidden,
     }),
-    [navigationOpen, navigationTriggerHidden]
+    [isMobile, navigationOpen, navigationTriggerHidden]
   );
 
   return (
     <OrgMobileNavigationContext.Provider value={value}>
-      {children}
+      <PushNavigationFrame
+        className="h-svh md:contents"
+        surfaceClassName="md:contents"
+        open={value.navigationOpen}
+        onOpenChange={setNavigationOpen}
+      >
+        {children}
+      </PushNavigationFrame>
     </OrgMobileNavigationContext.Provider>
   );
 }

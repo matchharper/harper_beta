@@ -1,3 +1,4 @@
+import { readPromotion } from "./promotion";
 import {
   executeSubscriptionChange,
   recoverSubscriptionChange,
@@ -13,6 +14,7 @@ import {
 import {
   billingSiteUrl,
   getSlotPrice,
+  getPromotionPrice,
   getBillingStripe,
   paidInvoicePeriod,
   monthlyCreditPeriods,
@@ -92,6 +94,12 @@ export async function syncBillingSubscription(
     const workspace = await billingWorkspace(workspaceId);
     const item = subscription.items.data[0];
     const initialQuantity = Number(subscription.metadata.slot_quantity ?? 1);
+    const allowedPrices = rows.length
+      ? rows.map((row) => row.stripe_price_id)
+      : [slotPriceId("month"), slotPriceId("year")];
+    // Enrollment expiry must not stop an already purchased subscription renewing.
+    if (!rows.length && item && !allowedPrices.includes(item.price.id))
+      allowedPrices.push((await getPromotionPrice()).id);
     if (
       stripeId(subscription.customer) !== workspace.stripe_customer_id ||
       subscription.items.data.length !== 1 ||
@@ -99,11 +107,7 @@ export async function syncBillingSubscription(
       !isSlotPurchaseQuantity(item?.quantity) ||
       item.quantity > initialQuantity ||
       (rows.length > 0 && rows.length !== initialQuantity) ||
-      !(
-        rows.length
-          ? rows.map((row) => row.stripe_price_id)
-          : [slotPriceId("month"), slotPriceId("year")]
-      ).includes(item.price.id) ||
+      !allowedPrices.includes(item.price.id) ||
       !["month", "year"].includes(item.price.recurring?.interval ?? "") ||
       item.price.recurring?.interval_count !== 1
     ) {
@@ -226,7 +230,8 @@ export async function createSlotCheckout(
   email?: string,
   locale = "ko",
   interval: BillingInterval = "month",
-  quantity = 1
+  quantity = 1,
+  offer: { token?: string; expectedUnitAmount?: number } = {}
 ) {
   if (!isSlotPurchaseQuantity(quantity))
     throw new WorkspaceBillingError("billing_conflict", 400);
@@ -236,7 +241,10 @@ export async function createSlotCheckout(
   )
     throw new WorkspaceBillingError("billing_unavailable", 503);
   const stripe = getBillingStripe();
-  const price = await getSlotPrice(interval);
+  const promotion = readPromotion(offer.token);
+  const price = promotion && interval === "month" ? await getPromotionPrice() : await getSlotPrice(interval);
+  if (offer.expectedUnitAmount !== undefined && offer.expectedUnitAmount !== price.unit_amount)
+    throw new WorkspaceBillingError("billing_promotion_invalid", 400);
   const workspace = await billingWorkspace(workspaceId);
   if (workspace.signup_state && !workspace.signup_state.companyConfirmedAt)
     throw new WorkspaceBillingError("billing_conflict");
@@ -283,6 +291,7 @@ export async function createSlotCheckout(
     if (
       existing.status === "open" &&
       existing.url &&
+      lock.intent?.price === price.id &&
       (existing.metadata?.billing_interval ?? "month") === interval &&
       Number(existing.metadata?.slot_quantity ?? 1) === quantity
     )
@@ -336,6 +345,7 @@ export async function createSlotCheckout(
         checkout_key: lock.key,
         billing_interval: intent.interval,
         slot_quantity: String(intent.quantity),
+        ...(promotion && interval === "month" ? { promotion: promotion.id } : {}),
         ...(intent.freeRoleId ? { free_role_id: intent.freeRoleId } : {}),
       },
       subscription_data: {
@@ -393,31 +403,17 @@ export async function confirmSlotCheckout(
   throwBillingDbError(error);
   // Keep the completed checkout lock until the next deliberate purchase. A
   // repeated return/old browser tab can never clear a newer open checkout.
-  if (
-    new Set((data ?? []).map((period) => period.slot_id)).size !==
-    Number(session.metadata?.slot_quantity ?? 1)
-  )
+  const purchasedSlotIds = [...new Set((data ?? []).map((period) => period.slot_id))];
+  if (purchasedSlotIds.length !== Number(session.metadata?.slot_quantity ?? 1))
     return { confirmed: false };
-  let transferredRoleName: string | null = null;
-  if (session.metadata?.free_role_id) {
-    const [{ data: slots, error: slotError }, summary] = await Promise.all([
-      billingDb()
-        .from("company_workspace_slots")
-        .select("id")
-        .eq("company_workspace_id", workspaceId)
-        .eq("stripe_subscription_id", subscriptionId),
-      getBillingSummary(workspaceId),
-    ]);
-    throwBillingDbError(slotError);
-    const purchased = new Set((slots ?? []).map((slot) => slot.id));
-    const assigned = summary.slots.find(
-      (item) =>
-        purchased.has(item.id) && item.roleId === session.metadata?.free_role_id
-    );
-    if (assigned?.roleId === session.metadata.free_role_id)
-      transferredRoleName = assigned.roleName;
-  }
-  return { confirmed: true, transferredRoleName };
+  // Reconciliation assigns the sole eligible Free Role atomically. Multiple
+  // eligible Roles stay unassigned for the post-checkout chooser.
+  const summary = await getBillingSummary(workspaceId);
+  const assigned = summary.slots.filter(
+    (slot) => purchasedSlotIds.includes(slot.id) && slot.roleId
+  );
+  const transferredRoleName = assigned.length === 1 ? assigned[0].roleName : null;
+  return { confirmed: true, transferredRoleName, purchasedSlotIds };
 }
 
 export async function updateSlotCancellation(

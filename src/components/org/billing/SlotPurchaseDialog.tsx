@@ -1,6 +1,10 @@
+import {
+  trackBillingInteraction,
+  type BillingTrackingContext,
+} from "@/hooks/org/useBillingPurchaseTracking";
 import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CircleCheck, Layers, LoaderCircle, Minus, Plus } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +19,7 @@ import {
 } from "@/lib/org/billing/types";
 
 type Props = {
+  tracking?: BillingTrackingContext;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   catalog?: BillingCatalog;
@@ -22,7 +27,11 @@ type Props = {
   initialQuantity?: number;
   busy: boolean;
   error: string;
-  onCheckout: (interval: BillingInterval, quantity: number) => void;
+  onCheckout: (
+    interval: BillingInterval,
+    quantity: number,
+    expectedUnitAmount?: number
+  ) => void;
 };
 
 export function SlotPurchaseDialog(props: Props) {
@@ -30,6 +39,7 @@ export function SlotPurchaseDialog(props: Props) {
 }
 
 function SlotPurchaseForm({
+  tracking,
   open,
   catalog,
   initialInterval,
@@ -42,7 +52,9 @@ function SlotPurchaseForm({
   const { c } = useOrgLocale();
   const { formatBillingMoney } = useOrgBillingFormat();
   const id = useId();
-  const [interval, setInterval] = useState(initialInterval);
+  const [interval, setInterval] = useState<BillingInterval>(
+    catalog?.promotion ? "month" : initialInterval
+  );
   const [input, setInput] = useState(
     String(isSlotPurchaseQuantity(initialQuantity) ? initialQuantity : 1)
   );
@@ -50,6 +62,23 @@ function SlotPurchaseForm({
   const valid = isSlotPurchaseQuantity(quantity);
   const amount = interval === "year" ? catalog?.annualAmount : catalog?.amount;
   const available = catalog?.available && amount != null && catalog.currency;
+  const recordedOpen = useRef(false);
+  useEffect(() => {
+    if (recordedOpen.current || !tracking || tracking.preview) return;
+    recordedOpen.current = true;
+    trackBillingInteraction(tracking, "purchase_modal_opened", {
+      interval,
+      quantity,
+    });
+  }, [tracking, interval, quantity]);
+  const close = () => {
+    if (busy) return;
+    trackBillingInteraction(tracking, "purchase_modal_closed", {
+      interval,
+      quantity: valid ? quantity : null,
+    });
+    onOpenChange(false);
+  };
   const formId = `${id}-form`;
   const money = (value: number) =>
     formatBillingMoney(value, catalog?.currency ?? "usd", {
@@ -65,8 +94,8 @@ function SlotPurchaseForm({
       "Harper reaches out to candidates about this role and brings you those who want to talk. You don't need to request each outreach. Each slot includes 50 Intros per month."
     ),
     c(
-      "전체 Role 공용 월 10 Intro는 별도로 유지돼요. 모든 Intro는 이월되지 않아요.",
-      "You also keep 10 shared Intros each month. Unused Intros don't roll over."
+      "전체 Role 공용 월 3 Intro는 별도로 유지돼요. 모든 Intro는 이월되지 않아요.",
+      "You also keep 3 shared Intros each month. Unused Intros don't roll over."
     ),
     c(
       "슬롯별로 갱신을 취소할 수 있고, 결제한 기간 끝까지 이용할 수 있어요.",
@@ -76,14 +105,14 @@ function SlotPurchaseForm({
   return (
     <TalentCareerModal
       open={open}
-      onClose={() => !busy && onOpenChange(false)}
+      onClose={close}
       title={c("슬롯 추가하기", "Add slots")}
       headerActions={
         <BillingIntervalTabs
           value={interval}
           onChange={setInterval}
           disabled={busy}
-          annualDiscountLabel="20% OFF"
+          annualDiscountLabel={catalog?.promotion ? undefined : "20% OFF"}
         />
       }
       mobileBottomSheet
@@ -93,12 +122,7 @@ function SlotPurchaseForm({
       bodyClassName="px-4 sm:px-5"
       footer={
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <MuteButton
-            type="button"
-            size="md"
-            disabled={busy}
-            onClick={() => onOpenChange(false)}
-          >
+          <MuteButton type="button" size="md" disabled={busy} onClick={close}>
             {c("닫기", "Close")}
           </MuteButton>
           {available ? (
@@ -127,11 +151,27 @@ function SlotPurchaseForm({
         className="py-3"
         onSubmit={(event) => {
           event.preventDefault();
-          if (valid && available && !busy) onCheckout(interval, quantity);
+          if (valid && available && !busy) {
+            trackBillingInteraction(tracking, "checkout_submitted", {
+              interval,
+              quantity,
+              amount: amount * quantity,
+              currency: catalog.currency,
+            });
+            onCheckout(interval, quantity, amount ?? undefined);
+          }
         }}
       >
         <div className="space-y-6 rounded-[20px] border-2 border-action bg-action-faded p-4 sm:p-5">
           <div aria-live="polite" aria-atomic="true">
+            {catalog?.promotion && interval === "month" && (
+              <p className="mb-3 text-sm text-action">
+                {c(
+                  "초기 팀 가격 · 11월 14일까지 시작하면 구독 유지 중 월 $199",
+                  "Early team offer · Start by November 14 and keep $199/month while subscribed"
+                )}
+              </p>
+            )}
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <p className="text-[22px] font-medium leading-tight tracking-tight tabular-nums">
                 {valid

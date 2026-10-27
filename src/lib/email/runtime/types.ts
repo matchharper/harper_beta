@@ -60,9 +60,6 @@ export function parseEmailRuntimeMessage(
   return { version: 1, kind: v.kind as EmailRuntimeKind, jobId: v.jobId };
 }
 
-export function emailRuntimeEnabled() {
-  return process.env.EMAIL_RUNTIME_TARGET === "vercel_queue";
-}
 export function emailRuntimeTable(kind: EmailRuntimeKind) {
   return kind === "reply"
     ? "email_reply_jobs"

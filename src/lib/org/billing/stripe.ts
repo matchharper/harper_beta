@@ -1,3 +1,4 @@
+import { EARLY_TEAM_PRICE_LOOKUP, readPromotion } from "./promotion";
 import Stripe from "stripe";
 import { slotPriceId } from "./compat";
 import {
@@ -59,7 +60,21 @@ export async function getSlotPrice(interval: BillingInterval = "month") {
   }
   return price;
 }
-export async function getBillingCatalog(): Promise<BillingCatalog> {
+export async function getPromotionPrice() {
+  const base = await getSlotPrice("month");
+  const result = await getBillingStripe().prices.list({ lookup_keys: [EARLY_TEAM_PRICE_LOOKUP], limit: 1 });
+  const price = result.data[0];
+  if (!price || !price.active || price.unit_amount !== 19900 || price.currency !== "usd" ||
+      price.type !== "recurring" || price.recurring?.interval !== "month" ||
+      price.recurring.interval_count !== 1 || price.recurring.usage_type !== "licensed" ||
+      price.billing_scheme !== "per_unit" || price.transform_quantity ||
+      stripeId(price.product) !== stripeId(base.product) || price.livemode !== base.livemode)
+    throw new WorkspaceBillingError("billing_unavailable", 503);
+  return price;
+}
+
+export async function getBillingCatalog(promotionToken?: string): Promise<BillingCatalog> {
+  const promotion = readPromotion(promotionToken);
   if (!process.env.STRIPE_SECRET_KEY || !slotPriceId("month")) {
     return {
       available: false,
@@ -71,7 +86,7 @@ export async function getBillingCatalog(): Promise<BillingCatalog> {
     };
   }
   const [price, annual] = await Promise.all([
-    getSlotPrice(),
+    promotion ? getPromotionPrice() : getSlotPrice(),
     getSlotPrice("year"),
   ]);
   if (
@@ -81,6 +96,7 @@ export async function getBillingCatalog(): Promise<BillingCatalog> {
   )
     throw new WorkspaceBillingError("billing_unavailable", 503);
   return {
+    ...(promotion ? { promotion } : {}),
     available: true,
     amount: price.unit_amount,
     annualAmount: annual.unit_amount,

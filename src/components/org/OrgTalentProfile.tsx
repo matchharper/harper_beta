@@ -338,7 +338,7 @@ export function OrgTalentProfileContent({
   );
 
   return (
-    <div className="min-w-0 space-y-7 px-2">
+    <div className="min-w-0 max-w-full space-y-7 px-2 [overflow-wrap:anywhere]">
       {header}
 
       {detail.companyPresentation ? (
@@ -379,6 +379,19 @@ export function OrgTalentProfileContent({
         </ProfileSection>
       ) : null}
 
+      {criteriaEvaluations.length > 0 ? (
+        <ProfileSection title={c("기준", "Criteria")}>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+            {criteriaEvaluations.map((evaluation) => (
+              <OrgCriteriaEvaluation
+                evaluation={evaluation}
+                key={evaluation.name}
+              />
+            ))}
+          </div>
+        </ProfileSection>
+      ) : null}
+
       <dl className="grid grid-cols-2 md:grid-cols-3 gap-4 gap-y-6 my-8 mb-12">
         {[
           {
@@ -412,19 +425,6 @@ export function OrgTalentProfileContent({
           </div>
         ))}
       </dl>
-
-      {criteriaEvaluations.length > 0 ? (
-        <ProfileSection title={c("기준", "Criteria")}>
-          <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
-            {criteriaEvaluations.map((evaluation) => (
-              <OrgCriteriaEvaluation
-                evaluation={evaluation}
-                key={evaluation.name}
-              />
-            ))}
-          </div>
-        </ProfileSection>
-      ) : null}
 
       {detail.profile.bio ? (
         <ProfileSection title={c("소개", "Intro")}>

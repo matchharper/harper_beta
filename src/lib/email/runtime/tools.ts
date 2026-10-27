@@ -39,6 +39,7 @@ import {
 import { createHash } from "crypto";
 import { updateEmailJob } from "./store";
 import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalOpportunityDecision";
+import { opsEmailTestToolBlock } from "./opsTest";
 
 // One shared schema/executor for each existing business capability. Only the
 // attachment transport and email onboarding progress need channel executors.
@@ -538,6 +539,8 @@ export async function executeEmailTool(
   args: Parameters<CareerTextTurnAdapter["executeTool"]>[0]
 ) {
   const job = await assertEmailLease(ctx.admin, "reply", ctx.job.id, ctx.owner);
+  const blocked = opsEmailTestToolBlock(job, args.name);
+  if (blocked) return blocked;
   const application = await executeEmailApplicationTool(ctx, args.name, args.input);
   if (application !== undefined) return application;
   if (!MUTATING_EMAIL_TOOLS.has(args.name))

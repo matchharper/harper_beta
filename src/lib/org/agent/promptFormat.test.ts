@@ -74,10 +74,12 @@ test("organization-agent search results are compacted for the model", () => {
   const raw = JSON.stringify(result);
   const compact = serializeOrgAgentToolResult("get_talents", result);
 
-  assert.ok(compact.length < raw.length * 0.65);
-  assert.match(compact, /talent_id\tname\temail/);
-  assert.match(compact, /current_company_stage_id\tcurrent_company_stage/);
-  assert.match(compact, /connected\t진행 중/);
+  assert.ok(compact.length < raw.length);
+  const rows = compact.split("\n").filter(line => line.startsWith('{"talentId"')).map(line => JSON.parse(line));
+  assert.equal(rows.length, 10);
+  assert.equal(rows[0].info, "name: Person 0, headline: B2B SaaS engineer");
+  assert.equal(rows[0].stageId, "connected");
+  assert.equal(rows[0].stage, "진행 중");
   assert.match(compact, /2026-07-30/);
   assert.doesNotMatch(compact, /10:23:45/);
   assert.doesNotMatch(compact, /recommendationId/);
@@ -718,7 +720,7 @@ test("candidate batch details expose structured profiles without raw resume text
   assert.match(compact, /talent-1/);
   assert.match(compact, /talent-2/);
   assert.match(compact, /talent-missing/);
-  assert.match(compact, /Projects\t2025\tBuilt an open-source compiler/);
+  assert.match(compact, /Projects : 2025\n<profile_description>\nBuilt an open-source compiler/);
   assert.match(compact, /resume_availability/);
   assert.doesNotMatch(compact, /resume_excerpt|resume_text|resumeText/);
   assert.doesNotMatch(compact, new RegExp(rawResumeSecret));
@@ -1518,10 +1520,8 @@ test("candidate contact drafts expose the saved copy as well as approval state",
   assert.match(compact, /approval_state=awaiting_company_confirmation/);
   assert.match(compact, /candidate_contact_state=not_sent/);
   assert.match(compact, /exact_body_appended_by_server=true/);
-  assert.ok(compact.includes(JSON.stringify({
-    subject: "작성된 제목",
-    body: "첫 문단\n\n둘째 문단—원문 조건을 유지합니다.",
-  })));
+  assert.ok(compact.includes("subject: 작성된 제목"));
+  assert.ok(compact.includes("body: 첫 문단\n\n둘째 문단—원문 조건을 유지합니다."));
   assert.match(compact, /candidate_preferred_language=Korean/);
   assert.match(
     compact,
@@ -1548,10 +1548,10 @@ test("batch draft readback keeps each exact copy paired with its saved revision"
   const compact = serializeOrgAgentToolResult("contact_talent", {
     action: "revise_draft", status: "batch_partial", items: drafts,
   });
-  assert.ok(compact.includes(JSON.stringify(drafts.map(item => ({
-    contactId: item.contactId, revision: item.revision, candidate: item.candidateName,
-    role: item.roleName, subject: item.subject, body: item.body,
-  })))));
+  for (const item of drafts) {
+    assert.ok(compact.includes(`contactId: ${item.contactId}\n  revision: ${item.revision}`));
+    assert.ok(compact.includes(`subject: ${item.subject}\n  body: ${item.body}`));
+  }
 });
 
 test("candidate contact copy failures expose facts and recovery without fallback prose", () => {
@@ -1739,8 +1739,11 @@ test("role pipeline reads expose ordered stage and current-stage IDs for safe mu
     /custom:stage-1\t1차 인터뷰\tcustom\t101\t1차 인터뷰\t45/
   );
   assert.match(compact, /실무 경험을 중심으로 이야기합니다/);
-  assert.match(compact, /current_stage_id\tstage/);
-  assert.match(compact, /talent-1\t김하퍼.*custom:stage-1\t1차 인터뷰/);
+  const person = JSON.parse(compact.split("\n").find(line => line.startsWith('{"talentId"'))!);
+  assert.equal(person.talentId, "talent-1");
+  assert.equal(person.info, "name: 김하퍼");
+  assert.equal(person.stageId, "custom:stage-1");
+  assert.equal(person.stage, "1차 인터뷰");
 });
 
 test("organization-agent role reads expose structured criteria beside the request", () => {

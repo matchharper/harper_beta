@@ -1,4 +1,4 @@
-import { stableHash, type RoleStartBrief } from "./brief";
+import { signalsKey, stableHash, type RoleStartBrief } from "./brief";
 import { parseThinConditions, type ThinCondition } from "./widen";
 import { CHAT_BRIEF_EDIT, isRoleStartStalled, likedReasonChips, ROLE_START_STALL_MS, type RoleStartCandidate, type RoleStartQuestion, type RoleStartSession } from "./session";
 
@@ -18,7 +18,7 @@ function readsStartedAt(session: RoleStartSession) {
  * A chat edit of the Brief still running (one older than 5 minutes was cut
  * off), or the last one's failure within 10 minutes.
  */
-function chatBriefEdit(session: RoleStartSession) {
+export function chatBriefEdit(session: Pick<RoleStartSession, "progress">) {
   const entry = session.progress.find((item) => item.key === CHAT_BRIEF_EDIT);
   const age = Date.now() - Date.parse(entry?.at ?? "");
   if (entry?.status === "running" && age <= 5 * 60_000) return "running" as const;
@@ -71,7 +71,10 @@ export function roleStartView(session: RoleStartSession | null) {
     // Lines written before generic step wording carried counts; they are not sent.
     progress: session.progress
       .filter((entry) => entry.step)
-      .map(({ text, step, status, kind }, index) => ({ key: `p${index}`, text: text || null, step, status, kind: kind ?? null })),
+      .map(({ text, step, status, kind, billingCode }, index) => ({
+        key: `p${index}`, text: text || null, step, status, kind: kind ?? null,
+        ...(status === "error" && billingCode ? { billingCode } : {}),
+      })),
     briefEdit: chatBriefEdit(session),
     notice: session.timings.thin === "true" ? { thin: true, conditions: thinConditionsOf(session) } : null,
   };
@@ -95,23 +98,37 @@ export function visibleBriefHash(brief: RoleStartBrief) {
 }
 
 /**
- * A screen or chat edit saved over the latest record when what it shows is
- * unchanged: grade signals written in the background meanwhile (for criteria
- * the edit left as they were) and the reference people stay as they are now.
+ * A screen or chat edit, or an answer applied to the Brief, saved over the
+ * latest record: what it did not change takes what background work wrote
+ * meanwhile. Grade signals (for criteria whose text is unchanged), the summary,
+ * keywords and job titles (each when left as in startedFrom) and the reference
+ * people stay as they are now.
  */
-export function withLatestBackground(next: RoleStartBrief, latest: RoleStartBrief, startedFrom?: RoleStartBrief): RoleStartBrief {
-  // A summary the edit left as it was takes the latest one (rewritten in the background meanwhile).
+export function withLatestBackground(
+  next: RoleStartBrief,
+  latest: RoleStartBrief,
+  startedFrom?: RoleStartBrief,
+  options: { blankSummaryFromLatest?: boolean } = {}
+): RoleStartBrief {
+  // A summary the edit left as it was takes the latest one; so does an answer's rewrite
+  // that came back empty (blankSummaryFromLatest). A summary the team cleared stays empty.
   const summary =
-    startedFrom && next.summary === startedFrom.summary
+    startedFrom && (next.summary === startedFrom.summary || (options.blankSummaryFromLatest && !next.summary.trim()))
       ? { summary: latest.summary, summaryOf: latest.summaryOf }
       : { summary: next.summary, summaryOf: next.summaryOf };
+  const unchanged = (pick: (brief: RoleStartBrief) => unknown) =>
+    Boolean(startedFrom) && stableHash(pick(next) ?? null) === stableHash(pick(startedFrom!) ?? null);
+  const { titles: _titles, ...rest } = next;
+  const titles = unchanged((brief) => brief.titles) ? latest.titles : next.titles;
   return {
-    ...next,
+    ...rest,
     ...summary,
+    ...(titles ? { titles } : {}),
+    keywords: unchanged((brief) => brief.keywords) ? latest.keywords : next.keywords,
     references: latest.references,
     criteria: next.criteria.map((criterion) => {
       const fresh = latest.criteria.find((item) => item.id === criterion.id);
-      return fresh && fresh.name === criterion.name && fresh.criteria === criterion.criteria
+      return fresh && signalsKey(fresh) === signalsKey(criterion)
         ? { ...criterion, signals: fresh.signals, signalsOf: fresh.signalsOf }
         : criterion;
     }),

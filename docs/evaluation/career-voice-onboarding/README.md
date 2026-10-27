@@ -58,7 +58,18 @@
 - Gate: API 오류 없이 완료, 누락된 필수 항목을 완료로 처리하지 않기, 최종 확인 반복 없음, 중단 요청 존중, 갱신 후 이미 답한 질문 반복 없음. 4개 모두 문맥 검토를 통과해야 이 제한된 smoke가 통과한다. 미실행/판정 불가를 통과로 세지 않는다.
 - 한계: 합성 history/coverage이며 실제 추출·저장, 브라우저 WebRTC, 소음·말 끊기·사용자별 지연·실서비스 완료율은 검증하지 않는다. 이 smoke만으로 완료율 개선이나 전체 rollout 승인을 주장하지 않는다.
 
-## Pilot 결과와 release gate
+## 모의 면접 Live 시작·음성 입력 smoke (`mock-interview-v1`)
+
+[2026-10-26 검증 결과](reports/2026-10-26-live-mock-interview.md): prompt만 고친 최초 실행은 실패했고, backend 시작 요청을 추가한 실행은 첫 기술 질문·음성 끼어들기 응답을 통과했다. 온보딩 완료 회귀와 코드 검사 16개도 통과했다. 실제 사용자 마이크/WebRTC는 미검증이며 로컬·미배포다. [재현 manifest](mock-interview-manifest-v1.json).
+
+- 목적/단위: 인사만 하고 멈추던 Live 시작 경로에서 실제 위임·질문 준비·사용자 음성 응답을 합성 통화 한 건으로 확인한다. 온보딩 비교와 별개인 변경 경로 점검이다.
+- Frozen input/gold: `live-prompt-cases-mock-interview-v1.json`. 운영 개인정보 없는 합성 프로필·Role·음성·검색 결과와 실행 전 기대 행동을 동결한다. 기존 v1/v2는 유지한다.
+- Canonical runner: `CAREER_VOICE_EVAL_VERSION=mock-interview-v1 TSX_TSCONFIG_PATH=scripts/tsconfig.json node --env-file=.env.local --import tsx scripts/evalCareerLiveOnboardingPrompt.ts opening-and-spoken-interruption`. 공통 frontend/모의 면접 prompt와 `buildLiveSessionOpeningEvents`의 백엔드 시작 요청을 사용한다. 30초 동안 무음을 보낸 뒤 Yuna PCM16/24kHz 발화를 보낸다. `web_search`는 합성 빈 검색 결과를 돌려주며 실제 검색·DB·제품 도구 실행은 없다.
+- 설정/재현/개인정보: 제품 Live/위임 모델·reasoning·voice를 재사용한다. run별 manifest는 fixture/runner SHA-256·revision/diff hash·모델 설정을 기록하고 전체 입력·이벤트·음성을 ignored `runs/`와 `private/mock-interview-v1/`에 owner-only로 저장한다. OpenAI에는 합성 입력만 전송한다. 출력 상한이나 별도 sampling 설정을 추가하지 않는다.
+- Gate: 발화 이전 실제 위임·검색, 인사를 넘어 첫 기술 질문, 실제 입력 전사와 설명 요청에 맞는 후속 응답, API 오류 0건. Codex가 이벤트와 전체 대화를 직접 읽으며 키워드로 의미를 채점하지 않는다. 미실행·실패는 통과가 아니다.
+- 한계: 한 건의 합성 WebSocket smoke이며 사용자 마이크·WebRTC·실제 검색·생산 환경 성공률을 검증하지 않는다. 기존 온보딩 완료 사례를 별도 짧은 회귀 점검으로 재실행한다.
+
+## Pilot 결과와 release gate (관측 결과)
 
 [2026-10-06 최근 30일 재평가](reports/2026-10-06-month-v2.md): 성숙 113명의 성공 확인 비율은 Realtime 23/59=39.0%, Live 13/54=24.1%. 첫 session 기록 기반 비용은 배정 사용자당 각각 $0.63, $0.34이며 성공 확인 1명당 $1.61, $1.42다. Realtime을 온보딩 기본 선택으로 유지하는 운영 판단이다. 판정 불가 45명, 95% 차이 구간의 0 포함, 누락된 비용 때문에 확정적 모델 우열이나 자동 rollout 승인은 아니다. 배정/배포는 변경하지 않았다.
 

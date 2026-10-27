@@ -21,12 +21,6 @@ export function companyCriterionScoreLabel(score: unknown): string | null {
     : null;
 }
 
-export function companyCriterionScoreExplanation(locale: "ko" | "en") {
-  return locale === "ko"
-    ? "점수는 5개 평가 수준(0·25·50·75·100)에 각각의 가능성을 반영한 평균이에요. 대표 평가는 가능성이 가장 높은 수준이라 점수 순서와 다를 수 있어요. 채용 확률이나 합격선은 아니에요."
-    : "The score averages five assessment levels (0, 25, 50, 75, 100), weighted by their probabilities. The label shows the most likely level, so its order can differ from the scores. Neither is a hiring probability or a pass mark.";
-}
-
 export type OrgCompanyPresentation = {
   tldr: string;
   harperNote: string;
@@ -38,9 +32,17 @@ export type OrgCompanyPresentation = {
 };
 
 /** Unknown legacy versions must not be presented as either current or stale. */
-export function isCompanyPresentationFromPreviousBrief(presentationVersion: unknown, currentVersion: unknown) {
-  if (typeof presentationVersion !== "string" || !presentationVersion.trim() ||
-      typeof currentVersion !== "string" || !currentVersion.trim()) return undefined;
+export function isCompanyPresentationFromPreviousBrief(
+  presentationVersion: unknown,
+  currentVersion: unknown
+) {
+  if (
+    typeof presentationVersion !== "string" ||
+    !presentationVersion.trim() ||
+    typeof currentVersion !== "string" ||
+    !currentVersion.trim()
+  )
+    return undefined;
   return presentationVersion !== currentVersion;
 }
 
@@ -59,14 +61,24 @@ export function companyPresentationFinalFitLabel(
 }
 
 /** Preserve the scorer's label; these are display translations, not new ratings. */
-export function companyCriterionFitnessLabel(fitness: OrgCompanyCriterionFitness, locale: "ko" | "en") {
-  if (fitness === "limited") return locale === "ko" ? "근거 제한" : "Limited evidence";
-  if (fitness === "conflict") return locale === "ko" ? "조건 상충" : "Conflicting evidence";
-  return companyPresentationFinalFitLabel(fitness === "bad" ? "unfit" : fitness, locale);
+export function companyCriterionFitnessLabel(
+  fitness: OrgCompanyCriterionFitness,
+  locale: "ko" | "en"
+) {
+  if (fitness === "limited")
+    return locale === "ko" ? "근거 제한" : "Limited evidence";
+  if (fitness === "conflict")
+    return locale === "ko" ? "조건 상충" : "Conflicting evidence";
+  return companyPresentationFinalFitLabel(
+    fitness === "bad" ? "unfit" : fitness,
+    locale
+  );
 }
 
 /** Project only the company-safe report, never internal selection context. */
-export function normalizeOrgCompanyPresentation(value: unknown): OrgCompanyPresentation | null {
+export function normalizeOrgCompanyPresentation(
+  value: unknown
+): OrgCompanyPresentation | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const report = value as Record<string, unknown>;
   if (typeof report.tldr !== "string") return null;
@@ -74,15 +86,25 @@ export function normalizeOrgCompanyPresentation(value: unknown): OrgCompanyPrese
   return {
     tldr: report.tldr,
     harperNote:
-      typeof report.harper_note === "string" ? report.harper_note
-        : typeof report.harperNote === "string" ? report.harperNote : "",
+      typeof report.harper_note === "string"
+        ? report.harper_note
+        : typeof report.harperNote === "string"
+          ? report.harperNote
+          : "",
     ...(typeof report.recommendationReason === "string"
-      ? { recommendationReason: report.recommendationReason } : {}),
+      ? { recommendationReason: report.recommendationReason }
+      : {}),
     finalFit:
-      typeof fit === "string" && ["excellent", "good", "borderline", "uncertain", "unfit"].includes(fit)
-        ? fit as OrgCompanyPresentation["finalFit"] : null,
-    criteriaEvaluations: normalizeOrgCompanyCriteriaEvaluations(report.criteriaEvaluations),
-    ...(typeof report.briefVersion === "string" && report.briefVersion ? { briefVersion: report.briefVersion } : {}),
+      typeof fit === "string" &&
+      ["excellent", "good", "borderline", "uncertain", "unfit"].includes(fit)
+        ? (fit as OrgCompanyPresentation["finalFit"])
+        : null,
+    criteriaEvaluations: normalizeOrgCompanyCriteriaEvaluations(
+      report.criteriaEvaluations
+    ),
+    ...(typeof report.briefVersion === "string" && report.briefVersion
+      ? { briefVersion: report.briefVersion }
+      : {}),
   };
 }
 
@@ -96,9 +118,7 @@ const fitnessValues = new Set<OrgCompanyCriterionFitness>([
 ]);
 
 function normalizedText(value: unknown) {
-  return typeof value === "string"
-    ? value.replaceAll("\u0000", "").trim()
-    : "";
+  return typeof value === "string" ? value.replaceAll("\u0000", "").trim() : "";
 }
 
 function normalizedFitness(value: unknown): OrgCompanyCriterionFitness {

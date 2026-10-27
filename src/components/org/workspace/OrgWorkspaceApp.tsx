@@ -1,4 +1,5 @@
 import { useOrgVisit } from "@/hooks/org/useOrgVisit";
+import { useRoleActivationToast } from "@/hooks/org/useRoleActivationToast";
 import { useOrgNavigation } from "@/hooks/org/useOrgNavigation";
 import { OrgPageLoading } from "./OrgPageLoading";
 import { OrgReviewPage } from "./OrgReviewPage";
@@ -23,6 +24,7 @@ import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocument
 import { OrgMobileNavigationProvider } from "@/components/org/workspace/OrgMobileNavigation";
 import {
   OrgWorkspaceProvider,
+  useOrgWorkspace,
   useOrgWorkspaceController,
 } from "@/hooks/org/useOrgWorkspace";
 import type { OrgWorkspacePageId } from "@/lib/org/routes";
@@ -36,6 +38,12 @@ const OrgRoleCreationPage = dynamic(
   () => import("./pages/OrgRoleCreationPage").then((module) => module.OrgRoleCreationPage),
   { loading: () => <OrgPageLoading /> }
 );
+
+function RoleActivationNotices() {
+  const { workspace, roles } = useOrgWorkspace();
+  useRoleActivationToast(workspace.workspaceId, roles);
+  return null;
+}
 
 export function OrgWorkspaceApp({
   children,
@@ -174,6 +182,7 @@ export function OrgWorkspaceApp({
 
   return (
     <OrgWorkspaceProvider value={{ ...contextValue, page: displayPage }}>
+      <RoleActivationNotices />
       <Head>
         <title>{pageTitle}</title>
       </Head>

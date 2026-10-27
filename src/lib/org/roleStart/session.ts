@@ -3,6 +3,7 @@ import "server-only";
 import { after } from "next/server";
 
 import type { OrgRoleCriterionGrade } from "@/lib/org/roleCriteria";
+import type { BillingErrorCode } from "@/lib/org/billing/types";
 import {
   normalizeProbes,
   normalizeRoleStartBrief,
@@ -59,6 +60,8 @@ export type RoleStartQuestion = {
   chips: RoleStartChip[];
   status: "pending" | "answered" | "skipped";
   overlap: number | null;
+  /** A broad first question shown while the Brief draft was being written (older sessions only; the draft now asks all questions). */
+  first?: boolean;
   answer?: {
     chipId: string | null;
     text: string | null;
@@ -143,6 +146,8 @@ export type RoleStartCandidate = {
   talentId: string;
   /** The first-three run that picked this person; late verdicts of other runs are dropped. */
   runId?: string;
+  /** The Brief this person was picked for (verdict hash and job titles); confirming the same Brief again keeps them. */
+  briefHash?: string;
   name: string | null;
   headline: string | null;
   location: string | null;
@@ -160,7 +165,8 @@ export type RoleStartCandidate = {
 };
 
 export type RoleStartEvaluation = {
-  rating: OrgRoleCriterionGrade;
+  /** Null when the team submitted only written feedback. */
+  rating: OrgRoleCriterionGrade | null;
   answer: string | null;
   note: string | null;
   /** Picked "확인 필요"/"맞지 않음" reasons, stored as codes for the first batch. */
@@ -181,6 +187,8 @@ export type RoleStartProgress = {
   status?: "running" | "done" | "error";
   /** Generic step kind; the screen words it. text is set only for a specific outcome. */
   kind?: string;
+  /** Display-only error code, retained when registration fails in the background. */
+  billingCode?: BillingErrorCode;
 };
 
 export type RoleStartQuestionCandidate = Omit<RoleStartQuestion, "status" | "askedAt" | "overlap">;
@@ -253,11 +261,22 @@ export type RoleStartPreparedBatch = {
 /** People whose review-time verdicts are being written for one Brief, until when. */
 export type RoleStartPreparedInflight = { briefHash: string; talentIds: string[]; until: string };
 
+/** The first three picked on the Brief screen, for the Brief and pool they were picked from. */
+export type RoleStartPreparedPick = {
+  /** Verdict hash and job titles of the Brief they were picked for. */
+  briefHash: string;
+  poolBuiltAt: string;
+  /** People passing every required point when picked. */
+  passing: number;
+  candidates: RoleStartCandidate[];
+};
+
 export type RoleStartPrepared = {
   entries: Record<string, RoleStartPreparedEntry>;
   stats: RoleStartPreparedStats;
   batch?: RoleStartPreparedBatch | null;
   inflight?: RoleStartPreparedInflight | null;
+  pick?: RoleStartPreparedPick | null;
 };
 
 export type RoleStartSession = {
@@ -346,6 +365,7 @@ function fromRow(row: Row): RoleStartSession {
       stats: record(record(row.prepared).stats) as RoleStartPreparedStats,
       batch: (record(row.prepared).batch as RoleStartPreparedBatch | undefined) ?? null,
       inflight: (record(row.prepared).inflight as RoleStartPreparedInflight | undefined) ?? null,
+      pick: (record(row.prepared).pick as RoleStartPreparedPick | undefined) ?? null,
     },
     revision: Number(row.revision) || 0,
     updatedAt: new Date(row.updated_at).toISOString(),
@@ -355,10 +375,11 @@ function fromRow(row: Row): RoleStartSession {
 }
 
 /**
- * The session with its candidate pool, or (forView) only what the screen
- * shows: no pool, usage log or prepared verdicts, for frequent polling.
+ * The session. The candidate pool (megabytes) is read only with withPool, for
+ * the steps that rank people; forView also leaves out the usage log and
+ * prepared verdicts, for frequent polling.
  */
-export async function loadRoleStartSession(roleId: string, options: { forView?: boolean } = {}) {
+export async function loadRoleStartSession(roleId: string, options: { forView?: boolean; withPool?: boolean } = {}) {
   const sql = roleStartSql();
   const rows = options.forView
     ? await sql<Row[]>`
@@ -367,12 +388,14 @@ export async function loadRoleStartSession(roleId: string, options: { forView?: 
           '{}'::jsonb as prepared, revision, created_at, updated_at, refined_answers, leases
         from public.company_role_start_sessions where role_id = ${roleId}
       `
-    : await sql<Row[]>`
-        select s.*, p.pool as pool_row
-        from public.company_role_start_sessions s
-        left join public.company_role_start_pools p on p.role_id = s.role_id
-        where s.role_id = ${roleId}
-      `;
+    : options.withPool
+      ? await sql<Row[]>`
+          select s.*, p.pool as pool_row
+          from public.company_role_start_sessions s
+          left join public.company_role_start_pools p on p.role_id = s.role_id
+          where s.role_id = ${roleId}
+        `
+      : await sql<Row[]>`select * from public.company_role_start_sessions where role_id = ${roleId}`;
   return rows[0] ? fromRow(rows[0]) : null;
 }
 
@@ -439,11 +462,7 @@ export async function saveRoleStartSession(args: {
           ? sql``
           : sql`and phase = any(${[args.expectedPhase].flat()}::text[])`
       }
-    returning *, ${
-      "pool" in patch
-        ? sql`null::jsonb`
-        : sql`(select p.pool from public.company_role_start_pools p where p.role_id = ${args.roleId})`
-    } as pool_row
+    returning *
   `;
   if (!rows[0]) return null;
   // The pool lives in its own row; written only when the session write succeeded.
@@ -459,6 +478,7 @@ export async function saveRoleStartSession(args: {
     }
     return { ...fromRow(rows[0]), pool: patch.pool ?? null };
   }
+  // The pool is not read back: a caller that needs it loads it withPool.
   return fromRow(rows[0]);
 }
 
@@ -512,8 +532,8 @@ export async function updateRoleStartCandidates(
 
 /** Saves an immutable Brief version and mirrors it to the Role's current fields. */
 /** Runs after every Brief version is saved (service.ts registers the grade-signal refresh). */
-let afterBriefSaved: ((roleId: string, brief: RoleStartBrief) => void) | null = null;
-export function onBriefSaved(listener: (roleId: string, brief: RoleStartBrief) => void) {
+let afterBriefSaved: ((roleId: string, brief: RoleStartBrief, changeSource: string) => void) | null = null;
+export function onBriefSaved(listener: (roleId: string, brief: RoleStartBrief, changeSource: string) => void) {
   afterBriefSaved = listener;
 }
 
@@ -605,7 +625,7 @@ export async function saveRoleStartBrief(args: {
     };
     try { after(dispatch); } catch { await dispatch(); }
   }
-  afterBriefSaved?.(args.roleId, args.brief);
+  afterBriefSaved?.(args.roleId, args.brief, args.changeSource);
   return version;
 }
 
@@ -655,6 +675,100 @@ export async function savePreparedEntry(roleId: string, talentId: string, entry:
     set prepared = jsonb_set(prepared, ${["entries", talentId]}::text[], ${sql.json(wellFormedJson(entry))})
     where role_id = ${roleId}
   `;
+}
+
+export async function savePreparedPick(roleId: string, pick: RoleStartPreparedPick) {
+  const sql = roleStartSql();
+  await sql`
+    update public.company_role_start_sessions
+    set prepared = jsonb_set(prepared, '{pick}', ${sql.json(wellFormedJson(pick))})
+    where role_id = ${roleId}
+  `;
+}
+
+/** The stored pool alone (megabytes), for a step that ranks people. */
+export async function loadRoleStartPool(roleId: string) {
+  const rows = await roleStartSql()<Array<{ pool: RoleStartPool | null }>>`
+    select pool from public.company_role_start_pools where role_id = ${roleId}
+  `;
+  return rows[0]?.pool ?? null;
+}
+
+/** What a pool save can change: completion, criterion and job scores. */
+function poolMark(pool: { complete: boolean; keys: string[]; entries: number; members: number; job: string | null }) {
+  return JSON.stringify([pool.complete, [...pool.keys].sort(), pool.entries, pool.members, pool.job]);
+}
+
+/**
+ * Store a pool for reuse without touching the session row: its revision is for
+ * answers and Brief edits, which must not lose a race to a pool save. Written
+ * only over the pool it was read as (basedOn: the stored builtAt then, null
+ * when there was none), never as an incomplete copy (no timings.completeMs)
+ * over a completed one, and only when completion or scores changed; criterion
+ * scores already stored for the same members are merged in, never dropped.
+ * True when the stored pool is this one (written now or already the same).
+ */
+export async function saveRoleStartPool(roleId: string, pool: RoleStartPool, basedOn: string | null) {
+  const sql = roleStartSql();
+  const complete = pool.timings?.completeMs != null;
+  const mark = poolMark({
+    complete,
+    keys: Object.keys(pool.scores ?? {}),
+    entries: Object.values(pool.scores ?? {}).reduce((sum, map) => sum + Object.keys(map).length, 0),
+    members: pool.members.length,
+    job: pool.job?.key ?? null,
+  });
+  const stored = (
+    await sql<Array<{ built_at: string | null; complete: boolean; keys: string[]; entries: number; members: number; job: string | null }>>`
+      select pool->>'builtAt' as built_at, pool->'timings'->>'completeMs' is not null as complete,
+        coalesce((select array_agg(k) from jsonb_object_keys(pool->'scores') k), '{}') as keys,
+        coalesce((select sum((select count(*) from jsonb_object_keys(v)))::int from jsonb_each(pool->'scores') e(k, v)), 0) as entries,
+        coalesce(jsonb_array_length(pool->'members'), 0) as members, pool->'job'->>'key' as job
+      from public.company_role_start_pools where role_id = ${roleId}
+    `
+  )[0];
+  const json = sql.json(wellFormedJson(pool));
+  if (!stored) {
+    if (basedOn !== null) return false;
+    const rows = await sql`
+      insert into public.company_role_start_pools (role_id, pool, updated_at) values (${roleId}, ${json}, now())
+      on conflict (role_id) do nothing returning role_id
+    `;
+    return rows.length > 0;
+  }
+  if (stored.built_at !== basedOn || (stored.complete && !complete)) return false;
+  if (stored.built_at === pool.builtAt && poolMark({ ...stored, entries: Number(stored.entries), members: Number(stored.members) }) === mark) return true;
+  // Score sets another step stored for this same pool (same builtAt and members)
+  // are kept beside these; a pool whose members changed brings its own.
+  const rows = await sql`
+    with incoming as (select ${json}::jsonb as p)
+    update public.company_role_start_pools t
+    set pool = case
+        when t.pool->>'builtAt' = i.p->>'builtAt'
+          and (select array_agg(m->>'talentId' order by m->>'talentId') from jsonb_array_elements(t.pool->'members') m)
+            is not distinct from (select array_agg(m->>'talentId' order by m->>'talentId') from jsonb_array_elements(i.p->'members') m)
+        then jsonb_set(i.p, '{scores}', (
+          select coalesce(jsonb_object_agg(coalesce(o.key, n.key), coalesce(o.value, '{}'::jsonb) || coalesce(n.value, '{}'::jsonb)), '{}'::jsonb)
+          from jsonb_each(coalesce(t.pool->'scores', '{}'::jsonb)) o
+          full join jsonb_each(coalesce(i.p->'scores', '{}'::jsonb)) n on o.key = n.key
+        ))
+        else i.p
+      end,
+      updated_at = now()
+    from incoming i
+    where t.role_id = ${roleId} and t.pool->>'builtAt' = ${basedOn}
+      and (${complete}::boolean or t.pool->'timings'->>'completeMs' is null)
+    returning t.role_id
+  `;
+  return rows.length > 0;
+}
+
+/** When the stored pool was built, without reading the pool itself. */
+export async function roleStartPoolBuiltAt(roleId: string) {
+  const rows = await roleStartSql()<Array<{ built_at: string | null }>>`
+    select pool->>'builtAt' as built_at from public.company_role_start_pools where role_id = ${roleId}
+  `;
+  return rows[0]?.built_at ?? null;
 }
 
 export async function savePreparedInflight(roleId: string, inflight: RoleStartPreparedInflight) {

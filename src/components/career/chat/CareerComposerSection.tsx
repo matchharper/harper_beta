@@ -1441,7 +1441,7 @@ const CareerComposerSection = ({
                 />
               }
               textareaClassName={cn(
-                "min-h-12 py-3 max-md:group-data-[expanded=false]/chat-composer:py-3.5 max-md:group-data-[expanded=false]/chat-composer:text-sm max-md:group-data-[expanded=false]/chat-composer:font-normal max-md:group-data-[expanded=false]/chat-composer:placeholder:text-neutral-soft",
+                "min-h-12 py-3 max-md:group-data-[expanded=false]/chat-composer:py-3.5 max-md:group-data-[expanded=false]/chat-composer:font-normal max-md:group-data-[expanded=false]/chat-composer:placeholder:text-neutral-soft",
                 opportunityTokens.tokens.length > 0 &&
                   "relative z-10 text-transparent caret-neutral-primary"
               )}

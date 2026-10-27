@@ -121,13 +121,10 @@ export function OrgPassPopover({
                 <MuteButton
                   key={value}
                   size="sm"
-                  variant={
-                    selectedReasons.has(value) ? "neutral" : "transparent"
-                  }
+                  variant={selectedReasons.has(value) ? "dark" : "neutral"}
                   onClick={() => toggleReason(value)}
                   aria-pressed={selectedReasons.has(value)}
                   disabled={pending}
-                  className="px-3 py-1.5 border-none text-[15px]"
                 >
                   {value}
                 </MuteButton>
@@ -150,7 +147,7 @@ export function OrgPassPopover({
             <MuteButton
               type="submit"
               variant="dark"
-              className="mt-3 w-full"
+              className="mt-0 w-full"
               disabled={pending || !reason.trim()}
             >
               {c("Pass", "Pass")}

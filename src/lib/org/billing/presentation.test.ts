@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isLowCreditBalance,
-  canUsePendingConnections,
   isEndedBillingSlot,
   creditSlotForRole,
   formatBillingDaysUntil,
@@ -58,24 +57,6 @@ test("Role balances prefer assigned paid credits, then shared credits, never a d
   assert.equal(creditSlotForRole(slots, "new-role")?.id, "free");
   assert.equal(creditSlotForRole(slots, null), undefined);
   assert.equal(creditSlotForRole(undefined, "engineering"), undefined);
-  const entitlements = {
-    capacity: null,
-    activeRoles: 3,
-    pendingConnections: true,
-    creditSlots: slots,
-  };
-  assert.equal(
-    canUsePendingConnections(entitlements, "engineering"),
-    true,
-    "exhausted Intros do not hide paid candidates"
-  );
-  assert.equal(canUsePendingConnections(entitlements, "new-role"), false);
-  assert.equal(
-    canUsePendingConnections({ ...entitlements, creditSlots: [] }, "new-role"),
-    true,
-    "legacy/Enterprise access is retained"
-  );
-  assert.equal(canUsePendingConnections(undefined, "design"), false);
   slots[0].remaining = 0;
   assert.equal(creditSlotForRole(slots, "engineering")?.remaining, 0);
 });

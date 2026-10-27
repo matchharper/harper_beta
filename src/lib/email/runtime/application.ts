@@ -5,6 +5,8 @@ import { simulationSessionContext, mutateSimulationSession, sessionMutationSchem
 import { executeApplicationPreparationTool, respondToApplicationQuestion } from "@/lib/career/simulation/toolExecution";
 import { pendingApplicationBatch } from "@/lib/career/simulation/applicationInput";
 import { startApplicationBrowser, resumeApplicationBrowser, runApplicationBrowser } from "@/lib/career/simulation/applicationBrowserServer";
+import { applicationExecutionFacts } from "@/lib/career/simulation/applicationExecution";
+import { stringifyLlmDateTimes } from "@/lib/llm/promptDateTime";
 import { executeApplicationSimulation } from "@/lib/career/simulation/server";
 import { stopApplicationBrowser } from "@/lib/career/simulation/agentsApi";
 import { fetchTalentDocument } from "@/lib/talentOnboarding/documentStore";
@@ -15,6 +17,7 @@ import { documentFingerprint } from "@/lib/career/simulation/resumeAttachment";
 import { assertEmailLease, updateEmailJob, readRow } from "./store";
 import { asObject, EmailContinuationPending, EmailPermanentError, type EmailJobContext } from "./types";
 import { EMAIL_ASSISTANT_MODEL } from "./model";
+import { isOpsEmailTest } from "./opsTest";
 
 export const emailApplicationStore = (ctx: EmailJobContext) => ({ admin: ctx.admin, userId: ctx.talentId, conversationId: ctx.conversationId });
 export async function loadEmailApplication(ctx: EmailJobContext) {
@@ -50,6 +53,9 @@ async function linkApplicationBrowser(ctx: EmailJobContext, runId: string) {
 export async function continueEmailApplication(ctx: EmailJobContext) {
   const record = await loadEmailApplication(ctx);
   if (!record || record.state.status !== "active") return record;
+  // Never continue or stop a real website execution from a test conversation.
+  if (isOpsEmailTest(ctx.job) && record.state.browser)
+    throw new EmailPermanentError("Ops email tests cannot operate an application browser");
   const job = await assertEmailLease(ctx.admin, "reply", ctx.job.id, ctx.owner);
   // A new inbound message must be interpreted before continuing earlier work.
   if (asObject(job.metadata).applicationMessageId !== record.messageId) return record;
@@ -102,11 +108,12 @@ export async function emailApplicationContext(ctx: EmailJobContext, record: Sess
     context.actions = context.actions.filter(a => a.status === "completed");
     if (context.preparation) context.preparation.responses = {};
   }
-  return JSON.stringify({
+  return stringifyLlmDateTimes({
     ...context,
     currentReply: { sourceMessageId: ctx.sourceMessage.id, startedAt: job.created_at,
       applicationBrowserRunId: asObject(job.metadata).applicationBrowserRunId ?? null },
     application: s.browser ? {
+      ...applicationExecutionFacts(s),
       runId: s.browser.id, sourceMessageId: s.browser.sourceMessageId,
       status: s.browser.status, result: s.browser.result,
       documentId: s.browser.documentId, documentFingerprint: s.browser.documentHash,
@@ -124,6 +131,7 @@ export async function emailApplicationContext(ctx: EmailJobContext, record: Sess
     pendingBatch: pendingApplicationBatch(s),
     // These facts resume work on the actual source message; not fresh consent.
     continuation: { analysisStatus: s.analysisStatus, browser: s.browser ? {
+      ...applicationExecutionFacts(s),
       status: s.browser.status, result: s.browser.result,
       documentId: s.browser.documentId, purpose: s.browser.purpose,
       startedAt: s.browser.startedAt, updatedAt: s.browser.updatedAt,
@@ -163,6 +171,8 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
   }
   let record: SessionRecord | null = await loadEmailApplication(ctx);
   if (!record || record.state.status !== "active") return { ok: false, reason: "No active application" };
+  if (isOpsEmailTest(ctx.job) && record.state.browser)
+    return { ok: false, reason: "Ops email tests cannot change or resume an application browser." };
   await linkApplication(ctx, record.messageId);
   if (record.state.activity?.channel !== "email") {
     record = await saveSession(store, record, { ...record.state, activity: { ...record.state.activity!, channel: "email" } }, `email-channel:${ctx.sourceMessage.id}`);
@@ -174,9 +184,10 @@ export async function executeEmailApplicationTool(ctx: EmailJobContext, name: st
     result = { ...execution.result };
     if (typeof result.documentId === "string") result.documentLink = new URL(getCareerDocumentHref(result.documentId), getConfiguredPublicSiteUrl()).href;
   } else if (name === "apply_for_role") {
-    record = await startApplicationBrowser(store, record, input, Number(ctx.sourceMessage.id));
-    await linkApplicationBrowser(ctx, record.state.browser!.id);
-    result = { ok: true, awaitingUserInput: true, applicationInProgress: true };
+    const started = await startApplicationBrowser(store, record, input, Number(ctx.sourceMessage.id));
+    record = started;
+    if (started.execution.applicationInProgress) await linkApplicationBrowser(ctx, record.state.browser!.id);
+    result = started.execution;
   } else if (input.action === "respond") {
     record = await respondToApplicationQuestion(store, record, input, Number(ctx.sourceMessage.id));
     const batch = record.state.activity?.batches.find(b => b.browser && b.status === "submitted" && b.continuation === "pending");

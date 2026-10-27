@@ -205,6 +205,12 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/debugging/emails",
       },
       {
+        description: "계정을 선택해 이메일 답장 테스트",
+        href: "/ops/debugging/email-test",
+        label: "이메일 테스트",
+        matchPrefix: "/ops/debugging/email-test",
+      },
+      {
         description: "talent call transcript 확인",
         href: "/ops/debugging/calls",
         label: "콜 로그",

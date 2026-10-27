@@ -58,7 +58,11 @@ export type PoolMember = {
 export type CriterionScore = {
   score: number;
   raw: number;
-  evidence: string | null;
+  /**
+   * Short rule evidence ("경력 약 N년"). Section text is no longer stored here
+   * (it was most of the pool's size); older pools still carry it.
+   */
+  evidence?: string | null;
   /** No profile sections to compare: ranked low, left for the verdict, never a must miss. */
   unknown?: boolean;
   /** Section similarity part alone (no tool bonus); the must check reads this. */
@@ -80,6 +84,11 @@ export type RoleStartPool = {
   members: PoolMember[];
   /** criterionHash → talentId → score */
   scores: Record<string, Record<string, CriterionScore>>;
+  /**
+   * criterionHash → the query vector scoreSimilarity ranked by, so the shown
+   * people's evidence uses the same vector without embedding again.
+   */
+  queryVectors?: Record<string, number[]>;
   timings: Record<string, number>;
   embeddingTokens: number;
   /**
@@ -184,6 +193,17 @@ function eligibleCte(sql: Sql, roleId: string, excludeIds: string[], replay?: Re
       and public.company_first_pair_is_available_v1(t.user_id, r.role_id)
       and not (t.user_id = any(${excludeIds}::uuid[]))
   `;
+}
+
+/** Which of these people Harper may still show to this company for this Role (same rule as the pool). */
+export async function stillEligible(roleId: string, talentIds: string[]) {
+  if (!talentIds.length) return new Set<string>();
+  const sql = roleStartSql();
+  const rows = await sql<Array<{ talent_id: string }>>`
+    with eligible as (${eligibleCte(sql, roleId, [])})
+    select talent_id::text as talent_id from eligible where talent_id = any(${talentIds}::uuid[])
+  `;
+  return new Set(rows.map((row) => String(row.talent_id)));
 }
 
 type EligibleFact = {
@@ -434,7 +454,11 @@ export async function completePool(args: {
   const started = Date.now();
   const terms = await supplementPoolWithTerms({ ...args, criteria: args.brief.criteria });
   const key = jobScoreKey(args.brief);
-  if (!args.brief.titles?.matching.length) return { termsAdded: terms.added, jobAdded: 0, ms: Date.now() - started };
+  if (!args.brief.titles?.matching.length) {
+    // Complete without job titles too: a step that finds completeMs unset completes the pool.
+    args.pool.timings.completeMs = Date.now() - started;
+    return { termsAdded: terms.added, jobAdded: 0, ms: Date.now() - started };
+  }
   const sql = roleStartSql();
   const eligible = (
     await sql<Array<{ talent_id: string }>>`
@@ -617,6 +641,13 @@ export async function scoreCriteria(args: { pool: RoleStartPool; criteria: RoleS
   const similarity = pending.filter((criterion) => (criterion.kind ?? "similarity") === "similarity");
   const whole = similarity.filter((criterion) => !args.pool.scores[criterionHash(criterion)]);
   const partial = similarity.filter((criterion) => args.pool.scores[criterionHash(criterion)]);
+  // Older pools stored section text per person under every criterion they
+  // scored; drop it so the next save is smaller. Rule lines stay.
+  for (const map of Object.values(args.pool.scores)) {
+    for (const score of Object.values(map)) {
+      if (score.evidence != null && !RULE_EVIDENCE.test(score.evidence)) delete score.evidence;
+    }
+  }
   let tokens = 0;
   if (whole.length && ids.length) tokens += await scoreSimilarity(args.pool, whole, ids);
   if (partial.length) {
@@ -636,11 +667,11 @@ export async function scoreCriteria(args: { pool: RoleStartPool; criteria: RoleS
         map[member.talentId] = {
           score: gap === 0 ? 0.9 : Math.max(0.1, 0.6 - gap * 0.12),
           raw: member.years,
-          evidence: `경력 약 ${Math.floor(member.years)}년`,
+          evidence: ruleEvidence(member.years),
         };
       } else {
         // Judgment criteria (and rules without data) are decided by the verdict step.
-        map[member.talentId] = { score: 0.5, raw: 0, evidence: null };
+        map[member.talentId] = { score: 0.5, raw: 0 };
       }
     }
     args.pool.scores[criterionHash(criterion)] = map;
@@ -648,19 +679,22 @@ export async function scoreCriteria(args: { pool: RoleStartPool; criteria: RoleS
   return { ms: Date.now() - started, tokens, scored: pending.length };
 }
 
+/** Rule criteria's evidence line; any other stored evidence is section text from older pools. */
+const ruleEvidence = (years: number) => `경력 약 ${Math.floor(years)}년`;
+const RULE_EVIDENCE = /^경력 약 \d+년$/;
+
 /** Section similarity and tool mentions for these people; stored scores of others set the percentile scale. */
 async function scoreSimilarity(pool: RoleStartPool, similarity: RoleStartCriterion[], ids: string[]) {
   const sql = roleStartSql();
   const embedded = await embedTexts(similarity.map(criterionQueryText));
   const literals = embedded.vectors.map(vectorLiteral);
-  const rows = await sql<Array<{ talent_id: string; idx: number; distance: number; best_text: string | null }>>`
+  const rows = await sql<Array<{ talent_id: string; idx: number; distance: number }>>`
     with q as materialized (
       -- Parse each query vector once; an inline cast re-parsed it per row.
       select v.vec::vector as vec, v.idx from unnest(${literals}::text[]) with ordinality as v(vec, idx)
     )
     select c.talent_id::text as talent_id, q.idx::int as idx,
-      min(c.embedding <=> q.vec) as distance,
-      (array_agg(c.chunk_text order by c.embedding <=> q.vec))[1] as best_text
+      min(c.embedding <=> q.vec) as distance
     from public.talent_profile_chunk_embeddings c
     cross join q
     where c.talent_id = any(${ids}::uuid[])
@@ -721,15 +755,75 @@ async function scoreSimilarity(pool: RoleStartPool, similarity: RoleStartCriteri
         score: lexical === null ? similarityScore : Math.min(1, similarityScore + TERM_BONUS * lexical),
         similarity: similarityScore,
         raw,
-        evidence: row.best_text ? String(row.best_text).slice(0, 600) : null,
       };
     }
     for (const id of ids) {
-      map[id] ??= { score: UNKNOWN_SCORE, raw: 0, evidence: null, unknown: true };
+      map[id] ??= { score: UNKNOWN_SCORE, raw: 0, unknown: true };
     }
     pool.scores[hash] = map;
+    const vector = embedded.vectors[index];
+    if (vector) pool.queryVectors = { ...pool.queryVectors, [hash]: vector };
   });
   return embedded.tokens;
+}
+
+/** Most section text shown as a criterion's evidence. */
+const EVIDENCE_CHARS = 600;
+
+/**
+ * Best-matching section text per person and similarity criterion (keyed by
+ * criterionHash), the section scoreSimilarity ranks by. Fetched only for the
+ * people shown, so the pool does not store it for everyone. Uses the pool's
+ * stored query vectors; only criteria without one (older pools) are embedded.
+ * Aborting the signal cancels the query.
+ */
+export async function fetchCriterionEvidence(args: {
+  talentIds: string[];
+  criteria: RoleStartCriterion[];
+  queryVectors?: Record<string, number[]>;
+  signal?: AbortSignal;
+}): Promise<Map<string, Record<string, string>>> {
+  const similarity = args.criteria.filter((criterion) => (criterion.kind ?? "similarity") === "similarity");
+  if (!args.talentIds.length || !similarity.length) return new Map();
+  const hashes = similarity.map(criterionHash);
+  const unstored = similarity.filter((_, index) => !args.queryVectors?.[hashes[index]!]);
+  const embedded = unstored.length ? (await embedTexts(unstored.map(criterionQueryText))).vectors : [];
+  args.signal?.throwIfAborted();
+  let next = 0;
+  const literals = hashes.map((hash) => vectorLiteral(args.queryVectors?.[hash] ?? embedded[next++] ?? []));
+  const query = roleStartSql()<Array<{ talent_id: string; idx: number; best_text: string | null }>>`
+    with q as materialized (
+      select v.vec::vector as vec, v.idx from unnest(${literals}::text[]) with ordinality as v(vec, idx)
+    )
+    select distinct on (c.talent_id, q.idx) c.talent_id::text as talent_id, q.idx::int as idx, c.chunk_text as best_text
+    from public.talent_profile_chunk_embeddings c
+    cross join q
+    where c.talent_id = any(${args.talentIds}::uuid[])
+    order by c.talent_id, q.idx, c.embedding <=> q.vec
+  `;
+  const cancel = () => query.cancel();
+  args.signal?.addEventListener("abort", cancel, { once: true });
+  try {
+    return evidenceByTalent(await query, hashes);
+  } finally {
+    args.signal?.removeEventListener("abort", cancel);
+  }
+}
+
+/** Rows of (talent, 1-based criterion index, section text) to talent -> criterionHash -> text. */
+export function evidenceByTalent(
+  rows: Array<{ talent_id: string; idx: number; best_text: string | null }>,
+  hashes: string[]
+): Map<string, Record<string, string>> {
+  const result = new Map<string, Record<string, string>>();
+  for (const row of rows) {
+    const hash = hashes[Number(row.idx) - 1];
+    if (!hash || !row.best_text) continue;
+    const byCriterion = result.get(String(row.talent_id)) ?? {};
+    byCriterion[hash] = String(row.best_text).slice(0, EVIDENCE_CHARS);
+    result.set(String(row.talent_id), byCriterion);
+  }
+  return result;
 }
 
 export type RankedMember = PoolMember & {
@@ -778,7 +872,6 @@ export function rankPool(args: {
         const score = args.pool.scores[criterionHash(criterion)]?.[member.talentId] ?? {
           score: UNKNOWN_SCORE,
           raw: 0,
-          evidence: null,
           unknown: true,
         };
         perCriterion[criterion.id ?? criterion.name] = score;
@@ -816,47 +909,10 @@ export type PickedCandidate = RankedMember & {
   probe: RoleStartProbe | null;
 };
 
-export const MAX_INFO_CANDIDATES = 1;
-
-/** Best fits plus at most one info candidate that settles an open criterion. */
-export function pickFirstThree(args: {
-  ranked: RankedMember[];
-  probes: RoleStartProbe[];
-  criteria: OrgRoleCriterion[];
-}): PickedCandidate[] {
-  const passing = args.ranked.filter((member) => member.passesMust);
-  const picked: PickedCandidate[] = [];
-  const used = new Set<string>();
-  // At most one of the three settles an open point; the rest are the best fits.
-  const probeCount = Math.min(MAX_INFO_CANDIDATES, args.probes.length, Math.max(0, passing.length - 1));
-  const probes: PickedCandidate[] = [];
-  for (const probe of args.probes) {
-    if (probes.length >= probeCount) break;
-    // Info candidates also pass every required criterion; only the open point is weak.
-    const match = passing.find((member) => {
-      if (used.has(member.talentId)) return false;
-      if (probe.type === "years_above") return member.years !== null && member.years > (probe.years ?? 0);
-      if (probe.type === "years_below") return member.years !== null && member.years < (probe.years ?? 0);
-      const target = args.criteria.find(
-        (criterion) => criterion.id === probe.criterionId || criterion.name === probe.criterionId
-      );
-      if (!target) return false;
-      const own = member.perCriterion[target.id ?? target.name]?.score ?? 0.5;
-      const others = args.criteria
-        .filter((criterion) => criterion !== target && isRequired(criterion))
-        .every((criterion) => (member.perCriterion[criterion.id ?? criterion.name]?.score ?? 0.5) >= 0.5);
-      return own < 0.35 && others;
-    });
-    if (match) {
-      used.add(match.talentId);
-      probes.push({ ...match, probe });
-    }
-  }
-  for (const member of passing) {
-    if (picked.length + probes.length >= 3) break;
-    if (used.has(member.talentId)) continue;
-    used.add(member.talentId);
-    picked.push({ ...member, probe: null });
-  }
-  return [...picked, ...probes];
+/** The first three: the top three by the ranking formula among people who pass every required point. */
+export function pickFirstThree(args: { ranked: RankedMember[] }): PickedCandidate[] {
+  return args.ranked
+    .filter((member) => member.passesMust)
+    .slice(0, 3)
+    .map((member) => ({ ...member, probe: null }));
 }

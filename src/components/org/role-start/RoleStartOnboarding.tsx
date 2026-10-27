@@ -7,6 +7,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isProtectedNote } from "@/lib/org/roleStart/brief";
 import { roleSetupReply } from "@/lib/org/roleStart/setupReply";
+import { billingErrorCopy } from "@/lib/org/billing/types";
 import {
   ArrowLeft,
   ArrowRight,
@@ -378,8 +379,10 @@ export function RoleStartOnboarding({
             />
           ) : session.phase === "review" && !reviewingQuestions ? (
             <BriefStep
-              // An answer still being applied: the Brief is read-only until it lands.
-              busy={busy || session.refining}
+              busy={busy}
+              // An answer still being applied: the Brief shows now; its fields and
+              // confirming wait until it lands.
+              refining={session.refining}
               issues={query.data?.issues ?? []}
               onBack={() => {
                 if (
@@ -859,7 +862,7 @@ function SetupStep(props: {
               </div>
             ) : phase === "drafting" ? (
               <LoadingLine
-                hint={c("보통 1분쯤 걸려요", "Usually takes about a minute")}
+                hint={c("보통 20초쯤 걸려요", "Usually takes about 20 seconds")}
                 text={c(
                   "JD를 읽고 Brief 초안을 쓰고 있어요",
                   "Reading the JD and drafting the Brief"
@@ -1228,8 +1231,8 @@ function QuestionStep(props: {
           hint={
             props.session.phase === "drafting"
               ? c(
-                  "궁금한 점 몇 가지만 더 여쭤볼게요 · 보통 1분쯤 걸려요",
-                  "A few more questions are coming · usually about a minute"
+                  "곧 궁금한 점 몇 가지를 여쭤볼게요 · 보통 20초쯤 걸려요",
+                  "A few questions are coming · usually about 20 seconds"
                 )
               : undefined
           }
@@ -1316,6 +1319,8 @@ function QuestionStep(props: {
 /** Left: what Harper did, a change box and confirm. Right: the Brief itself. */
 function BriefStep(props: {
   busy: boolean;
+  /** The last answer is still being applied: editing and confirming wait for it. */
+  refining: boolean;
   issues: Issue[];
   session: RoleStartView;
   onSave: (brief: RoleStartBriefView) => Promise<MutationResult | null>;
@@ -1347,6 +1352,8 @@ function BriefStep(props: {
   const answered = props.session.questions.history.filter(
     (item) => item.status !== "skipped"
   ).length;
+  // Edits and confirming would race the answer being applied; reading, going back and writing a request do not.
+  const locked = props.busy || props.refining;
 
   return (
     <SplitStep>
@@ -1429,7 +1436,7 @@ function BriefStep(props: {
           </MuteButton>
           <MuteButton
             disabled={
-              props.busy ||
+              locked ||
               ((dirty || !hasRequest) && invalid) ||
               (!hasRequest && !dirty && conflicts.length > 0)
             }
@@ -1454,7 +1461,7 @@ function BriefStep(props: {
             variant="primary"
           >
             {hasRequest
-              ? props.busy
+              ? locked
                 ? c("반영하는 중", "Applying")
                 : c("반영하기", "Apply")
               : c("이 기준으로 진행하기", "Use this Brief")}
@@ -1475,7 +1482,7 @@ function BriefStep(props: {
         <DocumentEditor
           {...documentEditorCopy}
           aria-label={c("찾는 인재상", "Who we're looking for")}
-          disabled={props.busy}
+          disabled={locked}
           documentTitle={c("찾는 인재상", "Who we're looking for")}
           format="markdown"
           onValueChange={(summary) =>
@@ -1486,7 +1493,7 @@ function BriefStep(props: {
           value={draft.summary}
         />
         <RoleBriefFields
-          busy={props.busy}
+          busy={locked}
           dirty={dirty}
           draft={draft}
           hideRequest
@@ -1672,7 +1679,7 @@ function AlignStep(props: {
             ) : !candidate.verdict && !candidate.failed ? (
               <div className="mt-6">
                 <LoadingLine
-                  text={c("이 후보를 살펴보고 있어요", "Reviewing this person")}
+                  text={c("정보를 가져오고 있습니다", "Getting information")}
                 />
               </div>
             ) : candidate.failed ? (
@@ -1757,7 +1764,7 @@ function FinalizeStep(props: {
   }) => Promise<void>;
   onBack: () => void;
 }) {
-  const { c } = useOrgLocale();
+  const { c, locale } = useOrgLocale();
   const router = useRouter();
   const addToast = useToastStore((state) => state.add);
   const { bootstrap, user } = useOrgWorkspace();
@@ -1772,6 +1779,9 @@ function FinalizeStep(props: {
   });
   const registering =
     props.session.phase === "registering" || props.session.phase === "batch";
+  const registrationError = props.session.progress.find(
+    (item) => item.step === "batch" && item.status === "error"
+  );
 
   const savedDays = (
     props.role.introSearchDate ?? DEFAULT_INTRO_SEARCH_DAYS
@@ -1867,8 +1877,8 @@ function FinalizeStep(props: {
         <LoadingLine
           hint={c("보통 1분 안에 끝나요", "Usually takes 1–2 minutes")}
           text={c(
-            "평가를 바탕으로 더 잘 맞는 후보 한 분을 찾고 있어요",
-            "Refining the Brief and finding one more person"
+            "평가를 Brief에 반영하고 있어요",
+            "Applying your ratings to the Brief"
           )}
         />
       </Centered>
@@ -1996,7 +2006,10 @@ function FinalizeStep(props: {
     <Centered className="gap-8">
       <div>
         <RoleStartStepHeader
-          title={c("이렇게 시작할게요", "Here's how the role runs")}
+          title={c(
+            "감사합니다. 이제 준비는 끝났어요. 이 역할의 채용은 이렇게 시작할게요.",
+            "Thank you. The onboarding is now complete. The hiring for this role will start like this."
+          )}
         >
           <p className="mt-2 text-[18px] leading-[2.4rem] text-neutral-primary">
             {c("매주", "Every")} {dayChip} {hourChip}
@@ -2009,13 +2022,10 @@ function FinalizeStep(props: {
             )}{" "}
             {channelChip}
             {shownMail
-              ? c("로 알려 드릴게요. 소개 메일에는", ". Intro emails copy")
-              : c(
-                  "에 알려 드릴게요. 소개 메일에는",
-                  ". Intro emails copy"
-                )}{" "}
+              ? c("로 알려 드릴게요. 담당자는", ". We’ll assign")
+              : c("에 알려 드릴게요. 담당자는", ". We’ll assign")}{" "}
             {ownerChip}
-            {c("님을 참조로 넣을게요.", ".")}
+            {c("님으로 할게요.", " as the owner.")}
           </p>
         </RoleStartStepHeader>
         {settingsQuery.isError || slackStatusQuery.isError ? (
@@ -2090,16 +2100,15 @@ function FinalizeStep(props: {
             </Link>
           </MuteButton>
         ) : null}
-        {!registering &&
-        props.session.progress.some(
-          (item) => item.step === "batch" && item.status === "error"
-        ) ? (
+        {!registering && registrationError ? (
           // A registration that stopped came back here: say so before the team tries again.
-          <p className="mt-2 text-[13px] leading-5 text-critical">
-            {c(
-              "지난번 등록을 마치지 못했어요. 다시 눌러 주세요.",
-              "The last registration did not finish. Please try again."
-            )}
+          <p role="alert" className="mt-2 text-[13px] leading-5 text-critical">
+            {registrationError.billingCode
+              ? billingErrorCopy(registrationError.billingCode, locale)
+              : c(
+                  "지난번 등록을 마치지 못했어요. 다시 눌러 주세요.",
+                  "The last registration did not finish. Please try again."
+                )}
           </p>
         ) : null}
       </div>

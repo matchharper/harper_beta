@@ -22,6 +22,10 @@ test("answers whose refinement never finished count as stopped after three minut
   const questions = { history: [{}, {}] } as never;
   assert.equal(isRoleStartStalled({ phase: "questions", updatedAt: old, refinedAnswers: 1, questions }, now), true);
   assert.equal(isRoleStartStalled({ phase: "questions", updatedAt: old, refinedAnswers: 2, questions }, now), false);
+  // Every answer refined but no question on screen: the questions part was lost.
+  assert.equal(isRoleStartStalled({ phase: "questions", updatedAt: old, refinedAnswers: 2, questions, pendingQuestion: null }, now), true);
+  assert.equal(isRoleStartStalled({ phase: "questions", updatedAt: old, refinedAnswers: 2, questions, pendingQuestion: {} }, now), false);
+  assert.equal(isRoleStartStalled({ phase: "review", updatedAt: old, refinedAnswers: 2, questions, pendingQuestion: null }, now), false);
 });
 
 test("the start flow holds the Role only while it can move forward", async () => {

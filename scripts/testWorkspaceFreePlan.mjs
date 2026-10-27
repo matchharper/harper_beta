@@ -125,6 +125,35 @@ try {
     assert.equal(await scalar('select billing_reconciled_at from company_workspace where company_workspace_id=$1',[contract.workspace]),null,'restoration must not reconcile unrelated workspaces');
   }
 
+  // Existing usage above the new allowance must clamp to zero, not refund or fail.
+  const overdrawn=await fixture(1); await activate(overdrawn.roles[0]);
+  for (let index=0;index<5;index++) await debit(overdrawn,overdrawn.roles[0],`before-reduction-${index}`);
+  const preparedFuture=await scalar("select workspace_billing_free_period_v1($1,now()+interval '1 month')",[overdrawn.workspace]);
+  assert.equal(await scalar('select allowance from company_workspace_credit_periods where id=$1',[preparedFuture]),10);
+
+  // Apply the new billing policy after testing the historical restoration.
+  const policy = migration('20261027074848_free_role_matching_and_three_intros.sql')
+    .split('-- BILLING POLICY START')[1].split('-- BILLING POLICY END')[0];
+  await sql.unsafe(policy);
+  assert.equal((await existing.summary()).creditSlots[0].allowance,3);
+  assert.equal((await existing.summary()).creditSlots[0].remaining,1,'two previous Intro debits survive the reduction');
+  assert.equal((await overdrawn.summary()).creditSlots[0].remaining,0,'five previous debits leave zero under the new allowance');
+  assert.equal(await scalar('select count(*)::int from company_workspace_credit_events where company_workspace_id=$1 and delta=-1',[overdrawn.workspace]),5,'past debit receipts are preserved');
+  const [futureBalance]=await sql`select allowance,remaining from company_workspace_credit_periods where id=${preparedFuture}`;
+  assert.deepEqual({...futureBalance},{allowance:3,remaining:3},'pre-created future periods use the new allowance');
+  for (const contract of preservedContracts) {
+    assert.equal(await scalar('select remaining from company_workspace_credit_periods where id=$1',[contract.period]),3);
+  }
+  const connection=await fixture(1); await activate(connection.roles[0]);
+  const receipt=await debit(connection,connection.roles[0],'free-connect','connect');
+  assert.equal((await connection.summary()).creditSlots[0].remaining,2,'Free Connect uses a shared Intro');
+  assert.equal(await debit(connection,connection.roles[0],'free-connect','connect'),receipt);
+  assert.equal((await connection.summary()).creditSlots[0].remaining,2,'Connect retry does not double-debit');
+  await sql`update company_roles set status='paused' where role_id=${connection.roles[0]}`;
+  await assert.rejects(debit(connection,connection.roles[0],'paused-connect','connect'),/workspace_role_slot_required/);
+  const futurePeriod=await scalar("select workspace_billing_free_period_v1($1,now()+interval '1 month')",[connection.workspace]);
+  assert.equal(await scalar('select allowance from company_workspace_credit_periods where id=$1',[futurePeriod]),3);
+
   const free=await fixture(8);
   const activations=await Promise.allSettled(free.roles.map(activate));
   assert.equal(activations.filter(r=>r.status==='fulfilled').length,1,'concurrent Free activation admits exactly one');
@@ -132,7 +161,7 @@ try {
   assert.equal((await free.summary()).capacity,1);
   const active=await scalar("select role_id from company_roles where company_workspace_id=$1 and status='active'",[free.workspace]);
   const spends=await Promise.allSettled(Array.from({length:12},(_,i)=>debit(free,active,`spend-${i}`)));
-  assert.equal(spends.filter(r=>r.status==='fulfilled').length,10,'ten Intro uses without opening any profile');
+  assert.equal(spends.filter(r=>r.status==='fulfilled').length,3,'three Intro uses without opening any profile');
   assert.equal((await free.summary()).creditSlots[0].remaining,0);
   const spentIndex=spends.findIndex(r=>r.status==='fulfilled');
   assert.equal(await debit(free,active,`spend-${spentIndex}`),spends[spentIndex].value,'retry after exhaustion is idempotent');
@@ -141,7 +170,7 @@ try {
   await sql`update company_roles set status='paused' where role_id=${active}`;
   await activate(next);
   assert.equal((await free.summary()).activeRoles,1,'Intro exhaustion does not prevent switching active Free Role');
-  await assert.rejects(debit(free,next,'no-paid-connect','connect'),/workspace_feature_unavailable/);
+  await assert.rejects(debit(free,next,'no-paid-connect','connect'),/workspace_credits_exhausted/);
 
   const paid=await fixture(3);
   await activate(paid.roles[0]);
@@ -155,14 +184,14 @@ try {
   assert.equal((await paid.summary()).slots[0].remaining,49,'paid Intro first, exactly once');
   await sql`update company_workspace_credit_periods set remaining=0 where slot_id=${slot}`;
   await debit(paid,paid.roles[0],'paid-fallback');
-  assert.equal((await paid.summary()).creditSlots[0].remaining,9,'paid Role falls back to shared Intros');
+  assert.equal((await paid.summary()).creditSlots[0].remaining,2,'paid Role falls back to shared Intros');
   const currentSlot=(await paid.summary()).slots[0];
   await scalar('select workspace_billing_assign_slot_v1($1,$2,$3,$4)',[paid.workspace,slot,paid.roles[1],currentSlot.revision]);
   assert.equal((await paid.summary()).activeRoles,2,'slot reassignment keeps one Free Role');
   await sql`update company_workspace_slots set ended_at=now(),cancel_at=now() where id=${slot}`;
   const expired=await paid.summary();
   assert.equal(expired.activeRoles,1,'expiry leaves at most one Free Role');
-  assert.equal(expired.creditSlots[0].remaining,9,'expiry does not refill shared Intros');
+  assert.equal(expired.creditSlots[0].remaining,2,'expiry does not refill shared Intros');
   assert.equal(await debit(paid,paid.roles[0],'same-intro'),duplicates[0],'previous paid receipt stays idempotent');
 
   // Separate contracts keep their existing entitlement.
@@ -179,10 +208,10 @@ try {
   assert.equal((await tailored.summary()).activeRoles,2);
   const tailoredIntro=await debit(tailored,tailored.roles[2],'contract-intro');
   const tailoredConnection=await debit(tailored,tailored.roles[2],'contract-connect','connect');
-  assert.equal((await tailored.summary()).creditSlots[0].remaining,10,'no-slot contract access must not consume Free Intros');
+  assert.equal((await tailored.summary()).creditSlots[0].remaining,3,'no-slot contract access must not consume Free Intros');
   assert.equal(Number(await scalar('select sum(delta) from company_workspace_credit_events where id in ($1,$2)',[tailoredIntro,tailoredConnection])),0,'contract receipts preserve zero-debit behavior');
   assert.equal(await debit(tailored,tailored.roles[2],'contract-connect','connect'),tailoredConnection,'contract connection stays idempotent');
-  console.log('PASS: view-policy migration rollback, 10 shared Intros, concurrent activation/spending, idempotency, paid fallback, slot reassignment/expiry, historical data and contract preservation');
+  console.log('PASS: view-policy migration rollback, 3 shared Intros and Free Connect, concurrent activation/spending, idempotency, paid fallback, slot reassignment/expiry, historical data and contract preservation');
 } finally {
   if (sql) await sql.end();
   if (started)

@@ -3,6 +3,7 @@ import { applicationAnswerContext, unbatchedApplicationResponses } from "./appli
 import { applicationFormSchema, applicationInspectionSchema } from "./applicationForm";
 import { applicationEditsSchema } from "./applicationEditsSchema";
 import { browserStateSchema, browserQuestionRefSchema } from "./applicationBrowser";
+import { applicationExecutionFacts } from "./applicationExecution";
 import {
   preparationSchema,
   preparationResponseSchema,
@@ -500,7 +501,7 @@ export function mutateSimulationSession(
 export function simulationSessionContext(s: SimulationSession, toolNames?: readonly string[]) {
   return {
     preparation: s.preparation ? { responses: unbatchedApplicationResponses(s), applicationMethod: s.preparation.applicationMethod, finalDocumentId: s.preparation.finalDocumentId } : undefined,
-    application: s.browser ? { status: s.browser.status, result: s.browser.result } : undefined,
+    application: applicationExecutionFacts(s),
     // Settled buttons already appear as authoritative current actions. Keep the user's
     // exact response, but avoid duplicating the earlier, now superseded proposal.
     // Free answers retain the immutable question they answer; UI history is unchanged.

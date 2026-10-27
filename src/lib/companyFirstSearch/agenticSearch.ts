@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { formatLlmDateTime, projectLlmDateTimes } from '@/lib/llm/promptDateTime';
+import { formatPromptText } from '@/lib/llm/promptText';
 import { canPreviewCompanyCandidate } from '../org/candidatePreview';
 import type { User } from '@supabase/supabase-js';
 import type { OrgAgentAdminClient } from '../org/agent/data';
@@ -14,6 +15,7 @@ export type CompanyEvaluationRelationship = {
 export type RoleEvaluation = { id: string; talent_id: string; run_id: string | null; discovery_run_id?: string | null; brief_version: string; stage: number; input_contract_version?: string | null; assessment: Record<string, unknown>; evaluated_at: string; currentCompanyRelationship?: CompanyEvaluationRelationship };
 export type RoleSearchRead = {
   selection?: {poolVersion:string; currentBriefVersion:string; sourceRunId?:string; evidenceCoverage?:string; recordedCandidateCount?:number;
+    page?:{from:number;to:number};
     historicalPool?:{before:Array<Record<string,unknown>>;afterTalentIds:string[]};
     currentPoolCount:number; topCandidates:Array<Record<string,unknown>>; currentPool:Array<Record<string,unknown>>};
   relationship?: string; relationships?: Array<Record<string, unknown>>; inputContractVersion?: string; multipleInputContracts?: boolean;
@@ -79,6 +81,18 @@ function currentEvaluations(rows:RoleEvaluation[]) {
     ||row.evaluated_at>exclusions.get(`${row.talent_id}:${row.brief_version}:${row.input_contract_version??'unspecified'}`)!);
 }
 
+function matchingPage(input: Record<string, unknown>, view: unknown) {
+  if (input.from === undefined && input.to === undefined)
+    return {offset:nonnegativeInteger(input.offset),limit:positiveInteger(input.limit,20,'limit')};
+  if (view !== 'selection') throw new OrgAgentToolInputError('matching.from/to are available for selection; use offset/limit for other views.');
+  if (input.offset !== undefined || input.limit !== undefined)
+    throw new OrgAgentToolInputError('Use matching.from/to or offset/limit, not both.');
+  const from=positiveInteger(input.from,1,'matching.from');
+  const to=positiveInteger(input.to,from+19,'matching.to');
+  if (!Number.isSafeInteger(to) || to<from) throw new OrgAgentToolInputError('matching.to must be a safe integer greater than or equal to matching.from.');
+  return {offset:from-1,limit:to-from+1};
+}
+
 export async function readCompanyRoleSearch(args: Args & { input: Record<string, unknown> }): Promise<RoleSearchRead> {
   const { input } = args;
   if (typeof input.roleId !== 'string' || !input.roleId) throw new OrgAgentToolInputError('matching.roleId is required');
@@ -90,7 +104,7 @@ export async function readCompanyRoleSearch(args: Args & { input: Record<string,
   if (versionError) throw versionError;
   let briefVersion = typeof input.briefVersion === 'string' ? input.briefVersion : String(currentVersion);
   if (briefVersion === 'all' && view !== 'evaluations') throw new OrgAgentToolInputError('All versions are available only for evaluation history');
-  const offset = nonnegativeInteger(input.offset), limit = positiveInteger(input.limit, 20, 'limit');
+  const {offset,limit} = matchingPage(input,view);
   if (view === 'selection' && (input.briefVersion !== undefined || input.stage !== undefined || input.talentIds !== undefined || input.relationship !== undefined || input.hasCompanyHistory !== undefined || input.criterion !== undefined || input.label !== undefined))
     throw new OrgAgentToolInputError('selection reads the latest or an exact run plus the whole current pool; use other views for filtered history.');
   if(input.relationship!==undefined) {
@@ -197,7 +211,7 @@ export async function readCompanyRoleSearch(args: Args & { input: Record<string,
     }
   }
   if (view === 'selection') {
-    const review = await readSelectionReview(args, roleId, String(currentVersion), current, offset, input.limit === undefined ? 50 : limit,
+    const review = await readSelectionReview(args, roleId, String(currentVersion), current, offset, limit,
       input.runId?{runId:String(input.runId),evidence:evidence??{}}:undefined);
     return {roleId,briefVersion,view:'selection',run,counts,criteria,stage1DecisionStats,
       total:review.total,items:[],nextOffset:review.nextOffset,selection:review.selection};
@@ -312,7 +326,7 @@ async function readSelectionReview(args: Args, roleId:string, briefVersion:strin
       canRetain:true,canRefresh:row?.stage===2 && visible.get(talentId)?.canShareNewProfile}:{}),
   });
   return {total:eligible.length,nextOffset:offset+top.length<eligible.length?offset+top.length:null,
-    selection:{poolVersion:recommendationPoolVersion(pool as any),currentBriefVersion:briefVersion,currentPoolCount:pool.length,
+    selection:{poolVersion:recommendationPoolVersion(pool as any),currentBriefVersion:briefVersion,currentPoolCount:pool.length,page:{from:offset+1,to:offset+limit},
       ...(history?{sourceRunId:history.runId,evidenceCoverage:frozenRank?'frozen_references':'run_rows_only',
         recordedCandidateCount:frozenRank?.length,
         ...(frozenRank?{historicalPool:{before:visibleBefore.map(card=>projection(String(card.talentId),byTalent.get(String(card.talentId)))),afterTalentIds:after.filter((id:string)=>visible.has(id))}}:{})}:{}),
@@ -415,35 +429,69 @@ function formatEvaluation(row: RoleEvaluation, includeDistributions: boolean, cr
 }
 export function formatCompanyRoleSearch(value: RoleSearchRead) {
   if(value.selection) {
-    const definitions=new Map<string,unknown>();
-    const compact=(row:Record<string,any>)=>{
-      const result={...row};
-      for(const key of ['evaluation','currentEvaluation','historicalEvaluation']) {
-        const evaluation=row[key],assessment=evaluation?.assessment;
-        if(!evaluation)continue;
-        for(const raw of assessment?.criteria??[])definitions.set(`${evaluation.briefVersion}:${raw.name}`,{briefVersion:evaluation.briefVersion,name:raw.name,definition:raw.criterionDefinition});
-        result[key]={...evaluation,assessment:{...assessment,criteria:(assessment?.criteria??[]).map((c:any)=>({name:c.name,score:c.score,label:c.label}))}};
-      }
-      return result;
+    const definitions=new Map<string,{ref:string;briefVersion:string;name:string;definition:unknown}>();
+    const criteria=(items:unknown,version:string)=> (Array.isArray(items)?items:[]).map(raw=>{
+      const c=object(raw),key=JSON.stringify([version,c.name]);
+      if(!definitions.has(key))definitions.set(key,{ref:`criteria${definitions.size+1}`,briefVersion:version,name:String(c.name),definition:c.criterionDefinition});
+      else if(c.criterionDefinition)definitions.get(key)!.definition=c.criterionDefinition;
+      return `${definitions.get(key)!.ref}: ${c.label??c.fitness??'미기록'}`;
+    });
+    const assessment=(evaluation:Record<string,any>|null|undefined)=>{
+      if(!evaluation)return null;
+      const a=object(evaluation.assessment);
+      return {
+        ...Object.fromEntries(['candidateFit','companyFit','mutualFit','finalFit','proceedToStage2','decision',...Object.keys(stage1Axes)].filter(key=>key in a).map(key=>[key,a[key]])),
+        criteria:criteria(a.criteria,evaluation.briefVersion),
+      };
+    };
+    const period=(row:Record<string,any>)=>`${row.start_date??''} - ${row.end_date??''}`;
+    const relationship=(row:Record<string,any>)=>{
+      const r=row.currentCompanyRelationship;
+      return r?`회사에 공개된 이력 ${r.hasCompanyHistory?'있음':'없음'}; Intro 상태 ${r.introStatus??'없음'}; 공유된 진행 이력 ${r.hasSharedProgress?'있음':'없음'}; 현재 신규 추천 ${r.newPairAvailable?'가능':'불가'}`:undefined;
+    };
+    const historical=Boolean(value.selection.sourceRunId);
+    const compact=(raw:Record<string,any>)=>{
+      const row=projectLlmDateTimes(raw) as Record<string,any>;
+      return {
+        talentId:row.talentId,
+        info:['name','headline','location'].filter(key=>row[key]).map(key=>`${key}: ${row[key]}`).join(', '),
+        joinedAt:row.joinedAt,
+        recentExperience:(row.recentExperience??[]).map((r:Record<string,any>)=>`${r.role??''} at ${r.company_name??''} : ${period(r)}`),
+        recentEducation:(row.recentEducation??[]).map((r:Record<string,any>)=>`${[r.degree,r.field].filter(Boolean).join(' - ')} at ${r.school??''} : ${period(r)}`),
+        assessment:assessment(row.evaluation),
+        ...(row.evaluation?.stage&&row.evaluation.stage!==2?{assessmentStage:row.evaluation.stage}:{}),
+        ...(row.evaluation&&row.evaluation.briefVersion!==value.briefVersion?{assessmentBriefVersion:row.evaluation.briefVersion}:{}),
+        ...(historical?{historicalRank:row.historicalRank,inCurrentPool:row.inCurrentPool,
+          currentRelationship:relationship(row),
+          ...(!row.alreadyRecommended?{currentAssessment:assessment(row.currentEvaluation)}:{}),
+          ...(row.historicalEvaluation?{historicalAssessment:assessment(row.historicalEvaluation)}:{})}:{}),
+        ...(row.alreadyRecommended?{
+          recommendation:`현재 미결정 추천. 기존 카드 유지 가능; 현재 평가로 설명 갱신 ${row.canRefresh?'가능':'불가'}`,
+          presentationBriefVersion:row.presentationBriefVersion,
+          previousCriteria:criteria(row.previousCriteria,row.presentationBriefVersion),
+        }:{}),
+      };
     };
     const top=value.selection.topCandidates.map(compact),pool=value.selection.currentPool.map(compact);
     const historicalPool=value.selection.historicalPool?{...value.selection.historicalPool,before:value.selection.historicalPool.before.map(compact)}:null;
-    const historical=Boolean(value.selection.sourceRunId);
     return [
-      `Role ${value.roleId} · 조회 기준 Brief ${value.briefVersion} · 현재 Brief ${value.selection.currentBriefVersion} · 현재 poolVersion ${value.selection.poolVersion}`,
+      `Role ${value.roleId} · 조회 기준 Brief ${value.briefVersion} · 현재 Brief ${value.selection.currentBriefVersion}`,
+      '기준 정의 (criteria 번호는 이 응답 안의 참조):',
+      ...[...definitions.values()].map(c=>`${c.ref}: ${c.name}${c.definition?` — ${c.definition}`:''}${c.briefVersion!==value.briefVersion?` (Brief ${c.briefVersion??'미기록'})`:''}`),
       ...(historical?[`과거 실행 ${value.selection.sourceRunId} · ${formatLlmDateTime(value.run?.finishedAt)} · 기록 범위 ${value.selection.evidenceCoverage}`,
-        `당시 기준 원문: ${JSON.stringify(value.run?.briefSnapshot??null)}`,
+        `당시 기준 원문:\n${formatPromptText(value.run?.briefSnapshot??null)}`,
         value.selection.evidenceCoverage==='frozen_references'?'당시 평가 참조와 추천 가능 순위를 보존한 목록이다. 이후 새 점수·추천 상태로 과거 순위를 바꾸지 않는다. 현재 열람 권한은 다시 확인한다.':'이전 실행에 직접 저장된 평가만 확인된다. 당시 재사용 평가·추천 가능 목록·추천 풀 전체는 기록되지 않아 복원 완료로 간주할 수 없다.',
-        'evaluation은 당시 점수, currentEvaluation은 현재 기준의 최신 기록이다. 현재 추천 풀의 evaluation은 현재 점수이고 historicalEvaluation이 당시 점수다. 프로필과 관계는 현재 조회 사실이며 당시 원문 복원이 아니다.',
-        `당시 목록: ${JSON.stringify(historicalPool)}`]:[]),
-      `${historical?'당시 기록 범위':'현재 기준'} 평가 통계: ${JSON.stringify(value.counts)}. 기준별 분포: ${JSON.stringify(value.criteria)}`,
-      `기준 원문: ${JSON.stringify([...definitions.values()])}`,
+        '과거 상위 후보의 assessment는 당시 점수, currentAssessment는 현재 Brief 점수다. 현재 추천 풀의 assessment는 현재 점수이고 historicalAssessment가 당시 점수다. 프로필과 관계는 현재 조회 사실이다.',
+        ...(historicalPool?[`당시 기존 후보:\n${historicalPool.before.map(row=>JSON.stringify(row)).join('\n')}`,`당시 선정 후 후보 ID: ${historicalPool.afterTalentIds.join(', ')}`]:[])]:[]),
+      `${historical?'당시 기록 범위':'현재 기준'} 평가 통계: 후보 ${value.counts.evaluatedTalents??0}명; 1차 ${value.counts.stage1??0}명 중 통과 ${value.counts.stage1Passed??0}명; 2차 ${value.counts.stage2??0}명; 추천 설명 ${value.counts.stage3??0}명.`,
+      ...Object.entries(value.criteria).map(([name,labels])=>`기준별 분포 ${name}: ${Object.entries(labels).map(([label,count])=>`${label} ${count}명`).join(', ')}`),
       `${historical?'과거 목록에서 현재 열람 가능한':'신규 추천 가능'} 후보 ${value.total}명 중 ${top.length}명. 현재 미결정 추천 ${value.selection.currentPoolCount}명은 별도다.`,
+      ...(value.selection.page?[`조회 범위 from=${value.selection.page.from}, to=${value.selection.page.to} (현재 열람 가능한 상위 후보 목록에서 1부터 시작, 양끝 포함).`]:[]),
       'companyFit=회사 요구와의 적합성, candidateFit=후보 관점의 적합성, mutualFit=양측을 종합한 평가. 점수는 0/25/50/75/100의 확률가중평균이며 합격선·채용 확률이 아니다. 라벨은 가장 확률이 큰 분류다. uncertain은 정보 부족이며 불충족 확정이 아니다. conflict는 해당 기준과 충돌한다는 평가다. 점수는 후보의 실제 관심·동의를 뜻하지 않는다.',
-      '기존 카드의 previousCriteria는 이전 소개 당시 점수다. 현재 evaluation과 구분한다. 현재 2차 평가가 없거나 신규 공유 자격이 없더라도 이미 소개된 미결정 카드는 그대로 유지할 수 있다. 이 경우 새 기준 설명은 작성되지 않는다. 상세 원문과 추가 페이지는 필요할 때 일반 read 도구로 조회한다.',
-      `상위 후보: ${JSON.stringify(top)}`,`현재 미결정 추천: ${JSON.stringify(pool)}`,
-      ...(historical?[`재검색 없이 발행할 때 현재 briefVersion=${value.selection.currentBriefVersion}, poolVersion을 사용한다. sourceRunId=${value.selection.sourceRunId}는 과거 실행과 현재 Brief가 같을 때만 해당 점수를 재사용한다. 다른 Brief의 과거 점수는 현재 기준 충족으로 취급하지 않는다.`]:[]),
-      value.nextOffset===null?'후보 추가 페이지 없음.':`matching.view=selection${historical?`, runId=${value.selection.sourceRunId}`:''}, offset=${value.nextOffset}로 다음 후보 조회. 현재 풀은 매 페이지에 전원 포함된다.`,
+      'previousCriteria는 이전 소개 당시 라벨이다. assessment와 구분한다. 기존 미결정 카드는 유지할 수 있다. 설명 갱신 불가인 카드는 새 기준 설명을 작성하지 않는다. 기준별 수치·평가 원문은 matching.view=evaluations와 talentIds로 조회한다.',
+      `상위 후보:\n${top.map(row=>JSON.stringify(row)).join('\n')}`,`현재 미결정 추천:\n${pool.map(row=>JSON.stringify(row)).join('\n')}`,
+      ...(historical?[`발행은 kind=add로 새 ID만 추가하거나 kind=replace로 전체 미결정 목록을 교체한다. 버전은 서버가 관리한다. sourceRunId=${value.selection.sourceRunId}는 과거 실행과 현재 Brief가 같을 때만 해당 점수를 재사용한다. 다른 Brief의 과거 점수는 현재 기준 충족으로 취급하지 않는다.`]:[]),
+      value.nextOffset===null?'후보 추가 페이지 없음.':`matching.view=selection${historical?`, runId=${value.selection.sourceRunId}`:''}, from=${value.nextOffset+1}, to=${Math.min(value.total,value.nextOffset+(value.selection.page?value.selection.page.to-value.selection.page.from+1:20))}로 다음 후보 조회. 현재 풀은 매 페이지에 전원 포함된다.`,
     ].map(escapePromptText).join('\n');
   }
   if(value.relationship==='accepted') return [
@@ -464,7 +512,7 @@ export function formatCompanyRoleSearch(value: RoleSearchRead) {
   const allVersions = value.briefVersion === 'all';
   const evaluationUnit = allVersions || value.multipleInputContracts ? '건' : '명';
   const facts = [
-    ...(value.run?[`실행 당시 기준 원문: ${JSON.stringify(value.run.briefSnapshot??null)} · 기록 범위 ${value.run.evidenceCoverage}`]:[]),
+    ...(value.run?[`실행 당시 기준 원문:\n${formatPromptText(value.run.briefSnapshot??null)}\n기록 범위 ${value.run.evidenceCoverage}`]:[]),
     `입력 계약: ${value.inputContractVersion??'여러 계약의 이력'}. 이력 수는 현재 입력과 정확히 일치해 재사용할 수 있는 수가 아니다. Worker가 원본 입력을 대조한다. 서로 다른 입력 계약은 합쳐서 현재 평가로 취급하지 않는다.`,
     `Role ${value.roleId} · Brief ${value.briefVersion} · ${value.run ? `실행 ${value.run.id} (${value.run.status})` : allVersions ? '전체 버전 이력; 아래 집계는 후보·버전·단계별 최신 평가 기준' : '같은 버전의 전체 실행 누적; 후보별 최신 평가 기준'}`,
     ...(value.hasCompanyHistory !== undefined ? [`통계·목록 모집단 필터: 현재 이 회사에 공개된 이력이 ${value.hasCompanyHistory ? '있는' : '없는'} 후보. 과거 점수와 현재 회사 기록은 별개다.`] : []),
@@ -494,7 +542,7 @@ export function formatCompanyRoleSearch(value: RoleSearchRead) {
   return [
     ...facts,
     ...(value.view === 'evaluations' ? ['아래 목록은 평가 행 이력이다. 같은 후보가 단계·버전·실행별로 여러 행에 나타날 수 있다. 중복 없는 후보 목록은 view=candidates로 조회한다.'] : []),
-    '새 pair 가능 여부는 후보의 공유·중복·기존 결정 조건에 대한 현재 사실이다. Role의 유료·활성 자격, 적합성 판단, 새 추천 완료는 별도이며 기존 추천 재검토·설명 갱신 가능 여부와도 다르다.',
+    '새 pair 가능 여부는 후보의 공유·중복·기존 결정 조건에 대한 현재 사실이다. Role의 활성 상태·접근 권한, 적합성 판단, 새 추천 완료는 별도이며 기존 추천 재검토·설명 갱신 가능 여부와도 다르다.',
     ...(value.displayedCriterion ? [`이 후보 목록은 요청한 기준 ${escapePromptText(value.displayedCriterion)}의 점수·근거와 전체 fit만 표시한다. 다른 기준까지 필요하면 matching.view=evaluations와 talentIds로 같은 평가를 조회한다. 현재 회사 관계는 평가 당시 상태와 별개이며 상세 상태는 read_talent로 조회한다.`] : []),
     '기준 라벨은 평가 분포다. limited/conflict 등의 합계가 실제 제외 인원이나 기록된 제외 사유를 뜻하지 않는다.',
     ...(criterionDefinitions.size ? ['<evaluation_explanations>', ...criterionDefinitions.values(), '</evaluation_explanations>'] : []),

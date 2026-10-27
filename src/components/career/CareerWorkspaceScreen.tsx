@@ -1,6 +1,5 @@
 import {
   BriefcaseBusiness,
-  House,
   Files,
   Inbox,
   Loader2,
@@ -45,6 +44,7 @@ import CareerMobileChatLauncher from "@/components/career/mobile/CareerMobileCha
 import { CareerMobileChatLauncherVisibilityProvider } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
 import CareerMobileHomeView from "@/components/career/mobile/CareerMobileHomeView";
 import CareerMobileShell from "@/components/career/mobile/CareerMobileShell";
+import { CareerMobileNavigationFrame } from "@/components/career/mobile/CareerMobileNavigationMenu";
 import CareerMobileTopBar, {
   type CareerMobileTopBarOption,
   type CareerMobileTopBarOptionId,
@@ -170,11 +170,6 @@ const getMobileWorkspaceTabOptions = (
   t: CareerTLike
 ): CareerMobileTopBarOption[] => [
   {
-    id: "home",
-    label: t("career.common.career_workspace_screen.1kr4bnb", "홈"),
-    icon: House,
-  },
-  {
     id: "tasks",
     label: t("career.tasks.title", "할 일"),
     icon: Inbox,
@@ -251,13 +246,13 @@ const CareerWorkspaceContent = ({
           showTitle={false}
           onOpenChat={onRequestChatFocus}
           onOpenChatAction={onOpenChatAction}
-          onOpenOpportunity={(roleId, historyTab) =>
+          onOpenOpportunity={(roleId, historyTab, savedStage) =>
             onChangeTab("history", {
               historyTarget: {
                 historyTab,
                 roleId,
                 ...(historyTab === "saved"
-                  ? { savedStage: "connected" as const }
+                  ? { savedStage: savedStage ?? "connected" }
                   : {}),
               },
             })
@@ -378,7 +373,7 @@ const CareerWorkspaceRoot = ({
   );
 
   const [activeTabState, setActiveTabState] =
-    useState<CareerWorkspaceTab>("home");
+    useState<CareerWorkspaceTab>("tasks");
   const mediaIsDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY);
   const isDesktop =
     forcedViewport != null ? forcedViewport === "desktop" : mediaIsDesktop;
@@ -410,7 +405,9 @@ const CareerWorkspaceRoot = ({
     onResizeEnd: handleChatPanelResizeEnd,
   });
   const { historyOpportunityCounts } = useCareerHistoryContext();
-  const activeTab = controlledActiveTab ?? activeTabState;
+  const requestedActiveTab = controlledActiveTab ?? activeTabState;
+  // Keep the legacy Home view below, but open Tasks for all Home entry points.
+  const activeTab = requestedActiveTab === "home" ? "tasks" : requestedActiveTab;
   const handleChangeTab =
     controlledOnChangeTab ??
     ((nextTab: CareerWorkspaceTab) => setActiveTabState(nextTab));
@@ -436,7 +433,7 @@ const CareerWorkspaceRoot = ({
   }, []);
   const pendingInternalRoleFeedbackCount = historyOpportunityCounts.newInternal;
   const unreadExternalRoleCount = historyOpportunityCounts.newExternalUnread;
-  const desktopActiveTab = activeTab === "home" ? "tasks" : activeTab;
+  const desktopActiveTab = activeTab;
   const requestedHistoryTab = getSingleQueryValue(router.query.historyTab);
   const desktopNavTab: CareerDesktopNavTab | null =
     desktopActiveTab === "history"
@@ -458,14 +455,16 @@ const CareerWorkspaceRoot = ({
       : detectedMobileViewport;
   if (isMobileViewport) {
     return (
-      <CareerWorkspaceMobileLayout
-        activeTab={activeTab}
-        initialChatOpen={initialMobileChatOpen}
-        onChangeTab={handleChangeTab}
-        pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
-        unreadExternalRoleCount={unreadExternalRoleCount}
-        decisionCount={decisionCount}
-      />
+      <CareerMobileNavigationFrame className="h-svh">
+        <CareerWorkspaceMobileLayout
+          activeTab={activeTab}
+          initialChatOpen={initialMobileChatOpen}
+          onChangeTab={handleChangeTab}
+          pendingInternalRoleFeedbackCount={pendingInternalRoleFeedbackCount}
+          unreadExternalRoleCount={unreadExternalRoleCount}
+          decisionCount={decisionCount}
+        />
+      </CareerMobileNavigationFrame>
     );
   }
 
@@ -1638,13 +1637,13 @@ const CareerWorkspaceMobileLayout = ({
                           setPendingChatAction(action);
                           setChatOpen(true);
                         }}
-                        onOpenOpportunity={(roleId, historyTab) =>
+                        onOpenOpportunity={(roleId, historyTab, savedStage) =>
                           handleChangeTab("history", {
                             historyTarget: {
                               historyTab,
                               roleId,
                               ...(historyTab === "saved"
-                                ? { savedStage: "connected" as const }
+                                ? { savedStage: savedStage ?? "connected" }
                                 : {}),
                             },
                           })

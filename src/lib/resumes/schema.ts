@@ -66,10 +66,9 @@ export type StructuredResume = {
   source_refs: SourceReference[];
 };
 
-const str = (maxLength = 2000) => ({
+const str = () => ({
   type: "string",
   minLength: 1,
-  maxLength,
   pattern: "\\S",
 });
 const id = {
@@ -83,21 +82,20 @@ const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
   required,
   additionalProperties: false,
 });
-const arr = (items: unknown, maxItems = 60) => ({
+const arr = (items: unknown) => ({
   type: "array",
   items,
-  maxItems,
 });
 const entry = obj(
   {
     id,
-    title: str(300),
-    organization: str(300),
-    location: str(300),
-    period: str(150),
-    description: str(4000),
-    bullets: arr(str(2000), 30),
-    url: str(2000),
+    title: str(),
+    organization: str(),
+    location: str(),
+    period: str(),
+    description: str(),
+    bullets: arr(str()),
+    url: str(),
   },
   ["title"]
 );
@@ -111,7 +109,7 @@ export const GENERATE_RESUME_PARAMETERS = obj(
         "create requires document_name and full content. update requires document_id, expected_revision and changes. copy requires the source document_id, expected_revision and a new document_name; changes are optional. Read the current JSON before update or copy.",
     },
     document_name: {
-      ...str(200),
+      ...str(),
       description:
         "Filename without .pdf; required for create and copy. Include the person's known name and role/company/language. On update omit unless the user requested renaming or repurposing.",
     },
@@ -120,15 +118,15 @@ export const GENERATE_RESUME_PARAMETERS = obj(
       description: "The document to update, or the generated resume to copy.",
     },
     expected_revision: { type: "integer", minimum: 1 },
-    target_role: obj({ title: str(300), company: str(300) }, ["title"]),
-    source_document_ids: arr(id, 20),
+    target_role: obj({ title: str(), company: str() }, ["title"]),
+    source_document_ids: arr(id),
     changes: {
       ...arr(
         obj(
           {
             op: { type: "string", enum: ["set", "add", "remove"] },
             path: {
-              ...str(500),
+              ...str(),
               description:
                 "JSON pointer relative to content. Select ALL existing objects with id by that exact id, including skill groups: /experience/<entry-id>/description, /skills/<skill-group-id>/items. Never use /skills/0 for an ID-bearing group. Only arrays without item IDs use numeric positions: /experience/<entry-id>/bullets/0, /skills/<skill-group-id>/items/0, /basics/links/0. set replaces only that field; remove deletes the exact field or entry. add appends one new item at a collection path (including a missing optional collection), or inserts before an existing item at its path. Never target id or replace existing entry collections; edit their fields. Escape ~ as ~0 and / as ~1.",
             },
@@ -138,8 +136,7 @@ export const GENERATE_RESUME_PARAMETERS = obj(
             },
           },
           ["op", "path"]
-        ),
-        100
+        )
       ),
       minItems: 1,
     },
@@ -148,13 +145,12 @@ export const GENERATE_RESUME_PARAMETERS = obj(
         language: { type: "string", enum: ["ko", "en"] },
         basics: obj(
           {
-            name: str(200),
-            email: str(300),
-            phone: str(100),
-            location: str(300),
+            name: str(),
+            email: str(),
+            phone: str(),
+            location: str(),
             links: arr(
-              obj({ label: str(100), url: str(2000) }, ["label", "url"]),
-              10
+              obj({ label: str(), url: str() }, ["label", "url"])
             ),
           },
           ["name"]
@@ -164,18 +160,16 @@ export const GENERATE_RESUME_PARAMETERS = obj(
         projects: arr(entry),
         extracurricular: arr(entry),
         skills: arr(
-          obj({ id, title: str(200), items: arr(str(200), 60) }, [
+          obj({ id, title: str(), items: arr(str()) }, [
             "title",
             "items",
-          ]),
-          30
+          ])
         ),
         additional_sections: arr(
-          obj({ id, title: str(200), entries: arr(entry) }, [
+          obj({ id, title: str(), entries: arr(entry) }, [
             "title",
             "entries",
-          ]),
-          15
+          ])
         ),
       },
       ["language", "basics"]
@@ -183,21 +177,20 @@ export const GENERATE_RESUME_PARAMETERS = obj(
     source_refs: arr(
       obj(
         {
-          section: str(100),
+          section: str(),
           entry_id: id,
           kind: {
             type: "string",
             enum: ["document", "profile", "memory", "message"],
           },
           id: {
-            ...str(200),
+            ...str(),
             description:
               "Use an identifier returned by a prior read tool: document UUID; memory ref number as a string; message ID; profile experience:<id>, education:<id>, extra:<id>, or user:<user_id>. Omit source_refs when no verified identifier is available; never invent one.",
           },
         },
         ["section", "kind", "id"]
-      ),
-      200
+      )
     ),
   },
   ["action"]
@@ -241,8 +234,6 @@ function omitEmptyOptionalFields(value: unknown, schema: unknown): unknown {
 }
 
 export function parseResumeInput(value: unknown): GenerateResumeInput {
-  if ((JSON.stringify(value)?.length ?? 0) > 150_000)
-    throw new Error("Resume content is too large.");
   const normalized = omitEmptyOptionalFields(value, GENERATE_RESUME_PARAMETERS);
   // Older saved JSON can contain summary. Accept edits to those documents without
   // carrying that obsolete section into the new JSON, plain text, or PDF.

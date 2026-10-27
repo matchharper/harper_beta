@@ -19,6 +19,7 @@ import {
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
+import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import {
   OrgAgentDateDivider,
   OrgAgentMessageBubble,
@@ -288,7 +289,7 @@ export function OrgAgentChatSurface({
       label: c("Run Search", "Run search"),
       message: c(
         ORG_ROLE_RUN_SEARCH_ACTION.message,
-        "Find candidates we might want to send an intro request."
+        "Find more candidates for this role we might want to send an intro request to."
       ),
     },
   };
@@ -666,6 +667,9 @@ export function OrgAgentChatSurface({
                 "Start with a JD link or file, or describe it in your own words."
               )}
             </p>
+          ) : null}
+          {purpose === "role" && roleId && workspaceId ? (
+            <OrgRoleSearchActivity key={roleId} workspaceId={workspaceId} roleId={roleId} />
           ) : null}
           {visibleRoleQuickActions.length > 0 ? (
             <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0">

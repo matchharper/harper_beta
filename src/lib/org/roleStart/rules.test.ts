@@ -141,7 +141,7 @@ test("an info candidate's rating moves a criterion only between 있으면 좋음
       { id: "c3", name: "B2C", criteria: "B2C", requirement: "preferred" as const, importance: 1, kind: "similarity" as const },
     ],
   };
-  const session = (ratings: Record<string, string>) =>
+  const session = (ratings: Record<string, string | null>) =>
     ({
       firstCandidates: Object.keys(ratings).map((criterionId) => ({
         talentId: criterionId,
@@ -155,6 +155,9 @@ test("an info candidate's rating moves a criterion only between 있으면 좋음
   const aboutItself = new Map([["c1", new Set(["c1"])], ["c2", new Set(["c2"])], ["c3", new Set(["c3"])]]);
   const disliked = applyProbeRatings(three, session({ c1: "bad", c2: "bad", c3: "bad" }), aboutItself).brief;
   assert.deepEqual(disliked.criteria.map(levelOf), ["required", "important", "important"], "있으면 좋음 → 중요, never 필수");
+  const unrated = applyProbeRatings(three, session({ c1: null, c2: null, c3: null }), aboutItself);
+  assert.deepEqual(unrated.brief, three, "written feedback alone is not a positive or negative rating");
+  assert.deepEqual(unrated.settled, []);
 });
 
 test("맞지 않음 changes the open criterion only when the team's reason is about it", async () => {
@@ -190,24 +193,6 @@ test("맞지 않음 changes the open criterion only when the team's reason is ab
   } as never;
   assert.equal(applyProbeRatings(open, years, new Map([["p", new Set(["c1"])]])).brief.hardConditions.length, 0, "years point, reason elsewhere");
   assert.equal(applyProbeRatings(open, years, new Map([["p", new Set([YEARS_TARGET])]])).brief.hardConditions[0]?.kind, "max_years");
-});
-
-test("a 맞지 않음 pushes down only look-alikes who share the weak point; a liked person lifts look-alikes", async () => {
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://127.0.0.1:1";
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-only-not-used";
-  const { adjustmentsFrom } = await import("./service");
-  const similarity = new Map([["alikeWeak", 0.9], ["alikeStrong", 0.9], ["otherWeak", 0.1], ["mid", 0.5]]);
-  const scores: Record<string, number> = { alikeWeak: 0.2, alikeStrong: 0.8, otherWeak: 0.2, mid: 0.5 };
-  const criterionScores = (_criterionId: string, talentId: string) => scores[talentId] ?? null;
-  const down = adjustmentsFrom({ ratings: [{ talentId: "x", rating: "bad", similarity, weakOn: ["c2"] }], criterionScores });
-  assert.ok((down.get("alikeWeak") ?? 0) < 0, "alike and weak on the named point");
-  assert.equal(down.get("alikeStrong"), undefined, "alike but strong on that point");
-  assert.equal(down.get("otherWeak"), undefined, "weak but not alike");
-  assert.ok(Math.abs(down.get("alikeWeak")!) <= 0.08 + 1e-9, "at most 0.08");
-  const none = adjustmentsFrom({ ratings: [{ talentId: "x", rating: "bad", similarity, weakOn: [] }], criterionScores });
-  assert.equal(none.size, 0, "no reason, no push down");
-  const up = adjustmentsFrom({ ratings: [{ talentId: "x", rating: "good", similarity, weakOn: [] }], criterionScores });
-  assert.ok((up.get("alikeStrong") ?? 0) > 0 && (up.get("otherWeak") ?? 0) < 0, "liked: whole-career similarity both ways");
 });
 
 test("a reason points at criteria by its chip, else by a short classification of the typed text", async () => {
@@ -262,26 +247,6 @@ test("hard conditions agree between SQL counts and the in-memory pool (local dat
     assert.equal(disagree.length, 0, `${roleId}: ${disagree.length} people differ`);
   }
   await roleStartSql().end();
-});
-
-test("a criterion named as why an info candidate did not fit must hold for the pick after registering", async () => {
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://127.0.0.1:1";
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-only-not-used";
-  const { namedWeakCriteria, qualifiesForBatch } = await import("./service");
-  const session = {
-    firstCandidates: [
-      { talentId: "p", probe: { type: "criterion_low", criterionId: "c2", label: "" } },
-      { talentId: "x", probe: null },
-    ],
-    evaluations: { p: { rating: "bad" }, x: { rating: "bad" } },
-  } as never;
-  const targets = new Map([["p", new Set(["c2", "years"])], ["x", new Set(["c1"])]]);
-  assert.deepEqual(namedWeakCriteria(session, targets, brief as never), ["c2"], "info candidate only, criteria only");
-  assert.deepEqual(namedWeakCriteria(session, new Map(), brief as never), [], "no reason: nothing named");
-  const verdict = (c1: string, c2: string) => ({ finalFit: "good", criteria: [{ criterionId: "c1", fitness: c1 }, { criterionId: "c2", fitness: c2 }] }) as never;
-  assert.equal(qualifiesForBatch(verdict("good", "uncertain"), brief as never), true, "before: only 필수 checked");
-  assert.equal(qualifiesForBatch(verdict("good", "uncertain"), brief as never, ["c2"]), false, "named criterion still open");
-  assert.equal(qualifiesForBatch(verdict("good", "good"), brief as never, ["c2"]), true);
 });
 
 test("a proposal written before the Role turns on stays open once it is on (local database only)", async (t) => {

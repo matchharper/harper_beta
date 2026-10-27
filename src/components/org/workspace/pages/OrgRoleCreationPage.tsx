@@ -27,7 +27,6 @@ import { OrgRoleTalentBoard } from "@/components/org/OrgRoleTalentBoard";
 import { OrgRoleDetailsContent } from "@/components/org/role-overview/OrgRoleDetailsContent";
 import { OrgRoleMatchingHistory } from "@/components/org/role-overview/OrgRoleMatchingHistory";
 import { OrgRoleMatchingContent } from "@/components/org/role-overview/OrgRoleMatchingContent";
-import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import { OrgRoleSettingsContent } from "@/components/org/role-overview/OrgRoleSettingsContent";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgRoleStartPanel } from "@/components/org/role-start/OrgRoleStartPanel";
@@ -52,14 +51,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { OrgJobsProvider } from "@/hooks/org/useOrgJobs";
-import { useOrgBoard } from "@/hooks/org/useOrg";
+import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useResizableSplitPanel } from "@/hooks/useResizableSplitPanel";
 import {
   getOrgRoleStatusPresentation,
   normalizeOrgRoleStatus,
 } from "@/lib/org/roleStatus";
-import { isOrgInboxStage } from "@/lib/org/pipelineStage";
 import {
   buildOrgHref,
   resolveOrgRoleTab,
@@ -218,7 +216,7 @@ function OrgRoleCandidatesTab({
   tab: "inbox" | "pipeline";
 }) {
   return (
-    <OrgJobsProvider routePage="role">
+    <OrgJobsProvider routePage="role" inbox={tab === "inbox"}>
       {tab === "inbox" ? (
         <OrgRoleInbox />
       ) : (
@@ -250,13 +248,11 @@ function readRegisteredNotice(roleId: string) {
   }
 }
 
-/** Right after registration: what the extra pick found, above the inbox. */
+/** Right after registration, above the inbox: the Role is on and regular recommendations take over. */
 function RoleStartRegisteredNotice({
-  onCriteria,
   roleId,
   workspaceId,
 }: {
-  onCriteria: () => void;
   roleId: string;
   workspaceId: string;
 }) {
@@ -271,7 +267,6 @@ function RoleStartRegisteredNotice({
     if (shown) writeRegisteredNotice(roleId, false);
   }, [roleId, shown]);
   if (!batch || !ready || !shown) return null;
-  const picked = batch.status === "done" ? batch.candidates[0] : undefined;
   const close = () => setShown(false);
   return (
     <div
@@ -279,39 +274,12 @@ function RoleStartRegisteredNotice({
       role="status"
     >
       <div className="min-w-0 flex-1">
-        {picked ? (
-          <p>
-            {picked.name
-              ? c(
-                  "하퍼가 평가를 반영해 한 분을 더 골랐어요: {p0}님. 아래 후보 목록에서 볼 수 있어요.",
-                  "Harper picked one more person from your ratings: {p0}. You can find them in the list below.",
-                  { p0: picked.name }
-                )
-              : c(
-                  "하퍼가 평가를 반영해 한 분을 더 골랐어요. 아래 후보 목록에서 볼 수 있어요.",
-                  "Harper picked one more person from your ratings. You can find them in the list below."
-                )}
-          </p>
-        ) : (
-          <>
-            <p>
-              {c(
-                "지금 기준에 맞는 새 후보를 찾지 못했어요.",
-                "We couldn't find a new candidate for the current criteria."
-              )}
-            </p>
-            <button
-              className="mt-1 text-link underline-offset-2 hover:underline"
-              onClick={() => {
-                close();
-                onCriteria();
-              }}
-              type="button"
-            >
-              {c("기준 다시 보기", "Review criteria")}
-            </button>
-          </>
-        )}
+        <p>
+          {c(
+            "역할을 켰어요. 새 후보는 정기 추천에서 찾아 인박스에 넣어 드릴게요.",
+            "The role is on. Regular recommendations will look for new people and add them to the inbox."
+          )}
+        </p>
       </div>
       <MuteButton
         aria-label={c("안내 닫기", "Close notice")}
@@ -354,14 +322,14 @@ function OrgRoleCreationDetails({
   const { workspace } = useOrgWorkspace();
   const roleCreation =
     role !== null && normalizeOrgRoleStatus(role.status) === "draft";
-  const inboxBoardQuery = useOrgBoard({
+  const inboxBoardQuery = useOrgInboxCounts({
     enabled: Boolean(role) && !roleCreation,
     roleId: role?.roleId,
     workspaceId: workspace.workspaceId,
   });
-  const inboxCount = inboxBoardQuery.data?.items.filter(
-    (item) => isOrgInboxStage(item.stage) && !item.savedAt
-  ).length;
+  const inboxCount = inboxBoardQuery.data
+    ? inboxBoardQuery.data.counts.pending_connection + inboxBoardQuery.data.counts.company_intro
+    : undefined;
   const requestedTab = router.isReady ? getQueryText(router.query.tab) : "";
   const requestedView = router.isReady ? getQueryText(router.query.view) : "";
   const activeTab = resolveOrgRoleTab({
@@ -602,7 +570,6 @@ function OrgRoleCreationDetails({
             !roleCreation ? (
               <>
                 <RoleStartRegisteredNotice
-                  onCriteria={() => setActiveTab("matching")}
                   roleId={role.roleId}
                   workspaceId={workspace.workspaceId}
                 />
@@ -939,9 +906,6 @@ export function OrgRoleCreationPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {role && normalizeOrgRoleStatus(role.status) !== "draft" ? (
-        <OrgRoleSearchActivity key={role.roleId} roleId={role.roleId} workspaceId={workspace.workspaceId} />
-      ) : null}
     <div
       ref={containerRef}
       className={cn(

@@ -70,15 +70,22 @@ export function OrgCandidateRoleMoveDialog({
     roleId: targetRoleId,
     enabled: Boolean(targetRoleId),
   });
+  // A disabled query still returns cached data. Before selecting a destination,
+  // this query shares the workspace-wide board key used by the inbox.
+  const targetBoard =
+    targetRoleId && board.data?.roleId === targetRoleId
+      ? board.data
+      : undefined;
   const stages =
-    board.data?.stages.filter(
+    targetBoard?.stages.filter(
       (stage) =>
         stage.id === "connected" ||
         stage.id === "final_offer" ||
         stage.id.startsWith("custom:")
     ) ?? [];
-  const alreadyPresent = board.data?.items.some(
+  const alreadyPresent = targetBoard?.items.some(
     (item) =>
+      item.roleId === targetRoleId &&
       item.talentId === detail.talent.userId &&
       !["archived", "process_stopped"].includes(item.stage)
   );
@@ -149,10 +156,10 @@ export function OrgCandidateRoleMoveDialog({
   };
   const canSubmit = Boolean(
     targetRoleId &&
+    targetBoard &&
     board.isSuccess &&
     !alreadyPresent &&
-    (mode !== "pipeline" ||
-      stages.some((stage) => stage.id === targetStageId))
+    (mode !== "pipeline" || stages.some((stage) => stage.id === targetStageId))
   );
   const stageLabel = (id: string, label: string) =>
     id === "connected"
@@ -268,6 +275,7 @@ export function OrgCandidateRoleMoveDialog({
             </div>
             {mode === "pipeline" &&
               targetRoleId &&
+              targetBoard &&
               board.isSuccess &&
               !alreadyPresent && (
                 <div className="space-y-2">
@@ -362,15 +370,10 @@ export function OrgCandidateRoleMoveDialog({
               ))}
             </fieldset>
           ) : (
-            <p className="text-[12px] leading-5 text-neutral-muted">
-              {c(
-                "새 Role의 제안 목록으로 옮겨요. 후보자에게 제안을 보내지는 않아요.",
-                "Move to this role’s suggested candidates. No proposal is sent to the candidate."
-              )}
-            </p>
+            <></>
           )}
           {mode === "pipeline" && (
-            <p className="text-[12px] leading-5 text-neutral-muted">
+            <p className="text-sm leading-5 text-neutral-muted">
               {c(
                 "기존 연락과 인터뷰 일정은 그대로 유지돼요.",
                 "Existing messages and interview arrangements stay unchanged."
@@ -378,7 +381,7 @@ export function OrgCandidateRoleMoveDialog({
             </p>
           )}
           {!options.length && (
-            <p className="text-[12px] text-neutral-muted">
+            <p className="text-sm text-neutral-muted">
               {c(
                 "이동할 수 있는 다른 Role이 없어요.",
                 "No other roles are available."
@@ -386,12 +389,12 @@ export function OrgCandidateRoleMoveDialog({
             </p>
           )}
           {targetRoleId && board.isPending && (
-            <p className="text-[12px] text-neutral-muted">
+            <p className="text-sm text-neutral-muted">
               {c("Role을 확인하고 있어요…", "Loading role…")}
             </p>
           )}
-          {board.isError && (
-            <p role="alert" className="text-[12px] text-critical">
+          {targetRoleId && board.isError && (
+            <p role="alert" className="text-sm text-critical">
               {c("Role 정보를 불러오지 못했어요.", "Couldn’t load this role.")}{" "}
               <MuteButton
                 variant="transparent"
@@ -402,7 +405,7 @@ export function OrgCandidateRoleMoveDialog({
             </p>
           )}
           {alreadyPresent && (
-            <p role="alert" className="text-[12px] text-critical">
+            <p role="alert" className="text-sm text-critical">
               {c(
                 "이 Role에서 이미 진행 중인 후보예요.",
                 "This candidate is already in this role."

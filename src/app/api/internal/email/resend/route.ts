@@ -13,6 +13,7 @@ import {
   type ResendDeliveryEventPayload,
 } from "@/lib/contentsEngine/resendDelivery";
 import { verifyResendWebhookSignature } from "@/lib/email/security";
+import { dispatchInboundEmailReply } from "@/lib/email/runtime/queue";
 
 export const runtime = "nodejs";
 
@@ -112,10 +113,7 @@ export async function POST(req: Request) {
       event: typedEvent,
       providerEventId: svixId,
     });
-    if (process.env.EMAIL_RUNTIME_TARGET === "vercel_queue") {
-      const { dispatchEmailInboundEvent } = await import("@/lib/email/runtime/queue");
-      await dispatchEmailInboundEvent(result.inboundEventId);
-    }
+    await dispatchInboundEmailReply(result.jobId);
     return NextResponse.json({ ok: true, ...result }, { status: 200 });
   } catch (error) {
     const message =

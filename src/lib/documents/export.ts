@@ -13,7 +13,6 @@ export async function renderAuthoredDocument(title: string, markdown: string) {
   ]);
   return renderPaginatedPdf({
     html: paginatedPreviewHtml(template.html, assets),
-    textChunks: template.textChunks,
     text: markdown,
   });
 }

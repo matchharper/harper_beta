@@ -32,7 +32,8 @@ import {
 } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogTitle } from "@/components/ui/dialog";
+import { PushNavigationContent } from "@/components/ui/push-navigation";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
 import { OrgRoleActionsMenu } from "@/components/org/OrgRoleActionsMenu";
 import type { OrgDocumentsHeading } from "@/components/org/workspace/OrgDocumentsMarkdown";
@@ -50,7 +51,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
-import { useOrgInbox } from "@/hooks/org/useOrg";
+import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
@@ -675,17 +676,8 @@ export function OrgWorkspaceSidebar({
     workspace,
     workspaces,
   } = useOrgWorkspace();
-  const inboxQuery = useOrgInbox({ workspaceId: workspace.workspaceId });
-  const pendingConnectionCount = useMemo(
-    () =>
-      inboxQuery.data?.items.reduce(
-        (count, item) =>
-          count +
-          (item.stage === "pending_connection" && !item.savedAt ? 1 : 0),
-        0
-      ),
-    [inboxQuery.data?.items]
-  );
+  const inboxQuery = useOrgInboxCounts({ workspaceId: workspace.workspaceId });
+  const pendingConnectionCount = inboxQuery.data?.counts.pending_connection;
   const primaryNav = permissions.canManageCandidates
     ? PRIMARY_NAV.flatMap((item) =>
         item.id === "jobs" ? [item, NEW_ROLE_NAV] : [item]
@@ -1138,11 +1130,7 @@ export function OrgWorkspaceSidebar({
         open={navigationOpen}
         onOpenChange={handleMobileNavigationOpenChange}
       >
-        <DialogContent
-          className="!inset-y-0 !left-0 !right-auto !top-0 z-[60] flex h-svh w-[min(82vw,280px)] max-w-[280px] !translate-x-0 !translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 border-r border-neutral-1000-a05 bg-bg-default p-0 shadow-[18px_0_48px_color-mix(in_srgb,var(--color-neutral-1000)_18%,transparent)] duration-300 data-[state=closed]:slide-out-to-left-full data-[state=closed]:zoom-out-100 data-[state=open]:slide-in-from-left-full data-[state=open]:zoom-in-100 md:hidden"
-          hideCloseButton
-          overlayClassName="z-[59] bg-transparent backdrop-blur-none md:hidden"
-        >
+        <PushNavigationContent className="overflow-hidden">
           <DialogTitle className="sr-only">
             {c("Organization 메뉴", "Organization menu")}
           </DialogTitle>
@@ -1423,7 +1411,7 @@ export function OrgWorkspaceSidebar({
               </DropdownMenu>
             </div>
           </div>
-        </DialogContent>
+        </PushNavigationContent>
       </Dialog>
     </>
   );

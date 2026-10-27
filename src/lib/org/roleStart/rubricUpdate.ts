@@ -17,6 +17,8 @@ import { briefFromRaw, type RawBrief, type RawProbe, type RawQuestion } from "./
 import {
   appendRoleStartUsage,
   createRoleStartSession,
+  loadRoleStartPool,
+  saveRoleStartPool,
   loadRoleStartSession,
   mergeRoleStartTimings,
   saveRoleStartBrief,
@@ -175,7 +177,9 @@ export async function updateRoleRubric(
   const visible = visibleCandidates(board.items);
 
   // Scored before the re-read below, so a background write cannot slip in between.
-  if (session.pool) await scoreCriteria({ pool: session.pool, criteria: next.criteria });
+  // The pool (megabytes) is read here, for an edit, not when the criteria are viewed.
+  const pool = await loadRoleStartPool(args.roleId);
+  if (pool) await scoreCriteria({ pool, criteria: next.criteria });
   // The session first: a refused save leaves the Role as it was. Only a change the
   // screen would show refuses it; a background grade-signals write does not.
   const latest = await loadRoleStartSession(args.roleId);
@@ -189,9 +193,11 @@ export async function updateRoleRubric(
     roleId: args.roleId,
     expectedRevision: latest.revision,
     // Counted like the other Brief edits, so words still being applied do not overwrite it.
-    patch: { brief: next, pool: session.pool ?? latest.pool, questions: { ...latest.questions, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 } },
+    patch: { brief: next, questions: { ...latest.questions, speculative: null, briefEdits: (latest.questions.briefEdits ?? 0) + 1 } },
   });
   if (!savedSession) throw new OrgHttpError(409, "그사이 기준이 바뀌었어요. 다시 확인한 뒤 고쳐 주세요.");
+  // The scored pool is kept for reuse on its own (the session revision is not bumped twice).
+  if (pool) await saveRoleStartPool(args.roleId, pool, pool.builtAt);
   const version = await saveRoleStartBrief({
     roleId: args.roleId,
     brief: next,

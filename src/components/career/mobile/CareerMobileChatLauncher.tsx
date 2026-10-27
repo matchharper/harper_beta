@@ -29,6 +29,7 @@ import { BareButton, MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useCareerMobileChatLauncherVisibility } from "@/components/career/mobile/CareerMobileChatLauncherVisibilityContext";
 import CareerMobileNavigationMenu, {
+  CareerMobileNavigationFrame,
   type CareerMobileNavigationOption,
   type CareerMobileNavigationOptionId,
 } from "@/components/career/mobile/CareerMobileNavigationMenu";
@@ -469,8 +470,6 @@ function CareerMobileChatLauncher({
             style={{
               top: "var(--career-mobile-chat-viewport-top, 0px)",
               height: "var(--career-mobile-chat-viewport-height, 100svh)",
-              paddingBottom:
-                "var(--career-mobile-chat-safe-bottom, env(safe-area-inset-bottom))",
             }}
           >
             <DrawerPrimitive.Title className="sr-only">
@@ -486,63 +485,73 @@ function CareerMobileChatLauncher({
               )}
             </DrawerPrimitive.Description>
 
-            <div
-              className="pointer-events-none fixed inset-x-0 z-[70] flex items-center justify-center"
-              style={{
-                top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
-              }}
-            >
-              {navigation ? (
-                <div
-                  className="fixed left-3 z-[70]"
-                  style={{
-                    top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
-                  }}
-                >
-                  <CareerMobileNavigationMenu
-                    activeTab={navigation.activeTab}
-                    onChangeTab={(nextTab) => {
-                      handleOpenChange(false);
-                      navigation.onChangeTab(nextTab);
+            <CareerMobileNavigationFrame>
+              <div
+                className="pointer-events-none fixed inset-x-0 z-[70] flex items-center justify-center"
+                style={{
+                  top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
+                }}
+              >
+                {navigation ? (
+                  <div
+                    className="fixed left-3 z-[70]"
+                    style={{
+                      top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
                     }}
-                    options={navigation.options}
                   >
-                    <MuteButton
-                      aria-label="메뉴 열기"
-                      className={cn(
-                        "pointer-events-auto rounded-full text-neutral-muted",
-                        CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
-                      )}
-                      size="md"
+                    <CareerMobileNavigationMenu
+                      activeTab={navigation.activeTab}
+                      onChangeTab={(nextTab) => {
+                        handleOpenChange(false);
+                        navigation.onChangeTab(nextTab);
+                      }}
+                      options={navigation.options}
                     >
-                      <List className="h-4 w-4" />
-                    </MuteButton>
-                  </CareerMobileNavigationMenu>
-                </div>
-              ) : null}
-              <DrawerPrimitive.Handle
-                preventCycle
-                className="pointer-events-auto !h-[3px] !w-10 !rounded-full !bg-black/20"
-              />
-              <DrawerPrimitive.Close asChild>
-                <MuteButton
-                  aria-label="채팅 접기"
-                  className={cn(
-                    "pointer-events-auto",
-                    "fixed right-3 z-[70] rounded-full text-neutral-muted",
-                    CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
-                  )}
-                  size="md"
-                  style={{
-                    top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </MuteButton>
-              </DrawerPrimitive.Close>
-            </div>
+                      <MuteButton
+                        aria-label="메뉴 열기"
+                        className={cn(
+                          "pointer-events-auto rounded-full text-neutral-muted",
+                          CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
+                        )}
+                        size="md"
+                      >
+                        <List className="h-4 w-4" />
+                      </MuteButton>
+                    </CareerMobileNavigationMenu>
+                  </div>
+                ) : null}
+                <DrawerPrimitive.Handle
+                  preventCycle
+                  className="pointer-events-auto !h-[3px] !w-10 !rounded-full !bg-black/20"
+                />
+                <DrawerPrimitive.Close asChild>
+                  <MuteButton
+                    aria-label="채팅 접기"
+                    className={cn(
+                      "pointer-events-auto",
+                      "fixed right-3 z-[70] rounded-full text-neutral-muted",
+                      CHAT_COMPOSER_GLASS_SURFACE_CLASS_NAME
+                    )}
+                    size="md"
+                    style={{
+                      top: "calc(var(--career-mobile-chat-toolbar-top, 0px) + env(safe-area-inset-top) + 0.5rem)",
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </MuteButton>
+                </DrawerPrimitive.Close>
+              </div>
 
-            <div className="flex-1 overflow-hidden">{children}</div>
+              <div
+                className="min-h-0 flex-1 overflow-hidden"
+                style={{
+                  paddingBottom:
+                    "var(--career-mobile-chat-safe-bottom, env(safe-area-inset-bottom))",
+                }}
+              >
+                {children}
+              </div>
+            </CareerMobileNavigationFrame>
           </DrawerPrimitive.Content>
         </DrawerPrimitive.Portal>
       </DrawerPrimitive.Root>

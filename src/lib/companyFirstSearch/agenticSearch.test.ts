@@ -1,9 +1,44 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readCompanyRoleSearch,formatCompanyRoleSearch,type RoleEvaluation} from './agenticSearch';
+import {readCompanyRoleSearch,formatCompanyRoleSearch,type RoleEvaluation,type RoleSearchRead} from './agenticSearch';
 import {formatCompanyMemory} from '../org/agent/companyMemory';
+import {ORG_AGENT_TOOLS} from '../org/agent/tools';
 const workspace='00000000-0000-4000-8000-000000000001',role='00000000-0000-4000-8000-000000000002';
 const row=(id:string,stage=2,changes:Partial<RoleEvaluation>={}):RoleEvaluation=>({id,talent_id:id,run_id:'run',brief_version:'v1',stage,evaluated_at:'2026-10-22T01:00:00Z',assessment:{mutualFit:75,criteria:[{name:'Ownership',score:75,label:'good',criterionDefinition:'Own delivery'}]},...changes});
+
+test('get_more_data exposes inclusive selection range arguments to the model',()=>{
+  const tool=ORG_AGENT_TOOLS.find(tool=>tool.function.name==='get_more_data')!;
+  const matching=(tool.function.parameters as any).properties.matching;
+  assert.deepEqual(matching.required,['roleId']);
+  assert.equal(matching.properties.from.type,'integer');
+  assert.equal(matching.properties.from.minimum,1);
+  assert.equal(matching.properties.to.type,'integer');
+  assert.equal(matching.properties.to.minimum,1);
+  assert.equal(matching.properties.to.maximum,undefined);
+  assert.match(matching.properties.view.description,/top 20/);
+  assert.match(matching.properties.from.description,/starting at 1, inclusive/);
+});
+
+test('selection text defines criteria once and retains exact candidate references without nested profile/relationship metadata',()=>{
+  const candidate={talentId:'candidate-a',name:'Fixture Candidate',headline:'Research Engineer',location:'Seoul',joinedAt:'2026-09-30 10:25',
+    recentExperience:[{role:'Research Engineer',company_name:'Fixture Lab',start_date:'2020-01-01',end_date:null}],
+    recentEducation:[{degree:'PhD',field:'Computer Science',school:'Fixture University',start_date:'2010-01-01',end_date:'2015-12-31'}],
+    currentCompanyRelationship:{hasCompanyHistory:false,introStatus:null,hasSharedProgress:false,newPairAvailable:true},
+    evaluation:{id:'evaluation-a',runId:'run-a',briefVersion:'v1',stage:2,assessment:{candidateFit:65.75,companyFit:67.25,mutualFit:70.25,
+      criteria:[{name:'Research',criterionDefinition:'Can conduct original research',score:95,label:'excellent'}]}}};
+  const value:RoleSearchRead={roleId:role,briefVersion:'v1',view:'selection',run:null,total:2,counts:{stage2:2},criteria:{},items:[],nextOffset:null,
+    selection:{poolVersion:'pool-exact',currentBriefVersion:'v1',currentPoolCount:0,currentPool:[],topCandidates:[candidate,{...candidate,talentId:'candidate-b'}]}};
+  const original=structuredClone(value),text=formatCompanyRoleSearch(value);
+  const candidates=text.split('\n').filter(line=>line.startsWith('{"talentId"')).map(line=>JSON.parse(line));
+  assert.equal(text.split('Can conduct original research').length,2);
+  assert.ok(text.indexOf('criteria1: Research')<text.indexOf('"talentId"'));
+  assert.equal(candidates.length,2);
+  assert.deepEqual(candidates[0],{talentId:'candidate-a',info:'name: Fixture Candidate, headline: Research Engineer, location: Seoul',joinedAt:'2026-09-30 10:25',
+    recentExperience:['Research Engineer at Fixture Lab : 2020-01-01 - '],recentEducation:['PhD - Computer Science at Fixture University : 2010-01-01 - 2015-12-31'],
+    assessment:{candidateFit:65.75,companyFit:67.25,mutualFit:70.25,criteria:['criteria1: excellent']}});
+  assert.ok(!text.includes('pool-exact')); // Execution versions stay in the raw read, not model arguments.
+  assert.deepEqual(value,original);
+});
 
 test('shared evaluation retains the Opportunity origin without inventing a company run',async()=>{
   const {result}=await read([row('from-opportunity',2,{run_id:null,discovery_run_id:'opportunity-run',input_contract_version:'worker_behavior_v1'})],{view:'evaluations'});
@@ -99,21 +134,25 @@ test('incomplete frozen references fail visibly and legacy history does not inve
   assert.equal(legacy.result.selection!.historicalPool,undefined);
 });
 
-test('historical pagination spans reference batches and preserves original positions beyond the Top 50',async()=>{
+test('historical from/to pagination spans reference batches and preserves original positions',async()=>{
   const rows=Array.from({length:171},(_,i)=>row(`candidate-${i}`,2,{assessment:{mutualFit:i}}));
   const storedRun={id:'frozen',role_id:role,source_snapshot:{roleSearchBrief:{version:'v1'}},result:{roleSearch:{evidence:{evaluationIds:rows.map(row=>row.id),rankedEvaluationIds:rows.map(row=>row.id),poolBefore:[],poolAfterTalentIds:[]}}}};
-  const {result}=await read(rows,{view:'selection',runId:'frozen',offset:150,limit:20},{storedRun});
+  const {result}=await read(rows,{view:'selection',runId:'frozen',from:151,to:170},{storedRun});
   assert.equal(result.total,171);assert.equal(result.nextOffset,170);
   assert.deepEqual(result.selection!.topCandidates.map(row=>row.historicalRank),Array.from({length:20},(_,i)=>151+i));
-  assert.ok(formatCompanyRoleSearch(result).includes('runId=frozen, offset=170'));
+  assert.ok(formatCompanyRoleSearch(result).includes('runId=frozen, from=171, to=171'));
+  const legacy=await read(rows,{view:'selection',runId:'frozen',offset:150,limit:20},{storedRun});
+  assert.deepEqual(legacy.result.selection,result.selection);
 });
-test('selection returns Top 50 separately from every untouched card, preserving current and old scores',async()=>{
+test('selection defaults to Top 20 and pages new candidates without omitting untouched cards',async()=>{
   const rows=Array.from({length:51},(_,index)=>row(`new-${index}`,2,{assessment:{mutualFit:90-index,companyFit:70,candidateFit:60,criteria:[{name:'Ownership',score:0,label:'conflict',criterionDefinition:'Own delivery'}]}}));
   rows.push(row('old',1,{assessment:{proceedToStage2:false,companyPracticalScreen:'exclude'}}));
   const intros=[{id:'card',talent_id:'old',status:'ready',revision:3,requested_at:null,recommendation_id:null,talent_decision_at:null,updated_at:'2026-10-22',presentation:{briefVersion:'old-version',criteriaEvaluations:[{name:'Old',score:70,label:'good'}]}}];
   const {result}=await read(rows,{view:'selection'},{intros});
-  assert.equal(result.selection!.topCandidates.length,50);
-  assert.equal(result.total,51);assert.equal(result.nextOffset,50);
+  assert.equal(result.selection!.topCandidates.length,20);
+  assert.equal(result.total,51);assert.equal(result.nextOffset,20);
+  assert.deepEqual(result.selection!.page,{from:1,to:20});
+  assert.deepEqual(result.selection!.topCandidates.map(row=>row.talentId),Array.from({length:20},(_,i)=>`new-${i}`));
   assert.equal(result.selection!.currentPool.length,1);
   assert.equal(result.selection!.currentPool[0].talentId,'old');
   assert.equal((result.selection!.currentPool[0].evaluation as any).stage,1);
@@ -122,9 +161,42 @@ test('selection returns Top 50 separately from every untouched card, preserving 
   const text=formatCompanyRoleSearch(result);
   assert.ok(text.includes('companyFit')&&text.includes('candidateFit')&&text.includes('mutualFit'));
   assert.ok(!text.includes('T01:00:00'));
-  const next=await read(rows,{view:'selection',offset:50},{intros});
-  assert.equal(next.result.selection!.topCandidates.length,1);
-  assert.equal(next.result.selection!.currentPool.length,1);
+  assert.ok(text.includes('from=21, to=40'));
+  const next=await read(rows,{view:'selection',from:21,to:40},{intros});
+  assert.deepEqual(next.result.selection!.topCandidates.map(row=>row.talentId),Array.from({length:20},(_,i)=>`new-${20+i}`));
+  assert.deepEqual(next.result.selection!.currentPool,result.selection!.currentPool);
+  const last=await read(rows,{view:'selection',from:41,to:60},{intros});
+  assert.equal(last.result.selection!.topCandidates.length,11);
+  assert.equal(last.result.nextOffset,null);
+  assert.deepEqual(last.result.selection!.currentPool,result.selection!.currentPool);
+  assert.ok(formatCompanyRoleSearch(last.result).includes('후보 추가 페이지 없음.'));
+});
+
+test('selection ranges can be larger than 20 and omitted endpoints have documented defaults',async()=>{
+  const rows=Array.from({length:75},(_,i)=>row(`candidate-${i}`,2,{assessment:{mutualFit:100-i}}));
+  for(const input of [{from:1,to:60},{to:60},{offset:0,limit:60}]) {
+    const {result}=await read(rows,{view:'selection',...input});
+    assert.equal(result.selection!.topCandidates.length,60);
+    assert.equal(result.nextOffset,60);
+    assert.equal(result.selection!.topCandidates[59].talentId,'candidate-59');
+  }
+  const {result}=await read(rows,{view:'selection',from:21});
+  assert.deepEqual(result.selection!.page,{from:21,to:40});
+  assert.equal(result.selection!.topCandidates[0].talentId,'candidate-20');
+  assert.equal(result.selection!.topCandidates.length,20);
+  const single=await read(rows,{view:'selection',from:75,to:75});
+  assert.deepEqual(single.result.selection!.topCandidates.map(item=>item.talentId),['candidate-74']);
+  assert.equal(single.result.nextOffset,null);
+  const empty=await read(rows,{view:'selection',from:76,to:95});
+  assert.equal(empty.result.selection!.topCandidates.length,0);
+  assert.equal(empty.result.total,75);
+  assert.equal(empty.result.nextOffset,null);
+});
+
+test('selection rejects ambiguous or invalid ranges instead of silently reading another page',async()=>{
+  for(const range of [{from:0},{to:0},{from:-1},{from:1.5},{to:'20'},{from:21,to:20},{from:1,limit:20},{to:20,offset:0}])
+    await assert.rejects(read([],{view:'selection',...range}));
+  await assert.rejects(read([],{view:'candidates',from:1,to:20}),/available for selection/);
 });
 
 test('selection excludes saved cards from replacement and private new profiles from its Top list',async()=>{

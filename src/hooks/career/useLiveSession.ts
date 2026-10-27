@@ -6,6 +6,11 @@ import {
 } from "@/lib/career/liveSessionUpdates";
 
 import { toolErrorResult, serializeToolResultForModel } from "@/lib/llm/toolError";
+import { buildLiveSessionOpeningEvents } from "@/lib/career/liveSessionOpening";
+import {
+  isLiveSessionDebugEnabled,
+  readLiveAudioDiagnostics,
+} from "@/lib/career/liveSessionDiagnostics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCareerMessageFormatter } from "@/i18n/useCareerMessageFormatter";
 import { useMessages } from "@/i18n/useMessage";
@@ -148,6 +153,10 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const mockInterviewOpportunityIdRef = useRef<string | null>(null);
   const callSessionIdRef = useRef<string | null>(null);
+  const audioDiagnosticsTimerRef = useRef<ReturnType<typeof setInterval> | null>(
+    null
+  );
+  const transcriptEventsRef = useRef({ input: 0, output: 0 });
   const connectPromiseRef = useRef<Promise<boolean> | null>(null);
   const connectAttemptIdRef = useRef(0);
   const pendingConnectAbortControllerRef = useRef<AbortController | null>(null);
@@ -203,6 +212,29 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
   const onTranscriptRef = useRef(onTranscript);
   const onUserSpeechStartedRef = useRef(onUserSpeechStarted);
   const onUserSpeechStoppedRef = useRef(onUserSpeechStopped);
+
+  const logLiveDebug = useCallback(
+    (phase: string, details: Record<string, unknown> = {}) => {
+      if (!isLiveSessionDebugEnabled()) return;
+      console.log("[career-voice]", {
+        model: "gpt-live-1",
+        callSessionId: callSessionIdRef.current,
+        phase,
+        ...details,
+      });
+    },
+    []
+  );
+
+  const reportLiveError = useCallback(
+    (phase: string, message: string, details: Record<string, unknown> = {}) => {
+      console.error("[LiveSession]", {
+        callSessionId: callSessionIdRef.current, phase, message, ...details,
+      });
+      onErrorRef.current(message);
+    },
+    []
+  );
 
   useEffect(() => {
     onAssistantDeltaRef.current = onAssistantDelta;
@@ -513,6 +545,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           }
         }
         setIsToolExecuting(true);
+        logLiveDebug("live.response.created", { responseId, delegationId });
         return;
       }
       if (eventType === "response.output_item.done") {
@@ -581,12 +614,24 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         }
       }
       if (eventType === "response.completed") {
+        logLiveDebug("live.response.completed", {
+          responseId, delegationId, toolCount: functionCalls.length,
+        });
         void executeFunctionCalls(functionCalls);
       } else {
         setIsToolExecuting(false);
+        const error = response && isRecord(response.error) ? response.error : null;
+        const incomplete = response && isRecord(response.incomplete_details)
+          ? response.incomplete_details : null;
+        reportLiveError(
+          eventType,
+          typeof error?.message === "string"
+            ? error.message : "GPT-Live backend response did not complete.",
+          { responseId, delegationId, code: error?.code, reason: incomplete?.reason }
+        );
       }
     },
-    [executeFunctionCalls, scheduleUsageLog]
+    [executeFunctionCalls, logLiveDebug, reportLiveError, scheduleUsageLog]
   );
 
   const handleMessage = useCallback(
@@ -599,6 +644,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         const type = typeof message.type === "string" ? message.type : "";
 
         if (type === "session.started") {
+          logLiveDebug("live.session.started");
           sessionStartedResolverRef.current?.(true);
           sessionStartedResolverRef.current = null;
           return;
@@ -606,6 +652,10 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         if (type === "session.input_transcript.delta") {
           const delta = typeof message.delta === "string" ? message.delta : "";
           if (!delta) return;
+          transcriptEventsRef.current.input++;
+          if (transcriptEventsRef.current.input === 1) {
+            logLiveDebug("live.input_transcript.started");
+          }
           markActivity();
           if (assistantTranscriptRef.current) {
             flushAssistantTranscript({ interrupted: true });
@@ -623,6 +673,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         if (type === "session.output_transcript.delta") {
           const delta = typeof message.delta === "string" ? message.delta : "";
           if (!delta) return;
+          transcriptEventsRef.current.output++;
           markActivity();
           flushUserTranscript();
           if (assistantPlaybackStartedAtRef.current === null) {
@@ -648,6 +699,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
             typeof delegation?.response_id === "string"
               ? delegation.response_id.trim()
               : "";
+          logLiveDebug("live.delegation.created", { delegationId, responseId });
           if (delegationId && responseId) {
             delegationResponseIdsRef.current.set(delegationId, responseId);
             responseFunctionCallsRef.current.set(responseId, new Map());
@@ -697,6 +749,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           return;
         }
         if (type === "session.closed") {
+          logLiveDebug("live.session.closed", { reason: message.reason });
           sessionClosedRef.current = true;
           const usage = isRecord(message.usage) ? message.usage : null;
           const seconds = usage?.seconds;
@@ -716,7 +769,10 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
               : "GPT-Live session error";
           sessionStartedResolverRef.current?.(false);
           sessionStartedResolverRef.current = null;
-          onErrorRef.current(errorMessage);
+          setIsToolExecuting(false);
+          reportLiveError("live.error", errorMessage, {
+            code: error?.code, clientEventId: error?.client_event_id,
+          });
         }
       } catch (error) {
         console.error("[LiveSession] Failed to parse event:", error);
@@ -727,13 +783,19 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       flushUserTranscript,
       handleDelegatedResponseEvent,
       logAudioUsage,
+      logLiveDebug,
       markActivity,
+      reportLiveError,
       scheduleAssistantTranscriptFlush,
       sendEvent,
     ]
   );
 
   const cleanupTransport = useCallback(() => {
+    if (audioDiagnosticsTimerRef.current) {
+      clearInterval(audioDiagnosticsTimerRef.current);
+    }
+    audioDiagnosticsTimerRef.current = null;
     clearCallTimeouts();
     mockInterviewOpportunityIdRef.current = null;
     sessionStartedResolverRef.current?.(false);
@@ -877,6 +939,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       lastConnectFailureRef.current = null;
       latestAudioSecondsRef.current = null;
       audioUsageLoggedRef.current = false;
+      transcriptEventsRef.current = { input: 0, output: 0 };
       sessionClosedRef.current = false;
       const attemptId = connectAttemptIdRef.current + 1;
       connectAttemptIdRef.current = attemptId;
@@ -927,6 +990,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           };
           peerConnection.onconnectionstatechange = () => {
             const state = peerConnection.connectionState;
+            logLiveDebug("webrtc.connection_state", { state });
             if (
               connectAttemptIdRef.current !== attemptId ||
               state === "connected" ||
@@ -954,6 +1018,11 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
             return false;
           }
           mediaStreamRef.current = stream;
+          logLiveDebug("live.microphone.acquired", {
+            tracks: stream.getAudioTracks().map((track) => ({
+              enabled: track.enabled, muted: track.muted, readyState: track.readyState,
+            })),
+          });
           stream
             .getAudioTracks()
             .forEach((track) => peerConnection.addTrack(track, stream));
@@ -1079,6 +1148,27 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
           }
 
           connectedSuccessfully = true;
+          if (isLiveSessionDebugEnabled()) {
+            let reading = false;
+            const sample = async () => {
+              if (reading || peerConnectionRef.current !== peerConnection) return;
+              reading = true;
+              try {
+                const audio = await readLiveAudioDiagnostics(peerConnection);
+                if (peerConnectionRef.current === peerConnection) {
+                  logLiveDebug("live.audio.transport", {
+                    ...audio, transcriptEvents: { ...transcriptEventsRef.current },
+                  });
+                }
+              } catch {
+                // Stats can become unavailable during teardown; never affect the call.
+              } finally {
+                reading = false;
+              }
+            };
+            void sample();
+            audioDiagnosticsTimerRef.current = setInterval(() => void sample(), 5_000);
+          }
           const connectedAt = Date.now();
           connectedAtRef.current = connectedAt;
           lastActivityAtRef.current = connectedAt;
@@ -1139,6 +1229,7 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
       handleMessage,
       locale,
       logAudioUsage,
+      logLiveDebug,
       requestAutomaticEnd,
       tCareer,
     ]
@@ -1166,17 +1257,18 @@ export function useLiveSession(args: UseRealtimeSessionArgs) {
         item: {
           type: "function_call_output",
           call_id: pendingEndCallToolIdRef.current,
-          output: JSON.stringify({ completed: false, callEnded: false, instructions }),
+          output: serializeToolResultForModel({ completed: false, callEnded: false, instructions }),
         },
       });
       pendingEndCallToolIdRef.current = null;
       sendEvent({ type: "response.create" });
       return;
     }
-    sendInstructionThenCommentary(
-      instructions ?? "For the next spoken turn, begin the call now and follow the opening guidance already provided. Speak first, then listen.",
-      instructions ? "Continue the conversation using the updated facts." : "Begin the call now."
-    );
+    if (!instructions) {
+      for (const event of buildLiveSessionOpeningEvents()) sendEvent(event);
+    } else {
+      sendInstructionThenCommentary(instructions, "Continue the conversation using the updated facts.");
+    }
   }, [sendEvent, sendInstructionThenCommentary]);
 
   const cancelResponse = useCallback(() => {

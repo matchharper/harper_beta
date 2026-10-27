@@ -294,8 +294,8 @@ export function CompanyWaitlistLanding({
         "What can we do on the free plan?"
       ),
       c(
-        "카드 등록 없이 포지션을 만들고 후보를 살펴볼 수 있어요. Free에서는 한 번에 포지션 1개까지 채용을 진행할 수 있고, 초안 수에는 제한이 없어요. 공용 Intro가 매달 10개 제공돼요. Intro는 후보자에게 우리 채용 기회를 제안하거나, 관심을 보인 후보자와 연결을 요청할 때 사용해요. 채용이 성사돼도 별도 수수료는 없어요.",
-        "The Free plan lets you hire for one active role, create unlimited drafts, and review candidates without a credit card. You get 10 Intros each month, shared across your roles. Use an Intro to ask Harper to reach out to a candidate about your role. Intros also cover accepting an introduction through Ready to connect, which requires a paid slot or an eligible agreement. There’s no fee when you hire on the Free plan."
+        "카드 등록 없이 포지션을 만들고 후보를 살펴볼 수 있어요. Free에서는 한 번에 포지션 1개까지 채용을 진행할 수 있고, 초안 수에는 제한이 없어요. 공용 Intro가 매달 3개 제공돼요. Intro는 후보자에게 우리 채용 기회를 제안하거나, 관심을 보인 후보자와 연결을 요청할 때 사용해요. 채용이 성사돼도 별도 수수료는 없어요.",
+        "The Free plan lets you hire for one active role, create unlimited drafts, and review candidates without a credit card. You get 3 Intros each month, shared across your roles. Use an Intro to ask Harper to reach out to a candidate about your role. Intros also cover accepting an introduction through Ready to connect, which is also available on Free. There’s no fee when you hire on the Free plan."
       ),
     ],
     [
@@ -783,7 +783,7 @@ export function CompanyPricingSection({
             unit: c("카드 등록 없음", "No credit card required"),
             features: [
               c("활성 포지션 1개 · 초안 무제한", "1 active role · unlimited drafts"),
-              c("매달 공용 Intro 10개", "10 shared Intros per month"),
+              c("매달 공용 Intro 3개", "3 shared Intros per month"),
               c("채용 수수료 없음", "No placement fee"),
             ],
           },
@@ -887,8 +887,8 @@ export function CompanyPricingSection({
       </div>
       <p className="mt-5 text-sm leading-[1.7] text-neutral-muted">
         {c(
-          "후보자에게 기회 제안을 요청하거나 연결을 수락할 때 Intro 1개를 사용해요. 유료 슬롯을 추가해도 공용 월 10 Intro는 별도로 유지돼요. Intro는 매달 갱신되며 남은 수량은 이월되지 않아요.",
-          "Use 1 Intro to request outreach to a candidate or accept an introduction. Your workspace keeps its 10 shared monthly Intros when you add paid slots. Intros renew monthly, and unused Intros don't roll over."
+          "후보자에게 기회 제안을 요청하거나 연결을 수락할 때 Intro 1개를 사용해요. 유료 슬롯을 추가해도 공용 월 3 Intro는 별도로 유지돼요. Intro는 매달 갱신되며 남은 수량은 이월되지 않아요.",
+          "Use 1 Intro to request outreach to a candidate or accept an introduction. Your workspace keeps its 3 shared monthly Intros when you add paid slots. Intros renew monthly, and unused Intros don't roll over."
         )}
       </p>
       <PricingCostComparison

@@ -76,7 +76,7 @@ export async function readTalentFirstCapacityBlockedRoleIds(
         }
       );
       if (slotError) throw slotError;
-      if (slotType === "paid") blocked.push(role.role_id);
+      if (slotType === "free" || slotType === "paid") blocked.push(role.role_id);
     }
   }
   return blocked;

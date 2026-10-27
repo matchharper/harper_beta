@@ -1,10 +1,23 @@
 # 이메일 Vercel runtime
 
+> 2026-10-27 로컬 변경(미배포·운영 DB 미적용): 이메일은 설정 없이 Vercel Queue와 공통 Career runtime으로 처리한다. `EMAIL_RUNTIME_TARGET`과 활성화 검사 함수·분기를 제거했다. `20261027062947_email_runtime_default.sql`은 reply/contact/onboarding의 기본 소유자를 새 경로로 바꾸고 아직 시작하지 않은 기존 작업만 인계한다. 실행 중 작업·발송 영수증·예약 시각은 보존한다. 아래 10월 16일 상태는 과거 운영 기록이며 현재 전환 절차는 「설정과 운영 전환」을 따른다.
+
 > 2026-10-16 운영 상태: beta `d30ff764`와 관련 DB 구조는 배포·적용했다. 운영에 `EMAIL_RUNTIME_TARGET=vercel_queue`는 설정하지 않았고 기존 이메일·contact Worker를 유지한다. 회사 Slack 연결 안내 이메일과 회사 이메일 답장 runtime도 비활성 상태다. 코드·DB 존재를 해당 기능의 활성화로 해석하지 않는다. 아래 미배포·미적용 표기는 작성 당시 이력이다.
 
 2026-10-13 구현 기준. 아직 운영 DB 적용, Vercel 배포, 환경변수 활성화, 기존 서비스 종료를 수행하지 않았다.
 
 ## 구조와 웹 보존
+
+### Ops 이메일 테스트 (2026-10-27 로컬 구현, 미배포)
+
+`/ops/debugging/email-test` (**디버깅 → 이메일 테스트**)에서 계정을 검색·선택하고 제목과 사용자 메시지를 입력한다. 외부 Queue에 발행하지 않고 인증된 테스트 실행 API에서 공통 이메일 consumer를 호출한다. 기존 lease·Career 이메일 모델·prompt·이력서 준비 도구·메일 렌더러는 그대로 사용한다. 로컬 Vercel OIDC 인증 없이 실행되며, 준비 작업이 이어질 때는 같은 job을 다시 호출한다. 창을 닫거나 연결이 끊긴 작업은 **이어서 실행**으로 재개한다. 입력과 답장은 계정 소유의 별도 테스트 대화에 실제로 저장되며 다음 입력은 같은 대화와 준비 중인 이력서를 이어받는다. 새로고침 후에도 테스트 기록과 처리 결과를 조회할 수 있다.
+
+- 이력서 생성·내용 수정·지원 준비는 실제로 저장한다. 계정 사실과 기존 추천은 일반 read 도구로 읽는다.
+- 이메일 발송, 회사 연락, 지원 실행과 공유·추천·자동 연락을 유발할 수 있는 설정/프로필/Brief/Memory/추천 feedback 변경은 실행 전에 차단한다. 테스트는 첨부 업로드와 이메일 온보딩 자동 진행을 지원하지 않는다.
+- 테스트가 외부 지원을 시도하거나 제출한 것으로 기록하지 않는다. `email_reply_jobs.kind=ops_email_test`, `worker_target=vercel_queue`로 생성하며 완성된 답장은 `skipped / ops_email_test`로 저장한다. 실제 수신/발송 audit와 provider 영수증은 만들지 않는다. 전역 dry-run 환경변수를 바꾸지 않는다.
+- 내부 계정 인증, 선택한 계정과 대화의 소유권, 재요청의 동일 작업 재사용을 서버에서 확인한다. 실제 이메일 작업이나 다른 계정의 테스트를 후속 대화로 지정할 수 없다.
+
+### 이메일 처리
 
 ```mermaid
 flowchart LR
@@ -51,7 +64,7 @@ flowchart LR
 ## 발송과 재시도
 
 - Queue에는 `{version, kind, jobId}`만 넣는다. 원문과 개인정보는 기존 DB에 둔다. 새 업무 테이블을 만들지 않는다.
-- 세 기존 작업 테이블에 `worker_target`, dispatch 시각/오류만 추가한다. 기본값은 `legacy`다. 기존 Worker claim RPC는 legacy 작업만 가져온다.
+- 세 기존 작업 테이블의 `worker_target` 기본값은 `vercel_queue`다. 새 작업은 처음부터 새 경로에 속한다. `legacy` 표시는 전환 전에 시작한 작업의 소유권을 보호하기 위해서만 남긴다. 기존 Worker claim RPC는 새 경로의 작업을 가져갈 수 없다.
 - webhook은 먼저 기존 inbound event/job을 저장한다. 발행 실패는 durable job과 오류를 남기며 Cron이 복구한다. Cron은 예약 시간이 된 연락과 review도 발행한다.
 - claim은 DB에서 원자적으로 수행한다. 이미 끝난 작업은 무시하며, 현재 소유자의 lease와 대화 소유권을 확인한다. 같은 이메일 대화의 reply/review를 동시에 수행하지 않는다. 아직 identity가 정해지지 않은 reply도 메시지를 저장할 때 충돌을 검사한다.
 - 기본 동시 실행은 4건이고 `EMAIL_RUNTIME_CONCURRENCY`로 1–100 범위에서 조절한다. 대기/용량 초과는 시도 횟수를 소모하지 않는다.
@@ -69,10 +82,10 @@ flowchart LR
 
 운영 전환에는 현재 요청의 명시적 배포 승인이 필요하다. 이 문서의 단계는 아직 수행하지 않았다.
 
-1. `20261013035308_email_vercel_runtime.sql`을 검토하여 별도 승인된 DB 적용을 수행한다. 새 RPC는 service_role만 사용할 수 있다. 기본 legacy ownership 덕분에 DB 적용만으로 새 runtime이 활성화되지는 않는다.
+1. 기존 runtime schema/RPC와 실제 운영 웹 revision을 확인한다. **이전 웹의 `EMAIL_RUNTIME_TARGET` 검사가 남아 있고 새 runtime이 비활성인 상태에서 DB만 먼저 전환하면, 새 작업을 어느 Worker도 처리하지 못한다.** 별도 승인된 웹 배포로 설정 없이 동작하는 publisher·dispatcher·consumer가 준비된 뒤 `20261027062947_email_runtime_default.sql`을 적용한다. 사용자가 배포 전 이메일 처리 대기를 명시적으로 수용한 경우에만 DB를 먼저 바꾼다. 이미 적용된 과거 migration은 다시 실행하지 않으며 진행 중 작업과 provider checkpoint는 건드리지 않는다.
 2. 기존 정상 웹 환경에 필요한 값을 확인한다: Supabase admin/anon 설정, 현재 웹 모델 provider credential, Resend receiving+send 권한, `EMAIL_REPLY_DOMAIN`, `EMAIL_REPLY_TOKEN_SECRET`, sender 설정, `INTERNAL_WORKER_API_SECRET`, `CRON_SECRET`, email onboarding token secret 및 공개 사이트 URL. 값은 기존 업무 기능의 설정을 재사용한다.
-3. `EMAIL_RUNTIME_TARGET`을 비워 둔 상태에서 코드 배포를 검증한다. `vercel.json`의 Queue trigger `harper-email-runtime-v1`와 매분 dispatch Cron이 포함된다. topic/consumer를 별도 상시 서버로 운영하지 않는다. 480초 Functions와 매분 Cron을 지원하는 Vercel 환경이 필요하다.
-4. Production에서 `EMAIL_RUNTIME_TARGET=vercel_queue`로 활성화한다. 동시 실행 기본은 4; 필요하면 `EMAIL_RUNTIME_CONCURRENCY`를 늘린다. 신규 webhook과 due job이 새 경로로 간다. 기존 processing legacy 작업이나 legacy review lock은 자동으로 뺏지 않는다.
+3. 웹을 배포하면 신규 webhook과 예약 시간이 된 작업이 바로 새 경로로 간다. 별도 활성화 설정은 없고 과거 `EMAIL_RUNTIME_TARGET` 값은 무시된다. `vercel.json`의 Queue trigger `harper-email-runtime-v1`와 매분 dispatch Cron을 확인한다. 480초 Functions와 매분 Cron을 지원하는 Vercel 환경이 필요하다.
+4. 동시 실행 기본은 4이며 `EMAIL_RUNTIME_CONCURRENCY`는 선택 사항이다. Queue 발행 실패는 기존 작업에 기록하고 Cron이 복구한다. 기존 Python Worker로 되돌아가지 않는다. 회사 이메일에도 같은 기본 경로를 사용하며 실제 발송을 차단하는 dry-run 설정은 유지한다.
 5. 전용 비운영 fixture로 일반 답장, 첨부, 첫/후속 수락, onboarding/review, 회사 relay, 일정 취소, capture, referral을 확인한다. `EMAIL_REPLY_DRY_RUN=true`는 발송과 회사 연락만 차단하며 일반적인 DB 저장까지 막는 sandbox가 아니다. dry run도 반드시 비운영 DB를 사용한다.
 6. 기존 서비스의 reply/contact processing 및 review lock이 모두 마무리됐고 새 경로의 due job/예약 연락이 처리되는지 확인한다. 장기 in-flight 작업을 timeout이나 SIGKILL로 끊지 않는다.
 7. 별도 승인된 운영 작업에서 `harper-email-reply-worker.service`를 stop/disable한다. 새 runtime은 이 프로세스 없이 세 작업군 모두를 처리한다. Python 소스는 초기 rollback 기간 동안 유지할 수 있다.
@@ -80,14 +93,13 @@ flowchart LR
 
 확인할 durable 값은 job 상태/시도/lease/`queue_dispatch_error`, `resend_email_id` 또는 review/referral provider checkpoint, `career_email_messages`, 기존 회사 request/meeting round 상태다. 단순 outbox 상태만으로 정상 회사 전달 UX를 실패로 판정하지 않는다.
 
-롤백은 새 발행을 멈추고 active Vercel 작업을 drain한 뒤 수행한다. 이미 provider checkpoint가 있는 작업은 새 경로에서 finalize한다. 발송되지 않았고 active lease가 없는 queued 작업만 명시적으로 legacy ownership으로 돌린 후 기존 서비스를 다시 실행한다. 실패한 이전 작업을 일괄 queued로 되돌리거나 진행 중인 작업을 빼앗지 않는다.
+문제가 생기면 발행·consumer의 실패 원인을 고치고 같은 durable 작업을 복구한다. 기존 Python 경로로 자동 전환하는 설정은 없다. 이미 provider checkpoint가 있는 작업은 새 발송 없이 finalize한다. 실패한 이전 작업을 일괄 queued로 되돌리거나 진행 중인 작업을 빼앗지 않는다. 코드 롤백도 소유권·실제 발송 기록을 보존하는 별도 배포 작업이다.
 
 ## 로컬 설정과 검증
 
 기존 `HARPER_LOCAL_E2E=1` 로컬 stack을 사용하면 개발 모드의 publisher가 Next `after()`에서 **동일 consumer**를 호출한다. 별도 Python email poller나 Vercel Queue credential 없이 확인할 수 있다. 기존 local stack은 loopback DB/메일 relay와 전용 fixture 계정을 강제한다. 운영에서는 항상 Vercel Queue를 사용한다. 예약 작업/실패 복구는 인증된 dispatch endpoint를 호출하여 확인한다.
 
 ```
-EMAIL_RUNTIME_TARGET=vercel_queue
 EMAIL_RUNTIME_CONCURRENCY=4
 ```
 
@@ -142,8 +154,7 @@ pnpm exec tsc --noEmit --incremental false
 유지하며, 이번 변경만으로 모든 후속 결과가 이메일로 전달되는 것은 아니다. 여러 CC의 공동 회사 대화도
 지원하지 않는다.
 
-활성화 전 `20261015120000_company_email_replies.sql` 적용과 웹 배포,
-`EMAIL_RUNTIME_TARGET=vercel_queue`가 필요하다. 이번 구현 작업은 운영 DB·배포·환경변수·실제 발송을
+회사 이메일에는 `20261015120000_company_email_replies.sql` 적용과 웹 배포가 필요하며 별도 경로 활성화 설정은 없다. 원래 구현 작업은 운영 DB·배포·환경변수·실제 발송을
 변경하지 않았다. 별도 승인된 배포에서 migration과 실제 Resend/Queue 연결을 확인해야 한다.
 검증: [회사 이메일 로컬 검증](evaluation/company-side-conversational-qa/reports/2026-10-15-company-email.md).
 

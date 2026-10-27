@@ -45,7 +45,7 @@ test("reusing a cached result does not keep old diagnostics", async () => {
   await executeToolCall(async () => { reportToolDiagnostic("old failure"); return result; });
   assert.match(serializeToolResultForModel(result), /old failure/);
   await executeToolCall(async () => result);
-  assert.equal(serializeToolResultForModel(result), JSON.stringify(result));
+  assert.ok(!serializeToolResultForModel(result).includes("old failure"));
 });
 test("formatter failure never replays an already completed write", async () => {
   let writes = 0;

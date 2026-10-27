@@ -5,9 +5,10 @@ import { createClient } from "@supabase/supabase-js";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
 
-test("onboarding gaps query only included completers and retain historical recommendations", async (t) => {
+test("daily report queries preserve onboarding history and count included web application starts", async (t) => {
   const { supabaseServer } = await import("@/lib/supabaseServer");
-  const { buildDailyUserStatsReport } = await import("@/lib/dailyUserStats");
+  const { buildDailyUserStatsReport, formatDailyUserStatsSlackMessages } =
+    await import("@/lib/dailyUserStats");
   const recommendationQueries: URL[] = [];
   let hasCompleters = true;
   const observationEnd = "2026-10-11T16:00:00.000Z";
@@ -70,6 +71,18 @@ test("onboarding gaps query only included completers and retain historical recom
           rows = [
             { user_id: "missing-user", get_external_recommendation: false },
           ];
+        } else if (table === "talent_simulate_application") {
+          assert.ok(params.get("select")?.includes(
+            "talent_messages!talent_simulate_application_start_offer_message_id_fkey!inner(message_type)"
+          ));
+          assert.equal(params.get("start_offer.message_type"), "eq.application_start_offer");
+          assert.deepEqual(params.getAll("created_at"), [
+            "gte.2026-10-10T15:00:00.000Z",
+            "lt.2026-10-11T15:00:00.000Z",
+          ]);
+          assert.equal(params.has("status"), false, "ended sessions still count as starts");
+          rows = ["recommended-user", "recommended-user", "missing-user", "test-user"]
+            .map((user_id) => ({ user_id }));
         }
         const from = Number(params.get("offset") ?? 0);
         const size = Number(params.get("limit") ?? rows.length);
@@ -83,6 +96,18 @@ test("onboarding gaps query only included completers and retain historical recom
   t.mock.method(supabaseServer, "from", client.from.bind(client));
 
   const report = await buildDailyUserStatsReport("2026-10-11");
+  assert.equal(report.applicationStartCount, 3);
+  assert.equal(report.applicationStartUserCount, 2);
+  const rendered = formatDailyUserStatsSlackMessages({
+    ...report,
+    tools: [{ name: "simulate_application", callCount: 112, userCount: 41, failedCallCount: 2 }],
+  });
+  assert.ok(rendered.details.includes(
+    "- simulate_application: 112 calls / 41 users / error 2\n  ↳ 함께 지원 시작하기 → 지원 모드 진입: 3건 / 2 users"
+  ));
+  assert.ok(formatDailyUserStatsSlackMessages(report).details.includes(
+    "- 함께 지원 시작하기 → 지원 모드 진입: 3건 / 2 users"
+  ), "starts from older cards remain visible without same-day tool calls");
   assert.equal(report.onboardingCompletedNoRecommendationUserCount, 1);
   assert.equal(
     report.onboardingCompletedNoRecommendationInternalOnlyUserCount,

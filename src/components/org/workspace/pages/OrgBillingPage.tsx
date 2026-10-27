@@ -1,3 +1,4 @@
+import { useBillingCheckoutReturnLog } from "@/hooks/org/useBillingPurchaseTracking";
 import { useOrgBillingFormat } from "@/hooks/org/useOrgBillingFormat";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { isSlotPurchase } from "@/lib/org/billing/compat";
@@ -19,6 +20,7 @@ import {
 import { useToastStore } from "@/store/useToastStore";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SlotPurchaseDialog } from "@/components/org/billing/SlotPurchaseDialog";
+import { SlotRoleAssignmentDialog } from "@/components/org/billing/SlotRoleAssignmentDialog";
 import { OrgBillingPreviewNotice } from "@/components/org/internal/OrgBillingDevControls";
 import {
   OrgBillingPaymentPreview,
@@ -37,9 +39,14 @@ import {
 } from "@/lib/org/billing/types";
 import {
   billingAssignmentSlots,
+  purchasedSlotAssignmentOptions,
   type BillingAssignmentSlot,
 } from "@/lib/org/billing/assignments";
-import { previewAssignRole } from "@/lib/org/billing/preview";
+import {
+  previewAssignRole,
+  previewBillingSummary,
+  type OrgBillingPreview,
+} from "@/lib/org/billing/preview";
 
 export function OrgBillingPage({
   section = "billing",
@@ -89,6 +96,11 @@ function WorkspaceBillingContent({
   const canViewBilling = permissions.role === "owner";
   const billing = useOrgBilling(workspaceId, true);
   const { setPreview } = useOrgBillingPreview(workspaceId);
+  useBillingCheckoutReturnLog(
+    { workspaceId, source: section, preview: Boolean(billing.preview) },
+    router.query.checkout,
+    router.query.session_id
+  );
   const [portalPreviewOpen, setPortalPreviewOpen] = useState(false);
   const [previewCheckout, setPreviewCheckout] =
     useState<PreviewCheckout | null>(null);
@@ -117,11 +129,29 @@ function WorkspaceBillingContent({
     null
   );
   const [assignedRole, setAssignedRole] = useState("");
+  const [purchasedSlotIds, setPurchasedSlotIds] = useState<string[]>([]);
+  const [pendingPurchaseRoleId, setPendingPurchaseRoleId] = useState<string | null>(null);
+  const purchaseAssignment = purchasedSlotAssignmentOptions(summary, roles, purchasedSlotIds);
+  const purchaseAssignmentOpen = canManage && purchaseAssignment.slots.length > 0 && purchaseAssignment.roles.length > 1;
   const assignmentSlots = summary ? billingAssignmentSlots(summary) : [];
   const assignmentRole = roles.find((role) => role.roleId === assignedRole);
   const previousSlot = assignmentSlots.find(
     (slot) => slot.roleId === assignedRole && slot.id !== assignSlot?.id
   );
+  const updatePurchasePreview = (next: OrgBillingPreview, slotIds: string[]) => {
+    const nextSummary = summary ? previewBillingSummary(summary, next) : undefined;
+    const options = purchasedSlotAssignmentOptions(nextSummary, roles, slotIds);
+    const slot = options.slots[0];
+    if (nextSummary && slot && options.roles.length === 1) {
+      const role = options.roles[0];
+      setPreview(previewAssignRole(next, nextSummary, slot.id, role));
+      setPurchasedSlotIds([]);
+      return role;
+    }
+    setPreview(next);
+    setPurchasedSlotIds(slotIds);
+    return null;
+  };
   const checkoutRun = useRef("");
   const invalidateHistory = () =>
     Promise.all([
@@ -173,14 +203,14 @@ function WorkspaceBillingContent({
       } else if (action === "assign" && summary) {
         const role = roles.find((role) => role.roleId === values.roleId);
         if (!role) throw new Error("Invalid preview Role");
-        setPreview(
-          previewAssignRole(
-            billing.preview,
-            summary,
-            String(values.slotId),
-            role
-          )
+        const next = previewAssignRole(
+          billing.preview,
+          summary,
+          String(values.slotId),
+          role
         );
+        if (purchasedSlotIds.length) updatePurchasePreview(next, purchasedSlotIds);
+        else setPreview(next);
       } else {
         throw new Error("Unsupported preview action");
       }
@@ -197,9 +227,10 @@ function WorkspaceBillingContent({
         window.location.assign(result.url);
         return;
       }
-      await Promise.all([billing.refetch(), billing.invalidateDependents()]);
+      void billing.invalidateDependents();
+      await billing.refetch();
       if (action === "refresh" || action === "confirm")
-        await invalidateHistory();
+        void invalidateHistory();
       return result;
     } catch (e) {
       setError(
@@ -252,16 +283,18 @@ function WorkspaceBillingContent({
         const result = await billingRequest<{
           confirmed: boolean;
           transferredRoleName?: string | null;
+          purchasedSlotIds?: string[];
         }>(workspaceId, "confirm", { sessionId });
         if (disposed) return;
-        await Promise.all([
-          billing.refetch(),
-          billing.invalidateDependents(),
-          invalidateHistory(),
-        ]);
+        // Only the current slot state is needed for the chooser. History and
+        // other panels refresh independently of the checkout completion UI.
+        void billing.invalidateDependents();
+        void invalidateHistory();
+        await billing.refetch();
         if (disposed) return;
         if (result.confirmed) {
           setNotice("");
+          setPurchasedSlotIds(result.purchasedSlotIds ?? []);
           addToast({
             message: result.transferredRoleName
               ? c(
@@ -277,7 +310,7 @@ function WorkspaceBillingContent({
           });
           void router.replace(
             {
-              pathname: "/org/slots",
+              pathname: router.pathname,
               query: { orgId: workspaceId },
             },
             undefined,
@@ -380,6 +413,23 @@ function WorkspaceBillingContent({
       handle("assign", { slotId: slot.id, revision: slot.revision, roleId });
     }
   };
+  const assignPurchasedSlot = (roleId: string) => {
+    const slot = purchaseAssignment.slots[0];
+    const role = purchaseAssignment.roles.find((item) => item.roleId === roleId);
+    if (!canManage || busy || pendingPurchaseRoleId || !slot || !role) return;
+    setPendingPurchaseRoleId(roleId);
+    void run("assign", { slotId: slot.id, revision: slot.revision, roleId })
+      .then(() => {
+        addToast({
+          message: c("{role}에 슬롯을 배정했어요.", "A slot is now assigned to {role}.", { role: role.name }),
+          variant: "dark",
+        });
+        if (purchaseAssignment.slots.length === 1 || purchaseAssignment.roles.length === 1)
+          setPurchasedSlotIds([]);
+      })
+      .catch(() => {}) // run keeps the error inline and refreshes changed assignments.
+      .finally(() => setPendingPurchaseRoleId(null));
+  };
   return (
     <div className="max-w-[1100px] space-y-7 pb-12">
       <OrgPageHeader
@@ -402,6 +452,7 @@ function WorkspaceBillingContent({
           setPreviewCheckout(null);
           setCancelSlot(null);
           setAssignSlot(null);
+          setPurchasedSlotIds([]);
           setAddSlotOpen(false);
         }}
       />
@@ -419,7 +470,7 @@ function WorkspaceBillingContent({
         </p>
       )}
       {(billing.isError ||
-        (error && !addSlotOpen && !cancelSlot && !assignSlot)) && (
+        (error && !addSlotOpen && !cancelSlot && !assignSlot && !purchaseAssignmentOpen)) && (
         <div
           role="alert"
           className="rounded-lg border border-critical/20 p-4 text-[13px] leading-6"
@@ -551,7 +602,16 @@ function WorkspaceBillingContent({
           }}
           checkout={previewCheckout}
           catalog={catalog}
-          onComplete={() => {
+          onComplete={(nextPreview) => {
+            if (previewCheckout) {
+              const start = billing.preview?.subscription === "ended" ? 0 : (billing.preview?.slotCount ?? 0);
+              const slotIds = Array.from({ length: previewCheckout.quantity }, (_, i) => `billing-preview-${start + i + 1}`);
+              const role = updatePurchasePreview(nextPreview, slotIds);
+              if (role) addToast({
+                message: c("미리보기: {role}에 슬롯을 자동으로 배정했어요.", "Preview: A slot was automatically assigned to {role}.", { role: role.name }),
+                variant: "dark",
+              });
+            }
             setPortalPreviewOpen(false);
             setPreviewCheckout(null);
             setNotice(
@@ -564,6 +624,11 @@ function WorkspaceBillingContent({
         />
       )}
       <SlotPurchaseDialog
+        tracking={{
+          workspaceId,
+          source: section,
+          preview: Boolean(billing.preview),
+        }}
         open={addSlotOpen}
         onOpenChange={setAddSlotOpen}
         catalog={catalog}
@@ -571,9 +636,31 @@ function WorkspaceBillingContent({
         initialQuantity={Number(router.query.quantity ?? 1)}
         busy={busy}
         error={error}
-        onCheckout={(selected, quantity) => {
+        onCheckout={(selected, quantity, expectedUnitAmount) => {
           setSelectedInterval(selected);
-          void handle("checkout", { locale, interval: selected, quantity });
+          void handle("checkout", {
+            locale,
+            interval: selected,
+            quantity,
+            expectedUnitAmount,
+          });
+        }}
+      />
+      <SlotRoleAssignmentDialog
+        open={purchaseAssignmentOpen}
+        roles={purchaseAssignment.roles}
+        slotCount={purchaseAssignment.slots.length}
+        pendingRoleId={pendingPurchaseRoleId}
+        refreshing={billing.isFetching}
+        error={error}
+        onAssign={assignPurchasedSlot}
+        onRefresh={() => {
+          void billing.refetch();
+          void billing.invalidateDependents();
+        }}
+        onClose={() => {
+          setPurchasedSlotIds([]);
+          setError("");
         }}
       />
       <TalentCareerModal
@@ -628,8 +715,8 @@ function WorkspaceBillingContent({
           </p>
           <p>
             {c(
-              "슬롯이 종료되면 남은 유효 슬롯을 먼저 배정해요. 슬롯이 없는 Free Role은 먼저 만든 1개만 활성 상태로 유지하고 나머지는 일시 중지해요. 기존 후보자·Intro·진행 이력은 보존돼요. 별도 계약은 해당 조건을 따라요.",
-              "When a slot expires, Harper assigns any available valid slots first. Of the roles without a slot, the oldest eligible Free role stays active and the others are paused. Existing candidates, Intros, and hiring history are preserved. Separate agreements keep their own terms."
+              "슬롯이 종료되면 해당 슬롯의 Intro는 사용할 수 없어요. 남은 유효 슬롯이 있으면 배정하고, 없어도 이미 활성화된 Role을 자동 중지하지 않아요. 새로 시작하거나 재개하는 Role에는 활성 용량 제한을 적용해요. 기존 후보자·Intro·진행 이력과 별도 계약은 유지돼요.",
+              "When a slot expires, its Intros become unavailable. Harper assigns another valid slot when available, but keeps existing active roles running even without one. Capacity limits apply when starting or reactivating a role. Existing candidates, Intros, hiring history, and separate agreements are preserved."
             )}
           </p>
           {cancelSlot?.roleId && (

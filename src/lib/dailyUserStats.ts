@@ -274,6 +274,8 @@ export type DailyUserStatsReport = {
   activeTalentBreakdown: DailyUserStatsActiveTalentBreakdown;
   activeTalentsCount: number;
   accountDeletedCount: number;
+  applicationStartCount: number;
+  applicationStartUserCount: number;
   callTranscriptMessageCount: number;
   chatMessageCount: number;
   chatUniqueTalentCount: number;
@@ -1480,6 +1482,7 @@ async function buildUserStatsReport(args: {
     accountDeletionLogs,
     toolUsageLogs,
     toolFailureLogs,
+    applicationStarts,
     landingLogs,
     funnelLoginLogs,
     funnelEmailOnboardingLeads,
@@ -1774,6 +1777,24 @@ async function buildUserStatsReport(args: {
           .order("id", { ascending: true })
           .range(from, to),
       "logs:tool_failure"
+    ),
+    // A persisted activity proves entry into application mode. Joining its
+    // start card excludes email starts; created_at counts first entry only,
+    // including ended sessions, without counting reopened sessions again.
+    fetchAllRows<{ user_id: string }>(
+      (from, to) =>
+        supabaseServer
+          .from("talent_simulate_application")
+          .select(
+            "user_id,start_offer:talent_messages!talent_simulate_application_start_offer_message_id_fkey!inner(message_type)"
+          )
+          .eq("start_offer.message_type", "application_start_offer")
+          .gte("created_at", startIso)
+          .lt("created_at", endIso)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to),
+      "talent_simulate_application:web_starts"
     ),
     fetchAllRows<LandingLogRow>((from, to) =>
       supabaseServer
@@ -2223,6 +2244,9 @@ async function buildUserStatsReport(args: {
   const includedToolUsageLogs = toolUsageLogs.filter((log) =>
     isIncludedUserId(log.user_id)
   );
+  const includedApplicationStarts = applicationStarts.filter((row) =>
+    isIncludedUserId(row.user_id)
+  );
   const includedToolFailureLogs = toolFailureLogs.filter((log) =>
     isIncludedUserId(log.user_id)
   );
@@ -2342,6 +2366,10 @@ async function buildUserStatsReport(args: {
     },
     activeTalentsCount: activeTalentIds.size,
     accountDeletedCount: accountDeletionLogs.length,
+    applicationStartCount: includedApplicationStarts.length,
+    applicationStartUserCount: buildUserIdSet(
+      includedApplicationStarts.map((row) => row.user_id)
+    ).size,
     callTranscriptMessageCount: callTranscriptMessages.length,
     chatMessageCount: chatMessages.length,
     chatUniqueTalentCount: chatUserIds.size,
@@ -2594,17 +2622,25 @@ export function formatDailyUserStatsSlackMessages(
 ): DailyUserStatsSlackMessages {
   const previousComparisonReport =
     previousReport?.period === report.period ? previousReport : undefined;
-  const tools =
-    report.tools.length > 0
-      ? report.tools
-          .map(
-            (tool) =>
-              `- ${tool.name}: ${formatCount(tool.callCount)} calls / ${formatCount(
-                tool.userCount
-              )} users / error ${formatCount(tool.failedCallCount)}`
-          )
-          .join("\n")
-      : "- 없음";
+  const applicationStartLine = `함께 지원 시작하기 → 지원 모드 진입: ${formatCount(
+    report.applicationStartCount
+  )}건 / ${formatCount(report.applicationStartUserCount)} users`;
+  const toolLines = report.tools.flatMap((tool) => {
+    const line = `- ${tool.name}: ${formatCount(tool.callCount)} calls / ${formatCount(
+      tool.userCount
+    )} users / error ${formatCount(tool.failedCallCount)}`;
+    return tool.name === "simulate_application"
+      ? [line, `  ↳ ${applicationStartLine}`]
+      : [line];
+  });
+  // A user can start from a card offered before this reporting period.
+  if (
+    report.applicationStartCount > 0 &&
+    !report.tools.some((tool) => tool.name === "simulate_application")
+  ) {
+    toolLines.push(`- ${applicationStartLine}`);
+  }
+  const tools = toolLines.join("\n") || "- 없음";
 
   const internalConnectionResponseStats = formatInternalConnectionResponseStats(
     report.internalConnectionResponseStats

@@ -125,7 +125,7 @@ test("recipient names cannot inject Markdown", () => {
   assert.doesNotMatch(email.html, /evil\.example"/);
 });
 
-test("criterion ratings sit under the candidate as bar + name + label, evidence stays on the web", () => {
+test("criterion ratings sit under the candidate as bar + name with accessible labels, evidence stays on the web", () => {
   const rated = {
     ...candidate("c2"),
     criteria: [
@@ -137,10 +137,12 @@ test("criterion ratings sit under the candidate as bar + name + label, evidence 
   const mail = build({ candidates: [candidate("c1"), rated, candidate("c3")] });
   // HTML: the ratings come right before c2's buttons, with the web icon colors and no images.
   const c2Buttons = mail.html.indexOf("c2-request");
-  const ratings = mail.html.indexOf("ML 실무 3년 · 매우 잘 맞음");
+  const ratings = mail.html.indexOf(">ML 실무 3년</td>");
   assert.ok(ratings > mail.html.indexOf("김민준") && ratings < c2Buttons);
   assert.ok(mail.html.includes("background:#00B25B") && mail.html.includes("background:#FF9900") && mail.html.includes("background:#A92011"));
-  assert.ok(mail.html.includes("모델 서빙 · 확인 필요") && mail.html.includes("논문 · 맞지 않음"));
+  assert.ok(mail.html.includes(">모델 서빙</td>") && mail.html.includes(">논문</td>"));
+  assert.ok(mail.html.includes('aria-label="확인 필요"') && mail.html.includes('aria-label="맞지 않음"'));
+  assert.doesNotMatch(mail.html, / · (매우 잘 맞음|확인 필요|맞지 않음)/);
   assert.ok(!/<img/i.test(mail.html));
   // Text: ▮/▯ lines before the button links, only for the rated candidate.
   assert.match(mail.text, /▮▮▮ ML 실무 3년 · 매우 잘 맞음\n▮▮▯ 모델 서빙 · 확인 필요\n▮▯▯ 논문 · 맞지 않음\n\nIntro 요청하기: https:\/\/matchharper.com\/email-action\/c2-request/);
@@ -157,20 +159,21 @@ test("candidates without ratings get no rating lines and the mail is otherwise u
   assert.equal(empty.replyContext, plain.replyContext);
 });
 
-test("English mails use the English rating labels", () => {
+test("English mails keep rating labels accessible and in the plain-text fallback", () => {
   const mail = build({ locale: "en", candidates: [candidate("c1"), { ...candidate("c2"), criteria: [{ name: "Serving", fitness: "good" as const }] }, candidate("c3")] });
-  assert.ok(mail.html.includes("Serving · Good fit") && mail.text.includes("▮▮▯ Serving · Good fit"));
+  assert.ok(mail.html.includes(">Serving</td>") && mail.html.includes('aria-label="Good fit"'));
+  assert.ok(!mail.html.includes("Serving · Good fit") && mail.text.includes("▮▮▯ Serving · Good fit"));
 });
 
-test("each candidate is one bordered card holding its text, ratings and buttons; headings stay outside", () => {
+test("each candidate is one borderless card holding its text, ratings and buttons; headings stay outside", () => {
   const mail = build({ candidates: [candidate("c1"), { ...candidate("c2"), criteria: [{ name: "ML 실무", fitness: "good" as const }] }, candidate("c3")] });
-  const opens = [...mail.html.matchAll(/<div style="border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb/g)].map((m) => m.index!);
+  const opens = [...mail.html.matchAll(/<div style="border-radius:10px;background:#f9fafb/g)].map((m) => m.index!);
   assert.equal(opens.length, 3);
   // Every card closes right after its button row, so cards never nest or overlap.
   assert.equal((mail.html.match(/<\/table><\/div>/g) ?? []).length, 3);
   const [c1, c2, c3] = ["c1", "c2", "c3"].map((id) => mail.html.indexOf(`${id}-`));
   assert.ok(opens[0] < c1 && c1 < opens[1] && opens[1] < c2 && c2 < opens[2] && opens[2] < c3);
-  const ratings = mail.html.indexOf("ML 실무 · 잘 맞음");
+  const ratings = mail.html.indexOf(">ML 실무</td>");
   assert.ok(opens[1] < ratings && ratings < c2);
   // Group headings and intro lines sit outside the cards.
   const suggested = mail.html.indexOf("먼저 제안 가능한 후보");

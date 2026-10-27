@@ -8,6 +8,8 @@ import {
 } from "./documentTool";
 import { serializeTalentDocuments } from "./documentStore";
 import type { TalentDocumentRow } from "./models";
+import { recordPdfExport } from "@/lib/documents/pdfDiagnostics";
+import { PdfRenderError } from "@/lib/resumes/pdfError";
 
 function createGmailDocument(
   overrides: Partial<TalentDocumentRow> = {}
@@ -37,6 +39,7 @@ type Filter = { column: string; value: unknown };
 
 function createDocumentAdmin(rows: TalentDocumentRow[]) {
   const signedPaths: string[] = [];
+  const logs: any[] = [];
 
   class Query {
     private filters: Filter[] = [];
@@ -102,7 +105,20 @@ function createDocumentAdmin(rows: TalentDocumentRow[]) {
   }
 
   const admin = {
-    from() {
+    from(table: string) {
+      if (table === "logs") {
+        const filters = new Map<string, unknown>();
+        const query = {
+          insert: async (row: unknown) => { logs.unshift({ ...(row as object), created_at: "2026-10-27T01:02:00.000Z" }); return { error: null }; },
+          select: () => query,
+          eq: (key: string, value: unknown) => { filters.set(key, value); return query; },
+          in: (key: string, value: unknown) => { filters.set(key, value); return query; },
+          order: () => query,
+          limit: async () => ({ data: logs.filter(row => row.user_id === filters.get("user_id") && row.type === filters.get("type") &&
+            (filters.get("meta_data->>documentId") as string[]).includes(row.meta_data.documentId)), error: null }),
+        };
+        return query;
+      }
       return new Query();
     },
     storage: {
@@ -119,6 +135,31 @@ function createDocumentAdmin(rows: TalentDocumentRow[]) {
 
   return { admin, signedPaths };
 }
+
+test("download diagnostics reach document tools with revision, exact cause and unknown device receipt", async () => {
+  const document = createGmailDocument({ id: "resume", kind: "resume", origin_type: "harper_generated_resume", revision: 3,
+    structured_content: { schema_version: 1, content: { language: "en", basics: { name: "Fixture" } } } });
+  const { admin } = createDocumentAdmin([document]);
+  await recordPdfExport({ admin, userId: "talent-a", documentId: document.id, revision: 2, outcome: "failed",
+    error: new PdfRenderError("PDF could not be read", { stage: "pdf_read", pdfReceived: true, httpStatus: 200, cause: "Malformed PDF from https://provider/?token=private-fixture" }) });
+  await recordPdfExport({ admin, userId: "someone-else", documentId: document.id, revision: 3, outcome: "succeeded", pageCount: 1 });
+  const listed = await listTalentDocumentsForTool({ admin, userId: "talent-a", input: {} });
+  assert.equal(listed.documents[0].revision, 3);
+  const read = await readTalentDocumentForTool({ admin, userId: "talent-a", input: { document_id: document.id } });
+  assert.equal(read.pdfExport?.outcome, "failed");
+  assert.equal(read.pdfExport?.revision, 2);
+  assert.equal(read.pdfExport?.downloadReceivedByUser, "unknown");
+  assert.match(String(read.pdfExport?.error), /pdf_read/);
+  assert.match(String(read.pdfExport?.error), /Malformed PDF/);
+  assert.doesNotMatch(String(read.pdfExport?.error), /private-fixture/);
+  assert.equal(read.pdfExport?.at, "2026-10-27 10:02");
+  assert.deepEqual((listed.documents[0] as any).pdfExport, read.pdfExport);
+  await recordPdfExport({ admin, userId: "talent-a", documentId: document.id, revision: 3, outcome: "succeeded", pageCount: 3 });
+  const successful = await readTalentDocumentForTool({ admin, userId: "talent-a", input: { document_id: document.id } });
+  assert.equal(successful.pdfExport?.outcome, "succeeded");
+  assert.equal(successful.pdfExport?.error, undefined);
+  assert.equal(successful.pdfExport?.downloadReceivedByUser, "unknown");
+});
 
 test("lists and reads generated Gmail text without a Storage object", async () => {
   const document = createGmailDocument();

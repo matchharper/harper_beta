@@ -1,6 +1,9 @@
 import { FileText } from "lucide-react";
 import RichText from "@/components/ui/rich-text";
-import { careerTimelineAssistantRichTextClassName, careerTimelineTypographyStyle } from "./careerTimelineTypography";
+import {
+  careerTimelineAssistantRichTextClassName,
+  careerTimelineTypographyStyle,
+} from "./careerTimelineTypography";
 import { CompanyLogo } from "@/components/career/watchlist/CompanyLogo";
 import { useState, useRef, useEffect } from "react";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -139,131 +142,138 @@ export function ApplicationStartCard({
     <div className="space-y-4">
       {offer.introduction && (
         <div style={careerTimelineTypographyStyle}>
-          <RichText content={offer.introduction} variant="career" className={careerTimelineAssistantRichTextClassName} />
+          <RichText
+            content={offer.introduction}
+            variant="career"
+            className={careerTimelineAssistantRichTextClassName}
+          />
         </div>
       )}
-    <section className="w-full max-w-[640px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm">
-      <header className="p-4 pb-0">
-        <h3 className="font-medium">
-          {t("career.apply.title", "하퍼로 지원하기")}
-        </h3>
-      </header>
-      <div className="space-y-2 p-4">
-        <div className="space-y-2">
-          <p className="text-sm font-medium">
-            {t("career.apply.role", "지원할 포지션")}
-          </p>
-          <div className="flex items-center gap-3 rounded-xl border border-neutral-1000-a10 px-3 py-2">
-            <CompanyLogo
-              logoUrl={offer.companyLogoUrl ?? null}
-              name={offer.companyName ?? offer.roleName}
-              size="md"
-            />
-            <div className="min-w-0 space-y-0.5">
-              <p className="break-words text-sm font-medium">
-                {offer.roleTitle ?? offer.roleName}
-              </p>
-              {offer.companyName && (
-                <p className="break-words text-sm text-neutral-muted">
-                  {offer.companyName}
+      <section className="w-full max-w-[540px] overflow-hidden rounded-2xl border border-neutral-1000-a10 bg-bg-floating text-neutral-primary shadow-sm">
+        <header className="p-4 pb-0">
+          <h3 className="font-medium">
+            {t("career.apply.title", "하퍼로 지원하기")}
+          </h3>
+        </header>
+        <div className="space-y-2 p-4">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">
+              {t("career.apply.role", "지원할 포지션")}
+            </p>
+            <div className="flex items-center gap-3 rounded-xl border border-neutral-1000-a10 px-3 py-2">
+              <CompanyLogo
+                logoUrl={offer.companyLogoUrl ?? null}
+                name={offer.companyName ?? offer.roleName}
+                size="md"
+              />
+              <div className="min-w-0 space-y-0.5">
+                <p className="break-words text-sm font-medium">
+                  {offer.roleTitle ?? offer.roleName}
                 </p>
-              )}
+                {offer.companyName && (
+                  <p className="break-words text-sm text-neutral-muted">
+                    {offer.companyName}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p id={`resume-label-${messageId}`} className="text-sm font-medium">
-              {t("career.apply.resume", "사용할 이력서")}
-            </p>
-            {!started && (
-              <MuteButton
-                variant="transparent"
-                disabled={disabled || pending || uploading}
-                onClick={() => inputRef.current?.click()}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p
+                id={`resume-label-${messageId}`}
+                className="text-sm font-medium"
               >
-                {uploading
-                  ? t("career.apply.uploading", "이력서를 업로드하고 있어요…")
-                  : t("career.apply.upload", "이력서 업로드")}
-              </MuteButton>
-            )}
-          </div>
-          <Select
-            value={documentId}
-            onValueChange={(v) => {
-              if (v) setDocumentId(v);
-            }}
-            disabled={disabled || pending || uploading || started}
-          >
-            <SelectTrigger
-              aria-labelledby={`resume-label-${messageId}`}
-              className="data-[size=default]:h-auto min-h-12 gap-3 rounded-xl px-3 py-2"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-weak text-neutral-muted">
-                <FileText className="h-5 w-5" aria-hidden />
-              </span>
-              <SelectValue className="whitespace-normal break-words text-xs">
-                {resumes.find((r) => r.id === documentId)?.name ??
-                  t("career.apply.noResume", "이력서를 업로드해 주세요")}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {resumes.length ? (
-                resumes.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="none" disabled>
-                  {t("career.apply.noResume", "이력서를 업로드해 주세요")}
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        {!started && (
-          <>
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".pdf,.docx,.txt,.md"
-              className="hidden"
-              aria-label={t("career.apply.upload", "이력서 업로드")}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) void upload(file);
-              }}
-            />
-
-            {uploadError && (
-              <p role="alert" className="text-sm text-critical">
-                {uploadError}
+                {t("career.apply.resume", "사용할 이력서")}
               </p>
-            )}
-          </>
-        )}
-        <MuteButton
-          variant="primary"
-          size="md"
-          className="w-full mt-2"
-          disabled={
-            disabled ||
-            pending ||
-            uploading ||
-            started ||
-            !onAction ||
-            !hasSelectedResume
-          }
-          onClick={() => void start()}
-        >
-          {started
-            ? t("career.apply.started", "지원 준비를 시작했어요")
-            : t("career.apply.start", "함께 지원 시작하기")}
-        </MuteButton>
-      </div>
-    </section>
+              {!started && (
+                <MuteButton
+                  variant="transparent"
+                  disabled={disabled || pending || uploading}
+                  onClick={() => inputRef.current?.click()}
+                >
+                  {uploading
+                    ? t("career.apply.uploading", "이력서를 업로드하고 있어요…")
+                    : t("career.apply.upload", "이력서 업로드")}
+                </MuteButton>
+              )}
+            </div>
+            <Select
+              value={documentId}
+              onValueChange={(v) => {
+                if (v) setDocumentId(v);
+              }}
+              disabled={disabled || pending || uploading || started}
+            >
+              <SelectTrigger
+                aria-labelledby={`resume-label-${messageId}`}
+                className="data-[size=default]:h-auto min-h-12 gap-3 rounded-xl px-3 py-2"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-bg-weak text-neutral-muted">
+                  <FileText className="h-5 w-5" aria-hidden />
+                </span>
+                <SelectValue className="whitespace-normal break-words text-xs">
+                  {resumes.find((r) => r.id === documentId)?.name ??
+                    t("career.apply.noResume", "이력서를 업로드해 주세요")}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {resumes.length ? (
+                  resumes.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="none" disabled>
+                    {t("career.apply.noResume", "이력서를 업로드해 주세요")}
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          {!started && (
+            <>
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".pdf,.docx,.txt,.md"
+                className="hidden"
+                aria-label={t("career.apply.upload", "이력서 업로드")}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void upload(file);
+                }}
+              />
+
+              {uploadError && (
+                <p role="alert" className="text-sm text-critical">
+                  {uploadError}
+                </p>
+              )}
+            </>
+          )}
+          <MuteButton
+            variant="primary"
+            size="md"
+            className="w-full mt-2"
+            disabled={
+              disabled ||
+              pending ||
+              uploading ||
+              started ||
+              !onAction ||
+              !hasSelectedResume
+            }
+            onClick={() => void start()}
+          >
+            {started
+              ? t("career.apply.started", "지원 준비를 시작했어요")
+              : t("career.apply.start", "함께 지원 시작하기")}
+          </MuteButton>
+        </div>
+      </section>
     </div>
   );
 }

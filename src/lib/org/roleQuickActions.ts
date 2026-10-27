@@ -14,7 +14,8 @@ export const ORG_ROLE_QUICK_ACTIONS = [
 export const ORG_ROLE_RUN_SEARCH_ACTION = {
   id: "run_search",
   label: "Run Search",
-  message: "이 역할에 대해 우리가 먼저 Intro를 요청해볼 만한 후보자를 찾아줘.",
+  message:
+    "이 역할의 현재 추천 목록에 없는 후보자를 더 찾아서, Intro를 요청해볼 만한 사람을 목록에 추가해줘.",
 } as const;
 
 export const ORG_ROLE_CHAT_QUICK_ACTIONS = [

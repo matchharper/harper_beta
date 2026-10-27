@@ -505,9 +505,13 @@ test("suggestion delivery retains changed and pending items without settled hist
   const after = structuredClone(before);
   after.actions[2].status = "skipped";
   const result = applicationSuggestionsResult(after, before);
-  const model = JSON.parse(result.modelOutput);
-  assert.deepEqual(model.suggestions.map((item: {id: string}) => item.id), ["Q", "M"]);
+  const model = result.modelOutput;
+  assert.match(model, /참조 ID: Q/);
+  assert.match(model, /참조 ID: M/);
+  assert.doesNotMatch(model, /참조 ID: C/);
   assert.equal(result.suggestions, after.actions);
-  assert.equal(model.assistantInstruction, result.assistantInstruction);
-  assert.deepEqual(JSON.parse(applicationSuggestionsResult(after, after).modelOutput).suggestions.map((item: {id: string}) => item.id), ["Q"]);
+  assert.ok(model.includes(result.assistantInstruction));
+  const unchanged=applicationSuggestionsResult(after, after).modelOutput;
+  assert.match(unchanged, /참조 ID: Q/);
+  assert.doesNotMatch(unchanged, /참조 ID: [CM]/);
 });

@@ -141,6 +141,10 @@ export const queryKeys = {
     acceptedAll: ["org", "acceptedTalents"] as const,
     bootstrapAll: ["org", "bootstrap"] as const,
     boardAll: ["org", "board"] as const,
+    roleInbox: (args: { workspaceId: string; roleId: string; stage: string; sort: string }) =>
+      ["org", "board", args.workspaceId, args.roleId, "inbox", args.stage, args.sort, "details"] as const,
+    inboxCounts: (args: { workspaceId: string; roleId: string }) =>
+      ["org", "board", args.workspaceId, args.roleId, "inbox-counts"] as const,
     detailAll: ["org", "detail"] as const,
     meetingAvailabilityAll: ["org", "meetingAvailability"] as const,
     meetingSchedulesAll: ["org", "meetingSchedules"] as const,

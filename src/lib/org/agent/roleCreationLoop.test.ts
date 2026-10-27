@@ -19,9 +19,9 @@ test("role creation reports confirmed pre-execution rejection separately from la
   const { roleCreationToolErrorResult } = await import("./roleCreationChat");
   const { OrgHttpError } = await import("@/lib/org/server");
   const rejected = roleCreationToolErrorResult({ error: new Error("Invalid arguments"), name: "update_role_draft", executed: false });
-  assert.match(rejected, /effect Status: not_executed/);
+  assert.match(rejected, /effectStatus: not_executed/);
   const partial = roleCreationToolErrorResult({ error: new OrgHttpError(400, "A later field failed"), name: "update_role_draft", executed: true });
-  assert.match(partial, /effect Status: unknown/);
+  assert.match(partial, /effectStatus: unknown/);
   assert.match(partial, /A later field failed/);
 });
 
@@ -43,11 +43,11 @@ test("notification errors give the model verified saved settings instead of opti
   assert.match(result, /recruiting/);
   assert.match(result, /Current teammate/);
   assert.doesNotMatch(result, /other/);
-  assert.match(result, /effect Status: unknown/);
+  assert.match(result, /effectStatus: unknown/);
   assert.match(result, /Compare the requested change/);
   assert.match(result, /without repeating an already clear approval/);
   const unknown = roleCreationToolErrorResult({ error: new Error("Read-back unavailable"), name: "set_role_notification", executed: true });
-  assert.doesNotMatch(unknown, /current Notification Settings:/);
+  assert.doesNotMatch(unknown, /currentNotificationSettings:/);
 });
 
 test("notification executor validates exact targets without reclassifying the user's approval wording", async () => {

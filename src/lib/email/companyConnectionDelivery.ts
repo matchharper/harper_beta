@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from "node:crypto";
 import { getDefaultResendFromEmail, sendResendEmail } from "./send";
-import { emailRuntimeEnabled, type EmailAdmin } from "./runtime/types";
+import type { EmailAdmin } from "./runtime/types";
 import { planSlackConnectionReminder, type ReminderRecipient, type ReminderReceipt } from "./slackConnectionReminder";
 import type { composeCompanyUpdateEmail } from "@/lib/org/agent/companyUpdateEmail";
 
@@ -68,7 +68,7 @@ export async function deliverCompanyConnectionJob(args: {
 
 export async function dispatchCompanyConnectionEmails(admin?: EmailAdmin) {
   // Also respect the established no-send controls during local/debug runs.
-  if (!emailRuntimeEnabled() || process.env.EMAIL_REPLY_DRY_RUN === "true" || process.env.COMPANY_EMAIL_DRY_RUN === "true")
+  if (process.env.EMAIL_REPLY_DRY_RUN === "true" || process.env.COMPANY_EMAIL_DRY_RUN === "true")
     return { sent: 0, deferred: 0, disabled: true };
   if (!reminderWindow(new Date())) return { sent: 0, deferred: 0 };
   admin ??= (await import("@/lib/talentOnboarding/server")).getTalentSupabaseAdmin();

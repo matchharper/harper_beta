@@ -156,7 +156,6 @@ async function main() {
     )
       process.env[key] = "";
   Object.assign(process.env, env, {
-    EMAIL_RUNTIME_TARGET: "vercel_queue",
     EMAIL_RUNTIME_CONCURRENCY: "2",
     RESEND_API_KEY: `local-e2e-email-eval-${randomUUID()}`,
   });

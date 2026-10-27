@@ -1,0 +1,50 @@
+{
+  "version": "mock-interview-v1",
+  "inputAndGold": "live-prompt-cases-mock-interview-v1.json",
+  "inputSha256": "85c2985c3e026c562b8700ff2c06761bf92bc2355ad7ee8accc46f583d4e0d04",
+  "runner": "scripts/evalCareerLiveOnboardingPrompt.ts",
+  "currentRunnerSha256": "4cd4a8f43ee8fa2f3b265d292a91b26db35c53a1ab7dc58b0331adff6dcb61cf",
+  "openingSource": "src/lib/career/liveSessionOpening.ts",
+  "openingSha256": "533ce0e96957285d04fa45d7e962120e65c92fb9c6e01bbb7938c5c197b8c49d",
+  "config": {
+    "model": "gpt-live-1",
+    "delegationModel": "gpt-6.1-sol",
+    "delegationReasoningEffort": "xhigh",
+    "voice": "cedar"
+  },
+  "transport": "websocket",
+  "audio": "macOS Yuna 170 wpm; PCM16 mono 24kHz",
+  "provenance": "Synthetic, authored 2026-10-26; no production identities or messages",
+  "review": "Codex semantic review of complete event sequence and dialogue; not independent human gold",
+  "report": "reports/2026-10-26-live-mock-interview.md",
+  "runs": [
+    {
+      "artifactDirectory": "runs/live-prompt-2026-10-26T12-23-50.713Z",
+      "variant": "mock-interview-v1:prompt-only",
+      "verdict": "failed",
+      "manifestSha256": "00754313d368c11b802cad2a1b8e53e041918cc89dcfca3f1c4f316dba62012f",
+      "runnerSha256": "96d29239b191e5d102388d75cd303e5dd507e23bc3d80583de193f699ad20bcd",
+      "diffSha256": "6092ed7c61a52ca49ae1b3dd0372c0198296e9581aefa4cfd258c5d020bdbea4",
+      "fixtureSha256": "85c2985c3e026c562b8700ff2c06761bf92bc2355ad7ee8accc46f583d4e0d04"
+    },
+    {
+      "artifactDirectory": "runs/live-prompt-2026-10-26T12-29-05.055Z",
+      "variant": "mock-interview-v1:backend-opening",
+      "verdict": "passed",
+      "manifestSha256": "40a90ca08d80d71460edf8a04e27a7872a727042f56a8de4b4aac5e43c40302e",
+      "runnerSha256": "18a4a760f6fcf972b5b26cc805438bac5fe211863c5f1187c7384cd7355c9d00",
+      "diffSha256": "4bfd782f9543571a7cc2891819a9e08733f95791b6e56ff002928cc6e8a3a862",
+      "fixtureSha256": "85c2985c3e026c562b8700ff2c06761bf92bc2355ad7ee8accc46f583d4e0d04"
+    },
+    {
+      "artifactDirectory": "runs/live-prompt-2026-10-26T12-24-08.674Z",
+      "variant": "live-prompt-v2:completion-regression",
+      "verdict": "passed",
+      "manifestSha256": "2e5fb9f86d03609f801d7908cd1ff8ab9fd5b6c87bc8fb4c28b76e683c4fd7f4",
+      "runnerSha256": "96d29239b191e5d102388d75cd303e5dd507e23bc3d80583de193f699ad20bcd",
+      "diffSha256": "6092ed7c61a52ca49ae1b3dd0372c0198296e9581aefa4cfd258c5d020bdbea4",
+      "fixtureSha256": "fab4a4d9fbf8c0cef28541f5d11c489d908aaaf5f738d8da5f82d714addba898"
+    }
+  ],
+  "limits": "WebSocket synthetic smoke only; no real microphone, browser playback, product tool execution or production DB verification. Passing runner exit status alone is not the semantic gate."
+}

@@ -4,7 +4,7 @@ import type { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { createCompanyEmailReplyAlias } from "@/lib/email/company";
 import { createReplyToken, hashReplyToken } from "@/lib/email/security";
 import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
-import { EmailPermanentError, emailRuntimeEnabled } from "@/lib/email/runtime/types";
+import { EmailPermanentError } from "@/lib/email/runtime/types";
 import { loadSlackCandidateCards } from "@/lib/org/slackCandidateWorkObject.server";
 import { slackCandidatePartsFromBlocks } from "@/lib/org/slackCandidateWorkObject";
 import { getOrgPublicSiteUrl } from "@/lib/org/slackMessages";
@@ -46,8 +46,7 @@ async function rpc<T>(admin: Admin, name: string, args: Record<string, unknown>)
 
 /** Existing company mail no-send controls apply to candidate mail as well. */
 export function companyCandidateEmailEnabled() {
-  return emailRuntimeEnabled() &&
-    process.env.EMAIL_REPLY_DRY_RUN !== "true" &&
+  return process.env.EMAIL_REPLY_DRY_RUN !== "true" &&
     process.env.COMPANY_EMAIL_DRY_RUN !== "true";
 }
 

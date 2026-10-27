@@ -34,7 +34,7 @@
 
 ## 2026-10-16 운영 연결과 검증 계약
 
-- 기존 `enqueueCompanyUpdate` 이메일 분기를 통해 수신자 작업을 확보한다. 새 Vercel cron은 5분마다 호출되지만 실제 처리 창은 월·수·금 10:00–18:00 KST이며 한 호출당 최대 2명이다. 이메일 답장 runtime이 비활성화되었거나 `EMAIL_REPLY_DRY_RUN=true`/`COMPANY_EMAIL_DRY_RUN=true`이면 DB/발송 작업을 시작하지 않는다.
+- 기존 `enqueueCompanyUpdate` 이메일 분기를 통해 수신자 작업을 확보한다. 새 Vercel cron은 5분마다 호출되지만 실제 처리 창은 월·수·금 10:00–18:00 KST이며 한 호출당 최대 2명이다. `EMAIL_REPLY_DRY_RUN=true`/`COMPANY_EMAIL_DRY_RUN=true`이면 DB/발송 작업을 시작하지 않는다. 2026-10-27 로컬 변경부터 이메일 경로 활성화 설정은 필요 없다(운영 반영은 별도).
 - `company_connection_email_snapshot_v1`은 인증된 이메일과 현재 Owner/Admin, 팀 접근 범위, internal/active/non-test/non-expired Role, 현재 Slack 설치 및 채널 제외 설정, 현재 연결 대기·ready·실제 Slack 영수증을 읽는다. 이는 저장된 연결 설정이며 Slack 서비스의 실시간 정상 작동을 검사하는 기능은 아니다.
 - 새 `company_email_outbox`는 복원할 수 없는 실제 발송 사실(고정 초안/전송 payload/최초 시도/수신자/회차/provider 영수증)과 실행 lease를 저장한다. reader는 cron·발송기·예측·수신 거부 RPC다. 유일 제약은 동일 수신자·주제·회차의 중복 발송 작업 방지에만 사용한다. private RLS, anon/authenticated 테이블·함수 접근 차단.
 - 본인의 수신 설정과 발송 허가가 같은 사용자 행 lock을 사용한다. 수신 거부가 먼저 확정되면 미시도 작업을 취소하고 transport를 호출하지 않는다. 이미 발송 허가를 받아 외부 전송을 시작한 메일은 회수할 수 없다. 이후 새 메일/재시도는 차단한다.
@@ -42,4 +42,4 @@
 - 같은 frozen `cases-v1.json`을 실제 공통 회사 모델로 재실행한다. 추가 `reply-cases-v1.json`은 실행 전에 동결한 합성 수신 거부 2건과 command gold다. canonical runner `scripts/evalCompanyEmailOptOut.ts`는 실제 첫 completion의 기본 도구 선택·범위만 검증하고 도구는 실행하지 않는다. model/usage와 input/prompt hash를 `runs/`에 기록한다. 실제 preference 저장은 로컬 SQL 통합 검사에서 별도로 확인한다.
 - `scripts/testCompanyConnectionEmailDb.py`는 고정 loopback PostgreSQL 55489의 폐기 가능한 fixture DB만 사용한다. 실제 migration/RPC, 동시 claim, 수신 거부·연결 변경 race, 동일 payload 복구, 최대 횟수/간격, 24시간 불확실성, 권한 회수를 검사한다. 실제 provider 요청은 없다.
 - `scripts/captureCompanyConnectionEmail.py`는 Worker의 canonical `connect_read_only`로 migration에 표시된 **SELECT 본문만** 운영 DB에서 실행한다. 상태 변경·모델·메일 호출 없음. 실제 이름·주소·집계는 owner-only ignored private에만 저장한다. `scripts/forecastCompanyConnectionEmail.ts`는 이 snapshot과 실제 순수 정책으로 7일을 재생하며 네트워크를 차단한다. 현 상태 불변·첫 슬롯 전 배포·성공 발송을 가정한 예상이며 실제 예약이 아니다.
-- 필요한 적용 파일: `supabase/migrations/20261015130959_company_connection_email_delivery.sql`. 기존 미적용 prototype `20261015173000_company_email_preferences.sql`을 여기에 통합했다. 회사 이메일 답장 migration `20261015120000_company_email_replies.sql`과 기존 `EMAIL_RUNTIME_TARGET=vercel_queue`, Resend/Reply-To 인증 설정이 선행해야 한다. 실제 적용 여부를 확인하고 운영 권한 없이 실행하지 않는다.
+- 필요한 적용 파일: `supabase/migrations/20261015130959_company_connection_email_delivery.sql`. 기존 미적용 prototype `20261015173000_company_email_preferences.sql`을 여기에 통합했다. 회사 이메일 답장 migration `20261015120000_company_email_replies.sql`, 기본 경로 migration `20261027062947_email_runtime_default.sql`, Resend/Reply-To 인증 설정이 선행해야 한다. 실제 적용 여부를 확인하고 운영 권한 없이 실행하지 않는다.

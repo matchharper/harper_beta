@@ -162,7 +162,7 @@ test("application questions are mode-only and are an explicit yield boundary",()
   const active=resolveCareerChatTools({isOnboardingDone:true,channel:"chat",simulationActive:true});
   assert.ok(active.toolNames.includes("manage_application_suggestions"));
   assert.ok(active.toolNames.includes("apply_for_role"));
-  assert.ok(active.stopAfterToolNames.includes("apply_for_role"));
+  assert.ok(!active.stopAfterToolNames.includes("apply_for_role"));
   assert.ok(!active.stopAfterToolNames.includes("manage_application_suggestions"));
   assert.ok(active.toolNames.includes("ready_for_role"));
   assert.ok(ordinary.toolNames.includes("simulate_application"));

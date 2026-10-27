@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { reconcileWorkspaceBilling } from "@/lib/org/billing/reconcile";
+import { retryBillingNotifications } from "@/lib/org/billing/notifications";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 export const runtime = "nodejs";
@@ -15,6 +16,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
+    after(() =>
+      retryBillingNotifications().catch((error) => {
+        console.error("[billing/notification:retry]", error);
+      })
+    );
     const result = await reconcileWorkspaceBilling();
     return NextResponse.json(result, {
       status: result.failures.length || result.unresolved ? 503 : 200,

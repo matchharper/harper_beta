@@ -43,6 +43,7 @@ const OMITTABLE_TABLE_COLUMNS: Readonly<Record<string, readonly string[]>> = {
  */
 function abbreviateReadPresentation(content: string) {
   return content.replace(/<([a-z_]+)>\n([^<>]*)\n<\/\1>/g, (block: string, section: string, body: string) => {
+    if (section === "profile_bio" || section === "profile_description") return `<${section}>\n[Historical profile prose omitted; read_talent profileView=full for the source. Timeline metadata remains.]\n</${section}>`;
     if (section === "page_markdown") return `<${section}>\n[Historical page body omitted; open its exact URL again for detail.]\n</${section}>`;
     if (section === "evaluation_explanations") return `<${section}>\n[Historical explanation bodies omitted; candidate/evaluation IDs, Brief versions, run references, timestamps and scores remain in the index. Read the exact evaluation again for its full explanation.]\n</${section}>`;
     if (section === "profile_summary") {

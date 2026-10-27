@@ -205,7 +205,7 @@ export async function deliverCompanyFirstEmailRun(
   }
   if (!deps.emailEnabled())
     throw await failAll(deliverable, new Error(
-      "Company candidate email requires EMAIL_RUNTIME_TARGET=vercel_queue without an email dry run"));
+      "Company candidate email is disabled during an email dry run"));
 
   const owner = deps.newOwner();
   const outcomes: CandidateDigestRecipientOutcome[] = [];

@@ -36,7 +36,7 @@ test("role chat quick actions append an immediate current-Brief search", () => {
     id: "run_search",
     label: "Run Search",
     message:
-      "이 역할에 대해 우리가 먼저 Intro를 요청해볼 만한 후보자를 찾아줘.",
+      "이 역할의 현재 추천 목록에 없는 후보자를 더 찾아서, Intro를 요청해볼 만한 사람을 목록에 추가해줘.",
   });
   assert.deepEqual(ORG_ROLE_CHAT_QUICK_ACTIONS, [
     ...ORG_ROLE_QUICK_ACTIONS,
@@ -65,7 +65,7 @@ test("web quick actions use locale-specific prompts while Slack keeps its existi
   );
   assert.equal(
     en["agent.quickAction.runSearchMessage"],
-    "Find candidates we might want to send an intro request."
+    "Find candidates outside this role’s current recommendation list and add those worth requesting an intro with."
   );
 });
 

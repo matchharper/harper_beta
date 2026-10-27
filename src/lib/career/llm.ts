@@ -1,3 +1,4 @@
+import { formatToolResultText } from "@/lib/llm/promptText";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { runToolCall, unwrapToolCall, prepareToolDelivery, observeToolCall } from "@/lib/llm/toolExecution";
 import { formatToolError, serializeToolResultForModel, toolErrorResult } from "@/lib/llm/toolError";
@@ -549,21 +550,7 @@ function getAnthropicToolUseNames(
     .filter(Boolean);
 }
 
-function renderCareerToolResult(result: unknown) {
-  if (typeof result === "string") return result;
-  if (result && typeof result === "object" && !Array.isArray(result)) {
-    const modelOutput = (result as Record<string, unknown>).modelOutput;
-    if (typeof modelOutput === "string" && modelOutput.trim()) {
-      return modelOutput.trim();
-    }
-  }
-
-  try { return JSON.stringify(result); }
-  catch (error) {
-    return JSON.stringify({ ok: false, error: "Failed to serialize tool result",
-      partialResult: formatToolError(result), additionalToolDiagnostics: formatToolError(error) });
-  }
-}
+const renderCareerToolResult = formatToolResultText;
 
 export function serializeCareerToolResultForModel(result: unknown) {
   return serializeToolResultForModel(result, renderCareerToolResult);
@@ -573,23 +560,13 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function parseSerializedToolResult(content: string) {
-  try {
-    const parsed = JSON.parse(content);
-    return isPlainRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 function buildAssistantInstructionsFromToolResults(
-  blocks: AnthropicToolResultBlock[]
+  results: unknown[]
 ) {
   const instructions: string[] = [];
 
-  for (const block of blocks) {
-    const result = parseSerializedToolResult(block.content);
-    if (!result) continue;
+  for (const result of results) {
+    if (!isPlainRecord(result)) continue;
 
     const assistantInstruction = result.assistantInstruction;
     if (typeof assistantInstruction === "string") {
@@ -660,13 +637,14 @@ function withToolResultFollowupInstruction(
   blocks: AnthropicToolResultBlock[],
   responseLocale?: string | null,
   options?: {
+    toolResults?: unknown[];
     callableToolNames?: readonly string[];
     forceFinalAnswer?: boolean;
   }
 ): AnthropicUserContentBlock[] {
   if (blocks.length === 0) return blocks;
   const assistantInstructions =
-    buildAssistantInstructionsFromToolResults(blocks);
+    buildAssistantInstructionsFromToolResults(options?.toolResults ?? []);
   const streamingContinuationInstruction =
     buildStreamingToolContinuationInstruction({
       callableToolNames: options?.callableToolNames,
@@ -1702,6 +1680,7 @@ async function runCareerChatAssistantImpl(args: {
           : [];
       const skippedToolCalls = toolUseBlocks.slice(executableToolCalls.length);
       const toolResultBlocks: AnthropicToolResultBlock[] = [];
+      const rawToolResults: unknown[] = [];
       const attemptedToolNames: string[] = [];
       let shouldStopAfterTool = false;
 
@@ -1709,7 +1688,7 @@ async function runCareerChatAssistantImpl(args: {
         toolResultBlocks.push({
           type: "tool_result",
           tool_use_id: skippedToolCall.id,
-          content: JSON.stringify({
+          content: formatToolResultText({
             error: "Tool call limit reached. Continue without more tool usage.",
           }),
           is_error: true,
@@ -1731,7 +1710,7 @@ async function runCareerChatAssistantImpl(args: {
             : args.toolRuntime!.load(toolInput, capabilityStep!), { callId: toolCall.id, name: toolCall.name });
           if (!loadCapture.returned) throwIfToolControlError(loadCapture.error);
           const result = loadCapture.returned ? loadCapture.value : toolErrorResult(loadCapture.error);
-          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id, content: prepareToolDelivery(loadCapture, value => JSON.stringify(value)), ...(result.ok ? {} : { is_error: true }) });
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id, content: prepareToolDelivery(loadCapture, formatToolResultText), ...(result.ok ? {} : { is_error: true }) });
           continue;
         }
         attemptedToolNames.push(toolCall.name);
@@ -1760,6 +1739,7 @@ async function runCareerChatAssistantImpl(args: {
           }, { callId: toolCall.id, name: toolCall.name });
           capturedDiagnostics = toolCapture.diagnostics;
           const result = unwrapToolCall(toolCapture);
+          rawToolResults.push(result);
 
           logTalentToolResult({
             callId: toolCall.id,
@@ -1802,7 +1782,7 @@ async function runCareerChatAssistantImpl(args: {
         const answered = new Set(toolResultBlocks.map(result => result.tool_use_id));
         for (const call of toolUseBlocks) if (!answered.has(call.id)) {
           toolResultBlocks.push({ type: "tool_result", tool_use_id: call.id, is_error: true,
-            content: JSON.stringify({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
+            content: formatToolResultText({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
         }
       }
 
@@ -1811,7 +1791,8 @@ async function runCareerChatAssistantImpl(args: {
           role: "user",
           content: withToolResultFollowupInstruction(
             toolResultBlocks,
-            args.responseLocale
+            args.responseLocale,
+            { toolResults: rawToolResults }
           ),
         });
       }
@@ -2145,6 +2126,7 @@ async function runCareerChatAssistantStreamImpl(args: {
           : [];
       const skippedToolCalls = toolUseBlocks.slice(executableToolCalls.length);
       const toolResultBlocks: AnthropicToolResultBlock[] = [];
+      const rawToolResults: unknown[] = [];
       const attemptedToolNames: string[] = [];
       let shouldStopAfterTool = false;
 
@@ -2152,7 +2134,7 @@ async function runCareerChatAssistantStreamImpl(args: {
         toolResultBlocks.push({
           type: "tool_result",
           tool_use_id: skippedToolCall.id,
-          content: JSON.stringify({
+          content: formatToolResultText({
             error:
               "Additional tool calls are unavailable for this turn. Continue using the completed results.",
           }),
@@ -2175,7 +2157,7 @@ async function runCareerChatAssistantStreamImpl(args: {
             : args.toolRuntime!.load(toolInput, capabilityStep!), { callId: toolCall.id, name: toolCall.name });
           if (!loadCapture.returned) throwIfToolControlError(loadCapture.error);
           const result = loadCapture.returned ? loadCapture.value : toolErrorResult(loadCapture.error);
-          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id, content: prepareToolDelivery(loadCapture, value => JSON.stringify(value)), ...(result.ok ? {} : { is_error: true }) });
+          toolResultBlocks.push({ type: "tool_result", tool_use_id: toolCall.id, content: prepareToolDelivery(loadCapture, formatToolResultText), ...(result.ok ? {} : { is_error: true }) });
           continue;
         }
         attemptedToolNames.push(toolCall.name);
@@ -2217,6 +2199,7 @@ async function runCareerChatAssistantStreamImpl(args: {
           }, { callId: toolCall.id, name: toolCall.name });
           capturedDiagnostics = toolCapture.diagnostics;
           const result = unwrapToolCall(toolCapture);
+          rawToolResults.push(result);
 
           logTalentToolResult({
             callId: toolCall.id,
@@ -2272,7 +2255,7 @@ async function runCareerChatAssistantStreamImpl(args: {
         const answered = new Set(toolResultBlocks.map(result => result.tool_use_id));
         for (const call of toolUseBlocks) if (!answered.has(call.id)) {
           toolResultBlocks.push({ type: "tool_result", tool_use_id: call.id, is_error: true,
-            content: JSON.stringify({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
+            content: formatToolResultText({ ok: false, error: "turn_ended_by_terminal_tool", executed: false }) });
         }
       }
 
@@ -2283,6 +2266,7 @@ async function runCareerChatAssistantStreamImpl(args: {
             toolResultBlocks,
             args.responseLocale,
             {
+              toolResults: rawToolResults,
               callableToolNames: continuationToolNames,
               forceFinalAnswer: continuationToolNames.length === 0,
             }

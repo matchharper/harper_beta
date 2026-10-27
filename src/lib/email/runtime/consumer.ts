@@ -7,7 +7,6 @@ import { readRow, updateEmailJob } from "./store";
 import {
   EmailBusyError,
   EmailPermanentError,
-  emailRuntimeEnabled,
   emailRuntimeTable,
   nowIso,
   parseEmailRuntimeMessage,
@@ -98,7 +97,6 @@ export async function processEmailRuntimeMessage(
 ) {
   const message = parseEmailRuntimeMessage(raw);
   if (!message) throw new EmailPermanentError("Invalid email Queue message");
-  if (!emailRuntimeEnabled()) return;
   const owner = `vercel-email:${randomUUID()}`;
   const { data: claim, error } = await (admin.rpc as any)(
     "claim_email_runtime_job_v1",

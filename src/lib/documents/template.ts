@@ -22,9 +22,7 @@ export async function documentTemplate(title: string, markdown: string) {
     .use(remarkRehype)
     .use(rehypeSanitize);
   const tree = await processor.run(processor.parse(markdown));
-  const chunks: string[] = [];
   const clean = (node: any) => {
-    if (node.type === "text" && node.value.trim()) chunks.push(node.value);
     // No remote assets: export and sandbox preview must render the same self-contained content.
     if (node.children) {
       node.children = node.children.flatMap((child: any) =>
@@ -38,7 +36,6 @@ export async function documentTemplate(title: string, markdown: string) {
   clean(tree);
   const body = unified().use(rehypeStringify).stringify(tree);
   return {
-    textChunks: chunks,
     html: `<!doctype html><html lang="und"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
 @page { size:A4; margin:18mm 18mm 20mm; @bottom-right { content:counter(page); font-size:9pt; color:#777; } }
 * { box-sizing:border-box; } body { margin:0; color:#202020; font:10.5pt/1.7 "Noto Sans KR",sans-serif; overflow-wrap:anywhere; }

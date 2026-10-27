@@ -1,3 +1,4 @@
+import { formatToolResultText } from "@/lib/llm/promptText";
 import "server-only";
 import type { CareerRequestRuntime } from "./requestRuntime.server";
 import { runToolCall, unwrapToolCall, prepareToolDelivery } from "@/lib/llm/toolExecution";
@@ -114,12 +115,7 @@ export async function executeCareerToolRequest(req: NextRequest, runtime: Career
       ok: true,
       name,
       output: projectToolDiagnosticFieldsForTransport(output),
-      modelOutput: prepareToolDelivery(toolCapture, value => {
-        const modelOutput = value && typeof value === "object" && "modelOutput" in value
-          ? value.modelOutput : null;
-        return typeof modelOutput === "string" && modelOutput.trim()
-          ? modelOutput.trim() : JSON.stringify(value);
-      }),
+      modelOutput: prepareToolDelivery(toolCapture, formatToolResultText),
     });
   } catch (error) {
     if (

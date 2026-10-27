@@ -11,6 +11,9 @@ import {
   buildLiveOnboardingContext,
 } from "../src/lib/career/liveOnboarding";
 import { buildLiveFrontendInstructions } from "../src/lib/career/voiceSessionInstructions";
+import { buildLiveSessionOpeningEvents } from "../src/lib/career/liveSessionOpening";
+import { buildMockInterviewPromptPlan, MOCK_INTERVIEW_OPENING_PROMPT, type MockInterviewContext } from "../src/lib/career/prompts/cases/mockInterviewPrompts";
+import { renderCareerPromptBlocks } from "../src/lib/career/prompts/promptUtils";
 import { buildLiveSessionUpdateEvents } from "../src/lib/career/liveSessionUpdates";
 import { getCareerLiveSessionConfig } from "../src/lib/career/llm";
 import { getCareerRealtimeToolCandidates } from "../src/lib/career/llmTools";
@@ -31,10 +34,13 @@ type Case = {
   history: { role: "user" | "assistant"; text: string }[];
   utterance: string;
   gold: string;
+  mockInterview?: MockInterviewContext;
+  utteranceDelayMs?: number;
+  searchResult?: unknown;
 };
 const root = path.resolve("docs/evaluation/career-voice-onboarding");
 const version = process.env.CAREER_VOICE_EVAL_VERSION ?? "v1";
-if (!["v1", "v2"].includes(version)) throw new Error("Unknown fixture version");
+if (!["v1", "v2", "mock-interview-v1"].includes(version)) throw new Error("Unknown fixture version");
 const fixturePath = path.join(root, `live-prompt-cases-${version}.json`);
 const fixtureBytes = readFileSync(fixturePath);
 const fixture = JSON.parse(fixtureBytes.toString()) as {
@@ -70,6 +76,17 @@ const save = (name: string, value: unknown) =>
   });
 
 function makeInstructions(item: Case, keys: string[]) {
+  if (item.mockInterview) {
+    return {
+      instructions: renderCareerPromptBlocks(buildMockInterviewPromptPlan({
+        context: item.mockInterview,
+        candidateContext: fixture.profile,
+        preferredLocale: "ko",
+        toolNames: ["web_search", "end_call"],
+      }).promptBlocks),
+      onboardingContext: null,
+    };
+  }
   const plan = buildCareerConversationPromptPlan({
     channel: "voice",
     isOnboardingDone: false,
@@ -128,8 +145,9 @@ async function runCase(item: Case) {
     : null;
   const frontend = buildLiveFrontendInstructions({
     initialResponseInstruction:
-      "Continue the conversation from the caller's next utterance.",
+      item.mockInterview ? MOCK_INTERVIEW_OPENING_PROMPT : "Continue the conversation from the caller's next utterance.",
     responseLocale: "ko",
+    isMockInterview: Boolean(item.mockInterview),
     onboardingContext: initial.onboardingContext,
   });
   const session = {
@@ -141,7 +159,7 @@ async function runCase(item: Case) {
       role: message.role,
       content: [
         {
-          type: message.role === "user" ? "input_text" : "output_text",
+          type: message.role === "assistant" ? "output_text" : "input_text",
           text: message.text,
         },
       ],
@@ -158,7 +176,7 @@ async function runCase(item: Case) {
         reasoning: { effort: config.delegationReasoningEffort },
         text: { verbosity: "low" },
         tools: getCareerRealtimeToolCandidates("ko").filter(
-          (tool) => tool.name === "end_call"
+          (tool) => tool.name === "end_call" || (Boolean(item.mockInterview) && tool.name === "web_search")
         ),
         tool_choice: "auto",
         parallel_tool_calls: false,
@@ -179,6 +197,7 @@ async function runCase(item: Case) {
     finalized = false;
   let closeInfo: { code: number; reason: string } | null = null;
   const errors: unknown[] = [];
+  const pendingSearchCalls: string[] = [];
   await new Promise<void>((resolve, reject) => {
     const ws = new WebSocket("wss://api.openai.com/v1/live/sessions", {
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -234,7 +253,7 @@ async function runCase(item: Case) {
         outputAudio.push(Buffer.from(event.delta, "base64"));
         return;
       }
-      events.push(event);
+      events.push({ ...event, elapsedMs: started ? Date.now() - started : 0 });
       if (event.type === "error") errors.push(event.error);
       if (event.type === "session.input_transcript.delta")
         inputText += event.delta ?? "";
@@ -251,11 +270,22 @@ async function runCase(item: Case) {
           nested.item.name === "end_call"
         )
           endedByTool = true;
+        if (nested?.type === "response.output_item.done" && nested.item?.type === "function_call" && nested.item.name === "web_search") {
+          pendingSearchCalls.push(nested.item.call_id);
+        }
         if (
           nested?.type === "response.done" ||
           nested?.type === "response.completed"
         ) {
           backendPending = false;
+          if (pendingSearchCalls.length) {
+            for (const callId of pendingSearchCalls.splice(0)) send({
+              type: "response.item.create",
+              item: { type: "function_call_output", call_id: callId, output: JSON.stringify(item.searchResult) },
+            });
+            send({ type: "response.create" });
+            backendPending = true;
+          }
           if (
             nested.response?.output?.some(
               (output: { type: string; name?: string }) =>
@@ -267,6 +297,7 @@ async function runCase(item: Case) {
       }
       if (event.type === "session.started") {
         started = Date.now();
+        if (item.mockInterview) for (const opening of buildLiveSessionOpeningEvents()) send(opening);
         if (updated)
           for (const update of buildLiveSessionUpdateEvents(
             updated,
@@ -278,10 +309,10 @@ async function runCase(item: Case) {
         pump = setInterval(() => {
           const elapsed = Date.now() - started;
           const chunk =
-            elapsed < 1200
+            elapsed < (item.utteranceDelayMs ?? 1200)
               ? Buffer.alloc(1920)
               : pcm.subarray(offset, offset + 1920);
-          if (elapsed >= 1200) offset += 1920;
+          if (elapsed >= (item.utteranceDelayMs ?? 1200)) offset += 1920;
           send({
             type: "session.input_audio.append",
             audio: (chunk.length ? chunk : Buffer.alloc(1920)).toString(
@@ -340,10 +371,11 @@ async function main() {
     fixtureVersion: fixture.version,
     fixtureSha256: hash(fixtureBytes),
     runnerSha256: hash(readFileSync(new URL(import.meta.url))),
+    openingSha256: hash(readFileSync(path.resolve("src/lib/career/liveSessionOpening.ts"))),
     commit: execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
     }).trim(),
-    diffSha256: hash(execFileSync("git", ["diff", "--", "src/lib/career/prompts", "src/lib/career/liveOnboarding.ts", "src/lib/career/voiceSessionInstructions.ts", "src/lib/talentOnboarding/insightChecklist.ts", "src/lib/talentOnboarding/tools.ts", "scripts/evalCareerLiveOnboardingPrompt.ts"], { maxBuffer: 8 * 1024 * 1024 })),
+    diffSha256: hash(execFileSync("git", ["diff", "--", "src/lib/career/prompts", "src/lib/career/liveOnboarding.ts", "src/lib/career/voiceSessionInstructions.ts", "src/lib/career/liveSessionConfig.server.ts", "src/lib/talentOnboarding/insightChecklist.ts", "src/lib/talentOnboarding/tools.ts", "scripts/evalCareerLiveOnboardingPrompt.ts"], { maxBuffer: 8 * 1024 * 1024 })),
     config,
     selectedCases: cases.map((item) => item.id),
     transport: "websocket",

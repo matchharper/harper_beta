@@ -1028,6 +1028,9 @@ export function TalentDetailSimpleView({
   presentation = "modal",
   showBack = true,
   navigationItems,
+  navigationTotal,
+  onNextPage,
+  nextPagePending = false,
   nextNavigation,
   advanceAfterAction = false,
   onReviewClose,
@@ -1037,6 +1040,9 @@ export function TalentDetailSimpleView({
   presentation?: "modal" | "inline";
   showBack?: boolean;
   navigationItems?: readonly OrgTalentSelection[];
+  navigationTotal?: number;
+  onNextPage?: () => void;
+  nextPagePending?: boolean;
   nextNavigation?: {
     item: OrgTalentSelection;
     onNavigate: () => void;
@@ -1307,6 +1313,9 @@ export function TalentDetailSimpleView({
     },
     nextNavigation?.item
   );
+  if (detailNavigation && navigationTotal !== undefined) {
+    detailNavigation.total = navigationTotal;
+  }
   const navigateToTalent = (
     target: (typeof resolvedTalentNavigationItems)[number] | null
   ) => {
@@ -1340,8 +1349,9 @@ export function TalentDetailSimpleView({
     handleClose();
   };
   const finishReview = () => {
-    const next = detailNavigation?.next ?? detailNavigation?.previous;
-    if (advanceAfterAction && next) navigateToTalent(next);
+    if (advanceAfterAction && detailNavigation?.next) navigateToTalent(detailNavigation.next);
+    else if (advanceAfterAction && onNextPage) onNextPage();
+    else if (advanceAfterAction && detailNavigation?.previous) navigateToTalent(detailNavigation.previous);
     else (onReviewClose ?? handleClose)();
   };
 
@@ -1355,13 +1365,15 @@ export function TalentDetailSimpleView({
           onRetry={onRetry}
           navigation={detailNavigation}
           onNavigate={navigateToTalent}
+          onNextPage={onNextPage}
+          nextPagePending={nextPagePending}
           onBack={showBack ? (onReviewClose ?? handleClose) : undefined}
           backLabel={backLabel}
           navigationTitle={navigationTitle}
           roleMoveButton={roleMoveButton}
           canManage={canManageCandidates}
           pending={
-            decisionPending ||
+            nextPagePending || decisionPending ||
             requestCompanyIntro.isPending ||
             passCompanyIntro.isPending ||
             saveCandidate.isPending
@@ -1427,11 +1439,11 @@ export function TalentDetailSimpleView({
           bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <div className="shrink-0 border-b border-neutral-1000-a05 bg-bg-default md:hidden">
-            <div className="flex h-12 items-center w-full justify-between gap-2 px-2">
-              <div className="flex items-center gap-2">
+            <div className="flex min-h-12 min-w-0 items-center w-full justify-between gap-1 px-2">
+              <div className="flex shrink-0 items-center gap-1">
                 <MuteButton
                   aria-label={c("닫기", "Close")}
-                  className="rounded-full"
+                  className="rounded-full px-1"
                   onClick={handleClose}
                   size="md"
                   type="button"
@@ -1447,11 +1459,30 @@ export function TalentDetailSimpleView({
                       onNavigate={navigateToTalent}
                     />
                   ) : null}
-                  {roleMoveButton}
                 </div>
               </div>
               {showMobileDecisionActions ? (
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex min-w-0 items-center gap-1 [&_button]:whitespace-nowrap [&_button]:px-2 [&_button]:text-[13px] max-[360px]:[&_button]:px-1!">
+                  <MuteButton
+                    variant="neutral"
+                    disabled={saveCandidate.isPending}
+                    onClick={() => {
+                      if (!detail) return;
+                      saveCandidate.mutate({
+                        workspaceId,
+                        roleId: detail.role.roleId,
+                        talentId: detail.talent.userId,
+                        recommendationId: detail.recommendation.recommendationId,
+                        saved: !optionalBoard?.board?.items.find(
+                          (item) => item.recommendationId === activeDetailRecommendationId
+                        )?.savedAt,
+                      });
+                    }}
+                  >
+                    {optionalBoard?.board?.items.find(
+                      (item) => item.recommendationId === activeDetailRecommendationId
+                    )?.savedAt ? c("저장 해제", "Unsave") : "Save"}
+                  </MuteButton>
                   {detail?.companyIntro ? (
                     <OrgPassPopover
                       open={companyIntroPassOpen}
@@ -1495,6 +1526,10 @@ export function TalentDetailSimpleView({
                 </div>
               ) : null}
             </div>
+            {roleMoveButton && <div className="flex items-center px-2 pb-1">{roleMoveButton}</div>}
+            {saveCandidate.error instanceof Error && (
+              <p role="alert" className="px-2 pb-2 text-xs text-critical">{saveCandidate.error.message}</p>
+            )}
           </div>
 
           <div className="hidden shrink-0 items-center justify-between border-b border-neutral-1000-a05 px-5 py-3 font-normal md:flex">

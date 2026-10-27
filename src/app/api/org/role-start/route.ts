@@ -132,7 +132,7 @@ type Body = {
   briefHash?: string;
   request?: string | null;
   talentId?: string;
-  rating?: OrgRoleCriterionGrade;
+  rating?: OrgRoleCriterionGrade | null;
   answer?: string | null;
   note?: string | null;
   reasonIds?: string[] | null;
@@ -248,8 +248,9 @@ export async function POST(req: NextRequest) {
       case "reopen_review":
         return NextResponse.json({ session: view(await reopenRoleStartReview(access)) });
       case "evaluate": {
-        if (!body.talentId || !RATINGS.has(String(body.rating))) {
-          throw new OrgHttpError(400, "평가를 골라 주세요.");
+        if (!body.talentId || (body.rating != null && !RATINGS.has(String(body.rating))) ||
+            (body.rating == null && !(typeof body.reasonText === "string" && body.reasonText.trim()))) {
+          throw new OrgHttpError(400, "평가를 고르거나 의견을 적어 주세요.");
         }
         return NextResponse.json({
           session: view(
@@ -257,7 +258,7 @@ export async function POST(req: NextRequest) {
               ...access,
               answer: body.answer,
               note: body.note,
-              rating: body.rating!,
+              rating: body.rating ?? null,
               reasonIds: Array.isArray(body.reasonIds) ? body.reasonIds.map(String).slice(0, 10) : [],
               reasonText: body.reasonText ?? null,
               reasonsSkipped: body.reasonsSkipped === true,
@@ -276,7 +277,7 @@ export async function POST(req: NextRequest) {
           },
         });
         if (result.registered) {
-          // Ratings → Brief, one more person, then the Role turns on.
+          // Ratings → Brief, then the Role turns on.
           after(() => runRoleStartFirstBatch({ roleId: access.roleId, userId: user.id, user, workspaceId: access.workspaceId }));
         }
         return NextResponse.json({ ...result, session: view(result.session) });

@@ -134,6 +134,22 @@ test("read tools remain fresh and lost execution ownership prevents all effects"
   assert.equal(calls, 2);
 });
 
+test("Ops email tests block external effects before any executor or cached success is used", async () => {
+  const { ctx, job } = context();
+  job.kind = "ops_email_test";
+  let calls = 0;
+  const executeDefault = async () => ({ ok: true, sequence: ++calls });
+  for (const name of ["contact_company", "apply_for_role", "update_recommended_opportunity_feedback",
+    "request_internal_role_reconsideration", "update_onboarding_progress", "update_setting",
+    "update_talent_profile", "write_talent_context", "update_document", "unknown_future_tool"]) {
+    const result = await executeEmailTool(ctx, { name, input: {}, executeDefault }) as any;
+    assert.equal(result.error, "ops_email_test_external_effect_disabled", name);
+  }
+  assert.equal(calls, 0);
+  await executeEmailTool(ctx, { name: "list_documents", input: {}, executeDefault });
+  assert.equal(calls, 1);
+});
+
 function acceptanceContext() {
   const rec: any = {
     id: "recommendation",

@@ -21,6 +21,8 @@ export type OrgCandidateReviewHeaderProps = {
   >;
   navigation: OrgTalentDetailNavigationState<OrgTalentDetailNavigationTarget> | null;
   onNavigate: (target: OrgTalentDetailNavigationTarget | null) => void;
+  onNextPage?: () => void;
+  nextPagePending?: boolean;
   onBack?: () => void;
   backLabel?: string;
   navigationTitle?: string;
@@ -86,9 +88,10 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
         event.preventDefault();
         props.onNavigate(navigation.previous);
       }
-      if (key === "arrowright" && navigation?.next) {
+      if (key === "arrowright" && (navigation?.next || props.onNextPage)) {
         event.preventDefault();
-        props.onNavigate(navigation.next);
+        if (navigation?.next) props.onNavigate(navigation.next);
+        else if (!props.nextPagePending) props.onNextPage?.();
       }
       if (!actionable || !canManage) return;
       if (key === "s") {
@@ -112,24 +115,36 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
     <>
       <header
         className={cn(
-          "sticky top-0 z-20 flex shrink-0 flex-wrap items-center justify-between",
+          "sticky top-0 z-20 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] shrink-0 items-center md:flex md:flex-wrap md:justify-between",
           props.navigationTitle
             ? "gap-1 bg-linear-to-b from-white to-white/0 px-1 py-1"
-            : "gap-3 px-4 pt-3 @min-[700px]/review:px-6"
+            : "gap-2 px-2 pt-3 md:gap-3 md:px-4 @min-[700px]/review:px-6"
         )}
       >
-        <div
-          className={cn(
-            "flex min-w-0 items-center gap-1",
-            props.navigationTitle && "w-full"
-          )}
-        >
-          {props.onBack && (
+        {props.navigationTitle && (
+          <div className="col-span-2 flex min-w-0 items-center gap-1 md:w-full">
+            {props.onBack && (
+              <MuteButton
+                aria-label={props.backLabel ?? c("리스트로 돌아가기", "Back to list")}
+                disabled={pending}
+                data-org-review-back
+                onClick={props.onBack}
+                variant="transparent"
+                size="sm"
+              >
+                <ArrowLeft className="size-4" />
+                {c("목록", "List")}
+              </MuteButton>
+            )}
+            <h1 title={props.navigationTitle} className="min-w-0 flex-1 truncate text-[13px] font-medium">
+              {props.navigationTitle}
+            </h1>
+          </div>
+        )}
+        <div className="flex min-w-0 items-center gap-1">
+          {props.onBack && !props.navigationTitle && (
             <MuteButton
-              aria-label={
-                props.backLabel ?? c("리스트로 돌아가기", "Back to list")
-              }
-              title={props.backLabel ?? c("리스트로 돌아가기", "Back to list")}
+              aria-label={props.backLabel ?? c("리스트로 돌아가기", "Back to list")}
               disabled={pending}
               data-org-review-back
               onClick={props.onBack}
@@ -137,28 +152,20 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
               size="sm"
             >
               <ArrowLeft className="size-4" />
-              {props.navigationTitle && c("목록", "List")}
             </MuteButton>
-          )}
-          {props.navigationTitle && (
-            <h1
-              title={props.navigationTitle}
-              className="min-w-0 flex-1 truncate text-[13px] font-medium"
-            >
-              {props.navigationTitle}
-            </h1>
           )}
           {navigation && (
             <TalentDetailPager
               compact={Boolean(props.navigationTitle)}
               navigation={navigation}
               onNavigate={props.onNavigate}
+              onNextPage={props.onNextPage}
+              nextPagePending={props.nextPagePending}
               disabled={pending}
             />
           )}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          {props.roleMoveButton}
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-1 md:order-2 md:ml-0 md:gap-2 max-md:[&_button]:whitespace-nowrap max-md:[&_button]:px-2 max-md:[&_button]:text-[13px] max-[360px]:[&_button]:px-1!">
           {actionable && canManage && (
             <>
               <MuteButton
@@ -212,6 +219,11 @@ export function OrgCandidateReviewHeader(props: OrgCandidateReviewHeaderProps) {
             </>
           )}
         </div>
+        {props.roleMoveButton && (
+          <div className="col-span-2 flex min-w-0 items-center md:order-1 md:ml-auto">
+            {props.roleMoveButton}
+          </div>
+        )}
       </header>
       {actionError && (
         <p role="alert" className="px-6 pt-3 text-xs text-critical">

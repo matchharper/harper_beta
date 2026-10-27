@@ -29,6 +29,7 @@ import {
 } from "./CareerSidebarContext";
 import CareerInPageTabs, { type CareerInPageTabItem } from "./CareerInPageTabs";
 import { PrimaryButton, BareButton } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { InlinePanel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 import {
@@ -1653,6 +1654,10 @@ const CareerHistoryPanel = ({
       }
       return null;
     }, [activeSavedStatus, activeTab]);
+  const listInitialLoading = listItems.length === 0 && (
+    historyLoading || historyLoadingMore ||
+    (!historyUpdateError && listTotal > 0)
+  );
   const loadMoreListItems = useCallback(() => {
     if (!activeListFilter || !hasMoreListItems || historyLoadingMore) return;
     void onLoadMoreHistoryOpportunities(activeListFilter);
@@ -1992,6 +1997,13 @@ const CareerHistoryPanel = ({
                 ) : null}
               </div>
 
+              {(savedDisplayMode === "list" || activeSavedStatus === "hidden") && listInitialLoading && (
+                <div className="space-y-3" aria-busy="true">
+                  <Skeleton className="h-24 w-full rounded-lg" />
+                  <Skeleton className="h-24 w-full rounded-lg" />
+                </div>
+              )}
+
               {(savedDisplayMode === "list" ||
                 activeSavedStatus === "hidden") &&
                 listItems.length > 0 && (
@@ -2022,7 +2034,7 @@ const CareerHistoryPanel = ({
 
               {(savedDisplayMode === "list" ||
                 activeSavedStatus === "hidden") &&
-                listItems.length === 0 && (
+                listItems.length === 0 && !listInitialLoading && !historyUpdateError && (
                   <InlinePanel className="px-5 py-5">
                     <div className="text-[14px] leading-6 text-neutral-muted">
                       {t(
@@ -2036,6 +2048,8 @@ const CareerHistoryPanel = ({
               {savedDisplayMode === "board" &&
                 activeSavedStatus !== "hidden" && (
                   <SavedOpportunityBoard
+                    initialLoading={historyLoading}
+                    loadError={Boolean(historyUpdateError)}
                     columnLoadState={savedBoardColumnLoadState}
                     counts={savedManagementCounts}
                     items={savedBoardItems}
@@ -2069,6 +2083,13 @@ const CareerHistoryPanel = ({
             </div>
           )}
 
+          {activeTab === "archived" && !showInlineOpportunityPage && listInitialLoading && (
+            <div className="space-y-3" aria-busy="true">
+              <Skeleton className="h-24 w-full rounded-lg" />
+              <Skeleton className="h-24 w-full rounded-lg" />
+            </div>
+          )}
+
           {activeTab === "archived" &&
             !showInlineOpportunityPage &&
             listItems.length > 0 && (
@@ -2095,7 +2116,7 @@ const CareerHistoryPanel = ({
 
           {activeTab === "archived" &&
             !showInlineOpportunityPage &&
-            listItems.length === 0 && (
+            listItems.length === 0 && !listInitialLoading && !historyUpdateError && (
               <div className="space-y-3">
                 <InlinePanel className="px-5 py-5">
                   <div className="text-[14px] leading-6 text-neutral-soft">

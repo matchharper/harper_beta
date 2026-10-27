@@ -4,6 +4,8 @@ import { buildPreparationPrompt } from "@/lib/career/simulation/preparationPromp
 import { continueEmailApplication, emailApplicationContext, assertEmailApplicationReadyToReply } from "./application";
 import { runCareerChatTurn } from "@/lib/career/chatTurn";
 import { emailAssistantModel } from "./model";
+import { isOpsEmailTest, opsEmailTestInput } from "./opsTest";
+import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import {
   loadEmailReferenceContext,
 } from "./context";
@@ -70,7 +72,8 @@ export async function processEmailReply(
   job: EmailRow,
   owner: string
 ) {
-  if (job.resend_email_id && asObject(asObject(job.metadata).delivery).to) {
+  const opsTest = opsEmailTestInput(job);
+  if (!opsTest && job.resend_email_id && asObject(asObject(job.metadata).delivery).to) {
     if (asObject(job.metadata).companyEmail) await finishCompanyEmailReply(admin, job, owner);
     else await finishEmailReply(admin, job, owner);
     return;
@@ -90,9 +93,9 @@ export async function processEmailReply(
   if (!inbound) throw new EmailPermanentError("inbound_event_not_found");
   const metadata = asObject(job.metadata);
   const testEmail =
-    job.kind === "referral_intro"
+    opsTest ?? (job.kind === "referral_intro"
       ? asObject(asObject(metadata.referralIntro).email)
-      : {};
+      : {});
   const received = Object.keys(testEmail).length
     ? { ...testEmail, attachments: normalizeAttachments(testEmail.attachments) }
     : await getReceivedEmail(inbound.provider_email_id);
@@ -128,7 +131,10 @@ export async function processEmailReply(
     return processCompanyEmailReply({ ...special, fullBody });
   if (job.kind === "org_intro_capture") return processIntroCapture(special);
   if (job.kind === "referral_intro") return processReferralIntro(special);
-  const identity = await resolveEmailIdentity({
+  const identity = opsTest ? {
+    talentId: String(job.talent_id), conversationId: String(job.conversation_id),
+    companyRequestId: null, alias: null, lead: null,
+  } : await resolveEmailIdentity({
     admin,
     job,
     sender,
@@ -147,7 +153,7 @@ export async function processEmailReply(
     identity.talentId,
     identity.conversationId
   );
-  const replyAlias = await ensureReplyAlias(
+  const replyAlias = opsTest ? "ops-test@reply.matchharper.com" : await ensureReplyAlias(
     admin,
     identity.talentId,
     conversationId,
@@ -158,7 +164,7 @@ export async function processEmailReply(
     attachments = await getReceivedAttachments(inbound.provider_email_id);
   if (!body && !attachments.length) throw new EmailPermanentError("empty_body");
   const attachmentText = attachments.length
-    ? `\n\nEmail attachments: ${JSON.stringify(attachments.map((a, index) => ({ index: index + 1, filename: a.filename, contentType: a.contentType })))}`
+    ? `\n\nEmail attachments:\n${attachments.map((a, index) => `${index + 1}. ${a.filename} (${a.contentType})`).join("\n")}`
     : "";
   const sourceMessage = await persistReplyMessage({
     admin,
@@ -188,7 +194,7 @@ export async function processEmailReply(
     sourceMessage,
     thread: fullBody === body ? "" : fullBody.slice(0, 16_000),
   };
-  await recordEmailAudit(admin, {
+  if (!opsTest) await recordEmailAudit(admin, {
     id: emailAuditId(job.id, "inbound"),
     talent_id: ctx.talentId,
     talent_message_id: sourceMessage.id,
@@ -217,7 +223,7 @@ export async function processEmailReply(
     const applicationContext = await emailApplicationContext(ctx, application);
     const references = await loadEmailReferenceContext(ctx);
     const signupBody =
-      identity.lead || references.internalConnectionReply
+      opsTest || identity.lead || references.internalConnectionReply
         ? null
         : await processSignupFollowup(ctx);
     const intake = identity.lead
@@ -269,21 +275,20 @@ export async function processEmailReply(
         .order("occurred_at", { ascending: false })
         .limit(3);
       if (historyError) throw historyError;
-      const boundedHistory = history.map((row: EmailRow) => ({
-        ...row,
-        body_text: String(row.body_text ?? "").slice(0, 6000),
-      }));
+      const historyText = history.map((row: EmailRow) =>
+        `- ${formatLlmDateTime(row.occurred_at)} | ${row.subject || "(no subject)"}\n${String(row.body_text ?? "").slice(0, 6000)}`
+      ).join("\n\n");
       const extra = [
         references.text,
         "Current application context (authoritative over older conversation summaries):\n" + applicationContext,
-        await signupFollowupContext(ctx),
+        opsTest ? "Ops email test: treat the supplied input as the candidate's message and write to the candidate in the usual email voice. Reads, owned document changes and application preparation are real; email delivery, company contact, application submission and mutations that schedule future matching/contact are disabled. Describe only verified actions." : await signupFollowupContext(ctx),
         onboarding
           ? buildOnboardingRuntimeStateSection({
               checklistCoverage: coverage,
               checklistContext: profile,
             })
           : "",
-        `Candidate-visible outbound emails for this alias (history, not new consent): ${JSON.stringify(boundedHistory)}`,
+        `Candidate-visible outbound emails for this alias (history, not new consent; times Asia/Seoul):\n${historyText || "None."}`,
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -374,10 +379,13 @@ export async function processEmailReply(
       },
     });
   }
-  if (process.env.EMAIL_REPLY_DRY_RUN === "true") {
+  if (isOpsEmailTest(job) || process.env.EMAIL_REPLY_DRY_RUN === "true") {
+    if (isOpsEmailTest(job))
+      await updateRow(admin, "talent_conversations", conversationId, { updated_at: nowIso() });
     await updateEmailJob(admin, "reply", job.id, owner, {
       status: "skipped",
-      skip_reason: "dry_run",
+      skip_reason: isOpsEmailTest(job) ? "ops_email_test" : "dry_run",
+      last_error: null,
       processed_at: nowIso(),
       locked_at: null,
       locked_by: null,

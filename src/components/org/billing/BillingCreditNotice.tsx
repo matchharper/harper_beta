@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { Tooltips } from "@/components/ui/tooltip";
+import { Ticket } from "@/components/ui/ticket";
 import {
   creditSlotForRole,
   formatIntroCount,
@@ -53,7 +54,14 @@ export function BillingCreditNotice({
       <span className="truncate text-[11px] text-neutral-muted">
         {poolLabel}
       </span>
-      <span className="text-[12px] font-medium tabular-nums">{label}</span>
+      <span className="text-[12px] font-medium tabular-nums">
+        <span className="sr-only">{label}</span>
+        <span className="inline-flex items-center gap-1" aria-hidden="true">
+          {slot.remaining}
+          <Ticket size={12} />
+          {locale === "ko" ? "남음" : "left"}
+        </span>
+      </span>
     </>
   );
   const content = canManage ? (

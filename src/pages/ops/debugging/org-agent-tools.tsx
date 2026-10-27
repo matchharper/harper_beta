@@ -283,11 +283,6 @@ function ParameterField({
           {value}
         </div>
       ) : null}
-      {schema.description ? (
-        <p className="text-xs leading-5 text-neutral-muted">
-          {schema.description}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -296,13 +291,11 @@ function ExactOutput({
   icon,
   label,
   onCopy,
-  placeholder,
   value,
 }: {
   icon: React.ReactNode;
   label: string;
   onCopy: () => void;
-  placeholder: string;
   value: string | null | undefined;
 }) {
   return (
@@ -322,15 +315,9 @@ function ExactOutput({
           복사
         </MuteButton>
       </div>
-      {value !== null && value !== undefined ? (
-        <pre className="max-h-[680px] min-h-[320px] overflow-auto whitespace-pre p-4 font-mono text-xs leading-5 text-neutral-primary">
-          {value}
-        </pre>
-      ) : (
-        <div className="flex min-h-[320px] items-center justify-center px-6 text-center text-sm text-neutral-soft">
-          {placeholder}
-        </div>
-      )}
+      <pre className="max-h-[680px] min-h-[320px] overflow-auto whitespace-pre p-4 font-mono text-xs leading-5 text-neutral-primary">
+        {value}
+      </pre>
     </section>
   );
 }
@@ -567,7 +554,12 @@ export default function OpsOrgAgentToolDebuggerPage() {
   ]);
 
   return (
-    <DebuggingPageShell filters={null} tab="orgAgentTools">
+    <DebuggingPageShell
+      filters={null}
+      showContextLabel={false}
+      showDescription={false}
+      tab="orgAgentTools"
+    >
       <div className="grid gap-3 xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
         <section
           className={cx(opsTheme.panel, "self-start p-4 xl:sticky xl:top-3")}
@@ -651,9 +643,6 @@ export default function OpsOrgAgentToolDebuggerPage() {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <p className="text-xs leading-5 text-neutral-muted">
-                이 멤버의 실제 권한과 공개 범위로 실행합니다.
-              </p>
             </div>
 
             <div className="grid gap-1.5">
@@ -677,9 +666,6 @@ export default function OpsOrgAgentToolDebuggerPage() {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <p className="line-clamp-4 text-xs leading-5 text-neutral-muted">
-                {selectedTool.description}
-              </p>
             </div>
 
             <div className="flex items-center justify-between gap-3 border-t border-neutral-1000-a05 pt-4">
@@ -823,11 +809,6 @@ export default function OpsOrgAgentToolDebuggerPage() {
                       setPriorToolResultChars(event.target.value)
                     }
                   />
-                  <p className="text-[11px] leading-4 text-neutral-muted">
-                    turn 전체{" "}
-                    {ORG_AGENT_MAX_TOTAL_TOOL_RESULT_CHARS.toLocaleString()}자
-                    budget에서 이미 사용한 길이입니다.
-                  </p>
                 </div>
               </div>
             </details>
@@ -855,10 +836,6 @@ export default function OpsOrgAgentToolDebuggerPage() {
               )}
               {running ? "실제 tool 실행 중..." : "Tool 실행"}
             </MuteButton>
-            <p className="text-center text-[11px] leading-4 text-neutral-soft">
-              조회·준비 tool만 제공합니다. 회사 데이터 변경, 후보 상태 변경,
-              발송은 실행하지 않습니다.
-            </p>
           </div>
         </section>
 
@@ -894,14 +871,12 @@ export default function OpsOrgAgentToolDebuggerPage() {
               icon={<Braces className="h-4 w-4" />}
               label="1. 반환 JSON"
               value={result?.resultJson}
-              placeholder="Tool을 실행하면 executeOrgAgentTool의 반환값을 JSON으로 표시합니다."
               onCopy={() => void copyExact(result?.resultJson, "반환 JSON")}
             />
             <ExactOutput
               icon={<TerminalSquare className="h-4 w-4" />}
               label="2. LLM에 들어가는 tool content"
               value={result?.llmText}
-              placeholder="직렬화와 turn budget 처리를 마친 실제 tool message content가 표시됩니다."
               onCopy={() => void copyExact(result?.llmText, "LLM tool content")}
             />
           </div>

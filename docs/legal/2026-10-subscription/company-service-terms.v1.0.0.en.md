@@ -39,15 +39,15 @@ Only team members with billing management permission may purchase or cancel subs
 
 ## 4. Plans and hiring slots
 
-A “slot” is a subscription that assigns paid features and monthly Intros to one Role. Free and standard Slot plans allow unlimited Role drafts. At most one Free Role may be active, and each valid paid Slot supports one additional active Role. Intro balances and active Role limits apply separately.
+A “slot” is a subscription that adds capacity for one active Role and assigns monthly Intros to that Role. Free and standard Slot plans allow unlimited Role drafts. At most one Free Role may be active, and each valid paid Slot supports one additional active Role. Intro balances and active Role limits apply separately.
 
 | Plan | Roles | Monthly Intros | Conditions |
 | --- | --- | --- | --- |
-| Free | At most 1 active Role; unlimited drafts | 10 shared across all Roles | Some paid features, including accepting candidates awaiting connection, are restricted |
-| Slot | 1 additional active Role per Slot; 1 active Free Role retained | 50 per Slot, with the Workspace's shared 10 retained | Each Slot's paid features apply to one assigned Role. Each Slot may have a different start and renewal date |
+| Free | At most 1 active Role; unlimited drafts | 3 shared across all Roles | Candidate recommendations, Ready to connect and connection acceptance are included |
+| Slot | 1 additional active Role per Slot; 1 active Free Role retained | 50 per Slot, with the Workspace's shared 3 retained | Each Slot's Intros apply to one assigned Role. Each Slot may have a different start and renewal date |
 | Enterprise | Specified in the separate agreement | Specified in the separate agreement | Scope and pricing model agreed with Harper upon request |
 
-Adding a paid Slot retains the Workspace's separate allowance of 10 shared monthly Intros. Every Role can use shared Intros, but paid features such as accepting candidates awaiting connection require a valid Slot assigned to that Role. An unassigned Role can send contact requests using shared Intros. Unlimited Enterprise Intros apply only where expressly agreed.
+Adding a paid Slot retains the Workspace's separate allowance of 3 shared monthly Intros. Free Roles also receive candidate recommendations and have access to Ready to connect. Roles without a Slot can use shared Intros for contact requests and connection acceptance. Unlimited Enterprise Intros apply only where expressly agreed.
 
 Customers may create Role drafts even when all slots are assigned or Intros are exhausted. Starting or resuming hiring is subject to one active Free Role plus valid paid Slots. Exhausted Intros do not impose an additional activation limit. Role creation or activation does not itself create a subscription or charge.
 
@@ -80,19 +80,19 @@ When proposing a paid transition to an existing free or early-access customer, H
 
 Harper will give advance notice of subscription price changes and will not change the price of an already paid period retroactively. Customers may cancel renewal before the new price takes effect. Any additional notice or consent required by law will be obtained.
 
-A failed or incomplete payment may prevent a new paid period and slot Intro allocation from starting. Already paid periods remain subject to their conditions. After expiry, access to paid features and slot Intros follows the valid subscriptions remaining. Active Roles are adjusted under Section 9, while shared Intros retain their existing monthly schedule.
+A failed or incomplete payment may prevent a new paid period and slot Intro allocation from starting. Already paid periods remain subject to their conditions. After expiry, additional active-role capacity and slot Intros follows the valid subscriptions remaining. Active Roles are adjusted under Section 9, while shared Intros retain their existing monthly schedule.
 
 ## 7. Intro allocation and expiry
 
 Intros measure access to designated features within a Workspace. They are not cash, a deposit, or an asset transferable to another Workspace.
 
-Workspaces on Free or standard Slot plans receive 10 Intros shared across all Roles on the Workspace's monthly renewal date. Each paid Slot separately provides 50 Intros every month based on its subscription start date. Annual subscriptions also renew slot Intros monthly; 600 Intros are not available upfront. If an anniversary date does not exist in a month, the boundary is adjusted to that month's last day. Exact times are available in billing management.
+Workspaces on Free or standard Slot plans receive 3 Intros shared across all Roles on the Workspace's monthly renewal date. Each paid Slot separately provides 50 Intros every month based on its subscription start date. Annual subscriptions also renew slot Intros monthly; 600 Intros are not available upfront. If an anniversary date does not exist in a month, the boundary is adjusted to that month's last day. Exact times are available in billing management.
 
 Unused Intros expire at the end of their own period and do not roll over. Shared Intros and each Slot follow independent renewal dates. When Slots have different renewal dates, only the renewing Slot's Intros expire and renew. A Role uses its assigned Slot's Intros first, then shared Intros if needed. It cannot use another paid Slot's Intros. Changing Role assignments preserves each slot’s balance and renewal date.
 
 For example, if Slot A renews on the fifth and Slot B on the twentieth, the fifth replaces A's unused Intros with A's new allocation of 50. B's remaining Intros stay available until B's own renewal.
 
-The first paid Slot purchase provides that Slot with 50 Intros separately, while preserving the shared Intro balance and renewal date. Purchasing after using all 10 shared Intros still provides the Slot with 50 Intros. A purchase does not restore the shared balance or combine it with the slot balance. Shared Intros retain their existing monthly renewal schedule after paid subscriptions end; unused Intros from an expired Slot do not carry over.
+The first paid Slot purchase provides that Slot with 50 Intros separately, while preserving the shared Intro balance and renewal date. Purchasing after using all 3 shared Intros still provides the Slot with 50 Intros. A purchase does not restore the shared balance or combine it with the slot balance. Shared Intros retain their existing monthly renewal schedule after paid subscriptions end; unused Intros from an expired Slot do not carry over.
 
 ## 8. Actions that use Intros
 
@@ -115,7 +115,7 @@ A team member with billing management permission can cancel renewal for each Slo
 
 Cancellation stops the next renewal. Access continues until the end of the paid period: the monthly period for monthly subscriptions, or the full paid year for annual subscriptions. A monthly subscription running October 7–November 7 ends on November 7 if canceled on October 20, rather than at the end of October.
 
-The canceled subscription's slot is withdrawn at expiry. Existing valid slot assignments are preserved, and remaining empty slots are assigned first. Among eligible Roles without a slot, the oldest Free Role stays active and additional Roles are paused. Before expiry, Customers may assign a Role to another valid slot to retain paid features. If assignments change after cancellation, the assignment at expiry determines the affected Role.
+The canceled subscription's slot is withdrawn at expiry. Existing valid slot assignments are preserved, and remaining empty slots are assigned first. Among eligible Roles without a slot, the oldest Free Role stays active and additional Roles are paused. Before expiry, Customers may assign a Role to another valid slot to keep it active with slot Intros. If assignments change after cancellation, the assignment at expiry determines the affected Role.
 
 Other Slot subscriptions remain in place under their own terms. After the last paid subscription expires, at most one Free Role may remain active with shared Intros. Drafts are unlimited, and paused Roles may resume within the active Role limit. Expiry alone does not delete Role content, candidates, Intros, or progress history. Existing separate agreements retain their terms.
 

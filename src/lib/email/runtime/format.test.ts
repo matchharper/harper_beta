@@ -70,6 +70,16 @@ test("plain text keeps one table row per line and prints bare URLs only once", (
   );
 });
 
+test("both email parts preserve ordered starts, task checks, entities and literal Unicode code", () => {
+  const email = renderReplyEmail("3. A & B\n4. 다음\n   - 하위\n\n- [x] 완료\n- [ ] 대기\n\n```text\n한글 <value> & raw\n```", { audience: "company" });
+  assert.match(email.html, /<ol start="3"/);
+  assert.match(email.text, /3\. A & B\n4\. 다음\n+  • 하위/);
+  assert.match(email.text, /☑\s+완료/);
+  assert.match(email.text, /☐\s+대기/);
+  assert.match(email.text, /한글 <value> & raw/);
+  assert.doesNotMatch(email.html, /<input|<value>/);
+});
+
 test("company navigation is rendered as real workspace links in HTML and text", async () => {
   const { renderCompanyReplyEmail } = await import("./format");
   const result = renderCompanyReplyEmail("[역할](role:role-123) [목록](roles)", "workspace-123");

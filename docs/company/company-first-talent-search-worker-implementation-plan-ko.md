@@ -1,5 +1,14 @@
 # Company-scoped Talent Matching Worker 구현 계획
 
+## 2026-10-27 Free 추천·연결 확대 (로컬 구현·미배포)
+
+슬롯이 없는 Free Role도 talent-first 추천, 회사 선추천, 연결 대기 조회·연결 수락을 이용한다. Free와 표준 슬롯 Workspace의 공용 Intro는 매월 3개다. 활성 Free Role 1개·초안 무제한, 슬롯당 추가 활성 Role 1개·월 50 Intro는 유지한다. Intro 요청·연결 수락은 각각 1 Intro를 사용하며, 자기 슬롯 잔액 다음 공용 잔액을 쓴다. 조회·검색·후보자 선추천은 Intro를 차감하지 않는다.
+
+정기 월·수·금 09시 KST talent-first, 첫 활성화, 수동 talent-first, 온보딩·선정·전달·우선 검토의 유료 전용 제한을 해제한다. 기존 Role 상태·일정·동의·공유·차단·test-only·중복 방지 조건은 유지한다. 연결 대기 화면은 결제 조회에 의존하지 않고 잠금·구매 gate를 표시하지 않는다.
+
+`20261027074848_free_role_matching_and_three_intros.sql`은 현재 표준 공용 기간의 실제 Intro/연결 사용량을 보존해 잔액을 `max(0, 3 - 사용량)`으로 바꾸고 이후 갱신도 3개로 만든다. 유료 기간·과거 기간·별도 계약은 보존한다. 가격 목록을 고정한 CHECK 2개는 제거하며 잔액 범위·소유권·기간 중복 방지는 유지한다. 운영 DB 적용·웹/Worker 배포·실제 추천/발송은 수행하지 않았다. Notion은 배포 후 실제 동작 기준으로 갱신한다. 아래 날짜가 명시된 과거 10 Intro·유료 전용 설명은 당시 이력이며 이 로컬 정책의 정본이 아니다.
+
+
 > 2026-10-26 공통 평가 저장 변경: 온보딩과 정기 Role 검색은 `worker_inputs.load_worker_inputs`의 동일한 입력, 1·2차 Decisions 평가, fingerprint와 `company_role_candidate_evaluations` 저장을 공유한다. 동일 Role·후보자·단계·입력은 실행 중에도 잠금 후 다시 확인해 재사용하고, 완료된 1차는 2차 실패 뒤에도 남긴다. 실제 출처는 회사 검색 `run_id` 또는 온보딩 `discovery_run_id`이며 선정 기록의 `evaluation_ref.evaluationId`로 정확한 평가를 연결한다. 새 Opportunity 평가는 `talent_opportunity_fit`에 중복 저장하지 않는다. 운영 DB migration `20261026052249`는 적용·검증했으며 웹·Worker 코드는 미배포다. 상세 검증과 한계는 [평가 기록](../evaluation/unified-talent-role-fit/README.md)을 따른다.
 
 > 2026-10-26 웹·Worker 로컬 변경·미배포, DB 선반영: `candidate_first`/`both`의 후보자 방향은 matching review만 저장하고 후보자 정기 주기의 공통 연락 판단으로 넘긴다. 신규 역할별 forced run은 생성하지 않으며 이미 큐에 있던 run은 호환 처리한다. Decisions `evaluation_ref`가 현재 유효하면 legacy fit 행 없이 읽을 수 있다. 연락 판단은 `gpt-6.1-sol high`이며 회사명+역할명으로 사용자 Memory를 검색한다. `roleIds`는 추천, `handledRoleIds`는 연락에 함께 처리하는 제안, `rejectedRoleIds`는 즉시 종료하는 비추천이다. `reason`과 정확한 review ID들을 기존 discovery `context_metrics`에 저장하고 같은 run의 재시도에서 재사용한다. `matching_refresh`는 fit/선정만 갱신한다. 검색 요일은 이미 선정한 제안의 전달을 제한하지 않는다. 새 전달은 실제 contact 선택 receipt와 현재 근거·공개·설정·역할·중복 검사를 통과해야 한다. `20261026034255_candidate_contact_cadence.sql`은 로컬 임시 DB 검증 뒤 사용자 승인으로 운영 migration `20261026044735`(`candidate_contact_cadence`)로 적용했다. 기존 함수 2개의 본문·권한을 확인했으며, 웹·Worker 배포와 신규 경로 활성화는 별도다. [평가 기록](../evaluation/unified-talent-role-fit/README.md)을 따른다.

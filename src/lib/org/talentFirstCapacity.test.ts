@@ -14,7 +14,7 @@ test("limit boundary, zero and unlimited capacity", () => {
     assert.equal(hasReachedTalentFirstCapacity(count, limit), expected);
 });
 
-test("reader uses latest stages, paid slots and paginated tags", async () => {
+test("reader uses latest stages, Free and paid Roles, and paginated tags", async () => {
   const roles = [
     "full",
     "free",
@@ -86,7 +86,7 @@ test("reader uses latest stages, paid slots and paginated tags", async () => {
       admin as any,
       roles.map((r) => r.role_id)
     ),
-    ["full"]
+    ["full", "free"]
   );
   assert.ok(queries.includes("full:1000"));
   assert.ok(!queries.some((q) => q.startsWith("test:")));

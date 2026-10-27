@@ -71,7 +71,8 @@ import { parseReadTalentIds, parseReadTalentProfileView, parseReadTalentProfileS
 import type { OrgAgentToolName } from "@/lib/org/agent/tools";
 import { formatMatchingRunHistory } from "@/lib/org/agent/promptFormat";
 import { resolveOrgAgentUpdateDataMode } from "@/lib/org/agent/updateDataMode";
-import { enqueueOrgAgenticMatchingSearch, enqueueOrgRecommendationPublication, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
+import { enqueueOrgAgenticMatchingSearch, matchingSearchUnavailableReason } from "@/lib/org/agent/matchingSearch";
+import { publishRoleRecommendations } from '@/lib/companyFirstSearch/publication/server';
 import {
   assertOrgAgentToolAvailable,
   OrgAgentToolInputError,
@@ -516,7 +517,7 @@ export function getOrgAgentToolStatusLabel(args: {
       "역할 확인 완료",
       "역할을 읽지 못했습니다",
     ],
-    publish_role_recommendations: ["추천 목록을 갱신하는 중", "추천 목록 갱신 요청 완료", "추천 목록을 갱신하지 못했습니다"],
+    publish_role_recommendations: ["후보 설명 작성 및 추천 목록 갱신 중", "추천 목록 갱신 완료", "추천 목록을 갱신하지 못했습니다"],
     recommend_talents: ["추천 선정 접수 중", "추천 선정 접수", "추천 선정 접수 실패"],
     request_matching_search: [
       "새 후보자 검색을 요청하는 중",
@@ -917,7 +918,16 @@ async function executeRequestMatchingSearch(args: {
   await assertOrgWorkspacePermission({admin:args.admin,user:args.user,workspaceId:args.workspaceId,permission:"manage_candidates"});
   const role = roleOrThrow(args.state, args.input.roleId);
   await assertOrgTeamRoleAccess({ admin: args.admin, user: args.user, workspaceId: args.workspaceId, roleId: role.roleId });
-  const queued = await (args.name === "publish_role_recommendations" ? enqueueOrgRecommendationPublication : enqueueOrgAgenticMatchingSearch)({
+  if (args.name === 'publish_role_recommendations') {
+    const result = await publishRoleRecommendations({input:args.input,requestId:args.callId,
+      sourceMessageId:args.currentUserMessageId,roleId:role.roleId,userId:args.user.id,workspaceId:args.workspaceId});
+    args.state.preferredRoleId = role.roleId;
+    args.state.fallbackReply = `${role.name} 추천 목록을 저장했어요. 추가 ${result.addedTalentIds.length}명, 제외 ${result.removedTalentIds.length}명입니다.`;
+    recordResult(args.state, {callId:args.callId,name:args.name,status:'success',
+      summary:`${role.name} 추천 목록 저장 완료: 추가 ${result.addedTalentIds.length}명, 갱신 ${result.refreshedTalentIds.length}명, 제외 ${result.removedTalentIds.length}명`});
+    return {...result,requestedRoleName:role.name};
+  }
+  const queued = await enqueueOrgAgenticMatchingSearch({
     input: args.input, requestId: args.callId, sourceMessageId:args.currentUserMessageId,
     admin: args.admin,
     roleId: role.roleId,

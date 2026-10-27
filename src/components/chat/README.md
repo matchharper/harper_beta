@@ -4,6 +4,11 @@
 공유하는 표시 전용 primitive가 있습니다. 데이터 조회, LLM 호출, tool 실행,
 메시지 저장은 이 폴더에 넣지 않고 각 도메인 adapter가 소유합니다.
 
+개발 환경의 `/career/preview/message-animation`에서 같은 `ChatComposerFrame`과
+`ChatMessageBubbleFrame`으로 직접 입력하거나 예시 메시지를 반복 전송할 수 있습니다.
+메시지는 화면의 로컬 상태에만 보관하며 실제 채팅 API를 호출하지 않습니다.
+새 버블의 등장 애니메이션과 운영체제의 동작 줄이기 설정을 그대로 사용합니다.
+
 ## Career / Organization 공통 primitive
 
 - `ChatComposerFrame`

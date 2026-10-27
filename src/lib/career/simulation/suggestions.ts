@@ -1,3 +1,4 @@
+import { formatPromptText } from "@/lib/llm/promptText";
 import { z } from "zod";
 import type { SimulationSession } from "./session";
 import {
@@ -181,5 +182,5 @@ export function applicationSuggestionsResult(
     !["completed", "skipped"].includes(action.status) ||
     (previousSession && JSON.stringify(previous.get(action.id)) !== JSON.stringify(action))
   );
-  return { ...result, modelOutput: JSON.stringify({ ...result, suggestions }) };
+  return { ...result, modelOutput: formatPromptText({ ...result, suggestions }) };
 }

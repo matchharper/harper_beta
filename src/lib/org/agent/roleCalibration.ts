@@ -1,5 +1,6 @@
 import { throwIfToolControlError } from "@/lib/llm/toolError";
 import { serializeToolResultForModel } from "@/lib/llm/toolError";
+import { formatRoleCalibrationToolResult } from "./roleToolResult";
 import { executeToolCall } from "@/lib/llm/toolExecution";
 import { formatToolError } from "@/lib/llm/toolError";
 import "server-only";
@@ -416,7 +417,7 @@ export async function generateRoleHiringBriefCalibration(args: {
         result = { ok: false, error: formatToolError(error) };
       }
       messages.push({
-        content: serializeToolResultForModel(result),
+        content: serializeToolResultForModel(result, value => formatRoleCalibrationToolResult(call.function.name, value)),
         role: "tool",
         tool_call_id: call.id,
       });

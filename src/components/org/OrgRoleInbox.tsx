@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { useIsMutating } from "@tanstack/react-query";
 import {
@@ -6,7 +6,7 @@ import {
   LayoutPanelLeft,
   LayoutGrid,
   List,
-  LockKeyhole,
+  LoaderCircle,
 } from "lucide-react";
 import { CardButton, MuteButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,22 +22,15 @@ import {
 import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { ORG_STAGE_DESCRIPTIONS } from "@/lib/org/pipelineStage";
 import { useOrgJobsBoard, useOrgJobsNavigation } from "@/hooks/org/useOrgJobs";
-import {
-  isOrgQueryAccessError,
-  isOrgQueryBlockingError,
-} from "@/lib/org/queryError";
-import { useOrgEntitlements } from "@/hooks/org/useOrgBilling";
-import { canUsePendingConnections } from "@/lib/org/billing/types";
+import { isOrgQueryBlockingError } from "@/lib/org/queryError";
 import {
   compareOrgCandidates,
   type OrgCandidateSort,
 } from "@/lib/org/candidateBoardSort";
 import { TalentDetailSimpleView } from "./TalentDetailSimpleView";
 import { OrgCriteriaBars } from "./OrgCriteriaBars";
-import { cn } from "@/lib/utils";
 import { OrgSearchHistory } from "./OrgSearchHistory";
 import { OrgRoleTalentBoard } from "./OrgRoleTalentBoard";
-import { OrgPendingConnectionGate } from "./billing/OrgPendingConnectionGate";
 import { OrgErrorState } from "./workspace/OrgErrorState";
 import { ReviewEmptyState } from "./OrgHomeInbox";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
@@ -47,7 +40,7 @@ export function OrgRoleInbox() {
   const router = useRouter();
   const { c, locale } = useOrgLocale();
   const sourceT = useOrgSourceT();
-  const { board, boardQuery } = useOrgJobsBoard();
+  const { board, boardQuery, inboxQuery } = useOrgJobsBoard();
   const {
     activeRole,
     detailRecommendationId,
@@ -57,7 +50,9 @@ export function OrgRoleInbox() {
   } = useOrgJobsNavigation();
   const listScrollTop = useRef(0);
   const scrollRef = useRef<HTMLElement>(null);
-  const entitlements = useOrgEntitlements(workspaceId);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const loadingNextReview = useRef(false);
+  const reviewScopeRef = useRef<string | null>(null);
   const mutationCount = useIsMutating({
     predicate: (mutation) => {
       const input = mutation.state.variables as
@@ -71,8 +66,9 @@ export function OrgRoleInbox() {
   });
   const savedReview = router.query.review === "saved";
   const stage =
-    router.query.inboxStage === "company_intro"
-      ? "company_intro"
+    router.query.inboxStage === "company_intro" ||
+    router.query.inboxStage === "pending_connection"
+      ? router.query.inboxStage
       : "pending_connection";
   const view =
     router.query.inboxView === "list"
@@ -88,6 +84,8 @@ export function OrgRoleInbox() {
       ? c("추천순", "Recommended")
       : c("최신순", "Newest first");
   const stageCounts = useMemo(() => {
+    const serverCounts = inboxQuery?.data?.pages[0]?.counts;
+    if (serverCounts) return serverCounts;
     const counts = { pending_connection: 0, company_intro: 0 };
     for (const item of board?.items ?? []) {
       if (
@@ -98,7 +96,7 @@ export function OrgRoleInbox() {
       }
     }
     return counts;
-  }, [board?.items]);
+  }, [board?.items, inboxQuery?.data]);
   const items = useMemo(
     () =>
       (board?.items ?? [])
@@ -110,11 +108,6 @@ export function OrgRoleInbox() {
         .sort((a, b) => compareOrgCandidates(a, b, sort)),
     [board?.items, stage, sort, savedReview]
   );
-  const pendingLocked =
-    Boolean(entitlements.data) &&
-    !canUsePendingConnections(entitlements.data, activeRole?.roleId);
-  const locked =
-    !savedReview && stage === "pending_connection" && pendingLocked;
   const change = (patch: Record<string, string>, preserveSelection = false) => {
     if (patch.inboxStage || patch.sort) listScrollTop.current = 0;
     const query = { ...router.query, ...patch };
@@ -135,13 +128,14 @@ export function OrgRoleInbox() {
   useEffect(() => {
     if (
       card &&
+      // Resolve the Role's default inbox before selecting its first candidate.
       !(detailTalentId && !detailRecommendationId) &&
       !savedReview &&
       !mutationCount &&
       boardQuery.data &&
       !isOrgQueryBlockingError(boardQuery.error, boardQuery.data) &&
       items.length &&
-      !items.some((item) => item.recommendationId === detailRecommendationId)
+      !detailRecommendationId
     ) {
       const item = items[0];
       void router.replace(
@@ -160,6 +154,54 @@ export function OrgRoleInbox() {
     }
   });
   const reviewing = card || Boolean(detailTalentId);
+  const hasNextPage = inboxQuery?.hasNextPage ?? false;
+  const fetching = inboxQuery?.isFetching ?? false;
+  const pageError = inboxQuery?.isError ?? false;
+  const fetchNextPage = inboxQuery?.fetchNextPage;
+  const selectedIndex = items.findIndex(item => item.recommendationId === detailRecommendationId);
+  const reviewScope = JSON.stringify([workspaceId, activeRole?.roleId, stage, sort, savedReview, detailRecommendationId]);
+  useLayoutEffect(() => {
+    reviewScopeRef.current = reviewScope;
+    return () => { reviewScopeRef.current = null; };
+  }, [reviewScope]);
+  const loadNextReviewPage = async () => {
+    if (!fetchNextPage || loadingNextReview.current) return;
+    loadingNextReview.current = true;
+    const previousIds = new Set(items.map(item => item.recommendationId));
+    try {
+      // A decision can already be refreshing the current pages. Let that finish
+      // before requesting another page so offsets aren't read across the write.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await fetchNextPage({ cancelRefetch: false });
+        if (result.isError || reviewScopeRef.current !== reviewScope) return;
+        const candidates = result.data?.pages.flatMap(page => page.items)
+          .filter(item => savedReview ? Boolean(item.savedAt) : !item.savedAt && item.stage === stage)
+          .sort((a, b) => compareOrgCandidates(a, b, sort)) ?? [];
+        const next = candidates.find(item => !previousIds.has(item.recommendationId));
+        if (next) {
+          selectTalent(next, candidates);
+          return;
+        }
+        if (!result.hasNextPage) return;
+      }
+    } finally {
+      loadingNextReview.current = false;
+    }
+  };
+  useEffect(() => {
+    if (reviewing || !hasNextPage || fetching || pageError || mutationCount || !fetchNextPage) return;
+    const target = loadMoreRef.current;
+    const root = scrollRef.current;
+    if (!target || !root) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        observer.disconnect();
+        void fetchNextPage();
+      }
+    }, { root, rootMargin: "240px" });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasNextPage, fetching, pageError, mutationCount, fetchNextPage, reviewing, items.length, stage, view]);
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: reviewing ? 0 : listScrollTop.current });
   }, [reviewing, stage, sort]);
@@ -198,7 +240,7 @@ export function OrgRoleInbox() {
                   label: (
                     <span className="inline-flex items-center gap-1.5 text-sm">
                       {c("연결 대기", "Ready to connect")}
-                      {!pendingLocked && stageCounts.pending_connection > 0 && (
+                      {stageCounts.pending_connection > 0 && (
                         <Badge
                           className="h-4 min-w-6 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
                           size="sm"
@@ -208,9 +250,6 @@ export function OrgRoleInbox() {
                       )}
                     </span>
                   ),
-                  icon: pendingLocked ? (
-                    <LockKeyhole className="size-3.5" aria-hidden />
-                  ) : undefined,
                   tooltip: sourceT(ORG_STAGE_DESCRIPTIONS.pending_connection),
                   tooltipVariant: "light",
                 },
@@ -243,7 +282,7 @@ export function OrgRoleInbox() {
               <DropdownMenuContent align="end">
                 <DropdownMenuRadioGroup
                   value={sort}
-                  onValueChange={(sort) => change({ sort }, true)}
+                  onValueChange={(sort) => change({ sort })}
                 >
                   <DropdownMenuRadioItem value="latest">
                     {c("최신순", "Newest first")}
@@ -309,7 +348,7 @@ export function OrgRoleInbox() {
         !isOrgQueryBlockingError(boardQuery.error, boardQuery.data) && (
           <OrgErrorState
             message={boardQuery.error.message}
-            onRetry={() => void boardQuery.refetch()}
+            onRetry={() => void (inboxQuery?.isFetchNextPageError ? reviewing ? loadNextReviewPage() : inboxQuery.fetchNextPage() : boardQuery.refetch())}
           />
         )}
       {isOrgQueryBlockingError(boardQuery.error, boardQuery.data) ? (
@@ -319,16 +358,6 @@ export function OrgRoleInbox() {
         />
       ) : detailTalentId && !detailRecommendationId ? (
         <TalentDetailSimpleView presentation="inline" />
-      ) : stage === "pending_connection" &&
-        (!entitlements.data || isOrgQueryAccessError(entitlements.error)) ? (
-        entitlements.isError ? (
-          <OrgErrorState
-            message={entitlements.error.message}
-            onRetry={() => void entitlements.refetch()}
-          />
-        ) : (
-          <ReviewEmptyState loading />
-        )
       ) : boardQuery.isLoading ? (
         <ReviewEmptyState loading />
       ) : reviewing && (detailTalentId || items.length) ? (
@@ -337,6 +366,9 @@ export function OrgRoleInbox() {
             presentation="inline"
             showBack={savedReview || !card}
             navigationItems={items}
+            navigationTotal={inboxQuery?.data?.pages[0]?.totalCount}
+            onNextPage={hasNextPage && selectedIndex === items.length - 1 ? () => void loadNextReviewPage() : undefined}
+            nextPagePending={inboxQuery?.isFetchingNextPage}
             advanceAfterAction={card || savedReview}
             backLabel={
               savedReview
@@ -353,11 +385,7 @@ export function OrgRoleInbox() {
           />
         </div>
       ) : !items.length ? (
-        locked ? (
-          <OrgPendingConnectionGate workspaceId={workspaceId} />
-        ) : (
-          <ReviewEmptyState />
-        )
+        <ReviewEmptyState />
       ) : view === "grid" ? (
         <OrgRoleTalentBoard section="inbox" inboxItems={items} />
       ) : (
@@ -423,6 +451,18 @@ export function OrgRoleInbox() {
               </article>
             );
           })}
+        </div>
+      )}
+      {hasNextPage && !pageError && !reviewing && (
+        <div ref={loadMoreRef} className="flex justify-center py-4">
+          <MuteButton
+            size="sm"
+            disabled={fetching || Boolean(mutationCount)}
+            onClick={() => void fetchNextPage?.()}
+          >
+            {fetching ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : null}
+            {c("더 보기", "Load more")}
+          </MuteButton>
         </div>
       )}
     </section>

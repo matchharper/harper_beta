@@ -58,6 +58,20 @@ test("superseded source cannot continue or publish application work", async () =
   await assert.rejects(() => assertEmailApplicationReadyToReply(f.ctx), EmailPermanentError);
 });
 
+test("Ops email cannot continue or stop an existing live browser", async () => {
+  const f = fixture();
+  f.job.kind = "ops_email_test";
+  f.job.metadata.applicationMessageId = 100;
+  f.record.state.browser = {
+    id: "live-browser", status: "running", sourceMessageId: 2,
+    startedAt: "2026-10-14T01:00:00Z", updatedAt: "2026-10-14T01:01:00Z",
+    documentId: "resume", documentHash: "pinned-version",
+    url: "https://example.test/apply", purpose: "Authorized application",
+  };
+  await assert.rejects(() => continueEmailApplication(f.ctx), /cannot operate an application browser/);
+  assert.equal(f.record.state.browser.status, "running");
+});
+
 test("application context gives the model full source and actual pending wording", async () => {
   const f = fixture();
   f.record.state = askApplicationInput(f.record.state, {

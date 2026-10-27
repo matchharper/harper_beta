@@ -117,9 +117,9 @@ function greeting(locale: OrgLocale, recipientName: string) {
 const ACTION_ROW_MARKER = (index: number) => `HARPERDIGESTACTIONS${index}X`;
 const CARD_START_MARKER = (index: number) => `HARPERDIGESTCARD${index}X`;
 const SECTION_SPACER_MARKER = "HARPERDIGESTSECTIONSPACERX";
-// One bordered card per candidate: borders and a light fill, no shadows, so it holds in most mail clients.
+// One card per candidate with a light fill, no border or shadow.
 const CARD_OPEN =
-  '<div style="border:1px solid #e5e7eb;border-radius:10px;background:#f9fafb;padding:16px 16px 4px;margin:0 0 12px">';
+  '<div style="border-radius:10px;background:#f9fafb;padding:16px 16px 4px;margin:0 0 12px">';
 const CARD_DIVIDER = "────────────────────";
 
 type ActionRow = {
@@ -148,7 +148,7 @@ function criteriaHtml(criteria: ActionRow["criteria"]) {
     return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;background:${style.box};border-radius:4px;padding:3px"><tr>${cells}</tr></table>`;
   };
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 12px">${criteria
-    .map((item) => `<tr><td style="padding:2px 8px 2px 0;vertical-align:middle">${bars(item.fitness)}</td><td style="padding:2px 0;font-size:13px;line-height:1.4;color:#374151">${escapeHtml(item.name)} · ${escapeHtml(item.label)}</td></tr>`)
+    .map((item) => `<tr><td role="img" aria-label="${escapeHtml(item.label)}" style="padding:2px 8px 2px 0;vertical-align:middle">${bars(item.fitness)}</td><td style="padding:2px 0;font-size:13px;line-height:1.4;color:#374151">${escapeHtml(item.name)}</td></tr>`)
     .join("")}</table>`;
 }
 
@@ -165,7 +165,7 @@ export function candidateDigestActionRowHtml(row: ActionRow) {
     item: { label: string; url: string },
     filled: boolean
   ) =>
-    `<td style="padding:0 8px 8px 0"><a href="${escapeHtml(item.url)}" style="display:inline-block;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:600;line-height:1.2;text-decoration:none;${
+    `<td style="padding:0 8px 8px 0"><a href="${escapeHtml(item.url)}" style="display:inline-block;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:500;line-height:1.2;text-decoration:none;${
       filled
         ? "background:#111827;border:1px solid #111827;color:#ffffff"
         : "background:#ffffff;border:1px solid #d1d5db;color:#111827"

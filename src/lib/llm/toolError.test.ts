@@ -62,7 +62,7 @@ test("provider response details survive without request headers", () => {
   const result = { ok: false, error: { message: "Authorization=abc Bearer tokenvalue", apiKey: "private-value", details: "postgres://me:password@host/db" }, assistantInstruction: "기존 안내" };
   const output = serializeToolResultForModel(result);
   assert.ok(!output.includes("private-value")); assert.ok(!output.includes("tokenvalue")); assert.ok(!output.includes("me:password"));
-  assert.equal(result.error.apiKey, "private-value"); assert.equal(JSON.parse(output).assistantInstruction, "기존 안내");
+  assert.equal(result.error.apiKey, "private-value"); assert.match(output, /assistantInstruction: 기존 안내/);
  });
  test("getters never execute and wide/deep diagnostic traversal is bounded", () => {
   let reads = 0; const error = { message: "failure", huge: Array.from({length: 10000}, (_, i) => i) };
@@ -73,9 +73,9 @@ test("provider response details survive without request headers", () => {
 
 test("existing supplemental field values are never overwritten", () => {
   const result = { ok: false, error: "failed", additionalToolDiagnostics: "기존 원문" };
-  const output = JSON.parse(serializeToolResultForModel(result));
-  assert.equal(output.additionalToolDiagnostics, "기존 원문");
-  assert.match(output.additionalToolDiagnostics_2, /failed/);
+  const output = serializeToolResultForModel(result);
+  assert.match(output, /additionalToolDiagnostics: 기존 원문/);
+  assert.match(output, /Additional tool diagnostics:\nfailed/);
 });
 test("undefined tool results and inherited accessors cannot break transport", () => {
   assert.equal(typeof serializeToolResultForModel(undefined), "string");
@@ -88,7 +88,7 @@ test("undefined tool results and inherited accessors cannot break transport", ()
 test("returned Error objects remain readable and an explicit empty error flag adds no diagnostic", () => {
   assert.match(serializeToolResultForModel(new Error("returned SDK error")), /returned SDK error/);
   const clear = { ok: true, error: false };
-  assert.equal(serializeToolResultForModel(clear), JSON.stringify(clear));
+  assert.equal(serializeToolResultForModel(clear), "ok: 예\nerror: 아니요");
 });
 
 test("native DOM errors retain their message without evaluating custom accessors", () => {

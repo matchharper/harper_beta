@@ -12,6 +12,12 @@ const packageAsset = (packageName, asset) =>
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Inline the same real package paths used by tracing. Serverless bundles do
+  // not necessarily preserve pnpm's top-level node_modules symlinks.
+  env: {
+    HARPER_RESUME_FONT_DIRECTORY: packageAsset("@fontsource/noto-sans-kr", ""),
+    HARPER_RESUME_SCRIPT_PATH: packageAsset("pagedjs", "dist/paged.min.js"),
+  },
   serverExternalPackages: [
     "playwright-core",
     "pdf-parse-fork",

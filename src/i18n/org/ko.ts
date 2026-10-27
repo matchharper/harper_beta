@@ -39,7 +39,7 @@ export const ko = {
   "agent.quickAction.pendingIntrosMessage":
     "지금 결정이 필요한 연결 대기 목록을 알려줘",
   "agent.quickAction.runSearchMessage":
-    "이 역할에 대해 우리가 먼저 Intro를 요청해볼 만한 후보자를 찾아줘.",
+    "이 역할의 현재 추천 목록에 없는 후보자를 더 찾아서, Intro를 요청해볼 만한 사람을 목록에 추가해줘.",
   "shared.introRequested": "Intro Requested",
   "announcement.welcome.title": "환영합니다.",
   "announcement.welcome.description":
@@ -159,14 +159,14 @@ export const ko = {
   "faq.service-overview.question":
     "Harper는 뭘 해주는 서비스인가요? 회사 채용팀을 위해 어떤 일을 해주나요?",
   "faq.service-overview.answer":
-    "저희는 회사와 함께 채용을 진행하는 파트너예요. 역할과 판단 기준을 정리하고, 맞는 후보자를 찾아 경력과 근무 조건을 검토해요. 먼저 제안 가능한 후보에서는 회사가 만나보고 싶은 사람을 고르고 Intro를 요청할 수 있어요. 후보자가 수락하면 미리 선택한 팀원과 소개 이메일로 연결해요. 슬롯이 배정된 Role의 연결 대기에서는 Harper가 먼저 역할을 소개하고 대화 의사를 확인한 후보자를 검토해 회사가 연결 여부를 결정해요. 기존 별도 계약의 이용 범위는 해당 계약을 따르며, 연결 후에는 후보자 연락과 일정 조율을 맡기고 Pipeline에서 전형을 관리할 수 있어요.",
+    "저희는 회사와 함께 채용을 진행하는 파트너예요. 역할과 판단 기준을 정리하고, 맞는 후보자를 찾아 경력과 근무 조건을 검토해요. 먼저 제안 가능한 후보에서는 회사가 만나보고 싶은 사람을 고르고 Intro를 요청할 수 있어요. 후보자가 수락하면 미리 선택한 팀원과 소개 이메일로 연결해요. 연결 대기에서는 Harper가 먼저 역할을 소개하고 대화 의사를 확인한 후보자를 검토해 회사가 연결 여부를 결정해요. 기존 별도 계약의 이용 범위는 해당 계약을 따르며, 연결 후에는 후보자 연락과 일정 조율을 맡기고 Pipeline에서 전형을 관리할 수 있어요.",
   "faq.getting-started.question": "처음 가입했어요. 이제 뭘 하면 되나요?",
   "faq.getting-started.answer":
     "먼저 회사 정보와 Pitch를 확인하고, 함께 채용할 팀원과 Slack 알림 채널을 준비해 주세요. 역할이 없다면 웹의 New role을 열거나 Slack에서 Harper에게 채용하고 싶은 역할을 말하면 돼요. 완성된 JD 없이도 대화로 Description과 Hiring Brief를 정리할 수 있어요. 작성 중인 역할은 등록을 마무리하고, 채용 중인 역할은 Settings의 추천 후보 검색과 요일·시각을 확인해 주세요. 먼저 제안 가능한 후보에서 Intro를 요청하고, 이용 가능한 Role의 Inbox에 연결 대기 후보자가 있으면 연결 여부를 결정하면 돼요. 검토할 후보가 없다면 화면을 계속 열어 둘 필요는 없어요. 역할은 필요할 때 중단하거나 삭제할 수 있어요.",
   "faq.pricing-overview.question":
     "Harper 비용은 어떻게 되나요? 월 구독료나 채용 수수료가 있나요?",
   "faq.pricing-overview.answer":
-    "Role은 자유롭게 만들 수 있고, Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 전체 Role이 함께 쓰는 월 10 Intro는 슬롯을 추가해도 별도로 유지돼요. 표준 슬롯은 배정한 Role 하나에 유료 기능과 월 50 Intro를 제공하고, Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. Enterprise와 기존 별도 계약은 합의한 조건을 따라요. 현재 새 회사의 직접 가입과 일반 회사의 셀프서비스 결제는 일시 중단되어 있어요. Slots와 Billing 메뉴가 표시되는 Workspace에서는 배정·구독·결제 내역을 확인할 수 있고, 메뉴가 없거나 적용 조건이 궁금하면 문의하기로 Harper 팀에 확인해 주세요. /pricing의 공개 상품 설명만으로 회사의 실제 계약이나 잔액을 판단하지 않아요.",
+    "Role은 자유롭게 만들 수 있고, Free Role은 한 번에 1개까지 채용을 진행할 수 있어요. 전체 Role이 함께 쓰는 월 3 Intro는 슬롯을 추가해도 별도로 유지돼요. 표준 슬롯은 활성 Role 하나와 그 Role의 월 50 Intro를 추가로 제공하고, Free와 표준 슬롯 구독에는 채용 성공보수가 없어요. Enterprise와 기존 별도 계약은 합의한 조건을 따라요. 현재 새 회사의 직접 가입과 일반 회사의 셀프서비스 결제는 일시 중단되어 있어요. Slots와 Billing 메뉴가 표시되는 Workspace에서는 배정·구독·결제 내역을 확인할 수 있고, 메뉴가 없거나 적용 조건이 궁금하면 문의하기로 Harper 팀에 확인해 주세요. /pricing의 공개 상품 설명만으로 회사의 실제 계약이나 잔액을 판단하지 않아요.",
   "faq.pricing-subscription.question":
     "월 구독료나 사용료가 따로 있나요? 무료인가요?",
   "faq.pricing-subscription.answer":
@@ -182,11 +182,11 @@ export const ko = {
   "faq.pending-connection.question":
     "연결 대기와 먼저 제안 가능한 후보는 어떻게 다른가요?",
   "faq.pending-connection.answer":
-    "먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람을 회사가 먼저 검토하는 목록이에요. 이전에 Harper의 추천을 받았거나 거절한 경우도 있으므로 처음 보는 역할이거나 관심이 확인된 후보라고 단정하지 않아요. Intro 요청을 확정하면 Harper가 회사의 관심 이유를 담아 제안하고, 후보자가 수락하면 미리 고른 팀원과 소개 이메일로 연결해요. 연결 대기는 후보자가 회사와 역할에 대한 설명을 듣고 대화해 볼 의사를 밝힌 뒤 회사의 결정을 기다리는 상태예요. 슬롯이 배정된 Role 또는 해당 기능이 포함된 기존 계약에서 이용하며, 회사가 연결을 수락하거나 거절해야 해요. 후보자의 수락과 회사에 실제로 소개가 전달된 시점은 다를 수 있어요.",
+    "먼저 제안 가능한 후보는 이 역할을 아직 수락하지 않은 사람을 회사가 먼저 검토하는 목록이에요. 이전에 Harper의 추천을 받았거나 거절한 경우도 있으므로 처음 보는 역할이거나 관심이 확인된 후보라고 단정하지 않아요. Intro 요청을 확정하면 Harper가 회사의 관심 이유를 담아 제안하고, 후보자가 수락하면 미리 고른 팀원과 소개 이메일로 연결해요. 연결 대기는 후보자가 회사와 역할에 대한 설명을 듣고 대화해 볼 의사를 밝힌 뒤 회사의 결정을 기다리는 상태예요. Free Role에서도 이용할 수 있으며, 회사가 연결을 수락하거나 거절해야 해요. 후보자의 수락과 회사에 실제로 소개가 전달된 시점은 다를 수 있어요.",
   "faq.recommendation-paused.question":
     "추천이 오다가 멈췄어요. 새 후보자가 더 안 오는 이유가 뭔가요?",
   "faq.recommendation-paused.answer":
-    "역할이 중단·종료된 상태인지, Settings의 추천 후보 검색이 켜져 있는지와 다음 검색 요일·시각을 먼저 확인해 주세요. 연결 대기가 해당 역할의 검토 한도에 도달하면 새 후보자에게 먼저 추천하는 일부 탐색이 제한돼요. 기존 후보자의 연결을 수락하거나 거절해 대기가 줄면 그 제한이 풀릴 수 있지만, 먼저 제안 가능한 후보 검색까지 모두 멈춘다는 뜻은 아니에요. 슬롯이나 기존 계약의 이용 범위, 미처리 제안, 적합한 후보의 유무도 영향을 줄 수 있어요. Harper에게 최근 검색 이력을 물어 현재 확인되는 범위를 보고, 해결되지 않으면 문의하기에 역할 이름과 상황을 남겨 주세요.",
+    "역할이 중단·종료된 상태인지, Settings의 추천 후보 검색이 켜져 있는지와 다음 검색 요일·시각을 먼저 확인해 주세요. 연결 대기가 해당 역할의 검토 한도에 도달하면 새 후보자에게 먼저 추천하는 일부 탐색이 제한돼요. 기존 후보자의 연결을 수락하거나 거절해 대기가 줄면 그 제한이 풀릴 수 있지만, 먼저 제안 가능한 후보 검색까지 모두 멈춘다는 뜻은 아니에요. Role의 활성 상태, 미처리 제안, 적합한 후보의 유무도 영향을 줄 수 있어요. Harper에게 최근 검색 이력을 물어 현재 확인되는 범위를 보고, 해결되지 않으면 문의하기에 역할 이름과 상황을 남겨 주세요.",
   "faq.recommendation-feedback.question":
     "추천된 후보자들이 제가 찾는 방향과 조금 달라요.",
   "faq.recommendation-feedback.answer":
@@ -324,7 +324,8 @@ export const ko = {
   "TalentDetailSimpleView.8fef4400": "후보자에게 연락을 보냈어요",
   "TalentDetailSimpleView.8cadb511": "후보자에게 질문을 보냈어요",
   "TalentDetailSimpleView.e290cc9b": "후보자의 답변이 도착했어요",
-  "TalentDetailSimpleView.candidateMessageReceived": "후보자에게 메시지가 왔어요",
+  "TalentDetailSimpleView.candidateMessageReceived":
+    "후보자에게 메시지가 왔어요",
   "TalentDetailSimpleView.0ba36805": "후보자의 메시지가 전달됐어요",
   "TalentDetailSimpleView.e608273c": "메모",
   "TalentDetailSimpleView.4fcf75a6": "연결 시작",
@@ -597,7 +598,7 @@ export const ko = {
   "faq.regular-search.question":
     "정기 후보 검색은 언제 실행되나요? 요일과 시간을 바꾸거나 끌 수 있나요?",
   "faq.regular-search.answer":
-    "Role Settings의 추천 후보 검색에서 켜기·끄기와 요일·시각을 정해요. 새 Role의 기본은 켜짐, 한국 시간 월·수·금 오전 9시이며 기존 Role은 저장된 설정을 따라요. 이 설정은 회사가 먼저 검토할 후보의 정기 탐색을 관리해요. 꺼도 명시적인 Run Search 요청은 별도로 가능하고, 슬롯·기존 계약에서 허용되는 후보자 선추천까지 모두 끄는 설정은 아니에요. 설정 변경으로 이미 시작한 검색이나 전달된 제안이 취소되지는 않아요.",
+    "Role Settings의 추천 후보 검색에서 켜기·끄기와 요일·시각을 정해요. 새 Role의 기본은 켜짐, 한국 시간 월·수·금 오전 9시이며 기존 Role은 저장된 설정을 따라요. 이 설정은 회사가 먼저 검토할 후보의 정기 탐색을 관리해요. 꺼도 명시적인 Run Search 요청은 별도로 가능하고, Free를 포함한 활성 Role의 후보자 선추천까지 끄는 설정은 아니에요. 설정 변경으로 이미 시작한 검색이나 전달된 제안이 취소되지는 않아요.",
   "faq.run-search.question":
     "Run Search를 누르면 무엇이 달라지나요? 후보자에게 바로 연락하나요?",
   "faq.run-search.answer":
@@ -619,13 +620,13 @@ export const ko = {
   "faq.intro-awaiting.answer":
     "Intro Requested는 회사가 Intro를 요청한 뒤 제안 준비나 후보자 응답을 기다리는 상태예요. 카드에서 제안 준비 중, 후보자 답변 대기, 후보자 수락 · 연결 준비 중을 구분해 볼 수 있어요. 요청을 했다는 사실만으로 전달이나 수락을 확정하지 않아요. 답변이 없으면 수락도 거절도 아니며, 추가 연락은 제안이 실제 전달된 뒤 부탁할 수 있어요. 수락 전에는 면접 조율이나 일반 Pipeline 이동을 진행하지 않아요. 후보자가 수락하면 추가 회사 승인 없이 소개 이메일로 연결하고, 거절하면 제안을 종료해 회사에 알려요.",
   "faq.connection-access.question":
-    "연결 대기는 왜 잠겨 있나요? 공용 Intro가 있으면 이용할 수 있나요?",
+    "슬롯 없이도 후보자 추천과 연결 대기를 이용할 수 있나요?",
   "faq.connection-access.answer":
-    "표준 구독에서 연결 대기는 해당 Role에 슬롯이 배정되어 있어야 이용할 수 있어요. 공용 Intro는 Intro 요청 등에 쓸 수 있지만 연결 대기 접근 권한을 만들지는 않아요. 한 Role의 슬롯이 다른 Role의 유료 기능까지 열어 주지도 않아요. 기존 계약이나 Enterprise의 범위는 별도 조건을 따라요. Slots 메뉴가 표시되면 배정을 확인하고, 메뉴가 없으면 문의하기로 Harper 팀에 이용 범위를 확인해 주세요.",
+    "네. 슬롯이 없는 Free Role도 Harper가 후보자에게 먼저 역할을 소개하고 관심을 확인하며, 연결 대기에서 수락한 후보자를 검토할 수 있어요. Intro 요청과 연결 수락에는 공용 Intro를 사용할 수 있어요. 유료 슬롯은 활성 Role 1개와 배정한 Role의 월 50 Intro를 추가해요.",
   "faq.slots-and-credits.question":
     "Free 공용 Intro와 슬롯 Intro는 어떻게 다른가요?",
   "faq.slots-and-credits.answer":
-    "Free와 표준 슬롯 이용 회사에는 전체 Role이 함께 쓰는 월 10개의 공용 Intro가 있어요. 슬롯 하나는 배정한 Role에 월 50개의 슬롯 Intro를 추가로 제공해요. 공용 Intro는 특정 Role에 배정하는 무료 슬롯이 아니고, Role 생성 수나 채용 인원 수의 한도도 아니에요. Intro는 월 단위로 갱신되며 남은 Intro는 다음 기간으로 이월되지 않아요. 실제 잔액·갱신일과 기존 계약의 예외는 회사에 적용된 정보로 확인해야 해요.",
+    "Free와 표준 슬롯 이용 회사에는 전체 Role이 함께 쓰는 월 3개의 공용 Intro가 있어요. 슬롯 하나는 배정한 Role에 월 50개의 슬롯 Intro를 추가로 제공해요. 공용 Intro는 특정 Role에 배정하는 무료 슬롯이 아니고, Role 생성 수나 채용 인원 수의 한도도 아니에요. Intro는 월 단위로 갱신되며 남은 Intro는 다음 기간으로 이월되지 않아요. 실제 잔액·갱신일과 기존 계약의 예외는 회사에 적용된 정보로 확인해야 해요.",
   "faq.credit-spending.question":
     "Intro는 언제 차감되나요? 슬롯 Intro가 없으면 어떻게 되나요?",
   "faq.credit-spending.answer":
@@ -633,7 +634,7 @@ export const ko = {
   "faq.slot-management.question":
     "슬롯을 다른 Role에 배정하거나 구독을 취소하면 Role도 중단되나요?",
   "faq.slot-management.answer":
-    "결제 기능이 제공되는 Workspace의 Slots에서 슬롯 배정을 관리해요. 구독 취소는 해당 슬롯 단위로 처리하며, 사용 종료 시점은 화면의 구독 정보에서 확인해야 해요. 슬롯이 만료되면 남은 유효 슬롯에 먼저 배정하고, 슬롯 없이 유지하는 활성 Free Role은 최대 1개예요. 해당 Role이 여러 개라면 먼저 만든 적격 Free Role 1개를 남기고 나머지는 일시 중지해요. 기존 후보자·Intro·진행 이력은 유지하며, 별도 계약은 해당 조건을 따라요. 다른 Role로 슬롯 배정을 옮길 때도 활성 Free Role 한도와 기존 Role이 잃는 기능을 확인해 주세요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 메뉴가 없으면 Harper 팀에 문의해야 해요.",
+    "결제 기능이 제공되는 Workspace의 Slots에서 슬롯 배정을 관리해요. 구독 취소는 해당 슬롯 단위로 처리하며, 사용 종료 시점은 화면의 구독 정보에서 확인해야 해요. 슬롯이 만료되면 남은 유효 슬롯에 배정할 수 있지만, 이미 활성화된 Role을 개수 초과로 자동 중지하지 않아요. 기존 활성 Free Role이 여러 개여도 유지되며, 새로 시작하거나 재개할 때만 Free Role 1개와 유효한 유료 슬롯의 용량을 확인해요. 기존 후보자·Intro·진행 이력은 유지하며, 별도 계약은 해당 조건을 따라요. 슬롯을 옮기면 각 Role이 사용할 수 있는 슬롯 Intro가 달라져요. 현재 일반 회사의 셀프서비스 결제는 일시 중단되어 있어 메뉴가 없으면 Harper 팀에 문의해야 해요.",
   "faq.role-public-promotion.question":
     "외부 공고 노출과 회사명 비공개를 설정하면 무엇이 바뀌나요?",
   "faq.role-public-promotion.answer":

@@ -260,3 +260,53 @@ for (const scenario of [
     }
   });
 }
+
+test("saved board recovers an exhausted page after cache loss and keeps it through session hydration", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { url: "http://localhost" });
+  const previous = new Map(["window", "document", "Event", "CustomEvent", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  Object.defineProperties(globalThis, {
+    window: { configurable: true, value: dom.window },
+    document: { configurable: true, value: dom.window.document },
+    Event: { configurable: true, value: dom.window.Event },
+    CustomEvent: { configurable: true, value: dom.window.CustomEvent },
+    IS_REACT_ACT_ENVIRONMENT: { configurable: true, writable: true, value: true },
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const saved = { ...opportunity, feedback: "positive" as const, savedStage: "saved" as const };
+  let requests = 0;
+  let hook!: ReturnType<typeof useCareerHistoryState>;
+  const fetchWithAuth: FetchWithAuth = async () => {
+    requests += 1;
+    return Response.json({ savedStagePages: { saved: { items: [saved], nextOffset: null } } });
+  };
+  function Harness() {
+    hook = useCareerHistoryState({ autoLoad: false, conversationId: null, enabled: true, userId: "fixture", fetchWithAuth });
+    return null;
+  }
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><MessagesProvider locale="ko"><Harness /></MessagesProvider></QueryClientProvider>));
+    await act(async () => { await hook.loadSavedStageHistoryOpportunityPages(["saved"]); });
+    await settle();
+    assert.equal(hook.historyOpportunities.length, 1);
+    await act(async () => hook.hydrateHistoryOpportunities([], null));
+    await settle();
+    assert.equal(hook.historyOpportunities[0]?.id, saved.id, "session hydration preserves the saved card");
+    await act(async () => client.setQueriesData({ queryKey: ["career-history-opportunities"] }, { pages: [{ items: [], nextOffset: null, counts: null }], pageParams: [0] }));
+    await settle();
+    assert.equal(hook.historyOpportunities.length, 0);
+    await act(async () => { await hook.loadSavedStageHistoryOpportunityPages(["saved"]); });
+    await settle();
+    assert.equal(requests, 2, "the automatic batch path must reload even after its cursor was exhausted");
+    assert.equal(hook.historyOpportunities[0]?.id, saved.id);
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+    dom.window.close();
+  }
+});
