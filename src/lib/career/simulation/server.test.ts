@@ -285,17 +285,35 @@ test("email defers durably, reads live JD and form before suggestions, and resum
   const f = fixture();
   const order: string[] = [];
   const inspect = f.dependencies.inspectApplicationForm;
+  let releaseInspection!: () => void;
+  let inspectionEntered!: () => void;
+  const entered = new Promise<void>(resolve => { inspectionEntered = resolve; });
+  const gate = new Promise<void>(resolve => { releaseInspection = resolve; });
   const dependencies = { ...f.dependencies,
     executeSharedOpenUrl: async () => { order.push("jd"); return { markdown: "Live role requirement", title: "Role", url: "https://example.test/job", cached: false }; },
-    inspectApplicationForm: async (...args: Parameters<typeof inspect>) => { order.push("form"); return inspect(...args); },
-    writeApplicationSuggestions: async (input: any) => { order.push("suggestions"); assert.match(input.role, /Live role requirement/); assert.match(input.application, /example.test\/apply/); assert.doesNotMatch(input.application, /pending/); return []; },
+    inspectApplicationForm: async (...args: Parameters<typeof inspect>) => {
+      order.push("form"); inspectionEntered(); await gate;
+      const form = await inspect(...args);
+      return { ...form, submission: { status: "unsupported", reason: "Applicant login required" },
+        fields: [{ label: "Motivation", type: "textarea", required: true, options: [], instructions: "Explain interest in this role", fileTypes: [], maxLength: 1200 },
+          { label: "Resume", type: "file", required: true, options: [], instructions: "Attach CV", fileTypes: [".pdf"], maxLength: null }] };
+    },
+    writeApplicationSuggestions: async (input: any) => {
+      order.push("suggestions"); assert.match(input.role, /Live role requirement/);
+      for (const evidence of ["example.test/apply", "Applicant login required", "Motivation", "Explain interest in this role", "1200", ".pdf"]) assert.ok(input.application.includes(evidence));
+      assert.doesNotMatch(input.application, /pending/); assert.throws(() => JSON.parse(input.application)); return [];
+    },
   } as unknown as typeof f.dependencies;
   const args = { ...f.args, startOfferId: undefined, emailSourceMessageId: 1 };
   const first = await executeApplicationSimulation({ ...args, deferPreparation: true }, dependencies);
   assert.equal("preparationPending" in first && first.preparationPending, true);
   assert.deepEqual(order, []);
   assert.equal(f.state.activity?.channel, "email");
-  const result = await executeApplicationSimulation({ ...args, resumeMessageId: 100 }, dependencies);
+  const preparing = executeApplicationSimulation({ ...args, resumeMessageId: 100 }, dependencies);
+  await entered;
+  assert.deepEqual(order, ["jd", "form"]); // Slow inspection cannot race the writer.
+  releaseInspection();
+  const result = await preparing;
   assert.equal(result.ok, true);
   assert.deepEqual(order, ["jd", "form", "suggestions"]);
   assert.equal(f.state.activity?.preparationRequest, undefined);
@@ -313,6 +331,23 @@ test("email missing or unreadable resume returns an actionable result without st
     assert.equal(f.writes, 0);
     assert.match(("reason" in result ? result.reason : "") ?? "", /readable/i);
   }
+});
+
+test("same email with a different role or resume is not mistaken for the current preparation", async () => {
+  const f = fixture();
+  const args = { ...f.args, startOfferId: undefined, emailSourceMessageId: 1, deferPreparation: true };
+  await executeApplicationSimulation(args, f.dependencies);
+  const writes = f.writes;
+  const differentRole = await executeApplicationSimulation({ ...args, roleRef: "role:other" }, f.dependencies);
+  assert.equal(differentRole.ok, false);
+  const differentDocument = await executeApplicationSimulation({ ...args, documentId: "another-resume" }, {
+    ...f.dependencies,
+    fetchTalentDocument: async () => ({ id: "another-resume", kind: "resume", extracted_text: "Other resume", file_name: "Other.pdf", origin_type: "upload" }),
+  } as unknown as typeof f.dependencies);
+  assert.equal(differentDocument.ok, false);
+  assert.equal(f.writes, writes);
+  assert.equal(f.state.roleRef, args.roleRef);
+  assert.equal(f.state.documentId, "resume");
 });
 
 test("short and long resumes reach the same suggestion writer intact without length policy", async () => {

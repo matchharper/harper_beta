@@ -1,4 +1,8 @@
-import type { OrgLocale } from "@/i18n/org/locale";
+import { isOrgLocale, type OrgLocale } from "@/i18n/org/locale";
+
+export function resolveOrgWorkspaceLocale(savedLocale: unknown, headquarters: unknown): OrgLocale {
+  return isOrgLocale(savedLocale) ? savedLocale : localeFromHeadquarters(headquarters);
+}
 
 // Headquarters is free text in company_db.location. Missing locations default
 // to Korean; nonempty locations not recognized as Korean default to English.

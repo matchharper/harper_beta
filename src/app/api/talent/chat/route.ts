@@ -1761,7 +1761,7 @@ export async function POST(req: NextRequest) {
         const saved=execution!.record;
         simulationSession=saved;
         onSimulationMessage(saved.message);
-        const awaitingUserInput=!!pendingApplicationBatch(saved.state);
+        const awaitingUserInput="awaitingUserInput" in execution!.result && execution!.result.awaitingUserInput === true;
         if(awaitingUserInput) {applicationQuestionsAsked=true;thinkingLogs.length=0;}
         await refreshSimulationRuntime();
         return execution!.result;
@@ -1786,6 +1786,13 @@ export async function POST(req: NextRequest) {
         }
         if (!simulationSession || simulationSession.state.status !== "active")
           return { ok: false, reason: "No active simulation session." };
+        if (toolInput.action === "inspect") {
+          const inspected = await executeApplicationPreparationTool({ store: simulationStore, record: simulationSession, name: toolArgs.name, input: toolInput, messageId: Number(insertedUserMessage.id) });
+          simulationSession = inspected!.record;
+          onSimulationMessage(inspected!.record.message);
+          await refreshSimulationRuntime();
+          return inspected!.result;
+        }
         const mutation = sessionMutationSchema.parse(toolInput);
         if (simulationSession.state.preparation && !APPLICATION_PREPARATION_SESSION_ACTIONS.includes(mutation.action))
           throw new Error("Use manage_application_suggestions to resolve or revise preparation suggestions.");

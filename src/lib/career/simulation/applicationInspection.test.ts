@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   runApplicationInspection,
   awaitApplicationInspection,
+  refreshApplicationInspection,
 } from "./applicationInspection";
 import { createSimulationSession, type SimulationSession } from "./session";
 import { createPreparation } from "./preparation";
@@ -101,6 +102,25 @@ const form: ApplicationForm = {
   limitations: [],
   submission: { status: "supported", reason: "Public form" },
 };
+
+test("explicit reinspection recovers a failed read and retains answers without a per-email retry ceiling", async () => {
+  const f = fixture();
+  f.update(s => {
+    s.applicationInspection = { status: "failed", runId: "failed" };
+    s.preparation!.responses.Q = { decision: "answer", text: "Built APIs", evidenceMessageId: 8 };
+    s.preparation!.finalDocumentId = "saved-resume";
+  });
+  let calls = 0;
+  const inspect = async () => { calls++; return form; };
+  const refreshed = await refreshApplicationInspection(f.store, 10, 9, inspect);
+  assert.equal(refreshed.state.applicationForm?.submission?.status, "supported");
+  assert.equal(refreshed.state.preparation?.responses.Q.text, "Built APIs");
+  assert.equal(refreshed.state.preparation?.finalDocumentId, null);
+  assert.equal(refreshed.state.browser, undefined);
+  assert.equal(calls, 1);
+  await refreshApplicationInspection(f.store, 10, 9, inspect);
+  assert.equal(calls, 2);
+});
 
 test("a slow inspection and a fast answer submission merge; duplicate workers never launch a second browser", async () => {
   const f = fixture(),

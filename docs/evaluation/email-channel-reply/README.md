@@ -75,3 +75,12 @@ Frozen synthetic 3 conversations/7 turns extend application-v2 on 2026-10-14 aft
 Use the same Haiku 5.5 production helpers, fallback/storage policy, per-run source/prompt/frozen hashes, local-only owned fixtures, hard cleanup and owner-only artifacts as above. Manual semantic review is required; tool success or sent status alone is not a pass. Existing application-v2/question-v1 stay frozen and are regression references. Small synthetic challenge cases do not estimate production-average reliability or verify a real employer receipt.
 
 Continuity review: [2026-10-14 approval and execution attribution](reports/2026-10-14-application-continuity.md). The latest e rerun verifies completed-record retrieval, current/later source identity and the required factual unknown with Haiku; b supplies the differently worded approval. Raw failed and intermediate runs remain preserved.
+
+
+## Autonomous email application flow (application-email-flow-v1)
+
+2026-10-27 이메일 전용 요구 변경을 반영한 합성 2대화/4턴이다. 첫 요청에서 여러 보유 이력서 중 적합한 원본을 스스로 선택하고, 양식 확인 뒤 수정/질문을 독립 번호로 작성하는지 확인한다. 후속 자연어 승인 또는 직접 수정 요청은 재확인 없이 실제 문서 저장까지 이어져야 한다. 이전 narrative-only gold는 변경하지 않는다. 입력·정답·hash는 새 cases/gold/manifest에 첫 실행 전에 동결했다.
+
+기존 canonical runner `scripts/evalEmailRuntimeReplies.ts --dataset application-email-flow-v1 --run-id <fresh-name>`를 사용한다. `application.extraResumes`는 일반 추가 파일 fixture이며 대화 판단을 모킹하지 않는다. 원래 런타임 모델/설정, 실제 provider 호출, SQL 저장, captured email을 사용하고 JD/form/제출 receipt 경계만 합성이다. Browserbase 실제 사이트 접근이나 실제 회사 수신을 검증하는 평가는 아니다. 원본 provider 입력·답장·저장 문서를 수동 검토하며 파일 선택 재질문, 직접 수정 재확인, 제출 사실 왜곡 또는 승인 범위 밖 변경은 실패다. 기존 loopback/test-only/owner-only/정확한 fixture 정리 계약을 그대로 적용한다.
+
+검증 결과: [2026-10-27 이메일 지원 준비](reports/2026-10-27-email-application-flow.md). 로컬 schema 누락으로 실패한 실행과 수정 후 실제 모델/문서 저장 확인을 구분한다.

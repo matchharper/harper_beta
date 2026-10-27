@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { localeFromHeadquarters } from '@/lib/org/workspaceLocale';
+import { resolveOrgWorkspaceLocale } from '@/lib/org/workspaceLocale';
 import { fingerprint, type Facts, type PublicationRole, type PublicationCandidate, type Presentation } from './writer';
 
 export type Query = (text: string, params?: any[]) => Promise<Facts[]>;
@@ -78,7 +78,7 @@ const multiline = (value: unknown) => String(value ?? '').replaceAll('\r\n','\n'
 
 export async function loadSnapshot(query: Query, command: PublicationCommand): Promise<Snapshot> {
   const [row] = await query(`SELECT role.*,internal.request,internal.criteria,behavior.text_context AS behavior_context,
-    company.location AS headquarters_location,
+    company.location AS headquarters_location, workspace.locale AS workspace_locale,
     public.company_role_search_brief_version_v1(role.role_id) AS version,
     public.company_role_search_brief_snapshot_v1(role.role_id) AS brief_snapshot
     FROM public.company_roles role JOIN public.company_internal_roles internal USING(role_id)
@@ -102,7 +102,7 @@ export async function loadSnapshot(query: Query, command: PublicationCommand): P
     hiringBrief: row.request, companyBehavior: multiline(row.behavior_context),
     salary: row.salary_range || row.salary_min !== null || row.salary_max !== null ? salary : '',
     criteria,
-    outputLanguage: localeFromHeadquarters(row.headquarters_location) === 'ko' ? '한국어' : 'English'};
+    outputLanguage: resolveOrgWorkspaceLocale(row.workspace_locale, row.headquarters_location) === 'ko' ? '한국어' : 'English'};
   const pool = await readPool(query, command);
   const existing = new Set(pool.map(item => item.talent_id));
   const evaluations = await readEvaluations(query, command, row.version);

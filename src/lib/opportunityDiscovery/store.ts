@@ -46,6 +46,8 @@ const DEFAULT_SETTINGS: RecommendationSettings = {
 };
 
 const OPPORTUNITY_RUN_LOCK_TIMEOUT_MS = 3 * 60 * 1000;
+// Worker heartbeats every 30 seconds and recovers ownership after ten misses.
+const OPPORTUNITY_RUN_HEARTBEAT_TIMEOUT_MS = 5 * 60 * 1000;
 const INITIAL_ONBOARDING_RECOMMENDATION_COUNT = 15;
 const CAREER_CHAT_EXTERNAL_SEARCH_RUN_CONTRACT =
   "career_chat_external_search_v1";
@@ -336,15 +338,15 @@ export async function getActiveOpportunityRun(args: {
   return run;
 }
 
-/** 온보딩 종료로 생성된 최초 탐색 run이 DB상 queued/running인 동안만 true를 반환한다. */
+/** Queued work or a live Worker lease; a stored running label alone is insufficient. */
 export async function hasActiveConversationCompletedOpportunityRun(args: {
   admin: AdminClient;
   userId: string;
 }) {
-  const { count, error } = await ((
+  const { data, error } = await ((
     args.admin.from("opportunity_discovery_run" as any) as any
   )
-    .select("id", { count: "exact", head: true })
+    .select("status, lease_heartbeat_at, started_at, created_at")
     .eq("talent_id", args.userId)
     .eq("trigger", "conversation_completed")
     .in("status", ["queued", "running"]) as any);
@@ -356,7 +358,16 @@ export async function hasActiveConversationCompletedOpportunityRun(args: {
     );
   }
 
-  return Number(count ?? 0) > 0;
+  return (data ?? []).some((run: Pick<OpportunityRunRow,
+    "status" | "lease_heartbeat_at" | "started_at" | "created_at"
+  >) => {
+    if (run.status === "queued") return true;
+    const lastHeartbeat = Date.parse(
+      run.lease_heartbeat_at ?? run.started_at ?? run.created_at
+    );
+    return run.status === "running" && Number.isFinite(lastHeartbeat) &&
+      Date.now() - lastHeartbeat <= OPPORTUNITY_RUN_HEARTBEAT_TIMEOUT_MS;
+  });
 }
 
 async function fetchActiveOpportunityRunForTalent(args: {

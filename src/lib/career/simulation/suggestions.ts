@@ -3,7 +3,6 @@ import { z } from "zod";
 import type { SimulationSession } from "./session";
 import {
   suggestionSchema,
-  applicationSuggestionLimitError,
   suggestionParameters,
   suggestionAction,
 } from "./suggestionSchema";
@@ -24,9 +23,8 @@ export const manageSuggestionsSchema = z
             decision: z.enum(["accept", "ignore", "ask"]).optional(),
           })
           .strict()
-      )
-      .max(20),
-    introduction: z.string().max(1000).optional(),
+      ),
+    introduction: z.string().optional(),
   })
   .strict();
 export const manageApplicationSuggestionsTool = {
@@ -34,7 +32,7 @@ export const manageApplicationSuggestionsTool = {
   function: {
     name: MANAGE_APPLICATION_SUGGESTIONS,
     description:
-      "Resolve or revise application suggestions from the user's answers, or propose genuinely new ones. Existing id identifies an item; suggestion replaces its content or creates a new item without id. decision=accept settles a user-authorized change (including their requested rewrite) directly, ignore removes it from execution, ask presents it in the composer. Never reconfirm a rewrite the user just instructed. Questions can be settled with ignore after their facts are used; add a grounded change if its content is new. Saved button decisions and inline edits are authoritative. A request to finish preparation leaves them intact; revise a settled decision only for an explicit subsequent change request. Present at most 3 questions, 7 resume changes, and 10 suggestions total per batch including materials. Each question covers a distinct useful gap with a brief, specific reason; include multiple valuable follow-ups together when needed, with no minimum count. Batch consequential follow-ups; aim for one round, never more than three suggestion rounds. When any ask is published, stop and wait for the user. Otherwise continue to ready_for_role. This tool does not edit the actual resume.",
+      "Resolve or revise application suggestions from the user's answers, or propose genuinely new ones. Existing id identifies an item; suggestion replaces its content or creates a new item without id. decision=accept settles a user-authorized change (including their requested rewrite) directly, ignore removes it from execution, ask presents it in the composer. Never reconfirm a rewrite the user just instructed. Questions can be settled with ignore after their facts are used; add a grounded change if its content is new. Saved button decisions and inline edits are authoritative. A request to finish preparation leaves them intact; revise a settled decision only for an explicit subsequent change request. Each question covers a distinct useful gap with a brief, specific reason. Batch consequential follow-ups together and avoid repeating settled questions. Save already authorized resume edits with ready_for_role before publishing new asks, even when other items remain unresolved. When any ask is published, stop and wait for the user. Otherwise continue to ready_for_role. This tool does not edit the actual resume.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -43,7 +41,6 @@ export const manageApplicationSuggestionsTool = {
         introduction: { type: "string" },
         changes: {
           type: "array",
-          maxItems: 20,
           items: {
             type: "object",
             additionalProperties: false,
@@ -141,10 +138,6 @@ export function manageApplicationSuggestions(
     s.preparation!.finalDocumentId = null;
     s.preparation!.finalDocumentFingerprint = null;
   }
-  const limitError = applicationSuggestionLimitError(
-    present.map((id) => s.actions.find((action) => action.id === id)!.inputKind)
-  );
-  if (limitError) throw new Error(limitError);
   if (present.length)
     return askApplicationInput(
       s,
@@ -168,14 +161,18 @@ export function applicationSuggestionsResult(
   session: SimulationSession,
   previousSession?: SimulationSession
 ) {
-  const awaitingUserInput = !!pendingApplicationBatch(session);
+  const pending = pendingApplicationBatch(session);
+  // Existing unanswered items must not stop the tool loop before an approved
+  // subset has been written. Only publishing a new batch ends this turn.
+  const awaitingUserInput = !!pending &&
+    (!previousSession || !previousSession.activity?.batches.some(b => b.id === pending.id));
   const result = {
     ok: true,
     awaitingUserInput,
     suggestions: session.actions,
     assistantInstruction: awaitingUserInput
       ? "The composer shows the suggestions. Wait for the user's answers."
-      : "The user's instructions are resolved. Continue in this turn to ready_for_role, using action=reuse when no resume edit is needed. If an essential missing fact prevents preparation, explain that specific blocker and include the application URL for direct completion.",
+      : "Continue in this turn to ready_for_role to save authorized edits, using action=reuse when no resume edit is needed. Existing unanswered questions remain open and do not prevent saving a working draft. Resolve remaining requirements before submitting.",
   };
   const previous = new Map(previousSession?.actions.map(action => [action.id, action]));
   const suggestions = session.actions.filter(action =>

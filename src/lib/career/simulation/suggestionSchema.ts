@@ -1,28 +1,8 @@
 import { z } from "zod";
 import type { SessionAction } from "./session";
-export const MAX_APPLICATION_SUGGESTIONS = 10;
-export const MAX_APPLICATION_QUESTIONS = 3;
-export const MAX_APPLICATION_RESUME_CHANGES = 7;
-
-export function applicationSuggestionLimitError(
-  kinds: readonly (string | undefined)[]
-) {
-  if (kinds.length > MAX_APPLICATION_SUGGESTIONS)
-    return `Present at most ${MAX_APPLICATION_SUGGESTIONS} suggestions in one batch, including materials.`;
-  if (
-    kinds.filter((kind) => kind === "question").length >
-    MAX_APPLICATION_QUESTIONS
-  )
-    return `Present at most ${MAX_APPLICATION_QUESTIONS} questions in one batch.`;
-  if (
-    kinds.filter((kind) => kind === "change").length >
-    MAX_APPLICATION_RESUME_CHANGES
-  )
-    return `Present at most ${MAX_APPLICATION_RESUME_CHANGES} resume changes in one batch.`;
-}
 const base = {
-  title: z.string().trim().min(1).max(300),
-  reason: z.string().trim().min(1).max(3000),
+  title: z.string().trim().min(1),
+  reason: z.string().trim().min(1),
 };
 export const suggestionSchema = z.discriminatedUnion("kind", [
   z
@@ -39,8 +19,7 @@ export const suggestionSchema = z.discriminatedUnion("kind", [
             })
             .strict()
         )
-        .min(1)
-        .max(12),
+        .min(1),
     })
     .strict(),
   z.object({ ...base, kind: z.literal("question") }).strict(),
@@ -49,19 +28,12 @@ export const suggestionSchema = z.discriminatedUnion("kind", [
       ...base,
       kind: z.literal("material"),
       applicationField: z.string().min(1),
-      draftText: z.string().min(1).max(30000),
+      draftText: z.string().min(1),
     })
     .strict(),
 ]);
 export type ApplicationSuggestion = z.infer<typeof suggestionSchema>;
-export const suggestionBatchSchema = suggestionSchema
-  .array()
-  .superRefine((items, ctx) => {
-    const message = applicationSuggestionLimitError(
-      items.map((item) => item.kind)
-    );
-    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
-  });
+export const suggestionBatchSchema = suggestionSchema.array();
 const common = { title: { type: "string" }, reason: { type: "string" } };
 export const suggestionParameters = {
   anyOf: [
@@ -75,7 +47,6 @@ export const suggestionParameters = {
         edits: {
           type: "array",
           minItems: 1,
-          maxItems: 12,
           items: {
             type: "object",
             additionalProperties: false,

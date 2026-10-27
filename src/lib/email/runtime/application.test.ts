@@ -5,7 +5,7 @@ import { createPreparation } from "@/lib/career/simulation/preparation";
 import { suggestionAction } from "@/lib/career/simulation/suggestionSchema";
 import { askApplicationInput } from "@/lib/career/simulation/applicationInput";
 import { respondToApplicationQuestion } from "@/lib/career/simulation/toolExecution";
-import { assertEmailApplicationReadyToReply, continueEmailApplication, emailApplicationContext, loadEmailApplication } from "./application";
+import { assertEmailApplicationReadyToReply, continueEmailApplication, emailApplicationContext, emailApplicationToolResult, loadEmailApplication } from "./application";
 import { EmailContinuationPending, EmailPermanentError, type EmailJobContext } from "./types";
 
 function fixture() {
@@ -77,15 +77,31 @@ test("application context gives the model full source and actual pending wording
   f.record.state = askApplicationInput(f.record.state, {
     purpose: "Review", items: [{ kind: "change", title: "Improve clarity", reason: "Show responsibility", edits: [{ target: "Experience", originalText: "Before", suggestedText: "Exact proposed wording" }] }],
   }, "review");
-  const context = JSON.parse(await emailApplicationContext(f.ctx, f.record));
-  assert.equal(context.sourceDocument.fullText, f.fullText);
-  assert.equal(context.sourceDocument.revision, 4);
-  assert.equal(context.sourceDocument.hasUploadFile, false);
-  assert.equal(context.sourceDocument.canExportPdf, false);
-  assert.match(context.sourceDocument.documentUrl, /^https?:/);
-  assert.deepEqual(context.pendingBatch.items[0].edits, [{
-    target: "Experience", originalText: "Before", suggestedText: "Exact proposed wording",
-  }]);
+  const context = await emailApplicationContext(f.ctx, f.record);
+  assert.ok(context.includes(f.fullText));
+  assert.match(context, /revision: 4/);
+  assert.match(context, /hasUploadFile: 아니요/);
+  assert.match(context, /canExportPdf: 아니요/);
+  assert.match(context, /documentUrl: https?:/);
+  for (const passage of ["Experience", "Before", "Exact proposed wording"]) assert.ok(context.includes(passage));
+  assert.throws(() => JSON.parse(context));
+});
+
+test("email context distinguishes the preserved original from the current working resume revision", async () => {
+  const f = fixture();
+  f.record.state.documentId = "original-resume";
+  f.record.state.documentOriginType = "upload";
+  f.record.state.preparation.workingResume = { documentId: "resume", revision: 2, fileName: "Tailored resume" };
+  const context = await emailApplicationContext(f.ctx, f.record);
+  assert.match(context, /selectedResume:[\s\S]*documentId: original-resume/);
+  assert.match(context, /workingResume:[\s\S]*documentId: resume[\s\S]*revision: 4/);
+  assert.match(context, /saved working copy; update this document/);
+});
+
+test("a queued reinspection keeps the email continuation pending", async () => {
+  const f = fixture();
+  f.record.state.applicationInspection = { status: "queued", runId: "refresh" };
+  await assert.rejects(() => assertEmailApplicationReadyToReply(f.ctx), EmailContinuationPending);
 });
 
 test("browser execution identity survives continuation and distinguishes a later status email", async () => {
@@ -99,21 +115,24 @@ test("browser execution identity survives continuation and distinguishes a later
   };
   f.record.state.status = "ended";
   f.job.metadata.applicationBrowserRunId = "run-current";
-  const current = JSON.parse(await emailApplicationContext(f.ctx, f.record));
-  assert.equal(current.currentReply.applicationBrowserRunId, current.application.runId);
-  assert.equal(current.application.sourceMessageId, 2);
-  assert.equal(current.application.documentId, "resume");
-  assert.equal(current.application.documentFingerprint, "pinned-version");
-  assert.equal(current.application.result.url, "https://example.test/receipt");
+  const current = await emailApplicationContext(f.ctx, f.record);
+  assert.match(current, /applicationBrowserRunId: run-current/);
+  assert.match(current, /runId: run-current/);
+  assert.match(current, /sourceMessageId: 2/);
+  assert.match(current, /documentId: resume/);
+  assert.match(current, /documentFingerprint: pinned-version/);
+  assert.ok(current.includes("https://example.test/receipt"));
+  assert.ok(current.includes("2026-10-14 10:00"));
+  assert.ok(!current.includes("2026-10-14T01:00:00Z"));
   f.job.metadata = {}; // A new inbound status question did not execute this browser.
   f.ctx.sourceMessage.id = 3;
   const completed = await loadEmailApplication(f.ctx);
   assert.equal(completed?.state.browser?.id, "run-current");
   assert.equal(completed?.state.browser?.result?.url, "https://example.test/receipt");
-  const later = JSON.parse(await emailApplicationContext(f.ctx, f.record));
-  assert.equal(later.currentReply.applicationBrowserRunId, null);
-  assert.equal(later.application.runId, current.application.runId);
-  assert.equal(later.application.sourceMessageId, 2);
+  const later = await emailApplicationContext(f.ctx, f.record);
+  assert.match(later, /applicationBrowserRunId: 미확인/);
+  assert.match(later, /runId: run-current/);
+  assert.match(later, /sourceMessageId: 2/);
 });
 
 test("respond rejects stale batches and unknown choice identifiers before writes", async () => {
@@ -137,7 +156,17 @@ test("written materials and questions are supplied as evidence for model authori
       { kind: "question", title: "A card question", reason: "A card reason" },
     ],
   }, "material-review");
-  const context = JSON.parse(await emailApplicationContext(f.ctx, f.record));
-  assert.equal(context.pendingBatch.items[0].draftText, "An exact first paragraph.\n\nAn exact second paragraph.");
-  assert.equal(context.pendingBatch.items[1].title, "A card question");
+  const context = await emailApplicationContext(f.ctx, f.record);
+  assert.ok(context.includes("An exact first paragraph.\n\nAn exact second paragraph."));
+  assert.ok(context.includes("A card question"));
+});
+
+// Assert what reaches the provider, not just the raw transport object.
+test("email replaces shared web modelOutput with current decisions and source", async () => {
+  const { formatToolResultText } = await import("@/lib/llm/promptText");
+  const result = emailApplicationToolResult({ ok: true, modelOutput: "The composer shows the suggestions. Wait for answers.", suggestions: [{ executionPrompt: "internal executor" }] }, "Current accepted edit; full source; revision 4");
+  const providerText = formatToolResultText(result);
+  assert.ok(providerText.includes("Current accepted edit; full source; revision 4"));
+  assert.match(providerText, /ready_for_role now/);
+  assert.doesNotMatch(providerText, /The composer shows|internal executor/);
 });

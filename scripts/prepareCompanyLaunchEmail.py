@@ -17,6 +17,13 @@ from html.parser import HTMLParser
 from urllib.parse import urlencode
 
 
+def apply_approved_intro_copy(content):
+    return (content
+            .replace('슬롯마다 매달 50명 열람', '슬롯마다 월 50 Intro')
+            .replace('포지션 수 제한 없이 매달 10명까지 계속 확인하실 수 있어요.', '활성 포지션 1개를 운영하고 매달 3개의 Intro를 사용하실 수 있어요.')
+            .replace('포지션 수 제한 없이 매달 10명까지 확인하실 수 있습니다.', '활성 포지션 1개를 운영하고 매달 3개의 Intro를 사용하실 수 있습니다.'))
+
+
 class PlainText(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -61,6 +68,7 @@ def main():
         content = (original / variant).read_text()
         content = content.replace('내일(10월 23일)', '오늘(10월 27일)')
         content = content.replace('10월 31일', '11월 5일')
+        content = apply_approved_intro_copy(content)
         if row['group'] == 'E':
             content = content.replace('[담당자명]님, 안녕하세요. 지난 [문의월] Harper 사이트에 남겨주신 문의로 연락드려요.', '구열님, 안녕하세요. Harper 소식 전해드리려고 메일 드려요.')
         content = content.replace('[담당자명]님', html.escape('호진님' if test else row['greeting([담당자명]님)']))
@@ -102,7 +110,7 @@ def main():
     for i, group in enumerate(('A', 'C', 'D'), 1):
         manifest['test'].append(render(next(r for r in rows if r['group'] == group), i, True))
     (output / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
-    (output / 'package.md').write_text((original / 'package.md').read_text().replace('2026-10-22', '2026-10-27').replace('내일(10월 23일)', '오늘(10월 27일)').replace('10월 31일', '11월 5일'))
+    (output / 'package.md').write_text(apply_approved_intro_copy((original / 'package.md').read_text().replace('2026-10-22', '2026-10-27').replace('내일(10월 23일)', '오늘(10월 27일)').replace('10월 31일', '11월 5일')))
     for path in root.rglob('*'):
         os.chmod(path, 0o700 if path.is_dir() else 0o600)
     print(f'Prepared {len(rows)} individual customer emails and 3 test versions. No sends.')

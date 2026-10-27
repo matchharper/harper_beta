@@ -51,7 +51,8 @@ import {
   shouldSendOrgIntroEmail,
 } from "@/lib/org/candidateDecision";
 import { buildOrgInviteEmail } from "@/lib/org/inviteEmail";
-import { getOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
+import { getOrgWorkspaceLocale, saveOrgWorkspaceLocale } from "@/lib/org/workspaceLocale.server";
+import { isOrgLocale, type OrgLocale } from "@/i18n/org/locale";
 import {
   buildCompanyEventContent,
   getCompanyEventActorLabelFromUser,
@@ -210,6 +211,7 @@ export { OrgHttpError } from "./httpError";
 import { readOrgRoleAccess, scopeOrgRoleQuery, fetchOrgTeams, canAccessOrgRole, resolveOrgRoleAccess, type OrgTeam, type OrgAccessScope } from "./teamAccess";
 
 export type OrgWorkspace = {
+  locale?: OrgLocale | null;
   isReviewing?: boolean;
   signupState?: WorkspaceSignupState | null;
   companyProfile?: OrgCompanyProfile;
@@ -244,6 +246,7 @@ export type OrgCompanyProfile = {
 };
 
 export type OrgWorkspaceUpdateFields = {
+  locale?: OrgLocale;
   careerUrl?: string | null;
   companyDescription?: string | null;
   companyName?: string | null;
@@ -1015,6 +1018,7 @@ function toWorkspace(
   company?: OrgCompanyProfileResult | null
 ): OrgWorkspace {
   return {
+    locale: isOrgLocale(row.locale) ? row.locale : null,
     ...(company ? { companyProfile: company.profile } : {}),
     isReviewing: row.is_reviewing === true,
     signupState: (row.signup_state as WorkspaceSignupState | null) ?? null,
@@ -1463,7 +1467,7 @@ async function fetchWorkspaceById(
 ) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, signup_state, is_reviewing, updated_at"
+      "company_workspace_id, company_name, published_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, is_internal, signup_state, is_reviewing, locale, updated_at"
     )
     .eq("company_workspace_id", workspaceId)
     .maybeSingle();
@@ -1795,7 +1799,7 @@ async function fetchWorkspacesByIds(
   if (workspaceIds.length === 0) return [];
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, is_reviewing, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, is_reviewing, locale, updated_at"
     )
     .in("company_workspace_id", workspaceIds);
 
@@ -1806,7 +1810,7 @@ async function fetchWorkspacesByIds(
 async function fetchDefaultOrgWorkspaces(admin: SupabaseAdminClient) {
   const { data, error } = await (admin.from("company_workspace" as any) as any)
     .select(
-      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, is_reviewing, updated_at"
+      "company_workspace_id, company_name, company_description, pitch, request, logo_url, homepage_url, career_url, linkedin_url, company_db_id, signup_state, is_reviewing, locale, updated_at"
     )
     .eq("is_internal", true)
     .order("company_name", { ascending: true })
@@ -7380,6 +7384,9 @@ export async function updateOrgWorkspace(
   if (!workspace) throw new OrgHttpError(404, "Workspace not found");
 
   const beforeCompany = await fetchOrgCompanyProfile(admin, workspace);
+  if (args.locale !== undefined && !isOrgLocale(args.locale)) {
+    throw new OrgHttpError(400, "Invalid workspace language");
+  }
   const now = new Date().toISOString();
   const cleanText = (value: unknown, maxLength: number) => {
     const text = String(value ?? "").trim();
@@ -7608,6 +7615,9 @@ export async function updateOrgWorkspace(
     throw error;
   }
 
+  if (args.locale !== undefined && !(await saveOrgWorkspaceLocale(workspaceId, args.locale, admin))) {
+    throw new OrgHttpError(500, "Could not save workspace language");
+  }
   const updatedWorkspace = await fetchWorkspaceById(admin, workspaceId);
   if (!updatedWorkspace) throw new OrgHttpError(404, "Workspace not found");
   const company = await fetchOrgCompanyProfile(admin, updatedWorkspace);

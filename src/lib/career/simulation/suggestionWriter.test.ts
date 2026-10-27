@@ -30,10 +30,10 @@ test("suggestions use the shared chat default and inherit model-specific setting
         assert.equal(
           (
             finish?.function.parameters as {
-              properties: { suggestions: { maxItems: number } };
+              properties: { suggestions: { maxItems?: number } };
             }
           ).properties.suggestions.maxItems,
-          10
+          undefined
         );
         assert.equal(
           request.modelConfig?.primaryModel,
@@ -60,7 +60,7 @@ test("suggestions use the shared chat default and inherit model-specific setting
   }
 });
 
-test("initial batch limits questions to three, resume changes to seven, and all types to ten without a minimum", () => {
+test("initial batch accepts useful suggestions without arbitrary type or total caps", () => {
   const question = {
     kind: "question",
     title: "Which result can you support?",
@@ -88,9 +88,9 @@ test("initial batch limits questions to three, resume changes to seven, and all 
   for (const [questions, changes, materials, valid] of [
     [3, 7, 0, true],
     [3, 6, 1, true],
-    [4, 0, 0, false],
-    [0, 8, 0, false],
-    [3, 7, 1, false],
+    [4, 0, 0, true],
+    [0, 8, 0, true],
+    [3, 7, 1, true],
     [1, 0, 0, true],
     [0, 0, 0, true],
   ] as const) {

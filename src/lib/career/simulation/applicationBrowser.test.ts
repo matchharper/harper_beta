@@ -41,6 +41,8 @@ function fixture() {
   state.preparation.finalDocumentFingerprint = documentFingerprint({content_sha256: "hash-1", storage_path: "owner/resume.pdf"});
   state.activity = { version: 1, offerId: 1, outputs: {}, batches: [] };
   state.applicationUrl = "https://example.org/jobs/engineer";
+  state.applicationInspection = { status: "completed", runId: "inspection" };
+  state.applicationForm = { status: "read", url: state.applicationUrl, checkedAt: state.startedAt, fields: [], limitations: [], submission: { status: "supported", reason: "Observed public form" } };
   let documentHash = "hash-1";
   const admin = {
     rpc: async (_: string, args: Record<string, unknown>) => {
@@ -234,7 +236,7 @@ test("pending and unsupported inspections block assisted application before brow
   for (const status of ["unsupported", "unknown"] as const) {
     record.state.applicationForm = { status: "unavailable", url: "https://example.test/apply", checkedAt: new Date().toISOString(), fields: [], limitations: [], submission: { status, reason: "Observed access limit" } };
     f.set(record.state);
-    await assert.rejects(startApplicationBrowser(f.store, record, { purpose: "Apply" }), /unavailable for this form/);
+    await assert.rejects(startApplicationBrowser(f.store, record, { purpose: "Apply" }), status === "unsupported" ? /observed access barrier/ : /has not been established/);
     assert.equal(record.state.browser, undefined);
   }
 });

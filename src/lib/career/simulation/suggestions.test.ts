@@ -107,76 +107,20 @@ test("follow-up batches allow ten presented suggestions while resolving prior it
   assert.equal(result.actions.find((a) => a.id === "Q")?.status, "skipped");
 });
 
-test("follow-up type limits include existing suggestions and reject the whole mutation", () => {
-  for (const [kind, existingId, additional, expected] of [
-    ["question", "Q", 3, /at most 3 questions/],
-    ["change", "C", 7, /at most 7 resume changes/],
-  ] as const) {
-    const session = fixture(),
-      before = structuredClone(session);
-    assert.throws(
-      () =>
-        manageApplicationSuggestions(
-          session,
-          {
-            changes: [
-              { id: "M", decision: "ignore" },
-              { id: existingId, decision: "ask" },
-              ...Array.from({ length: additional }, () => ({
-                decision: "ask",
-                suggestion: {
-                  kind,
-                  title: "A useful suggestion",
-                  reason: "Relevant to the role.",
-                  ...(kind === "change"
-                    ? {
-                        edits: [
-                          {
-                            target: "Experience",
-                            originalText: "Built APIs",
-                            suggestedText: "Owned internal APIs",
-                          },
-                        ],
-                      }
-                    : {}),
-                },
-              })),
-            ],
-          },
-          "too-many-by-type",
-          10
-        ),
-      expected
-    );
-    assert.deepEqual(session, before);
-  }
-});
-
-test("an oversized follow-up is rejected atomically", () => {
+test("follow-ups preserve every useful item beyond the former per-type and total caps", () => {
   const session = fixture();
   const before = structuredClone(session);
-  assert.throws(
-    () =>
-      manageApplicationSuggestions(
-        session,
-        {
-          changes: [
-            { id: "C", decision: "ignore" },
-            ...Array.from({ length: 11 }, (_, index) => ({
-              decision: "ask",
-              suggestion: {
-                kind: "question",
-                title: `Missing fact ${index + 1}?`,
-                reason: "Required by the application.",
-              },
-            })),
-          ],
-        },
-        "oversized",
-        10
-      ),
-    /at most 10/
-  );
+  const result = manageApplicationSuggestions(session, {
+    changes: [
+      { id: "C", decision: "ignore" },
+      ...Array.from({ length: 21 }, (_, index) => ({
+        decision: "ask",
+        suggestion: { kind: "question", title: `Missing fact ${index + 1}?`, reason: "Required by the application." },
+      })),
+    ],
+  }, "useful-follow-ups", 10);
+  assert.equal(result.activity?.batches.at(-1)?.itemIds.length, 21);
+  assert.equal(result.actions.find(a => a.id === "C")?.status, "skipped");
   assert.deepEqual(session, before);
 });
 test("buttons settle deterministically; inline text and immutable shown text both survive persistence", () => {
@@ -510,6 +454,7 @@ test("suggestion delivery retains changed and pending items without settled hist
   assert.match(model, /참조 ID: M/);
   assert.doesNotMatch(model, /참조 ID: C/);
   assert.equal(result.suggestions, after.actions);
+  assert.equal(result.awaitingUserInput, false, "An existing pending question must allow the approved edits to be saved in this turn");
   assert.ok(model.includes(result.assistantInstruction));
   const unchanged=applicationSuggestionsResult(after, after).modelOutput;
   assert.match(unchanged, /참조 ID: Q/);

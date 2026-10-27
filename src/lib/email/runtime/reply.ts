@@ -34,6 +34,7 @@ import {
   EMAIL_SHARED_TOOL_NAMES,
   emailToolSelection,
   executeEmailTool,
+  emailCoachingContext,
 } from "./tools";
 import { renderReplyEmail } from "./format";
 import {
@@ -280,6 +281,7 @@ export async function processEmailReply(
       ).join("\n\n");
       const extra = [
         references.text,
+        ...(onboarding ? [] : [await emailCoachingContext(ctx)]),
         "Current application context (authoritative over older conversation summaries):\n" + applicationContext,
         opsTest ? "Ops email test: treat the supplied input as the candidate's message and write to the candidate in the usual email voice. Reads, owned document changes and application preparation are real; email delivery, company contact, application submission and mutations that schedule future matching/contact are disabled. Describe only verified actions." : await signupFollowupContext(ctx),
         onboarding

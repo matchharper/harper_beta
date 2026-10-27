@@ -38,9 +38,8 @@ test("uses the active conversation-completed run as the waiting-period boundary"
     value: unknown;
   }> = [];
   const query = {
-    select(columns: string, options: Record<string, unknown>) {
-      assert.equal(columns, "id");
-      assert.deepEqual(options, { count: "exact", head: true });
+    select(columns: string) {
+      assert.equal(columns, "status, lease_heartbeat_at, started_at, created_at");
       return query;
     },
     eq(field: string, value: unknown) {
@@ -49,7 +48,7 @@ test("uses the active conversation-completed run as the waiting-period boundary"
     },
     async in(field: string, value: unknown) {
       filters.push({ field, operation: "in", value });
-      return { count: 1, error: null };
+      return { data: [{ status: "running", lease_heartbeat_at: new Date().toISOString() }], error: null };
     },
   };
   const admin = {
@@ -85,7 +84,7 @@ test("ends the waiting period when the conversation-completed run is terminal", 
       return query;
     },
     async in() {
-      return { count: 0, error: null };
+      return { data: [], error: null };
     },
   };
   const admin = {
@@ -100,6 +99,34 @@ test("ends the waiting period when the conversation-completed run is terminal", 
   });
 
   assert.equal(active, false);
+});
+
+test("only queued work or a recent heartbeat can sustain initial-search waiting guidance", async () => {
+  const now = Date.now();
+  for (const [status, heartbeatAge, startedAge, expected] of [
+    ["running", 30_000, 3_600_000, true],
+    ["running", 360_000, 3_600_000, false],
+    ["running", null, 30_000, true],
+    ["running", null, 360_000, false],
+    ["queued", null, 3_600_000, true],
+    ["failed", 30_000, 60_000, false],
+  ] as const) {
+    const query = {
+      select() { return query; },
+      eq() { return query; },
+      async in() {
+        return { error: null, data: [{
+          status,
+          lease_heartbeat_at: heartbeatAge === null ? null : new Date(now - heartbeatAge).toISOString(),
+          started_at: new Date(now - startedAge).toISOString(),
+          created_at: new Date(now - startedAge).toISOString(),
+        }] };
+      },
+    };
+    assert.equal(await hasActiveConversationCompletedOpportunityRun({
+      admin: { from() { return query; } } as never, userId: "fixture-user",
+    }), expected, `${status}: heartbeat=${heartbeatAge}, started=${startedAge}`);
+  }
 });
 
 test("stores an explicit run recommendation target without the user-setting clamp", async () => {

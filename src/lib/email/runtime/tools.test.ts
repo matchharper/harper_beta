@@ -362,6 +362,18 @@ test("email acceptance guidance is an adapter copy and cannot mutate the shared 
     (t) => t.function.name === "update_recommended_opportunity_feedback"
   )!;
   assert.match(tool.function.description, /records the pending confirmation/);
+  const start = selection.tools.find(t => t.function.name === "simulate_application")!;
+  assert.match(start.function.description, /Choose the suitable source yourself/);
+  const revise = selection.tools.find(t => t.function.name === "manage_application_suggestions")!;
+  assert.match(revise.function.description, /save the approved subset with ready_for_role in this turn/);
+  const coaching = selection.tools.find(t => t.function.name === "manage_career_coaching_activity")!;
+  const parameters = coaching.function.parameters as { properties: { action: { enum: string[] } }; required: string[] };
+  assert.deepEqual(parameters.properties.action.enum, ["end"]);
+  assert.ok(parameters.required.includes("activityMessageId"));
+  assert.ok(parameters.required.includes("expectedRevision"));
+  const { manageApplicationSuggestionsTool } = await import("@/lib/career/simulation/suggestions");
+  assert.match(manageApplicationSuggestionsTool.function.description, /composer/);
+  assert.notEqual(revise, manageApplicationSuggestionsTool);
   assert.equal(JSON.stringify(getOpenAIChatTools("chat")), before);
 });
 

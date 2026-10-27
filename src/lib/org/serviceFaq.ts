@@ -323,7 +323,7 @@ export const COMPANY_SERVICE_FAQ_ITEMS: readonly CompanyServiceFaqItem[] = [
     category: "팀과 연동",
     question: "웹과 Slack의 Harper 언어를 바꿀 수 있나요?",
     answer:
-      "웹에서 선택한 한국어·영어는 해당 팀원의 설정으로 저장되고 Slack의 개인 대화에도 기본으로 사용돼요. 아직 설정이 없으면 현재 회사 대화의 언어를 따르며, 이번 답변의 언어를 직접 요청할 수도 있어요. Workspace 전체에 보내는 정기 소개나 공지는 회사 Headquarters 기준으로 한국이면 한국어, 그 외에는 영어를 사용해요. 답변 언어를 바꿨다고 Role 문서나 후보자에게 보낼 연락의 언어가 자동으로 바뀌지는 않아요.",
+      "회사 화면의 언어 설정은 회사 공용 언어예요. Owner와 조직 전체 Admin이 변경할 수 있고, 이후 생성되는 후보별 기준 설명·Harper Note·추천 이유와 자동 결과 안내·공지는 이 설정을 따라요. 설정이 없으면 본사 위치를 기준으로 정해요. 개인 설정의 언어는 화면과 직접 시작한 웹·Slack 대화에 적용돼요. 이미 저장된 설명·채팅·Role 문서나 후보자 연락은 자동으로 번역되지 않아요.",
     tags: ["locale:ko", "topic:workspace-language"],
   },
   {

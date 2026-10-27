@@ -24,6 +24,7 @@ const ACCOUNT_LOCAL_TOOLS = new Set([
   "read_document", "read_talent_context", "read_company_connections",
   "generate_resume", "simulate_application",
   "manage_application_suggestions", "ready_for_role", "manage_simulation_session",
+  "manage_career_coaching_activity",
 ]);
 
 export function opsEmailTestToolBlock(job: EmailRow, name: string) {

@@ -8,10 +8,10 @@ import {
 import { preparationKind } from "./preparation";
 export const ASK_APPLICATION_INPUT = "request_application_information";
 export const applicationInputSchema = z.object({
-  purpose: z.string().min(1).max(2000),
-  introduction: z.string().max(1000).optional(),
+  purpose: z.string().min(1),
+  introduction: z.string().optional(),
   replace: z.boolean().optional(),
-  reviewMarkdown: z.string().trim().min(1).max(60000).optional(),
+  reviewMarkdown: z.string().trim().min(1).optional(),
   items: z
     .array(
       z.object({
@@ -34,12 +34,10 @@ export const applicationInputSchema = z.object({
               description: z.string().optional(),
             })
           )
-          .max(6)
           .optional(),
       })
     )
-    .min(1)
-    .max(20),
+    .min(1),
 });
 export const applicationInputTool = {
   type: "function" as const,
@@ -59,7 +57,6 @@ export const applicationInputTool = {
         items: {
           type: "array",
           minItems: 1,
-          maxItems: 20,
           items: {
             type: "object",
             additionalProperties: false,
@@ -93,7 +90,6 @@ export const applicationInputTool = {
               },
               options: {
                 type: "array",
-                maxItems: 6,
                 items: {
                   type: "object",
                   additionalProperties: false,

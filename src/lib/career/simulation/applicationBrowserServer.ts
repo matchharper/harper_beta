@@ -196,10 +196,10 @@ export async function startApplicationBrowser(
   if (s.status !== "active" || s.analysisStatus !== "completed" || !s.activity)
     throw new Error("Completed application analysis required");
   if (isApplicationInspectionPending(s)) throw new Error("Application requirements are still being checked");
-  if (s.applicationInspection && s.applicationForm?.submission?.status !== "supported")
-    throw new Error("Assisted application is unavailable for this form. Provide the prepared documents and direct application link.");
   if (s.applicationForm?.submission?.status === "unsupported")
-    throw new Error("This application requires direct completion by the user. Provide its application link.");
+    throw new Error("The inspected form has an observed access barrier. Provide its direct application link and the observed reason, or recheck changed access with manage_simulation_session action=inspect.");
+  if (s.applicationForm?.submission?.status !== "supported")
+    throw new Error("Application access has not been established. Use manage_simulation_session action=inspect to check the form; this is not proof that assisted application is unavailable.");
   if (pendingApplicationBatch(s))
     throw new Error("Finish the current questions first");
   if (s.preparation?.applicationMethod === "manual")

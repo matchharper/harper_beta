@@ -12,9 +12,11 @@ import {
 export function OrgCriteriaEvaluation({
   evaluation,
   onClick,
+  showContent = false,
 }: {
   evaluation: OrgCompanyCriteriaEvaluation;
   onClick?: () => void;
+  showContent?: boolean;
 }) {
   const { locale } = useOrgLocale();
   const fitnessLabel = companyCriterionFitnessLabel(evaluation.fitness, locale);
@@ -44,6 +46,40 @@ export function OrgCriteriaEvaluation({
     );
   }
 
+  const indicator = (
+    <>
+      <Image
+        alt=""
+        aria-hidden="true"
+        className="size-5 shrink-0"
+        height={16}
+        src={`/svgs/${evaluation.fitness === "conflict" ? "bad" : evaluation.fitness === "limited" ? "uncertain" : evaluation.fitness}.svg`}
+        width={16}
+      />
+      <span
+        className={`min-w-0 text-[15px] font-medium text-neutral-primary leading-5 truncate`}
+      >
+        {evaluation.name}
+      </span>
+    </>
+  );
+
+  if (showContent) {
+    return (
+      <div className="min-w-0 space-y-2">
+        <div className="flex items-start gap-2">
+          {indicator}
+          <span className="sr-only">{fitnessLabel}</span>
+        </div>
+        {content ? (
+          <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] font-normal text-neutral-800">
+            {content}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <Tooltips text={content}>
       <BareButton
@@ -52,17 +88,7 @@ export function OrgCriteriaEvaluation({
         onClick={onClick}
         type="button"
       >
-        <Image
-          alt=""
-          aria-hidden="true"
-          className="size-5 shrink-0"
-          height={16}
-          src={`/svgs/${evaluation.fitness === "conflict" ? "bad" : evaluation.fitness === "limited" ? "uncertain" : evaluation.fitness}.svg`}
-          width={16}
-        />
-        <span className="line-clamp-2 min-w-0 whitespace-normal text-sm font-medium leading-4 text-neutral-primary">
-          {evaluation.name}
-        </span>
+        {indicator}
       </BareButton>
     </Tooltips>
   );

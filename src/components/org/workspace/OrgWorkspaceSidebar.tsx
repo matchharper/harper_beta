@@ -31,7 +31,6 @@ import {
   useState,
 } from "react";
 import { MuteButton } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogTitle } from "@/components/ui/dialog";
 import { PushNavigationContent } from "@/components/ui/push-navigation";
 import { OrgRoleStatusDot } from "@/components/org/OrgRoleStatusDot";
@@ -51,7 +50,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgMobileNavigation } from "@/components/org/workspace/OrgMobileNavigation";
-import { useOrgInboxCounts } from "@/hooks/org/useOrgRoleInbox";
 import { useOrgSlackStatus } from "@/hooks/org/useOrgSlack";
 import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgRoleActions } from "@/hooks/org/useOrgRoleActions";
@@ -274,7 +272,6 @@ function NavLink({
   icon: Icon,
   iconBackground = false,
   label,
-  pendingConnectionCount,
   onBlocked,
 }: {
   active: boolean;
@@ -284,21 +281,12 @@ function NavLink({
   icon: ComponentType<{ className?: string }>;
   iconBackground?: boolean;
   label: string;
-  pendingConnectionCount?: number;
   onBlocked?: () => void;
 }) {
-  const { c } = useOrgLocale();
-  const tooltipText =
-    pendingConnectionCount !== undefined
-      ? c("{p0} · 연결 대기 {p1}명", "{p0} · Ready to connect: {p1}", {
-          p0: label,
-          p1: pendingConnectionCount,
-        })
-      : label;
   const link = (
     <Link
       aria-disabled={blocked || undefined}
-      aria-label={compact ? tooltipText : undefined}
+      aria-label={compact ? label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
         getNavItemClassName({ active, compact }),
@@ -324,16 +312,11 @@ function NavLink({
         />
       )}
       {compact ? null : <span className="relative z-20">{label}</span>}
-      {!compact && pendingConnectionCount !== undefined ? (
-        <div className="relative z-20 ml-auto rounded-full text-[10px] py-0.5 bg-action-500 px-1.5 tabular-nums text-white">
-          {pendingConnectionCount}
-        </div>
-      ) : null}
     </Link>
   );
 
   return compact ? (
-    <Tooltips side="right" text={tooltipText}>
+    <Tooltips side="right" text={label}>
       {link}
     </Tooltips>
   ) : (
@@ -676,8 +659,6 @@ export function OrgWorkspaceSidebar({
     workspace,
     workspaces,
   } = useOrgWorkspace();
-  const inboxQuery = useOrgInboxCounts({ workspaceId: workspace.workspaceId });
-  const pendingConnectionCount = inboxQuery.data?.counts.pending_connection;
   const primaryNav = permissions.canManageCandidates
     ? PRIMARY_NAV.flatMap((item) =>
         item.id === "jobs" ? [item, NEW_ROLE_NAV] : [item]
@@ -964,9 +945,6 @@ export function OrgWorkspaceSidebar({
                       icon={item.icon}
                       iconBackground={item.id === "new-role"}
                       label={item.label}
-                      pendingConnectionCount={
-                        item.id === "home" ? pendingConnectionCount : undefined
-                      }
                     />
                   ))}
                 </nav>
@@ -1000,9 +978,6 @@ export function OrgWorkspaceSidebar({
                       href={navHref(item.id)}
                       icon={item.icon}
                       label={item.label}
-                      pendingConnectionCount={
-                        item.id === "home" ? pendingConnectionCount : undefined
-                      }
                     />
                   </div>
                 ))}
@@ -1298,21 +1273,6 @@ export function OrgWorkspaceSidebar({
                           <Icon className="size-4" strokeWidth={1.55} />
                         )}
                         <span>{item.label}</span>
-                        {item.id === "home" &&
-                        pendingConnectionCount !== undefined ? (
-                          <Badge
-                            aria-label={c(
-                              "연결 대기 {p0}명",
-                              "Ready to connect: {p0}",
-                              { p0: pendingConnectionCount }
-                            )}
-                            className="ml-auto min-w-5 bg-blue-500 px-1.5 tabular-nums text-white"
-                            radius="full"
-                            size="sm"
-                          >
-                            {pendingConnectionCount}
-                          </Badge>
-                        ) : null}
                       </Link>
                     );
                   })}

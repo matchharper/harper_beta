@@ -69,7 +69,7 @@ export function adaptEmailPromptBlocks(
   const channelRules = buildEmailChannelRules(mode);
   const webRules = buildCareerChannelContextRules("chat");
   const adapted = blocks
-    .filter((block) => block.key !== "mock_interview_offer" && block.key !== "application_start_payload" && block.key !== "simulation_availability")
+    .filter((block) => block.key !== "mock_interview_offer" && block.key !== "application_start_payload" && block.key !== "simulation_availability" && block.key !== "application_preparation_context" && block.key !== "career_coaching_activity" && block.key !== "career_coaching_state")
     .map((block) => {
       if (block.key === "tool_policy") return { ...block, text: block.text.replace(WEB_APPLICATION_START_POLICY, "simulate_application starts preparation directly in email; choose a readable owned resume and role. The current email application contract governs presentation and continuation.") };
       if (
