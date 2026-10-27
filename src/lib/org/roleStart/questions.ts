@@ -96,6 +96,15 @@ export type RawBrief = {
  */
 export function briefFromRaw(raw: RawBrief, previous?: RoleStartBrief, reason?: string, options: { modelSignals?: boolean } = {}) {
   const now = new Date().toISOString();
+  // Ids the rewrite keeps by id. A criterion found only by its name never takes
+  // one of them (a rename next to a new criterion under the old name would give
+  // both the same id), and an id given twice goes to its first criterion only.
+  const keptIds = new Set(
+    raw.criteria.flatMap((criterion) =>
+      criterion.id && previous?.criteria.some((item) => item.id === criterion.id) ? [criterion.id] : []
+    )
+  );
+  const taken = new Set<string>();
   const brief = normalizeRoleStartBrief({
     summary: raw.summary,
     // An empty list from a rewrite keeps the team's notes, unless the team's own request was about them.
@@ -118,9 +127,11 @@ export function briefFromRaw(raw: RawBrief, previous?: RoleStartBrief, reason?: 
     ],
     criteria: raw.criteria.map((criterion) => {
       // Same criterion by the id the model returns (renames keep it), else by name.
+      const byId = criterion.id && !taken.has(criterion.id) ? previous?.criteria.find((item) => item.id === criterion.id) : undefined;
       const before =
-        (criterion.id ? previous?.criteria.find((item) => item.id === criterion.id) : undefined) ??
-        previous?.criteria.find((item) => item.name === criterion.name);
+        byId ??
+        previous?.criteria.find((item) => item.name === criterion.name && !(item.id && (keptIds.has(item.id) || taken.has(item.id))));
+      if (before?.id) taken.add(before.id);
       const level = parseLevel(criterion.importance) ?? levelOf({ requirement: criterion.requirement });
       const changed =
         before &&

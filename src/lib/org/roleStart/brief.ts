@@ -403,6 +403,28 @@ export function criterionHash(criterion: OrgRoleCriterion) {
     excellent: criterion.signals?.excellent ?? "",
     good: criterion.signals?.good ?? "",
     kind: criterion.kind ?? "similarity",
+    // A rule criterion is scored from its years, which can change without its text.
+    // Absent for every other kind, so their hashes (and stored scores) stay as they were.
+    years: criterion.kind === "rule" ? ruleYearsOf(criterion) : undefined,
+  });
+}
+
+function ruleYearsOf(criterion: OrgRoleCriterion) {
+  const rule = (criterion as RoleStartCriterion).rule;
+  return rule ? [rule.minYears ?? null, rule.maxYears ?? null] : undefined;
+}
+
+/**
+ * What ranking reads from the Brief besides the job titles (jobScoreKey): the
+ * hard conditions' values, each criterion's scored text and kind
+ * (criterionHash) and its level. People picked for one Brief are the ones
+ * another Brief would pick only while this, the verdict hash and the job
+ * titles all match.
+ */
+export function rankingBriefHash(brief: RoleStartBrief) {
+  return stableHash({
+    hard: hardConditionsHash(brief),
+    criteria: brief.criteria.map((criterion) => [criterionHash(criterion), levelOf(criterion)]),
   });
 }
 
@@ -429,6 +451,24 @@ export function summaryKey(brief: Pick<RoleStartBrief, "hardConditions" | "crite
  * written in the background after its questions). Never a summaryKey (those are base36).
  */
 export const SUMMARY_PENDING = "summary-pending";
+
+/**
+ * The latest Brief with a newly written summary, or null when it must not be
+ * saved. `written` is the Brief the summary was written from. The draft's
+ * first summary lands while the latest one is still pending, even when an
+ * answer changed the Brief meanwhile: it keeps the key it was written for, so
+ * it reads as needing a rewrite for the change instead of staying empty. Any
+ * other summary lands only on the conditions and criteria it was written for,
+ * over a summary nobody edited meanwhile.
+ */
+export function summaryToSave(args: { written: RoleStartBrief; summary: string; latest: RoleStartBrief }): RoleStartBrief | null {
+  const key = summaryKey(args.written);
+  if (args.written.summaryOf === SUMMARY_PENDING) {
+    return args.latest.summaryOf === SUMMARY_PENDING ? { ...args.latest, summary: args.summary, summaryOf: key } : null;
+  }
+  if (summaryKey(args.latest) !== key || args.latest.summary !== args.written.summary) return null;
+  return { ...args.latest, summary: args.summary, summaryOf: key };
+}
 
 /** A summary written for other conditions or criteria than the Brief has now, or one still to be written. */
 export function needsSummary(brief: RoleStartBrief) {

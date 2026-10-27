@@ -38,8 +38,10 @@ import {
   keepTeamLevels,
   needsSignals,
   needsSummary,
+  rankingBriefHash,
   signalsKey,
   summaryKey,
+  summaryToSave,
   SUMMARY_PENDING,
   levelOf,
   reapplySettled,
@@ -642,8 +644,9 @@ async function saveDraftTitles(roleId: string, titles: DraftTitles) {
 
 /**
  * The draft's pending summary, from the same role text the draft read; once
- * more if a change meanwhile made the first one stale before it was saved.
- * The only writer of a pending summary besides confirming (which retries one that failed).
+ * more if the first call failed or found another write running. A Brief
+ * changed meanwhile does not drop it (refreshRoleStartSummary rewrites it for
+ * the change), and any later Brief save that still finds it pending writes it too.
  */
 async function writeDraftSummary(roleId: string, source: ReturnType<typeof roleSource>) {
   for (let round = 0; round < 2; round += 1) {
@@ -888,8 +891,7 @@ onBriefSaved((roleId, brief, changeSource) => {
 export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnType<typeof roleSource>) {
   const session = await loadRoleStartSession(roleId);
   if (!session || session.phase === "drafting" || isRoleStartEnded(session.phase) || !needsSummary(session.brief)) return;
-  // The draft's first summary reads the role text the draft read: only the draft and confirming pass it.
-  if (session.brief.summaryOf === SUMMARY_PENDING && !roleText) return;
+  const pending = session.brief.summaryOf === SUMMARY_PENDING;
   // A Brief from before summaries followed the criteria: its summary (maybe the team's own) is kept and only stamped.
   if (!session.brief.summaryOf) {
     await saveRoleStartSession({ roleId, expectedRevision: session.revision, patch: { brief: { ...session.brief, summaryOf: summaryKey(session.brief) } } });
@@ -897,13 +899,19 @@ export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnT
   }
   const token = await claimRoleStartLease(roleId, "summary", 60_000);
   if (!token) return;
+  // A pending summary saved over a Brief changed meanwhile: written once more for the Brief as it is.
+  let followUp = false;
   try {
     const key = summaryKey(session.brief);
-    // The draft's first summary has no summary to keep the work from: it reads the role's own text.
-    const source =
-      session.brief.summaryOf === SUMMARY_PENDING && roleText
+    // The draft's first summary has no summary to keep the work from: it reads the
+    // role's own text, as the draft read it (passed by the draft and confirming) or
+    // from the Role, so any later save that finds it pending writes it too.
+    const source = pending
+      ? roleText
         ? { name: roleText.name, description: roleText.description, hiringBrief: roleText.hiringBrief }
-        : null;
+        : await summaryRoleText(roleId)
+      : null;
+    if (pending && !source) return;
     const { data, usage } = await callRoleStartJson<{ summary: string }>({
       label: "brief_summary",
       model: ROLE_START_FAST_MODEL,
@@ -919,9 +927,8 @@ export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnT
     if (!summary) return;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const latest = await loadRoleStartSession(roleId);
-      // Only for the conditions and criteria it was written for, and over a summary nobody edited meanwhile.
-      if (!latest || isRoleStartEnded(latest.phase) || summaryKey(latest.brief) !== key || latest.brief.summary !== session.brief.summary) return;
-      const brief = { ...latest.brief, summary, summaryOf: key };
+      const brief = latest && !isRoleStartEnded(latest.phase) ? summaryToSave({ written: session.brief, summary, latest: latest.brief }) : null;
+      if (!latest || !brief) return;
       const saved = await saveRoleStartSession({ roleId, expectedRevision: latest.revision, patch: { brief } });
       if (!saved) continue;
       await saveRoleStartBrief({
@@ -932,11 +939,25 @@ export async function refreshRoleStartSummary(roleId: string, roleText?: ReturnT
         userId: null,
         writeRole: ["questions", "review"].includes(latest.phase) ? false : await hasRoleStartBrief(roleId),
       });
-      return;
+      followUp = summaryKey(latest.brief) !== key;
+      break;
     }
   } finally {
     await releaseRoleStartLease(roleId, "summary", token);
   }
+  // After the lease is let go, so this second write is not refused by the first's lease.
+  if (followUp) await refreshRoleStartSummary(roleId);
+}
+
+/** The role's own text a pending summary is written from, read from the Role. */
+async function summaryRoleText(roleId: string) {
+  const [row] = await roleStartSql()<Array<{ name: string | null; description: string | null; request: string | null }>>`
+    select r.name, r.description, i.request
+    from public.company_roles r
+    left join public.company_internal_roles i on i.role_id = r.role_id
+    where r.role_id = ${roleId}
+  `;
+  return row ? { name: row.name, description: row.description, hiringBrief: row.request } : null;
 }
 
 /**
@@ -2775,9 +2796,13 @@ export async function setCandidateVerdict(
   return rows.length > 0;
 }
 
-/** The Brief as the first three were picked for it: what their verdicts read, plus the job titles the ranking reads. */
+/**
+ * The Brief as the first three were picked for it: what their verdicts read,
+ * the job titles and everything else the ranking reads (a reflected answer can
+ * change search words, a criterion's kind or a rule's years without its text).
+ */
 function firstThreeKey(brief: RoleStartBrief) {
-  return `${verdictBriefHash(brief)}:${jobScoreKey(brief)}`;
+  return `${verdictBriefHash(brief)}:${jobScoreKey(brief)}:${rankingBriefHash(brief)}`;
 }
 
 /**

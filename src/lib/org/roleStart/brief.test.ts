@@ -294,3 +294,57 @@ test("a model rewrite that returns no notes keeps the team's notes unless the re
   const { otherNotes: _notes, ...withoutNotes } = previous;
   assert.equal(verdictBriefHash(withoutNotes), verdictBriefHash({ ...withoutNotes, otherNotes: [] }));
 });
+
+test("the first-three key follows everything the ranking reads, not only what a verdict reads", async () => {
+  const { criterionHash, hardConditionsHash, rankingBriefHash, verdictBriefHash } = await import("./brief");
+  const base = normalizeRoleStartBrief({
+    summary: "",
+    hardConditions: [{ kind: "location", label: "서울 근무", countries: ["KR"], cities: ["Seoul"], allowRelocation: false }],
+    criteria: [
+      { id: "c1", name: "데이터 파이프라인", criteria: "Kafka, Airflow 운영", importance: "required", kind: "similarity", evidenceTerms: [["Kafka", "카프카"]] },
+      { id: "c2", name: "총 경력", criteria: "5년 이상", importance: "important", kind: "rule", rule: { minYears: 5, maxYears: null } },
+    ],
+  });
+  const changed = (edit: (brief: RoleStartBrief) => RoleStartBrief) => {
+    const next = edit(structuredClone(base));
+    return { verdict: verdictBriefHash(next) !== verdictBriefHash(base), ranking: rankingBriefHash(next) !== rankingBriefHash(base) };
+  };
+  // Search words, a criterion's kind, a rule's years and a condition's values change who ranks first without changing what a verdict reads.
+  assert.deepEqual(changed((b) => ((b.criteria[0]!.evidenceTerms = [["Flink"]]), b)), { verdict: false, ranking: true });
+  assert.deepEqual(changed((b) => ((b.criteria[0]!.kind = "judgment"), b)), { verdict: false, ranking: true });
+  assert.deepEqual(changed((b) => ((b.criteria[1]!.rule = { minYears: 3, maxYears: null }), b)), { verdict: false, ranking: true });
+  assert.deepEqual(changed((b) => (((b.hardConditions[0] as { cities: string[] }).cities = ["Busan"]), b)), { verdict: false, ranking: true });
+  // A label rewording or a level change: the label is only a verdict's, the level both.
+  assert.deepEqual(changed((b) => ((b.hardConditions[0]!.label = "서울 사무실 근무"), b)), { verdict: true, ranking: false });
+  assert.deepEqual(changed((b) => ({ ...b, criteria: [withLevel(b.criteria[0]!, levelOf(b.criteria[0]!) === "nice" ? "required" : "nice") as never, b.criteria[1]!] })), { verdict: true, ranking: true });
+  assert.equal(hardConditionsHash(base), hardConditionsHash({ ...base, hardConditions: base.hardConditions.map((c) => ({ ...c, id: "other-id" })) }));
+  // Only a rule criterion's score key reads its years: stored scores of every other kind keep their key.
+  const similarity = base.criteria[0]!;
+  assert.equal(criterionHash(similarity), criterionHash({ ...similarity, rule: { minYears: 9, maxYears: null } } as never));
+  assert.notEqual(criterionHash(base.criteria[1]!), criterionHash({ ...base.criteria[1]!, rule: { minYears: 3, maxYears: null } } as never));
+});
+
+test("the draft's first summary is kept when an answer changes the Brief meanwhile, and then reads as needing a rewrite", async () => {
+  const { needsSummary, SUMMARY_PENDING, summaryKey, summaryToSave } = await import("./brief");
+  const draft = normalizeRoleStartBrief({
+    summary: "",
+    hardConditions: [],
+    criteria: [{ id: "c1", name: "백엔드 경력", criteria: "백엔드 개발 3년 이상", importance: "important" }],
+  });
+  draft.summaryOf = SUMMARY_PENDING;
+  // An answer made the criterion required while the summary was being written.
+  const answered = { ...draft, criteria: [withLevel(draft.criteria[0]!, "required") as never] };
+  const saved = summaryToSave({ written: draft, summary: "결제 백엔드를 맡아요.", latest: answered });
+  assert.equal(saved?.summary, "결제 백엔드를 맡아요.");
+  assert.equal(saved?.summaryOf, summaryKey(draft), "kept with the key it was written for");
+  assert.equal(needsSummary(saved!), true, "so the next refresh follows the answer");
+  // Nothing changed meanwhile: saved as up to date.
+  assert.equal(needsSummary(summaryToSave({ written: draft, summary: "요약", latest: draft })!), false);
+  // The team wrote their own summary meanwhile: never replaced.
+  const own = { ...answered, summary: "팀이 쓴 요약", summaryOf: summaryKey(answered) };
+  assert.equal(summaryToSave({ written: draft, summary: "요약", latest: own }), null);
+  // A later rewrite still lands only on the Brief it was written for.
+  const current = { ...answered, summary: "예전 요약", summaryOf: "old" };
+  assert.equal(summaryToSave({ written: current, summary: "새 요약", latest: { ...current, criteria: draft.criteria } }), null);
+  assert.equal(summaryToSave({ written: current, summary: "새 요약", latest: current })?.summaryOf, summaryKey(current));
+});

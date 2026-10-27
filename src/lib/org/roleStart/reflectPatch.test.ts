@@ -115,3 +115,38 @@ test("unknown ids, repeated ids and malformed operations are refused, not guesse
   // A name freed by a removal can be taken by a new criterion.
   assert.equal(rawBriefFromPatch(brief, { ...none, operations: [{ type: "remove_criterion", id: "c2" }, { ...add, name: "dbt" }] }).ok, true);
 });
+
+test("a rename next to a new criterion under the old name gives two ids, never one", async () => {
+  const { rawBriefFromPatch } = await import("./reflectPatch");
+  const { briefFromRaw } = await import("./questions");
+  const brief = await base();
+  const result = rawBriefFromPatch(brief, {
+    ...none,
+    operations: [
+      { type: "update_criterion", id: "c1", name: "배치 파이프라인", criteria: null, importance: null, kind: null, years: null, evidenceTerms: null },
+      { type: "add_criterion", name: "파이프라인 운영", criteria: "스트리밍 파이프라인 운영", importance: "nice", kind: "similarity", minYears: null, maxYears: null, evidenceTerms: [] },
+    ],
+  });
+  assert.ok(result.ok);
+  const next = briefFromRaw(result.raw, brief, "답");
+  const renamed = next.criteria.find((item) => item.name === "배치 파이프라인")!;
+  const added = next.criteria.find((item) => item.name === "파이프라인 운영")!;
+  assert.equal(renamed.id, "c1");
+  assert.ok(added.id && added.id !== "c1", "the new criterion gets its own id");
+  assert.equal(added.signals, undefined, "and none of the renamed criterion's grade signals");
+  assert.equal(new Set(next.criteria.map((item) => item.id)).size, next.criteria.length);
+});
+
+test("an id a rewrite gives twice goes to its first criterion; the other is new", async () => {
+  const { briefFromRaw } = await import("./questions");
+  const brief = await base();
+  const raw = (name: string, id: string | null) => ({ id, name, criteria: `${name} 기준`, importance: "important", kind: "similarity" as const, minYears: null, maxYears: null, evidenceTerms: [] });
+  const next = briefFromRaw(
+    { summary: brief.summary, hardConditions: [], keywords: [], criteria: [raw("파이프라인 운영", "c1"), raw("스트리밍", "c1"), raw("dbt", null)] } as never,
+    brief,
+    "요청: 정리"
+  );
+  assert.equal(next.criteria[0]!.id, "c1");
+  assert.ok(next.criteria[1]!.id && next.criteria[1]!.id !== "c1");
+  assert.equal(next.criteria[2]!.id, "c2", "a name match to a criterion nobody kept still keeps its id");
+});
