@@ -240,7 +240,7 @@ export function resolveCareerChatTools(args: CareerChatToolSelectionArgs) {
       tools,
       toolNames: tools.map((t) => t.function.name),
       // Yield only when the tool reports pending work; existing outcomes need a reply.
-      stopAfterToolNames: [],
+      stopAfterToolNames: [] as string[],
     };
   }
   const selectedTools = applyAllowedToolNames(
