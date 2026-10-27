@@ -424,8 +424,17 @@ export function summaryKey(brief: Pick<RoleStartBrief, "hardConditions" | "crite
   });
 }
 
-/** A summary written for other conditions or criteria than the Brief has now. */
+/**
+ * summaryOf of a Brief whose summary is still to be written (the draft's,
+ * written in the background after its questions). Never a summaryKey (those are base36).
+ */
+export const SUMMARY_PENDING = "summary-pending";
+
+/** A summary written for other conditions or criteria than the Brief has now, or one still to be written. */
 export function needsSummary(brief: RoleStartBrief) {
+  // The draft's is written even with no criteria (it reads the role's own text).
+  if (brief.summaryOf === SUMMARY_PENDING) return true;
+  // Any other empty summary is left empty: there is nothing to follow the criteria.
   return Boolean(brief.summary) && brief.criteria.length > 0 && brief.summaryOf !== summaryKey(brief);
 }
 

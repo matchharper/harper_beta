@@ -41,19 +41,15 @@ test("a person without sections ranks low but is not a must miss", async () => {
   assert.equal(ranked[0]!.talentId, "a");
 });
 
-test("the first three hold at most one info candidate, and it passes must", async () => {
+test("the first three are the top three by the formula among must-passers, with no info candidate", async () => {
   const { pickFirstThree, rankPool } = await fastPath();
   const { ranked } = rankPool({ pool: pool({ a: [0.9, 0.9], b: [0.85, 0.8], c: [0.8, 0.1], d: [0.2, 0.05], e: [0.7, 0.2] }), brief });
-  const probes = [
-    { id: "p1", type: "criterion_low" as const, criterionId: "c2", label: "dbt 없이도 괜찮은지" },
-    { id: "p2", type: "criterion_low" as const, criterionId: "c2", label: "다른 확인" },
-  ];
-  const picked = pickFirstThree({ ranked, probes, criteria: brief.criteria });
-  assert.equal(picked.length, 3);
-  const info = picked.filter((member) => member.probe);
-  assert.equal(info.length, 1);
-  assert.ok(info[0]!.passesMust);
-  assert.notEqual(info[0]!.talentId, "d");
+  const picked = pickFirstThree({ ranked });
+  assert.deepEqual(
+    picked.map((member) => member.talentId),
+    ranked.filter((member) => member.passesMust).slice(0, 3).map((member) => member.talentId)
+  );
+  assert.ok(picked.every((member) => member.passesMust && member.probe === null));
 });
 
 test("an onsite city implies its country, and relocation needs to be allowed", async () => {
@@ -126,4 +122,33 @@ test("years conditions read years in the Role's job, total years only when the j
   assert.equal(byId.a?.yearsBasis, "role");
   assert.equal(byId.b, undefined, "10 years in total but 2 in the job");
   assert.equal(byId.c?.yearsBasis, "total");
+});
+
+test("shown evidence maps each section to its criterion, cut to 600 characters", async () => {
+  const { evidenceByTalent } = await fastPath();
+  const long = "가".repeat(700);
+  const byTalent = evidenceByTalent(
+    [
+      { talent_id: "a", idx: 1, best_text: "Airflow 배치 운영" },
+      { talent_id: "a", idx: 2, best_text: long },
+      { talent_id: "b", idx: 2, best_text: null },
+    ],
+    ["h1", "h2"]
+  );
+  assert.deepEqual(byTalent.get("a"), { h1: "Airflow 배치 운영", h2: "가".repeat(600) });
+  assert.equal(byTalent.has("b"), false);
+});
+
+test("older pools lose section text under every stored criterion, rule lines and scores stay", async () => {
+  const { scoreCriteria } = await fastPath();
+  const base = pool({ a: [0.8, 0.5] });
+  base.scores.old = { a: { score: 0.7, raw: 0.7, evidence: "예전 Brief의 섹션 텍스트" } } as never;
+  base.scores.rule = { a: { score: 0.9, raw: 5, evidence: "경력 약 5년" } } as never;
+  base.scores[criterionHash(must)]!.a = { score: 0.8, raw: 0.8, evidence: "섹션 텍스트" } as never;
+  // Every criterion is already scored, so nothing is queried.
+  await scoreCriteria({ pool: base, criteria: [must, pref] });
+  assert.deepEqual(base.scores.old!.a, { score: 0.7, raw: 0.7 });
+  assert.deepEqual(base.scores.rule!.a, { score: 0.9, raw: 5, evidence: "경력 약 5년" });
+  assert.deepEqual(base.scores[criterionHash(must)]!.a, { score: 0.8, raw: 0.8 });
+  assert.equal(base.scores[criterionHash(pref)]!.a!.score, 0.5);
 });

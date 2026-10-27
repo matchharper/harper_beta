@@ -174,7 +174,7 @@ export async function notifyRoleStartSlack(args: {
     roleId: args.session.roleId,
     eventKey: `role-start:${args.session.roleId}:first-three:${String(args.session.timings.confirmedAt ?? "")}`,
     purpose:
-      "The first candidates for the new role are ready. The team rates each one on the web and answers one open point; registering the role then applies the ratings and recommends one more person before the role starts.",
+      "The first candidates for the new role are ready. The team rates each one on the web and answers one open point; registering the role then applies the ratings before the role starts.",
     facts: {
       role: args.state.role.name,
       overallReads: candidates.map((candidate) => ({

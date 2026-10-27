@@ -132,6 +132,11 @@ export function verdictFromRaw(data: RawVerdict, brief: RoleStartBrief): RoleSta
       appliesTo.splice(appliesTo.indexOf("bad"), 1);
       if (!appliesTo.length) return [];
     }
+    // On a criterion this read found not a fit, an open-point chip names that gap.
+    if (read && read.fitness === "bad" && appliesTo.includes("uncertain")) {
+      appliesTo.splice(appliesTo.indexOf("uncertain"), 1);
+      if (!appliesTo.includes("bad")) appliesTo.push("bad");
+    }
     const topic = condition
       ? condition.label
       : criteria.find((entry) => entry.criterionId === (criterion!.id ?? criterion!.name))?.topic ?? criterion!.name;

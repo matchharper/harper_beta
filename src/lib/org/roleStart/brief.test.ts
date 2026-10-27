@@ -158,6 +158,66 @@ test("withLatestBackground keeps the edit and takes background grade signals and
   assert.deepEqual(saved.references, [{ id: "rf1" }]);
 });
 
+test("withLatestBackground keeps the draft's background signals, summary, keywords and titles under an answer applied meanwhile", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-only-not-used";
+  const { withLatestBackground } = await import("./view");
+  const { signalsKey } = await import("./brief");
+  const criterion = { id: "c1", name: "Spark 경험", criteria: "Spark로 배치를 운영한 경험", requirement: "must" as const, importance: 3 };
+  // The answer was applied to the Brief as read before the draft's background step finished.
+  const base = { summary: "", hardConditions: [], keywords: ["spark"], criteria: [criterion, { ...criterion, id: "c2", name: "SQL", criteria: "SQL 경험" }] };
+  const signals = { excellent: ["배경 신호"] };
+  const latest = {
+    summary: "배경에서 쓴 요약",
+    summaryOf: "s1",
+    hardConditions: [],
+    keywords: ["spark"],
+    titles: { matching: ["데이터 엔지니어"], nearMiss: ["백엔드 개발자"] },
+    criteria: [
+      { ...criterion, signals, signalsOf: signalsKey(criterion) },
+      { ...criterion, id: "c2", name: "SQL", criteria: "SQL 경험", signals, signalsOf: "k2" },
+    ],
+  };
+  const answered = { ...base, criteria: [criterion, { ...criterion, id: "c2", name: "SQL", criteria: "SQL로 지표를 만든 경험" }] };
+  const saved = withLatestBackground(answered as never, latest as never, base as never);
+  assert.deepEqual(saved.criteria[0]!.signals, signals, "a criterion the answer left alone keeps the background signals");
+  assert.equal(saved.criteria[0]!.signalsOf, signalsKey(criterion));
+  assert.equal(saved.criteria[1]!.signals, undefined, "a criterion the answer changed does not take signals for the old text");
+  assert.equal(saved.summary, "배경에서 쓴 요약");
+  assert.equal(saved.summaryOf, "s1");
+  assert.deepEqual(saved.titles, latest.titles);
+  assert.deepEqual(saved.keywords, ["spark"]);
+  // What the answer itself rewrote stays; an empty rewritten summary does not wipe the latest one.
+  const rewritten = withLatestBackground(
+    { ...answered, summary: "답을 반영한 요약", summaryOf: "s2", keywords: ["spark", "airflow"], titles: { matching: ["ML 엔지니어"], nearMiss: [] } } as never,
+    latest as never,
+    { ...base, summary: "예전 요약" } as never
+  );
+  assert.equal(rewritten.summary, "답을 반영한 요약");
+  assert.equal(rewritten.summaryOf, "s2");
+  assert.deepEqual(rewritten.keywords, ["spark", "airflow"]);
+  assert.deepEqual(rewritten.titles, { matching: ["ML 엔지니어"], nearMiss: [] });
+  const empty = withLatestBackground({ ...answered, summary: "" } as never, latest as never, { ...base, summary: "예전 요약" } as never, {
+    blankSummaryFromLatest: true,
+  });
+  assert.equal(empty.summary, "배경에서 쓴 요약");
+});
+
+test("withLatestBackground keeps a summary the team cleared on a Brief edit, while an empty answer rewrite takes the latest", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "test-only-not-used";
+  const { withLatestBackground } = await import("./view");
+  const criterion = { id: "c1", name: "Spark 경험", criteria: "Spark로 배치를 운영한 경험", requirement: "must" as const, importance: 3 };
+  const before = { summary: "예전 요약", summaryOf: "s1", hardConditions: [], keywords: [], criteria: [criterion] };
+  const latest = { ...before, summary: "배경에서 쓴 요약", summaryOf: "s2" };
+  const cleared = { ...before, summary: "", summaryOf: undefined };
+  const edited = withLatestBackground(cleared as never, latest as never, before as never);
+  assert.equal(edited.summary, "", "the team's cleared summary is not brought back");
+  const answered = withLatestBackground(cleared as never, latest as never, before as never, { blankSummaryFromLatest: true });
+  assert.equal(answered.summary, "배경에서 쓴 요약");
+  assert.equal(answered.summaryOf, "s2");
+});
+
 test("the summary follows the conditions and criteria it recaps, and a team-written summary stays theirs", async () => {
   process.env.OPENAI_API_KEY ||= "test-only-not-used";
   const { mergeVisibleBriefEdit } = await import("./service");

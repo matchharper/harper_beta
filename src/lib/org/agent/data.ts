@@ -307,7 +307,7 @@ export async function fetchOrgAgentRoles(args: {
     const sessions = await Promise.resolve()
       .then(() =>
         (args.admin.from("company_role_start_sessions" as any) as any)
-          .select("role_id, phase, updated_at, refined_answers, first_candidates")
+          .select("role_id, phase, updated_at, refined_answers, first_candidates, pending_question")
           .in("role_id", roleIds)
       )
       .then((result: { data?: unknown[] | null }) => result.data ?? [])
@@ -318,6 +318,7 @@ export async function fetchOrgAgentRoles(args: {
       updated_at: string;
       refined_answers: number | null;
       first_candidates: unknown[] | null;
+      pending_question: unknown;
     }>) {
       // Done Roles keep the box; a flow that cannot move forward hands back to the chat.
       const owns = roleStartOwnsRole({
@@ -325,6 +326,7 @@ export async function fetchOrgAgentRoles(args: {
         updatedAt: row.updated_at,
         refinedAnswers: row.refined_answers ?? undefined,
         firstCandidates: row.first_candidates ?? undefined,
+        pendingQuestion: row.pending_question,
       });
       if (row.phase === "done" || owns) roleStartIds.add(row.role_id);
     }

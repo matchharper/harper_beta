@@ -14,7 +14,6 @@ import {
   type RoleStartCriterion,
   type RoleStartProbe,
 } from "./brief";
-import { applyHardConditions, rankPool, scoreCriteria, type RoleStartPool } from "./fastPath";
 import type {
   RoleStartChip,
   RoleStartChipEffect,
@@ -22,17 +21,11 @@ import type {
   RoleStartQuestionState,
 } from "./session";
 
-/** Questions whose answers lead to mostly the same people are not worth asking. */
-export const QUESTION_MAX_OVERLAP = 0.8;
-export const QUESTION_TOP_N = 30;
-/** Safety stop when no talent data is available to measure overlap. */
-const QUESTION_LIMIT_WITHOUT_DATA = 4;
 /** Every question the team sees in the start flow, Harper's chat cards included. */
 export const QUESTION_HARD_LIMIT = 5;
 /**
- * Questions asked before the overlap rule applies (Harper's own question from
- * reading the JD counts): until then the least-overlapping drafted questions
- * are asked even when their answers move few people.
+ * Questions asked before the Brief opens on its own (Harper's own question
+ * from reading the JD counts); the team can always go to the Brief earlier.
  */
 export const QUESTION_MINIMUM = 3;
 
@@ -56,7 +49,8 @@ type RawCriterion = {
   kind: "rule" | "similarity" | "judgment";
   minYears: number | null;
   maxYears: number | null;
-  signals: Record<string, string>;
+  /** Absent in the first draft: written per criterion beside it (criterion_signals). */
+  signals?: Record<string, string>;
   evidenceTerms?: string[][];
 };
 
@@ -333,102 +327,16 @@ export function applyChipEffect(
   }
 }
 
-function jaccard(left: Set<string>, right: Set<string>) {
-  if (!left.size && !right.size) return 1;
-  let shared = 0;
-  for (const id of left) if (right.has(id)) shared += 1;
-  return shared / (left.size + right.size - shared);
-}
-
 /**
- * Picks the next question by how differently its answers would rank people.
- * For each chip: top-N by best-section similarity to (Role + chip), inside the
- * hard-condition set that chip would produce, taken from the broad pool in
- * memory. SQL and embeddings only.
+ * The next question: the first candidate, in the order the model wrote them
+ * (it orders them by how much an answer would change who is shown). Nothing is
+ * asked past the limit.
  */
-export async function selectNextQuestion(args: {
-  roleId: string;
-  roleName: string;
-  brief: RoleStartBrief;
-  pool: RoleStartPool | null;
+export function selectNextQuestion(args: {
   candidates: RoleStartQuestionState["candidates"];
   askedCount: number;
-}): Promise<{
-  question: RoleStartQuestion | null;
-  remaining: RoleStartQuestionState["candidates"];
-  /** Ids kept only to reach the minimum (their overlap is above the rule). */
-  fillers: string[];
-  measured: Array<{ id: string; overlap: number | null }>;
-  embeddingTokens: number;
-  ms: number;
-}> {
-  const started = Date.now();
-  if (!args.candidates.length || args.askedCount >= QUESTION_HARD_LIMIT) {
-    return { question: null, remaining: [], fillers: [], measured: [], embeddingTokens: 0, ms: 0 };
-  }
-  let embeddingTokens = 0;
-  let measured: Array<{ id: string; overlap: number | null }> = args.candidates.map((question) => ({
-    id: question.id,
-    overlap: null,
-  }));
-  const pool = args.pool;
-  if (pool && applyHardConditions(pool, args.brief).members.length) {
-    // What an answer changes is who ranks first under the resulting Brief:
-    // apply each chip, score only criteria it adds or rewrites, and re-rank.
-    const chips = args.candidates.flatMap((question) => question.chips);
-    const variants = new Map(
-      chips.map((chip) => [chip.id, applyChipEffect(args.brief, chip.effect, "measure").brief] as const)
-    );
-    const scored = await scoreCriteria({ pool, criteria: [...variants.values()].flatMap((brief) => brief.criteria) });
-    embeddingTokens = scored.tokens;
-    const top = new Map(
-      [...variants.entries()].map(([chipId, brief]) => [
-        chipId,
-        new Set(rankPool({ pool, brief }).ranked.slice(0, QUESTION_TOP_N).map((member) => member.talentId)),
-      ])
-    );
-    measured = args.candidates.map((question) => {
-      const sets = question.chips.map((chip) => top.get(chip.id)!).filter((set) => set.size);
-      if (sets.length < 2) return { id: question.id, overlap: null };
-      let total = 0;
-      let pairs = 0;
-      for (let left = 0; left < sets.length; left += 1) {
-        for (let right = left + 1; right < sets.length; right += 1) {
-          total += jaccard(sets[left]!, sets[right]!);
-          pairs += 1;
-        }
-      }
-      return { id: question.id, overlap: Math.round((total / pairs) * 1000) / 1000 };
-    });
-  }
-  const hasData = measured.some((item) => item.overlap !== null);
-  const all = args.candidates.map((question, index) => ({ question, overlap: measured[index]!.overlap }));
-  const passes = (item: (typeof all)[number]) => (hasData ? item.overlap !== null && item.overlap <= QUESTION_MAX_OVERLAP : true);
-  if (!hasData && args.askedCount >= QUESTION_LIMIT_WITHOUT_DATA) {
-    return { question: null, remaining: [], fillers: [], measured, embeddingTokens, ms: Date.now() - started };
-  }
-  const byOverlap = (left: (typeof all)[number], right: (typeof all)[number]) =>
-    (left.overlap ?? 2) - (right.overlap ?? 2);
-  const passing = all.filter(passes).sort(byOverlap);
-  // Below the minimum, the least-overlapping of the rest fill the gap.
-  const short = Math.max(0, QUESTION_MINIMUM - args.askedCount - passing.length);
-  const fill = all.filter((item) => !passes(item)).sort(byOverlap).slice(0, short);
-  const useful = [...passing, ...fill];
-  const chosen = useful[0];
-  if (!chosen) {
-    return { question: null, remaining: [], fillers: [], measured, embeddingTokens, ms: Date.now() - started };
-  }
-  return {
-    question: {
-      ...chosen.question,
-      status: "pending",
-      overlap: chosen.overlap,
-      askedAt: new Date().toISOString(),
-    },
-    remaining: useful.slice(1).map((item) => item.question),
-    fillers: fill.map((item) => item.question.id),
-    measured,
-    embeddingTokens,
-    ms: Date.now() - started,
-  };
+}): { question: RoleStartQuestion | null; remaining: RoleStartQuestionState["candidates"] } {
+  const [first, ...rest] = args.candidates;
+  if (!first || args.askedCount >= QUESTION_HARD_LIMIT) return { question: null, remaining: [] };
+  return { question: { ...first, status: "pending", overlap: null, askedAt: new Date().toISOString() }, remaining: rest };
 }

@@ -60,8 +60,6 @@ function asCandidate(item: RoleStartQuestionCandidate | RoleStartQuestion): Role
 export function planDraftQueue(args: {
   /** The draft's questions in order: the selected one first. */
   drafted: Array<RoleStartQuestion | RoleStartQuestionCandidate>;
-  /** Drafted ids kept only to reach the minimum. */
-  fillers: string[];
   /** The chat question open on screen while the draft ran. */
   pending: RoleStartQuestion | null;
   /** Chat questions queued while the draft ran. */
@@ -75,14 +73,8 @@ export function planDraftQueue(args: {
 }) {
   const asked = args.pending && !args.covered.has(args.pending.id) ? args.pending : null;
   const chatQueued = args.chatQueued.filter((item) => !args.covered.has(item.id));
-  // Harper's own questions count toward the minimum: drafted questions kept
-  // only to reach it are dropped once those already make up the minimum.
-  const planned = args.historyLength + (asked ? 1 : 0) + chatQueued.length;
-  const draftedOrder = args.drafted.filter((item) => !args.covered.has(item.id));
+  const draftQueue = args.drafted.filter((item) => !args.covered.has(item.id));
   const skipped = args.drafted.filter((item) => args.covered.has(item.id)).map((item) => item.id);
-  const fillerRoom = Math.max(0, QUESTION_MINIMUM - planned - draftedOrder.filter((item) => !args.fillers.includes(item.id)).length);
-  let fillersKept = 0;
-  const draftQueue = draftedOrder.filter((item) => !args.fillers.includes(item.id) || fillersKept++ < fillerRoom);
   // With no drafted question left, Harper's own queued question comes first.
   const first = asked ? undefined : draftQueue[0] ?? chatQueued[0];
   const queued = [...chatQueued, ...draftQueue].filter((item) => item !== first).map(asCandidate);

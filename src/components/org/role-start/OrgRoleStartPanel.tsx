@@ -424,7 +424,9 @@ function useStepLabel() {
       case "apply":
         return done ? c("반영했어요", "Applied") : c("반영하는 중", "Applying");
       case "choose":
-        return done ? c("골랐어요", "Chosen") : c("고르는 중", "Choosing");
+        return done
+          ? c("등록했어요", "Registered")
+          : c("등록하는 중", "Registering");
       default:
         return done ? c("마쳤어요", "Done") : c("진행하는 중", "Working");
     }
@@ -731,8 +733,8 @@ function FirstThree(props: {
     <OrgSection aria-label={c("첫 3명", "First three")}>
       <RoleSectionHeading
         description={c(
-          "후보마다 얼마나 맞는지 골라 주세요. 등록하면 평가를 반영해 한 분을 더 추천해요.",
-          "Rate each person. When you register, Harper applies your ratings and recommends one more person."
+          "후보마다 얼마나 맞는지 골라 주세요.",
+          "Rate each person."
         )}
         size="large"
         title={c("첫 {p0}명", "First {p0}", {
@@ -883,11 +885,11 @@ function FirstBatch({
   const batch = session.batch;
   return (
     <OrgSection
-      aria-label={c("평가를 반영한 추천", "Recommendation from your ratings")}
+      aria-label={c("평가 반영과 등록", "Ratings applied and registered")}
     >
       <RoleSectionHeading
         size="large"
-        title={c("평가를 반영한 추천", "Recommendation from your ratings")}
+        title={c("평가 반영과 등록", "Ratings applied and registered")}
       />
       <div className="mt-4">
         <ProgressList
@@ -938,10 +940,10 @@ function FirstBatch({
       ) : null}
       {batch?.status === "failed" ||
       (batch?.status === "done" && !batch.candidates.length) ? (
-        <p className="mt-4 text-[13px] text-critical">
+        <p className="mt-4 text-[13px] leading-5 text-neutral-muted">
           {c(
-            "지금은 더 추천할 분이 없어요. 정기 추천에서 이어서 찾아볼게요.",
-            "No one else to recommend right now. We'll keep looking in regular recommendations."
+            "새 후보는 정기 추천에서 찾아 인박스에 넣어 드릴게요.",
+            "Regular recommendations will look for new people and add them to the inbox."
           )}
         </p>
       ) : null}
