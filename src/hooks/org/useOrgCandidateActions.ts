@@ -80,9 +80,17 @@ export function useOrgCandidateActions(args: {
     locallyPendingCandidateKeysRef.current.add(candidateKey);
     try {
       const timingStart = performance.now();
-      if (process.env.NODE_ENV !== "production") console.log("[org-stage-client] mutation.start", mutationInput.stage);
+      if (process.env.NODE_ENV !== "production")
+        console.log("[org-stage-client] mutation.start", mutationInput.stage);
       const result = await setStage.mutateAsync(mutationInput);
-      if (process.env.NODE_ENV !== "production") console.log("[org-stage-client] mutation.complete", JSON.stringify({ stage: mutationInput.stage, ms: Math.round(performance.now() - timingStart) }));
+      if (process.env.NODE_ENV !== "production")
+        console.log(
+          "[org-stage-client] mutation.complete",
+          JSON.stringify({
+            stage: mutationInput.stage,
+            ms: Math.round(performance.now() - timingStart),
+          })
+        );
       if (
         "status" in result &&
         result.status === "candidate_reengagement_required"
@@ -202,7 +210,9 @@ export function useOrgCandidateActions(args: {
     item: OrgBoardItem,
     stage: OrgStageId,
     options?: OrgStageChangeOptions,
-    errorPresentation: "toast" | "inline" = "toast"
+    // "silent" leaves both the result and the error to the caller, e.g. a
+    // bulk action that reports one summary toast.
+    errorPresentation: "toast" | "inline" | "silent" = "toast"
   ) => {
     if (!args.canManageCandidates) return;
     try {
@@ -215,6 +225,7 @@ export function useOrgCandidateActions(args: {
         contactDirectly: options?.contactDirectly ?? false,
         durationMinutes: options?.durationMinutes,
         emailMode: options?.emailMode,
+        introEmailDraft: options?.introEmailDraft ?? null,
         introEmails: options?.introEmails ?? null,
         meetingCandidateMessage: options?.meetingCandidateMessage ?? null,
         meetingPurpose: options?.meetingPurpose ?? null,
@@ -231,6 +242,7 @@ export function useOrgCandidateActions(args: {
         workspaceId: args.workspaceId,
       });
       if (!changed) return;
+      if (errorPresentation === "silent") return changed;
       addToast({
         message: options?.scheduleInterview
           ? c(
@@ -259,33 +271,38 @@ export function useOrgCandidateActions(args: {
     }
   };
 
-  const acceptTalent = async ({
-    acceptReason,
-    additionalMessage,
-    additionalMessageVisibility,
-    attendeeEmails,
-    contactDirectly,
-    durationMinutes,
-    introEmails,
-    meetingCandidateMessage,
-    meetingPurpose,
-    scheduleInterview,
-    stage,
-    title,
-  }: {
-    acceptReason: string | null;
-    additionalMessage?: string | null;
-    additionalMessageVisibility?: "both" | "candidate" | "internal";
-    attendeeEmails?: string[];
-    contactDirectly: boolean;
-    durationMinutes?: number;
-    introEmails: string[];
-    meetingCandidateMessage?: string | null;
-    meetingPurpose?: string | null;
-    scheduleInterview?: boolean;
-    stage: OrgStageId;
-    title?: string | null;
-  }) => {
+  const acceptTalent = async (
+    {
+      acceptReason,
+      additionalMessage,
+      additionalMessageVisibility,
+      attendeeEmails,
+      contactDirectly,
+      durationMinutes,
+      introEmailDraft,
+      introEmails,
+      meetingCandidateMessage,
+      meetingPurpose,
+      scheduleInterview,
+      stage,
+      title,
+    }: {
+      acceptReason: string | null;
+      additionalMessage?: string | null;
+      additionalMessageVisibility?: "both" | "candidate" | "internal";
+      attendeeEmails?: string[];
+      contactDirectly: boolean;
+      durationMinutes?: number;
+      introEmailDraft?: OrgStageChangeOptions["introEmailDraft"];
+      introEmails: string[];
+      meetingCandidateMessage?: string | null;
+      meetingPurpose?: string | null;
+      scheduleInterview?: boolean;
+      stage: OrgStageId;
+      title?: string | null;
+    },
+    presentation: "toast" | "silent" = "toast"
+  ) => {
     if (!args.canManageCandidates) return;
     const roleId = args.detail?.role.roleId ?? args.activeDetailRoleId;
     const recommendationId =
@@ -300,6 +317,7 @@ export function useOrgCandidateActions(args: {
       attendeeEmails,
       contactDirectly,
       durationMinutes,
+      introEmailDraft: introEmailDraft ?? null,
       introEmails,
       meetingCandidateMessage,
       meetingPurpose,
@@ -314,6 +332,7 @@ export function useOrgCandidateActions(args: {
       workspaceId: args.workspaceId,
     });
     if (!changed) return;
+    if (presentation === "silent") return changed;
     addToast({
       message: scheduleInterview
         ? c(
@@ -326,7 +345,10 @@ export function useOrgCandidateActions(args: {
     return changed;
   };
 
-  const rejectTalent = async (options: OrgStageChangeOptions) => {
+  const rejectTalent = async (
+    options: OrgStageChangeOptions,
+    presentation: "toast" | "silent" = "toast"
+  ) => {
     const timingStart = performance.now();
     if (!args.canManageCandidates) return;
     const roleId = args.detail?.role.roleId ?? args.activeDetailRoleId;
@@ -347,7 +369,12 @@ export function useOrgCandidateActions(args: {
       workspaceId: args.workspaceId,
     });
     if (!changed) return;
-    if (process.env.NODE_ENV !== "production") console.log("[org-stage-client] reject.toast", JSON.stringify({ ms: Math.round(performance.now() - timingStart) }));
+    if (presentation === "silent") return changed;
+    if (process.env.NODE_ENV !== "production")
+      console.log(
+        "[org-stage-client] reject.toast",
+        JSON.stringify({ ms: Math.round(performance.now() - timingStart) })
+      );
     const endedExistingConnection =
       args.detail?.recommendation.stage !== undefined &&
       args.detail.recommendation.stage !== "pending_connection";
@@ -392,7 +419,7 @@ export function useOrgCandidateActions(args: {
       if (!changed) return;
       addToast({
         message: c(
-          "연결 대기 상태로 옮겼습니다.",
+          "연결 수락할 후보로 옮겼습니다.",
           "Moved to Ready to connect."
         ),
         variant: "success",
@@ -403,7 +430,7 @@ export function useOrgCandidateActions(args: {
           error,
           locale,
           c(
-            "연결 대기 상태로 옮기지 못했습니다.",
+            "연결 수락할 후보로 옮기지 못했습니다.",
             "Couldn't move to Ready to connect. Try again."
           )
         ),

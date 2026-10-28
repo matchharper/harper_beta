@@ -1,5 +1,5 @@
-import { OrgSavedCandidates } from "./OrgSavedCandidates";
 import { OrgPassPopover } from "./OrgPassPopover";
+import { OrgCandidateBoardCanvas } from "./OrgCandidateBoardCanvas";
 import { TALENT_FIRST_CAPACITY_NOTICE } from "@/lib/org/talentFirstCapacity";
 import { OrgAcceptIntroButton } from "./OrgAcceptIntroButton";
 import { GraduationCap } from "lucide-react";
@@ -16,10 +16,7 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { formatKstRelativeDate } from "@/components/ops/dateUtils";
-import {
-  AcceptIntroDialog,
-  StopCandidateDialog,
-} from "@/components/org/OrgCandidateDecisionDialogs";
+import { StopCandidateDialog } from "@/components/org/OrgCandidateDecisionDialogs";
 import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
 import {
   getOrgCandidateDisplayName,
@@ -72,6 +69,7 @@ import {
   shouldOpenOrgStopCandidateDialog,
 } from "@/lib/org/candidateDecision";
 import { cn } from "@/lib/utils";
+import { suggestOrgStopReasons } from "@/lib/org/evaluationSuggestions";
 import { getOrgRoleStatusPresentation } from "@/lib/org/roleStatus";
 import { getOrgCandidateCardDate } from "@/lib/org/candidateCardDate";
 import type {
@@ -81,8 +79,20 @@ import type {
   OrgStageId,
 } from "@/lib/org/server";
 import { ResponsiveLightTooltip } from "../ui/tooltip";
-import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
+import {
+  OrgCriteriaEvaluation,
+  OrgCriterionFitIcon,
+} from "./OrgCriteriaEvaluation";
 import { useToastStore } from "@/store/useToastStore";
+import { useOrgDeferredActionStore } from "@/store/useOrgDeferredActionStore";
+import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  OrgStageMoveDialog,
+  toOrgStageMoveCandidate,
+} from "@/components/org/OrgStageMoveDialog";
+
+const NO_BOARD_SELECTION: ReadonlySet<string> = new Set();
 
 function getStageLabel(stage: OrgStage, roleName: string | null) {
   const prefix = roleName ? `${roleName} · ` : "";
@@ -143,7 +153,7 @@ function OrgRoleRecommendationStatus({
       ? c(TALENT_FIRST_CAPACITY_NOTICE.ko, TALENT_FIRST_CAPACITY_NOTICE.en)
       : active
         ? c(
-            "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 대기’에 추천해 드려요.",
+            "직접 검색하거나 Intro를 요청하지 않아도, Harper가 이 역할에 맞는 후보자에게 회사와 역할을 먼저 소개해요.\n\n후보자가 역할을 수락하면 Harper가 소개를 준비해 ‘연결 수락할 후보’에 추천해 드려요.",
             "Harper introduces your company and role to suitable candidates without waiting for a search or Intro request.\n\nWhen someone agrees to talk, Harper prepares their introduction for your team to review in Ready to connect."
           )
         : status === "paused"
@@ -380,7 +390,9 @@ export function OrgRoleTalentBoardCard({
   onOpen,
   onReject,
   onPass,
+  onSelectedChange,
   pending = false,
+  selected = false,
   stages,
 }: {
   canManageCandidates?: boolean;
@@ -391,7 +403,10 @@ export function OrgRoleTalentBoardCard({
   onOpen: () => void;
   onReject?: () => void;
   onPass?: (reason: string) => Promise<void>;
+  /** Shows the selection box used by the inbox bulk actions. */
+  onSelectedChange?: (selected: boolean) => void;
   pending?: boolean;
+  selected?: boolean;
   stages: OrgStage[];
 }) {
   const [passOpen, setPassOpen] = useState(false);
@@ -412,7 +427,12 @@ export function OrgRoleTalentBoardCard({
         aria-label={c("{p0} 후보자 상세 보기", "View {p0}'s details", {
           p0: name,
         })}
-        className="absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05"
+        className={cn(
+          "absolute inset-0 z-0 h-full rounded-lg border-neutral-1000-a05 p-0 hover:border-neutral-1000-a05",
+          selected &&
+            "border-neutral-800 bg-neutral-200 hover:border-neutral-800"
+        )}
+        data-board-drag-surface=""
         onClick={onOpen}
       >
         <span className="sr-only">
@@ -423,6 +443,14 @@ export function OrgRoleTalentBoardCard({
       </CardButton>
       <div className="pointer-events-none relative z-10 p-4 sm:p-5">
         <header className="flex items-start gap-3">
+          {onSelectedChange ? (
+            <Checkbox
+              aria-label={c("{p0} 선택", "Select {p0}", { p0: name })}
+              checked={selected}
+              className="pointer-events-auto mt-0.5"
+              onChange={(event) => onSelectedChange(event.target.checked)}
+            />
+          ) : null}
           <BoardTalentAvatar item={item} />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-4">
@@ -547,7 +575,7 @@ export function OrgRoleTalentBoardCard({
                 size="md"
                 variant="dark"
               >
-                {c("Intro 보내기", "Send intro")}
+                {c("Send Intro", "Send Intro")}
                 <ArrowRight className="size-4" />
               </MuteButton>
             ) : (
@@ -567,12 +595,22 @@ export function OrgRoleTalentBoardCard({
 
 export function OrgRoleTalentBoard({
   displayControl,
+  layout = "grid",
   section = "pipeline",
   inboxItems,
+  onSelectionReplace,
+  onToggleSelected,
+  selectedIds,
 }: {
   displayControl?: ReactNode;
+  /** "board" places the cards on a free-form board instead of the grid. */
+  layout?: "board" | "grid";
   section?: "inbox" | "pipeline";
   inboxItems?: OrgBoardItem[];
+  /** Board area selection replaces the whole selection at once. */
+  onSelectionReplace?: (ids: Set<string>) => void;
+  onToggleSelected?: (item: OrgBoardItem, selected: boolean) => void;
+  selectedIds?: ReadonlySet<string>;
 }) {
   const router = useRouter();
 
@@ -585,18 +623,17 @@ export function OrgRoleTalentBoard({
     requestCandidateReengagementBeforeStageChange,
   } = useOrgJobsCandidateActions();
   const { activeRole, selectTalent, workspaceId } = useOrgJobsNavigation();
-  const {
-    bootstrap,
-    currentUser,
-    currentUserEmail,
-    internalOpsAccess,
-    permissions,
-  } = useOrgWorkspace();
+  const { bootstrap, currentUserEmail, internalOpsAccess, permissions } =
+    useOrgWorkspace();
   const members = bootstrap.members;
   const createCustomStage = useCreateOrgReviewStage();
   const requestCompanyIntro = useRequestOrgCompanyIntro();
   const passCompanyIntro = usePassOrgCompanyIntro();
   const addToast = useToastStore((state) => state.add);
+  const decisions = useOrgCandidateDecisionRunner(workspaceId);
+  const deferredStages = useOrgDeferredActionStore(
+    (state) => state.deferredStages
+  );
   const [activeStageId, setActiveStageId] = useState("");
   const [sort, setSort] = useState<OrgCandidateSort>("latest");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -611,14 +648,7 @@ export function OrgRoleTalentBoard({
     value: grade,
     label: (
       <span className="inline-flex items-center gap-1.5">
-        <Image
-          alt=""
-          aria-hidden="true"
-          className="size-3.5"
-          height={14}
-          src={`/svgs/${grade}.svg`}
-          width={14}
-        />
+        <OrgCriterionFitIcon className="size-3.5" fitness={grade} />
         {grade === "excellent"
           ? c("매우 잘 맞음", "Excellent fit")
           : grade === "good"
@@ -640,6 +670,8 @@ export function OrgRoleTalentBoard({
         ? router.query.inboxStage
         : ""
       : activeStageId;
+  // In the pipeline, 저장함 is its own tab instead of sitting above every stage.
+  const showingSaved = section === "pipeline" && requestedStageId === "saved";
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
     reengagementResolution?: "company_confirmed";
@@ -680,7 +712,7 @@ export function OrgRoleTalentBoard({
     ? requestedStageId
     : defaultStageId;
   const selectStage = (stageId: string) => {
-    if (stageId === selectedStageId) return;
+    if (stageId === selectedStageId && !showingSaved) return;
     if (section !== "inbox") {
       setActiveStageId(stageId);
       return;
@@ -697,6 +729,9 @@ export function OrgRoleTalentBoard({
   const selectedStage = visibleStages.find(
     (stage) => stage.id === selectedStageId
   );
+  const savedCount = (board?.items ?? []).filter(
+    (item) => item.savedAt && !deferredStages.has(item.recommendationId)
+  ).length;
   // Criteria changed from the filter panel or the 매칭 기준 tab are reviewed
   // again in the background; refresh until no card shows "다시 보는 중".
   const reviewingAgain = (board?.items ?? []).some((item) =>
@@ -712,9 +747,22 @@ export function OrgRoleTalentBoard({
     () =>
       inboxItems ??
       (board?.items ?? [])
-        .filter((item) => item.stage === selectedStageId && !item.savedAt)
+        .filter(
+          (item) =>
+            (showingSaved
+              ? Boolean(item.savedAt)
+              : item.stage === selectedStageId && !item.savedAt) &&
+            !deferredStages.has(item.recommendationId)
+        )
         .sort((left, right) => compareOrgCandidates(left, right, sort)),
-    [board?.items, selectedStageId, sort, inboxItems]
+    [
+      board?.items,
+      deferredStages,
+      selectedStageId,
+      showingSaved,
+      sort,
+      inboxItems,
+    ]
   );
   const criterionNames = useMemo(
     () =>
@@ -738,7 +786,11 @@ export function OrgRoleTalentBoard({
               const evaluation = item.criteriaEvaluations.find(
                 (entry) => entry.name === name
               );
-              return Boolean(evaluation && !evaluation.pending && grades.includes(evaluation.fitness));
+              return Boolean(
+                evaluation &&
+                !evaluation.pending &&
+                grades.includes(evaluation.fitness)
+              );
             })
           )
         : stageItems,
@@ -824,6 +876,40 @@ export function OrgRoleTalentBoard({
     );
   }
 
+  const renderCard = (item: OrgBoardItem) => (
+    <OrgRoleTalentBoardCard
+      canManageCandidates={permissions.canManageCandidates}
+      internalOpsAccess={internalOpsAccess}
+      item={item}
+      key={item.recommendationId}
+      onAccept={() =>
+        item.source === "company_intro"
+          ? setCompanyIntroRequest({ item })
+          : requestMove(item, "connected")
+      }
+      onMove={requestMove}
+      onOpen={() =>
+        selectTalent(
+          item,
+          items,
+          selectedStage
+            ? getStageLabel(selectedStage, activeRole?.name ?? null)
+            : c("후보자 보드", "Candidate board")
+        )
+      }
+      onReject={() => requestMove(item, "process_stopped")}
+      onPass={async (reason) => decisions.pass([item], reason)}
+      onSelectedChange={
+        onToggleSelected
+          ? (selected) => onToggleSelected(item, selected)
+          : undefined
+      }
+      pending={isCandidateStagePending(item) || passCompanyIntro.isPending}
+      selected={selectedIds?.has(item.recommendationId) ?? false}
+      stages={board?.stages ?? []}
+    />
+  );
+
   return (
     <section
       aria-label={c("후보자 보드", "Candidate board")}
@@ -833,53 +919,75 @@ export function OrgRoleTalentBoard({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1 overflow-x-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-neutral-1000-a10">
             <Tabs
-              activeValue={selectedStageId}
+              activeValue={showingSaved ? "saved" : selectedStageId}
               aria-label={c("보드 단계 선택", "Select board stage")}
               className="min-w-max w-fit gap-0.5"
-              items={visibleStages.map((stage) => ({
-                label: (
-                  <span className="inline-flex items-center gap-2">
-                    {getBoardStageLabel(
-                      stage,
-                      activeRole?.name ?? null,
-                      sourceT
-                    )}
-                    <span
-                      className={cn(
-                        "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
+              items={[
+                ...(section === "pipeline"
+                  ? [
+                      {
+                        label: (
+                          <span className="inline-flex items-center gap-2">
+                            {c("저장함", "Saved")}
+                            <span className="ml-0.5 flex items-center justify-center text-xs text-neutral-700">
+                              {savedCount}
+                            </span>
+                          </span>
+                        ),
+                        value: "saved",
+                      },
+                    ]
+                  : []),
+                ...visibleStages.map((stage) => ({
+                  label: (
+                    <span className="inline-flex items-center gap-2">
+                      {getBoardStageLabel(
+                        stage,
+                        activeRole?.name ?? null,
+                        sourceT
                       )}
-                    >
-                      {stageCounts.get(stage.id) ?? 0}
+                      <span
+                        className={cn(
+                          "flex items-center justify-center text-neutral-700 ml-0.5 text-xs"
+                        )}
+                      >
+                        {stageCounts.get(stage.id) ?? 0}
+                      </span>
                     </span>
-                  </span>
-                ),
-                tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
-                tooltipVariant: isOrgInboxStage(stage.id) ? "light" : "dark",
-                value: stage.id,
-              }))}
+                  ),
+                  tooltip: sourceT(ORG_STAGE_DESCRIPTIONS[stage.id] ?? ""),
+                  tooltipVariant: isOrgInboxStage(stage.id)
+                    ? ("light" as const)
+                    : ("dark" as const),
+                  value: stage.id,
+                })),
+              ]}
               onValueChange={selectStage}
               size="small"
               variant="pills"
             />
           </div>
-        {criterionNames.length ? (
-          <MuteButton
-            aria-expanded={filterOpen}
-            aria-label={c("기준별 등급으로 거르기", "Filter by criterion grade")}
-            className="shrink-0"
-            onClick={() => setFilterOpen((open) => !open)}
-            size="md"
-            title={c("기준별 등급으로 거르기", "Filter by criterion grade")}
-            variant={activeGradeFilters.length ? "neutral" : "transparent"}
-          >
-            <ListFilter aria-hidden="true" className="size-4" />
-            {activeGradeFilters.length ? (
-              <span className="text-[12px] tabular-nums">
-                {activeGradeFilters.length}
-              </span>
-            ) : null}
-          </MuteButton>
-        ) : null}
+          {criterionNames.length ? (
+            <MuteButton
+              aria-expanded={filterOpen}
+              aria-label={c(
+                "기준별 등급으로 거르기",
+                "Filter by criterion grade"
+              )}
+              className="shrink-0"
+              onClick={() => setFilterOpen((open) => !open)}
+              size="md"
+              title={c("기준별 등급으로 거르기", "Filter by criterion grade")}
+              variant={activeGradeFilters.length ? "neutral" : "transparent"}
+            >
+              <ListFilter aria-hidden="true" className="size-4" />
+              {activeGradeFilters.length ? (
+                <span className="text-[12px] tabular-nums">
+                  {activeGradeFilters.length}
+                </span>
+              ) : null}
+            </MuteButton>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <MuteButton
@@ -917,7 +1025,6 @@ export function OrgRoleTalentBoard({
         </div>
       )}
 
-      {section === "pipeline" && <OrgSavedCandidates column={false} />}
       {recommendationStatus ? (
         <div className="mt-2">{recommendationStatus}</div>
       ) : null}
@@ -941,7 +1048,11 @@ export function OrgRoleTalentBoard({
           ))}
           <div className="flex items-center justify-between gap-2 text-[12px] text-neutral-muted">
             {activeRole && permissions.canManageCandidates && !rubricEditing ? (
-              <MuteButton onClick={() => setRubricEditing(true)} size="sm" variant="transparent">
+              <MuteButton
+                onClick={() => setRubricEditing(true)}
+                size="sm"
+                variant="transparent"
+              >
                 {c("기준 고치기", "Edit criteria")}
               </MuteButton>
             ) : null}
@@ -974,113 +1085,65 @@ export function OrgRoleTalentBoard({
         </section>
       ) : null}
 
-      <div
-        className={cn(
-          "relative isolate grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
-          !inboxItems && "mt-4",
-          selectedStage?.id === "accepted" && "overflow-hidden"
-        )}
-      >
-        {selectedStage?.id === "accepted" ? <InternalOnlyHatch /> : null}
-        {items.map((item) => (
-          <OrgRoleTalentBoardCard
-            canManageCandidates={permissions.canManageCandidates}
-            internalOpsAccess={internalOpsAccess}
-            item={item}
-            key={item.recommendationId}
-            onAccept={() =>
-              item.source === "company_intro"
-                ? setCompanyIntroRequest({ item })
-                : requestMove(item, "connected")
-            }
-            onMove={requestMove}
-            onOpen={() =>
-              selectTalent(
-                item,
-                items,
-                selectedStage
-                  ? getStageLabel(selectedStage, activeRole?.name ?? null)
-                  : c("후보자 보드", "Candidate board")
-              )
-            }
-            onReject={() => requestMove(item, "process_stopped")}
-            onPass={async (reason) => {
-              if (item.companyIntro)
-                await passCompanyIntro.mutateAsync({
-                  introCandidateId: item.companyIntro.id,
-                  workspaceId,
-                  reason,
-                });
-            }}
-            pending={
-              isCandidateStagePending(item) ||
-              passCompanyIntro.isPending
-            }
-            stages={board?.stages ?? []}
-          />
-        ))}
-      </div>
+      {layout === "board" && activeRole ? (
+        <OrgCandidateBoardCanvas
+          items={items}
+          key={`${activeRole.roleId}:${showingSaved ? "saved" : selectedStageId}`}
+          onSelectionChange={onSelectionReplace}
+          renderCard={renderCard}
+          roleId={activeRole.roleId}
+          selectedIds={selectedIds ?? NO_BOARD_SELECTION}
+          workspaceId={workspaceId}
+        />
+      ) : (
+        <div
+          className={cn(
+            "relative isolate grid grid-cols-1 items-start gap-4 @min-[640px]/talent-board:grid-cols-2",
+            !inboxItems && "mt-4",
+            selectedStage?.id === "accepted" && "overflow-hidden"
+          )}
+        >
+          {selectedStage?.id === "accepted" ? <InternalOnlyHatch /> : null}
+          {items.map(renderCard)}
+        </div>
+      )}
 
-      <AcceptIntroDialog
-        key={acceptRequest?.item.recommendationId ?? "accept-dialog"}
+      <OrgStageMoveDialog
+        key={acceptRequest?.item.recommendationId ?? "stage-move-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        candidateEmail={acceptRequest?.item.talent.email}
-        candidateName={
+        candidates={
           acceptRequest
-            ? sourceT(getOrgCandidateDisplayName(acceptRequest.item))
-            : ""
+            ? [
+                {
+                  ...toOrgStageMoveCandidate(
+                    acceptRequest.item,
+                    sourceT(getOrgCandidateDisplayName(acceptRequest.item))
+                  ),
+                  // Already confirmed in the reengagement dialog.
+                  processClosureNoticeUnresolved: false,
+                },
+              ]
+            : []
         }
-        companyContactName={currentUser?.name}
-        defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        defaultEmail={currentUserEmail}
-        destinationLabel={
-          board?.stages.find((stage) => stage.id === acceptRequest?.stage)
-            ?.label
-        }
+        initialStage={acceptRequest?.stage}
         members={members}
         onClose={() => setAcceptRequest(null)}
-        onSubmit={async ({
-          acceptReason,
-          additionalMessage,
-          additionalMessageVisibility,
-          attendeeEmails,
-          contactDirectly,
-          durationMinutes,
-          introEmails,
-          meetingCandidateMessage,
-          meetingPurpose,
-          scheduleInterview,
-          title,
-        }) => {
+        onSubmit={(submit) => {
           if (!acceptRequest) return;
-          const stage = acceptRequest.stage;
-          const result = await changeStage(
-            acceptRequest.item,
-            stage,
-            {
-              acceptReason,
-              additionalMessage,
-              additionalMessageVisibility,
-              attendeeEmails,
-              contactDirectly,
-              durationMinutes,
-              introEmails,
-              meetingCandidateMessage,
-              meetingPurpose,
-              reengagementResolution: acceptRequest.reengagementResolution,
-              scheduleInterview,
-              title,
-            },
-            "inline"
-          );
+          const { item, reengagementResolution } = acceptRequest;
+          decisions.move([item], {
+            ...submit,
+            options: (candidate) => ({
+              ...submit.options(candidate),
+              reengagementResolution,
+            }),
+          });
           setAcceptRequest(null);
-          return result;
         }}
         open={Boolean(acceptRequest)}
-        pending={Boolean(
-          acceptRequest && isCandidateStagePending(acceptRequest.item)
-        )}
+        roleId={acceptRequest?.item.roleId ?? null}
         roleTitle={acceptRequest?.item.roleName ?? ""}
+        stages={board?.stages ?? []}
       />
 
       <StopCandidateDialog
@@ -1093,18 +1156,18 @@ export function OrgRoleTalentBoard({
           stopItem && stopItem.stage !== "pending_connection"
         )}
         onClose={() => setStopItem(null)}
-        onSubmit={async ({ note, notifyCandidateOnClosure }) => {
+        onSubmit={({ note, notifyCandidateOnClosure }) => {
           if (!stopItem) return;
-          await changeStage(
-            stopItem,
-            "process_stopped",
-            { notifyCandidateOnClosure, stopNote: note },
-            "inline"
-          );
+          decisions.reject([stopItem], { note, notifyCandidateOnClosure });
           setStopItem(null);
         }}
         open={Boolean(stopItem)}
         pending={Boolean(stopItem && isCandidateStagePending(stopItem))}
+        suggestedReasons={
+          stopItem
+            ? [suggestOrgStopReasons(stopItem.criteriaEvaluations, locale)]
+            : undefined
+        }
       />
 
       <CompanyIntroRequestDialog
@@ -1114,6 +1177,9 @@ export function OrgRoleTalentBoard({
             ? sourceT(getOrgCandidateDisplayName(companyIntroRequest.item))
             : ""
         }
+        roleId={companyIntroRequest?.item.roleId}
+        workspaceId={workspaceId}
+        members={members}
         defaultEmail={currentUserEmail}
         onClose={() => setCompanyIntroRequest(null)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {

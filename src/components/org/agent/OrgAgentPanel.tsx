@@ -138,7 +138,9 @@ export function OrgAgentChatSurface({
     c("퍼포먼스 마케터", "Performance Marketer"),
   ].map((label) => ({
     label,
-    message: c("{p0}를 채용하려고 해요. ", "We're hiring a {p0}. ", { p0: label }),
+    message: c("{p0}를 채용하려고 해요. ", "We're hiring a {p0}. ", {
+      p0: label,
+    }),
   }));
   const history = useOrgAgentMessageHistory({
     enabled: Boolean(workspaceId) && (mode === "general" || Boolean(roleId)),
@@ -149,21 +151,36 @@ export function OrgAgentChatSurface({
   // Role start question cards live in this chat and in the 시작 tab with one
   // shared state; poll only while a card is being prepared.
   const queryClient = useQueryClient();
-  const roleStartKey = useMemo(() => ["org-role-start", workspaceId, roleId ?? ""], [roleId, workspaceId]);
+  const roleStartKey = useMemo(
+    () => ["org-role-start", workspaceId, roleId ?? ""],
+    [roleId, workspaceId]
+  );
   const roleStart = useQuery({
     queryKey: roleStartKey,
     queryFn: () =>
       fetchWithInternalAuth<{
-        session: { phase: string; pendingQuestion: { id: string } | null; questions: { history: unknown[] } } | null;
-      }>(`/api/org/role-start?roleId=${encodeURIComponent(roleId ?? "")}&workspaceId=${encodeURIComponent(workspaceId)}`),
+        session: {
+          phase: string;
+          pendingQuestion: { id: string } | null;
+          questions: { history: unknown[] };
+        } | null;
+      }>(
+        `/api/org/role-start?roleId=${encodeURIComponent(roleId ?? "")}&workspaceId=${encodeURIComponent(workspaceId)}`
+      ),
     enabled: purpose === "role-creation" && Boolean(roleId) && !readOnly,
     refetchInterval: (query) => {
       const session = query.state.data?.session;
       // Same limit as the start screen: a Role that never starts the flow stops being asked after ~30s.
       if (!session) return query.state.dataUpdateCount < 10 ? 3_000 : false;
       // Registration also writes a chat line when it is done.
-      const working = session.phase === "drafting" || session.phase === "registering" || session.phase === "batch";
-      return working || (session.phase === "questions" && !session.pendingQuestion) ? 1_500 : false;
+      const working =
+        session.phase === "drafting" ||
+        session.phase === "registering" ||
+        session.phase === "batch";
+      return working ||
+        (session.phase === "questions" && !session.pendingQuestion)
+        ? 1_500
+        : false;
     },
   });
   const roleStartSignature = [
@@ -196,7 +213,10 @@ export function OrgAgentChatSurface({
       }),
     onError: (cause) =>
       addToast({
-        message: cause instanceof Error ? cause.message : c("답을 반영하지 못했어요.", "Could not apply the answer."),
+        message:
+          cause instanceof Error
+            ? cause.message
+            : c("답을 반영하지 못했어요.", "Could not apply the answer."),
         variant: "error",
       }),
     onSettled: () => {
@@ -215,7 +235,8 @@ export function OrgAgentChatSurface({
   // A chat turn that just ended may have started the flow after polling stopped: look again once.
   const wasStreaming = useRef(false);
   useEffect(() => {
-    if (wasStreaming.current && !chat.isStreaming) void queryClient.invalidateQueries({ queryKey: roleStartKey });
+    if (wasStreaming.current && !chat.isStreaming)
+      void queryClient.invalidateQueries({ queryKey: roleStartKey });
     wasStreaming.current = chat.isStreaming;
   }, [chat.isStreaming, queryClient, roleStartKey]);
   const matchingSearchStatus = useOrgMatchingSearchStatus({
@@ -281,7 +302,7 @@ export function OrgAgentChatSurface({
     pending_intros: {
       label: c("Pending intros", "Ready to connect"),
       message: c(
-        "지금 결정이 필요한 연결 대기 목록을 알려줘",
+        "지금 결정이 필요한 연결 수락할 후보 목록을 알려줘",
         "Show candidates in Ready to connect who need our decision."
       ),
     },
@@ -535,8 +556,16 @@ export function OrgAgentChatSurface({
                         : undefined
                     }
                     authorName={authorName}
-                    choicePending={readOnly || confirmRoleCreation.isPending || answerRoleStart.isPending}
-                    onRoleStartChoice={readOnly || !roleId ? undefined : (args) => answerRoleStart.mutate(args)}
+                    choicePending={
+                      readOnly ||
+                      confirmRoleCreation.isPending ||
+                      answerRoleStart.isPending
+                    }
+                    onRoleStartChoice={
+                      readOnly || !roleId
+                        ? undefined
+                        : (args) => answerRoleStart.mutate(args)
+                    }
                     currentUserId={user.id}
                     message={message}
                     onCompanyInfoClick={onCompanyInfoClick}
@@ -669,7 +698,11 @@ export function OrgAgentChatSurface({
             </p>
           ) : null}
           {purpose === "role" && roleId && workspaceId ? (
-            <OrgRoleSearchActivity key={roleId} workspaceId={workspaceId} roleId={roleId} />
+            <OrgRoleSearchActivity
+              key={roleId}
+              workspaceId={workspaceId}
+              roleId={roleId}
+            />
           ) : null}
           {visibleRoleQuickActions.length > 0 ? (
             <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0">

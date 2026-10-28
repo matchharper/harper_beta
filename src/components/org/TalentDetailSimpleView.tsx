@@ -40,10 +40,8 @@ import { OrgCandidateRoleMoveDialog } from "@/components/org/OrgCandidateRoleMov
 
 import { Tabs } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AcceptIntroDialog,
-  StopCandidateDialog,
-} from "@/components/org/OrgCandidateDecisionDialogs";
+import { StopCandidateDialog } from "@/components/org/OrgCandidateDecisionDialogs";
+import { OrgStageMoveDialog } from "@/components/org/OrgStageMoveDialog";
 import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
 import {
   InternalOnlyHatch,
@@ -85,7 +83,6 @@ import {
 } from "@/lib/org/candidateDecision";
 import { getOrgTalentDetailNavigationState } from "@/lib/org/detailNavigation";
 import {
-  humanizeOrgCompanyIntroStatus,
   humanizeOrgStage,
 } from "@/lib/org/pipelineStage";
 import { companyPresentationFinalFitLabel } from "@/lib/org/companyCriteriaEvaluations";
@@ -94,7 +91,9 @@ import type {
   OrgTalentDetailResponse,
 } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import { suggestOrgStopReasons } from "@/lib/org/evaluationSuggestions";
 import { useToastStore } from "@/store/useToastStore";
+import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
 import Face from "../common/Face";
 
 const OrgInternalTalentPanel = dynamic(
@@ -255,11 +254,11 @@ function CandidateDecisionActions({
     if (!onMoveToPendingConnection) return null;
     return (
       <section
-        aria-label={c("연결 대기 상태로 이동", "Move to Ready to connect")}
+        aria-label={c("연결 수락할 후보로 이동", "Move to Ready to connect")}
         className={cn("rounded-md bg-bg-weak px-4 py-4", className)}
       >
         <div className="text-[16px] font-medium text-neutral-primary">
-          {c("연결 대기 상태로 옮기시겠습니까?", "Move to Ready to connect?")}
+          {c("연결 수락할 후보로 옮기시겠습니까?", "Move to Ready to connect?")}
         </div>
         <p className="mt-1 text-sm font-normal leading-5 text-neutral-muted">
           {c(
@@ -275,7 +274,7 @@ function CandidateDecisionActions({
           type="button"
           variant="primary"
         >
-          {c("연결 대기로 이동", "Move to Ready to connect")}
+          {c("연결 수락할 후보로 이동", "Move to Ready to connect")}
         </MuteButton>
       </section>
     );
@@ -378,18 +377,9 @@ function CompanyIntroDecisionActions({
   pending: boolean;
 }) {
   const { c } = useOrgLocale();
-  const sourceT = useOrgSourceT();
   const [passOpen, setPassOpen] = useState(false);
-  if (!detail.companyIntro) return null;
-  if (detail.companyIntro.status !== "ready") {
-    return (
-      <section className="rounded-md bg-primary-faded px-4 py-4">
-        <div className="text-[15px] font-medium text-primary">
-          {sourceT(humanizeOrgCompanyIntroStatus(detail.companyIntro))}
-        </div>
-      </section>
-    );
-  }
+  // After the request, its state shows in the profile's 채용 진행 line.
+  if (detail.companyIntro?.status !== "ready") return null;
   return (
     <section className="rounded-md border border-neutral-1000-a05 bg-bg-default px-4 py-4">
       <div className="grid grid-cols-2 gap-2">
@@ -406,7 +396,7 @@ function CompanyIntroDecisionActions({
           size="md"
           variant="dark"
         >
-          {c("Intro 보내기", "Send intro")}
+          {c("Send Intro", "Send Intro")}
         </MuteButton>
       </div>
     </section>
@@ -429,7 +419,10 @@ function getOrgFeedTitle(item: OrgTalentDetailResponse["feed"][number]) {
     return "프로세스 종료 안내";
   }
   if (item.activity) {
-    return orgCandidateActivityTitle(orgCandidateActivityKind(item.activity), (ko) => ko);
+    return orgCandidateActivityTitle(
+      orgCandidateActivityKind(item.activity),
+      (ko) => ko
+    );
   }
   const { kind } = item;
   if (kind === "org_note") return "메모";
@@ -589,9 +582,11 @@ function FeedPanel({
     let cancelled = false;
     const intervalId = window.setInterval(async () => {
       const result = await refetchDetail();
-      const current = !isOrgCandidateProfilePreview(result.data) ? result.data?.connectionConfirmationEmails.find(
-        (item) => item.id === pollingQueueId
-      ) : undefined;
+      const current = !isOrgCandidateProfilePreview(result.data)
+        ? result.data?.connectionConfirmationEmails.find(
+            (item) => item.id === pollingQueueId
+          )
+        : undefined;
       if (
         !cancelled &&
         current &&
@@ -646,7 +641,8 @@ function FeedPanel({
   const feedItems = useMemo<ProgressFeedItem[]>(() => {
     const requestsWithContactProgress = new Set(
       detail.feed.flatMap((item) =>
-        item.activity?.eventType === "candidate_contact_sent" && item.activity.requestId
+        item.activity?.eventType === "candidate_contact_sent" &&
+        item.activity.requestId
           ? [item.activity.requestId]
           : []
       )
@@ -829,7 +825,7 @@ function FeedPanel({
         deleteError={feedError(deleteFeed.error)}
         draft={draft}
         editError={feedError(updateFeed.error)}
-        emptyLabel={c("", "")}
+        emptyLabel={c("아직 기록이 없어요", "Nothing here yet")}
         items={feedItems}
         labels={feedLabels}
         onDelete={
@@ -1052,7 +1048,7 @@ export function TalentDetailSimpleView({
   backLabel?: string;
   navigationTitle?: string;
 }) {
-  const { c } = useOrgLocale();
+  const { c, locale } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const {
     closeTalentDetail,
@@ -1094,6 +1090,7 @@ export function TalentDetailSimpleView({
   const passCompanyIntro = usePassOrgCompanyIntro();
   const saveCandidate = useOrgCandidateSave();
   const addToast = useToastStore((state) => state.add);
+  const decisions = useOrgCandidateDecisionRunner(workspaceId);
   const acceptStageId = selectedAcceptStageId;
   const canManageCandidates = permissions.canManageCandidates;
   const companyName = detail?.workspace.companyName ?? workspace.companyName;
@@ -1272,13 +1269,27 @@ export function TalentDetailSimpleView({
 
   if (!open || typeof document === "undefined") return null;
   if (profilePreview && !isOrgQueryAccessError(detailQuery.error)) {
-    return <OrgCandidateProfilePreview preview={profilePreview} onClose={handleClose} inline={presentation === "inline"} />;
+    return (
+      <OrgCandidateProfilePreview
+        preview={profilePreview}
+        onClose={handleClose}
+        inline={presentation === "inline"}
+      />
+    );
   }
 
   const title =
     detail?.talent.name ||
     detail?.talent.email ||
     (isLoading ? "Talent" : "Talent");
+  const detailMoveCandidate = detail
+    ? {
+        email: detail.talent.email?.trim().toLowerCase() || null,
+        name: title,
+        recommendationId: detail.recommendation.recommendationId,
+        stage: detail.recommendation.stage,
+      }
+    : null;
   const subtitle = detail
     ? `${companyName} · ${detail.role.name}`
     : companyName;
@@ -1520,7 +1531,7 @@ export function TalentDetailSimpleView({
                     variant="transparent"
                   >
                     {detail?.recommendation.stage === "company_intro"
-                      ? c("Intro 보내기", "Send intro")
+                      ? c("Send Intro", "Send Intro")
                       : CANDIDATE_DECISION_LABELS.connect}
                   </MuteButton>
                 </div>
@@ -1837,52 +1848,49 @@ export function TalentDetailSimpleView({
           }}
         />
       )}
-      <AcceptIntroDialog
-        key={detail?.recommendation.recommendationId ?? "accept-dialog"}
+      <OrgStageMoveDialog
+        key={detail?.recommendation.recommendationId ?? "stage-move-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        candidateEmail={detail?.talent.email}
-        candidateName={title}
-        companyContactName={currentUser?.name}
-        defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        defaultEmail={currentUserEmail}
+        candidates={detailMoveCandidate ? [detailMoveCandidate] : []}
+        initialStage={acceptStageId ?? "connected"}
         members={members}
-        open={acceptDialogOpen && Boolean(detail)}
-        pending={decisionPending}
         onClose={closeAcceptDialog}
-        onSubmit={async ({
-          acceptReason,
-          additionalMessage,
-          additionalMessageVisibility,
-          attendeeEmails,
-          contactDirectly,
-          durationMinutes,
-          introEmails,
-          meetingCandidateMessage,
-          meetingPurpose,
-          scheduleInterview,
-          title,
-        }) => {
-          if (!acceptStageId || !onAcceptCandidate) return;
-          const stage = acceptStageId;
-          const result = await onAcceptCandidate({
-            acceptReason,
-            additionalMessage,
-            additionalMessageVisibility,
-            attendeeEmails,
-            contactDirectly,
-            durationMinutes,
-            introEmails,
-            meetingCandidateMessage,
-            meetingPurpose,
-            scheduleInterview,
-            stage,
-            title,
+        onSubmit={(submit) => {
+          if (!detail || !detailMoveCandidate || !onAcceptCandidate) return;
+          const options = submit.options(detailMoveCandidate);
+          decisions.moveOpenCandidate({
+            name: title,
+            recommendationId: detail.recommendation.recommendationId,
+            run: () =>
+              onAcceptCandidate(
+                {
+                  acceptReason: null,
+                  attendeeEmails: options.attendeeEmails,
+                  contactDirectly: options.contactDirectly ?? false,
+                  durationMinutes: options.durationMinutes,
+                  introEmailDraft: options.introEmailDraft,
+                  introEmails: options.introEmails ?? [],
+                  meetingCandidateMessage: options.meetingCandidateMessage,
+                  meetingPurpose: options.meetingPurpose,
+                  scheduleInterview: options.scheduleInterview,
+                  stage: submit.stage,
+                  title: options.title,
+                },
+                "silent"
+              ),
+            submit,
           });
           closeAcceptDialog();
-          if (result && presentation === "inline") finishReview();
-          return result;
+          if (presentation === "inline") finishReview();
         }}
+        open={acceptDialogOpen && Boolean(detail)}
+        roleId={detail?.role.roleId ?? null}
         roleTitle={detail?.role.name ?? ""}
+        stages={
+          optionalBoard?.board?.stages ?? [
+            { id: "connected", label: "연결됨", sortOrder: 1 },
+          ]
+        }
       />
 
       <PendingConnectionDialog
@@ -1901,6 +1909,9 @@ export function TalentDetailSimpleView({
       <CompanyIntroRequestDialog
         key={detail?.companyIntro?.id ?? "closed"}
         candidateName={title}
+        roleId={detail?.role.roleId}
+        workspaceId={workspaceId}
+        members={members}
         defaultEmail={currentUserEmail}
         onClose={() => setCompanyIntroRequestOpen(false)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {
@@ -1930,15 +1941,27 @@ export function TalentDetailSimpleView({
         open={rejectDialogOpen && Boolean(detail)}
         pending={decisionPending}
         onClose={() => setRejectDialogOpen(false)}
-        onSubmit={async ({ note, notifyCandidateOnClosure }) => {
-          if (!onRejectCandidate) return;
-          const result = await onRejectCandidate({
+        onSubmit={({ note, notifyCandidateOnClosure }) => {
+          if (!onRejectCandidate || !detail) return;
+          decisions.rejectOpenCandidate({
+            ended: detail.recommendation.stage !== "pending_connection",
+            name: title,
             notifyCandidateOnClosure,
-            stopNote: note,
+            recommendationId: detail.recommendation.recommendationId,
+            run: () =>
+              onRejectCandidate(
+                { notifyCandidateOnClosure, stopNote: note },
+                "silent"
+              ),
           });
           setRejectDialogOpen(false);
-          if (result && presentation === "inline") finishReview();
+          if (presentation === "inline") finishReview();
         }}
+        suggestedReasons={
+          detail
+            ? [suggestOrgStopReasons(detail.criteriaEvaluations, locale)]
+            : undefined
+        }
       />
     </>
   );

@@ -1,12 +1,15 @@
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { OrgSavedCandidates } from "./OrgSavedCandidates";
+import { useRouter } from "next/router";
 import { useOrgSourceT, useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { LoaderCircle } from "lucide-react";
 import {
   type DragEvent,
   type FormEvent,
   type ReactNode,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { opsTheme } from "@/components/ops/theme";
@@ -23,10 +26,11 @@ import {
   ReviewPipelineEmptyState,
   ReviewPipelineStageDialog,
 } from "@/components/review-pipeline/ReviewPipelinePrimitives";
+import { StopCandidateDialog } from "@/components/org/OrgCandidateDecisionDialogs";
 import {
-  AcceptIntroDialog,
-  StopCandidateDialog,
-} from "@/components/org/OrgCandidateDecisionDialogs";
+  OrgStageMoveDialog,
+  toOrgStageMoveCandidate,
+} from "@/components/org/OrgStageMoveDialog";
 import { CompanyIntroRequestDialog } from "@/components/org/CompanyIntroDecisionDialogs";
 import {
   canDropOrgCandidateToStage,
@@ -55,7 +59,10 @@ import { useOrgWorkspace } from "@/hooks/org/useOrgWorkspace";
 import { useOrgViewedRecommendations } from "@/hooks/org/useOrgViewedRecommendations";
 import type { OrgBoardItem, OrgStage, OrgStageId } from "@/lib/org/server";
 import { cn } from "@/lib/utils";
+import { suggestOrgStopReasons } from "@/lib/org/evaluationSuggestions";
 import { useToastStore } from "@/store/useToastStore";
+import { useOrgDeferredActionStore } from "@/store/useOrgDeferredActionStore";
+import { useOrgCandidateDecisionRunner } from "@/hooks/org/useOrgCandidateDecisionRunner";
 
 function getCustomStageDbId(stageId: OrgStageId) {
   return stageId.startsWith("custom:") ? stageId.slice("custom:".length) : "";
@@ -66,7 +73,7 @@ export function OrgPipeline({
 }: {
   displayControl?: ReactNode;
 }) {
-  const { c } = useOrgLocale();
+  const { c, locale } = useOrgLocale();
   const sourceT = useOrgSourceT();
   const { board, boardQuery, profileLabelsError, profileLabelsLoading } =
     useOrgJobsBoard();
@@ -81,19 +88,25 @@ export function OrgPipeline({
     selectTalent: onSelect,
     workspaceId,
   } = useOrgJobsNavigation();
-  const {
-    bootstrap,
-    currentUser,
-    currentUserEmail,
-    internalOpsAccess,
-    permissions,
-  } = useOrgWorkspace();
+  const { bootstrap, currentUserEmail, internalOpsAccess, permissions } =
+    useOrgWorkspace();
   const members = bootstrap.members;
   const canManageCandidates = permissions.canManageCandidates;
   const isLoading = boardQuery.isLoading;
+  const decisions = useOrgCandidateDecisionRunner(workspaceId);
+  const deferredStages = useOrgDeferredActionStore(
+    (state) => state.deferredStages
+  );
   const [expandedStoppedRoleId, setExpandedStoppedRoleId] = useState<
     string | null
   >(null);
+  // Candidates a decision toast sent here ("보기") are marked for a moment.
+  const router = useRouter();
+  const highlightParam = String(router.query.highlight ?? "");
+  const highlighted = useMemo(
+    () => new Set(highlightParam.split(",").filter(Boolean)),
+    [highlightParam]
+  );
   const [dragOverStage, setDragOverStage] = useState<OrgStageId | null>(null);
   const [acceptRequest, setAcceptRequest] = useState<{
     item: OrgBoardItem;
@@ -141,13 +154,18 @@ export function OrgPipeline({
     for (const stage of board?.stages ?? []) map.set(stage.id, []);
     for (const item of board?.items ?? []) {
       if (item.savedAt) continue;
-      const itemStage = getPendingStage(item) ?? item.stage;
+      const deferredStage = deferredStages.get(item.recommendationId);
+      if (deferredStage === null) continue;
+      const itemStage =
+        (deferredStage as OrgStageId | undefined) ??
+        getPendingStage(item) ??
+        item.stage;
       const rows = map.get(itemStage) ?? [];
       rows.push(item);
       map.set(itemStage, rows);
     }
     return map;
-  }, [board, getPendingStage]);
+  }, [board, deferredStages, getPendingStage]);
   const itemByRecommendationId = useMemo(
     () =>
       new Map(
@@ -181,6 +199,31 @@ export function OrgPipeline({
     [board?.stages]
   );
   const lastPreOfferStageId = preOfferStages.at(-1)?.id ?? null;
+
+  const scrolledTo = useRef("");
+  useEffect(() => {
+    if (!highlightParam) return;
+    if (scrolledTo.current !== highlightParam) {
+      const card = document.querySelector("[data-pipeline-highlight]");
+      if (card) {
+        scrolledTo.current = highlightParam;
+        card.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "center",
+        });
+      }
+    }
+    const timer = window.setTimeout(() => {
+      const query = { ...router.query };
+      delete query.highlight;
+      void router.replace({ pathname: router.pathname, query }, undefined, {
+        shallow: true,
+        scroll: false,
+      });
+    }, 8_000);
+    return () => window.clearTimeout(timer);
+  }, [highlightParam, itemsByStage, router]);
 
   const continueMove = (
     item: OrgBoardItem,
@@ -352,7 +395,10 @@ export function OrgPipeline({
       stage.id === lastPreOfferStageId;
     const isInternalAcceptedStage = stage.id === "accepted";
     const isStoppedStage = stage.id === "process_stopped";
-    const collapsed = isStoppedStage && expandedStoppedRoleId !== activeRoleId;
+    const collapsed =
+      isStoppedStage &&
+      expandedStoppedRoleId !== activeRoleId &&
+      !items.some((item) => highlighted.has(item.recommendationId));
 
     return (
       <ReviewPipelineColumnShell
@@ -419,25 +465,33 @@ export function OrgPipeline({
           />
         )}
         {isInternalAcceptedStage ? <InternalOnlyHatch /> : null}
-        {!collapsed && (
-          <div
-            className={cn(
-              "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 py-1.5 transition-colors",
-              isLastColumn && "border-r",
-              isDropTarget
-                ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
-                : canDrop
-                  ? "bg-primary-faded/20"
-                  : stage.id === "process_stopped"
-                    ? "bg-critical-faded/40"
-                    : ""
-            )}
-          >
-            {isDropTarget && (
-              <ReviewPipelineDropTargetHint label={stage.label} />
-            )}
-            {items.map((item) => (
+        {/* A collapsed column keeps its bordered body so column dividers stay
+            continuous; only its cards are hidden. */}
+        <div
+          className={cn(
+            "min-h-0 flex-1 space-y-1.5 border-l border-neutral-1000-a10 px-1.5 py-1.5 transition-colors",
+            isLastColumn && "border-r",
+            isDropTarget
+              ? "bg-primary-faded/55 ring-2 ring-inset ring-primary/55"
+              : canDrop
+                ? "bg-primary-faded/20"
+                : stage.id === "process_stopped" && !collapsed
+                  ? "bg-critical-faded/40"
+                  : ""
+          )}
+        >
+          {isDropTarget && <ReviewPipelineDropTargetHint label={stage.label} />}
+          {!collapsed &&
+            items.map((item) => (
               <div
+                className={cn(
+                  "rounded-lg transition-shadow duration-300",
+                  highlighted.has(item.recommendationId) &&
+                    "ring-2 ring-neutral-900 ring-offset-2 ring-offset-neutral-50"
+                )}
+                data-pipeline-highlight={
+                  highlighted.has(item.recommendationId) ? "" : undefined
+                }
                 key={item.recommendationId}
                 onDragStart={() => {
                   if (canManageCandidates) {
@@ -477,11 +531,10 @@ export function OrgPipeline({
                 />
               </div>
             ))}
-            {items.length === 0 ? (
-              <ReviewPipelineEmptyState className="border-0 bg-transparent" />
-            ) : null}
-          </div>
-        )}
+          {!collapsed && items.length === 0 ? (
+            <ReviewPipelineEmptyState className="border-0 bg-transparent" />
+          ) : null}
+        </div>
       </ReviewPipelineColumnShell>
     );
   };
@@ -583,66 +636,42 @@ export function OrgPipeline({
         ) : null}
       </TalentCareerModal>
 
-      <AcceptIntroDialog
-        key={acceptRequest?.item.recommendationId ?? "accept-dialog"}
+      <OrgStageMoveDialog
+        key={acceptRequest?.item.recommendationId ?? "stage-move-dialog"}
         allowContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        candidateEmail={acceptRequest?.item.talent.email}
-        candidateName={
+        candidates={
           acceptRequest
-            ? sourceT(getOrgCandidateDisplayName(acceptRequest.item))
-            : ""
+            ? [
+                {
+                  ...toOrgStageMoveCandidate(
+                    acceptRequest.item,
+                    sourceT(getOrgCandidateDisplayName(acceptRequest.item))
+                  ),
+                  // Already confirmed in the reengagement dialog.
+                  processClosureNoticeUnresolved: false,
+                },
+              ]
+            : []
         }
-        companyContactName={currentUser?.name}
-        defaultContactDirectly={isInternalDomainEmail(currentUserEmail)}
-        defaultEmail={currentUserEmail}
-        destinationLabel={
-          board?.stages.find((stage) => stage.id === acceptRequest?.stage)
-            ?.label
-        }
+        initialStage={acceptRequest?.stage}
         members={members}
-        open={Boolean(acceptRequest)}
-        pending={Boolean(
-          acceptRequest && isCandidateStagePending(acceptRequest.item)
-        )}
         onClose={() => setAcceptRequest(null)}
-        onSubmit={async ({
-          acceptReason,
-          additionalMessage,
-          additionalMessageVisibility,
-          attendeeEmails,
-          contactDirectly,
-          durationMinutes,
-          introEmails,
-          meetingCandidateMessage,
-          meetingPurpose,
-          scheduleInterview,
-          title,
-        }) => {
+        onSubmit={(submit) => {
           if (!acceptRequest) return;
-          const stage = acceptRequest.stage;
-          const result = await onStageChange(
-            acceptRequest.item,
-            stage,
-            {
-              acceptReason,
-              additionalMessage,
-              additionalMessageVisibility,
-              attendeeEmails,
-              contactDirectly,
-              durationMinutes,
-              introEmails,
-              meetingCandidateMessage,
-              meetingPurpose,
-              reengagementResolution: acceptRequest.reengagementResolution,
-              scheduleInterview,
-              title,
-            },
-            "inline"
-          );
+          const { item, reengagementResolution } = acceptRequest;
+          decisions.move([item], {
+            ...submit,
+            options: (candidate) => ({
+              ...submit.options(candidate),
+              reengagementResolution,
+            }),
+          });
           setAcceptRequest(null);
-          return result;
         }}
+        open={Boolean(acceptRequest)}
+        roleId={acceptRequest?.item.roleId ?? null}
         roleTitle={acceptRequest?.item.roleName ?? ""}
+        stages={board?.stages ?? []}
       />
 
       <StopCandidateDialog
@@ -655,19 +684,16 @@ export function OrgPipeline({
         open={Boolean(stopItem)}
         pending={Boolean(stopItem && isCandidateStagePending(stopItem))}
         onClose={() => setStopItem(null)}
-        onSubmit={async ({ note, notifyCandidateOnClosure }) => {
+        onSubmit={({ note, notifyCandidateOnClosure }) => {
           if (!stopItem) return;
-          await onStageChange(
-            stopItem,
-            "process_stopped",
-            {
-              notifyCandidateOnClosure,
-              stopNote: note,
-            },
-            "inline"
-          );
+          decisions.reject([stopItem], { note, notifyCandidateOnClosure });
           setStopItem(null);
         }}
+        suggestedReasons={
+          stopItem
+            ? [suggestOrgStopReasons(stopItem.criteriaEvaluations, locale)]
+            : undefined
+        }
       />
 
       <CompanyIntroRequestDialog
@@ -677,6 +703,9 @@ export function OrgPipeline({
             ? sourceT(getOrgCandidateDisplayName(companyIntroRequest.item))
             : ""
         }
+        roleId={companyIntroRequest?.item.roleId}
+        workspaceId={workspaceId}
+        members={members}
         defaultEmail={currentUserEmail}
         onClose={() => setCompanyIntroRequest(null)}
         onSubmit={async ({ companyAppeal, introRecipientEmails }) => {

@@ -379,7 +379,7 @@ export const en: Record<OrgMessageKey, string> = {
   "profile.language": "Language",
   "profile.korean": "Korean",
   "profile.english": "English",
-  "CompanyIntroDecisionDialogs.e0eb989a": "Send intro",
+  "CompanyIntroDecisionDialogs.e0eb989a": "Send Intro",
   "OrgAllRolesOverview.00381055": "Updated",
   "OrgAllRolesOverview.6883bd4c": "Loading",
   "OrgAllRolesOverview.d145476b": "Roles",

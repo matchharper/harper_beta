@@ -9,6 +9,7 @@ export type OrgWorkspacePageId =
   | "team"
   | "slots"
   | "billing"
+  | "templates"
   | "settings"
   | "personal-settings"
   | "documents";
@@ -52,6 +53,7 @@ const ORG_PAGE_PATHS: Record<OrgWorkspacePageId, string> = {
   "personal-settings": "/org/personal-settings",
   slots: "/org/slots",
   billing: "/org/billing",
+  templates: "/org/templates",
   team: "/org/team",
 };
 

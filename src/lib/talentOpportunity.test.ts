@@ -118,7 +118,7 @@ function buildStopEvent(
       ...(stopReason ? { stopReason } : {}),
       tag: "내부:프로세스중단",
     },
-    text: "연결 대기에서 프로세스 중단으로 옮겼습니다.",
+    text: "연결 수락할 후보에서 프로세스 중단으로 옮겼습니다.",
   };
 }
 

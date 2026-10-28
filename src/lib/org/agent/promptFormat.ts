@@ -1147,10 +1147,10 @@ export function formatMatchingRunHistory(value: MatchingRunHistory) {
     `회사에게 먼저 추천할 후보자 선정: ${measure(item.companyProposals, "명")} · 후보자에게 먼저 추천 선정: ${measure(item.candidateProposalsSelected, "명")}`,
     ...(item.candidateOutreachPauses?.length ? [
       `후보자에게 먼저 제안하는 경로 중단: ${item.candidateOutreachPauses.map(fact =>
-        `${formatPromptCell(item.roles.find(role => role.roleId === fact.roleId)?.name ?? fact.roleId, 250)} · 당시 연결 대기 ${fact.pendingCount}명 / 상한 ${fact.maxPendingTalents}명`).join("; ")}. 이 상한은 회사에 먼저 후보를 제안하는 경로에는 적용하지 않음. 검색·fit 평가 전체를 생략했다는 의미가 아님. Role-based 검색의 새 후보자 선추천은 연결 대기가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아님.`,
+        `${formatPromptCell(item.roles.find(role => role.roleId === fact.roleId)?.name ?? fact.roleId, 250)} · 당시 연결 수락할 후보 ${fact.pendingCount}명 / 상한 ${fact.maxPendingTalents}명`).join("; ")}. 이 상한은 회사에 먼저 후보를 제안하는 경로에는 적용하지 않음. 검색·fit 평가 전체를 생략했다는 의미가 아님. Role-based 검색의 새 후보자 선추천은 연결 수락할 후보가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아님.`,
     ] : [item.candidateOutreachPauses === undefined
-      ? "당시 연결 대기 인원과 선추천 상한 중단 여부는 이 실행 기록에 남아 있지 않아 확인할 수 없음. 비공개라서 숨기는 값이 아니라 과거 측정 기록이 없는 상태임."
-      : "이번 실행에는 연결 대기 상한 때문에 후보자 선추천을 중단한 역할이 없음."]),
+      ? "당시 연결 수락할 후보 인원과 선추천 상한 중단 여부는 이 실행 기록에 남아 있지 않아 확인할 수 없음. 비공개라서 숨기는 값이 아니라 과거 측정 기록이 없는 상태임."
+      : "이번 실행에는 연결 수락할 후보 상한 때문에 후보자 선추천을 중단한 역할이 없음."]),
     `검색 판단 근거: ${formatPromptMarkdown(item.searchReason, 300)}`,
     `검색 방향: ${formatPromptMarkdown(item.searchStrategy, 500)}`,
   ].join("\n"));
@@ -1159,7 +1159,7 @@ export function formatMatchingRunHistory(value: MatchingRunHistory) {
     "양쪽에 선정된 동일 후보자가 두 방향 수에 포함될 수 있다. 기록이 없는 수치는 0이 아니다. 개별 비공개 fit/선정 이유는 제공하지 않는다.",
     "기준 라벨은 평가 분포이며 limited/conflict 등의 합계가 실제 제외 인원이나 제외 사유는 아니다. 1·2차 Decisions의 당시 판단은 점수·분류로 저장되고 이유 원문은 없다. 후보별 공개 근거와 3차 추천 설명은 일반 상세 조회로 확인한다.",
     "실패·과거 실행의 요약 수치가 없더라도 저장된 평가가 없다는 뜻은 아니다. 단계별 기록은 matching={roleId,view:\"evaluations\",runId}로 확인하며, 현재 Brief 전체 누적 통계는 runId 없이 matching={roleId,view:\"summary\"}로 조회한다.",
-    "역할의 연결 대기 인원·선추천 상한 중단 여부는 기록이 있으면 회사에 설명할 수 있는 운영 사실이다. 상한 해소는 다음 검색에서 새 후보자 선추천 경로를 허용할 뿐, 후보 선정·추천 발송을 보장하지 않는다.",
+    "역할의 연결 수락할 후보 인원·선추천 상한 중단 여부는 기록이 있으면 회사에 설명할 수 있는 운영 사실이다. 상한 해소는 다음 검색에서 새 후보자 선추천 경로를 허용할 뿐, 후보 선정·추천 발송을 보장하지 않는다.",
     rows.length ? rows.join("\n\n") : "이 페이지에 검색 실행 기록 없음.",
     value.nextOffset === null ? "다음 페이지 없음." :
       `더 오래된 실행: get_more_data(kinds=[\"matching_runs\"]${value.roleId ? `, roleId="${value.roleId}"` : ""}, offset=${value.nextOffset}). 역할별 상세·통계·후보 목록은 matching={roleId,view,runId?}로 조회한다.`,
@@ -2248,6 +2248,31 @@ export function formatOrgAgentToolResult(
       ...formatOptionalResponseGuidance(result),
     ].join("\n");
   }
+  if (name === "manage_comparison_columns") {
+    const columns = Array.isArray(result.columns) ? result.columns : [];
+    return [
+      `status=${formatPromptCell(result.status, 30)}`,
+      `role_name=${formatPromptCell(result.roleName, 200)}`,
+      ...(result.changedColumnId
+        ? [`changed_column_id=${formatPromptCell(result.changedColumnId, 100)}`]
+        : []),
+      columns.length
+        ? "inbox_list_columns (shared by everyone on this Role):"
+        : "inbox_list_columns=none",
+      ...columns.flatMap((column: any) => {
+        const cells = Object.entries(column.values ?? {});
+        return [
+          `- column_id=${formatPromptCell(column.id, 100)} label=${formatPromptCell(column.label, 200)}${column.description ? ` description=${formatPromptCell(column.description, 500)}` : ""} filled_cells=${cells.length}`,
+          ...cells.map(
+            ([talentId, value]) =>
+              `  ${formatPromptCell(talentId, 100)}: ${formatPromptCell(value, 500)}`
+          ),
+        ];
+      }),
+      "criteria_changed=false",
+      "candidates_contacted=false",
+    ].join("\n");
+  }
   if (name === "list_contacts") return formatContactListResult(result);
   if (name === "read_contact") return formatContactDetailResult(result);
   if (name === "send_company_message") return formatPromptText({ status: result.status, batchId: result.batchId, messageIds: result.messageIds });
@@ -2261,7 +2286,7 @@ export function formatOrgAgentToolResult(
     if (result.status === 'completed') {
       const ids = (value: unknown) => Array.isArray(value) ? value.join(', ') || '없음' : '미확인';
       return [
-        'status=completed; 후보 설명 작성 및 먼저 제안 가능한 후보 목록 저장 완료',
+        'status=completed; 후보 설명 작성 및 연결 제안할 후보 목록 저장 완료',
         `role=${formatPromptCell(result.requestedRoleName ?? result.roleName, 200)}; run=${result.runId}`,
         `kind=${result.kind}; requested_talent_ids=${ids(result.requestedTalentIds)}`,
         `추가=${ids(result.addedTalentIds)}`,
@@ -2430,6 +2455,7 @@ function orgAgentToolRecoveryInstruction(args: {
     case "manage_role_pipeline_stages":
     case "manage_interview_availability":
     case "add_candidate_note":
+    case "manage_comparison_columns":
     case "calibrate_role_hiring_brief":
       return `${retryPrefix} For an execution failure, read the relevant current company or Role state before another write. Then continue any still-authorized independent part of the request.`;
     case "get_talents":

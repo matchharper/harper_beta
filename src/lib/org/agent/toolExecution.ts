@@ -539,6 +539,11 @@ export function getOrgAgentToolStatusLabel(args: {
       "후보자 메모 저장 완료",
       "후보자 메모를 저장하지 못했습니다",
     ],
+    manage_comparison_columns: [
+      "리스트 비교 열을 정리하는 중",
+      "리스트 비교 열 정리 완료",
+      "리스트 비교 열을 정리하지 못했습니다",
+    ],
     get_more_data: [
       "회사 정보를 읽는 중",
       "회사 정보 확인 완료",
@@ -788,6 +793,91 @@ async function executeAddCandidateNote(args: {
     note,
     roleName: role.name,
     status: "saved",
+  };
+}
+
+function comparisonCells(value: unknown) {
+  const cells: Record<string, string> = {};
+  if (!Array.isArray(value)) return cells;
+  for (const entry of value) {
+    const talentId = text((entry as { talentId?: unknown })?.talentId);
+    if (!talentId) continue;
+    cells[talentId] = String((entry as { value?: unknown })?.value ?? "").trim();
+  }
+  return cells;
+}
+
+async function executeManageComparisonColumns(args: {
+  callId: string;
+  input: Record<string, unknown>;
+  name: OrgAgentToolName;
+  state: OrgAgentToolExecutionState;
+  user: User;
+  workspaceId: string;
+}) {
+  const role = roleOrThrow(args.state, args.input.roleId);
+  const action = text(args.input.action);
+  const { changeOrgRoleListColumns } = await import("@/lib/org/roleViews.server");
+  const optional = (value: unknown) =>
+    value === undefined ? undefined : text(value) || null;
+  let result;
+  if (action === "add") {
+    const label = text(args.input.label);
+    if (!label) throw new OrgAgentToolInputError("label is required");
+    result = await changeOrgRoleListColumns({
+      change: {
+        action,
+        description: optional(args.input.description) ?? null,
+        label,
+        values: comparisonCells(args.input.values),
+      },
+      roleId: role.roleId,
+      userId: args.user.id,
+      workspaceId: args.workspaceId,
+    });
+  } else if (action === "update" || action === "remove") {
+    const columnId = requiredText(args.input.columnId, "columnId", 100);
+    result = await changeOrgRoleListColumns({
+      change:
+        action === "remove"
+          ? { action, columnId }
+          : {
+              action,
+              columnId,
+              description: optional(args.input.description),
+              label: text(args.input.label) || null,
+              values: comparisonCells(args.input.values),
+            },
+      roleId: role.roleId,
+      userId: args.user.id,
+      workspaceId: args.workspaceId,
+    });
+  } else if (action === "list") {
+    const { listOrgRoleListColumns } = await import("@/lib/org/roleViews.server");
+    result = {
+      changed: null,
+      columns: await listOrgRoleListColumns({
+        roleId: role.roleId,
+        user: args.user,
+        workspaceId: args.workspaceId,
+      }),
+    };
+  } else {
+    throw new OrgAgentToolInputError("action must be add, update, remove or list");
+  }
+  args.state.preferredRoleId = role.roleId;
+  recordResult(args.state, {
+    callId: args.callId,
+    name: args.name,
+    status: "success",
+    summary: action === "list" ? "리스트 비교 열 조회" : "리스트 비교 열 변경",
+  });
+  return {
+    action,
+    changedColumnId: result.changed?.id ?? null,
+    columns: result.columns,
+    roleName: role.name,
+    status: action === "list" ? "read" : "saved",
   };
 }
 
@@ -4166,7 +4256,7 @@ async function executeMoveCandidateStage(args: {
   );
   if (currentStage === "company_intro" || currentStage === "intro_requested") {
     throw new OrgAgentToolInputError(
-      "먼저 제안 가능한 후보와 Intro Requested 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 먼저 제안하기에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 Intro Requested에서 진행 상태를 확인해 주세요."
+      "연결 제안할 후보와 연결 제안한 후보는 연결이 완료되기 전까지 일반 단계 이동을 할 수 없습니다. 제안 전이라면 후보자 카드의 먼저 제안하기에서 만나고 싶은 이유와 수락 시 소개 이메일을 받을 담당자를 정해 주세요. 이미 제안을 요청했다면 연결 제안한 후보에서 진행 상태를 확인해 주세요."
     );
   }
   const candidateName = text(talent.candidate.name) || "후보자";
@@ -4838,7 +4928,7 @@ async function readCandidateDecisionTarget(args: {
   if (matchingPositions.length === 0) {
     throw new OrgAgentToolInputError(
       args.decision === "accept"
-        ? "후보자가 현재 이 역할의 연결 대기 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
+        ? "후보자가 현재 이 역할의 연결 수락할 후보 또는 프로세스 종료 상태가 아니라 연결을 시작할 수 없어요."
         : "후보자가 현재 이 역할에서 종료할 수 있는 회사 측 진행 상태가 아니에요."
     );
   }
@@ -4969,7 +5059,7 @@ function companyIntroConfirmationFallback(args: {
   roleName: string;
 }) {
   if (args.decision === "pass") {
-    return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 먼저 제안 가능한 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
+    return `${args.candidateName}님에게 ${args.roleName} 역할을 이번에는 제안하지 않을게요. 반영하면 후보자에게 이 기회나 연락이 전달되지 않고, 연결 제안할 후보 목록에서 제외돼요. 이대로 제안하지 않기로 할까요?`;
   }
   return [
     `${args.candidateName}님은 아직 ${args.roleName} 역할을 수락하지 않은 상태예요.`,
@@ -6596,6 +6686,15 @@ export async function executeOrgAgentTool(args: {
       admin: args.admin,
       audience: args.audience,
       input,
+      user: args.user,
+      workspaceId,
+    });
+  } else if (args.name === "manage_comparison_columns") {
+    return executeManageComparisonColumns({
+      callId: args.callId,
+      input,
+      name: args.name,
+      state: args.state,
       user: args.user,
       workspaceId,
     });

@@ -179,7 +179,7 @@ test("links a company-first search candidate without a recommendation record", (
     `&tab=pipeline&view=pipeline&talentId=${TALENT_A}`;
   const rendered = renderSlackOrgLinks({
     message:
-      `먼저 제안 가능한 후보로 [김하퍼](talent:${TALENT_A})님을 확인했습니다. ` +
+      `연결 제안할 후보로 [김하퍼](talent:${TALENT_A})님을 확인했습니다. ` +
       `[미확인 후보](talent:${TALENT_B})는 링크하지 않습니다.`,
     roleTargets: [{ roleId: ROLE_A }],
     talentTargets: [{ profileUrl, talentId: TALENT_A }],

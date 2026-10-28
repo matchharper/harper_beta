@@ -4,6 +4,7 @@ const ORGANIZATION_SIDEBAR_PATHNAMES = new Set([
   "/org/team",
   "/org/slots",
   "/org/billing",
+  "/org/templates",
 ]);
 
 export function shouldAnimateOrganizationSidebarEntry(

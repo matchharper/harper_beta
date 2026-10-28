@@ -25,6 +25,8 @@ import {
   getProfileCareerSummary,
 } from "@/lib/org/profileCareerSummary";
 import type { OrgTalentDetailResponse } from "@/lib/org/server";
+import { OrgCandidateProgressLine } from "./OrgCandidateProgressLine";
+import { OrgCareerLineage } from "./OrgCareerLineage";
 import { OrgCriteriaEvaluation } from "./OrgCriteriaEvaluation";
 
 type ResourceLinkKind =
@@ -195,6 +197,8 @@ export type OrgTalentProfileContentProps = {
   };
   review?: boolean;
   footer?: ReactNode;
+  /** Where the candidate is in this Role's pipeline, under the header. */
+  progress?: ReactNode;
   onResumeClick: (
     kind: "storage" | "link" | "document",
     link?: string | null,
@@ -214,16 +218,33 @@ export function OrgTalentProfile({
     <OrgTalentProfileContent
       detail={detail}
       onResumeClick={onResumeClick}
+      progress={<OrgCandidateProgressLine detail={detail} />}
       review={review}
       footer={footer}
     />
   );
 }
 
+/** "Role at Company" for the job the person holds now, newest first. */
+function currentRoleLine(
+  experiences: OrgTalentDetailResponse["profile"]["experiences"]
+) {
+  const current = experiences
+    .filter((experience) => !experience.endDate)
+    .sort((left, right) =>
+      (right.startDate ?? "").localeCompare(left.startDate ?? "")
+    )[0];
+  const role = current?.role?.trim();
+  const company = current?.companyName?.trim();
+  if (role && company) return `${role} at ${company}`;
+  return role || company || null;
+}
+
 /** Shared professional profile body; a preview carries no invented recommendation. */
 export function OrgTalentProfileContent({
   detail,
   onResumeClick,
+  progress,
   review = false,
   footer,
 }: OrgTalentProfileContentProps) {
@@ -322,6 +343,7 @@ export function OrgTalentProfileContent({
     detail.companyPresentation?.criteriaEvaluations ??
     [];
   const careerSummary = getProfileCareerSummary(detail.profile.experiences);
+  const currentRole = currentRoleLine(detail.profile.experiences);
 
   const header = (
     <TalentProfileHeader
@@ -333,7 +355,7 @@ export function OrgTalentProfileContent({
           large={review}
         />
       }
-      headline={detail.talent.headline}
+      headline={currentRole ?? detail.talent.headline}
       name={name}
       primaryResources={primaryResources}
       secondaryResources={secondaryResources}
@@ -343,6 +365,13 @@ export function OrgTalentProfileContent({
   return (
     <div className="min-w-0 max-w-full space-y-7 px-4 md:px-2 [overflow-wrap:anywhere]">
       {header}
+
+      {progress}
+
+      <OrgCareerLineage
+        educations={detail.profile.educations}
+        experiences={detail.profile.experiences}
+      />
 
       {detail.companyPresentation ? (
         <>

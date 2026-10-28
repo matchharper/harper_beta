@@ -17,7 +17,10 @@ export type CandidateDigestSection = {
   kind: CandidateDigestKind;
   parts: Array<{ candidateId: string | null; text: string }>;
 };
-export type CandidateDigestCriterion = { name: string; fitness: OrgCompanyCriterionFitness };
+export type CandidateDigestCriterion = {
+  name: string;
+  fitness: OrgCompanyCriterionFitness;
+};
 export type CandidateDigestCandidate = {
   id: string;
   webUrl: string;
@@ -39,7 +42,7 @@ export const CANDIDATE_DIGEST_ACTION_LABELS: Record<
   CandidateDigestAction,
   [string, string]
 > = {
-  request_intro: ["Intro 요청하기", "Request intro"],
+  request_intro: ["Send Intro", "Send Intro"],
   pass: ["Pass", "Pass"],
   accept_connection: ["연결 수락", "Connect"],
   reject_connection: ["연결 거절", "Reject"],
@@ -49,16 +52,20 @@ const pick = (locale: OrgLocale, pair: readonly [string, string]) =>
   pair[locale === "ko" ? 0 : 1];
 
 const COPY = {
-  acceptedName: ["연결 대기", "Ready to connect"],
-  companyFirstName: ["먼저 제안 가능한 후보", "Suggested candidates"],
+  acceptedName: ["연결 수락할 후보", "Ready to connect"],
+  companyFirstName: ["연결 제안할 후보", "Suggested candidates"],
   acceptedHeading: [
-    "✅ 연결 대기 · 후보가 이미 만나보겠다고 했어요",
+    "✅ 연결 수락할 후보 · 후보가 이미 만나보겠다고 했어요",
     "✅ Ready to connect · These candidates already agreed to talk",
   ],
-  companyFirstHeading: ["먼저 제안 가능한 후보", "Suggested candidates"],
+  companyFirstHeading: ["연결 제안할 후보", "Suggested candidates"],
 } as const;
 
-function countPhrase(locale: OrgLocale, kind: CandidateDigestKind, count: number) {
+function countPhrase(
+  locale: OrgLocale,
+  kind: CandidateDigestKind,
+  count: number
+) {
   const name = pick(
     locale,
     kind === "accepted_connection" ? COPY.acceptedName : COPY.companyFirstName
@@ -80,7 +87,9 @@ export function candidateDigestSubject(args: {
       ? [countPhrase(args.locale, "company_first", args.companyFirstCount)]
       : []),
   ].join(" · ");
-  const roles = [...new Set(args.roleNames.map((name) => name.trim()).filter(Boolean))];
+  const roles = [
+    ...new Set(args.roleNames.map((name) => name.trim()).filter(Boolean)),
+  ];
   const first = roles[0] ?? (args.locale === "ko" ? "역할" : "Role");
   const others = roles.length - 1;
   const prefix =
@@ -108,7 +117,9 @@ function escapeHtml(value: string) {
 function greeting(locale: OrgLocale, recipientName: string) {
   const name = escapeMarkdownText(recipientName.trim());
   if (locale === "ko")
-    return name ? `${name}님, Harper가 찾은 후보예요.` : "Harper가 찾은 후보예요.";
+    return name
+      ? `${name}님, Harper가 찾은 후보예요.`
+      : "Harper가 찾은 후보예요.";
   return name
     ? `${name}, here are the candidates Harper found.`
     : "Here are the candidates Harper found.";
@@ -125,46 +136,50 @@ const CARD_DIVIDER = "───────────────────�
 type ActionRow = {
   primary: { label: string; url: string };
   secondary: { label: string; url: string };
-  criteria: Array<{ name: string; fitness: OrgCompanyCriterionFitness; label: string }>;
+  criteria: Array<{
+    name: string;
+    fitness: OrgCompanyCriterionFitness;
+    label: string;
+  }>;
 };
 
-// Colors and filled bars of the web icons (public/svgs/<fitness>.svg), drawn without images.
-const CRITERION_BARS: Record<OrgCompanyCriterionFitness, { box: string; bar: string; filled: number }> = {
-  excellent: { box: "#00B25B", bar: "#FFFFFF", filled: 3 },
-  good: { box: "#E6FBED", bar: "#00B25B", filled: 2 },
-  uncertain: { box: "#FFF4C2", bar: "#FF9900", filled: 2 },
-  bad: { box: "#FFDBD6", bar: "#A92011", filled: 1 },
-  conflict: { box: "#FFDBD6", bar: "#A92011", filled: 1 },
-  limited: { box: "#FFF4C2", bar: "#FF9900", filled: 2 },
+// The same marks and colors as the web criterion icons, drawn as text.
+const CRITERION_MARKS: Record<
+  OrgCompanyCriterionFitness,
+  { mark: string; color: string }
+> = {
+  excellent: { mark: "✓✓", color: "#009B35" },
+  good: { mark: "✓", color: "#00B25B" },
+  uncertain: { mark: "?", color: "#F59E0B" },
+  limited: { mark: "?", color: "#F59E0B" },
+  bad: { mark: "✗", color: "#A92011" },
+  conflict: { mark: "✗", color: "#A92011" },
 };
 
 function criteriaHtml(criteria: ActionRow["criteria"]) {
   if (!criteria.length) return "";
-  const bars = (fitness: OrgCompanyCriterionFitness) => {
-    const style = CRITERION_BARS[fitness];
-    const cells = [4, 7, 10].map((height, index) =>
-      `<td style="padding:0 1px;vertical-align:bottom"><div style="width:3px;height:${height}px;border-radius:2px;background:${style.bar};opacity:${index < style.filled ? 1 : 0.25}"></div></td>`
-    ).join("");
-    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;background:${style.box};border-radius:4px;padding:3px"><tr>${cells}</tr></table>`;
+  const mark = (fitness: OrgCompanyCriterionFitness) => {
+    const style = CRITERION_MARKS[fitness];
+    return `<span style="display:inline-block;min-width:18px;font-size:14px;font-weight:700;line-height:1;color:${style.color}">${style.mark}</span>`;
   };
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 12px">${criteria
-    .map((item) => `<tr><td role="img" aria-label="${escapeHtml(item.label)}" style="padding:2px 8px 2px 0;vertical-align:middle">${bars(item.fitness)}</td><td style="padding:2px 0;font-size:13px;line-height:1.4;color:#374151">${escapeHtml(item.name)}</td></tr>`)
+    .map(
+      (item) =>
+        `<tr><td role="img" aria-label="${escapeHtml(item.label)}" style="padding:2px 8px 2px 0;vertical-align:middle">${mark(item.fitness)}</td><td style="padding:2px 0;font-size:13px;line-height:1.4;color:#374151">${escapeHtml(item.name)}</td></tr>`
+    )
     .join("")}</table>`;
 }
 
 function criteriaText(criteria: ActionRow["criteria"]) {
-  return criteria.map((item) => {
-    const filled = CRITERION_BARS[item.fitness].filled;
-    return `${"▮".repeat(filled)}${"▯".repeat(3 - filled)} ${item.name} · ${item.label}`;
-  });
+  return criteria.map(
+    (item) =>
+      `${CRITERION_MARKS[item.fitness].mark} ${item.name} · ${item.label}`
+  );
 }
 
 /** Table and inline styles keep the buttons intact across mail clients. */
 export function candidateDigestActionRowHtml(row: ActionRow) {
-  const button = (
-    item: { label: string; url: string },
-    filled: boolean
-  ) =>
+  const button = (item: { label: string; url: string }, filled: boolean) =>
     `<td style="padding:0 8px 8px 0"><a href="${escapeHtml(item.url)}" style="display:inline-block;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:500;line-height:1.2;text-decoration:none;${
       filled
         ? "background:#111827;border:1px solid #111827;color:#ffffff"
@@ -180,7 +195,9 @@ export function candidateDigestActionRowText(row: ActionRow) {
   const lines = criteriaText(row.criteria);
   return [
     ...(lines.length ? [lines.join("\n"), ""] : []),
-    [row.primary, row.secondary].map((item) => `${item.label}: ${item.url}`).join("\n"),
+    [row.primary, row.secondary]
+      .map((item) => `${item.label}: ${item.url}`)
+      .join("\n"),
   ].join("\n");
 }
 
@@ -193,7 +210,9 @@ export function buildCandidateDigestEmail(args: {
   workspaceId: string;
 }) {
   const { locale } = args;
-  const byId = new Map(args.candidates.map((candidate) => [candidate.id, candidate]));
+  const byId = new Map(
+    args.candidates.map((candidate) => [candidate.id, candidate])
+  );
   // Several rows of one kind (chunks) share one heading; ✅ always comes first.
   const ordered = (["accepted_connection", "company_first"] as const)
     .map((kind) => ({
@@ -203,7 +222,8 @@ export function buildCandidateDigestEmail(args: {
         .flatMap((section) => section.parts),
     }))
     .filter((section) => section.parts.some((part) => part.candidateId));
-  if (!ordered.length) throw new Error("Candidate mail requires at least one candidate");
+  if (!ordered.length)
+    throw new Error("Candidate mail requires at least one candidate");
 
   const rows: ActionRow[] = [];
   const blocks: string[] = [greeting(locale, args.recipientName)];
@@ -243,18 +263,29 @@ export function buildCandidateDigestEmail(args: {
       blocks.push(ACTION_ROW_MARKER(rows.length));
       rows.push({
         criteria,
-        primary: { label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[primary]), url: primaryUrl },
-        secondary: { label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[secondary]), url: secondaryUrl },
+        primary: {
+          label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[primary]),
+          url: primaryUrl,
+        },
+        secondary: {
+          label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[secondary]),
+          url: secondaryUrl,
+        },
       });
     }
   }
-  const rendered = renderCompanyReplyEmail(blocks.join("\n\n"), args.workspaceId);
+  const rendered = renderCompanyReplyEmail(
+    blocks.join("\n\n"),
+    args.workspaceId
+  );
   let html = rendered.html;
   let text = rendered.text;
   if (counts.company_first > 0) {
     // A table spacer is reliable in email clients and leaves shared heading styles alone.
-    html = html.replace(new RegExp(`<p[^>]*>${SECTION_SPACER_MARKER}</p>`),
-      '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td height="24" style="height:24px;font-size:1px;line-height:24px">&nbsp;</td></tr></table>');
+    html = html.replace(
+      new RegExp(`<p[^>]*>${SECTION_SPACER_MARKER}</p>`),
+      '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td height="24" style="height:24px;font-size:1px;line-height:24px">&nbsp;</td></tr></table>'
+    );
     text = text.replace(`${SECTION_SPACER_MARKER}\n\n`, "");
   }
   rows.forEach((row, index) => {
@@ -262,11 +293,19 @@ export function buildCandidateDigestEmail(args: {
     const cardMarker = CARD_START_MARKER(index);
     const htmlPattern = new RegExp(`<p[^>]*>${marker}</p>`);
     const cardPattern = new RegExp(`<p[^>]*>${cardMarker}</p>`);
-    if (!htmlPattern.test(html) || !text.includes(marker) || !cardPattern.test(html) || !text.includes(cardMarker))
+    if (
+      !htmlPattern.test(html) ||
+      !text.includes(marker) ||
+      !cardPattern.test(html) ||
+      !text.includes(cardMarker)
+    )
       throw new Error("Candidate mail action row could not be placed");
     // The card opens before the candidate's text and closes after its buttons.
     html = html.replace(cardPattern, () => CARD_OPEN);
-    html = html.replace(htmlPattern, () => `${candidateDigestActionRowHtml(row)}</div>`);
+    html = html.replace(
+      htmlPattern,
+      () => `${candidateDigestActionRowHtml(row)}</div>`
+    );
     text = text.replace(cardMarker, () => CARD_DIVIDER);
     text = text.replace(marker, () => candidateDigestActionRowText(row));
   });

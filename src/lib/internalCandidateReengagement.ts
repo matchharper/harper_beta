@@ -37,7 +37,7 @@ function text(value: unknown, maxLength = 2_000) {
 const BUILT_IN_STAGE_LABELS: Partial<Record<OrgStageId, string>> = {
   connected: "연결됨",
   final_offer: "최종 오퍼",
-  pending_connection: "연결 대기",
+  pending_connection: "연결 수락할 후보",
 };
 
 export async function internalCandidatePairIsClosed(args: {

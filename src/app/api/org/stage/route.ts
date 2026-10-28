@@ -78,6 +78,7 @@ async function handleStagePost(req: NextRequest) {
       recommendationId?: string;
       reengagementActionId?: unknown;
       reengagementResolution?: unknown;
+      introEmailDraft?: unknown;
       introEmails?: string[] | null;
       roleId?: string;
       scheduleInterview?: boolean;
@@ -118,7 +119,7 @@ async function handleStagePost(req: NextRequest) {
     ) {
       throw new OrgHttpError(
         400,
-        "연결 대기 후보자를 선택해 인터뷰를 요청해 주세요."
+        "연결 수락할 후보를 선택해 인터뷰를 요청해 주세요."
       );
     }
     // Validate setup and prepare the invitation before accepting the candidate.
@@ -174,6 +175,7 @@ async function handleStagePost(req: NextRequest) {
       contactDirectly: body.contactDirectly === true,
       emailMode: emailMode as InternalConnectionConfirmationEmailMode,
       expectedPreviousStage: body.sourceStage,
+      introEmailDraft: body.introEmailDraft ?? null,
       introEmails: body.introEmails ?? null,
       recommendationId: body.recommendationId ?? "",
       reengagementActionId:

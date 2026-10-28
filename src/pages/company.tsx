@@ -72,6 +72,8 @@ import {
   getCompanyLocalePath,
   getCompanyLocaleUrl,
 } from "@/lib/companyLandingSeo";
+import { OrgCriterionFitIcon } from "@/components/org/OrgCriteriaEvaluation";
+import type { OrgCompanyCriterionFitness } from "@/lib/org/companyCriteriaEvaluations";
 
 const CompanyConceptBeforeAgents = dynamic(() =>
   import("@/components/landing/company-preview/CompanyLandingConcepts").then(
@@ -798,13 +800,9 @@ function CandidateProfileMockup({
                   {requirement.title}
                 </span>
                 <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium leading-4 text-neutral-primary">
-                  <Image
-                    src={`/svgs/${requirement.fitness}.svg`}
-                    alt=""
-                    aria-hidden="true"
-                    width={16}
-                    height={16}
-                    className="size-4 shrink-0"
+                  <OrgCriterionFitIcon
+                    className="size-4"
+                    fitness={requirement.fitness as OrgCompanyCriterionFitness}
                   />
                   {requirement.rating}
                 </span>

@@ -10,6 +10,7 @@ import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { fetchWithInternalAuth } from "@/lib/internalApiClient";
 import type { RoleStartBriefView } from "@/lib/org/roleStart/view";
 import { useToastStore } from "@/store/useToastStore";
+import { expectOrgCriteriaRecheck } from "@/store/useOrgCriteriaRecheckStore";
 
 /**
  * Rubric editing from the candidate board. Saving goes through the same
@@ -65,6 +66,7 @@ export function RoleRubricEditor({
       setDraft(result.rubric);
       void queryClient.invalidateQueries({ queryKey });
       onSaved();
+      if (result.judging) expectOrgCriteriaRecheck(roleId);
       addToast({
         message: result.judging
           ? c("기준을 바꿨어요. 바뀐 기준으로 후보를 다시 보고 있어요.", "Criteria updated. Reviewing candidates again for the changed criteria.")

@@ -892,7 +892,7 @@ function MutualDecision({ locale }: { locale: Locale }) {
           <div className={styles.decisionFinePrint}>
             {text(
               locale,
-              "‘먼저 제안 가능한 후보’는 아직 역할을 수락하지 않은 사람입니다. 제안 이후 후보자의 의사를 확인합니다.",
+              "‘연결 제안할 후보’는 아직 역할을 수락하지 않은 사람입니다. 제안 이후 후보자의 의사를 확인합니다.",
               "Suggested candidates haven’t accepted your role yet. Their interest is confirmed after you request an introduction."
             )}
           </div>
@@ -1040,7 +1040,7 @@ export function CompanyConceptFaq({
               ? "추천된 후보자는 이미 우리 회사에 관심이 있나요?"
               : "적극적으로 이직 중인 사람만 만날 수 있나요?",
             concept === "3"
-              ? "연결 대기에 소개된 후보자는 회사와 역할을 듣고 대화 의사를 밝힌 사람입니다. 별도의 ‘먼저 제안 가능한 후보’는 아직 이 역할을 수락하지 않은 사람으로, 회사가 제안을 요청한 뒤 관심을 확인합니다."
+              ? "연결 수락할 후보에 소개된 후보자는 회사와 역할을 듣고 대화 의사를 밝힌 사람입니다. 별도의 ‘연결 제안할 후보’는 아직 이 역할을 수락하지 않은 사람으로, 회사가 제안을 요청한 뒤 관심을 확인합니다."
               : "지금 공고를 찾아보지 않더라도 적합한 역할에 열려 있는 사람이 있습니다. Harper는 후보자의 다음 선택과 우리 역할의 맥락을 살펴봅니다. 실제 소개는 양쪽의 연결 의사를 확인하며 진행합니다.",
           ],
           [
@@ -1050,7 +1050,7 @@ export function CompanyConceptFaq({
           [
             "비용은 어떻게 되나요?",
             <span key="pricing">
-              Free에서는 활성 Role 1개와 월 3 Intro, 후보자 추천과 연결 대기를 제공합니다.
+              Free에서는 활성 Role 1개와 월 3 Intro, 후보자 추천과 연결 수락할 후보를 제공합니다.
               더 많은 Role과 Intro가 필요하면 슬롯을 추가할 수 있습니다. Free와 표준 슬롯
               구독에는 채용 성공보수가 없습니다. Enterprise와 기존 별도 계약은
               합의한 조건을 따릅니다.{" "}

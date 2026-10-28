@@ -1,5 +1,4 @@
-import Image from "next/image";
-import { LoaderCircle } from "lucide-react";
+import { Check, CheckCheck, CircleHelp, LoaderCircle, X } from "lucide-react";
 import { BareButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
@@ -8,6 +7,33 @@ import {
   companyCriterionFitnessLabel,
   type OrgCompanyCriteriaEvaluation,
 } from "@/lib/org/companyCriteriaEvaluations";
+
+const FIT_ICON = {
+  excellent: { Icon: CheckCheck, tone: "text-positive-strong" },
+  good: { Icon: Check, tone: "text-positive" },
+  uncertain: { Icon: CircleHelp, tone: "text-info" },
+  limited: { Icon: CircleHelp, tone: "text-info" },
+  bad: { Icon: X, tone: "text-critical" },
+  conflict: { Icon: X, tone: "text-critical" },
+} as const;
+
+/** The mark for one criterion's fit, shared by every company-side screen. */
+export function OrgCriterionFitIcon({
+  className = "size-5",
+  fitness,
+}: {
+  className?: string;
+  fitness: OrgCompanyCriteriaEvaluation["fitness"];
+}) {
+  const { Icon, tone } = FIT_ICON[fitness];
+  return (
+    <Icon
+      aria-hidden="true"
+      className={`${className} ${tone} shrink-0`}
+      strokeWidth={2}
+    />
+  );
+}
 
 export function OrgCriteriaEvaluation({
   evaluation,
@@ -48,14 +74,7 @@ export function OrgCriteriaEvaluation({
 
   const indicator = (
     <>
-      <Image
-        alt=""
-        aria-hidden="true"
-        className="size-5 shrink-0"
-        height={16}
-        src={`/svgs/${evaluation.fitness === "conflict" ? "bad" : evaluation.fitness === "limited" ? "uncertain" : evaluation.fitness}.svg`}
-        width={16}
-      />
+      <OrgCriterionFitIcon fitness={evaluation.fitness} />
       <span
         className={`min-w-0 text-[15px] font-medium text-neutral-primary leading-5 truncate`}
       >

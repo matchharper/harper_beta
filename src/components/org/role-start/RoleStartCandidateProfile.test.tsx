@@ -32,7 +32,7 @@ test("Align preserves profile facts and verdicts in the shared information body"
     }
     assert.equal(text.split(candidate.verdict!.tldr).length - 1, 1, "show the verdict once");
     assert.equal(body.querySelector('[role="dialog"],textarea,[aria-keyshortcuts]'), null);
-    assert.ok(!text.includes("Intro 보내기"));
+    assert.ok(!text.includes("Send Intro"));
     assert.ok(!text.includes("후보자 상세 보기"));
   } finally {
     dom.window.close();

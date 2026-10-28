@@ -255,7 +255,7 @@ export function OrgDocsModal({
           >
             <div className="overflow-x-auto text-[12px] font-normal text-neutral-primary">
               <div className="flex min-w-max items-center gap-3">
-                <span>{c("연결 대기", "Ready to connect")}</span>
+                <span>{c("연결 수락할 후보", "Ready to connect")}</span>
                 <span className="text-neutral-soft">→</span>
                 <span>{c("연결됨", "Connected")}</span>
                 <span className="text-neutral-soft">→</span>

@@ -61,6 +61,11 @@ export function useOrgWorkspace() {
   return context;
 }
 
+/** The workspace when rendered inside one; shared profile pieces work without it. */
+export function useOptionalOrgWorkspace() {
+  return useContext(OrgWorkspaceContext);
+}
+
 export function OrgWorkspaceProvider({
   children,
   value,

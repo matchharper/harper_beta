@@ -35,6 +35,7 @@ export const ORG_AGENT_TOOL_NAMES = [
   "get_talents",
   "read_talent",
   "add_candidate_note",
+  "manage_comparison_columns",
   "list_contacts",
   "read_contact",
   "read_role",
@@ -199,6 +200,62 @@ export const ORG_AGENT_TOOLS = [
             type: "boolean",
           },
         },
+        type: "object",
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "manage_comparison_columns",
+      description:
+        "Add, change, remove or list the comparison columns on one Role's inbox list view. The list already shows one row per candidate with each criterion's fit, the latest company and the latest school; a comparison column adds one more attribute the company asked to compare across those candidates. Before writing cells, read the candidates (get_talents with currentCompanyStageId for the inbox stages, and read_talent when the outline lacks the fact) and write one short cell per candidate from their shared profile. Leave a candidate without a cell when the profile does not show the fact. Columns are company-internal display text shared by everyone on the Role; they do not change the Hiring Brief, criteria, evaluations or recommendations, and nobody is contacted. update merges cells by talentId (an empty value clears that cell) and can rename the column. list returns the current columns with their IDs and filled cells.",
+      parameters: {
+        additionalProperties: false,
+        properties: {
+          action: {
+            enum: ["add", "update", "remove", "list"],
+            type: "string",
+          },
+          columnId: {
+            description: "Exact column ID from list or an earlier result. Required for update and remove.",
+            type: "string",
+          },
+          description: {
+            description: "What the column compares, shown when the company points at its header.",
+            type: "string",
+          },
+          label: {
+            description: "Column header the company sees, in the company's language. Required for add.",
+            type: "string",
+          },
+          roleId: {
+            description: "Exact internal Role ID whose inbox list this column belongs to.",
+            maxLength: 100,
+            minLength: 1,
+            type: "string",
+          },
+          values: {
+            description: "Cells to write, one per candidate.",
+            items: {
+              additionalProperties: false,
+              properties: {
+                talentId: {
+                  description: "Exact candidate talent ID.",
+                  type: "string",
+                },
+                value: {
+                  description: "Cell text for this candidate.",
+                  type: "string",
+                },
+              },
+              required: ["talentId", "value"],
+              type: "object",
+            },
+            type: "array",
+          },
+        },
+        required: ["action", "roleId"],
         type: "object",
       },
     },

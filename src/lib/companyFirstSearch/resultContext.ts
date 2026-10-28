@@ -99,7 +99,7 @@ export function buildCompanyMatchingResultContext(
   for (const pause of input.candidateOutreachPauses ?? []) {
     const role = input.roles.find(role => role.id === pause.roleId);
     if (!role) continue;
-    lines.push(`- ${role.name}: 이번 확인 당시 연결 대기 ${pause.pendingCount}명, 후보자에게 먼저 제안하는 경로의 상한 ${pause.maxPendingTalents}명. 상한 이상이므로 이번에는 후보자에게 먼저 역할을 추천하는 경로를 진행하지 않았다. 이 제한은 회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다. 검색·fit 평가 전체를 하지 않았다는 뜻은 아니다. Role-based 검색의 새 후보자 선추천은 연결 대기가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아니다.`);
+    lines.push(`- ${role.name}: 이번 확인 당시 연결 수락할 후보 ${pause.pendingCount}명, 후보자에게 먼저 제안하는 경로의 상한 ${pause.maxPendingTalents}명. 상한 이상이므로 이번에는 후보자에게 먼저 역할을 추천하는 경로를 진행하지 않았다. 이 제한은 회사에 먼저 후보를 제안하는 검토에는 적용하지 않는다. 검색·fit 평가 전체를 하지 않았다는 뜻은 아니다. Role-based 검색의 새 후보자 선추천은 연결 수락할 후보가 상한 미만일 때만 허용하며 상한과 같아도 중단된다. 온보딩 추천이나 이미 선정된 역할의 전달을 추가로 막는 기준은 아니다.`);
   }
 
   if (selected > 0) {

@@ -66,6 +66,7 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { clearNewRolePending, sessionStorageOrNull, START_PENDING_EVENT, startPendingUntil } from "@/lib/org/roleStart/startPending";
 import type { OrgRole } from "@/lib/org/server";
+import { OrgCriteriaRecheckWatcher } from "@/components/org/OrgCriteriaRecheck";
 import { cn } from "@/lib/utils";
 import {
   ORG_ROLE_CHAT_PANEL_DEFAULT_WIDTH_PCT,
@@ -352,6 +353,8 @@ function OrgRoleCreationDetails({
       "recommendationId",
       "detailRoleId",
       "detailWorkspaceId",
+      // Opening the inbox from its tab shows the inbox, not Saved.
+      "review",
     ])
       delete nextQuery[key];
     if (tab === "pipeline") {
@@ -401,6 +404,13 @@ function OrgRoleCreationDetails({
           : "role-creation-details-panel"
       }
     >
+      {role && !roleCreation ? (
+        <OrgCriteriaRecheckWatcher
+          items={inboxBoardQuery.data?.items}
+          refetch={inboxBoardQuery.refetch}
+          roleId={role.roleId}
+        />
+      ) : null}
       <DocumentEditorPanelProvider key={role?.roleId ?? "loading"}>
         <div className="relative flex h-12 w-full shrink-0 items-center border-b border-neutral-1000-a05">
           {expanded ? (
