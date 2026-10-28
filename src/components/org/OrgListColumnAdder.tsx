@@ -1,24 +1,25 @@
-import * as Popover from "@radix-ui/react-popover";
-import { Plus } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 
+export type OrgListColumnRequest = { label: string; message: string };
+
 /**
  * Asks Harper, in the Role chat, to add a comparison column to the inbox
- * list. Harper reads the candidates' profiles and fills the cells.
+ * list. Harper reads the candidates' profiles and fills the cells. Shown at
+ * the bottom of the column settings menu.
  */
-export function OrgListColumnAdder({
+export function OrgListColumnAddForm({
   busy,
   onRequest,
 }: {
   /** Harper is answering in this Role's chat; one request at a time. */
   busy: boolean;
-  onRequest: (request: { label: string; message: string }) => void;
+  onRequest: (request: OrgListColumnRequest) => void;
 }) {
   const { c } = useOrgLocale();
-  const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const suggestions = [
     {
@@ -50,72 +51,72 @@ export function OrgListColumnAdder({
       ),
     },
   ];
-  const request = (next: { label: string; message: string }) => {
+  const request = (next: OrgListColumnRequest) => {
     onRequest(next);
     setText("");
-    setOpen(false);
   };
   return (
-    <Popover.Root onOpenChange={setOpen} open={open}>
-      <Popover.Trigger asChild>
-        <MuteButton disabled={busy} size="sm" type="button">
-          <Plus className="size-3.5" />
-          {c("열 추가", "Add column")}
-        </MuteButton>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content
-          align="start"
-          aria-label={c("비교 열 추가", "Add a comparison column")}
-          className="z-[100] w-80 rounded-lg border border-neutral-1000-a10 bg-bg-floating p-3 shadow-lg"
-          sideOffset={6}
+    <div>
+      <div className="flex items-center gap-1.5 pb-1.5 text-[12px] text-neutral-muted">
+        {busy ? (
+          <>
+            <LoaderCircle aria-hidden className="size-3.5 animate-spin" />
+            {c(
+              "하퍼가 답하는 중이에요. 끝나면 열을 더 추가할 수 있어요.",
+              "Harper is replying. You can add another column when it's done."
+            )}
+          </>
+        ) : (
+          c(
+            "열 추가 · 하퍼가 프로필을 읽고 채워요",
+            "Add a column · Harper fills it from profiles"
+          )
+        )}
+      </div>
+      <form
+        className="flex gap-1.5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const label = text.trim();
+          if (!label || busy) return;
+          request({
+            label,
+            message: c(
+              "인박스 리스트에 이 항목을 비교하는 열을 추가해 줘: {p0}",
+              "Add a column to the inbox list that compares: {p0}",
+              { p0: label }
+            ),
+          });
+        }}
+      >
+        <Input
+          aria-label={c("비교할 항목", "What to compare")}
+          disabled={busy}
+          onChange={(event) => setText(event.target.value)}
+          placeholder={c("비교할 항목", "What to compare")}
+          value={text}
+        />
+        <MuteButton
+          disabled={busy || !text.trim()}
+          type="submit"
+          variant="dark"
         >
-          <form
-            className="flex gap-1.5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const label = text.trim();
-              if (!label || busy) return;
-              request({
-                label,
-                message: c(
-                  "인박스 리스트에 이 항목을 비교하는 열을 추가해 줘: {p0}",
-                  "Add a column to the inbox list that compares: {p0}",
-                  { p0: label }
-                ),
-              });
-            }}
+          {c("추가", "Add")}
+        </MuteButton>
+      </form>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {suggestions.map((suggestion) => (
+          <MuteButton
+            disabled={busy}
+            key={suggestion.label}
+            onClick={() => request(suggestion)}
+            size="sm"
+            type="button"
           >
-            <Input
-              aria-label={c("비교할 항목", "What to compare")}
-              autoFocus
-              onChange={(event) => setText(event.target.value)}
-              placeholder={c("비교할 항목", "What to compare")}
-              value={text}
-            />
-            <MuteButton
-              disabled={busy || !text.trim()}
-              type="submit"
-              variant="dark"
-            >
-              {c("추가", "Add")}
-            </MuteButton>
-          </form>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {suggestions.map((suggestion) => (
-              <MuteButton
-                disabled={busy}
-                key={suggestion.label}
-                onClick={() => request(suggestion)}
-                size="sm"
-                type="button"
-              >
-                {suggestion.label}
-              </MuteButton>
-            ))}
-          </div>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
+            {suggestion.label}
+          </MuteButton>
+        ))}
+      </div>
+    </div>
   );
 }

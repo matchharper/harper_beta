@@ -128,9 +128,20 @@ export function OrgRoleInbox() {
     }
     return counts;
   }, [board?.items, deferredStages, inboxQuery?.data]);
-  const savedCount = (board?.items ?? []).filter(
-    (item) => item.savedAt && !deferredStages.has(item.recommendationId)
-  ).length;
+  // The server counts every saved candidate; the loaded page only has the
+  // tab being viewed, so counting it showed 0 until 저장함 was opened.
+  const savedCount = useMemo(() => {
+    const serverSaved = inboxQuery?.data?.pages[0]?.counts?.saved;
+    const deferredSaved = (board?.items ?? []).filter(
+      (item) => item.savedAt && deferredStages.has(item.recommendationId)
+    ).length;
+    if (typeof serverSaved === "number") {
+      return Math.max(0, serverSaved - deferredSaved);
+    }
+    return (board?.items ?? []).filter(
+      (item) => item.savedAt && !deferredStages.has(item.recommendationId)
+    ).length;
+  }, [board?.items, deferredStages, inboxQuery?.data]);
   const items = useMemo(
     () =>
       (board?.items ?? [])

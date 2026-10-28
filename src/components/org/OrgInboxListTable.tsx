@@ -27,7 +27,7 @@ import { useOrgLocale, useOrgSourceT } from "@/i18n/org/OrgLocaleProvider";
 import { getOrgCandidateCardDate } from "@/lib/org/candidateCardDate";
 import { getOrgCandidateDisplayName } from "./OrgCandidateCard";
 import { OrgCriterionFitIcon } from "./OrgCriteriaEvaluation";
-import { OrgListColumnAdder } from "./OrgListColumnAdder";
+import { OrgListColumnMenu } from "./OrgListColumnMenu";
 import {
   companyCriterionFitnessLabel,
   companyCriterionScoreLabel,
@@ -128,7 +128,7 @@ function ProfileLabelCell({
   );
 }
 
-/** The column order this viewer chose for a Role, kept in their browser. */
+/** Column ids this viewer saved for a Role (order or hidden), in their browser. */
 function readColumnOrder(key: string | null): string[] {
   if (!key || typeof window === "undefined") return [];
   try {
@@ -149,6 +149,10 @@ type MovableColumn = {
   id: string;
   /** Cells with their own controls don't open the profile. */
   keepClicks?: boolean;
+  /** The name in the column menu. */
+  label: string;
+  /** A column Harper added, which the team can delete. */
+  removable?: boolean;
 };
 
 /**
@@ -266,6 +270,7 @@ export function OrgInboxListTable({
       headerClassName: "min-w-24 max-w-36 px-2 leading-4 break-keep",
       id: `criterion:${name}`,
       keepClicks: true,
+      label: name,
     })),
     {
       cell: (item: OrgBoardItem) => (
@@ -278,6 +283,7 @@ export function OrgInboxListTable({
       header: c("회사", "Company"),
       headerClassName: "min-w-52 px-3",
       id: "company",
+      label: c("회사", "Company"),
     },
     {
       cell: (item: OrgBoardItem) => (
@@ -290,6 +296,7 @@ export function OrgInboxListTable({
       header: c("학교", "School"),
       headerClassName: "min-w-52 px-3",
       id: "school",
+      label: c("학교", "School"),
     },
     ...columns.map((column) => ({
       cell: (item: OrgBoardItem) => {
@@ -342,6 +349,8 @@ export function OrgInboxListTable({
       ),
       headerClassName: "min-w-44 max-w-64 px-3",
       id: `custom:${column.id}`,
+      label: column.label,
+      removable: true,
     })),
   ];
 
@@ -362,6 +371,54 @@ export function OrgInboxListTable({
         (ranked.get(right.column.id) ?? order.length + right.index)
     )
     .map(({ column }) => column);
+  // Columns this viewer hid from the menu; kept per Role in their browser.
+  const hiddenKey = roleId ? `harper:org:inbox-list-hidden:${roleId}` : null;
+  const [savedHidden, setSavedHidden] = useState(() => ({
+    key: hiddenKey,
+    ids: readColumnOrder(hiddenKey),
+  }));
+  const hidden = new Set(
+    savedHidden.key === hiddenKey ? savedHidden.ids : readColumnOrder(hiddenKey)
+  );
+  const setHidden = (next: Set<string>) => {
+    const ids = [...next];
+    setSavedHidden({ key: hiddenKey, ids });
+    if (hiddenKey) {
+      try {
+        window.localStorage.setItem(hiddenKey, JSON.stringify(ids));
+      } catch {
+        // Applies until the page reloads.
+      }
+    }
+  };
+  const visibleColumns = orderedColumns.filter(
+    (column) => !hidden.has(column.id)
+  );
+  // A wide list scrolls sideways with one scrollbar under the table, kept
+  // visible (not only while scrolling); a fade on the right says there is more.
+  // The scroll box is positioned so hidden labels inside the table stay in it;
+  // otherwise they spill out and the whole inbox scrolls sideways too.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState({ right: false });
+  const visibleCount = visibleColumns.length;
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const measure = () => {
+      const right =
+        element.scrollLeft + element.clientWidth < element.scrollWidth - 1;
+      setOverflow((current) => (current.right === right ? current : { right }));
+    };
+    measure();
+    element.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    if (element.firstElementChild) observer.observe(element.firstElementChild);
+    return () => {
+      element.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [visibleCount, pending]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{
     id: string;
@@ -414,177 +471,200 @@ export function OrgInboxListTable({
   });
   return (
     <div>
-      {canManageCandidates && roleId ? (
-        <div className="mb-2 flex items-center">
-          <OrgListColumnAdder
-            busy={chat.isStreaming}
-            onRequest={requestColumn}
+      <div className="mb-2 flex items-center gap-1.5">
+        <OrgListColumnMenu
+          addColumn={
+            canManageCandidates && roleId
+              ? { busy: chat.isStreaming, onRequest: requestColumn }
+              : undefined
+          }
+          columns={orderedColumns.map((column) => ({
+            id: column.id,
+            label: column.label,
+            removable: Boolean(column.removable && canManageCandidates),
+          }))}
+          hidden={hidden}
+          onDelete={(id) => remove.mutate(id.replace(/^custom:/, ""))}
+          onHiddenChange={setHidden}
+          removing={remove.isPending}
+        />
+      </div>
+      <div className="relative">
+        {overflow.right ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 z-20 w-10 bg-gradient-to-l from-bg-default to-transparent"
           />
-        </div>
-      ) : null}
-      <div className="-mx-1 overflow-x-auto px-1">
-        <table className="w-max min-w-full border-separate border-spacing-0 text-left">
-          <thead>
-            <tr className="text-[12px] text-neutral-muted [&>th]:align-bottom">
-              {selectable ? (
+        ) : null}
+        <div
+          className="relative overflow-x-auto pb-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-neutral-300 hover:[&::-webkit-scrollbar-thumb]:bg-neutral-400 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-2"
+          ref={scrollRef}
+        >
+          <table className="w-max min-w-full border-separate border-spacing-0 text-left">
+            <thead>
+              <tr className="text-[12px] text-neutral-muted [&>th]:align-bottom">
+                {selectable ? (
+                  <th
+                    className={cn(
+                      stickyCell,
+                      "left-0 w-9 border-b border-neutral-1000-a05 py-2.5 pl-2"
+                    )}
+                  >
+                    <span className="sr-only">{c("선택", "Select")}</span>
+                  </th>
+                ) : null}
                 <th
                   className={cn(
                     stickyCell,
-                    "left-0 w-9 border-b border-neutral-1000-a05 py-2.5 pl-2"
+                    selectable ? "left-9" : "left-0",
+                    "min-w-56 border-b border-r border-neutral-1000-a05 py-2.5 pl-2 pr-4 font-normal"
                   )}
                 >
-                  <span className="sr-only">{c("선택", "Select")}</span>
+                  {c("후보자", "Candidate")}
                 </th>
-              ) : null}
-              <th
-                className={cn(
-                  stickyCell,
-                  selectable ? "left-9" : "left-0",
-                  "min-w-56 border-b border-r border-neutral-1000-a05 py-2.5 pl-2 pr-4 font-normal"
-                )}
-              >
-                {c("후보자", "Candidate")}
-              </th>
-              {orderedColumns.map((column) => (
-                <th
-                  {...headerDragProps(column.id)}
-                  className={cn(
-                    column.headerClassName,
-                    "cursor-grab border-b border-neutral-1000-a05 py-2.5 font-normal active:cursor-grabbing",
-                    dragId === column.id && "opacity-40"
-                  )}
-                  key={column.id}
-                  style={
-                    dropAt?.id === column.id
-                      ? {
-                          boxShadow: `inset ${dropAt.side === "before" ? 2 : -2}px 0 0 0 var(--color-neutral-900, #171717)`,
-                        }
-                      : undefined
-                  }
-                >
-                  {column.header}
-                </th>
-              ))}
-              {pending ? (
-                <th className="min-w-44 border-b border-neutral-1000-a05 px-3 py-2.5 font-normal">
-                  <span className="flex items-center gap-1.5 leading-4">
-                    <LoaderCircle
-                      aria-hidden
-                      className="size-3.5 shrink-0 animate-spin"
-                    />
-                    {pending}
-                  </span>
-                </th>
-              ) : null}
-              <th className="w-20 border-b border-neutral-1000-a05 px-3 py-2.5 text-right font-normal">
-                <span className="sr-only">{c("날짜", "Date")}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => {
-              const selected = selectedIds.has(item.recommendationId);
-              const name = sourceT(getOrgCandidateDisplayName(item));
-              const rowCell = cn(
-                "border-b border-neutral-1000-a05 align-middle",
-                selected
-                  ? "bg-neutral-200"
-                  : "bg-bg-default group-hover/row:bg-bg-weak"
-              );
-              return (
-                <tr
-                  className="group/row cursor-pointer"
-                  key={item.recommendationId}
-                  onClick={() => onOpen(item)}
-                >
-                  {selectable ? (
-                    <td
-                      className={cn(rowCell, "sticky left-0 z-10 py-4 pl-2")}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <Checkbox
-                        aria-label={c("{p0} 선택", "Select {p0}", { p0: name })}
-                        checked={selected}
-                        onChange={(event) =>
-                          onToggleSelected?.(item, event.target.checked)
-                        }
+                {visibleColumns.map((column) => (
+                  <th
+                    {...headerDragProps(column.id)}
+                    className={cn(
+                      column.headerClassName,
+                      "cursor-grab border-b border-neutral-1000-a05 py-2.5 font-normal active:cursor-grabbing",
+                      dragId === column.id && "opacity-40"
+                    )}
+                    key={column.id}
+                    style={
+                      dropAt?.id === column.id
+                        ? {
+                            boxShadow: `inset ${dropAt.side === "before" ? 2 : -2}px 0 0 0 var(--color-neutral-900, #171717)`,
+                          }
+                        : undefined
+                    }
+                  >
+                    {column.header}
+                  </th>
+                ))}
+                {pending ? (
+                  <th className="min-w-44 border-b border-neutral-1000-a05 px-3 py-2.5 font-normal">
+                    <span className="flex items-center gap-1.5 leading-4">
+                      <LoaderCircle
+                        aria-hidden
+                        className="size-3.5 shrink-0 animate-spin"
                       />
-                    </td>
-                  ) : null}
-                  <td
-                    className={cn(
-                      rowCell,
-                      "sticky z-10 border-r py-4 pl-2 pr-4",
-                      selectable ? "left-9" : "left-0"
-                    )}
+                      {pending}
+                    </span>
+                  </th>
+                ) : null}
+                <th className="w-20 border-b border-neutral-1000-a05 px-3 py-2.5 text-right font-normal">
+                  <span className="sr-only">{c("날짜", "Date")}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => {
+                const selected = selectedIds.has(item.recommendationId);
+                const name = sourceT(getOrgCandidateDisplayName(item));
+                const rowCell = cn(
+                  "border-b border-neutral-1000-a05 align-middle",
+                  selected
+                    ? "bg-neutral-200"
+                    : "bg-bg-default group-hover/row:bg-bg-weak"
+                );
+                return (
+                  <tr
+                    className="group/row cursor-pointer"
+                    key={item.recommendationId}
+                    onClick={() => onOpen(item)}
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-weak text-sm text-neutral-muted">
-                        {name.slice(0, 1) || "·"}
-                        {item.talent.profilePicture ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            alt=""
-                            className="absolute inset-0 size-full object-cover"
-                            onError={(event) => {
-                              event.currentTarget.style.display = "none";
-                            }}
-                            src={item.talent.profilePicture}
-                          />
-                        ) : null}
-                      </span>
-                      <div className="min-w-0">
-                        <button
-                          className="block max-w-56 truncate text-left text-[14px] font-medium text-neutral-primary outline-none focus-visible:underline"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onOpen(item);
-                          }}
-                          type="button"
-                        >
-                          {name}
-                        </button>
-                        {item.talent.location ? (
-                          <div className="mt-0.5 max-w-56 truncate text-[12px] text-neutral-muted">
-                            {item.talent.location}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </td>
-                  {orderedColumns.map((column) => (
+                    {selectable ? (
+                      <td
+                        className={cn(rowCell, "sticky left-0 z-10 py-4 pl-2")}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Checkbox
+                          aria-label={c("{p0} 선택", "Select {p0}", {
+                            p0: name,
+                          })}
+                          checked={selected}
+                          onChange={(event) =>
+                            onToggleSelected?.(item, event.target.checked)
+                          }
+                        />
+                      </td>
+                    ) : null}
                     <td
-                      className={cn(rowCell, column.cellClassName)}
-                      key={column.id}
-                      onClick={
-                        column.keepClicks
-                          ? (event) => event.stopPropagation()
-                          : undefined
-                      }
+                      className={cn(
+                        rowCell,
+                        "sticky z-10 border-r py-4 pl-2 pr-4",
+                        selectable ? "left-9" : "left-0"
+                      )}
                     >
-                      {column.cell(item)}
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg-weak text-sm text-neutral-muted">
+                          {name.slice(0, 1) || "·"}
+                          {item.talent.profilePicture ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              alt=""
+                              className="absolute inset-0 size-full object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = "none";
+                              }}
+                              src={item.talent.profilePicture}
+                            />
+                          ) : null}
+                        </span>
+                        <div className="min-w-0">
+                          <button
+                            className="block max-w-56 truncate text-left text-[14px] font-medium text-neutral-primary outline-none focus-visible:underline"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpen(item);
+                            }}
+                            type="button"
+                          >
+                            {name}
+                          </button>
+                          {item.talent.location ? (
+                            <div className="mt-0.5 max-w-56 truncate text-[12px] text-neutral-muted">
+                              {item.talent.location}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
                     </td>
-                  ))}
-                  {pending ? (
-                    <td className={cn(rowCell, "px-3 py-4")}>
-                      <Skeleton className="h-3 w-24" />
+                    {visibleColumns.map((column) => (
+                      <td
+                        className={cn(rowCell, column.cellClassName)}
+                        key={column.id}
+                        onClick={
+                          column.keepClicks
+                            ? (event) => event.stopPropagation()
+                            : undefined
+                        }
+                      >
+                        {column.cell(item)}
+                      </td>
+                    ))}
+                    {pending ? (
+                      <td className={cn(rowCell, "px-3 py-4")}>
+                        <Skeleton className="h-3 w-24" />
+                      </td>
+                    ) : null}
+                    <td
+                      className={cn(
+                        rowCell,
+                        "px-3 py-4 text-right text-[12px] text-neutral-soft"
+                      )}
+                    >
+                      {formatKstRelativeDate(getOrgCandidateCardDate(item), {
+                        locale,
+                      })}
                     </td>
-                  ) : null}
-                  <td
-                    className={cn(
-                      rowCell,
-                      "px-3 py-4 text-right text-[12px] text-neutral-soft"
-                    )}
-                  >
-                    {formatKstRelativeDate(getOrgCandidateCardDate(item), {
-                      locale,
-                    })}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
