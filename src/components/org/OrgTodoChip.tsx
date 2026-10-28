@@ -215,9 +215,9 @@ function sourceLabel(source: OrgTodoSource, c: Copy) {
 /** The sections kept above the Role chat; the To-do tab adds 한 일. */
 export const ORG_TODO_CHIP_COLUMNS: OrgTodoColumn[] = [
   "my_turn",
+  "notice",
   "suggestion",
   "in_progress",
-  "notice",
 ];
 
 const COLUMN_ICON: Record<OrgTodoColumn, LucideIcon> = {
@@ -547,11 +547,24 @@ export function OrgTodoList({
       {columns.map((column) => {
         const group = items.filter((item) => item.column === column);
         const extra = column === "suggestion" ? shortcuts : [];
+        const count = column === "suggestion" ? suggestions : group.length;
+        // 할 일 and 알림 make up the To-do number: blue like it when above 0.
+        const counted =
+          (column === "my_turn" || column === "notice") && count > 0;
         return (
           <section key={column}>
-            <h3 className="sticky top-0 z-10 bg-bg-floating px-4 pb-1 pt-3 text-[12px] text-neutral-muted">
-              {headings[column]}{" "}
-              {column === "suggestion" ? suggestions : group.length}
+            <h3 className="sticky top-0 z-10 flex items-center gap-1 bg-bg-floating px-4 pb-1 pt-3 text-[12px] text-neutral-muted">
+              {headings[column]}
+              {counted ? (
+                <Badge
+                  className="h-4 bg-action px-[5px] py-0 text-white tabular-nums font-normal text-[11px] leading-none"
+                  size="sm"
+                >
+                  {String(count)}
+                </Badge>
+              ) : (
+                <span>{count}</span>
+              )}
             </h3>
             <ul>
               {group.map((item) => (

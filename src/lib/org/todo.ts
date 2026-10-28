@@ -91,9 +91,9 @@ export type OrgTodoResponse = {
 
 export const ORG_TODO_COLUMNS: OrgTodoColumn[] = [
   "my_turn",
+  "notice",
   "suggestion",
   "in_progress",
-  "notice",
   "done",
 ];
 
