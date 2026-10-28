@@ -1,4 +1,5 @@
 import { readTalentFirstCapacityBlockedRoleIds } from "@/lib/org/talentFirstCapacity.server";
+import { readPendingConnections } from "@/lib/org/pendingConnections.server";
 import { parseCompanyCandidatePresentation } from "@/lib/companyFirstSearch/presentation";
 import { createHash, randomUUID } from "crypto";
 import type { OrgLocale } from "@/i18n/org/locale";
@@ -727,43 +728,9 @@ async function fetchCurrentRoleSummaries(
 
   const roleIds = uniqueTexts(currentRoles.map((role) => role.role_id));
   const capacityBlockedRoleIds = new Set(await readTalentFirstCapacityBlockedRoleIds(admin, roleIds, now));
-  const pendingTags: TagRow[] = [];
-  for (const roleIdChunk of chunkValues(roleIds)) {
-    pendingTags.push(
-      ...(await fetchAllRows<TagRow>((from, to) =>
-        (admin.from("talent_opportunity_tag" as any) as any)
-          .select("id, opportunity_id, tag, talent_id, created_at, updated_at")
-          .eq("tag", AUTO_INTRO_PENDING_TAG)
-          .in("opportunity_id", roleIdChunk)
-          .order("updated_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: false })
-          .range(from, to)
-      ))
-    );
-  }
-  const candidateKeys = new Set(
-    pendingTags.map((tag) => `${tag.opportunity_id}:${tag.talent_id}`)
-  );
-  const pendingCountByRoleId = new Map<string, number>();
-  let tagsByKey = new Map<string, TagRow[]>();
-  if (candidateKeys.size > 0) {
-    const talentIds = uniqueTexts(pendingTags.map((tag) => tag.talent_id));
-    tagsByKey = groupTagsByRoleTalent(
-      await fetchTags(admin, roleIds, talentIds)
-    );
-    for (const key of candidateKeys) {
-      const latestStage = getLatestAutoIntroInternalStage(
-        tagsByKey.get(key) ?? []
-      );
-      if (normalizeText(latestStage?.tag) !== AUTO_INTRO_PENDING_TAG) continue;
-      const [roleId] = key.split(":");
-      if (!roleId) continue;
-      pendingCountByRoleId.set(
-        roleId,
-        (pendingCountByRoleId.get(roleId) ?? 0) + 1
-      );
-    }
-  }
+  // The same count the web To-do shows for these Roles.
+  const { countByRoleId: pendingCountByRoleId, pairs: pendingPairs } =
+    await readPendingConnections(admin, roleIds);
 
   const [candidateReplyRows, upcomingMeetingRows] = await Promise.all([
     fetchCandidateReplyReminderRows(admin, roleIds),
@@ -787,13 +754,10 @@ async function fetchCurrentRoleSummaries(
   for (const row of candidateReplyRows) {
     const role = roleById.get(row.role_id);
     const pairKey = `${row.role_id}:${row.talent_id}`;
-    const latestStage = getLatestAutoIntroInternalStage(
-      tagsByKey.get(pairKey) ?? []
-    );
     if (
       !role ||
       role.company_workspace_id !== row.company_workspace_id ||
-      normalizeText(latestStage?.tag) !== AUTO_INTRO_PENDING_TAG ||
+      !pendingPairs.has(pairKey) ||
       seenReplyPairs.has(pairKey)
     ) {
       continue;

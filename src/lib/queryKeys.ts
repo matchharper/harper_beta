@@ -233,6 +233,8 @@ export const queryKeys = {
       roleId?: string | null
     ) =>
       ["org", "matchingSearchStatus", workspaceId ?? "", roleId ?? ""] as const,
+    roleTodo: (workspaceId?: string | null, roleId?: string | null) =>
+      ["org", "roleTodo", workspaceId ?? "", roleId ?? ""] as const,
     agentMentions: (filters?: {
       query?: string | null;
       roleId?: string | null;

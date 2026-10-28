@@ -4,7 +4,6 @@ import { en } from "@/i18n/org/en";
 import { ko } from "@/i18n/org/ko";
 import {
   getOrgRoleQuickAction,
-  ORG_ROLE_CHAT_QUICK_ACTIONS,
   ORG_ROLE_QUICK_ACTION_IDLE_MS,
   ORG_ROLE_QUICK_ACTIONS,
   ORG_ROLE_RUN_SEARCH_ACTION,
@@ -38,10 +37,6 @@ test("role chat quick actions append an immediate current-Brief search", () => {
     message:
       "이 역할의 현재 추천 목록에 없는 후보자를 더 찾아서, Intro를 요청해볼 만한 사람을 목록에 추가해줘.",
   });
-  assert.deepEqual(ORG_ROLE_CHAT_QUICK_ACTIONS, [
-    ...ORG_ROLE_QUICK_ACTIONS,
-    ORG_ROLE_RUN_SEARCH_ACTION,
-  ]);
   assert.equal(getOrgRoleQuickAction("run_search"), null);
 });
 

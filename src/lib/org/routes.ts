@@ -18,6 +18,7 @@ export type OrgJobsView = "pipeline" | "role";
 export type OrgRoleTab =
   | "start"
   | "inbox"
+  | "todo"
   | "pipeline"
   | "matching"
   | "role"
@@ -32,7 +33,8 @@ export function resolveOrgRoleTab({
   isDraft: boolean;
   tab: string;
 }): OrgRoleTab {
-  if (!isDraft && (tab === "inbox" || tab === "pipeline")) return tab;
+  if (!isDraft && (tab === "inbox" || tab === "todo" || tab === "pipeline"))
+    return tab;
   // The start flow is over once the Role is registered: its links open the inbox.
   if (tab === "start") return isDraft ? "start" : "inbox";
   if (tab === "matching" || tab === "role" || tab === "settings") return tab;

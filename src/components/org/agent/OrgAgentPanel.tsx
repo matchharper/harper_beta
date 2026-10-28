@@ -1,6 +1,6 @@
 import { useOrgLocale } from "@/i18n/org/OrgLocaleProvider";
 import { localizedOrgErrorMessage } from "@/i18n/org/errorMessage";
-import { Info, LoaderCircle, Search } from "lucide-react";
+import { Info, LoaderCircle } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -19,6 +19,10 @@ import {
   getPreviousChatMessageDateKey,
 } from "@/components/chat/ChatTimeline";
 import { OrgAgentComposer } from "@/components/org/agent/OrgAgentComposer";
+import {
+  OrgTodoArea,
+  useOrgTodoShortcuts,
+} from "@/components/org/OrgTodoChip";
 import { OrgRoleSearchActivity } from "@/components/org/role-overview/OrgRoleSearchActivity";
 import {
   OrgAgentDateDivider,
@@ -41,7 +45,6 @@ import {
 } from "@/lib/org/agent/modelConfig";
 import {
   ORG_ROLE_QUICK_ACTION_IDLE_MS,
-  ORG_ROLE_CHAT_QUICK_ACTIONS,
   ORG_ROLE_RUN_SEARCH_ACTION,
   shouldShowOrgRoleQuickActions,
 } from "@/lib/org/roleQuickActions";
@@ -270,10 +273,9 @@ export function OrgAgentChatSurface({
     history.messages.findLast((message) => message.role === "user")
       ?.createdAt ??
     null;
-  const showRoleQuickActions = Boolean(
-    purpose === "role" &&
-    roleId &&
-    !readOnly &&
+  // Pipeline summary and Run Search appear as before: after an hour with no
+  // message from the team, and Run Search also while a search is running.
+  const showQuickActions = Boolean(
     !history.isLoading &&
     shouldShowOrgRoleQuickActions({
       isStreaming: chat.isStreaming,
@@ -281,39 +283,47 @@ export function OrgAgentChatSurface({
       now: quickActionClock,
     })
   );
+  // The To-do stays above the Role chat, also while Harper is answering.
+  const showRoleTodo = Boolean(
+    purpose === "role" && roleId && workspaceId && !readOnly
+  );
   const currentSearchKey = `${workspaceId}:${roleId ?? ""}`;
   const isRunSearchActive = Boolean(
     submittingSearchKey === currentSearchKey ||
     matchingSearchStatus.data?.active
   );
-  const visibleRoleQuickActions = showRoleQuickActions
-    ? ORG_ROLE_CHAT_QUICK_ACTIONS
-    : isRunSearchActive
-      ? [ORG_ROLE_RUN_SEARCH_ACTION]
-      : [];
-  const roleQuickActionCopy = {
-    pipeline_summary: {
-      label: c("Pipeline summary", "Pipeline summary"),
-      message: c(
-        "현재 연결된 후보자 파이프라인을 요약해서 설명해줘",
-        "Summarize the current candidate pipeline for this role."
-      ),
-    },
-    pending_intros: {
-      label: c("Pending intros", "Ready to connect"),
-      message: c(
-        "지금 결정이 필요한 연결 수락할 후보 목록을 알려줘",
-        "Show candidates in Ready to connect who need our decision."
-      ),
-    },
-    run_search: {
-      label: c("Run Search", "Run search"),
-      message: c(
-        ORG_ROLE_RUN_SEARCH_ACTION.message,
-        "Find more candidates for this role we might want to send an intro request to."
-      ),
-    },
+  const sendTodoMessage = (message: string) => {
+    setStickToBottom(true);
+    void chat.sendMessage({ attachments: [], mentions: [], message, model });
   };
+  // Pipeline summary and Run Search live in the To-do with Harper's suggestions.
+  const todoShortcuts = useOrgTodoShortcuts({
+    onRunSearch: () => {
+      const submissionKey = currentSearchKey;
+      setSubmittingSearchKey(submissionKey);
+      setStickToBottom(true);
+      void (async () => {
+        try {
+          await chat.sendMessage({
+            attachments: [],
+            mentions: [],
+            message: c(
+              ORG_ROLE_RUN_SEARCH_ACTION.message,
+              "Find more candidates for this role we might want to send an intro request to."
+            ),
+            model,
+          });
+        } finally {
+          await matchingSearchStatus.refetch();
+          setSubmittingSearchKey((current) =>
+            current === submissionKey ? null : current
+          );
+        }
+      })();
+    },
+    onSend: sendTodoMessage,
+    searching: isRunSearchActive,
+  });
 
   const handleModelChange = (nextModel: OrgAgentModelId) => {
     setModel(nextModel);
@@ -704,69 +714,17 @@ export function OrgAgentChatSurface({
               roleId={roleId}
             />
           ) : null}
-          {visibleRoleQuickActions.length > 0 ? (
-            <div className="mx-auto flex w-full max-w-[1120px] flex-wrap gap-2 px-4 pt-2 md:mb-1 md:px-5 md:pt-0">
-              {visibleRoleQuickActions.map((action) => {
-                const isRunSearchAction = action.id === "run_search";
-                const actionCopy = roleQuickActionCopy[action.id];
-                return (
-                  <MuteButton
-                    aria-busy={
-                      isRunSearchAction && isRunSearchActive ? true : undefined
-                    }
-                    className={cn(
-                      isRunSearchAction && isRunSearchActive
-                        ? "border-transparent bg-primary-faded text-primary shadow-none hover:border-transparent hover:bg-primary-faded active:border-transparent active:bg-primary-faded disabled:opacity-100"
-                        : "border-white bg-white text-black shadow-sm hover:border-white hover:bg-white/90 active:border-white active:bg-white/80"
-                    )}
-                    disabled={isRunSearchAction && isRunSearchActive}
-                    key={action.id}
-                    onClick={() => {
-                      setStickToBottom(true);
-                      const input = {
-                        attachments: [],
-                        mentions: [],
-                        message: actionCopy.message,
-                        model,
-                      };
-                      if (!isRunSearchAction) {
-                        void chat.sendMessage(input);
-                        return;
-                      }
-
-                      const submissionKey = currentSearchKey;
-                      setSubmittingSearchKey(submissionKey);
-                      void (async () => {
-                        try {
-                          await chat.sendMessage(input);
-                        } finally {
-                          await matchingSearchStatus.refetch();
-                          setSubmittingSearchKey((current) =>
-                            current === submissionKey ? null : current
-                          );
-                        }
-                      })();
-                    }}
-                    size="sm"
-                    type="button"
-                    variant="default"
-                  >
-                    {isRunSearchAction ? (
-                      isRunSearchActive ? (
-                        <LoaderCircle
-                          aria-hidden="true"
-                          className="h-3.5 w-3.5 animate-spin"
-                        />
-                      ) : (
-                        <Search aria-hidden="true" className="h-3.5 w-3.5" />
-                      )
-                    ) : null}
-                    {actionCopy.label}
-                  </MuteButton>
-                );
-              })}
-            </div>
-          ) : null}
+          {showRoleTodo && roleId && workspaceId ? (
+            <OrgTodoArea
+              onApprove={sendTodoMessage}
+              roleId={roleId}
+              shortcuts={todoShortcuts.filter(
+                (shortcut) =>
+                  showQuickActions ||
+                  (shortcut.id === "run_search" && isRunSearchActive)
+              )}
+              workspaceId={workspaceId}
+            >
           <OrgAgentComposer
             key={initialMessage}
             initialMessage={initialRoleCreation ? initialMessage : undefined}
@@ -794,6 +752,36 @@ export function OrgAgentChatSurface({
             suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
             workspaceId={workspaceId}
           />
+            </OrgTodoArea>
+          ) : (
+          <OrgAgentComposer
+            key={initialMessage}
+            initialMessage={initialRoleCreation ? initialMessage : undefined}
+            allowAttachments
+            autoFocus={autoFocus}
+            compactWidth={initialRoleCreation}
+            disabled={readOnly || !workspaceId}
+            isStreaming={chat.isStreaming}
+            model={model}
+            onModelChange={handleModelChange}
+            onSend={({ attachments, mentions, message }) => {
+              setStickToBottom(true);
+              return chat.sendMessage({
+                attachments,
+                draftRoleId:
+                  initialRoleCreation && typeof crypto !== "undefined"
+                    ? crypto.randomUUID()
+                    : null,
+                mentions,
+                message,
+                model,
+              });
+            }}
+            roleId={roleId}
+            suggestions={initialRoleCreation ? roleStartSuggestions : undefined}
+            workspaceId={workspaceId}
+          />
+          )}
         </div>
       </div>
     </section>
